@@ -44,8 +44,7 @@ void ThreadStateTracker::PushSchedSwitchEvent(int64_t event_ts,
   // we lost data and should close the slice accordingly.
   bool data_loss_cond =
       HasPreviousRowNumbersForUtid(prev_utid) &&
-      !IsRunning(RowNumToRef(prev_row_numbers_for_thread_[prev_utid]->last_row)
-                     .state());
+      !IsRunning(prev_row_numbers_for_thread_[prev_utid]->last_state);
   ClosePendingState(event_ts, prev_utid, data_loss_cond);
   AddOpenState(event_ts, prev_utid, prev_state);
 
@@ -72,13 +71,11 @@ void ThreadStateTracker::PushWakingEvent(int64_t event_ts,
     return;
   }
 
-  auto last_row_ref = RowNumToRef(prev_row_numbers_for_thread_[utid]->last_row);
-
   // Occasionally, it is possible to get a waking event for a thread
   // which is already in a runnable state. When this happens (or if the thread
   // is running), we just ignore the waking event. See b/186509316 for details
   // and an example on when this happens. Only blocked events can be waken up.
-  if (!IsBlocked(last_row_ref.state())) {
+  if (!IsBlocked(prev_row_numbers_for_thread_[utid]->last_state)) {
     // If we receive a waking event while we are not blocked, we ignore this
     // in the |thread_state| table but we track in the |sched_wakeup| table.
     // The |thread_state_id| in |sched_wakeup| is the current running/runnable
@@ -155,16 +152,17 @@ void ThreadStateTracker::AddOpenState(int64_t ts,
   }
 
   if (waker_utid.has_value() && HasPreviousRowNumbersForUtid(*waker_utid)) {
-    auto waker_row =
-        RowNumToRef(prev_row_numbers_for_thread_[*waker_utid]->last_row);
+    const auto& waker = *prev_row_numbers_for_thread_[*waker_utid];
 
     // We expect all wakers to be Running. But there are 2 cases where this
     // might not be true:
     // 1. At the start of a trace the 'waker CPU' has not yet started
     // emitting events.
     // 2. Data loss.
-    if (IsRunning(waker_row.state())) {
-      row.waker_id = std::make_optional(waker_row.id());
+    if (IsRunning(waker.last_state)) {
+      // Table IDs are absolute row numbers, even after storage eviction.
+      row.waker_id = std::make_optional(
+          tables::ThreadStateTable::Id{waker.last_row.row_number()});
     }
   }
 
@@ -175,15 +173,25 @@ void ThreadStateTracker::AddOpenState(int64_t ts,
   }
 
   if (!prev_row_numbers_for_thread_[utid].has_value()) {
-    prev_row_numbers_for_thread_[utid] = RelatedRows{std::nullopt, row_num};
+    prev_row_numbers_for_thread_[utid] =
+        RelatedRows{std::nullopt, row_num, ts, state};
   }
 
   if (IsRunning(state)) {
-    prev_row_numbers_for_thread_[utid] = RelatedRows{std::nullopt, row_num};
+    prev_row_numbers_for_thread_[utid] =
+        RelatedRows{std::nullopt, row_num, ts, state};
   } else if (IsBlocked(state)) {
-    prev_row_numbers_for_thread_[utid] = RelatedRows{row_num, row_num};
+    prev_row_numbers_for_thread_[utid] =
+        RelatedRows{row_num, row_num, ts, state};
   } else /* if (IsRunnable(state)) */ {
     prev_row_numbers_for_thread_[utid]->last_row = row_num;
+    prev_row_numbers_for_thread_[utid]->last_ts = ts;
+    prev_row_numbers_for_thread_[utid]->last_state = state;
+  }
+  if (PERFETTO_UNLIKELY(
+          context_->parser_config.experimental_ftrace_sched_frontier)) {
+    storage_->AdvanceFtraceThreadStateStorageFrontier(
+        context_->parser_config.streaming_frontier_batch_rows);
   }
 }
 
@@ -208,7 +216,7 @@ void ThreadStateTracker::ClosePendingState(int64_t end_ts,
 
   // Update the duration only for states without data loss.
   if (!data_loss) {
-    row_ref->set_dur(end_ts - row_ref->ts());
+    row_ref->set_dur(end_ts - prev_row_numbers_for_thread_[utid]->last_ts);
   }
 }
 
@@ -218,7 +226,8 @@ void ThreadStateTracker::PushThreadState(int64_t ts,
                                          std::optional<uint16_t> cpu) {
   ClosePendingState(ts, utid, false /*data_loss*/);
 
-  if (auto row_ref = GetLastRowRef(utid); row_ref && ts == row_ref->ts()) {
+  if (HasPreviousRowNumbersForUtid(utid) &&
+      ts == prev_row_numbers_for_thread_[utid]->last_ts) {
     // Detected two thread state event changes at the same time.
     context_->stats_tracker->IncrementStats(
         stats::generic_task_state_invalid_order);
@@ -239,6 +248,7 @@ void ThreadStateTracker::UpdatePendingState(
     return;
 
   row_ref->set_state(state);
+  prev_row_numbers_for_thread_[utid]->last_state = state;
   if (cpu)
     row_ref->set_ucpu(context_->cpu_tracker->GetOrCreateCpu(*cpu));
   if (waker_utid)
@@ -249,11 +259,9 @@ void ThreadStateTracker::UpdatePendingState(
 }
 
 StringId ThreadStateTracker::GetPrevEndState(UniqueTid utid) {
-  auto row_ref = GetLastRowRef(utid);
-  if (!row_ref)
-    return kNullStringId;
-
-  return row_ref->state();
+  return HasPreviousRowNumbersForUtid(utid)
+             ? prev_row_numbers_for_thread_[utid]->last_state
+             : kNullStringId;
 }
 
 bool ThreadStateTracker::IsRunning(StringId state) {

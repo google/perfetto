@@ -1,0 +1,1598 @@
+[
+  {
+    "table": "AndroidNetworkPacketsTable",
+    "sql_name": "__intrinsic_android_network_packets",
+    "retained": [],
+    "dropped": [
+      "id",
+      "iface",
+      "direction",
+      "packet_transport",
+      "packet_length",
+      "packet_count",
+      "socket_tag",
+      "socket_tag_str",
+      "socket_uid",
+      "local_port",
+      "remote_port",
+      "packet_icmp_type",
+      "packet_icmp_code",
+      "packet_tcp_flags",
+      "packet_tcp_flags_str"
+    ]
+  },
+  {
+    "table": "SliceTable",
+    "sql_name": "__intrinsic_slice",
+    "retained": [
+      "ts",
+      "dur",
+      "track_id",
+      "category",
+      "name",
+      "depth",
+      "parent_id",
+      "arg_set_id",
+      "thread_ts",
+      "thread_dur",
+      "thread_instruction_count",
+      "thread_instruction_delta"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "TrackEventCallstacksTable",
+    "sql_name": "__intrinsic_track_event_callstacks",
+    "retained": [
+      "callsite_id",
+      "end_callsite_id"
+    ],
+    "dropped": [
+      "slice_id",
+      "track_id",
+      "weight"
+    ]
+  },
+  {
+    "table": "StateTable",
+    "sql_name": "__intrinsic_state",
+    "retained": [
+      "ts",
+      "dur",
+      "track_id",
+      "category",
+      "value",
+      "arg_set_id"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "SpeRecordTable",
+    "sql_name": "__intrinsic_spe_record",
+    "retained": [],
+    "dropped": [
+      "ts",
+      "utid",
+      "exception_level",
+      "instruction_frame_id",
+      "operation",
+      "data_virtual_address",
+      "data_physical_address",
+      "total_latency",
+      "issue_latency",
+      "translation_latency",
+      "events_bitmask",
+      "data_source"
+    ]
+  },
+  {
+    "table": "MmapRecordTable",
+    "sql_name": "__intrinsic_mmap_record",
+    "retained": [
+      "ts",
+      "upid",
+      "mapping_id",
+      "file_id"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "CounterTable",
+    "sql_name": "__intrinsic_counter",
+    "retained": [
+      "ts",
+      "track_id",
+      "value",
+      "arg_set_id"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "AggregateProfileTable",
+    "sql_name": "__intrinsic_aggregate_profile",
+    "retained": [],
+    "dropped": [
+      "scope",
+      "name",
+      "sample_type_type",
+      "sample_type_unit"
+    ]
+  },
+  {
+    "table": "AggregateSampleTable",
+    "sql_name": "__intrinsic_aggregate_sample",
+    "retained": [],
+    "dropped": [
+      "aggregate_profile_id",
+      "callsite_id",
+      "value"
+    ]
+  },
+  {
+    "table": "ChromeStackSampleExtrasTable",
+    "sql_name": "__intrinsic_chrome_stack_sample_extras",
+    "retained": [
+      "profiler_sample_id",
+      "process_priority"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "ExperimentalFlamegraphTable",
+    "sql_name": "experimental_flamegraph",
+    "retained": [
+      "profile_type",
+      "upid",
+      "ts",
+      "depth",
+      "name",
+      "map_name",
+      "count",
+      "cumulative_count",
+      "size",
+      "cumulative_size",
+      "alloc_count",
+      "cumulative_alloc_count",
+      "alloc_size",
+      "cumulative_alloc_size",
+      "parent_id",
+      "source_file",
+      "line_number"
+    ],
+    "dropped": [
+      "ts_in",
+      "ts_constraint",
+      "upid_group",
+      "focus_str"
+    ]
+  },
+  {
+    "table": "GpuContextTable",
+    "sql_name": "__intrinsic_gpu_context",
+    "retained": [],
+    "dropped": [
+      "context_id",
+      "pid",
+      "api"
+    ]
+  },
+  {
+    "table": "GpuCounterGroupTable",
+    "sql_name": "__intrinsic_gpu_counter_group",
+    "retained": [],
+    "dropped": [
+      "group_id",
+      "track_id",
+      "name",
+      "description"
+    ]
+  },
+  {
+    "table": "HeapGraphClassTable",
+    "sql_name": "__intrinsic_heap_graph_class",
+    "retained": [
+      "name",
+      "deobfuscated_name",
+      "location",
+      "superclass_id",
+      "classloader_id",
+      "kind"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "HeapGraphJavaOomeDetailsTable",
+    "sql_name": "__intrinsic_heap_graph_java_oome_details",
+    "retained": [],
+    "dropped": [
+      "heap_graph_id",
+      "allocation_size_bytes",
+      "total_bytes_free",
+      "free_bytes_until_oom",
+      "error_msg"
+    ]
+  },
+  {
+    "table": "HeapGraphObjectDataTable",
+    "sql_name": "__intrinsic_heap_graph_object_data",
+    "retained": [],
+    "dropped": [
+      "field_set_id",
+      "value_string",
+      "array_element_type",
+      "array_element_count",
+      "array_data_id",
+      "array_data_hash"
+    ]
+  },
+  {
+    "table": "HeapGraphPrimitiveTable",
+    "sql_name": "__intrinsic_heap_graph_primitive",
+    "retained": [],
+    "dropped": [
+      "field_set_id",
+      "field_name",
+      "field_type",
+      "bool_value",
+      "byte_value",
+      "char_value",
+      "short_value",
+      "int_value",
+      "long_value",
+      "float_value",
+      "double_value"
+    ]
+  },
+  {
+    "table": "HeapGraphObjectTable",
+    "sql_name": "__intrinsic_heap_graph_object",
+    "retained": [
+      "upid",
+      "graph_sample_ts",
+      "self_size",
+      "native_size",
+      "reference_set_id",
+      "reachable",
+      "heap_type",
+      "type_id",
+      "root_type",
+      "root_distance",
+      "object_data_id"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "HeapGraphReferenceTable",
+    "sql_name": "__intrinsic_heap_graph_reference",
+    "retained": [
+      "reference_set_id",
+      "owner_id",
+      "owned_id",
+      "field_name",
+      "field_type_name",
+      "deobfuscated_field_name"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "HeapGraphTable",
+    "sql_name": "__intrinsic_heap_graph",
+    "retained": [
+      "ts",
+      "upid",
+      "dump_reason",
+      "heap_size",
+      "truncated"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "HeapGraphThreadCallsiteTable",
+    "sql_name": "__intrinsic_heap_graph_thread_callsite",
+    "retained": [
+      "heap_graph_id",
+      "callsite_id"
+    ],
+    "dropped": [
+      "utid"
+    ]
+  },
+  {
+    "table": "HeapProfileTable",
+    "sql_name": "__intrinsic_heap_profile",
+    "retained": [],
+    "dropped": [
+      "ts",
+      "ts_end",
+      "dur",
+      "upid",
+      "heap_name"
+    ]
+  },
+  {
+    "table": "HeapProfileAllocationTable",
+    "sql_name": "__intrinsic_heap_profile_allocation",
+    "retained": [
+      "ts",
+      "upid",
+      "callsite_id",
+      "count",
+      "size"
+    ],
+    "dropped": [
+      "heap_name"
+    ]
+  },
+  {
+    "table": "PackageListTable",
+    "sql_name": "__intrinsic_package_list",
+    "retained": [
+      "package_name",
+      "uid",
+      "debuggable",
+      "profileable_from_shell",
+      "profileable",
+      "version_code"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "ProfilerAsyncContextTable",
+    "sql_name": "__intrinsic_profiler_async_context",
+    "retained": [],
+    "dropped": [
+      "name",
+      "kind",
+      "parent_id"
+    ]
+  },
+  {
+    "table": "ProfilerCounterSetTable",
+    "sql_name": "__intrinsic_profiler_counter_set",
+    "retained": [
+      "counter_set_id",
+      "counter_id"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "ProfilerExecutionContextTable",
+    "sql_name": "__intrinsic_profiler_execution_context",
+    "retained": [],
+    "dropped": [
+      "ucpu",
+      "cpu_mode"
+    ]
+  },
+  {
+    "table": "ProfilerSampleTable",
+    "sql_name": "__intrinsic_profiler_sample",
+    "retained": [
+      "ts",
+      "task_context_id",
+      "execution_context_id",
+      "callsite_id",
+      "counter_set_id"
+    ],
+    "dropped": [
+      "source",
+      "unwind_error",
+      "session_id"
+    ]
+  },
+  {
+    "table": "ProfilerSessionTable",
+    "sql_name": "__intrinsic_profiler_session",
+    "retained": [
+      "timebase_unit",
+      "cmdline"
+    ],
+    "dropped": [
+      "source"
+    ]
+  },
+  {
+    "table": "ProfilerSmapsTable",
+    "sql_name": "__intrinsic_profiler_smaps",
+    "retained": [
+      "upid",
+      "ts",
+      "size_kb",
+      "private_dirty_kb",
+      "swap_kb",
+      "file_name",
+      "start_address",
+      "module_timestamp",
+      "module_debugid",
+      "module_debug_path",
+      "protection_flags",
+      "private_clean_resident_kb",
+      "shared_dirty_resident_kb",
+      "shared_clean_resident_kb",
+      "proportional_resident_kb"
+    ],
+    "dropped": [
+      "path",
+      "path_trimmed",
+      "aggregate_count",
+      "is_deleted",
+      "locked_kb",
+      "rss_kb",
+      "anonymous_kb",
+      "pss_dirty_kb",
+      "swap_pss_kb"
+    ]
+  },
+  {
+    "table": "ProfilerTaskContextTable",
+    "sql_name": "__intrinsic_profiler_task_context",
+    "retained": [
+      "upid",
+      "utid",
+      "async_context_id"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "StackProfileCallsiteTable",
+    "sql_name": "__intrinsic_stack_profile_callsite",
+    "retained": [
+      "depth",
+      "parent_id",
+      "frame_id"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "StackProfileFrameTable",
+    "sql_name": "__intrinsic_stack_profile_frame",
+    "retained": [
+      "name",
+      "mapping",
+      "rel_pc",
+      "symbol_set_id",
+      "deobfuscated_name",
+      "type"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "StackProfileMappingTable",
+    "sql_name": "__intrinsic_stack_profile_mapping",
+    "retained": [
+      "build_id",
+      "exact_offset",
+      "start_offset",
+      "start",
+      "end",
+      "load_bias",
+      "name"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "SymbolTable",
+    "sql_name": "__intrinsic_stack_profile_symbol",
+    "retained": [
+      "symbol_set_id",
+      "name",
+      "source_file",
+      "line_number"
+    ],
+    "dropped": [
+      "inlined"
+    ]
+  },
+  {
+    "table": "VulkanMemoryAllocationsTable",
+    "sql_name": "__intrinsic_vulkan_memory_allocations",
+    "retained": [
+      "arg_set_id"
+    ],
+    "dropped": [
+      "source",
+      "operation",
+      "timestamp",
+      "upid",
+      "device",
+      "device_memory",
+      "memory_type",
+      "heap",
+      "function_name",
+      "object_handle",
+      "memory_address",
+      "memory_size",
+      "scope"
+    ]
+  },
+  {
+    "table": "ExperimentalProtoContentTable",
+    "sql_name": "experimental_proto_content",
+    "retained": [],
+    "dropped": [
+      "path",
+      "path_id",
+      "total_size",
+      "size",
+      "count"
+    ]
+  },
+  {
+    "table": "ExperimentalProtoPathTable",
+    "sql_name": "experimental_proto_path",
+    "retained": [
+      "arg_set_id"
+    ],
+    "dropped": [
+      "parent_id",
+      "field_type",
+      "field_name"
+    ]
+  },
+  {
+    "table": "ArgTable",
+    "sql_name": "__intrinsic_args",
+    "retained": [
+      "arg_set_id",
+      "flat_key",
+      "key",
+      "int_value",
+      "string_value",
+      "real_value",
+      "value_type"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "BuildFlagsTable",
+    "sql_name": "__intrinsic_build_flags",
+    "retained": [],
+    "dropped": [
+      "name",
+      "enabled"
+    ]
+  },
+  {
+    "table": "ChromeRawTable",
+    "sql_name": "__intrinsic_chrome_raw",
+    "retained": [
+      "ts",
+      "name",
+      "utid",
+      "arg_set_id"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "ClockSnapshotTable",
+    "sql_name": "__intrinsic_clock_snapshot",
+    "retained": [
+      "ts",
+      "clock_id",
+      "clock_value"
+    ],
+    "dropped": [
+      "clock_name",
+      "snapshot_id",
+      "machine_id"
+    ]
+  },
+  {
+    "table": "CpuFreqTable",
+    "sql_name": "__intrinsic_cpu_freq",
+    "retained": [],
+    "dropped": [
+      "ucpu",
+      "freq"
+    ]
+  },
+  {
+    "table": "CpuTable",
+    "sql_name": "__intrinsic_cpu",
+    "retained": [
+      "cpu",
+      "cluster_id",
+      "processor",
+      "capacity",
+      "arg_set_id"
+    ],
+    "dropped": [
+      "machine_id"
+    ]
+  },
+  {
+    "table": "ExpMissingChromeProcTable",
+    "sql_name": "__intrinsic_experimental_missing_chrome_processes",
+    "retained": [],
+    "dropped": [
+      "upid",
+      "reliable_from"
+    ]
+  },
+  {
+    "table": "FiledescriptorTable",
+    "sql_name": "__intrinsic_filedescriptor",
+    "retained": [],
+    "dropped": [
+      "ufd",
+      "fd",
+      "ts",
+      "upid",
+      "path"
+    ]
+  },
+  {
+    "table": "FtraceEventTable",
+    "sql_name": "__intrinsic_ftrace_event",
+    "retained": [
+      "ts",
+      "name",
+      "utid",
+      "arg_set_id",
+      "ucpu"
+    ],
+    "dropped": [
+      "common_flags"
+    ]
+  },
+  {
+    "table": "GpuTable",
+    "sql_name": "__intrinsic_gpu",
+    "retained": [
+      "gpu",
+      "name",
+      "vendor",
+      "model",
+      "architecture",
+      "uuid",
+      "pci_bdf",
+      "arg_set_id"
+    ],
+    "dropped": [
+      "machine_id"
+    ]
+  },
+  {
+    "table": "InterruptMappingTable",
+    "sql_name": "_linux_interrupt_mapping",
+    "retained": [],
+    "dropped": [
+      "irq_id",
+      "name",
+      "machine_id"
+    ]
+  },
+  {
+    "table": "TraceImportLogsTable",
+    "sql_name": "__intrinsic_trace_import_logs",
+    "retained": [
+      "arg_set_id"
+    ],
+    "dropped": [
+      "trace_id",
+      "ts",
+      "byte_offset",
+      "stat_key"
+    ]
+  },
+  {
+    "table": "MachineTable",
+    "sql_name": "__intrinsic_machine",
+    "retained": [
+      "raw_id",
+      "name",
+      "sysname",
+      "release",
+      "version",
+      "arch",
+      "num_cpus",
+      "android_build_fingerprint",
+      "android_device_manufacturer",
+      "android_sdk_version",
+      "system_ram_bytes",
+      "system_ram_gb"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "MetadataTable",
+    "sql_name": "__intrinsic_metadata",
+    "retained": [
+      "name",
+      "int_value",
+      "str_value",
+      "machine_id",
+      "trace_id"
+    ],
+    "dropped": [
+      "key_type"
+    ]
+  },
+  {
+    "table": "StatsTable",
+    "sql_name": "__intrinsic_stats",
+    "retained": [
+      "name",
+      "key",
+      "idx",
+      "severity",
+      "source",
+      "value",
+      "description",
+      "machine_id",
+      "trace_id"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "ModulesTable",
+    "sql_name": "__intrinsic_modules",
+    "retained": [],
+    "dropped": [
+      "name"
+    ]
+  },
+  {
+    "table": "ProcessTable",
+    "sql_name": "__intrinsic_process",
+    "retained": [
+      "pid",
+      "name",
+      "start_ts",
+      "end_ts",
+      "parent_upid",
+      "uid",
+      "android_appid",
+      "android_user_id",
+      "cmdline",
+      "arg_set_id"
+    ],
+    "dropped": [
+      "machine_id"
+    ]
+  },
+  {
+    "table": "ThreadTable",
+    "sql_name": "__intrinsic_thread",
+    "retained": [
+      "tid",
+      "name",
+      "start_ts",
+      "end_ts",
+      "upid",
+      "is_main_thread",
+      "is_idle",
+      "machine_id",
+      "arg_set_id"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "TraceDiagnosticsTable",
+    "sql_name": "__intrinsic_trace_diagnostics",
+    "retained": [],
+    "dropped": [
+      "key",
+      "title",
+      "description",
+      "remediation",
+      "confidence",
+      "trace_id"
+    ]
+  },
+  {
+    "table": "TraceFileTable",
+    "sql_name": "__intrinsic_trace_file",
+    "retained": [
+      "parent_id",
+      "name",
+      "size",
+      "trace_type",
+      "processing_order",
+      "is_container"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "TrackTable",
+    "sql_name": "__intrinsic_track",
+    "retained": [
+      "name",
+      "parent_id",
+      "source_arg_set_id",
+      "type",
+      "dimension_arg_set_id",
+      "track_group_id",
+      "utid",
+      "upid"
+    ],
+    "dropped": [
+      "machine_id",
+      "event_type",
+      "counter_unit"
+    ]
+  },
+  {
+    "table": "JitCodeTable",
+    "sql_name": "__intrinsic_jit_code",
+    "retained": [
+      "create_ts",
+      "estimated_delete_ts",
+      "utid",
+      "start_address",
+      "size",
+      "function_name"
+    ],
+    "dropped": [
+      "native_code_base64"
+    ]
+  },
+  {
+    "table": "JitFrameTable",
+    "sql_name": "__intrinsic_jit_frame",
+    "retained": [
+      "jit_code_id",
+      "frame_id"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "MemorySnapshotEdgeTable",
+    "sql_name": "__intrinsic_memory_snapshot_edge",
+    "retained": [
+      "source_node_id",
+      "target_node_id",
+      "importance"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "MemorySnapshotNodeTable",
+    "sql_name": "__intrinsic_memory_snapshot_node",
+    "retained": [
+      "process_snapshot_id",
+      "path",
+      "size",
+      "effective_size",
+      "arg_set_id"
+    ],
+    "dropped": [
+      "parent_node_id"
+    ]
+  },
+  {
+    "table": "MemorySnapshotTable",
+    "sql_name": "__intrinsic_memory_snapshot",
+    "retained": [
+      "timestamp",
+      "detail_level"
+    ],
+    "dropped": [
+      "track_id"
+    ]
+  },
+  {
+    "table": "ProcessMemorySnapshotTable",
+    "sql_name": "__intrinsic_process_memory_snapshot",
+    "retained": [
+      "snapshot_id",
+      "upid"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "EtmV4ConfigurationTable",
+    "sql_name": "__intrinsic_etm_v4_configuration",
+    "retained": [
+      "cpu",
+      "cs_trace_stream_id"
+    ],
+    "dropped": [
+      "set_id",
+      "core_profile",
+      "arch_version",
+      "major_version",
+      "minor_version",
+      "max_speculation_depth",
+      "bool_flags"
+    ]
+  },
+  {
+    "table": "EtmV4ChunkTable",
+    "sql_name": "__intrinsic_etm_v4_chunk",
+    "retained": [
+      "session_id"
+    ],
+    "dropped": [
+      "chunk_set_id",
+      "size"
+    ]
+  },
+  {
+    "table": "EtmV4SessionTable",
+    "sql_name": "__intrinsic_etm_v4_session",
+    "retained": [
+      "configuration_id",
+      "start_ts"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "FileTable",
+    "sql_name": "__intrinsic_file",
+    "retained": [
+      "size",
+      "trace_type"
+    ],
+    "dropped": [
+      "name"
+    ]
+  },
+  {
+    "table": "ElfFileTable",
+    "sql_name": "__intrinsic_elf_file",
+    "retained": [
+      "file_id"
+    ],
+    "dropped": [
+      "load_bias",
+      "build_id"
+    ]
+  },
+  {
+    "table": "SchedSliceTable",
+    "sql_name": "__intrinsic_sched_slice",
+    "retained": [
+      "ts",
+      "dur",
+      "utid"
+    ],
+    "dropped": [
+      "priority",
+      "ucpu",
+      "end_state"
+    ]
+  },
+  {
+    "table": "SpuriousSchedWakeupTable",
+    "sql_name": "__intrinsic_spurious_sched_wakeup",
+    "retained": [],
+    "dropped": [
+      "ts",
+      "thread_state_id",
+      "irq_context",
+      "utid",
+      "waker_utid"
+    ]
+  },
+  {
+    "table": "ThreadStateTable",
+    "sql_name": "__intrinsic_thread_state",
+    "retained": [
+      "ts",
+      "dur",
+      "utid",
+      "state",
+      "io_wait",
+      "blocked_function",
+      "waker_utid",
+      "waker_id",
+      "irq_context",
+      "ucpu"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "V8IsolateTable",
+    "sql_name": "__intrinsic_v8_isolate",
+    "retained": [
+      "upid"
+    ],
+    "dropped": [
+      "internal_isolate_id",
+      "embedded_blob_code_start_address",
+      "embedded_blob_code_size",
+      "code_range_base_address",
+      "code_range_size",
+      "shared_code_range",
+      "embedded_blob_code_copy_start_address"
+    ]
+  },
+  {
+    "table": "V8JsScriptTable",
+    "sql_name": "__intrinsic_v8_js_script",
+    "retained": [
+      "name"
+    ],
+    "dropped": [
+      "v8_isolate_id",
+      "internal_script_id",
+      "script_type",
+      "source"
+    ]
+  },
+  {
+    "table": "V8WasmScriptTable",
+    "sql_name": "__intrinsic_v8_wasm_script",
+    "retained": [],
+    "dropped": [
+      "v8_isolate_id",
+      "internal_script_id",
+      "url",
+      "wire_bytes_base64",
+      "source"
+    ]
+  },
+  {
+    "table": "V8JsFunctionTable",
+    "sql_name": "__intrinsic_v8_js_function",
+    "retained": [
+      "name",
+      "v8_js_script_id",
+      "line",
+      "col"
+    ],
+    "dropped": [
+      "is_toplevel",
+      "kind"
+    ]
+  },
+  {
+    "table": "V8JsCodeTable",
+    "sql_name": "__intrinsic_v8_js_code",
+    "retained": [
+      "v8_js_function_id",
+      "tier"
+    ],
+    "dropped": [
+      "jit_code_id",
+      "bytecode_base64"
+    ]
+  },
+  {
+    "table": "V8InternalCodeTable",
+    "sql_name": "__intrinsic_v8_internal_code",
+    "retained": [
+      "function_name"
+    ],
+    "dropped": [
+      "jit_code_id",
+      "v8_isolate_id",
+      "code_type"
+    ]
+  },
+  {
+    "table": "V8WasmCodeTable",
+    "sql_name": "__intrinsic_v8_wasm_code",
+    "retained": [
+      "function_name"
+    ],
+    "dropped": [
+      "jit_code_id",
+      "v8_isolate_id",
+      "v8_wasm_script_id",
+      "tier",
+      "code_offset_in_module"
+    ]
+  },
+  {
+    "table": "V8RegexpCodeTable",
+    "sql_name": "__intrinsic_v8_regexp_code",
+    "retained": [
+      "pattern"
+    ],
+    "dropped": [
+      "jit_code_id",
+      "v8_isolate_id"
+    ]
+  },
+  {
+    "table": "WinscopeRectTable",
+    "sql_name": "__intrinsic_winscope_rect",
+    "retained": [],
+    "dropped": [
+      "x",
+      "y",
+      "w",
+      "h"
+    ]
+  },
+  {
+    "table": "WinscopeTransformTable",
+    "sql_name": "__intrinsic_winscope_transform",
+    "retained": [],
+    "dropped": [
+      "dsdx",
+      "dtdx",
+      "tx",
+      "dtdy",
+      "dsdy",
+      "ty"
+    ]
+  },
+  {
+    "table": "WinscopeTraceRectTable",
+    "sql_name": "__intrinsic_winscope_trace_rect",
+    "retained": [],
+    "dropped": [
+      "rect_id",
+      "group_id",
+      "depth",
+      "is_spy",
+      "is_visible",
+      "opacity",
+      "transform_id",
+      "border_width",
+      "border_color"
+    ]
+  },
+  {
+    "table": "InputMethodClientsTable",
+    "sql_name": "__intrinsic_inputmethod_clients",
+    "retained": [
+      "arg_set_id",
+      "base64_proto_id"
+    ],
+    "dropped": [
+      "ts"
+    ]
+  },
+  {
+    "table": "InputMethodManagerServiceTable",
+    "sql_name": "__intrinsic_inputmethod_manager_service",
+    "retained": [
+      "arg_set_id",
+      "base64_proto_id"
+    ],
+    "dropped": [
+      "ts"
+    ]
+  },
+  {
+    "table": "InputMethodServiceTable",
+    "sql_name": "__intrinsic_inputmethod_service",
+    "retained": [
+      "arg_set_id",
+      "base64_proto_id"
+    ],
+    "dropped": [
+      "ts"
+    ]
+  },
+  {
+    "table": "SurfaceFlingerLayersSnapshotTable",
+    "sql_name": "__intrinsic_surfaceflinger_layers_snapshot",
+    "retained": [
+      "arg_set_id",
+      "base64_proto_id"
+    ],
+    "dropped": [
+      "ts",
+      "sequence_id",
+      "has_invalid_elapsed_ts"
+    ]
+  },
+  {
+    "table": "SurfaceFlingerDisplayTable",
+    "sql_name": "__intrinsic_surfaceflinger_display",
+    "retained": [],
+    "dropped": [
+      "snapshot_id",
+      "is_on",
+      "is_virtual",
+      "trace_rect_id",
+      "display_id",
+      "display_name"
+    ]
+  },
+  {
+    "table": "SurfaceFlingerLayerTable",
+    "sql_name": "__intrinsic_surfaceflinger_layer",
+    "retained": [
+      "arg_set_id",
+      "base64_proto_id"
+    ],
+    "dropped": [
+      "snapshot_id",
+      "layer_id",
+      "layer_name",
+      "is_visible",
+      "parent",
+      "corner_radius_tl",
+      "corner_radius_tr",
+      "corner_radius_bl",
+      "corner_radius_br",
+      "hwc_composition_type",
+      "is_hidden_by_policy",
+      "z_order_relative_of",
+      "is_missing_z_parent",
+      "layer_rect_id",
+      "input_rect_id"
+    ]
+  },
+  {
+    "table": "WinscopeFillRegionTable",
+    "sql_name": "__intrinsic_winscope_fill_region",
+    "retained": [],
+    "dropped": [
+      "trace_rect_id",
+      "rect_id"
+    ]
+  },
+  {
+    "table": "SurfaceFlingerTransactionsTable",
+    "sql_name": "__intrinsic_surfaceflinger_transactions",
+    "retained": [
+      "arg_set_id",
+      "base64_proto_id"
+    ],
+    "dropped": [
+      "ts",
+      "vsync_id"
+    ]
+  },
+  {
+    "table": "SurfaceFlingerTransactionTable",
+    "sql_name": "__intrinsic_surfaceflinger_transaction",
+    "retained": [
+      "arg_set_id",
+      "base64_proto_id"
+    ],
+    "dropped": [
+      "snapshot_id",
+      "transaction_id",
+      "pid",
+      "uid",
+      "layer_id",
+      "display_id",
+      "flags_id",
+      "transaction_type"
+    ]
+  },
+  {
+    "table": "SurfaceFlingerTransactionFlagTable",
+    "sql_name": "__intrinsic_surfaceflinger_transaction_flag",
+    "retained": [],
+    "dropped": [
+      "flags_id",
+      "flag"
+    ]
+  },
+  {
+    "table": "ViewCaptureTable",
+    "sql_name": "__intrinsic_viewcapture",
+    "retained": [
+      "arg_set_id",
+      "base64_proto_id",
+      "package_name",
+      "window_name"
+    ],
+    "dropped": [
+      "ts"
+    ]
+  },
+  {
+    "table": "ViewCaptureViewTable",
+    "sql_name": "__intrinsic_viewcapture_view",
+    "retained": [
+      "arg_set_id",
+      "base64_proto_id",
+      "view_id",
+      "class_name"
+    ],
+    "dropped": [
+      "snapshot_id",
+      "node_id",
+      "hashcode",
+      "is_visible",
+      "parent_id",
+      "trace_rect_id"
+    ]
+  },
+  {
+    "table": "ViewCaptureInternedDataTable",
+    "sql_name": "__intrinsic_viewcapture_interned_data",
+    "retained": [
+      "base64_proto_id",
+      "flat_key",
+      "iid",
+      "deinterned_value"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "WindowManagerShellTransitionsTable",
+    "sql_name": "__intrinsic_window_manager_shell_transitions",
+    "retained": [
+      "ts",
+      "arg_set_id",
+      "transition_type",
+      "send_time_ns",
+      "dispatch_time_ns",
+      "duration_ns",
+      "finish_time_ns",
+      "shell_abort_time_ns",
+      "wm_abort_time_ns",
+      "merge_time_ns",
+      "create_time_ns",
+      "handler",
+      "status",
+      "flags",
+      "start_transaction_id",
+      "finish_transaction_id"
+    ],
+    "dropped": [
+      "transition_id"
+    ]
+  },
+  {
+    "table": "WindowManagerShellTransitionHandlersTable",
+    "sql_name": "__intrinsic_window_manager_shell_transition_handlers",
+    "retained": [
+      "base64_proto_id"
+    ],
+    "dropped": [
+      "handler_id",
+      "handler_name"
+    ]
+  },
+  {
+    "table": "WindowManagerShellTransitionParticipantsTable",
+    "sql_name": "__intrinsic_window_manager_shell_transition_participants",
+    "retained": [],
+    "dropped": [
+      "transition_id",
+      "layer_id",
+      "window_id",
+      "mode",
+      "flags",
+      "start_display_id",
+      "end_display_id",
+      "start_rotation",
+      "end_rotation",
+      "start_abs_bounds_rect_id",
+      "end_abs_bounds_rect_id"
+    ]
+  },
+  {
+    "table": "WindowManagerShellTransitionProtosTable",
+    "sql_name": "__intrinsic_window_manager_shell_transition_protos",
+    "retained": [
+      "transition_id",
+      "base64_proto_id"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "WindowManagerTable",
+    "sql_name": "__intrinsic_windowmanager",
+    "retained": [
+      "arg_set_id",
+      "base64_proto_id"
+    ],
+    "dropped": [
+      "ts",
+      "focused_display_id",
+      "has_invalid_elapsed_ts"
+    ]
+  },
+  {
+    "table": "WindowManagerWindowContainerTable",
+    "sql_name": "__intrinsic_windowmanager_windowcontainer",
+    "retained": [
+      "arg_set_id",
+      "base64_proto_id",
+      "title",
+      "token",
+      "parent_token",
+      "child_index",
+      "is_visible",
+      "window_rect_id",
+      "container_type"
+    ],
+    "dropped": [
+      "snapshot_id",
+      "name_override"
+    ]
+  },
+  {
+    "table": "ProtoLogTable",
+    "sql_name": "__intrinsic_protolog",
+    "retained": [
+      "ts",
+      "level",
+      "tag",
+      "message",
+      "stacktrace",
+      "location"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "FlowTable",
+    "sql_name": "__intrinsic_flow",
+    "retained": [
+      "slice_out",
+      "slice_in",
+      "trace_id",
+      "arg_set_id"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "LogTable",
+    "sql_name": "__intrinsic_logs",
+    "retained": [
+      "ts",
+      "utid",
+      "prio",
+      "log_source",
+      "tag",
+      "msg",
+      "arg_set_id"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "AndroidAflagsTable",
+    "sql_name": "__intrinsic_android_aflags",
+    "retained": [],
+    "dropped": [
+      "ts",
+      "package",
+      "name",
+      "flag_namespace",
+      "container",
+      "value",
+      "staged_value",
+      "permission",
+      "value_picked_from",
+      "storage_backend",
+      "type"
+    ]
+  },
+  {
+    "table": "AndroidCpuPerUidTrackTable",
+    "sql_name": "__intrinsic_android_cpu_per_uid_track",
+    "retained": [
+      "track_id",
+      "uid",
+      "cluster",
+      "total_cpu_millis"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "AndroidDumpstateTable",
+    "sql_name": "__intrinsic_android_dumpstate",
+    "retained": [],
+    "dropped": [
+      "section",
+      "service",
+      "line"
+    ]
+  },
+  {
+    "table": "AndroidGameInterventionListTable",
+    "sql_name": "__intrinsic_android_game_intervention_list",
+    "retained": [],
+    "dropped": [
+      "package_name",
+      "uid",
+      "current_mode",
+      "standard_mode_supported",
+      "standard_mode_downscale",
+      "standard_mode_use_angle",
+      "standard_mode_fps",
+      "perf_mode_supported",
+      "perf_mode_downscale",
+      "perf_mode_use_angle",
+      "perf_mode_fps",
+      "battery_mode_supported",
+      "battery_mode_downscale",
+      "battery_mode_use_angle",
+      "battery_mode_fps"
+    ]
+  },
+  {
+    "table": "AndroidInputEventDispatchTable",
+    "sql_name": "__intrinsic_android_input_event_dispatch",
+    "retained": [
+      "arg_set_id",
+      "base64_proto_id"
+    ],
+    "dropped": [
+      "event_id",
+      "vsync_id",
+      "window_id"
+    ]
+  },
+  {
+    "table": "AndroidJobSchedulerTrackEventTable",
+    "sql_name": "__intrinsic_android_job_scheduler_track_events",
+    "retained": [
+      "ts",
+      "slice_id",
+      "job_id",
+      "uid",
+      "proxy_uid",
+      "state",
+      "standby_bucket",
+      "requested_priority",
+      "effective_priority",
+      "num_previous_attempts",
+      "deadline_ms",
+      "delay_ms",
+      "job_start_latency_ms",
+      "num_uncompleted_work_items",
+      "proc_state",
+      "internal_stop_reason",
+      "public_stop_reason",
+      "periodic_job_interval_ms",
+      "periodic_job_flex_interval_ms",
+      "job_name",
+      "num_reschedules_due_to_abandonment",
+      "back_off_policy_type",
+      "has_charging_constraint",
+      "has_battery_not_low_constraint",
+      "has_storage_not_low_constraint",
+      "has_timing_delay_constraint",
+      "has_deadline_constraint",
+      "has_idle_constraint",
+      "has_connectivity_constraint",
+      "has_content_trigger_constraint",
+      "is_requested_expedited_job",
+      "is_running_as_expedited_job",
+      "is_prefetch",
+      "is_requested_as_user_initiated_job",
+      "is_running_as_user_initiated_job",
+      "is_periodic",
+      "has_flexibility_constraint",
+      "can_apply_transport_affinities"
+    ],
+    "dropped": []
+  },
+  {
+    "table": "AndroidKeyEventsTable",
+    "sql_name": "__intrinsic_android_key_events",
+    "retained": [
+      "arg_set_id",
+      "base64_proto_id"
+    ],
+    "dropped": [
+      "event_id",
+      "ts",
+      "source",
+      "action",
+      "device_id",
+      "display_id",
+      "key_code"
+    ]
+  },
+  {
+    "table": "AndroidMotionEventsTable",
+    "sql_name": "__intrinsic_android_motion_events",
+    "retained": [
+      "arg_set_id",
+      "base64_proto_id"
+    ],
+    "dropped": [
+      "event_id",
+      "ts",
+      "source",
+      "action",
+      "device_id",
+      "display_id"
+    ]
+  },
+  {
+    "table": "AndroidUserListTable",
+    "sql_name": "__intrinsic_android_user_list",
+    "retained": [
+      "type"
+    ],
+    "dropped": [
+      "android_user_id"
+    ]
+  }
+]

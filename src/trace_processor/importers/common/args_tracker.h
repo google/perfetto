@@ -256,14 +256,14 @@ class ArgsTracker {
 
   BoundInserter AddArgsTo(MetadataId id) {
     auto* table = context_->storage->mutable_metadata_table();
-    uint32_t row = (*table)[id].ToRowNumber().row_number();
+    uint32_t row = id.value;
     return Bind(&table->dataframe(),
                 tables::MetadataTable::ColumnIndex::int_value, row, id.value);
   }
 
   BoundInserter AddArgsTo(TrackId id) {
     auto* table = context_->storage->mutable_track_table();
-    uint32_t row = (*table)[id].ToRowNumber().row_number();
+    uint32_t row = id.value;
     return Bind(&table->dataframe(),
                 tables::TrackTable::ColumnIndex::source_arg_set_id, row,
                 id.value);
@@ -310,7 +310,7 @@ class ArgsTracker {
  private:
   template <typename T>
   BoundInserter AddArgsTo(T* table, typename T::Id id) {
-    uint32_t row = (*table)[id].ToRowNumber().row_number();
+    uint32_t row = id.value;
     return Bind(&table->dataframe(), T::ColumnIndex::arg_set_id, row, id.value);
   }
 

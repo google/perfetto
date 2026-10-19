@@ -1,0 +1,4 @@
+ninja: Entering directory `out/mac_release'
+[0/1] Regenerating ninja files
+[1/2] compile ../../src/trace_processor/trace_processor_storage_impl.cc
+[2/2] link ./streaming_parser_benchmark

@@ -1,0 +1,55 @@
+Running main() from ../../buildtools/googletest/googletest/src/gtest_main.cc
+Note: Google Test filter = DataframeStreamingTest.*:StreamingTablesTest.*
+[==========] Running 9 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 3 tests from StreamingTablesTest
+[ RUN      ] StreamingTablesTest.GeneratedTypedSinkAndStorageMask
+[       OK ] StreamingTablesTest.GeneratedTypedSinkAndStorageMask (3 ms)
+[ RUN      ] StreamingTablesTest.JsonParserProducesSameSinkRecordsWithEmptyColumns
+[238.509] ing_trace_parser.cc:101 json trace detected
+[238.565] ing_trace_parser.cc:101 json trace detected
+[       OK ] StreamingTablesTest.JsonParserProducesSameSinkRecordsWithEmptyColumns (101 ms)
+[ RUN      ] StreamingTablesTest.ProtoTrackEventsAndSchedulingProduceSameSinkRecords
+[238.595] ing_trace_parser.cc:101 proto trace detected
+[238.618]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.619]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.619]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.619]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.619]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.621]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.621]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.621]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.621]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.621]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.712] ing_trace_parser.cc:101 proto trace detected
+[238.735]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.735]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.735]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.735]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.735]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.738]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.738]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.738]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.738]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[238.738]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[       OK ] StreamingTablesTest.ProtoTrackEventsAndSchedulingProduceSameSinkRecords (216 ms)
+[----------] 3 tests from StreamingTablesTest (320 ms total)
+
+[----------] 6 tests from DataframeStreamingTest
+[ RUN      ] DataframeStreamingTest.EmptyColumnsStillReachSinkAndIdsAdvance
+[       OK ] DataframeStreamingTest.EmptyColumnsStillReachSinkAndIdsAdvance (0 ms)
+[ RUN      ] DataframeStreamingTest.TypedCursorAndGenericUpdatesReachSink
+[       OK ] DataframeStreamingTest.TypedCursorAndGenericUpdatesReachSink (0 ms)
+[ RUN      ] DataframeStreamingTest.QueriesRejectOmittedColumns
+[       OK ] DataframeStreamingTest.QueriesRejectOmittedColumns (0 ms)
+[ RUN      ] DataframeStreamingTest.PrefixEvictionPreservesAbsoluteIdsAndNullableData
+[       OK ] DataframeStreamingTest.PrefixEvictionPreservesAbsoluteIdsAndNullableData (1 ms)
+[ RUN      ] DataframeStreamingTest.PrefixWindowReclaimsAllocation
+[       OK ] DataframeStreamingTest.PrefixWindowReclaimsAllocation (9 ms)
+[ RUN      ] DataframeStreamingTest.InvalidRetentionAccessAndReentrantMutationFail
+[       OK ] DataframeStreamingTest.InvalidRetentionAccessAndReentrantMutationFail (4 ms)
+[----------] 6 tests from DataframeStreamingTest (14 ms total)
+
+[----------] Global test environment tear-down
+[==========] 9 tests from 2 test suites ran. (334 ms total)
+[  PASSED  ] 9 tests.

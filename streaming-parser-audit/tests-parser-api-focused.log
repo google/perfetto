@@ -1,0 +1,111 @@
+Running main() from ../../buildtools/googletest/googletest/src/gtest_main.cc
+Note: Google Test filter = StreamingTablesTest.*:DataframeStreamingTest.*:SliceTrackerTest.*:FlowTrackerTest.*
+[==========] Running 39 tests from 4 test suites.
+[----------] Global test environment set-up.
+[----------] 9 tests from StreamingTablesTest
+[ RUN      ] StreamingTablesTest.GeneratedTypedSinkAndStorageMask
+[       OK ] StreamingTablesTest.GeneratedTypedSinkAndStorageMask (3 ms)
+[ RUN      ] StreamingTablesTest.JsonParserProducesSameSinkRecordsWithEmptyColumns
+[203.558] ing_trace_parser.cc:101 json trace detected
+[203.568] ing_trace_parser.cc:101 json trace detected
+[       OK ] StreamingTablesTest.JsonParserProducesSameSinkRecordsWithEmptyColumns (21 ms)
+[ RUN      ] StreamingTablesTest.ProtoTrackEventsAndSchedulingProduceSameSinkRecords
+[203.578] ing_trace_parser.cc:101 proto trace detected
+[203.590] ing_trace_parser.cc:101 proto trace detected
+[       OK ] StreamingTablesTest.ProtoTrackEventsAndSchedulingProduceSameSinkRecords (25 ms)
+[ RUN      ] StreamingTablesTest.FtraceFrontierAdvancesAndKeepsSinkRecords
+[203.621] ing_trace_parser.cc:101 proto trace detected
+[203.762] ing_trace_parser.cc:101 proto trace detected
+[203.934] ing_trace_parser.cc:101 proto trace detected
+[204.074] ing_trace_parser.cc:101 proto trace detected
+[       OK ] StreamingTablesTest.FtraceFrontierAdvancesAndKeepsSinkRecords (626 ms)
+[ RUN      ] StreamingTablesTest.ThreadStateHistoryStreamsLatePatchesAndWakerIds
+[       OK ] StreamingTablesTest.ThreadStateHistoryStreamsLatePatchesAndWakerIds (36 ms)
+[ RUN      ] StreamingTablesTest.JsonSlicesArgsAndFlowsSurviveLongOpenParentEviction
+[204.268] ing_trace_parser.cc:101 json trace detected
+[204.381] ing_trace_parser.cc:101 json trace detected
+[       OK ] StreamingTablesTest.JsonSlicesArgsAndFlowsSurviveLongOpenParentEviction (229 ms)
+[ RUN      ] StreamingTablesTest.ProtoSliceThreadCountersPatchEvictedParent
+[204.499] ing_trace_parser.cc:101 proto trace detected
+[204.553] ing_trace_parser.cc:101 proto trace detected
+[       OK ] StreamingTablesTest.ProtoSliceThreadCountersPatchEvictedParent (118 ms)
+[ RUN      ] StreamingTablesTest.PublicParserEntrypointAndLifecycle
+[204.612] ing_trace_parser.cc:101 json trace detected
+[       OK ] StreamingTablesTest.PublicParserEntrypointAndLifecycle (6 ms)
+[ RUN      ] StreamingTablesTest.PublicParserErrorsAreSticky
+[       OK ] StreamingTablesTest.PublicParserErrorsAreSticky (2 ms)
+[----------] 9 tests from StreamingTablesTest (1066 ms total)
+
+[----------] 7 tests from DataframeStreamingTest
+[ RUN      ] DataframeStreamingTest.EmptyColumnsStillReachSinkAndIdsAdvance
+[       OK ] DataframeStreamingTest.EmptyColumnsStillReachSinkAndIdsAdvance (0 ms)
+[ RUN      ] DataframeStreamingTest.TypedCursorAndGenericUpdatesReachSink
+[       OK ] DataframeStreamingTest.TypedCursorAndGenericUpdatesReachSink (0 ms)
+[ RUN      ] DataframeStreamingTest.QueriesRejectOmittedColumns
+[       OK ] DataframeStreamingTest.QueriesRejectOmittedColumns (0 ms)
+[ RUN      ] DataframeStreamingTest.PrefixEvictionPreservesAbsoluteIdsAndNullableData
+[       OK ] DataframeStreamingTest.PrefixEvictionPreservesAbsoluteIdsAndNullableData (0 ms)
+[ RUN      ] DataframeStreamingTest.PrefixWindowReclaimsAllocation
+[       OK ] DataframeStreamingTest.PrefixWindowReclaimsAllocation (10 ms)
+[ RUN      ] DataframeStreamingTest.EvictedRowsAcceptTypedAndGenericBackPatches
+[       OK ] DataframeStreamingTest.EvictedRowsAcceptTypedAndGenericBackPatches (4 ms)
+[ RUN      ] DataframeStreamingTest.InvalidRetentionAccessAndReentrantMutationFail
+[       OK ] DataframeStreamingTest.InvalidRetentionAccessAndReentrantMutationFail (3 ms)
+[----------] 7 tests from DataframeStreamingTest (17 ms total)
+
+[----------] 7 tests from FlowTrackerTest
+[ RUN      ] FlowTrackerTest.SingleFlowEventExplicitInSliceBinding
+[       OK ] FlowTrackerTest.SingleFlowEventExplicitInSliceBinding (2 ms)
+[ RUN      ] FlowTrackerTest.SingleFlowEventWaitForNextSlice
+[       OK ] FlowTrackerTest.SingleFlowEventWaitForNextSlice (2 ms)
+[ RUN      ] FlowTrackerTest.SingleFlowEventWaitForNextSliceScoped
+[       OK ] FlowTrackerTest.SingleFlowEventWaitForNextSliceScoped (1 ms)
+[ RUN      ] FlowTrackerTest.TwoFlowEventsWaitForNextSlice
+[       OK ] FlowTrackerTest.TwoFlowEventsWaitForNextSlice (2 ms)
+[ RUN      ] FlowTrackerTest.TwoFlowEventsSliceInSlice
+[       OK ] FlowTrackerTest.TwoFlowEventsSliceInSlice (1 ms)
+[ RUN      ] FlowTrackerTest.FlowEventsWithStep
+[       OK ] FlowTrackerTest.FlowEventsWithStep (2 ms)
+[ RUN      ] FlowTrackerTest.FlowDirectionCorrectedByTimestamp
+[       OK ] FlowTrackerTest.FlowDirectionCorrectedByTimestamp (2 ms)
+[----------] 7 tests from FlowTrackerTest (12 ms total)
+
+[----------] 16 tests from SliceTrackerTest
+[ RUN      ] SliceTrackerTest.OneSliceDetailed
+[       OK ] SliceTrackerTest.OneSliceDetailed (1 ms)
+[ RUN      ] SliceTrackerTest.OneSliceDetailedWithTranslatedName
+[       OK ] SliceTrackerTest.OneSliceDetailedWithTranslatedName (2 ms)
+[ RUN      ] SliceTrackerTest.NegativeTimestamps
+[       OK ] SliceTrackerTest.NegativeTimestamps (1 ms)
+[ RUN      ] SliceTrackerTest.OneSliceWithArgs
+[       OK ] SliceTrackerTest.OneSliceWithArgs (2 ms)
+[ RUN      ] SliceTrackerTest.OneSliceWithArgsWithTranslatedName
+[       OK ] SliceTrackerTest.OneSliceWithArgsWithTranslatedName (1 ms)
+[ RUN      ] SliceTrackerTest.TwoSliceDetailed
+[       OK ] SliceTrackerTest.TwoSliceDetailed (2 ms)
+[ RUN      ] SliceTrackerTest.Scoped
+[       OK ] SliceTrackerTest.Scoped (1 ms)
+[ RUN      ] SliceTrackerTest.ScopedWithTranslatedName
+[       OK ] SliceTrackerTest.ScopedWithTranslatedName (2 ms)
+[ RUN      ] SliceTrackerTest.ParentId
+[       OK ] SliceTrackerTest.ParentId (1 ms)
+[ RUN      ] SliceTrackerTest.IgnoreMismatchedEnds
+[       OK ] SliceTrackerTest.IgnoreMismatchedEnds (2 ms)
+[ RUN      ] SliceTrackerTest.ZeroLengthScoped
+[       OK ] SliceTrackerTest.ZeroLengthScoped (2 ms)
+[ RUN      ] SliceTrackerTest.DifferentTracks
+[       OK ] SliceTrackerTest.DifferentTracks (1 ms)
+[ RUN      ] SliceTrackerTest.EndEventOutOfOrder
+[204.667]    slice_tracker.cc:389 Incorrect ordering of begin/end slice events. Truncating incomplete descendants to the end of slice name_a[50, 150] due to an event at ts=450.
+[       OK ] SliceTrackerTest.EndEventOutOfOrder (2 ms)
+[ RUN      ] SliceTrackerTest.GetTopmostSliceOnTrack
+[       OK ] SliceTrackerTest.GetTopmostSliceOnTrack (1 ms)
+[ RUN      ] SliceTrackerTest.OnSliceBeginCallback
+[       OK ] SliceTrackerTest.OnSliceBeginCallback (2 ms)
+[ RUN      ] SliceTrackerTest.MaxDepthExceeded
+[       OK ] SliceTrackerTest.MaxDepthExceeded (15 ms)
+[----------] 16 tests from SliceTrackerTest (39 ms total)
+
+[----------] Global test environment tear-down
+[==========] 39 tests from 4 test suites ran. (1134 ms total)
+[  PASSED  ] 39 tests.

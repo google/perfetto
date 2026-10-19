@@ -219,6 +219,7 @@ class GlobalArgsTracker {
       row.value_type = storage_->GetIdForVariadicType(arg.value.type);
       arg_table.Insert(row);
     }
+    storage_->AdvanceArgsStorageFrontier();
     return arg_set_id;
   }
 

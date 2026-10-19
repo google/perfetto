@@ -1,0 +1,33 @@
+{
+  "methodology": "Five processes per point, same release binary and four CPUs/fixed thread identities. 1MiB ordered-input sorter drains. Full has no sink; frontier includes checksum sinks. Scale input generator: generate-benchmark-input.py 4000000 /tmp/perfetto-streaming-scale",
+  "results": [
+    {
+      "rows": 1000000,
+      "mode": "full",
+      "cpu_s": 0.242203,
+      "peak_rss_mib": 195.734375
+    },
+    {
+      "rows": 4000000,
+      "mode": "full",
+      "cpu_s": 0.956579,
+      "peak_rss_mib": 738.4375,
+      "thread_state_rows": 7999996,
+      "thread_state_ts_capacity_bytes": 70786048
+    },
+    {
+      "rows": 1000000,
+      "mode": "frontier",
+      "cpu_s": 0.324772,
+      "peak_rss_mib": 13.75
+    },
+    {
+      "rows": 4000000,
+      "mode": "frontier",
+      "cpu_s": 1.302167,
+      "peak_rss_mib": 13.734375,
+      "thread_state_rows": 7999996,
+      "thread_state_ts_capacity_bytes": 0
+    }
+  ]
+}

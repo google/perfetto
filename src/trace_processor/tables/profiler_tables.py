@@ -1092,7 +1092,7 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
     class_name='HeapGraphObjectTable',
     sql_name='__intrinsic_heap_graph_object',
     columns=[
-        C('upid', CppUint32()),
+        C('upid', CppUint32(), cpp_access=CppAccess.READ),
         C('graph_sample_ts', CppInt64(), cpp_access=CppAccess.READ),
         C(
             'self_size',
@@ -1262,6 +1262,7 @@ HEAP_GRAPH_REFERENCE_TABLE = Table(
         C(
             'reference_set_id',
             CppUint32(),
+            cpp_access=CppAccess.READ,
             flags=ColumnFlag.SORTED | ColumnFlag.SET_ID,
         ),
         C(

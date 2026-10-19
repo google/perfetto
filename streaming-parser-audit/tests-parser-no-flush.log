@@ -1,0 +1,41 @@
+Running main() from ../../buildtools/googletest/googletest/src/gtest_main.cc
+Note: Google Test filter = StreamingTablesTest.*
+[==========] Running 9 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 9 tests from StreamingTablesTest
+[ RUN      ] StreamingTablesTest.GeneratedTypedSinkAndStorageMask
+[       OK ] StreamingTablesTest.GeneratedTypedSinkAndStorageMask (3 ms)
+[ RUN      ] StreamingTablesTest.JsonParserProducesSameSinkRecordsWithEmptyColumns
+[950.241] ing_trace_parser.cc:101 json trace detected
+[950.251] ing_trace_parser.cc:101 json trace detected
+[       OK ] StreamingTablesTest.JsonParserProducesSameSinkRecordsWithEmptyColumns (20 ms)
+[ RUN      ] StreamingTablesTest.ProtoTrackEventsAndSchedulingProduceSameSinkRecords
+[950.261] ing_trace_parser.cc:101 proto trace detected
+[950.273] ing_trace_parser.cc:101 proto trace detected
+[       OK ] StreamingTablesTest.ProtoTrackEventsAndSchedulingProduceSameSinkRecords (26 ms)
+[ RUN      ] StreamingTablesTest.FtraceFrontierAdvancesAndKeepsSinkRecords
+[950.305] ing_trace_parser.cc:101 proto trace detected
+[950.447] ing_trace_parser.cc:101 proto trace detected
+[950.622] ing_trace_parser.cc:101 proto trace detected
+[950.763] ing_trace_parser.cc:101 proto trace detected
+[       OK ] StreamingTablesTest.FtraceFrontierAdvancesAndKeepsSinkRecords (632 ms)
+[ RUN      ] StreamingTablesTest.ThreadStateHistoryStreamsLatePatchesAndWakerIds
+[       OK ] StreamingTablesTest.ThreadStateHistoryStreamsLatePatchesAndWakerIds (37 ms)
+[ RUN      ] StreamingTablesTest.JsonSlicesArgsAndFlowsSurviveLongOpenParentEviction
+[950.958] ing_trace_parser.cc:101 json trace detected
+[951.073] ing_trace_parser.cc:101 json trace detected
+[       OK ] StreamingTablesTest.JsonSlicesArgsAndFlowsSurviveLongOpenParentEviction (231 ms)
+[ RUN      ] StreamingTablesTest.ProtoSliceThreadCountersPatchEvictedParent
+[951.192] ing_trace_parser.cc:101 proto trace detected
+[951.247] ing_trace_parser.cc:101 proto trace detected
+[       OK ] StreamingTablesTest.ProtoSliceThreadCountersPatchEvictedParent (120 ms)
+[ RUN      ] StreamingTablesTest.PublicParserEntrypointAndLifecycle
+[951.307] ing_trace_parser.cc:101 json trace detected
+[       OK ] StreamingTablesTest.PublicParserEntrypointAndLifecycle (7 ms)
+[ RUN      ] StreamingTablesTest.PublicParserErrorsAreSticky
+[       OK ] StreamingTablesTest.PublicParserErrorsAreSticky (2 ms)
+[----------] 9 tests from StreamingTablesTest (1078 ms total)
+
+[----------] Global test environment tear-down
+[==========] 9 tests from 1 test suite ran. (1078 ms total)
+[  PASSED  ] 9 tests.

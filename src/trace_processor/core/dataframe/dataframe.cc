@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -105,12 +106,163 @@ Dataframe::Dataframe(bool finalized,
   }
 }
 
+void Dataframe::ConfigureStreaming(Sink* sink,
+                                   std::vector<bool> retained_columns) {
+  PERFETTO_CHECK(!finalized_ && row_count_ == 0);
+  PERFETTO_CHECK(!streaming_ || !streaming_->in_callback);
+  if (retained_columns.empty()) {
+    retained_columns.resize(column_count(), true);
+  }
+  PERFETTO_CHECK(retained_columns.size() == column_count());
+  streaming_ = std::make_shared<StreamingState>(
+      StreamingState{sink, std::move(retained_columns), false});
+}
+
+void Dataframe::DropRowsBefore(uint32_t row) {
+  PERFETTO_CHECK(streaming_ && !finalized_ && !streaming_->in_callback);
+  PERFETTO_CHECK(row >= first_retained_row_ && row <= row_count_);
+  uint32_t remove = row - first_retained_row_;
+  if (remove == 0) {
+    return;
+  }
+  // Compact in batches. This proof of concept copies the retained tail and
+  // returns allocation capacity; a production hot path could use chunks.
+  auto trim = [](auto& values, uint32_t count) {
+    PERFETTO_CHECK(count <= values.size());
+    uint64_t remaining = values.size() - count;
+    if (remaining) {
+      memmove(values.data(), values.data() + count,
+              remaining * sizeof(*values.data()));
+    }
+    values.resize(remaining);
+    values.shrink_to_fit();
+  };
+  for (uint32_t i = 0; i < column_count(); ++i) {
+    if (!retains_column(i)) {
+      continue;
+    }
+    auto& col = *column_ptrs_[i];
+    uint32_t remove_values = remove;
+    auto trim_nulls = [remove](auto& nulls, bool sparse) {
+      uint32_t set_count = 0;
+      for (uint32_t j = 0; j < remove; ++j) {
+        set_count += nulls.bit_vector.is_set(j) ? 1u : 0u;
+      }
+      core::BitVector tail;
+      for (uint64_t j = remove; j < nulls.bit_vector.size(); ++j) {
+        tail.push_back(nulls.bit_vector.is_set(j));
+      }
+      nulls.bit_vector = std::move(tail);
+      return sparse ? set_count : remove;
+    };
+    if (col.null_storage.nullability().Is<DenseNull>()) {
+      remove_values =
+          trim_nulls(col.null_storage.unchecked_get<DenseNull>(), false);
+    } else if (!col.null_storage.nullability().Is<NonNull>()) {
+      auto& nulls = col.null_storage.unchecked_get<SparseNull>();
+      remove_values = trim_nulls(nulls, true);
+      nulls.prefix_popcount_for_cell_get.clear();
+      if (!col.null_storage.nullability().Is<SparseNull>()) {
+        uint32_t prefix = 0;
+        for (uint64_t j = 0; j < nulls.bit_vector.size(); j += 64) {
+          nulls.prefix_popcount_for_cell_get.push_back(prefix);
+          prefix +=
+              static_cast<uint32_t>(nulls.bit_vector.count_set_bits_in_word(j));
+        }
+      }
+      nulls.prefix_popcount_for_cell_get.shrink_to_fit();
+    }
+    switch (col.storage.type().index()) {
+      case StorageType::GetTypeIndex<Id>():
+        col.storage.unchecked_get<Id>().size -= remove_values;
+        break;
+      case StorageType::GetTypeIndex<Uint32>():
+        trim(col.storage.unchecked_get<Uint32>(), remove_values);
+        break;
+      case StorageType::GetTypeIndex<Int32>():
+        trim(col.storage.unchecked_get<Int32>(), remove_values);
+        break;
+      case StorageType::GetTypeIndex<Int64>():
+        trim(col.storage.unchecked_get<Int64>(), remove_values);
+        break;
+      case StorageType::GetTypeIndex<Double>():
+        trim(col.storage.unchecked_get<Double>(), remove_values);
+        break;
+      case StorageType::GetTypeIndex<String>():
+        trim(col.storage.unchecked_get<String>(), remove_values);
+        break;
+      default:
+        PERFETTO_FATAL("Invalid streaming storage type");
+    }
+    ++col.mutations;
+  }
+  first_retained_row_ = row;
+  indexes_.clear();
+  ++non_column_mutations_;
+  if (streaming_->sink) {
+    streaming_->in_callback = true;
+    streaming_->sink->OnStorageFrontierAdvance(row);
+    streaming_->in_callback = false;
+  }
+}
+
+void Dataframe::AdvanceCompletionFrontier(uint32_t row) {
+  PERFETTO_CHECK(streaming_ && !finalized_ && !streaming_->in_callback);
+  PERFETTO_CHECK(row >= streaming_->completion_frontier && row <= row_count_);
+  if (row == streaming_->completion_frontier)
+    return;
+  streaming_->completion_frontier = row;
+  if (streaming_->sink) {
+    streaming_->in_callback = true;
+    streaming_->sink->OnFrontierAdvance(row);
+    streaming_->in_callback = false;
+  }
+}
+
+void Dataframe::NotifyUpdate(uint32_t row,
+                             uint32_t column,
+                             const SinkValue& value) {
+  PERFETTO_CHECK(!finalized_ && !streaming_->in_callback &&
+                 row >= streaming_->completion_frontier && row < row_count_);
+  if (streaming_->sink) {
+    streaming_->in_callback = true;
+    streaming_->sink->OnUpdate(row, column, value);
+    streaming_->in_callback = false;
+  }
+}
+
 base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
     std::vector<FilterSpec>& filter_specs,
     const std::vector<DistinctSpec>& distinct_specs,
     const std::vector<SortSpec>& sort_specs,
     const LimitSpec& limit_spec,
     uint64_t cols_used) const {
+  if (first_retained_row_ != 0) {
+    return base::ErrStatus(
+        "Queries after streaming prefix eviction are unsupported");
+  }
+  for (uint32_t i = 0; i < column_count(); ++i) {
+    if ((cols_used & (uint64_t{1} << std::min(i, uint32_t{63}))) &&
+        !retains_column(i)) {
+      return base::ErrStatus("Query reads a dropped streaming column: %s",
+                             column_names_[i].c_str());
+    }
+  }
+  for (const auto& spec : filter_specs) {
+    if (!retains_column(spec.col)) {
+      return base::ErrStatus("Query filters a dropped streaming column");
+    }
+  }
+  for (const auto& spec : sort_specs) {
+    if (!retains_column(spec.col)) {
+      return base::ErrStatus("Query sorts a dropped streaming column");
+    }
+  }
+  for (const auto& spec : distinct_specs) {
+    if (!retains_column(spec.col)) {
+      return base::ErrStatus("Query groups a dropped streaming column");
+    }
+  }
   ASSIGN_OR_RETURN(
       LogicalPlan logical,
       LogicalPlanner::Plan(row_count_, columns_, indexes_, filter_specs,
@@ -131,6 +283,12 @@ base::StatusOr<LogicalPlan> Dataframe::PlanQueryLogicalForTesting(
 
 void Dataframe::Clear() {
   PERFETTO_DCHECK(!finalized_);
+  if (streaming_ && streaming_->sink) {
+    PERFETTO_CHECK(!streaming_->in_callback);
+    streaming_->in_callback = true;
+    streaming_->sink->OnClear();
+    streaming_->in_callback = false;
+  }
   for (const auto& c : columns_) {
     switch (c->storage.type().index()) {
       case StorageType::GetTypeIndex<Uint32>():
@@ -173,12 +331,24 @@ void Dataframe::Clear() {
     }
   }
   row_count_ = 0;
+  first_retained_row_ = 0;
+  if (streaming_)
+    streaming_->completion_frontier = 0;
   ++non_column_mutations_;
 }
 
 base::StatusOr<Index> Dataframe::BuildIndex(const uint32_t* columns_start,
                                             const uint32_t* columns_end) const {
+  if (first_retained_row_ != 0) {
+    return base::ErrStatus(
+        "Indexes after streaming prefix eviction are unsupported");
+  }
   std::vector<uint32_t> cols(columns_start, columns_end);
+  for (uint32_t col : cols) {
+    if (!retains_column(col)) {
+      return base::ErrStatus("Cannot index a dropped streaming column");
+    }
+  }
   std::vector<SortSpec> sorts;
   sorts.reserve(cols.size());
   for (const auto& col : cols) {
@@ -226,6 +396,7 @@ void Dataframe::FinalizeWithoutStatistics() {
 }
 
 void Dataframe::FinalizeColumns(bool estimate_distinct) {
+  PERFETTO_CHECK(!streaming_ || !streaming_->in_callback);
   if (finalized_) {
     return;
   }

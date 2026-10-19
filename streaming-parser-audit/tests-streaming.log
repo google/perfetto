@@ -1,0 +1,247 @@
+Running main() from ../../buildtools/googletest/googletest/src/gtest_main.cc
+Note: Google Test filter = DataframeStreamingTest.*:StreamingTablesTest.*
+[==========] Running 7 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 3 tests from StreamingTablesTest
+[ RUN      ] StreamingTablesTest.GeneratedTypedSinkAndStorageMask
+[       OK ] StreamingTablesTest.GeneratedTypedSinkAndStorageMask (3 ms)
+[ RUN      ] StreamingTablesTest.JsonParserProducesSameSinkRecordsWithEmptyColumns
+[585.048] ing_trace_parser.cc:101 json trace detected
+[585.106] e_processor_impl.cc:241 Error deleting from bounds table:   Trace Processor Internal line 1 col 1
+    DELETE FROM _trace_bounds
+    ^
+no such table: _trace_bounds
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.106] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.107] ing_trace_parser.cc:101 json trace detected
+[585.113] e_processor_impl.cc:241 Error deleting from bounds table:   Trace Processor Internal line 1 col 1
+    DELETE FROM _trace_bounds
+    ^
+no such table: _trace_bounds
+[       OK ] StreamingTablesTest.JsonParserProducesSameSinkRecordsWithEmptyColumns (107 ms)
+[ RUN      ] StreamingTablesTest.ProtoTrackEventsAndSchedulingProduceSameSinkRecords
+[585.139] ing_trace_parser.cc:101 proto trace detected
+[585.163]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.163]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.163]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.163]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.164]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.166]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.166]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.166]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.166]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.166]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.209] ftrace_module_impl.h:51 Pid field not found in ftrace packet
+[585.209] ftrace_module_impl.h:51 Pid field not found in ftrace packet
+[585.209] ftrace_module_impl.h:51 Pid field not found in ftrace packet
+[585.258] e_processor_impl.cc:241 Error deleting from bounds table:   Trace Processor Internal line 1 col 1
+    DELETE FROM _trace_bounds
+    ^
+no such table: _trace_bounds
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.258] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] e_processor_impl.cc:291 Error registering table: Prepare failed: no such table: _trace_metrics
+[585.259] ing_trace_parser.cc:101 proto trace detected
+[585.282]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.283]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.283]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.283]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.283]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.285]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.285]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.285]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.285]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.285]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[585.325] ftrace_module_impl.h:51 Pid field not found in ftrace packet
+[585.325] ftrace_module_impl.h:51 Pid field not found in ftrace packet
+[585.325] ftrace_module_impl.h:51 Pid field not found in ftrace packet
+[585.326] e_processor_impl.cc:241 Error deleting from bounds table:   Trace Processor Internal line 1 col 1
+    DELETE FROM _trace_bounds
+    ^
+no such table: _trace_bounds
+../../src/trace_processor/streaming_tables_unittest.cc:208: Failure
+Expected: (sched.row_count()) > (0u), actual: 0 vs 0
+[  FAILED  ] StreamingTablesTest.ProtoTrackEventsAndSchedulingProduceSameSinkRecords (220 ms)
+[----------] 3 tests from StreamingTablesTest (331 ms total)
+
+[----------] 4 tests from DataframeStreamingTest
+[ RUN      ] DataframeStreamingTest.EmptyColumnsStillReachSinkAndIdsAdvance
+[       OK ] DataframeStreamingTest.EmptyColumnsStillReachSinkAndIdsAdvance (0 ms)
+[ RUN      ] DataframeStreamingTest.TypedCursorAndGenericUpdatesReachSink
+[       OK ] DataframeStreamingTest.TypedCursorAndGenericUpdatesReachSink (0 ms)
+[ RUN      ] DataframeStreamingTest.QueriesRejectOmittedColumns
+[       OK ] DataframeStreamingTest.QueriesRejectOmittedColumns (0 ms)
+[ RUN      ] DataframeStreamingTest.PrefixEvictionPreservesAbsoluteIdsAndNullableData
+[       OK ] DataframeStreamingTest.PrefixEvictionPreservesAbsoluteIdsAndNullableData (0 ms)
+[----------] 4 tests from DataframeStreamingTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 7 tests from 2 test suites ran. (331 ms total)
+[  PASSED  ] 6 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] StreamingTablesTest.ProtoTrackEventsAndSchedulingProduceSameSinkRecords
+
+ 1 FAILED TEST

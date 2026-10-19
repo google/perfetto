@@ -1,0 +1,186 @@
+Running main() from ../../buildtools/googletest/googletest/src/gtest_main.cc
+Note: Google Test filter = StreamingTablesTest.*:DataframeStreamingTest.*:SliceTrackerTest.*:FlowTrackerTest.*
+[==========] Running 37 tests from 4 test suites.
+[----------] Global test environment set-up.
+[----------] 7 tests from StreamingTablesTest
+[ RUN      ] StreamingTablesTest.GeneratedTypedSinkAndStorageMask
+[       OK ] StreamingTablesTest.GeneratedTypedSinkAndStorageMask (2 ms)
+[ RUN      ] StreamingTablesTest.JsonParserProducesSameSinkRecordsWithEmptyColumns
+[195.307] ing_trace_parser.cc:101 json trace detected
+[195.363] ing_trace_parser.cc:101 json trace detected
+[       OK ] StreamingTablesTest.JsonParserProducesSameSinkRecordsWithEmptyColumns (97 ms)
+[ RUN      ] StreamingTablesTest.ProtoTrackEventsAndSchedulingProduceSameSinkRecords
+[195.394] ing_trace_parser.cc:101 proto trace detected
+[195.417]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.417]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.417]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.417]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.418]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.420]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.420]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.420]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.420]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.420]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.512] ing_trace_parser.cc:101 proto trace detected
+[195.534]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.535]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.535]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.535]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.535]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.537]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.538]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.538]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.538]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.538]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[       OK ] StreamingTablesTest.ProtoTrackEventsAndSchedulingProduceSameSinkRecords (218 ms)
+[ RUN      ] StreamingTablesTest.FtraceFrontierAdvancesAndKeepsSinkRecords
+[195.627] ing_trace_parser.cc:101 proto trace detected
+[195.649]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.650]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.650]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.650]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.650]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.652]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.652]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.653]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.653]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.653]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.857] ing_trace_parser.cc:101 proto trace detected
+[195.880]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.880]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.881]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.881]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.881]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.883]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.883]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.883]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.883]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[195.883]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.116] ing_trace_parser.cc:101 proto trace detected
+[196.139]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.139]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.139]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.140]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.140]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.142]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.142]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.142]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.142]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.142]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.348] ing_trace_parser.cc:101 proto trace detected
+[196.371]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.371]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.371]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.372]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.372]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.374]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.374]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.374]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.374]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.374]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[       OK ] StreamingTablesTest.FtraceFrontierAdvancesAndKeepsSinkRecords (979 ms)
+[ RUN      ] StreamingTablesTest.ThreadStateHistoryStreamsLatePatchesAndWakerIds
+[       OK ] StreamingTablesTest.ThreadStateHistoryStreamsLatePatchesAndWakerIds (35 ms)
+[ RUN      ] StreamingTablesTest.JsonSlicesArgsAndFlowsSurviveLongOpenParentEviction
+[196.625] ing_trace_parser.cc:101 json trace detected
+[196.760] ing_trace_parser.cc:101 json trace detected
+[       OK ] StreamingTablesTest.JsonSlicesArgsAndFlowsSurviveLongOpenParentEviction (268 ms)
+[ RUN      ] StreamingTablesTest.ProtoSliceThreadCountersPatchEvictedParent
+[196.896] ing_trace_parser.cc:101 proto trace detected
+[196.919]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.919]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.919]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.919]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.919]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.921]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.921]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.922]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.922]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[196.922]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[197.028] ing_trace_parser.cc:101 proto trace detected
+[197.050]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[197.051]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[197.051]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[197.051]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[197.051]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[197.053]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[197.053]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[197.053]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[197.053]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[197.053]    proto_decoder.cc:131 Skipping field 102672883 because its id > 16777215
+[       OK ] StreamingTablesTest.ProtoSliceThreadCountersPatchEvictedParent (279 ms)
+[----------] 7 tests from StreamingTablesTest (1878 ms total)
+
+[----------] 7 tests from DataframeStreamingTest
+[ RUN      ] DataframeStreamingTest.EmptyColumnsStillReachSinkAndIdsAdvance
+[       OK ] DataframeStreamingTest.EmptyColumnsStillReachSinkAndIdsAdvance (0 ms)
+[ RUN      ] DataframeStreamingTest.TypedCursorAndGenericUpdatesReachSink
+[       OK ] DataframeStreamingTest.TypedCursorAndGenericUpdatesReachSink (0 ms)
+[ RUN      ] DataframeStreamingTest.QueriesRejectOmittedColumns
+[       OK ] DataframeStreamingTest.QueriesRejectOmittedColumns (0 ms)
+[ RUN      ] DataframeStreamingTest.PrefixEvictionPreservesAbsoluteIdsAndNullableData
+[       OK ] DataframeStreamingTest.PrefixEvictionPreservesAbsoluteIdsAndNullableData (0 ms)
+[ RUN      ] DataframeStreamingTest.PrefixWindowReclaimsAllocation
+[       OK ] DataframeStreamingTest.PrefixWindowReclaimsAllocation (9 ms)
+[ RUN      ] DataframeStreamingTest.EvictedRowsAcceptTypedAndGenericBackPatches
+[       OK ] DataframeStreamingTest.EvictedRowsAcceptTypedAndGenericBackPatches (5 ms)
+[ RUN      ] DataframeStreamingTest.InvalidRetentionAccessAndReentrantMutationFail
+[       OK ] DataframeStreamingTest.InvalidRetentionAccessAndReentrantMutationFail (5 ms)
+[----------] 7 tests from DataframeStreamingTest (19 ms total)
+
+[----------] 7 tests from FlowTrackerTest
+[ RUN      ] FlowTrackerTest.SingleFlowEventExplicitInSliceBinding
+[       OK ] FlowTrackerTest.SingleFlowEventExplicitInSliceBinding (1 ms)
+[ RUN      ] FlowTrackerTest.SingleFlowEventWaitForNextSlice
+[       OK ] FlowTrackerTest.SingleFlowEventWaitForNextSlice (2 ms)
+[ RUN      ] FlowTrackerTest.SingleFlowEventWaitForNextSliceScoped
+[       OK ] FlowTrackerTest.SingleFlowEventWaitForNextSliceScoped (1 ms)
+[ RUN      ] FlowTrackerTest.TwoFlowEventsWaitForNextSlice
+[       OK ] FlowTrackerTest.TwoFlowEventsWaitForNextSlice (2 ms)
+[ RUN      ] FlowTrackerTest.TwoFlowEventsSliceInSlice
+[       OK ] FlowTrackerTest.TwoFlowEventsSliceInSlice (2 ms)
+[ RUN      ] FlowTrackerTest.FlowEventsWithStep
+[       OK ] FlowTrackerTest.FlowEventsWithStep (1 ms)
+[ RUN      ] FlowTrackerTest.FlowDirectionCorrectedByTimestamp
+[       OK ] FlowTrackerTest.FlowDirectionCorrectedByTimestamp (2 ms)
+[----------] 7 tests from FlowTrackerTest (11 ms total)
+
+[----------] 16 tests from SliceTrackerTest
+[ RUN      ] SliceTrackerTest.OneSliceDetailed
+[       OK ] SliceTrackerTest.OneSliceDetailed (1 ms)
+[ RUN      ] SliceTrackerTest.OneSliceDetailedWithTranslatedName
+[       OK ] SliceTrackerTest.OneSliceDetailedWithTranslatedName (2 ms)
+[ RUN      ] SliceTrackerTest.NegativeTimestamps
+[       OK ] SliceTrackerTest.NegativeTimestamps (1 ms)
+[ RUN      ] SliceTrackerTest.OneSliceWithArgs
+[       OK ] SliceTrackerTest.OneSliceWithArgs (2 ms)
+[ RUN      ] SliceTrackerTest.OneSliceWithArgsWithTranslatedName
+[       OK ] SliceTrackerTest.OneSliceWithArgsWithTranslatedName (1 ms)
+[ RUN      ] SliceTrackerTest.TwoSliceDetailed
+[       OK ] SliceTrackerTest.TwoSliceDetailed (2 ms)
+[ RUN      ] SliceTrackerTest.Scoped
+[       OK ] SliceTrackerTest.Scoped (1 ms)
+[ RUN      ] SliceTrackerTest.ScopedWithTranslatedName
+[       OK ] SliceTrackerTest.ScopedWithTranslatedName (2 ms)
+[ RUN      ] SliceTrackerTest.ParentId
+[       OK ] SliceTrackerTest.ParentId (1 ms)
+[ RUN      ] SliceTrackerTest.IgnoreMismatchedEnds
+[       OK ] SliceTrackerTest.IgnoreMismatchedEnds (2 ms)
+[ RUN      ] SliceTrackerTest.ZeroLengthScoped
+[       OK ] SliceTrackerTest.ZeroLengthScoped (1 ms)
+[ RUN      ] SliceTrackerTest.DifferentTracks
+[       OK ] SliceTrackerTest.DifferentTracks (2 ms)
+[ RUN      ] SliceTrackerTest.EndEventOutOfOrder
+[197.201]    slice_tracker.cc:389 Incorrect ordering of begin/end slice events. Truncating incomplete descendants to the end of slice name_a[50, 150] due to an event at ts=450.
+[       OK ] SliceTrackerTest.EndEventOutOfOrder (1 ms)
+[ RUN      ] SliceTrackerTest.GetTopmostSliceOnTrack
+[       OK ] SliceTrackerTest.GetTopmostSliceOnTrack (2 ms)
+[ RUN      ] SliceTrackerTest.OnSliceBeginCallback
+[       OK ] SliceTrackerTest.OnSliceBeginCallback (2 ms)
+[ RUN      ] SliceTrackerTest.MaxDepthExceeded
+[       OK ] SliceTrackerTest.MaxDepthExceeded (15 ms)
+[----------] 16 tests from SliceTrackerTest (38 ms total)
+
+[----------] Global test environment tear-down
+[==========] 37 tests from 4 test suites ran. (1946 ms total)
+[  PASSED  ] 37 tests.

@@ -77,6 +77,10 @@ class CppAccess(Enum):
   # Indicates the column is read from C++ code, but not written to.
   READ = auto()
 
+  # Written through C++ setters, never read through C++ getters.
+  LOW_PERF_WRITE = auto()
+  HIGH_PERF_WRITE = auto()
+
   # Indicates the column is read from C++ code and written to in
   # non-performance critical code paths.
   READ_AND_LOW_PERF_WRITE = auto()
