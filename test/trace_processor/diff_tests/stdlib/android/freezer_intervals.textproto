@@ -1,10 +1,12 @@
 # pid 200 starts mid-trace, is frozen, unfrozen, frozen again and then killed
-# while frozen. pids 300 and 400 have no freezer events: the trace-stop
-# snapshot says 300 (started mid-trace) is frozen and 400 is not.
+# while frozen. pid 500 is frozen near the end and still alive. pids 300 and
+# 400 have no freezer events: the trace-stop snapshot says 300 (started
+# mid-trace) is frozen and 400 is not.
 packet {
   timestamp: 500
   process_tree {
     processes { pid: 400 ppid: 1 cmdline: "proc400" }
+    processes { pid: 500 ppid: 1 cmdline: "proc500" }
   }
 }
 packet {
@@ -111,6 +113,20 @@ packet {
   }
 }
 packet {
+  timestamp: 9000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "freeze"
+    [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+      pid: 500
+      uid: 10005
+      unfrozen_dur_ms: 8
+    }
+  }
+}
+packet {
   timestamp: 10000
   trusted_packet_sequence_id: 1
   track_event {
@@ -132,6 +148,11 @@ packet {
       uid: 10004
       unfrozen_dur_ms: 50
       unfreeze_reason: UFR_PING
+    }
+    record {
+      pid: 500
+      uid: 10005
+      frozen_dur_ms: 1
     }
   }
 }

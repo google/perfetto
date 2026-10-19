@@ -97,6 +97,10 @@ const COMPACT_SLICES = {sliceHeight: 12, titleSizePx: 10};
 // Below every other process-scoped track (-50..30) so it appears first.
 const PROCESS_GROUP_SORT_ORDER = -100;
 
+// Keeps the freezer lanes out of the aggregators, which scope by the state
+// track's tag.
+const TAG_FREEZER_TRACK = 'android_freezer';
+
 /**
  * Visualizes Android framework process states over the lifetime of a trace.
  *
@@ -117,8 +121,10 @@ export default class ProcessState implements PerfettoPlugin {
       return;
     }
 
-    await ctx.engine.query(`INCLUDE PERFETTO MODULE android.process_state;`);
-    await ctx.engine.query(`INCLUDE PERFETTO MODULE android.freezer;`);
+    await ctx.engine.query(`
+      INCLUDE PERFETTO MODULE android.process_state;
+      INCLUDE PERFETTO MODULE android.freezer;
+    `);
 
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new ProcessStateResidencyAggregator(ctx)),
@@ -227,6 +233,7 @@ export default class ProcessState implements PerfettoPlugin {
       const processGroup = groups.getGroupForProcess(upid);
       const overviewUri = this.registerProcessTrack(ctx, processGroup, {
         uri,
+        tag: TAG_PROCESS_TRACK,
         upid,
         description: `Framework process state of ${name} (${pid}) over time.`,
         create: (trackUri, ownerUri) =>
@@ -277,6 +284,7 @@ export default class ProcessState implements PerfettoPlugin {
           processGroup,
           {
             uri: freezerUri,
+            tag: TAG_FREEZER_TRACK,
             upid,
             description: `Freezer state of ${name} (${pid}) over time.`,
             create: (trackUri, ownerUri) =>
@@ -329,19 +337,20 @@ export default class ProcessState implements PerfettoPlugin {
     processGroup: TrackNode | undefined,
     track: {
       uri: string;
+      tag: string;
       upid: number;
       description: string;
       create: (trackUri: string, ownerUri?: string) => TrackRenderer;
     },
   ): string {
-    const {uri, upid, description, create} = track;
+    const {uri, tag, upid, description, create} = track;
     const overviewUri = processGroup !== undefined ? `${uri}.overview` : uri;
     for (const trackUri of processGroup ? [uri, overviewUri] : [uri]) {
       const isOwner = trackUri === uri;
       ctx.tracks.registerTrack({
         uri: trackUri,
         renderer: create(trackUri, isOwner ? undefined : uri),
-        tags: {type: TAG_PROCESS_TRACK, upid},
+        tags: {type: tag, upid},
         description,
       });
     }
