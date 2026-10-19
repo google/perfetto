@@ -34,6 +34,8 @@ source_set("exec") {
     "context.h",
     "dataframe_scan.cc",
     "dataframe_scan.h",
+    "dataframe_windows.cc",
+    "dataframe_windows.h",
     "distinct.cc",
     "distinct.h",
     "filter.cc",
