@@ -249,10 +249,13 @@ Removes repeated rows:
 Diagram(Terminal('DISTINCT'))
 ```
 
-- Rows are equal when they agree on every column. `NULL`s are equal.
+- Rows are equal when they agree on every column found by bare name. `NULL`s
+  are equal.
+- Columns only an alias finds, such as an intersection's `x.ts`, are not
+  compared, and are dropped since they have no one value per row. Aliases are
+  kept, holding only the columns that were compared.
 - The first of each set of equal rows is kept, and kept rows stay in order.
 - A row can have at most 64 columns.
-- Keeps all aliases.
 
 ### `ORDER BY` {#order-by}
 

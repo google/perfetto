@@ -38,13 +38,22 @@ const OperationRegistration Distinct::kRegistration{
 
 base::Status Distinct::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("DISTINCT");
-  if (c->row().size() > ex::Distinct::kMaxColumns) {
+  // Other columns have no single value per output row, so they are dropped.
+  Distinct distinct;
+  std::vector<Compiler::RowColumn> row;
+  std::vector<std::pair<ColumnId, ColumnId>> kept;
+  for (const Compiler::RowColumn& column : c->row()) {
+    if (!column.qualified_only) {
+      distinct.columns_.push_back(column.column.id);
+      row.push_back(column);
+      kept.emplace_back(column.column.id, column.column.id);
+    }
+  }
+  if (distinct.columns_.size() > ex::Distinct::kMaxColumns) {
     return c->Unsupported(stage, "a row of more than 64 columns");
   }
-  Distinct distinct;
-  for (const Compiler::RowColumn& column : c->row()) {
-    distinct.columns_.push_back(column.column.id);
-  }
+  c->ReplaceRow(std::move(row));
+  c->ReplaceAliasColumns(kept);
   c->AddNode(std::move(distinct), {c->plan().root()});
   return base::OkStatus();
 }
