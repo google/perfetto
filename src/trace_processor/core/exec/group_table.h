@@ -46,6 +46,12 @@ class GroupTable {
   std::optional<uint32_t> FindOrCreate(const RowBatch& batch,
                                        const std::vector<uint32_t>& columns,
                                        uint32_t* groups);
+  // As above, for the rows of `batch` which `rows` keeps rather than those
+  // its own selection does.
+  std::optional<uint32_t> FindOrCreate(const RowBatch& batch,
+                                       const Selection& rows,
+                                       const std::vector<uint32_t>& columns,
+                                       uint32_t* groups);
 
   uint32_t size() const { return static_cast<uint32_t>(hashes_.size()); }
   void Clear();

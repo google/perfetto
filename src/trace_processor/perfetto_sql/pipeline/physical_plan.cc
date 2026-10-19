@@ -235,6 +235,25 @@ void Lowering::RequireFullBatches() {
   }
 }
 
+core::exec::IntervalLaneSpec Lowering::RequireIntervalLanes(
+    ColumnId ts,
+    ColumnId dur,
+    const std::vector<ColumnId>& keys) {
+  RequireType(ts, core::Int64{});
+  RequireType(dur, core::Int64{});
+  RequireSortedWithinGroups(keys, {{ts, false}});
+  core::exec::IntervalLaneSpec spec;
+  if (!keys.empty()) {
+    spec.group_column = RequireGroupNumbers(keys);
+  }
+  spec.ts_column = QueryPosition(ts);
+  spec.dur_column = QueryPosition(dur);
+  for (ColumnId key : keys) {
+    spec.key_columns.push_back(QueryPosition(key));
+  }
+  return spec;
+}
+
 Lowering::TreeColumns Lowering::RequireTreeWalk(ColumnId node,
                                                 ColumnId parent,
                                                 TreeDirection direction) {
