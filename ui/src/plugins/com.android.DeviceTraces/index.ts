@@ -65,8 +65,9 @@ import {Tree, TreeNode} from '../../widgets/tree';
 const TRACE_UUID_URL = 'http://go/trace-uuid/';
 const TRACE_UUIDS_URL = 'http://go/trace-uuids/';
 const QUERY_TRACES_URL = 'http://go/query-traces/';
-const QUERY_TRACES_PING_INTERVAL_MS = 200;
-const QUERY_TRACES_TIMEOUT_MS = 2 * 60 * 1000;
+const DEVICE_TRACES_URL = 'http://go/device-traces/';
+const POPUP_PING_INTERVAL_MS = 200;
+const POPUP_TIMEOUT_MS = 2 * 60 * 1000;
 const TABLE_NAME = '_device_traces';
 
 const DEFAULT_QUERY_TRACES_SQL = `SELECT
@@ -74,15 +75,9 @@ const DEFAULT_QUERY_TRACES_SQL = `SELECT
   (SELECT (MAX(ts) - MIN(ts)) / 1000000 FROM sched) sched_dur_ms,
   (SELECT int_value / 1000000 FROM metadata WHERE name='tracing_started_ns') time_since_boot_ms`;
 
-function openQueryTraces(traceUuids: ReadonlyArray<string>): void {
-  if (traceUuids.length === 0) return;
-  const popup = window.open(QUERY_TRACES_URL, '_blank');
+function postPayloadToPopup(url: string, payload: unknown): void {
+  const popup = window.open(url, '_blank');
   if (popup === null) return;
-
-  const payload = {
-    traceUuids: [...traceUuids],
-    perfettoSql: DEFAULT_QUERY_TRACES_SQL,
-  };
 
   const stop = () => {
     window.clearInterval(pingInterval);
@@ -103,8 +98,29 @@ function openQueryTraces(traceUuids: ReadonlyArray<string>): void {
       return;
     }
     popup.postMessage('PING', '*');
-  }, QUERY_TRACES_PING_INTERVAL_MS);
-  const timeoutId = window.setTimeout(stop, QUERY_TRACES_TIMEOUT_MS);
+  }, POPUP_PING_INTERVAL_MS);
+  const timeoutId = window.setTimeout(stop, POPUP_TIMEOUT_MS);
+}
+
+function openQueryTraces(traceUuids: ReadonlyArray<string>): void {
+  if (traceUuids.length === 0) return;
+  postPayloadToPopup(QUERY_TRACES_URL, {
+    traceUuids: [...traceUuids],
+    perfettoSql: DEFAULT_QUERY_TRACES_SQL,
+  });
+}
+
+function openDeviceTraces(
+  androidIds: ReadonlyArray<string>,
+  startTs: time,
+  endTs: time,
+): void {
+  if (androidIds.length === 0) return;
+  postPayloadToPopup(DEVICE_TRACES_URL, {
+    android_ids: [...androidIds],
+    start_ts_ns: String(startTs),
+    end_ts_ns: String(endTs),
+  });
 }
 
 const DEFAULT_BREAKDOWN_PATHS: ReadonlyArray<ReadonlyArray<string>> = [
@@ -644,6 +660,17 @@ class DeviceTracesSelectTab implements AreaSelectionTab {
 
     const selectedCount = data?.selected.size ?? 0;
     const hasSelected = data !== undefined && selectedCount > 0;
+    const selectedAndroidIds =
+      data === undefined
+        ? []
+        : [
+            ...new Set(
+              data.rows
+                .filter((r) => data.selected.has(r.traceUuid))
+                .map((r) => (r.cols.get('col_android_id') ?? '').trim())
+                .filter(Boolean),
+            ),
+          ];
 
     return {
       isLoading: isPending,
@@ -668,6 +695,20 @@ class DeviceTracesSelectTab implements AreaSelectionTab {
           onclick: () => {
             if (data !== undefined && data.selected.size > 0) {
               openQueryTraces([...data.selected]);
+            }
+          },
+        }),
+        m(Button, {
+          label: `All traces for selected devices (${selectedAndroidIds.length})`,
+          icon: Icons.ExternalLink,
+          disabled: selectedAndroidIds.length === 0,
+          onclick: () => {
+            if (selectedAndroidIds.length > 0) {
+              openDeviceTraces(
+                selectedAndroidIds,
+                selection.start,
+                selection.end,
+              );
             }
           },
         }),
