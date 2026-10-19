@@ -200,7 +200,7 @@ std::unique_ptr<OperatorState> IntervalIntersect::MakeState(
   auto count = static_cast<uint32_t>(operands_.size());
   for (uint32_t i = 0; i < count; ++i) {
     state->lanes.push_back(std::make_unique<CollectedLanes>(
-        operands_[i].lanes,
+        operands_[i],
         IntervalInputName{"INTERVAL INTERSECTION", "operand", i + 1}));
   }
   state->gathered.resize(count);
@@ -240,8 +240,8 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
       uint32_t limit = i == 0 || operands_[i].lanes.key_columns.empty()
                            ? std::numeric_limits<uint32_t>::max()
                            : s.group_table.size();
-      s.status = s.lanes[i]->Collect(operands_[i], *s.operand_states[i],
-                                     &s.group_table, limit);
+      s.status =
+          s.lanes[i]->Collect(*s.operand_states[i], &s.group_table, limit);
       if (!s.status.ok()) {
         return false;
       }

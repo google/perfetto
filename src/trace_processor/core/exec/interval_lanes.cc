@@ -112,11 +112,10 @@ base::Status LaneReader::Start(const RowBatch& in, GroupTable* shared) {
   return base::OkStatus();
 }
 
-base::Status CollectedLanes::Collect(const CollectedInputSpec& input,
-                                     OperatorState& state,
+base::Status CollectedLanes::Collect(OperatorState& state,
                                      GroupTable* shared,
                                      uint32_t limit) {
-  const Source& source = *input.source;
+  const Source& source = *input_->source;
   while (source.GetData(batch_, state)) {
     RETURN_IF_ERROR(reader_.Start(batch_, shared));
     LaneBatch lanes = reader_.batch();
@@ -138,7 +137,7 @@ base::Status CollectedLanes::Collect(const CollectedInputSpec& input,
       Add(number, Interval{static_cast<Ts>(start), static_cast<Ts>(end),
                            first_row + row});
     }
-    retained_.Project(batch_, input.retained_columns);
+    retained_.Project(batch_, input_->retained_columns);
     RETURN_IF_ERROR(rows_.Append(retained_));
   }
   RETURN_IF_ERROR(source.status(state));

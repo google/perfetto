@@ -190,14 +190,13 @@ class CollectedLanes {
     bool nonoverlapping;
   };
 
-  CollectedLanes(const IntervalLaneSpec& spec, IntervalInputName name)
-      : reader_(spec, name) {}
+  CollectedLanes(const CollectedInputSpec& input, IntervalInputName name)
+      : input_(&input), reader_(input.lanes, name) {}
 
-  // Reads every batch of `input`'s source. Lanes are numbered in `shared`
+  // Reads every batch of the input's source. Lanes are numbered in `shared`
   // if given, as LaneReader::Start() does, and by group number otherwise.
   // Lanes numbered at or above `limit` are dropped.
-  base::Status Collect(const CollectedInputSpec& input,
-                       OperatorState& state,
+  base::Status Collect(OperatorState& state,
                        GroupTable* shared,
                        uint32_t limit = std::numeric_limits<uint32_t>::max());
 
@@ -235,6 +234,7 @@ class CollectedLanes {
 
   void Add(uint32_t number, const Interval& interval);
 
+  const CollectedInputSpec* input_;
   LaneReader reader_;
   std::vector<Interval> intervals_;
   std::vector<Range> ranges_;
