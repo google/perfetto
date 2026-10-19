@@ -137,13 +137,13 @@ export class PivotTableState {
   }
 
   public removePivot(index: number) {
-    this.sortByPivot(this.pivots[index], undefined);
+    this.sortByPivot(this.pivots[index]!, undefined);
     this.pivots.splice(index, 1);
     this.reload();
   }
 
   public removeAggregation(index: number) {
-    this.sortByAggregation(this.aggregations[index], undefined);
+    this.sortByAggregation(this.aggregations[index]!, undefined);
     this.aggregations.splice(index, 1);
     this.reload();
   }
@@ -215,7 +215,7 @@ export class PivotTableState {
   public isSortedByPivot(pivot: TableColumn): SortDirection | undefined {
     if (this.orderBy.length === 0) return undefined;
     const id = pivotId(pivot);
-    const head = this.orderBy[0];
+    const head = this.orderBy[0]!;
     if (head.type === 'pivot' && head.id === id) return head.direction;
     return undefined;
   }
@@ -223,7 +223,7 @@ export class PivotTableState {
   public isSortedByAggregation(agg: Aggregation): SortDirection | undefined {
     if (this.orderBy.length === 0) return undefined;
     const id = aggregationId(agg);
-    const head = this.orderBy[0];
+    const head = this.orderBy[0]!;
     if (head.type === 'aggregation' && head.id === id) return head.direction;
     return undefined;
   }

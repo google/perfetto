@@ -250,7 +250,7 @@ WHERE ${filterSql}`;
 
   implements<T extends DatasetSchema>(required: T): this is Dataset<T> {
     return Object.entries(required).every(([name, required]) => {
-      return name in this.schema && checkExtends(required, this.schema[name]);
+      return name in this.schema && checkExtends(required, this.schema[name]!);
     });
   }
 
@@ -312,7 +312,7 @@ export class UnionDataset<
         const newSch: SpecType = {};
         for (const [key, value] of Object.entries(unionSchema)) {
           if (key in dsSchema) {
-            const commonType = unionTypes(value, dsSchema[key]);
+            const commonType = unionTypes(value, dsSchema[key]!);
             if (commonType !== undefined) {
               newSch[key] = commonType;
             }
@@ -351,7 +351,7 @@ export class UnionDataset<
 
     for (const srcGroup of combinedSrcSets.values()) {
       if (srcGroup.length === 1) {
-        mergedDatasets.push(srcGroup[0]);
+        mergedDatasets.push(srcGroup[0]!);
       } else {
         // Combine schema across all members in the union
         const combinedSchema = srcGroup.reduce((acc, e) => {
@@ -394,7 +394,7 @@ export class UnionDataset<
         const mergedFilter = mergeFilters(inFilters);
         mergedDatasets.push(
           new SourceDataset({
-            src: srcGroup[0].src,
+            src: srcGroup[0]!.src,
             schema: combinedSchema,
             filter: mergedFilter,
             select:
@@ -413,7 +413,7 @@ export class UnionDataset<
     // If we merged everything into a single dataset, use its query directly
     // Pass the querySchema to enable column and join elimination
     if (mergedDatasets.length === 1) {
-      return mergedDatasets[0].query(querySchema);
+      return mergedDatasets[0]!.query(querySchema);
     }
 
     // Generate union query from merged datasets
@@ -484,7 +484,7 @@ FROM ${name}`,
 
   implements<T extends DatasetSchema>(required: T): this is Dataset<T> {
     return Object.entries(required).every(([name, required]) => {
-      return name in this.schema && checkExtends(required, this.schema[name]);
+      return name in this.schema && checkExtends(required, this.schema[name]!);
     });
   }
 }
@@ -498,7 +498,7 @@ function getJoinSignature(dataset: SourceDataset): string {
 
 function mergeFilters(filters: InFilter[]): InFilter | undefined {
   if (filters.length === 0) return undefined;
-  const col = filters[0].col;
+  const col = filters[0]!.col;
   const values = new Set(filters.flatMap((filter) => filter.in));
   return {col, in: Array.from(values)};
 }
@@ -595,7 +595,7 @@ export class UnionDatasetWithLineage<
         const newSch: SpecType = {};
         for (const [key, value] of Object.entries(unionSchema)) {
           if (key in dsSchema) {
-            const commonType = unionTypes(value, dsSchema[key]);
+            const commonType = unionTypes(value, dsSchema[key]!);
             if (commonType !== undefined) {
               newSch[key] = commonType;
             }
@@ -625,7 +625,7 @@ export class UnionDatasetWithLineage<
     const groupQueries: string[] = [];
 
     for (let groupId = 0; groupId < this.sourceGroupArray.length; groupId++) {
-      const [src, group] = this.sourceGroupArray[groupId];
+      const [src, group] = this.sourceGroupArray[groupId]!;
       const partitionMap = this.partitionMaps.get(src)!;
       const partitionColumns = Array.from(partitionMap.columns.keys());
 
@@ -670,7 +670,7 @@ WHERE FALSE`;
 
     // Single group - no need for UNION
     if (groupQueries.length === 1) {
-      return groupQueries[0];
+      return groupQueries[0]!;
     }
 
     // Small number of groups - use simple UNION ALL
@@ -701,7 +701,7 @@ ${indent(chunk.join('\nUNION ALL\n'), 2)}
 
   implements<T extends DatasetSchema>(schema: T): this is Dataset<T> {
     return Object.entries(schema).every(([name, required]) => {
-      return name in this.schema && checkExtends(required, this.schema[name]);
+      return name in this.schema && checkExtends(required, this.schema[name]!);
     });
   }
 
@@ -722,7 +722,7 @@ ${indent(chunk.join('\nUNION ALL\n'), 2)}
       return [];
     }
 
-    const [src, group] = this.sourceGroupArray[groupId];
+    const [src, group] = this.sourceGroupArray[groupId]!;
     const partitionMap = this.partitionMaps.get(src)!;
 
     const results: Dataset[] = [];

@@ -131,8 +131,8 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       searchTerm,
     ).map((result) => {
       return {
-        segments: result.segments[0],
-        sourceSegments: result.item.source ? result.segments[1] : undefined,
+        segments: result.segments[0]!,
+        sourceSegments: result.item.source ? result.segments[1]! : undefined,
         ...result.item,
       };
     });
@@ -566,13 +566,7 @@ class OmniboxWidget implements m.ClassComponent<OmniboxWidgetAttrs> {
                   e.preventDefault();
 
                   const option = options[selectedOptionIndex];
-                  // Return values from indexing arrays can be undefined.
-                  // We should enable noUncheckedIndexedAccess in
-                  // tsconfig.json.
-                  /* eslint-disable
-                      @typescript-eslint/strict-boolean-expressions */
                   if (option) {
-                    /* eslint-enable */
                     closeOnSubmit && this.close(attrs);
 
                     const mod = e.metaKey || e.ctrlKey;

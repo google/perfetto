@@ -543,7 +543,7 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
               m(
                 MenuItem,
                 {label: `From ${tableName}`},
-                buildColumnItems(joinidColumns[0].joinidColumn),
+                buildColumnItems(joinidColumns[0]!.joinidColumn),
               ),
             );
           } else {
@@ -616,7 +616,7 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
               }
               attrs.onFilterAdd(
                 normalizedFilters.length === 1
-                  ? normalizedFilters[0]
+                  ? normalizedFilters[0]!
                   : normalizedFilters,
                 operator,
               );

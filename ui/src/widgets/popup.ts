@@ -368,7 +368,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
           phase: 'beforeWrite',
           requires: ['computeStyles'],
           fn: ({state}) => {
-            state.styles.popper.width = `${state.rects.reference.width}px`;
+            state.styles.popper!.width = `${state.rects.reference.width}px`;
           },
           effect: ({state}) => {
             const trigger = state.elements.reference as HTMLElement;

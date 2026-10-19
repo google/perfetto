@@ -131,9 +131,9 @@ function matchSegments(
   if (pattern.length !== input.length) return null;
   const params: Record<string, string> = {};
   for (let i = 0; i < pattern.length; i++) {
-    const p = pattern[i];
+    const p = pattern[i]!;
     if (p.startsWith(':')) {
-      const value = safeDecode(input[i]);
+      const value = safeDecode(input[i]!);
       if (value === undefined) return null;
       params[p.slice(1)] = value;
     } else if (p !== input[i]) {

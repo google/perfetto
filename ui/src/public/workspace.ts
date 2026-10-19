@@ -476,8 +476,8 @@ export class TrackNode {
 
   private collectFlatTracks(tracks: TrackNode[]): void {
     for (let i = 0; i < this.children.length; ++i) {
-      tracks.push(this.children[i]); // Push the current node before its children
-      this.children[i].collectFlatTracks(tracks); // Recurse to collect child tracks
+      tracks.push(this.children[i]!); // Push the current node before its children
+      this.children[i]!.collectFlatTracks(tracks); // Recurse to collect child tracks
     }
   }
 
