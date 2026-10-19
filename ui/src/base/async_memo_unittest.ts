@@ -377,6 +377,81 @@ test('retainOn keeps AsyncDisposable alive until replaced', async () => {
   expect(disposable2[Symbol.asyncDispose]).not.toHaveBeenCalled();
 });
 
+test('retained AsyncDisposable outlives tasks queued against it', async () => {
+  const queue = new AtomicTaskQueue();
+  const tableSlot = new AsyncMemo<AsyncDisposable>(queue);
+  const dataSlot = new AsyncMemo<string>(queue);
+
+  const events: string[] = [];
+  let resolveBuild2: () => void;
+  const build2Promise = new Promise<void>((resolve) => {
+    resolveBuild2 = resolve;
+  });
+
+  let table1Disposed = false;
+  const table1: AsyncDisposable = {
+    [Symbol.asyncDispose]: vi.fn().mockImplementation(async () => {
+      table1Disposed = true;
+      events.push('dispose1');
+    }),
+  };
+  const table2: AsyncDisposable = {
+    [Symbol.asyncDispose]: vi.fn().mockImplementation(async () => {
+      events.push('dispose2');
+    }),
+  };
+
+  const build1 = vi.fn().mockImplementation(async () => {
+    events.push('build1');
+    return table1;
+  });
+  const build2 = vi.fn().mockImplementation(async () => {
+    events.push('build2-start');
+    await build2Promise;
+    events.push('build2-end');
+    return table2;
+  });
+
+  tableSlot.use({key: {src: 'a'}, compute: build1, retainOn: ['src']});
+  await flushPromises();
+
+  // Change the source (in retainOn) - table2 starts building
+  tableSlot.use({key: {src: 'b'}, compute: build2, retainOn: ['src']});
+  await flushPromises();
+  expect(events).toEqual(['build1', 'build2-start']);
+
+  // While table2 is building, a dependent task is queued against the retained
+  // table1.
+  const retained = tableSlot.use({
+    key: {src: 'b'},
+    compute: build2,
+    retainOn: ['src'],
+  });
+  expect(retained.data).toBe(table1);
+  dataSlot.use({
+    key: {table: 1},
+    compute: async () => {
+      events.push(`fetch1 (disposed=${table1Disposed})`);
+      return 'data1';
+    },
+  });
+
+  // Complete table2 - table1 must not be disposed until the fetch has run
+  resolveBuild2!();
+  await flushPromises();
+  await flushPromises();
+
+  expect(events).toEqual([
+    'build1',
+    'build2-start',
+    'build2-end',
+    'fetch1 (disposed=false)',
+    'dispose1',
+  ]);
+  expect(table1[Symbol.asyncDispose]).toHaveBeenCalledTimes(1);
+  expect(table2[Symbol.asyncDispose]).not.toHaveBeenCalled();
+});
+
 test('slot dispose calls AsyncDisposable dispose after in-flight task completes', async () => {
   const slot = new AsyncMemo<AsyncDisposable>();
 

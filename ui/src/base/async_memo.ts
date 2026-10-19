@@ -251,13 +251,22 @@ export class AsyncMemo<T> {
           // Dispose of the previous result now that it has been replaced.
           // Doing this after (rather than before) compute keeps the previous
           // result usable via retainOn while the new one is computed.
+          //
+          // Disposal is scheduled as a separate task rather than run inline so
+          // that it runs after any tasks already queued which captured the
+          // previous result (e.g. a dependent memo's compute). Once the cache
+          // has been replaced, no new tasks can capture it. A fresh key is used
+          // so that later tasks on this memo can't replace (and leak) it.
           if (
             previous !== undefined &&
             this.cache !== previous &&
             this.cache?.data !== previous.data &&
             isAsyncDisposable(previous.data)
           ) {
-            await previous.data[Symbol.asyncDispose]();
+            const stale = previous.data;
+            this.queue.schedule({}, async () => {
+              await stale[Symbol.asyncDispose]();
+            });
           }
         } catch (e) {
           // Support both throwing and returning TASK_CANCELLED
