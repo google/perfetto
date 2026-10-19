@@ -92,7 +92,7 @@ follows:
 | Filtering rows, standard `JOIN`s, window functions, computed expressions, and aggregates other than `COUNT(*)`, `SUM`, `MIN`, and `MAX` | Inside the `FROM (SELECT ...)` source subquery, or in a standard SQL query over the resulting `PERFETTO TABLE`. |
 | Intersecting time intervals across two or more tables | `INTERVAL INTERSECTION OF (...) [PER ...]` at the start of a pipeline. |
 | Counting or summing concurrent activity within one set of intervals | `\|> INTERVAL FLATTEN [PER ...] AGGREGATE COUNT(*) AS active` stage; see the [worked example](/docs/analysis/perfetto-sql-pipe-getting-started.md#flattening-overlapping-intervals-interval-flatten). |
-| Summing values up or down a parent-child tree | `\|> TREE ACCUMULATE UP \| DOWN SUM(col) AS total` stage. |
+| Counting or summing values up or down a parent-child tree | `\|> TREE ACCUMULATE UP \| DOWN COUNT(*) AS n, SUM(col) AS total` stage. |
 | Picking, dropping, renaming, or swapping columns | `\|> SELECT`, `\|> EXTEND`, `\|> DROP`, `\|> RENAME`, `\|> SET`, `\|> AS` stages. |
 | Counting rows or summing an integer column per group | `\|> AGGREGATE COUNT(*) AS n, SUM(col) AS total GROUP BY key` stage. |
 | Sorting final output by numeric columns | `\|> ORDER BY col [DESC]` as the last stage. |
