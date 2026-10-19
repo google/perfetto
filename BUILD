@@ -2633,6 +2633,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/grouped_sort.h",
         "src/trace_processor/core/exec/hash_aggregate.cc",
         "src/trace_processor/core/exec/hash_aggregate.h",
+        "src/trace_processor/core/exec/index_scan.cc",
+        "src/trace_processor/core/exec/index_scan.h",
         "src/trace_processor/core/exec/interval_fill_gaps.cc",
         "src/trace_processor/core/exec/interval_fill_gaps.h",
         "src/trace_processor/core/exec/interval_flatten.cc",

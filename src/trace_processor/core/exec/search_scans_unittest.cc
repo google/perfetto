@@ -40,6 +40,7 @@
 #include "src/trace_processor/core/exec/eq_scans.h"
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/filter_value.h"
+#include "src/trace_processor/core/exec/index_scan.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -81,13 +82,25 @@ struct Values : ValueFetcher {
   const std::vector<Value>* values = nullptr;
 };
 
-enum Col : uint32_t { kTs, kSet, kSmall, kNeg, kDbl, kName, kDur, kMaybe, kId };
+enum Col : uint32_t {
+  kTs,
+  kSet,
+  kSmall,
+  kNeg,
+  kDbl,
+  kName,
+  kDur,
+  kMaybe,
+  kTag,
+  kId
+};
 
 class SearchScansDiffTest : public ::testing::Test {
  protected:
   void Build(uint32_t rows) {
     dataframe::AdhocDataframeBuilder builder(
-        {"ts", "set", "small", "neg", "dbl", "name", "dur", "maybe"}, &pool_);
+        {"ts", "set", "small", "neg", "dbl", "name", "dur", "maybe", "tag"},
+        &pool_);
     int64_t ts = int64_t{1} << 33;
     uint32_t set = 0;
     uint32_t small = 1;
@@ -121,9 +134,22 @@ class SearchScansDiffTest : public ::testing::Test {
         maybe_.emplace_back(kBig + int64_t(rng_() % 50));
         PERFETTO_CHECK(builder.PushNonNull(kMaybe, *maybe_.back()));
       }
+      PERFETTO_CHECK(builder.PushNonNull(
+          kTag,
+          pool_.InternString(
+              base::StackString<16>("t%u", static_cast<uint32_t>(rng_() % 20))
+                  .string_view())));
     }
     auto df = std::move(builder).Build();
     PERFETTO_CHECK(df.ok());
+    // Indexes on unsorted columns of each kind: an integer, a sparse nullable
+    // integer, and a string, the last two with a second column.
+    for (std::vector<uint32_t> cols : std::vector<std::vector<uint32_t>>{
+             {kDur}, {kMaybe, kDur}, {kTag, kDur}}) {
+      auto index = df->BuildIndex(cols.data(), cols.data() + cols.size());
+      PERFETTO_CHECK(index.ok());
+      *df = df->AddIndex(std::move(*index));
+    }
     df_ = std::make_unique<dataframe::Dataframe>(std::move(*df));
     PERFETTO_CHECK(df_->column_names()[kId] == dataframe::kAutoIdColumnName);
   }
@@ -192,8 +218,9 @@ class SearchScansDiffTest : public ::testing::Test {
   }
 
   // An executor plan for a logical plan which only filters: a scan doing the
-  // searches, if any, then a Filter for the rest. One equality search which
-  // needs no dispatch gets its own scan; anything else gets a SortedScan.
+  // searches, if any, then a Filter for the rest. A plan using an index gets
+  // an IndexScan; one equality search which needs no dispatch gets its own
+  // scan; anything else gets a SortedScan.
   struct ExecPlan {
     std::unique_ptr<Source> scan;
     std::unique_ptr<Pipeline> pipeline;
@@ -207,7 +234,10 @@ class SearchScansDiffTest : public ::testing::Test {
     ExecPlan out;
     out.casters.resize(plan.filter_value_count);
     std::vector<SortedScan::Search> searches;
+    std::vector<Filter::Condition> searches_as_conditions;
     std::vector<Filter::Condition> conditions;
+    std::vector<IndexScan::Equality> equalities;
+    const dataframe::Index* index = nullptr;
     bool empty = false;
     for (const auto& op : plan.ops) {
       if (const auto* f = std::get_if<dataframe::logical::Filter>(&op)) {
@@ -242,9 +272,21 @@ class SearchScansDiffTest : public ::testing::Test {
         if (kind) {
           searches.push_back(
               {df_->shared_column(f->col), *kind, f->op, *f->value_index});
+          searches_as_conditions.push_back({f->col, f->op, *f->value_index});
         } else {
           conditions.push_back({f->col, f->op, f->value_index.value_or(0)});
         }
+      } else if (const auto* idx =
+                     std::get_if<dataframe::logical::IndexFilter>(&op)) {
+        for (const auto& p : idx->predicates) {
+          if (!p.op.Is<Eq>()) {
+            return std::nullopt;
+          }
+          out.casters[*p.value_index] =
+              GetFilterValueCaster<Values>(p.storage, p.op);
+          equalities.push_back({df_->shared_column(p.col), *p.value_index});
+        }
+        index = &df_->indexes()[idx->index];
       } else if (std::holds_alternative<dataframe::logical::Empty>(op)) {
         empty = true;
       } else if (!std::holds_alternative<dataframe::logical::Scan>(op) &&
@@ -260,6 +302,13 @@ class SearchScansDiffTest : public ::testing::Test {
     if (empty) {
       // Provably empty, whatever else the plan does.
       out.scan = std::make_unique<DataframeScan>(std::move(columns), 0);
+    } else if (index) {
+      // Through an index, any search of a sorted column is left to the Filter.
+      conditions.insert(conditions.end(), searches_as_conditions.begin(),
+                        searches_as_conditions.end());
+      out.scan = std::make_unique<IndexScan>(std::move(columns), *index,
+                                             std::move(equalities), &pool_);
+      ++index_scans_;
     } else if (searches.empty()) {
       out.scan = std::make_unique<DataframeScan>(std::move(columns), rows);
     } else if (one && one->kind == K::kSetIdEq) {
@@ -300,6 +349,7 @@ class SearchScansDiffTest : public ::testing::Test {
   uint32_t set_id_eq_scans_ = 0;
   uint32_t small_value_eq_scans_ = 0;
   uint32_t sorted_scans_ = 0;
+  uint32_t index_scans_ = 0;
 };
 
 TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
@@ -315,11 +365,23 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
       std::vector<std::pair<uint32_t, Op>> shape;
       uint32_t filters = 1 + rng_() % 3;
       for (uint32_t i = 0; i < filters; ++i) {
-        // Favour the sorted columns: they are what is searched.
+        // Favour the sorted and indexed columns: they are what is searched.
         static constexpr uint32_t kSorted[] = {kTs,  kSet,  kSmall, kNeg,
                                                kDbl, kName, kId};
-        uint32_t col = rng_() % 4 ? kSorted[rng_() % 7]
-                                  : static_cast<uint32_t>(rng_() % 9);
+        static constexpr uint32_t kIndexed[] = {kDur, kMaybe, kTag};
+        uint32_t col;
+        switch (rng_() % 4) {
+          case 0:
+          case 1:
+            col = kSorted[rng_() % 7];
+            break;
+          case 2:
+            col = kIndexed[rng_() % 3];
+            break;
+          default:
+            col = static_cast<uint32_t>(rng_() % 10);
+            break;
+        }
         Op op = kOps[rng_() % (rng_() % 4 ? 6 : kOps.size())];
         specs.push_back({col, i, op, std::nullopt});
         shape.emplace_back(col, op);
@@ -387,6 +449,7 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
   EXPECT_GT(set_id_eq_scans_, 0u);
   EXPECT_GT(small_value_eq_scans_, 0u);
   EXPECT_GT(sorted_scans_, 0u);
+  EXPECT_GT(index_scans_, 0u);
 }
 
 }  // namespace
