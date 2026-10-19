@@ -17,7 +17,7 @@ import type {Storage, Trace} from '../../public/trace';
 import type {Setting} from '../../public/settings';
 import {NUM} from '../../trace_processor/query_result';
 
-import {SQL_PREAMBLE} from './components';
+import {SQL_PREAMBLE, truncateTabLabel} from './components';
 import {flamegraphQuery} from './views/flamegraph_objects_view';
 import * as queries from './queries';
 import type {HeapDump} from './types';
@@ -30,7 +30,7 @@ import {
   subpageToState,
 } from './nav_state';
 import type {TreeExplorerState} from '../../widgets/tree_explorer';
-import type {HdeState} from './persisted_state';
+import type {CollectionsTab, HdeState} from './persisted_state';
 import {
   METRIC_DOMINATED_OBJECT_SIZE,
   METRIC_OBJECT_SIZE,
@@ -50,14 +50,6 @@ export interface FlamegraphTabView {
   readonly pathHashes: string;
   readonly isDominator: boolean;
   readonly count: number | null;
-}
-
-const INSTANCE_LABEL_MAX = 30;
-
-function truncateInstanceLabel(label: string): string {
-  return label.length > INSTANCE_LABEL_MAX
-    ? label.slice(0, INSTANCE_LABEL_MAX) + '…'
-    : label;
 }
 
 // Count-cache key for a flamegraph tab.
@@ -139,9 +131,11 @@ export class HeapDumpExplorerSession {
             : {upid: first.upid, ts: first.ts.toString()};
         s.nav = undefined;
         s.flamegraphTabs = undefined;
+        s.collectionsTabs = undefined;
         s.instanceTabs = undefined;
         s.flamegraphPanelState = undefined;
         s.callstackPanelState = undefined;
+        s.collectionsFlamegraphPanelState = undefined;
       });
     }
     return restored;
@@ -151,7 +145,11 @@ export class HeapDumpExplorerSession {
     if (this.activeDump === d) return;
     this.switchToDump(d);
     const view = this.nav.view;
-    if (view === 'object' || view === 'flamegraph-objects') {
+    if (
+      view === 'object' ||
+      view === 'flamegraph-objects' ||
+      view === 'flamegraph-collections'
+    ) {
       this.navigate(this.defaultView);
     }
   }
@@ -161,9 +159,11 @@ export class HeapDumpExplorerSession {
     this.edit((s) => {
       s.activeDump = {upid: d.upid, ts: d.ts.toString()};
       s.flamegraphTabs = undefined;
+      s.collectionsTabs = undefined;
       s.instanceTabs = undefined;
       s.flamegraphPanelState = undefined;
       s.callstackPanelState = undefined;
+      s.collectionsFlamegraphPanelState = undefined;
     });
   }
 
@@ -316,6 +316,75 @@ export class HeapDumpExplorerSession {
     }
   }
 
+  get collectionsTabs(): ReadonlyArray<CollectionsTab> {
+    return this.storage.get().collectionsTabs ?? [];
+  }
+
+  // The pathHashes of the active collections tab, derived from the nav.
+  get activeCollectionsTab(): string | null {
+    const nav = this.nav;
+    if (nav.view !== 'flamegraph-collections') return null;
+    return nav.params.pathHashes ?? null;
+  }
+
+  openCollectionsTab(
+    pathHashes: string,
+    label: string,
+    collectionCls?: string,
+  ): void {
+    this.addCollectionsTab(pathHashes, label, collectionCls);
+    this.navigate('flamegraph-collections', {
+      pathHashes,
+      label,
+      collectionCls,
+    });
+  }
+
+  private addCollectionsTab(
+    pathHashes: string,
+    label: string,
+    collectionCls?: string,
+  ): void {
+    if (this.activeDump === null) return;
+    const tabs = this.storage.get().collectionsTabs ?? [];
+    if (tabs.some((t) => t.pathHashes === pathHashes)) return;
+    this.edit((s) => {
+      s.collectionsTabs = [
+        ...(s.collectionsTabs ?? []),
+        {
+          pathHashes,
+          label,
+          collectionCls,
+        },
+      ];
+    });
+  }
+
+  closeCollectionsTab(pathHashes: string): void {
+    const wasActive = this.activeCollectionsTab === pathHashes;
+    this.edit((s) => {
+      s.collectionsTabs = (s.collectionsTabs ?? []).filter(
+        (t) => t.pathHashes !== pathHashes,
+      );
+    });
+    if (wasActive) this.navigate('collections');
+  }
+
+  syncCollectionsTabFromNav(): void {
+    const nav = this.nav;
+    if (
+      nav.view !== 'flamegraph-collections' ||
+      nav.params.pathHashes === undefined
+    ) {
+      return;
+    }
+    this.addCollectionsTab(
+      nav.params.pathHashes,
+      nav.params.label ?? '',
+      nav.params.collectionCls,
+    );
+  }
+
   // Fetches the title's object count for one flamegraph tab. No-op if cached.
   private loadCount(pathHashes: string, isDominator: boolean): void {
     const key = countKey(pathHashes, isDominator);
@@ -345,7 +414,7 @@ export class HeapDumpExplorerSession {
     this.edit((s) => {
       s.instanceTabs = [
         ...(s.instanceTabs ?? []),
-        {objId, label: truncateInstanceLabel(label ?? 'Instance')},
+        {objId, label: truncateTabLabel(label ?? 'Instance')},
       ];
     });
   }
@@ -383,6 +452,16 @@ export class HeapDumpExplorerSession {
   setCallstackPanelState(state: TreeExplorerState): void {
     this.edit((s) => {
       s.callstackPanelState = state;
+    });
+  }
+
+  get collectionsFlamegraphPanelState(): TreeExplorerState | undefined {
+    return this.storage.get().collectionsFlamegraphPanelState;
+  }
+
+  setCollectionsFlamegraphPanelState(state: TreeExplorerState): void {
+    this.edit((s) => {
+      s.collectionsFlamegraphPanelState = state;
     });
   }
 

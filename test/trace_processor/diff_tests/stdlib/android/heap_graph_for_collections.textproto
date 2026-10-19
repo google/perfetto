@@ -1,0 +1,705 @@
+packet {
+  process_tree {
+    processes {
+      pid: 1
+      ppid: 0
+      cmdline: "init"
+      uid: 0
+    }
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "system_server"
+      uid: 1000
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  # A synthetic heap graph exercising collection recipes and layouts:
+  #
+  # Root R (0x1) references:
+  # - R.list -> ArrayList (0x2) -> elementData: Object[] (0x3) -> [Elem (0x4), NULL, NULL]
+  # - R.map -> HashMap (0x10) -> table: Node[] (0x11) -> [Node0 (0x12) -> next: Node1 (0x13)]
+  #            Node0: key=K0 (0x14), value=V0 (0x15)
+  #            Node1: key=K1 (0x16), value=V1 (0x17)
+  #            The table and Node0 are VM internal roots too, like zygote
+  #            objects: they still belong to the map.
+  # - R.linkedMap -> LinkedHashMap (0x20) -> table: Node[] (0x21) -> [Node (0x22) {key=K, value=V}]
+  # - R.subMap -> CustomHashMapSubclass (0x25) -> table: Node[] (0x26) -> [Node (0x27) {key=K, value=V}]
+  # - R.set -> HashSet (0x30) -> map: HashMap (0x31) -> table: Node[] (0x32) -> [Node (0x33) {key=Elem (0x34), value=PRESENT (0x35, java.lang.Object)}]
+  # - R.arrayMap -> ArrayMap (0x40) -> mArray: Object[] (0x41) -> [K0 (0x42), V0 (0x43), K1 (0x44), NULL]
+  #                                 -> mHashes: int[] (0x45)
+  # - R.sparseArray -> SparseArray (0x50) -> mValues: Object[] (0x51) -> [V0 (0x52), DELETED (0x53), V1 (0x54)]
+  #                                       -> mKeys: int[] (0x55)
+  # - R.lruCache -> LruCache (0x60) -> map: LinkedHashMap (0x61) -> table: Node[] (0x62) -> [Node (0x63) {key=K, value=V}]
+  # - R.list12 -> List12 (0x70) -> e0: Elem (0x71), e1: Elem (0x72)
+  # - R.queue -> ConcurrentLinkedQueue (0x80) -> head: Node (0x81, dummy item=NULL) -> next: Node (0x82, item=Elem (0x83))
+  # - R.rawArray -> Foo[] (0x90) -> [Elem (0x91)]
+  # - R.unsupported -> UnsupportedCollection (0xa0)
+  # - R.sharedDelegate -> UnmodifiableCollection (0xb0) -> c: SharedList (0xb1, also held by R.otherList)
+  # - R.otherList -> SharedList (0xb1) -> elementData: Object[] (0xb2) -> [Elem (0xb3)]
+  # - R.nested -> ArrayList (0xc0) -> elementData: Object[] (0xc1) -> [ArrayList (0xc2), Holder (0xc5)]
+  #               0xc2 -> elementData: Object[] (0xc3) -> [Elem (0xc4)]
+  #               0xc5 -> Holder.items: ArrayList (0xc6) -> elementData: Object[] (0xc7) -> [Elem (0xc8), Elem (0xc9)]
+  # - R.tree -> ArrayList (0xd0) -> [TreeNode (0xd2)]; 0xd2.children -> ArrayList (0xd3) -> [TreeNode (0xd5)];
+  #             0xd5.children -> ArrayList (0xd6) -> [Elem (0xd8)]: TreeNode.children nested in itself.
+  # - R.mapOfLists -> HashMap (0xf0) -> table (0xf1) -> [Node (0xf2) {key=Elem (0xf3), value=ArrayList (0xf4) -> [Elem (0xf6)]}]
+  # - Roots 0xe0 (an empty Object[], a collection without field) and 0xe3 (an Object[] shared as
+  #   elementData by root ArrayLists 0xe1 and 0xe2, so not a collection) -> [ArrayList (0xe4) -> [Elem (0xe6)]]:
+  #   the collection 0xe0 and the class frame of 0xe3 have the same name but are different frames.
+  # - Class<SparseArray> (0x500) -> SparseArray.DELETED (0x53)
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+    pid: 2
+    roots {
+      root_type: ROOT_JNI_GLOBAL
+      object_ids: 0x1
+      object_ids: 0x500
+      object_ids: 0x1000
+      object_ids: 0x1001
+      object_ids: 0x1002
+      object_ids: 0x1003
+      object_ids: 0x1004
+      object_ids: 0x1005
+      object_ids: 0x1006
+      object_ids: 0x1007
+      object_ids: 0xe0
+      object_ids: 0xe1
+      object_ids: 0xe2
+      object_ids: 0xe3
+    }
+    roots {
+      root_type: ROOT_VM_INTERNAL
+      object_ids: 0x11
+      object_ids: 0x12
+    }
+    # 0x1: Root R
+    objects {
+      id: 0x1
+      type_id: 1
+      self_size: 64
+      reference_field_id: 1
+      reference_object_id: 0x2
+      reference_field_id: 3
+      reference_object_id: 0x10
+      reference_field_id: 8
+      reference_object_id: 0x20
+      reference_field_id: 10
+      reference_object_id: 0x25
+      reference_field_id: 12
+      reference_object_id: 0x30
+      reference_field_id: 15
+      reference_object_id: 0x40
+      reference_field_id: 19
+      reference_object_id: 0x50
+      reference_field_id: 23
+      reference_object_id: 0x60
+      reference_field_id: 25
+      reference_object_id: 0x70
+      reference_field_id: 28
+      reference_object_id: 0x80
+      reference_field_id: 32
+      reference_object_id: 0x90
+      reference_field_id: 33
+      reference_object_id: 0xa0
+      reference_field_id: 34
+      reference_object_id: 0xb0
+      reference_field_id: 36
+      reference_object_id: 0xb1
+      reference_field_id: 37
+      reference_object_id: 0xc0
+      reference_field_id: 39
+      reference_object_id: 0xd0
+      reference_field_id: 40
+      reference_object_id: 0xf0
+    }
+    # 0x2: ArrayList
+    objects {
+      id: 0x2
+      type_id: 2
+      self_size: 24
+      reference_field_id: 2
+      reference_object_id: 0x3
+    }
+    # 0x3: ArrayList.elementData (Object[] len 3: 24 bytes)
+    objects {
+      id: 0x3
+      type_id: 100
+      self_size: 24
+      reference_object_id: 0x4
+      reference_object_id: 0x0
+      reference_object_id: 0x0
+    }
+    # 0x4: Element object
+    objects {
+      id: 0x4
+      type_id: 101
+      self_size: 16
+    }
+    # 0x10: HashMap
+    objects {
+      id: 0x10
+      type_id: 3
+      self_size: 48
+      reference_field_id: 4
+      reference_object_id: 0x11
+    }
+    # 0x11: HashMap.table (Node[] len 2: 20 bytes)
+    objects {
+      id: 0x11
+      type_id: 102
+      self_size: 20
+      reference_object_id: 0x12
+      reference_object_id: 0x0
+    }
+    # 0x12: HashMap$Node 0
+    objects {
+      id: 0x12
+      type_id: 4
+      self_size: 32
+      reference_field_id: 5
+      reference_object_id: 0x14
+      reference_field_id: 6
+      reference_object_id: 0x15
+      reference_field_id: 7
+      reference_object_id: 0x13
+    }
+    # 0x13: HashMap$Node 1 (collision next)
+    objects {
+      id: 0x13
+      type_id: 4
+      self_size: 32
+      reference_field_id: 5
+      reference_object_id: 0x16
+      reference_field_id: 6
+      reference_object_id: 0x17
+    }
+    # 0x14, 0x15, 0x16, 0x17: Keys and Values
+    objects { id: 0x14 type_id: 101 self_size: 16 }
+    objects { id: 0x15 type_id: 101 self_size: 16 }
+    objects { id: 0x16 type_id: 101 self_size: 16 }
+    objects { id: 0x17 type_id: 101 self_size: 16 }
+    # 0x20: LinkedHashMap
+    objects {
+      id: 0x20
+      type_id: 5
+      self_size: 64
+      reference_field_id: 4
+      reference_object_id: 0x21
+    }
+    # 0x21: LinkedHashMap table
+    objects {
+      id: 0x21
+      type_id: 102
+      self_size: 16
+      reference_object_id: 0x22
+    }
+    # 0x22: LinkedHashMap Node
+    objects {
+      id: 0x22
+      type_id: 4
+      self_size: 32
+      reference_field_id: 5
+      reference_object_id: 0x14
+      reference_field_id: 6
+      reference_object_id: 0x15
+    }
+    # 0x25: CustomHashMapSubclass
+    objects {
+      id: 0x25
+      type_id: 6
+      self_size: 48
+      reference_field_id: 4
+      reference_object_id: 0x26
+    }
+    # 0x26: Subclass table
+    objects {
+      id: 0x26
+      type_id: 102
+      self_size: 16
+      reference_object_id: 0x27
+    }
+    # 0x27: Subclass Node
+    objects {
+      id: 0x27
+      type_id: 4
+      self_size: 32
+      reference_field_id: 5
+      reference_object_id: 0x14
+      reference_field_id: 6
+      reference_object_id: 0x15
+    }
+    # 0x30: HashSet
+    objects {
+      id: 0x30
+      type_id: 7
+      self_size: 16
+      reference_field_id: 13
+      reference_object_id: 0x31
+    }
+    # 0x31: HashSet.map (inner HashMap)
+    objects {
+      id: 0x31
+      type_id: 3
+      self_size: 48
+      reference_field_id: 4
+      reference_object_id: 0x32
+    }
+    # 0x32: HashSet inner table
+    objects {
+      id: 0x32
+      type_id: 102
+      self_size: 16
+      reference_object_id: 0x33
+    }
+    # 0x33: HashSet Node (key=0x34, value=PRESENT 0x35)
+    objects {
+      id: 0x33
+      type_id: 4
+      self_size: 32
+      reference_field_id: 5
+      reference_object_id: 0x34
+      reference_field_id: 6
+      reference_object_id: 0x35
+    }
+    # 0x34: HashSet Elem
+    objects { id: 0x34 type_id: 101 self_size: 16 }
+    # 0x35: PRESENT sentinel (java.lang.Object)
+    objects { id: 0x35 type_id: 103 self_size: 8 }
+    # 0x40: ArrayMap
+    objects {
+      id: 0x40
+      type_id: 8
+      self_size: 32
+      reference_field_id: 16
+      reference_object_id: 0x41
+      reference_field_id: 17
+      reference_object_id: 0x45
+    }
+    # 0x41: ArrayMap.mArray (Object[] len 4: 28 bytes)
+    # [K0 0x42, V0 0x43, K1 0x44, NULL] -> 2 pairs, pair 0 has 2 non-nulls, pair 1 has 1 non-null
+    objects {
+      id: 0x41
+      type_id: 100
+      self_size: 28
+      reference_object_id: 0x42
+      reference_object_id: 0x43
+      reference_object_id: 0x44
+      reference_object_id: 0x0
+    }
+    # 0x42, 0x43, 0x44: ArrayMap elements
+    objects { id: 0x42 type_id: 101 self_size: 16 }
+    objects { id: 0x43 type_id: 101 self_size: 16 }
+    objects { id: 0x44 type_id: 101 self_size: 16 }
+    # 0x45: ArrayMap.mHashes (int[] len 2: 20 bytes)
+    objects {
+      id: 0x45
+      type_id: 104
+      self_size: 20
+    }
+    # 0x50: SparseArray
+    objects {
+      id: 0x50
+      type_id: 9
+      self_size: 24
+      reference_field_id: 20
+      reference_object_id: 0x51
+      reference_field_id: 21
+      reference_object_id: 0x55
+    }
+    # 0x51: SparseArray.mValues (Object[] len 3: 24 bytes) -> [V0 0x52, DELETED 0x53, V1 0x54]
+    objects {
+      id: 0x51
+      type_id: 100
+      self_size: 24
+      reference_object_id: 0x52
+      reference_object_id: 0x53
+      reference_object_id: 0x54
+    }
+    # 0x52, 0x54: SparseArray values
+    objects { id: 0x52 type_id: 101 self_size: 16 }
+    objects { id: 0x54 type_id: 101 self_size: 16 }
+    # 0x53: DELETED sentinel
+    objects { id: 0x53 type_id: 103 self_size: 8 }
+    # 0x55: SparseArray.mKeys (int[] len 3: 24 bytes)
+    objects { id: 0x55 type_id: 104 self_size: 24 }
+    # 0x500: Class<android.util.SparseArray>
+    objects {
+      id: 0x500
+      type_id: 200
+      self_size: 128
+      reference_field_id: 22
+      reference_object_id: 0x53
+    }
+    # 0x60: LruCache
+    objects {
+      id: 0x60
+      type_id: 10
+      self_size: 32
+      reference_field_id: 24
+      reference_object_id: 0x61
+    }
+    # 0x61: LruCache.map (LinkedHashMap)
+    objects {
+      id: 0x61
+      type_id: 5
+      self_size: 64
+      reference_field_id: 4
+      reference_object_id: 0x62
+    }
+    # 0x62: LruCache table
+    objects {
+      id: 0x62
+      type_id: 102
+      self_size: 16
+      reference_object_id: 0x63
+    }
+    # 0x63: LruCache Node
+    objects {
+      id: 0x63
+      type_id: 4
+      self_size: 32
+      reference_field_id: 5
+      reference_object_id: 0x14
+      reference_field_id: 6
+      reference_object_id: 0x15
+    }
+    # 0x70: List12
+    objects {
+      id: 0x70
+      type_id: 11
+      self_size: 24
+      reference_field_id: 26
+      reference_object_id: 0x71
+      reference_field_id: 27
+      reference_object_id: 0x72
+    }
+    # 0x71, 0x72: List12 elements
+    objects { id: 0x71 type_id: 101 self_size: 16 }
+    objects { id: 0x72 type_id: 101 self_size: 16 }
+    # 0x80: ConcurrentLinkedQueue
+    objects {
+      id: 0x80
+      type_id: 12
+      self_size: 24
+      reference_field_id: 29
+      reference_object_id: 0x81
+    }
+    # 0x81: Dummy head node (item is null, next points to 0x82)
+    objects {
+      id: 0x81
+      type_id: 13
+      self_size: 24
+      reference_field_id: 30
+      reference_object_id: 0x82
+    }
+    # 0x82: Real node (item=0x83)
+    objects {
+      id: 0x82
+      type_id: 13
+      self_size: 24
+      reference_field_id: 31
+      reference_object_id: 0x83
+    }
+    # 0x83: Queue element
+    objects { id: 0x83 type_id: 101 self_size: 16 }
+    # 0x90: Foo[] raw array (len 1: 16 bytes)
+    objects {
+      id: 0x90
+      type_id: 105
+      self_size: 16
+      reference_object_id: 0x91
+    }
+    # 0x91: Raw array element
+    objects { id: 0x91 type_id: 101 self_size: 16 }
+    # 0xa0: UnsupportedCollection
+    objects {
+      id: 0xa0
+      type_id: 14
+      self_size: 32
+    }
+    # 0xb0: UnmodifiableCollection (wrapper around shared list 0xb1)
+    objects {
+      id: 0xb0
+      type_id: 15
+      self_size: 16
+      reference_field_id: 35
+      reference_object_id: 0xb1
+    }
+    # 0xb1: SharedList (referenced by both 0x1 and 0xb0, so NOT dominated by 0xb0)
+    objects {
+      id: 0xb1
+      type_id: 2
+      self_size: 24
+      reference_field_id: 2
+      reference_object_id: 0xb2
+    }
+    # 0xb2: SharedList elementData
+    objects {
+      id: 0xb2
+      type_id: 100
+      self_size: 16
+      reference_object_id: 0xb3
+    }
+    # 0xb3: SharedList element
+    objects { id: 0xb3 type_id: 101 self_size: 16 }
+    # 0xc0: ArrayList of collections: an inner list and a Holder owning one
+    objects {
+      id: 0xc0
+      type_id: 2
+      self_size: 24
+      reference_field_id: 2
+      reference_object_id: 0xc1
+    }
+    # 0xc1: 0xc0.elementData (Object[] len 2: 20 bytes)
+    objects {
+      id: 0xc1
+      type_id: 100
+      self_size: 20
+      reference_object_id: 0xc2
+      reference_object_id: 0xc5
+    }
+    # 0xc2: inner ArrayList (an element of 0xc0)
+    objects {
+      id: 0xc2
+      type_id: 2
+      self_size: 24
+      reference_field_id: 2
+      reference_object_id: 0xc3
+    }
+    # 0xc3: 0xc2.elementData (Object[] len 1: 16 bytes)
+    objects {
+      id: 0xc3
+      type_id: 100
+      self_size: 16
+      reference_object_id: 0xc4
+    }
+    objects { id: 0xc4 type_id: 101 self_size: 16 }
+    # 0xc5: Holder (an element of 0xc0)
+    objects {
+      id: 0xc5
+      type_id: 16
+      self_size: 16
+      reference_field_id: 38
+      reference_object_id: 0xc6
+    }
+    # 0xc6: Holder.items
+    objects {
+      id: 0xc6
+      type_id: 2
+      self_size: 24
+      reference_field_id: 2
+      reference_object_id: 0xc7
+    }
+    # 0xc7: 0xc6.elementData (Object[] len 2: 20 bytes)
+    objects {
+      id: 0xc7
+      type_id: 100
+      self_size: 20
+      reference_object_id: 0xc8
+      reference_object_id: 0xc9
+    }
+    objects { id: 0xc8 type_id: 101 self_size: 16 }
+    objects { id: 0xc9 type_id: 101 self_size: 16 }
+    # 0xd0..0xd8: R.tree, TreeNode.children nested twice
+    objects { id: 0xd0 type_id: 2 self_size: 24 reference_field_id: 2 reference_object_id: 0xd1 }
+    objects { id: 0xd1 type_id: 100 self_size: 16 reference_object_id: 0xd2 }
+    objects { id: 0xd2 type_id: 17 self_size: 16 reference_field_id: 41 reference_object_id: 0xd3 }
+    objects { id: 0xd3 type_id: 2 self_size: 24 reference_field_id: 2 reference_object_id: 0xd4 }
+    objects { id: 0xd4 type_id: 100 self_size: 16 reference_object_id: 0xd5 }
+    objects { id: 0xd5 type_id: 17 self_size: 16 reference_field_id: 41 reference_object_id: 0xd6 }
+    objects { id: 0xd6 type_id: 2 self_size: 24 reference_field_id: 2 reference_object_id: 0xd7 }
+    objects { id: 0xd7 type_id: 100 self_size: 16 reference_object_id: 0xd8 }
+    objects { id: 0xd8 type_id: 101 self_size: 16 }
+    # 0xf0..0xf6: R.mapOfLists, a HashMap whose value is an ArrayList
+    objects { id: 0xf0 type_id: 3 self_size: 48 reference_field_id: 4 reference_object_id: 0xf1 }
+    objects { id: 0xf1 type_id: 102 self_size: 16 reference_object_id: 0xf2 }
+    objects {
+      id: 0xf2
+      type_id: 4
+      self_size: 32
+      reference_field_id: 5
+      reference_object_id: 0xf3
+      reference_field_id: 6
+      reference_object_id: 0xf4
+    }
+    objects { id: 0xf3 type_id: 101 self_size: 16 }
+    objects { id: 0xf4 type_id: 2 self_size: 24 reference_field_id: 2 reference_object_id: 0xf5 }
+    objects { id: 0xf5 type_id: 100 self_size: 16 reference_object_id: 0xf6 }
+    objects { id: 0xf6 type_id: 101 self_size: 16 }
+    # 0xe0..0xe6: two root Object[] of the same name, a collection and not
+    objects { id: 0xe0 type_id: 100 self_size: 12 }
+    objects { id: 0xe1 type_id: 2 self_size: 24 reference_field_id: 2 reference_object_id: 0xe3 }
+    objects { id: 0xe2 type_id: 2 self_size: 24 reference_field_id: 2 reference_object_id: 0xe3 }
+    objects { id: 0xe3 type_id: 100 self_size: 16 reference_object_id: 0xe4 }
+    objects { id: 0xe4 type_id: 2 self_size: 24 reference_field_id: 2 reference_object_id: 0xe5 }
+    objects { id: 0xe5 type_id: 100 self_size: 16 reference_object_id: 0xe6 }
+    objects { id: 0xe6 type_id: 101 self_size: 16 }
+    # Interfaces: Class objects with ifTable and superClass
+    # 0x1000: Class<java.util.ArrayList>
+    objects {
+      id: 0x1000
+      type_id: 201
+      self_size: 128
+      reference_field_id: 200
+      reference_object_id: 0x1100
+    }
+    # 0x1100: ifTable array for ArrayList -> [Class<java.util.Collection> 0x1004]
+    objects {
+      id: 0x1100
+      type_id: 100
+      self_size: 16
+      reference_object_id: 0x1004
+    }
+    # 0x1001: Class<java.util.HashMap>
+    objects {
+      id: 0x1001
+      type_id: 202
+      self_size: 128
+      reference_field_id: 200
+      reference_object_id: 0x1101
+    }
+    # 0x1101: ifTable array for HashMap -> [Class<java.util.Map> 0x1005]
+    objects {
+      id: 0x1101
+      type_id: 100
+      self_size: 16
+      reference_object_id: 0x1005
+    }
+    # 0x1002: Class<android.util.ArrayMap>
+    objects {
+      id: 0x1002
+      type_id: 203
+      self_size: 128
+      reference_field_id: 200
+      reference_object_id: 0x1102
+    }
+    # 0x1102: ifTable for ArrayMap -> [Class<java.util.Map> 0x1005]
+    objects {
+      id: 0x1102
+      type_id: 100
+      self_size: 16
+      reference_object_id: 0x1005
+    }
+    # 0x1003: Class<UnsupportedCollection>
+    objects {
+      id: 0x1003
+      type_id: 204
+      self_size: 128
+      reference_field_id: 200
+      reference_object_id: 0x1103
+    }
+    # 0x1103: ifTable for UnsupportedCollection -> [Class<java.util.Collection> 0x1004]
+    objects {
+      id: 0x1103
+      type_id: 100
+      self_size: 16
+      reference_object_id: 0x1004
+    }
+    # 0x1004: Class<java.util.Collection>
+    objects { id: 0x1004 type_id: 205 self_size: 128 }
+    # 0x1005: Class<java.util.Map>
+    objects { id: 0x1005 type_id: 206 self_size: 128 }
+    # 0x1006: Class<java.util.LinkedHashMap> -> superClass: Class<java.util.HashMap> (0x1001)
+    objects {
+      id: 0x1006
+      type_id: 207
+      self_size: 128
+      reference_field_id: 201
+      reference_object_id: 0x1001
+    }
+    # 0x1007: Class<CustomHashMapSubclass> -> superClass: Class<java.util.HashMap> (0x1001)
+    objects {
+      id: 0x1007
+      type_id: 208
+      self_size: 128
+      reference_field_id: 201
+      reference_object_id: 0x1001
+    }
+    continued: true
+    index: 0
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+    pid: 2
+    types { id: 1 class_name: "Root" }
+    types { id: 2 class_name: "java.util.ArrayList" }
+    types { id: 3 class_name: "java.util.HashMap" }
+    types { id: 4 class_name: "java.util.HashMap$Node" }
+    types { id: 5 class_name: "java.util.LinkedHashMap" }
+    types { id: 6 class_name: "CustomHashMapSubclass" }
+    types { id: 7 class_name: "java.util.HashSet" }
+    types { id: 8 class_name: "android.util.ArrayMap" }
+    types { id: 9 class_name: "android.util.SparseArray" }
+    types { id: 10 class_name: "android.util.LruCache" }
+    types { id: 11 class_name: "java.util.ImmutableCollections$List12" }
+    types { id: 12 class_name: "java.util.concurrent.ConcurrentLinkedQueue" }
+    types { id: 13 class_name: "java.util.concurrent.ConcurrentLinkedQueue$Node" }
+    types { id: 14 class_name: "UnsupportedCollection" }
+    types { id: 15 class_name: "java.util.Collections$UnmodifiableCollection" }
+    types { id: 16 class_name: "Holder" }
+    types { id: 17 class_name: "TreeNode" }
+    types { id: 100 class_name: "java.lang.Object[]" kind: KIND_ARRAY }
+    types { id: 101 class_name: "Elem" }
+    types { id: 102 class_name: "java.util.HashMap$Node[]" kind: KIND_ARRAY }
+    types { id: 103 class_name: "java.lang.Object" }
+    types { id: 104 class_name: "int[]" kind: KIND_ARRAY }
+    types { id: 105 class_name: "Foo[]" kind: KIND_ARRAY }
+    types { id: 200 class_name: "java.lang.Class<android.util.SparseArray>" }
+    types { id: 201 class_name: "java.lang.Class<java.util.ArrayList>" }
+    types { id: 202 class_name: "java.lang.Class<java.util.HashMap>" }
+    types { id: 203 class_name: "java.lang.Class<android.util.ArrayMap>" }
+    types { id: 204 class_name: "java.lang.Class<UnsupportedCollection>" }
+    types { id: 205 class_name: "java.lang.Class<java.util.Collection>" }
+    types { id: 206 class_name: "java.lang.Class<java.util.Map>" }
+    types { id: 207 class_name: "java.lang.Class<java.util.LinkedHashMap>" }
+    types { id: 208 class_name: "java.lang.Class<CustomHashMapSubclass>" }
+
+    field_names { iid: 1 str: "java.util.ArrayList Root.list" }
+    field_names { iid: 2 str: "java.lang.Object[] java.util.ArrayList.elementData" }
+    field_names { iid: 3 str: "java.util.HashMap Root.map" }
+    field_names { iid: 4 str: "java.util.HashMap$Node[] java.util.HashMap.table" }
+    field_names { iid: 5 str: "java.lang.Object java.util.HashMap$Node.key" }
+    field_names { iid: 6 str: "java.lang.Object java.util.HashMap$Node.value" }
+    field_names { iid: 7 str: "java.util.HashMap$Node java.util.HashMap$Node.next" }
+    field_names { iid: 8 str: "java.util.LinkedHashMap Root.linkedMap" }
+    field_names { iid: 10 str: "CustomHashMapSubclass Root.subMap" }
+    field_names { iid: 12 str: "java.util.HashSet Root.set" }
+    field_names { iid: 13 str: "java.util.HashMap java.util.HashSet.map" }
+    field_names { iid: 15 str: "android.util.ArrayMap Root.arrayMap" }
+    field_names { iid: 16 str: "java.lang.Object[] android.util.ArrayMap.mArray" }
+    field_names { iid: 17 str: "int[] android.util.ArrayMap.mHashes" }
+    field_names { iid: 19 str: "android.util.SparseArray Root.sparseArray" }
+    field_names { iid: 20 str: "java.lang.Object[] android.util.SparseArray.mValues" }
+    field_names { iid: 21 str: "int[] android.util.SparseArray.mKeys" }
+    field_names { iid: 22 str: "java.lang.Object android.util.SparseArray.DELETED" }
+    field_names { iid: 23 str: "android.util.LruCache Root.lruCache" }
+    field_names { iid: 24 str: "java.util.Map android.util.LruCache.map" }
+    field_names { iid: 25 str: "java.util.ImmutableCollections$List12 Root.list12" }
+    field_names { iid: 26 str: "java.lang.Object java.util.ImmutableCollections$List12.e0" }
+    field_names { iid: 27 str: "java.lang.Object java.util.ImmutableCollections$List12.e1" }
+    field_names { iid: 28 str: "java.util.concurrent.ConcurrentLinkedQueue Root.queue" }
+    field_names { iid: 29 str: "java.util.concurrent.ConcurrentLinkedQueue$Node java.util.concurrent.ConcurrentLinkedQueue.head" }
+    field_names { iid: 30 str: "java.util.concurrent.ConcurrentLinkedQueue$Node java.util.concurrent.ConcurrentLinkedQueue$Node.next" }
+    field_names { iid: 31 str: "java.lang.Object java.util.concurrent.ConcurrentLinkedQueue$Node.item" }
+    field_names { iid: 32 str: "Foo[] Root.rawArray" }
+    field_names { iid: 33 str: "UnsupportedCollection Root.unsupported" }
+    field_names { iid: 34 str: "java.util.Collections$UnmodifiableCollection Root.sharedDelegate" }
+    field_names { iid: 35 str: "java.util.Collection java.util.Collections$UnmodifiableCollection.c" }
+    field_names { iid: 36 str: "java.util.ArrayList Root.otherList" }
+    field_names { iid: 37 str: "java.util.ArrayList Root.nested" }
+    field_names { iid: 38 str: "java.util.ArrayList Holder.items" }
+    field_names { iid: 39 str: "java.util.ArrayList Root.tree" }
+    field_names { iid: 40 str: "java.util.HashMap Root.mapOfLists" }
+    field_names { iid: 41 str: "java.util.ArrayList TreeNode.children" }
+    field_names { iid: 200 str: "java.lang.Object[] java.lang.Class.ifTable" }
+    field_names { iid: 201 str: "java.lang.Class java.lang.Class.superClass" }
+
+    continued: false
+    index: 1
+  }
+}

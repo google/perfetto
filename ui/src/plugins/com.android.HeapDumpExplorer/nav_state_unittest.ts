@@ -14,6 +14,7 @@
 
 import {describe, expect, it} from 'vitest';
 import {stateToPath, stateToSubpage, subpageToState} from './nav_state';
+import type {NavState} from './nav_state';
 
 describe('nav_state', () => {
   it('defaults to overview when defaultView is omitted or overview', () => {
@@ -70,5 +71,63 @@ describe('nav_state', () => {
     expect(stateToSubpage({view: 'overview', params: {}})).toBe('overview');
     expect(stateToPath({view: 'flamegraph', params: {}})).toBe('flamegraph');
     expect(stateToSubpage({view: 'flamegraph', params: {}})).toBe('flamegraph');
+  });
+
+  it('round-trips collections states', () => {
+    const roundTrips = (state: NavState) =>
+      expect(subpageToState(stateToSubpage(state))).toEqual(state);
+    expect(stateToSubpage({view: 'collections', params: {}})).toBe(
+      'collections',
+    );
+    roundTrips({view: 'collections', params: {}});
+    roundTrips({
+      view: 'flamegraph-collections',
+      params: {
+        pathHashes: '-123,456',
+        label: 'mListeners: ArrayList<Foo_Bar>',
+        collectionCls: 'java.util.ArrayList',
+      },
+    });
+    roundTrips({
+      view: 'flamegraph-collections',
+      params: {
+        pathHashes: '789',
+        label: 'Foo',
+        noField: true,
+        cls: 'java.util.ArrayList',
+      },
+    });
+    roundTrips({
+      view: 'flamegraph-collections',
+      params: {
+        pathHashes: '789',
+        label: 'Foo',
+        field: 'com.android.server.am.ProcessRecord$Foo.m_collections$1',
+        cls: 'java.util.HashMap',
+        collection: 7,
+      },
+    });
+    roundTrips({
+      view: 'flamegraph-collections',
+      params: {
+        pathHashes: '1,-2',
+        label: 'a=b_c%d,é [value]',
+        field: 'Foo.m%Map=x',
+        collection: 0,
+      },
+    });
+  });
+
+  it('parses invalid collections params leniently', () => {
+    expect(subpageToState('flamegraph_collections')).toEqual({
+      view: 'collections',
+      params: {},
+    });
+    expect(
+      subpageToState('flamegraph_collections_pathHashes=1_collection=abc'),
+    ).toEqual({view: 'flamegraph-collections', params: {pathHashes: '1'}});
+    expect(
+      subpageToState('flamegraph_collections_pathHashes=1_label=%E0%A4'),
+    ).toEqual({view: 'flamegraph-collections', params: {pathHashes: '1'}});
   });
 });

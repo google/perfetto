@@ -26,9 +26,65 @@ export type NavState =
       params: {pathHashes?: string; isDominator?: boolean};
     }
   | {view: 'flamegraph'; params: Record<string, never>}
+  | {view: 'collections'; params: Record<string, never>}
+  | {
+      view: 'flamegraph-collections';
+      params: CollectionsParams & {
+        pathHashes?: string;
+        label?: string;
+        collectionCls?: string;
+      };
+    }
   | {view: 'callstack'; params: Record<string, never>};
 
 export type NavView = NavState['view'];
+
+// A collections drill-down table: the collections per field; with `field`
+// (or `noField`, for those not held by a field) and `cls`, the collections of
+// one field and class; with `collection`, the elements of one of them.
+export interface CollectionsParams {
+  readonly field?: string;
+  readonly noField?: boolean;
+  readonly cls?: string;
+  readonly collection?: number;
+}
+
+// A value in an underscore-delimited path segment: '_' is escaped as %5F so
+// that splitting on '_' is safe.
+function encodeParam(s: string): string {
+  return encodeURIComponent(s).replace(/_/g, '%5F');
+}
+
+// 'k=v' parts of an underscore-delimited path ('k' alone for true).
+function kvToParts(
+  kv: Readonly<Record<string, string | number | boolean | undefined>>,
+): string[] {
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(kv)) {
+    if (v === undefined || v === false) continue;
+    parts.push(v === true ? k : `${k}=${encodeParam(String(v))}`);
+  }
+  return parts;
+}
+
+function partsToKv(param: string): Map<string, string | true> {
+  const kv = new Map<string, string | true>();
+  for (const part of param.split('_')) {
+    if (part === '') continue;
+    const eq = part.indexOf('=');
+    if (eq === -1) {
+      kv.set(part, true);
+      continue;
+    }
+    try {
+      kv.set(part.slice(0, eq), decodeURIComponent(part.slice(eq + 1)));
+    } catch {
+      // A malformed escape (e.g. a hand-edited URL): drop the part.
+    }
+  }
+  return kv;
+}
+
 export type DefaultNavView = 'overview' | 'flamegraph';
 
 function defaultNavState(view: DefaultNavView): NavState {
@@ -100,6 +156,32 @@ function stateToParts(state: NavState): {path: string; query: string} {
     }
     case 'flamegraph':
       return {path: 'flamegraph', query: ''};
+    case 'collections':
+      return {path: 'collections', query: ''};
+    case 'flamegraph-collections': {
+      const {
+        pathHashes,
+        label,
+        collectionCls,
+        field,
+        noField,
+        cls,
+        collection,
+      } = state.params;
+      const parts = kvToParts({
+        pathHashes,
+        label,
+        collectionCls,
+        field,
+        noField,
+        cls,
+        collection,
+      });
+      return {
+        path: ['flamegraph_collections', ...parts].join('_'),
+        query: '',
+      };
+    }
     case 'callstack':
       return {path: 'callstack', query: ''};
   }
@@ -124,12 +206,15 @@ export function subpageToState(
   const sp = new URLSearchParams(queryStr ?? '');
 
   // Parse view_param format (e.g. "object_0x123", "flamegraph_objects_1_a,b").
-  // Views with underscores: "flamegraph_objects" is the only multi-word view.
+  // Views with underscores: the flamegraph drill-down views.
   let view: string;
   let param: string;
-  if (path.startsWith('flamegraph_objects')) {
-    view = 'flamegraph-objects';
-    param = path.slice('flamegraph_objects'.length + 1) || '';
+  const multiWord = ['flamegraph_objects', 'flamegraph_collections'].find(
+    (v) => path === v || path.startsWith(`${v}_`),
+  );
+  if (multiWord !== undefined) {
+    view = multiWord.replace('_', '-');
+    param = path.slice(multiWord.length + 1);
   } else {
     const idx = path.indexOf('_');
     view = idx === -1 ? path : path.slice(0, idx);
@@ -192,6 +277,34 @@ export function subpageToState(
     }
     case 'flamegraph':
       return {view: 'flamegraph', params: {}};
+    case 'collections':
+      return {view: 'collections', params: {}};
+    case 'flamegraph-collections': {
+      const kv = partsToKv(param);
+      const str = (k: string) => {
+        const v = kv.get(k);
+        return typeof v === 'string' ? v : undefined;
+      };
+      const pathHashes = str('pathHashes');
+      const label = str('label');
+      const collectionCls = str('collectionCls');
+      const field = str('field');
+      const cls = str('cls');
+      if (pathHashes === undefined) return {view: 'collections', params: {}};
+      const collection = Number(str('collection'));
+      return {
+        view: 'flamegraph-collections',
+        params: {
+          pathHashes,
+          ...(label !== undefined && {label}),
+          ...(collectionCls !== undefined && {collectionCls}),
+          ...(field !== undefined && {field}),
+          ...(kv.get('noField') === true && {noField: true}),
+          ...(cls !== undefined && {cls}),
+          ...(Number.isSafeInteger(collection) && {collection}),
+        },
+      };
+    }
     case 'callstack':
       return {view: 'callstack', params: {}};
     default:
