@@ -22,7 +22,9 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstring>
 #include <iterator>
+#include <type_traits>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
@@ -236,9 +238,13 @@ class CircularQueue {
 
   void erase_front(size_t n) {
     increment_generation();
-    for (; n && (begin_ < end_); --n) {
-      Get(begin_)->~T();
-      begin_++;  // This needs to be its own statement, Get() checks begin_.
+    if constexpr (std::is_trivially_destructible_v<T>) {
+      begin_ += std::min(static_cast<uint64_t>(n), end_ - begin_);
+    } else {
+      for (; n && (begin_ < end_); --n) {
+        Get(begin_)->~T();
+        begin_++;  // This needs to be its own statement, Get() checks begin_.
+      }
     }
   }
 
@@ -276,7 +282,14 @@ class CircularQueue {
     InsertBefore(pos.base(), std::move(value));
   }
 
-  void clear() { erase_front(size()); }
+  void clear() {
+    if constexpr (std::is_trivially_destructible_v<T>) {
+      increment_generation();
+      begin_ = end_;
+    } else {
+      erase_front(size());
+    }
+  }
 
   void shrink_to_fit() {
     // We only bother shrinking if we can fit in quarter of the capacity we are
@@ -349,6 +362,24 @@ class CircularQueue {
     PERFETTO_CHECK(new_capacity >= size());
 
     AlignedUniquePtr<T[]> new_vec = AlignedAllocTyped<T[]>(new_capacity);
+
+    if constexpr (std::is_trivially_copyable_v<T>) {
+      size_t cur_size = size();
+      if (cur_size > 0) {
+        size_t start_idx = static_cast<size_t>(begin_ & (capacity_ - 1));
+        size_t first_part = std::min(cur_size, capacity_ - start_idx);
+        memcpy(&new_vec[0], &entries_[start_idx], first_part * sizeof(T));
+        if (cur_size > first_part) {
+          memcpy(&new_vec[first_part], &entries_[0],
+                 (cur_size - first_part) * sizeof(T));
+        }
+      }
+      begin_ = 0;
+      end_ = cur_size;
+      capacity_ = new_capacity;
+      entries_ = std::move(new_vec);
+      return;
+    }
 
     // Move all elements in the expanded array.
     size_t new_size = 0;
