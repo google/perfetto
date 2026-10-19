@@ -421,7 +421,8 @@ class OneOrSummaryAggregateOperator final : public AggregateOperator {
     summary_.clear();
     AppendValue(representative_, pool_, &summary_);
     if (has_multiple_values_) {
-      std::sort(distinct_keys_.begin(), distinct_keys_.end());
+      SortByKey(distinct_keys_.begin(), distinct_keys_.end(),
+                [](uint64_t key) { return key; });
       const size_t distinct_count = static_cast<size_t>(std::distance(
           distinct_keys_.begin(),
           std::unique(distinct_keys_.begin(), distinct_keys_.end())));
