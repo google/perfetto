@@ -202,10 +202,10 @@ void IntervalFillGaps::StartLane(uint32_t lane, uint32_t row, State& s) const {
   if (broadcast_) {
     s.lane_key = s.keys.Of(row);
     tag = s.lane_key;
-    lane = 0;
   }
+  const uint32_t background_lane = broadcast_ ? 0 : lane;
   Span<const Interval> background;
-  if (std::optional<uint32_t> i = s.background.Find(lane)) {
+  if (std::optional<uint32_t> i = s.background.Find(background_lane)) {
     s.visited[*i] = true;
     background = s.background.lane(*i).intervals;
   }

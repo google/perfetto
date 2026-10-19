@@ -90,20 +90,18 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
   IntervalFillGaps fill;
   ASSIGN_OR_RETURN(fill.ts_, c->Resolve("ts", stage));
   ASSIGN_OR_RETURN(fill.dur_, c->Resolve("dur", stage));
-  std::vector<std::pair<std::string, uint32_t>> per;
+  std::vector<std::string> per;
   if (syntaqlite_node_is_present(n->per)) {
     const auto* list =
         Node<SyntaqlitePerfettoPerColumnList>(c->parser(), n->per);
-    std::vector<std::string> seen;
     for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
       uint32_t col_id = syntaqlite_list_child_id(list, i);
       std::string name = SpanText(
           c->parser(),
           Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id)->name);
-      RETURN_IF_ERROR(c->CheckListedOnce(seen, name, col_id));
+      RETURN_IF_ERROR(c->CheckListedOnce(per, name, col_id));
       ASSIGN_OR_RETURN(ColumnId key, c->Resolve(name, col_id));
       fill.keys_.push_back(key);
-      per.emplace_back(std::move(name), col_id);
     }
   }
 
@@ -119,7 +117,7 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
   }
   fill.background_ts_ = *ts;
   fill.background_dur_ = *dur;
-  for (const auto& [name, col_id] : per) {
+  for (const std::string& name : per) {
     if (std::optional<ColumnId> key = FindColumn(background.columns, name)) {
       fill.background_keys_.push_back(*key);
     }
