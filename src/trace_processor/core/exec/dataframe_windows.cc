@@ -50,6 +50,14 @@ class DataframeWindows::Expander {
                       Context& context,
                       ColumnView* view,
                       ColumnBuffer* buffer) = 0;
+
+  // As Expand, but writes only the rows `offsets` from `from`, the first of
+  // which is 0.
+  virtual void ExpandKept(uint32_t from,
+                          Span<const uint32_t> offsets,
+                          Context& context,
+                          ColumnView* view,
+                          ColumnBuffer* buffer) = 0;
 };
 
 DataframeWindows::Expander::~Expander() = default;
@@ -101,6 +109,37 @@ class ExpanderImpl final : public DataframeWindows::Expander {
     next_ = from + count;
     *view = ColumnView::Reference(type_, values, &chunk.validity);
   }
+  void ExpandKept(uint32_t from,
+                  Span<const uint32_t> offsets,
+                  Context& context,
+                  ColumnView* view,
+                  ColumnBuffer* buffer) override {
+    if (offsets.size() == 1 && packed_) {
+      LendOne(from, view, buffer);
+      return;
+    }
+    *buffer = context.TakeBuffer();
+    ColumnChunk& chunk = buffer->chunk();
+    uint8_t* values = chunk.Values<uint8_t>();
+    chunk.SizeValidity();
+    chunk.validity.ClearAllBits();
+    for (const uint32_t* it = offsets.b; it != offsets.e; ++it) {
+      uint32_t row = from + *it;
+      uint8_t* value = values + uint64_t{*it} * kWidth;
+      if (!bits_->is_set(row)) {
+        memset(value, 0, kWidth);
+        continue;
+      }
+      uint32_t slot = SlotOf(row);
+      if (packed_) {
+        memcpy(value, packed_ + uint64_t{slot} * kWidth, kWidth);
+      } else {
+        memcpy(value, &slot, sizeof(slot));
+      }
+      chunk.validity.set(*it);
+    }
+    *view = ColumnView::Reference(type_, values, &chunk.validity);
+  }
 
  private:
   // Lends `row`'s value where it lies, or a null: one row needs no buffer.
@@ -117,17 +156,22 @@ class ExpanderImpl final : public DataframeWindows::Expander {
     ++next_;
   }
 
-  // O(1) once the prefix popcount is built.
   void Skip(uint32_t row) {
     if (row == next_) {
       return;
     }
+    consumed_ = SlotOf(row);
+    next_ = row;
+  }
+
+  // How many packed values are before `row`: O(1) once the prefix popcount
+  // is built.
+  uint32_t SlotOf(uint32_t row) {
     if (PERFETTO_UNLIKELY(!popcount_.size())) {
       popcount_ = bits_->PrefixPopcount();
     }
-    consumed_ = popcount_[row / 64] +
-                static_cast<uint32_t>(bits_->count_set_bits_until_in_word(row));
-    next_ = row;
+    return popcount_[row / 64] +
+           static_cast<uint32_t>(bits_->count_set_bits_until_in_word(row));
   }
 
   StorageType type_;
@@ -136,7 +180,7 @@ class ExpanderImpl final : public DataframeWindows::Expander {
   // How many of the packed values are before `next_`.
   uint32_t consumed_ = 0;
   uint32_t next_ = 0;
-  // Built on the first Skip().
+  // Built on the first SlotOf().
   Slab<uint32_t> popcount_;
   BitVector one_null_ = BitVector::CreateWithSize(1);
 };
@@ -220,6 +264,21 @@ void DataframeWindows::Init(
       expanded_.push_back({i, std::move(expander)});
     }
   }
+}
+
+void DataframeWindows::FillKept(uint32_t from,
+                                Span<const uint32_t> offsets,
+                                RowBatch& out) {
+  for (ColumnView& view : lent_) {
+    view.set_start(from);
+  }
+  for (Expanded& e : expanded_) {
+    e.expander->ExpandKept(from, offsets, *context_, &lent_[e.column],
+                           &buffers_[e.column]);
+  }
+  out.SetColumns(lent_, buffers_);
+  out.SetRowCount(*(offsets.e - 1) + 1);
+  out.mutable_selection().KeepRows(offsets);
 }
 
 void DataframeWindows::Fill(uint32_t from, uint32_t count, RowBatch& out) {

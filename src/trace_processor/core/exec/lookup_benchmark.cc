@@ -39,6 +39,7 @@
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/filter_value.h"
+#include "src/trace_processor/core/exec/index_scan.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
@@ -128,24 +129,32 @@ const Args& GetArgs() {
   return *args;
 }
 
-// Shaped like the slice table: an id, ts ascending and a dur.
-enum SliceCol : uint32_t { kTs, kDur, kSliceId };
+// Shaped like the slice table: an id, ts ascending, a dur, and an indexed
+// track with about eight slices each.
+enum SliceCol : uint32_t { kTs, kDur, kTrack, kSliceId };
 
 struct Slices {
   Slices() {
     std::minstd_rand rng(2);
-    dataframe::AdhocDataframeBuilder builder({"ts", "dur"}, &pool);
+    dataframe::AdhocDataframeBuilder builder({"ts", "dur", "track"}, &pool);
     int64_t ts = int64_t{1} << 40;
     for (uint32_t i = 0; i < kRows; ++i) {
       ts += 1 + rng() % 100;
       PERFETTO_CHECK(builder.PushNonNull(kTs, ts));
       PERFETTO_CHECK(builder.PushNonNull(
           kDur, (int64_t{1} << 40) + int64_t(rng() % 1000)));
+      uint32_t track = static_cast<uint32_t>(rng() % (kRows / 8));
+      PERFETTO_CHECK(builder.PushNonNull(kTrack, int64_t{track}));
       all_ts.push_back(ts);
+      all_tracks.push_back(track);
     }
     auto built = std::move(builder).Build();
     PERFETTO_CHECK(built.ok());
-    df = std::make_unique<dataframe::Dataframe>(std::move(*built));
+    uint32_t track = kTrack;
+    auto index = built->BuildIndex(&track, &track + 1);
+    PERFETTO_CHECK(index.ok());
+    df = std::make_unique<dataframe::Dataframe>(
+        built->AddIndex(std::move(*index)));
     PERFETTO_CHECK(df->column(kTs).sort_state.Is<Sorted>());
     PERFETTO_CHECK(df->column(kSliceId).storage.type().Is<Id>());
     for (uint32_t i = 0; i < kLookups; ++i) {
@@ -156,6 +165,7 @@ struct Slices {
   StringPool pool;
   std::unique_ptr<dataframe::Dataframe> df;
   std::vector<int64_t> all_ts;
+  std::vector<uint32_t> all_tracks;
   std::vector<uint32_t> rows;
 };
 
@@ -381,6 +391,44 @@ void BM_IdEq_SortedScan(benchmark::State& state) {
   benchmark::DoNotOptimize(sum);
 }
 BENCHMARK(BM_IdEq_SortedScan)->Arg(1)->Arg(16);
+
+// track = ?, through an index, reading every row found
+
+void BM_IndexEq_Interpreter(benchmark::State& state) {
+  const Slices& s = GetSlices();
+  dataframe::TypedCursor cursor(s.df.get(), {{kTrack, 0, Eq{}, std::nullopt}},
+                                {});
+  uint32_t i = 0;
+  uint32_t rows = 0;
+  for (auto _ : state) {
+    cursor.SetFilterValueUnchecked(0, s.all_tracks[s.rows[i++ % kLookups]]);
+    for (cursor.ExecuteUnchecked(); !cursor.Eof(); cursor.Next()) {
+      rows += cursor.RowIndex() != 0;
+    }
+  }
+  benchmark::DoNotOptimize(rows);
+}
+BENCHMARK(BM_IndexEq_Interpreter);
+
+void BM_IndexEq_IndexScan(benchmark::State& state) {
+  const Slices& s = GetSlices();
+  ExecLookup lookup(
+      std::make_unique<IndexScan>(
+          Columns(*s.df, {kSliceId}), s.df->indexes()[0],
+          std::vector<IndexScan::Equality>{{s.df->shared_column(kTrack), 0}},
+          &s.pool),
+      {}, {{Uint32{}, Eq{}}}, &s.pool);
+  uint32_t i = 0;
+  uint32_t rows = 0;
+  for (auto _ : state) {
+    lookup.Set(0, int64_t{s.all_tracks[s.rows[i++ % kLookups]]});
+    for (bool ok = lookup.Open(); ok; ok = lookup.cursor().Next()) {
+      rows += lookup.cursor().Value<uint32_t>(0) != 0;
+    }
+  }
+  benchmark::DoNotOptimize(rows);
+}
+BENCHMARK(BM_IndexEq_IndexScan);
 
 // ts >= ? AND ts < ?, reading dur for every row. The arg is roughly how many
 // rows each range holds.
