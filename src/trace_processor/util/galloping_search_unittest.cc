@@ -162,5 +162,23 @@ TEST(GallopingSearchTest, DuplicateKeys) {
   EXPECT_EQ(results, expected);
 }
 
+// Every point of every size up to past a few doublings of the probe step, so
+// the scan, each probe and the final search all see the point at each offset.
+TEST(GallopingSearchTest, PartitionPointsMatchStd) {
+  for (uint32_t size = 0; size < 300; ++size) {
+    for (uint32_t point = 0; point <= size; ++point) {
+      std::vector<uint32_t> data(size);
+      for (uint32_t i = 0; i < size; ++i) {
+        data[i] = i < point ? 0 : 1;
+      }
+      auto pred = [](uint32_t v) { return v == 0; };
+      const uint32_t* b = data.data();
+      const uint32_t* e = b + size;
+      EXPECT_EQ(PartitionPoint(b, e, pred) - b, point) << size;
+      EXPECT_EQ(GallopingPartitionPoint(b, e, pred) - b, point) << size;
+    }
+  }
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

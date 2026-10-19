@@ -264,7 +264,10 @@ perfetto_component("cold_sort") {
 
 source_set("galloping_search") {
   sources = [ "galloping_search.h" ]
-  deps = [ "../../../gn:default_deps" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/public",
+  ]
 }
 
 source_set("concurrency_stress_test_util") {

@@ -42,6 +42,7 @@
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/span.h"
+#include "src/trace_processor/util/galloping_search.h"
 
 // Keeping the rows of a column which compare true with a value already cast
 // to the column's type (see filter_value_cast.h), by testing each row or by
@@ -435,25 +436,11 @@ inline PERFETTO_ALWAYS_INLINE void SortedEqualRange(
   }
   const DataType* eq_start = std::lower_bound(
       begin, end, val, SortedLowerBoundComparator<DataType>(string_pool));
-  const DataType* eq_end = eq_start;
-
-  // Scan 16 rows: it's often the case that we have just a very small number
-  // of equal rows, so we can avoid a binary search.
-  const DataType* eq_end_limit = eq_start + 16;
-  for (;; ++eq_end) {
-    if (eq_end == end) {
-      break;
-    }
-    if (eq_end == eq_end_limit) {
-      eq_end =
-          std::upper_bound(eq_start, end, val,
-                           SortedUpperBoundComparator<DataType>(string_pool));
-      break;
-    }
-    if (std::not_equal_to<>()(*eq_end, cmp_value)) {
-      break;
-    }
-  }
+  // Equal rows are usually few, so search from the first of them outwards.
+  const DataType* eq_end =
+      GallopingPartitionPoint(eq_start, end, [cmp_value](const DataType& v) {
+        return std::equal_to<>()(v, cmp_value);
+      });
   range.b = static_cast<uint32_t>(eq_start - data);
   range.e = static_cast<uint32_t>(eq_end - data);
 }
@@ -484,12 +471,8 @@ SetIdSortedEqualRange(const uint32_t* storage, uint32_t val, Range& range) {
   const auto* start =
       std::clamp(storage + val, storage + range.b, storage + range.e);
   range.b = static_cast<uint32_t>(start - storage);
-  const auto* it = start;
-  for (; it != storage + range.e; ++it) {
-    if (*it != val) {
-      break;
-    }
-  }
+  const uint32_t* it = GallopingPartitionPoint(
+      start, storage + range.e, [val](uint32_t v) { return v == val; });
   range.e = static_cast<uint32_t>(it - storage);
 }
 
