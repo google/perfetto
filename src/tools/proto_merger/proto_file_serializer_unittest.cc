@@ -1676,6 +1676,249 @@ TEST(ExtensionProtoMergerTest, HelperWithOnlyExtensionsIsKept) {
               HasSubstr("extensions 100 to 199;\n"));
 }
 
+// Imports |input_name| and |upstream_name| from |dir|, allowlists
+// |allowed_fields| rooted at |root| in upstream, merges and returns the
+// serialized result. Also checks that the result is a valid proto.
+std::string MergeWithFieldList(const std::string& dir,
+                               const std::string& input_name,
+                               const std::string& upstream_name,
+                               const std::string& root,
+                               const std::vector<std::string>& allowed_fields) {
+  protozero::MultiFileErrorCollectorImpl mfe;
+  google::protobuf::compiler::DiskSourceTree dst;
+  dst.MapPath("", dir);
+  dst.MapPath("", "buildtools/protobuf/src");
+
+  google::protobuf::compiler::Importer importer_input(&dst, &mfe);
+  const auto* input_desc = importer_input.Import(input_name);
+  google::protobuf::compiler::Importer importer_upstream(&dst, &mfe);
+  const auto* upstream_desc = importer_upstream.Import(upstream_name);
+  EXPECT_NE(input_desc, nullptr);
+  EXPECT_NE(upstream_desc, nullptr);
+  if (!input_desc || !upstream_desc)
+    return "";
+
+  const auto* root_desc = upstream_desc->FindMessageTypeByName(root);
+  EXPECT_NE(root_desc, nullptr);
+  if (!root_desc)
+    return "";
+
+  Allowlist allowed;
+  base::Status status =
+      AllowlistFromFieldList(*root_desc, allowed_fields, allowed);
+  EXPECT_TRUE(status.ok()) << status.message();
+
+  ProtoFile input_file = ProtoFileFromDescriptor("", *input_desc);
+  ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
+  ProtoFile merged;
+  status = MergeProtoFiles(input_file, upstream_file, allowed, merged);
+  EXPECT_TRUE(status.ok()) << status.message();
+  std::string out = ProtoFileToDotProto(merged);
+
+  // The merged output must be a self-contained, valid proto.
+  TempProtoFile merged_file(dir, "merged.proto",
+                            "syntax = \"proto3\";\n"
+                            "package perfetto.protos;\n" +
+                                out);
+  protozero::MultiFileErrorCollectorImpl mfe_merged;
+  google::protobuf::compiler::Importer importer_merged(&dst, &mfe_merged);
+  EXPECT_NE(importer_merged.Import("merged.proto"), nullptr) << out;
+  return out;
+}
+
+// Approving a deep field whose parents are missing downstream must also add
+// the parent fields and messages on the path (but nothing else inside them),
+// otherwise the approved field is unreachable from the root.
+TEST(AllowlistFromFieldListTest, AddsMissingParentFieldsOnPath) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input(temp_dir.path(), "input.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Root {
+      optional int32 existing = 1;
+    }
+  )");
+  TempProtoFile upstream(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Leaf {
+      optional int32 leaf_value = 1;
+    }
+    message Patch {
+      optional int32 not_approved = 1;
+      optional Leaf approved = 11;
+    }
+    message Other {
+      optional int32 other_value = 1;
+    }
+    message Ext {
+      optional Patch patch = 7;
+      optional Other other = 8;
+    }
+    message Root {
+      optional int32 existing = 1;
+      optional Ext ext = 112;
+      optional int32 not_on_path = 113;
+    }
+  )");
+
+  std::string out =
+      MergeWithFieldList(temp_dir.path(), "input.proto", "upstream.proto",
+                         "Root", {"ext.patch.approved"});
+
+  // Path fields and messages.
+  EXPECT_THAT(FindMessageText(out, "Root"), HasSubstr("Ext ext = 112;"));
+  EXPECT_THAT(FindMessageText(out, "Ext"), HasSubstr("Patch patch = 7;"));
+  EXPECT_THAT(FindMessageText(out, "Patch"), HasSubstr("Leaf approved = 11;"));
+
+  // The approved field's type, with everything inside it.
+  EXPECT_THAT(FindMessageText(out, "Leaf"), HasSubstr("int32 leaf_value = 1;"));
+
+  // Nothing else inside the path messages.
+  EXPECT_THAT(out, Not(HasSubstr("not_on_path")));
+  EXPECT_THAT(out, Not(HasSubstr("not_approved")));
+  EXPECT_THAT(out, Not(HasSubstr("Other other")));
+  EXPECT_THAT(out, Not(HasSubstr("message Other")));
+}
+
+// A field whose type is a message with no fields must still bring that
+// message definition along, otherwise the merged proto doesn't compile.
+TEST(AllowlistFromFieldListTest, AddsEmptyMessageType) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input(temp_dir.path(), "input.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Root {
+      optional int32 existing = 1;
+    }
+  )");
+  TempProtoFile upstream(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message EmptyMessage {}
+    message Root {
+      optional int32 existing = 1;
+      optional EmptyMessage clear = 2;
+      map<string, EmptyMessage> clear_map = 3;
+    }
+  )");
+
+  std::string out =
+      MergeWithFieldList(temp_dir.path(), "input.proto", "upstream.proto",
+                         "Root", {"clear", "clear_map"});
+
+  EXPECT_THAT(out, HasSubstr("message EmptyMessage {"));
+  EXPECT_THAT(FindMessageText(out, "Root"),
+              HasSubstr("EmptyMessage clear = 2;"));
+  EXPECT_THAT(FindMessageText(out, "Root"),
+              HasSubstr("map<string,EmptyMessage> clear_map = 3;"));
+}
+
+// Path a.b.c.d where only d is approved: a and c are missing downstream, b
+// (and its message types) already exist. Missing path fields are added once,
+// existing ones are kept as they are, and no other sibling field is added.
+TEST(AllowlistFromFieldListTest, MixedExistingAndMissingParents) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input(temp_dir.path(), "input.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message B {
+      optional int32 b_existing = 5;
+    }
+    message A {
+      optional B b = 1;
+    }
+    message Root {
+      optional int32 existing = 1;
+    }
+  )");
+  TempProtoFile upstream(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message D {
+      optional int32 d_value = 1;
+    }
+    message C {
+      optional D d = 1;
+      optional int32 c_sibling = 2;
+    }
+    message B {
+      optional C c = 3;
+      optional int32 b_sibling = 4;
+      optional int32 b_existing = 5;
+    }
+    message A {
+      optional B b = 1;
+      optional int32 a_sibling = 2;
+    }
+    message Root {
+      optional int32 existing = 1;
+      optional A a = 2;
+      optional int32 root_sibling = 3;
+    }
+  )");
+
+  std::string out = MergeWithFieldList(temp_dir.path(), "input.proto",
+                                       "upstream.proto", "Root", {"a.b.c.d"});
+
+  // Missing path fields are added; the existing one (b) is kept, not doubled.
+  EXPECT_THAT(FindMessageText(out, "Root"), HasSubstr("A a = 2;"));
+  std::string a_text = FindMessageText(out, "A");
+  EXPECT_THAT(a_text, HasSubstr("B b = 1;"));
+  EXPECT_EQ(a_text.find("B b = 1;"), a_text.rfind("B b = 1;"));
+  EXPECT_THAT(FindMessageText(out, "B"), HasSubstr("C c = 3;"));
+  EXPECT_THAT(FindMessageText(out, "B"), HasSubstr("int32 b_existing = 5;"));
+  EXPECT_THAT(FindMessageText(out, "C"), HasSubstr("D d = 1;"));
+  EXPECT_THAT(FindMessageText(out, "D"), HasSubstr("int32 d_value = 1;"));
+
+  // No sibling field at any level of the path is added.
+  EXPECT_THAT(out, Not(HasSubstr("root_sibling")));
+  EXPECT_THAT(out, Not(HasSubstr("a_sibling")));
+  EXPECT_THAT(out, Not(HasSubstr("b_sibling")));
+  EXPECT_THAT(out, Not(HasSubstr("c_sibling")));
+}
+
+// Approving both a parent and a field inside it must allow everything inside
+// the parent, regardless of the order of the entries.
+TEST(AllowlistFromFieldListTest, ParentApprovedAfterChildIsRecursive) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input(temp_dir.path(), "input.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Root {
+      optional int32 existing = 1;
+    }
+  )");
+  TempProtoFile upstream(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Ext {
+      optional int32 a = 1;
+      optional int32 b = 2;
+    }
+    message Root {
+      optional int32 existing = 1;
+      optional Ext ext = 2;
+    }
+  )");
+
+  std::string out =
+      MergeWithFieldList(temp_dir.path(), "input.proto", "upstream.proto",
+                         "Root", {"ext.a", "ext"});
+
+  EXPECT_THAT(FindMessageText(out, "Root"), HasSubstr("Ext ext = 2;"));
+  EXPECT_THAT(FindMessageText(out, "Ext"), HasSubstr("int32 a = 1;"));
+  EXPECT_THAT(FindMessageText(out, "Ext"), HasSubstr("int32 b = 2;"));
+}
+
 }  // namespace
 }  // namespace proto_merger
 }  // namespace perfetto
