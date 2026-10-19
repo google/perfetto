@@ -101,6 +101,7 @@ const char* const kPipelines[] = {
     "FROM spans |> INTERVAL FILL GAPS WITH (SELECT ts, dur FROM spans)",
     "FROM df |> ORDER BY self DESC, id |> SELECT id",
     "FROM spans |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n |> ORDER BY n",
+    "FROM df |> SELECT parent_id |> DISTINCT",
     "FROM spans |> AGGREGATE COUNT(*) AS n, SUM(dur) AS d GROUP BY cpu AS c",
     "FROM spans |> AGGREGATE MAX(dur) AS m |> SELECT m",
     // Pruning removes the fold, whose node is left behind unread.

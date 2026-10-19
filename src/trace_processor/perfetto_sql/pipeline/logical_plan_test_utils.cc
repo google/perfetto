@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/distinct.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_fill_gaps.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
@@ -101,6 +102,7 @@ class LogicalPlanFormatter {
   static std::string IntervalFillGapsString(const LogicalPlan&,
                                             const PlanNode&);
   static std::string OrderByString(const OrderBy&);
+  static std::string DistinctString(const Distinct&);
   static std::string AggregateStageString(const LogicalPlan&,
                                           const AggregateStage&);
   static std::string SubtreeString(const LogicalPlan&, PlanNodeId);
@@ -224,6 +226,14 @@ std::string LogicalPlanFormatter::OrderByString(const OrderBy& order) {
   return out + ")";
 }
 
+std::string LogicalPlanFormatter::DistinctString(const Distinct& distinct) {
+  std::string out = "Distinct(";
+  for (size_t i = 0; i < distinct.columns_.size(); ++i) {
+    out += (i ? ", #" : "#") + std::to_string(distinct.columns_[i]);
+  }
+  return out + ")";
+}
+
 std::string LogicalPlanFormatter::AggregateStageString(
     const LogicalPlan& plan,
     const AggregateStage& aggregate) {
@@ -271,6 +281,10 @@ std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
   if (node.Is<OrderBy>()) {
     return SubtreeString(plan, node.children()[0]) +
            OrderByString(node.Cast<OrderBy>()) + "\n";
+  }
+  if (node.Is<Distinct>()) {
+    return SubtreeString(plan, node.children()[0]) +
+           DistinctString(node.Cast<Distinct>()) + "\n";
   }
   PERFETTO_FATAL("Unknown plan operation");
 }

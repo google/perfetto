@@ -159,8 +159,6 @@ base::Status Compiler::BuildOperation(uint32_t stage) {
     switch (tag) {
       case SYNTAQLITE_NODE_PERFETTO_PIPE_WHERE:
         return Unsupported(stage, "WHERE");
-      case SYNTAQLITE_NODE_PERFETTO_PIPE_DISTINCT:
-        return Unsupported(stage, "DISTINCT");
       default:
         PERFETTO_FATAL("Unknown pipeline stage");
     }

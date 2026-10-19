@@ -289,6 +289,25 @@ TEST_F(PhysicalPlanTest, OnlySmallBatchesAreCombined) {
             "IntervalFlatten(#0, #1; COUNT(*)) | CombineBatches | Sort(#2)");
 }
 
+// DISTINCT keeps the first row of each set of rows equal in every column of
+// the row, and the rows kept stay in their input order.
+TEST_F(PhysicalPlanTest, DistinctKeepsFirstRowOfEachDuplicateSet) {
+  Exec("CREATE TABLE t(id INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO t VALUES (0, 1), (1, 2), (2, 1), (3, 3), (4, 2)");
+  auto plan = Plan("FROM t |> SELECT cpu |> DISTINCT");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan), "main: DataframeScan | Distinct(#0)");
+
+  uint32_t cpu_column = (*plan)->columns()[0].index;
+  std::vector<int64_t> values;
+  RowCursor cursor((*plan)->source());
+  for (bool row = cursor.Open(); row; row = cursor.Next()) {
+    values.push_back(*IntAt(cursor, cpu_column));
+  }
+  ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
+  EXPECT_THAT(values, ElementsAre(1, 2, 3));
+}
+
 // Each operand is grouped by its PER keys and sorted by ts within each group,
 // unless it already is.
 TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {
