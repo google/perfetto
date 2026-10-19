@@ -522,3 +522,71 @@ class AndroidParser(TestSuite):
           2000000000,400,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",7,0
           "[NULL]",500,"PROCESS_STATE_TOP",100,0,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
         """))
+
+  def test_android_track_event_process_unknown(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          clock_snapshot {
+            primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+            clocks { clock_id: 6 timestamp: 0 }
+            clocks { clock_id: 3 timestamp: 0 }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          timestamp: 100
+          [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+            dump_reason: DUMP_REASON_START
+            record {
+              pid: 100
+              uid: 10001
+              process_name: "com.example.known"
+              start_seq_id: 1
+            }
+          }
+        }
+        # Unknown pid 200 dies (binder_died followed by process_died); only one
+        # notice should be recorded for pid 200.
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 200
+              start_seq_id: 2
+            }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_died"
+            [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+              pid: 200
+              start_seq_id: 2
+              reason: APP_EXIT_REASON_CRASH
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          ts,
+          severity,
+          name,
+          extract_arg(arg_set_id, 'pid') AS pid,
+          extract_arg(arg_set_id, 'start_seq_id') AS start_seq_id
+        FROM _trace_import_logs
+        WHERE name = 'android_track_event_process_unknown'
+        ORDER BY pid;
+        """,
+        out=Csv("""
+          "ts","severity","name","pid","start_seq_id"
+          1000,"notice","android_track_event_process_unknown",200,2
+        """))
