@@ -28,10 +28,25 @@
 
 namespace perfetto::trace_processor::core::exec {
 
+// The kind of values in a key column. It must be the same in every batch.
+// Integers of any width are one kind, separate from doubles and strings.
+enum class KeyKind : uint8_t { kInteger, kDouble, kString };
+
+// Reads `count` selected rows of key column `column` into `words`. Integers
+// are stored as int64, doubles as their canonical bits, strings as their
+// interned id and nulls as 0. Sets bit `bit` of `nulls[i]` for each null row. A
+// null string is not a null row: it is stored as the null id. Returns nullopt
+// if the column cannot be a key.
+std::optional<KeyKind> LoadKeyWords(const ColumnView& column,
+                                    const Selection& selection,
+                                    uint32_t count,
+                                    uint32_t bit,
+                                    int64_t* words,
+                                    uint64_t* nulls);
+
 // Hash table that assigns a number to each distinct key, in the order keys
 // are first seen. As in DuckDB's aggregate hash table, each slot stores the
-// top bits of the group's hash, so keys are only compared when those match.
-// A group's keys are stored next to each other.
+// top bits of the group's hash. Keys are only compared when those match.
 //
 // Integers of any width compare equal if their values are equal. Doubles are
 // compared by their bits, with 0.0 and -0.0 equal, and strings by their
@@ -75,13 +90,6 @@ class GroupTable {
   }
 
  private:
-  enum class Kind : uint8_t { kInteger, kDouble, kString };
-
-  // Reads key column `k` into `keys_[k]` and sets its null bits in `nulls_`.
-  std::optional<Kind> Load(const ColumnView& column,
-                           const Selection& selection,
-                           uint32_t k,
-                           uint32_t count);
   // Fast path for a single key column with no nulls. It compares the key
   // values directly.
   void FindValues(uint32_t count, uint32_t* groups);
@@ -110,7 +118,7 @@ class GroupTable {
   uint32_t payload_words_ = 0;
 
   // The kind of each key column.
-  std::vector<Kind> kinds_;
+  std::vector<KeyKind> kinds_;
 
   // The current batch's keys, one vector per column.
   std::vector<FlexVector<int64_t>> keys_;

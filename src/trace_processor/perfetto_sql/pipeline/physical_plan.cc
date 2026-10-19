@@ -33,6 +33,7 @@
 #include "src/trace_processor/core/exec/assert_type.h"
 #include "src/trace_processor/core/exec/combine_batches.h"
 #include "src/trace_processor/core/exec/grouped_sort.h"
+#include "src/trace_processor/core/exec/number_groups.h"
 #include "src/trace_processor/core/exec/sort.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
@@ -208,6 +209,20 @@ void Lowering::RequireSortedWithinGroups(
   if (DropOpenSort() && IsArranged(keys, sorted_by)) {
     return;
   }
+  // If the rows are already grouped, sort by group number and then
+  // `sorted_by` instead of grouping again.
+  if (IsArranged(keys, {})) {
+    ex::SortSpec sort;
+    sort.keys.push_back({RequireGroupNumbers(keys), false});
+    for (const SortKey& key : sorted_by) {
+      if (!plan().columns()[key.column].type.storage()) {
+        RequireType(key.column, core::Int64{});
+      }
+      sort.keys.push_back({QueryPosition(key.column), key.descending});
+    }
+    AddSort(std::make_unique<ex::Sort>(std::move(sort)), {{keys, sorted_by}});
+    return;
+  }
   // Grouping is stable, so if the rows are already sorted by `sorted_by`,
   // grouping them is enough.
   GroupRows(keys,
@@ -222,9 +237,14 @@ uint32_t Lowering::RequireGroupNumbers(const std::vector<ColumnId>& keys) {
       return numbers.position;
     }
   }
-  // The rows are grouped but have no group numbers. Grouping them again
-  // adds the numbers.
-  GroupRows(keys, {});
+  // The rows are grouped but have no group numbers. NumberGroups adds them
+  // by finding where the keys change.
+  std::vector<uint32_t> positions;
+  for (ColumnId key : keys) {
+    positions.push_back(QueryPosition(key));
+  }
+  AddOrderDependent(std::make_unique<ex::NumberGroups>(std::move(positions)));
+  group_numbers_.push_back({keys, column_count_++});
   return group_numbers_.back().position;
 }
 
