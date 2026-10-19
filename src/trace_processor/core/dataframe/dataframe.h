@@ -164,6 +164,9 @@ class Dataframe {
       const LimitSpec& limit_spec,
       uint64_t cols_used_bitmap) const;
 
+  // The indexes added to the dataframe (see AddIndex).
+  const std::vector<Index>& indexes() const { return indexes_; }
+
   // Returns the logical plan PlanQuery would lower, for tests which assert on
   // the planner's choices rather than on the bytecode they produce.
   base::StatusOr<LogicalPlan> PlanQueryLogicalForTesting(

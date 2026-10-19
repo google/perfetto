@@ -17,10 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_COMMON_FILTER_KERNELS_H_
 #define SRC_TRACE_PROCESSOR_CORE_COMMON_FILTER_KERNELS_H_
 
+#include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <functional>
+#include <limits>
 #include <optional>
 #include <type_traits>
+#include <utility>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -31,15 +35,18 @@
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/filter_value_cast.h"
+#include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/span.h"
 
 // Keeping the rows of a column which compare true with a value already cast
-// to the column's type (see filter_value_cast.h). Shared by everything which
-// filters columns.
+// to the column's type (see filter_value_cast.h), by testing each row or by
+// searching a sorted column or index. Shared by everything which filters
+// columns.
 namespace perfetto::trace_processor::core::filter {
 
 namespace comparators {
@@ -345,6 +352,323 @@ inline PERFETTO_ALWAYS_INLINE void NonIndexedFilterInScan(
   }
   const auto& hm = base::unchecked_get<HM>(cast_result.hash_map);
   dest.e = FilterInHashMap<T>(data, source.b, source.e, dest.b, hm);
+}
+
+// -----------------------------------------------------------------------------
+// Searches of sorted columns and indexes
+// -----------------------------------------------------------------------------
+//
+// A sorted column, or an index listing a column's rows in the order of their
+// values, keeps the rows equal to or beyond a value together, so they are
+// found by searching rather than testing every row. Each search narrows
+// `range`, rows of the column or entries of the index, to those it keeps.
+
+template <typename DataType>
+inline auto SortedLowerBoundComparator(const StringPool* string_pool) {
+  if constexpr (std::is_same_v<DataType, StringPool::Id>) {
+    return comparators::StringComparator<Lt>{string_pool};
+  } else {
+    base::ignore_result(string_pool);
+    return std::less<>();
+  }
+}
+
+template <typename DataType>
+inline auto SortedUpperBoundComparator(const StringPool* string_pool) {
+  if constexpr (std::is_same_v<DataType, StringPool::Id>) {
+    return comparators::StringLessInvert{string_pool};
+  } else {
+    base::ignore_result(string_pool);
+    return std::less<>();
+  }
+}
+
+// The first row of `range` whose value is not less than `val`, in a column
+// sorted ascending.
+template <typename DataType, typename ValueType>
+[[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t
+SortedLowerBound(const DataType* data,
+                 ValueType val,
+                 const StringPool* string_pool,
+                 Range range) {
+  return static_cast<uint32_t>(
+      std::lower_bound(data + range.b, data + range.e, val,
+                       SortedLowerBoundComparator<DataType>(string_pool)) -
+      data);
+}
+
+// The first row of `range` whose value is greater than `val`, in a column
+// sorted ascending.
+template <typename DataType, typename ValueType>
+[[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t
+SortedUpperBound(const DataType* data,
+                 ValueType val,
+                 const StringPool* string_pool,
+                 Range range) {
+  return static_cast<uint32_t>(
+      std::upper_bound(data + range.b, data + range.e, val,
+                       SortedUpperBoundComparator<DataType>(string_pool)) -
+      data);
+}
+
+// Narrows `range` to the rows whose value equals `val`, in a column sorted
+// ascending.
+template <typename DataType, typename ValueType>
+inline PERFETTO_ALWAYS_INLINE void SortedEqualRange(
+    const DataType* data,
+    ValueType val,
+    const StringPool* string_pool,
+    Range& range) {
+  auto* begin = data + range.b;
+  auto* end = data + range.e;
+  DataType cmp_value;
+  if constexpr (std::is_same_v<DataType, StringPool::Id>) {
+    std::optional<StringPool::Id> id =
+        string_pool->GetId(base::StringView(val));
+    if (!id) {
+      range.e = range.b;
+      return;
+    }
+    cmp_value = *id;
+  } else {
+    cmp_value = val;
+  }
+  const DataType* eq_start = std::lower_bound(
+      begin, end, val, SortedLowerBoundComparator<DataType>(string_pool));
+  const DataType* eq_end = eq_start;
+
+  // Scan 16 rows: it's often the case that we have just a very small number
+  // of equal rows, so we can avoid a binary search.
+  const DataType* eq_end_limit = eq_start + 16;
+  for (;; ++eq_end) {
+    if (eq_end == end) {
+      break;
+    }
+    if (eq_end == eq_end_limit) {
+      eq_end =
+          std::upper_bound(eq_start, end, val,
+                           SortedUpperBoundComparator<DataType>(string_pool));
+      break;
+    }
+    if (std::not_equal_to<>()(*eq_end, cmp_value)) {
+      break;
+    }
+  }
+  range.b = static_cast<uint32_t>(eq_start - data);
+  range.e = static_cast<uint32_t>(eq_end - data);
+}
+
+// Narrows `range` to the row of an Id column whose value is `val`: an Id's
+// value is its row.
+inline PERFETTO_ALWAYS_INLINE void IdEqualRange(uint32_t val, Range& range) {
+  bool in_bounds = val >= range.b && val < range.e;
+  range.b = val;
+  range.e = val + in_bounds;
+}
+
+// Narrows `range` to the rows of an Id column from `val` on, if `begin`, or
+// before it otherwise.
+inline PERFETTO_ALWAYS_INLINE void IdBound(uint32_t val,
+                                           bool begin,
+                                           Range& range) {
+  uint32_t new_b = begin ? std::max(range.b, val) : range.b;
+  uint32_t new_e = !begin ? std::min(range.e, val) : range.e;
+  range.b = new_b;
+  range.e = std::max(new_b, new_e);
+}
+
+// Narrows `range` to the rows whose value equals `val`, in a Uint32 column
+// sorted by SetId: the rows of a value start at the row of that number.
+inline PERFETTO_ALWAYS_INLINE void
+SetIdSortedEqualRange(const uint32_t* storage, uint32_t val, Range& range) {
+  const auto* start =
+      std::clamp(storage + val, storage + range.b, storage + range.e);
+  range.b = static_cast<uint32_t>(start - storage);
+  const auto* it = start;
+  for (; it != storage + range.e; ++it) {
+    if (*it != val) {
+      break;
+    }
+  }
+  range.e = static_cast<uint32_t>(it - storage);
+}
+
+// Narrows `range` to the row whose value is `val`, in a column whose values
+// are distinct and small, stored as the set bits of `bv`: the row of a value
+// is the number of values below it. `popcount` holds the count of set bits
+// before each word of `bv`.
+inline PERFETTO_ALWAYS_INLINE void SmallValueEqualRange(
+    const BitVector& bv,
+    const uint32_t* popcount,
+    uint32_t val,
+    Range& range) {
+  uint32_t k = val < bv.size() && bv.is_set(val)
+                   ? static_cast<uint32_t>(popcount[val / 64] +
+                                           bv.count_set_bits_until_in_word(val))
+                   : range.e;
+  bool in_bounds = range.b <= k && k < range.e;
+  range.b = in_bounds ? k : range.e;
+  range.e = in_bounds ? k + 1 : range.b;
+}
+
+// Where the value of row `index` is stored in a column of nullability N, or
+// UINT32_MAX if it is null. `bv` marks the rows with values; `popcount`, the
+// count of set bits before each of its words, is read for SparseNull only.
+template <typename N>
+[[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t
+IndexToStorageIndex(uint32_t index,
+                    const BitVector* bv,
+                    const uint32_t* popcount) {
+  if constexpr (std::is_same_v<N, NonNull>) {
+    base::ignore_result(bv, popcount);
+    return index;
+  } else if constexpr (std::is_same_v<N, SparseNull>) {
+    if (!bv->is_set(index)) {
+      // Null values are always less than non-null values.
+      return std::numeric_limits<uint32_t>::max();
+    }
+    return static_cast<uint32_t>(popcount[index / 64] +
+                                 bv->count_set_bits_until_in_word(index));
+  } else if constexpr (std::is_same_v<N, DenseNull>) {
+    base::ignore_result(popcount);
+    return bv->is_set(index) ? index : std::numeric_limits<uint32_t>::max();
+  } else {
+    static_assert(std::is_same_v<N, NonNull>, "Unsupported type");
+  }
+}
+
+// Binary-searches a sorted index for all entries whose resolved storage
+// value equals |target|. Returns the [lb, ub) range of matching index
+// entries.
+//
+// |target| should be a NullTermStringView for String columns (i.e. a
+// pre-resolved string_pool->Get result) or the raw value for other types.
+// This avoids repeated string_pool->Get calls inside the comparators.
+template <typename T, typename N, typename Resolved>
+inline PERFETTO_ALWAYS_INLINE std::pair<uint32_t*, uint32_t*> IndexEqualRange(
+    uint32_t* begin,
+    uint32_t* end,
+    const Resolved& target,
+    const typename T::cpp_type* data,
+    const BitVector* bv,
+    const uint32_t* popcount,
+    const StringPool* string_pool) {
+  auto* lb =
+      std::lower_bound(begin, end, target, [&](uint32_t idx, const Resolved&) {
+        uint32_t si = IndexToStorageIndex<N>(idx, bv, popcount);
+        if (si == std::numeric_limits<uint32_t>::max())
+          return true;
+        if constexpr (std::is_same_v<T, String>) {
+          return string_pool->Get(data[si]) < target;
+        } else {
+          return data[si] < target;
+        }
+      });
+  auto* ub =
+      std::upper_bound(lb, end, target, [&](const Resolved&, uint32_t idx) {
+        uint32_t si = IndexToStorageIndex<N>(idx, bv, popcount);
+        if (si == std::numeric_limits<uint32_t>::max())
+          return false;
+        if constexpr (std::is_same_v<T, String>) {
+          return target < string_pool->Get(data[si]);
+        } else {
+          return target < data[si];
+        }
+      });
+  return {lb, ub};
+}
+
+// The rows of an IN found by binary-searching a sorted index for each of its
+// values, written to `dest` in increasing order. Returns false, writing
+// nothing, if the list is empty or too long for searching to beat a scan.
+//
+// TODO(lalitm): since the index is sorted, galloping search could replace
+// repeated std::lower_bound for better locality.
+template <typename T, typename N>
+[[nodiscard]] inline PERFETTO_ALWAYS_INLINE bool IndexedFilterInBinarySearch(
+    const CastFilterValueListResult& cast_result,
+    Span<uint32_t> index,
+    const typename T::cpp_type* data,
+    const BitVector* bv,
+    const uint32_t* popcount,
+    const StringPool* string_pool,
+    Span<uint32_t>& dest) {
+  using VL =
+      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
+  const VL& vl = base::unchecked_get<VL>(cast_result.value_list);
+  if (vl.empty() || vl.size() > kFilterInIndexedBinarySearchThreshold) {
+    return false;
+  }
+  uint32_t* write = dest.b;
+  for (const auto& cmp_val : vl) {
+    // For String columns, resolve StringPool::Id to NullTermStringView
+    // once per value to avoid repeated lookups in the comparators.
+    std::pair<uint32_t*, uint32_t*> range;
+    if constexpr (std::is_same_v<T, String>) {
+      auto target = string_pool->Get(cmp_val);
+      range = IndexEqualRange<T, N>(index.b, index.e, target, data, bv,
+                                    popcount, string_pool);
+    } else {
+      range = IndexEqualRange<T, N>(index.b, index.e, cmp_val, data, bv,
+                                    popcount, string_pool);
+    }
+    auto n = static_cast<size_t>(range.second - range.first);
+    memcpy(write, range.first, n * sizeof(uint32_t));
+    write += n;
+  }
+  dest.e = write;
+
+  // Binary search produces output in key order. Sort by raw index.
+  std::sort(dest.b, dest.e);
+  return true;
+}
+
+// The rows of `range` whose value is in an IN's list, written to `dest`,
+// testing each against the list's hash map.
+template <typename T, typename N>
+inline PERFETTO_ALWAYS_INLINE void FilterInRangeScan(
+    const CastFilterValueListResult& cast_result,
+    Range range,
+    const typename T::cpp_type* data,
+    const BitVector* bv,
+    const uint32_t* popcount,
+    Span<uint32_t>& dest) {
+  using HM =
+      StorageType::VariantTypeAtIndex<T,
+                                      CastFilterValueListResult::ValueHashMap>;
+  // |data| is unused for Id columns (the storage index IS the value).
+  base::ignore_result(data);
+  const auto& hm = base::unchecked_get<HM>(cast_result.hash_map);
+  uint32_t* write = dest.b;
+  for (uint32_t i = range.b; i < range.e; ++i) {
+    uint32_t si = IndexToStorageIndex<N>(i, bv, popcount);
+    if (si == std::numeric_limits<uint32_t>::max()) {
+      continue;
+    }
+    if constexpr (std::is_same_v<T, Id>) {
+      if (hm.Find(CastFilterValueResult::Id{si}) != nullptr) {
+        *write++ = i;
+      }
+    } else {
+      if (hm.Find(data[si]) != nullptr) {
+        *write++ = i;
+      }
+    }
+  }
+  dest.e = write;
+}
+
+// Copies the rows of `source` which lie in `range` to `out`, in order,
+// returning the end of those written. `out` may be `source.b`.
+inline PERFETTO_ALWAYS_INLINE uint32_t* CopySpanIntersectingRange(
+    Span<const uint32_t> source,
+    Range range,
+    uint32_t* out) {
+  for (const uint32_t* it = source.b; it != source.e; ++it) {
+    *out = *it;
+    out += (*it >= range.b && *it < range.e);
+  }
+  return out;
 }
 
 }  // namespace perfetto::trace_processor::core::filter
