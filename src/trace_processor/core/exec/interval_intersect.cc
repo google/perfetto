@@ -43,7 +43,7 @@
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/span.h"
-#include "src/trace_processor/util/cold_sort.h"
+#include "src/trace_processor/util/sort.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -299,8 +299,8 @@ void NarrowKey(const std::vector<const Group*>& groups,
   auto count = static_cast<uint32_t>(groups.size());
   order.resize(count);
   std::iota(order.begin(), order.end(), 0u);
-  ColdSortByKey(order.begin(), order.end(),
-                [&](uint32_t i) { return groups[i]->intervals.size(); });
+  SortByKey(order.begin(), order.end(),
+            [&](uint32_t i) { return groups[i]->intervals.size(); });
 
   running.Clear();
   for (const Interval& interval : groups[order.front()]->intervals) {
