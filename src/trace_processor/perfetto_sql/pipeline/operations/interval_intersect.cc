@@ -75,7 +75,20 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
       syntaqlite_node_is_present(n->per)
           ? Node<SyntaqlitePerfettoPerColumnList>(c->parser(), n->per)
           : nullptr;
-  uint32_t key_count = per ? syntaqlite_list_count(per) : 0;
+  // A PER column listed again adds nothing to the grouping.
+  std::vector<std::pair<std::string, uint32_t>> per_columns;
+  for (uint32_t k = 0; per && k < syntaqlite_list_count(per); k++) {
+    uint32_t col_id = syntaqlite_list_child_id(per, k);
+    std::string name =
+        SpanText(c->parser(),
+                 Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id)->name);
+    if (std::none_of(per_columns.begin(), per_columns.end(),
+                     [&](const auto& p) {
+                       return base::CaseInsensitiveEqual(p.first, name);
+                     })) {
+      per_columns.emplace_back(std::move(name), col_id);
+    }
+  }
 
   IntervalIntersect isect;
   // The region's bounds are the operation's own, so they are named before an
@@ -109,10 +122,7 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
     IntervalIntersect::Operand operand;
     operand.ts = *ts;
     operand.dur = *dur;
-    for (uint32_t k = 0; k < key_count; k++) {
-      uint32_t col_id = syntaqlite_list_child_id(per, k);
-      const auto* col = Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id);
-      std::string name = SpanText(c->parser(), col->name);
+    for (const auto& [name, col_id] : per_columns) {
       std::optional<ColumnId> key = FindColumn(relation.columns, name);
       if (!key) {
         return c->Expected(col_id, *alias + " to have a " + name + " column");

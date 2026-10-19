@@ -99,9 +99,14 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
       std::string name = SpanText(
           c->parser(),
           Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id)->name);
-      RETURN_IF_ERROR(c->CheckListedOnce(per, name, col_id));
       ASSIGN_OR_RETURN(ColumnId key, c->Resolve(name, col_id));
+      // A PER column listed again adds nothing to the grouping.
+      if (std::find(fill.keys_.begin(), fill.keys_.end(), key) !=
+          fill.keys_.end()) {
+        continue;
+      }
       fill.keys_.push_back(key);
+      per.push_back(name);
     }
   }
 
