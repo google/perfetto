@@ -7308,6 +7308,8 @@ perfetto_filegroup(
         "src/tracing/internal/tracing_muxer_fake.h",
         "src/tracing/internal/tracing_muxer_impl.cc",
         "src/tracing/internal/tracing_muxer_impl.h",
+        "src/tracing/internal/tracing_muxer_noop.cc",
+        "src/tracing/internal/tracing_muxer_noop.h",
         "src/tracing/internal/track_event_internal.cc",
         "src/tracing/internal/track_event_interned_fields.cc",
         "src/tracing/platform.cc",

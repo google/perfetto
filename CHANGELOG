@@ -183,6 +183,10 @@ Unreleased:
     * Android Java SDK: only allowlisted apps can now register with the
       system tracing service, and events started while another event is
       being built on the same thread are no longer dropped.
+    * Added `kNoOpBackend`. Initializing with it lets a process that will
+      not be traced call the SDK (data source registration,
+      `Track::FromPointer()`, `TRACE_EVENT`) without starting a muxer thread
+      or connecting to a service.
   Misc:
     * Added the `perfetto_cxx_standard` GN arg (default "c++17") to allow
       standalone builds to use a newer C++ standard (e.g. "c++20").

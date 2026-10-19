@@ -152,6 +152,8 @@ struct CompareBackendByType {
         return 1;
       case kCustomBackend:
         return 2;
+      // Never used with TracingMuxerImpl, see TracingMuxerNoOp.
+      case kNoOpBackend:
       // The UnspecifiedBackend has the highest priority so that
       // TracingBackendFake is the last one on the backend lists.
       case kUnspecifiedBackend:

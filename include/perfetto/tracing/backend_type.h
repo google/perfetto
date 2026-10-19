@@ -37,6 +37,14 @@ enum BackendType : uint32_t {
   // TracingInitArgs::custom_backend must be non-null and point to an
   // indefinitely lived instance.
   kCustomBackend = 1 << 2,
+
+  // For processes that will not be traced. Tracing API calls (e.g. data source
+  // registration, Track::FromPointer(), TRACE_EVENT) succeed and do nothing, so
+  // call sites don't need Tracing::IsInitialized() guards. No muxer thread is
+  // created and no service is connected. Cannot be combined with other
+  // backends, and Initialize() cannot be called later with another backend.
+  // Creating tracing sessions is not supported.
+  kNoOpBackend = 1 << 3,
 };
 
 }  // namespace perfetto
