@@ -135,8 +135,8 @@ uint32_t Lowering::AddFilterValue(core::exec::FilterValue value) {
   return static_cast<uint32_t>(values.size() - 1);
 }
 
-const StringPool* Lowering::pool() const {
-  return plan_->pool_;
+const LoweringContext& Lowering::context() const {
+  return plan_->context_;
 }
 
 void Lowering::RequireType(ColumnId column, core::StorageType type) {
@@ -496,9 +496,10 @@ std::unique_ptr<ex::Pipeline> Lowering::Build() {
   return std::make_unique<ex::Pipeline>(*input_, std::move(operators_));
 }
 
-PlanLowering::PlanLowering(const LogicalPlan& plan, const StringPool* pool)
+PlanLowering::PlanLowering(const LogicalPlan& plan,
+                           const LoweringContext& context)
     : plan_(plan),
-      pool_(pool),
+      context_(context),
       converted_(plan.columns().size()),
       out_(std::make_unique<PhysicalPlan>()) {
   pipelines_.push_back(std::make_unique<Lowering>(this));
@@ -533,9 +534,10 @@ PlanType PlanLowering::TypeOf(ColumnId column) const {
 PhysicalPlan::PhysicalPlan() = default;
 PhysicalPlan::~PhysicalPlan() = default;
 
-base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan& plan,
-                                                    const StringPool* pool) {
-  PlanLowering lowering(plan, pool);
+base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(
+    const LogicalPlan& plan,
+    const LoweringContext& context) {
+  PlanLowering lowering(plan, context);
   lowering.main().LowerNode(plan.root());
   return lowering.Finish();
 }

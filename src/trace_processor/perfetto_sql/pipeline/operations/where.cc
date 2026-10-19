@@ -232,7 +232,7 @@ void Where::Lower(Lowering* c, const PlanNode& node) const {
     conditions.push_back(condition);
   }
   c->AddOperator(
-      std::make_unique<ex::Filter>(std::move(conditions), c->pool()));
+      std::make_unique<ex::Filter>(std::move(conditions), c->context().pool));
   c->DeclareSmallBatches();
 }
 

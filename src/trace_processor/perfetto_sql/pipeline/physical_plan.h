@@ -87,14 +87,18 @@ class PhysicalPlan {
   std::vector<core::exec::FilterValue> filter_values_;
 };
 
+// What lowering needs from whoever runs the plan. Everything here must outlive
+// every run of the plan.
+struct LoweringContext {
+  // Holds the strings of the columns a Filter reads.
+  const StringPool* pool = nullptr;
+};
+
 // Builds executor nodes from a logical plan. Establishes tree numbering, row
 // ordering, and column types as needed, reusing them across consecutive folds.
 // Every dataframe the plan reads must already be resolved.
-//
-// `pool` holds the strings of the columns a Filter reads, and must outlive
-// every run of the plan.
 base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan&,
-                                                    const StringPool* pool);
+                                                    const LoweringContext&);
 
 // -----------------------------------------------------------------------------
 // Lowering
@@ -176,8 +180,7 @@ class Lowering {
   // PhysicalPlan::filter_values).
   uint32_t AddFilterValue(core::exec::FilterValue value);
 
-  // Holds the strings of the columns a Filter reads.
-  const StringPool* pool() const;
+  const LoweringContext& context() const;
 
   // ---------------------------------------------------------------------------
   // Requirements: add operators only if needed
@@ -397,7 +400,7 @@ class Lowering {
 // State shared by all pipelines while lowering a plan.
 class PlanLowering {
  public:
-  PlanLowering(const LogicalPlan& plan, const StringPool* pool);
+  PlanLowering(const LogicalPlan& plan, const LoweringContext& context);
   PlanLowering(const PlanLowering&) = delete;
   PlanLowering& operator=(const PlanLowering&) = delete;
   ~PlanLowering();
@@ -422,8 +425,7 @@ class PlanLowering {
 
   // Borrowed for the duration of lowering.
   const LogicalPlan& plan_;
-  // Borrowed for the duration of lowering; outlives every run of the plan.
-  const StringPool* pool_;
+  LoweringContext context_;
 
   // For each logical column, the type it was converted to, if any. Kept here
   // because column ids are unique across pipelines.

@@ -142,7 +142,7 @@ TEST_F(PlanSerializationTest, MalformedPlansAreRefusedOrRun) {
                  .ok()) {
           continue;
         }
-        auto physical = Lower(*read, &pool_);
+        auto physical = Lower(*read, {&pool_});
         if (!physical.ok()) {
           continue;
         }
