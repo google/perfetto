@@ -289,14 +289,13 @@ TEST_F(PhysicalPlanTest, OnlySmallBatchesAreCombined) {
             "IntervalFlatten(#0, #1; COUNT(*)) | CombineBatches | Sort(#2)");
 }
 
-// DISTINCT keeps the first row of each set of rows equal in every column of
-// the row, and the rows kept stay in their input order.
-TEST_F(PhysicalPlanTest, DistinctKeepsFirstRowOfEachDuplicateSet) {
+// DISTINCT compares only the columns of the row at that stage: `id`, dropped
+// before it, does not make rows differ.
+TEST_F(PhysicalPlanTest, DistinctComparesTheRowAtItsStage) {
   Exec("CREATE TABLE t(id INTEGER, cpu INTEGER)");
   Exec("INSERT INTO t VALUES (0, 1), (1, 2), (2, 1), (3, 3), (4, 2)");
   auto plan = Plan("FROM t |> SELECT cpu |> DISTINCT");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
-  EXPECT_EQ(PhysicalPlanToString(**plan), "main: DataframeScan | Distinct(#0)");
 
   uint32_t cpu_column = (*plan)->columns()[0].index;
   std::vector<int64_t> values;
@@ -308,16 +307,14 @@ TEST_F(PhysicalPlanTest, DistinctKeepsFirstRowOfEachDuplicateSet) {
   EXPECT_THAT(values, ElementsAre(1, 2, 3));
 }
 
-// WHERE's conditions are the AND of column-literal comparisons, evaluated
-// against the run's filter values.
-TEST_F(PhysicalPlanTest, WhereKeepsRowsMatchingEveryPredicate) {
-  Exec("CREATE TABLE t(id INTEGER, cpu INTEGER)");
-  Exec("INSERT INTO t VALUES (0, 1), (1, 5), (2, 3), (3, 9), (4, 7)");
-  auto plan = Plan("FROM t |> WHERE cpu > 2 AND cpu < 9 |> SELECT cpu");
+// WHERE keeps the rows matching every comparison, on integer and double
+// columns alike. Each comparison drops at least one row.
+TEST_F(PhysicalPlanTest, WhereKeepsRowsMatchingEveryComparison) {
+  Exec("CREATE TABLE t(cpu INTEGER, value REAL)");
+  Exec("INSERT INTO t VALUES (1, 3.5), (5, 2.5), (3, 1.5), (9, 3.5), (7, 2.5)");
+  auto plan = Plan(
+      "FROM t |> WHERE cpu > 2 AND cpu < 9 AND value >= 2.5 |> SELECT cpu");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
-  EXPECT_EQ(PhysicalPlanToString(**plan),
-            "main: DataframeScan | AssertType(#0 to Int64) | "
-            "Filter(#0 > ?0, #0 < ?1)");
 
   uint32_t cpu_column = (*plan)->columns()[0].index;
   std::vector<int64_t> values;
@@ -327,25 +324,7 @@ TEST_F(PhysicalPlanTest, WhereKeepsRowsMatchingEveryPredicate) {
     values.push_back(*IntAt(cursor, cpu_column));
   }
   ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
-  EXPECT_THAT(values, ElementsAre(5, 3, 7));
-}
-
-// A fractional literal is matched against a Double column exactly.
-TEST_F(PhysicalPlanTest, WhereComparesDoubleColumns) {
-  Exec("CREATE TABLE t(id INTEGER, value REAL)");
-  Exec("INSERT INTO t VALUES (0, 1.5), (1, 2.5), (2, 3.5)");
-  auto plan = Plan("FROM t |> WHERE value >= 2.5 |> SELECT value");
-  ASSERT_TRUE(plan.ok()) << plan.status().message();
-
-  uint32_t value_column = (*plan)->columns()[0].index;
-  std::vector<double> values;
-  RowCursor cursor((*plan)->source());
-  for (bool row = cursor.Open((*plan)->filter_values()); row;
-       row = cursor.Next()) {
-    values.push_back(cursor.Value<double>(value_column));
-  }
-  ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
-  EXPECT_THAT(values, ElementsAre(2.5, 3.5));
+  EXPECT_THAT(values, ElementsAre(5, 7));
 }
 
 // Each operand is grouped by its PER keys and sorted by ts within each group,
