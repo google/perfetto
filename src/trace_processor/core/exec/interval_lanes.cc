@@ -89,12 +89,12 @@ base::Status LaneReader::Start(const RowBatch& in, GroupTable* shared) {
     }
   }
   if (!first_rows_.empty()) {
-    firsts_.CopyFrom(in);
+    firsts_.CopyFrom(in.selection());
     const uint32_t* firsts = first_rows_.data();
-    firsts_.mutable_selection().Keep({firsts, firsts + first_rows_.size()});
+    firsts_.Keep({firsts, firsts + first_rows_.size()});
     first_lanes_.resize(first_rows_.size());
     if (std::optional<uint32_t> bad = shared->FindOrCreate(
-            firsts_, spec_->key_columns, first_lanes_.data())) {
+            in, firsts_, spec_->key_columns, first_lanes_.data())) {
       return base::ErrStatus(
           "%s's PER column %u must hold one type, the same in every input",
           Prefix(name_).c_str(), *bad + 1);

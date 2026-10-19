@@ -34,6 +34,7 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/span.h"
 
 // The input stage shared by the interval operators. Each reads one or more
@@ -171,7 +172,7 @@ class LaneReader {
   uint32_t last_lane_ = 0;
 
   // Scratch: the first row of each group in the batch, and their numbers.
-  RowBatch firsts_;
+  Selection firsts_;
   std::vector<uint32_t> first_rows_;
   std::vector<uint32_t> first_lanes_;
 };
