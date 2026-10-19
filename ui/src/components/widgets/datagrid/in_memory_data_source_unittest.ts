@@ -15,7 +15,7 @@
 import type {Row} from '../../../trace_processor/query_result';
 import type {FlatModel} from './data_source';
 import {InMemoryDataSource} from './in_memory_data_source';
-import type {Filter} from './model';
+import type {Filter, QuickFilter} from './model';
 
 describe('InMemoryDataSource', () => {
   const sampleData: ReadonlyArray<Row> = [
@@ -97,12 +97,14 @@ describe('InMemoryDataSource', () => {
   function makeModel(options?: {
     columns?: FlatModel['columns'];
     filters?: readonly Filter[];
+    quickFilter?: QuickFilter;
     sort?: FlatModel['sort'];
   }): FlatModel {
     return {
       mode: 'flat',
       columns: options?.columns ?? defaultColumns,
       filters: options?.filters,
+      quickFilter: options?.quickFilter,
       sort: options?.sort,
     };
   }
@@ -213,6 +215,55 @@ describe('InMemoryDataSource', () => {
       const result = dataSource.useRows(makeModel({filters}));
       expect(result.totalRows).toBe(0);
       expect(result.rows?.length).toBe(0);
+    });
+  });
+
+  describe('quick filter', () => {
+    const ids = (model: FlatModel) =>
+      dataSource.useRows(model).rows?.map((r) => r.id);
+
+    test('keeps rows where any field matches, ignoring case', () => {
+      const quickFilter = {text: 'AL', fields: ['name', 'tag']};
+      // Alice (name), Mallory (name).
+      expect(ids(makeModel({quickFilter}))).toEqual([1, 6]);
+    });
+
+    test('only looks in the given fields', () => {
+      const quickFilter = {text: 'a', fields: ['tag']};
+      expect(ids(makeModel({quickFilter}))).toEqual([1, 3, 7]);
+    });
+
+    test('never matches a field that is missing from the row', () => {
+      // A missing value must not be treated as the text "undefined".
+      const quickFilter = {text: 'undefined', fields: ['missing']};
+      expect(ids(makeModel({quickFilter}))).toEqual([]);
+    });
+
+    test('can look in a field with a dot in the name', () => {
+      // 'foo..bar' is the escaped path for the 'foo.bar' key.
+      const quickFilter = {text: 'value 3', fields: ['foo..bar']};
+      // Charlie, Mallory.
+      expect(ids(makeModel({quickFilter}))).toEqual([3, 6]);
+    });
+
+    test('empty text keeps all rows', () => {
+      const quickFilter = {text: '', fields: ['name']};
+      expect(dataSource.useRows(makeModel({quickFilter})).totalRows).toBe(
+        sampleData.length,
+      );
+    });
+
+    test('is combined with filters using AND', () => {
+      const filters: Filter[] = [{field: 'active', op: '=', value: 1}];
+      const quickFilter = {text: 'e', fields: ['name']};
+      // Alice, Charlie, Eve, Trent have an 'e' and are active.
+      expect(ids(makeModel({filters, quickFilter}))).toEqual([1, 3, 5, 7]);
+    });
+
+    test('changing the quick filter text recomputes rows', () => {
+      const fields = ['name'];
+      expect(ids(makeModel({quickFilter: {text: 'bob', fields}}))).toEqual([2]);
+      expect(ids(makeModel({quickFilter: {text: 'eve', fields}}))).toEqual([5]);
     });
   });
 

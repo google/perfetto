@@ -14,6 +14,7 @@
 
 import {assertUnreachable} from '../../../base/assert';
 import type {SqlValue} from '../../../trace_processor/query_result';
+import {escapeSearchQuery} from '../../../trace_processor/query_utils';
 import type {AggregateFunction, Filter} from './model';
 
 /**
@@ -189,6 +190,34 @@ export function filterToSql(filter: Filter, sqlExpr: string): string {
     default:
       assertUnreachable(filter);
   }
+}
+
+/**
+ * Builds a SQL condition that is true if any of `sqlExprs` contains `text`.
+ * E.g., quickFilterToSql('fo', ['a', 'b']) returns:
+ * ((typeof(a) != 'blob' AND CAST(a AS TEXT) GLOB '*[fF][oO]*') OR (...b...))
+ *
+ * The rules are:
+ * 1. The value, converted to text, contains the filter text.
+ * 2. Upper/lowercase is ignored for A-Z only.
+ * 3. Nulls and blobs never match.
+ *
+ * Keep in sync with valueMatchesQuickFilter() in quick_filter_utils.ts, which
+ * implements the same rules in JS.
+ */
+export function quickFilterToSql(
+  text: string,
+  sqlExprs: readonly string[],
+): string {
+  if (sqlExprs.length === 0) {
+    return 'FALSE';
+  }
+  const pattern = escapeSearchQuery(text);
+  const conditions = sqlExprs.map(
+    (expr) =>
+      `(typeof(${expr}) != 'blob' AND CAST(${expr} AS TEXT) GLOB ${pattern})`,
+  );
+  return `(${conditions.join(' OR ')})`;
 }
 
 /**
