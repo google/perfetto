@@ -22,12 +22,14 @@ import {
   type Aggregator,
   createAggregationData,
   createAggregationTab,
+  type DataGridState,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
 import {formatDuration} from '../../components/time_utils';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {ColumnDef} from '../../components/widgets/datagrid/datagrid_schema';
+import {filterToSql} from '../../components/widgets/datagrid/sql_utils';
 import {DurationWidget} from '../../components/widgets/duration';
 import {Timestamp} from '../../components/widgets/timestamp';
 import type {TrackEventDetailsPanel} from '../../public/details_panel';
@@ -56,9 +58,7 @@ import {
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {Anchor} from '../../widgets/anchor';
 import {Button} from '../../widgets/button';
-import {Checkbox} from '../../widgets/checkbox';
 import {DetailsShell} from '../../widgets/details_shell';
-import {Grid, GridCell, GridHeaderCell} from '../../widgets/grid';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 
@@ -399,8 +399,18 @@ function buildSelectionSourceSql(
       )`;
 }
 
+interface FilteredSelection {
+  readonly traceUuids: ReadonlyArray<string>;
+  readonly androidIds: ReadonlyArray<string>;
+}
+
 class DeviceTracesSelectionAggregator implements Aggregator {
   readonly id = 'device_traces_selection';
+  private currentTableName?: string;
+  private unfilteredSelection: FilteredSelection = {
+    traceUuids: [],
+    androidIds: [],
+  };
 
   constructor(
     private readonly trace: Trace,
@@ -408,6 +418,51 @@ class DeviceTracesSelectionAggregator implements Aggregator {
     private readonly breakdownColumns: ReadonlyArray<BreakdownColumn>,
     private readonly datasetSpec: DeviceTraceDatasetSpec,
   ) {}
+
+  getCurrentTableName(): string | undefined {
+    return this.currentTableName;
+  }
+
+  getUnfilteredSelection(): FilteredSelection {
+    return this.unfilteredSelection;
+  }
+
+  async queryFilteredSelection(
+    tableName: string,
+    filterSqls: ReadonlyArray<string>,
+  ): Promise<FilteredSelection> {
+    const whereClause =
+      filterSqls.length > 0 ? `WHERE ${filterSqls.join(' AND ')}` : '';
+    const hasAndroidId = this.breakdownColumns.some(
+      (c) => c.sqlCol === 'col_android_id',
+    );
+    const androidIdExpr = hasAndroidId
+      ? 'col_android_id'
+      : "'' AS col_android_id";
+    const res = await this.trace.engine.query(`
+      SELECT
+        trace_uuid,
+        ${androidIdExpr}
+      FROM ${tableName}
+      ${whereClause}
+    `);
+    const traceUuidSet = new Set<string>();
+    const androidIdSet = new Set<string>();
+    const it = res.iter({
+      trace_uuid: STR,
+      col_android_id: STR,
+    });
+    for (; it.valid(); it.next()) {
+      const uuid = it.trace_uuid.trim();
+      if (uuid) traceUuidSet.add(uuid);
+      const androidId = it.col_android_id.trim();
+      if (androidId) androidIdSet.add(androidId);
+    }
+    return {
+      traceUuids: [...traceUuidSet],
+      androidIds: [...androidIdSet],
+    };
+  }
 
   probe(area: AreaSelection): Aggregation | undefined {
     const dataset = selectTracksAndGetDataset(area.tracks, this.datasetSpec);
@@ -438,6 +493,11 @@ class DeviceTracesSelectionAggregator implements Aggregator {
             ORDER BY ts
           `,
         });
+        this.currentTableName = table.name;
+        this.unfilteredSelection = await this.queryFilteredSelection(
+          table.name,
+          [],
+        );
         return createAggregationData(table);
       },
       getGridConfig: () => {
@@ -610,230 +670,78 @@ class DeviceTracesSelectionAggregator implements Aggregator {
   }
 }
 
-class DeviceTracesSelectTab implements AreaSelectionTab {
-  readonly id = 'device_traces_select';
-  readonly name = 'Select traces';
-  readonly priority = 100;
+function createDeviceTracesTab(
+  trace: Trace,
+  aggregator: DeviceTracesSelectionAggregator,
+): AreaSelectionTab {
+  const baseTab = createAggregationTab(trace, aggregator, 200);
+  const filteredSlot = new AsyncMemo<FilteredSelection>();
 
-  private readonly memo = new AsyncMemo<{
-    rows: DeviceTraceRow[];
-    selected: Set<string>;
-  }>();
+  return {
+    id: baseTab.id,
+    name: baseTab.name,
+    priority: baseTab.priority,
+    render(selection: AreaSelection): ContentWithLoadingFlag | undefined {
+      const res = baseTab.render(selection);
+      if (res === undefined || res.isLoading) {
+        return res;
+      }
+      const tableName = aggregator.getCurrentTableName();
+      const panelVnode = res.content as
+        m.Vnode<{readonly dataGridState?: DataGridState}> | undefined;
+      const filters = panelVnode?.attrs?.dataGridState?.filters ?? [];
+      const filterSqls = filters.map((f) => filterToSql(f, f.field));
 
-  constructor(
-    private readonly trace: Trace,
-    private readonly counterTrackFilters: ReadonlyMap<string, string>,
-    private readonly breakdownColumns: ReadonlyArray<BreakdownColumn>,
-    private readonly datasetSpec: DeviceTraceDatasetSpec,
-  ) {}
+      const filtered =
+        filterSqls.length === 0 || tableName === undefined
+          ? aggregator.getUnfilteredSelection()
+          : (filteredSlot.use({
+              key: {tableName, filterSqls},
+              compute: () =>
+                aggregator.queryFilteredSelection(tableName, filterSqls),
+            }).data ?? aggregator.getUnfilteredSelection());
 
-  render(selection: AreaSelection): ContentWithLoadingFlag | undefined {
-    const dataset = selectTracksAndGetDataset(
-      selection.tracks,
-      this.datasetSpec,
-    );
-    const hasCounterTrack = selection.trackUris.some((uri) =>
-      this.counterTrackFilters.has(uri),
-    );
-    if (dataset === undefined && !hasCounterTrack) {
-      return undefined;
-    }
-    const {data, isPending} = this.memo.use({
-      key: {
-        start: selection.start,
-        end: selection.end,
-        trackUris: selection.trackUris,
-      },
-      compute: async () => {
-        const rows = await this.queryRows(dataset, selection);
-        return {
-          rows,
-          selected: new Set(
-            rows
-              .slice(0, 50)
-              .map((r) => r.traceUuid)
-              .filter(Boolean),
-          ),
-        };
-      },
-    });
+      const {traceUuids, androidIds} = filtered;
 
-    const selectedCount = data?.selected.size ?? 0;
-    const hasSelected = data !== undefined && selectedCount > 0;
-    const selectedAndroidIds =
-      data === undefined
-        ? []
-        : [
-            ...new Set(
-              data.rows
-                .filter((r) => data.selected.has(r.traceUuid))
-                .map((r) => (r.cols.get('col_android_id') ?? '').trim())
-                .filter(Boolean),
-            ),
-          ];
-
-    return {
-      isLoading: isPending,
-      buttons: [
-        m(Button, {
-          label: `Merge selected traces (${selectedCount})`,
-          icon: Icons.ExternalLink,
-          disabled: !hasSelected,
-          onclick: () => {
-            if (data !== undefined && data.selected.size > 0) {
-              window.open(
-                TRACE_UUIDS_URL + [...data.selected].join(','),
-                '_blank',
-              );
-            }
-          },
-        }),
-        m(Button, {
-          label: `Query selected traces (${selectedCount})`,
-          icon: Icons.ExternalLink,
-          disabled: !hasSelected,
-          onclick: () => {
-            if (data !== undefined && data.selected.size > 0) {
-              openQueryTraces([...data.selected]);
-            }
-          },
-        }),
-        m(Button, {
-          label: `All traces for selected devices (${selectedAndroidIds.length})`,
-          icon: Icons.ExternalLink,
-          disabled: selectedAndroidIds.length === 0,
-          onclick: () => {
-            if (selectedAndroidIds.length > 0) {
-              openDeviceTraces(
-                selectedAndroidIds,
-                selection.start,
-                selection.end,
-              );
-            }
-          },
-        }),
-      ],
-      content:
-        data === undefined
-          ? undefined
-          : this.renderGrid(data.rows, data.selected),
-    };
-  }
-
-  private async queryRows(
-    dataset: Dataset | undefined,
-    selection: AreaSelection,
-  ): Promise<DeviceTraceRow[]> {
-    const src = buildSelectionSourceSql(
-      dataset,
-      selection,
-      this.counterTrackFilters,
-      this.breakdownColumns,
-      this.datasetSpec,
-    );
-    const result = await this.trace.engine.query(`
-      SELECT
-        ${selectColumnList(this.breakdownColumns, 'ts', 'name')}
-      FROM ${src}
-      WHERE ts < ${selection.end} AND ts + dur > ${selection.start}
-      ORDER BY ts
-      LIMIT 500
-    `);
-    const rows: DeviceTraceRow[] = [];
-    const it = result.iter(this.datasetSpec);
-    for (; it.valid(); it.next()) {
-      rows.push(parseDeviceTraceRow(it, this.breakdownColumns));
-    }
-    return rows;
-  }
-
-  private renderGrid(
-    rows: ReadonlyArray<DeviceTraceRow>,
-    selected: Set<string>,
-  ): m.Children {
-    const allSelected = rows.length > 0 && selected.size === rows.length;
-    return m(Grid, {
-      columns: [
-        {
-          key: 'select',
-          header: m(
-            GridHeaderCell,
-            m(Checkbox, {
-              checked: allSelected,
-              onchange: () => {
-                if (allSelected) {
-                  selected.clear();
-                } else {
-                  rows.forEach((r) => {
-                    if (r.traceUuid) selected.add(r.traceUuid);
-                  });
-                }
-              },
-            }),
-          ),
-        },
-        {key: 'uuid', header: m(GridHeaderCell, 'Trace UUID')},
-        ...this.breakdownColumns.map((col) => ({
-          key: col.sqlCol,
-          header: m(GridHeaderCell, col.label),
-        })),
-        {key: 'ts', header: m(GridHeaderCell, 'Start')},
-        {key: 'dur', header: m(GridHeaderCell, 'Duration')},
-        {key: 'trace_dur', header: m(GridHeaderCell, 'Trace Duration')},
-        {key: 'sched_dur', header: m(GridHeaderCell, 'Sched Duration')},
-        {
-          key: 'trace_size_bytes',
-          header: m(GridHeaderCell, 'Uncompressed Size'),
-        },
-        {
-          key: 'original_trace_size_bytes',
-          header: m(GridHeaderCell, 'Compressed Size'),
-        },
-      ],
-      rowData: rows.map((r) => [
-        m(
-          GridCell,
-          m(Checkbox, {
-            checked: selected.has(r.traceUuid),
-            onchange: () => {
-              if (selected.has(r.traceUuid)) {
-                selected.delete(r.traceUuid);
-              } else if (r.traceUuid) {
-                selected.add(r.traceUuid);
+      return {
+        isLoading: false,
+        content: res.content,
+        buttons: [
+          m(Button, {
+            label: `Merge traces (${traceUuids.length})`,
+            icon: Icons.ExternalLink,
+            disabled: traceUuids.length === 0,
+            onclick: () => {
+              if (traceUuids.length > 0) {
+                window.open(TRACE_UUIDS_URL + traceUuids.join(','), '_blank');
               }
             },
           }),
-        ),
-        m(
-          GridCell,
-          m(
-            Anchor,
-            {href: TRACE_UUID_URL + r.traceUuid, target: '_blank'},
-            r.traceUuid,
-          ),
-        ),
-        ...this.breakdownColumns.map((col) =>
-          m(GridCell, r.cols.get(col.sqlCol) || '-'),
-        ),
-        m(GridCell, m(Timestamp, {trace: this.trace, ts: r.ts})),
-        m(GridCell, m(DurationWidget, {trace: this.trace, dur: r.dur})),
-        m(
-          GridCell,
-          r.traceDur > 0n
-            ? m(DurationWidget, {trace: this.trace, dur: r.traceDur})
-            : '-',
-        ),
-        m(
-          GridCell,
-          r.schedDur > 0n
-            ? m(DurationWidget, {trace: this.trace, dur: r.schedDur})
-            : '-',
-        ),
-        m(GridCell, formatBytes(r.traceSizeBytes)),
-        m(GridCell, formatBytes(r.originalTraceSizeBytes)),
-      ]),
-    });
-  }
+          m(Button, {
+            label: `Query traces (${traceUuids.length})`,
+            icon: Icons.ExternalLink,
+            disabled: traceUuids.length === 0,
+            onclick: () => {
+              if (traceUuids.length > 0) {
+                openQueryTraces(traceUuids);
+              }
+            },
+          }),
+          m(Button, {
+            label: `All traces for devices (${androidIds.length})`,
+            icon: Icons.ExternalLink,
+            disabled: androidIds.length === 0,
+            onclick: () => {
+              if (androidIds.length > 0) {
+                openDeviceTraces(androidIds, selection.start, selection.end);
+              }
+            },
+          }),
+          res.buttons,
+        ],
+      };
+    },
+  };
 }
 
 export default class DeviceTracesPlugin implements PerfettoPlugin {
@@ -941,7 +849,7 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
     }
 
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(
+      createDeviceTracesTab(
         ctx,
         new DeviceTracesSelectionAggregator(
           ctx,
@@ -949,15 +857,6 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
           this.breakdownColumns,
           this.datasetSpec,
         ),
-        200,
-      ),
-    );
-    ctx.selection.registerAreaSelectionTab(
-      new DeviceTracesSelectTab(
-        ctx,
-        this.counterTrackFilters,
-        this.breakdownColumns,
-        this.datasetSpec,
       ),
     );
 
