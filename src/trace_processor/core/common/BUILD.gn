@@ -18,6 +18,7 @@ import("../../../../gn/test.gni")
 source_set("common") {
   sources = [
     "duplicate_types.h",
+    "filter_kernels.cc",
     "filter_kernels.h",
     "filter_value_cast.h",
     "null_types.h",
@@ -44,6 +45,7 @@ source_set("common") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "filter_kernels_unittest.cc",
     "row_layout_unittest.cc",
     "string_ranks_unittest.cc",
   ]
@@ -53,6 +55,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../../gn:gtest_and_gmock",
     "../../../base",
     "../../containers",
+    "../util",
   ]
 }
 
