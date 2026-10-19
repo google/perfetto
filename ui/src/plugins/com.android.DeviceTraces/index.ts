@@ -17,9 +17,17 @@ import {AsyncMemo} from '../../base/async_memo';
 import {Icons} from '../../base/semantic_icons';
 import {sqliteString} from '../../base/string_utils';
 import {Duration, type duration, Time, type time} from '../../base/time';
-import {selectTracksAndGetDataset} from '../../components/aggregation_adapter';
+import {
+  type Aggregation,
+  type Aggregator,
+  createAggregationData,
+  createAggregationTab,
+  selectTracksAndGetDataset,
+} from '../../components/aggregation_adapter';
+import {formatDuration} from '../../components/time_utils';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import {SliceTrack} from '../../components/tracks/slice_track';
+import type {ColumnDef} from '../../components/widgets/datagrid/datagrid_schema';
 import {DurationWidget} from '../../components/widgets/duration';
 import {Timestamp} from '../../components/widgets/timestamp';
 import type {TrackEventDetailsPanel} from '../../public/details_panel';
@@ -37,12 +45,15 @@ import {
   type DatasetSchema,
   SourceDataset,
 } from '../../trace_processor/dataset';
+import type {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   NUM,
   type RowIterator,
+  type SqlValue,
   STR,
 } from '../../trace_processor/query_result';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {Anchor} from '../../widgets/anchor';
 import {Button} from '../../widgets/button';
 import {Checkbox} from '../../widgets/checkbox';
@@ -292,9 +303,260 @@ class DeviceTraceDetailsPanel implements TrackEventDetailsPanel {
   }
 }
 
-class DeviceTracesSelectionTab implements AreaSelectionTab {
+function toBigInt(value: SqlValue): bigint | undefined {
+  if (typeof value === 'bigint') {
+    return value;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return BigInt(Math.round(value));
+  }
+  return undefined;
+}
+
+function buildSelectionSourceSql(
+  dataset: Dataset | undefined,
+  selection: AreaSelection,
+  counterTrackFilters: ReadonlyMap<string, string>,
+  breakdownColumns: ReadonlyArray<BreakdownColumn>,
+  datasetSpec: DeviceTraceDatasetSpec,
+): string {
+  const matchedCounterPredicates: string[] = [];
+  for (const uri of selection.trackUris) {
+    const pred = counterTrackFilters.get(uri);
+    if (pred !== undefined) {
+      matchedCounterPredicates.push(`(${pred})`);
+    }
+  }
+  const counterWhere =
+    matchedCounterPredicates.length > 0
+      ? `WHERE ${matchedCounterPredicates.join(' OR ')}`
+      : '';
+
+  return dataset !== undefined
+    ? `(${dataset.query(datasetSpec)})`
+    : `(
+        SELECT
+          ${selectColumnList(breakdownColumns)}
+        FROM ${TABLE_NAME}
+        ${counterWhere}
+      )`;
+}
+
+class DeviceTracesSelectionAggregator implements Aggregator {
   readonly id = 'device_traces_selection';
-  readonly name = 'Device traces';
+
+  constructor(
+    private readonly trace: Trace,
+    private readonly counterTrackFilters: ReadonlyMap<string, string>,
+    private readonly breakdownColumns: ReadonlyArray<BreakdownColumn>,
+    private readonly datasetSpec: DeviceTraceDatasetSpec,
+  ) {}
+
+  probe(area: AreaSelection): Aggregation | undefined {
+    const dataset = selectTracksAndGetDataset(area.tracks, this.datasetSpec);
+    const hasCounterTrack = area.trackUris.some((uri) =>
+      this.counterTrackFilters.has(uri),
+    );
+    if (dataset === undefined && !hasCounterTrack) {
+      return undefined;
+    }
+
+    const src = buildSelectionSourceSql(
+      dataset,
+      area,
+      this.counterTrackFilters,
+      this.breakdownColumns,
+      this.datasetSpec,
+    );
+
+    return {
+      prepareData: async (engine: Engine) => {
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            SELECT
+              ${selectColumnList(this.breakdownColumns, 'ts', 'name')}
+            FROM ${src}
+            WHERE ts < ${area.end} AND ts + dur > ${area.start}
+            ORDER BY ts
+          `,
+        });
+        return createAggregationData(table);
+      },
+      getGridConfig: () => {
+        const columns: Record<string, ColumnDef> = {
+          trace_uuid: {
+            title: 'Trace UUID',
+            columnType: 'identifier',
+            cellRenderer: (value) => {
+              const uuid =
+                typeof value === 'string' ? value : String(value ?? '');
+              if (!uuid) return '-';
+              return m(
+                Anchor,
+                {href: `${TRACE_UUID_URL}${uuid}`, target: '_blank'},
+                uuid,
+              );
+            },
+            cellFormatter: (value) =>
+              typeof value === 'string' ? value : String(value ?? ''),
+          },
+        };
+        for (const col of this.breakdownColumns) {
+          columns[col.sqlCol] = {
+            title: col.label,
+            columnType: 'text',
+          };
+        }
+        columns['ts'] = {
+          title: 'Start',
+          columnType: 'quantitative',
+          cellRenderer: (value) => {
+            const raw = toBigInt(value);
+            if (raw === undefined) return String(value ?? '');
+            return m(Timestamp, {trace: this.trace, ts: Time.fromRaw(raw)});
+          },
+        };
+        columns['dur'] = {
+          title: 'Duration',
+          columnType: 'quantitative',
+          cellRenderer: (value) => {
+            const raw = toBigInt(value);
+            if (raw === undefined) return String(value ?? '');
+            return m(DurationWidget, {
+              trace: this.trace,
+              dur: Duration.fromRaw(raw),
+            });
+          },
+          cellFormatter: (value) => {
+            const raw = toBigInt(value);
+            return raw !== undefined
+              ? formatDuration(this.trace, Duration.fromRaw(raw))
+              : String(value ?? '');
+          },
+        };
+        columns['armed_start_ts'] = {
+          title: 'Armed Start',
+          columnType: 'quantitative',
+          cellRenderer: (value) => {
+            const raw = toBigInt(value);
+            if (raw === undefined) return String(value ?? '');
+            return m(Timestamp, {trace: this.trace, ts: Time.fromRaw(raw)});
+          },
+        };
+        columns['armed_dur'] = {
+          title: 'Armed Duration',
+          columnType: 'quantitative',
+          cellRenderer: (value) => {
+            const raw = toBigInt(value);
+            if (raw === undefined) return String(value ?? '');
+            return m(DurationWidget, {
+              trace: this.trace,
+              dur: Duration.fromRaw(raw),
+            });
+          },
+          cellFormatter: (value) => {
+            const raw = toBigInt(value);
+            return raw !== undefined
+              ? formatDuration(this.trace, Duration.fromRaw(raw))
+              : String(value ?? '');
+          },
+        };
+        columns['trace_dur'] = {
+          title: 'Trace Duration',
+          columnType: 'quantitative',
+          cellRenderer: (value) => {
+            const raw = toBigInt(value);
+            if (raw === undefined || raw <= 0n) return '-';
+            return m(DurationWidget, {
+              trace: this.trace,
+              dur: Duration.fromRaw(raw),
+            });
+          },
+          cellFormatter: (value) => {
+            const raw = toBigInt(value);
+            return raw !== undefined && raw > 0n
+              ? formatDuration(this.trace, Duration.fromRaw(raw))
+              : '-';
+          },
+        };
+        columns['sched_dur'] = {
+          title: 'Sched Duration',
+          columnType: 'quantitative',
+          cellRenderer: (value) => {
+            const raw = toBigInt(value);
+            if (raw === undefined || raw <= 0n) return '-';
+            return m(DurationWidget, {
+              trace: this.trace,
+              dur: Duration.fromRaw(raw),
+            });
+          },
+          cellFormatter: (value) => {
+            const raw = toBigInt(value);
+            return raw !== undefined && raw > 0n
+              ? formatDuration(this.trace, Duration.fromRaw(raw))
+              : '-';
+          },
+        };
+        columns['trace_size_bytes'] = {
+          title: 'Uncompressed Size',
+          columnType: 'quantitative',
+          cellRenderer: (value) => {
+            const raw = toBigInt(value);
+            return raw !== undefined ? formatBytes(raw) : '-';
+          },
+          cellFormatter: (value) => {
+            const raw = toBigInt(value);
+            return raw !== undefined ? formatBytes(raw) : '-';
+          },
+        };
+        columns['original_trace_size_bytes'] = {
+          title: 'Compressed Size',
+          columnType: 'quantitative',
+          cellRenderer: (value) => {
+            const raw = toBigInt(value);
+            return raw !== undefined ? formatBytes(raw) : '-';
+          },
+          cellFormatter: (value) => {
+            const raw = toBigInt(value);
+            return raw !== undefined ? formatBytes(raw) : '-';
+          },
+        };
+
+        return {
+          schema: columns,
+          initialColumns: [
+            {id: 'trace_uuid', field: 'trace_uuid'},
+            ...this.breakdownColumns.map((col) => ({
+              id: col.sqlCol,
+              field: col.sqlCol,
+            })),
+            {id: 'ts', field: 'ts', sort: 'ASC'},
+            {id: 'dur', field: 'dur'},
+            {id: 'armed_start_ts', field: 'armed_start_ts'},
+            {id: 'armed_dur', field: 'armed_dur'},
+            {id: 'trace_dur', field: 'trace_dur'},
+            {id: 'sched_dur', field: 'sched_dur'},
+            {id: 'trace_size_bytes', field: 'trace_size_bytes'},
+            {
+              id: 'original_trace_size_bytes',
+              field: 'original_trace_size_bytes',
+            },
+          ],
+        };
+      },
+    };
+  }
+
+  getTabName(): string {
+    return 'Device traces';
+  }
+}
+
+class DeviceTracesMergeTab implements AreaSelectionTab {
+  readonly id = 'device_traces_merge';
+  readonly name = 'Merge traces';
+  readonly priority = 100;
 
   private readonly memo = new AsyncMemo<{
     rows: DeviceTraceRow[];
@@ -313,6 +575,12 @@ class DeviceTracesSelectionTab implements AreaSelectionTab {
       selection.tracks,
       this.datasetSpec,
     );
+    const hasCounterTrack = selection.trackUris.some((uri) =>
+      this.counterTrackFilters.has(uri),
+    );
+    if (dataset === undefined && !hasCounterTrack) {
+      return undefined;
+    }
     const {data, isPending} = this.memo.use({
       key: {
         start: selection.start,
@@ -359,27 +627,13 @@ class DeviceTracesSelectionTab implements AreaSelectionTab {
     dataset: Dataset | undefined,
     selection: AreaSelection,
   ): Promise<DeviceTraceRow[]> {
-    const matchedCounterPredicates: string[] = [];
-    for (const uri of selection.trackUris) {
-      const pred = this.counterTrackFilters.get(uri);
-      if (pred !== undefined) {
-        matchedCounterPredicates.push(`(${pred})`);
-      }
-    }
-    const counterWhere =
-      matchedCounterPredicates.length > 0
-        ? `WHERE ${matchedCounterPredicates.join(' OR ')}`
-        : '';
-
-    const src =
-      dataset !== undefined
-        ? `(${dataset.query(this.datasetSpec)})`
-        : `(
-            SELECT
-              ${selectColumnList(this.breakdownColumns)}
-            FROM ${TABLE_NAME}
-            ${counterWhere}
-          )`;
+    const src = buildSelectionSourceSql(
+      dataset,
+      selection,
+      this.counterTrackFilters,
+      this.breakdownColumns,
+      this.datasetSpec,
+    );
     const result = await this.trace.engine.query(`
       SELECT
         ${selectColumnList(this.breakdownColumns, 'ts', 'name')}
@@ -590,7 +844,19 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
     }
 
     ctx.selection.registerAreaSelectionTab(
-      new DeviceTracesSelectionTab(
+      createAggregationTab(
+        ctx,
+        new DeviceTracesSelectionAggregator(
+          ctx,
+          this.counterTrackFilters,
+          this.breakdownColumns,
+          this.datasetSpec,
+        ),
+        200,
+      ),
+    );
+    ctx.selection.registerAreaSelectionTab(
+      new DeviceTracesMergeTab(
         ctx,
         this.counterTrackFilters,
         this.breakdownColumns,
