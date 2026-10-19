@@ -190,6 +190,7 @@ void Where::Lower(Lowering* c, const PlanNode& node) const {
   c->AddOperator(
       std::make_unique<ex::Filter>(std::move(conditions), c->context().pool));
   c->DeclareSmallBatches();
+  c->DeclareRowsDropped();
 }
 
 const OperationRegistration& Where::registration() const {
