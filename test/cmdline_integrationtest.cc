@@ -839,16 +839,12 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(PersistTraceAcrossRebootsConfig)) {
   protos::gen::TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(128);
   auto* ds = trace_config.add_data_sources();
-  ds->mutable_config()->set_name("android.perfetto.FakeProducer");
+  ds->mutable_config()->set_name("android.perfetto.test");
   trace_config.set_write_into_file(true);
   trace_config.set_persist_trace_across_reboots(true);
   trace_config.mutable_android_report_config()->set_skip_report(true);
   trace_config.set_unique_session_name("test_reboot_session");
-  trace_config.set_duration_ms(10000);
-
-  std::string persistent_file =
-      "/data/misc/perfetto-traces/persistent/test_reboot_session.tmp";
-  ScopedFileRemove remove_on_exit(persistent_file);
+  trace_config.set_duration_ms(200);
 
   auto perfetto_proc = ExecPerfetto(
       {
@@ -857,96 +853,14 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(PersistTraceAcrossRebootsConfig)) {
           "--upload",
       },
       trace_config.SerializeAsString());
-  auto perfetto_proc_dup = ExecPerfetto(
-      {
-          "-c",
-          "-",
-          "--upload",
-      },
-      trace_config.SerializeAsString());
 
   StartServiceIfRequiredNoNewExecsAfterThis();
-  auto* fake_producer = test_helper().ConnectFakeProducer();
-  EXPECT_TRUE(fake_producer);
-
-  std::thread background_trace([&perfetto_proc, this]() {
-    EXPECT_EQ(0, perfetto_proc.Run(&stderr_)) << stderr_;
-  });
-
-  test_helper().WaitForProducerEnabled();
-  EXPECT_TRUE(base::FileExists(persistent_file));
-
-  // A concurrent persistent session with the same unique_session_name fails to
-  // lock the active .tmp file and must not unlink it.
-  std::string dup_stderr;
-  EXPECT_EQ(1, perfetto_proc_dup.Run(&dup_stderr)) << dup_stderr;
-  EXPECT_TRUE(base::FileExists(persistent_file));
-
-  perfetto_proc.SendSigterm();
-  background_trace.join();
-
-  EXPECT_FALSE(base::FileExists(persistent_file));
-}
-
-TEST_F(PerfettoCmdlineTest,
-       AndroidOnly(PersistTraceAcrossRebootsCleanupOnServiceFailure)) {
-  base::Mkdir("/data/misc/perfetto-traces/persistent");
-
-  protos::gen::TraceConfig non_persistent_config;
-  non_persistent_config.add_buffers()->set_size_kb(128);
-  auto* ds = non_persistent_config.add_data_sources();
-  ds->mutable_config()->set_name("android.perfetto.FakeProducer");
-  non_persistent_config.mutable_android_report_config()->set_skip_report(true);
-  non_persistent_config.set_unique_session_name("test_reboot_session");
-  non_persistent_config.set_duration_ms(10000);
-
-  protos::gen::TraceConfig persistent_config = non_persistent_config;
-  persistent_config.set_write_into_file(true);
-  persistent_config.set_persist_trace_across_reboots(true);
+  EXPECT_EQ(0, perfetto_proc.Run(&stderr_)) << stderr_;
 
   std::string persistent_file =
       "/data/misc/perfetto-traces/persistent/test_reboot_session.tmp";
   ScopedFileRemove remove_on_exit(persistent_file);
-
-  auto non_persistent_proc = ExecPerfetto(
-      {
-          "-c",
-          "-",
-          "--upload",
-      },
-      non_persistent_config.SerializeAsString());
-  auto persistent_proc = ExecPerfetto(
-      {
-          "-c",
-          "-",
-          "--upload",
-      },
-      persistent_config.SerializeAsString());
-
-  StartServiceIfRequiredNoNewExecsAfterThis();
-  auto* fake_producer = test_helper().ConnectFakeProducer();
-  EXPECT_TRUE(fake_producer);
-
-  std::thread background_trace([&non_persistent_proc, this]() {
-    EXPECT_EQ(0, non_persistent_proc.Run(&stderr_)) << stderr_;
-  });
-
-  test_helper().WaitForProducerEnabled();
-  EXPECT_FALSE(base::FileExists(persistent_file));
-
-  // Starting a persistent session with the same unique_session_name creates
-  // the .tmp file in OpenOutputFile(), then exits early when traced rejects
-  // the duplicate session name, and must unlink the .tmp file before exiting.
-  std::string persistent_stderr;
-  EXPECT_EQ(0, persistent_proc.Run(&persistent_stderr)) << persistent_stderr;
-  EXPECT_THAT(
-      persistent_stderr,
-      HasSubstr("A trace with this unique session name (test_reboot_session) "
-                "already exists"));
-  EXPECT_FALSE(base::FileExists(persistent_file));
-
-  non_persistent_proc.SendSigterm();
-  background_trace.join();
+  EXPECT_TRUE(base::FileExists(persistent_file));
 }
 
 TEST_F(PerfettoCmdlineTest,

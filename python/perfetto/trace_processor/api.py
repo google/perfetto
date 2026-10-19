@@ -303,6 +303,9 @@ class TraceProcessor:
     Returns:
       The metrics data as a proto message
     """
+    # A bare string would otherwise be split into one metric per character.
+    if isinstance(metrics, str):
+      metrics = [metrics]
     response = self._backend.compute_metric(metrics)
     if response.error:
       raise TraceProcessorException(response.error)
