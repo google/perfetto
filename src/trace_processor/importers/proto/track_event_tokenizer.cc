@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/proto/track_event_tokenizer.h"
+#include "src/trace_processor/util/cold_sort.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -23,6 +24,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
@@ -64,6 +66,7 @@
 #include "protos/perfetto/trace/track_event/range_of_interest.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
+#include "protos/perfetto/trace/track_event/track_dimension.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto::trace_processor {
@@ -85,6 +88,112 @@ constexpr protozero::SelectiveDecodeMask<
 static_assert(decltype(kLegacyTrackEventFields)::kMaxFieldId < 64,
               "mask must fit one presence word");
 using protos::pbzero::CounterDescriptor;
+
+// Dimensions which trace processor recognizes and synthesizes itself, and
+// whose canonical value means the same thing across data sources. Producers
+// cannot declare a custom dimension with one of these names. Keep in sync with
+// the list of reserved names documented in track_dimension.proto.
+bool IsWellKnownDimensionName(base::StringView name) {
+  return name == "machine" || name == "gpu" || name == "cpu" ||
+         name == "process" || name == "thread";
+}
+
+// Parses `TrackDescriptor.dimensions` into |reservation|. Dimensions without a
+// name or value, or with a reserved (well known) name, are dropped and their
+// errors appended to |errors|. Returns false if a name or value iid is not in
+// the interned data of the sequence (e.g. because that data was lost): the
+// whole descriptor must then be ignored rather than reserved with a partial
+// set of dimensions, which would make a later re-emission with the interned
+// data a conflicting reservation.
+bool ParseTrackDimensions(
+    TraceProcessorContext* context,
+    PacketSequenceStateGeneration* state,
+    const protos::pbzero::TrackDescriptor::Decoder& track,
+    TrackEventTracker::DescriptorTrackReservation* reservation,
+    std::vector<size_t>* errors) {
+  using Reservation = TrackEventTracker::DescriptorTrackReservation;
+  for (auto it = track.dimensions(); it; ++it) {
+    protos::pbzero::TrackDimension::Decoder dim(*it);
+
+    StringId name_id = kNullStringId;
+    base::StringView name = dim.name();
+    if (dim.has_name_iid()) {
+      std::optional<StringId> interned = state->InternedStringId(
+          protos::pbzero::InternedData::kTrackDimensionStringsFieldNumber,
+          dim.name_iid());
+      if (!interned) {
+        return false;
+      }
+      name_id = *interned;
+      name = context->storage->GetString(name_id);
+    }
+    if (name.empty()) {
+      errors->push_back(stats::track_descriptor_invalid_dimension);
+      continue;
+    }
+    if (IsWellKnownDimensionName(name)) {
+      errors->push_back(stats::track_descriptor_reserved_dimension_name);
+      continue;
+    }
+
+    Reservation::Dimension out;
+    out.name =
+        name_id.is_null() ? context->storage->InternString(name) : name_id;
+    if (dim.has_int_value()) {
+      out.int_value = dim.int_value();
+    } else if (dim.has_string_value()) {
+      out.string_value = context->storage->InternString(dim.string_value());
+    } else if (dim.has_string_value_iid()) {
+      out.string_value = state->InternedStringId(
+          protos::pbzero::InternedData::kTrackDimensionStringsFieldNumber,
+          dim.string_value_iid());
+      if (!out.string_value) {
+        return false;
+      }
+    } else {
+      errors->push_back(stats::track_descriptor_invalid_dimension);
+      continue;
+    }
+    if (dim.has_display_name()) {
+      out.display_name = context->storage->InternString(dim.display_name());
+    } else if (dim.has_display_name_iid()) {
+      // The display name only affects presentation: an unknown iid drops it
+      // but keeps the dimension.
+      out.display_name = state->InternedStringId(
+          protos::pbzero::InternedData::kTrackDimensionStringsFieldNumber,
+          dim.display_name_iid());
+      if (!out.display_name) {
+        errors->push_back(stats::track_descriptor_invalid_dimension);
+      }
+    }
+    reservation->dimensions.push_back(out);
+  }
+  if (reservation->dimensions.empty()) {
+    return true;
+  }
+
+  // Dimensions are part of the track identity, so they are normalized: sorted
+  // by name, so that the declaration order doesn't matter, and without
+  // repeated names. A name declared more than once keeps its first value.
+  auto& dims = reservation->dimensions;
+  ColdStableSortByKey(
+      dims.begin(), dims.end(),
+      [](const Reservation::Dimension& d) { return d.name.raw_id(); });
+  size_t kept = 0;
+  for (size_t i = 0; i < dims.size(); ++i) {
+    if (kept > 0 && dims[kept - 1].name == dims[i].name) {
+      if (dims[kept - 1].int_value != dims[i].int_value ||
+          dims[kept - 1].string_value != dims[i].string_value) {
+        errors->push_back(stats::track_dimension_conflicting_value);
+      }
+      continue;
+    }
+    dims[kept++] = dims[i];
+  }
+  dims.resize(kept);
+  reservation->dimensions_hash = Reservation::HashDimensions(dims);
+  return true;
+}
 
 class V8Sink : public TraceSorter::Sink<LegacyV8CpuProfileEvent, V8Sink> {
  public:
@@ -253,6 +362,26 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
         context_->storage->InternString(track.description());
   }
 
+  std::vector<size_t> dimension_errors;
+  if (track.has_dimensions() &&
+      !ParseTrackDimensions(context_, args.state.get(), track, &reservation,
+                            &dimension_errors)) {
+    RecordTokenizationErrorWithTrackUuid(
+        stats::track_descriptor_invalid_dimension, track.uuid(), args.packet);
+    return ModuleResult::Handled();
+  }
+  // Producers re-emit their descriptors (e.g. on every incremental state
+  // clear), so the errors of the dimensions are only recorded for the first
+  // reservation of a uuid.
+  auto reserve = [&]() {
+    if (track_event_tracker_->ReserveDescriptorTrack(track.uuid(),
+                                                     reservation)) {
+      for (size_t stat : dimension_errors) {
+        RecordTokenizationErrorWithTrackUuid(stat, track.uuid(), args.packet);
+      }
+    }
+  };
+
   if (args.decoder.has_trusted_pid()) {
     context_->process_tracker->UpdateTrustedPid(
         static_cast<uint32_t>(args.decoder.trusted_pid()), track.uuid());
@@ -286,7 +415,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
         reservation.use_synthetic_tid = chrome_thread.is_sandboxed_tid();
       }
     }
-    track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
+    reserve();
 
     if (args.state->IsIncrementalStateValid()) {
       TokenizeThreadDescriptor(*args.state, thread,
@@ -311,7 +440,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
 
     reservation.pid = static_cast<uint32_t>(process.pid());
     reservation.min_timestamp = args.ts;
-    track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
+    reserve();
 
     return ModuleResult::Ignored();
   }
@@ -384,7 +513,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     }
 
     // Incrementally encoded counters are only valid on a single sequence.
-    track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
+    reserve();
 
     return ModuleResult::Ignored();
   }
@@ -393,7 +522,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     reservation.is_state = true;
   }
 
-  track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
+  reserve();
 
   // Let ProtoTraceReader forward the packet to the parser.
   return ModuleResult::Ignored();
