@@ -851,7 +851,17 @@ TEST_F(PerfettoSqlConnectionPipelineTest, Aggregate) {
                   .status()
                   .message(),
               testing::HasSubstr("overflow"));
-  EXPECT_THAT(Rows("FROM spans |> AGGREGATE COUNT(*) AS cpu GROUP BY cpu")
+  // As in any row, two columns can share a name, which is then ambiguous to
+  // refer to. A key itself is listed once.
+  rows = Rows("FROM spans |> AGGREGATE COUNT(*) AS cpu GROUP BY cpu");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("1,2", "2,2", "NULL,2"));
+  EXPECT_THAT(Rows("FROM spans |> AGGREGATE COUNT(*) AS cpu GROUP BY cpu "
+                   "|> SELECT cpu")
+                  .status()
+                  .message(),
+              testing::HasSubstr("column 'cpu' is ambiguous"));
+  EXPECT_THAT(Rows("FROM spans |> AGGREGATE COUNT(*) AS n GROUP BY cpu, cpu")
                   .status()
                   .message(),
               testing::HasSubstr("listed only once"));

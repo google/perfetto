@@ -174,6 +174,9 @@ aggregates, and all of them treat an aggregate the same way:
   overflow causes an error.
 - **Scope:** Every aggregate in a stage reads the row before the stage. One
   aggregate cannot read another's output.
+- **Names:** As elsewhere in a pipeline, an aggregate can be given a name
+  another column has. That name is ambiguous, and an error, when a later stage
+  refers to it.
 
 ---
 
@@ -263,8 +266,7 @@ Collapses each group of rows into one row:
 - **Output:** Replaces the current row with the `GROUP BY` columns in their
   listed order, then the named aggregates in their listed order. A key takes
   its `AS` name if it has one, otherwise its unqualified column name. Other
-  input columns and all table aliases are removed. Output names must be
-  distinct.
+  input columns and all table aliases are removed. A key can be listed once.
 - **Order:** Groups come out in the order their first rows arrived. Use
   `ORDER BY` afterwards for any other order.
 
