@@ -15,8 +15,6 @@
 
 INCLUDE PERFETTO MODULE android.process_metadata;
 
-INCLUDE PERFETTO MODULE intervals.fill_gaps;
-
 CREATE PERFETTO FUNCTION _extract_freezer_pid(name STRING)
 RETURNS LONG
 AS
@@ -302,26 +300,19 @@ WHERE
   s.dur > 0
   OR s.dur = -1;
 
--- TODO(gignat): use the INTERVAL FILL GAPS stage instead of the macro once the
--- pipeline compiler supports it. A pipeline cannot number its rows either,
--- hence the intermediate table.
+-- A pipeline cannot number its rows, hence the intermediate table.
 CREATE PERFETTO TABLE _android_freezer_flattened AS
 FROM (
   SELECT ts, iif(dur < 0, trace_end() - ts, dur) AS dur, state
   FROM _android_freezer_intervals
 )
-|> INTERVAL FLATTEN PER state AGGREGATE COUNT(*) AS concurrency;
+|> INTERVAL FLATTEN PER state AGGREGATE COUNT(*) AS concurrency
+|> INTERVAL FILL GAPS WITH (
+  SELECT trace_start() AS ts, trace_dur() AS dur, 0 AS concurrency
+) PER state;
 
--- Number of processes concurrently frozen and unfrozen over time. Flattening
--- skips the stretches with no process in a state, so fill them with zeros to
--- make the counters drop to 0 there.
+-- Number of processes concurrently frozen and unfrozen over time, 0 where no
+-- process is in a state.
 CREATE PERFETTO TABLE _android_freezer_concurrency AS
-SELECT
-  row_number() OVER (ORDER BY state, ts) AS id,
-  ts,
-  dur,
-  state,
-  coalesce(concurrency, 0) AS concurrency
-FROM _intervals_fill_gaps!((state), (concurrency), _android_freezer_flattened)
-WHERE
-  state IS NOT NULL;
+SELECT row_number() OVER (ORDER BY state, ts) AS id, ts, dur, state, concurrency
+FROM _android_freezer_flattened;
