@@ -145,7 +145,7 @@ void ColumnChunk::CopyFrom(const RowBatch& batch,
   }
   if (source) {
     validity.FillBits(offset, count, false);
-    validity.SetBitsFrom(offset, *source, start, count);
+    validity.OrBitsFrom(offset, *source, start, count);
   } else {
     validity.FillBits(offset, count, true);
   }

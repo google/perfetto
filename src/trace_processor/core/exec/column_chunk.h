@@ -70,7 +70,7 @@ struct ColumnChunk {
     if (present) {
       SizeValidity();
       validity.FillBits(0, count, false);
-      validity.SetBitsFrom(0, *present, 0, count);
+      validity.OrBitsFrom(0, *present, 0, count);
       kept = &validity;
     }
     using Type = typename TypeTagFor<T>::type;

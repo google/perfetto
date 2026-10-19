@@ -74,32 +74,43 @@ constexpr size_t ArraySize(const T (&)[TSize]) {
   return TSize;
 }
 
-// Adds `a` and `b` into `*result`, returning false on overflow. The value of
-// `*result` is unspecified when false is returned.
+// Adds `a` and `b` into `*result`, returning false on overflow, when
+// `*result` holds the sum wrapped to 64 bits. Free of branches, so a loop of
+// these vectorizes.
 inline bool CheckedAdd(int64_t a, int64_t b, int64_t* result) {
-#if defined(__clang__) || defined(__GNUC__)
-  return !__builtin_add_overflow(a, b, result);
-#else
-  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
-  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
-  if ((b > 0 && a > kMax - b) || (b < 0 && a < kMin - b))
-    return false;
-  *result = a + b;
-  return true;
-#endif
+  *result =
+      static_cast<int64_t>(static_cast<uint64_t>(a) + static_cast<uint64_t>(b));
+  // Overflowed if both operands have the sign the sum does not.
+  return ((a ^ *result) & (b ^ *result)) >= 0;
 }
 
-// Subtracts `b` from `a` into `*result`, returning false on overflow. The
-// value of `*result` is unspecified when false is returned.
+// Subtracts `b` from `a` into `*result`, returning false on overflow, when
+// `*result` holds the difference wrapped to 64 bits. Free of branches, so a
+// loop of these vectorizes.
 inline bool CheckedSub(int64_t a, int64_t b, int64_t* result) {
+  *result =
+      static_cast<int64_t>(static_cast<uint64_t>(a) - static_cast<uint64_t>(b));
+  // Overflowed if the operands' signs differ and the difference has `b`'s.
+  return ((a ^ b) & (a ^ *result)) >= 0;
+}
+
+// Multiplies `a` by `b` into `*result`, returning false on overflow. The
+// value of `*result` is unspecified when false is returned.
+inline bool CheckedMul(int64_t a, int64_t b, int64_t* result) {
 #if defined(__clang__) || defined(__GNUC__)
-  return !__builtin_sub_overflow(a, b, result);
+  return !__builtin_mul_overflow(a, b, result);
 #else
   constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
   constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
-  if ((b < 0 && a > kMax + b) || (b > 0 && a < kMin + b))
-    return false;
-  *result = a - b;
+  // Checked before multiplying, by dividing a limit by one operand, which
+  // never itself overflows.
+  if (a != 0 && b != 0) {
+    bool overflows = (a < 0) == (b < 0) ? (a > 0 ? a > kMax / b : a < kMax / b)
+                                        : (a > 0 ? b < kMin / a : a < kMin / b);
+    if (overflows)
+      return false;
+  }
+  *result = a * b;
   return true;
 #endif
 }

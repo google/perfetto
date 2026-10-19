@@ -218,6 +218,19 @@ TEST(UtilsTest, RoundUpToPowerOfTwo) {
   EXPECT_EQ(RoundUpToPowerOfTwo((uint32_t{1} << 31) + 1), 0u);
 }
 
+TEST(UtilsTest, CheckedAdd) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+  int64_t result;
+  ASSERT_TRUE(CheckedAdd(5, -7, &result));
+  EXPECT_EQ(result, -2);
+  ASSERT_TRUE(CheckedAdd(kMax, kMin, &result));
+  EXPECT_EQ(result, -1);
+  EXPECT_FALSE(CheckedAdd(kMax, 1, &result));
+  EXPECT_FALSE(CheckedAdd(kMin, -1, &result));
+  EXPECT_FALSE(CheckedAdd(kMin, kMin, &result));
+}
+
 TEST(UtilsTest, CheckedSub) {
   constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
   constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
@@ -230,6 +243,22 @@ TEST(UtilsTest, CheckedSub) {
   EXPECT_FALSE(CheckedSub(0, kMin, &result));
   EXPECT_FALSE(CheckedSub(kMin, 1, &result));
   EXPECT_FALSE(CheckedSub(kMax, -1, &result));
+}
+
+TEST(UtilsTest, CheckedMul) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+  int64_t result;
+  ASSERT_TRUE(CheckedMul(-6, 7, &result));
+  EXPECT_EQ(result, -42);
+  ASSERT_TRUE(CheckedMul(kMin, 1, &result));
+  EXPECT_EQ(result, kMin);
+  ASSERT_TRUE(CheckedMul(kMax, -1, &result));
+  EXPECT_EQ(result, -kMax);
+  EXPECT_FALSE(CheckedMul(kMin, -1, &result));
+  EXPECT_FALSE(CheckedMul(kMax, 2, &result));
+  EXPECT_FALSE(CheckedMul(kMin / 2 - 1, 2, &result));
+  EXPECT_FALSE(CheckedMul(int64_t{1} << 32, int64_t{1} << 31, &result));
 }
 
 TEST(UtilsTest, CanonicalFloatBits) {
