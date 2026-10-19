@@ -163,7 +163,8 @@ class PhysicalPlanTest : public ::testing::Test {
     }
     Rows out;
     RowCursor cursor(plan.source());
-    for (bool row = cursor.Open(); row; row = cursor.Next()) {
+    for (bool row = cursor.Open(plan.filter_values()); row;
+         row = cursor.Next()) {
       out.emplace_back(*IntAt(cursor, id_column), IntAt(cursor, value_column));
     }
     if (!cursor.status().ok()) {
@@ -307,13 +308,15 @@ TEST_F(PhysicalPlanTest, DistinctComparesTheRowAtItsStage) {
   EXPECT_THAT(values, ElementsAre(1, 2, 3));
 }
 
-// WHERE keeps the rows matching every comparison, on integer and double
-// columns alike. Each comparison drops at least one row.
+// WHERE keeps the rows matching every comparison. A literal is compared as
+// SQL compares it with the column, whatever their types: an integer column
+// with a fraction and a double column with an integer. The columns keep their
+// types. Each comparison drops at least one row.
 TEST_F(PhysicalPlanTest, WhereKeepsRowsMatchingEveryComparison) {
   Exec("CREATE TABLE t(cpu INTEGER, value REAL)");
   Exec("INSERT INTO t VALUES (1, 3.5), (5, 2.5), (3, 1.5), (9, 3.5), (7, 2.5)");
   auto plan = Plan(
-      "FROM t |> WHERE cpu > 2 AND cpu < 9 AND value >= 2.5 |> SELECT cpu");
+      "FROM t |> WHERE cpu > 2.5 AND cpu < 9 AND value >= 2 |> SELECT cpu");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
 
   uint32_t cpu_column = (*plan)->columns()[0].index;

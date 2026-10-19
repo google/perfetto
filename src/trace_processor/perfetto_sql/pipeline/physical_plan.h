@@ -268,6 +268,9 @@ class Lowering {
   // The batch position of a column declared with DeclareColumn.
   uint32_t QueryPosition(ColumnId id) const;
 
+  // The type of a column, after any conversion added so far.
+  PlanType QueryType(ColumnId id) const;
+
   // The longest prefix of the known sort order that uses only `columns`.
   std::vector<SortKey> QuerySortedBy(
       const std::vector<ColumnId>& columns) const;

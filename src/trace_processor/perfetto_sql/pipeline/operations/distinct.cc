@@ -36,8 +36,11 @@ const OperationRegistration Distinct::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_DISTINCT, &BuildPlan,
     OperationRegistration::Encoding{7, false, &DecodePlan}};
 
-base::Status Distinct::BuildPlan(Compiler* c, uint32_t) {
+base::Status Distinct::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("DISTINCT");
+  if (c->row().size() > ex::Distinct::kMaxColumns) {
+    return c->Unsupported(stage, "a row of more than 64 columns");
+  }
   Distinct distinct;
   for (const Compiler::RowColumn& column : c->row()) {
     distinct.columns_.push_back(column.column.id);
@@ -85,7 +88,8 @@ void Distinct::Write(PlanWriter* c,
 void Distinct::DecodePlan(PlanReader* c, Available* available) {
   Distinct distinct;
   distinct.columns_.resize(c->reader().Count());
-  if (distinct.columns_.empty()) {
+  if (distinct.columns_.empty() ||
+      distinct.columns_.size() > ex::Distinct::kMaxColumns) {
     c->reader().Fail();
   }
   for (ColumnId& column : distinct.columns_) {

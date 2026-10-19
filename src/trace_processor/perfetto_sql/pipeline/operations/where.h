@@ -33,14 +33,15 @@ namespace perfetto::trace_processor::pipeline {
 class Lowering;
 class PlanNode;
 
-// A `column OP literal` test, where OP is one of =, !=, <, <=, >, >=. A
-// WHERE condition is the AND of these.
+// A `column OP literal` test, where OP is one of =, !=, <, <=, >, >= and the
+// literal is a number. A WHERE condition is the AND of these. The literal is
+// compared as SQL compares it with the column's type, whatever that is.
 struct WherePredicate {
   using Op = core::Op;
 
   ColumnId column = 0;
   Op op{core::Eq{}};
-  // Whether the literal is `double_value` rather than `int_value`.
+  // The literal is `double_value` if set, `int_value` otherwise.
   bool is_double = false;
   int64_t int_value = 0;
   double double_value = 0;

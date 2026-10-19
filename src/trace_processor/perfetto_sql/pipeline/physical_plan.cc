@@ -333,6 +333,10 @@ uint32_t Lowering::QueryPosition(ColumnId id) const {
   return positions_[id];
 }
 
+PlanType Lowering::QueryType(ColumnId id) const {
+  return plan_->TypeOf(id);
+}
+
 std::vector<SortKey> Lowering::QuerySortedBy(
     const std::vector<ColumnId>& columns) const {
   std::vector<SortKey> longest;

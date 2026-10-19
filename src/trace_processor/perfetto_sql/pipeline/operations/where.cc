@@ -23,15 +23,17 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
-#include "src/trace_processor/core/common/filter_value_cast.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/exec/filter.h"
+#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
@@ -40,14 +42,30 @@ namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 namespace {
 
-// A literal number, parsed from the AST.
-struct Literal {
-  bool is_double = false;
-  int64_t int_value = 0;
-  double double_value = 0;
+// Hands a WHERE literal to the shared filter value casts, so it means for
+// each column type what any other filter value means.
+struct LiteralFetcher : core::ValueFetcher {
+  static constexpr Type kInt64 = 0;
+  static constexpr Type kDouble = 1;
+  static constexpr Type kString = 2;
+  static constexpr Type kNull = 3;
+
+  explicit LiteralFetcher(const WherePredicate& p) : predicate(p) {}
+
+  Type GetValueType(uint32_t) const {
+    return predicate.is_double ? kDouble : kInt64;
+  }
+  int64_t GetInt64Value(uint32_t) const { return predicate.int_value; }
+  double GetDoubleValue(uint32_t) const { return predicate.double_value; }
+  const char* GetStringValue(uint32_t) const {
+    PERFETTO_FATAL("WHERE literals are numbers");
+  }
+
+  const WherePredicate& predicate;
 };
 
-base::StatusOr<Literal> ParseLiteral(Compiler* c, uint32_t expr) {
+// Reads a number literal, optionally negated, into `out`.
+base::Status ParseLiteral(Compiler* c, uint32_t expr, WherePredicate* out) {
   SyntaqliteParser* p = c->parser();
   const auto* node = Node<SyntaqliteNode>(p, expr);
   bool negate = false;
@@ -66,14 +84,18 @@ base::StatusOr<Literal> ParseLiteral(Compiler* c, uint32_t expr) {
     if (!value) {
       return c->Unsupported(expr, "a number which does not fit an integer");
     }
-    return Literal{false, negate ? -*value : *value, 0};
+    out->is_double = false;
+    out->int_value = negate ? -*value : *value;
+    return base::OkStatus();
   }
   if (literal.literal_type == SYNTAQLITE_LITERAL_TYPE_FLOAT) {
     std::optional<double> value = base::StringToDouble(text);
     if (!value) {
       return c->Unsupported(expr, "a malformed number");
     }
-    return Literal{true, 0, negate ? -*value : *value};
+    out->is_double = true;
+    out->double_value = negate ? -*value : *value;
+    return base::OkStatus();
   }
   return c->Unsupported(expr, "a literal other than a number");
 }
@@ -83,53 +105,26 @@ base::StatusOr<WherePredicate> ParsePredicate(Compiler* c, uint32_t expr) {
   if (node->tag != SYNTAQLITE_NODE_BINARY_EXPR) {
     return c->Unsupported(expr, "a condition other than column OP value");
   }
-  core::Op op{core::Eq{}};
-  SyntaqliteBinaryOp binary_op = node->binary_expr.op;
-  if (binary_op == SYNTAQLITE_BINARY_OP_EQ) {
-    op = core::Eq{};
-  } else if (binary_op == SYNTAQLITE_BINARY_OP_NE) {
-    op = core::Ne{};
-  } else if (binary_op == SYNTAQLITE_BINARY_OP_LT) {
-    op = core::Lt{};
-  } else if (binary_op == SYNTAQLITE_BINARY_OP_LE) {
-    op = core::Le{};
-  } else if (binary_op == SYNTAQLITE_BINARY_OP_GT) {
-    op = core::Gt{};
-  } else if (binary_op == SYNTAQLITE_BINARY_OP_GE) {
-    op = core::Ge{};
+  WherePredicate predicate;
+  SyntaqliteBinaryOp op = node->binary_expr.op;
+  if (op == SYNTAQLITE_BINARY_OP_EQ) {
+    predicate.op = core::Eq{};
+  } else if (op == SYNTAQLITE_BINARY_OP_NE) {
+    predicate.op = core::Ne{};
+  } else if (op == SYNTAQLITE_BINARY_OP_LT) {
+    predicate.op = core::Lt{};
+  } else if (op == SYNTAQLITE_BINARY_OP_LE) {
+    predicate.op = core::Le{};
+  } else if (op == SYNTAQLITE_BINARY_OP_GT) {
+    predicate.op = core::Gt{};
+  } else if (op == SYNTAQLITE_BINARY_OP_GE) {
+    predicate.op = core::Ge{};
   } else {
     return c->Unsupported(expr, "an operator other than =, !=, <, <=, >, >=");
   }
-  ASSIGN_OR_RETURN(ColumnId column,
+  ASSIGN_OR_RETURN(predicate.column,
                    c->ResolveColumnExpr(node->binary_expr.left));
-  const PlanType& type = c->plan().columns()[column].type;
-  if (type.storage() && type.Is<core::String>()) {
-    return c->Unsupported(expr, "filtering by a string column");
-  }
-  ASSIGN_OR_RETURN(Literal literal, ParseLiteral(c, node->binary_expr.right));
-
-  bool is_double;
-  if (type.storage()) {
-    is_double = type.Is<core::Double>();
-    if (!is_double && literal.is_double) {
-      return c->Unsupported(
-          expr, "comparing a whole number column to a fractional literal");
-    }
-  } else {
-    is_double = literal.is_double;
-  }
-
-  WherePredicate predicate;
-  predicate.column = column;
-  predicate.op = op;
-  predicate.is_double = is_double;
-  if (is_double) {
-    predicate.double_value = literal.is_double
-                                 ? literal.double_value
-                                 : static_cast<double>(literal.int_value);
-  } else {
-    predicate.int_value = literal.int_value;
-  }
+  RETURN_IF_ERROR(ParseLiteral(c, node->binary_expr.right, &predicate));
   return predicate;
 }
 
@@ -173,20 +168,23 @@ void Where::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerNode(node.children()[0]);
   std::vector<ex::Filter::Condition> conditions;
   for (const WherePredicate& p : predicates_) {
-    if (p.is_double) {
-      c->RequireType(p.column, core::Double{});
-    } else {
-      c->RequireType(p.column, core::Int64{});
+    // Filter reads only columns of one type. A column of no known type
+    // carries a type per row, so it is converted to the literal's.
+    std::optional<core::StorageType> type = c->QueryType(p.column).storage();
+    if (!type) {
+      type = p.is_double ? core::StorageType(core::Double{})
+                         : core::StorageType(core::Int64{});
+      c->RequireType(p.column, *type);
     }
-    ex::FilterValue filter_value;
-    filter_value.value =
-        p.is_double ? core::filter::CastFilterValueResult::Valid(p.double_value)
-                    : core::filter::CastFilterValueResult::Valid(p.int_value);
-    uint32_t value = c->AddFilterValue(std::move(filter_value));
+    LiteralFetcher fetcher(p);
+    ex::FilterValue value;
+    ex::GetFilterValueCaster<LiteralFetcher>(*type, p.op)(
+        fetcher, 0, *c->context().pool, &value);
+
     ex::Filter::Condition condition;
     condition.column = c->QueryPosition(p.column);
     condition.op = p.op;
-    condition.value = value;
+    condition.value = c->AddFilterValue(std::move(value));
     conditions.push_back(condition);
   }
   c->AddOperator(
