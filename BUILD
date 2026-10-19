@@ -3958,6 +3958,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h",
+        "src/trace_processor/perfetto_sql/pipeline/operations/compute.cc",
+        "src/trace_processor/perfetto_sql/pipeline/operations/compute.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/distinct.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/distinct.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/graph_tree.cc",
@@ -4001,6 +4003,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/column_pruning.h",
         "src/trace_processor/perfetto_sql/pipeline/compiler.cc",
         "src/trace_processor/perfetto_sql/pipeline/compiler.h",
+        "src/trace_processor/perfetto_sql/pipeline/expression.cc",
+        "src/trace_processor/perfetto_sql/pipeline/expression.h",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.h",
         "src/trace_processor/perfetto_sql/pipeline/operation_registry.h",

@@ -20,6 +20,8 @@ source_set("operations") {
   sources = [
     "aggregate_stage.cc",
     "aggregate_stage.h",
+    "compute.cc",
+    "compute.h",
     "distinct.cc",
     "distinct.h",
     "graph_tree.cc",
