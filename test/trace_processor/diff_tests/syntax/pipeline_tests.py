@@ -369,15 +369,35 @@ class PerfettoPipeline(TestSuite):
         """,
         out=ExpectedError('aggregate AVG is not supported yet'))
 
-  def test_distinct_is_not_supported_yet(self):
+  # Must match SQL's WHERE and DISTINCT, including comparing an integer
+  # column with a fraction.
+  def test_where_and_distinct_match_sql(self):
     return DiffTestBlueprint(
-        trace=TextProto(r''),
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
         query="""
         PERFETTO PRAGMA pipelines = 1;
-        FROM (SELECT 1 AS id)
+        CREATE PERFETTO TABLE piped AS
+        FROM (SELECT track_id, depth, dur FROM slice)
+        |> WHERE dur > 999.5 AND depth <= 2
+        |> SELECT track_id, depth
         |> DISTINCT;
+
+        CREATE PERFETTO TABLE expected AS
+        SELECT DISTINCT track_id, depth FROM slice
+        WHERE dur > 999.5 AND depth <= 2;
+
+        SELECT
+          (SELECT count(*) FROM piped) AS rows,
+          (SELECT count(*) FROM expected) AS expected_rows,
+          (SELECT count(*) FROM (
+            SELECT * FROM piped EXCEPT SELECT * FROM expected))
+          + (SELECT count(*) FROM (
+            SELECT * FROM expected EXCEPT SELECT * FROM piped)) AS mismatches;
         """,
-        out=ExpectedError('DISTINCT is not supported yet'))
+        out=Csv("""
+        "rows","expected_rows","mismatches"
+        126,126,0
+        """))
 
   def test_a_pipeline_needs_the_pragma(self):
     return DiffTestBlueprint(
