@@ -77,7 +77,9 @@ export class UiMain implements m.ClassComponent {
       ),
       m(CookieConsent),
       maybeRenderFullscreenModalDialog(),
-      showStatusBarFlag.get() && renderStatusBar(app),
+      showStatusBarFlag.get() &&
+        !app.initialRouteArgs.hideStatusbar &&
+        renderStatusBar(app),
       app.perfDebugging.renderPerfStats(),
     ]);
   }
