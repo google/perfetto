@@ -70,5 +70,32 @@ describe('nav_state', () => {
     expect(stateToSubpage({view: 'overview', params: {}})).toBe('overview');
     expect(stateToPath({view: 'flamegraph', params: {}})).toBe('flamegraph');
     expect(stateToSubpage({view: 'flamegraph', params: {}})).toBe('flamegraph');
+    expect(stateToPath({view: 'field-flamegraph', params: {}})).toBe(
+      'field_flamegraph',
+    );
+    expect(stateToSubpage({view: 'field-flamegraph', params: {}})).toBe(
+      'field_flamegraph',
+    );
+    expect(subpageToState('field_flamegraph')).toEqual({
+      view: 'field-flamegraph',
+      params: {},
+    });
+  });
+
+  it('round-trips flamegraph-objects tabs of every tree', () => {
+    for (const isDominator of [false, true]) {
+      for (const isField of [false, true]) {
+        const params = isField
+          ? {pathHashes: '1,-2', isDominator, isField}
+          : {pathHashes: '1,-2', isDominator};
+        const state = {view: 'flamegraph-objects' as const, params};
+        expect(subpageToState(stateToSubpage(state))).toEqual(state);
+      }
+    }
+    // Links from before field trees keep working.
+    expect(subpageToState('flamegraph_objects_1_7')).toEqual({
+      view: 'flamegraph-objects',
+      params: {pathHashes: '7', isDominator: true},
+    });
   });
 });

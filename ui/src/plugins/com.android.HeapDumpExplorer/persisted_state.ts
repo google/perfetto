@@ -33,6 +33,8 @@ const DUMP_REF_SCHEMA = z.object({
 const FLAMEGRAPH_TAB_SCHEMA = z.object({
   pathHashes: z.string(),
   isDominator: z.boolean(),
+  // Whether the path hashes come from the Field Flamegraph.
+  isField: z.boolean().optional(),
 });
 
 const INSTANCE_TAB_SCHEMA = z.object({
@@ -55,6 +57,8 @@ export const HDE_STATE_SCHEMA = z
     instanceTabs: z.array(INSTANCE_TAB_SCHEMA).optional(),
     // Filter / pivot / view state of the main Flamegraph tab.
     flamegraphPanelState: TREE_EXPLORER_STATE_SCHEMA.optional(),
+    // Filter / pivot / view state of the Field Flamegraph tab.
+    fieldFlamegraphPanelState: TREE_EXPLORER_STATE_SCHEMA.optional(),
     // Filter / pivot / view state of the Callstack tab.
     callstackPanelState: TREE_EXPLORER_STATE_SCHEMA.optional(),
   })

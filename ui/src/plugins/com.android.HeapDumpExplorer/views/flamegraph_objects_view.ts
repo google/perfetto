@@ -41,18 +41,37 @@ interface FlamegraphObjectsViewAttrs {
   readonly navigate: NavFn;
   readonly pathHashes?: string;
   readonly isDominator: boolean;
+  // Whether the path hashes come from the Field Flamegraph.
+  readonly isField?: boolean;
   readonly onBackToTimeline?: () => void;
   readonly nodeName?: string;
   readonly potentiallyMergedClasses: ReadonlySet<string>;
 }
 
+// The SQL to run before flamegraphQuery for the same tree. Only the module of
+// that tree is included: each one is a few seconds to build on large dumps.
+export function flamegraphPreamble(
+  isDominator: boolean,
+  isField = false,
+): string {
+  if (!isField) return SQL_PREAMBLE;
+  const module = isDominator ? 'dominator_field_tree' : 'field_tree';
+  return (
+    `${SQL_PREAMBLE};\n` +
+    `INCLUDE PERFETTO MODULE android.memory.heap_graph.${module}`
+  );
+}
+
+// The objects behind the flamegraph frames with the given path hashes (CSV).
+// For field flamegraph field frames, these are the objects held by the field.
 export function flamegraphQuery(
   pathHashes: string,
   isDominator: boolean,
+  isField = false,
 ): string {
-  const hashTable = isDominator
-    ? '_heap_graph_dominator_path_hashes'
-    : '_heap_graph_path_hashes';
+  const dominator = isDominator ? '_dominator' : '';
+  const field = isField ? '_field' : '';
+  const hashTable = `_heap_graph${dominator}${field}_path_hashes`;
   const values = pathHashes
     .split(',')
     .map((v) => `(${v.trim()})`)
@@ -194,20 +213,24 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
     view(vnode) {
       const {navigate, nodeName, onBackToTimeline, potentiallyMergedClasses} =
         vnode.attrs;
-      const {pathHashes, isDominator, engine} = vnode.attrs;
+      const {pathHashes, isDominator, isField, engine} = vnode.attrs;
 
       const query = pathHashes
-        ? flamegraphQuery(pathHashes, isDominator)
+        ? flamegraphQuery(pathHashes, isDominator, isField)
         : undefined;
+      const preamble = flamegraphPreamble(isDominator, isField);
+      const heading = isField
+        ? 'Field Flamegraph Objects'
+        : 'Flamegraph Objects';
       const datasource =
         query !== undefined
           ? datasourceMemo.use({
-              key: {pathHashes, isDominator},
+              key: {pathHashes, isDominator, isField},
               compute: () =>
                 new SQLDataSource({
                   engine,
                   tableOrSubquery: query,
-                  preamble: SQL_PREAMBLE,
+                  preamble,
                 }),
             })
           : undefined;
@@ -216,7 +239,7 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
         return m(
           DetailsShell,
           {
-            title: nodeName ? `Flamegraph: ${nodeName}` : 'Flamegraph Objects',
+            title: nodeName ? `Flamegraph: ${nodeName}` : heading,
             fillHeight: true,
             className: 'pf-hde-tab--padded',
           },
@@ -235,8 +258,8 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
         DetailsShell,
         {
           title: rowCountHeading(
-            nodeName ? `Flamegraph: ${nodeName}` : 'Flamegraph Objects',
-            counter.use({engine, query, preamble: SQL_PREAMBLE, filters}),
+            nodeName ? `Flamegraph: ${nodeName}` : heading,
+            counter.use({engine, query, preamble, filters}),
           ),
           fillHeight: true,
           buttons: onBackToTimeline
