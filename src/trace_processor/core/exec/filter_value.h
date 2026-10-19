@@ -53,6 +53,13 @@ struct FilterValue {
   std::string text;
 };
 
+// Casts a value for one storage type and comparison.
+template <typename Fetcher>
+using FilterValueCaster =
+    void (*)(Fetcher&, uint32_t, const StringPool&, FilterValue*);
+
+namespace internal {
+
 // Casts the value `fetcher` has at `index` into `out`, for a column of
 // storage type T compared by O. `pool` holds the column's strings.
 template <typename T, typename O, typename Fetcher>
@@ -86,13 +93,6 @@ PERFETTO_ALWAYS_INLINE void CastFilterValueFor(Fetcher& fetcher,
     base::ignore_result(pool);
   }
 }
-
-// A CastFilterValueFor for one storage type and comparison.
-template <typename Fetcher>
-using FilterValueCaster =
-    void (*)(Fetcher&, uint32_t, const StringPool&, FilterValue*);
-
-namespace internal {
 
 template <typename T, typename Fetcher>
 FilterValueCaster<Fetcher> FilterValueCasterFor(const Op& op) {

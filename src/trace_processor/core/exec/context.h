@@ -24,12 +24,12 @@
 
 #include "perfetto/base/compiler.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
-#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
 class Context;
+struct FilterValue;
 
 // The storage one column of a batch is in, if the batch owns it rather than
 // borrowing storage which outlives the run: up to kMaxBatchRows values and
