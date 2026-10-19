@@ -24,6 +24,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/op_types.h"
+#include "src/trace_processor/perfetto_sql/pipeline/expression.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
@@ -47,8 +48,9 @@ struct WherePredicate {
   double double_value = 0;
 };
 
-// `|> WHERE condition`. The condition must be a conjunction (AND) of
-// `column OP literal` comparisons; anything else is unsupported.
+// `|> WHERE condition`. Keeps the rows the condition is true for: neither
+// null nor zero. A conjunction (AND) of `column OP literal` comparisons runs
+// as a Filter; any other condition is evaluated as an expression.
 class Where : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
@@ -68,7 +70,9 @@ class Where : public PlanOperation {
 
   const OperationRegistration& registration() const override;
 
+  // Set unless the condition is evaluated as `condition_`.
   std::vector<WherePredicate> predicates_;
+  std::optional<Expr> condition_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

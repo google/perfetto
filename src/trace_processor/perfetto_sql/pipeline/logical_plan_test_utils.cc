@@ -26,6 +26,7 @@
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/compute.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/distinct.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_fill_gaps.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
@@ -129,8 +130,70 @@ class LogicalPlanFormatter {
   static std::string WhereString(const Where&);
   static std::string AggregateStageString(const LogicalPlan&,
                                           const AggregateStage&);
+  static std::string ExprString(const Expr&);
   static std::string SubtreeString(const LogicalPlan&, PlanNodeId);
 };
+
+std::string LogicalPlanFormatter::ExprString(const Expr& e) {
+  using Op = Expr::Op;
+  auto binary = [&](const char* op) {
+    return "(" + ExprString(e.args[0]) + " " + op + " " +
+           ExprString(e.args[1]) + ")";
+  };
+  switch (e.op) {
+    case Op::kColumn:
+      return "#" + std::to_string(e.column);
+    case Op::kConstant:
+      switch (e.literal_type) {
+        case Expr::Type::kInt64:
+          return std::to_string(e.int_value);
+        case Expr::Type::kDouble:
+          return std::to_string(e.double_value);
+        case Expr::Type::kString:
+          return "'" + e.string_value + "'";
+      }
+      break;
+    case Op::kNull:
+      return "NULL";
+    case Op::kNeg:
+      return "-" + ExprString(e.args[0]);
+    case Op::kNot:
+      return "NOT " + ExprString(e.args[0]);
+    case Op::kAdd:
+      return binary("+");
+    case Op::kSub:
+      return binary("-");
+    case Op::kMul:
+      return binary("*");
+    case Op::kDiv:
+      return binary("/");
+    case Op::kMod:
+      return binary("%");
+    case Op::kEq:
+      return binary("=");
+    case Op::kNe:
+      return binary("!=");
+    case Op::kLt:
+      return binary("<");
+    case Op::kLe:
+      return binary("<=");
+    case Op::kGt:
+      return binary(">");
+    case Op::kGe:
+      return binary(">=");
+    case Op::kAnd:
+      return binary("AND");
+    case Op::kOr:
+      return binary("OR");
+    case Op::kIsNull:
+      return ExprString(e.args[0]) + " IS NULL";
+    case Op::kIsNotNull:
+      return ExprString(e.args[0]) + " IS NOT NULL";
+    case Op::kToDouble:
+      break;
+  }
+  return "?";
+}
 
 std::string LogicalPlanFormatter::ScanString(const LogicalPlan& plan,
                                              const Scan& scan) {
@@ -259,6 +322,9 @@ std::string LogicalPlanFormatter::DistinctString(const Distinct& distinct) {
 }
 
 std::string LogicalPlanFormatter::WhereString(const Where& where) {
+  if (where.condition_) {
+    return "Where(" + ExprString(*where.condition_) + ")";
+  }
   std::string out = "Where(";
   for (size_t i = 0; i < where.predicates_.size(); ++i) {
     const WherePredicate& p = where.predicates_[i];
@@ -313,6 +379,15 @@ std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
   if (node.Is<AggregateStage>()) {
     return SubtreeString(plan, node.children()[0]) +
            AggregateStageString(plan, node.Cast<AggregateStage>()) + "\n";
+  }
+  if (node.Is<Compute>()) {
+    std::string out = "Compute(";
+    const auto& compute = node.Cast<Compute>();
+    for (size_t i = 0; i < compute.items_.size(); ++i) {
+      out += (i ? ", " : "") + ExprString(compute.items_[i].expr) + " -> " +
+             ColumnString(plan, compute.items_[i].output);
+    }
+    return SubtreeString(plan, node.children()[0]) + out + ")\n";
   }
   if (node.Is<OrderBy>()) {
     return SubtreeString(plan, node.children()[0]) +

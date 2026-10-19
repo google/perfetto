@@ -2398,29 +2398,30 @@ typedef enum SyntaqliteNodeTag {
     SYNTAQLITE_NODE_PERFETTO_PIPE_NAME = 111,
     SYNTAQLITE_NODE_PERFETTO_PIPE_NAME_LIST = 112,
     SYNTAQLITE_NODE_PERFETTO_PIPE_STAR = 113,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT_ITEM_LIST = 114,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT = 115,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_EXTEND = 116,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_DROP = 117,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_RENAME = 118,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_SET_ITEM = 119,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_SET_ITEM_LIST = 120,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_SET = 121,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_AS = 122,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_ORDER_TERM = 123,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_ORDER_TERM_LIST = 124,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_ORDER_BY = 125,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_AGGREGATE = 126,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_WHERE = 127,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_DISTINCT = 128,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_STAGE_LIST = 129,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE_LIST = 130,
-    SYNTAQLITE_NODE_PERFETTO_PER_COLUMN = 131,
-    SYNTAQLITE_NODE_PERFETTO_PER_COLUMN_LIST = 132,
-    SYNTAQLITE_NODE_PERFETTO_INTERVAL_FLATTEN = 133,
-    SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS = 134,
-    SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION = 135,
-    SYNTAQLITE_NODE_PERFETTO_PIPELINE = 136,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_EXPR_ITEM = 114,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT_ITEM_LIST = 115,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT = 116,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_EXTEND = 117,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_DROP = 118,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_RENAME = 119,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SET_ITEM = 120,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SET_ITEM_LIST = 121,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SET = 122,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_AS = 123,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_ORDER_TERM = 124,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_ORDER_TERM_LIST = 125,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_ORDER_BY = 126,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_AGGREGATE = 127,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_WHERE = 128,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_DISTINCT = 129,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_STAGE_LIST = 130,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE_LIST = 131,
+    SYNTAQLITE_NODE_PERFETTO_PER_COLUMN = 132,
+    SYNTAQLITE_NODE_PERFETTO_PER_COLUMN_LIST = 133,
+    SYNTAQLITE_NODE_PERFETTO_INTERVAL_FLATTEN = 134,
+    SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS = 135,
+    SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION = 136,
+    SYNTAQLITE_NODE_PERFETTO_PIPELINE = 137,
     SYNTAQLITE_NODE_COUNT
 } SyntaqliteNodeTag;
 SYNQ_STATIC_ASSERT(sizeof(SyntaqliteNodeTag) == sizeof(uint32_t),
@@ -3291,6 +3292,12 @@ typedef struct SyntaqlitePerfettoPipeStar {
     uint32_t replace;
 } SyntaqlitePerfettoPipeStar;
 
+typedef struct SyntaqlitePerfettoPipeExprItem {
+    SyntaqliteNodeTag tag;
+    uint32_t expr;
+    SyntaqliteTextSpan alias;
+} SyntaqlitePerfettoPipeExprItem;
+
 // List of PerfettoPipeSelectItem
 typedef struct SyntaqlitePerfettoPipeSelectItemList {
     uint32_t tag;
@@ -3542,6 +3549,7 @@ typedef union SyntaqliteNode {
     SyntaqlitePerfettoPipeName perfetto_pipe_name;
     SyntaqlitePerfettoPipeNameList perfetto_pipe_name_list;
     SyntaqlitePerfettoPipeStar perfetto_pipe_star;
+    SyntaqlitePerfettoPipeExprItem perfetto_pipe_expr_item;
     SyntaqlitePerfettoPipeSelectItemList perfetto_pipe_select_item_list;
     SyntaqlitePerfettoPipeSelect perfetto_pipe_select;
     SyntaqlitePerfettoPipeExtend perfetto_pipe_extend;
@@ -4057,20 +4065,20 @@ static inline const SyntaqliteJoinPrefix* syntaqlite_table_source_as_join_prefix
 
 typedef union SyntaqlitePerfettoPipeSelectItem {
     SyntaqliteNodeTag tag;
-    SyntaqlitePerfettoPipeColumn perfetto_pipe_column;
+    SyntaqlitePerfettoPipeExprItem perfetto_pipe_expr_item;
     SyntaqlitePerfettoPipeStar perfetto_pipe_star;
 } SyntaqlitePerfettoPipeSelectItem;
 
 static inline int syntaqlite_is_perfetto_pipe_select_item(SyntaqliteNodeTag tag) {
     switch (tag) {
-        case SYNTAQLITE_NODE_PERFETTO_PIPE_COLUMN: return 1;
+        case SYNTAQLITE_NODE_PERFETTO_PIPE_EXPR_ITEM: return 1;
         case SYNTAQLITE_NODE_PERFETTO_PIPE_STAR: return 1;
         default: return 0;
     }
 }
 
-static inline const SyntaqlitePerfettoPipeColumn* syntaqlite_perfetto_pipe_select_item_as_perfetto_pipe_column(const SyntaqlitePerfettoPipeSelectItem* node) {
-    return node->tag == SYNTAQLITE_NODE_PERFETTO_PIPE_COLUMN ? &node->perfetto_pipe_column : NULL;
+static inline const SyntaqlitePerfettoPipeExprItem* syntaqlite_perfetto_pipe_select_item_as_perfetto_pipe_expr_item(const SyntaqlitePerfettoPipeSelectItem* node) {
+    return node->tag == SYNTAQLITE_NODE_PERFETTO_PIPE_EXPR_ITEM ? &node->perfetto_pipe_expr_item : NULL;
 }
 
 static inline const SyntaqlitePerfettoPipeStar* syntaqlite_perfetto_pipe_select_item_as_perfetto_pipe_star(const SyntaqlitePerfettoPipeSelectItem* node) {
@@ -4628,6 +4636,10 @@ template <> struct NodeTag<SyntaqlitePerfettoPipeNameList> {
 template <> struct NodeTag<SyntaqlitePerfettoPipeStar> {
   static constexpr bool kHasTag = true;
   static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_STAR;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeExprItem> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_EXPR_ITEM;
 };
 template <> struct NodeTag<SyntaqlitePerfettoPipeSelectItemList> {
   static constexpr bool kHasTag = true;
