@@ -30,6 +30,7 @@ import type {
 } from './api';
 import {ChatPanel} from './chat_panel';
 import {ChatSession} from './chat_session';
+import {ConversationStore} from './conversation_store';
 import {registerDataExplorerTools} from './data_explorer_tools';
 import {ContextRegistry, registerCoreContextProviders} from './context';
 import {registerCoreTools} from './core_tools';
@@ -81,7 +82,12 @@ export default class IntellettoPlugin
       defaultValue: undefined,
       headless: true,
     });
+    IntellettoPlugin.conversationStore = new ConversationStore();
   }
+
+  // App-scoped store of past conversations, persisted to localStorage and
+  // shared across all traces.
+  private static conversationStore: ConversationStore;
 
   // The shared tool registry for this trace. Core tools plus any contributed by
   // other plugins land here; the chat panel hands it to the agent.
@@ -125,25 +131,46 @@ export default class IntellettoPlugin
   async onTraceLoad(trace: Trace): Promise<void> {
     const gateway = LlmPlugin.gateway;
 
-    // One chat session per trace - the conversation is scoped to the open
-    // trace and kept in memory only (re-created on the next trace load). It
-    // reads the shared registries, so tools registered by other plugins
-    // (before or after the panel is first opened) are all visible to the
-    // agent.
+    // One active chat session per trace. Conversations are persisted to the
+    // app-scoped ConversationStore (localStorage) so past ones can be resumed
+    // from the panel's dropdown. The session reads the shared registries, so
+    // tools registered by other plugins (before or after the panel is first
+    // opened) are all visible to the agent.
     trace.sidePanel.registerTab({
       uri: SIDE_PANEL_URI,
       title: 'Intelletto',
       icon: 'psychology',
       render: () => {
-        this.session ??= new ChatSession(gateway, this.tools, this.context);
+        const store = IntellettoPlugin.conversationStore;
+        const selectedModelSetting = IntellettoPlugin.selectedModelSetting;
+        this.session ??= new ChatSession(
+          gateway,
+          this.tools,
+          this.context,
+          store,
+          {model: selectedModelSetting.get()},
+        );
         return m(ChatPanel, {
           gateway,
           session: this.session,
           context: this.context,
-          selectedModelSetting: IntellettoPlugin.selectedModelSetting,
+          selectedModelSetting,
+          conversations: store.list(),
           onNewSession: () => {
-            this.session?.cancel();
+            if (this.session?.loading) this.session.cancel();
             this.session = undefined;
+          },
+          onSelectConversation: (id: string) => {
+            const stored = store.get(id);
+            if (stored === undefined) return;
+            if (this.session?.loading) this.session.cancel();
+            this.session = new ChatSession(
+              gateway,
+              this.tools,
+              this.context,
+              store,
+              {stored},
+            );
           },
         });
       },

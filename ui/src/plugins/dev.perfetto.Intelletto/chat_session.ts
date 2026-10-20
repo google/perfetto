@@ -13,9 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {uuidv4} from '../../base/uuid';
 import type {LlmGateway, ModelPath} from '../dev.perfetto.Llm/gateway';
 import {Agent} from './agent';
 import type {ContextRegistry} from './context';
+import type {ConversationStore, StoredConversation} from './conversation_store';
 import type {ToolRegistry} from './tools';
 import {SYSTEM_PROMPT} from './system_prompt';
 
@@ -40,12 +42,19 @@ export interface ChatLine {
  * The UI renders from this and calls its methods; there is no other state.
  */
 export class ChatSession {
+  /** Stable id of this conversation, used as its key in the store. */
+  readonly id: string;
+  /** When this conversation was started (ms since epoch). */
+  readonly createdAt: number;
+
   /**
    * The assembled system prompt in use for this conversation - kept so the
    * "show system prompt" inspector displays exactly what the agent sends.
    */
   readonly systemPrompt: string;
 
+  /** The model this conversation is using, if one has been picked. */
+  model?: ModelPath;
   /** The conversation transcript, in display order. */
   lines: ChatLine[] = [];
   /** The current (uncommitted) text in the input box. */
@@ -71,18 +80,65 @@ export class ChatSession {
    * @param context - The registry supplying per-turn context items and, at
    *     construction, the payload-format descriptions folded into the system
    *     prompt.
+   * @param store - Where the conversation is persisted after each change.
+   * @param init - Either a previously stored conversation to restore, or the
+   *     initial model for a fresh one.
    */
   constructor(
     gateway: LlmGateway,
     tools: ToolRegistry,
     private readonly context: ContextRegistry,
+    private readonly store: ConversationStore,
+    init: {readonly stored: StoredConversation} | {readonly model?: ModelPath},
   ) {
     // The context providers' invariant payload-format descriptions are folded
     // into the system prompt here, once per conversation - per-turn payloads
     // stay data-only.
     this.systemPrompt = assembleSystemPrompt(context);
     this.agent = new Agent(gateway, tools, this.systemPrompt);
-    this.lines = [];
+    if ('stored' in init) {
+      const {stored} = init;
+      this.id = stored.id;
+      this.createdAt = stored.createdAt;
+      this.model = stored.model;
+      this.lines = stored.lines.map((l) => ({...l}));
+      this.totalTokens = stored.totalTokens;
+      this.agent.setHistory(stored.history);
+    } else {
+      this.id = uuidv4();
+      this.createdAt = Date.now();
+      this.model = init.model;
+      this.lines = [];
+    }
+  }
+
+  /**
+   * A short human-readable title for the conversation: the first user message,
+   * truncated.
+   */
+  get title(): string {
+    const first = this.lines.find((l) => l.role === 'user')?.text;
+    if (first === undefined) return 'New conversation';
+    const oneLine = first.replace(/\s+/g, ' ').trim();
+    return oneLine.length > 60 ? `${oneLine.slice(0, 60)}…` : oneLine;
+  }
+
+  /**
+   * Persist the conversation to the store. No-op until the conversation has
+   * some content, so empty conversations don't clutter the history.
+   */
+  save(): void {
+    if (this.lines.length === 0) return;
+    this.store.save({
+      id: this.id,
+      title: this.title,
+      createdAt: this.createdAt,
+      updatedAt: Date.now(),
+      model: this.model,
+      lines: this.lines.map((l) => ({...l})),
+      history: [...this.agent.getHistory()],
+      totalTokens: this.totalTokens,
+    });
   }
 
   /**
@@ -95,7 +151,9 @@ export class ChatSession {
     if (text === '') return;
 
     this.input = '';
+    this.model = model;
     this.lines.push({role: 'user', text});
+    this.save();
 
     if (this.loading) {
       // Typed mid-turn: queue it as a follow-up. The running turn picks it up
@@ -202,6 +260,7 @@ export class ChatSession {
     } finally {
       this.loading = false;
       this.abort = undefined;
+      this.save();
       m.redraw();
     }
   }
