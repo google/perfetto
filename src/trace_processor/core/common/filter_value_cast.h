@@ -302,22 +302,24 @@ CastFilterValueToDouble(uint32_t index,
   if (PERFETTO_LIKELY(filter_value_type == FilterValueFetcherImpl::kInt64)) {
     int64_t i = fetcher.GetInt64Value(index);
     auto iad = static_cast<double>(i);
-    auto iad_int = static_cast<int64_t>(iad);
 
-    // If the integer value can be converted to a double while preserving
-    // the exact integer value, then we can use the double value for
-    // comparison.
-    if (PERFETTO_LIKELY(i == iad_int)) {
-      out = iad;
-      return CastFilterValueResult::kValid;
+    // Rounding can take `i` up to 2^63, which int64_t cannot hold: casting
+    // that back would be undefined behaviour.
+    bool iad_greater_than_i = iad >= 9223372036854775808.0;
+    bool iad_less_than_i = false;
+    if (PERFETTO_LIKELY(!iad_greater_than_i)) {
+      auto iad_int = static_cast<int64_t>(iad);
+
+      // If the integer value can be converted to a double while preserving
+      // the exact integer value, then we can use the double value for
+      // comparison.
+      if (PERFETTO_LIKELY(i == iad_int)) {
+        out = iad;
+        return CastFilterValueResult::kValid;
+      }
+      iad_greater_than_i = iad_int > i;
+      iad_less_than_i = iad_int < i;
     }
-
-    // This can happen in cases where we round `i` up above
-    // numeric_limits::max(). In that case, still consider the double
-    // larger.
-    bool overflow_positive_to_negative = i > 0 && iad_int < 0;
-    bool iad_greater_than_i = iad_int > i || overflow_positive_to_negative;
-    bool iad_less_than_i = iad_int < i && !overflow_positive_to_negative;
     switch (op.index()) {
       case NonStringOp::GetTypeIndex<Lt>():
         out =
