@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_modules.h"
@@ -1142,6 +1143,88 @@ TEST_F(PerfettoSqlConnectionPipelineTest, OutputConstraintsArePushedIn) {
       Rows("EXPLAIN QUERY PLAN SELECT c0" + tree + " WHERE c0 IN (1, 3)");
   ASSERT_TRUE(in_plan.ok()) << in_plan.status().c_message();
   EXPECT_THAT(*in_plan, testing::Contains(testing::HasSubstr(":1:A")));
+}
+
+// The executor gives the rows of a query on a table the interpreter would:
+// every operator, on every kind of column, searched or tested.
+TEST_F(PerfettoSqlConnectionPipelineTest, TableQueriesAgreeWithInterpreter) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE PERFETTO TABLE t AS
+    SELECT id, ts, cpu, name, dur FROM (
+      SELECT 0 AS id, 10 AS ts, 2 AS cpu, 'a' AS name, 1.5 AS dur
+      UNION ALL SELECT 1, 20, NULL, 'b', 2.5
+      UNION ALL SELECT 2, 20, 2, NULL, NULL
+      UNION ALL SELECT 3, 30, 1, 'a', 4.0
+      UNION ALL SELECT 4, 40, NULL, 'c', 0.5
+      UNION ALL SELECT 5, 50, 3, 'b', 9.0
+    ) ORDER BY id
+  )")
+                  .ok());
+  ASSERT_TRUE(Rows("CREATE PERFETTO INDEX t_name ON t(name)").ok());
+  const char* const kWheres[] = {
+      "1",
+      "id = 3",
+      "id != 3",
+      "id IN (1, 4, 9)",
+      "id > 2 AND id <= 4",
+      "id = '3'",
+      "id = 3.5",
+      "id = NULL",
+      "ts = 20",
+      "ts >= 20 AND ts < 50",
+      "ts > 25.5",
+      "cpu = 2",
+      "cpu IS NULL",
+      "cpu IS NOT NULL AND cpu < 3",
+      "cpu IN (1, 3)",
+      "name = 'a'",
+      "name IN ('b', 'c', 'z')",
+      "name IS NULL",
+      "name > 'a'",
+      "name = 'a' AND ts > 15",
+      "dur > 2",
+      "dur = 4",
+      "dur IS NULL",
+      "name GLOB 'a*'",
+      "name LIKE 'A'",
+  };
+  auto run = [&](const std::string& sql, bool executor) {
+    DataframeModule::use_executor = executor;
+    auto rows = Rows(sql);
+    DataframeModule::use_executor = true;
+    return rows;
+  };
+  for (const char* where : kWheres) {
+    std::string sql =
+        std::string("SELECT id, ts, cpu, name, dur FROM t WHERE ") + where;
+    auto interpreted = run(sql, false);
+    auto executed = run(sql, true);
+    ASSERT_TRUE(interpreted.ok()) << where;
+    ASSERT_TRUE(executed.ok())
+        << where << ": " << executed.status().c_message();
+    EXPECT_EQ(*executed, *interpreted) << where;
+  }
+
+  // Joined, each row of the other table is looked up again; rowids read the
+  // id.
+  std::string join =
+      "SELECT t.id, t.rowid FROM (SELECT 3 AS x UNION ALL SELECT 5) AS s "
+      "JOIN t ON t.id = s.x AND t.cpu = s.x - 2";
+  auto interpreted = run(join, false);
+  auto executed = run(join, true);
+  ASSERT_TRUE(executed.ok()) << executed.status().c_message();
+  EXPECT_EQ(*executed, *interpreted);
+  EXPECT_THAT(*executed, testing::ElementsAre("3,3", "5,5"));
+
+  // Only filters run in the executor: anything else is interpreted.
+  auto plan = Rows("EXPLAIN QUERY PLAN SELECT id FROM t WHERE ts > 10");
+  ASSERT_TRUE(plan.ok());
+  EXPECT_THAT(*plan, testing::Contains(testing::HasSubstr(":!")));
+  auto sorted =
+      Rows("EXPLAIN QUERY PLAN SELECT id FROM t WHERE ts > 10 ORDER BY cpu");
+  ASSERT_TRUE(sorted.ok());
+  EXPECT_THAT(*sorted,
+              testing::Not(testing::Contains(testing::HasSubstr(":!"))));
 }
 
 TEST_F(PerfettoSqlConnectionPipelineTest, ColumnReadersRefreshAcrossBatches) {

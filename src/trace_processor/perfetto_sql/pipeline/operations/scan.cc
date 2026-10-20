@@ -443,6 +443,28 @@ std::optional<uint32_t> Scan::Prune(std::vector<bool>* needed) {
   }
 }
 
+LogicalPlan Scan::PlanReading(const dataframe::Dataframe& dataframe,
+                              std::string name,
+                              const std::vector<uint32_t>& columns) {
+  LogicalPlan plan;
+  Scan scan;
+  Scan::Dataframe source;
+  source.name = std::move(name);
+  source.row_count = dataframe.row_count();
+  for (uint32_t i : columns) {
+    const std::string& column = dataframe.column_names()[i];
+    ColumnId id = plan.AddColumn(column, dataframe.column_type(i));
+    scan.columns_.push_back({column, id});
+    source.column_names.push_back(column);
+    source.columns.push_back(dataframe.shared_column(i));
+  }
+  source.indexes = IndexesOf(dataframe);
+  scan.source_ = std::move(source);
+  plan.output() = scan.columns_;
+  plan.AddNode(std::move(scan));
+  return plan;
+}
+
 core::RowEstimate Scan::Estimate(PlanEstimator* e, const PlanNode&) const {
   return EstimateFiltered(e, {});
 }

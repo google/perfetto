@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/dataframe/cursor.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/perfetto_sql/engine/plan_cursor.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -110,7 +111,16 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     DfCursor df_cursor;
     const char* last_idx_str = nullptr;
     uint32_t id_col_idx = 0;
+    // Set when the executor runs the query, rather than df_cursor.
+    std::unique_ptr<PlanCursor> plan;
+    // By dataframe column, how the executor's rows are read.
+    std::vector<PlanCursor::Reader> plan_columns;
+    bool plan_eof = true;
   };
+
+  // Whether queries the executor can run are given to it rather than to the
+  // interpreter. Only changed to compare the two.
+  static bool use_executor;
 
   static int Create(sqlite3*,
                     void*,

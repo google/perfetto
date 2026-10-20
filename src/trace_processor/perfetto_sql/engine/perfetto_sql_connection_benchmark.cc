@@ -23,6 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 
 namespace perfetto::trace_processor {
@@ -115,13 +116,19 @@ class Lookups {
     return *lookups;
   }
 
-  void Run(benchmark::State& state, const std::string& sql) {
+  // Runs `sql`, its tables read by the executor or by the dataframe
+  // interpreter. Items are `items` per run.
+  void Run(benchmark::State& state,
+           const std::string& sql,
+           bool executor = true,
+           uint32_t items = kLookups) {
+    DataframeModule::use_executor = executor;
     for (auto _ : state) {
       auto res = conn_->Execute(SqlSource::FromExecuteQuery(sql));
       PERFETTO_CHECK(res.ok());
     }
-    state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
-                            kLookups);
+    DataframeModule::use_executor = true;
+    state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * items);
   }
 
   // The SQL a pipeline reading `big` runs as, from its FROM.
@@ -165,6 +172,14 @@ void BM_Connection_Lookup_Sql_Id(benchmark::State& state) {
 }
 BENCHMARK(BM_Connection_Lookup_Sql_Id);
 
+void BM_Connection_Lookup_Sql_Id_Interpreter(benchmark::State& state) {
+  Lookups::Get().Run(state,
+                     "SELECT COUNT(*), SUM(b.ts) FROM outer_rows o "
+                     "JOIN big b ON b.id = o.x",
+                     /*executor=*/false);
+}
+BENCHMARK(BM_Connection_Lookup_Sql_Id_Interpreter);
+
 void BM_Connection_Lookup_Pipeline_Id(benchmark::State& state) {
   Lookups& lookups = Lookups::Get();
   lookups.Run(state, "SELECT COUNT(*), SUM(p.c1) FROM outer_rows o JOIN " +
@@ -179,6 +194,14 @@ void BM_Connection_Lookup_Sql_IdAndCpu(benchmark::State& state) {
 }
 BENCHMARK(BM_Connection_Lookup_Sql_IdAndCpu);
 
+void BM_Connection_Lookup_Sql_IdAndCpu_Interpreter(benchmark::State& state) {
+  Lookups::Get().Run(state,
+                     "SELECT COUNT(*), SUM(b.ts) FROM outer_rows o "
+                     "JOIN big b ON b.id = o.x AND b.cpu = o.x % 8",
+                     /*executor=*/false);
+}
+BENCHMARK(BM_Connection_Lookup_Sql_IdAndCpu_Interpreter);
+
 void BM_Connection_Lookup_Pipeline_IdAndCpu(benchmark::State& state) {
   Lookups& lookups = Lookups::Get();
   lookups.Run(state, "SELECT COUNT(*), SUM(p.c1) FROM outer_rows o JOIN " +
@@ -186,6 +209,33 @@ void BM_Connection_Lookup_Pipeline_IdAndCpu(benchmark::State& state) {
                          " AS p ON p.c0 = o.x AND p.c2 = o.x % 8");
 }
 BENCHMARK(BM_Connection_Lookup_Pipeline_IdAndCpu);
+
+// Scans of a table in SQL, filtered, read by the executor and by the
+// dataframe interpreter. Items are the table's rows.
+constexpr char kScanUnsorted[] =
+    "SELECT COUNT(*), SUM(ts) FROM big WHERE cpu = 3";
+constexpr char kScanSorted[] =
+    "SELECT COUNT(*), SUM(cpu) FROM big WHERE ts >= 1000000 AND ts < 2000000";
+
+void BM_Connection_Scan_Sql_Unsorted(benchmark::State& state) {
+  Lookups::Get().Run(state, kScanUnsorted, /*executor=*/true, Lookups::kRows);
+}
+BENCHMARK(BM_Connection_Scan_Sql_Unsorted);
+
+void BM_Connection_Scan_Sql_Unsorted_Interpreter(benchmark::State& state) {
+  Lookups::Get().Run(state, kScanUnsorted, /*executor=*/false, Lookups::kRows);
+}
+BENCHMARK(BM_Connection_Scan_Sql_Unsorted_Interpreter);
+
+void BM_Connection_Scan_Sql_Sorted(benchmark::State& state) {
+  Lookups::Get().Run(state, kScanSorted, /*executor=*/true, Lookups::kRows);
+}
+BENCHMARK(BM_Connection_Scan_Sql_Sorted);
+
+void BM_Connection_Scan_Sql_Sorted_Interpreter(benchmark::State& state) {
+  Lookups::Get().Run(state, kScanSorted, /*executor=*/false, Lookups::kRows);
+}
+BENCHMARK(BM_Connection_Scan_Sql_Sorted_Interpreter);
 
 }  // namespace
 }  // namespace perfetto::trace_processor

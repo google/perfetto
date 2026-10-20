@@ -99,6 +99,12 @@ class Scan : public PlanOperation {
       const SyntaqlitePerfettoPipeSource& n);
   std::unique_ptr<core::exec::Source> MakeSource() const;
 
+  // A plan reading the columns of `dataframe` at `columns`, in that order:
+  // its output, and the ids of its columns, follow that order.
+  static LogicalPlan PlanReading(const dataframe::Dataframe& dataframe,
+                                 std::string name,
+                                 const std::vector<uint32_t>& columns);
+
   // Intersection embeds a scan payload without a separate source tag.
   static Available ReadPayload(PlanReader*, Scan*);
 

@@ -17,9 +17,11 @@
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 
 #include <sqlite3.h>
+#include <algorithm>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -34,6 +36,13 @@
 #include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/perfetto_sql/engine/plan_cursor.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
+#include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
@@ -146,7 +155,140 @@ std::string CreateTableStmt(const dataframe::DataframeSpec& spec) {
   return create_stmt;
 }
 
+// Marks an idxStr giving the executor a query, rather than the interpreter a
+// plan, which is base64 and so never starts with it.
+constexpr char kExecutorQuery = '!';
+
+dataframe::Op OpFromIndex(uint32_t index) {
+  switch (index) {
+    case dataframe::Op::GetTypeIndex<dataframe::Eq>():
+      return dataframe::Eq{};
+    case dataframe::Op::GetTypeIndex<dataframe::Ne>():
+      return dataframe::Ne{};
+    case dataframe::Op::GetTypeIndex<dataframe::Lt>():
+      return dataframe::Lt{};
+    case dataframe::Op::GetTypeIndex<dataframe::Le>():
+      return dataframe::Le{};
+    case dataframe::Op::GetTypeIndex<dataframe::Gt>():
+      return dataframe::Gt{};
+    case dataframe::Op::GetTypeIndex<dataframe::Ge>():
+      return dataframe::Ge{};
+    case dataframe::Op::GetTypeIndex<dataframe::IsNull>():
+      return dataframe::IsNull{};
+    case dataframe::Op::GetTypeIndex<dataframe::IsNotNull>():
+      return dataframe::IsNotNull{};
+    case dataframe::Op::GetTypeIndex<dataframe::In>():
+      return dataframe::In{};
+    default:
+      PERFETTO_FATAL("Not an operator the executor runs");
+  }
+}
+
+// The query, as the executor is given it in idxStr, if it runs `filters`:
+// `!<columns used>|` then `<column>,<operator>,<argument>;` for each filter,
+// with `-` for a filter given no argument.
+std::optional<std::string> ExecutorQuery(
+    const std::vector<dataframe::FilterSpec>& filters,
+    uint64_t cols_used) {
+  std::string query =
+      kExecutorQuery +
+      base::StackString<32>("%" PRIx64 "|", cols_used).ToStdString();
+  for (const dataframe::FilterSpec& filter : filters) {
+    if (filter.op.IsAnyOf<core::OnlyStringOp>()) {
+      return std::nullopt;
+    }
+    query += base::StackString<64>("%u,%u,", filter.col, filter.op.index())
+                 .ToStdString();
+    query += filter.value_index ? std::to_string(*filter.value_index) : "-";
+    query += ";";
+  }
+  return query;
+}
+
+void ResultUnread(sqlite3_context* ctx,
+                  StringPool*,
+                  const core::exec::RowBatch&,
+                  uint32_t,
+                  uint32_t) {
+  sqlite::utils::SetError(ctx, "dataframe: a column the query does not read");
+}
+
+// Builds the plan for the executor's query, `query` after its mark, on `df`,
+// into `c`.
+void LoadExecutorQuery(const dataframe::Dataframe& df,
+                       const std::string& name,
+                       uint32_t id_column,
+                       const char* query,
+                       DataframeModule::Cursor* c) {
+  char* end;
+  uint64_t cols_used = strtoull(query, &end, 16);
+  PERFETTO_CHECK(*end == '|');
+  struct Spec {
+    uint32_t column = 0;
+    dataframe::Op op{dataframe::Eq{}};
+    std::optional<uint32_t> argument;
+  };
+  std::vector<Spec> specs;
+  for (const char* it = end + 1; *it;) {
+    Spec spec;
+    spec.column = static_cast<uint32_t>(strtoul(it, &end, 10));
+    spec.op = OpFromIndex(static_cast<uint32_t>(strtoul(end + 1, &end, 10)));
+    if (end[1] == '-') {
+      end += 2;
+    } else {
+      spec.argument = static_cast<uint32_t>(strtoul(end + 1, &end, 10));
+    }
+    PERFETTO_CHECK(*end == ';');
+    it = end + 1;
+    specs.push_back(spec);
+  }
+
+  // The columns SQLite reads (the last bit standing for every column from it
+  // on), those filtered, and the id, which is the rowid.
+  uint32_t count = df.column_count();
+  std::vector<bool> read(count);
+  for (uint32_t i = 0; i < count; ++i) {
+    read[i] = (cols_used >> std::min(i, 63u)) & 1;
+  }
+  for (const Spec& spec : specs) {
+    read[spec.column] = true;
+  }
+  read[id_column] = true;
+  std::vector<uint32_t> columns;
+  std::vector<uint32_t> position(count);
+  for (uint32_t i = 0; i < count; ++i) {
+    if (read[i]) {
+      position[i] = static_cast<uint32_t>(columns.size());
+      columns.push_back(i);
+    }
+  }
+
+  pipeline::LogicalPlan plan = pipeline::Scan::PlanReading(df, name, columns);
+  std::vector<pipeline::WherePredicate> predicates;
+  for (const Spec& spec : specs) {
+    pipeline::WherePredicate predicate;
+    predicate.column = position[spec.column];
+    predicate.op = spec.op;
+    if (spec.argument && !spec.op.IsAnyOf<core::NullOp>()) {
+      predicate.param = *spec.argument;
+    }
+    predicates.push_back(predicate);
+  }
+  if (!predicates.empty()) {
+    pipeline::Where::AddToPlan(&plan, std::move(predicates));
+  }
+  auto lowered = pipeline::Lower(plan, {df.string_pool()});
+  PERFETTO_CHECK(lowered.ok());
+  c->plan = std::make_unique<PlanCursor>(std::move(*lowered), df.string_pool());
+  c->plan_columns.assign(count, {0, &ResultUnread});
+  for (uint32_t i : columns) {
+    c->plan_columns[i] = c->plan->OutputReader(position[i]);
+  }
+}
+
 }  // namespace
+
+bool DataframeModule::use_executor = true;
 
 int DataframeModule::Create(sqlite3* db,
                             void* raw_ctx,
@@ -433,7 +575,17 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
           }
         }
       });
-  info->idxStr = sqlite3_mprintf("%s", std::move(plan).Serialize().data());
+  // The executor runs filters straight on the table, and nothing else. It
+  // holds on to the table's columns as they are when it runs one, so only
+  // those of a finalized table, which never get more rows: a table still
+  // being filled while a trace is parsed is interpreted.
+  std::optional<std::string> query;
+  if (use_executor && s->dataframe->finalized() && distinct_specs.empty() &&
+      sort_specs.empty() && !limit_spec.limit && !limit_spec.offset) {
+    query = ExecutorQuery(filter_specs, info->colUsed);
+  }
+  info->idxStr = sqlite3_mprintf(
+      "%s", query ? query->c_str() : std::move(plan).Serialize().data());
   return SQLITE_OK;
 }
 
@@ -454,7 +606,19 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
                             int argc,
                             sqlite3_value** argv) {
   auto* c = GetCursor(cur);
+  if (idxStr != c->last_idx_str && idxStr[0] == kExecutorQuery) {
+    auto* v = GetVtab(cur->pVtab);
+    auto* s = sqlite::ModuleStateManager<DataframeModule>::GetState(v->state);
+    LoadExecutorQuery(*s->dataframe, v->name, v->id_col_idx, idxStr + 1, c);
+    c->last_idx_str = idxStr;
+    c->id_col_idx = c->plan_columns[v->id_col_idx].column;
+  }
+  if (c->plan && idxStr == c->last_idx_str) {
+    c->plan_eof = !c->plan->Run(argv);
+    return SQLITE_OK;
+  }
   if (idxStr != c->last_idx_str) {
+    c->plan.reset();
     auto plan = dataframe::Dataframe::QueryPlan::Deserialize(idxStr);
     PERFETTO_TP_TRACE(
         metatrace::Category::QUERY_DETAILED, "DATAFRAME_FILTER_PREPARE",
@@ -485,19 +649,30 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
 }
 
 int DataframeModule::Next(sqlite3_vtab_cursor* cur) {
-  GetCursor(cur)->df_cursor.Next();
+  auto* c = GetCursor(cur);
+  if (c->plan) {
+    c->plan_eof = !c->plan->Next();
+    return SQLITE_OK;
+  }
+  c->df_cursor.Next();
   return SQLITE_OK;
 }
 
 int DataframeModule::Eof(sqlite3_vtab_cursor* cur) {
-  return GetCursor(cur)->df_cursor.Eof();
+  auto* c = GetCursor(cur);
+  return c->plan ? c->plan_eof : c->df_cursor.Eof();
 }
 
 int DataframeModule::Column(sqlite3_vtab_cursor* cur,
                             sqlite3_context* ctx,
                             int raw_n) {
+  auto* c = GetCursor(cur);
+  if (c->plan) {
+    c->plan->Result(ctx, c->plan_columns[static_cast<uint32_t>(raw_n)]);
+    return SQLITE_OK;
+  }
   SqliteResultCallback visitor{{}, ctx};
-  GetCursor(cur)->df_cursor.Cell(static_cast<uint32_t>(raw_n), visitor);
+  c->df_cursor.Cell(static_cast<uint32_t>(raw_n), visitor);
   return SQLITE_OK;
 }
 
@@ -519,6 +694,10 @@ struct RowidCallback : dataframe::CellCallback {
 
 int DataframeModule::Rowid(sqlite3_vtab_cursor* cur, sqlite_int64* rowid) {
   auto* c = GetCursor(cur);
+  if (c->plan) {
+    *rowid = c->plan->Id(c->id_col_idx);
+    return SQLITE_OK;
+  }
   RowidCallback callback{{}, rowid};
   c->df_cursor.Cell(c->id_col_idx, callback);
   return SQLITE_OK;

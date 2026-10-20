@@ -310,6 +310,9 @@ class Dataframe {
   // Returns the number of rows in the dataframe.
   uint32_t row_count() const { return row_count_; }
 
+  // The pool the dataframe's strings are interned in.
+  StringPool* string_pool() const { return string_pool_; }
+
   // Returns the number of columns in the dataframe.
   uint32_t column_count() const {
     return static_cast<uint32_t>(column_ptrs_.size());
