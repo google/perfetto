@@ -535,8 +535,8 @@ interface FilteredSelection {
   readonly androidIds: ReadonlyArray<string>;
 }
 
-class DeviceTracesSelectionAggregator implements Aggregator {
-  readonly id = 'device_traces_selection';
+class MultiTraceTimelineSelectionAggregator implements Aggregator {
+  readonly id = 'multi_trace_timeline_selection';
   private currentTableName?: string;
   private unfilteredSelection: FilteredSelection = {
     traceUuids: [],
@@ -797,13 +797,13 @@ class DeviceTracesSelectionAggregator implements Aggregator {
   }
 
   getTabName(): string {
-    return 'Device traces';
+    return 'Multi-trace timeline';
   }
 }
 
-function createDeviceTracesTab(
+function createMultiTraceTimelineTab(
   trace: Trace,
-  aggregator: DeviceTracesSelectionAggregator,
+  aggregator: MultiTraceTimelineSelectionAggregator,
 ): AreaSelectionTab {
   const baseTab = createAggregationTab(trace, aggregator, 200);
   const filteredSlot = new AsyncMemo<FilteredSelection>();
@@ -875,8 +875,8 @@ function createDeviceTracesTab(
   };
 }
 
-export default class DeviceTracesPlugin implements PerfettoPlugin {
-  static readonly id = 'com.android.DeviceTraces';
+export default class MultiTraceTimelinePlugin implements PerfettoPlugin {
+  static readonly id = 'com.android.MultiTraceTimeline';
   private readonly counterTrackFilters = new Map<string, string>();
   private breakdownColumns: BreakdownColumn[] = [];
   private datasetSpec: DeviceTraceDatasetSpec = DEVICE_TRACE_BASE_SPEC;
@@ -990,9 +990,9 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
     }
 
     ctx.selection.registerAreaSelectionTab(
-      createDeviceTracesTab(
+      createMultiTraceTimelineTab(
         ctx,
-        new DeviceTracesSelectionAggregator(
+        new MultiTraceTimelineSelectionAggregator(
           ctx,
           this.counterTrackFilters,
           this.breakdownColumns,
@@ -1002,8 +1002,8 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
     );
 
     ctx.commands.registerCommand({
-      id: 'com.android.DeviceTraces.AddCustomBreakdown',
-      name: 'Device Traces: Add custom breakdown...',
+      id: 'com.android.MultiTraceTimeline.AddCustomBreakdown',
+      name: 'Multi-Trace Timeline: Add custom breakdown...',
       callback: async () => {
         await this.promptAndAddCustomBreakdown(ctx);
       },
@@ -1227,10 +1227,10 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
   ): TrackNode {
     const pathStr = cols.map((c) => c.label).join(' -> ');
     const keyPrefix = `tree_${++this.treeCount}`;
-    const rootUri = `${DeviceTracesPlugin.id}#${keyPrefix}_root`;
+    const rootUri = `${MultiTraceTimelinePlugin.id}#${keyPrefix}_root`;
     this.registerCounterTrack(ctx, rootUri, '1 = 1');
     const rootNode = new TrackNode({
-      name: `Device Traces (${pathStr})`,
+      name: `Multi-Trace Timeline (${pathStr})`,
       uri: rootUri,
       removable,
     });
@@ -1252,14 +1252,19 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
     whereClause: string,
     keyPrefix: string,
     boundValues: ReadonlyMap<string, string>,
+    userBatteryAttached = false,
   ): void {
     const sessionVal = boundValues.get('session_name');
     const androidIdVal = boundValues.get('android_id');
     const isBatterySession = sessionVal === BATTERY_SESSION_NAME;
+    const hasSessionColRemaining = remainingCols.some(
+      (c) => c.label === 'session_name',
+    );
     const hasUserBatteryTracks =
-      remainingCols.length === 0 &&
-      isBatterySession &&
+      !userBatteryAttached &&
       androidIdVal !== undefined &&
+      (isBatterySession ||
+        (!boundValues.has('session_name') && !hasSessionColRemaining)) &&
       (this.userTotalTracks.has(androidIdVal) ||
         this.userSubTracks.has(androidIdVal) ||
         this.userRailTracks.has(androidIdVal) ||
@@ -1286,6 +1291,24 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
         }
       }
 
+      if (hasUserBatteryTracks && androidIdVal !== undefined) {
+        const userFilter = `col_android_id = ${sqliteString(androidIdVal)}`;
+        this.appendUserPowerRailsNode(
+          ctx,
+          parentNode,
+          androidIdVal,
+          `${keyPrefix}:power_rails`,
+          userFilter,
+        );
+        this.appendUserDeviceStatesNode(
+          ctx,
+          parentNode,
+          androidIdVal,
+          `${keyPrefix}:device_state`,
+          userFilter,
+        );
+      }
+
       if (remainingCols.length > 0) {
         const [col, ...restCols] = remainingCols;
         const isLeafLevel = restCols.length === 0;
@@ -1309,7 +1332,7 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
           const displayVal = val || '(empty)';
           const childFilter = `${whereClause} AND ${col.sqlCol} = ${sqliteString(val)}`;
           const childKey = `${keyPrefix}:${col.label}:${val}`;
-          const uri = `${DeviceTracesPlugin.id}#${childKey}`;
+          const uri = `${MultiTraceTimelinePlugin.id}#${childKey}`;
 
           if (isLeafLevel) {
             this.registerSliceTrack(ctx, uri, childFilter);
@@ -1332,26 +1355,9 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
             childFilter,
             childKey,
             childBound,
+            userBatteryAttached || hasUserBatteryTracks,
           );
         }
-      }
-
-      if (hasUserBatteryTracks && androidIdVal !== undefined) {
-        const userFilter = `col_android_id = ${sqliteString(androidIdVal)}`;
-        this.appendUserPowerRailsNode(
-          ctx,
-          parentNode,
-          androidIdVal,
-          `${keyPrefix}:power_rails`,
-          userFilter,
-        );
-        this.appendUserDeviceStatesNode(
-          ctx,
-          parentNode,
-          androidIdVal,
-          `${keyPrefix}:device_state`,
-          userFilter,
-        );
       }
     });
   }
@@ -1370,7 +1376,7 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
 
     let groupUri: string | undefined;
     if (fleetTotal !== undefined) {
-      groupUri = `${DeviceTracesPlugin.id}#${keyPrefix}:total`;
+      groupUri = `${MultiTraceTimelinePlugin.id}#${keyPrefix}:total`;
       this.registerPowerCounterTrack(
         ctx,
         groupUri,
@@ -1393,7 +1399,7 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
     if (fleetSubs.length > 0) {
       this.onFirstExpand(groupNode, async () => {
         for (const sub of fleetSubs) {
-          const subUri = `${DeviceTracesPlugin.id}#${keyPrefix}:sub:${sub.subsystemName}`;
+          const subUri = `${MultiTraceTimelinePlugin.id}#${keyPrefix}:sub:${sub.subsystemName}`;
           this.registerPowerCounterTrack(
             ctx,
             subUri,
@@ -1431,7 +1437,7 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
 
     let groupUri: string | undefined;
     if (userTotal !== undefined) {
-      groupUri = `${DeviceTracesPlugin.id}#${keyPrefix}:total`;
+      groupUri = `${MultiTraceTimelinePlugin.id}#${keyPrefix}:total`;
       this.registerPowerCounterTrack(
         ctx,
         groupUri,
@@ -1464,7 +1470,7 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
 
     this.onFirstExpand(powerNode, async () => {
       for (const sub of userSubs) {
-        const subUri = `${DeviceTracesPlugin.id}#${keyPrefix}:sub:${sub.subsystemName}`;
+        const subUri = `${MultiTraceTimelinePlugin.id}#${keyPrefix}:sub:${sub.subsystemName}`;
         this.registerPowerCounterTrack(
           ctx,
           subUri,
@@ -1481,7 +1487,7 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
         if (subRails.length > 0) {
           this.onFirstExpand(subNode, async () => {
             for (const rail of subRails) {
-              const railUri = `${DeviceTracesPlugin.id}#${keyPrefix}:sub:${sub.subsystemName}:rail:${rail.railName}`;
+              const railUri = `${MultiTraceTimelinePlugin.id}#${keyPrefix}:sub:${sub.subsystemName}:rail:${rail.railName}`;
               this.registerPowerCounterTrack(
                 ctx,
                 railUri,
@@ -1508,7 +1514,7 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
 
         this.onFirstExpand(allRailsNode, async () => {
           for (const rail of userRails) {
-            const railUri = `${DeviceTracesPlugin.id}#${keyPrefix}:all_rails:${rail.railName}`;
+            const railUri = `${MultiTraceTimelinePlugin.id}#${keyPrefix}:all_rails:${rail.railName}`;
             this.registerPowerCounterTrack(
               ctx,
               railUri,
@@ -1547,7 +1553,7 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
 
     this.onFirstExpand(statesNode, async () => {
       for (const st of stateTracks) {
-        const stUri = `${DeviceTracesPlugin.id}#${keyPrefix}:${st.trackName}`;
+        const stUri = `${MultiTraceTimelinePlugin.id}#${keyPrefix}:${st.trackName}`;
         this.registerDeviceStateSliceTrack(ctx, stUri, st, selectionFilter);
         statesNode.addChildLast(
           new TrackNode({
