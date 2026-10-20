@@ -14,6 +14,8 @@
 
 // Keep this import first.
 import '../base/static_initializers';
+// And this one before any zod schema.
+import './zod_config';
 import '../assets/bigtrace.scss';
 import '../frontend/ui_main.scss';
 import m from 'mithril';

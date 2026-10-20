@@ -93,6 +93,46 @@ trace links). `:fetch_results` and the sync execute also return CSV
 an allowed origin, and POST bodies must be JSON, so other websites cannot use
 the server.
 
+## Always-on service
+
+`bigtrace install` (`python/perfetto/bigtrace/daemon.py`) makes the server a
+systemd user service, so a UI always finds it on `127.0.0.1:5001`:
+
+- **Settings** are a JSON file (`~/.config/perfetto/bigtrace.json`); the unit
+  (`~/.config/systemd/user/perfetto-bigtrace.service`) only runs `python3 -m
+  perfetto.bigtrace run`, which turns the settings into a `serve` command
+  line. Rerunning `install` changes settings, keeping the ones not given.
+- **Readiness**: the unit is `Type=notify` and `serve` sends `READY=1` once it
+  answers, so `start` and `restart` return when the server is usable (or
+  fail). `install` builds the DuckDB extension and downloads
+  `trace_processor_shell` before starting it, so first-start errors show in
+  the terminal rather than in the journal.
+- **Failures**: `Restart=on-failure`, with a start limit; a bad config exits
+  with `EX_CONFIG` (78), which systemd does not retry. The trace processors
+  die with the server (`--pdeathsig`), so a restart leaves nothing behind.
+- **State**: result tables and history are in a DuckDB file
+  (`--duckdb-path`), so they survive restarts and upgrades.
+- **Distribution**: `tools/install-bigtrace` (a single Python file, so it runs
+  from `curl ... | python3 -`) creates a virtualenv with `perfetto[bigtrace]`
+  from GitHub (or a checkout), a `bigtrace` shim in `~/.local/bin`, and runs
+  `install`. Upgrading is rerunning it.
+
+Remote machines: the server never listens beyond loopback, because it has no
+authentication and serves traces that may be sensitive. A browser on another
+machine reaches it through an SSH port forward, `bigtrace tunnel HOST`,
+which keeps `ssh -N -L` running (reconnecting with backoff, giving up on
+repeated fast failures such as authentication errors). Through the tunnel the
+server is again `127.0.0.1:5001`, which matters for https:// UIs: browsers
+only allow them http:// requests to loopback addresses (mixed content), and
+only loopback is in their CSP.
+
+The UI keeps a list of servers (built-in: the Bigtrace service and the local
+server; plus any the user adds) in local storage, shows which answer (`GET /`,
+falling back to `GET /trace_presets` for backends without it), and reloads on
+the one picked. Its local server setup guide shows the install command with
+the page's origin as `--cors-origin` when the server would not allow it by
+default, and switches to the local server once it answers.
+
 ## Performance
 
 `select * from slice` over 1,000 zstd-compressed trace processor exports

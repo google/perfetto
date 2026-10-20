@@ -172,7 +172,7 @@ class ServerTest(unittest.TestCase):
 
   def test_info_and_trace_list(self):
     s = self.server
-    self.assertEqual(s.ok("GET", "/v1/")["features"], ["duckdb"])
+    self.assertEqual(s.ok("GET", "/v1/")["features"], ["duckdb", "multi_query"])
     config = s.ok("POST", "/bigtrace_execution_config")["setting"]
     self.assertEqual([c["id"] for c in config][:3],
                      ["trace_directory", "recursive", "trace_manifest"])
@@ -385,6 +385,18 @@ class ServerTest(unittest.TestCase):
     self.assertEqual(s.call("GET", "/", headers={"Host": "evil.com"})[0], 403)
     self.assertEqual(
         s.call("GET", "/", headers={"Origin": "https://evil.com"})[0], 403)
+    # Other websites pass the preflight (it does nothing), so that the
+    # refusal of the request itself reaches the page, with the reason.
+    evil = {"Origin": "https://evil.com", "Content-Type": "application/json"}
+    self.assertEqual(
+        s.call("OPTIONS", "/execute_bigtrace_query", None, evil)[0], 200)
+    status, body, headers = s.call("POST", "/execute_bigtrace_query",
+                                   {"perfetto_sql": "SELECT 1"}, evil)
+    self.assertEqual(status, 403)
+    self.assertEqual(body["detail"], "Origin not allowed: https://evil.com")
+    self.assertEqual(headers["Access-Control-Allow-Origin"], "https://evil.com")
+    self.assertEqual(
+        s.call("OPTIONS", "/", headers={"Host": "evil.com"})[0], 403)
     status, _, headers = s.call(
         "GET", "/", headers={"Origin": "https://ui.perfetto.dev"})
     self.assertEqual(headers["Access-Control-Allow-Origin"],

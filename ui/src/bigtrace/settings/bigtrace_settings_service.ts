@@ -148,8 +148,17 @@ class BigTraceSettingsService {
       });
 
       if (!response.ok) {
+        // Keep the backend's reason when it gives one, e.g. the local
+        // server's "Origin not allowed: <origin>".
+        const detail = await response
+          .json()
+          .then((body: {detail?: unknown}) =>
+            typeof body?.detail === 'string' ? `: ${body.detail}` : '',
+          )
+          .catch(() => '');
         throw new Error(
-          `Backend returned HTTP ${response.status} for settings request.`,
+          `Backend returned HTTP ${response.status} for settings request` +
+            `${detail}.`,
         );
       }
 

@@ -30,8 +30,11 @@ import urllib.error
 import urllib.request
 import zipfile
 
-from perfetto.bigtrace.server import (CACHE_DIR, Bigtrace, Handler, list_traces,
-                                      q, read_manifest)
+from perfetto.bigtrace import daemon
+from perfetto.bigtrace.paths import CACHE_DIR
+
+# The server (and with it DuckDB) is imported by the commands that need it, so
+# that the client commands (`tunnel`, `status`...) run without DuckDB.
 
 SERVER = "http://127.0.0.1:5001"
 # Per-trace metadata that --generate-manifest extracts.
@@ -61,6 +64,12 @@ examples:
   %(prog)s sql "FROM duckdb_tables()"             # list the result tables
   %(prog)s sql "SELECT execution->>'tableName', execution->>'status'
                FROM _bigtrace_history"            # query history
+
+always-on server (a systemd user service):
+  %(prog)s install --traces ~/traces              # install and start it
+  %(prog)s status                                 # also: start, stop, restart,
+                                                  # logs, uninstall
+  %(prog)s tunnel HOST        # on a laptop: use the server of HOST over SSH
 """
 
 QUERY_HELP = """\
@@ -84,10 +93,15 @@ DROP TABLE, ...) work too.
 
 def main(argv=None):
   argv = sys.argv[1:] if argv is None else argv
-  if argv and argv[0] not in ("serve", "query", "sql", "-h", "--help"):
+  if argv and argv[0] not in ("serve", "query", "sql", *daemon.COMMANDS, "-h",
+                              "--help"):
     argv = ["serve", *argv]  # Plain `bigtrace_server.py TRACES` serves.
   fmt = argparse.RawDescriptionHelpFormatter
-  parser = argparse.ArgumentParser(description=HELP, formatter_class=fmt)
+  # `python3 -m perfetto.bigtrace` and the installed `bigtrace` shim.
+  prog = os.path.basename(sys.argv[0])
+  prog = "bigtrace" if prog == "__main__.py" else prog
+  parser = argparse.ArgumentParser(
+      prog=prog, description=HELP, formatter_class=fmt)
   cmds = parser.add_subparsers(dest="command", required=True)
 
   serve = cmds.add_parser(
@@ -209,6 +223,7 @@ def main(argv=None):
         help="rows to print "
         "(default: %(default)s); aggregate in SQL rather than "
         "printing whole tables")
+  daemon.add_commands(cmds, fmt)
   args = parser.parse_args(argv)
   return args.main(args)
 
@@ -220,6 +235,7 @@ def serve_main(args):
   one, `ui/run-dev-server --bigtrace`).
   """
   traces, recursive = args.traces, args.recursive
+  from perfetto.bigtrace.server import Bigtrace, Handler  # pylint: disable=import-outside-toplevel
   if os.path.isfile(traces):
     traces, recursive = unpack(traces), True
   origins = (*Handler.origins, args.origin.rstrip("/"), *args.cors_origin)
@@ -253,11 +269,14 @@ def serve_main(args):
       f"?server={url}",
       flush=True)
   signal.signal(signal.SIGTERM, signal.default_int_handler)
+  # Under systemd (`install`), the service is started once it answers.
+  daemon.sd_notify(f"READY=1\nSTATUS=Serving {count} traces on {url}")
   try:
     httpd.serve_forever()
   except KeyboardInterrupt:
     pass
   finally:
+    daemon.sd_notify("STOPPING=1")
     bigtrace.close()
 
 
@@ -283,6 +302,7 @@ def generate_manifest(bigtrace, out, force, metadata_query):
 
   Traces whose size and modification time did not change keep their entry.
   """
+  from perfetto.bigtrace.server import list_traces, q, read_manifest  # pylint: disable=import-outside-toplevel
   old = {} if force or not os.path.exists(out) else read_manifest(out)[1]
   cached = {t["file_path"]: t for t in old.get("traces", [])}
   root = bigtrace.trace_dir

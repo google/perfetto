@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Installs the local Bigtrace server as an always-on user service.
+
+  curl -fsSL https://raw.githubusercontent.com/google/perfetto/main/tools/install-bigtrace \\
+      | python3 - [OPTIONS] [-- INSTALL OPTIONS]
+
+Creates a virtualenv (default ~/.local/share/perfetto/bigtrace/venv) with the
+`perfetto` Python package and the Bigtrace server's dependencies (DuckDB,
+pyarrow), puts a `bigtrace` command in ~/.local/bin and, on Linux, runs
+`bigtrace install` with the remaining options (e.g. --traces DIR,
+--cors-origin URL), which starts the server as a systemd user service.
+
+Rerun to update. On other systems (or with --client-only) only the
+`bigtrace` command is installed, e.g. for `bigtrace tunnel HOST` on a laptop.
+"""
+
+import argparse
+import os
+import shlex
+import shutil
+import subprocess
+import sys
+import venv
+
+REPO = "https://github.com/google/perfetto"
+MIN_PYTHON = (3, 11)
+
+
+def default_venv():
+  data = os.environ.get("XDG_DATA_HOME", "")
+  data = data if os.path.isabs(data) else os.path.expanduser("~/.local/share")
+  return os.path.join(data, "perfetto", "bigtrace", "venv")
+
+
+def run(cmd):
+  print("+ " + " ".join(cmd), flush=True)
+  proc = subprocess.run(cmd)
+  if proc.returncode:
+    raise SystemExit(f"error: `{cmd[0]} ...` failed ({proc.returncode})")
+
+
+def main():
+  parser = argparse.ArgumentParser(
+      description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+  source = parser.add_mutually_exclusive_group()
+  source.add_argument(
+      "--ref",
+      default="main",
+      help="git branch, tag or commit of %s to install (default: %%(default)s)"
+      % REPO)
+  source.add_argument(
+      "--source", help="install from this Perfetto checkout instead")
+  parser.add_argument(
+      "--venv",
+      default=default_venv(),
+      help="virtualenv to install into (default: %(default)s)")
+  parser.add_argument(
+      "--bin-dir",
+      default=os.path.expanduser("~/.local/bin"),
+      help="where to put the `bigtrace` command (default: %(default)s)")
+  parser.add_argument(
+      "--client-only",
+      action="store_true",
+      help="only install the `bigtrace` command, not the service")
+  args, install_args = parser.parse_known_args()
+  if install_args[:1] == ["--"]:
+    install_args = install_args[1:]
+
+  if sys.version_info < MIN_PYTHON:
+    raise SystemExit("error: the Bigtrace server needs Python %d.%d+" %
+                     MIN_PYTHON)
+  service = sys.platform.startswith("linux") and not args.client_only
+  if service and not shutil.which("g++"):
+    raise SystemExit("error: g++ is needed to build the server's DuckDB "
+                     "extension (e.g. sudo apt install g++)")
+  if not args.source and not shutil.which("git"):
+    raise SystemExit("error: git is needed (or pass --source CHECKOUT)")
+
+  python = os.path.join(args.venv, "bin", "python")
+  if not os.path.exists(python):
+    print(f"Creating {args.venv}", flush=True)
+    try:
+      venv.create(args.venv, with_pip=True)
+    except (OSError, subprocess.CalledProcessError) as e:
+      shutil.rmtree(args.venv, ignore_errors=True)
+      raise SystemExit(f"error: cannot create a virtualenv ({e}); on Debian "
+                       "and Ubuntu: sudo apt install python3-venv")
+
+  extras = "[bigtrace]" if service else ""
+  if args.source:
+    spec = os.path.join(os.path.abspath(args.source), "python") + extras
+  else:
+    spec = f"perfetto{extras} @ git+{REPO}@{args.ref}#subdirectory=python"
+  pip = [
+      python, "-m", "pip", "install", "--quiet", "--disable-pip-version-check"
+  ]
+  run(pip + ["--upgrade", spec])
+  # Same version number, new code: pip keeps an installed version, so
+  # reinstall the package itself.
+  run(pip + ["--force-reinstall", "--no-deps", spec])
+
+  os.makedirs(args.bin_dir, exist_ok=True)
+  shim = os.path.join(args.bin_dir, "bigtrace")
+  tmp = f"{shim}.{os.getpid()}.tmp"
+  with open(tmp, "w", encoding="utf-8") as f:
+    f.write(f"#!/bin/sh\nexec {shlex.quote(python)} -m perfetto.bigtrace "
+            "\"$@\"\n")
+  os.chmod(tmp, 0o755)
+  os.replace(tmp, shim)
+  print(f"Installed {shim}")
+  on_path = os.path.realpath(
+      args.bin_dir) in (os.path.realpath(p)
+                        for p in os.environ.get("PATH", "").split(os.pathsep)
+                        if p)
+  if not on_path:
+    print(f"Add {args.bin_dir} to your PATH to run `bigtrace`.")
+
+  if not service:
+    print("Run `bigtrace tunnel HOST` to use the Bigtrace server of HOST.")
+    return 0
+  return subprocess.call([python, "-m", "perfetto.bigtrace", "install"] +
+                         install_args)
+
+
+if __name__ == "__main__":
+  sys.exit(main())

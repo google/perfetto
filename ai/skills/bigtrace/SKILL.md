@@ -21,6 +21,10 @@ everything from the root of a Perfetto checkout. Details:
 
 ## Workflow
 
+0. If `bigtrace status` says a server is running, use it (skip 1-2): pass
+   its endpoint's host and port as `--server http://127.0.0.1:PORT`, and put
+   or link traces under its trace directory. `bigtrace status --json` has
+   both.
 1. Requirements: `pip install duckdb pyarrow`, plus `g++` and `curl` for the
    extension the server builds on first use. Point `$SHELL_PATH` at a
    `trace_processor_shell` (e.g. `out/linux/trace_processor_shell`), or one is
@@ -68,3 +72,8 @@ Open `https://ui.perfetto.dev/bigtrace.html?server=http://127.0.0.1:5001`
 `http://localhost:10000/bigtrace.html?server=...`). The trace list can be
 filtered by metadata; query tabs run PerfettoSQL (with **Add Query** for
 several tables in one pass) or DuckDB SQL over the result tables.
+
+For a server that is always running (a systemd user service), suggest
+`tools/bigtrace_server.py install --traces DIR` (then `bigtrace status`,
+`logs`, `stop`...); see "Always-on server" in
+`docs/analysis/bigtrace-local.md`. Do not install it without asking.

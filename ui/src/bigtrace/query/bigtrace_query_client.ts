@@ -151,6 +151,10 @@ export interface ExecuteOptions {
 
 export interface ServerInfo {
   readonly features?: ReadonlyArray<string>;
+  // Set by the local server (tools/bigtrace_server.py).
+  readonly service?: string;
+  readonly traceCount?: number;
+  readonly traceDir?: string;
 }
 
 // What `/check_table_exists` says about a name before it is used.

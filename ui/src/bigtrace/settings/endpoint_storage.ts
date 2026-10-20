@@ -71,14 +71,18 @@ declare global {
   var __BIGTRACE_DEV_PROXY__: boolean | undefined;
 }
 
+// The backend used until the user picks another: the Bigtrace service, or the
+// server the ui/build.mjs dev server proxies.
+export const DEFAULT_ENDPOINT = globalThis.__BIGTRACE_DEV_PROXY__
+  ? `${window.location.origin}/v1`
+  : 'https://brush-googleapis.corp.google.com/v1';
+
 endpointStorage.register({
   id: 'bigtraceEndpoint',
   name: 'BigTrace Endpoint',
   description: 'The URL of the BigTrace backend service.',
   schema: z.string(),
-  defaultValue: globalThis.__BIGTRACE_DEV_PROXY__
-    ? `${window.location.origin}/v1`
-    : 'https://brush-googleapis.corp.google.com/v1',
+  defaultValue: DEFAULT_ENDPOINT,
   requiresReload: true,
 });
 

@@ -142,6 +142,111 @@
   }
 }
 
+// One server of the picker: status dot, name and detail, actions.
+.pf-bt-server-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 480px;
+}
+
+.pf-bt-server {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--pf-color-background-secondary);
+  }
+
+  &--active {
+    cursor: default;
+    background: var(--pf-color-background-secondary);
+    box-shadow: inset 3px 0 0 var(--pf-color-primary);
+  }
+
+  &__dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--pf-color-text-muted);
+
+    &--online {
+      background: var(--pf-color-success);
+    }
+
+    &--offline {
+      background: var(--pf-color-danger);
+    }
+
+    &--checking {
+      opacity: 0.5;
+    }
+  }
+
+  &__text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__name {
+    font-weight: 500;
+  }
+
+  &__detail {
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.pf-bt-server-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+// Steps that install the local server, ending in a wait for it to answer.
+.pf-bt-local-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 480px;
+  padding-top: 6px;
+  border-top: 1px solid var(--pf-color-border);
+
+  &__title {
+    font-weight: 600;
+  }
+
+  &__step,
+  &__hint {
+    font-size: var(--pf-font-size-s);
+  }
+
+  &__hint {
+    color: var(--pf-color-text-muted);
+  }
+
+  &__status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  pre {
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+}
+
 // ---------- Launcher: start a query / Settings of an existing one ----------
 
 // Fills the tab. One page for both jobs — start a query, or an existing

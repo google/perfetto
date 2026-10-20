@@ -44,8 +44,10 @@ import duckdb
 import pyarrow as pa
 import pyarrow.csv
 
+from perfetto.bigtrace import paths
+
 EXT_DIR = os.path.join(os.path.dirname(__file__), "duckdb_ext")
-CACHE_DIR = os.path.expanduser("~/.cache/perfetto/bigtrace")
+CACHE_DIR = paths.CACHE_DIR
 # Hidden files, manifests and DuckDB databases are not traces.
 NOT_TRACE = re.compile(r"^\.|manifest\.(json|csv)$|^metadata\.db$|\.duckdb")
 # pf_feed() results, see perfetto_ext.cc.
@@ -377,7 +379,9 @@ class Bigtrace:
     return dict(
         status="ok",
         service="bigtrace",
-        features=["duckdb"],
+        # What the UI offers for this server: DuckDB SQL over result tables,
+        # and several queries in one pass ("queries" in an execute request).
+        features=["duckdb", "multi_query"],
         traceCount=count,
         traceDir=self.trace_dir,
         manifest=self.manifest)
@@ -850,12 +854,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
     try:
       if host not in self.hosts:
         raise HttpError(403, "Invalid Host header")
+      # Preflights pass for any origin: they do nothing, and the request that
+      # follows is refused below with a 403 the page can read, so a UI whose
+      # origin was not allowed (--cors-origin) can say so rather than seeing
+      # a network error.
+      if method == "OPTIONS":
+        return self.send(b"", "text/plain")
       if origin and not ({"*", origin} & set(self.origins) or
                          urllib.parse.urlsplit(origin).hostname
                          in Handler.hosts):
-        raise HttpError(403, "Origin not allowed")
-      if method == "OPTIONS":
-        return self.send(b"", "text/plain")
+        raise HttpError(403, f"Origin not allowed: {origin}")
       size = int(self.headers.get("Content-Length") or 0)
       if size and self.headers.get_content_type() != "application/json":
         raise HttpError(415, "Content-Type must be application/json")

@@ -62,6 +62,9 @@ setup(
     packages=[
         'perfetto',
         'perfetto.batch_trace_processor',
+        # The local Bigtrace server (`python3 -m perfetto.bigtrace`); needs
+        # the `bigtrace` extra.
+        'perfetto.bigtrace',
         'perfetto.common',
         'perfetto.prebuilts',
         'perfetto.prebuilts.manifests',
@@ -71,6 +74,8 @@ setup(
         'perfetto.trace_uri_resolver',
     ],
     package_data={
+        # The DuckDB extension is built from source on first use.
+        'perfetto.bigtrace': ['duckdb_ext/build.sh', 'duckdb_ext/src/*.cc'],
         'perfetto.trace_processor': ['*.descriptor'],
     },
     include_package_data=True,
@@ -86,6 +91,7 @@ setup(
         'protobuf',
     ],
     extras_require={
+        'bigtrace': ['duckdb>=1.5.6', 'pyarrow'],
         'numpy': ['numpy'],
         'pandas': ['pandas'],
         'polars': ['polars'],

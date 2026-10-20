@@ -210,6 +210,9 @@ test.describe('Bigtrace', () => {
 
   test('a running query can be cancelled, and errors are shown', async () => {
     await startQuery();
+    // Default table names come from Math.random, which the Playwright config
+    // seeds: an earlier test's unnamed query already took this tab's name.
+    await rename(editorTab(), `e2e_cancel_${RUN}`);
     await setSql(
       'SELECT s1.id FROM slice s1 JOIN slice s2 ON s1.dur = s2.dur ' +
         'JOIN slice s3 ON s2.dur = s3.dur',

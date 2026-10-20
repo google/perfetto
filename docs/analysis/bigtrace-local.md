@@ -17,7 +17,8 @@ is described in the [design doc](/docs/design-docs/bigtrace-local.md).
 
 - Linux (x86-64 or arm64) with `g++` and `curl`: the server builds a small
   DuckDB extension on first use.
-- Python 3.11+ with `pip install duckdb pyarrow`.
+- Python 3.11+ with `pip install duckdb pyarrow` (the installer of the
+  [always-on server](#always-on-server) sets these up in a virtualenv).
 - `trace_processor_shell`: pass `--shell-path` or set `$SHELL_PATH`, otherwise
   a prebuilt one is downloaded.
 
@@ -75,6 +76,70 @@ you like. **Add Query** adds queries that run in the same pass. Name a tab
 overwrite it. Switch the engine to **DuckDB SQL** to query the result tables,
 and click a trace's `link` to open it in the Perfetto UI.
 
+The server button at the top right picks the server: the Bigtrace service,
+the **Local server** (`http://127.0.0.1:5001/v1`), or servers you add (for
+example a second local server on another port). Each shows whether it
+answers; picking one reloads the UI on it.
+
+## Always-on server
+
+Rather than starting `serve` by hand, install the server as a systemd user
+service that is always running, like a daemon: it starts at login (and at
+boot with `loginctl enable-linger`), restarts if it fails, and keeps its
+result tables and query history in
+`~/.local/share/perfetto/bigtrace/bigtrace.duckdb` across restarts.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/google/perfetto/main/tools/install-bigtrace | python3 -
+```
+
+The installer creates a virtualenv in `~/.local/share/perfetto/bigtrace/venv`
+with the `perfetto` package and DuckDB, puts a `bigtrace` command in
+`~/.local/bin`, builds the DuckDB extension, downloads `trace_processor_shell`
+and starts the service on port 5001, serving `~/traces`. Options after the
+script go to `bigtrace install`, e.g. `python3 - --traces ~/my_traces`. Rerun
+it to update. From a checkout, `tools/bigtrace_server.py install` does the
+same with the checkout's code.
+
+```bash
+bigtrace status       # running? what does it serve? (--json for scripts)
+bigtrace logs -f      # the service's log
+bigtrace stop         # also: start, restart
+bigtrace install --traces ~/other_traces   # change settings, keeps the others
+bigtrace uninstall    # --purge also deletes the result tables
+```
+
+The UI can switch to any directory inside the served one (the trace
+directory setting), so serve the parent of the directories you use.
+
+### Other Bigtrace UIs
+
+The server answers pages from `https://ui.perfetto.dev` and localhost. Allow
+another deployment of the Bigtrace UI with `--cors-origin`; the setup guide of
+such a UI (**Local server** > **Set up**) shows the install command with it:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/google/perfetto/main/tools/install-bigtrace | python3 - --cors-origin https://bigtrace.example.com
+```
+
+That guide waits for the server and switches the UI to it once it answers.
+
+### Traces on another machine
+
+The server only listens on `127.0.0.1`. When the browser runs on another
+machine than the traces (e.g. a laptop and a cloud workstation), forward the
+port over SSH from the browser's machine, and use the **Local server** there:
+
+```bash
+ssh -N -L 5001:127.0.0.1:5001 WORKSTATION
+# or, with the bigtrace command on the laptop (`... | python3 - --client-only`):
+bigtrace tunnel WORKSTATION
+```
+
+`bigtrace tunnel` reconnects when the connection drops and says whether the
+server answers. Chrome may ask to let the page access devices on your local
+network; allow it.
+
 ## Manifests
 
 A manifest lists the traces and their metadata, which become the columns of
@@ -127,3 +192,13 @@ any other trace.
   address it as a local host and come from localhost pages,
   `https://ui.perfetto.dev`, `--origin` or `--cors-origin`; anyone who can
   connect to the port can read the traces, so keep `--host 127.0.0.1`.
+- *The service does not start*: `bigtrace logs` has the server's output.
+  `bigtrace install` refuses a port in use; a missing trace directory stops
+  the service rather than restarting it in a loop.
+- *"no systemd user session"*: log in normally (not with `su`/`sudo`), or run
+  `bigtrace serve TRACES` in the foreground.
+- *The UI says "Origin not allowed"*: rerun `bigtrace install --cors-origin
+  https://YOUR-UI` (the setup guide's command has the right one).
+- *The Local server is unreachable from a laptop*: is `bigtrace tunnel` (or
+  `ssh -L`) running there? Did Chrome's local network prompt get denied (site
+  settings > Local network access)?

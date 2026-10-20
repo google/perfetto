@@ -20,6 +20,7 @@ import unittest
 
 from test import api_integrationtest
 from test import bigtrace_api_integrationtest
+from test import bigtrace_daemon_unittest
 from test import open_trace_in_ui_unittest
 from test import query_result_iterator_unittest
 from test import resolver_unittest
@@ -58,6 +59,7 @@ def main():
   suite.addTests(loader.loadTestsFromModule(api_integrationtest))
   suite.addTests(loader.loadTestsFromModule(stdlib_unittest))
   suite.addTests(loader.loadTestsFromModule(unix_unittest))
+  suite.addTests(loader.loadTestsFromModule(bigtrace_daemon_unittest))
   try:
     from test import bigtrace_server_unittest
     suite.addTests(loader.loadTestsFromModule(bigtrace_server_unittest))
