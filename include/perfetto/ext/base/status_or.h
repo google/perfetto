@@ -59,49 +59,19 @@ class StatusOr {
   }
   StatusOr(T value) { new (&value_) T(std::move(value)); }
 
-  StatusOr(const StatusOr& other) : status_(other.status_) {
-    if (ok()) {
-      new (&value_) T(other.value_);
-    }
-  }
-  // A moved-from StatusOr keeps its status, and so a moved-from value which
-  // it still destroys.
+  StatusOr(const StatusOr& other) { ConstructFrom(other); }
   StatusOr(StatusOr&& other) noexcept(
       std::is_nothrow_move_constructible<T>::value) {
-    if (other.ok()) {
-      new (&value_) T(std::move(other.value_));
-    } else {
-      status_ = std::move(other.status_);
-    }
+    ConstructFrom(std::move(other));
   }
   StatusOr& operator=(const StatusOr& other) {
-    if (this != &other) {
-      if (ok() && other.ok()) {
-        value_ = other.value_;
-      } else {
-        Destroy();
-        status_ = other.status_;
-        if (ok()) {
-          new (&value_) T(other.value_);
-        }
-      }
-    }
+    AssignFrom(other);
     return *this;
   }
   StatusOr& operator=(StatusOr&& other) noexcept(
       std::is_nothrow_move_assignable<T>::value &&
       std::is_nothrow_move_constructible<T>::value) {
-    if (this != &other) {
-      if (ok() && other.ok()) {
-        value_ = std::move(other.value_);
-      } else if (other.ok()) {
-        status_ = base::OkStatus();
-        new (&value_) T(std::move(other.value_));
-      } else {
-        Destroy();
-        status_ = std::move(other.status_);
-      }
-    }
+    AssignFrom(std::move(other));
     return *this;
   }
   ~StatusOr() { Destroy(); }
@@ -144,6 +114,29 @@ class StatusOr {
   const T* operator->() const { return &value(); }
 
  private:
+  // Copies or moves |other| into a StatusOr with no value. A moved-from
+  // StatusOr keeps its status, and so a moved-from value which it still
+  // destroys.
+  template <typename Other>
+  void ConstructFrom(Other&& other) {
+    if (other.ok()) {
+      new (&value_) T(std::forward<Other>(other).value_);
+    } else {
+      status_ = std::forward<Other>(other).status_;
+    }
+  }
+
+  template <typename Other>
+  void AssignFrom(Other&& other) {
+    if (ok() && other.ok()) {
+      value_ = std::forward<Other>(other).value_;
+    } else if (this != &other) {
+      Destroy();
+      status_ = base::OkStatus();
+      ConstructFrom(std::forward<Other>(other));
+    }
+  }
+
   // Ends the value's lifetime, if there is one.
   void Destroy() {
     if (ok()) {
