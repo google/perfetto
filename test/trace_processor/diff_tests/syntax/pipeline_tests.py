@@ -1034,13 +1034,13 @@ class PerfettoPipeline(TestSuite):
         10,20,0,1
         """))
 
-  # Matches the stdlib macro it replaces, on rows which never overlap.
-  def test_interval_fill_gaps_matches_the_macro(self):
+  # Rows which never overlap within a cpu, filled over the trace, tile the
+  # trace exactly on every cpu.
+  def test_interval_fill_gaps_tiles_the_trace(self):
     return DiffTestBlueprint(
         trace=DataPath('android_boot.pftrace'),
         query="""
         PERFETTO PRAGMA pipelines = 1;
-        INCLUDE PERFETTO MODULE intervals.fill_gaps;
 
         CREATE PERFETTO TABLE sched_rows AS
         SELECT ts, dur, cpu, utid FROM sched WHERE dur > 0 AND utid != 0;
@@ -1051,27 +1051,26 @@ class PerfettoPipeline(TestSuite):
              SELECT trace_start() AS ts, trace_dur() AS dur
            ) PER cpu;
 
-        CREATE PERFETTO TABLE macro AS
-        SELECT ts, dur, cpu, utid
-        FROM _intervals_fill_gaps!((cpu), (utid), sched_rows);
-
         SELECT
           (SELECT count(*) FROM piped WHERE utid IS NULL) AS fillers,
           (
             SELECT count(*) FROM (
-              SELECT ts, dur, cpu, utid FROM piped
-              EXCEPT SELECT ts, dur, cpu, utid FROM macro
+              SELECT cpu FROM piped GROUP BY cpu HAVING sum(dur) != trace_dur()
             )
-          ) + (
+          ) AS untiled_cpus,
+          (
             SELECT count(*) FROM (
-              SELECT ts, dur, cpu, utid FROM macro
-              EXCEPT SELECT ts, dur, cpu, utid FROM piped
+              SELECT
+                ts + dur > lead(ts) OVER (PARTITION BY cpu ORDER BY ts)
+                  AS overlaps
+              FROM piped
             )
-          ) AS mismatches;
+            WHERE overlaps
+          ) AS overlaps;
         """,
         out=Csv("""
-        "fillers","mismatches"
-        76331,0
+        "fillers","untiled_cpus","overlaps"
+        76331,0,0
         """))
 
   # Without PER, a filler takes the background's columns by name and its own
