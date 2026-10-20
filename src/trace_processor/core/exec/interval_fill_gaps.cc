@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
@@ -300,6 +301,8 @@ OpResult IntervalFillGaps::ServeFillers(RowBatch& out, State& s) const {
   BoundsColumns bounds;
   bounds.Take(*s.context);
   s.rows.resize(count);
+  // Strided reads from the gaps, which vector instructions do not speed up.
+  PERFETTO_NO_VECTORIZE_LOOP
   for (uint32_t i = 0; i < count; ++i) {
     bounds.ts[i] = static_cast<int64_t>(fillers[i].start);
     bounds.dur[i] = static_cast<int64_t>(fillers[i].end - fillers[i].start);
@@ -308,6 +311,7 @@ OpResult IntervalFillGaps::ServeFillers(RowBatch& out, State& s) const {
   const uint32_t* rows = s.rows.data();
   s.background.rows().Gather(&s.gathered, {rows, rows + count}, *s.context);
   if (broadcast_) {
+    PERFETTO_NO_VECTORIZE_LOOP
     for (uint32_t i = 0; i < count; ++i) {
       s.rows[i] = fillers[i].lane;
     }

@@ -116,6 +116,8 @@ bool WidenAs(const ColumnView& column,
              To* out,
              BitVector* out_validity) {
   out_validity->ClearAllBits();
+  // Writes scatter to each row, which vector instructions do not speed up.
+  PERFETTO_NO_VECTORIZE_LOOP
   for (uint32_t i = 0; i < selection.size(); ++i) {
     uint32_t row = selection[i];
     if (!column.IsValid(row)) {
@@ -138,6 +140,7 @@ bool Fill(const ColumnView& column,
           To* out,
           BitVector* out_validity) {
   out_validity->ClearAllBits();
+  PERFETTO_NO_VECTORIZE_LOOP
   for (uint32_t i = 0; i < selection.size(); ++i) {
     uint32_t row = selection[i];
     Variant cell = column.At<Variant>(row);
@@ -215,7 +218,7 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
   }
   ColumnBuffer buffer = s.context->TakeBuffer();
   ColumnChunk& chunk = buffer.chunk();
-  chunk.validity.resize(kMaxBatchRows);
+  chunk.SizeValidity();
   if (column.kind() != ColumnView::Kind::kVariant) {
     bool widen = column.type().IsAnyOf<IntegerType>() &&
                  (type_.Is<Int64>() || type_.Is<Double>());
