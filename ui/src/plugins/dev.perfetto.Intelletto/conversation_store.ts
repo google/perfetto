@@ -63,6 +63,8 @@ const MESSAGE_SCHEMA = z.discriminatedUnion('role', [
 const STORED_CONVERSATION_SCHEMA = z.object({
   id: z.string(),
   title: z.string(),
+  // A user-chosen name, overriding the title derived from the first message.
+  customTitle: z.string().optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
   // The model this conversation is using, if one has been picked.
@@ -106,6 +108,12 @@ export class ConversationStore {
       conversation,
       ...this.conversations.filter((c) => c.id !== conversation.id),
     ].sort((a, b) => b.updatedAt - a.updatedAt);
+    persist(this.conversations);
+  }
+
+  /** Remove a conversation (by id) and persist. No-op if it isn't stored. */
+  delete(id: string): void {
+    this.conversations = this.conversations.filter((c) => c.id !== id);
     persist(this.conversations);
   }
 }
