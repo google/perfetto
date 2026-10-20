@@ -102,11 +102,9 @@ export function parseMetricBundleForValue(
   const rows: Row[] = [];
   for (const row of bundle.row ?? []) {
     const rowData: Row = {};
-    for (let i = 0; i < dimensionNames.length; i++) {
+    for (const [i, dimName] of dimensionNames.entries()) {
       const dimValue = row.dimension?.[i];
-      rowData[dimensionNames[i]!] = dimValue
-        ? getDimensionValue(dimValue)
-        : null;
+      rowData[dimName] = dimValue ? getDimensionValue(dimValue) : null;
     }
     // Extract the value at the specific index for this value column.
     const val = row.values?.[valueIndex];

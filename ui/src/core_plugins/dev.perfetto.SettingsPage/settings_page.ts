@@ -179,8 +179,8 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
       this.filterText,
     ).map((res) => ({
       item: res.item,
-      nameSegments: res.segments[0]!,
-      descriptionSegments: res.segments[1]!,
+      nameSegments: res.segments[0],
+      descriptionSegments: res.segments[1],
     }));
   }
 

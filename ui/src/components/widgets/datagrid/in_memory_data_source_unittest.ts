@@ -491,4 +491,38 @@ describe('InMemoryDataSource', () => {
     );
     expect(result.rows?.map((r) => r.id).sort()).toEqual([3, 6]); // Charlie, Mallory
   });
+
+  describe('missing fields', () => {
+    // Row 2 has no 'value' field at all, as opposed to row 3 where it's null.
+    const sparseData: ReadonlyArray<Row> = [
+      {id: 1, value: 10},
+      {id: 2},
+      {id: 3, value: null},
+    ];
+    const columns: FlatModel['columns'] = [
+      {field: 'id', alias: 'id'},
+      {field: 'value', alias: 'value'},
+    ];
+
+    test('missing fields are projected as undefined, not null', () => {
+      const source = new InMemoryDataSource(sparseData);
+      const result = source.useRows(makeModel({columns}));
+      expect(result.rows?.[1]!.value).toBeUndefined();
+      expect(result.rows?.[2]!.value).toBeNull();
+    });
+
+    test('is null filter does not match missing fields', () => {
+      const source = new InMemoryDataSource(sparseData);
+      const filters: Filter[] = [{field: 'value', op: 'is null'}];
+      const result = source.useRows(makeModel({columns, filters}));
+      expect(result.rows?.map((r) => r.id)).toEqual([3]);
+    });
+
+    test('is not null filter does not match missing fields', () => {
+      const source = new InMemoryDataSource(sparseData);
+      const filters: Filter[] = [{field: 'value', op: 'is not null'}];
+      const result = source.useRows(makeModel({columns, filters}));
+      expect(result.rows?.map((r) => r.id)).toEqual([1]);
+    });
+  });
 });

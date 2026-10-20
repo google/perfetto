@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {clamp} from '../../../base/math_utils';
 import {splitLinesNonEmpty} from '../../../base/string_utils';
 import type {RecordSubpage, RecordProbe} from '../config/config_interfaces';
 import {
@@ -156,11 +157,9 @@ function procThreadAssociation(): RecordProbe {
     genConfig: function (tc: TraceConfigBuilder) {
       tc.addFtraceEvents(...ftraceEvents);
       // Set to 1/16th of the main buffer size, with reasonable limits.
-      const minMax = [256, 8 * 1024];
-      const bufSizeKb = Math.min(
-        Math.max(tc.defaultBuffer.sizeKb / 16, minMax[0]!),
-        minMax[1]!,
-      );
+      const minKb = 256;
+      const maxKb = 8 * 1024;
+      const bufSizeKb = clamp(tc.defaultBuffer.sizeKb / 16, minKb, maxKb);
       tc.addBuffer(ADV_PROC_ASSOC_BUF_ID, bufSizeKb);
 
       const ds = tc.addDataSource(PROC_STATS_DS_NAME, ADV_PROC_ASSOC_BUF_ID);
