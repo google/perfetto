@@ -30,6 +30,8 @@ source_set("engine") {
     "perfetto_sql_database.h",
     "pipeline_module.cc",
     "pipeline_module.h",
+    "plan_cursor.cc",
+    "plan_cursor.h",
     "runtime_table_function.cc",
     "runtime_table_function.h",
     "sqlite_dataframe_builder.cc",

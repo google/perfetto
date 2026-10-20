@@ -28,8 +28,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
-#include "src/trace_processor/core/exec/filter_value.h"
-#include "src/trace_processor/core/exec/row_cursor.h"
+#include "src/trace_processor/perfetto_sql/engine/plan_cursor.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
@@ -91,28 +90,13 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
     int plans = 0;
   };
   struct Cursor : sqlite::Module<PipelineModule>::Cursor {
-    // Gives SQLite the value of `column` of the batch at `row`.
-    using ResultFn = void (*)(sqlite3_context*,
-                              StringPool*,
-                              const core::exec::RowBatch& batch,
-                              uint32_t column,
-                              uint32_t row);
-    struct ColumnReader {
-      // Where the declared column is in the plan's batches.
-      uint32_t column = 0;
-      ResultFn result = nullptr;
-    };
-    std::unique_ptr<pipeline::PhysicalPlan> plan;
+    std::unique_ptr<PlanCursor> plan;
     // The idxNum `plan` was loaded for; 0, which no plan has, before then.
     int idx_num = 0;
     // Where the values of the plan's parameters start in Filter's arguments.
     uint32_t first_param = 0;
-    // The plan's filter values, with its parameters cast into them each run.
-    std::vector<core::exec::FilterValue> filter_values;
-    StringPool* pool = nullptr;
-    std::unique_ptr<core::exec::RowCursor> rows;
     // By declared column.
-    std::vector<ColumnReader> columns;
+    std::vector<PlanCursor::Reader> columns;
     bool eof = true;
   };
 
