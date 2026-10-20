@@ -6,8 +6,9 @@ archive (ZIP or TAR) which controls how
 and the Perfetto UI interpret the other files in the archive. It is a
 general mechanism; the fields defined so far configure how multiple trace
 files merge onto a single timeline (which machine each file belongs to, how
-their clocks relate, and which clock the merged trace uses as its timeline)
-and attach [attributes](#attributes) annotating the archive.
+their clocks relate, which clock the merged trace uses as its timeline, and
+the order the files are read in) and attach [attributes](#attributes)
+annotating the archive.
 
 This page is the normative reference for the format. For a task-oriented
 guide to merging see
@@ -134,6 +135,51 @@ Each entry in the `files` array is an object:
 | `machine` | object | no | Attributes the whole file to a named machine. Mutually exclusive with `machines`. |
 | `machines` | array | no | Remaps a multi-machine trace's embedded machine ids to named machines. Mutually exclusive with `machine`. |
 | `clocks` | object | no | Manually relates this file's clock to a clock in another file. See [clocks](#clocks). |
+| `priority` | integer | no | Orders this file among the archive members of its group: lower is read first. See [priority](#priority). |
+
+### {#priority} priority
+
+```json
+{"path": "system.pftrace", "priority": -1}
+```
+
+Trace Processor reads the members of an archive one at a time: the manifest
+first, then the other members in four groups, in this order:
+
+1. Proto traces, as they may carry the clock snapshots other traces need.
+2. Nested archives: zip, tar, and gzip- or zstd-compressed files, even if
+   they hold a single trace.
+3. All other formats.
+4. Standalone symbol files.
+
+Within a group, members are read in path order.
+
+`priority` orders a file within its group. Lower is read first, the default
+is 0, and files with the same priority stay in path order. It cannot move a
+file into another group. The group order is fixed because the first trace
+read matters: traces without clock snapshots are converted through its
+clocks, and it claims the trace time clock unless the manifest sets
+[trace_time](#trace-time).
+
+Set it when a file needs data from another file of its group. The common
+case is an in-process SDK trace archived with the system trace it was
+recorded alongside. The SDK trace has no clock snapshots of its own, so the
+system trace must be read first. Otherwise the SDK trace's events cannot be
+placed on the timeline and are dropped (`stats` shows
+`clock_sync_failure_unknown_source_clock` and
+`clock_sync_failure_undeferrable_packet_loss`). Give the system trace the
+lowest priority, as above.
+
+This only works if both traces are in the same group. A system trace that is
+gzip-compressed on its own (`system.pftrace.gz`) counts as a nested archive,
+so it is always read after an uncompressed SDK trace, whatever its priority.
+Put it in the archive uncompressed: compressing the whole archive (ZIP,
+`.tar.gz`) is fine.
+
+`priority` orders the members of the archive that directly contains the
+manifest. A compressed manifest is itself a nested archive: it is read after
+the members have been ordered, so it cannot reorder them. A `priority` on the
+manifest's own entry is ignored, as the manifest is always read first.
 
 ### {#machine} machine
 
@@ -323,6 +369,7 @@ with an error prefixed by `perfetto_manifest:`. The conditions:
 | `sync_to.machine` not declared by that file | `'X' is not a machine declared by file 'Y'` |
 | This file is multi-machine but `clocks.machine` missing | `file 'X' is a multi-machine trace; name which machine the clock is on` |
 | `offset_ns` not an integer / INT64_MIN | `offset_ns must be an integer` / `offset_ns is out of range` |
+| `priority` not an integer | `'X': priority must be an integer` |
 | Override on a file that is itself an archive or manifest | rejected |
 | Pinning override on a file that emits clock snapshots | `a clocks override without a source clock pins a clockless file...` |
 

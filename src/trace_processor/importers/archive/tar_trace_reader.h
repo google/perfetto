@@ -19,7 +19,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -62,6 +61,10 @@ class TarTraceReader : public ChunkedTraceReader {
     tables::TraceFileTable::Id id;
     std::vector<TraceBlobView> data;
   };
+  struct Member {
+    ArchiveEntry entry;
+    File file;
+  };
 
   enum class State : uint8_t { kMetadata, kContent, kZeroMetadata, kDone };
 
@@ -74,12 +77,18 @@ class TarTraceReader : public ChunkedTraceReader {
                TraceBlobView header,
                std::vector<TraceBlobView> data);
 
+  // Reads one member in full (Parse of each chunk + OnPushDataToSorter).
+  base::Status ReadMember(TraceImporterId expected_type, File file);
+
   TraceProcessorContext* const context_;
   State state_{State::kMetadata};
   util::TraceBlobViewReader buffer_;
   std::optional<Metadata> metadata_;
   std::optional<std::string> long_name_;
-  std::map<ArchiveEntry, File> ordered_files_;
+  // Members seen so far: the perfetto_manifest ones, and all others. Both are
+  // read in OnPushDataToSorter, the manifests first.
+  std::vector<Member> manifests_;
+  std::vector<Member> members_;
   std::vector<std::unique_ptr<ChunkedTraceReader>> parsers_;
 };
 

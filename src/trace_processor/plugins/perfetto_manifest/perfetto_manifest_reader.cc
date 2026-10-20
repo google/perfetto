@@ -253,6 +253,14 @@ base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
   }
   FileEntry entry;
   entry.path = file["path"].AsString();
+  if (file.HasMember("priority")) {
+    if (!file["priority"].IsIntegral()) {
+      return base::ErrStatus(
+          "perfetto_manifest: '%s': priority must be an integer",
+          entry.path.c_str());
+    }
+    entry.priority = file["priority"].AsInt64();
+  }
   if (file.HasMember("__exported_table_schema")) {
     if (file.HasMember("clocks") || file.HasMember("machine") ||
         file.HasMember("machines")) {

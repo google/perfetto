@@ -203,11 +203,18 @@ FROM stats
 WHERE severity = 'error' AND value > 0;
 ```
 
-The stats to watch for merges: `clock_sync_unrelatable_clock_domains` and
-`clock_sync_failure_no_path` count events whose clock could not be related
-to the timeline (record clock snapshots or add a manifest `clocks` entry);
-`trace_sorter_negative_timestamp_dropped` counts events an `offset_ns`
-moved before the start of the timeline.
+The stats to watch for merges:
+
+- `clock_sync_unrelatable_clock_domains` and `clock_sync_failure_no_path`
+  count events whose clock could not be related to the timeline. Record
+  clock snapshots or add a manifest `clocks` entry.
+- `clock_sync_failure_unknown_source_clock` and
+  `clock_sync_failure_undeferrable_packet_loss` count events whose clock no
+  clock snapshot defined, typically those of an in-process SDK trace when
+  its system trace was not read first. Give the system trace the lowest
+  manifest [`priority`](/docs/reference/perfetto-manifest.md#priority).
+- `trace_sorter_negative_timestamp_dropped` counts events an `offset_ns`
+  moved before the start of the timeline.
 
 Per-file metadata is available via the `metadata` table's `trace_id` column
 or, at a higher level, the `_metadata_by_trace` view in the

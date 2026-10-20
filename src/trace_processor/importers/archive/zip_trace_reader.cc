@@ -16,10 +16,10 @@
 
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <map>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -34,6 +34,7 @@
 #include "src/trace_processor/importers/archive/archive_entry.h"
 #include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
+#include "src/trace_processor/types/trace_manifest_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/trace_type.h"
@@ -68,12 +69,17 @@ base::Status ZipTraceReader::OnPushDataToSorter() {
     return android_bugreport_reader_->Parse(std::move(files));
   }
 
+  struct Member {
+    ArchiveEntry entry;
+    File file;
+  };
   // TODO(carlscab): There is a lot of unnecessary copying going on here.
   // ZipTraceReader can directly parse the ZIP file and given that we know the
   // decompressed size we could directly decompress into TraceBlob chunks and
   // send them to the tokenizer.
   std::vector<uint8_t> buffer;
-  std::map<ArchiveEntry, File> ordered_files;
+  std::vector<Member> manifests;
+  std::vector<Member> members;
   for (size_t i = 0; i < files.size(); ++i) {
     util::ZipFile& zip_file = files[i];
     // Ignore hidden files/directories (e.g. macOS "__MACOSX/._" resource forks
@@ -90,22 +96,42 @@ base::Status ZipTraceReader::OnPushDataToSorter() {
     TraceImporterId type = importers.Guess(data.data(), data.size());
     ArchiveEntry entry{zip_file.name(), i, type,
                        ArchiveEntry::ComputePriority(type, importers)};
-    ordered_files.emplace(entry, File{id, std::move(data)});
+    auto& list = importers.Find(type)->is_manifest ? manifests : members;
+    list.push_back(Member{std::move(entry), File{id, std::move(data)}});
   }
 
-  for (auto& file : ordered_files) {
-    auto chunk_reader =
-        std::make_unique<ForwardingTraceParser>(context_, file.second.id);
-    auto& parser = *chunk_reader;
-    parsers_.push_back(std::move(chunk_reader));
-
-    RETURN_IF_ERROR(parser.Parse(std::move(file.second.data)));
-    RETURN_IF_ERROR(parser.OnPushDataToSorter());
-    // Make sure the ForwardingTraceParser determined the same trace type as we
-    // did.
-    PERFETTO_CHECK(parser.trace_type() == file.first.trace_type);
+  // A perfetto_manifest member can set the order of the other members, so it
+  // is read before they are sorted.
+  for (Member& manifest : manifests) {
+    RETURN_IF_ERROR(
+        ReadMember(manifest.entry.trace_type, std::move(manifest.file)));
   }
+  const auto& manifest_state = *context_->trace_manifest_state;
+  for (Member& member : members) {
+    member.entry.manifest_priority = ArchiveEntry::ComputeManifestPriority(
+        manifest_state, member.entry.name);
+  }
+  std::sort(members.begin(), members.end(),
+            [](const Member& a, const Member& b) { return a.entry < b.entry; });
+  for (Member& member : members) {
+    RETURN_IF_ERROR(
+        ReadMember(member.entry.trace_type, std::move(member.file)));
+  }
+  return base::OkStatus();
+}
 
+base::Status ZipTraceReader::ReadMember(TraceImporterId expected_type,
+                                        File file) {
+  auto chunk_reader =
+      std::make_unique<ForwardingTraceParser>(context_, file.id);
+  auto& parser = *chunk_reader;
+  parsers_.push_back(std::move(chunk_reader));
+
+  RETURN_IF_ERROR(parser.Parse(std::move(file.data)));
+  RETURN_IF_ERROR(parser.OnPushDataToSorter());
+  // Make sure the ForwardingTraceParser determined the same trace type as we
+  // did.
+  PERFETTO_CHECK(parser.trace_type() == expected_type);
   return base::OkStatus();
 }
 

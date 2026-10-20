@@ -96,6 +96,9 @@ struct TraceManifestState {
   struct FileEntry {
     // Exact path of the member within the archive.
     std::string path;
+    // Rank of this file among the archive members of its group (lower is read
+    // first). See ArchiveEntry::manifest_priority.
+    int64_t priority = 0;
     std::optional<ClockOverride> clock_override;
     // The file's base machine: a synthetic raw id the reader allocates per
     // distinct |machine_name|, so files sharing a name land on one machine.
@@ -136,6 +139,14 @@ struct TraceManifestState {
 
   FileEntry* FindEntry(const std::string& path) {
     for (FileEntry& entry : files) {
+      if (entry.path == path) {
+        return &entry;
+      }
+    }
+    return nullptr;
+  }
+  const FileEntry* FindEntry(const std::string& path) const {
+    for (const FileEntry& entry : files) {
       if (entry.path == path) {
         return &entry;
       }

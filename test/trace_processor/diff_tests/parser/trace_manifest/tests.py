@@ -204,6 +204,46 @@ def _machine_file(path, name):
   return {'path': path, 'machine': {'name': name}}
 
 
+# An in-process SDK trace: its packets are stamped with MONOTONIC
+# (timestamp_clock_id 3) and it carries no ClockSnapshot, so its timestamps
+# can only be converted through the snapshots of a sibling trace.
+_SDK_NO_SNAPSHOT = TextProto('''
+  packet {
+    trusted_packet_sequence_id: 1
+    timestamp: 900
+    timestamp_clock_id: 3
+    track_descriptor { uuid: 1 name: "sdk_track" }
+  }
+  packet {
+    trusted_packet_sequence_id: 1
+    timestamp: 1000
+    timestamp_clock_id: 3
+    track_event { track_uuid: 1 type: TYPE_INSTANT name: "sdk" }
+  }
+''')
+
+# A system trace carrying the BOOTTIME<->MONOTONIC snapshot (offset 4500).
+_SYSTEM_WITH_SNAPSHOT = TextProto('''
+  packet {
+    timestamp: 5000
+    clock_snapshot {
+      clocks { clock_id: 6 timestamp: 5000 }
+      clocks { clock_id: 3 timestamp: 500 }
+    }
+  }
+  packet {
+    trusted_packet_sequence_id: 2
+    timestamp: 5900
+    track_descriptor { uuid: 2 name: "sys_track" }
+  }
+  packet {
+    trusted_packet_sequence_id: 2
+    timestamp: 6000
+    track_event { track_uuid: 2 type: TYPE_INSTANT name: "sys" }
+  }
+''')
+
+
 class TraceManifest(TestSuite):
   """Tests for the perfetto_manifest sidecar JSON.
 
@@ -267,6 +307,272 @@ class TraceManifest(TestSuite):
         "meta.json","perfetto_manifest",1
         "app.json","json",2
         '''))
+
+  # --- files[].priority ---
+
+  # Both members are proto, so without a manifest they are read in path order:
+  # a_sdk.pb first, whose MONOTONIC packets are all dropped because nothing
+  # has defined MONOTONIC yet. A `priority` on the system trace (lower than
+  # the default 0) makes it the first member read, so the sdk slice lands at
+  # 5000 + (1000 - 500).
+  def test_file_priority_reorders_proto_members(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'a_sdk.pb':
+                _SDK_NO_SNAPSHOT,
+            'b_system.pb':
+                _SYSTEM_WITH_SNAPSHOT,
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'b_system.pb',
+                        'priority': -1
+                    }, {
+                        'path': 'a_sdk.pb'
+                    }],
+                }),
+        }),
+        query='''
+          SELECT name, ts FROM slice ORDER BY ts;
+        ''',
+        out=Csv('''
+        "name","ts"
+        "sdk",5500
+        "sys",6000
+        '''))
+
+  # The manifest is still read first (it is what sets the priorities), then
+  # the members in priority order.
+  def test_file_priority_processing_order(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'a_sdk.pb':
+                _SDK_NO_SNAPSHOT,
+            'b_system.pb':
+                _SYSTEM_WITH_SNAPSHOT,
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'files': [{
+                        'path': 'b_system.pb',
+                        'priority': -1
+                    }],
+                }),
+        }),
+        query='''
+          SELECT name, trace_type, processing_order
+          FROM __intrinsic_trace_file
+          ORDER BY processing_order;
+        ''',
+        out=Csv('''
+        "name","trace_type","processing_order"
+        "[NULL]","zip",0
+        "meta.json","perfetto_manifest",1
+        "b_system.pb","proto",2
+        "a_sdk.pb","proto",3
+        '''))
+
+  # Same in a tar archive with the manifest last, demoting the sdk trace
+  # instead of promoting the system one.
+  def test_file_priority_in_tar(self):
+    return DiffTestBlueprint(
+        trace=Tar({
+            'a_sdk.pb':
+                _SDK_NO_SNAPSHOT,
+            'b_system.pb':
+                _SYSTEM_WITH_SNAPSHOT,
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'files': [{
+                        'path': 'a_sdk.pb',
+                        'priority': 1
+                    }],
+                }),
+        }),
+        query='''
+          SELECT name, ts FROM slice ORDER BY ts;
+        ''',
+        out=Csv('''
+        "name","ts"
+        "sdk",5500
+        "sys",6000
+        '''))
+
+  # A tar is read as a stream: the manifest may also come before the members
+  # it orders.
+  def test_file_priority_in_tar_manifest_first(self):
+    return DiffTestBlueprint(
+        trace=Tar({
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'files': [{
+                        'path': 'b_system.pb',
+                        'priority': -1
+                    }],
+                }),
+            'a_sdk.pb':
+                _SDK_NO_SNAPSHOT,
+            'b_system.pb':
+                _SYSTEM_WITH_SNAPSHOT,
+        }),
+        query='''
+          SELECT name, ts FROM slice ORDER BY ts;
+        ''',
+        out=Csv('''
+        "name","ts"
+        "sdk",5500
+        "sys",6000
+        '''))
+
+  # Without a priority, listing files in the manifest does not reorder them:
+  # members of a group are read in path order.
+  def test_no_file_priority_keeps_path_order(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'a_sdk.pb':
+                _SDK_NO_SNAPSHOT,
+            'b_system.pb':
+                _SYSTEM_WITH_SNAPSHOT,
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'files': [{
+                        'path': 'b_system.pb'
+                    }, {
+                        'path': 'a_sdk.pb'
+                    }],
+                }),
+        }),
+        query='''
+          SELECT name, processing_order
+          FROM __intrinsic_trace_file
+          ORDER BY processing_order;
+        ''',
+        out=Csv('''
+        "name","processing_order"
+        "[NULL]",0
+        "meta.json",1
+        "a_sdk.pb",2
+        "b_system.pb",3
+        '''))
+
+  # Members with the same priority stay in path order: an explicit 0 is the
+  # default, so a_sdk.pb keeps going first.
+  def test_file_priority_equal_keeps_path_order(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'a_sdk.pb':
+                _SDK_NO_SNAPSHOT,
+            'b_system.pb':
+                _SYSTEM_WITH_SNAPSHOT,
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'a_sdk.pb',
+                        'priority': 0
+                    }, {
+                        'path': 'b_system.pb',
+                        'priority': 0
+                    }],
+                }),
+        }),
+        query='''
+          SELECT name, processing_order
+          FROM __intrinsic_trace_file
+          WHERE name IS NOT NULL AND name != 'meta.json'
+          ORDER BY processing_order;
+        ''',
+        out=Csv('''
+        "name","processing_order"
+        "a_sdk.pb",2
+        "b_system.pb",3
+        '''))
+
+  # A priority only orders a file within its group: the JSON trace stays behind
+  # the proto trace however low its priority, so the proto trace still claims
+  # the trace time clock (BOOTTIME, id 6).
+  def test_file_priority_stays_within_group(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'app.json':
+                _json_trace('app_slice'),
+            'b_system.pb':
+                _SYSTEM_WITH_SNAPSHOT,
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'files': [{
+                        'path': 'app.json',
+                        'priority': -100
+                    }],
+                }),
+        }),
+        query='''
+          SELECT f.name, f.processing_order, m.int_value AS trace_time_clock_id
+          FROM __intrinsic_trace_file f
+          JOIN metadata m ON m.name = 'trace_time_clock_id'
+          WHERE f.name IS NOT NULL AND f.name != 'meta.json'
+          ORDER BY f.processing_order;
+        ''',
+        out=Csv('''
+        "name","processing_order","trace_time_clock_id"
+        "b_system.pb",2,6
+        "app.json",3,6
+        '''))
+
+  # A group can hold several formats: JSON and systrace are both in the
+  # "other formats" group, so a priority moves the systrace ahead of the JSON.
+  def test_file_priority_orders_formats_within_group(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'a_app.json':
+                _json_trace('app_slice'),
+            'b_sys.systrace':
+                SYSTRACE,
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'files': [{
+                        'path': 'b_sys.systrace',
+                        'priority': -1
+                    }],
+                }),
+        }),
+        query='''
+          SELECT name, trace_type, processing_order
+          FROM __intrinsic_trace_file
+          WHERE name IS NOT NULL AND name != 'meta.json'
+          ORDER BY processing_order;
+        ''',
+        out=Csv('''
+        "name","trace_type","processing_order"
+        "b_sys.systrace","systrace",2
+        "a_app.json","json",3
+        '''))
+
+  def test_error_file_priority_not_integer(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'a_sdk.pb':
+                _SDK_NO_SNAPSHOT,
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'files': [{
+                        'path': 'a_sdk.pb',
+                        'priority': 'first'
+                    }],
+                }),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError(
+            "perfetto_manifest: 'a_sdk.pb': priority must be an integer"))
 
   # --- trace_time ---
 

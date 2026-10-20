@@ -17,8 +17,11 @@
 #include "src/trace_processor/importers/archive/archive_entry.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <tuple>
+
+#include "src/trace_processor/types/trace_manifest_state.h"
 
 namespace perfetto::trace_processor {
 
@@ -49,11 +52,18 @@ int ArchiveEntry::ComputePriority(TraceImporterId type,
   return registry.Find(type)->archive_priority;
 }
 
+int64_t ArchiveEntry::ComputeManifestPriority(
+    const TraceManifestState& manifest,
+    const std::string& name) {
+  const TraceManifestState::FileEntry* entry = manifest.FindEntry(name);
+  return entry ? entry->priority : 0;
+}
+
 bool ArchiveEntry::operator<(const ArchiveEntry& rhs) const {
-  // Compare first by archive priority, then by name, and finally by index to
-  // ensure strict ordering.
-  return std::tie(priority, name, index) <
-         std::tie(rhs.priority, rhs.name, rhs.index);
+  // Compare first by archive priority, then by the priority the manifest sets
+  // within it, then by name, and finally by index to ensure strict ordering.
+  return std::tie(priority, manifest_priority, name, index) <
+         std::tie(rhs.priority, rhs.manifest_priority, rhs.name, rhs.index);
 }
 
 }  // namespace perfetto::trace_processor

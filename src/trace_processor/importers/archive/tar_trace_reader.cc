@@ -38,6 +38,7 @@
 #include "src/trace_processor/importers/archive/archive_entry.h"
 #include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
+#include "src/trace_processor/types/trace_manifest_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -213,21 +214,40 @@ base::Status TarTraceReader::OnPushDataToSorter() {
     return base::ErrStatus("Premature end of TAR file (ERR:tp-corrupt)");
   }
 
-  for (auto& file : ordered_files_) {
-    auto chunk_reader =
-        std::make_unique<ForwardingTraceParser>(context_, file.second.id);
-    auto& parser = *chunk_reader;
-    parsers_.push_back(std::move(chunk_reader));
-
-    for (auto& data : file.second.data) {
-      RETURN_IF_ERROR(parser.Parse(std::move(data)));
-    }
-    RETURN_IF_ERROR(parser.OnPushDataToSorter());
-    // Make sure the ForwardingTraceParser determined the same trace type as we
-    // did.
-    PERFETTO_CHECK(parser.trace_type() == file.first.trace_type);
+  // A perfetto_manifest member can set the order of the other members, so it
+  // is read before they are sorted.
+  for (Member& manifest : manifests_) {
+    RETURN_IF_ERROR(
+        ReadMember(manifest.entry.trace_type, std::move(manifest.file)));
   }
+  const auto& manifest_state = *context_->trace_manifest_state;
+  for (Member& member : members_) {
+    member.entry.manifest_priority = ArchiveEntry::ComputeManifestPriority(
+        manifest_state, member.entry.name);
+  }
+  std::sort(members_.begin(), members_.end(),
+            [](const Member& a, const Member& b) { return a.entry < b.entry; });
+  for (Member& member : members_) {
+    RETURN_IF_ERROR(
+        ReadMember(member.entry.trace_type, std::move(member.file)));
+  }
+  return base::OkStatus();
+}
 
+base::Status TarTraceReader::ReadMember(TraceImporterId expected_type,
+                                        File file) {
+  auto chunk_reader =
+      std::make_unique<ForwardingTraceParser>(context_, file.id);
+  auto& parser = *chunk_reader;
+  parsers_.push_back(std::move(chunk_reader));
+
+  for (auto& data : file.data) {
+    RETURN_IF_ERROR(parser.Parse(std::move(data)));
+  }
+  RETURN_IF_ERROR(parser.OnPushDataToSorter());
+  // Make sure the ForwardingTraceParser determined the same trace type as we
+  // did.
+  PERFETTO_CHECK(parser.trace_type() == expected_type);
   return base::OkStatus();
 }
 
@@ -374,10 +394,11 @@ void TarTraceReader::AddFile(const Metadata& metadata,
   context_->trace_file_tracker->SetSize(file_id, metadata.size);
   const auto& importers = *context_->trace_importer_registry;
   TraceImporterId type = importers.Guess(header.data(), header.size());
-  ordered_files_.emplace(
-      ArchiveEntry{metadata.name, ordered_files_.size(), type,
-                   ArchiveEntry::ComputePriority(type, importers)},
-      File{file_id, std::move(data)});
+  size_t index = manifests_.size() + members_.size();
+  ArchiveEntry entry{metadata.name, index, type,
+                     ArchiveEntry::ComputePriority(type, importers)};
+  auto& list = importers.Find(type)->is_manifest ? manifests_ : members_;
+  list.push_back(Member{std::move(entry), File{file_id, std::move(data)}});
 }
 
 namespace {
