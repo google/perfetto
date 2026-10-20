@@ -107,6 +107,10 @@ class RangeReader {
     next_ = range.b;
   }
 
+  // Points `out` at every column where it lies, keeping no rows: for reading
+  // rows where they are stored. Every column must store one value per row.
+  void Lend(RowBatch& out) { windows_.Fill(0, 0, out); }
+
   // Points `out` at the next batch of the range. False once all are read.
   PERFETTO_ALWAYS_INLINE bool Read(RowBatch& out) {
     if (next_ == range_.e) {

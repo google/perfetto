@@ -3881,6 +3881,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h",
         "src/trace_processor/perfetto_sql/engine/pipeline_module.cc",
         "src/trace_processor/perfetto_sql/engine/pipeline_module.h",
+        "src/trace_processor/perfetto_sql/engine/plan_cursor.cc",
+        "src/trace_processor/perfetto_sql/engine/plan_cursor.h",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.h",
         "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.cc",
@@ -3957,6 +3959,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_pipeline_pipeline",
     srcs = [
+        "src/trace_processor/perfetto_sql/pipeline/filter_passing.cc",
         "src/trace_processor/perfetto_sql/pipeline/operation_registry.cc",
     ],
 )
@@ -3973,6 +3976,9 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/column_pruning.h",
         "src/trace_processor/perfetto_sql/pipeline/compiler.cc",
         "src/trace_processor/perfetto_sql/pipeline/compiler.h",
+        "src/trace_processor/perfetto_sql/pipeline/cost_estimation.cc",
+        "src/trace_processor/perfetto_sql/pipeline/cost_estimation.h",
+        "src/trace_processor/perfetto_sql/pipeline/filter_passing.h",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.h",
         "src/trace_processor/perfetto_sql/pipeline/operation_registry.h",

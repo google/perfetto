@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <memory>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -65,6 +66,19 @@ class OperatorState {
   bool reset_each_run_ = false;
 };
 
+// The work running a source can need, decided when it is built: a run skips
+// the work whose bit is clear, without testing what the plan is.
+enum Need : uint64_t {
+  // A run changes the state, so it is reset before the next (Rewind).
+  kNeedRewind = 1 << 0,
+  // A run's rows come in batches pulled from the source. Without it, the
+  // source lends one batch before any run, whose columns never change, and
+  // finds each run's one row in them, if any (Lend, FindRow).
+  kNeedBatches = 1 << 1,
+};
+// Every need: whatever a source does not rule out.
+inline constexpr uint64_t kNeedsAll = ~uint64_t{0};
+
 // Produces the batches a plan runs over.
 class Source {
  public:
@@ -99,6 +113,23 @@ class Source {
   // After GetData() returns false, distinguishes exhaustion from failure.
   virtual base::Status status(const OperatorState&) const {
     return base::OkStatus();
+  }
+
+  // What running it needs, as Need bits. Each must follow from how the
+  // source was built: claiming less than it needs gives wrong rows, so the
+  // default is everything.
+  virtual uint64_t needs() const { return kNeedsAll; }
+
+  // Without kNeedBatches: points `out`, before any run, at the columns every
+  // run's row is read from. Its rows are read at the row FindRow() gives,
+  // not through its selection.
+  virtual void Lend(RowBatch&, OperatorState&) const {
+    PERFETTO_FATAL("Lend() without needs() ruling out batches");
+  }
+  // Without kNeedBatches: this run's row, if it has one, with the run's
+  // filter values.
+  virtual bool FindRow(OperatorState&, uint32_t*) const {
+    PERFETTO_FATAL("FindRow() without needs() ruling out batches");
   }
 
   // Identifies the concrete class. Each class has a `static constexpr char

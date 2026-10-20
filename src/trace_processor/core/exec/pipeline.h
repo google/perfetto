@@ -55,6 +55,10 @@ class Pipeline final : public Source {
   void Rewind(OperatorState& state) const override;
   base::Status status(const OperatorState& state) const override;
   const Layout& layout() const override { return layout_; }
+  // With no steps, a run is its source's: it needs what the source does.
+  uint64_t needs() const override;
+  void Lend(RowBatch& out, OperatorState& state) const override;
+  bool FindRow(OperatorState& state, uint32_t* row) const override;
 
   // The pipeline's input.
   const Source& input() const { return source_; }

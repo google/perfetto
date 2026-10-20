@@ -19,12 +19,14 @@
 #include <sqlite3.h>
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <type_traits>
 #include <utility>
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/filter_value_cast.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
@@ -174,7 +176,12 @@ PlanCursor::PlanCursor(std::unique_ptr<pipeline::PhysicalPlan> plan,
     : plan_(std::move(plan)),
       pool_(pool),
       filter_values_(plan_->filter_values()),
-      rows_(plan_->source()) {}
+      rows_(plan_->source()) {
+  for (const pipeline::PhysicalPlan::Param& param : plan_->params()) {
+    binders_.push_back(
+        {BinderFor(param), &param, &filter_values_[param.value]});
+  }
+}
 
 PlanCursor::~PlanCursor() = default;
 
@@ -185,19 +192,70 @@ PlanCursor::Reader PlanCursor::OutputReader(uint32_t output) const {
 
 bool PlanCursor::Run(sqlite3_value** params) {
   // Each value is cast, as it is passed, for the column it is compared with.
-  ArgvFetcher fetcher;
-  fetcher.params = params;
-  for (const pipeline::PhysicalPlan::Param& param : plan_->params()) {
-    fetcher.item = nullptr;
-    auto cast =
-        param.op.Is<core::In>()
-            ? core::exec::GetFilterValueListCaster<ArgvFetcher>(param.type)
-            : core::exec::GetFilterValueCaster<ArgvFetcher>(param.type,
-                                                            param.op);
-    cast(fetcher, param.param, *pool_, &filter_values_[param.value]);
+  for (const Binder& binder : binders_) {
+    binder.bind(binder, params, pool_);
   }
   return rows_.Open(core::Span<const core::exec::FilterValue>(
       filter_values_.data(), filter_values_.data() + filter_values_.size()));
+}
+
+void PlanCursor::BindAny(const Binder& binder,
+                         sqlite3_value** params,
+                         StringPool* pool) {
+  ArgvFetcher fetcher;
+  fetcher.params = params;
+  const pipeline::PhysicalPlan::Param& param = *binder.param;
+  auto cast =
+      param.op.Is<core::In>()
+          ? core::exec::GetFilterValueListCaster<ArgvFetcher>(param.type)
+          : core::exec::GetFilterValueCaster<ArgvFetcher>(param.type, param.op);
+  cast(fetcher, param.param, *pool, binder.value);
+}
+
+// Casts an integer for an equality on a column of type T as CastFilterValue
+// does, without dispatching on the type or the comparison; any other value as
+// BindAny does.
+template <typename T>
+void PlanCursor::BindIntegerEq(const Binder& binder,
+                               sqlite3_value** params,
+                               StringPool* pool) {
+  sqlite3_value* value = params[binder.param->param];
+  if (PERFETTO_UNLIKELY(sqlite::value::Type(value) != sqlite::Type::kInteger)) {
+    return BindAny(binder, params, pool);
+  }
+  using Result = core::filter::CastFilterValueResult;
+  using Cast = core::StorageType::VariantTypeAtIndex<T, Result::Value>;
+  using Integer =
+      std::conditional_t<std::is_same_v<T, core::Id>, uint32_t, Cast>;
+  int64_t integer = sqlite::value::Int64(value);
+  if constexpr (sizeof(Integer) < sizeof(int64_t)) {
+    // Out of the column's range, it equals no value in it.
+    if (integer < std::numeric_limits<Integer>::min() ||
+        integer > std::numeric_limits<Integer>::max()) {
+      binder.value->value = Result::NoneMatch();
+      return;
+    }
+  }
+  binder.value->value = Result::Valid(Cast{static_cast<Integer>(integer)});
+}
+
+PlanCursor::BindFn PlanCursor::BinderFor(
+    const pipeline::PhysicalPlan::Param& param) {
+  if (!param.op.Is<core::Eq>()) {
+    return &BindAny;
+  }
+  switch (param.type.index()) {
+    case core::StorageType::GetTypeIndex<core::Id>():
+      return &BindIntegerEq<core::Id>;
+    case core::StorageType::GetTypeIndex<core::Uint32>():
+      return &BindIntegerEq<core::Uint32>;
+    case core::StorageType::GetTypeIndex<core::Int32>():
+      return &BindIntegerEq<core::Int32>;
+    case core::StorageType::GetTypeIndex<core::Int64>():
+      return &BindIntegerEq<core::Int64>;
+    default:
+      return &BindAny;
+  }
 }
 
 }  // namespace perfetto::trace_processor

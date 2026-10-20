@@ -82,10 +82,27 @@ class PlanCursor {
   uint32_t Id(uint32_t column) const { return rows_.Value<uint32_t>(column); }
 
  private:
+  // How a parameter is cast before each run, picked when the cursor is made:
+  // by its column's type and comparison, so the values most often passed need
+  // no dispatch on either.
+  struct Binder;
+  using BindFn = void (*)(const Binder&, sqlite3_value** params, StringPool*);
+  struct Binder {
+    BindFn bind = nullptr;
+    const pipeline::PhysicalPlan::Param* param = nullptr;
+    core::exec::FilterValue* value = nullptr;
+  };
+  static BindFn BinderFor(const pipeline::PhysicalPlan::Param&);
+  static void BindAny(const Binder&, sqlite3_value** params, StringPool*);
+  template <typename T>
+  static void BindIntegerEq(const Binder&, sqlite3_value** params, StringPool*);
+
   std::unique_ptr<pipeline::PhysicalPlan> plan_;
   StringPool* pool_;
   // The plan's filter values, with its parameters cast into them each run.
   std::vector<core::exec::FilterValue> filter_values_;
+  // By parameter.
+  std::vector<Binder> binders_;
   core::exec::RowCursor rows_;
 };
 

@@ -68,6 +68,13 @@ class IdEqScan final : public Source {
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
 
+  // With every column read where it lies, a run finds at most one row and
+  // needs nothing else: the columns are lent once, and each run only finds
+  // the row.
+  uint64_t needs() const override { return needs_; }
+  void Lend(RowBatch& out, OperatorState& state) const override;
+  bool FindRow(OperatorState& state, uint32_t* row) const override;
+
   // The rows a run with the values in `context` reads.
   Range Find(const Context& context) const;
 
@@ -76,6 +83,7 @@ class IdEqScan final : public Source {
   Layout layout_;
   uint32_t row_count_;
   uint32_t value_;
+  uint64_t needs_ = kNeedsAll;
 };
 
 // = on a Uint32 column sorted by SetId: the run of rows starting at the row

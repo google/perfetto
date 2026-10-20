@@ -41,8 +41,15 @@ namespace {
 
 }  // namespace
 
-RowCursor::RowCursor(const Source& source)
-    : source_(source), state_(source.MakeState(context_)) {}
+RowCursor::RowCursor(const Source& source, uint64_t needs)
+    : source_(source), needs_(needs), state_(source.MakeState(context_)) {
+  if (!(needs_ & kNeedBatches)) {
+    // Every run's row is read from this batch.
+    source_.Lend(scratch_, *state_);
+    PERFETTO_DCHECK(Matches(scratch_, layout()));
+    batch_ = &scratch_;
+  }
+}
 
 RowCursor::~RowCursor() = default;
 

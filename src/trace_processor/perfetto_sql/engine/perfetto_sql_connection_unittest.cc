@@ -816,6 +816,32 @@ TEST_F(PerfettoSqlConnectionPipelineTest, OutputConstraintsSearchTables) {
   EXPECT_THAT(*joined, testing::UnorderedElementsAre("1", "2", "4"));
 }
 
+// A lookup by id casts the number it is passed as SQL does, whatever its
+// type.
+TEST_F(PerfettoSqlConnectionPipelineTest, LookupsByIdCastAsSql) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE PERFETTO TABLE t AS
+    SELECT 0 AS id, 10 AS v
+    UNION ALL SELECT 1, 11
+    UNION ALL SELECT 2, 12
+  )")
+                  .ok());
+  std::string keys =
+      "(VALUES (1, 'int'), (-1, 'negative'), (4294967297, 'past uint32'), "
+      "(3, 'past the rows'), (2.0, 'whole real'), (1.5, 'real'), "
+      "(NULL, 'null')) AS k";
+  auto sql = Rows("SELECT k.column2, t.v FROM " + keys +
+                  " JOIN t ON t.id = k.column1 ORDER BY 1");
+  ASSERT_TRUE(sql.ok()) << sql.status().c_message();
+  EXPECT_THAT(*sql, testing::ElementsAre("int,11", "whole real,12"));
+  std::string scan = From(PipelineSql("FROM t"));
+  auto pipeline = Rows("SELECT k.column2, p.c1 FROM " + keys + ", " +
+                       scan.substr(strlen(" FROM ")) +
+                       " AS p WHERE p.c0 = k.column1 ORDER BY 1");
+  ASSERT_TRUE(pipeline.ok()) << pipeline.status().c_message();
+  EXPECT_EQ(*pipeline, *sql);
+}
+
 // Constraints on an intersection's output pass through it to the operands
 // whose columns they test, as a WHERE on it does.
 TEST_F(PerfettoSqlConnectionPipelineTest, OutputConstraintsPassIntersections) {

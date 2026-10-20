@@ -19096,6 +19096,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.cc",
         "src/trace_processor/perfetto_sql/engine/pipeline_module.cc",
+        "src/trace_processor/perfetto_sql/engine/plan_cursor.cc",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
         "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.cc",
         "src/trace_processor/perfetto_sql/engine/static_table_function_module.cc",
@@ -19190,6 +19191,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_pipeline_pipeline",
     srcs: [
+        "src/trace_processor/perfetto_sql/pipeline/filter_passing.cc",
         "src/trace_processor/perfetto_sql/pipeline/operation_registry.cc",
     ],
 }
@@ -19202,6 +19204,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/pipeline/catalog.cc",
         "src/trace_processor/perfetto_sql/pipeline/column_pruning.cc",
         "src/trace_processor/perfetto_sql/pipeline/compiler.cc",
+        "src/trace_processor/perfetto_sql/pipeline/cost_estimation.cc",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/physical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.cc",
@@ -19227,6 +19230,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_pipeline_unittests",
     srcs: [
+        "src/trace_processor/perfetto_sql/pipeline/cost_estimation_unittest.cc",
         "src/trace_processor/perfetto_sql/pipeline/physical_plan_unittest.cc",
         "src/trace_processor/perfetto_sql/pipeline/plan_serialization_unittest.cc",
     ],

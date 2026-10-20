@@ -37,10 +37,15 @@ namespace perfetto::trace_processor::core::exec {
 // This is the executor: it creates the state and owns the batch and the
 // Context the run fills columns from, which is what
 // lets the plan itself be const. A new batch is pulled only when the current
-// one is exhausted.
+// one is exhausted. What the source's needs() rule out is skipped: a source
+// finding one row per run has it found, with nothing rewound or pulled.
 class RowCursor {
  public:
-  explicit RowCursor(const Source& source);
+  explicit RowCursor(const Source& source)
+      : RowCursor(source, source.needs()) {}
+  // Runs as if the source needed `needs`: tests pass kNeedsAll to check the
+  // source's needs() against running everything.
+  RowCursor(const Source& source, uint64_t needs);
   RowCursor(Source&&) = delete;
   ~RowCursor();
 
@@ -48,9 +53,15 @@ class RowCursor {
   // `filter_values` (see Context::SetFilterValues).
   bool Open(Span<const FilterValue> filter_values = {}) {
     context_.SetFilterValues(filter_values);
-    source_.Rewind(*state_);
-    batch_ = nullptr;
+    if (needs_ & kNeedRewind) {
+      source_.Rewind(*state_);
+    }
     index_ = 0;
+    if (!(needs_ & kNeedBatches)) {
+      size_ = source_.FindRow(*state_, &row_);
+      return size_ != 0;
+    }
+    batch_ = nullptr;
     size_ = 0;
     return Pull();
   }
@@ -65,7 +76,8 @@ class RowCursor {
       row_ = batch_->selection()[index_];
       return true;
     }
-    return Pull();
+    // A run finding its row has no other.
+    return (needs_ & kNeedBatches) && Pull();
   }
 
   bool eof() const { return index_ == size_; }
@@ -90,6 +102,7 @@ class RowCursor {
   bool Pull();
 
   const Source& source_;
+  uint64_t needs_;
   // Before the state and the batch, which hold its buffers.
   Context context_;
   std::unique_ptr<OperatorState> state_;

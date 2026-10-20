@@ -452,5 +452,50 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
   EXPECT_GT(index_scans_, 0u);
 }
 
+// A lookup by id with every column read where it lies finds its row with
+// nothing else run, and finds what running everything finds.
+TEST(IdEqScanTest, ALookupFindsWhatRunningEverythingFinds) {
+  StringPool pool;
+  dataframe::AdhocDataframeBuilder builder({"ts"}, &pool);
+  for (int64_t ts : {10, 20, 30, 40, 50}) {
+    PERFETTO_CHECK(builder.PushNonNull(0, kBig + ts));
+  }
+  auto df = std::move(builder).Build();
+  ASSERT_TRUE(df.ok());
+  // ts, then the id the builder adds.
+  IdEqScan scan({df->shared_column(0), df->shared_column(1)}, df->row_count(),
+                0);
+  EXPECT_EQ(scan.needs(), 0u);
+  RowCursor found(scan);
+  RowCursor run(scan, kNeedsAll);
+  auto read = [](RowCursor& cursor, const FilterValue& value) {
+    std::vector<int64_t> ts;
+    for (bool row = cursor.Open(Span<const FilterValue>(&value, &value + 1));
+         row; row = cursor.Next()) {
+      ts.push_back(cursor.Value<int64_t>(0));
+    }
+    return ts;
+  };
+  for (const Value& v :
+       {Value{int64_t{3}}, Value{int64_t{0}}, Value{int64_t{4}},
+        Value{int64_t{5}}, Value{int64_t{-1}}, Value{2.0}, Value{2.5},
+        Value{std::string("1")}, Value{nullptr}}) {
+    std::vector<Value> values = {v};
+    Values fetcher;
+    fetcher.values = &values;
+    FilterValue cast;
+    GetFilterValueCaster<Values>(StorageType{Id{}}, Eq{})(fetcher, 0, pool,
+                                                          &cast);
+    EXPECT_EQ(read(found, cast), read(run, cast));
+  }
+  std::vector<Value> three = {int64_t{3}};
+  Values fetcher;
+  fetcher.values = &three;
+  FilterValue cast;
+  GetFilterValueCaster<Values>(StorageType{Id{}}, Eq{})(fetcher, 0, pool,
+                                                        &cast);
+  EXPECT_THAT(read(found, cast), testing::ElementsAre(kBig + 40));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core::exec

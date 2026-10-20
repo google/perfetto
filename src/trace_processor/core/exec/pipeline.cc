@@ -110,6 +110,18 @@ std::unique_ptr<OperatorState> Pipeline::MakeState(Context& context) const {
   return state;
 }
 
+uint64_t Pipeline::needs() const {
+  return steps_.empty() ? source_.needs() : kNeedsAll;
+}
+
+void Pipeline::Lend(RowBatch& out, OperatorState& state) const {
+  source_.Lend(out, *state.Cast<State>().source_state);
+}
+
+bool Pipeline::FindRow(OperatorState& state, uint32_t* row) const {
+  return source_.FindRow(*state.Cast<State>().source_state, row);
+}
+
 void Pipeline::Rewind(OperatorState& state) const {
   auto& s = state.Cast<State>();
   ++s.run;

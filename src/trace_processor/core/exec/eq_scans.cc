@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/core/exec/eq_scans.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <utility>
@@ -93,9 +94,33 @@ IdEqScan::IdEqScan(
     : columns_(std::move(columns)),
       layout_(DataframeLayout(columns_)),
       row_count_(row_count),
-      value_(value) {}
+      value_(value) {
+  bool in_place =
+      std::all_of(columns_.begin(), columns_.end(), [](const auto& column) {
+        const auto& nullability = column->null_storage.nullability();
+        return nullability.template Is<NonNull>() ||
+               nullability.template Is<DenseNull>();
+      });
+  if (in_place) {
+    needs_ = 0;
+  }
+}
 
 IdEqScan::~IdEqScan() = default;
+
+void IdEqScan::Lend(RowBatch& out, OperatorState& state) const {
+  state.Cast<EqScanState>().reader.Lend(out);
+}
+
+bool IdEqScan::FindRow(OperatorState& state, uint32_t* row) const {
+  Range range = Find(*state.Cast<EqScanState>().context);
+  if (range.b == range.e) {
+    return false;
+  }
+  // An id is its row: at most one.
+  *row = range.b;
+  return true;
+}
 
 std::unique_ptr<OperatorState> IdEqScan::MakeState(Context& context) const {
   return MakeEqScanState(columns_, context);
