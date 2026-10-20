@@ -262,16 +262,20 @@ core::exec::IntervalLaneSpec Lowering::RequireIntervalLanes(
 Lowering::TreeColumns Lowering::RequireTreeWalk(ColumnId node,
                                                 ColumnId parent,
                                                 TreeDirection direction) {
-  if (!tree_columns_) {
+  bool same_tree =
+      tree_columns_ && tree_node_ == node && tree_parent_ == parent;
+  if (same_tree && tree_walk_ == direction) {
+    return *tree_columns_;
+  }
+  if (same_tree && DropOpenSort() && tree_walk_ == direction) {
+    return *tree_columns_;
+  }
+  if (!same_tree) {
     AddOrderIndependent(std::make_unique<ex::TreeNumberNodes>(
         QueryPosition(node), QueryPosition(parent)));
     tree_columns_ = TreeColumns{column_count_++, column_count_++};
-  }
-  if (tree_walk_ == direction) {
-    return *tree_columns_;
-  }
-  if (DropOpenSort() && tree_walk_ == direction) {
-    return *tree_columns_;
+    tree_node_ = node;
+    tree_parent_ = parent;
   }
   if (direction == TreeDirection::kUp) {
     AddBreaker(std::make_unique<ex::TreeChildFirst>(tree_columns_->node,
@@ -311,6 +315,11 @@ void Lowering::DeclareSortedWithinGroups(
 
 void Lowering::DeclareSmallBatches() {
   full_batches_ = false;
+}
+
+void Lowering::DeclareRowsDropped() {
+  tree_walk_.reset();
+  tree_columns_.reset();
 }
 
 void Lowering::DeclareGroupNumbers(const std::vector<ColumnId>& keys,

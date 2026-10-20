@@ -47,6 +47,52 @@ class PerfettoPipeline(TestSuite):
         "root",10,100,10
         """))
 
+  # A stage walks the tree its own id and parent_id describe, even when an
+  # earlier stage walked another.
+  def test_tree_accumulate_after_the_tree_changes(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 0 AS id, NULL AS parent_id, 1 AS v, 0 AS id2, 1 AS p2
+        UNION ALL SELECT 1, 0, 10, 1, 2
+        UNION ALL SELECT 2, 1, 100, 2, NULL;
+
+        FROM t
+        |> TREE ACCUMULATE UP SUM(v) AS a
+        |> SET id = id2, parent_id = p2
+        |> TREE ACCUMULATE UP SUM(v) AS b
+        |> ORDER BY v
+        |> SELECT v, a, b;
+        """,
+        out=Csv("""
+        "v","a","b"
+        1,111,1
+        10,110,11
+        100,100,111
+        """))
+
+  # Rows dropped between two stages can leave a parent missing, which the
+  # second stage finds as it would with no stage before it.
+  def test_tree_accumulate_after_rows_are_dropped(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 0 AS id, NULL AS parent_id, 1 AS v
+        UNION ALL SELECT 1, 0, 10
+        UNION ALL SELECT 2, 1, 100;
+
+        FROM t
+        |> TREE ACCUMULATE UP SUM(v) AS a
+        |> WHERE v > 1
+        |> TREE ACCUMULATE UP SUM(v) AS b
+        |> SELECT v, a, b;
+        """,
+        out=ExpectedError('a row names a parent which is not itself a row'))
+
   # Must match the descendant closure, which this is meant to replace.
   def test_tree_accumulate_matches_closure(self):
     return DiffTestBlueprint(

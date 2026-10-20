@@ -75,6 +75,7 @@ void Distinct::Lower(Lowering* c, const PlanNode& node) const {
   // Rows kept stay in their input order, so any known arrangement survives.
   c->AddOperator(std::make_unique<ex::Distinct>(std::move(positions)));
   c->DeclareSmallBatches();
+  c->DeclareRowsDropped();
 }
 
 const OperationRegistration& Distinct::registration() const {

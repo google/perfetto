@@ -224,7 +224,8 @@ class Lowering {
   void RequireFullBatches();
 
   // Orders rows as a tree walk in `direction`, and returns the positions of
-  // the node number columns. The numbering is reused until ResetLayout.
+  // the node number columns. The numbering is reused while `node` and
+  // `parent` are the columns it was made from, until ResetLayout.
   TreeColumns RequireTreeWalk(ColumnId node, ColumnId parent, TreeDirection);
 
   // ---------------------------------------------------------------------------
@@ -252,6 +253,10 @@ class Lowering {
   // Records that an added operator may output small batches, for example
   // because it drops rows. Batches are assumed to be full otherwise.
   void DeclareSmallBatches();
+
+  // Records that an added operator drops rows. A tree numbered before may
+  // now name parents which are gone, so the next tree walk numbers it again.
+  void DeclareRowsDropped();
 
   // Records that the column at `position` holds group numbers for `keys`.
   void DeclareGroupNumbers(const std::vector<ColumnId>& keys,
@@ -382,8 +387,12 @@ class Lowering {
   bool full_batches_ = true;
 
   // The tree node number columns, if the tree is numbered. They stay valid
-  // when rows are reordered, until ResetLayout.
+  // when rows are reordered, until ResetLayout, DeclareRowsDropped or a walk
+  // of another tree.
   std::optional<TreeColumns> tree_columns_;
+  // The id and parent columns `tree_columns_` were numbered from.
+  ColumnId tree_node_ = 0;
+  ColumnId tree_parent_ = 0;
 
   // The group number columns. They stay valid when rows are reordered, until
   // ResetLayout.
