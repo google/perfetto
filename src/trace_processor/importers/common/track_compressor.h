@@ -218,7 +218,7 @@ class TrackCompressor {
                 {
                     blueprint.event_type,
                     blueprint.type,
-                    blueprint.hasher,
+                    blueprint.hash_seed,
                     blueprints,
                 },
                 fn,
@@ -233,7 +233,7 @@ class TrackCompressor {
                 {
                     blueprint.event_type,
                     blueprint.type,
-                    blueprint.hasher,
+                    blueprint.hash_seed,
                     blueprints,
                 },
                 blueprint.name_blueprint,
