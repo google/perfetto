@@ -30,6 +30,7 @@ import type {
 } from './api';
 import {ChatPanel} from './chat_panel';
 import {ChatSession} from './chat_session';
+import {ConversationStore} from './conversation_store';
 import {registerDataExplorerTools} from './data_explorer_tools';
 import {
   ContextRegistry,
@@ -109,6 +110,7 @@ export default class IntellettoPlugin
       defaultValue: undefined,
       headless: true,
     });
+    IntellettoPlugin.conversationStore = new ConversationStore();
     IntellettoPlugin.appContext = new ContextRegistry();
     registerAppContextProviders(IntellettoPlugin.appContext, app);
 
@@ -121,6 +123,7 @@ export default class IntellettoPlugin
       icon: 'psychology',
       render: () => {
         const gateway = LlmPlugin.gateway;
+        const store = IntellettoPlugin.conversationStore;
         const selectedModelSetting = IntellettoPlugin.selectedModelSetting;
         const getTools = () => IntellettoPlugin.getActiveTools();
         const getContext = () => IntellettoPlugin.getActiveContext();
@@ -128,17 +131,34 @@ export default class IntellettoPlugin
           gateway,
           getTools,
           getContext,
+          store,
+          {model: selectedModelSetting.get()},
         );
         return m(ChatPanel, {
           gateway,
           session: IntellettoPlugin.session,
           context: getContext(),
           selectedModelSetting,
+          conversations: store.list(),
           onNewSession: () => {
             if (IntellettoPlugin.session?.loading) {
               IntellettoPlugin.session.cancel();
             }
             IntellettoPlugin.session = undefined;
+          },
+          onSelectConversation: (id: string) => {
+            const stored = store.get(id);
+            if (stored === undefined) return;
+            if (IntellettoPlugin.session?.loading) {
+              IntellettoPlugin.session.cancel();
+            }
+            IntellettoPlugin.session = new ChatSession(
+              gateway,
+              getTools,
+              getContext,
+              store,
+              {stored},
+            );
           },
         });
       },
@@ -151,6 +171,10 @@ export default class IntellettoPlugin
       defaultHotkey: 'Mod+Shift+A',
     });
   }
+
+  // App-scoped store of past conversations, persisted to localStorage and
+  // shared across all traces.
+  private static conversationStore: ConversationStore;
 
   // The shared tool registry for this trace. Core tools plus any contributed by
   // other plugins land here; the chat panel hands it to the agent.

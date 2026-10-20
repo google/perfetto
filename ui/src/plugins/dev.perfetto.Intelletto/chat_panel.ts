@@ -35,6 +35,7 @@ import type {
 import './chat_panel.scss';
 import type {ChatLine, ChatSession} from './chat_session';
 import type {ContextItem, ContextRegistry} from './context';
+import type {StoredConversation} from './conversation_store';
 import {renderMarkdown} from './markdown';
 import {maybeUndefined} from '../../base/utils';
 import type {Setting} from '../../public/settings';
@@ -53,8 +54,12 @@ export interface ChatPanelAttrs {
   // model is unavailable or undefined, we fall back to the first agentic
   // model. If no agentic models are registered, messages cannot be sent.
   readonly selectedModelSetting: Setting<ModelPath | undefined>;
+  // Past conversations available to switch to, most recent first.
+  readonly conversations: readonly StoredConversation[];
   // Callback for when the user requests a new session.
   readonly onNewSession: () => void;
+  // Callback for when the user picks a past conversation from the dropdown.
+  readonly onSelectConversation: (id: string) => void;
 }
 
 // Given a currently selected model path and a gateway to fetch the list of all
@@ -112,8 +117,17 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
     const agenticModels = gateway
       .listModels()
       .filter((rm) => rm.model.roles.includes('agentic'));
-    const currentModel = getValidModel(selectedModelSetting.get(), gateway);
-    const onModelChange = (model: ModelPath) => selectedModelSetting.set(model);
+    // The conversation's own model takes precedence; fresh conversations fall
+    // back to the last-selected model.
+    const currentModel = getValidModel(
+      session.model ?? selectedModelSetting.get(),
+      gateway,
+    );
+    const onModelChange = (model: ModelPath) => {
+      session.model = model;
+      selectedModelSetting.set(model);
+      session.save();
+    };
 
     return m(
       '.pf-intelletto',
@@ -136,6 +150,7 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
             ?.focus();
         },
       },
+      this.renderConversationPicker(attrs),
       this.renderHeader(attrs, agenticModels),
       m(
         '.pf-intelletto__conversation',
@@ -289,15 +304,38 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
       m(Button, {
         icon: 'add_comment',
         title: 'New conversation',
-        onclick: () => {
-          const ok = window.confirm(
-            'This will discard the current converstaion and open a new one. Are you sure you want to continue?',
-          );
-          if (ok) {
-            onNewSession();
-          }
-        },
+        onclick: () => onNewSession(),
       }),
+    );
+  }
+
+  // The dropdown of past conversations. The current conversation is always
+  // listed, even before it has been persisted (i.e. while still empty).
+  // Disabled while a turn is in flight so the stream isn't orphaned.
+  private renderConversationPicker(attrs: ChatPanelAttrs): m.Children {
+    const {session, conversations, onSelectConversation} = attrs;
+    const isStored = conversations.some((c) => c.id === session.id);
+    const options = isStored
+      ? conversations
+      : [{id: session.id, title: session.title}, ...conversations];
+
+    return m(
+      '.pf-intelletto__conversations',
+      m(
+        Select,
+        {
+          class: 'pf-intelletto__conversation-select',
+          value: session.id,
+          disabled: session.loading,
+          onchange: (e: Event) => {
+            const id = (e.target as HTMLSelectElement).value;
+            if (id !== session.id) onSelectConversation(id);
+          },
+        },
+        options.map((c) =>
+          m('option', {key: c.id, value: c.id}, conversationLabel(c)),
+        ),
+      ),
     );
   }
 
@@ -479,6 +517,20 @@ function shortModelName(model: ModelDetails): string {
 function modelName(model: ModelDetails): string {
   const protocolName = model.provider.label || model.provider.protocolName;
   return `${protocolName}/${shortModelName(model)}`;
+}
+
+// Dropdown label for a conversation: its title, plus when it was last updated
+// if it has been persisted.
+function conversationLabel(c: {
+  readonly title: string;
+  readonly updatedAt?: number;
+}): string {
+  if (c.updatedAt === undefined) return c.title;
+  const when = new Date(c.updatedAt).toLocaleString(undefined, {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
+  return `${c.title} (${when})`;
 }
 
 function prettyJson(value: unknown): string {

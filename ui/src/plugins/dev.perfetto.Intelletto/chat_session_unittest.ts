@@ -19,6 +19,7 @@ import {LlmGateway, type ModelPath} from '../dev.perfetto.Llm/gateway';
 import type {Protocol, Request} from '../dev.perfetto.Llm/protocol';
 import {ChatSession} from './chat_session';
 import {ContextRegistry} from './context';
+import {ConversationStore} from './conversation_store';
 import {ToolRegistry} from './tools';
 
 const MODEL: ModelPath = {providerId: 'test-provider', modelId: 'test-model'};
@@ -98,6 +99,8 @@ describe('ChatSession dynamic registries', () => {
       gateway,
       () => activeTools,
       () => activeContext,
+      new ConversationStore(),
+      {model: MODEL},
     );
 
     expect(session.systemPrompt).toContain('Trace A context format');
