@@ -76,9 +76,9 @@ WITH
   process_lifetimes AS (
     SELECT
       p.upid,
-      -- AndroidProcessStartEvent only sets fw_start_ts; process.start_ts comes
-      -- from ftrace forks.
-      coalesce(fw.fw_start_ts, p.start_ts, trace_start()) AS start_ts,
+      -- AndroidProcessStartEvent only sets fw_start_ts; process.start_ts can
+      -- predate the trace, but the initial state is only known from its start.
+      max(coalesce(fw.fw_start_ts, p.start_ts, trace_start()), trace_start()) AS start_ts,
       p.end_ts AS death_ts
     FROM (SELECT DISTINCT upid FROM __intrinsic_android_process_state)
     JOIN process AS p USING (upid)

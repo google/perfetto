@@ -226,11 +226,12 @@ FROM app_freeze_changes;
 CREATE PERFETTO TABLE _android_freezer_intervals AS
 WITH
   -- A frozen process that gets killed emits no unfreeze, so spans stop at its
-  -- death. death is NULL while the process lives on at trace end.
+  -- death. death is NULL while the process lives on at trace end. The birth is
+  -- clamped to the trace start, as process.start_ts can predate the trace.
   lifetimes AS (
     SELECT
       p.upid,
-      coalesce(fw.fw_start_ts, p.start_ts, trace_start()) AS birth,
+      max(coalesce(fw.fw_start_ts, p.start_ts, trace_start()), trace_start()) AS birth,
       p.end_ts AS death
     FROM process AS p
     LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
