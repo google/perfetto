@@ -49,10 +49,11 @@ const OperationRegistration IntervalIntersect::kRegistration{
 namespace {
 
 // The column of a relation named `name`, or nothing when it has none.
-std::optional<ColumnId> FindColumn(const std::vector<NamedColumn>& columns,
-                                   const std::string& name) {
+std::optional<ColumnId> FindColumn(const Compiler& c,
+                                   const std::vector<NamedColumn>& columns,
+                                   NameId name) {
   for (const NamedColumn& column : columns) {
-    if (base::CaseInsensitiveEqual(column.name, name)) {
+    if (c.Same(column.name, name)) {
       return column.id;
     }
   }
@@ -80,17 +81,19 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
   IntervalIntersect isect;
   // The region's bounds are the operation's own, so they are named before an
   // operand can bind anything.
-  isect.ts_ = c->AddColumn("ts", core::Int64{});
-  isect.dur_ = c->AddColumn("dur", core::Int64{});
+  NameId ts_name = c->Name("ts");
+  NameId dur_name = c->Name("dur");
+  isect.ts_ = c->AddColumn(ts_name, core::Int64{});
+  isect.dur_ = c->AddColumn(dur_name, core::Int64{});
 
-  c->Append({"ts", isect.ts_}, node);
-  c->Append({"dur", isect.dur_}, node);
+  c->Append({ts_name, isect.ts_}, node);
+  c->Append({dur_name, isect.dur_}, node);
   std::vector<PlanNodeId> children;
   for (uint32_t i = 0; i < count; i++) {
     uint32_t source_id = syntaqlite_list_child_id(list, i);
     const auto* source =
         Node<SyntaqlitePerfettoPipeSource>(c->parser(), source_id);
-    std::optional<std::string> alias = Scan::SourceQualifier(c, *source);
+    std::optional<NameId> alias = Scan::SourceQualifier(c, *source);
     if (!alias) {
       return c->Expected(source_id,
                          "an alias for the relation, as in `(...) AS x`");
@@ -100,11 +103,11 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
     }
     ASSIGN_OR_RETURN(SourceRelation relation,
                      Scan::BuildRelation(c, source_id));
-    std::optional<ColumnId> ts = FindColumn(relation.columns, "ts");
-    std::optional<ColumnId> dur = FindColumn(relation.columns, "dur");
+    std::optional<ColumnId> ts = FindColumn(*c, relation.columns, ts_name);
+    std::optional<ColumnId> dur = FindColumn(*c, relation.columns, dur_name);
     if (!ts || !dur) {
-      return c->Expected(
-          source_id, *alias + " to have a " + (ts ? "dur" : "ts") + " column");
+      return c->Expected(source_id, c->Text(*alias) + " to have a " +
+                                        (ts ? "dur" : "ts") + " column");
     }
     IntervalIntersect::Operand operand;
     operand.ts = *ts;
@@ -112,10 +115,11 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
     for (uint32_t k = 0; k < key_count; k++) {
       uint32_t col_id = syntaqlite_list_child_id(per, k);
       const auto* col = Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id);
-      std::string name = SpanText(c->parser(), col->name);
-      std::optional<ColumnId> key = FindColumn(relation.columns, name);
+      NameId name = c->Name(col->name);
+      std::optional<ColumnId> key = FindColumn(*c, relation.columns, name);
       if (!key) {
-        return c->Expected(col_id, *alias + " to have a " + name + " column");
+        return c->Expected(col_id, c->Text(*alias) + " to have a " +
+                                       c->Text(name) + " column");
       }
       operand.keys.push_back(*key);
     }
@@ -245,8 +249,8 @@ void IntervalIntersect::Write(PlanWriter* c,
                               Available* available_columns) const {
   auto& available = *available_columns;
   const auto& isect = node.Cast<IntervalIntersect>();
-  c->writer().Str(c->plan().columns()[isect.ts_].name);
-  c->writer().Str(c->plan().columns()[isect.dur_].name);
+  c->writer().U32(c->plan().columns()[isect.ts_].name);
+  c->writer().U32(c->plan().columns()[isect.dur_].name);
   c->writer().Size(isect.operands_.size());
   c->writer().Size(isect.operands_.empty() ? 0
                                            : isect.operands_[0].keys.size());
@@ -274,8 +278,8 @@ void IntervalIntersect::DecodePlan(PlanReader* c,
                                    Available* available_columns) {
   auto& available = *available_columns;
   IntervalIntersect isect;
-  isect.ts_ = c->AddColumn(c->reader().Str(), core::Int64{});
-  isect.dur_ = c->AddColumn(c->reader().Str(), core::Int64{});
+  isect.ts_ = c->AddColumn(c->Name(), core::Int64{});
+  isect.dur_ = c->AddColumn(c->Name(), core::Int64{});
   available = {isect.ts_, isect.dur_};
   isect.operands_.resize(c->reader().Count());
   uint32_t keys = c->reader().Count();

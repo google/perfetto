@@ -47,7 +47,7 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
   AggregateStage aggregate;
   // A key is listed once, as after PER. The names columns end up with can
   // repeat, as in any row.
-  std::vector<std::string> listed;
+  std::vector<NameId> listed;
   std::vector<std::pair<NamedColumn, uint32_t>> keys;
   if (syntaqlite_node_is_present(n->group_by)) {
     const auto* list =
@@ -56,18 +56,21 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
       uint32_t item_id = syntaqlite_list_child_id(list, i);
       const auto* item =
           Node<SyntaqlitePerfettoPipeColumn>(c->parser(), item_id);
-      std::string qualifier = IsSpanPresent(item->qualifier)
-                                  ? SpanText(c->parser(), item->qualifier)
-                                  : "";
-      std::string name = SpanText(c->parser(), item->name);
+      std::optional<NameId> qualifier;
+      if (IsSpanPresent(item->qualifier)) {
+        qualifier = c->Name(item->qualifier);
+      }
+      NameId name = c->Name(item->name);
       ASSIGN_OR_RETURN(ColumnId key, c->Resolve(qualifier, name, item_id));
-      RETURN_IF_ERROR(c->CheckListedOnce(
-          listed, qualifier.empty() ? name : qualifier + "." + name, item_id));
+      // A key is listed once whichever way it is written.
+      NameId written =
+          qualifier ? c->Name(c->Text(*qualifier) + "." + c->Text(name)) : name;
+      RETURN_IF_ERROR(c->CheckListedOnce(listed, written, item_id));
       if (IsSpanPresent(item->alias)) {
-        name = SpanText(c->parser(), item->alias);
+        name = c->Name(item->alias);
       }
       aggregate.keys_.push_back(key);
-      keys.push_back({NamedColumn{std::move(name), key}, item_id});
+      keys.push_back({NamedColumn{name, key}, item_id});
     }
   }
 
@@ -78,11 +81,10 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
     uint32_t agg_id = syntaqlite_list_child_id(list, i);
     const auto* agg = Node<SyntaqlitePerfettoAggregate>(c->parser(), agg_id);
     ASSIGN_OR_RETURN(Aggregate resolved, c->ResolveAggregate(agg->expr));
-    std::string name = SpanText(c->parser(), agg->name);
+    NameId name = c->Name(agg->name);
     resolved.output = c->AddColumn(name, core::Int64{});
     aggregate.aggregates_.push_back(resolved);
-    aggregates.push_back(
-        {NamedColumn{std::move(name), resolved.output}, agg_id});
+    aggregates.push_back({NamedColumn{name, resolved.output}, agg_id});
   }
 
   // Only the keys and aggregates are visible after this stage.

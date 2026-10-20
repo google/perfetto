@@ -65,7 +65,7 @@ void WriteAggregates(PlanWriter* c,
     if (agg.reads_column()) {
       c->writer().Position(available, agg.column);
     }
-    c->writer().Str(c->plan().columns()[agg.output].name);
+    c->writer().U32(c->plan().columns()[agg.output].name);
   }
 }
 
@@ -83,7 +83,7 @@ void ReadAggregates(PlanReader* c,
     if (agg.reads_column()) {
       agg.column = c->reader().Position(available);
     }
-    agg.output = c->AddColumn(c->reader().Str(), core::Int64{});
+    agg.output = c->AddColumn(c->Name(), core::Int64{});
   }
 }
 

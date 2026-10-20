@@ -146,8 +146,9 @@ void Lowering::RequireType(ColumnId column, core::StorageType type) {
     const char* what = type.Is<core::String>()   ? "strings"
                        : type.Is<core::Double>() ? "numbers"
                                                  : "integers";
-    Fail(base::ErrStatus("column '%s' must hold %s",
-                         plan().columns()[column].name.c_str(), what));
+    Fail(base::ErrStatus(
+        "column '%s' must hold %s",
+        plan().names().text(plan().columns()[column].name).c_str(), what));
     return;
   }
   Convert({this, column}, type);
@@ -161,7 +162,7 @@ PlanType Lowering::RequireCommonType(const std::vector<Side>& sides) {
     if (!next) {
       Fail(base::ErrStatus(
           "column '%s' holds strings in one input and numbers in another",
-          plan().columns()[side.column].name.c_str()));
+          plan().names().text(plan().columns()[side.column].name).c_str()));
       return common;
     }
     common = *next;
@@ -493,7 +494,8 @@ void Lowering::Convert(const Side& side, const PlanType& type) {
   }
   PERFETTO_DCHECK(target.Is<core::String>() == type.Is<core::String>());
   side.pipeline->AddOrderIndependent(std::make_unique<ex::AssertType>(
-      position, target, plan.plan().columns()[side.column].name));
+      position, target,
+      plan.plan().names().text(plan.plan().columns()[side.column].name)));
 }
 
 std::unique_ptr<ex::Pipeline> Lowering::Build() {
@@ -523,7 +525,8 @@ base::StatusOr<std::unique_ptr<PhysicalPlan>> PlanLowering::Finish() {
   out_->pipeline_ = lowering.Build();
   out_->input_ = std::move(lowering.input_);
   for (const NamedColumn& column : plan_.output()) {
-    out_->columns_.push_back({column.name, lowering.QueryPosition(column.id)});
+    out_->columns_.push_back(
+        {plan_.names().text(column.name), lowering.QueryPosition(column.id)});
   }
   return std::move(out_);
 }

@@ -145,7 +145,9 @@ class PlanReader {
   explicit PlanReader(Reader& r);
 
   LogicalPlan Read();
-  ColumnId AddColumn(std::string name, PlanType type);
+  ColumnId AddColumn(NameId name, PlanType type);
+  // Reads a name's id, failing unless the plan has that name.
+  NameId Name();
 
   template <typename T>
   PlanNodeId AddNode(T operation, std::vector<PlanNodeId> children = {}) {
