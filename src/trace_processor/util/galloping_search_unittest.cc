@@ -174,8 +174,11 @@ TEST(GallopingSearchTest, PartitionPointsMatchStd) {
       auto pred = [](uint32_t v) { return v == 0; };
       const uint32_t* b = data.data();
       const uint32_t* e = b + size;
-      EXPECT_EQ(PartitionPoint(b, e, pred) - b, point) << size;
-      EXPECT_EQ(GallopingPartitionPoint(b, e, pred) - b, point) << size;
+      EXPECT_EQ(static_cast<uint32_t>(PartitionPoint(b, e, pred) - b), point)
+          << size;
+      EXPECT_EQ(static_cast<uint32_t>(GallopingPartitionPoint(b, e, pred) - b),
+                point)
+          << size;
     }
   }
 }
