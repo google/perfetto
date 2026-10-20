@@ -17,7 +17,8 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_STATUS_OR_H_
 #define INCLUDE_PERFETTO_EXT_BASE_STATUS_OR_H_
 
-#include <optional>
+#include <new>
+#include <type_traits>
 #include <utility>
 
 #include "perfetto/base/status.h"
@@ -31,26 +32,86 @@ namespace base {
 //
 // This class is modelled closely on absl::Status and should essentially 1:1
 // match it's API.
+//
+// The value is held only while the status is ok, in a union, as
+// std::optional holds its value: there is no separate flag for whether there
+// is a value. A value is only ever constructed where there was none and
+// destroyed where there will be none; one value replaces another by T's own
+// assignment.
 template <typename T>
 class StatusOr {
  public:
+  static_assert(!std::is_const<T>::value,
+                "StatusOr<const T> is not supported: use StatusOr<T>");
+
   // Matches naming of declarations in similar types e.g. std::optional,
   // std::variant.
   using value_type = T;
 
   // Intentionally implicit to allow idomatic usage (e.g. returning value/status
   // from base::StatusOr returning function).
-  StatusOr(base::Status status) : StatusOr(std::move(status), std::nullopt) {
+  StatusOr(base::Status status) : status_(std::move(status)) {
     if (status_.ok()) {
       // Matches what Abseil's approach towards OkStatus being passed to
       // absl::StatusOr<T>.
       PERFETTO_FATAL("base::OkStatus passed to StatusOr: this is not allowed");
     }
   }
-  StatusOr(T value) : StatusOr(base::OkStatus(), std::move(value)) {}
+  StatusOr(T value) { new (&value_) T(std::move(value)); }
+
+  StatusOr(const StatusOr& other) : status_(other.status_) {
+    if (ok()) {
+      new (&value_) T(other.value_);
+    }
+  }
+  // A moved-from StatusOr keeps its status, and so a moved-from value which
+  // it still destroys.
+  StatusOr(StatusOr&& other) noexcept(
+      std::is_nothrow_move_constructible<T>::value) {
+    if (other.ok()) {
+      new (&value_) T(std::move(other.value_));
+    } else {
+      status_ = std::move(other.status_);
+    }
+  }
+  StatusOr& operator=(const StatusOr& other) {
+    if (this != &other) {
+      if (ok() && other.ok()) {
+        value_ = other.value_;
+      } else {
+        Destroy();
+        status_ = other.status_;
+        if (ok()) {
+          new (&value_) T(other.value_);
+        }
+      }
+    }
+    return *this;
+  }
+  StatusOr& operator=(StatusOr&& other) noexcept(
+      std::is_nothrow_move_assignable<T>::value &&
+      std::is_nothrow_move_constructible<T>::value) {
+    if (this != &other) {
+      if (ok() && other.ok()) {
+        value_ = std::move(other.value_);
+      } else if (other.ok()) {
+        status_ = base::OkStatus();
+        new (&value_) T(std::move(other.value_));
+      } else {
+        Destroy();
+        status_ = std::move(other.status_);
+      }
+    }
+    return *this;
+  }
+  ~StatusOr() { Destroy(); }
 
   bool ok() const { return status_.ok(); }
-  const base::Status& status() const { return status_; }
+  const base::Status& status() const& { return status_; }
+  // Moves an error out, leaving the value of an ok StatusOr in place.
+  base::Status status() && {
+    return ok() ? base::OkStatus() : std::move(status_);
+  }
 
   // For an lvalue caller, if ok(), returns a reference to the value, so the
   // StatusOr keeps owning it.
@@ -58,7 +119,7 @@ class StatusOr {
   T& ValueOrDie() & {
     if (!ok())
       PERFETTO_FATAL("%s", status_.c_message());
-    return *value_;
+    return value_;
   }
 
   // For an rvalue caller, if ok(), moves the value out because the StatusOr
@@ -67,14 +128,14 @@ class StatusOr {
   T ValueOrDie() && {
     if (!ok())
       PERFETTO_FATAL("%s", status_.c_message());
-    return std::move(*value_);
+    return std::move(value_);
   }
 
   T& value() {
     PERFETTO_DCHECK(status_.ok());
-    return *value_;
+    return value_;
   }
-  const T& value() const { return *value_; }
+  const T& value() const { return value_; }
 
   T& operator*() { return value(); }
   const T& operator*() const { return value(); }
@@ -83,13 +144,17 @@ class StatusOr {
   const T* operator->() const { return &value(); }
 
  private:
-  StatusOr(base::Status status, std::optional<T> value)
-      : status_(std::move(status)), value_(std::move(value)) {
-    PERFETTO_DCHECK(!status_.ok() || value_.has_value());
+  // Ends the value's lifetime, if there is one.
+  void Destroy() {
+    if (ok()) {
+      value_.~T();
+    }
   }
 
   base::Status status_;
-  std::optional<T> value_;
+  union {
+    T value_;
+  };
 };
 
 // Deduction guide to make returning StatusOr less verbose.
