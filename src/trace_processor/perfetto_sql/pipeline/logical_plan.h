@@ -26,6 +26,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/common/row_estimate.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
@@ -40,6 +41,7 @@ namespace perfetto::trace_processor::pipeline {
 
 class Catalog;
 class Lowering;
+class PlanEstimator;
 class PlanReader;
 class PlanWriter;
 class LogicalPlan;
@@ -92,6 +94,10 @@ class PlanOperation {
   // Builds execution steps, including child traversal. Intersection attaches
   // independent operand pipelines; other stages lower their single input.
   virtual void Lower(Lowering*, const PlanNode&) const = 0;
+
+  // The rows this node produces, estimating its children through the
+  // estimator and adding the cost of its own work to it. Runs nothing.
+  virtual core::RowEstimate Estimate(PlanEstimator*, const PlanNode&) const = 0;
 
   // Writes this payload and updates the available column IDs. The driver
   // writes outer tags and orders stages; sources encode their own children.

@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
@@ -34,7 +35,9 @@ class Lowering;
 class PlanNode;
 
 // `|> WHERE condition`. The condition must be a conjunction (AND) of
-// `column OP literal` comparisons; anything else is unsupported.
+// `column OP literal` comparisons; anything else is unsupported. Constraints
+// SQLite passes on a pipeline's output are pushed into its plan as one too
+// (see WherePredicate).
 class Where : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
@@ -42,6 +45,11 @@ class Where : public PlanOperation {
   Where() = default;
   explicit Where(std::vector<WherePredicate> predicates)
       : predicates_(std::move(predicates)) {}
+
+  // Keeps only the rows of `plan` every one of `predicates`, on its output,
+  // holds for: in its last stage if that is a WHERE already, or a new one.
+  static void AddToPlan(LogicalPlan* plan,
+                        std::vector<WherePredicate> predicates);
 
   std::vector<WherePredicate>& predicates() { return predicates_; }
   const std::vector<WherePredicate>& predicates() const { return predicates_; }
@@ -55,6 +63,13 @@ class Where : public PlanOperation {
   static std::vector<WherePredicate> ReadPredicates(PlanReader*,
                                                     const Available& available);
 
+  // Adds the filter value `p` compares a column of storage type `type` with,
+  // and returns its index: a literal cast now, or a parameter cast as each
+  // run starts. Unused by IS [NOT] NULL.
+  static uint32_t LowerValue(Lowering* c,
+                             const WherePredicate& p,
+                             core::StorageType type);
+
  private:
   // Test-only formatting; keep payload details out of the public interface.
   friend class LogicalPlanFormatter;
@@ -63,6 +78,7 @@ class Where : public PlanOperation {
   std::unique_ptr<PlanOperation> Clone() const override;
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
   void Lower(Lowering*, const PlanNode&) const override;
+  core::RowEstimate Estimate(PlanEstimator*, const PlanNode&) const override;
   void Write(PlanWriter*, const PlanNode&, Available*) const override;
 
   static base::Status BuildPlan(Compiler*, uint32_t);

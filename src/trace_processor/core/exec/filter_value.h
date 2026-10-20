@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_FILTER_VALUE_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -51,6 +52,9 @@ struct FilterValue {
   // For a string compared by order: its text, which `value` points to. Its
   // buffer is reused, so only a string longer than any before allocates.
   std::string text;
+  // For IN: the values of the list, cast as the interpreter casts them, and
+  // whether every or no row matches. Made by the first cast, and reused.
+  std::shared_ptr<filter::CastFilterValueListResult> list;
 };
 
 // Casts a value for one storage type and comparison.
@@ -114,6 +118,23 @@ FilterValueCaster<Fetcher> FilterValueCasterFor(const Op& op) {
   }
 }
 
+// Casts the list of values `fetcher` iterates at `index` into `out`, for a
+// column of storage type T compared by IN.
+template <typename T, typename Fetcher>
+PERFETTO_ALWAYS_INLINE void CastFilterValueListFor(Fetcher& fetcher,
+                                                   uint32_t index,
+                                                   const StringPool& pool,
+                                                   FilterValue* out) {
+  if (!out->list) {
+    out->list = std::make_shared<filter::CastFilterValueListResult>();
+    out->list->Init<T>();
+  } else {
+    out->list->Clear<T>();
+  }
+  filter::CastFilterValueList<T>(index, fetcher, NonNullOp(Eq{}), &pool,
+                                 *out->list);
+}
+
 }  // namespace internal
 
 // The caster for a column of storage type `type` compared by `op`, one of =,
@@ -134,6 +155,29 @@ FilterValueCaster<Fetcher> GetFilterValueCaster(StorageType type,
       return internal::FilterValueCasterFor<Double, Fetcher>(op);
     case StorageType::GetTypeIndex<String>():
       return internal::FilterValueCasterFor<String, Fetcher>(op);
+    default:
+      PERFETTO_FATAL("Unsupported storage type");
+  }
+}
+
+// The caster for a column of storage type `type` compared by IN, with a list
+// of values the fetcher iterates (see ValueFetcher::IteratorInit). Picked
+// once, when a plan is built.
+template <typename Fetcher>
+FilterValueCaster<Fetcher> GetFilterValueListCaster(StorageType type) {
+  switch (type.index()) {
+    case StorageType::GetTypeIndex<Id>():
+      return &internal::CastFilterValueListFor<Id, Fetcher>;
+    case StorageType::GetTypeIndex<Uint32>():
+      return &internal::CastFilterValueListFor<Uint32, Fetcher>;
+    case StorageType::GetTypeIndex<Int32>():
+      return &internal::CastFilterValueListFor<Int32, Fetcher>;
+    case StorageType::GetTypeIndex<Int64>():
+      return &internal::CastFilterValueListFor<Int64, Fetcher>;
+    case StorageType::GetTypeIndex<Double>():
+      return &internal::CastFilterValueListFor<Double, Fetcher>;
+    case StorageType::GetTypeIndex<String>():
+      return &internal::CastFilterValueListFor<String, Fetcher>;
     default:
       PERFETTO_FATAL("Unsupported storage type");
   }

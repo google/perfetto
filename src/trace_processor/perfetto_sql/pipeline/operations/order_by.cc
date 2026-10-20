@@ -30,6 +30,7 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/cost_estimation.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -67,6 +68,14 @@ std::optional<uint32_t> OrderBy::Prune(std::vector<bool>* needed) {
     (*needed)[key.column] = true;
   }
   return std::nullopt;
+}
+
+core::RowEstimate OrderBy::Estimate(PlanEstimator* e,
+                                    const PlanNode& node) const {
+  // Every row is kept, and sorted.
+  core::RowEstimate in = e->EstimateNode(node.children()[0]);
+  e->AddSortCost(in.estimated);
+  return in;
 }
 
 void OrderBy::Lower(Lowering* c, const PlanNode& node) const {

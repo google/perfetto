@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/interval_flatten.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/cost_estimation.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -108,6 +109,17 @@ std::optional<uint32_t> IntervalFlatten::Prune(std::vector<bool>* needed) {
     (*needed)[key] = true;
   }
   return std::nullopt;
+}
+
+core::RowEstimate IntervalFlatten::Estimate(PlanEstimator* e,
+                                            const PlanNode& node) const {
+  // The rows are grouped and sorted, then swept. Each row starts and ends at
+  // most one segment, so there are fewer than twice as many segments as rows,
+  // and about one per row where few overlap.
+  core::RowEstimate in = e->EstimateNode(node.children()[0]);
+  e->AddSortCost(in.estimated);
+  e->AddCost(PlanEstimator::kSweepCostPerRow * in.estimated);
+  return {PlanEstimator::Rows(2.0 * in.max), in.estimated};
 }
 
 void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {

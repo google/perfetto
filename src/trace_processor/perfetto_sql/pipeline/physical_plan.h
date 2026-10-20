@@ -25,6 +25,8 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/core/common/op_types.h"
+#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
@@ -74,6 +76,20 @@ class PhysicalPlan {
     return filter_values_;
   }
 
+  // A filter value known only when the plan runs: the `param`-th of the
+  // values it is passed, cast for a column of storage type `type` compared by
+  // `op`, into filter value `value`. Until cast, it keeps no rows.
+  struct Param {
+    uint32_t param;
+    uint32_t value;
+    core::StorageType type;
+    core::Op op;
+  };
+
+  // The parameters of the plan, which whoever runs it casts into a copy of
+  // filter_values() before each run (see core::exec::GetFilterValueCaster).
+  const std::vector<Param>& params() const { return params_; }
+
  private:
   friend class Lowering;
   friend class PlanLowering;
@@ -86,6 +102,7 @@ class PhysicalPlan {
   std::unique_ptr<core::exec::Pipeline> pipeline_;
   std::vector<Column> columns_;
   std::vector<core::exec::FilterValue> filter_values_;
+  std::vector<Param> params_;
 };
 
 // What lowering needs from whoever runs the plan. Everything here must outlive
@@ -180,6 +197,11 @@ class Lowering {
   // and returns its index into the run's filter values (see
   // PhysicalPlan::filter_values).
   uint32_t AddFilterValue(core::exec::FilterValue value);
+
+  // Adds a filter value only known when the plan runs: the `param`-th of the
+  // values it is passed, cast for `type` and `op`. Returns its index, as
+  // AddFilterValue does (see PhysicalPlan::params).
+  uint32_t AddFilterParam(uint32_t param, core::StorageType type, core::Op op);
 
   const LoweringContext& context() const;
 

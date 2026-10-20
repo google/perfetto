@@ -68,6 +68,8 @@ std::string OpName(const Op& op) {
       return "IS NULL";
     case Op::GetTypeIndex<IsNotNull>():
       return "IS NOT NULL";
+    case Op::GetTypeIndex<In>():
+      return "IN";
     default:
       return "?";
   }

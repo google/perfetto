@@ -20,7 +20,9 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -30,22 +32,35 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/span.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.h"
+#include "src/trace_processor/perfetto_sql/pipeline/cost_estimation.h"
+#include "src/trace_processor/perfetto_sql/pipeline/filter_passing.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
@@ -77,8 +92,80 @@ constexpr int kPlanColumn = 0;
 constexpr int kDataframesColumn = 1;
 constexpr int kFirstOutputColumn = 2;
 
-// idxNum: whether dataframes are given.
-constexpr int kHasDataframes = 1;
+// idxStr: `<dataframes>:<plan>`. `dataframes` is 1 if the list of dataframes
+// is given, after the plan, and 0 if not. If constraints on the output are
+// pushed into the plan, their values come next, and `plan` is the plan to run,
+// in base64; it is empty otherwise.
+void SetIdxStr(sqlite3_index_info* info,
+               bool dataframes,
+               const std::string& plan) {
+  if (info->needToFreeIdxStr) {
+    sqlite3_free(info->idxStr);
+  }
+  info->idxStr = sqlite3_mprintf("%d:%s", dataframes, plan.c_str());
+  info->needToFreeIdxStr = true;
+}
+
+// The predicate a constraint SQLite passes on an output column is, if the
+// pipeline can apply it exactly as SQLite would.
+std::optional<core::Op> ConstraintOp(unsigned char op) {
+  switch (op) {
+    case SQLITE_INDEX_CONSTRAINT_EQ:
+      return core::Eq{};
+    case SQLITE_INDEX_CONSTRAINT_NE:
+      return core::Ne{};
+    case SQLITE_INDEX_CONSTRAINT_LT:
+      return core::Lt{};
+    case SQLITE_INDEX_CONSTRAINT_LE:
+      return core::Le{};
+    case SQLITE_INDEX_CONSTRAINT_GT:
+      return core::Gt{};
+    case SQLITE_INDEX_CONSTRAINT_GE:
+      return core::Ge{};
+    case SQLITE_INDEX_CONSTRAINT_ISNULL:
+      return core::IsNull{};
+    case SQLITE_INDEX_CONSTRAINT_ISNOTNULL:
+      return core::IsNotNull{};
+    default:
+      return std::nullopt;
+  }
+}
+
+// Hands the values SQLite passes for pushed constraints to the filter value
+// casts, as the dataframe module hands them its own: at an index, the value
+// of the parameter there, or while iterating, the item of its IN list. A
+// blob, which no column holds, is taken as a null, which nothing equals.
+struct ArgvFetcher : core::ValueFetcher {
+  using Type = sqlite::Type;
+  static constexpr Type kInt64 = sqlite::Type::kInteger;
+  static constexpr Type kDouble = sqlite::Type::kFloat;
+  static constexpr Type kString = sqlite::Type::kText;
+  static constexpr Type kNull = sqlite::Type::kNull;
+
+  int64_t GetInt64Value(uint32_t i) const {
+    return sqlite::value::Int64(Value(i));
+  }
+  double GetDoubleValue(uint32_t i) const {
+    return sqlite::value::Double(Value(i));
+  }
+  const char* GetStringValue(uint32_t i) const {
+    return sqlite::value::Text(Value(i));
+  }
+  Type GetValueType(uint32_t i) const {
+    Type type = sqlite::value::Type(Value(i));
+    return type == sqlite::Type::kBlob ? kNull : type;
+  }
+  bool IteratorInit(uint32_t i) {
+    return sqlite3_vtab_in_first(params[i], &item) == SQLITE_OK && item;
+  }
+  bool IteratorNext(uint32_t i) {
+    return sqlite3_vtab_in_next(params[i], &item) == SQLITE_OK && item;
+  }
+  sqlite3_value* Value(uint32_t i) const { return item ? item : params[i]; }
+
+  sqlite3_value** params;
+  sqlite3_value* item = nullptr;
+};
 
 std::string Schema() {
   // Public names (which may repeat) are applied by the outer SELECT.
@@ -200,21 +287,43 @@ int CheckStatus(PipelineModule::Cursor* cursor) {
                      : sqlite::utils::SetError(cursor->pVtab, status);
 }
 
-// The slow path of Filter: loads the plan in `value`, reading `args`, into
-// `c`.
+// The slow path of Filter: loads the plan in `argv`, or the one BestIndex
+// pushed constraints into in `idx_str`, into `c` for `idx_num`.
 PERFETTO_NO_INLINE int Load(PipelineModule::Cursor* c,
                             int idx_num,
+                            const char* idx_str,
+                            int argc,
                             sqlite3_value** argv) {
   if (sqlite3_value_type(argv[0]) != SQLITE_BLOB) {
     return sqlite::utils::SetError(c->pVtab,
                                    "__intrinsic_pipeline: expected a plan");
   }
+  std::string_view serialized(
+      static_cast<const char*>(sqlite3_value_blob(argv[0])),
+      static_cast<size_t>(sqlite3_value_bytes(argv[0])));
+  // With constraints pushed in, the plan to run is the one BestIndex made.
+  if (!idx_str || (idx_str[0] != '0' && idx_str[0] != '1') ||
+      idx_str[1] != ':') {
+    return sqlite::utils::SetError(c->pVtab,
+                                   "__intrinsic_pipeline: malformed plan");
+  }
+  bool has_dataframes = idx_str[0] == '1';
+  std::optional<std::string> pushed;
+  if (idx_str[2]) {
+    pushed = base::Base64Decode(base::StringView(idx_str + 2));
+    if (!pushed) {
+      return sqlite::utils::SetError(c->pVtab,
+                                     "__intrinsic_pipeline: malformed plan");
+    }
+    serialized = *pushed;
+  }
+
   // Only alive while Load runs: once bound, the plan shares ownership of each
   // column it reads, so nothing needs to keep the dataframes alive.
   std::vector<const dataframe::Dataframe*> inputs;
-  if (idx_num & kHasDataframes) {
-    const auto* list =
-        sqlite::value::Pointer<DataframeList>(argv[1], kDataframesPointerType);
+  if (has_dataframes) {
+    const auto* list = sqlite::value::Pointer<DataframeList>(
+        argv[kDataframesColumn], kDataframesPointerType);
     if (!list) {
       return sqlite::utils::SetError(
           c->pVtab, "__intrinsic_pipeline: expected dataframes");
@@ -224,14 +333,23 @@ PERFETTO_NO_INLINE int Load(PipelineModule::Cursor* c,
     }
   }
   PipelineModule::Context* context = PipelineModule::GetVtab(c->pVtab)->context;
-  auto plan = context->connection->LoadPipeline(
-      std::string_view(static_cast<const char*>(sqlite3_value_blob(argv[0])),
-                       static_cast<size_t>(sqlite3_value_bytes(argv[0]))),
-      inputs);
+  auto plan = context->connection->LoadPipeline(serialized, inputs);
   if (!plan.ok()) {
     return sqlite::utils::SetError(c->pVtab, plan.status());
   }
+  // The rows read the old plan.
+  c->rows.reset();
   c->plan = std::move(*plan);
+  c->idx_num = idx_num;
+  c->first_param = has_dataframes ? kDataframesColumn + 1 : kDataframesColumn;
+  for (const pipeline::PhysicalPlan::Param& param : c->plan->params()) {
+    if (c->first_param + param.param >= static_cast<uint32_t>(argc)) {
+      return sqlite::utils::SetError(
+          c->pVtab, "__intrinsic_pipeline: missing a constraint's value");
+    }
+  }
+  // Each run casts its parameters into a copy of the plan's filter values.
+  c->filter_values = c->plan->filter_values();
   c->pool = context->pool;
   c->rows = std::make_unique<core::exec::RowCursor>(c->plan->source());
   // One reader per declared column, so Column only indexes: arguments read as
@@ -336,7 +454,7 @@ int PipelineModule::Disconnect(sqlite3_vtab* vtab) {
   return SQLITE_OK;
 }
 
-int PipelineModule::BestIndex(sqlite3_vtab*, sqlite3_index_info* info) {
+int PipelineModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
   int plan = -1;
   int dataframes = -1;
   for (int i = 0; i < info->nConstraint; ++i) {
@@ -364,13 +482,73 @@ int PipelineModule::BestIndex(sqlite3_vtab*, sqlite3_index_info* info) {
   int argc = 0;
   info->aConstraintUsage[plan].argvIndex = ++argc;
   info->aConstraintUsage[plan].omit = true;
-  info->idxNum = 0;
   if (dataframes != -1) {
     info->aConstraintUsage[dataframes].argvIndex = ++argc;
     info->aConstraintUsage[dataframes].omit = true;
-    info->idxNum |= kHasDataframes;
   }
+  // Each plan is numbered, from 1, so a cursor knows by its idxNum alone
+  // whether the plan it has loaded is the one to run.
+  Vtab* v = GetVtab(vtab);
+  v->plans = v->plans == std::numeric_limits<int>::max() ? 1 : v->plans + 1;
+  info->idxNum = v->plans;
+  SetIdxStr(info, dataframes != -1, "");
+  // Without the plan, SQLite checks every constraint on the output itself.
   info->estimatedCost = 1e9;
+  // The plan is almost always written into the SQL, so SQLite can show it to
+  // us now. Then the constraints on the output are pushed into it, and the
+  // query around the pipeline is planned on what running that takes.
+  sqlite3_value* plan_value = nullptr;
+  if (sqlite3_vtab_rhs_value(info, plan, &plan_value) != SQLITE_OK ||
+      sqlite3_value_type(plan_value) != SQLITE_BLOB) {
+    return SQLITE_OK;
+  }
+  base::StatusOr<pipeline::LogicalPlan> logical = pipeline::ParsePlan(
+      std::string_view(static_cast<const char*>(sqlite3_value_blob(plan_value)),
+                       static_cast<size_t>(sqlite3_value_bytes(plan_value))));
+  if (!logical.ok()) {
+    // Filter reports the error.
+    return SQLITE_OK;
+  }
+  std::vector<pipeline::WherePredicate> predicates;
+  uint32_t params = 0;
+  for (int i = 0; i < info->nConstraint; ++i) {
+    const auto& constraint = info->aConstraint[i];
+    int output = constraint.iColumn - kFirstOutputColumn;
+    std::optional<core::Op> op = ConstraintOp(constraint.op);
+    if (!constraint.usable || output < 0 ||
+        static_cast<size_t>(output) >= logical->output().size() || !op) {
+      continue;
+    }
+    pipeline::WherePredicate predicate;
+    predicate.column = logical->output()[static_cast<size_t>(output)].id;
+    predicate.op = *op;
+    // Every pushed constraint is passed a value, which a null test ignores.
+    predicate.param = params++;
+    // An equality SQLite makes of an IN takes the whole list at once, so the
+    // plan runs once for it rather than once for each value.
+    if (op->Is<core::Eq>() && sqlite3_vtab_in(info, i, -1)) {
+      sqlite3_vtab_in(info, i, 1);
+      predicate.op = core::In{};
+    }
+    if (op->IsAnyOf<core::NullOp>()) {
+      predicate.param = std::nullopt;
+    }
+    predicates.push_back(predicate);
+    info->aConstraintUsage[i].argvIndex = ++argc;
+    // The pipeline applies it as SQLite would, so SQLite need not again.
+    info->aConstraintUsage[i].omit = true;
+  }
+  if (!predicates.empty()) {
+    pipeline::Where::AddToPlan(&*logical, std::move(predicates));
+    pipeline::PassFiltersThrough(*logical);
+    std::string pushed =
+        base::Base64Encode(base::StringView(pipeline::SerializePlan(*logical)));
+    SetIdxStr(info, dataframes != -1, pushed);
+  }
+  pipeline::PlanEstimate estimate =
+      v->context->connection->EstimatePipeline(*logical);
+  info->estimatedCost = estimate.cost;
+  info->estimatedRows = static_cast<sqlite3_int64>(estimate.rows.estimated);
   return SQLITE_OK;
 }
 
@@ -386,18 +564,32 @@ int PipelineModule::Close(sqlite3_vtab_cursor* cursor) {
 
 int PipelineModule::Filter(sqlite3_vtab_cursor* cursor,
                            int idx_num,
-                           const char*,
-                           int,
+                           const char* idx_str,
+                           int argc,
                            sqlite3_value** argv) {
   Cursor* c = GetCursor(cursor);
-  // The plan and its dataframes are the same on every filter, so it is loaded
-  // once per cursor.
-  if (PERFETTO_UNLIKELY(!c->plan)) {
-    if (int rc = Load(c, idx_num, argv); rc != SQLITE_OK) {
+  // A plan and its dataframes are the same on every filter, so a cursor loads
+  // one only when given a plan it has not loaded.
+  if (PERFETTO_UNLIKELY(idx_num != c->idx_num)) {
+    if (int rc = Load(c, idx_num, idx_str, argc, argv); rc != SQLITE_OK) {
       return rc;
     }
   }
-  c->eof = !c->rows->Open(c->plan->filter_values());
+  // Each value is cast, as it is passed, for the column it is compared with.
+  ArgvFetcher fetcher;
+  fetcher.params = argv + c->first_param;
+  for (const pipeline::PhysicalPlan::Param& param : c->plan->params()) {
+    fetcher.item = nullptr;
+    auto cast =
+        param.op.Is<core::In>()
+            ? core::exec::GetFilterValueListCaster<ArgvFetcher>(param.type)
+            : core::exec::GetFilterValueCaster<ArgvFetcher>(param.type,
+                                                            param.op);
+    cast(fetcher, param.param, *c->pool, &c->filter_values[param.value]);
+  }
+  c->eof = !c->rows->Open(core::Span<const core::exec::FilterValue>(
+      c->filter_values.data(),
+      c->filter_values.data() + c->filter_values.size()));
   return c->eof ? CheckStatus(c) : SQLITE_OK;
 }
 

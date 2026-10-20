@@ -34,6 +34,7 @@
 #include "src/trace_processor/core/exec/interval_fill_gaps.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/cost_estimation.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
@@ -197,6 +198,21 @@ std::optional<uint32_t> IntervalFillGaps::Prune(std::vector<bool>* needed) {
     }
   }
   return std::nullopt;
+}
+
+core::RowEstimate IntervalFillGaps::Estimate(PlanEstimator* e,
+                                             const PlanNode& node) const {
+  // Both sides are grouped and sorted, then swept. Every input row is kept,
+  // and each background row leaves at most one gap more than the input rows
+  // covering it.
+  core::RowEstimate in = e->EstimateNode(node.children()[0]);
+  core::RowEstimate background = e->EstimateNode(node.children()[1]);
+  e->AddSortCost(in.estimated);
+  e->AddSortCost(background.estimated);
+  double rows = static_cast<double>(in.estimated) + background.estimated;
+  e->AddCost(PlanEstimator::kSweepCostPerRow * rows);
+  return {PlanEstimator::Rows(2.0 * in.max + background.max),
+          PlanEstimator::Rows(rows)};
 }
 
 void IntervalFillGaps::Lower(Lowering* c, const PlanNode& node) const {

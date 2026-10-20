@@ -28,6 +28,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
+#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
@@ -86,6 +87,8 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
   };
   struct Vtab : sqlite::Module<PipelineModule>::Vtab {
     Context* context = nullptr;
+    // Counts the plans BestIndex has made, which numbers them: see Filter.
+    int plans = 0;
   };
   struct Cursor : sqlite::Module<PipelineModule>::Cursor {
     // Gives SQLite the value of `column` of the batch at `row`.
@@ -100,6 +103,12 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
       ResultFn result = nullptr;
     };
     std::unique_ptr<pipeline::PhysicalPlan> plan;
+    // The idxNum `plan` was loaded for; 0, which no plan has, before then.
+    int idx_num = 0;
+    // Where the values of the plan's parameters start in Filter's arguments.
+    uint32_t first_param = 0;
+    // The plan's filter values, with its parameters cast into them each run.
+    std::vector<core::exec::FilterValue> filter_values;
     StringPool* pool = nullptr;
     std::unique_ptr<core::exec::RowCursor> rows;
     // By declared column.

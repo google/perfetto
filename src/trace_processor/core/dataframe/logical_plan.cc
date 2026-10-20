@@ -269,13 +269,8 @@ void Planner::AddFilter(FilterSpec& spec, logical::FilterStrategy strategy) {
   }
   f.estimated_rows_after_null_prune = rows_.rows().estimated;
 
-  if (spec.op.Is<In>()) {
-    rows_.ApplyInFilter(col.duplicate_state, col.estimated_distinct);
-  } else if (spec.op.Is<Eq>()) {
-    rows_.ApplyEqualityFilter(col.duplicate_state, col.estimated_distinct);
-  } else {
-    rows_.ApplyNonEqualityFilter();
-  }
+  rows_.ApplyFilter(spec.op, col.duplicate_state, col.estimated_distinct,
+                    /*non_null=*/true);
   f.rows_out = rows_.rows();
 
   if (std::holds_alternative<logical::IndexListScan>(strategy) ||
@@ -304,11 +299,8 @@ void Planner::AddIndexFilter(std::vector<FilterSpec>& specs,
     p.nullability = col.null_storage.nullability();
     p.rows_in = rows_.rows();
     p.value_index = ReserveFilterValueSlot(fs);
-    if (fs.op.Is<In>()) {
-      rows_.ApplyInFilter(col.duplicate_state, col.estimated_distinct);
-    } else {
-      rows_.ApplyEqualityFilter(col.duplicate_state, col.estimated_distinct);
-    }
+    rows_.ApplyFilter(fs.op, col.duplicate_state, col.estimated_distinct,
+                      /*non_null=*/true);
     p.rows_out = rows_.rows();
     idx.predicates.emplace_back(std::move(p));
   }
@@ -340,7 +332,8 @@ void Planner::AddNullFilter(const NullOp& op, FilterSpec& spec) {
   f.strategy = logical::IndexListScan{};
   f.rows_in = rows_.rows();
   f.estimated_rows_after_null_prune = rows_.rows().estimated;
-  rows_.ApplyNonEqualityFilter();
+  rows_.ApplyFilter(spec.op, col.duplicate_state, col.estimated_distinct,
+                    /*non_null=*/false);
   f.rows_out = rows_.rows();
   rows_are_range_ = false;
   plan_.ops.emplace_back(std::move(f));

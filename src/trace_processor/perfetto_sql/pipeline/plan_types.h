@@ -97,9 +97,12 @@ struct SortKey {
 // The columns available to a stage, in the order positions number them.
 using Available = std::vector<ColumnId>;
 
-// A `column OP literal` test, where OP is one of =, !=, <, <=, >, >= and the
-// literal is a number. A WHERE condition is the AND of these. The literal is
-// compared as SQL compares it with the column's type, whatever that is.
+// A `column OP value` test. A WHERE condition is the AND of these. OP is one
+// of =, !=, <, <=, >, >= with a number literal, as a pipeline's WHERE writes
+// it, or with a parameter, as a constraint SQLite passes on the pipeline's
+// output is pushed into its plan. IS [NOT] NULL compares with nothing, and IN
+// with a parameter's list of values. The value is compared as SQL compares it
+// with the column's type, whatever that is.
 struct WherePredicate {
   using Op = core::Op;
 
@@ -109,6 +112,9 @@ struct WherePredicate {
   bool is_double = false;
   int64_t int_value = 0;
   double double_value = 0;
+  // If set, the value is not a literal but the `param`-th of the values the
+  // plan is passed each time it runs, as SQLite passes a constraint's.
+  std::optional<uint32_t> param;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

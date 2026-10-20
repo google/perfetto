@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/tree_accumulate.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/cost_estimation.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -89,6 +90,15 @@ std::optional<uint32_t> TreeAccumulate::Prune(std::vector<bool>* needed) {
   (*needed)[acc.node_column_] = true;
   (*needed)[acc.parent_column_] = true;
   return std::nullopt;
+}
+
+core::RowEstimate TreeAccumulate::Estimate(PlanEstimator* e,
+                                           const PlanNode& node) const {
+  // Numbering and ordering the tree sorts it, then each fold is a pass.
+  core::RowEstimate in = e->EstimateNode(node.children()[0]);
+  e->AddSortCost(in.estimated);
+  e->AddCost(PlanEstimator::kFoldCostPerRow * in.estimated);
+  return in;
 }
 
 void TreeAccumulate::Lower(Lowering* c, const PlanNode& node) const {

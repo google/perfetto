@@ -26,6 +26,7 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/exec/distinct.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/cost_estimation.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -54,6 +55,15 @@ std::optional<uint32_t> Distinct::Prune(std::vector<bool>* needed) {
     (*needed)[column] = true;
   }
   return std::nullopt;
+}
+
+core::RowEstimate Distinct::Estimate(PlanEstimator* e,
+                                     const PlanNode& node) const {
+  // Each row's columns are looked up among those seen. Nothing is known of
+  // how many repeat, so every row is assumed kept.
+  core::RowEstimate in = e->EstimateNode(node.children()[0]);
+  e->AddCost(PlanEstimator::kHashCostPerRow * in.estimated);
+  return in;
 }
 
 void Distinct::Lower(Lowering* c, const PlanNode& node) const {

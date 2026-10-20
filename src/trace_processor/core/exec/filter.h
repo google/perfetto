@@ -35,8 +35,8 @@ namespace perfetto::trace_processor::core::exec {
 // copied: the batch's selection is narrowed.
 //
 // A condition compares a column with one of the run's filter values (see
-// Context::SetFilterValues) by =, !=, <, <=, >, >=, or tests it with IS [NOT]
-// NULL. The values come already cast for the column and comparison, so a
+// Context::SetFilterValues) by =, !=, <, <=, >, >= or IN, or tests it with IS
+// [NOT] NULL. The values come already cast for the column and comparison, so a
 // Filter only compares.
 //
 // A condition means exactly what the same filter on a dataframe means: no

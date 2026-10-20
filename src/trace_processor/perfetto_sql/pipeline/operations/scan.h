@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/core/common/row_estimate.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
@@ -47,12 +48,20 @@ class RelationLineage;
 namespace perfetto::trace_processor::pipeline {
 
 class Lowering;
+class PlanEstimator;
 class PlanNode;
 
 // A relation a source reads: the plan node producing it and its columns.
 struct SourceRelation {
   PlanNodeId node = 0;
   std::vector<NamedColumn> columns;
+};
+
+// An index of a dataframe a scan reads: its columns, in order, by the names
+// the dataframe gives them, and the rows in the order of their values.
+struct ScanIndex {
+  std::vector<std::string> column_names;
+  std::shared_ptr<std::vector<uint32_t>> permutation;
 };
 
 // A dataframe read directly. Defined outside Scan because GCC only treats a
@@ -65,6 +74,8 @@ struct ScanDataframe {
   // Resolved at compile time; only the selected columns are retained.
   std::vector<std::shared_ptr<const dataframe::Column>> columns;
   uint32_t row_count = 0;
+  // The dataframe's indexes, resolved with its columns.
+  std::vector<ScanIndex> indexes;
 };
 
 // The dataframe the plan is passed as its `index`-th argument when it runs.
@@ -90,6 +101,22 @@ class Scan : public PlanOperation {
 
   // Intersection embeds a scan payload without a separate source tag.
   static Available ReadPayload(PlanReader*, Scan*);
+
+  // Lowers the scan for a WHERE straight on it, with `predicates` on its
+  // columns: those the dataframe can search for, through its sorted columns
+  // or an index, are searched as each run starts by the source reading it,
+  // and the rest are left for the WHERE to test. Returns which predicates
+  // were searched for, or nothing, lowering nothing, if the scan does not
+  // read a dataframe.
+  std::optional<std::vector<bool>> LowerSearching(
+      Lowering* c,
+      const std::vector<WherePredicate>& predicates) const;
+
+  // The rows the scan reads, tested by `predicates` on its own columns, as a
+  // WHERE straight on it runs, adding the cost of the work to `e`.
+  core::RowEstimate EstimateFiltered(
+      PlanEstimator* e,
+      const std::vector<WherePredicate>& predicates) const;
   const std::vector<NamedColumn>& columns() const { return columns_; }
 
  private:
@@ -114,6 +141,7 @@ class Scan : public PlanOperation {
   std::unique_ptr<PlanOperation> Clone() const override;
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
   void Lower(Lowering*, const PlanNode&) const override;
+  core::RowEstimate Estimate(PlanEstimator*, const PlanNode&) const override;
   void Write(PlanWriter*, const PlanNode&, Available*) const override;
   void MoveSqlSourcesToDataframeArgs(std::vector<std::string>*) override;
   base::Status ResolveDataframes(LogicalPlan*, const Catalog&) override;

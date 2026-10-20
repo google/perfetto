@@ -21,6 +21,7 @@
 #include <optional>
 
 #include "src/trace_processor/core/common/duplicate_types.h"
+#include "src/trace_processor/core/common/op_types.h"
 
 // How many rows a query is expected to produce as it filters them: the rules
 // a planner uses to estimate, shared by everything which plans queries.
@@ -39,6 +40,17 @@ struct RowEstimate {
   }
 };
 
+// Assumed number of distinct values matched by an IN filter when the list size
+// is not known at plan time. Scales the single-value equality estimate. Matches
+// SQLite's own tuning constant for "x IN (SELECT ...)" (see whereLoopAddBtree).
+inline constexpr double kAssumedInListSize = 25;
+
+// Rows surviving a scalar equality filter on a HasDuplicates column with
+// `estimated_distinct` distinct values (0 = unknown). With a known count, a
+// uniform column keeps ~1/estimated_distinct of the rows; otherwise fall back
+// to the data-blind heuristic.
+double EqualityFilterRows(uint32_t row_count, uint32_t estimated_distinct);
+
 // Tracks how many rows are left as operations are applied.
 class RowModel {
  public:
@@ -52,6 +64,13 @@ class RowModel {
                            uint32_t estimated_distinct);
   void ApplyInFilter(DuplicateState duplicate_state,
                      uint32_t estimated_distinct);
+  // Applies a filter `op` on a column with `duplicate_state` and about
+  // `estimated_distinct` distinct values (0 if unknown), which holds no nulls
+  // if `non_null`: the rule for whichever kind of filter `op` is.
+  void ApplyFilter(const Op& op,
+                   DuplicateState duplicate_state,
+                   uint32_t estimated_distinct,
+                   bool non_null);
   void ApplyOneRow();
   void ApplyZeroRows();
   void ApplyLimitOffset(uint32_t limit, uint32_t offset);

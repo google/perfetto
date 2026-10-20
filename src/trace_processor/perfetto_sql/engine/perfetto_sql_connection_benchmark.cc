@@ -15,7 +15,9 @@
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
 #include <cstdint>
+#include <cstring>
 #include <memory>
+#include <string>
 
 #include <benchmark/benchmark.h>
 
@@ -98,6 +100,92 @@ void BM_Connection_Pipeline_Scan(benchmark::State& state) {
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * 32768 * 6);
 }
 BENCHMARK(BM_Connection_Pipeline_Scan);
+
+// Lookups by joining: each of a table's rows looks up one row of another by
+// its id, and perhaps another column, as a join into a pipeline reading a
+// table does, against the same join into the table in SQL. Items are
+// lookups.
+class Lookups {
+ public:
+  static constexpr uint32_t kRows = 1 << 20;
+  static constexpr uint32_t kLookups = 1 << 17;
+
+  static Lookups& Get() {
+    static Lookups* lookups = new Lookups();
+    return *lookups;
+  }
+
+  void Run(benchmark::State& state, const std::string& sql) {
+    for (auto _ : state) {
+      auto res = conn_->Execute(SqlSource::FromExecuteQuery(sql));
+      PERFETTO_CHECK(res.ok());
+    }
+    state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                            kLookups);
+  }
+
+  // The SQL a pipeline reading `big` runs as, from its FROM.
+  const std::string& pipeline() const { return pipeline_; }
+
+ private:
+  Lookups()
+      : conn_(PerfettoSqlConnection::CreateConnectionToNewDatabase(
+            &pool_,
+            /*enable_extra_checks=*/false)) {
+    auto setup = conn_->Execute(SqlSource::FromExecuteQuery(R"(
+      PERFETTO PRAGMA pipelines = 1;
+      CREATE PERFETTO TABLE big AS
+      WITH RECURSIVE n(v) AS (
+        SELECT 0 UNION ALL SELECT v + 1 FROM n WHERE v < 1048575
+      )
+      SELECT v AS id, v * 10 AS ts, v % 8 AS cpu FROM n;
+      CREATE PERFETTO TABLE outer_rows AS
+      WITH RECURSIVE n(v) AS (
+        SELECT 0 UNION ALL SELECT v + 1 FROM n WHERE v < 131071
+      )
+      SELECT (v * 7919) % 1048576 AS x FROM n;
+    )"));
+    PERFETTO_CHECK(setup.ok());
+    auto prepared = conn_->ExecuteUntilLastStatement(
+        SqlSource::FromExecuteQuery("FROM big"));
+    PERFETTO_CHECK(prepared.ok());
+    std::string sql = prepared->stmt.sql();
+    pipeline_ = sql.substr(sql.find(" FROM ") + strlen(" FROM "));
+  }
+
+  StringPool pool_;
+  std::unique_ptr<PerfettoSqlConnection> conn_;
+  std::string pipeline_;
+};
+
+void BM_Connection_Lookup_Sql_Id(benchmark::State& state) {
+  Lookups::Get().Run(state,
+                     "SELECT COUNT(*), SUM(b.ts) FROM outer_rows o "
+                     "JOIN big b ON b.id = o.x");
+}
+BENCHMARK(BM_Connection_Lookup_Sql_Id);
+
+void BM_Connection_Lookup_Pipeline_Id(benchmark::State& state) {
+  Lookups& lookups = Lookups::Get();
+  lookups.Run(state, "SELECT COUNT(*), SUM(p.c1) FROM outer_rows o JOIN " +
+                         lookups.pipeline() + " AS p ON p.c0 = o.x");
+}
+BENCHMARK(BM_Connection_Lookup_Pipeline_Id);
+
+void BM_Connection_Lookup_Sql_IdAndCpu(benchmark::State& state) {
+  Lookups::Get().Run(state,
+                     "SELECT COUNT(*), SUM(b.ts) FROM outer_rows o "
+                     "JOIN big b ON b.id = o.x AND b.cpu = o.x % 8");
+}
+BENCHMARK(BM_Connection_Lookup_Sql_IdAndCpu);
+
+void BM_Connection_Lookup_Pipeline_IdAndCpu(benchmark::State& state) {
+  Lookups& lookups = Lookups::Get();
+  lookups.Run(state, "SELECT COUNT(*), SUM(p.c1) FROM outer_rows o JOIN " +
+                         lookups.pipeline() +
+                         " AS p ON p.c0 = o.x AND p.c2 = o.x % 8");
+}
+BENCHMARK(BM_Connection_Lookup_Pipeline_IdAndCpu);
 
 }  // namespace
 }  // namespace perfetto::trace_processor

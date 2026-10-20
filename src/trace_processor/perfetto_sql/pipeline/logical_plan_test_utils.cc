@@ -103,6 +103,15 @@ std::string OpString(const WherePredicate::Op& op) {
   if (op.Is<core::Gt>()) {
     return ">";
   }
+  if (op.Is<core::IsNull>()) {
+    return "IS NULL";
+  }
+  if (op.Is<core::IsNotNull>()) {
+    return "IS NOT NULL";
+  }
+  if (op.Is<core::In>()) {
+    return "IN";
+  }
   PERFETTO_CHECK(op.Is<core::Ge>());
   return ">=";
 }
@@ -268,10 +277,13 @@ std::string LogicalPlanFormatter::WhereString(const Where& where) {
   std::string out = "Where(";
   for (size_t i = 0; i < where.predicates_.size(); ++i) {
     const WherePredicate& p = where.predicates_[i];
-    out += (i ? ", #" : "#") + std::to_string(p.column) + " " + OpString(p.op) +
-           " " +
-           (p.is_double ? std::to_string(p.double_value)
-                        : std::to_string(p.int_value));
+    out += (i ? ", #" : "#") + std::to_string(p.column) + " " + OpString(p.op);
+    if (p.param) {
+      out += " ?" + std::to_string(*p.param);
+    } else if (!p.op.IsAnyOf<core::NullOp>()) {
+      out += " " + (p.is_double ? std::to_string(p.double_value)
+                                : std::to_string(p.int_value));
+    }
   }
   return out + ")";
 }

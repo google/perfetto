@@ -205,6 +205,55 @@ TEST_F(FilterTest, RunsAgainWithNewValues) {
   EXPECT_THAT(run("d", "b"), ElementsAre(20, 0, 40));
 }
 
+// Hands the items of one IN list to the casters, as SQLite iterates them.
+struct List : ValueFetcher {
+  using Type = size_t;
+  static constexpr Type kNull = base::variant_index<Value, std::nullptr_t>();
+  static constexpr Type kInt64 = base::variant_index<Value, int64_t>();
+  static constexpr Type kDouble = base::variant_index<Value, double>();
+  static constexpr Type kString = base::variant_index<Value, const char*>();
+
+  int64_t GetInt64Value(uint32_t) const { return std::get<int64_t>(v[i]); }
+  double GetDoubleValue(uint32_t) const { return std::get<double>(v[i]); }
+  const char* GetStringValue(uint32_t) const {
+    return std::get<const char*>(v[i]);
+  }
+  Type GetValueType(uint32_t) const { return v[i].index(); }
+  bool IteratorInit(uint32_t) {
+    i = 0;
+    return !v.empty();
+  }
+  bool IteratorNext(uint32_t) { return ++i < v.size(); }
+
+  std::vector<Value> v;
+  size_t i = 0;
+};
+
+// An IN keeps the rows holding any value of its list, which is cast as each
+// of its values would be: a null or a string no row holds equals nothing.
+TEST_F(FilterTest, KeepsTheRowsInAList) {
+  auto in = [this](uint32_t column, std::vector<Value> values) {
+    Filter filter({{column, In{}, 0}}, &pool_);
+    Context context;
+    std::unique_ptr<OperatorState> state = filter.MakeState(context);
+    List list;
+    list.v = std::move(values);
+    FilterValue cast[1];
+    StorageType type =
+        column == 0 ? StorageType{Int64{}} : StorageType{String{}};
+    GetFilterValueListCaster<List>(type)(list, 0, pool_, &cast[0]);
+    context.SetFilterValues(Span<const FilterValue>(cast));
+    RowBatch batch;
+    batch.CopyFrom(batch_);
+    EXPECT_TRUE(filter.Process(batch, *state));
+    return test::ReadColumn<int64_t>(batch, 0);
+  };
+  EXPECT_THAT(in(0, {int64_t{50}, int64_t{10}, nullptr}), ElementsAre(10, 50));
+  EXPECT_THAT(in(0, {2.5, int64_t{40}}), ElementsAre(40));
+  EXPECT_THAT(in(0, {}), ElementsAre());
+  EXPECT_THAT(in(1, {"a", "d", "zz"}), ElementsAre(20, 40, 50));
+}
+
 // An Id column holds the row each value is stored at, from where the window
 // starts, or once copied out, the values themselves.
 TEST(FilterIdTest, ComparesIdsByWhereTheyAre) {

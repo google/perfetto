@@ -138,6 +138,14 @@ uint32_t Lowering::AddFilterValue(core::exec::FilterValue value) {
   return static_cast<uint32_t>(values.size() - 1);
 }
 
+uint32_t Lowering::AddFilterParam(uint32_t param,
+                                  core::StorageType type,
+                                  core::Op op) {
+  uint32_t value = AddFilterValue(core::exec::FilterValue());
+  plan_->out_->params_.push_back({param, value, type, op});
+  return value;
+}
+
 const LoweringContext& Lowering::context() const {
   return plan_->context_;
 }

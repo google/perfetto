@@ -58,6 +58,7 @@ class IntervalIntersect : public PlanOperation {
       const PlanNode&,
       std::vector<WherePredicate>* predicates) const override;
   void Lower(Lowering*, const PlanNode&) const override;
+  core::RowEstimate Estimate(PlanEstimator*, const PlanNode&) const override;
   void Write(PlanWriter*, const PlanNode&, Available*) const override;
 
   static base::Status BuildPlan(Compiler*, uint32_t);

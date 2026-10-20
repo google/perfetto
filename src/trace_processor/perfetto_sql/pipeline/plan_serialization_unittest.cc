@@ -27,11 +27,14 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/test_catalog.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
@@ -178,6 +181,31 @@ TEST_F(PlanSerializationTest, PlansWithTooManyOutputsAreRefused) {
   LogicalPlan over_limit = plan;
   over_limit.output().assign(kMaxPipelineColumns + 1, plan.output()[0]);
   EXPECT_FALSE(RoundTrip(over_limit).ok());
+}
+
+// Anyone can write a parameter into a plan, so one never cast keeps no rows,
+// and IS [NOT] NULL and IN are read back as written.
+TEST_F(PlanSerializationTest, ParametersRoundTripAndReadNoRowsUncast) {
+  for (core::Op op : {core::Op(core::Gt{}), core::Op(core::In{}),
+                      core::Op(core::IsNotNull{})}) {
+    LogicalPlan plan =
+        Compile("FROM df |> TREE ACCUMULATE UP SUM(self) AS t |> SELECT id, t");
+    WherePredicate predicate;
+    predicate.column = plan.output()[1].id;
+    predicate.op = op;
+    if (!op.Is<core::IsNotNull>()) {
+      predicate.param = 5;
+    }
+    Where::AddToPlan(&plan, {predicate});
+    auto read = RoundTrip(plan);
+    ASSERT_TRUE(read.ok()) << read.status().message();
+    EXPECT_EQ(SerializePlan(*read), SerializePlan(plan));
+    auto physical = Lower(*read, {&pool_});
+    ASSERT_TRUE(physical.ok()) << physical.status().message();
+    core::exec::RowCursor cursor((*physical)->source());
+    EXPECT_EQ(cursor.Open((*physical)->filter_values()),
+              op.Is<core::IsNotNull>());
+  }
 }
 
 }  // namespace

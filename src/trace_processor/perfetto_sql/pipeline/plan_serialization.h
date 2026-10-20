@@ -46,6 +46,16 @@ inline constexpr uint32_t kMaxPipelineColumns = 256;
 // without compiling the pipeline again.
 std::string SerializePlan(const LogicalPlan&);
 
+// Reads back a plan written by SerializePlan, without looking up anything it
+// reads: enough to plan the query it is part of. Anyone can write bytes into
+// SQL, so anything SerializePlan could not have written is refused.
+base::StatusOr<LogicalPlan> ParsePlan(std::string_view);
+
+// Points each dataframe scan of a parsed plan at the dataframe now registered
+// under its name, which must still have every column the plan reads, with the
+// same type.
+base::Status ResolveDataframes(LogicalPlan& plan, const Catalog& catalog);
+
 // Rebuilds a plan written by SerializePlan, looking its dataframes up in
 // `catalog` again. Anyone can write bytes into SQL, so anything SerializePlan
 // could not have written is refused, as is a plan whose dataframes have since

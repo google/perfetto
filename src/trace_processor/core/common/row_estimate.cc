@@ -22,28 +22,16 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/core/common/duplicate_types.h"
+#include "src/trace_processor/core/common/op_types.h"
 
 namespace perfetto::trace_processor::core {
 
-namespace {
-
-// Assumed number of distinct values matched by an IN filter when the list size
-// is not known at plan time. Scales the single-value equality estimate. Matches
-// SQLite's own tuning constant for "x IN (SELECT ...)" (see whereLoopAddBtree).
-constexpr double kAssumedInListSize = 25;
-
-// Rows surviving a scalar equality filter on a HasDuplicates column with
-// `estimated_distinct` distinct values (0 = unknown). With a known count, a
-// uniform column keeps ~1/estimated_distinct of the rows; otherwise fall back
-// to the data-blind heuristic.
 double EqualityFilterRows(uint32_t row_count, uint32_t estimated_distinct) {
   if (estimated_distinct > 0) {
     return static_cast<double>(row_count) / estimated_distinct;
   }
   return row_count / (2 * log2(row_count));
 }
-
-}  // namespace
 
 void RowModel::ApplyNonEqualityFilter() {
   if (rows_.estimated > 1) {
@@ -86,6 +74,27 @@ void RowModel::ApplyInFilter(DuplicateState duplicate_state,
                               per_value * kAssumedInListSize);
   rows_.estimated =
       std::min(rows_.estimated, std::max(1u, static_cast<uint32_t>(new_count)));
+}
+
+void RowModel::ApplyFilter(const Op& op,
+                           DuplicateState duplicate_state,
+                           uint32_t estimated_distinct,
+                           bool non_null) {
+  if (op.Is<IsNull>() || op.Is<IsNotNull>()) {
+    if (!non_null) {
+      ApplyNonEqualityFilter();
+    } else if (op.Is<IsNull>()) {
+      ApplyZeroRows();
+    }
+    return;
+  }
+  if (op.Is<In>()) {
+    ApplyInFilter(duplicate_state, estimated_distinct);
+  } else if (op.Is<Eq>()) {
+    ApplyEqualityFilter(duplicate_state, estimated_distinct);
+  } else {
+    ApplyNonEqualityFilter();
+  }
 }
 
 void RowModel::ApplyOneRow() {

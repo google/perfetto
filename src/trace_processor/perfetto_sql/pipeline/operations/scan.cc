@@ -35,14 +35,23 @@
 #include "perfetto/ext/base/variant.h"
 #include "src/perfetto_sql/analysis/relation.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
+#include "src/trace_processor/core/common/duplicate_types.h"
+#include "src/trace_processor/core/common/null_types.h"
+#include "src/trace_processor/core/common/row_estimate.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/logical_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
+#include "src/trace_processor/core/exec/eq_scans.h"
+#include "src/trace_processor/core/exec/index_scan.h"
+#include "src/trace_processor/core/exec/sorted_scan.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/cost_estimation.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
@@ -74,6 +83,106 @@ std::optional<uint32_t> FindScanColumn(const dataframe::Dataframe& dataframe,
     }
   }
   return std::nullopt;
+}
+
+// The indexes of `dataframe`, naming their columns as it does.
+std::vector<ScanIndex> IndexesOf(const dataframe::Dataframe& dataframe) {
+  std::vector<ScanIndex> indexes;
+  for (const dataframe::Index& index : dataframe.indexes()) {
+    ScanIndex scan_index;
+    for (uint32_t column : index.columns()) {
+      scan_index.column_names.push_back(dataframe.column_names()[column]);
+    }
+    scan_index.permutation = index.permutation_vector();
+    indexes.push_back(std::move(scan_index));
+  }
+  return indexes;
+}
+
+// How a WHERE's predicates on a scan of a dataframe are searched for, as the
+// dataframe's planner would search: through the columns it keeps sorted, or
+// else through an index. Either way, the rest are tested on the rows found.
+struct Searches {
+  enum class Kind : uint8_t { kNone, kSorted, kIndex };
+  Kind kind = Kind::kNone;
+  // The predicates searched for: for an index, in the order of its columns.
+  std::vector<uint32_t> searched;
+  // By predicate, the scan column it tests, if any.
+  std::vector<std::optional<uint32_t>> positions;
+  // By predicate, how a sorted column is searched for it, if it can be.
+  std::vector<std::optional<dataframe::logical::FilterStrategy>> strategies;
+  // The index searched, for kIndex.
+  uint32_t index = 0;
+};
+
+Searches PlanSearches(const ScanDataframe& data,
+                      const std::vector<NamedColumn>& columns,
+                      const std::vector<WherePredicate>& predicates) {
+  Searches out;
+  out.positions.resize(predicates.size());
+  out.strategies.resize(predicates.size());
+  bool sorted_eq = false;
+  bool sorted_range = false;
+  for (uint32_t p = 0; p < predicates.size(); ++p) {
+    for (uint32_t i = 0; i < columns.size() && i < data.columns.size(); ++i) {
+      if (columns[i].id == predicates[p].column) {
+        out.positions[p] = i;
+      }
+    }
+    if (!out.positions[p]) {
+      continue;
+    }
+    out.strategies[p] = dataframe::SortedFilterStrategy(
+        *data.columns[*out.positions[p]], predicates[p].op);
+    if (out.strategies[p]) {
+      (predicates[p].op.Is<core::Eq>() ? sorted_eq : sorted_range) = true;
+    }
+  }
+
+  // An index serves equalities on its leading columns, as many as it can.
+  // An Id column is always sorted, so never needs one.
+  std::vector<uint32_t> best;
+  uint32_t best_index = 0;
+  for (uint32_t x = 0; x < data.indexes.size() && data.row_count > 1; ++x) {
+    std::vector<uint32_t> matched;
+    for (const std::string& name : data.indexes[x].column_names) {
+      std::optional<uint32_t> found;
+      for (uint32_t p = 0; p < predicates.size() && !found; ++p) {
+        std::optional<uint32_t> position = out.positions[p];
+        if (position && predicates[p].op.Is<core::Eq>() &&
+            data.column_names[*position] == name &&
+            !data.columns[*position]->storage.type().Is<core::Id>() &&
+            std::find(matched.begin(), matched.end(), p) == matched.end()) {
+          found = p;
+        }
+      }
+      if (!found) {
+        break;
+      }
+      matched.push_back(*found);
+    }
+    if (matched.size() > best.size()) {
+      best = std::move(matched);
+      best_index = x;
+    }
+  }
+
+  // An equality on a sorted column finds the fewest rows for the least work,
+  // then an index's equalities; a range of a sorted column is searched only
+  // when there is neither.
+  if (sorted_eq || (best.empty() && sorted_range)) {
+    out.kind = Searches::Kind::kSorted;
+    for (uint32_t p = 0; p < predicates.size(); ++p) {
+      if (out.strategies[p]) {
+        out.searched.push_back(p);
+      }
+    }
+  } else if (!best.empty()) {
+    out.kind = Searches::Kind::kIndex;
+    out.searched = std::move(best);
+    out.index = best_index;
+  }
+  return out;
 }
 
 }  // namespace
@@ -204,6 +313,7 @@ Scan Scan::BuildDataframeScan(Compiler* c,
     source.column_names.push_back(dataframe.column_names()[column.index]);
     source.columns.push_back(dataframe.shared_column(column.index));
   }
+  source.indexes = IndexesOf(dataframe);
   scan.source_ = std::move(source);
   return scan;
 }
@@ -331,6 +441,148 @@ std::optional<uint32_t> Scan::Prune(std::vector<bool>* needed) {
     default:
       PERFETTO_FATAL("Unknown scan source");
   }
+}
+
+core::RowEstimate Scan::Estimate(PlanEstimator* e, const PlanNode&) const {
+  return EstimateFiltered(e, {});
+}
+
+core::RowEstimate Scan::EstimateFiltered(
+    PlanEstimator* e,
+    const std::vector<WherePredicate>& predicates) const {
+  const auto* data = std::get_if<Scan::Dataframe>(&source_);
+  if (!data) {
+    // SQL, read as a dataframe built when the query runs.
+    e->AddCost(PlanEstimator::kReadCostPerRow * PlanEstimator::kAssumedRows);
+    return e->ApplyBlind(
+        {PlanEstimator::kAssumedRows, PlanEstimator::kAssumedRows}, predicates);
+  }
+  // As LowerSearching runs them: searches of sorted columns or an index,
+  // then tests of the rows those find.
+  Searches searches = PlanSearches(*data, columns_, predicates);
+  core::RowModel model(data->row_count);
+  auto apply = [&](uint32_t p) {
+    const WherePredicate& predicate = predicates[p];
+    if (!searches.positions[p]) {
+      model.ApplyFilter(predicate.op, core::HasDuplicates{}, 0,
+                        /*non_null=*/false);
+      return;
+    }
+    const dataframe::Column& column = *data->columns[*searches.positions[p]];
+    model.ApplyFilter(predicate.op, column.duplicate_state,
+                      column.estimated_distinct,
+                      column.null_storage.nullability().Is<core::NonNull>());
+  };
+  std::vector<bool> searched(predicates.size());
+  for (uint32_t p : searches.searched) {
+    e->AddSearchCost(searches.kind == Searches::Kind::kIndex
+                         ? data->row_count
+                         : model.rows().max);
+    apply(p);
+    searched[p] = true;
+  }
+  e->AddCost(PlanEstimator::kReadCostPerRow * model.rows().estimated);
+  for (uint32_t p = 0; p < predicates.size(); ++p) {
+    if (!searched[p]) {
+      e->AddCost(PlanEstimator::kFilterCostPerRow * model.rows().estimated);
+      apply(p);
+    }
+  }
+  return model.rows();
+}
+
+std::optional<std::vector<bool>> Scan::LowerSearching(
+    Lowering* c,
+    const std::vector<WherePredicate>& predicates) const {
+  const auto* data = std::get_if<Scan::Dataframe>(&source_);
+  if (!data) {
+    return std::nullopt;
+  }
+  Searches searches = PlanSearches(*data, columns_, predicates);
+  std::vector<bool> searched(predicates.size());
+  for (uint32_t p : searches.searched) {
+    searched[p] = true;
+  }
+  // The values searched for are cast for the dataframe's columns, which is
+  // how the scan holds them.
+  auto value = [&](uint32_t p) {
+    const dataframe::Column& column = *data->columns[*searches.positions[p]];
+    return Where::LowerValue(c, predicates[p], column.storage.type());
+  };
+
+  PERFETTO_DCHECK(!c->has_source());
+  for (const NamedColumn& column : columns_) {
+    c->DeclareColumn(column.id);
+  }
+  switch (searches.kind) {
+    case Searches::Kind::kNone:
+      c->SetSource(MakeSource());
+      break;
+    case Searches::Kind::kIndex: {
+      std::vector<ex::IndexScan::Equality> equalities;
+      for (uint32_t p : searches.searched) {
+        equalities.push_back({data->columns[*searches.positions[p]], value(p)});
+      }
+      const ScanIndex& index = data->indexes[searches.index];
+      c->SetSource(std::make_unique<ex::IndexScan>(
+          data->columns,
+          dataframe::Index(std::vector<uint32_t>(index.column_names.size()),
+                           index.permutation),
+          std::move(equalities), c->context().pool));
+      // The rows come in the index's order, in runs of rows which ascend.
+      c->DeclareSmallBatches();
+      return searched;
+    }
+    case Searches::Kind::kSorted: {
+      uint32_t p = searches.searched[0];
+      const auto& strategy = *searches.strategies[p];
+      const auto& column = data->columns[*searches.positions[p]];
+      bool one_eq =
+          searches.searched.size() == 1 && predicates[p].op.Is<core::Eq>();
+      if (one_eq && column->storage.type().Is<core::Id>()) {
+        c->SetSource(std::make_unique<ex::IdEqScan>(data->columns,
+                                                    data->row_count, value(p)));
+      } else if (one_eq &&
+                 std::holds_alternative<dataframe::logical::SetIdSortedSearch>(
+                     strategy)) {
+        c->SetSource(std::make_unique<ex::SetIdEqScan>(
+            data->columns, data->row_count, column, value(p)));
+      } else if (one_eq &&
+                 std::holds_alternative<dataframe::logical::SmallValueLookup>(
+                     strategy)) {
+        c->SetSource(std::make_unique<ex::SmallValueEqScan>(
+            data->columns, data->row_count, column, value(p)));
+      } else {
+        std::vector<ex::SortedScan::Search> sorted;
+        for (uint32_t q : searches.searched) {
+          ex::SortedScan::Search search;
+          search.column = data->columns[*searches.positions[q]];
+          const auto& s = *searches.strategies[q];
+          search.kind =
+              std::holds_alternative<dataframe::logical::SetIdSortedSearch>(s)
+                  ? ex::SortedScan::Search::Kind::kSetIdEq
+              : std::holds_alternative<dataframe::logical::SmallValueLookup>(s)
+                  ? ex::SortedScan::Search::Kind::kSmallValueEq
+                  : ex::SortedScan::Search::Kind::kBinarySearch;
+          search.op = predicates[q].op;
+          search.value = value(q);
+          sorted.push_back(std::move(search));
+        }
+        c->SetSource(std::make_unique<ex::SortedScan>(
+            data->columns, data->row_count, std::move(sorted),
+            c->context().pool));
+      }
+      break;
+    }
+  }
+  // A range of a dataframe is read in order, so a column it keeps sorted
+  // ascends.
+  for (uint32_t i = 0; i < columns_.size(); ++i) {
+    if (!data->columns[i]->sort_state.Is<core::Unsorted>()) {
+      c->DeclareSorted({{columns_[i].id, false}});
+    }
+  }
+  return searched;
 }
 
 void Scan::Lower(Lowering* c, const PlanNode&) const {
@@ -475,6 +727,7 @@ base::Status Scan::ResolveDataframes(LogicalPlan* logical_plan,
     data->columns.push_back(dataframe->shared_column(*i));
   }
   data->row_count = dataframe->row_count();
+  data->indexes = IndexesOf(*dataframe);
 
   return base::OkStatus();
 }

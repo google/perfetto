@@ -36,6 +36,7 @@
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/cost_estimation.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
@@ -220,6 +221,23 @@ std::vector<std::vector<WherePredicate>> IntervalIntersect::PassFilters(
   }
   *predicates = std::move(kept);
   return passed;
+}
+
+core::RowEstimate IntervalIntersect::Estimate(PlanEstimator* e,
+                                              const PlanNode& node) const {
+  // Each operand is sorted, then swept together. A sweep produces about one
+  // region per row it passes, though regions can multiply where operands
+  // overlap themselves.
+  double estimated = 0;
+  double max = 1;
+  for (PlanNodeId child : node.children()) {
+    core::RowEstimate in = e->EstimateNode(child);
+    e->AddSortCost(in.estimated);
+    e->AddCost(PlanEstimator::kSweepCostPerRow * in.estimated);
+    estimated += in.estimated;
+    max *= std::max<uint32_t>(in.max, 1);
+  }
+  return {PlanEstimator::Rows(max), PlanEstimator::Rows(estimated)};
 }
 
 void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {

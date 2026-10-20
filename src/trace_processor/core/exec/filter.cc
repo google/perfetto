@@ -42,6 +42,7 @@
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
+using filter::CastFilterValueListResult;
 using filter::CastFilterValueResult;
 
 // The batch rows kept so far: `count` of them from `rows`, increasing. Each
@@ -188,12 +189,92 @@ void ApplyComparison(const Op& op,
   }
 }
 
+// Keeps the rows of a column of storage type T holding one of the values of
+// `list`, with the interpreter's kernels.
+template <typename T>
+void CompareIn(const ColumnView& column,
+               const CastFilterValueListResult& list,
+               Rows& r) {
+  uint32_t* begin = r.rows;
+  uint32_t* end = r.rows + r.count;
+  uint32_t start = column.start();
+  if constexpr (std::is_same_v<T, Id>) {
+    // An Id's value is where it would be stored, or once copied out, stored.
+    const auto* data = static_cast<const uint32_t*>(column.data());
+    const auto& set = base::unchecked_get<
+        CastFilterValueListResult::HashMap<CastFilterValueResult::Id>>(
+        list.hash_map);
+    const BitVector& dense = list.bit_vector;
+    uint32_t kept = 0;
+    for (uint32_t* it = begin; it != end; ++it) {
+      uint32_t index = start + *it;
+      uint32_t value = data ? data[index] : index;
+      bool in = dense.size() > 0
+                    ? value < dense.size() && dense.is_set(value)
+                    : set.Find(CastFilterValueResult::Id{value}) != nullptr;
+      if (in) {
+        r.rows[kept++] = *it;
+      }
+    }
+    r.count = kept;
+  } else {
+    using M =
+        StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
+    const auto* data = static_cast<const M*>(column.data()) + start;
+    Span<uint32_t> source(begin, end);
+    Span<uint32_t> dest(begin, end);
+    filter::NonIndexedFilterInScan<T>(list, data, source, dest);
+    r.count = static_cast<uint32_t>(dest.e - begin);
+  }
+}
+
+// Applies an IN to the rows kept so far. As a comparison does, it first drops
+// the nulls, which it can never be true of. A list never cast keeps nothing.
+void ApplyIn(const FilterValue& cast, const ColumnView& column, Rows& r) {
+  if (!cast.list) {
+    r.count = 0;
+    return;
+  }
+  const CastFilterValueListResult& list = *cast.list;
+  switch (list.validity) {
+    case CastFilterValueResult::kNoneMatch:
+      r.count = 0;
+      return;
+    case CastFilterValueResult::kAllMatch:
+      KeepNulls(column, /*nulls=*/false, r);
+      return;
+    case CastFilterValueResult::kValid:
+      KeepNulls(column, /*nulls=*/false, r);
+      break;
+  }
+  if (r.count == 0) {
+    return;
+  }
+  switch (column.type().index()) {
+    case StorageType::GetTypeIndex<Id>():
+      return CompareIn<Id>(column, list, r);
+    case StorageType::GetTypeIndex<Uint32>():
+      return CompareIn<Uint32>(column, list, r);
+    case StorageType::GetTypeIndex<Int32>():
+      return CompareIn<Int32>(column, list, r);
+    case StorageType::GetTypeIndex<Int64>():
+      return CompareIn<Int64>(column, list, r);
+    case StorageType::GetTypeIndex<Double>():
+      return CompareIn<Double>(column, list, r);
+    case StorageType::GetTypeIndex<String>():
+      return CompareIn<String>(column, list, r);
+    default:
+      PERFETTO_FATAL("Unsupported storage type");
+  }
+}
+
 }  // namespace
 
 Filter::Filter(std::vector<Condition> conditions, const StringPool* pool)
     : conditions_(std::move(conditions)), pool_(pool) {
   for (const Condition& c : conditions_) {
-    PERFETTO_CHECK(c.op.IsAnyOf<NonStringOp>() || c.op.IsAnyOf<NullOp>());
+    PERFETTO_CHECK(c.op.IsAnyOf<NonStringOp>() || c.op.IsAnyOf<NullOp>() ||
+                   c.op.Is<In>());
   }
 }
 
@@ -221,6 +302,10 @@ bool Filter::Process(RowBatch& batch, OperatorState& state) const {
       continue;
     }
     PERFETTO_DCHECK(c.value < s.context->filter_values().size());
+    if (c.op.Is<In>()) {
+      ApplyIn(values[c.value], column, r);
+      continue;
+    }
     ApplyComparison(c.op, values[c.value], column, *pool_, r);
   }
   batch.mutable_selection().KeepRows(

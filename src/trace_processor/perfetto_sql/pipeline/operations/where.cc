@@ -35,6 +35,8 @@
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/cost_estimation.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -164,28 +166,81 @@ std::optional<uint32_t> Where::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
+core::RowEstimate Where::Estimate(PlanEstimator* e,
+                                  const PlanNode& node) const {
+  // Estimated as it is lowered: straight on a scan, from what the scan's
+  // columns say of their values.
+  const PlanNode& child = e->plan().nodes()[node.children()[0]];
+  if (child.Is<Scan>()) {
+    return child.Cast<Scan>().EstimateFiltered(e, predicates_);
+  }
+  return e->ApplyBlind(e->EstimateNode(node.children()[0]), predicates_);
+}
+
+uint32_t Where::LowerValue(Lowering* c,
+                           const WherePredicate& p,
+                           core::StorageType type) {
+  if (p.param) {
+    // Cast as each run starts, from what the plan is passed.
+    return c->AddFilterParam(*p.param, type, p.op);
+  }
+  if (p.op.IsAnyOf<core::NullOp>()) {
+    return 0;
+  }
+  LiteralFetcher fetcher(p);
+  ex::FilterValue value;
+  ex::GetFilterValueCaster<LiteralFetcher>(type, p.op)(
+      fetcher, 0, *c->context().pool, &value);
+  return c->AddFilterValue(std::move(value));
+}
+
 void Where::Lower(Lowering* c, const PlanNode& node) const {
-  c->LowerNode(node.children()[0]);
+  // Straight on a table, the predicates its sorted columns or an index can
+  // find the rows of are searched for, and only the rest tested.
+  const PlanNode& child = c->plan().nodes()[node.children()[0]];
+  std::optional<std::vector<bool>> searched;
+  if (child.Is<Scan>()) {
+    searched = child.Cast<Scan>().LowerSearching(c, predicates_);
+  }
+  if (!searched) {
+    c->LowerNode(node.children()[0]);
+    searched = std::vector<bool>(predicates_.size());
+  }
   std::vector<ex::Filter::Condition> conditions;
-  for (const WherePredicate& p : predicates_) {
-    // Filter reads only columns of one type. A column of no known type
-    // carries a type per row, so it is converted to the literal's.
-    std::optional<core::StorageType> type = c->QueryType(p.column).storage();
-    if (!type) {
-      type = p.is_double ? core::StorageType(core::Double{})
-                         : core::StorageType(core::Int64{});
-      c->RequireType(p.column, *type);
+  for (uint32_t i = 0; i < predicates_.size(); ++i) {
+    if ((*searched)[i]) {
+      continue;
     }
-    LiteralFetcher fetcher(p);
-    ex::FilterValue value;
-    ex::GetFilterValueCaster<LiteralFetcher>(*type, p.op)(
-        fetcher, 0, *c->context().pool, &value);
+    const WherePredicate& p = predicates_[i];
+    // Filter reads only columns of one type, and casts its values for the
+    // type the executor holds the column as. A column which carries a type
+    // per row is converted: to the literal's, or to the type the plan says
+    // it holds.
+    ex::ColumnLayout layout = c->QueryLayout(p.column);
+    core::StorageType type = layout.type();
+    if (layout.variant()) {
+      std::optional<core::StorageType> known = c->QueryType(p.column).storage();
+      if (!p.param && !p.op.IsAnyOf<core::NullOp>()) {
+        type = p.is_double ? core::StorageType(core::Double{})
+                           : core::StorageType(core::Int64{});
+      } else if (known) {
+        type = *known;
+      } else {
+        c->Fail(base::ErrStatus("WHERE: column '%s' has no type to compare by",
+                                c->plan().columns()[p.column].name.c_str()));
+        return;
+      }
+      c->RequireType(p.column, type);
+    }
 
     ex::Filter::Condition condition;
     condition.column = c->QueryPosition(p.column);
     condition.op = p.op;
-    condition.value = c->AddFilterValue(std::move(value));
+    condition.value = LowerValue(c, p, type);
     conditions.push_back(condition);
+  }
+  if (conditions.empty()) {
+    return;
   }
   c->AddOperator(
       std::make_unique<ex::Filter>(std::move(conditions), c->context().pool));
@@ -212,6 +267,25 @@ void Where::DecodePlan(PlanReader* c, Available* available) {
   c->AddNode(std::move(where), {c->plan().root()});
 }
 
+void Where::AddToPlan(LogicalPlan* plan,
+                      std::vector<WherePredicate> predicates) {
+  PlanNode& root = plan->nodes()[plan->root()];
+  if (root.Is<Where>()) {
+    auto& where = static_cast<Where&>(root.operation());
+    where.predicates_.insert(where.predicates_.end(), predicates.begin(),
+                             predicates.end());
+    return;
+  }
+  plan->AddNode(Where(std::move(predicates)), {plan->root()});
+}
+
+namespace {
+
+// What a predicate compares with, as written.
+enum ValueKind : uint8_t { kInt = 0, kDouble = 1, kParam = 2, kNone = 3 };
+
+}  // namespace
+
 void Where::WritePredicates(PlanWriter* c,
                             const std::vector<WherePredicate>& predicates,
                             const Available& available) {
@@ -219,10 +293,16 @@ void Where::WritePredicates(PlanWriter* c,
   for (const WherePredicate& p : predicates) {
     c->writer().Position(available, p.column);
     c->writer().U8(static_cast<uint8_t>(p.op.index()));
-    c->writer().U8(p.is_double ? 1 : 0);
-    if (p.is_double) {
+    if (p.op.IsAnyOf<core::NullOp>()) {
+      c->writer().U8(kNone);
+    } else if (p.param) {
+      c->writer().U8(kParam);
+      c->writer().U32(*p.param);
+    } else if (p.is_double) {
+      c->writer().U8(kDouble);
       c->writer().F64(p.double_value);
     } else {
+      c->writer().U8(kInt);
       c->writer().U64(static_cast<uint64_t>(p.int_value));
     }
   }
@@ -233,17 +313,25 @@ std::vector<WherePredicate> Where::ReadPredicates(PlanReader* c,
   std::vector<WherePredicate> predicates(c->reader().Count());
   for (WherePredicate& p : predicates) {
     p.column = c->reader().Position(available);
-    // Only comparisons are written; anything else is corrupt.
+    // Only comparisons, null tests and IN are written, each with the value it
+    // compares with; anything else is corrupt.
     std::optional<core::Op> op = core::Op::FromIndex(c->reader().U8());
-    if (!op || !op->IsAnyOf<core::NonStringOp>()) {
+    uint8_t kind = c->reader().U8();
+    bool comparison = op && op->IsAnyOf<core::NonStringOp>() &&
+                      (kind == kInt || kind == kDouble || kind == kParam);
+    bool null_test = op && op->IsAnyOf<core::NullOp>() && kind == kNone;
+    bool in = op && op->Is<core::In>() && kind == kParam;
+    if (!comparison && !null_test && !in) {
       c->reader().Fail();
       continue;
     }
     p.op = *op;
-    p.is_double = c->reader().U8() != 0;
-    if (p.is_double) {
+    if (kind == kParam) {
+      p.param = c->reader().U32();
+    } else if (kind == kDouble) {
+      p.is_double = true;
       p.double_value = c->reader().F64();
-    } else {
+    } else if (kind == kInt) {
       p.int_value = static_cast<int64_t>(c->reader().U64());
     }
   }

@@ -58,6 +58,7 @@ source_set("engine") {
     "../parser",
     "../pipeline",
     "../pipeline:plan",
+    "../pipeline/operations",
     "../schema",
     "../tokenizer",
   ]

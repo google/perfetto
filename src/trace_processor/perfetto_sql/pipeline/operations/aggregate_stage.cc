@@ -30,6 +30,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/hash_aggregate.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/cost_estimation.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -105,6 +106,18 @@ std::optional<uint32_t> AggregateStage::Prune(std::vector<bool>* needed) {
     (*needed)[key] = true;
   }
   return std::nullopt;
+}
+
+core::RowEstimate AggregateStage::Estimate(PlanEstimator* e,
+                                           const PlanNode& node) const {
+  // Each row is folded into its group's state. Without keys there is one
+  // group; with them, as many as there are rows, for all that is known.
+  core::RowEstimate in = e->EstimateNode(node.children()[0]);
+  e->AddCost(PlanEstimator::kHashCostPerRow * in.estimated);
+  if (keys_.empty()) {
+    return {1, 1};
+  }
+  return in;
 }
 
 void AggregateStage::Lower(Lowering* c, const PlanNode& node) const {

@@ -32,13 +32,18 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/variant.h"
+#include "src/trace_processor/core/util/span.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 #include "src/trace_processor/perfetto_sql/pipeline/test_catalog.h"
@@ -150,8 +155,14 @@ class PhysicalPlanTest : public ::testing::Test {
     return names;
   }
 
-  // Runs `plan` and returns (id, value) pairs sorted by id.
-  base::StatusOr<Rows> Run(const PhysicalPlan& plan, const std::string& value) {
+  // Runs `plan` and returns (id, value) pairs sorted by id. Its filters
+  // compare with `values` if given, and with its own filter values otherwise.
+  base::StatusOr<Rows> Run(
+      const PhysicalPlan& plan,
+      const std::string& value,
+      const std::vector<core::exec::FilterValue>* values = nullptr) {
+    const std::vector<core::exec::FilterValue>& filter_values =
+        values ? *values : plan.filter_values();
     uint32_t id_column = 0;
     uint32_t value_column = 0;
     for (const PhysicalPlan::Column& column : plan.columns()) {
@@ -163,8 +174,10 @@ class PhysicalPlanTest : public ::testing::Test {
     }
     Rows out;
     RowCursor cursor(plan.source());
-    for (bool row = cursor.Open(plan.filter_values()); row;
-         row = cursor.Next()) {
+    for (bool row = cursor.Open(core::Span<const core::exec::FilterValue>(
+             filter_values.data(),
+             filter_values.data() + filter_values.size()));
+         row; row = cursor.Next()) {
       out.emplace_back(*IntAt(cursor, id_column), IntAt(cursor, value_column));
     }
     if (!cursor.status().ok()) {
@@ -505,6 +518,112 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 10), Pair(1, 20), Pair(2, 30), Pair(3, 40)));
+}
+
+// Hands each parameter's integers to the casts: one, none (a null), or a
+// list to iterate, as SQLite passes an IN's.
+struct ParamValues : core::ValueFetcher {
+  using Type = int;
+  static constexpr Type kInt64 = 0;
+  static constexpr Type kDouble = 1;
+  static constexpr Type kString = 2;
+  static constexpr Type kNull = 3;
+
+  int64_t GetInt64Value(uint32_t i) const { return values[i][item]; }
+  double GetDoubleValue(uint32_t) const { PERFETTO_FATAL("Integers only"); }
+  const char* GetStringValue(uint32_t) const {
+    PERFETTO_FATAL("Integers only");
+  }
+  Type GetValueType(uint32_t i) const {
+    return values[i].empty() ? kNull : kInt64;
+  }
+  bool IteratorInit(uint32_t i) {
+    item = 0;
+    return !values[i].empty();
+  }
+  bool IteratorNext(uint32_t i) { return ++item < values[i].size(); }
+
+  std::vector<std::vector<int64_t>> values;
+  size_t item = 0;
+};
+
+// A plan's predicates can compare with parameters, cast each time it runs, so
+// a plan is lowered once and run with different values.
+TEST_F(PhysicalPlanTest, ParametersAreCastEachRun) {
+  // Casts each parameter's values into a copy of the plan's filter values, as
+  // SQLite's are cast.
+  auto cast = [this](const PhysicalPlan& plan,
+                     std::vector<std::vector<int64_t>> values) {
+    ParamValues fetcher;
+    fetcher.values = std::move(values);
+    std::vector<core::exec::FilterValue> out = plan.filter_values();
+    for (const PhysicalPlan::Param& param : plan.params()) {
+      fetcher.item = 0;
+      auto caster =
+          param.op.Is<core::In>()
+              ? core::exec::GetFilterValueListCaster<ParamValues>(param.type)
+              : core::exec::GetFilterValueCaster<ParamValues>(param.type,
+                                                              param.op);
+      caster(fetcher, param.param, pool_, &out[param.value]);
+    }
+    return out;
+  };
+  // Lowers `sql` with its output column `column` compared by `op` with the
+  // first parameter.
+  auto lower = [this](const std::string& sql, const std::string& column,
+                      core::Op op) {
+    auto plan = Compile(sql);
+    PERFETTO_CHECK(plan.ok());
+    WherePredicate predicate;
+    for (const NamedColumn& output : plan->output()) {
+      if (output.name == column) {
+        predicate.column = output.id;
+      }
+    }
+    predicate.op = op;
+    predicate.param = 0;
+    Where::AddToPlan(&*plan, {predicate});
+    auto lowered = Lower(*plan, {&pool_});
+    PERFETTO_CHECK(lowered.ok());
+    return std::move(*lowered);
+  };
+  CreateDataframeTree();
+  const std::string kTotals =
+      "FROM df |> TREE ACCUMULATE UP SUM(self) AS total";
+  auto above = lower(kTotals, "total", core::Gt{});
+  auto values = cast(*above, {{50}});
+  EXPECT_THAT(*Run(*above, "total", &values),
+              ElementsAre(Pair(0, 100), Pair(1, 60)));
+  values = cast(*above, {{60}});
+  EXPECT_THAT(*Run(*above, "total", &values), ElementsAre(Pair(0, 100)));
+  // Without a value cast, or with a null, nothing is kept.
+  EXPECT_THAT(*Run(*above, "total"), ElementsAre());
+  values = cast(*above, {{}});
+  EXPECT_THAT(*Run(*above, "total", &values), ElementsAre());
+
+  auto in = lower(kTotals, "total", core::In{});
+  values = cast(*in, {{100, 30}});
+  EXPECT_THAT(*Run(*in, "total", &values),
+              ElementsAre(Pair(0, 100), Pair(2, 30)));
+  values = cast(*in, {{60}});
+  EXPECT_THAT(*Run(*in, "total", &values), ElementsAre(Pair(1, 60)));
+
+  // Straight on a table, a sorted column is searched as each run starts.
+  catalog_.AddTable("sorted", {"id", "ts"},
+                    {{0, 10}, {1, 20}, {2, 20}, {3, 30}});
+  auto searched = lower("FROM sorted", "ts", core::Ge{});
+  values = cast(*searched, {{20}});
+  EXPECT_THAT(*Run(*searched, "ts", &values),
+              ElementsAre(Pair(1, 20), Pair(2, 20), Pair(3, 30)));
+  values = cast(*searched, {{30}});
+  EXPECT_THAT(*Run(*searched, "ts", &values), ElementsAre(Pair(3, 30)));
+  values = cast(*searched, {{}});
+  EXPECT_THAT(*Run(*searched, "ts", &values), ElementsAre());
+
+  auto ids = lower("FROM df", "id", core::Ge{});
+  values = cast(*ids, {{2}});
+  EXPECT_THAT(*Run(*ids, "self", &values),
+              ElementsAre(Pair(2, 30), Pair(3, 40)));
 }
 
 }  // namespace

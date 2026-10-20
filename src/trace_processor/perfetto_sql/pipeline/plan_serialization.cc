@@ -258,18 +258,12 @@ LogicalPlan PlanReader::Read() {
   return std::move(plan_);
 }
 
-namespace {
-
-// Points each dataframe scan at the dataframe now registered under its name,
-// which must still have every column the plan reads, with the same type.
 base::Status ResolveDataframes(LogicalPlan& plan, const Catalog& catalog) {
   for (PlanNode& node : plan.nodes()) {
     RETURN_IF_ERROR(node.operation().ResolveDataframes(&plan, catalog));
   }
   return base::OkStatus();
 }
-
-}  // namespace
 
 std::string SerializePlan(const LogicalPlan& plan) {
   return PlanWriter(plan).Write();
@@ -285,13 +279,18 @@ base::Status BindDataframeArgs(
   return base::OkStatus();
 }
 
-base::StatusOr<LogicalPlan> DeserializePlan(std::string_view bytes,
-                                            const Catalog& catalog) {
+base::StatusOr<LogicalPlan> ParsePlan(std::string_view bytes) {
   Reader r(bytes);
   LogicalPlan plan = PlanReader(r).Read();
   if (!r.done()) {
     return base::ErrStatus("__intrinsic_pipeline: malformed plan");
   }
+  return std::move(plan);
+}
+
+base::StatusOr<LogicalPlan> DeserializePlan(std::string_view bytes,
+                                            const Catalog& catalog) {
+  ASSIGN_OR_RETURN(LogicalPlan plan, ParsePlan(bytes));
   RETURN_IF_ERROR(ResolveDataframes(plan, catalog));
   return std::move(plan);
 }

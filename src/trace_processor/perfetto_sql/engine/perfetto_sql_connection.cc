@@ -55,6 +55,7 @@
 #include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/pipeline/cost_estimation.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
@@ -1076,6 +1077,18 @@ PerfettoSqlConnection::LoadPipeline(
   pipeline::LoweringContext context;
   context.pool = pool_;
   return pipeline::Lower(plan, context);
+}
+
+pipeline::PlanEstimate PerfettoSqlConnection::EstimatePipeline(
+    pipeline::LogicalPlan plan) {
+  // Estimated on the tables as they are now. A plan reading one which has
+  // changed fails when it runs, so how it would run matters little.
+  if (!pipeline::ResolveDataframes(plan, *catalog_).ok()) {
+    return {{pipeline::PlanEstimator::kAssumedRows,
+             pipeline::PlanEstimator::kAssumedRows},
+            1e9};
+  }
+  return pipeline::EstimatePlan(plan);
 }
 
 base::Status PerfettoSqlConnection::ExecuteCreateView(
