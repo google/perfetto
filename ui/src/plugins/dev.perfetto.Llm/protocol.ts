@@ -147,11 +147,14 @@ export interface CredentialField {
   readonly placeholder?: string;
 }
 
-// One model the backend reports it can serve, as returned by listModels(). Just
-// the backend's own model identifier (e.g. 'gemini-2.5-flash') for now - the
-// settings UI uses these to populate the model-name combobox.
+// One model the backend reports it can serve, as returned by listModels(). The
+// backend's own model identifier (e.g. 'gemini-2.5-flash') plus any metadata
+// the backend exposes - the settings UI uses these to populate the model-name
+// combobox and auto-fill the model's details.
 export interface AvailableModel {
   readonly name: string;
+  // The model's context window size in tokens, if the backend reports it.
+  readonly contextWindow?: number;
 }
 
 // The contract a protocol implementation must satisfy. Implemented by protocol

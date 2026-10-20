@@ -36,6 +36,7 @@ export interface ModelDetails {
     readonly label?: string;
     readonly modelName: string; // The name of the model at the protcol level
     readonly roles: readonly ModelRole[];
+    readonly contextWindow?: number;
   };
   readonly provider: {
     readonly id: string;

@@ -229,6 +229,34 @@ class ToolCallAssembler {
   }
 }
 
+// One entry of GET {base}/models. The spec only defines `id` (plus some fields
+// we don't use); the rest are non-standard context-window fields that various
+// compatible servers add.
+interface OpenAiModelEntry {
+  readonly id?: string;
+  readonly context_length?: unknown; // OpenRouter, Together, Fireworks
+  readonly context_window?: unknown; // Groq
+  readonly max_context_length?: unknown; // Mistral, LM Studio
+  readonly max_model_len?: unknown; // vLLM
+  readonly top_provider?: {readonly context_length?: unknown}; // OpenRouter
+}
+
+// Extract the context window size from a /models entry, if the server
+// reports it via any of the known non-standard fields.
+function getContextWindow(entry: OpenAiModelEntry): number | undefined {
+  const candidates = [
+    entry.context_length,
+    entry.context_window,
+    entry.max_context_length,
+    entry.max_model_len,
+    entry.top_provider?.context_length,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'number' && Number.isInteger(c) && c > 0) return c;
+  }
+  return undefined;
+}
+
 export class OpenAiProtocol implements Protocol {
   readonly id = 'openai-compatible';
   readonly label = 'OpenAI-compatible (OpenAI, llama-server, vLLM, ...)';
@@ -255,12 +283,11 @@ export class OpenAiProtocol implements Protocol {
       );
     }
     const json = (await resp.json()) as {
-      readonly data?: readonly {readonly id?: string}[];
+      readonly data?: readonly OpenAiModelEntry[];
     };
     return (json.data ?? [])
-      .map((m) => m.id ?? '')
-      .filter((id) => id !== '')
-      .map((id) => ({name: id}));
+      .filter((m) => m.id !== undefined && m.id !== '')
+      .map((m) => ({name: m.id ?? '', contextWindow: getContextWindow(m)}));
   }
 
   async *createStream(
