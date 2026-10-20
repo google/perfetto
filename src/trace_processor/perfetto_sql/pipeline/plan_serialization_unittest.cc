@@ -32,6 +32,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
 #include "src/trace_processor/perfetto_sql/pipeline/test_catalog.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
@@ -79,10 +80,15 @@ class PlanSerializationTest : public ::testing::Test {
     return MoveSqlSourcesToDataframeArgs(std::move(plan)).plan;
   }
 
-  base::StatusOr<LogicalPlan> RoundTrip(const LogicalPlan& plan) {
-    return DeserializePlan(SerializePlan(plan), catalog_);
+  std::string Serialize(const std::string& sql) {
+    return SerializePlan(Compile(sql), key_);
   }
 
+  base::StatusOr<LogicalPlan> Deserialize(const std::string& bytes) {
+    return DeserializePlan(bytes, key_, catalog_);
+  }
+
+  PlanKey key_{1, 2};
   StringPool pool_;
   std::unique_ptr<SqliteConnection> connection_;
   TestCatalog catalog_;
@@ -109,72 +115,70 @@ const char* const kPipelines[] = {
     "FROM df |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id",
 };
 
-TEST_F(PlanSerializationTest, ChangedTablesAreRefused) {
-  std::string bytes = SerializePlan(Compile(
-      "FROM df |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id, total"));
-  catalog_.RemoveTable("df");
-  EXPECT_THAT(DeserializePlan(bytes, catalog_).status().message(),
-              HasSubstr("'df' no longer exists"));
-  catalog_.AddTable("df", {"id", "parent_id", "other"}, {{0, std::nullopt, 1}});
-  EXPECT_THAT(DeserializePlan(bytes, catalog_).status().message(),
-              HasSubstr("'df' has changed"));
-}
-
-// Anyone can write a plan into SQL, so no bytes may do worse than fail: cut
-// short or padded bytes are refused, and corrupt ones are refused or run.
-TEST_F(PlanSerializationTest, MalformedPlansAreRefusedOrRun) {
+TEST_F(PlanSerializationTest, PlansRoundTrip) {
   for (const char* sql : kPipelines) {
-    std::string bytes = SerializePlan(Compile(sql));
-    for (size_t size = 0; size < bytes.size(); ++size) {
-      EXPECT_FALSE(DeserializePlan(bytes.substr(0, size), catalog_).ok())
-          << sql << " cut to " << size;
-    }
-    EXPECT_FALSE(DeserializePlan(bytes + '\0', catalog_).ok()) << sql;
-    for (size_t at = 0; at < bytes.size(); ++at) {
-      for (char value : {'\0', '\1', '\x7f', '\xff'}) {
-        std::string corrupt = bytes;
-        corrupt[at] = value;
-        auto read = DeserializePlan(corrupt, catalog_);
-        if (!read.ok()) {
-          continue;
-        }
-        if (!BindDataframeArgs(*read, DataframeArgs(dataframes_), &pool_)
-                 .ok()) {
-          continue;
-        }
-        auto physical = Lower(*read, {&pool_});
-        if (!physical.ok()) {
-          continue;
-        }
-        core::exec::RowCursor cursor((*physical)->source());
-        for (bool row = cursor.Open((*physical)->filter_values()); row;
-             row = cursor.Next()) {
-        }
-      }
-    }
+    auto read = Deserialize(Serialize(sql));
+    ASSERT_TRUE(read.ok()) << sql << ": " << read.status().message();
+    ASSERT_TRUE(
+        BindDataframeArgs(*read, DataframeArgs(dataframes_), &pool_).ok())
+        << sql;
+    EXPECT_TRUE(Lower(*read, {&pool_}).ok()) << sql;
   }
 }
 
-TEST_F(PlanSerializationTest, PlansLoweringCannotRunAreRefused) {
-  LogicalPlan plan = Compile(
+TEST_F(PlanSerializationTest, ChangedTablesAreRefused) {
+  std::string bytes = Serialize(
       "FROM df |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id, total");
-
-  LogicalPlan unknown_column = plan;
-  unknown_column.output()[0].id = 99;
-  EXPECT_FALSE(RoundTrip(unknown_column).ok());
+  catalog_.RemoveTable("df");
+  EXPECT_THAT(Deserialize(bytes).status().message(),
+              HasSubstr("'df' no longer exists"));
+  catalog_.AddTable("df", {"id", "parent_id", "other"}, {{0, std::nullopt, 1}});
+  EXPECT_THAT(Deserialize(bytes).status().message(),
+              HasSubstr("'df' has changed"));
+  catalog_.RemoveTable("df");
+  catalog_.AddTable("df", {"id", "parent_id"}, {{0, std::nullopt}});
+  EXPECT_THAT(Deserialize(bytes).status().message(),
+              HasSubstr("'df' has changed"));
 }
 
-TEST_F(PlanSerializationTest, PlansWithTooManyOutputsAreRefused) {
+// A table made again as it was is read as before, as a view persists.
+TEST_F(PlanSerializationTest, RemadeTablesAreRead) {
+  std::string bytes = Serialize("FROM df |> SELECT id, self");
+  catalog_.RemoveTable("df");
+  catalog_.AddTable("df", {"id", "parent_id", "self"},
+                    {{1, 0, 5}, {0, std::nullopt, 6}});
+  EXPECT_TRUE(Deserialize(bytes).ok());
+}
+
+// Anyone can write bytes into SQL, so only bytes the key stamped are read.
+TEST_F(PlanSerializationTest, UnstampedPlansAreRefused) {
+  for (const char* sql : kPipelines) {
+    std::string bytes = Serialize(sql);
+    for (size_t size = 0; size < bytes.size(); ++size) {
+      EXPECT_FALSE(Deserialize(bytes.substr(0, size)).ok())
+          << sql << " cut to " << size;
+    }
+    EXPECT_FALSE(Deserialize(bytes + '\0').ok()) << sql;
+    for (size_t at = 0; at < bytes.size(); ++at) {
+      std::string corrupt = bytes;
+      corrupt[at] = static_cast<char>(corrupt[at] ^ 1);
+      EXPECT_FALSE(Deserialize(corrupt).ok()) << sql << " at " << at;
+    }
+    EXPECT_FALSE(DeserializePlan(bytes, PlanKey(1, 3), catalog_).ok()) << sql;
+  }
+}
+
+TEST_F(PlanSerializationTest, PlansWithTooManyOutputsAreNotWritten) {
   LogicalPlan plan = Compile("FROM df |> SELECT id");
   ASSERT_EQ(plan.output().size(), 1u);
 
   LogicalPlan at_limit = plan;
   at_limit.output().assign(kMaxPipelineColumns, plan.output()[0]);
-  EXPECT_TRUE(RoundTrip(at_limit).ok());
+  EXPECT_TRUE(SelectPipelineSql(at_limit, key_).ok());
 
   LogicalPlan over_limit = plan;
   over_limit.output().assign(kMaxPipelineColumns + 1, plan.output()[0]);
-  EXPECT_FALSE(RoundTrip(over_limit).ok());
+  EXPECT_FALSE(SelectPipelineSql(over_limit, key_).ok());
 }
 
 }  // namespace

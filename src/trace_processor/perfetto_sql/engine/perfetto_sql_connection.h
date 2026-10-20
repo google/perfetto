@@ -45,6 +45,7 @@
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
@@ -641,6 +642,8 @@ class PerfettoSqlConnection {
   std::unique_ptr<SqliteConnection> connection_;
   // Passed to every parser, for compiling pipelines.
   std::unique_ptr<ConnectionCatalog> catalog_;
+  // Stamps the pipeline plans this connection writes into SQL.
+  pipeline::PlanKey plan_key_ = pipeline::PlanKey::Random();
 
   // Reused across Execute() calls via Reset() to avoid the syntaqlite
   // create/destroy round-trip. Re-entrant Execute() and include frames

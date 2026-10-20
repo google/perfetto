@@ -32,6 +32,7 @@
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_test_utils.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
 #include "src/trace_processor/perfetto_sql/pipeline/test_catalog.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
@@ -472,8 +473,8 @@ TEST_F(PerfettoSqlParserTest, PipelinePushesPruningIntoSql) {
       "INTERVAL INTERSECTION OF (sql_spans AS a, (SELECT * FROM sql_spans) AS "
       "b) |> SELECT ts, dur, b.utid"));
   ASSERT_TRUE(parser.Next()) << parser.status().message();
-  auto sql =
-      pipeline::SelectPipelineSql(std::get<Pipeline>(parser.statement()).plan);
+  auto sql = pipeline::SelectPipelineSql(
+      std::get<Pipeline>(parser.statement()).plan, pipeline::PlanKey(0, 0));
   ASSERT_TRUE(sql.ok()) << sql.status().message();
   EXPECT_THAT(
       *sql,

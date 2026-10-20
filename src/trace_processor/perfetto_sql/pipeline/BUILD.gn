@@ -44,6 +44,8 @@ source_set("plan") {
     "physical_plan.h",
     "pipeline_sql.cc",
     "pipeline_sql.h",
+    "plan_key.cc",
+    "plan_key.h",
     "plan_serialization.cc",
     "plan_serialization.h",
     "plan_types.h",
@@ -104,6 +106,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "logical_plan_unittest.cc",
     "physical_plan_unittest.cc",
+    "plan_key_unittest.cc",
     "plan_serialization_unittest.cc",
   ]
   deps = [

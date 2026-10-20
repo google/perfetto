@@ -40,6 +40,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 #include "src/trace_processor/perfetto_sql/pipeline/test_catalog.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -498,7 +499,8 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   auto moved = MoveSqlSourcesToDataframeArgs(std::move(*plan));
   EXPECT_TRUE(moved.args.empty());
-  auto read = DeserializePlan(SerializePlan(moved.plan), catalog_);
+  PlanKey key(0, 0);
+  auto read = DeserializePlan(SerializePlan(moved.plan, key), key, catalog_);
   ASSERT_TRUE(read.ok()) << read.status().message();
   auto lowered = Lower(*read, {&pool_});
   ASSERT_TRUE(lowered.ok()) << lowered.status().message();

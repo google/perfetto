@@ -16,14 +16,15 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
@@ -32,269 +33,94 @@
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 
 namespace perfetto::trace_processor::pipeline {
-
-void Writer::U8(uint8_t value) {
-  Append(&value, sizeof(value));
-}
-
-void Writer::U32(uint32_t value) {
-  Append(&value, sizeof(value));
-}
-
-void Writer::U64(uint64_t value) {
-  Append(&value, sizeof(value));
-}
-
-void Writer::F64(double value) {
-  Append(&value, sizeof(value));
-}
-
-void Writer::Size(size_t value) {
-  U32(static_cast<uint32_t>(value));
-}
-
-void Writer::Str(std::string_view value) {
-  Size(value.size());
-  out_.append(value.data(), value.size());
-}
-
-void Writer::Position(const Available& available, ColumnId id) {
-  auto it = std::find(available.begin(), available.end(), id);
-  Size(static_cast<size_t>(it - available.begin()));
-}
-
-std::string Writer::Take() {
-  return std::move(out_);
-}
-
-void Writer::Append(const void* data, size_t size) {
-  size_t at = out_.size();
-  out_.resize(at + size);
-  memcpy(out_.data() + at, data, size);
-}
-
-Reader::Reader(std::string_view in) : in_(in) {}
-
-uint8_t Reader::U8() {
-  uint8_t value = 0;
-  Read(&value, sizeof(value));
-  return value;
-}
-
-uint32_t Reader::U32() {
-  uint32_t value = 0;
-  Read(&value, sizeof(value));
-  return value;
-}
-
-uint64_t Reader::U64() {
-  uint64_t value = 0;
-  Read(&value, sizeof(value));
-  return value;
-}
-
-double Reader::F64() {
-  double value = 0;
-  Read(&value, sizeof(value));
-  return value;
-}
-
-uint32_t Reader::Count() {
-  uint32_t count = U32();
-  if (count > in_.size() - at_) {
-    Fail();
-    return 0;
-  }
-  return count;
-}
-
-std::string Reader::Str() {
-  uint32_t size = Count();
-  std::string value(in_.substr(at_, size));
-  at_ += size;
-  return value;
-}
-
-ColumnId Reader::Position(const Available& available) {
-  uint32_t i = U32();
-  if (i >= available.size()) {
-    Fail();
-    return 0;
-  }
-  return available[i];
-}
-
-void Reader::Fail() {
-  ok_ = false;
-}
-
-bool Reader::ok() const {
-  return ok_;
-}
-
-bool Reader::done() const {
-  return ok_ && at_ == in_.size();
-}
-
-void Reader::Read(void* out, size_t size) {
-  if (!ok_ || in_.size() - at_ < size) {
-    Fail();
-    return;
-  }
-  memcpy(out, in_.data() + at_, size);
-  at_ += size;
-}
-
-PlanWriter::PlanWriter(const LogicalPlan& plan) : plan_(plan) {}
-
-PlanReader::PlanReader(Reader& r) : r_(r) {}
-
-// Tags for types that are not storage types. A storage type's tag is its
-// index plus kFirstStorageTag.
-constexpr uint8_t kUnknownTag = 0;
-constexpr uint8_t kNullTag = 1;
-constexpr uint8_t kFirstStorageTag = 2;
-
-void WriteType(Writer* w, const PlanType& type) {
-  if (type.is_unknown()) {
-    w->U8(kUnknownTag);
-  } else if (type.is_null()) {
-    w->U8(kNullTag);
-  } else {
-    w->U8(static_cast<uint8_t>(type.storage()->index() + kFirstStorageTag));
-  }
-}
-
-PlanType ReadType(Reader* r) {
-  uint8_t tag = r->U8();
-  if (tag == kUnknownTag) {
-    return PlanType::Unknown();
-  }
-  if (tag == kNullTag) {
-    return PlanType::Null();
-  }
-  switch (tag - kFirstStorageTag) {
-    case core::StorageType::GetTypeIndex<core::Id>():
-      return core::Id{};
-    case core::StorageType::GetTypeIndex<core::Uint32>():
-      return core::Uint32{};
-    case core::StorageType::GetTypeIndex<core::Int32>():
-      return core::Int32{};
-    case core::StorageType::GetTypeIndex<core::Int64>():
-      return core::Int64{};
-    case core::StorageType::GetTypeIndex<core::Double>():
-      return core::Double{};
-    case core::StorageType::GetTypeIndex<core::String>():
-      return core::String{};
-    default:
-      r->Fail();
-      return PlanType::Unknown();
-  }
-}
-
-// A plan is written as its source then the stages above it, naming columns by
-// position among those available, so only plans the compiler could build can
-// be written and reading one needs only bounds checks.
-std::string PlanWriter::Write() {
-  // Pruning can leave nodes the root does not reach.
-  std::vector<const PlanNode*> stages;
-  PlanNodeId id = plan_.root();
-  while (
-      !plan_.nodes()[id].operation().registration().encoding()->is_source()) {
-    stages.push_back(&plan_.nodes()[id]);
-    // A stage's input is its first child. The stage writes any other children
-    // itself, like FILL GAPS writes its background.
-    PERFETTO_CHECK(!plan_.nodes()[id].children().empty());
-    id = plan_.nodes()[id].children()[0];
-  }
-  // Names first, so everything after can refer to them by id.
-  w_.Size(plan_.names().size());
-  for (NameId name = 0; name < plan_.names().size(); ++name) {
-    w_.Str(plan_.names().text(name));
-  }
-  const PlanNode& source = plan_.nodes()[id];
-  w_.U8(source.operation().registration().encoding()->tag());
-  Available available;
-  source.operation().Write(this, source, &available);
-  w_.Size(stages.size());
-  for (auto it = stages.rbegin(); it != stages.rend(); ++it) {
-    const PlanNode& stage = **it;
-    w_.U8(stage.operation().registration().encoding()->tag());
-    stage.operation().Write(this, stage, &available);
-  }
-  w_.Size(plan_.output().size());
-  for (const NamedColumn& column : plan_.output()) {
-    w_.U32(column.name);
-    w_.Position(available, column.id);
-  }
-  return w_.Take();
-}
-
-ColumnId PlanReader::AddColumn(NameId name, PlanType type) {
-  return plan_.AddColumn(name, type);
-}
-
-NameId PlanReader::Name() {
-  NameId name = r_.U32();
-  if (name >= plan_.names().size()) {
-    r_.Fail();
-    return 0;
-  }
-  return name;
-}
-
-LogicalPlan PlanReader::Read() {
-  // A writer interns each spelling once, so a repeated one is corrupt: it
-  // would give the names after it different ids.
-  uint32_t names = r_.Count();
-  for (uint32_t i = 0; i < names && r_.ok(); ++i) {
-    if (plan_.names().Intern(r_.Str()) != i) {
-      r_.Fail();
-    }
-  }
-  Available available;
-  auto read = [&](bool source) {
-    const auto* registration = FindOperationByTag(r_.U8());
-    if (!registration || registration->encoding()->is_source() != source) {
-      r_.Fail();
-      return;
-    }
-    registration->encoding()->DecodePlan(this, &available);
-  };
-  read(true);
-  uint32_t stages = r_.Count();
-  for (uint32_t i = 0; i < stages && r_.ok(); ++i) {
-    read(false);
-  }
-  // The table function declares only so many output columns.
-  uint32_t outputs = r_.Count();
-  if (outputs > kMaxPipelineColumns) {
-    r_.Fail();
-    return {};
-  }
-  plan_.output().resize(outputs);
-  for (NamedColumn& column : plan_.output()) {
-    column.name = Name();
-    column.id = r_.Position(available);
-  }
-  return std::move(plan_);
-}
-
 namespace {
 
 // Points each dataframe scan at the dataframe now registered under its name,
 // which must still have every column the plan reads, with the same type.
-base::Status ResolveDataframes(LogicalPlan& plan, const Catalog& catalog) {
+base::Status ResolveDataframes(LogicalPlan& plan,
+                               const Catalog& catalog,
+                               const PlanKey& key) {
   for (PlanNode& node : plan.nodes()) {
-    RETURN_IF_ERROR(node.operation().ResolveDataframes(&plan, catalog));
+    RETURN_IF_ERROR(node.operation().ResolveDataframes(&plan, catalog, key));
   }
   return base::OkStatus();
 }
 
 }  // namespace
 
-std::string SerializePlan(const LogicalPlan& plan) {
-  return PlanWriter(plan).Write();
+PERFETTO_NO_INLINE void PlanCodec::Bytes(void* data, size_t size) {
+  // An empty vector's data can be null, which memcpy may not be given.
+  if (size == 0) {
+    return;
+  }
+  if (out_) {
+    out_->append(static_cast<const char*>(data), size);
+    return;
+  }
+  PERFETTO_DCHECK(size <= in_.size());
+  memcpy(data, in_.data(), size);
+  in_.remove_prefix(size);
+}
+
+PERFETTO_NO_INLINE uint32_t PlanCodec::Count(size_t size) {
+  auto count = static_cast<uint32_t>(size);
+  Pod(&count);
+  return count;
+}
+
+void PlanCodec::Str(std::string* value) {
+  value->resize(Count(value->size()));
+  Bytes(value->data(), value->size());
+}
+
+namespace {
+
+// A plan as it is held: its names, its columns, each node as its tag,
+// children and payload, then its root and outputs.
+void SerializeContents(PlanCodec& c) {
+  LogicalPlan& plan = c.plan();
+  uint32_t names = c.Count(plan.names().size());
+  PERFETTO_NO_VECTORIZE_LOOP
+  for (NameId i = 0; i < names; ++i) {
+    std::string text = c.reading() ? std::string() : plan.names().text(i);
+    c.Str(&text);
+    if (c.reading()) {
+      plan.names().Intern(text);
+    }
+  }
+  c.Vec(&plan.columns());
+  uint32_t nodes = c.Count(plan.nodes().size());
+  PERFETTO_NO_VECTORIZE_LOOP
+  for (PlanNodeId i = 0; i < nodes; ++i) {
+    uint8_t tag = 0;
+    std::vector<PlanNodeId> children;
+    if (!c.reading()) {
+      tag = plan.nodes()[i].operation().registration().encoding()->tag();
+      children = plan.nodes()[i].children();
+    }
+    c.Pod(&tag);
+    c.Vec(&children);
+    if (c.reading()) {
+      plan.AddNode(FindOperationByTag(tag)->encoding()->Make(),
+                   std::move(children));
+    }
+    plan.nodes()[i].operation().Serialize(c);
+  }
+  PlanNodeId root = plan.root();
+  c.Pod(&root);
+  plan.SetRoot(root);
+  c.Vec(&plan.output());
+}
+
+}  // namespace
+
+std::string SerializePlan(LogicalPlan plan, const PlanKey& key) {
+  std::string out;
+  PlanCodec c(&plan, &key, &out);
+  SerializeContents(c);
+  uint64_t stamp = key.Stamp(PlanKey::Use::kPlan, out);
+  c.Pod(&stamp);
+  return out;
 }
 
 base::Status BindDataframeArgs(
@@ -308,13 +134,22 @@ base::Status BindDataframeArgs(
 }
 
 base::StatusOr<LogicalPlan> DeserializePlan(std::string_view bytes,
+                                            const PlanKey& key,
                                             const Catalog& catalog) {
-  Reader r(bytes);
-  LogicalPlan plan = PlanReader(r).Read();
-  if (!r.done()) {
+  // Bytes in SQL could be anything: only those this process stamped are read.
+  uint64_t stamp = 0;
+  bool stamped = bytes.size() > sizeof(stamp);
+  if (stamped) {
+    memcpy(&stamp, bytes.data() + bytes.size() - sizeof(stamp), sizeof(stamp));
+    bytes.remove_suffix(sizeof(stamp));
+  }
+  if (!stamped || key.Stamp(PlanKey::Use::kPlan, bytes) != stamp) {
     return base::ErrStatus("__intrinsic_pipeline: malformed plan");
   }
-  RETURN_IF_ERROR(ResolveDataframes(plan, catalog));
+  LogicalPlan plan;
+  PlanCodec c(&plan, &key, bytes);
+  SerializeContents(c);
+  RETURN_IF_ERROR(ResolveDataframes(plan, catalog, key));
   return std::move(plan);
 }
 
