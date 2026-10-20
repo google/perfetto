@@ -24,6 +24,8 @@
 
 namespace perfetto::trace_processor {
 
+class TraceBlobView;
+
 // Returns true if `path` should be ignored when reading an archive (tar/zip),
 // i.e. if any of its path components starts with a '.' (other than the "." and
 // ".." path segments). Such entries are hidden files and directories which are
@@ -33,6 +35,13 @@ namespace perfetto::trace_processor {
 // macOS load without spurious "unknown trace type" failures.
 bool IsHiddenArchivePath(const std::string& path);
 
+// Returns true if the proto trace made of the chunks [begin, end), consecutive
+// pieces of one file, has a packet carrying a ClockSnapshot, or carrying
+// compressed packets which may hide one. Stops at the first such packet.
+// Malformed input counts as having none: reading the file reports the error.
+bool ProtoTraceMayHaveClockSnapshot(const TraceBlobView* begin,
+                                    const TraceBlobView* end);
+
 // Helper class to determine a proper tokenization. This class can be used as
 // a key of a std::map to automatically sort files before sending them in proper
 // order for tokenization.
@@ -41,6 +50,14 @@ struct ArchiveEntry {
   // manifest < proto < containers < others < symbols.
   static int ComputePriority(TraceImporterId type,
                              const TraceImporterRegistry& registry);
+
+  // Returns whether a member of `type` made of the chunks [begin, end) lacks a
+  // ClockSnapshot. Always false for types other than proto, which are not
+  // scanned (see TraceTypeDescriptor::archive_clock_snapshot_first).
+  static bool ComputeLacksClockSnapshot(TraceImporterId type,
+                                        const TraceImporterRegistry& registry,
+                                        const TraceBlobView* begin,
+                                        const TraceBlobView* end);
 
   // File name. Used to break ties.
   std::string name;
@@ -52,6 +69,11 @@ struct ArchiveEntry {
   // This is the main attribute traces are ordered by; proto is read first as it
   // may contain clock sync data needed to correctly parse other traces.
   int priority;
+  // See ComputeLacksClockSnapshot. Among members of the same priority, those
+  // with a ClockSnapshot are read first: the first trace read on a machine is
+  // its primary trace, and a trace without a ClockSnapshot of its own (e.g. an
+  // in-process SDK trace) can only be converted through the primary's clocks.
+  bool lacks_clock_snapshot = false;
   // Comparator used to determine the order in which files in the ZIP will be
   // read.
   bool operator<(const ArchiveEntry& rhs) const;
