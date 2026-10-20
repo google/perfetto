@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../../gn/perfetto.gni")
 import("../../../../gn/test.gni")
 
 source_set("common") {
@@ -35,6 +36,7 @@ source_set("common") {
     "../../../../gn:default_deps",
     "../../../base",
     "../../containers",
+    "../../util:galloping_search",
     "../util",
   ]
 }
@@ -52,4 +54,17 @@ perfetto_unittest_source_set("unittests") {
     "../../../base",
     "../../containers",
   ]
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    sources = [ "filter_kernels_benchmark.cc" ]
+    deps = [
+      ":common",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+      "../util",
+    ]
+  }
 }
