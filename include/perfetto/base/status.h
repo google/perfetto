@@ -42,8 +42,9 @@ namespace base {
 // A Status is one word: zero when ok, else the error, kept on the heap. Errors
 // are rare and statuses are created, moved and destroyed everywhere, so all
 // an ok status costs is inline and trivial, and everything to do with an
-// error is out of line.
-class PERFETTO_EXPORT_COMPONENT Status {
+// error is out of line. Being one word, it is passed and returned in a
+// register.
+class PERFETTO_EXPORT_COMPONENT PERFETTO_TRIVIAL_ABI Status {
  public:
   constexpr Status() = default;
   explicit Status(std::string msg);
