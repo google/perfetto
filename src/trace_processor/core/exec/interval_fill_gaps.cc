@@ -41,20 +41,16 @@ namespace {
 
 constexpr char kName[] = "INTERVAL FILL GAPS";
 
-// Adds a null column of the same kind and type as `like`, or of `fallback` if
-// `like` is not known.
-void AddNulls(const std::optional<ColumnShape>& like,
-              StorageType fallback,
-              Context& context,
-              RowBatch* out) {
-  if (like && like->kind == ColumnView::Kind::kVariant) {
+// Adds a null column laid out as `layout`.
+void AddNulls(const ColumnLayout& layout, Context& context, RowBatch* out) {
+  if (layout.variant()) {
     // Zeroed, the null buffer's values are null Variants.
     const ColumnBuffer& nulls = context.NullBuffer();
     out->AddColumn(ColumnView::Variants(nulls.chunk().Values<Variant>()),
                    nulls);
     return;
   }
-  out->AddNullColumn(like ? like->type : fallback, context);
+  out->AddNullColumn(layout.type(), context);
 }
 
 }  // namespace
@@ -92,9 +88,6 @@ struct IntervalFillGaps::State : OperatorState {
   uint32_t lane = 0;
   IntervalGaps gaps;
 
-  // The shape of each output's input column, from the first input batch.
-  std::vector<std::optional<ColumnShape>> shapes;
-
   // How many gaps have been output, and whether the current input batch has
   // been output but its gaps have not.
   size_t served = 0;
@@ -118,7 +111,6 @@ void IntervalFillGaps::State::Reset() {
   visited.clear();
   keys.Clear();
   gaps.Clear();
-  std::fill(shapes.begin(), shapes.end(), std::nullopt);
   served = 0;
   serving = false;
 }
@@ -157,7 +149,6 @@ std::unique_ptr<OperatorState> IntervalFillGaps::MakeState(
     Context& context) const {
   auto state = std::make_unique<State>(spec_, context);
   state->background_state = spec_.background.source->MakeState(context);
-  state->shapes.resize(spec_.outputs.size());
   return state;
 }
 
@@ -259,14 +250,19 @@ OpResult IntervalFillGaps::Execute(const RowBatch& in,
   if (!s.status.ok()) {
     return OpResult::kError;
   }
-  for (size_t i = 0; i < spec_.outputs.size(); ++i) {
-    if (!s.shapes[i]) {
-      s.shapes[i] = ColumnShape::Of(in.column(spec_.outputs[i].input));
-    }
-  }
   out.Project(in, input_columns_);
   s.serving = !s.gaps.gaps().empty();
   return s.serving ? OpResult::kHaveMoreOutput : OpResult::kNeedMoreInput;
+}
+
+void IntervalFillGaps::OutputLayout(Layout* layout) const {
+  // Input rows pass through and fillers are laid out as they are.
+  Layout out;
+  for (const IntervalFillGapsSpec::Output& output : spec_.outputs) {
+    PERFETTO_DCHECK((*layout)[output.input] == output.layout);
+    out.push_back(output.layout);
+  }
+  *layout = std::move(out);
 }
 
 OpResult IntervalFillGaps::Finish(RowBatch& out, OperatorState& state) const {
@@ -328,8 +324,7 @@ OpResult IntervalFillGaps::ServeFillers(RowBatch& out, State& s) const {
         const ColumnView& column = s.gathered.column(filler.index);
         // Lowering only converts typed columns, so untyped ones can still
         // differ between the input and the background.
-        if (s.shapes[i] &&
-            !SameLogicalType(ColumnShape::Of(column), *s.shapes[i])) {
+        if (ColumnLayout::Of(column) != spec_.outputs[i].layout) {
           s.status = base::ErrStatus(
               "%s: column '%s' holds a different type in the background than "
               "in the input",
@@ -344,7 +339,7 @@ OpResult IntervalFillGaps::ServeFillers(RowBatch& out, State& s) const {
                       s.gathered_keys.buffer(filler.index));
         break;
       case FillerSource::kNull:
-        AddNulls(s.shapes[i], spec_.outputs[i].fallback, *s.context, &out);
+        AddNulls(spec_.outputs[i].layout, *s.context, &out);
         break;
     }
   }

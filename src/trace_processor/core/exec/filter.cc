@@ -81,13 +81,22 @@ void Compare(const ColumnView& column,
   uint32_t* end = r.rows + r.count;
   uint32_t* kept;
   if constexpr (std::is_same_v<T, Id>) {
-    // An Id's value is where it would be stored.
-    uint32_t start = column.start();
+    uint32_t value =
+        base::unchecked_get<CastFilterValueResult::Id>(cast.value.value).value;
     auto cmp = filter::comparators::IntegerOrDoubleComparator<uint32_t, O>();
-    kept = filter::IdentityFilter(
-        begin, end, begin,
-        base::unchecked_get<CastFilterValueResult::Id>(cast.value.value).value,
-        [start, cmp](uint32_t row, uint32_t v) { return cmp(start + row, v); });
+    if (column.kind() == ColumnView::Kind::kSequence) {
+      // An Id's value is where it would be stored.
+      uint32_t start = column.start();
+      kept = filter::IdentityFilter(begin, end, begin, value,
+                                    [start, cmp](uint32_t row, uint32_t v) {
+                                      return cmp(start + row, v);
+                                    });
+    } else {
+      // Copied out, an Id column stores its values.
+      const auto* data =
+          static_cast<const uint32_t*>(column.data()) + column.start();
+      kept = filter::Filter(data, begin, end, begin, value, cmp);
+    }
   } else if constexpr (std::is_same_v<T, String>) {
     const auto* data =
         static_cast<const StringPool::Id*>(column.data()) + column.start();
@@ -163,7 +172,6 @@ void ApplyComparison(const Op& op,
   PERFETTO_DCHECK(cast.value.value.index() == column.type().index());
   switch (column.type().index()) {
     case StorageType::GetTypeIndex<Id>():
-      PERFETTO_DCHECK(column.kind() == ColumnView::Kind::kSequence);
       return CompareByOp<Id>(op, column, cast, pool, r);
     case StorageType::GetTypeIndex<Uint32>():
       return CompareByOp<Uint32>(op, column, cast, pool, r);

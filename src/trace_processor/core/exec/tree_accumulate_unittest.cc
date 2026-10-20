@@ -51,6 +51,7 @@ class RowSource final : public Source {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  const Layout& layout() const override { return layout_; }
 
   // `order` is the order the rows are emitted in, which is not the order they
   // are numbered in.
@@ -122,6 +123,8 @@ class RowSource final : public Source {
   std::vector<int64_t> values_;
   uint32_t chunk_rows_;
   std::vector<uint32_t> order_;
+  Layout layout_ = test::LayoutOf(
+      {StorageType{Int64{}}, StorageType{Int64{}}, StorageType{Int64{}}});
 };
 
 RowSource::State::~State() = default;

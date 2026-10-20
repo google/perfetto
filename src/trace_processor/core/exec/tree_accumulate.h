@@ -52,6 +52,10 @@ class TreeAccumulateUp final : public Transform {
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
+  void OutputLayout(Layout* layout) const override {
+    layout->resize(layout->size() + spec_.aggregates.size(),
+                   ColumnLayout::Of(StorageType{Int64{}}));
+  }
   base::Status status(const OperatorState&) const override;
 
  private:
@@ -76,6 +80,10 @@ class TreeAccumulateDown final : public Transform {
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
+  void OutputLayout(Layout* layout) const override {
+    layout->resize(layout->size() + spec_.aggregates.size(),
+                   ColumnLayout::Of(StorageType{Int64{}}));
+  }
   base::Status status(const OperatorState&) const override;
 
  private:

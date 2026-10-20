@@ -175,7 +175,7 @@ void DataframeWindows::Init(
             ColumnView::Reference(type, nullptr, &nulls.GetNullBitVector());
       } else {
         expander = std::make_unique<ExpanderImpl<uint32_t>>(
-            StorageType{Uint32{}}, nullptr, &nulls.GetNullBitVector());
+            type, nullptr, &nulls.GetNullBitVector());
       }
     } else if (type.Is<Uint32>()) {
       BuildColumn<uint32_t>(column, type, &lent_[i], &expander);

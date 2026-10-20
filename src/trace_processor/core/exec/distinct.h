@@ -50,6 +50,7 @@ class Distinct final : public Transform {
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
+  void OutputLayout(Layout*) const override {}
   base::Status status(const OperatorState&) const override;
 
  private:

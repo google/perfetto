@@ -74,6 +74,7 @@ class IndexScan final : public Source {
   ~IndexScan() override;
 
   std::unique_ptr<OperatorState> MakeState(Context& context) const override;
+  const Layout& layout() const override { return layout_; }
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
 
@@ -97,6 +98,7 @@ class IndexScan final : public Source {
   Span<const uint32_t> Find(const State& s) const;
 
   std::vector<std::shared_ptr<const dataframe::Column>> columns_;
+  Layout layout_;
   std::shared_ptr<std::vector<uint32_t>> permutation_;
   std::vector<Equality> equalities_;
   const StringPool* pool_;

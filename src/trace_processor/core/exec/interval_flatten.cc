@@ -489,6 +489,19 @@ OpResult IntervalFlatten::Yield(RowBatch& out,
   return result;
 }
 
+void IntervalFlatten::OutputLayout(Layout* layout) const {
+  // As Yield() writes them: the segments, their keys, their aggregates and
+  // their group.
+  Layout out(2, ColumnLayout::Of(StorageType{Int64{}}));
+  for (uint32_t column : spec_.lanes.key_columns) {
+    out.push_back((*layout)[column]);
+  }
+  out.resize(out.size() + spec_.aggregates.size(),
+             ColumnLayout::Of(StorageType{Int64{}}));
+  out.push_back(ColumnLayout::Of(StorageType{Uint32{}}));
+  *layout = std::move(out);
+}
+
 void IntervalFlatten::State::Reset() {
   State& s = *this;
   s.status = base::OkStatus();

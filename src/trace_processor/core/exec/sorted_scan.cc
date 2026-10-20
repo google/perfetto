@@ -58,6 +58,7 @@ SortedScan::SortedScan(
     std::vector<Search> searches,
     const StringPool* pool)
     : columns_(std::move(columns)),
+      layout_(DataframeLayout(columns_)),
       row_count_(row_count),
       searches_(std::move(searches)),
       pool_(pool) {

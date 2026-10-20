@@ -56,6 +56,7 @@ class DataframeScan : public Source {
   ~DataframeScan() override;
 
   std::unique_ptr<OperatorState> MakeState(Context& context) const override;
+  const Layout& layout() const override { return layout_; }
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
 
@@ -69,6 +70,7 @@ class DataframeScan : public Source {
 
   std::vector<std::shared_ptr<const dataframe::Column>> columns_;
   uint32_t row_count_;
+  Layout layout_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

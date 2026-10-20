@@ -52,6 +52,9 @@ class AssertType final : public Transform {
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState&) const override;
+  void OutputLayout(Layout* layout) const override {
+    (*layout)[column_] = ColumnLayout::Of(type_);
+  }
   base::Status status(const OperatorState&) const override;
 
  private:
@@ -91,6 +94,9 @@ class NullColumn final : public Transform {
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState&) const override;
+  void OutputLayout(Layout* layout) const override {
+    (*layout)[column_] = ColumnLayout::Of(type_);
+  }
 
  private:
   friend class PipelineFormatter;

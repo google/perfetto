@@ -50,9 +50,11 @@ class TableSource final : public Source {
       : rows_(std::move(rows)),
         columns_(rows_.empty() ? 0
                                : static_cast<uint32_t>(rows_.front().size())),
-        chunk_rows_(chunk_rows) {}
+        chunk_rows_(chunk_rows),
+        layout_(columns_, ColumnLayout::Of(StorageType{Int64{}})) {}
 
   uint32_t columns() const { return columns_; }
+  const Layout& layout() const override { return layout_; }
 
   std::unique_ptr<OperatorState> MakeState(Context& context) const override {
     auto state = std::make_unique<State>();
@@ -96,6 +98,7 @@ class TableSource final : public Source {
   Table rows_;
   uint32_t columns_;
   uint32_t chunk_rows_;
+  Layout layout_;
 };
 
 TableSource::State::~State() = default;

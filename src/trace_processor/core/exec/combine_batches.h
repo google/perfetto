@@ -45,6 +45,7 @@ class CombineBatches final : public Operator {
   ~CombineBatches() override;
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  void OutputLayout(Layout*) const override {}
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;

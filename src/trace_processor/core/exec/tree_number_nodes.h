@@ -57,6 +57,11 @@ class TreeNumberNodes final : public Transform {
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
+  void OutputLayout(Layout* layout) const override {
+    // The node and parent node numbers.
+    layout->push_back(ColumnLayout::Of(StorageType{Uint32{}}));
+    layout->push_back(ColumnLayout::Of(StorageType{Uint32{}}));
+  }
   base::Status status(const OperatorState&) const override;
 
   // Whether every id seen so far was already its own node number.

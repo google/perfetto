@@ -96,9 +96,9 @@ base::Status ReadKeys(const ColumnView& column,
   }
 
   StorageType type = column.type();
-  if (type.Is<Id>()) {
+  if (column.kind() == ColumnView::Kind::kSequence) {
     SequenceKeys(column, selection, keys);
-  } else if (type.Is<Uint32>()) {
+  } else if (type.Is<Id>() || type.Is<Uint32>()) {
     KeysOf<uint32_t>(column, selection, keys);
   } else if (type.Is<Int32>()) {
     KeysOf<int32_t>(column, selection, keys);
@@ -135,8 +135,8 @@ bool ParentsInOrder(const ColumnView& ids,
                     const Selection& selection,
                     uint32_t start,
                     uint32_t* out) {
-  if (ids.kind() == ColumnView::Kind::kVariant || !ids.type().Is<Id>() ||
-      ids.validity() || !selection.prefix() || ids.start() != start ||
+  if (ids.kind() != ColumnView::Kind::kSequence || ids.validity() ||
+      !selection.prefix() || ids.start() != start ||
       parents.kind() == ColumnView::Kind::kVariant ||
       !parents.type().Is<Uint32>()) {
     return false;

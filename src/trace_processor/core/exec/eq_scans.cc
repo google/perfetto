@@ -90,7 +90,10 @@ IdEqScan::IdEqScan(
     std::vector<std::shared_ptr<const dataframe::Column>> columns,
     uint32_t row_count,
     uint32_t value)
-    : columns_(std::move(columns)), row_count_(row_count), value_(value) {}
+    : columns_(std::move(columns)),
+      layout_(DataframeLayout(columns_)),
+      row_count_(row_count),
+      value_(value) {}
 
 IdEqScan::~IdEqScan() = default;
 
@@ -125,6 +128,7 @@ SetIdEqScan::SetIdEqScan(
     std::shared_ptr<const dataframe::Column> searched,
     uint32_t value)
     : columns_(std::move(columns)),
+      layout_(DataframeLayout(columns_)),
       row_count_(row_count),
       searched_(std::move(searched)),
       value_(value) {
@@ -166,6 +170,7 @@ SmallValueEqScan::SmallValueEqScan(
     std::shared_ptr<const dataframe::Column> searched,
     uint32_t value)
     : columns_(std::move(columns)),
+      layout_(DataframeLayout(columns_)),
       row_count_(row_count),
       searched_(std::move(searched)),
       value_(value) {

@@ -32,14 +32,6 @@
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
-// The output type of a key column. Id columns become Uint32.
-StorageType KeyType(const ColumnView& column) {
-  if (column.kind() == ColumnView::Kind::kSequence || column.type().Is<Id>()) {
-    return StorageType{Uint32{}};
-  }
-  return column.type();
-}
-
 template <typename T>
 void WriteValues(const GroupTable& groups,
                  uint32_t k,
@@ -60,7 +52,8 @@ ColumnView WriteKeys(const GroupTable& groups,
                      ColumnBuffer& buffer) {
   ColumnChunk& chunk = buffer.chunk();
   void* data = chunk.Values<int64_t>();
-  if (type.Is<Uint32>() || type.Is<String>()) {
+  if (type.Is<Id>() || type.Is<Uint32>() || type.Is<String>()) {
+    // An Id column copied out holds its values, as an Id column still.
     // Strings are stored as their interned id.
     WriteValues(groups, k, first, count, static_cast<uint32_t*>(data));
   } else if (type.Is<Int32>()) {
@@ -138,7 +131,7 @@ bool HashAggregate::Consume(const RowBatch& in, Breaker::State& state) const {
     }
     if (s.key_types.empty()) {
       for (uint32_t column : spec_.key_columns) {
-        s.key_types.push_back(KeyType(in.column(column)));
+        s.key_types.push_back(in.column(column).type());
       }
     }
   }
@@ -170,6 +163,17 @@ bool HashAggregate::Consume(const RowBatch& in, Breaker::State& state) const {
   }
 
   return true;
+}
+
+void HashAggregate::OutputLayout(Layout* layout) const {
+  // As Serve() writes them: the keys, then each aggregate.
+  Layout out;
+  for (uint32_t column : spec_.key_columns) {
+    out.push_back((*layout)[column]);
+  }
+  out.resize(out.size() + spec_.aggregates.size(),
+             ColumnLayout::Of(StorageType{Int64{}}));
+  *layout = std::move(out);
 }
 
 bool HashAggregate::Finalize(Breaker::State&) const {

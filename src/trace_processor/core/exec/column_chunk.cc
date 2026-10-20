@@ -200,8 +200,8 @@ ColumnView ColumnChunk::View(const ColumnView& source, bool nullable) const {
   if (source.kind() == ColumnView::Kind::kVariant) {
     return ColumnView::Variants(Values<Variant>());
   }
-  auto type = source.type().Is<Id>() ? StorageType{Uint32{}} : source.type();
-  return ColumnView::Reference(type, storage.data(),
+  // An Id column copied out holds its values, as an Id column still.
+  return ColumnView::Reference(source.type(), storage.data(),
                                nullable ? &validity : nullptr);
 }
 }  // namespace perfetto::trace_processor::core::exec

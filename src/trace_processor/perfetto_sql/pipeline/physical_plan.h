@@ -25,6 +25,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -270,6 +271,10 @@ class Lowering {
 
   // The type of a column, after any conversion added so far.
   PlanType QueryType(ColumnId id) const;
+
+  // How the executor lays out a column declared with DeclareColumn, as the
+  // source and the steps added so far leave it.
+  core::exec::ColumnLayout QueryLayout(ColumnId id) const;
 
   // The longest prefix of the known sort order that uses only `columns`.
   std::vector<SortKey> QuerySortedBy(

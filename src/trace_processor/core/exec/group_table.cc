@@ -64,7 +64,7 @@ std::optional<GroupTable::Kind> GroupTable::Load(const ColumnView& column,
     }
   } else if (column.kind() != ColumnView::Kind::kFlat) {
     return std::nullopt;
-  } else if (column.type().Is<Uint32>()) {
+  } else if (column.type().Is<Id>() || column.type().Is<Uint32>()) {
     kind = Kind::kInteger;
     Gather<uint32_t>(column, selection, count, keys);
   } else if (column.type().Is<Int32>()) {

@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -42,6 +43,15 @@ namespace perfetto::trace_processor::core::exec::test {
 inline Context& TestContext() {
   static base::NoDestructor<Context> context;
   return context.ref();
+}
+
+// The layout of columns of `types`, in order.
+inline Layout LayoutOf(std::initializer_list<StorageType> types) {
+  Layout layout;
+  for (StorageType type : types) {
+    layout.push_back(ColumnLayout::Of(type));
+  }
+  return layout;
 }
 
 // Adds to `out` a copy of `values`, present where `validity` says if not
@@ -107,6 +117,7 @@ class ArraySource final : public Source {
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
+  const Layout& layout() const override { return layout_; }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().emitted = 0;
   }
@@ -134,6 +145,7 @@ class ArraySource final : public Source {
   };
 
   std::vector<int64_t> values_;
+  Layout layout_ = LayoutOf({StorageType{Id{}}, StorageType{Int64{}}});
 };
 
 // Runs `transform` on a copy of `in` made in `out`, as a pipeline hands each
@@ -163,6 +175,7 @@ class FailingSource final : public Source {
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
+  const Layout& layout() const override { return layout_; }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().emitted = false;
   }
@@ -189,6 +202,7 @@ class FailingSource final : public Source {
     bool emitted = false;
   };
   int64_t values_[2] = {1, 2};
+  Layout layout_ = LayoutOf({StorageType{Id{}}, StorageType{Int64{}}});
 };
 
 }  // namespace perfetto::trace_processor::core::exec::test

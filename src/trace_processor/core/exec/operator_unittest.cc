@@ -44,6 +44,7 @@ class DropOddRows final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void OutputLayout(Layout*) const override {}
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
@@ -88,6 +89,7 @@ class Twice final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void OutputLayout(Layout*) const override {}
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
@@ -149,6 +151,7 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
    public:
     // A local class cannot have static members. No test checks its type.
     const void* type() const override { return nullptr; }
+    const Layout& layout() const override { return layout_; }
 
     TwoViewSource(const std::vector<int64_t>* payload,
                   const std::vector<int64_t>* computed)
@@ -183,6 +186,8 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
     };
     const std::vector<int64_t>* payload_;
     const std::vector<int64_t>* computed_;
+    Layout layout_ =
+        test::LayoutOf({StorageType{Int64{}}, StorageType{Int64{}}});
   };
 
   TwoViewSource source(&payload, &computed);
@@ -219,6 +224,10 @@ class Trailer final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void OutputLayout(Layout* layout) const override {
+    // Only the ids, which is all it adds rows of.
+    layout->erase(layout->begin() + 1, layout->end());
+  }
 
   Trailer(int64_t first, uint32_t count) : first_(first), count_(count) {}
 
@@ -228,7 +237,7 @@ class Trailer final : public Operator {
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState&) const override {
-    out.CopyFrom(in);
+    out.Project(in, {0});
     return OpResult::kNeedMoreInput;
   }
   OpResult Finish(RowBatch& out, OperatorState& state) const override {
@@ -307,6 +316,7 @@ class DropOddRowsInPlace final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void OutputLayout(Layout*) const override {}
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();

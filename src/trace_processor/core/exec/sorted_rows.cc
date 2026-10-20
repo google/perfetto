@@ -41,6 +41,7 @@ std::optional<RowLayout::Type> LayoutType(const ColumnView& column) {
       return RowLayout::Type::kUint32;
     case ColumnView::Kind::kFlat:
       switch (column.type().index()) {
+        case StorageType::GetTypeIndex<Id>():
         case StorageType::GetTypeIndex<Uint32>():
           return RowLayout::Type::kUint32;
         case StorageType::GetTypeIndex<Int32>():

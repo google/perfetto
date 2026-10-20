@@ -221,6 +221,7 @@ class ContractSource final : public Source {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  const Layout& layout() const override { return layout_; }
 
   ContractSource(std::vector<std::vector<int64_t>> chunks, bool fail = false)
       : chunks_(std::move(chunks)), fail_(fail) {}
@@ -258,12 +259,14 @@ class ContractSource final : public Source {
  private:
   std::vector<std::vector<int64_t>> chunks_;
   bool fail_;
+  Layout layout_ = test::LayoutOf({StorageType{Int64{}}});
 };
 
 class ContractFilter final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void OutputLayout(Layout*) const override {}
 
   struct State : OperatorState {
     std::vector<uint32_t> selected;
@@ -292,6 +295,7 @@ class FinishProbe final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void OutputLayout(Layout*) const override {}
 
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,

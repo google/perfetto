@@ -40,18 +40,22 @@ constexpr size_t kOperatorStep =
 }  // namespace
 
 Pipeline::Pipeline(const Source& source, std::vector<Step> steps)
-    : source_(source), steps_(std::move(steps)) {
+    : source_(source), layout_(source.layout()), steps_(std::move(steps)) {
   segments_.emplace_back();
   for (uint32_t i = 0; i < steps_.size(); ++i) {
     switch (steps_[i].index()) {
-      case kTransformStep:
+      case kTransformStep: {
+        const Transform* transform =
+            base::unchecked_get<std::unique_ptr<Transform>>(steps_[i]).get();
+        transform->OutputLayout(&layout_);
         segments_.back().transforms.push_back(i);
-        segments_.back().transform_ops.push_back(
-            base::unchecked_get<std::unique_ptr<Transform>>(steps_[i]).get());
+        segments_.back().transform_ops.push_back(transform);
         break;
+      }
       case kOperatorStep: {
         const Operator* op =
             base::unchecked_get<std::unique_ptr<Operator>>(steps_[i]).get();
+        op->OutputLayout(&layout_);
         segments_.push_back({static_cast<int32_t>(i), op, {}, {}});
         break;
       }

@@ -44,7 +44,8 @@ namespace perfetto::trace_processor::core::exec {
 // the rows SQL would.
 //
 // Columns must be flat or Id sequences, of the storage type their values were
-// cast for.
+// cast for. An Id column is compared by value, whether its values are where
+// they are stored or were copied out.
 class Filter final : public Transform {
  public:
   static constexpr char kType = 0;
@@ -63,6 +64,7 @@ class Filter final : public Transform {
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState& state) const override;
+  void OutputLayout(Layout*) const override {}
 
  private:
   friend class PipelineFormatter;

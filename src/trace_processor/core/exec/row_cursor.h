@@ -23,6 +23,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -60,7 +61,11 @@ class RowCursor {
     if (index_ == size_) {
       return false;
     }
-    return ++index_ != size_ || Pull();
+    if (++index_ != size_) {
+      row_ = batch_->selection()[index_];
+      return true;
+    }
+    return Pull();
   }
 
   bool eof() const { return index_ == size_; }
@@ -71,14 +76,15 @@ class RowCursor {
   template <typename T>
   PERFETTO_ALWAYS_INLINE T Value(uint32_t column) const {
     PERFETTO_DCHECK(index_ < size_);
-    return batch_->Value<T>(column, index_);
+    return batch_->column(column).At<T>(row_);
   }
 
+  // What each column of every batch holds: the source's layout.
+  const Layout& layout() const { return source_.layout(); }
+
   const RowBatch& batch() const { return batch_ ? *batch_ : scratch_; }
-  // Which of the rows batch() keeps the current row is.
-  uint32_t row() const { return index_; }
-  // The batch row the current row is: where it is in each column.
-  uint32_t batch_row() const { return batch_->selection()[index_]; }
+  // Where the current row is in each of batch()'s columns.
+  uint32_t row() const { return row_; }
 
  private:
   bool Pull();
@@ -90,8 +96,11 @@ class RowCursor {
   RowBatch scratch_;
   // The source's current batch, valid until the next pull.
   RowBatch* batch_ = nullptr;
+  // The current row: the `index_`th of the `size_` kept, at `row_` in the
+  // columns.
   uint32_t index_ = 0;
   uint32_t size_ = 0;
+  uint32_t row_ = 0;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

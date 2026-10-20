@@ -21,6 +21,7 @@
 #include <memory>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -76,6 +77,9 @@ class Source {
   // `context`, which outlives the state.
   virtual std::unique_ptr<OperatorState> MakeState(Context& context) const = 0;
 
+  // What each column of every batch holds, decided when the source is built.
+  virtual const Layout& layout() const = 0;
+
   // Fills `out` and returns true, or returns false when no batches are left.
   // A column it computes is in a buffer from the run's Context; one it
   // borrows is onto storage which outlives the run (see RowBatch). A
@@ -122,6 +126,10 @@ class Transform {
   virtual std::unique_ptr<OperatorState> MakeState(Context&) const {
     return std::make_unique<OperatorState>();
   }
+
+  // Changes `layout`, that of the batches it is given, into that of the
+  // batches it outputs.
+  virtual void OutputLayout(Layout* layout) const = 0;
 
   // False on failure, with status() saying why.
   virtual bool Process(RowBatch& batch, OperatorState& state) const = 0;
@@ -172,6 +180,10 @@ class Operator {
   virtual std::unique_ptr<OperatorState> MakeState(Context&) const {
     return std::make_unique<OperatorState>();
   }
+
+  // Changes `layout`, that of the batches it is given, into that of the
+  // batches it outputs.
+  virtual void OutputLayout(Layout* layout) const = 0;
 
   virtual OpResult Execute(const RowBatch& in,
                            RowBatch& out,

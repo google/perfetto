@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <type_traits>
+#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -35,7 +36,7 @@ class ColumnView {
  public:
   enum class Kind : uint8_t {
     kFlat,
-    // No storage: the value is where it would be stored.
+    // An Id column with no storage: the value is where it would be stored.
     kSequence,
     // `data()` is a Variant array and `type()` is meaningless.
     kVariant,
@@ -49,11 +50,7 @@ class ColumnView {
                               uint32_t start = 0) {
     ColumnView view;
     view.type_ = type;
-    view.kind_ = Kind::kFlat;
-    if (type.Is<Id>()) {
-      PERFETTO_DCHECK(data == nullptr);
-      view.kind_ = Kind::kSequence;
-    }
+    view.kind_ = type.Is<Id>() && !data ? Kind::kSequence : Kind::kFlat;
     view.data_ = data;
     view.validity_ = validity;
     view.start_ = start;
@@ -119,31 +116,41 @@ bool IsFlat(const ColumnView& column) {
   return column.kind() == ColumnView::Kind::kFlat && column.type().Is<Tag>();
 }
 
-// The kind and storage type of a column view. These decide whether views from
-// different batches can be combined. Kept apart from the view so columns can
-// be compared after their batches are gone.
-struct ColumnShape {
-  static ColumnShape Of(const ColumnView& view) {
-    return {view.kind(), view.type()};
+// What a column holds in every batch of a run: values of one storage type, or
+// a type per row. It is decided when the plan is built (Source::layout()) and
+// never changes as rows move through the plan: an Id column whose values are
+// copied out is still an Id column, holding them. Kept apart from the view so
+// columns can be compared after their batches are gone.
+class ColumnLayout {
+ public:
+  static ColumnLayout Of(StorageType type) { return ColumnLayout(false, type); }
+  static ColumnLayout Variants() {
+    return ColumnLayout(true, StorageType{Id{}});
+  }
+  static ColumnLayout Of(const ColumnView& view) {
+    return view.kind() == ColumnView::Kind::kVariant ? Variants()
+                                                     : Of(view.type());
   }
 
-  ColumnView::Kind kind;
-  StorageType type;
+  // Whether the column has a type per row, when type() is meaningless.
+  bool variant() const { return variant_; }
+  StorageType type() const { return type_; }
+
+  bool operator==(const ColumnLayout& other) const {
+    return variant_ == other.variant_ && (variant_ || type_ == other.type_);
+  }
+  bool operator!=(const ColumnLayout& other) const { return !(*this == other); }
+
+ private:
+  ColumnLayout(bool variant, StorageType type)
+      : variant_(variant), type_(type) {}
+
+  bool variant_;
+  StorageType type_;
 };
 
-// Whether two batches' views of a column can be combined. An implicit Id and
-// a stored Uint32 hold the same values: gathering turns one into the other.
-inline bool SameLogicalType(const ColumnShape& a, const ColumnShape& b) {
-  auto is_uint32 = [](const ColumnShape& shape) {
-    return shape.kind != ColumnView::Kind::kVariant &&
-           (shape.type.Is<Id>() || shape.type.Is<Uint32>());
-  };
-  if (is_uint32(a) && is_uint32(b)) {
-    return true;
-  }
-  return a.kind == b.kind &&
-         (a.kind == ColumnView::Kind::kVariant || a.type == b.type);
-}
+// The layout of each column of a batch, by column.
+using Layout = std::vector<ColumnLayout>;
 
 }  // namespace perfetto::trace_processor::core::exec
 

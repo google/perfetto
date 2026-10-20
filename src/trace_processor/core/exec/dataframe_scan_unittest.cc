@@ -150,7 +150,7 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
       sparse_scan.MakeState(test::TestContext());
   RowBatch batch;
   ASSERT_TRUE(sparse_scan.GetData(batch, *sparse_state));
-  EXPECT_TRUE(batch.column(0).type().Is<Uint32>());
+  EXPECT_TRUE(batch.column(0).type().Is<Id>());
   EXPECT_THAT(test::ReadNullableColumn<uint32_t>(batch, 0),
               ElementsAre(Optional(0u), Eq(std::nullopt), Optional(1u)));
 

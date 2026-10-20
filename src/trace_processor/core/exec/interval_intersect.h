@@ -55,6 +55,7 @@ class IntervalIntersect : public Source {
   ~IntervalIntersect() override;
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  const Layout& layout() const override { return layout_; }
   bool GetData(RowBatch&, OperatorState&) const override;
   void Rewind(OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
@@ -63,6 +64,7 @@ class IntervalIntersect : public Source {
   friend class PipelineFormatter;
 
   std::vector<CollectedInputSpec> operands_;
+  Layout layout_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

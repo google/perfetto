@@ -55,6 +55,7 @@ class RowSource final : public Source {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  const Layout& layout() const override { return layout_; }
 
   RowSource(std::vector<Row> rows, uint32_t chunk_rows)
       : rows_(std::move(rows)), chunk_rows_(chunk_rows) {}
@@ -110,6 +111,8 @@ class RowSource final : public Source {
 
   std::vector<Row> rows_;
   uint32_t chunk_rows_;
+  Layout layout_ = test::LayoutOf(
+      {StorageType{Int64{}}, StorageType{Int64{}}, StorageType{Int64{}}});
 };
 
 RowSource::State::~State() = default;

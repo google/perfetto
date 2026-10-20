@@ -50,11 +50,13 @@ class RowsSource final : public Source {
         columns_[c].push_back(row[c]);
       }
     }
+    layout_.assign(columns_.size(), ColumnLayout::Of(StorageType{Int64{}}));
   }
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
+  const Layout& layout() const override { return layout_; }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().emitted = 0;
   }
@@ -81,6 +83,7 @@ class RowsSource final : public Source {
   };
   std::vector<std::vector<int64_t>> rows_;
   std::vector<std::vector<int64_t>> columns_;
+  Layout layout_;
 };
 
 // ts, dur, key, value.
@@ -102,10 +105,11 @@ IntervalFillGapsSpec MakeSpec(const Source* background, bool keyed) {
   spec.background.lanes.ts_column = 0;
   spec.background.lanes.dur_column = 1;
   spec.background.retained_columns = {2};
-  spec.outputs = {{0, std::nullopt, StorageType{Int64{}}, "ts"},
-                  {1, std::nullopt, StorageType{Int64{}}, "dur"},
-                  {2, std::nullopt, StorageType{Int64{}}, "key"},
-                  {3, 0, StorageType{Int64{}}, "value"}};
+  ColumnLayout int64 = ColumnLayout::Of(StorageType{Int64{}});
+  spec.outputs = {{0, std::nullopt, int64, "ts"},
+                  {1, std::nullopt, int64, "dur"},
+                  {2, std::nullopt, int64, "key"},
+                  {3, 0, int64, "value"}};
   return spec;
 }
 

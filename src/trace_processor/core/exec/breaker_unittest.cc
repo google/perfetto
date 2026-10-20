@@ -46,6 +46,10 @@ class Reverse final : public Breaker {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void OutputLayout(Layout* layout) const override {
+    // Only the values it reverses.
+    *layout = {ColumnLayout::Of(StorageType{Int64{}})};
+  }
 
   explicit Reverse(uint32_t column = 1) : column_(column) {}
 

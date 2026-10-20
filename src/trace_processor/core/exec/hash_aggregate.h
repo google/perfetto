@@ -86,6 +86,7 @@ class HashAggregate : public Breaker {
 
   std::unique_ptr<Breaker::State> CreateState() const override;
   bool Consume(const RowBatch& in, Breaker::State& state) const override;
+  void OutputLayout(Layout* layout) const override;
   bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;
   // Returns `base` such that group g's state for aggregate a is at

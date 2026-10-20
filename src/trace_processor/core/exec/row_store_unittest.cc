@@ -150,8 +150,9 @@ TEST(RowStoreTest, RetainedViewsSurviveGatherClearAndDestruction) {
   EXPECT_THAT(test::ReadColumn<int64_t>(gathered, 0), ElementsAre(30, 10, 30));
 }
 
-// A gather turns an implicit id into a stored one, so a stream can carry both.
-TEST(RowStoreTest, AnImplicitIdColumnCanBecomeAStoredOne) {
+// An Id column's values are where they sit in one batch and stored in another
+// once gathered, so a stream can carry both.
+TEST(RowStoreTest, AnIdColumnCanBeImplicitOrStored) {
   auto stored =
       std::make_shared<std::vector<uint32_t>>(std::vector<uint32_t>{40, 41});
   RowStore store;
@@ -162,13 +163,16 @@ TEST(RowStoreTest, AnImplicitIdColumnCanBecomeAStoredOne) {
 
   batch.Reset();
   batch.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Uint32{}}, stored->data()));
+      ColumnView::Reference(StorageType{Id{}}, stored->data()));
   batch.SetRowCount(2);
   base::Status status = store.Append(batch);
   ASSERT_TRUE(status.ok()) << status.message();
 
   RowBatch out;
   ASSERT_EQ(Gather(store, &out, {3, 0, 2, 1}), 4u);
+  // Gathered, it is an Id column still, which stores them.
+  EXPECT_TRUE(out.column(0).type().Is<Id>());
+  EXPECT_EQ(out.column(0).kind(), ColumnView::Kind::kFlat);
   EXPECT_THAT(test::ReadColumn<uint32_t>(out, 0), ElementsAre(41, 5, 40, 6));
 }
 

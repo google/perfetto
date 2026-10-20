@@ -23,14 +23,17 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/assert_type.h"
+#include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/combine_batches.h"
 #include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/sort.h"
@@ -335,6 +338,20 @@ uint32_t Lowering::QueryPosition(ColumnId id) const {
 
 PlanType Lowering::QueryType(ColumnId id) const {
   return plan_->TypeOf(id);
+}
+
+ex::ColumnLayout Lowering::QueryLayout(ColumnId id) const {
+  ex::Layout layout = input_->layout();
+  for (const ex::Pipeline::Step& step : operators_) {
+    if (const auto* transform =
+            std::get_if<std::unique_ptr<ex::Transform>>(&step)) {
+      (*transform)->OutputLayout(&layout);
+    } else {
+      base::unchecked_get<std::unique_ptr<ex::Operator>>(step)->OutputLayout(
+          &layout);
+    }
+  }
+  return layout[QueryPosition(id)];
 }
 
 std::vector<SortKey> Lowering::QuerySortedBy(

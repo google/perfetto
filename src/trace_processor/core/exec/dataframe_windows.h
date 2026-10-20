@@ -35,6 +35,17 @@
 
 namespace perfetto::trace_processor::core::exec {
 
+// How the sources which read `columns` of a dataframe lay them out: each as
+// its storage type, in order.
+inline Layout DataframeLayout(
+    const std::vector<std::shared_ptr<const dataframe::Column>>& columns) {
+  Layout layout;
+  for (const auto& column : columns) {
+    layout.push_back(ColumnLayout::Of(column->storage.type()));
+  }
+  return layout;
+}
+
 // Points batches at windows of a dataframe's rows, for the sources which read
 // a dataframe.
 //

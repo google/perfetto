@@ -81,6 +81,7 @@ class TreeChildFirst : public Breaker {
 
   std::unique_ptr<Breaker::State> CreateState() const override;
   bool Consume(const RowBatch& in, Breaker::State& state) const override;
+  void OutputLayout(Layout*) const override {}
   bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;
 
@@ -113,6 +114,7 @@ class TreeParentFirst : public Operator {
   ~TreeParentFirst() override;
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  void OutputLayout(Layout*) const override {}
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;

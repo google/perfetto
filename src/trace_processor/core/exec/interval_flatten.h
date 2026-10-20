@@ -57,6 +57,7 @@ class IntervalFlatten : public Operator {
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
+  void OutputLayout(Layout* layout) const override;
   OpResult Finish(RowBatch&, OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 

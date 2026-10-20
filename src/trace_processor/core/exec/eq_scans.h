@@ -64,6 +64,7 @@ class IdEqScan final : public Source {
   ~IdEqScan() override;
 
   std::unique_ptr<OperatorState> MakeState(Context& context) const override;
+  const Layout& layout() const override { return layout_; }
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
 
@@ -72,6 +73,7 @@ class IdEqScan final : public Source {
 
  private:
   std::vector<std::shared_ptr<const dataframe::Column>> columns_;
+  Layout layout_;
   uint32_t row_count_;
   uint32_t value_;
 };
@@ -92,6 +94,7 @@ class SetIdEqScan final : public Source {
   ~SetIdEqScan() override;
 
   std::unique_ptr<OperatorState> MakeState(Context& context) const override;
+  const Layout& layout() const override { return layout_; }
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
 
@@ -100,6 +103,7 @@ class SetIdEqScan final : public Source {
 
  private:
   std::vector<std::shared_ptr<const dataframe::Column>> columns_;
+  Layout layout_;
   uint32_t row_count_;
   std::shared_ptr<const dataframe::Column> searched_;
   uint32_t value_;
@@ -122,6 +126,7 @@ class SmallValueEqScan final : public Source {
   ~SmallValueEqScan() override;
 
   std::unique_ptr<OperatorState> MakeState(Context& context) const override;
+  const Layout& layout() const override { return layout_; }
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
 
@@ -130,6 +135,7 @@ class SmallValueEqScan final : public Source {
 
  private:
   std::vector<std::shared_ptr<const dataframe::Column>> columns_;
+  Layout layout_;
   uint32_t row_count_;
   std::shared_ptr<const dataframe::Column> searched_;
   uint32_t value_;

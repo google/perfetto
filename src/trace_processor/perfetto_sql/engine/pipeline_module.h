@@ -88,12 +88,15 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
     Context* context = nullptr;
   };
   struct Cursor : sqlite::Module<PipelineModule>::Cursor {
+    // Gives SQLite the value of `column` of the batch at `row`.
     using ResultFn = void (*)(sqlite3_context*,
                               StringPool*,
-                              const core::exec::ColumnView&,
-                              uint32_t);
+                              const core::exec::RowBatch& batch,
+                              uint32_t column,
+                              uint32_t row);
     struct ColumnReader {
-      const core::exec::ColumnView* view = nullptr;
+      // Where the declared column is in the plan's batches.
+      uint32_t column = 0;
       ResultFn result = nullptr;
     };
     std::unique_ptr<pipeline::PhysicalPlan> plan;
@@ -101,8 +104,6 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
     std::unique_ptr<core::exec::RowCursor> rows;
     // By declared column.
     std::vector<ColumnReader> columns;
-    // What readers of columns with no view are given.
-    core::exec::ColumnView no_view;
     bool eof = true;
   };
 

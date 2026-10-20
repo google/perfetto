@@ -40,6 +40,7 @@ class OneRowBatches final : public Source {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  const Layout& layout() const override { return layout_; }
 
   explicit OneRowBatches(uint32_t batches) : batches_(batches) {}
 
@@ -66,12 +67,14 @@ class OneRowBatches final : public Source {
     uint32_t next = 0;
   };
   uint32_t batches_;
+  Layout layout_ = {ColumnLayout::Of(StorageType{Id{}})};
 };
 
 class PassThroughOperator final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void OutputLayout(Layout*) const override {}
 
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
@@ -85,6 +88,7 @@ class PassThroughTransform final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void OutputLayout(Layout*) const override {}
 
   bool Process(RowBatch&, OperatorState&) const override { return true; }
 };

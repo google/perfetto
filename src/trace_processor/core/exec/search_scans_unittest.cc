@@ -427,7 +427,7 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
           actual.push_back(row);
           // A column without a slot per row reads its own row's value.
           std::optional<int64_t> maybe;
-          if (cursor.batch().IsValid(kMaybe, cursor.row())) {
+          if (cursor.batch().column(kMaybe).IsValid(cursor.row())) {
             maybe = cursor.Value<int64_t>(kMaybe);
           }
           ASSERT_EQ(maybe, maybe_[row]) << row;

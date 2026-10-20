@@ -32,7 +32,9 @@ namespace perfetto::trace_processor::core::exec {
 DataframeScan::DataframeScan(
     std::vector<std::shared_ptr<const dataframe::Column>> columns,
     uint32_t row_count)
-    : columns_(std::move(columns)), row_count_(row_count) {}
+    : columns_(std::move(columns)),
+      row_count_(row_count),
+      layout_(DataframeLayout(columns_)) {}
 
 DataframeScan::~DataframeScan() = default;
 DataframeScan::State::~State() = default;

@@ -236,10 +236,8 @@ void IntervalFillGaps::Lower(Lowering* c, const PlanNode& node) const {
       spec.background.retained_columns.push_back(
           background.QueryPosition(*output.background));
     }
-    const auto& column = c->plan().columns()[output.column];
-    lowered.fallback =
-        column.type.storage().value_or(core::StorageType{core::Int64{}});
-    lowered.name = column.name;
+    lowered.layout = c->QueryLayout(output.input);
+    lowered.name = c->plan().columns()[output.column].name;
     spec.outputs.push_back(std::move(lowered));
   }
   spec.background.source = background.FinishSide();

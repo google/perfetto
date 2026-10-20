@@ -42,6 +42,7 @@ class Intervals final : public Source {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  const Layout& layout() const override { return layout_; }
 
   explicit Intervals(uint32_t rows) {
     for (uint32_t i = 0; i < rows; ++i) {
@@ -80,6 +81,7 @@ class Intervals final : public Source {
   std::vector<int64_t> ts_;
   std::vector<int64_t> dur_;
   std::vector<int64_t> key_;
+  Layout layout_ = Layout(3, ColumnLayout::Of(StorageType{Int64{}}));
 };
 
 CollectedInputSpec Operand(const Intervals& source) {

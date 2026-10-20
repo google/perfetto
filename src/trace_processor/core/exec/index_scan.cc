@@ -64,6 +64,7 @@ IndexScan::IndexScan(
     std::vector<Equality> equalities,
     const StringPool* pool)
     : columns_(std::move(columns)),
+      layout_(DataframeLayout(columns_)),
       permutation_(index.permutation_vector()),
       equalities_(std::move(equalities)),
       pool_(pool) {

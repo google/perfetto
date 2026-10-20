@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -52,6 +53,7 @@ namespace perfetto::trace_processor {
 namespace {
 
 using core::exec::ColumnView;
+using core::exec::RowBatch;
 using core::exec::Variant;
 
 // The pointer types of what __intrinsic_dataframe_agg and
@@ -99,9 +101,10 @@ void ResultString(sqlite3_context* ctx, StringPool* pool, StringPool::Id id) {
 
 void ResultVariant(sqlite3_context* ctx,
                    StringPool* pool,
-                   const ColumnView& view,
+                   const RowBatch& batch,
+                   uint32_t column,
                    uint32_t row) {
-  Variant cell = view.At<Variant>(row);
+  Variant cell = batch.column(column).At<Variant>(row);
   switch (cell.type) {
     case Variant::Type::kNull:
       return sqlite::result::Null(ctx);
@@ -115,16 +118,16 @@ void ResultVariant(sqlite3_context* ctx,
   PERFETTO_FATAL("For GCC");
 }
 
-template <typename T, bool Nullable>
+template <typename T>
 void ResultFlat(sqlite3_context* ctx,
                 StringPool* pool,
-                const ColumnView& view,
+                const RowBatch& batch,
+                uint32_t column,
                 uint32_t row) {
+  const ColumnView& view = batch.column(column);
   uint32_t index = view.Index(row);
-  if constexpr (Nullable) {
-    if (!view.validity()->is_set(index)) {
-      return sqlite::result::Null(ctx);
-    }
+  if (view.validity() && !view.validity()->is_set(index)) {
+    return sqlite::result::Null(ctx);
   }
   T value = static_cast<const T*>(view.data())[index];
   if constexpr (std::is_same_v<T, double>) {
@@ -136,63 +139,56 @@ void ResultFlat(sqlite3_context* ctx,
   }
 }
 
-void ResultSequence(sqlite3_context* ctx,
-                    StringPool*,
-                    const ColumnView& view,
-                    uint32_t row) {
-  uint32_t index = view.Index(row);
-  if (view.validity() && !view.validity()->is_set(index)) {
+// An Id column's values are stored, or are where they would be.
+void ResultId(sqlite3_context* ctx,
+              StringPool*,
+              const RowBatch& batch,
+              uint32_t column,
+              uint32_t row) {
+  const ColumnView& view = batch.column(column);
+  if (!view.IsValid(row)) {
     return sqlite::result::Null(ctx);
   }
-  sqlite::result::Long(ctx, index);
-}
-
-template <typename T>
-PipelineModule::Cursor::ResultFn FlatReader(const ColumnView& view) {
-  return view.validity() ? &ResultFlat<T, true> : &ResultFlat<T, false>;
+  sqlite::result::Long(ctx, view.At<uint32_t>(row));
 }
 
 void ResultNull(sqlite3_context* ctx,
                 StringPool*,
-                const ColumnView&,
+                const RowBatch&,
+                uint32_t,
                 uint32_t) {
   sqlite::result::Null(ctx);
 }
 
 void ResultNoColumn(sqlite3_context* ctx,
                     StringPool*,
-                    const ColumnView&,
+                    const RowBatch&,
+                    uint32_t,
                     uint32_t) {
   sqlite::utils::SetError(ctx, "__intrinsic_pipeline: no such column");
 }
 
-PipelineModule::Cursor::ResultFn ReaderFor(const ColumnView& view) {
-  if (view.kind() == ColumnView::Kind::kVariant) {
+// How a column laid out as `layout` is read, the same for every batch.
+PipelineModule::Cursor::ResultFn ReaderFor(
+    const core::exec::ColumnLayout& layout) {
+  if (layout.variant()) {
     return &ResultVariant;
   }
-  if (view.kind() == ColumnView::Kind::kSequence) {
-    return &ResultSequence;
-  }
-  core::StorageType type = view.type();
-  if (type.Is<core::Uint32>())
-    return FlatReader<uint32_t>(view);
-  if (type.Is<core::Int32>())
-    return FlatReader<int32_t>(view);
-  if (type.Is<core::Int64>())
-    return FlatReader<int64_t>(view);
-  if (type.Is<core::Double>())
-    return FlatReader<double>(view);
-  if (type.Is<core::String>())
-    return FlatReader<StringPool::Id>(view);
-  PERFETTO_FATAL("Unexpected column type");
-}
-
-// Refreshes per-column readers only when entering a new batch.
-void CacheColumnReaders(PipelineModule::Cursor* c) {
-  const auto& columns = c->plan->columns();
-  for (uint32_t i = 0; i < columns.size(); ++i) {
-    const auto& view = c->rows->batch().column(columns[i].index);
-    c->columns[kFirstOutputColumn + i] = {&view, ReaderFor(view)};
+  switch (layout.type().index()) {
+    case core::StorageType::GetTypeIndex<core::Id>():
+      return &ResultId;
+    case core::StorageType::GetTypeIndex<core::Uint32>():
+      return &ResultFlat<uint32_t>;
+    case core::StorageType::GetTypeIndex<core::Int32>():
+      return &ResultFlat<int32_t>;
+    case core::StorageType::GetTypeIndex<core::Int64>():
+      return &ResultFlat<int64_t>;
+    case core::StorageType::GetTypeIndex<core::Double>():
+      return &ResultFlat<double>;
+    case core::StorageType::GetTypeIndex<core::String>():
+      return &ResultFlat<StringPool::Id>;
+    default:
+      PERFETTO_FATAL("Unexpected column type");
   }
 }
 
@@ -239,11 +235,18 @@ PERFETTO_NO_INLINE int Load(PipelineModule::Cursor* c,
   c->pool = context->pool;
   c->rows = std::make_unique<core::exec::RowCursor>(c->plan->source());
   // One reader per declared column, so Column only indexes: arguments read as
-  // null, and columns past the plan's outputs fail.
+  // null, and columns past the plan's outputs fail. Each output is read as
+  // the plan lays it out, so the same way in every batch.
   c->columns.assign(kFirstOutputColumn + pipeline::kMaxPipelineColumns,
-                    {&c->no_view, &ResultNoColumn});
+                    {0, &ResultNoColumn});
   for (int i = 0; i < kFirstOutputColumn; ++i) {
-    c->columns[static_cast<uint32_t>(i)] = {&c->no_view, &ResultNull};
+    c->columns[static_cast<uint32_t>(i)] = {0, &ResultNull};
+  }
+  const core::exec::Layout& layout = c->rows->layout();
+  const auto& outputs = c->plan->columns();
+  for (uint32_t i = 0; i < outputs.size(); ++i) {
+    uint32_t column = outputs[i].index;
+    c->columns[kFirstOutputColumn + i] = {column, ReaderFor(layout[column])};
   }
   return SQLITE_OK;
 }
@@ -395,20 +398,13 @@ int PipelineModule::Filter(sqlite3_vtab_cursor* cursor,
     }
   }
   c->eof = !c->rows->Open(c->plan->filter_values());
-  if (c->eof)
-    return CheckStatus(c);
-  CacheColumnReaders(c);
-  return SQLITE_OK;
+  return c->eof ? CheckStatus(c) : SQLITE_OK;
 }
 
 int PipelineModule::Next(sqlite3_vtab_cursor* cursor) {
   Cursor* c = GetCursor(cursor);
   c->eof = !c->rows->Next();
-  if (c->eof)
-    return CheckStatus(c);
-  if (c->rows->row() == 0)
-    CacheColumnReaders(c);
-  return SQLITE_OK;
+  return c->eof ? CheckStatus(c) : SQLITE_OK;
 }
 
 int PipelineModule::Eof(sqlite3_vtab_cursor* cursor) {
@@ -419,8 +415,8 @@ int PipelineModule::Column(sqlite3_vtab_cursor* cursor,
                            sqlite3_context* ctx,
                            int n) {
   Cursor* c = GetCursor(cursor);
-  const auto& column = c->columns[static_cast<uint32_t>(n)];
-  column.result(ctx, c->pool, *column.view, c->rows->batch_row());
+  const Cursor::ColumnReader& reader = c->columns[static_cast<uint32_t>(n)];
+  reader.result(ctx, c->pool, c->rows->batch(), reader.column, c->rows->row());
   return SQLITE_OK;
 }
 

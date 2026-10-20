@@ -189,6 +189,15 @@ void NarrowKey(const std::vector<CollectedLanes::Lane>& groups,
 IntervalIntersect::IntervalIntersect(std::vector<CollectedInputSpec> operands)
     : operands_(std::move(operands)) {
   PERFETTO_CHECK(operands_.size() >= 2);
+  // As GetData() writes them: each region, then each operand's retained
+  // columns at it.
+  layout_.assign(2, ColumnLayout::Of(StorageType{Int64{}}));
+  for (const CollectedInputSpec& operand : operands_) {
+    const Layout& columns = operand.source->layout();
+    for (uint32_t column : operand.retained_columns) {
+      layout_.push_back(columns[column]);
+    }
+  }
 }
 
 IntervalIntersect::~IntervalIntersect() = default;

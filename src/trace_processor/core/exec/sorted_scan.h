@@ -84,6 +84,7 @@ class SortedScan final : public Source {
   ~SortedScan() override;
 
   std::unique_ptr<OperatorState> MakeState(Context& context) const override;
+  const Layout& layout() const override { return layout_; }
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
 
@@ -110,6 +111,7 @@ class SortedScan final : public Source {
   Range Find(const Context& context) const;
 
   std::vector<std::shared_ptr<const dataframe::Column>> columns_;
+  Layout layout_;
   uint32_t row_count_;
   std::vector<Search> searches_;
   // By search; used only by binary searches.

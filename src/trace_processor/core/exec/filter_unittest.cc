@@ -206,7 +206,7 @@ TEST_F(FilterTest, RunsAgainWithNewValues) {
 }
 
 // An Id column holds the row each value is stored at, from where the window
-// starts.
+// starts, or once copied out, the values themselves.
 TEST(FilterIdTest, ComparesIdsByWhereTheyAre) {
   StringPool pool;
   Filter filter({{0, Ge{}, 0}}, &pool);
@@ -224,6 +224,13 @@ TEST(FilterIdTest, ComparesIdsByWhereTheyAre) {
   batch.SetRowCount(4);
   ASSERT_TRUE(filter.Process(batch, *state));
   EXPECT_THAT(test::ReadColumn<uint32_t>(batch, 0), ElementsAre(12u, 13u));
+
+  uint32_t gathered[] = {13, 10, 12, 11};
+  RowBatch stored;
+  stored.AddBorrowedColumn(ColumnView::Reference(StorageType{Id{}}, gathered));
+  stored.SetRowCount(4);
+  ASSERT_TRUE(filter.Process(stored, *state));
+  EXPECT_THAT(test::ReadColumn<uint32_t>(stored, 0), ElementsAre(13u, 12u));
 }
 
 }  // namespace

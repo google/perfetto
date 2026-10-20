@@ -54,6 +54,7 @@ class Pipeline final : public Source {
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
   base::Status status(const OperatorState& state) const override;
+  const Layout& layout() const override { return layout_; }
 
   // The pipeline's input.
   const Source& input() const { return source_; }
@@ -153,6 +154,7 @@ class Pipeline final : public Source {
 
   // The plan.
   const Source& source_;
+  Layout layout_;
   std::vector<Step> steps_;
   std::vector<Segment> segments_;
   uint32_t last_segment_ = 0;

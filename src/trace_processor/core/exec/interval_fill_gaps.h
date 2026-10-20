@@ -25,6 +25,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -42,8 +43,8 @@ struct IntervalFillGapsSpec {
     uint32_t input = 0;
     // Index in the background's retained columns, if it has this column.
     std::optional<uint32_t> background;
-    // Type of the null column used if no input batch was seen.
-    StorageType fallback{Int64{}};
+    // The layout of the input column, which the output column keeps.
+    ColumnLayout layout = ColumnLayout::Of(StorageType{Int64{}});
     // Column name, used in error messages.
     std::string name;
   };
@@ -83,6 +84,7 @@ class IntervalFillGaps : public Operator {
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
+  void OutputLayout(Layout* layout) const override;
   OpResult Finish(RowBatch&, OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
