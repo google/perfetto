@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {HSLColor} from '../../base/color';
-import {sqliteString} from '../../base/string_utils';
 import {createAggregationTab} from '../../components/aggregation_adapter';
 import {
   getColorForSlice,
@@ -186,12 +185,11 @@ export default class ProcessState implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         renderer: new ProcessStateCountTrack(ctx, uri, {
+          state,
           label: `in ${state}`,
-          concurrency: `
-            SELECT * FROM _android_process_state_concurrency
-            WHERE state = ${sqliteString(state)}
-          `,
-          members: () => `state = ${sqliteString(state)}`,
+          concurrencyTable: '_android_process_state_concurrency',
+          intervalsTable: '_android_process_state_intervals',
+          trackUri: processTrackUri,
         }),
         tags: {type: TAG_COUNT_TRACK, state},
         description: `Number of processes concurrently in ${state}.`,
@@ -214,18 +212,11 @@ export default class ProcessState implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         renderer: new ProcessStateCountTrack(ctx, uri, {
+          state,
           label: state.toLowerCase(),
-          concurrency: `
-            SELECT * FROM _android_freezer_concurrency
-            WHERE state = ${sqliteString(state)}
-          `,
-          members: (ts) => `
-            upid IN (
-              SELECT upid FROM _android_freezer_intervals
-              WHERE state = ${sqliteString(state)}
-                AND ts <= ${ts} AND (dur < 0 OR ts + dur > ${ts})
-            )
-          `,
+          concurrencyTable: '_android_freezer_concurrency',
+          intervalsTable: '_android_freezer_intervals',
+          trackUri: (upid) => `${processTrackUri(upid)}.freezer`,
         }),
         description: `Number of processes concurrently ${state.toLowerCase()}.`,
       });

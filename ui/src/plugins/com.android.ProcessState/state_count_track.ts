@@ -14,7 +14,8 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
-import {Duration, Time, type time} from '../../base/time';
+import {sqliteString} from '../../base/string_utils';
+import {Duration, Time} from '../../base/time';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import {Timestamp} from '../../components/widgets/timestamp';
@@ -25,20 +26,19 @@ import type {TrackMouseEvent} from '../../public/track';
 import {LONG, NUM, type Row} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import {DetailsShell} from '../../widgets/details_shell';
-import {durationCellRenderer, processTrackUri} from './aggregators';
+import {durationCellRenderer} from './aggregators';
 
 /** What a count track counts. */
 export interface CountSource {
-  // Completes "N processes ...", e.g. 'in TOP', 'frozen', 'alive'.
+  readonly state: string;
+  // Completes "N processes ...", e.g. 'in TOP', 'frozen'.
   readonly label: string;
-  // SQL yielding the counter's (id, ts, dur, concurrency) rows.
-  readonly concurrency: string;
-  // Predicate over _android_process_state_intervals rows selecting the
-  // processes counted at `ts`.
-  readonly members: (ts: time) => string;
+  readonly concurrencyTable: string;
+  readonly intervalsTable: string;
+  readonly trackUri: (upid: number) => string;
 }
 
-/** Process count over time; clicking it lists the processes counted. */
+/** Concurrency counter for one state; clicking it lists the processes in it. */
 export class ProcessStateCountTrack extends CounterTrack {
   constructor(
     trace: Trace,
@@ -49,7 +49,9 @@ export class ProcessStateCountTrack extends CounterTrack {
       trace,
       uri,
       sqlSource: `
-        SELECT ts, concurrency AS value FROM (${source.concurrency})
+        SELECT ts, concurrency AS value
+        FROM ${source.concurrencyTable}
+        WHERE state = ${sqliteString(source.state)}
       `,
     });
   }
@@ -59,8 +61,8 @@ export class ProcessStateCountTrack extends CounterTrack {
     this.engine
       .query(
         `
-        SELECT id FROM (${this.source.concurrency})
-        WHERE ts <= ${ts}
+        SELECT id FROM ${this.source.concurrencyTable}
+        WHERE state = ${sqliteString(this.source.state)} AND ts <= ${ts}
         ORDER BY ts DESC LIMIT 1
       `,
       )
@@ -74,7 +76,7 @@ export class ProcessStateCountTrack extends CounterTrack {
   async getSelectionDetails(id: number) {
     const row = (
       await this.engine.query(`
-        SELECT ts, dur FROM (${this.source.concurrency}) WHERE id = ${id}
+        SELECT ts, dur FROM ${this.source.concurrencyTable} WHERE id = ${id}
       `)
     ).firstRow({ts: LONG, dur: LONG});
     return {ts: Time.fromRaw(row.ts), dur: Duration.fromRaw(row.dur)};
@@ -95,11 +97,11 @@ class ProcessesInStatePanel implements TrackEventDetailsPanel {
 
   async load(sel: TrackEventSelection) {
     const result = await this.trace.engine.query(`
-      SELECT id, upid, process_name, pid, state, ts, iif(dur < 0, trace_end() - ts, dur) AS dur
-      FROM _android_process_state_intervals
-      WHERE ts <= ${sel.ts}
+      SELECT id, upid, process_name, pid, ts, iif(dur < 0, trace_end() - ts, dur) AS dur
+      FROM ${this.source.intervalsTable}
+      WHERE state = ${sqliteString(this.source.state)}
+        AND ts <= ${sel.ts}
         AND (dur < 0 OR ts + dur > ${sel.ts})
-        AND (${this.source.members(sel.ts)})
     `);
     const cols = result.columns();
     const rows: Row[] = [];
@@ -144,7 +146,7 @@ class ProcessesInStatePanel implements TrackEventDetailsPanel {
                   icon: Icons.UpdateSelection,
                   onclick: () =>
                     trace.selection.selectTrackEvent(
-                      processTrackUri(Number(upid)),
+                      this.source.trackUri(Number(upid)),
                       Number(id),
                       {scrollToSelection: true},
                     ),
@@ -155,7 +157,6 @@ class ProcessesInStatePanel implements TrackEventDetailsPanel {
           },
           process_name: {title: 'Process', columnType: 'text'},
           pid: {title: 'PID', columnType: 'identifier'},
-          state: {title: 'State', columnType: 'text'},
           dur: {
             title: 'Time in state',
             columnType: 'quantitative',
@@ -167,7 +168,6 @@ class ProcessesInStatePanel implements TrackEventDetailsPanel {
           {id: 'id', field: 'id'},
           {id: 'process_name', field: 'process_name'},
           {id: 'pid', field: 'pid'},
-          {id: 'state', field: 'state'},
           {id: 'dur', field: 'dur', sort: 'DESC'},
         ],
       }),
