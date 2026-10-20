@@ -142,7 +142,7 @@ class ProcessesInStatePanel implements TrackEventDetailsPanel {
               return m(
                 Anchor,
                 {
-                  title: 'Go to process state slice',
+                  title: 'Go to slice',
                   icon: Icons.UpdateSelection,
                   onclick: () =>
                     trace.selection.selectTrackEvent(

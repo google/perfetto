@@ -35,6 +35,7 @@ import {
 } from '../../trace_processor/query_result';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import {
+  freezerTrackUri,
   ProcessExitsAggregator,
   ProcessStartsAggregator,
   ProcessStateResidencyAggregator,
@@ -197,7 +198,6 @@ export default class ProcessState implements PerfettoPlugin {
       summary.addChildLast(new TrackNode({uri, name: state}));
     }
 
-    // Only long memory traces carry freezer events.
     const freezerStates = await ctx.engine.query(`
       SELECT state
       FROM _android_freezer_concurrency
@@ -216,8 +216,9 @@ export default class ProcessState implements PerfettoPlugin {
           label: state.toLowerCase(),
           concurrencyTable: '_android_freezer_concurrency',
           intervalsTable: '_android_freezer_intervals',
-          trackUri: (upid) => `${processTrackUri(upid)}.freezer`,
+          trackUri: freezerTrackUri,
         }),
+        // Untagged: the aggregators cover framework states only.
         description: `Number of processes concurrently ${state.toLowerCase()}.`,
       });
       summary.addChildLast(new TrackNode({uri, name: state}));
@@ -311,7 +312,7 @@ export default class ProcessState implements PerfettoPlugin {
       });
 
       if (hasFreezer) {
-        const freezerUri = `${uri}.freezer`;
+        const freezerUri = freezerTrackUri(upid);
         const overviewFreezerUri = this.registerProcessTrack(
           ctx,
           processGroup,
