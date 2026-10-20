@@ -264,18 +264,18 @@ Lowering::TreeColumns Lowering::RequireTreeWalk(ColumnId node,
                                                 TreeDirection direction) {
   bool same_tree =
       tree_columns_ && tree_node_ == node && tree_parent_ == parent;
+  if (same_tree && tree_walk_ == direction) {
+    return *tree_columns_;
+  }
+  if (same_tree && DropOpenSort() && tree_walk_ == direction) {
+    return *tree_columns_;
+  }
   if (!same_tree) {
     AddOrderIndependent(std::make_unique<ex::TreeNumberNodes>(
         QueryPosition(node), QueryPosition(parent)));
     tree_columns_ = TreeColumns{column_count_++, column_count_++};
     tree_node_ = node;
     tree_parent_ = parent;
-  }
-  if (same_tree && tree_walk_ == direction) {
-    return *tree_columns_;
-  }
-  if (same_tree && DropOpenSort() && tree_walk_ == direction) {
-    return *tree_columns_;
   }
   if (direction == TreeDirection::kUp) {
     AddBreaker(std::make_unique<ex::TreeChildFirst>(tree_columns_->node,
