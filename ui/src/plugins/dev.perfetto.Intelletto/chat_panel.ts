@@ -235,6 +235,7 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
               label: activeConversation?.title ?? 'Conversations',
               rightIcon: 'keyboard_arrow_down',
               variant: ButtonVariant.Minimal,
+              disabled: attrs.isAgentRunning,
               shrink: true,
             }),
           },

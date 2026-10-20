@@ -35,6 +35,7 @@ import type {
 } from './api';
 import {ChatPanel} from './chat_panel';
 import {ChatSession} from './chat_session';
+import {ConversationStore} from './conversation_store';
 import {registerDataExplorerTools} from './data_explorer_tools';
 import {
   ContextRegistry,
@@ -113,6 +114,8 @@ export default class IntellettoPlugin
       () => IntellettoPlugin.getActiveTools(),
       () => IntellettoPlugin.getActiveContext(),
       () => assembleSystemPrompt(IntellettoPlugin.getActiveContext(), skills),
+      IntellettoPlugin.conversationStore,
+      {model: IntellettoPlugin.selectedModelSetting.get()},
     ));
   }
 
@@ -150,6 +153,7 @@ export default class IntellettoPlugin
       )
       .finally(() => m.redraw());
 
+    IntellettoPlugin.conversationStore = new ConversationStore();
     IntellettoPlugin.appContext = new ContextRegistry();
     registerAppContextProviders(IntellettoPlugin.appContext, app);
 
@@ -162,6 +166,7 @@ export default class IntellettoPlugin
       icon: 'psychology',
       render: () => {
         const gateway = LlmPlugin.gateway;
+        const store = IntellettoPlugin.conversationStore;
         const skills = IntellettoPlugin.skills;
         const session =
           skills !== undefined
@@ -171,9 +176,15 @@ export default class IntellettoPlugin
           .listModels()
           .filter((rm) => rm.model.roles.includes('agentic'));
         const selectedModel = getValidModel(
-          IntellettoPlugin.selectedModelSetting.get(),
+          session?.model ?? IntellettoPlugin.selectedModelSetting.get(),
           models,
         );
+        const storedConversations = store.list();
+        const conversations =
+          session !== undefined &&
+          !storedConversations.some((c) => c.id === session.id)
+            ? [{id: session.id, title: session.title}, ...storedConversations]
+            : storedConversations;
         return m(ChatPanel, {
           isAgentRunning: session?.loading ?? false,
           isLoadingSkills: skills === undefined,
@@ -199,9 +210,27 @@ export default class IntellettoPlugin
               });
             }
           },
-          conversations: [],
-          activeConversationId: undefined,
-          onOpenConversation: () => {},
+          conversations,
+          activeConversationId: session?.id,
+          onOpenConversation: (id) => {
+            const stored = store.get(id);
+            if (stored === undefined || skills === undefined) return;
+            if (IntellettoPlugin.session?.loading) {
+              IntellettoPlugin.session.cancel();
+            }
+            IntellettoPlugin.session = new ChatSession(
+              gateway,
+              () => IntellettoPlugin.getActiveTools(),
+              () => IntellettoPlugin.getActiveContext(),
+              () =>
+                assembleSystemPrompt(
+                  IntellettoPlugin.getActiveContext(),
+                  skills,
+                ),
+              store,
+              {stored},
+            );
+          },
           onNewConversation: () => {
             if (IntellettoPlugin.session?.loading) {
               IntellettoPlugin.session.cancel();
@@ -220,8 +249,13 @@ export default class IntellettoPlugin
           onToggleContext: (id) => session?.toggleContext(id),
           models,
           selectedModel,
-          onSelectModel: (model) =>
-            IntellettoPlugin.selectedModelSetting.set(model),
+          onSelectModel: (model) => {
+            if (session !== undefined) {
+              session.model = model;
+              session.save();
+            }
+            IntellettoPlugin.selectedModelSetting.set(model);
+          },
           configureModelsHref: `#!/settings/${encodeURIComponent(LLM_PROVIDER_SETTING_ID)}`,
         });
       },
@@ -234,6 +268,10 @@ export default class IntellettoPlugin
       defaultHotkey: 'Mod+Shift+A',
     });
   }
+
+  // App-scoped store of past conversations, persisted to localStorage and
+  // shared across all traces.
+  private static conversationStore: ConversationStore;
 
   // The shared tool registry for this trace. Core tools plus any contributed by
   // other plugins land here; the chat panel hands it to the agent.

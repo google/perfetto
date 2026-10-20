@@ -27,6 +27,7 @@ import type {
 } from '../dev.perfetto.Llm/protocol';
 import {ChatSession} from './chat_session';
 import {ContextRegistry} from './context';
+import {ConversationStore} from './conversation_store';
 import {ToolRegistry} from './tools';
 
 const MODEL: ModelPath = {providerId: 'test-provider', modelId: 'test-model'};
@@ -90,11 +91,15 @@ function setupSession(
     ],
   });
 
+  localStorage.clear();
+  const store = new ConversationStore();
   const session = new ChatSession(
     gateway,
     tools,
     new ContextRegistry(),
     'You are a test assistant.',
+    store,
+    {model: MODEL},
   );
   return {session, requests};
 }
@@ -314,6 +319,8 @@ describe('ChatSession dynamic registries', () => {
       () => activeTools,
       () => activeContext,
       () => activeContext.descriptions().join('\n'),
+      new ConversationStore(),
+      {model: MODEL},
     );
 
     await session.send('First question', MODEL);
