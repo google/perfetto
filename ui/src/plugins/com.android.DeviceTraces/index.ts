@@ -128,6 +128,137 @@ const DEFAULT_BREAKDOWN_PATHS: ReadonlyArray<ReadonlyArray<string>> = [
   ['android_id', 'session_name', 'subscription_name'],
 ];
 
+const BATTERY_SESSION_NAME = 'session_with_lightweight_battery_tracing';
+
+const DEVICE_STATE_TRACK_ORDER: ReadonlyArray<string> = [
+  'Screen state',
+  'Charging',
+  'Suspend / resume',
+  'Doze light state',
+  'Doze deep state',
+  'Top app',
+  'Default network',
+  'Cellular connection',
+  'NR 5G state',
+  'Cellular strength',
+  'Wifi supplicant state',
+  'Wifi strength',
+  'Thermal throttling',
+  'Power save',
+  'Folded state',
+];
+
+interface PowerRailTrackInfo {
+  readonly trackId: number;
+  readonly kind:
+    'fleet_total' | 'fleet_sub' | 'user_total' | 'user_sub' | 'user_rail';
+  readonly androidId: string;
+  readonly subsystemName: string;
+  readonly railName: string;
+  readonly totalMwh: number;
+}
+
+interface DeviceStateTrackInfo {
+  readonly trackId: number;
+  readonly androidId: string;
+  readonly trackName: string;
+  readonly sliceCount: number;
+}
+
+function formatEnergyMwh(mwh: number): string {
+  if (!Number.isFinite(mwh) || mwh <= 0) {
+    return '0 mWh';
+  }
+  if (mwh >= 1000) {
+    return `${(mwh / 1000).toFixed(2)} Wh`;
+  }
+  return `${mwh.toFixed(1)} mWh`;
+}
+
+const DEVICE_STATE_SPEC = {
+  id: NUM,
+  ts: LONG,
+  dur: LONG,
+  depth: NUM,
+  name: STR,
+};
+
+interface DeviceStateRow {
+  readonly id: number;
+  readonly ts: time;
+  readonly dur: duration;
+  readonly name: string;
+}
+
+class DeviceStateDetailsPanel implements TrackEventDetailsPanel {
+  private row?: DeviceStateRow;
+  private isLoading = true;
+
+  constructor(
+    private readonly trace: Trace,
+    private readonly androidId: string,
+    private readonly stateTrack: string,
+  ) {}
+
+  async load(selection: TrackEventSelection): Promise<void> {
+    this.isLoading = true;
+    const res = await this.trace.engine.query(`
+      SELECT id, ts, dur, depth, name
+      FROM slice
+      WHERE id = ${selection.eventId}
+      LIMIT 1
+    `);
+    const it = res.iter(DEVICE_STATE_SPEC);
+    if (it.valid()) {
+      this.row = {
+        id: it.id,
+        ts: Time.fromRaw(it.ts),
+        dur: Duration.fromRaw(it.dur),
+        name: it.name,
+      };
+    }
+    this.isLoading = false;
+  }
+
+  render() {
+    if (this.isLoading) {
+      return m(DetailsShell, {
+        title: 'Device State',
+        description: 'Loading...',
+      });
+    }
+    if (!this.row) {
+      return m(DetailsShell, {
+        title: 'Device State',
+        description: 'State interval not found',
+      });
+    }
+    const r = this.row;
+    return m(
+      DetailsShell,
+      {title: `Device State: ${this.stateTrack}`, description: r.name},
+      m(
+        Section,
+        {title: 'State Interval'},
+        m(
+          Tree,
+          m(TreeNode, {left: 'Track', right: this.stateTrack}),
+          m(TreeNode, {left: 'State Value', right: r.name}),
+          m(TreeNode, {left: 'android_id', right: this.androidId}),
+          m(TreeNode, {
+            left: 'Start',
+            right: m(Timestamp, {trace: this.trace, ts: r.ts}),
+          }),
+          m(TreeNode, {
+            left: 'Duration',
+            right: m(DurationWidget, {trace: this.trace, dur: r.dur}),
+          }),
+        ),
+      ),
+    );
+  }
+}
+
 interface BreakdownColumn {
   readonly label: string;
   readonly sqlCol: string;
@@ -750,6 +881,12 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
   private breakdownColumns: BreakdownColumn[] = [];
   private datasetSpec: DeviceTraceDatasetSpec = DEVICE_TRACE_BASE_SPEC;
   private treeCount = 0;
+  private fleetTotalTrack?: PowerRailTrackInfo;
+  private fleetSubTracks: PowerRailTrackInfo[] = [];
+  private readonly userTotalTracks = new Map<string, PowerRailTrackInfo>();
+  private readonly userSubTracks = new Map<string, PowerRailTrackInfo[]>();
+  private readonly userRailTracks = new Map<string, PowerRailTrackInfo[]>();
+  private readonly userStateTracks = new Map<string, DeviceStateTrackInfo[]>();
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const check = await ctx.engine.query(`
@@ -842,6 +979,10 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
       ${indexStatements}
     `);
 
+    await this.loadPowerRailTracks(ctx);
+    await this.loadDeviceStateTracks(ctx);
+    await this.hideInternalTrackEventTracks(ctx);
+
     for (const cols of defaultTrees) {
       ctx.defaultWorkspace.addChildInOrder(
         this.createBreakdownTree(ctx, cols, false),
@@ -867,6 +1008,161 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
         await this.promptAndAddCustomBreakdown(ctx);
       },
     });
+  }
+
+  private async loadPowerRailTracks(ctx: Trace): Promise<void> {
+    this.fleetTotalTrack = undefined;
+    this.fleetSubTracks = [];
+    this.userTotalTracks.clear();
+    this.userSubTracks.clear();
+    this.userRailTracks.clear();
+
+    const res = await ctx.engine.query(`
+      SELECT
+        t.id AS track_id,
+        COALESCE(EXTRACT_ARG(t.source_arg_set_id, 'description'), '') AS description
+      FROM track AS t
+      WHERE t.type GLOB '*counter*'
+        AND EXTRACT_ARG(t.source_arg_set_id, 'description') GLOB 'dt_power|*'
+    `);
+
+    const it = res.iter({track_id: NUM, description: STR});
+    for (; it.valid(); it.next()) {
+      const parts = it.description.split('|');
+      if (parts.length < 6 || parts[0] !== 'dt_power') continue;
+      const kind = parts[1];
+      const androidId = parts[2];
+      const subsystemName = parts[3];
+      const railName = parts[4];
+      const totalMwh = Number(parts[5]) || 0;
+      if (
+        kind !== 'fleet_total' &&
+        kind !== 'fleet_sub' &&
+        kind !== 'user_total' &&
+        kind !== 'user_sub' &&
+        kind !== 'user_rail'
+      ) {
+        continue;
+      }
+      const info: PowerRailTrackInfo = {
+        trackId: it.track_id,
+        kind,
+        androidId,
+        subsystemName,
+        railName,
+        totalMwh,
+      };
+      switch (kind) {
+        case 'fleet_total':
+          this.fleetTotalTrack = info;
+          break;
+        case 'fleet_sub':
+          this.fleetSubTracks.push(info);
+          break;
+        case 'user_total':
+          this.userTotalTracks.set(androidId, info);
+          break;
+        case 'user_sub': {
+          let list = this.userSubTracks.get(androidId);
+          if (!list) {
+            list = [];
+            this.userSubTracks.set(androidId, list);
+          }
+          list.push(info);
+          break;
+        }
+        case 'user_rail': {
+          let list = this.userRailTracks.get(androidId);
+          if (!list) {
+            list = [];
+            this.userRailTracks.set(androidId, list);
+          }
+          list.push(info);
+          break;
+        }
+      }
+    }
+
+    this.fleetSubTracks.sort((a, b) => b.totalMwh - a.totalMwh);
+    for (const list of this.userSubTracks.values()) {
+      list.sort((a, b) => b.totalMwh - a.totalMwh);
+    }
+    for (const list of this.userRailTracks.values()) {
+      list.sort((a, b) => b.totalMwh - a.totalMwh);
+    }
+  }
+
+  private async loadDeviceStateTracks(ctx: Trace): Promise<void> {
+    this.userStateTracks.clear();
+    const orderRank = new Map<string, number>(
+      DEVICE_STATE_TRACK_ORDER.map((name, idx) => [name, idx]),
+    );
+
+    const res = await ctx.engine.query(`
+      SELECT
+        t.id AS track_id,
+        COALESCE(EXTRACT_ARG(t.source_arg_set_id, 'description'), '') AS description
+      FROM track AS t
+      WHERE EXTRACT_ARG(t.source_arg_set_id, 'description') GLOB 'dt_state|*'
+    `);
+
+    const it = res.iter({track_id: NUM, description: STR});
+    for (; it.valid(); it.next()) {
+      const parts = it.description.split('|');
+      if (parts.length < 4 || parts[0] !== 'dt_state') continue;
+      const androidId = parts[1];
+      const stateTrack = parts[2];
+      const sliceCount = Number(parts[3]) || 0;
+      if (!androidId || !stateTrack || sliceCount <= 0) continue;
+      let list = this.userStateTracks.get(androidId);
+      if (!list) {
+        list = [];
+        this.userStateTracks.set(androidId, list);
+      }
+      list.push({
+        trackId: it.track_id,
+        androidId,
+        trackName: stateTrack,
+        sliceCount,
+      });
+    }
+
+    for (const list of this.userStateTracks.values()) {
+      list.sort((a, b) => {
+        const ra = orderRank.get(a.trackName) ?? 999;
+        const rb = orderRank.get(b.trackName) ?? 999;
+        return ra !== rb ? ra - rb : a.trackName.localeCompare(b.trackName);
+      });
+    }
+  }
+
+  private async hideInternalTrackEventTracks(ctx: Trace): Promise<void> {
+    const res = await ctx.engine.query(`
+      SELECT DISTINCT track_id
+      FROM slice
+      WHERE category = 'device_trace'
+      UNION
+      SELECT id AS track_id
+      FROM track
+      WHERE EXTRACT_ARG(source_arg_set_id, 'description') GLOB 'dt_*'
+    `);
+    const it = res.iter({track_id: NUM});
+    for (; it.valid(); it.next()) {
+      const node = ctx.defaultWorkspace.getTrackByUri(
+        `/track_event_${it.track_id}`,
+      );
+      if (node !== undefined) {
+        const parent = node.parent;
+        node.remove();
+        if (
+          parent !== undefined &&
+          parent.name === 'Global Track Events' &&
+          parent.children.length === 0
+        ) {
+          parent.remove();
+        }
+      }
+    }
   }
 
   private async promptAndAddCustomBreakdown(ctx: Trace): Promise<void> {
@@ -938,7 +1234,14 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
       uri: rootUri,
       removable,
     });
-    this.attachLazyBreakdownLevels(ctx, rootNode, cols, '1 = 1', keyPrefix);
+    this.attachLazyBreakdownLevels(
+      ctx,
+      rootNode,
+      cols,
+      '1 = 1',
+      keyPrefix,
+      new Map(),
+    );
     return rootNode;
   }
 
@@ -948,58 +1251,360 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
     remainingCols: ReadonlyArray<BreakdownColumn>,
     whereClause: string,
     keyPrefix: string,
+    boundValues: ReadonlyMap<string, string>,
   ): void {
-    if (remainingCols.length === 0) {
+    const sessionVal = boundValues.get('session_name');
+    const androidIdVal = boundValues.get('android_id');
+    const isBatterySession = sessionVal === BATTERY_SESSION_NAME;
+    const hasUserBatteryTracks =
+      remainingCols.length === 0 &&
+      isBatterySession &&
+      androidIdVal !== undefined &&
+      (this.userTotalTracks.has(androidIdVal) ||
+        this.userSubTracks.has(androidIdVal) ||
+        this.userRailTracks.has(androidIdVal) ||
+        this.userStateTracks.has(androidIdVal));
+    const hasFleetBatteryTracks =
+      isBatterySession &&
+      androidIdVal === undefined &&
+      (this.fleetTotalTrack !== undefined || this.fleetSubTracks.length > 0);
+
+    if (remainingCols.length === 0 && !hasUserBatteryTracks) {
       return;
     }
-    const [col, ...restCols] = remainingCols;
-    const isLeafLevel = restCols.length === 0;
 
     this.onFirstExpand(parentNode, async () => {
-      const res = await ctx.engine.query(`
-        SELECT
-          ${col.sqlCol} AS val,
-          COUNT(*) AS trace_count
-        FROM ${TABLE_NAME}
-        WHERE ${whereClause}
-        GROUP BY ${col.sqlCol}
-        ORDER BY trace_count DESC, val ASC
-      `);
-
-      const it = res.iter({
-        val: STR,
-        trace_count: NUM,
-      });
-      for (; it.valid(); it.next()) {
-        const val = it.val;
-        const count = it.trace_count;
-        const displayVal = val || '(empty)';
-        const childFilter = `${whereClause} AND ${col.sqlCol} = ${sqliteString(val)}`;
-        const childKey = `${keyPrefix}:${col.label}:${val}`;
-        const uri = `${DeviceTracesPlugin.id}#${childKey}`;
-
-        if (isLeafLevel) {
-          this.registerSliceTrack(ctx, uri, childFilter);
-        } else {
-          this.registerCounterTrack(ctx, uri, childFilter);
+      if (hasFleetBatteryTracks && remainingCols.length > 0) {
+        const nextCol = remainingCols[0];
+        if (nextCol.label !== 'android_id') {
+          this.appendFleetPowerRailsNode(
+            ctx,
+            parentNode,
+            `${keyPrefix}:fleet_power`,
+            whereClause,
+          );
         }
+      }
 
-        const childNode = new TrackNode({
-          name: `${displayVal} (${count})`,
-          uri,
+      if (remainingCols.length > 0) {
+        const [col, ...restCols] = remainingCols;
+        const isLeafLevel = restCols.length === 0;
+        const res = await ctx.engine.query(`
+          SELECT
+            ${col.sqlCol} AS val,
+            COUNT(*) AS trace_count
+          FROM ${TABLE_NAME}
+          WHERE ${whereClause}
+          GROUP BY ${col.sqlCol}
+          ORDER BY trace_count DESC, val ASC
+        `);
+
+        const it = res.iter({
+          val: STR,
+          trace_count: NUM,
         });
-        parentNode.addChildLast(childNode);
+        for (; it.valid(); it.next()) {
+          const val = it.val;
+          const count = it.trace_count;
+          const displayVal = val || '(empty)';
+          const childFilter = `${whereClause} AND ${col.sqlCol} = ${sqliteString(val)}`;
+          const childKey = `${keyPrefix}:${col.label}:${val}`;
+          const uri = `${DeviceTracesPlugin.id}#${childKey}`;
 
-        if (!isLeafLevel) {
+          if (isLeafLevel) {
+            this.registerSliceTrack(ctx, uri, childFilter);
+          } else {
+            this.registerCounterTrack(ctx, uri, childFilter);
+          }
+
+          const childNode = new TrackNode({
+            name: `${displayVal} (${count})`,
+            uri,
+          });
+          parentNode.addChildLast(childNode);
+
+          const childBound = new Map(boundValues);
+          childBound.set(col.label, val);
           this.attachLazyBreakdownLevels(
             ctx,
             childNode,
             restCols,
             childFilter,
             childKey,
+            childBound,
           );
         }
       }
+
+      if (hasUserBatteryTracks && androidIdVal !== undefined) {
+        const userFilter = `col_android_id = ${sqliteString(androidIdVal)}`;
+        this.appendUserPowerRailsNode(
+          ctx,
+          parentNode,
+          androidIdVal,
+          `${keyPrefix}:power_rails`,
+          userFilter,
+        );
+        this.appendUserDeviceStatesNode(
+          ctx,
+          parentNode,
+          androidIdVal,
+          `${keyPrefix}:device_state`,
+          userFilter,
+        );
+      }
+    });
+  }
+
+  private appendFleetPowerRailsNode(
+    ctx: Trace,
+    parentNode: TrackNode,
+    keyPrefix: string,
+    selectionFilter: string,
+  ): void {
+    const fleetTotal = this.fleetTotalTrack;
+    const fleetSubs = this.fleetSubTracks;
+    if (fleetTotal === undefined && fleetSubs.length === 0) {
+      return;
+    }
+
+    let groupUri: string | undefined;
+    if (fleetTotal !== undefined) {
+      groupUri = `${DeviceTracesPlugin.id}#${keyPrefix}:total`;
+      this.registerPowerCounterTrack(
+        ctx,
+        groupUri,
+        fleetTotal.trackId,
+        selectionFilter,
+      );
+    }
+
+    const totalLabel =
+      fleetTotal !== undefined
+        ? `Power Rails — Fleet Total (${formatEnergyMwh(fleetTotal.totalMwh)})`
+        : 'Power Rails — Fleet Subsystems (mW)';
+    const groupNode = new TrackNode({
+      name: totalLabel,
+      uri: groupUri,
+      isSummary: groupUri === undefined,
+    });
+    parentNode.addChildLast(groupNode);
+
+    if (fleetSubs.length > 0) {
+      this.onFirstExpand(groupNode, async () => {
+        for (const sub of fleetSubs) {
+          const subUri = `${DeviceTracesPlugin.id}#${keyPrefix}:sub:${sub.subsystemName}`;
+          this.registerPowerCounterTrack(
+            ctx,
+            subUri,
+            sub.trackId,
+            selectionFilter,
+          );
+          groupNode.addChildLast(
+            new TrackNode({
+              name: `${sub.subsystemName} (${formatEnergyMwh(sub.totalMwh)})`,
+              uri: subUri,
+            }),
+          );
+        }
+      });
+    }
+  }
+
+  private appendUserPowerRailsNode(
+    ctx: Trace,
+    parentNode: TrackNode,
+    androidId: string,
+    keyPrefix: string,
+    selectionFilter: string,
+  ): void {
+    const userTotal = this.userTotalTracks.get(androidId);
+    const userSubs = this.userSubTracks.get(androidId) ?? [];
+    const userRails = this.userRailTracks.get(androidId) ?? [];
+    if (
+      userTotal === undefined &&
+      userSubs.length === 0 &&
+      userRails.length === 0
+    ) {
+      return;
+    }
+
+    let groupUri: string | undefined;
+    if (userTotal !== undefined) {
+      groupUri = `${DeviceTracesPlugin.id}#${keyPrefix}:total`;
+      this.registerPowerCounterTrack(
+        ctx,
+        groupUri,
+        userTotal.trackId,
+        selectionFilter,
+      );
+    }
+
+    const groupTitle =
+      userTotal !== undefined
+        ? `Power Rails (mW) — Total ${formatEnergyMwh(userTotal.totalMwh)} (${userRails.length} rails)`
+        : `Power Rails (mW) (${userRails.length} rails)`;
+
+    const powerNode = new TrackNode({
+      name: groupTitle,
+      uri: groupUri,
+      isSummary: groupUri === undefined,
+    });
+    parentNode.addChildLast(powerNode);
+
+    const railsBySubsystem = new Map<string, PowerRailTrackInfo[]>();
+    for (const rail of userRails) {
+      let list = railsBySubsystem.get(rail.subsystemName);
+      if (list === undefined) {
+        list = [];
+        railsBySubsystem.set(rail.subsystemName, list);
+      }
+      list.push(rail);
+    }
+
+    this.onFirstExpand(powerNode, async () => {
+      for (const sub of userSubs) {
+        const subUri = `${DeviceTracesPlugin.id}#${keyPrefix}:sub:${sub.subsystemName}`;
+        this.registerPowerCounterTrack(
+          ctx,
+          subUri,
+          sub.trackId,
+          selectionFilter,
+        );
+        const subRails = railsBySubsystem.get(sub.subsystemName) ?? [];
+        const subNode = new TrackNode({
+          name: `Subsystem: ${sub.subsystemName} (${formatEnergyMwh(sub.totalMwh)}, ${subRails.length} rails)`,
+          uri: subUri,
+        });
+        powerNode.addChildLast(subNode);
+
+        if (subRails.length > 0) {
+          this.onFirstExpand(subNode, async () => {
+            for (const rail of subRails) {
+              const railUri = `${DeviceTracesPlugin.id}#${keyPrefix}:sub:${sub.subsystemName}:rail:${rail.railName}`;
+              this.registerPowerCounterTrack(
+                ctx,
+                railUri,
+                rail.trackId,
+                selectionFilter,
+              );
+              subNode.addChildLast(
+                new TrackNode({
+                  name: `${rail.railName} (${formatEnergyMwh(rail.totalMwh)})`,
+                  uri: railUri,
+                }),
+              );
+            }
+          });
+        }
+      }
+
+      if (userRails.length > 0) {
+        const allRailsNode = new TrackNode({
+          name: `All Individual Rails (${userRails.length})`,
+          isSummary: true,
+        });
+        powerNode.addChildLast(allRailsNode);
+
+        this.onFirstExpand(allRailsNode, async () => {
+          for (const rail of userRails) {
+            const railUri = `${DeviceTracesPlugin.id}#${keyPrefix}:all_rails:${rail.railName}`;
+            this.registerPowerCounterTrack(
+              ctx,
+              railUri,
+              rail.trackId,
+              selectionFilter,
+            );
+            allRailsNode.addChildLast(
+              new TrackNode({
+                name: `${rail.railName} [${rail.subsystemName}] (${formatEnergyMwh(rail.totalMwh)})`,
+                uri: railUri,
+              }),
+            );
+          }
+        });
+      }
+    });
+  }
+
+  private appendUserDeviceStatesNode(
+    ctx: Trace,
+    parentNode: TrackNode,
+    androidId: string,
+    keyPrefix: string,
+    selectionFilter: string,
+  ): void {
+    const stateTracks = this.userStateTracks.get(androidId);
+    if (stateTracks === undefined || stateTracks.length === 0) {
+      return;
+    }
+
+    const statesNode = new TrackNode({
+      name: `Device State (${stateTracks.length} tracks)`,
+      isSummary: true,
+    });
+    parentNode.addChildLast(statesNode);
+
+    this.onFirstExpand(statesNode, async () => {
+      for (const st of stateTracks) {
+        const stUri = `${DeviceTracesPlugin.id}#${keyPrefix}:${st.trackName}`;
+        this.registerDeviceStateSliceTrack(ctx, stUri, st, selectionFilter);
+        statesNode.addChildLast(
+          new TrackNode({
+            name: `${st.trackName} (${st.sliceCount})`,
+            uri: stUri,
+          }),
+        );
+      }
+    });
+  }
+
+  private registerPowerCounterTrack(
+    ctx: Trace,
+    uri: string,
+    trackId: number,
+    selectionFilter: string,
+  ): void {
+    this.counterTrackFilters.set(uri, selectionFilter);
+    ctx.tracks.registerTrack({
+      uri,
+      renderer: CounterTrack.create({
+        trace: ctx,
+        uri,
+        unit: 'mW',
+        sqlSource: `
+          SELECT ts, value
+          FROM counter
+          WHERE track_id = ${trackId}
+          ORDER BY ts
+        `,
+      }),
+    });
+  }
+
+  private registerDeviceStateSliceTrack(
+    ctx: Trace,
+    uri: string,
+    info: DeviceStateTrackInfo,
+    selectionFilter: string,
+  ): void {
+    this.counterTrackFilters.set(uri, selectionFilter);
+    ctx.tracks.registerTrack({
+      uri,
+      renderer: SliceTrack.create({
+        trace: ctx,
+        uri,
+        dataset: new SourceDataset({
+          schema: DEVICE_STATE_SPEC,
+          src: `
+            SELECT id, ts, dur, depth, name
+            FROM slice
+            WHERE track_id = ${info.trackId}
+          `,
+        }),
+        detailsPanel: () =>
+          new DeviceStateDetailsPanel(ctx, info.androidId, info.trackName),
+      }),
     });
   }
 
@@ -1067,7 +1672,7 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
   }
 
   private onFirstExpand(node: TrackNode, populate: () => Promise<void>): void {
-    const placeholder = new TrackNode({name: 'Loading...', headless: true});
+    const placeholder = new TrackNode({name: 'Loading...'});
     node.addChildLast(placeholder);
 
     let populated = false;
