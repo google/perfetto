@@ -14,7 +14,7 @@
 
 use crate::{
     heap_buffer::HeapBuffer,
-    pb_msg::{PbMsg, PbMsgEncoding, PbMsgWriter},
+    pb_msg::{PbMsg, PbMsgWriter},
     protos::{
         common::data_source_descriptor::DataSourceDescriptor, trace::trace_packet::TracePacket,
     },
@@ -35,11 +35,6 @@ use std::{
     time::Duration,
 };
 use thiserror::Error;
-
-/// `PERFETTO_PB_MSG_ENCODING_PROTO_GROUP` of the C SDK's `enum
-/// PerfettoPbMsgEncoding`: the encoding a packet begun on a tracing v2 writer
-/// reports.
-const PB_MSG_ENCODING_PROTO_GROUP: u32 = 1;
 
 /// Data source errors.
 #[derive(Error, Debug, PartialEq)]
@@ -400,18 +395,12 @@ impl TraceContextBase {
         // - `self.iterator.tracer` must be a pointer provided by a call to
         //   PerfettoDsImplTraceIterateBegin/Next.
         unsafe { PerfettoDsTracerImplPacketBegin(self.iterator.tracer, &mut impl_writer) };
-        // A tracing v2 writer's packets take the append-only format.
-        let encoding = if impl_writer.encoding == PB_MSG_ENCODING_PROTO_GROUP {
-            PbMsgEncoding::ProtoGroup
-        } else {
-            PbMsgEncoding::LengthDelimited
-        };
         let writer = PbMsgWriter {
             writer: StreamWriter {
                 writer: RefCell::new(impl_writer),
             },
         };
-        let mut msg = PbMsg::new_with_encoding(&writer, encoding).unwrap();
+        let mut msg = PbMsg::new(&writer).unwrap();
         let mut packet = TracePacket { msg: &mut msg };
 
         cb(&mut packet);
