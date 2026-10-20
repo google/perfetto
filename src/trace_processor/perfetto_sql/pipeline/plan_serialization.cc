@@ -207,6 +207,11 @@ std::string PlanWriter::Write() {
     PERFETTO_CHECK(!plan_.nodes()[id].children().empty());
     id = plan_.nodes()[id].children()[0];
   }
+  // Names first, so everything after can refer to them by id.
+  w_.Size(plan_.names().size());
+  for (NameId name = 0; name < plan_.names().size(); ++name) {
+    w_.Str(plan_.names().text(name));
+  }
   const PlanNode& source = plan_.nodes()[id];
   w_.U8(source.operation().registration().encoding()->tag());
   Available available;
@@ -219,17 +224,34 @@ std::string PlanWriter::Write() {
   }
   w_.Size(plan_.output().size());
   for (const NamedColumn& column : plan_.output()) {
-    w_.Str(column.name);
+    w_.U32(column.name);
     w_.Position(available, column.id);
   }
   return w_.Take();
 }
 
-ColumnId PlanReader::AddColumn(std::string name, PlanType type) {
-  return plan_.AddColumn(std::move(name), type);
+ColumnId PlanReader::AddColumn(NameId name, PlanType type) {
+  return plan_.AddColumn(name, type);
+}
+
+NameId PlanReader::Name() {
+  NameId name = r_.U32();
+  if (name >= plan_.names().size()) {
+    r_.Fail();
+    return 0;
+  }
+  return name;
 }
 
 LogicalPlan PlanReader::Read() {
+  // A writer interns each spelling once, so a repeated one is corrupt: it
+  // would give the names after it different ids.
+  uint32_t names = r_.Count();
+  for (uint32_t i = 0; i < names && r_.ok(); ++i) {
+    if (plan_.names().Intern(r_.Str()) != i) {
+      r_.Fail();
+    }
+  }
   Available available;
   auto read = [&](bool source) {
     const auto* registration = FindOperationByTag(r_.U8());
@@ -252,7 +274,7 @@ LogicalPlan PlanReader::Read() {
   }
   plan_.output().resize(outputs);
   for (NamedColumn& column : plan_.output()) {
-    column.name = r_.Str();
+    column.name = Name();
     column.id = r_.Position(available);
   }
   return std::move(plan_);

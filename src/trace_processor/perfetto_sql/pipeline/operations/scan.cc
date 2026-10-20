@@ -88,8 +88,8 @@ base::Status Scan::BuildPlan(Compiler* c, uint32_t from) {
   for (NamedColumn& column : relation.columns) {
     c->Append(std::move(column), from);
   }
-  if (std::optional<std::string> qualifier = Scan::SourceQualifier(c, *n)) {
-    c->AddAlias({std::move(*qualifier), c->row()});
+  if (std::optional<NameId> qualifier = Scan::SourceQualifier(c, *n)) {
+    c->AddAlias({*qualifier, c->row()});
   }
   return base::OkStatus();
 }
@@ -105,7 +105,7 @@ base::StatusOr<SourceRelation> Scan::BuildRelation(Compiler* c,
     const std::vector<std::string>& names = dataframe->column_names();
     for (uint32_t i = 0; i < names.size(); ++i) {
       if (!dataframe::IsHiddenColumn(names[i])) {
-        columns.push_back({names[i], i});
+        columns.push_back({c->Name(names[i]), i});
       }
     }
     scan = Scan::BuildDataframeScan(
@@ -145,16 +145,16 @@ const dataframe::Dataframe* Scan::FindDirectDataframe(
   return dataframe && dataframe->finalized() ? dataframe : nullptr;
 }
 
-std::optional<std::string> Scan::SourceQualifier(
+std::optional<NameId> Scan::SourceQualifier(
     Compiler* c,
     const SyntaqlitePerfettoPipeSource& n) {
   // As in SQLite, an alias replaces the table name.
   if (syntaqlite_node_is_present(n.alias)) {
     const auto* alias = Node<SyntaqliteName>(c->parser(), n.alias);
-    return SpanText(c->parser(), alias->ident_name.source);
+    return c->Name(alias->ident_name.source);
   }
   if (!syntaqlite_node_is_present(n.select)) {
-    return SpanText(c->parser(), n.table_name);
+    return c->Name(n.table_name);
   }
   return std::nullopt;
 }
@@ -164,15 +164,15 @@ base::Status Scan::CheckSourceNames(Compiler* c,
                                     uint32_t at) {
   for (size_t i = 0; i < columns.size(); ++i) {
     for (size_t j = 0; j < i; ++j) {
-      if (base::CaseInsensitiveEqual(columns[j].name, columns[i].name)) {
+      if (c->Same(columns[j].name, columns[i].name)) {
         return c->Expected(at,
                            "distinct column names, but there are two named '" +
-                               columns[j].name + "'");
+                               c->Text(columns[j].name) + "'");
       }
     }
   }
   for (size_t i = 0; i < columns.size(); ++i) {
-    const std::string& name = columns[i].name;
+    const std::string& name = c->Text(columns[i].name);
     // An expression is only named by its alias.
     if (name.empty()) {
       return c->Expected(at, "every column to have a name, but column " +
@@ -201,7 +201,8 @@ Scan Scan::BuildDataframeScan(Compiler* c,
         HoldsNoValues(dataframe.column(column.index), dataframe.row_count())
             ? PlanType::Null()
             : PlanType(dataframe.column_type(column.index)));
-    source.column_names.push_back(dataframe.column_names()[column.index]);
+    source.column_names.push_back(
+        c->Name(dataframe.column_names()[column.index]));
     source.columns.push_back(dataframe.shared_column(column.index));
   }
   scan.source_ = std::move(source);
@@ -255,7 +256,7 @@ const dataframe::Dataframe* Scan::FindRenamedDataframe(
     if (!i) {
       return nullptr;
     }
-    columns->push_back({std::string(column.output_name), *i});
+    columns->push_back({c->Name(column.output_name), *i});
   }
   return dataframe;
 }
@@ -277,17 +278,13 @@ Scan Scan::BuildSqlScan(Compiler* c,
       }
       type = storage;
     }
-    Scan::AddScanColumn(c, &scan, std::string(column.output_name), type);
+    Scan::AddScanColumn(c, &scan, c->Name(column.output_name), type);
   }
   return scan;
 }
 
-void Scan::AddScanColumn(Compiler* c,
-                         Scan* scan,
-                         std::string name,
-                         PlanType type) {
-  ColumnId id = c->AddColumn(name, type);
-  scan->columns_.push_back({std::move(name), id});
+void Scan::AddScanColumn(Compiler* c, Scan* scan, NameId name, PlanType type) {
+  scan->columns_.push_back({name, c->AddColumn(name, type)});
 }
 
 std::optional<uint32_t> Scan::Prune(std::vector<bool>* needed) {
@@ -314,10 +311,10 @@ std::optional<uint32_t> Scan::Prune(std::vector<bool>* needed) {
   switch (scan.source_.index()) {
     case base::variant_index<Scan::Source, Scan::Dataframe>(): {
       auto& dataframe = base::unchecked_get<Scan::Dataframe>(scan.source_);
-      std::vector<std::string> kept_names;
+      std::vector<NameId> kept_names;
       std::vector<std::shared_ptr<const dataframe::Column>> kept;
       for (uint32_t i : keep) {
-        kept_names.push_back(std::move(dataframe.column_names[i]));
+        kept_names.push_back(dataframe.column_names[i]);
         kept.push_back(std::move(dataframe.columns[i]));
       }
       dataframe.column_names = std::move(kept_names);
@@ -395,13 +392,11 @@ void Scan::Write(PlanWriter* c,
   available.clear();
   for (size_t i = 0; i < scan.columns_.size(); ++i) {
     const NamedColumn& column = scan.columns_[i];
-    c->writer().Str(column.name);
+    c->writer().U32(column.name);
     WriteType(&c->writer(), c->plan().columns()[column.id].type);
-    // The dataframe column read, if the scan renames it.
+    // The dataframe column read, which a view may have renamed.
     if (data) {
-      const std::string& read = data->column_names[i];
-      c->writer().Str(read == column.name ? std::string_view()
-                                          : std::string_view(read));
+      c->writer().U32(data->column_names[i]);
     }
     available.push_back(column.id);
   }
@@ -433,12 +428,10 @@ Available Scan::ReadPayload(PlanReader* c, Scan* scan) {
   scan->columns_.resize(c->reader().Count());
   Available available;
   for (NamedColumn& column : scan->columns_) {
-    column.name = c->reader().Str();
+    column.name = c->Name();
     column.id = c->AddColumn(column.name, ReadType(&c->reader()));
     if (data) {
-      std::string read = c->reader().Str();
-      data->column_names.push_back(read.empty() ? column.name
-                                                : std::move(read));
+      data->column_names.push_back(c->Name());
     }
     available.push_back(column.id);
   }
@@ -460,7 +453,7 @@ base::Status Scan::ResolveDataframes(LogicalPlan* logical_plan,
   }
   for (size_t j = 0; j < scan.columns_.size(); ++j) {
     std::optional<uint32_t> i =
-        FindScanColumn(*dataframe, data->column_names[j]);
+        FindScanColumn(*dataframe, plan.names().text(data->column_names[j]));
     const PlanType& type = plan.columns()[scan.columns_[j].id].type;
     bool same =
         i &&
@@ -498,7 +491,7 @@ base::Status Scan::BindDataframeArgs(
   if (!dataframe) {
     std::vector<std::string> names;
     for (const NamedColumn& column : scan.columns_) {
-      names.push_back(column.name);
+      names.push_back(plan.names().text(column.name));
     }
     dataframe::AdhocDataframeBuilder::Options options;
     options.emit_auto_id = false;
@@ -510,10 +503,11 @@ base::Status Scan::BindDataframeArgs(
   Scan::Dataframe data;
   data.name = "dataframe argument " + std::to_string(arg->index);
   for (const NamedColumn& column : scan.columns_) {
-    std::optional<uint32_t> i = FindScanColumn(*dataframe, column.name);
+    const std::string& name = plan.names().text(column.name);
+    std::optional<uint32_t> i = FindScanColumn(*dataframe, name);
     if (!i) {
       return base::ErrStatus("Pipeline: %s has no column '%s'",
-                             data.name.c_str(), column.name.c_str());
+                             data.name.c_str(), name.c_str());
     }
     // The dataframe was built after the plan was written, so it decides
     // what each column holds.
@@ -530,7 +524,8 @@ base::Status Scan::BindDataframeArgs(
   return base::OkStatus();
 }
 
-void Scan::MoveSqlSourcesToDataframeArgs(std::vector<std::string>* sql_args) {
+void Scan::MoveSqlSourcesToDataframeArgs(const NameTable& table,
+                                         std::vector<std::string>* sql_args) {
   auto& args = *sql_args;
   auto& scan = *this;
   if (!std::holds_alternative<SqlSource>(scan.source_)) {
@@ -539,8 +534,8 @@ void Scan::MoveSqlSourcesToDataframeArgs(std::vector<std::string>* sql_args) {
   std::vector<std::string> names;
   std::vector<std::string> references;
   for (const NamedColumn& column : scan.columns_) {
-    names.push_back(column.name);
-    references.push_back(QuoteIdentifier(column.name));
+    names.push_back(table.text(column.name));
+    references.push_back(QuoteIdentifier(table.text(column.name)));
   }
   const std::string& from = base::unchecked_get<SqlSource>(scan.source_).sql();
   args.push_back("SELECT " + std::string(kDataframeAggFunction) + "(" +

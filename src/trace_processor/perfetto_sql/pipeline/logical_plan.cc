@@ -16,7 +16,29 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 
+#include <string>
+#include <string_view>
+
+#include "perfetto/ext/base/string_utils.h"
+
 namespace perfetto::trace_processor::pipeline {
+
+// A plan has tens of names, so a scan beats a hash table, in code as in time.
+NameId NameTable::Intern(std::string_view text) {
+  auto id = static_cast<NameId>(texts_.size());
+  NameId key = id;
+  for (NameId i = 0; i < texts_.size(); ++i) {
+    if (texts_[i] == text) {
+      return i;
+    }
+    if (key == id && base::CaseInsensitiveEqual(texts_[i], text)) {
+      key = keys_[i];
+    }
+  }
+  texts_.emplace_back(text);
+  keys_.push_back(key);
+  return id;
+}
 
 PlanNode::PlanNode(std::unique_ptr<PlanOperation> operation,
                    std::vector<PlanNodeId> inputs)
@@ -40,7 +62,8 @@ PlanNode& PlanNode::operator=(PlanNode&&) noexcept = default;
 
 PlanOperation::~PlanOperation() = default;
 
-void PlanOperation::MoveSqlSourcesToDataframeArgs(std::vector<std::string>*) {}
+void PlanOperation::MoveSqlSourcesToDataframeArgs(const NameTable&,
+                                                  std::vector<std::string>*) {}
 
 base::Status PlanOperation::ResolveDataframes(LogicalPlan*, const Catalog&) {
   return base::OkStatus();

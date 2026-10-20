@@ -102,6 +102,7 @@ source_set("test_utils") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "logical_plan_unittest.cc",
     "physical_plan_unittest.cc",
     "plan_serialization_unittest.cc",
   ]

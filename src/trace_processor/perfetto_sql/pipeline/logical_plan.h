@@ -70,7 +70,8 @@ class PlanOperation {
   //
   // Moves SQL into the argument list before encoding, replacing each SQL
   // source with its index in that list.
-  virtual void MoveSqlSourcesToDataframeArgs(std::vector<std::string>*);
+  virtual void MoveSqlSourcesToDataframeArgs(const NameTable&,
+                                             std::vector<std::string>*);
 
   // Resolves named dataframes against the catalog after decoding a plan.
   virtual base::Status ResolveDataframes(LogicalPlan*, const Catalog&);
@@ -150,9 +151,9 @@ class PlanNode {
 // The root is the last stage of the pipeline and the leaves are its sources.
 class LogicalPlan {
  public:
-  ColumnId AddColumn(std::string name, PlanType type) {
+  ColumnId AddColumn(NameId name, PlanType type) {
     auto id = static_cast<ColumnId>(columns_.size());
-    columns_.push_back({std::move(name), type});
+    columns_.push_back({name, type});
     return id;
   }
 
@@ -179,6 +180,9 @@ class LogicalPlan {
   std::vector<NamedColumn>& output() { return output_; }
   const std::vector<NamedColumn>& output() const { return output_; }
 
+  NameTable& names() { return names_; }
+  const NameTable& names() const { return names_; }
+
  private:
   // Defining SQL names are stable diagnostic labels, independent of aliases
   // in output bindings. Physical temporaries do not get SQL names or IDs.
@@ -189,6 +193,7 @@ class LogicalPlan {
   PlanNodeId root_ = 0;
   // Visible result columns, in order. Internal columns have no binding here.
   std::vector<NamedColumn> output_;
+  NameTable names_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline
