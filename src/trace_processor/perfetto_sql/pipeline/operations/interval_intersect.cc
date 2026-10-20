@@ -17,6 +17,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -36,6 +37,7 @@
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -47,6 +49,31 @@ const OperationRegistration IntervalIntersect::kRegistration{
     OperationRegistration::Encoding{2, true, &DecodePlan}};
 
 namespace {
+
+// The position of `id` in `ids`, if it is there.
+std::optional<size_t> Find(const std::vector<ColumnId>& ids, ColumnId id) {
+  auto it = std::find(ids.begin(), ids.end(), id);
+  return it == ids.end() ? std::nullopt
+                         : std::make_optional<size_t>(
+                               static_cast<size_t>(it - ids.begin()));
+}
+
+// The node of the scan an operand at `id` reads, and the predicates of the
+// WHERE on what it reads, if any.
+std::pair<const PlanNode*, const std::vector<WherePredicate>*> OperandScan(
+    const LogicalPlan& plan,
+    PlanNodeId id) {
+  static const std::vector<WherePredicate>* const kNone =
+      new std::vector<WherePredicate>();
+  const PlanNode& node = plan.nodes()[id];
+  if (node.Is<Where>()) {
+    const PlanNode& scan = plan.nodes()[node.children()[0]];
+    PERFETTO_CHECK(scan.Is<Scan>());
+    return {&scan, &node.Cast<Where>().predicates()};
+  }
+  PERFETTO_CHECK(node.Is<Scan>());
+  return {&node, kNone};
+}
 
 // The column of a relation named `name`, or nothing when it has none.
 std::optional<ColumnId> FindColumn(const std::vector<NamedColumn>& columns,
@@ -162,6 +189,39 @@ std::optional<uint32_t> IntervalIntersect::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
+// A region carries the columns of one row of each operand, so dropping the
+// row drops exactly the regions a predicate on them would be tested in. A PER
+// column holds the same value in every operand, so a predicate on one reaches
+// all of them. The region's own bounds belong to no operand.
+std::vector<std::vector<WherePredicate>> IntervalIntersect::PassFilters(
+    const PlanNode&,
+    std::vector<WherePredicate>* predicates) const {
+  std::vector<std::vector<WherePredicate>> passed(operands_.size());
+  std::vector<WherePredicate> kept;
+  for (const WherePredicate& predicate : *predicates) {
+    bool pass = false;
+    for (size_t k = 0; k < operands_.size() && !pass; ++k) {
+      const Operand& operand = operands_[k];
+      if (std::optional<size_t> key = Find(operand.keys, predicate.column)) {
+        for (size_t j = 0; j < operands_.size(); ++j) {
+          WherePredicate copy = predicate;
+          copy.column = operands_[j].keys[*key];
+          passed[j].push_back(copy);
+        }
+        pass = true;
+      } else if (Find(operand.carried, predicate.column)) {
+        passed[k].push_back(predicate);
+        pass = true;
+      }
+    }
+    if (!pass) {
+      kept.push_back(predicate);
+    }
+  }
+  *predicates = std::move(kept);
+  return passed;
+}
+
 void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
   // Each operand runs as its own pipeline, so the intersection lowers
   // its children itself.
@@ -175,7 +235,8 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
   c->DeclareColumn(isect.ts_);
   c->DeclareColumn(isect.dur_);
 
-  // Each operand is read from its own side pipeline.
+  // Each operand is read from its own side pipeline, which also runs the
+  // WHERE passed down to it, if any.
   std::vector<Lowering*> sides;
   for (uint32_t i = 0; i < isect.operands_.size(); i++) {
     Lowering& side = c->AddSidePipeline();
@@ -253,10 +314,11 @@ void IntervalIntersect::Write(PlanWriter* c,
   available = {isect.ts_, isect.dur_};
   for (uint32_t k = 0; k < isect.operands_.size(); ++k) {
     const IntervalIntersect::Operand& operand = isect.operands_[k];
-    PERFETTO_CHECK(c->plan().nodes()[node.children()[k]].Is<Scan>());
+    // An operand is a scan, written inline, then the WHERE on it.
+    const auto [scan, predicates] = OperandScan(c->plan(), node.children()[k]);
     Available in;
-    const auto& child = c->plan().nodes()[node.children()[k]];
-    child.operation().Write(c, child, &in);
+    scan->operation().Write(c, *scan, &in);
+    Where::WritePredicates(c, *predicates, in);
     c->writer().Position(in, operand.ts);
     c->writer().Position(in, operand.dur);
     for (ColumnId id : operand.keys) {
@@ -286,10 +348,15 @@ void IntervalIntersect::DecodePlan(PlanReader* c,
   for (IntervalIntersect::Operand& operand : isect.operands_) {
     Scan scan;
     Available in = Scan::ReadPayload(c, &scan);
+    std::vector<WherePredicate> predicates = Where::ReadPredicates(c, in);
     if (!c->reader().ok()) {
       return;
     }
-    children.push_back(c->AddNode(std::move(scan)));
+    PlanNodeId child = c->AddNode(std::move(scan));
+    if (!predicates.empty()) {
+      child = c->AddNode(Where(std::move(predicates)), {child});
+    }
+    children.push_back(child);
     operand.ts = c->reader().Position(in);
     operand.dur = c->reader().Position(in);
     operand.keys.resize(keys);

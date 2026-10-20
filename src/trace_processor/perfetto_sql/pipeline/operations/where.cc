@@ -201,9 +201,23 @@ std::unique_ptr<PlanOperation> Where::Clone() const {
 }
 
 void Where::Write(PlanWriter* c, const PlanNode&, Available* available) const {
-  c->writer().Size(predicates_.size());
-  for (const WherePredicate& p : predicates_) {
-    c->writer().Position(*available, p.column);
+  WritePredicates(c, predicates_, *available);
+}
+
+void Where::DecodePlan(PlanReader* c, Available* available) {
+  Where where(ReadPredicates(c, *available));
+  if (where.predicates_.empty()) {
+    c->reader().Fail();
+  }
+  c->AddNode(std::move(where), {c->plan().root()});
+}
+
+void Where::WritePredicates(PlanWriter* c,
+                            const std::vector<WherePredicate>& predicates,
+                            const Available& available) {
+  c->writer().Size(predicates.size());
+  for (const WherePredicate& p : predicates) {
+    c->writer().Position(available, p.column);
     c->writer().U8(static_cast<uint8_t>(p.op.index()));
     c->writer().U8(p.is_double ? 1 : 0);
     if (p.is_double) {
@@ -214,14 +228,11 @@ void Where::Write(PlanWriter* c, const PlanNode&, Available* available) const {
   }
 }
 
-void Where::DecodePlan(PlanReader* c, Available* available) {
-  Where where;
-  where.predicates_.resize(c->reader().Count());
-  if (where.predicates_.empty()) {
-    c->reader().Fail();
-  }
-  for (WherePredicate& p : where.predicates_) {
-    p.column = c->reader().Position(*available);
+std::vector<WherePredicate> Where::ReadPredicates(PlanReader* c,
+                                                  const Available& available) {
+  std::vector<WherePredicate> predicates(c->reader().Count());
+  for (WherePredicate& p : predicates) {
+    p.column = c->reader().Position(available);
     // Only comparisons are written; anything else is corrupt.
     std::optional<core::Op> op = core::Op::FromIndex(c->reader().U8());
     if (!op || !op->IsAnyOf<core::NonStringOp>()) {
@@ -236,7 +247,7 @@ void Where::DecodePlan(PlanReader* c, Available* available) {
       p.int_value = static_cast<int64_t>(c->reader().U64());
     }
   }
-  c->AddNode(std::move(where), {c->plan().root()});
+  return predicates;
 }
 
 }  // namespace perfetto::trace_processor::pipeline

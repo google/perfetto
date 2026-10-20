@@ -103,6 +103,9 @@ const char* const kPipelines[] = {
     "FROM spans |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n |> ORDER BY n",
     "FROM df |> SELECT parent_id |> DISTINCT",
     "FROM df |> WHERE self > 0 AND id < 10",
+    "INTERVAL INTERSECTION OF (spans AS a, spans AS b) PER cpu "
+    "|> SELECT ts, dur, cpu, a.ts AS a_ts |> WHERE a_ts > 1 AND cpu = 2 "
+    "AND dur > 1",
     "FROM spans |> AGGREGATE COUNT(*) AS n, SUM(dur) AS d GROUP BY cpu AS c",
     "FROM spans |> AGGREGATE MAX(dur) AS m |> SELECT m",
     // Pruning removes the fold, whose node is left behind unread.

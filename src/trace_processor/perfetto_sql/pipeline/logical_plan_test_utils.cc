@@ -209,8 +209,14 @@ std::string LogicalPlanFormatter::IntervalIntersectString(
       out += (c ? ", #" : "#") + std::to_string(operand.carried[c]);
     }
     out += "]";
-    out += ")\n    " +
-           ScanString(plan, plan.nodes()[node.children()[i]].Cast<Scan>());
+    const PlanNode& child = plan.nodes()[node.children()[i]];
+    if (child.Is<Where>()) {
+      out += ")\n    " +
+             ScanString(plan, plan.nodes()[child.children()[0]].Cast<Scan>()) +
+             "\n    " + WhereString(child.Cast<Where>());
+    } else {
+      out += ")\n    " + ScanString(plan, child.Cast<Scan>());
+    }
   }
   return out;
 }

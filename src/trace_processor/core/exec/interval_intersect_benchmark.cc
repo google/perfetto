@@ -23,13 +23,21 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/filter_value_cast.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/filter.h"
+#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/util/span.h"
 
 // Intersecting two inputs of intervals keyed 64 ways, over 100K rows each, and
 // over four rows, as when a small input is run over and over.
@@ -113,6 +121,40 @@ void Run(benchmark::State& state, uint32_t rows) {
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * rows);
 }
 
+// Reads every batch of `source`, its filters comparing with `values`.
+void Drain(benchmark::State& state,
+           const Source& source,
+           const FilterValue* values,
+           uint32_t rows) {
+  // Before every batch and state, which hold its buffers.
+  Context context;
+  context.SetFilterValues(Span<const FilterValue>(values, values + 1));
+  auto run = source.MakeState(context);
+  RowBatch scratch;
+  for (auto _ : state) {
+    source.Rewind(*run);
+    uint64_t regions = 0;
+    while (RowBatch* out = source.Next(scratch, *run)) {
+      regions += out->size();
+    }
+    benchmark::DoNotOptimize(regions);
+  }
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * rows);
+}
+
+// A filter keeping one key of the 64, on the key column.
+std::unique_ptr<Filter> KeepOneKey(const StringPool* pool) {
+  return std::make_unique<Filter>(std::vector<Filter::Condition>{{2, Eq{}, 0}},
+                                  pool);
+}
+
+// The value KeepOneKey's filter compares with.
+FilterValue OneKey() {
+  FilterValue value;
+  value.value = filter::CastFilterValueResult::Valid(int64_t{5});
+  return value;
+}
+
 void BM_IntervalIntersect(benchmark::State& state) {
   Run(state, 100000);
 }
@@ -122,6 +164,44 @@ void BM_IntervalIntersectFourRows(benchmark::State& state) {
   Run(state, 4);
 }
 BENCHMARK(BM_IntervalIntersectFourRows);
+
+// One key of the 64, kept by testing the regions intersected from every row.
+void BM_IntervalIntersectThenFilter(benchmark::State& state) {
+  StringPool pool;
+  FilterValue key = OneKey();
+  Intervals a(100000);
+  Intervals b(100000);
+  IntervalIntersect intersect({Operand(a), Operand(b)});
+  // The region's bounds, then each operand's key.
+  std::vector<Pipeline::Step> steps;
+  steps.push_back(KeepOneKey(&pool));
+  Pipeline pipeline(intersect, std::move(steps));
+  Drain(state, pipeline, &key, 100000);
+}
+BENCHMARK(BM_IntervalIntersectThenFilter);
+
+// The same key, kept by testing each operand's rows before intersecting
+// them: what a WHERE on a PER column passed through the intersection runs.
+void BM_IntervalIntersectFilteredOperands(benchmark::State& state) {
+  StringPool pool;
+  FilterValue key = OneKey();
+  Intervals a(100000);
+  Intervals b(100000);
+  auto filtered = [&pool](const Intervals& source) {
+    std::vector<Pipeline::Step> steps;
+    steps.push_back(KeepOneKey(&pool));
+    return std::make_unique<Pipeline>(source, std::move(steps));
+  };
+  std::unique_ptr<Pipeline> fa = filtered(a);
+  std::unique_ptr<Pipeline> fb = filtered(b);
+  CollectedInputSpec oa = Operand(a);
+  oa.source = fa.get();
+  CollectedInputSpec ob = Operand(b);
+  ob.source = fb.get();
+  IntervalIntersect intersect({oa, ob});
+  Drain(state, intersect, &key, 100000);
+}
+BENCHMARK(BM_IntervalIntersectFilteredOperands);
 
 }  // namespace
 }  // namespace perfetto::trace_processor::core::exec

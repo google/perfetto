@@ -20,10 +20,10 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
@@ -33,25 +33,27 @@ namespace perfetto::trace_processor::pipeline {
 class Lowering;
 class PlanNode;
 
-// A `column OP literal` test, where OP is one of =, !=, <, <=, >, >= and the
-// literal is a number. A WHERE condition is the AND of these. The literal is
-// compared as SQL compares it with the column's type, whatever that is.
-struct WherePredicate {
-  using Op = core::Op;
-
-  ColumnId column = 0;
-  Op op{core::Eq{}};
-  // The literal is `double_value` if set, `int_value` otherwise.
-  bool is_double = false;
-  int64_t int_value = 0;
-  double double_value = 0;
-};
-
 // `|> WHERE condition`. The condition must be a conjunction (AND) of
 // `column OP literal` comparisons; anything else is unsupported.
 class Where : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
+
+  Where() = default;
+  explicit Where(std::vector<WherePredicate> predicates)
+      : predicates_(std::move(predicates)) {}
+
+  std::vector<WherePredicate>& predicates() { return predicates_; }
+  const std::vector<WherePredicate>& predicates() const { return predicates_; }
+
+  // Writes `predicates`, on the columns `available`, as a WHERE's payload is
+  // written, and reads them back: for an operation which writes a WHERE on
+  // one of its inputs with it.
+  static void WritePredicates(PlanWriter*,
+                              const std::vector<WherePredicate>& predicates,
+                              const Available& available);
+  static std::vector<WherePredicate> ReadPredicates(PlanReader*,
+                                                    const Available& available);
 
  private:
   // Test-only formatting; keep payload details out of the public interface.

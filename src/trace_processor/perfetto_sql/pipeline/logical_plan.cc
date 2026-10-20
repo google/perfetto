@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 
+#include <vector>
+
 namespace perfetto::trace_processor::pipeline {
 
 PlanNode::PlanNode(std::unique_ptr<PlanOperation> operation,
@@ -39,6 +41,12 @@ PlanNode::PlanNode(PlanNode&&) noexcept = default;
 PlanNode& PlanNode::operator=(PlanNode&&) noexcept = default;
 
 PlanOperation::~PlanOperation() = default;
+
+std::vector<std::vector<WherePredicate>> PlanOperation::PassFilters(
+    const PlanNode&,
+    std::vector<WherePredicate>*) const {
+  return {};
+}
 
 void PlanOperation::MoveSqlSourcesToDataframeArgs(std::vector<std::string>*) {}
 

@@ -33,6 +33,7 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
+#include "src/trace_processor/perfetto_sql/pipeline/filter_passing.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 
@@ -397,6 +398,7 @@ base::StatusOr<LogicalPlan> Compile(SyntaqliteParser* p,
   Compiler compiler(p, source, catalog);
   RETURN_IF_ERROR(compiler.CompilePipeline(pipeline));
   LogicalPlan plan = compiler.Finish();
+  PassFiltersThrough(plan);
   PruneColumns(plan);
   return plan;
 }

@@ -740,6 +740,40 @@ TEST_F(PerfettoSqlConnectionPipelineTest, IntervalIntersectionPerAnyType) {
               testing::HasSubstr("holds strings in one input and numbers"));
 }
 
+// A WHERE on an intersection's columns is tested in the regions it makes, or
+// before intersecting, in the operands whose columns it tests.
+TEST_F(PerfettoSqlConnectionPipelineTest, WhereOnAnIntersection) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE PERFETTO TABLE a AS
+    SELECT 0 AS ts, 10 AS dur, 1 AS cpu, 7 AS x
+    UNION ALL SELECT 20, 10, 2, 8;
+    CREATE PERFETTO TABLE b AS
+    SELECT 5 AS ts, 10 AS dur, 1 AS cpu, 1 AS y
+    UNION ALL SELECT 25, 2, 2, 2;
+  )")
+                  .ok());
+  struct Case {
+    const char* where;
+    std::vector<std::string> rows;
+  };
+  const Case kCases[] = {
+      {"x = 7", {"5,5,1,7,1"}},
+      {"y != 1", {"25,2,2,8,2"}},
+      {"cpu = 2", {"25,2,2,8,2"}},
+      {"dur > 3", {"5,5,1,7,1"}},
+      {"x > 7 AND ts >= 25", {"25,2,2,8,2"}},
+      {"cpu = 3", {}},
+  };
+  for (const Case& c : kCases) {
+    auto rows =
+        Rows(std::string("INTERVAL INTERSECTION OF (a AS a, b AS b) PER cpu "
+                         "|> SELECT ts, dur, cpu, a.x, b.y |> WHERE ") +
+             c.where);
+    ASSERT_TRUE(rows.ok()) << c.where << ": " << rows.status().c_message();
+    EXPECT_EQ(*rows, c.rows) << c.where;
+  }
+}
+
 TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFlatten) {
   ASSERT_TRUE(Rows(R"(
     CREATE TABLE spans(ts INTEGER, dur INTEGER, cpu INTEGER, weight INTEGER);

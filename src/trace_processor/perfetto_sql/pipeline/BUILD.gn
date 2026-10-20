@@ -19,7 +19,10 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 # Registration connects the common plan code with the concrete operations.
 source_set("pipeline") {
-  sources = [ "operation_registry.cc" ]
+  sources = [
+    "filter_passing.cc",
+    "operation_registry.cc",
+  ]
   deps = [
     ":plan",
     "../../../../gn:default_deps",
@@ -37,6 +40,7 @@ source_set("plan") {
     "column_pruning.h",
     "compiler.cc",
     "compiler.h",
+    "filter_passing.h",
     "logical_plan.cc",
     "logical_plan.h",
     "operation_registry.h",

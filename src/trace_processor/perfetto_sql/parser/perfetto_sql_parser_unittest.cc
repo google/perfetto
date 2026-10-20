@@ -485,6 +485,36 @@ TEST_F(PerfettoSqlParserTest, PipelinePushesPruningIntoSql) {
           R"((SELECT __intrinsic_dataframe_agg('ts,dur,utid', "ts", "dur", "utid") FROM (SELECT * FROM sql_spans) AS b))"));
 }
 
+// A WHERE on an intersection's columns is tested in the operands whose
+// columns it tests, before intersecting: a PER column's in every operand.
+// Those on the region's own bounds stay above it.
+TEST_F(PerfettoSqlParserTest, PipelineWherePassesThroughIntersections) {
+  EXPECT_EQ(
+      *ParsePipeline("INTERVAL INTERSECTION OF (spans AS a, spans AS b) "
+                     "PER cpu |> SELECT ts, dur, cpu, a.utid, "
+                     "b.utid AS b_utid |> WHERE b_utid = 0 AND cpu = 1 "
+                     "AND dur > 2"),
+      "IntervalIntersect(ts=#0, dur=#1)\n"
+      "  operand(ts=#2, dur=#3, key=#4, carries=[#4, #5])\n"
+      "    Scan(table spans) [#2:uint32 AS ts, #3:uint32 AS dur, "
+      "#4:id AS cpu, #5:uint32 AS utid]\n"
+      "    Where(#4 = 1)\n"
+      "  operand(ts=#6, dur=#7, key=#8, carries=[#9])\n"
+      "    Scan(table spans) [#6:uint32 AS ts, #7:uint32 AS dur, "
+      "#8:id AS cpu, #9:uint32 AS utid]\n"
+      "    Where(#9 = 0, #8 = 1)\n"
+      "Where(#1 > 2)\n"
+      "Output(#0 AS ts, #1 AS dur, #4 AS cpu, #5 AS utid, #9 AS b_utid)\n");
+  // Nothing passes an accumulation, whose totals depend on every node.
+  EXPECT_EQ(*ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(dur) AS total "
+                           "|> SELECT id, total |> WHERE total = 0 AND id = 1"),
+            "Scan(table slice) [#0:id AS id, #1:uint32 AS parent_id, "
+            "#2:uint32 AS dur]\n"
+            "TreeAccumulate(up, node=#0, parent=#1, SUM(#2) -> #5:int64)\n"
+            "Where(#5 = 0, #0 = 1)\n"
+            "Output(#0 AS id, #5 AS total)\n");
+}
+
 // The relational operators which reshape a pipeline's row: EXTEND, DROP,
 // RENAME, SET, AS and the forms of SELECT. The expected results were checked
 // against GoogleSQL's analyzer tests (googlesql/analyzer/testdata/

@@ -65,6 +65,14 @@ class PlanOperation {
   // pruning driver traverses children after this call; implementations do not.
   virtual std::optional<uint32_t> Prune(std::vector<bool>* needed) = 0;
 
+  // Takes from `predicates`, which test the rows this node produces, those
+  // which can test the rows of its children instead without changing which
+  // rows it keeps, returning them for each child, on its columns. Unless
+  // overridden, none can.
+  virtual std::vector<std::vector<WherePredicate>> PassFilters(
+      const PlanNode&,
+      std::vector<WherePredicate>* predicates) const;
+
   // Source preparation, each applied to every node by the caller. Operations
   // without source state inherit no-op defaults.
   //
