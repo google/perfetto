@@ -273,23 +273,13 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
         }
       }
       const heaps = heapIndices.map((i) => overview.heaps[i]);
-      const totalJava = heaps.reduce((a, h) => a + h!.java, 0);
-      const totalNative = heaps.reduce((a, h) => a + h!.native_, 0);
 
-      const heapRows: Row[] = [
-        {
-          heap: 'Total',
-          java_size: totalJava,
-          native_size: totalNative,
-          total_size: totalJava + totalNative,
-        },
-        ...heaps.map((h) => ({
-          heap: h!.name,
-          java_size: h!.java,
-          native_size: h!.native_,
-          total_size: h!.java + h!.native_,
-        })),
-      ];
+      const heapRows: Row[] = heaps.map((h) => ({
+        heap: h!.name,
+        java_size: h!.java,
+        native_size: h!.native_,
+        total_size: h!.java + h!.native_,
+      }));
 
       const processLabel =
         (activeDump.processName ?? '<unknown>') +
@@ -377,9 +367,9 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
               data: heapRows,
               initialColumns: [
                 {id: 'heap', field: 'heap'},
-                {id: 'java_size', field: 'java_size'},
-                {id: 'native_size', field: 'native_size'},
-                {id: 'total_size', field: 'total_size'},
+                {id: 'java_size', field: 'java_size', aggregate: 'SUM'},
+                {id: 'native_size', field: 'native_size', aggregate: 'SUM'},
+                {id: 'total_size', field: 'total_size', aggregate: 'SUM'},
               ],
             }),
           ]),
