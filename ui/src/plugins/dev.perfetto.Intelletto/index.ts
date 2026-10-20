@@ -172,6 +172,11 @@ export default class IntellettoPlugin
               {stored},
             );
           },
+          onDeleteConversation: (id: string) => {
+            store.delete(id);
+            // Deleting the open conversation drops back to a fresh one.
+            if (this.session?.id === id) this.session = undefined;
+          },
         });
       },
     });

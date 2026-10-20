@@ -58,6 +58,8 @@ export interface ChatPanelAttrs {
   readonly onNewSession: () => void;
   // Callback for when the user picks a past conversation from the dropdown.
   readonly onSelectConversation: (id: string) => void;
+  // Callback for when the user deletes the current conversation.
+  readonly onDeleteConversation: (id: string) => void;
 }
 
 // Given a currently selected model path and a gateway to fetch the list of all
@@ -300,11 +302,13 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
     );
   }
 
-  // The dropdown of past conversations. The current conversation is always
-  // listed, even before it has been persisted (i.e. while still empty).
-  // Disabled while a turn is in flight so the stream isn't orphaned.
+  // The dropdown of past conversations, plus rename/delete buttons acting on
+  // the current one. The current conversation is always listed, even before it
+  // has been persisted (i.e. while still empty). Disabled while a turn is in
+  // flight so the stream isn't orphaned.
   private renderConversationPicker(attrs: ChatPanelAttrs): m.Children {
-    const {session, conversations, onSelectConversation} = attrs;
+    const {session, conversations, onSelectConversation, onDeleteConversation} =
+      attrs;
     const isStored = conversations.some((c) => c.id === session.id);
     const options = isStored
       ? conversations
@@ -327,6 +331,26 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
           m('option', {key: c.id, value: c.id}, conversationLabel(c)),
         ),
       ),
+      m(Button, {
+        icon: 'edit',
+        title: 'Rename conversation',
+        disabled: session.loading || !isStored,
+        onclick: () => {
+          const name = window.prompt('Rename conversation', session.title);
+          if (name !== null) session.rename(name);
+        },
+      }),
+      m(Button, {
+        icon: 'delete',
+        title: 'Delete conversation',
+        disabled: session.loading || !isStored,
+        onclick: () => {
+          const ok = window.confirm(
+            `Delete the conversation "${session.title}"? This can't be undone.`,
+          );
+          if (ok) onDeleteConversation(session.id);
+        },
+      }),
     );
   }
 

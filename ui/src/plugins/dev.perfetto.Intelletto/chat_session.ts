@@ -73,6 +73,8 @@ export class ChatSession {
   // of each tool-use round; anything still queued when the turn ends starts a
   // fresh turn. Cancelling drops the queue.
   private pendingFollowUps: string[] = [];
+  // A user-chosen name, overriding the title derived from the first message.
+  private customTitle?: string;
 
   /**
    * @param gateway - The LLM gateway used to drive the agent.
@@ -101,6 +103,7 @@ export class ChatSession {
       this.id = stored.id;
       this.createdAt = stored.createdAt;
       this.model = stored.model;
+      this.customTitle = stored.customTitle;
       this.lines = stored.lines.map((l) => ({...l}));
       this.totalTokens = stored.totalTokens;
       this.agent.setHistory(stored.history);
@@ -113,14 +116,25 @@ export class ChatSession {
   }
 
   /**
-   * A short human-readable title for the conversation: the first user message,
-   * truncated.
+   * A short human-readable title for the conversation: the user-chosen name if
+   * set, else the first user message, truncated.
    */
   get title(): string {
+    if (this.customTitle !== undefined) return this.customTitle;
     const first = this.lines.find((l) => l.role === 'user')?.text;
     if (first === undefined) return 'New conversation';
     const oneLine = first.replace(/\s+/g, ' ').trim();
     return oneLine.length > 60 ? `${oneLine.slice(0, 60)}…` : oneLine;
+  }
+
+  /**
+   * Rename the conversation and persist. An empty name reverts to the title
+   * derived from the first message.
+   */
+  rename(name: string): void {
+    const trimmed = name.trim();
+    this.customTitle = trimmed === '' ? undefined : trimmed;
+    this.save();
   }
 
   /**
@@ -132,6 +146,7 @@ export class ChatSession {
     this.store.save({
       id: this.id,
       title: this.title,
+      customTitle: this.customTitle,
       createdAt: this.createdAt,
       updatedAt: Date.now(),
       model: this.model,
