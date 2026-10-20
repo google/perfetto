@@ -58,6 +58,8 @@ export interface ChatPanelAttrs {
   readonly activeConversationId?: string;
   readonly onOpenConversation: (id: string) => void;
   readonly onNewConversation: () => void;
+  readonly onRenameConversation?: (name: string) => void;
+  readonly onDeleteConversation?: () => void;
 
   // Pending message control
   readonly pendingMessages: readonly string[];
@@ -250,6 +252,32 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
           }),
         ),
       m('span.pf-intelletto__header-spacer'),
+      m(Button, {
+        icon: 'edit',
+        title: 'Rename conversation',
+        disabled:
+          attrs.isAgentRunning || attrs.onRenameConversation === undefined,
+        onclick: () => {
+          const name = window.prompt(
+            'Rename conversation',
+            activeConversation?.title ?? '',
+          );
+          if (name !== null) attrs.onRenameConversation?.(name);
+        },
+      }),
+      m(Button, {
+        icon: 'delete',
+        title: 'Delete conversation',
+        disabled:
+          attrs.isAgentRunning || attrs.onDeleteConversation === undefined,
+        onclick: () => {
+          const title = activeConversation?.title ?? 'this conversation';
+          const ok = window.confirm(
+            `Delete the conversation "${title}"? This can't be undone.`,
+          );
+          if (ok) attrs.onDeleteConversation?.();
+        },
+      }),
       m(Button, {
         icon: 'add_comment',
         title: 'New conversation',

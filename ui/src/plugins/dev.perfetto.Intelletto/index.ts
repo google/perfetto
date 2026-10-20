@@ -180,9 +180,11 @@ export default class IntellettoPlugin
           models,
         );
         const storedConversations = store.list();
-        const conversations =
+        const isStored =
           session !== undefined &&
-          !storedConversations.some((c) => c.id === session.id)
+          storedConversations.some((c) => c.id === session.id);
+        const conversations =
+          session !== undefined && !isStored
             ? [{id: session.id, title: session.title}, ...storedConversations]
             : storedConversations;
         return m(ChatPanel, {
@@ -237,6 +239,20 @@ export default class IntellettoPlugin
             }
             IntellettoPlugin.session = undefined;
           },
+          onRenameConversation:
+            session !== undefined && isStored
+              ? (name) => session.rename(name)
+              : undefined,
+          onDeleteConversation:
+            session !== undefined && isStored
+              ? () => {
+                  store.delete(session.id);
+                  // Deleting the open conversation drops back to a fresh one.
+                  if (IntellettoPlugin.session?.id === session.id) {
+                    IntellettoPlugin.session = undefined;
+                  }
+                }
+              : undefined,
           pendingMessages: session?.queuedFollowUps ?? [],
           onDeletePendingMsg: (index) => session?.removeQueuedFollowUp(index),
           onSendPendingMsgNow: (index) => {
