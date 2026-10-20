@@ -469,6 +469,9 @@ namespace perfetto::trace_processor::stats {
       "Time spent unwinding callstacks."),                                     \
   F(heapprofd_unwind_samples,             kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
       "Number of samples unwound."),                                           \
+  F(heapprofd_unwind_time_us_histogram,   kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Global histogram of time spent unwinding callstacks. "                  \
+      "Index = upper_limit and value = count of the bucket"),                  \
   F(heapprofd_client_spinlock_blocked,    kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
        "Time (us) the heapprofd client was blocked on the spinlock."),         \
   F(heapprofd_last_profile_timestamp,     kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \

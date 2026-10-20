@@ -167,3 +167,19 @@ class ProfilingHeapProfiling(TestSuite):
         "unknown",20,0,20
         "unknown",21,19,40
         """))
+
+  def test_heap_profile_unwind_time_histogram(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_profile_dump_max.textproto'),
+        query="""
+        SELECT idx, value
+        FROM stats
+        WHERE name = 'heapprofd_unwind_time_us_histogram'
+        ORDER BY idx;
+        """,
+        out=Csv("""
+        "idx","value"
+        2,3
+        4,9
+        2147483647,1
+        """))
