@@ -35,9 +35,9 @@ namespace base {
 //
 // The value is held only while the status is ok, in a union, as
 // std::optional holds its value: there is no separate flag for whether there
-// is a value. A value is only ever constructed where there was none and
-// destroyed where there will be none; one value replaces another by T's own
-// assignment.
+// is a value. Every copy, move and assignment goes through Destroy() and
+// ConstructFrom(), so a value is only ever constructed where there was none
+// and destroyed where there will be none.
 template <typename T>
 class StatusOr {
  public:
@@ -59,48 +59,25 @@ class StatusOr {
   }
   StatusOr(T value) { new (&value_) T(std::move(value)); }
 
-  StatusOr(const StatusOr& other) : status_(other.status_) {
-    if (ok()) {
-      new (&value_) T(other.value_);
-    }
-  }
+  StatusOr(const StatusOr& other) { ConstructFrom(other); }
   // A moved-from StatusOr keeps its status, and so a moved-from value which
   // it still destroys.
   StatusOr(StatusOr&& other) noexcept(
       std::is_nothrow_move_constructible<T>::value) {
-    if (other.ok()) {
-      new (&value_) T(std::move(other.value_));
-    } else {
-      status_ = std::move(other.status_);
-    }
+    ConstructFrom(std::move(other));
   }
   StatusOr& operator=(const StatusOr& other) {
     if (this != &other) {
-      if (ok() && other.ok()) {
-        value_ = other.value_;
-      } else {
-        Destroy();
-        status_ = other.status_;
-        if (ok()) {
-          new (&value_) T(other.value_);
-        }
-      }
+      Destroy();
+      ConstructFrom(other);
     }
     return *this;
   }
   StatusOr& operator=(StatusOr&& other) noexcept(
-      std::is_nothrow_move_assignable<T>::value &&
       std::is_nothrow_move_constructible<T>::value) {
     if (this != &other) {
-      if (ok() && other.ok()) {
-        value_ = std::move(other.value_);
-      } else if (other.ok()) {
-        status_ = base::OkStatus();
-        new (&value_) T(std::move(other.value_));
-      } else {
-        Destroy();
-        status_ = std::move(other.status_);
-      }
+      Destroy();
+      ConstructFrom(std::move(other));
     }
     return *this;
   }
@@ -148,6 +125,18 @@ class StatusOr {
   void Destroy() {
     if (ok()) {
       value_.~T();
+    }
+  }
+
+  // Copies or moves |other|, a const StatusOr& or a StatusOr&&, into this,
+  // which must hold no value.
+  template <typename Other>
+  void ConstructFrom(Other&& other) {
+    if (other.ok()) {
+      status_ = base::OkStatus();
+      new (&value_) T(std::forward<Other>(other).value_);
+    } else {
+      status_ = std::forward<Other>(other).status_;
     }
   }
 
