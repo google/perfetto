@@ -38,7 +38,7 @@ namespace ex = core::exec;
 
 const OperationRegistration AggregateStage::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_AGGREGATE, &BuildPlan,
-    OperationRegistration::Encoding{5, false, &DecodePlan}};
+    OperationRegistration::Encoding{5, false, &MakeOperation<AggregateStage>}};
 
 base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("AGGREGATE");
@@ -146,34 +146,15 @@ std::unique_ptr<PlanOperation> AggregateStage::Clone() const {
 }
 
 // Replaces `available` with the output columns.
-void AggregateStage::Write(PlanWriter* c,
-                           const PlanNode&,
-                           Available* available_columns) const {
-  auto& available = *available_columns;
-  c->writer().Size(keys_.size());
-  for (ColumnId key : keys_) {
-    c->writer().Position(available, key);
-  }
-  WriteAggregates(c, aggregates_, available);
-  available = keys_;
+void AggregateStage::Serialize(PlanCodec& c,
+                               std::vector<PlanNodeId>*,
+                               Available* available) {
+  c.Columns(*available, &keys_);
+  SerializeAggregates(c, *available, &aggregates_);
+  *available = keys_;
   for (const Aggregate& agg : aggregates_) {
-    available.push_back(agg.output);
+    available->push_back(agg.output);
   }
-}
-
-void AggregateStage::DecodePlan(PlanReader* c, Available* available_columns) {
-  auto& available = *available_columns;
-  AggregateStage aggregate;
-  aggregate.keys_.resize(c->reader().Count());
-  for (ColumnId& key : aggregate.keys_) {
-    key = c->reader().Position(available);
-  }
-  ReadAggregates(c, available, &aggregate.aggregates_);
-  available = aggregate.keys_;
-  for (const Aggregate& agg : aggregate.aggregates_) {
-    available.push_back(agg.output);
-  }
-  c->AddNode(std::move(aggregate), {c->plan().root()});
 }
 
 }  // namespace perfetto::trace_processor::pipeline

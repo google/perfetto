@@ -40,7 +40,7 @@ namespace ex = core::exec;
 
 const OperationRegistration IntervalFlatten::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_INTERVAL_FLATTEN, &BuildPlan,
-    OperationRegistration::Encoding{3, false, &DecodePlan}};
+    OperationRegistration::Encoding{3, false, &MakeOperation<IntervalFlatten>}};
 
 base::Status IntervalFlatten::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("INTERVAL FLATTEN");
@@ -150,46 +150,20 @@ std::unique_ptr<PlanOperation> IntervalFlatten::Clone() const {
   return std::make_unique<IntervalFlatten>(*this);
 }
 
-// Replaces `available` with the segment's columns.
-void IntervalFlatten::Write(PlanWriter* c,
-                            const PlanNode&,
-                            Available* available_columns) const {
-  auto& available = *available_columns;
-  const auto& flatten = *this;
-  c->writer().Position(available, flatten.ts_);
-  c->writer().Position(available, flatten.dur_);
-  c->writer().Size(flatten.keys_.size());
-  for (ColumnId key : flatten.keys_) {
-    c->writer().Position(available, key);
+void IntervalFlatten::Serialize(PlanCodec& c,
+                                std::vector<PlanNodeId>*,
+                                Available* available) {
+  c.Column(*available, &ts_);
+  c.Column(*available, &dur_);
+  c.Columns(*available, &keys_);
+  SerializeAggregates(c, *available, &aggregates_);
+  c.NewColumn(&out_ts_, core::Int64{});
+  c.NewColumn(&out_dur_, core::Int64{});
+  *available = {out_ts_, out_dur_};
+  available->insert(available->end(), keys_.begin(), keys_.end());
+  for (const Aggregate& agg : aggregates_) {
+    available->push_back(agg.output);
   }
-  WriteAggregates(c, flatten.aggregates_, available);
-  c->writer().U32(c->plan().columns()[flatten.out_ts_].name);
-  c->writer().U32(c->plan().columns()[flatten.out_dur_].name);
-  available = {flatten.out_ts_, flatten.out_dur_};
-  available.insert(available.end(), flatten.keys_.begin(), flatten.keys_.end());
-  for (const Aggregate& agg : flatten.aggregates_) {
-    available.push_back(agg.output);
-  }
-}
-
-void IntervalFlatten::DecodePlan(PlanReader* c, Available* available_columns) {
-  auto& available = *available_columns;
-  IntervalFlatten flatten;
-  flatten.ts_ = c->reader().Position(available);
-  flatten.dur_ = c->reader().Position(available);
-  flatten.keys_.resize(c->reader().Count());
-  for (ColumnId& key : flatten.keys_) {
-    key = c->reader().Position(available);
-  }
-  ReadAggregates(c, available, &flatten.aggregates_);
-  flatten.out_ts_ = c->AddColumn(c->Name(), core::Int64{});
-  flatten.out_dur_ = c->AddColumn(c->Name(), core::Int64{});
-  available = {flatten.out_ts_, flatten.out_dur_};
-  available.insert(available.end(), flatten.keys_.begin(), flatten.keys_.end());
-  for (const Aggregate& agg : flatten.aggregates_) {
-    available.push_back(agg.output);
-  }
-  c->AddNode(std::move(flatten), {c->plan().root()});
 }
 
 }  // namespace perfetto::trace_processor::pipeline

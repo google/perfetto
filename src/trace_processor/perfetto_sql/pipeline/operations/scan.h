@@ -88,9 +88,12 @@ class Scan : public PlanOperation {
       const SyntaqlitePerfettoPipeSource& n);
   std::unique_ptr<core::exec::Source> MakeSource() const;
 
-  // Intersection embeds a scan payload without a separate source tag.
-  static Available ReadPayload(PlanReader*, Scan*);
   const std::vector<NamedColumn>& columns() const { return columns_; }
+
+  // Public, as intersection and FILL GAPS write the scans they read in place.
+  void Serialize(PlanCodec&,
+                 std::vector<PlanNodeId>* children,
+                 Available* available) override;
 
  private:
   using Dataframe = ScanDataframe;
@@ -114,7 +117,6 @@ class Scan : public PlanOperation {
   std::unique_ptr<PlanOperation> Clone() const override;
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
   void Lower(Lowering*, const PlanNode&) const override;
-  void Write(PlanWriter*, const PlanNode&, Available*) const override;
   void MoveSqlSourcesToDataframeArgs(const NameTable&,
                                      std::vector<std::string>*) override;
   base::Status ResolveDataframes(LogicalPlan*, const Catalog&) override;
@@ -124,7 +126,6 @@ class Scan : public PlanOperation {
       StringPool*) override;
 
   static base::Status BuildPlan(Compiler*, uint32_t);
-  static void DecodePlan(PlanReader*, Available*);
 
   // The finalized dataframe a source names, if it can be read without SQLite.
   static const dataframe::Dataframe* FindDirectDataframe(

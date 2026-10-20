@@ -44,7 +44,8 @@ namespace ex = core::exec;
 
 const OperationRegistration IntervalIntersect::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION, &BuildPlan,
-    OperationRegistration::Encoding{2, true, &DecodePlan}};
+    OperationRegistration::Encoding{2, true,
+                                    &MakeOperation<IntervalIntersect>}};
 
 namespace {
 
@@ -244,69 +245,37 @@ std::unique_ptr<PlanOperation> IntervalIntersect::Clone() const {
   return std::make_unique<IntervalIntersect>(*this);
 }
 
-void IntervalIntersect::Write(PlanWriter* c,
-                              const PlanNode& node,
-                              Available* available_columns) const {
-  auto& available = *available_columns;
-  const auto& isect = node.Cast<IntervalIntersect>();
-  c->writer().U32(c->plan().columns()[isect.ts_].name);
-  c->writer().U32(c->plan().columns()[isect.dur_].name);
-  c->writer().Size(isect.operands_.size());
-  c->writer().Size(isect.operands_.empty() ? 0
-                                           : isect.operands_[0].keys.size());
-  available = {isect.ts_, isect.dur_};
-  for (uint32_t k = 0; k < isect.operands_.size(); ++k) {
-    const IntervalIntersect::Operand& operand = isect.operands_[k];
-    PERFETTO_CHECK(c->plan().nodes()[node.children()[k]].Is<Scan>());
+void IntervalIntersect::Serialize(PlanCodec& c,
+                                  std::vector<PlanNodeId>* children,
+                                  Available* available) {
+  c.NewColumn(&ts_, core::Int64{});
+  c.NewColumn(&dur_, core::Int64{});
+  operands_.resize(c.Count(operands_.size()));
+  c.Check(operands_.size() >= 2);
+  // Every operand has the same PER columns.
+  uint32_t keys = c.Count(operands_.empty() ? 0 : operands_[0].keys.size());
+  *available = {ts_, dur_};
+  for (uint32_t k = 0; k < operands_.size(); ++k) {
+    Operand& operand = operands_[k];
+    // Each operand is a scan, written in place rather than as a stage.
+    Scan read;
+    Scan& scan =
+        c.reading() ? read : c.plan().nodes()[(*children)[k]].Cast<Scan>();
     Available in;
-    const auto& child = c->plan().nodes()[node.children()[k]];
-    child.operation().Write(c, child, &in);
-    c->writer().Position(in, operand.ts);
-    c->writer().Position(in, operand.dur);
-    for (ColumnId id : operand.keys) {
-      c->writer().Position(in, id);
+    scan.Serialize(c, nullptr, &in);
+    if (c.reading()) {
+      children->push_back(c.plan().AddNode(std::move(read)));
     }
-    c->writer().Size(operand.carried.size());
-    for (ColumnId id : operand.carried) {
-      c->writer().Position(in, id);
-      available.push_back(id);
-    }
-  }
-}
-
-void IntervalIntersect::DecodePlan(PlanReader* c,
-                                   Available* available_columns) {
-  auto& available = *available_columns;
-  IntervalIntersect isect;
-  isect.ts_ = c->AddColumn(c->Name(), core::Int64{});
-  isect.dur_ = c->AddColumn(c->Name(), core::Int64{});
-  available = {isect.ts_, isect.dur_};
-  isect.operands_.resize(c->reader().Count());
-  uint32_t keys = c->reader().Count();
-  if (isect.operands_.size() < 2) {
-    c->reader().Fail();
-  }
-  std::vector<PlanNodeId> children;
-  for (IntervalIntersect::Operand& operand : isect.operands_) {
-    Scan scan;
-    Available in = Scan::ReadPayload(c, &scan);
-    if (!c->reader().ok()) {
-      return;
-    }
-    children.push_back(c->AddNode(std::move(scan)));
-    operand.ts = c->reader().Position(in);
-    operand.dur = c->reader().Position(in);
+    c.Column(in, &operand.ts);
+    c.Column(in, &operand.dur);
     operand.keys.resize(keys);
     for (ColumnId& id : operand.keys) {
-      id = c->reader().Position(in);
+      c.Column(in, &id);
     }
-    operand.carried.resize(c->reader().Count());
-    for (ColumnId& id : operand.carried) {
-      id = c->reader().Position(in);
-      available.push_back(id);
-    }
+    c.Columns(in, &operand.carried);
+    available->insert(available->end(), operand.carried.begin(),
+                      operand.carried.end());
   }
-  c->AddNode(std::move(isect), std::move(children));
 }
 
 }  // namespace perfetto::trace_processor::pipeline

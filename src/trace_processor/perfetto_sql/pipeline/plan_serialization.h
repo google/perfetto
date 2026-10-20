@@ -44,7 +44,7 @@ inline constexpr uint32_t kMaxPipelineColumns = 256;
 
 // Writes an optimized plan as bytes, so that SQL can carry it and run it later
 // without compiling the pipeline again.
-std::string SerializePlan(const LogicalPlan&);
+std::string SerializePlan(LogicalPlan);
 
 // Rebuilds a plan written by SerializePlan, looking its dataframes up in
 // `catalog` again. Anyone can write bytes into SQL, so anything SerializePlan
@@ -63,104 +63,59 @@ base::Status BindDataframeArgs(
     StringPool* pool);
 
 // -----------------------------------------------------------------------------
-// Byte encoding
-// -----------------------------------------------------------------------------
-
-class Writer {
- public:
-  void U8(uint8_t value);
-  void U32(uint32_t value);
-  void U64(uint64_t value);
-  void F64(double value);
-  void Size(size_t value);
-  void Str(std::string_view value);
-
-  // Out of bounds if `id` is not available.
-  void Position(const Available& available, ColumnId id);
-
-  std::string Take();
-
- private:
-  void Append(const void* data, size_t size);
-
-  std::string out_;
-};
-
-// Failures are latched: ok() remains false after any invalid read. Callers
-// must discard the partially decoded plan on failure.
-class Reader {
- public:
-  explicit Reader(std::string_view in);
-
-  uint8_t U8();
-  uint32_t U32();
-  uint64_t U64();
-  double F64();
-
-  // At most the bytes left, so a corrupt count cannot allocate much.
-  uint32_t Count();
-  std::string Str();
-
-  ColumnId Position(const Available& available);
-  void Fail();
-
-  bool ok() const;
-  bool done() const;
-
- private:
-  void Read(void* out, size_t size);
-
-  std::string_view in_;
-  size_t at_ = 0;
-  bool ok_ = true;
-};
-
-void WriteType(Writer* w, const PlanType& type);
-PlanType ReadType(Reader* r);
-
-// -----------------------------------------------------------------------------
 // Plan encoding
 // -----------------------------------------------------------------------------
 
-// Writes stages in input-to-output order. Operations update Available from
-// input to output column IDs as their payloads are written.
-class PlanWriter {
+// Moves a plan to or from bytes. Each operation describes its payload once,
+// in PlanOperation::Serialize, which a codec runs either way: writing, each
+// call takes the field it is given; reading, it fills the field in, checking
+// it as it goes. A read fails on anything a writer could not have written,
+// and the failure latches: later fields read as zero.
+class PlanCodec {
  public:
-  explicit PlanWriter(const LogicalPlan& plan);
-  std::string Write();
+  virtual ~PlanCodec();
 
-  const LogicalPlan& plan() const { return plan_; }
-  Writer& writer() { return w_; }
+  bool reading() const { return reading_; }
+  LogicalPlan& plan() { return *plan_; }
 
- private:
-  // Borrowed for the duration of encoding.
-  const LogicalPlan& plan_;
-  Writer w_;
-};
+  virtual void U8(uint8_t*) = 0;
+  virtual void U32(uint32_t*) = 0;
+  virtual void U64(uint64_t*) = 0;
+  virtual void F64(double*) = 0;
+  virtual void Str(std::string*) = 0;
+  // A name, as its id in the plan's names.
+  virtual void Name(NameId*) = 0;
+  // A column, as its position among `available`.
+  virtual void Column(const Available& available, ColumnId*) = 0;
+  // The size of a list: `size` when writing; when reading, a size no larger
+  // than the bytes left, so a corrupt one cannot allocate much.
+  virtual uint32_t Count(size_t size) = 0;
+  // Fails a read unless `ok`. Whatever a writer writes passes.
+  virtual void Check(bool ok) = 0;
+  // False once a read has failed, after which ids read are not to be used.
+  virtual bool ok() const = 0;
 
-// Reconstructs logical IDs from encoded column positions. Operation decoders
-// append nodes to plan_ and update Available to match their output.
-class PlanReader {
- public:
-  explicit PlanReader(Reader& r);
-
-  LogicalPlan Read();
-  ColumnId AddColumn(NameId name, PlanType type);
-  // Reads a name's id, failing unless the plan has that name.
-  NameId Name();
-
-  template <typename T>
-  PlanNodeId AddNode(T operation, std::vector<PlanNodeId> children = {}) {
-    return plan_.AddNode(std::move(operation), std::move(children));
+  void Bool(bool* value);
+  void Columns(const Available& available, std::vector<ColumnId>* columns);
+  void Type(PlanType* type);
+  // A column the operation defines, of `type`: written as its name; read, it
+  // is added to the plan.
+  void NewColumn(ColumnId* id, const PlanType& type);
+  // An enum, which a read checks is no greater than `max`.
+  template <typename E>
+  void Enum(E* value, E max) {
+    auto raw = static_cast<uint8_t>(*value);
+    U8(&raw);
+    Check(raw <= static_cast<uint8_t>(max));
+    *value = static_cast<E>(raw);
   }
 
-  const LogicalPlan& plan() const { return plan_; }
-  Reader& reader() { return r_; }
+ protected:
+  PlanCodec(LogicalPlan* plan, bool reading) : plan_(plan), reading_(reading) {}
 
  private:
-  // Borrowed reader; its error state covers the whole plan.
-  Reader& r_;
-  LogicalPlan plan_;
+  LogicalPlan* plan_;
+  bool reading_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

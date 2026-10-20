@@ -34,7 +34,7 @@ namespace ex = core::exec;
 
 const OperationRegistration Distinct::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_DISTINCT, &BuildPlan,
-    OperationRegistration::Encoding{7, false, &DecodePlan}};
+    OperationRegistration::Encoding{7, false, &MakeOperation<Distinct>}};
 
 base::Status Distinct::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("DISTINCT");
@@ -76,26 +76,11 @@ std::unique_ptr<PlanOperation> Distinct::Clone() const {
   return std::make_unique<Distinct>(*this);
 }
 
-void Distinct::Write(PlanWriter* c,
-                     const PlanNode&,
-                     Available* available) const {
-  c->writer().Size(columns_.size());
-  for (ColumnId column : columns_) {
-    c->writer().Position(*available, column);
-  }
-}
-
-void Distinct::DecodePlan(PlanReader* c, Available* available) {
-  Distinct distinct;
-  distinct.columns_.resize(c->reader().Count());
-  if (distinct.columns_.empty() ||
-      distinct.columns_.size() > ex::Distinct::kMaxColumns) {
-    c->reader().Fail();
-  }
-  for (ColumnId& column : distinct.columns_) {
-    column = c->reader().Position(*available);
-  }
-  c->AddNode(std::move(distinct), {c->plan().root()});
+void Distinct::Serialize(PlanCodec& c,
+                         std::vector<PlanNodeId>*,
+                         Available* available) {
+  c.Columns(*available, &columns_);
+  c.Check(!columns_.empty() && columns_.size() <= ex::Distinct::kMaxColumns);
 }
 
 }  // namespace perfetto::trace_processor::pipeline
