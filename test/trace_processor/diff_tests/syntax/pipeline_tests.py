@@ -253,6 +253,45 @@ class PerfettoPipeline(TestSuite):
         """))
 
   # AGGREGATE ... GROUP BY gives what SQLite's GROUP BY does.
+  # A key listed again, however it is written, groups nothing new. A stage
+  # which outputs its keys outputs one column for each listed.
+  def test_a_repeated_key_groups_once(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 0 AS ts, 10 AS dur, 1 AS cpu
+        UNION ALL SELECT 5, 10, 1
+        UNION ALL SELECT 0, 3, 2;
+
+        CREATE PERFETTO TABLE aggregated AS
+        FROM t AS t
+        |> AGGREGATE COUNT(*) AS n GROUP BY cpu, t.cpu AS cpu2;
+        CREATE PERFETTO TABLE flattened AS
+        FROM t
+        |> INTERVAL FLATTEN PER cpu, CPU AGGREGATE COUNT(*) AS n
+        |> AGGREGATE COUNT(*) AS n;
+        CREATE PERFETTO TABLE intersected AS
+        INTERVAL INTERSECTION OF (t AS a, t AS b) PER cpu, cpu
+        |> AGGREGATE COUNT(*) AS n;
+        CREATE PERFETTO TABLE filled AS
+        FROM t
+        |> INTERVAL FILL GAPS WITH (SELECT 0 AS ts, 20 AS dur) PER cpu, cpu
+        |> AGGREGATE COUNT(*) AS n;
+
+        SELECT
+          (SELECT group_concat(cpu || ':' || cpu2 || ':' || n, ' ')
+           FROM (SELECT * FROM aggregated ORDER BY cpu)) AS aggregated,
+          (SELECT n FROM flattened) AS flattened,
+          (SELECT n FROM intersected) AS intersected,
+          (SELECT n FROM filled) AS filled;
+        """,
+        out=Csv("""
+        "aggregated","flattened","intersected","filled"
+        "1:1:2 2:2:1",4,5,5
+        """))
+
   def test_aggregate_matches_group_by(self):
     return DiffTestBlueprint(
         trace=DataPath('chrome_input_with_frame_view.pftrace'),

@@ -54,15 +54,17 @@ base::Status IntervalFlatten::BuildPlan(Compiler* c, uint32_t stage) {
   if (syntaqlite_node_is_present(n->per)) {
     const auto* per =
         Node<SyntaqlitePerfettoPerColumnList>(c->parser(), n->per);
-    std::vector<std::string> seen;
     for (uint32_t i = 0; i < syntaqlite_list_count(per); ++i) {
       uint32_t col_id = syntaqlite_list_child_id(per, i);
       std::string name = SpanText(
           c->parser(),
           Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id)->name);
-      RETURN_IF_ERROR(c->CheckListedOnce(seen, name, col_id));
       ASSIGN_OR_RETURN(ColumnId key, c->Resolve(name, col_id));
-      flatten.keys_.push_back(key);
+      // Groups once by each column, but outputs one column per item listed.
+      if (std::find(flatten.keys_.begin(), flatten.keys_.end(), key) ==
+          flatten.keys_.end()) {
+        flatten.keys_.push_back(key);
+      }
       keys.push_back({NamedColumn{std::move(name), key}, col_id});
     }
   }

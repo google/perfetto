@@ -100,6 +100,8 @@ A `<per-clause>` lists the columns that split rows into groups:
 Diagram(Terminal('PER'), OneOrMore(NonTerminal('column'), Terminal(',')))
 ```
 
+A column listed again groups nothing new.
+
 ### Limits
 
 - A pipeline outputs at most 256 columns.
@@ -298,7 +300,8 @@ Diagram(
 - **Aggregates:** At least one; see [Aggregates](#aggregates). Each is taken
   over the rows covering a segment.
 - **Output:** `ts`, `dur`, the `PER` columns, then the aggregates. Every other
-  column and all aliases are dropped. A `PER` column can be listed once.
+  column and all aliases are dropped. A `PER` column listed twice is output
+  twice, so its name is then ambiguous.
 
 Interval rules:
 
@@ -406,7 +409,8 @@ Diagram(
 - **Aggregates:** At least one; see [Aggregates](#aggregates).
 - **Output:** The keys, then the aggregates. A key is named by its `AS` name,
   or else its column name without qualifier. Every other column and all aliases
-  are dropped. A key can be listed once.
+  are dropped. A key listed twice, even as `cpu` and `t.cpu`, groups once
+  but is output twice.
 - **Order:** Groups come out in the order their first rows arrived.
 
 For example, CPU time per slice:
