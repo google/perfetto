@@ -89,7 +89,9 @@ base::Status ZipTraceReader::OnPushDataToSorter() {
     const auto& importers = *context_->trace_importer_registry;
     TraceImporterId type = importers.Guess(data.data(), data.size());
     ArchiveEntry entry{zip_file.name(), i, type,
-                       ArchiveEntry::ComputePriority(type, importers)};
+                       ArchiveEntry::ComputePriority(type, importers),
+                       ArchiveEntry::ComputeLacksClockSnapshot(
+                           type, importers, &data, &data + 1)};
     ordered_files.emplace(entry, File{id, std::move(data)});
   }
 

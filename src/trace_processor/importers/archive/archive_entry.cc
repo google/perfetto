@@ -16,9 +16,19 @@
 
 #include "src/trace_processor/importers/archive/archive_entry.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <string>
 #include <tuple>
+
+#include "perfetto/base/status.h"
+#include "perfetto/protozero/field.h"
+#include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
+#include "src/trace_processor/util/trace_type.h"
+
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -44,16 +54,57 @@ bool IsHiddenArchivePath(const std::string& path) {
   return false;
 }
 
+bool ProtoTraceMayHaveClockSnapshot(const TraceBlobView* begin,
+                                    const TraceBlobView* end) {
+  using protos::pbzero::TracePacket;
+  bool found = false;
+  auto check_packet = [&found](TraceBlobView packet) {
+    // Only the field numbers of the packet are read, not its payloads.
+    protozero::ProtoDecoder decoder(packet.data(), packet.size());
+    for (protozero::Field f = decoder.ReadField(); !found && f.valid();
+         f = decoder.ReadField()) {
+      found = f.id() == TracePacket::kClockSnapshotFieldNumber ||
+              f.id() == TracePacket::kCompressedPacketsFieldNumber ||
+              f.id() == TracePacket::kZstdCompressedPacketsFieldNumber;
+    }
+    return base::OkStatus();
+  };
+  // The tokenizer is fed slices rather than whole chunks, so that the walk
+  // stops soon after the first match even in a large chunk. A packet split
+  // across slices or chunks is stitched together by the tokenizer.
+  constexpr size_t kSliceSize = 1024 * 1024;
+  ProtoTraceTokenizer tokenizer;
+  for (const TraceBlobView* chunk = begin; chunk != end && !found; ++chunk) {
+    for (size_t off = 0; off < chunk->size() && !found; off += kSliceSize) {
+      size_t size = std::min(kSliceSize, chunk->size() - off);
+      if (!tokenizer.Tokenize(chunk->slice_off(off, size), check_packet).ok()) {
+        return false;
+      }
+    }
+  }
+  return found;
+}
+
 int ArchiveEntry::ComputePriority(TraceImporterId type,
                                   const TraceImporterRegistry& registry) {
   return registry.Find(type)->archive_priority;
 }
 
+bool ArchiveEntry::ComputeLacksClockSnapshot(
+    TraceImporterId type,
+    const TraceImporterRegistry& registry,
+    const TraceBlobView* begin,
+    const TraceBlobView* end) {
+  return registry.Find(type)->archive_clock_snapshot_first &&
+         !ProtoTraceMayHaveClockSnapshot(begin, end);
+}
+
 bool ArchiveEntry::operator<(const ArchiveEntry& rhs) const {
-  // Compare first by archive priority, then by name, and finally by index to
-  // ensure strict ordering.
-  return std::tie(priority, name, index) <
-         std::tie(rhs.priority, rhs.name, rhs.index);
+  // Compare first by archive priority, then members with a ClockSnapshot
+  // before those without, then by name, and finally by index to ensure strict
+  // ordering.
+  return std::tie(priority, lacks_clock_snapshot, name, index) <
+         std::tie(rhs.priority, rhs.lacks_clock_snapshot, rhs.name, rhs.index);
 }
 
 }  // namespace perfetto::trace_processor

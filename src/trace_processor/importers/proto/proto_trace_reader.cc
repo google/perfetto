@@ -1366,6 +1366,7 @@ class ProtoImporter : public TraceImporter<ProtoImporter> {
     d.sets_default_clock = false;
     d.claims_global_clock = false;
     d.archive_priority = 0;
+    d.archive_clock_snapshot_first = true;
     d.pid_zero_is_idle = true;
     d.detection_priority = 230;
     return d;

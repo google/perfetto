@@ -64,6 +64,10 @@ struct TraceTypeDescriptor {
   bool sets_default_clock = true;
   bool claims_global_clock = true;
   int archive_priority = 2;
+  // Files of this type are proto traces (a sequence of TracePackets). In an
+  // archive, members carrying a ClockSnapshot are read before those which do
+  // not (see ArchiveEntry::lacks_clock_snapshot). Only proto sets it.
+  bool archive_clock_snapshot_first = false;
   // Lower runs first among plugin importers; ties keep registration order.
   int detection_priority = 0;
   // Behavioural policy; defaults suit an ordinary single-trace format.

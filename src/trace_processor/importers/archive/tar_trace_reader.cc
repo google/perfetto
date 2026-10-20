@@ -374,10 +374,13 @@ void TarTraceReader::AddFile(const Metadata& metadata,
   context_->trace_file_tracker->SetSize(file_id, metadata.size);
   const auto& importers = *context_->trace_importer_registry;
   TraceImporterId type = importers.Guess(header.data(), header.size());
-  ordered_files_.emplace(
-      ArchiveEntry{metadata.name, ordered_files_.size(), type,
-                   ArchiveEntry::ComputePriority(type, importers)},
-      File{file_id, std::move(data)});
+  // Built before the emplace, which moves `data` away.
+  ArchiveEntry entry{
+      metadata.name, ordered_files_.size(), type,
+      ArchiveEntry::ComputePriority(type, importers),
+      ArchiveEntry::ComputeLacksClockSnapshot(type, importers, data.data(),
+                                              data.data() + data.size())};
+  ordered_files_.emplace(std::move(entry), File{file_id, std::move(data)});
 }
 
 namespace {
