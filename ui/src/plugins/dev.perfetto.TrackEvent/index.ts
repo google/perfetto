@@ -231,6 +231,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           tags: {
             kinds: [kind],
             trackIds: [trackIds[0]!],
+            dimensionSourceTrackIds: [trackIds[0]!],
             upid: upid ?? undefined,
             utid: utid ?? undefined,
             trackEvent: true,
@@ -256,6 +257,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           tags: {
             kinds: [kind],
             trackIds: trackIds,
+            dimensionSourceTrackIds: trackIds,
             upid: upid ?? undefined,
             utid: utid ?? undefined,
             trackEvent: true,
@@ -275,6 +277,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           tags: {
             kinds: [kind],
             trackIds: trackIds,
+            dimensionSourceTrackIds: trackIds,
             upid: upid ?? undefined,
             utid: utid ?? undefined,
             trackEvent: true,
@@ -312,6 +315,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           tags: {
             kinds: [SLICE_TRACK_SUMMARY_KIND],
             trackIds: trackIds,
+            dimensionSourceTrackIds: trackIds,
             upid: upid ?? undefined,
             utid: utid ?? undefined,
             trackEvent: true,

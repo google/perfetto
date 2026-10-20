@@ -227,6 +227,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         tags: {
           kinds: [COUNTER_TRACK_KIND],
           trackIds: [trackId],
+          dimensionSourceTrackIds: [trackId],
           type: type,
           upid: upid ?? undefined,
           utid: utid ?? undefined,
@@ -457,6 +458,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         tags: {
           kinds: [SLICE_TRACK_KIND],
           trackIds: trackIds,
+          dimensionSourceTrackIds: trackIds,
           type: type,
           upid: upid ?? undefined,
           utid: utid ?? undefined,
@@ -536,6 +538,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         tags: {
           kinds: [SLICE_TRACK_KIND],
           trackIds: [trackId],
+          dimensionSourceTrackIds: [trackId],
           type,
         },
         renderer: await createTraceProcessorStateTrack({
