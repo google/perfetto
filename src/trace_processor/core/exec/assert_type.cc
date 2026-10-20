@@ -21,6 +21,7 @@
 #include <string>
 #include <utility>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -67,10 +68,22 @@ const char* Name(StorageType type) {
   }
 }
 
-base::Status NotExact(const std::string& name) {
-  return base::ErrStatus(
+// Errors, built out of line so the loops which find them stay small.
+PERFETTO_NO_INLINE bool NotExact(const std::string& name,
+                                 base::Status* status) {
+  *status = base::ErrStatus(
       "column '%s' holds an integer which a float cannot represent exactly",
       name.c_str());
+  return false;
+}
+PERFETTO_NO_INLINE bool WrongType(const std::string& name,
+                                  const char* verb,
+                                  const char* is,
+                                  StorageType want,
+                                  base::Status* status) {
+  *status = base::ErrStatus("column '%s' %s %s, not %s", name.c_str(), verb, is,
+                            Name(want));
+  return false;
 }
 
 template <typename From, typename To>
@@ -144,26 +157,12 @@ bool Fill(const ColumnView& column,
 
 AssertType::AssertType(uint32_t column, AssertTypeTarget type, std::string name)
     : column_(column),
-      target_(type),
       type_(type.Upcast<StorageType>()),
       name_(std::move(name)) {}
 
 AssertType::~AssertType() = default;
 
 AssertType::State::~State() = default;
-
-const void* AssertType::Data(const ColumnChunk& chunk) const {
-  switch (target_.index()) {
-    case AssertTypeTarget::GetTypeIndex<Int64>():
-      return chunk.Values<int64_t>();
-    case AssertTypeTarget::GetTypeIndex<Double>():
-      return chunk.Values<double>();
-    case AssertTypeTarget::GetTypeIndex<String>():
-      return chunk.Values<StringPool::Id>();
-    default:
-      PERFETTO_FATAL("Unreachable");
-  }
-}
 
 std::unique_ptr<OperatorState> AssertType::MakeState(Context& context) const {
   return std::make_unique<State>(context);
@@ -198,11 +197,7 @@ bool AssertType::Widen(const ColumnView& column,
   }
   if (from.Is<Int64>()) {
     auto exact = [&](int64_t value, double* out) {
-      if (ExactDouble(value, out)) {
-        return true;
-      }
-      state.status = NotExact(name_);
-      return false;
+      return ExactDouble(value, out) || NotExact(name_, &state.status);
     };
     return WidenAs<int64_t>(column, selection, exact, chunk.Values<double>(),
                             &chunk.validity);
@@ -225,30 +220,26 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
     bool widen = column.type().IsAnyOf<IntegerType>() &&
                  (type_.Is<Int64>() || type_.Is<Double>());
     if (!widen) {
-      s.status = base::ErrStatus("column '%s' is %s, not %s", name_.c_str(),
-                                 Name(column.type()), Name(type_));
-      return false;
+      return WrongType(name_, "is", Name(column.type()), type_, &s.status);
     }
     if (!Widen(column, batch.selection(), chunk, s)) {
       return false;
     }
     // A column without validity has no nulls to remap, so stays non-null.
     const BitVector* validity = column.validity() ? &chunk.validity : nullptr;
-    batch.SetColumn(column_,
-                    ColumnView::Reference(type_, Data(chunk), validity),
-                    std::move(buffer));
+    batch.SetColumn(
+        column_, ColumnView::Reference(type_, chunk.storage.data(), validity),
+        std::move(buffer));
     return true;
   }
 
   auto mismatch = [&](const Variant& cell) {
-    s.status = base::ErrStatus("column '%s' holds %s, not %s", name_.c_str(),
-                               Name(cell.type), Name(type_));
-    return false;
+    return WrongType(name_, "holds", Name(cell.type), type_, &s.status);
   };
   const Selection& selection = batch.selection();
   bool ok;
-  switch (target_.index()) {
-    case AssertTypeTarget::GetTypeIndex<Int64>():
+  switch (type_.index()) {
+    case StorageType::GetTypeIndex<Int64>():
       ok = Fill(
           column, selection,
           [&](const Variant& cell, int64_t* out) {
@@ -260,7 +251,7 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
           },
           chunk.Values<int64_t>(), &chunk.validity);
       break;
-    case AssertTypeTarget::GetTypeIndex<Double>():
+    case StorageType::GetTypeIndex<Double>():
       ok = Fill(
           column, selection,
           [&](const Variant& cell, double* out) {
@@ -271,15 +262,12 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
             if (cell.type != Variant::Type::kInt64) {
               return mismatch(cell);
             }
-            if (ExactDouble(cell.AsInt64(), out)) {
-              return true;
-            }
-            s.status = NotExact(name_);
-            return false;
+            return ExactDouble(cell.AsInt64(), out) ||
+                   NotExact(name_, &s.status);
           },
           chunk.Values<double>(), &chunk.validity);
       break;
-    case AssertTypeTarget::GetTypeIndex<String>():
+    case StorageType::GetTypeIndex<String>():
       ok = Fill(
           column, selection,
           [&](const Variant& cell, StringPool::Id* out) {
@@ -297,9 +285,10 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
   if (!ok) {
     return false;
   }
-  batch.SetColumn(column_,
-                  ColumnView::Reference(type_, Data(chunk), &chunk.validity),
-                  std::move(buffer));
+  batch.SetColumn(
+      column_,
+      ColumnView::Reference(type_, chunk.storage.data(), &chunk.validity),
+      std::move(buffer));
   return true;
 }
 

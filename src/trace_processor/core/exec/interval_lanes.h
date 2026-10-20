@@ -158,7 +158,7 @@ class LaneReader {
   const IntervalInputName& name() const { return name_; }
 
   // Forgets the last lane read, for a new run.
-  void Reset() { last_group_.reset(); }
+  void Reset() { last_group_ = kNoGroup; }
 
  private:
   const IntervalLaneSpec* spec_;
@@ -167,8 +167,10 @@ class LaneReader {
   const RowBatch* batch_ = nullptr;
   bool shared_ = false;
   std::vector<uint32_t> lanes_;
+  // Group numbers count rows, so none is kNoGroup.
+  static constexpr uint32_t kNoGroup = std::numeric_limits<uint32_t>::max();
   // The input's group number of the last row read, and its shared number.
-  std::optional<uint32_t> last_group_;
+  uint32_t last_group_ = kNoGroup;
   uint32_t last_lane_ = 0;
 
   // Scratch: the first row of each group in the batch, and their numbers.
