@@ -71,6 +71,11 @@ pub enum PbMsgEncoding {
     ProtoGroup,
 }
 
+/// Values of the C SDK's `enum PerfettoPbMsgEncoding`, which the writer
+/// carries.
+pub(crate) const PB_MSG_ENCODING_LENGTH_DELIMITED: u32 = 0;
+const PB_MSG_ENCODING_PROTO_GROUP: u32 = 1;
+
 /// The wire type opening a nested message in proto group mode.
 const PB_WIRE_TYPE_START_GROUP: u32 = 3;
 /// The byte closing a nested message in proto group mode.
@@ -112,20 +117,19 @@ pub struct PbMsg<'a> {
 }
 
 impl<'a> PbMsg<'a> {
-    /// Creates a new message struct using `writer`.
-    pub fn new(writer: &'a PbMsgWriter) -> Result<Self, PbMsgError> {
-        Self::new_with_encoding(writer, PbMsgEncoding::LengthDelimited)
-    }
-
     /// Creates a new root message using `writer`, its nested messages written
-    /// as `encoding` says.
-    pub fn new_with_encoding(
-        writer: &'a PbMsgWriter,
-        encoding: PbMsgEncoding,
-    ) -> Result<Self, PbMsgError> {
+    /// in the encoding the writer carries.
+    pub fn new(writer: &'a PbMsgWriter) -> Result<Self, PbMsgError> {
         if !writer.writer.has_valid_writer() {
             return Err(PbMsgError::MissingOutputForWriter);
         }
+        let encoding = match writer.writer.writer.borrow().encoding {
+            PB_MSG_ENCODING_PROTO_GROUP => PbMsgEncoding::ProtoGroup,
+            e => {
+                debug_assert_eq!(e, PB_MSG_ENCODING_LENGTH_DELIMITED);
+                PbMsgEncoding::LengthDelimited
+            }
+        };
         Ok(Self {
             size_field: Rc::new(RefCell::new(PbMsgSizeField {
                 ptr: std::ptr::null_mut(),
@@ -352,7 +356,8 @@ mod tests {
     fn append_nested_proto_group() -> Result<(), Box<dyn Error>> {
         let writer = PbMsgWriter::new();
         let hb = HeapBuffer::new(&writer.writer);
-        let mut msg = PbMsg::new_with_encoding(&writer, PbMsgEncoding::ProtoGroup)?;
+        writer.writer.writer.borrow_mut().encoding = PB_MSG_ENCODING_PROTO_GROUP;
+        let mut msg = PbMsg::new(&writer)?;
         msg.append_bytes(b"foo");
         msg.append_nested(3, |msg| {
             assert_eq!(msg.encoding(), PbMsgEncoding::ProtoGroup);
