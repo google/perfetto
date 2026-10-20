@@ -399,6 +399,40 @@ class PerfettoPipeline(TestSuite):
         126,126,0
         """))
 
+  # DISTINCT compares the columns a bare name finds, so two rows of `a`
+  # meeting `b` over one region give one row.
+  def test_distinct_after_intersection(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS
+        SELECT 0 AS ts, 10 AS dur, 1 AS k
+        UNION ALL SELECT 1, 10, 1;
+        CREATE PERFETTO TABLE b AS SELECT 5 AS ts, 2 AS dur;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y)
+        |> DISTINCT
+        |> SELECT ts, dur, x.k;
+        """,
+        out=Csv("""
+        "ts","dur","k"
+        5,2,1
+        """))
+
+  # A column DISTINCT does not compare has no one value per row, so it is
+  # gone from the aliases too.
+  def test_distinct_drops_columns_it_does_not_compare(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 1 AS x, 2 AS y;
+
+        FROM t AS t |> DROP x |> DISTINCT |> SELECT t.x;
+        """,
+        out=ExpectedError("no such column: 't.x'"))
+
   def test_a_pipeline_needs_the_pragma(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
