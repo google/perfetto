@@ -519,15 +519,19 @@ function buildSelectionSourceSql(
     matchedCounterPredicates.length > 0
       ? `WHERE ${matchedCounterPredicates.join(' OR ')}`
       : '';
+  const counterSql = `
+    SELECT
+      ${selectColumnList(breakdownColumns)}
+    FROM ${TABLE_NAME}
+    ${counterWhere}
+  `;
 
+  if (dataset !== undefined && matchedCounterPredicates.length > 0) {
+    return `(${dataset.query(datasetSpec)} UNION ${counterSql})`;
+  }
   return dataset !== undefined
     ? `(${dataset.query(datasetSpec)})`
-    : `(
-        SELECT
-          ${selectColumnList(breakdownColumns)}
-        FROM ${TABLE_NAME}
-        ${counterWhere}
-      )`;
+    : `(${counterSql})`;
 }
 
 interface FilteredSelection {
@@ -1279,36 +1283,6 @@ export default class MultiTraceTimelinePlugin implements PerfettoPlugin {
     }
 
     this.onFirstExpand(parentNode, async () => {
-      if (hasFleetBatteryTracks && remainingCols.length > 0) {
-        const nextCol = remainingCols[0];
-        if (nextCol.label !== 'android_id') {
-          this.appendFleetPowerRailsNode(
-            ctx,
-            parentNode,
-            `${keyPrefix}:fleet_power`,
-            whereClause,
-          );
-        }
-      }
-
-      if (hasUserBatteryTracks && androidIdVal !== undefined) {
-        const userFilter = `col_android_id = ${sqliteString(androidIdVal)}`;
-        this.appendUserPowerRailsNode(
-          ctx,
-          parentNode,
-          androidIdVal,
-          `${keyPrefix}:power_rails`,
-          userFilter,
-        );
-        this.appendUserDeviceStatesNode(
-          ctx,
-          parentNode,
-          androidIdVal,
-          `${keyPrefix}:device_state`,
-          userFilter,
-        );
-      }
-
       if (remainingCols.length > 0) {
         const [col, ...restCols] = remainingCols;
         const isLeafLevel = restCols.length === 0;
@@ -1334,7 +1308,7 @@ export default class MultiTraceTimelinePlugin implements PerfettoPlugin {
           const childKey = `${keyPrefix}:${col.label}:${val}`;
           const uri = `${MultiTraceTimelinePlugin.id}#${childKey}`;
 
-          if (isLeafLevel) {
+          if (isLeafLevel || boundValues.has('android_id')) {
             this.registerSliceTrack(ctx, uri, childFilter);
           } else {
             this.registerCounterTrack(ctx, uri, childFilter);
@@ -1358,6 +1332,35 @@ export default class MultiTraceTimelinePlugin implements PerfettoPlugin {
             userBatteryAttached || hasUserBatteryTracks,
           );
         }
+      }
+
+      if (hasFleetBatteryTracks && remainingCols.length > 0) {
+        const nextCol = remainingCols[0];
+        if (nextCol.label !== 'android_id') {
+          this.appendFleetPowerRailsNode(
+            ctx,
+            parentNode,
+            `${keyPrefix}:fleet_power`,
+            whereClause,
+          );
+        }
+      }
+
+      if (hasUserBatteryTracks && androidIdVal !== undefined) {
+        this.appendUserPowerRailsNode(
+          ctx,
+          parentNode,
+          androidIdVal,
+          `${keyPrefix}:power_rails`,
+          whereClause,
+        );
+        this.appendUserDeviceStatesNode(
+          ctx,
+          parentNode,
+          androidIdVal,
+          `${keyPrefix}:device_state`,
+          whereClause,
+        );
       }
     });
   }
