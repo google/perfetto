@@ -41,32 +41,58 @@ FROM _all_counters_per_process
 WHERE
   name = 'mem.swap';
 
--- Span joins
-
+-- Used by the android_process_mem metric.
 CREATE VIRTUAL TABLE _anon_swap_sj USING SPAN_OUTER_JOIN(
   _anon_rss PARTITIONED upid,
   _swap PARTITIONED upid);
 
-CREATE VIRTUAL TABLE _anon_swap_file_sj USING SPAN_OUTER_JOIN(
-  _anon_swap_sj PARTITIONED upid,
-  _file_rss PARTITIONED upid
-);
-
-CREATE VIRTUAL TABLE _rss_swap_sj USING SPAN_OUTER_JOIN(
-  _anon_swap_file_sj PARTITIONED upid,
-  _shmem_rss PARTITIONED upid
-);
+-- Each process's anon RSS, file RSS, shmem RSS and swap over time, split at
+-- every change of any of them. No counter overlaps itself within a process, so
+-- MAX picks the one value active in each segment.
+--
+-- A counter value with `dur = 0` gives a `dur = 0` segment. There it wins over
+-- the value of the same counter starting at the same `ts`, so `*_point` columns
+-- keep it apart.
+CREATE PERFETTO TABLE _memory_rss_and_swap_per_process_flattened AS
+FROM (
+  SELECT
+    ts,
+    dur,
+    upid,
+    iif(name = 'mem.rss.anon' AND dur > 0, cast_int!(value), NULL) AS anon_rss,
+    iif(name = 'mem.rss.anon' AND dur = 0, cast_int!(value), NULL) AS anon_rss_point,
+    iif(name = 'mem.rss.file' AND dur > 0, cast_int!(value), NULL) AS file_rss,
+    iif(name = 'mem.rss.file' AND dur = 0, cast_int!(value), NULL) AS file_rss_point,
+    iif(name = 'mem.rss.shmem' AND dur > 0, cast_int!(value), NULL) AS shmem_rss,
+    iif(name = 'mem.rss.shmem' AND dur = 0, cast_int!(value), NULL) AS shmem_rss_point,
+    iif(name = 'mem.swap' AND dur > 0, cast_int!(value), NULL) AS swap,
+    iif(name = 'mem.swap' AND dur = 0, cast_int!(value), NULL) AS swap_point
+  FROM _all_counters_per_process
+  WHERE
+    name IN ('mem.rss.anon', 'mem.rss.file', 'mem.rss.shmem', 'mem.swap')
+    AND dur >= 0
+)
+|> INTERVAL FLATTEN PER upid
+  AGGREGATE MAX(anon_rss) AS anon_rss,
+  MAX(anon_rss_point) AS anon_rss_point,
+  MAX(file_rss) AS file_rss,
+  MAX(file_rss_point) AS file_rss_point,
+  MAX(shmem_rss) AS shmem_rss,
+  MAX(shmem_rss_point) AS shmem_rss_point,
+  MAX(swap) AS swap,
+  MAX(swap_point) AS swap_point
+|> ORDER BY upid, ts, dur;
 
 CREATE PERFETTO TABLE _memory_rss_and_swap_per_process_table AS
 SELECT
   ts,
   dur,
   upid,
-  cast_int!(anon_rss_val) AS anon_rss,
-  cast_int!(file_rss_val) AS file_rss,
-  cast_int!(shmem_rss_val) AS shmem_rss,
-  cast_int!(swap_val) AS swap
-FROM _rss_swap_sj;
+  coalesce(anon_rss_point, anon_rss) AS anon_rss,
+  coalesce(file_rss_point, file_rss) AS file_rss,
+  coalesce(shmem_rss_point, shmem_rss) AS shmem_rss,
+  coalesce(swap_point, swap) AS swap
+FROM _memory_rss_and_swap_per_process_flattened;
 
 -- Memory metrics timeline for each process.
 CREATE PERFETTO VIEW memory_rss_and_swap_per_process(
