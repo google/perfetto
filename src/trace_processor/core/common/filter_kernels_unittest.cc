@@ -299,8 +299,8 @@ TEST(SearchIndexEqualTest, String) {
       while (expected_e < size && text[index[expected_e]] == value) {
         ++expected_e;
       }
-      ASSERT_EQ(actual.b - copy.data(), expected_b);
-      ASSERT_EQ(actual.e - copy.data(), expected_e);
+      ASSERT_EQ(static_cast<uint32_t>(actual.b - copy.data()), expected_b);
+      ASSERT_EQ(static_cast<uint32_t>(actual.e - copy.data()), expected_e);
     }
   }
 }
