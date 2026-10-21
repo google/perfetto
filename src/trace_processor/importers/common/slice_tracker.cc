@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
@@ -72,8 +73,79 @@ void SliceTracker::AddMaxDepthArgs(StringId parent_name,
   inserter.AddArg(max_depth_current_name_key_, Variadic::String(current_name));
 }
 
+SliceSink::~SliceSink() = default;
+
 SliceTracker::~SliceTracker() {
   FlushPendingSlices();
+}
+
+void SliceTracker::SetSliceSink(SliceSink* sink, SliceSink::Mode mode) {
+  const bool writes_table = !sink || mode == SliceSink::Mode::kAlongsideTable;
+  if (writes_table != WritesTable()) {
+    // An open slice holds either a table row or detached args; neither can be
+    // converted to the other.
+    for (auto it = stacks_.GetIterator(); it; ++it)
+      PERFETTO_CHECK(it.value().slice_stack.empty());
+  }
+  if (sink_) {
+    DrainFinalized();
+    DeliverUntranslatedRecords();
+  }
+  sink_ = sink;
+  sink_mode_ = mode;
+  last_started_.reset();
+  last_ended_.reset();
+}
+
+void SliceTracker::DrainFinalized() {
+  PERFETTO_CHECK(!draining_);
+  if (finalized_.empty() && finalized_records_.empty())
+    return;
+  draining_ = true;
+  for (SliceId id : finalized_)
+    sink_->OnSliceFinalized(id);
+  finalized_.clear();
+  for (FinalizedSlice& record : finalized_records_)
+    sink_->OnSliceRecord(std::move(record));
+  finalized_records_.clear();
+  draining_ = false;
+}
+
+void SliceTracker::DeliverUntranslatedRecords() {
+  PERFETTO_CHECK(!draining_);
+  draining_ = true;
+  for (FinalizedSlice& record : untranslated_records_) {
+    ArgsInserter translated =
+        ArgsTracker(context_).AddArgsDetached(record.id.value);
+    context_->args_translation_table->TranslateArgs(record.args, translated);
+    record.args = std::move(translated).ToCompactArgSet();
+    sink_->OnSliceRecord(std::move(record));
+  }
+  untranslated_records_.clear();
+  draining_ = false;
+}
+
+void SliceTracker::QueueRecord(SliceInfo& info) {
+  const bool translate = info.args && info.args->NeedsTranslation(
+                                          *context_->args_translation_table);
+  auto& queue = translate ? untranslated_records_ : finalized_records_;
+  queue.push_back(FinalizedSlice{
+      info.id, info.ts, info.dur, info.track_id, info.category, info.name,
+      info.depth, info.parent_id, info.thread, ArgsInserter::CompactArgSet()});
+  if (info.args) {
+    queue.back().args = std::move(*info.args).ToCompactArgSet();
+    info.args.reset();
+  }
+}
+
+FinalizedSlice* SliceTracker::FindQueuedRecord(SliceId id) {
+  for (auto* queue : {&finalized_records_, &untranslated_records_}) {
+    for (auto it = queue->rbegin(); it != queue->rend(); ++it) {
+      if (it->id == id)
+        return &*it;
+    }
+  }
+  return nullptr;
 }
 
 void SliceTracker::RecordSliceNegativeDuration(int64_t timestamp) {
@@ -104,9 +176,7 @@ bool SliceTracker::PrepareStartSlice(TrackInfo& track_info,
 void SliceTracker::LogMaxDepthExceeded(const SliceInfo& parent,
                                        StringId name,
                                        int64_t timestamp) {
-  auto* slices = context_->storage->mutable_slice_table();
-  StringId parent_name_id =
-      parent.row.ToRowReference(slices).name().value_or(kNullStringId);
+  StringId parent_name_id = parent.name;
   StringId current_name_id = name.is_null() ? kNullStringId : name;
 
   context_->import_logs_tracker->RecordParserLog(
@@ -125,6 +195,7 @@ SliceTracker::StartedSlice SliceTracker::StartSlice(
     StringId raw_name,
     bool want_args,
     std::optional<OverlapInfo>* overlap_out) {
+  DrainFinalized();
   const StringId name =
       context_->slice_translation_table->TranslateName(raw_name);
 
@@ -140,20 +211,38 @@ SliceTracker::StartedSlice SliceTracker::StartSlice(
     return {};
   }
 
-  // Set depth/parent pre-insert so they ride the single table insert.
-  auto* slices = context_->storage->mutable_slice_table();
-  tables::SliceTable::Row row(timestamp, duration, track_id, category, name);
-  row.depth = static_cast<uint32_t>(depth);
+  std::optional<SliceId> parent_id;
   if (depth != 0)
-    row.parent_id = stack.back().row.ToRowReference(slices).id();
+    parent_id = stack.back().id;
 
-  auto inserted = slices->Insert(std::move(row));
-  StackPush(track_info, track_id, inserted.row_number, inserted.id);
+  std::optional<tables::SliceTable::RowNumber> row_number;
+  SliceId id{0u};
+  if (WritesTable()) {
+    // Set depth/parent pre-insert so they ride the single table insert.
+    tables::SliceTable::Row row(timestamp, duration, track_id, category, name);
+    row.depth = static_cast<uint32_t>(depth);
+    row.parent_id = parent_id;
+    auto inserted =
+        context_->storage->mutable_slice_table()->Insert(std::move(row));
+    // A row must not reuse an id already issued as detached.
+    PERFETTO_CHECK(inserted.id.value >=
+                   context_->storage->next_detached_slice_id());
+    row_number = inserted.row_number;
+    id = inserted.id;
+  } else {
+    id = context_->storage->NextDetachedSliceId();
+  }
+  last_started_ = SliceStart{id, timestamp};
+  last_started_track_ = track_id;
+  StackPush(track_info, track_id,
+            SliceInfo{row_number, id, timestamp, duration, track_id, category,
+                      name, static_cast<uint32_t>(depth), parent_id,
+                      ThreadTiming{}, std::nullopt});
 
   StartedSlice result;
-  result.id = inserted.id;
+  result.id = id;
   if (want_args)
-    result.inserter = GetArgsInserter(stack.back(), inserted.id);
+    result.inserter = GetArgsInserter(stack.back(), id);
   return result;
 }
 
@@ -162,6 +251,7 @@ SliceTracker::EndedSlice SliceTracker::CompleteSliceBegin(int64_t timestamp,
                                                           StringId category,
                                                           StringId raw_name,
                                                           bool want_args) {
+  DrainFinalized();
   const StringId name =
       context_->slice_translation_table->TranslateName(raw_name);
 
@@ -187,17 +277,23 @@ SliceTracker::EndedSlice SliceTracker::CompleteSliceBegin(int64_t timestamp,
   if (!stack_idx)
     return result;
 
-  auto* slices = context_->storage->mutable_slice_table();
   SliceInfo& slice_info = stack[*stack_idx];
-  tables::SliceTable::RowReference ref = slice_info.row.ToRowReference(slices);
-  PERFETTO_DCHECK(ref.dur() == kPendingDuration);
-  ref.set_dur(timestamp - ref.ts());
+  PERFETTO_DCHECK(slice_info.dur == kPendingDuration);
+  slice_info.dur = timestamp - slice_info.ts;
+  if (slice_info.row) {
+    slice_info.row->ToRowReference(context_->storage->mutable_slice_table())
+        .set_dur(slice_info.dur);
+  }
+  last_ended_ = SliceStart{slice_info.id, slice_info.ts};
+  if (!WritesTable())
+    last_ended_thread_ = slice_info.thread;
+  last_ended_track_ = track_id;
 
-  result.id = ref.id();
+  result.id = slice_info.id;
   result.state.track_info = &track_info;
   result.state.stack_idx = *stack_idx;
   if (want_args)
-    result.inserter = GetArgsInserter(slice_info, ref.id());
+    result.inserter = GetArgsInserter(slice_info, slice_info.id);
   return result;
 }
 
@@ -206,6 +302,7 @@ std::optional<uint32_t> SliceTracker::AddArgsImpl(TrackId track_id,
                                                   StringId name,
                                                   bool want_args,
                                                   ArgsInserter** inserter) {
+  DrainFinalized();
   auto* it = FindTrackInfo(track_id);
   if (!it)
     return std::nullopt;
@@ -214,20 +311,17 @@ std::optional<uint32_t> SliceTracker::AddArgsImpl(TrackId track_id,
   if (stack.empty())
     return std::nullopt;
 
-  auto* slices = context_->storage->mutable_slice_table();
   std::optional<uint32_t> stack_idx =
       MatchingIncompleteSliceIndex(stack, name, category);
   if (!stack_idx)
     return std::nullopt;
 
   SliceInfo& slice_info = stack[*stack_idx];
-  tables::SliceTable::RowNumber num = slice_info.row;
-  tables::SliceTable::RowReference ref = num.ToRowReference(slices);
-  PERFETTO_DCHECK(ref.dur() == kPendingDuration);
+  PERFETTO_DCHECK(slice_info.dur == kPendingDuration);
 
   if (want_args)
-    *inserter = GetArgsInserter(slice_info, ref.id());
-  return num.row_number();
+    *inserter = GetArgsInserter(slice_info, slice_info.id);
+  return slice_info.row ? slice_info.row->row_number() : slice_info.id.value;
 }
 
 void SliceTracker::CompleteSliceFinalize(const CompleteSliceState& state) {
@@ -248,16 +342,16 @@ ArgsInserter* SliceTracker::GetArgsInserter(SliceInfo& slice_info, SliceId id) {
   // Lazily bind the slice's inserter; reused so all its args merge into one
   // set.
   if (!slice_info.args) {
-    slice_info.args = ArgsTracker(context_).AddArgsTo(id);
+    slice_info.args = WritesTable()
+                          ? ArgsTracker(context_).AddArgsTo(id)
+                          : ArgsTracker(context_).AddArgsDetached(id.value);
   }
   return &*slice_info.args;
 }
 
 void SliceTracker::AddLegacyUnnestableArgs(SliceInfo& slice_info,
                                            const TrackInfo& track_info) {
-  auto* slices = context_->storage->mutable_slice_table();
-  SliceId id = slice_info.row.ToRowReference(slices).id();
-  ArgsInserter* inserter = GetArgsInserter(slice_info, id);
+  ArgsInserter* inserter = GetArgsInserter(slice_info, slice_info.id);
   inserter->AddArg(legacy_unnestable_begin_count_string_id_,
                    Variadic::Integer(track_info.legacy_unnestable_begin_count));
   inserter->AddArg(
@@ -272,20 +366,15 @@ std::optional<uint32_t> SliceTracker::MatchingIncompleteSliceIndex(
     const SlicesStack& stack,
     StringId name,
     StringId category) {
-  auto* slices = context_->storage->mutable_slice_table();
   for (int i = static_cast<int>(stack.size()) - 1; i >= 0; i--) {
-    tables::SliceTable::RowReference ref =
-        stack[static_cast<size_t>(i)].row.ToRowReference(slices);
-    if (ref.dur() != kPendingDuration)
+    const SliceInfo& info = stack[static_cast<size_t>(i)];
+    if (info.dur != kPendingDuration)
       continue;
-    std::optional<StringId> other_category = ref.category();
-    if (!category.is_null() && (!other_category || other_category->is_null() ||
-                                category != other_category)) {
+    if (!category.is_null() &&
+        (info.category.is_null() || category != info.category)) {
       continue;
     }
-    std::optional<StringId> other_name = ref.name();
-    if (!name.is_null() && other_name && !other_name->is_null() &&
-        name != other_name) {
+    if (!name.is_null() && !info.name.is_null() && name != info.name) {
       continue;
     }
     return static_cast<uint32_t>(i);
@@ -293,16 +382,15 @@ std::optional<uint32_t> SliceTracker::MatchingIncompleteSliceIndex(
   return std::nullopt;
 }
 
-void SliceTracker::MaybeAddTranslatableArgs(SliceInfo& slice_info) {
+bool SliceTracker::MaybeAddTranslatableArgs(SliceInfo& slice_info) {
   PERFETTO_DCHECK(slice_info.args);
+  PERFETTO_DCHECK(WritesTable());
   if (!slice_info.args->NeedsTranslation(*context_->args_translation_table)) {
-    return;
+    return false;
   }
-  const auto& table = context_->storage->slice_table();
-  tables::SliceTable::ConstRowReference ref =
-      slice_info.row.ToRowReference(table);
   translatable_args_.emplace_back(TranslatableArgs{
-      ref.id(), std::move(*slice_info.args).ToCompactArgSet()});
+      slice_info.id, std::move(*slice_info.args).ToCompactArgSet()});
+  return true;
 }
 
 void SliceTracker::FlushPendingSlices() {
@@ -315,12 +403,27 @@ void SliceTracker::FlushPendingSlices() {
   // additional way of flagging these events as "incomplete" to the UI.
 
   // Defer translatable args; the rest commit when the stacks are cleared below.
+  // Without a table, open slices become records instead, top of stack first.
+  // Slices still open keep kPendingDuration either way.
+  std::vector<SliceId> still_open;
   for (auto it = stacks_.GetIterator(); it; ++it) {
-    auto& track_info = it.value();
-    for (auto& slice_info : track_info.slice_stack) {
-      if (slice_info.args)
-        MaybeAddTranslatableArgs(slice_info);
+    auto& stack = it.value().slice_stack;
+    if (!WritesTable()) {
+      for (auto s = stack.rbegin(); s != stack.rend(); ++s)
+        QueueRecord(*s);
+      continue;
     }
+    // Bottom-up, as the order translated arg sets reach the args table must
+    // match upstream; the sink still gets the stack top-down.
+    size_t first = still_open.size();
+    for (auto& slice_info : stack) {
+      if (slice_info.args && MaybeAddTranslatableArgs(slice_info))
+        continue;  // Delivered with the other translated slices below.
+      if (sink_)
+        still_open.push_back(slice_info.id);
+    }
+    std::reverse(still_open.begin() + static_cast<ptrdiff_t>(first),
+                 still_open.end());
   }
 
   // Translate and flush all pending args.
@@ -330,9 +433,16 @@ void SliceTracker::FlushPendingSlices() {
     context_->args_translation_table->TranslateArgs(
         translatable_arg.compact_arg_set, bound_inserter);
   }
-  translatable_args_.clear();
 
   stacks_.Clear();
+  if (sink_) {
+    finalized_.insert(finalized_.end(), still_open.begin(), still_open.end());
+    for (const auto& translatable_arg : translatable_args_)
+      finalized_.push_back(translatable_arg.slice_id);
+    DrainFinalized();
+    DeliverUntranslatedRecords();
+  }
+  translatable_args_.clear();
 }
 
 void SliceTracker::SetOnSliceBeginCallback(OnSliceBeginCallback callback) {
@@ -347,8 +457,132 @@ std::optional<SliceId> SliceTracker::GetTopmostSliceOnTrack(
   const auto& stack = iter->slice_stack;
   if (stack.empty())
     return std::nullopt;
-  const auto& slice = context_->storage->slice_table();
-  return stack.back().row.ToRowReference(slice).id();
+  return stack.back().id;
+}
+
+void SliceTracker::SetThreadTiming(SliceId id, const ThreadTiming& timing) {
+  if (!timing.ts && !timing.dur && !timing.instruction_count &&
+      !timing.instruction_delta) {
+    return;
+  }
+  if (WritesTable()) {
+    auto rr = (*context_->storage->mutable_slice_table())[id];
+    if (timing.ts)
+      rr.set_thread_ts(*timing.ts);
+    if (timing.dur)
+      rr.set_thread_dur(*timing.dur);
+    if (timing.instruction_count)
+      rr.set_thread_instruction_count(*timing.instruction_count);
+    if (timing.instruction_delta)
+      rr.set_thread_instruction_delta(*timing.instruction_delta);
+    return;
+  }
+  PERFETTO_CHECK(last_started_ && last_started_->id == id);
+  TrackInfo* track_info = FindTrackInfo(*last_started_track_);
+  PERFETTO_CHECK(track_info && !track_info->slice_stack.empty() &&
+                 track_info->slice_stack.back().id == id);
+  SliceInfo& info = track_info->slice_stack.back();
+  if (timing.ts)
+    info.thread.ts = timing.ts;
+  if (timing.dur)
+    info.thread.dur = timing.dur;
+  if (timing.instruction_count)
+    info.thread.instruction_count = timing.instruction_count;
+  if (timing.instruction_delta)
+    info.thread.instruction_delta = timing.instruction_delta;
+}
+
+std::optional<SliceTracker::ThreadTiming>
+SliceTracker::ThreadTimingOfRecentlyEnded(SliceId id) const {
+  if (WritesTable()) {
+    auto rr = context_->storage->slice_table()[id];
+    ThreadTiming timing;
+    timing.ts = rr.thread_ts();
+    timing.dur = rr.thread_dur();
+    timing.instruction_count = rr.thread_instruction_count();
+    timing.instruction_delta = rr.thread_instruction_delta();
+    return timing;
+  }
+  if (!last_ended_ || last_ended_->id != id)
+    return std::nullopt;
+  return last_ended_thread_;
+}
+
+void SliceTracker::SetThreadDeltas(SliceId id,
+                                   std::optional<int64_t> thread_dur,
+                                   std::optional<int64_t> instruction_delta) {
+  if (!thread_dur && !instruction_delta)
+    return;
+  if (WritesTable()) {
+    auto rr = (*context_->storage->mutable_slice_table())[id];
+    if (thread_dur)
+      rr.set_thread_dur(*thread_dur);
+    if (instruction_delta)
+      rr.set_thread_instruction_delta(*instruction_delta);
+    return;
+  }
+  PERFETTO_CHECK(last_ended_ && last_ended_->id == id);
+  // The ended slice is either still on its stack (End closed a slice below the
+  // top) or, only if it was popped, awaiting delivery.
+  SliceThreadTiming* thread = nullptr;
+  if (TrackInfo* track_info = FindTrackInfo(*last_ended_track_)) {
+    for (auto& info : track_info->slice_stack) {
+      if (info.id == id) {
+        thread = &info.thread;
+        break;
+      }
+    }
+  }
+  if (!thread) {
+    if (FinalizedSlice* record = FindQueuedRecord(id))
+      thread = &record->thread;
+  }
+  PERFETTO_CHECK(thread);
+  if (thread_dur)
+    thread->dur = thread_dur;
+  if (instruction_delta)
+    thread->instruction_delta = instruction_delta;
+}
+
+int64_t SliceTracker::StartTsOf(SliceId id) const {
+  if (auto ts = StartOfRecentSlice(id))
+    return *ts;
+  // Without a table the start of an arbitrary slice is not retained.
+  PERFETTO_CHECK(WritesTable());
+  return context_->storage->slice_table()[id].ts();
+}
+
+bool SliceTracker::SetName(TrackId track_id, SliceId id, StringId name) {
+  bool found = false;
+  if (TrackInfo* track_info = FindTrackInfo(track_id)) {
+    for (auto& info : track_info->slice_stack) {
+      if (info.id == id) {
+        info.name = name;
+        found = true;
+        break;
+      }
+    }
+  }
+  if (WritesTable()) {
+    (*context_->storage->mutable_slice_table())[id].set_name(name);
+    return true;
+  }
+  if (!found) {
+    if (FinalizedSlice* record = FindQueuedRecord(id)) {
+      record->name = name;
+      found = true;
+    }
+  }
+  return found;
+}
+
+std::optional<SliceTracker::SliceStart> SliceTracker::GetTopmostOpenSlice(
+    TrackId track_id) const {
+  const auto* iter = stacks_.Find(track_id);
+  if (!iter || iter->slice_stack.empty())
+    return std::nullopt;
+  const SliceInfo& top = iter->slice_stack.back();
+  return SliceStart{top.id, top.ts};
 }
 
 bool SliceTracker::MaybeCloseStack(TrackInfo& track_info,
@@ -359,11 +593,10 @@ bool SliceTracker::MaybeCloseStack(TrackInfo& track_info,
   auto* slices = context_->storage->mutable_slice_table();
   bool incomplete_descendent = false;
   for (int i = static_cast<int>(stack.size()) - 1; i >= 0; i--) {
-    tables::SliceTable::RowReference ref =
-        stack[static_cast<size_t>(i)].row.ToRowReference(slices);
+    const SliceInfo& info = stack[static_cast<size_t>(i)];
 
-    int64_t start_ts = ref.ts();
-    int64_t dur = ref.dur();
+    int64_t start_ts = info.ts;
+    int64_t dur = info.dur;
     int64_t end_ts = start_ts + dur;
     if (dur == kPendingDuration) {
       incomplete_descendent = true;
@@ -389,19 +622,19 @@ bool SliceTracker::MaybeCloseStack(TrackInfo& track_info,
           "Incorrect ordering of begin/end slice events. "
           "Truncating incomplete descendants to the end of slice "
           "%s[%" PRId64 ", %" PRId64 "] due to an event at ts=%" PRId64 ".",
-          context_->storage->GetString(ref.name().value_or(kNullStringId))
-              .c_str(),
-          start_ts, end_ts, new_ts);
+          context_->storage->GetString(info.name).c_str(), start_ts, end_ts,
+          new_ts);
       context_->stats_tracker->IncrementStats(stats::misplaced_end_event);
 
       // Every slice below this one should have a pending duration. Update
       // of them to have the end ts of the current slice and pop them
       // all off.
       for (int j = static_cast<int>(stack.size()) - 1; j > i; --j) {
-        tables::SliceTable::RowReference child_ref =
-            stack[static_cast<size_t>(j)].row.ToRowReference(slices);
-        PERFETTO_DCHECK(child_ref.dur() == kPendingDuration);
-        child_ref.set_dur(end_ts - child_ref.ts());
+        SliceInfo& child = stack[static_cast<size_t>(j)];
+        PERFETTO_DCHECK(child.dur == kPendingDuration);
+        child.dur = end_ts - child.ts;
+        if (child.row)
+          child.row->ToRowReference(slices).set_dur(child.dur);
         StackPop(track_info);
       }
 
@@ -454,20 +687,19 @@ bool SliceTracker::MaybeCloseStack(TrackInfo& track_info,
       // The incoming slice [new_ts, new_ts + new_dur) starts inside the
       // already-open slice [start_ts, end_ts) but ends after it, so the shared
       // (ambiguous) region is [new_ts, end_ts).
-      OverlapInfo info{new_ts, end_ts, ref.name().value_or(kNullStringId),
-                       start_ts, dur};
+      OverlapInfo overlap{new_ts, end_ts, info.name, start_ts, dur};
       if (overlap_out) {
         // The caller wants to recover (e.g. spill onto an overflow track) and
         // will do its own logging; just report the details.
-        *overlap_out = info;
+        *overlap_out = overlap;
       } else {
         // Nobody can recover this slice, so drop it but log the offending
         // events (rather than only bumping a stat) so the user can find and fix
         // them.
         context_->import_logs_tracker->RecordParserLog(
             stats::slice_drop_overlapping_complete_event, new_ts,
-            [this, info](ArgsTracker::BoundInserter& inserter) {
-              AddOverlapArgs(info, inserter);
+            [this, overlap](ArgsTracker::BoundInserter& inserter) {
+              AddOverlapArgs(overlap, inserter);
             });
       }
       return false;
@@ -479,20 +711,29 @@ bool SliceTracker::MaybeCloseStack(TrackInfo& track_info,
 void SliceTracker::StackPop(TrackInfo& track_info) {
   auto& stack = track_info.slice_stack;
   SliceInfo& info = stack.back();
+  if (!WritesTable()) {
+    QueueRecord(info);
+    stack.pop_back();
+    return;
+  }
+  bool translating = false;
   if (info.args) {
     // Move translatable args out first (deferred to end-of-trace); reset then
     // commits whatever remains.
-    MaybeAddTranslatableArgs(info);
+    translating = MaybeAddTranslatableArgs(info);
     info.args.reset();
   }
+  // A slice awaiting translation is delivered once translated, at flush.
+  if (sink_ && !translating)
+    finalized_.push_back(info.id);
   stack.pop_back();
 }
 
 void SliceTracker::StackPush(TrackInfo& track_info,
                              TrackId track_id,
-                             tables::SliceTable::RowNumber row_number,
-                             SliceId id) {
-  track_info.slice_stack.push_back(SliceInfo{row_number, std::nullopt});
+                             SliceInfo info) {
+  SliceId id = info.id;
+  track_info.slice_stack.push_back(std::move(info));
   if (on_slice_begin_callback_) {
     on_slice_begin_callback_(track_id, id);
   }

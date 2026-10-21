@@ -208,6 +208,7 @@ source_set("unittests") {
     "global_stats_tracker_unittest.cc",
     "process_track_translation_table_unittest.cc",
     "process_tracker_unittest.cc",
+    "slice_sink_unittest.cc",
     "slice_tracker_unittest.cc",
     "slice_translation_table_unittest.cc",
     "sparse_counter_tracker_unittest.cc",

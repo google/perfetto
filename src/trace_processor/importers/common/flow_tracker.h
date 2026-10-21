@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -68,7 +69,20 @@ class FlowTracker {
 
   void ClosePendingEventsOnTrack(TrackId track_id, SliceId slice_id);
 
+  // PROTOTYPE: process-wide count of slice start timestamps SliceTracker could
+  // not supply without the slice table: read back from it, or unknown when no
+  // table is written. Process-wide so it survives per-trace context teardown
+  // at end of file.
+  static uint64_t slice_table_ts_reads();
+
  private:
+  // |ts| is filled when SliceTracker knows it cheaply, else read from the
+  // table when first compared (a default-constructed entry names slice 0).
+  // It stays unset when no table is written and the start was not known.
+  struct FlowSource {
+    SliceId id{0u};
+    std::optional<int64_t> ts;
+  };
   struct V1FlowId {
     uint64_t source_id;
     StringId cat;
@@ -85,7 +99,7 @@ class FlowTracker {
     }
   };
 
-  using FlowToSourceSliceMap = base::FlatHashMap<FlowId, SliceId>;
+  using FlowToSourceSliceMap = base::FlatHashMap<FlowId, FlowSource>;
   using PendingFlowsMap = base::FlatHashMap<TrackId, std::vector<FlowId>>;
   using V1FlowIdToFlowIdMap =
       base::FlatHashMap<V1FlowId, FlowId, V1FlowIdHasher>;
@@ -94,6 +108,13 @@ class FlowTracker {
   void InsertFlow(FlowId flow_id,
                   SliceId outgoing_slice_id,
                   SliceId incoming_slice_id);
+
+  FlowSource Source(SliceId id) const;
+  // Nullopt only when no slice table is written and the start is unknown.
+  std::optional<int64_t> SourceTs(const FlowSource& source);
+  void BeginAt(FlowSource slice, FlowId flow_id);
+  void StepAt(FlowSource slice, FlowId flow_id);
+  void EndAt(FlowSource slice, FlowId flow_id, bool close_flow);
 
   // List of flow end calls waiting for the next slice
   PendingFlowsMap pending_flow_ids_map_;

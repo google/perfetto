@@ -83,7 +83,11 @@ struct TrackEventFieldContext {
 // register theirs via RegisterTrackEventExtensions.
 //
 // Each field id is owned by exactly one parser. Dispatch happens after the
-// row has been inserted, so the parser receives its id.
+// event has been recorded, so the parser receives its id.
+//
+// When SliceTracker::WritesTable() is false (a kInsteadOfTable SliceSink is
+// set), a slice id names no slice table row: use TrackEventFieldContext::ts
+// for the slice's start timestamp and treat the id as foreign.
 class TrackEventExtensionParser {
  public:
   // kHandled skips the reflection of the field into the args table;

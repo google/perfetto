@@ -210,16 +210,15 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
     const GraphicsFrameEventDecoder& event,
     StringId layer_name_id,
     StringId event_key) {
-  auto* slices = context_->storage->mutable_slice_table();
   auto [it, inserted] = phase_event_map_.Insert(event_key, {});
   switch (event.type()) {
     case GraphicsFrameEvent::DEQUEUE: {
       if (auto* d = std::get_if<DequeueInfo>(&it->most_recent_event)) {
         // Error handling
-        auto rr = d->slice_row.ToRowReference(slices);
-        rr.set_name(context_->storage->InternString("0"));
+        context_->slice_tracker->SetName(d->track, d->slice_id,
+                                         context_->storage->InternString("0"));
         context_->slice_tracker->AddArgs(
-            rr.track_id(), kNullStringId, kNullStringId,
+            d->track, kNullStringId, kNullStringId,
             [&](ArgsTracker::BoundInserter* inserter) {
               inserter->AddArg(frame_number_id_, Variadic::Integer(0));
             });
@@ -236,15 +235,14 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
               context_->storage->InternString(track_name.string_view())));
       auto res = InsertPhaseSlice(timestamp, event, track_id, layer_name_id);
       if (res) {
-        it->most_recent_event = DequeueInfo{*res, timestamp};
+        it->most_recent_event = DequeueInfo{*res, track_id, timestamp};
       }
       break;
     }
     case GraphicsFrameEvent::QUEUE: {
       if (auto* d = std::get_if<DequeueInfo>(&it->most_recent_event)) {
-        auto slice_rr = d->slice_row.ToRowReference(slices);
         context_->slice_tracker->End(
-            timestamp, slice_rr.track_id(), kNullStringId, kNullStringId,
+            timestamp, d->track, kNullStringId, kNullStringId,
             [&](ArgsTracker::BoundInserter* inserter) {
               inserter->AddArg(frame_number_id_,
                                Variadic::Integer(event.frame_number()));
@@ -252,8 +250,10 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
 
         // Set the name of the slice to be the frame number since dequeue did
         // not have a frame number at that time.
-        slice_rr.set_name(context_->storage->InternString(
-            std::to_string(event.frame_number())));
+        context_->slice_tracker->SetName(
+            d->track, d->slice_id,
+            context_->storage->InternString(
+                std::to_string(event.frame_number())));
 
         // The AcquireFence might be signaled before receiving a QUEUE event
         // sometimes. In that case, we shouldn't start a slice.
@@ -287,10 +287,10 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
       // b/157578286 - Sometimes Queue event goes missing. To prevent having a
       // wrong slice info, we try to close any existing APP slice.
       if (auto* d = std::get_if<DequeueInfo>(&it->most_recent_event)) {
-        auto rr = d->slice_row.ToRowReference(slices);
-        rr.set_name(context_->storage->InternString("0"));
+        context_->slice_tracker->SetName(d->track, d->slice_id,
+                                         context_->storage->InternString("0"));
         context_->slice_tracker->AddArgs(
-            rr.track_id(), kNullStringId, kNullStringId,
+            d->track, kNullStringId, kNullStringId,
             [&](ArgsTracker::BoundInserter* inserter) {
               inserter->AddArg(frame_number_id_, Variadic::Integer(0));
             });
@@ -333,8 +333,7 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
   }
 }
 
-std::optional<GraphicsFrameEventParser::SliceRowNumber>
-GraphicsFrameEventParser::InsertPhaseSlice(
+std::optional<SliceId> GraphicsFrameEventParser::InsertPhaseSlice(
     int64_t timestamp,
     const GraphicsFrameEventDecoder& event,
     TrackId track_id,
@@ -356,10 +355,7 @@ GraphicsFrameEventParser::InsertPhaseSlice(
                          Variadic::Integer(event.frame_number()));
         inserter->AddArg(layer_name_key_id_, Variadic::String(layer_name_id));
       });
-  if (slice_id) {
-    return context_->storage->slice_table()[*slice_id].ToRowNumber();
-  }
-  return std::nullopt;
+  return slice_id;
 }
 
 }  // namespace perfetto::trace_processor
