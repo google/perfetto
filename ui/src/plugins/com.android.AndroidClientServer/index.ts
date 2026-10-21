@@ -30,9 +30,8 @@ export default class implements PerfettoPlugin {
         }
         await ctx.engine.query(`
           include perfetto module android.binder;
-          include perfetto module graphs.search;
 
-          create or replace perfetto table __binder_for_slice_${sliceId} as
+          create or replace perfetto table __binder_edges_for_slice_${sliceId} as
           with s as materialized (
             select slice.id, ts, ts + dur as ts_end, dur, upid
             from thread_slice slice
@@ -70,8 +69,18 @@ export default class implements PerfettoPlugin {
             union
             select * from nested_binder_txns_in_slice_interval
           )
+          select source_node_id as src, dest_node_id as dst
+          from all_binder_txns_considered;
+
+          create or replace perfetto table __binder_reachable_for_slice_${sliceId} as
+          GRAPH DFS TREE
+            NODES (select id from slice)
+            EDGES __binder_edges_for_slice_${sliceId}
+            FROM (select id from slice where id = ${sliceId});
+
+          create or replace perfetto table __binder_for_slice_${sliceId} as
           select
-            dfs.node_id as id,
+            dfs.id as id,
             coalesce(client.client_ts, server.client_ts, slice.ts) as ts,
             coalesce(client.client_dur, server.client_dur, slice.dur) as dur,
             coalesce(
@@ -98,14 +107,11 @@ export default class implements PerfettoPlugin {
               else 'slice'
             end as slice_type,
             coalesce(client.is_sync, server.is_sync, true) as is_sync
-          from graph_reachable_dfs!(
-            all_binder_txns_considered,
-            (select id as node_id from s)
-          ) dfs
-          join slice on dfs.node_id = slice.id
+          from __binder_reachable_for_slice_${sliceId} dfs
+          join slice on dfs.id = slice.id
           join thread_track on slice.track_id = thread_track.id
-          left join android_binder_txns client on dfs.node_id = client.binder_txn_id
-          left join android_binder_txns server on dfs.node_id = server.binder_reply_id
+          left join android_binder_txns client on dfs.id = client.binder_txn_id
+          left join android_binder_txns server on dfs.id = server.binder_reply_id
           order by ts;
         `);
         await ctx.engine.query(`
