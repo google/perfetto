@@ -464,10 +464,10 @@ CREATE PERFETTO INDEX _android_monitor_contention_chain_idx ON android_monitor_c
 
 -- First blocked node on a lock, i.e nodes with |waiter_count| = 0. The |dur| here is adjusted
 -- to only account for the time between the first thread waiting and the first thread to acquire
--- the lock. That way, the thread state span joins below only compute the thread states where
+-- the lock. That way, the thread state intersection below only computes the thread states where
 -- the blocking thread is actually holding the lock. This avoids counting the time when another
 -- waiter acquired the lock before the first waiter.
-CREATE PERFETTO VIEW _first_blocked_contention AS
+CREATE PERFETTO TABLE _first_blocked_contention AS
 SELECT
   start.id,
   start.blocking_utid,
@@ -483,16 +483,10 @@ WHERE
 GROUP BY
   start.id;
 
-CREATE PERFETTO VIEW _blocking_thread_state AS
-SELECT utid AS blocking_utid, ts, dur, state, blocked_function FROM thread_state;
-
-CREATE VIRTUAL TABLE _android_monitor_contention_chain_thread_state USING SPAN_JOIN(_first_blocked_contention PARTITIONED blocking_utid,
-            _blocking_thread_state PARTITIONED blocking_utid);
-
--- Contains the span join of the first waiters in the |android_monitor_contention_chain| with their
--- blocking_thread thread state.
+-- Contains the intersection of the first waiters in the |android_monitor_contention_chain| with
+-- their blocking_thread thread state.
 --
--- Note that we only span join the duration where the lock was actually held and contended.
+-- Note that we only intersect the duration where the lock was actually held and contended.
 -- This can be less than the duration the lock was 'waited on' when a different waiter acquired the
 -- lock earlier than the first waiter.
 CREATE PERFETTO TABLE android_monitor_contention_chain_thread_state(
@@ -510,8 +504,34 @@ CREATE PERFETTO TABLE android_monitor_contention_chain_thread_state(
   state STRING
 )
 AS
-SELECT id, ts, dur, blocking_utid, blocked_function, state
-FROM _android_monitor_contention_chain_thread_state;
+INTERVAL INTERSECTION OF (
+  (
+    SELECT id, ts, dur, blocking_utid
+    FROM _first_blocked_contention
+    WHERE
+      dur > 0
+  ) AS c,
+  (
+    -- Thread states still open at the end of the trace have dur = -1.
+    SELECT
+      ts,
+      iif(dur = -1, trace_end() - ts, dur) AS dur,
+      utid AS blocking_utid,
+      blocked_function,
+      state
+    FROM thread_state
+    WHERE
+      dur != 0
+      AND utid IN (SELECT blocking_utid FROM _first_blocked_contention)
+  ) AS t
+) PER blocking_utid
+|> SELECT
+  c.id AS id,
+  ts,
+  dur,
+  blocking_utid,
+  t.blocked_function AS blocked_function,
+  t.state AS state;
 
 -- Aggregated thread_states on the 'blocking thread', the thread holding the lock.
 -- This builds on the data from |android_monitor_contention_chain| and

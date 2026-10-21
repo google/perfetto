@@ -15,8 +15,6 @@
 
 INCLUDE PERFETTO MODULE android.startup.startups;
 
-INCLUDE PERFETTO MODULE intervals.overlap;
-
 INCLUDE PERFETTO MODULE slices.hierarchy;
 
 INCLUDE PERFETTO MODULE slices.with_context;
@@ -146,44 +144,49 @@ JOIN _startup_relevant_slices AS s USING (id)
 ORDER BY
   p.id;
 
--- Subset of _startup_normalized_slices that occurred during any app startups on the main thread.
--- Their timestamps and durations are chopped to fit within the respective app startup duration.
-CREATE PERFETTO TABLE _startup_slices_breakdown AS
-SELECT *
-FROM _intervals_merge_root_and_children_by_intersection!(
-  _startup_root_slices,
-  _startup_normalized_slices,
-  utid
-);
+-- Flattened slice stack of each startup's main thread: at every point of
+-- the startup, the leaf (i.e. deepest, so highest id) normalized slice, or a
+-- NULL slice_id where no normalized slice is active.
+CREATE PERFETTO TABLE _startup_flat_slices AS
+INTERVAL INTERSECTION OF (
+  (SELECT id, ts, dur, utid FROM _startup_normalized_slices) AS s,
+  (SELECT id AS root_id, ts, dur, utid FROM _startup_root_slices) AS r
+) PER utid
+|> INTERVAL FLATTEN PER root_id, utid AGGREGATE MAX(id) AS slice_id
+|> INTERVAL FILL GAPS WITH (
+  SELECT id AS root_id, ts, dur, utid FROM _startup_root_slices
+) AS r PER root_id;
 
--- Flattened slice version of _startup_slices_breakdown. This selects the leaf slice at every region
--- of the slice stack.
-CREATE PERFETTO TABLE _startup_flat_slices_breakdown AS
-SELECT i.ts, i.dur, i.root_id, s.id AS slice_id, s.name
-FROM _intervals_flatten !(_startup_slices_breakdown) AS i
-JOIN _startup_normalized_slices AS s USING (id);
-
--- Subset of thread_states that occurred during any app startups on the main thread.
-CREATE PERFETTO TABLE _startup_thread_states_breakdown AS
-SELECT
-  i.ts,
-  i.dur,
-  i.root_id,
+-- Intersection of the main thread's thread states with
+-- _startup_flat_slices: each row has a single thread state and leaf slice.
+CREATE PERFETTO TABLE _startup_thread_states_and_slices_breakdown AS
+INTERVAL INTERSECTION OF (
+  (
+    -- Thread states still open at the end of the trace have dur = -1.
+    SELECT
+      id,
+      ts,
+      iif(dur = -1, trace_end() - ts, dur) AS dur,
+      utid,
+      state,
+      io_wait,
+      irq_context
+    FROM thread_state
+    WHERE
+      dur != 0
+      AND utid IN (SELECT utid FROM _startup_root_slices)
+  ) AS t,
+  _startup_flat_slices AS f
+) PER utid
+|> SELECT
+  ts,
+  dur,
+  f.root_id AS root_id,
+  f.slice_id AS slice_id,
   t.id AS thread_state_id,
-  t.state,
-  t.io_wait,
-  t.irq_context
-FROM _intervals_merge_root_and_children_by_intersection!(_startup_root_slices,
-                                                           (SELECT *, NULL AS parent_id FROM thread_state),
-                                                           utid) AS i
-JOIN thread_state AS t USING (id);
-
--- Intersection of _startup_flat_slices_breakdown and _startup_thread_states_breakdown.
--- A left intersection is used since some parts of the slice stack may not have any slices
--- but will have thread states.
-CREATE VIRTUAL TABLE _startup_thread_states_and_slices_breakdown_sp USING SPAN_LEFT_JOIN(
-    _startup_thread_states_breakdown PARTITIONED root_id,
-    _startup_flat_slices_breakdown PARTITIONED root_id);
+  t.state AS state,
+  t.io_wait AS io_wait,
+  t.irq_context AS irq_context;
 
 -- Blended thread state and slice breakdown blocking app startups.
 --
@@ -212,24 +215,26 @@ SELECT
   startup.startup_id,
   b.slice_id,
   b.thread_state_id,
-  _startup_breakdown_reason(name, state, io_wait, irq_context) AS reason
-FROM _startup_thread_states_and_slices_breakdown_sp AS b
+  _startup_breakdown_reason(s.name, b.state, b.io_wait, b.irq_context) AS reason
+FROM _startup_thread_states_and_slices_breakdown AS b
 JOIN _startup_root_slices AS startup
   ON startup.id = b.root_id
+LEFT JOIN _startup_normalized_slices AS s
+  ON s.id = b.slice_id
 UNION ALL
 -- Augment the existing startup breakdown with an artificial slice accounting for
 -- any launch delays before the app starts handling startup on its main thread
 SELECT
-  _startup_root_slices.ts,
-  min(_startup_thread_states_breakdown.ts) - _startup_root_slices.ts AS dur,
-  startup_id,
+  startup.ts,
+  min(b.ts) - startup.ts AS dur,
+  startup.startup_id,
   NULL AS slice_id,
   NULL AS thread_state_id,
   'launch_delay' AS reason
-FROM _startup_thread_states_breakdown
-JOIN _startup_root_slices
-  ON _startup_root_slices.id = root_id
+FROM _startup_thread_states_and_slices_breakdown AS b
+JOIN _startup_root_slices AS startup
+  ON startup.id = b.root_id
 GROUP BY
-  root_id
+  b.root_id
 HAVING
-  min(_startup_thread_states_breakdown.ts) - _startup_root_slices.ts > 0;
+  min(b.ts) - startup.ts > 0;
