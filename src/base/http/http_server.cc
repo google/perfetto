@@ -255,13 +255,13 @@ size_t HttpServer::ParseOneHttpRequest(HttpServerConnection* conn) {
                                    "Too many HTTP headers");
       }
 
-      if (hdr_name.CaseInsensitiveEq("content-length")) {
+      if (base::CaseInsensitiveEqual(hdr_name, "content-length")) {
         body_size = static_cast<size_t>(atoi(hdr_value.ToStdString().c_str()));
-      } else if (hdr_name.CaseInsensitiveEq("origin")) {
+      } else if (base::CaseInsensitiveEqual(hdr_name, "origin")) {
         http_req.origin = hdr_value;
         if (IsOriginAllowed(hdr_value))
           conn->origin_allowed_ = hdr_value.ToStdString();
-      } else if (hdr_name.CaseInsensitiveEq("connection")) {
+      } else if (base::CaseInsensitiveEqual(hdr_name, "connection")) {
         auto values = SplitString(hdr_value.ToStdString(), ",");
         for (auto& value : values) {
           value = ToLower(TrimWhitespace(value));
@@ -360,7 +360,7 @@ void HttpServer::HandleCorsPreflightRequest(const HttpRequest& req) {
 
 bool HttpServer::IsOriginAllowed(StringView origin) {
   for (const std::string& allowed_origin : allowed_origins_) {
-    if (origin.CaseInsensitiveEq(StringView(allowed_origin))) {
+    if (base::CaseInsensitiveEqual(origin, StringView(allowed_origin))) {
       return true;
     }
   }
@@ -384,7 +384,7 @@ void HttpServerConnection::UpgradeToWebsocket(const HttpRequest& req) {
   auto ws_ver = req.GetHeader("sec-webSocket-version").value_or(StringView());
   auto ws_key = req.GetHeader("sec-webSocket-key").value_or(StringView());
 
-  if (!ws_ver.CaseInsensitiveEq("13"))
+  if (!base::CaseInsensitiveEqual(ws_ver, "13"))
     return SendResponseAndClose("505 HTTP Version Not Supported", {});
 
   if (ws_key.size() != 24) {
@@ -604,7 +604,8 @@ void HttpServerConnection::SendResponseHeaders(
     StringView hdr = (hdr_cstr);
     if (hdr.empty())
       continue;
-    has_connection_header |= hdr.substr(0, 11).CaseInsensitiveEq("connection:");
+    has_connection_header |=
+        base::CaseInsensitiveEqual(hdr.substr(0, 11), "connection:");
     append(hdr_cstr);
     append("\r\n");
   }
@@ -702,7 +703,7 @@ HttpServerConnection::~HttpServerConnection() = default;
 
 std::optional<StringView> HttpRequest::GetHeader(StringView name) const {
   for (size_t i = 0; i < num_headers; i++) {
-    if (headers[i].name.CaseInsensitiveEq(name))
+    if (base::CaseInsensitiveEqual(headers[i].name, name))
       return headers[i].value;
   }
   return std::nullopt;

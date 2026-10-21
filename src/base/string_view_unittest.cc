@@ -20,6 +20,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "perfetto/ext/base/string_utils.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -56,16 +57,16 @@ TEST(StringViewTest, BasicCases) {
     EXPECT_TRUE(x == StringView("abc"));
     EXPECT_TRUE(x != StringView("abcd"));
     EXPECT_FALSE(x == StringView("aBc"));
-    EXPECT_TRUE(x.CaseInsensitiveEq("aBc"));
-    EXPECT_TRUE(x.CaseInsensitiveEq("AbC"));
-    EXPECT_FALSE(x.CaseInsensitiveEq("AbCd"));
-    EXPECT_FALSE(x.CaseInsensitiveEq("ab"));
-    EXPECT_FALSE(x.CaseInsensitiveEq("abcd"));
-    EXPECT_FALSE(x.CaseInsensitiveEq(""));
-    EXPECT_FALSE(x.CaseInsensitiveOneOf({}));
-    EXPECT_FALSE(x.CaseInsensitiveOneOf({"AbCd", "ab", "abcd"}));
-    EXPECT_TRUE(x.CaseInsensitiveOneOf({"aBc", "AbC"}));
-    EXPECT_TRUE(x.CaseInsensitiveOneOf({"AbCd", "aBc"}));
+    EXPECT_TRUE(base::CaseInsensitiveEqual(x, "aBc"));
+    EXPECT_TRUE(base::CaseInsensitiveEqual(x, "AbC"));
+    EXPECT_FALSE(base::CaseInsensitiveEqual(x, "AbCd"));
+    EXPECT_FALSE(base::CaseInsensitiveEqual(x, "ab"));
+    EXPECT_FALSE(base::CaseInsensitiveEqual(x, "abcd"));
+    EXPECT_FALSE(base::CaseInsensitiveEqual(x, ""));
+    EXPECT_FALSE(base::CaseInsensitiveOneOf(x, {}));
+    EXPECT_FALSE(base::CaseInsensitiveOneOf(x, {"AbCd", "ab", "abcd"}));
+    EXPECT_TRUE(base::CaseInsensitiveOneOf(x, {"aBc", "AbC"}));
+    EXPECT_TRUE(base::CaseInsensitiveOneOf(x, {"AbCd", "aBc"}));
   }
 
   // Test find(char).
@@ -161,32 +162,32 @@ TEST(StringViewTest, BasicCases) {
   EXPECT_FALSE(StringView("bar") >= StringView("foo"));
 
   // Test StartsWith.
-  EXPECT_TRUE(StringView().StartsWith(StringView()));
-  EXPECT_TRUE(StringView().StartsWith(StringView("")));
-  EXPECT_TRUE(StringView("").StartsWith(StringView("")));
-  EXPECT_TRUE(StringView("").StartsWith(StringView()));
-  EXPECT_TRUE(StringView("foo").StartsWith(StringView()));
-  EXPECT_TRUE(StringView("foo").StartsWith(StringView("")));
-  EXPECT_FALSE(StringView().StartsWith("foo"));
-  EXPECT_FALSE(StringView("").StartsWith("foo"));
-  EXPECT_TRUE(StringView("foo").StartsWith("foo"));
-  EXPECT_TRUE(StringView("foorbar").StartsWith("foo"));
-  EXPECT_FALSE(StringView("foorbar").StartsWith("bar"));
-  EXPECT_FALSE(StringView("foo").StartsWith("fooo"));
+  EXPECT_TRUE(base::StartsWith(StringView(), StringView()));
+  EXPECT_TRUE(base::StartsWith(StringView(), StringView("")));
+  EXPECT_TRUE(base::StartsWith(StringView(""), StringView("")));
+  EXPECT_TRUE(base::StartsWith(StringView(""), StringView()));
+  EXPECT_TRUE(base::StartsWith(StringView("foo"), StringView()));
+  EXPECT_TRUE(base::StartsWith(StringView("foo"), StringView("")));
+  EXPECT_FALSE(base::StartsWith(StringView(), "foo"));
+  EXPECT_FALSE(base::StartsWith(StringView(""), "foo"));
+  EXPECT_TRUE(base::StartsWith(StringView("foo"), "foo"));
+  EXPECT_TRUE(base::StartsWith(StringView("foorbar"), "foo"));
+  EXPECT_FALSE(base::StartsWith(StringView("foorbar"), "bar"));
+  EXPECT_FALSE(base::StartsWith(StringView("foo"), "fooo"));
 
   // Test EndsWith.
-  EXPECT_TRUE(StringView().EndsWith(StringView()));
-  EXPECT_TRUE(StringView().EndsWith(StringView("")));
-  EXPECT_TRUE(StringView("").EndsWith(StringView("")));
-  EXPECT_TRUE(StringView("").EndsWith(StringView()));
-  EXPECT_TRUE(StringView("foo").EndsWith(StringView()));
-  EXPECT_TRUE(StringView("foo").EndsWith(StringView("")));
-  EXPECT_FALSE(StringView().EndsWith("foo"));
-  EXPECT_FALSE(StringView("").EndsWith("foo"));
-  EXPECT_TRUE(StringView("foo").EndsWith("foo"));
-  EXPECT_FALSE(StringView("foorbar").EndsWith("foo"));
-  EXPECT_TRUE(StringView("foorbar").EndsWith("bar"));
-  EXPECT_FALSE(StringView("foo").EndsWith("fooo"));
+  EXPECT_TRUE(base::EndsWith(StringView(), StringView()));
+  EXPECT_TRUE(base::EndsWith(StringView(), StringView("")));
+  EXPECT_TRUE(base::EndsWith(StringView(""), StringView("")));
+  EXPECT_TRUE(base::EndsWith(StringView(""), StringView()));
+  EXPECT_TRUE(base::EndsWith(StringView("foo"), StringView()));
+  EXPECT_TRUE(base::EndsWith(StringView("foo"), StringView("")));
+  EXPECT_FALSE(base::EndsWith(StringView(), "foo"));
+  EXPECT_FALSE(base::EndsWith(StringView(""), "foo"));
+  EXPECT_TRUE(base::EndsWith(StringView("foo"), "foo"));
+  EXPECT_FALSE(base::EndsWith(StringView("foorbar"), "foo"));
+  EXPECT_TRUE(base::EndsWith(StringView("foorbar"), "bar"));
+  EXPECT_FALSE(base::EndsWith(StringView("foo"), "fooo"));
 }
 
 TEST(StringViewTest, DeviationsFromStdStringView) {

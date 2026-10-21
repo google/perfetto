@@ -87,7 +87,7 @@ base::Status AndroidDumpstateReader::ParseLine(
   // Here we put each line in a dedicated table, android_dumpstate, keeping
   // track of the dumpstate `section` and dumpsys `service`.
   static constexpr size_t npos = base::StringView::npos;
-  if (line.StartsWith("------ ") && line.EndsWith(" ------")) {
+  if (base::StartsWith(line, "------ ") && base::EndsWith(line, " ------")) {
     // These lines mark the beginning and end of dumpstate sections:
     // ------ DUMPSYS CRITICAL (/system/bin/dumpsys) ------
     // ------ 0.356s was the duration of 'DUMPSYS CRITICAL' ------
@@ -101,42 +101,44 @@ base::Status AndroidDumpstateReader::ParseLine(
     } else {
       current_section_id_ = context_->storage->InternString(section);
       current_section_ = Section::kOther;
-      if (section.StartsWith("DUMPSYS")) {
+      if (base::StartsWith(section, "DUMPSYS")) {
         current_section_ = Section::kDumpsys;
-      } else if (section.StartsWith("SYSTEM LOG") ||
-                 section.StartsWith("EVENT LOG") ||
-                 section.StartsWith("RADIO LOG")) {
+      } else if (base::StartsWith(section, "SYSTEM LOG") ||
+                 base::StartsWith(section, "EVENT LOG") ||
+                 base::StartsWith(section, "RADIO LOG")) {
         // KERNEL LOG is deliberately omitted because SYSTEM LOG is a
         // superset. KERNEL LOG contains all dupes.
         current_section_ = Section::kLog;
-      } else if (section.StartsWith("BLOCK STAT")) {
+      } else if (base::StartsWith(section, "BLOCK STAT")) {
         // Coalesce all the block stats into one section. Otherwise they
         // pollute the table with one section per block device.
         current_section_id_ = context_->storage->InternString("BLOCK STAT");
-      } else if (section.StartsWith("CHECKIN BATTERYSTATS")) {
+      } else if (base::StartsWith(section, "CHECKIN BATTERYSTATS")) {
         current_section_ = Section::kBatteryStats;
       }
     }
     return base::OkStatus();
   }
   // Skip end marker lines for dumpsys sections.
-  if (current_section_ == Section::kDumpsys && line.StartsWith("--------- ") &&
+  if (current_section_ == Section::kDumpsys &&
+      base::StartsWith(line, "--------- ") &&
       line.find("was the duration of dumpsys") != npos) {
     current_service_id_ = StringId::Null();
     current_service_ = "";
     return base::OkStatus();
   }
   if (current_section_ == Section::kDumpsys && current_service_id_.is_null() &&
-      line.StartsWith("----------------------------------------------")) {
+      base::StartsWith(line,
+                       "----------------------------------------------")) {
     return base::OkStatus();
   }
   // if we get the start of a standalone battery stats checkin, then set the
   // section and deliberately fall though so we we can parse the line.
-  if (line.StartsWith("9,0,i,vers,")) {
+  if (base::StartsWith(line, "9,0,i,vers,")) {
     current_section_ = Section::kBatteryStats;
   }
   if (current_section_ == Section::kDumpsys &&
-      line.StartsWith("DUMP OF SERVICE")) {
+      base::StartsWith(line, "DUMP OF SERVICE")) {
     // DUMP OF SERVICE [CRITICAL|HIGH] ServiceName:
     base::StringView svc = line.substr(line.rfind(' ') + 1);
     svc = svc.substr(0, svc.size() - 1);
@@ -164,7 +166,7 @@ void AndroidDumpstateReader::MaybeSetTzOffsetFromAlarmService(
     base::StringView line) {
   // attempt to parse the line if it has the following form:
   //  nowRTC=1629844744041=2021-08-24 23:39:04.041 nowELAPSED=403532
-  if (line.StartsWith("  nowRTC=")) {
+  if (base::StartsWith(line, "  nowRTC=")) {
     size_t end_of_rtc_str = line.find(" nowELAPSED=");
     if (end_of_rtc_str == base::StringView::npos) {
       return;
