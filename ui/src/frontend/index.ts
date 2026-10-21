@@ -159,7 +159,6 @@ function setupContentSecurityPolicy() {
       // and should be replaced with 'wasm-unsafe-eval'.
       `'unsafe-eval'`,
       'https://www.googletagmanager.com',
-      'https://*.google-analytics.com',
     ],
     'object-src': [`'none'`],
     'connect-src': [
