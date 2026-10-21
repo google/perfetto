@@ -30,6 +30,7 @@
 namespace perfetto::trace_processor {
 
 class ChunkedTraceReader;
+class TraceBlobView;
 class TraceProcessorContext;
 
 // The minimum sort ordering a trace type requires from the TraceSorter.
@@ -64,10 +65,6 @@ struct TraceTypeDescriptor {
   bool sets_default_clock = true;
   bool claims_global_clock = true;
   int archive_priority = 2;
-  // Files of this type are proto traces (a sequence of TracePackets). In an
-  // archive, members carrying a ClockSnapshot are read before those which do
-  // not (see ArchiveEntry::lacks_clock_snapshot). Only proto sets it.
-  bool archive_clock_snapshot_first = false;
   // Lower runs first among plugin importers; ties keep registration order.
   int detection_priority = 0;
   // Behavioural policy; defaults suit an ordinary single-trace format.
@@ -143,6 +140,13 @@ class TraceImporterBase {
   virtual base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
       TraceProcessorContext* context,
       uint32_t file_id) const = 0;
+
+  // Returns whether the file made of the chunks [begin, end), consecutive
+  // pieces of one file of this format, may carry clock synchronization data
+  // (a ClockSnapshot). Archives read members which may before those which do
+  // not (see ArchiveEntry::lacks_clock_snapshot).
+  virtual bool MayHaveClockSnapshot(const TraceBlobView* begin,
+                                    const TraceBlobView* end) const = 0;
 };
 
 // CRTP subclass supplying compile-time identity and descriptor storage (mirrors
@@ -155,6 +159,12 @@ class TraceImporter : public TraceImporterBase {
       TraceImporterId(TraceImporterTag<Self>::Id());
   TraceImporterId id() const final { return kId; }
   const TraceTypeDescriptor& descriptor() const final { return descriptor_; }
+  // By default a file counts as carrying clock synchronization data, so that
+  // archives never read it later than they would otherwise.
+  bool MayHaveClockSnapshot(const TraceBlobView*,
+                            const TraceBlobView*) const override {
+    return true;
+  }
 
  protected:
   explicit TraceImporter(TraceTypeDescriptor descriptor)
@@ -187,6 +197,12 @@ class TraceImporterRegistry {
   // Per-type metadata helpers.
   const char* ToString(TraceImporterId id) const;
   bool IsContainer(TraceImporterId id) const;
+
+  // TraceImporterBase::MayHaveClockSnapshot() of the importer for `id`; true if
+  // none is registered.
+  bool MayHaveClockSnapshot(TraceImporterId id,
+                            const TraceBlobView* begin,
+                            const TraceBlobView* end) const;
 
  private:
   base::FlatHashMap<TraceImporterId,

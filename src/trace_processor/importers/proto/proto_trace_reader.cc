@@ -1360,6 +1360,42 @@ class ProtoImporter : public TraceImporter<ProtoImporter> {
         std::make_unique<ProtoTraceReader>(context));
   }
 
+  // Looks for a packet carrying a ClockSnapshot, reading only the field
+  // numbers of each packet and stopping at the first match. Compressed packets
+  // are not inflated and count as carrying one, as they may hide one.
+  // Malformed input counts as carrying none: reading the file reports the
+  // error.
+  bool MayHaveClockSnapshot(const TraceBlobView* begin,
+                            const TraceBlobView* end) const override {
+    using protos::pbzero::TracePacket;
+    bool found = false;
+    auto check_packet = [&found](TraceBlobView packet) {
+      protozero::ProtoDecoder decoder(packet.data(), packet.size());
+      for (protozero::Field f = decoder.ReadField(); !found && f.valid();
+           f = decoder.ReadField()) {
+        found = f.id() == TracePacket::kClockSnapshotFieldNumber ||
+                f.id() == TracePacket::kCompressedPacketsFieldNumber ||
+                f.id() == TracePacket::kZstdCompressedPacketsFieldNumber;
+      }
+      return base::OkStatus();
+    };
+    // The tokenizer is fed slices rather than whole chunks, so that the walk
+    // stops soon after the first match even in a large chunk. A packet split
+    // across slices or chunks is stitched together by the tokenizer.
+    constexpr size_t kSliceSize = 1024 * 1024;
+    ProtoTraceTokenizer tokenizer;
+    for (const TraceBlobView* chunk = begin; chunk != end && !found; ++chunk) {
+      for (size_t off = 0; off < chunk->size() && !found; off += kSliceSize) {
+        size_t size = std::min(kSliceSize, chunk->size() - off);
+        if (!tokenizer.Tokenize(chunk->slice_off(off, size), check_packet)
+                 .ok()) {
+          return false;
+        }
+      }
+    }
+    return found;
+  }
+
  private:
   static TraceTypeDescriptor MakeDescriptor() {
     TraceTypeDescriptor d;
@@ -1369,7 +1405,6 @@ class ProtoImporter : public TraceImporter<ProtoImporter> {
     d.sets_default_clock = false;
     d.claims_global_clock = false;
     d.archive_priority = 0;
-    d.archive_clock_snapshot_first = true;
     d.pid_zero_is_idle = true;
     d.detection_priority = 230;
     return d;

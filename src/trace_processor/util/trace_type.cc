@@ -101,6 +101,14 @@ bool TraceImporterRegistry::IsContainer(TraceImporterId id) const {
   return Find(id)->is_container;
 }
 
+bool TraceImporterRegistry::MayHaveClockSnapshot(
+    TraceImporterId id,
+    const TraceBlobView* begin,
+    const TraceBlobView* end) const {
+  const TraceImporterBase* importer = FindImporter(id);
+  return !importer || importer->MayHaveClockSnapshot(begin, end);
+}
+
 CompressedTraceType SniffCompressedTraceType(const uint8_t* data, size_t size) {
   if (size >= 2 && data[0] == 0x1f && data[1] == 0x8b) {
     return CompressedTraceType::kGzip;
