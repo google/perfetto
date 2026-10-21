@@ -40,8 +40,14 @@ WHERE
 -- duration slice on the path from the root are dropped.
 CREATE PERFETTO TABLE _hard_irq_flattened_ids AS
 FROM (SELECT id, parent_id, ts, dur FROM linux_hard_irqs)
+-- TODO(lalitm): MIN(id) stands in for the root of each tree and relies on a
+-- parent's id being smaller than its children's, which is not guaranteed.
+-- Switch to ARG_MIN(id, depth) once pipelines support it.
 |> TREE ACCUMULATE DOWN MIN(id) AS root_id, MIN(dur) AS min_dur
 |> WHERE min_dur > 0
+-- TODO(lalitm): MAX(id) stands in for the deepest slice and relies on a
+-- child's id being greater than its parent's, which is not guaranteed.
+-- Switch to ARG_MAX(id, depth) once pipelines support it.
 |> INTERVAL FLATTEN PER root_id AGGREGATE MAX(id) AS id;
 
 CREATE PERFETTO TABLE _hard_irq_flattened_slices AS
