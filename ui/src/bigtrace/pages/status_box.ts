@@ -34,7 +34,10 @@ export function formatDurationS(ms: number): string {
 }
 
 export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
-  if (!tab.materialize || !tab.queryUuid) return false;
+  // Multi-query runs are always async.
+  const isAsync = tab.materialize || tab.queries.length > 1;
+  if (!isAsync || !tab.queryUuid) return false;
+  const isTraces = tab.queryEngine === 'traces';
 
   const isTerminal =
     tab.execution?.status !== undefined &&
@@ -100,23 +103,33 @@ export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
     .join(' ');
   const rightGroupContent = m(
     '.pf-bt-status-bar-group',
-    m(
-      'span.pf-bt-status-bar-stat.pf-bt-status-bar-stat--traces',
-      m('span.pf-bt-status-bar-stat-label', 'Traces:'),
+    isTraces &&
       m(
-        'span.pf-bt-status-bar-stat-value',
-        {
-          title:
-            `${processedTraces.toLocaleString()} of ` +
-            `${totalTraces.toLocaleString()}` +
-            (!isTerminal
-              ? ' — numerator lags the poll (≤3s); denominator is exact.'
-              : ''),
-        },
-        formatCompact(processedTraces),
+        'span.pf-bt-status-bar-stat.pf-bt-status-bar-stat--traces',
+        m('span.pf-bt-status-bar-stat-label', 'Traces:'),
+        m(
+          'span.pf-bt-status-bar-stat-value',
+          {
+            title:
+              `${processedTraces.toLocaleString()} of ` +
+              `${totalTraces.toLocaleString()}` +
+              (!isTerminal
+                ? ' — numerator lags the poll (≤3s); denominator is exact.'
+                : ''),
+          },
+          formatCompact(processedTraces),
+        ),
+        renderInlineProgressBar(processedTraces, totalTraces, !isTerminal),
       ),
-      renderInlineProgressBar(processedTraces, totalTraces, !isTerminal),
-    ),
+    // DuckDB queries report their progress as processedTraces of 100.
+    !isTraces &&
+      !isTerminal &&
+      m(
+        'span.pf-bt-status-bar-stat',
+        m('span.pf-bt-status-bar-stat-label', 'Progress:'),
+        m('span.pf-bt-status-bar-stat-value', `${processedTraces}%`),
+        renderInlineProgressBar(processedTraces, totalTraces, true),
+      ),
     m(
       'span',
       {className: rowsStatClasses},
@@ -141,7 +154,12 @@ export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
         },
         m(
           '.pf-bt-status-bar-progress-tooltip',
-          m('div', `Traces: ${formatCompact(processedTraces)}`),
+          m(
+            'div',
+            isTraces
+              ? `Traces: ${formatCompact(processedTraces)}`
+              : `Progress: ${processedTraces}%`,
+          ),
           m('div', `Rows: ${formatCompact(processedRows)}`),
         ),
       )

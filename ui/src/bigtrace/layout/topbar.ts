@@ -19,8 +19,34 @@ import {Button} from '../../widgets/button';
 import {settingsStorage} from '../settings/settings_storage';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {PopupPosition} from '../../widgets/popup';
+import {RadioGroup} from '../../widgets/radio_group';
 import {toggleHelp} from '../help_modal';
 import {ConnectionButton} from './connection_button';
+import {getQueryTabsState, openEngineTab} from '../pages/query_tabs_state';
+import {serverHasFeature} from '../settings/server_capabilities';
+
+// The active tab's query engine, for servers that run DuckDB SQL (only the
+// local server does): elsewhere there is nothing to choose.
+function renderEngineToggle(): m.Children {
+  if (!serverHasFeature('duckdb')) return null;
+  const tabsState = getQueryTabsState();
+  const engine = tabsState.getActiveTab()?.queryEngine ?? 'traces';
+  return m(
+    RadioGroup,
+    {
+      selectedValue: engine,
+      title: 'The query language of this tab',
+      onValueChange: (value: string) => {
+        if (value === engine) return;
+        openEngineTab(tabsState, value === 'duckdb' ? 'duckdb' : 'traces');
+      },
+    },
+    [
+      m(RadioGroup.Button, {value: 'traces', icon: 'code'}, 'PerfettoSQL'),
+      m(RadioGroup.Button, {value: 'duckdb', icon: 'database'}, 'DuckDB SQL'),
+    ],
+  );
+}
 
 // The app's only chrome: brand, command omnibox, and the backend connection.
 export class Topbar implements m.ClassComponent {
@@ -31,6 +57,7 @@ export class Topbar implements m.ClassComponent {
         'BigTrace',
       ]),
       m('.pf-topbar__right', [
+        renderEngineToggle(),
         m(ConnectionButton),
         // Two rare actions, so one door rather than two: the topbar stays
         // the connection and nothing else, and help has somewhere to be

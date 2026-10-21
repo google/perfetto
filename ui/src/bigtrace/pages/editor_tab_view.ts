@@ -19,12 +19,19 @@ import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';
 import {Editor} from '../../widgets/editor';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
+import {Spinner} from '../../widgets/spinner';
 import {SplitPanel} from '../../widgets/split_panel';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {Switch} from '../../widgets/switch';
+import {TabStrip} from '../../widgets/tab_strip';
 import {TextInput} from '../../widgets/text_input';
+import {showModal} from '../../widgets/modal';
 import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
 import {getBigtraceEndpoint} from '../settings/endpoint_storage';
+import {
+  serverHasFeature,
+  serverLacksFeature,
+} from '../settings/server_capabilities';
 import {BigtraceAsyncDataSource} from '../query/bigtrace_async_data_source';
 import {formatPerfettoSql} from '../query/sql_formatter';
 import {BigtraceQueryClient} from '../query/bigtrace_query_client';
@@ -32,9 +39,13 @@ import type {QueryRunner} from '../query/query_runner';
 import {
   type BigTraceEditorTab,
   type QueryTabsState,
+  addQuery,
   applyModeDefaults,
+  canRenameQuery,
   hasQueryText,
   effectiveTabSettings,
+  openEngineTab,
+  removeQuery,
 } from './query_tabs_state';
 import {openQuerySettingsModal} from './query_settings_modal';
 import {renderResultsPanel} from './results_panel';
@@ -67,8 +78,10 @@ export class EditorTabView implements m.ClassComponent<EditorTabViewAttrs> {
 
     // A tab with no configuration yet shows the launcher instead of the editor:
     // every query starts from a preset or a deliberate custom setup. A
-    // configured tab shows it too while its Settings are open.
-    if (!tab.configured || tab.settingsSession !== undefined) {
+    // configured tab shows it too while its Settings are open. DuckDB tabs
+    // have no trace selection.
+    const isDuckdb = tab.queryEngine === 'duckdb';
+    if (!isDuckdb && (!tab.configured || tab.settingsSession !== undefined)) {
       return m(
         '.pf-bt-editor-tab',
         m(QueryLauncher, {
@@ -80,11 +93,12 @@ export class EditorTabView implements m.ClassComponent<EditorTabViewAttrs> {
     }
 
     return m('.pf-bt-editor-tab', [
-      m(BigtraceSettingsBar, {
-        tab,
-        tabsState,
-        bindings: buildTabBindings(tab, tabsState),
-      }),
+      !isDuckdb &&
+        m(BigtraceSettingsBar, {
+          tab,
+          tabsState,
+          bindings: buildTabBindings(tab, tabsState),
+        }),
       m(SplitPanel, {
         direction: 'vertical',
         initialSplit: {percent: 22},
@@ -207,6 +221,78 @@ async function formatTabQuery(
   m.redraw();
 }
 
+// Runs `tab`, first asking the backend whether a result table a persistent
+// run would write already exists. If one does, the user picks between
+// overwriting it and running a copy of the tab, under another name, in a new
+// tab.
+async function runTab(
+  tab: BigTraceEditorTab,
+  tabsState: QueryTabsState,
+  runner: QueryRunner,
+  query: string,
+): Promise<void> {
+  const endpoint = getBigtraceEndpoint().trim();
+  if (tab.materialize && endpoint !== '') {
+    const client = new BigtraceQueryClient(endpoint);
+    for (const [i, q] of tab.queries.entries()) {
+      if (!hasQueryText(q.sql)) continue;
+      let check;
+      try {
+        check = await client.checkTableExists(
+          q.tableName,
+          tab.lifecycle.signal,
+        );
+      } catch {
+        continue; // The backend has the last word when the run starts.
+      }
+      if (!check.exists) continue;
+      const choice = await askOverwrite(
+        check.resolvedTableName,
+        check.suggestedTableName ?? `${check.resolvedTableName}_1`,
+      );
+      if (choice === undefined) return;
+      if (choice.newTableName === undefined) break;
+      const clone = tabsState.cloneTab(tab.id, choice.newTableName, i);
+      if (clone !== undefined) await runner.run(clone, query);
+      return;
+    }
+  }
+  await runner.run(tab, query);
+}
+
+// Undefined: cancelled. No `newTableName`: overwrite.
+function askOverwrite(
+  table: string,
+  suggested: string,
+): Promise<{readonly newTableName?: string} | undefined> {
+  return new Promise((resolve) => {
+    let name = suggested;
+    void showModal({
+      title: `Table "${table}" already exists`,
+      content: () =>
+        m(
+          Stack,
+          {orientation: 'vertical', gap: 'normal'},
+          'Overwrite it, or run in a new tab with another table name:',
+          m(TextInput, {
+            value: name,
+            autofocus: true,
+            onInput: (value: string) => (name = value),
+          }),
+        ),
+      buttons: [
+        {text: 'Cancel', action: () => resolve(undefined)},
+        {text: 'Overwrite', action: () => resolve({})},
+        {
+          text: 'Create New Tab',
+          primary: true,
+          action: () => resolve({newTableName: name.trim() || suggested}),
+        },
+      ],
+    }).then(() => resolve(undefined));
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Editor panel: toolbar (Run/Cancel + limit + Persistent) and the editor.
 // ---------------------------------------------------------------------------
@@ -217,6 +303,8 @@ function renderEditorPanel(
   runner: QueryRunner,
   useBigtraceBackend: boolean,
 ): m.Children {
+  const multi = tab.queries.length > 1;
+  const unsupported = unsupportedByServer(tab);
   return m('.pf-bt-query-page__editor-panel', [
     m(Box, {className: 'pf-bt-query-page__toolbar'}, [
       m(Stack, {orientation: 'horizontal'}, [
@@ -229,12 +317,14 @@ function renderEditorPanel(
               onclick: () => runner.cancel(tab),
             })
           : m(Button, {
-              label: 'Run Query',
+              label: multi ? `Run ${tab.queries.length} Queries` : 'Run Query',
               icon: 'play_arrow',
               intent: Intent.Primary,
               variant: ButtonVariant.Filled,
-              disabled: !hasQueryText(tab.editorText),
-              onclick: () => runner.run(tab, tab.editorText),
+              disabled:
+                unsupported !== undefined ||
+                !tab.queries.some((q) => hasQueryText(q.sql)),
+              onclick: () => runTab(tab, tabsState, runner, tab.editorText),
             }),
         m(
           Stack,
@@ -254,7 +344,22 @@ function renderEditorPanel(
         useBigtraceBackend && renderRunControls(tab, tabsState),
       ]),
     ]),
-    tab.editorText.includes('"') &&
+    multi && renderQueryStrip(tab, tabsState),
+    unsupported !== undefined &&
+      m(
+        Callout,
+        {icon: 'info', intent: Intent.Warning},
+        unsupported,
+        tab.queryEngine === 'duckdb' &&
+          m(Button, {
+            label: 'New PerfettoSQL tab',
+            icon: 'code',
+            compact: true,
+            onclick: () => openEngineTab(tabsState, 'traces'),
+          }),
+      ),
+    tab.queryEngine === 'traces' &&
+      tab.editorText.includes('"') &&
       m(
         Callout,
         {icon: 'warning', intent: Intent.None},
@@ -273,20 +378,95 @@ function renderEditorPanel(
         tab.editorText = text;
         tabsState.markDirty();
       },
-      onExecute: (query: string) => runner.run(tab, query),
+      onExecute: (query: string) => {
+        if (unsupported === undefined) {
+          void runTab(tab, tabsState, runner, query);
+        }
+      },
     }),
   ]);
+}
+
+// Why the configured server can't run `tab`, which a server with more
+// features (the local server) left behind, or undefined if it can.
+function unsupportedByServer(tab: BigTraceEditorTab): string | undefined {
+  if (tab.queryEngine === 'duckdb' && serverLacksFeature('duckdb')) {
+    return 'This server does not run DuckDB SQL.';
+  }
+  if (tab.queries.length > 1 && serverLacksFeature('multi_query')) {
+    return (
+      'This server runs one query at a time: remove the other queries to ' +
+      'run this tab.'
+    );
+  }
+  return undefined;
+}
+
+// The queries of a multi-query tab, each named after its result table
+// (double-click to rename) and marked while running or failed.
+function renderQueryStrip(
+  tab: BigTraceEditorTab,
+  tabsState: QueryTabsState,
+): m.Children {
+  return m(
+    TabStrip,
+    {variant: 'underline'},
+    tab.queries.map((q, i) =>
+      m(
+        TabStrip.Tab,
+        {
+          active: i === tab.activeQueryIndex,
+          icon:
+            q.execution?.status === 'IN_PROGRESS'
+              ? m(Spinner)
+              : q.execution?.status === 'FAILED'
+                ? 'error'
+                : m('span', `#${i + 1}`),
+          onclick: () => {
+            tab.activeQueryIndex = i;
+            tabsState.markDirty();
+          },
+          onRename: canRenameQuery(tab, q)
+            ? (name: string) => {
+                q.tableName = name;
+                tabsState.markDirty();
+              }
+            : undefined,
+          onClose: tab.isLoading
+            ? undefined
+            : () => {
+                removeQuery(tab, i);
+                tabsState.markDirty();
+              },
+        },
+        q.tableName,
+      ),
+    ),
+  );
 }
 
 // Mode switch, the row cap, and the gear opening the query-settings modal
 // (the trace cap and every non-trace-selection setting). The gear is always
 // there: the trace cap is a universal request field, whatever the backend
-// declares.
+// declares. DuckDB tabs have only the mode switch.
 function renderRunControls(
   tab: BigTraceEditorTab,
   tabsState: QueryTabsState,
 ): m.Children {
+  const isTraces = tab.queryEngine === 'traces';
   return [
+    isTraces &&
+      serverHasFeature('multi_query') &&
+      m(Button, {
+        icon: 'add',
+        label: 'Add Query',
+        title: 'Run another query in the same pass over the traces',
+        disabled: tab.isLoading,
+        onclick: () => {
+          addQuery(tab);
+          tabsState.markDirty();
+        },
+      }),
     m(Switch, {
       label: 'Persistent',
       title:
@@ -299,35 +479,37 @@ function renderRunControls(
         tabsState.markDirty();
       },
     }),
-    m('span.pf-bt-divider', {'aria-hidden': 'true'}),
-    m('span', 'Rows:'),
-    m(TextInput, {
-      type: 'number',
-      className: 'pf-bt-limit-input',
-      value: String(tab.limit),
-      title: 'Maximum rows this query returns.',
-      disabled: tab.isLoading,
-      onInput: (value: string) => {
-        const newLimit = parseInt(value, 10);
-        if (!isNaN(newLimit) && newLimit >= 0) {
-          tab.limit = newLimit;
-          tabsState.markDirty();
-        }
-      },
-    }),
-    m(Button, {
-      icon: 'settings',
-      title:
-        'Advanced query settings — the trace cap and the query options. ' +
-        'Applied from the next run.',
-      disabled: tab.isLoading,
-      onclick: () =>
-        void openQuerySettingsModal(
-          tab,
-          tabsState,
-          buildTabBindings(tab, tabsState),
-        ),
-    }),
+    isTraces && [
+      m('span.pf-bt-divider', {'aria-hidden': 'true'}),
+      m('span', 'Rows:'),
+      m(TextInput, {
+        type: 'number',
+        className: 'pf-bt-limit-input',
+        value: String(tab.limit),
+        title: 'Maximum rows this query returns.',
+        disabled: tab.isLoading,
+        onInput: (value: string) => {
+          const newLimit = parseInt(value, 10);
+          if (!isNaN(newLimit) && newLimit >= 0) {
+            tab.limit = newLimit;
+            tabsState.markDirty();
+          }
+        },
+      }),
+      m(Button, {
+        icon: 'settings',
+        title:
+          'Advanced query settings — the trace cap and the query options. ' +
+          'Applied from the next run.',
+        disabled: tab.isLoading,
+        onclick: () =>
+          void openQuerySettingsModal(
+            tab,
+            tabsState,
+            buildTabBindings(tab, tabsState),
+          ),
+      }),
+    ],
   ];
 }
 

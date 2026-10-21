@@ -805,6 +805,8 @@ function runVite() {
     NO_TREESHAKE: cfg.noTreeshake ? 'true' : '',
     MINIFY_JS: cfg.minifyJs || '',
     IS_MEMORY64_ONLY: cfg.onlyWasmMemory64 ? 'true' : '',
+    // See the Bigtrace proxy in startViteDevServer.
+    BIGTRACE_DEV_PROXY: cfg.bigtrace && cfg.useHmr ? 'true' : '',
   };
   const bundles = ['engine', 'traceconv', 'service_worker', 'chrome_extension'];
   if (!cfg.useHmr) bundles.unshift('frontend');
@@ -960,6 +962,36 @@ async function startViteDevServer() {
     next();
   });
 
+  // `--bigtrace` dev builds proxy the API to the local Bigtrace server
+  // (tools/bigtrace_server.py on $BIGTRACE_SERVER_PORT, default 5001), so a
+  // browser that can only reach this port (e.g. over SSH) reaches it too.
+  if (cfg.bigtrace) {
+    const port = Number(process.env.BIGTRACE_SERVER_PORT || 5001);
+    server.middlewares.use((req, res, next) => {
+      if (!req.url.startsWith('/v1/') && !req.url.startsWith('/trace/')) {
+        return next();
+      }
+      const proxyReq = http.request(
+        {
+          host: '127.0.0.1',
+          port,
+          path: req.url,
+          method: req.method,
+          headers: {...req.headers, host: `127.0.0.1:${port}`},
+        },
+        (proxyRes) => {
+          res.writeHead(proxyRes.statusCode, proxyRes.headers);
+          proxyRes.pipe(res);
+        },
+      );
+      proxyReq.on('error', (err) => {
+        res.statusCode = 502;
+        res.end(`Bigtrace backend unavailable: ${err.message}`);
+      });
+      req.pipe(proxyReq);
+    });
+  }
+
   // Fall back to serving files from outDistRootDir / outDistDir for anything
   // Vite hasn't claimed (wasm modules, fonts under /assets/, manifest.json,
   // etc.). In prod, frontend.css lives inside the versioned dir, so the
@@ -968,7 +1000,9 @@ async function startViteDevServer() {
   // browser asks for /assets/Roboto.woff2. Try outDistDir as a second root
   // so those font requests succeed.
   server.middlewares.use((req, res, next) => {
-    const url = req.url.split('?', 1)[0];
+    let url = req.url.split('?', 1)[0];
+    // Bigtrace assets resolved relative to an /assets/ URL get it doubled.
+    if (cfg.bigtrace) url = url.replace('/assets/assets/', '/assets/');
     // Vite handles JS/TS/CSS modules and HMR endpoints itself.
     if (url === '/' || url === '/index.html') return next();
     const roots = [cfg.outDistRootDir, cfg.outDistDir];

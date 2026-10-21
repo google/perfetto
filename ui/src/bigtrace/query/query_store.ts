@@ -80,6 +80,7 @@ export interface QueryExecution {
   totalTraces: number;
   error?: string;
   perfettoSql?: string;
+  queryEngine?: 'traces' | 'duckdb';
   limit?: number;
   materialized?: boolean;
   tableName?: string;

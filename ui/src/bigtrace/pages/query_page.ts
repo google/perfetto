@@ -22,7 +22,7 @@ import {QueryRunner} from '../query/query_runner';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {showModal} from '../../widgets/modal';
 import {EditorTabView} from './editor_tab_view';
-import {QueryTabsState} from './query_tabs_state';
+import {getQueryTabsState} from './query_tabs_state';
 import {handleSharedTraceListPostMessage} from './shared_trace_list';
 
 interface QueryPageAttrs {
@@ -36,7 +36,7 @@ export let queryRightSidebarToggleFn: (() => void) | undefined;
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private useBigtraceBackend = false;
   private sidebarVisible = true;
-  private readonly tabsState = new QueryTabsState();
+  private readonly tabsState = getQueryTabsState();
   private historyRefreshSignal = 0;
   private messageListener?: (e: MessageEvent) => void;
   private readonly runner = new QueryRunner({
@@ -80,7 +80,11 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       key: tab.id,
       title: tab.title,
       // Spinner on in-flight tabs so switching away doesn't hide the run.
-      leftIcon: tab.isLoading ? m(Spinner) : 'code',
+      leftIcon: tab.isLoading
+        ? m(Spinner)
+        : tab.queryEngine === 'duckdb'
+          ? 'database'
+          : 'code',
       closeButton: this.tabsState.tabs.length > 1,
       content: m(EditorTabView, {
         tab,
@@ -161,6 +165,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         forceNew?: boolean,
         limit?: number,
         startTime?: number,
+        queryEngine?: 'traces' | 'duckdb',
       ) => {
         const tab = this.tabsState.addNewTab(
           undefined,
@@ -170,6 +175,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           materialize,
           forceNew,
         );
+        tab.queryEngine = queryEngine ?? 'traces';
         this.tabsState.activeTabId = tab.id;
         this.tabsState.markDirty();
         if (startTime !== undefined && tab.execution) {

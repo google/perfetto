@@ -38,6 +38,7 @@ const ENABLE_BIGTRACE = process.env.ENABLE_BIGTRACE === 'true';
 const ENABLE_OPEN_PERFETTO_TRACE =
   process.env.ENABLE_OPEN_PERFETTO_TRACE === 'true';
 const IS_MEMORY64_ONLY = process.env.IS_MEMORY64_ONLY === 'true';
+const BIGTRACE_DEV_PROXY = process.env.BIGTRACE_DEV_PROXY === 'true';
 const EXPERIMENTAL_MITHRIL_HMR =
   process.env.EXPERIMENTAL_MITHRIL_HMR === 'true';
 
@@ -515,6 +516,10 @@ export default defineConfig(({command}) => {
     define: {
       // Immer reads process.env.NODE_ENV; not defined in browser.
       'process.env.NODE_ENV': JSON.stringify('production'),
+      // Read by bigtrace/settings/endpoint_storage.ts.
+      ...(BIGTRACE_DEV_PROXY
+        ? {'globalThis.__BIGTRACE_DEV_PROXY__': 'true'}
+        : {}),
     },
     // The wasm glue files in ui/src/gen (proto_utils.js, trace_processor.js,
     // traceconv.js) are UMD with a tacked-on `module.exports.default`. Vite's

@@ -19,10 +19,16 @@ import {type BigtraceColumnSchema, parseCellValue} from './column_types';
 import {coerceFiltersForWire} from './filter_encoding';
 import type {RawQueryExecution} from './query_history_storage';
 
+export interface BatchExecutionItem {
+  readonly queryUuid: string;
+  readonly tableName?: string;
+}
+
 // Tabular wire shape for QueryResponse (`/execute_*` and `:fetch_results`).
 // Values are always strings; JSON null or "NULL" denotes SQL NULL.
 interface QueryResponsePayload {
   queryUuid?: string;
+  executions?: BatchExecutionItem[];
   schema?: BigtraceColumnSchema[];
   rows?: Array<{values: Array<string | null>}>;
   // Filtered count for scrollbar sizing.
@@ -45,6 +51,7 @@ export interface QueryResultPage {
   readonly columns: ReadonlyArray<string>;
   readonly schema: ReadonlyArray<BigtraceColumnSchema>;
   readonly queryUuid?: string;
+  readonly executions?: ReadonlyArray<BatchExecutionItem>;
   // Post-filter count from `:fetch_results`; undefined elsewhere.
   readonly totalFilteredRows?: number;
   // Every projectable column (result + metadata columns); `:fetch_results`-only.
@@ -105,6 +112,14 @@ export function toExperimentFilterSpec(
   };
 }
 
+// One query of a multi-query run. `slotId` is UI-only (it maps the returned
+// executions back to their editor slots) and never goes on the wire.
+export interface SubQuerySpec {
+  readonly perfettoSql: string;
+  readonly tableName?: string;
+  readonly slotId?: string;
+}
+
 // The submit-time trace-selection snapshot shipped as top-level fields on
 // /execute_*. Each is omitted from the wire when empty / default, so a query
 // run with no trace selection sends just the base limit/perfetto_sql/settings.
@@ -127,6 +142,19 @@ export interface ExecuteOptions {
   // How many days that table lives for. Independent of the name: the table
   // exists either way.
   readonly tableTtlDays?: number;
+  // 'duckdb' runs DuckDB SQL over result tables (local server only).
+  readonly engine?: 'traces' | 'duckdb';
+  readonly materialized?: boolean;
+  // Several queries run in one pass over the traces.
+  readonly queries?: ReadonlyArray<SubQuerySpec>;
+}
+
+export interface ServerInfo {
+  readonly features?: ReadonlyArray<string>;
+  // Set by the local server (tools/bigtrace_server.py).
+  readonly service?: string;
+  readonly traceCount?: number;
+  readonly traceDir?: string;
 }
 
 // What `/check_table_exists` says about a name before it is used.
@@ -135,6 +163,8 @@ export interface TableNameCheck {
   // The name the backend would actually create, which may namespace or
   // normalise what was asked for.
   readonly resolvedTableName: string;
+  // A fresh non-colliding alternative (e.g. `<name>_1`).
+  readonly suggestedTableName?: string;
 }
 
 // One analysis preset from `GET /trace_presets`: display metadata plus a
@@ -243,9 +273,11 @@ export class BigtraceQueryClient {
     uuid: string,
     signal?: AbortSignal,
   ): Promise<RawQueryExecution> {
-    return this.requestJson<RawQueryExecution>(
-      `/query_executions/${uuid}:status`,
-      {signal},
+    return dropNulls(
+      await this.requestJson<RawQueryExecution>(
+        `/query_executions/${uuid}:status`,
+        {signal},
+      ),
     );
   }
 
@@ -253,9 +285,11 @@ export class BigtraceQueryClient {
     uuid: string,
     signal?: AbortSignal,
   ): Promise<RawQueryExecution> {
-    return this.requestJson<RawQueryExecution>(`/query_executions/${uuid}`, {
-      signal,
-    });
+    return dropNulls(
+      await this.requestJson<RawQueryExecution>(`/query_executions/${uuid}`, {
+        signal,
+      }),
+    );
   }
 
   // Page a query's results. POST body: `limit`/`offset` plus optional
@@ -329,7 +363,7 @@ export class BigtraceQueryClient {
     const result = await this.requestJson<{
       queryExecutions?: RawQueryExecution[];
     }>('/query_executions', {signal});
-    return result.queryExecutions ?? [];
+    return (result.queryExecutions ?? []).map(dropNulls);
   }
 
   // The analysis-presets catalog. Backends that don't implement it 404;
@@ -392,6 +426,7 @@ export class BigtraceQueryClient {
     return {
       exists: result.exists === true,
       resolvedTableName: result.resolvedTableName ?? tableName,
+      suggestedTableName: result.suggestedTableName,
     };
   }
 
@@ -407,6 +442,11 @@ export class BigtraceQueryClient {
       },
     );
     return result.tracePresets ?? [];
+  }
+
+  // `GET /`: the optional `features` the backend advertises.
+  async getServerInfo(signal?: AbortSignal): Promise<ServerInfo> {
+    return this.requestJson<ServerInfo>('/', {signal});
   }
 
   // Deleting an execution takes its table with it: the results are the
@@ -579,6 +619,14 @@ export class BigtraceQueryClient {
     if (options?.tableTtlDays !== undefined && options.tableTtlDays > 0) {
       body.table_ttl_days = options.tableTtlDays;
     }
+    if (options?.engine === 'duckdb') body.engine = 'duckdb';
+    if (options?.materialized === false) body.materialized = false;
+    if (options?.queries !== undefined && options.queries.length > 0) {
+      body.queries = options.queries.map((q) => ({
+        perfetto_sql: q.perfettoSql,
+        ...(q.tableName ? {table_name: q.tableName} : {}),
+      }));
+    }
     const result = await this.requestJson<QueryResponsePayload>(path, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -649,14 +697,16 @@ export class BigtraceQueryClient {
 
   private async requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await this.request(path, init);
-    return (await response.json()) as T;
+    try {
+      return (await response.json()) as T;
+    } catch (e) {
+      // Aborted while the body was still streaming.
+      if (init?.signal?.aborted) throw new QueryCancelledError();
+      throw e;
+    }
   }
 }
 
-// Passes wire values through as-is: no numeric coercion (would corrupt 64-bit
-// ids/timestamps past 2^53), and SQL NULL arrives as JSON null. Do NOT
-// special-case the literal string "NULL" — that would corrupt a genuine "NULL"
-// string value into SQL NULL.
 // camelCase spec -> the snake_case triple every request body carries.
 function experimentFilterToWire(filter: ExperimentFilterSpec) {
   return {
@@ -666,17 +716,23 @@ function experimentFilterToWire(filter: ExperimentFilterSpec) {
   };
 }
 
+// Passes wire values through as-is: no numeric coercion (would corrupt 64-bit
+// ids/timestamps past 2^53), and SQL NULL arrives as JSON null. Do NOT
+// special-case the literal string "NULL" — that would corrupt a genuine "NULL"
+// string value into SQL NULL.
 export function parseQueryResponse(
   result: QueryResponsePayload,
 ): QueryResultPage {
   const schema = result.schema ?? [];
   const columns = schema.map((s) => s.name);
+  const executions = result.executions?.map(dropNulls);
 
   if (columns.length === 0) {
     return {
       rows: [],
       columns: [],
       queryUuid: result.queryUuid,
+      executions,
       totalFilteredRows: result.totalFilteredRows,
       schema: [],
     };
@@ -694,7 +750,17 @@ export function parseQueryResponse(
     rows,
     columns,
     queryUuid: result.queryUuid,
+    executions,
     totalFilteredRows: result.totalFilteredRows,
     schema,
   };
+}
+
+// Backends may send `null` for unset fields; the wire types say "absent".
+function dropNulls<T extends object>(obj: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== null) out[k] = v;
+  }
+  return out as T;
 }
