@@ -72,7 +72,8 @@ class PlanType {
   // Whether the column is known to hold values of type T.
   template <typename T>
   bool Is() const {
-    return storage() && storage()->Is<T>();
+    std::optional<core::StorageType> type = storage();
+    return type && type->Is<T>();
   }
 
  private:
