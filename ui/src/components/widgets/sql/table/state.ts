@@ -20,7 +20,7 @@ import {
 } from './sql_column';
 import {buildSqlQuery} from './query_builder';
 import type {SortDirection} from '../../../../base/comparison_utils';
-import {assertTrue} from '../../../../base/assert';
+import {assertTrue, ensureDefined} from '../../../../base/assert';
 import type {SqlTableDescription} from './table_description';
 import type {Trace} from '../../../../public/trace';
 import {areFiltersEqual, type Filter, Filters} from './filters';
@@ -314,11 +314,12 @@ export class SqlTableState {
   }
 
   isSortedBy(column: TableColumn): SortDirection | undefined {
-    if (this.orderBy.length === 0) return undefined;
-    if (tableColumnId(this.orderBy[0]!.column) !== tableColumnId(column)) {
+    const first = this.orderBy[0];
+    if (first === undefined) return undefined;
+    if (tableColumnId(first.column) !== tableColumnId(column)) {
       return undefined;
     }
-    return this.orderBy[0]!.direction;
+    return first.direction;
   }
 
   getOrderedBy(): ColumnOrderClause[] {
@@ -338,7 +339,7 @@ export class SqlTableState {
   }
 
   hideColumnAtIndex(index: number) {
-    const column = this.columns[index]!;
+    const column = ensureDefined(this.columns[index]);
     this.columns.splice(index, 1);
     this.willRemoveColumn(column);
     // TODO(altimin): we can avoid the fetch here if the orderBy hasn't changed.

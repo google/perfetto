@@ -258,8 +258,12 @@ export class InMemoryDataSource implements DataSource {
     if (a.length !== b.length) return false;
 
     return a.every((colA, i) => {
-      const colB = b[i]!;
-      return colA.alias === colB.alias && colA.field === colB.field;
+      const colB = b[i];
+      return (
+        colB !== undefined &&
+        colA.alias === colB.alias &&
+        colA.field === colB.field
+      );
     });
   }
 
@@ -348,7 +352,7 @@ export class InMemoryDataSource implements DataSource {
           case 'is null':
             return value === null;
           case 'is not null':
-            return value !== null;
+            return value !== null && value !== undefined;
           case 'glob':
             if (typeof value === 'string' && typeof filter.value === 'string') {
               // Simple glob matching - convert glob to regex

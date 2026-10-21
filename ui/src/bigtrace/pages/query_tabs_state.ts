@@ -864,8 +864,9 @@ export class QueryTabsState {
       if (!found) {
         // Restored tabs get new IDs, so activate by index instead.
         const idx = parsed.tabs.findIndex((t) => t.id === parsed.activeTabId);
-        if (idx >= 0 && idx < this.tabs.length) {
-          this.activeTabId = this.tabs[idx]!.id;
+        const tab = this.tabs[idx];
+        if (tab !== undefined) {
+          this.activeTabId = tab.id;
         }
       }
     }

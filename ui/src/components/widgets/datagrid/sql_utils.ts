@@ -91,10 +91,11 @@ export function sqlPathsIn(
 
   // Paths without NULLs can use efficient IN syntax
   if (pathsWithoutNulls.length > 0) {
-    if (columns.length === 1) {
+    const [onlyColumn] = columns;
+    if (columns.length === 1 && onlyColumn !== undefined) {
       // Single column: simple IN
       const values = pathsWithoutNulls.map((p) => sqlValue(p[0]!)).join(', ');
-      conditions.push(`${columns[0]} IN (${values})`);
+      conditions.push(`${onlyColumn} IN (${values})`);
     } else {
       // Multiple columns: tuple IN
       const colTuple = columns.join(', ');
@@ -110,10 +111,11 @@ export function sqlPathsIn(
     conditions.push(sqlPathMatch(columns, path));
   }
 
-  if (conditions.length === 0) {
+  const [firstCondition] = conditions;
+  if (firstCondition === undefined) {
     return 'FALSE';
   } else if (conditions.length === 1) {
-    return conditions[0]!;
+    return firstCondition;
   } else {
     return `(${conditions.join(' OR ')})`;
   }
@@ -135,10 +137,11 @@ export function sqlPathsNotIn(
 
   // Paths without NULLs can use efficient NOT IN syntax
   if (pathsWithoutNulls.length > 0) {
-    if (columns.length === 1) {
+    const [onlyColumn] = columns;
+    if (columns.length === 1 && onlyColumn !== undefined) {
       // Single column: simple NOT IN
       const values = pathsWithoutNulls.map((p) => sqlValue(p[0]!)).join(', ');
-      conditions.push(`${columns[0]} NOT IN (${values})`);
+      conditions.push(`${onlyColumn} NOT IN (${values})`);
     } else {
       // Multiple columns: tuple NOT IN
       const colTuple = columns.join(', ');
@@ -154,10 +157,11 @@ export function sqlPathsNotIn(
     conditions.push(sqlPathNotMatch(columns, path));
   }
 
-  if (conditions.length === 0) {
+  const [firstCondition] = conditions;
+  if (firstCondition === undefined) {
     return 'TRUE';
   } else if (conditions.length === 1) {
-    return conditions[0]!;
+    return firstCondition;
   } else {
     return conditions.join(' AND ');
   }

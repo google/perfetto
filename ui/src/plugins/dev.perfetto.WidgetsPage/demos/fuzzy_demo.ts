@@ -186,8 +186,8 @@ export function renderFuzzyDemo(): m.Children {
       );
       results = searchResults.map((res) => ({
         item: res.item,
-        nameSegments: res.segments[0]!,
-        categorySegments: res.segments[1]!,
+        nameSegments: res.segments[0],
+        categorySegments: res.segments[1],
         score: res.score,
       }));
     } else {
