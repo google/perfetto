@@ -53,7 +53,7 @@ constexpr CpuArch CurrentCpuArch() {
 #endif
 }
 
-// Per-architecture register indices following DWARF register numbering.
+// Per-architecture register indices following **DWARF** register ordering.
 
 enum ArmReg : uint16_t {
   ARM_REG_R0 = 0,

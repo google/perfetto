@@ -19,9 +19,6 @@
 #include <sys/mman.h>
 #include <unwindstack/Unwinder.h>
 
-#include "perfetto/base/logging.h"
-#include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/unwind/cpu_registers.h"
 #include "test/gtest_and_gmock.h"
 
