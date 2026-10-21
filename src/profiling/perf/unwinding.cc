@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/profiling/perf/frame_pointer_unwinder.h"
+#include "src/profiling/unwind/cpu_registers.h"
 
 namespace {
 constexpr size_t kUnwindingMaxFrames = 1000;
@@ -407,19 +408,20 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
                                  ? metatrace::PROFILER_UNWIND_ATTEMPT
                                  : metatrace::PROFILER_UNWIND_INITIAL_ATTEMPT);
 
-    // Unwindstack clobbers registers, so make a copy in case of retries.
-    auto regs_copy = std::unique_ptr<unwindstack::Regs>{sample.regs->Clone()};
-
     switch (unwind_mode) {
       case UnwindMode::kFramePointer: {
+        // Unwind clobbers registers, so make a copy in case of retries.
+        CpuRegisters regs_copy = *sample.regs;
         FramePointerUnwinder unwinder(kUnwindingMaxFrames,
-                                      &unwind_state->fd_maps, regs_copy.get(),
+                                      &unwind_state->fd_maps, &regs_copy,
                                       overlay_memory, sample.stack.size());
         unwinder.Unwind();
         return {unwinder.LastErrorCode(), unwinder.warnings(),
                 unwinder.ConsumeFrames()};
       }
       case UnwindMode::kUnwindStack: {
+        std::unique_ptr<unwindstack::Regs> regs_copy =
+            ToLibUnwindstackRegs(*sample.regs);
         unwindstack::Unwinder unwinder(kUnwindingMaxFrames,
                                        &unwind_state->fd_maps, regs_copy.get(),
                                        overlay_memory);
@@ -553,7 +555,7 @@ std::vector<unwindstack::FrameData> Unwinder::SymbolizeKernelSuppliedUserFrames(
   // TODO(rsavitski): add vdso redirect and remove fd_mem.
   for (; it != sample.kernel_ips.end(); ++it) {
     ret.emplace_back(unwindstack::Unwinder::BuildFrameFromPcOnly(
-        *it, unwindstack::Regs::CurrentArch(), &user_state->fd_maps,
+        *it, ToLibUnwindstackArch(CurrentCpuArch()), &user_state->fd_maps,
         /*jit_debug=*/nullptr, user_state->fd_mem,
         /*resolve_names=*/false));
   }
