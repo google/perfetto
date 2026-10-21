@@ -65,7 +65,9 @@ PlanOperation::~PlanOperation() = default;
 void PlanOperation::MoveSqlSourcesToDataframeArgs(const NameTable&,
                                                   std::vector<std::string>*) {}
 
-base::Status PlanOperation::ResolveDataframes(LogicalPlan*, const Catalog&) {
+base::Status PlanOperation::ResolveDataframes(LogicalPlan*,
+                                              const Catalog&,
+                                              const PlanKey&) {
   return base::OkStatus();
 }
 

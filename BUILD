@@ -3971,6 +3971,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/physical_plan.h",
         "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.cc",
         "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h",
+        "src/trace_processor/perfetto_sql/pipeline/plan_key.cc",
+        "src/trace_processor/perfetto_sql/pipeline/plan_key.h",
         "src/trace_processor/perfetto_sql/pipeline/plan_serialization.cc",
         "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h",
         "src/trace_processor/perfetto_sql/pipeline/plan_types.h",

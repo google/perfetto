@@ -19199,6 +19199,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/physical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.cc",
+        "src/trace_processor/perfetto_sql/pipeline/plan_key.cc",
         "src/trace_processor/perfetto_sql/pipeline/plan_serialization.cc",
     ],
 }
@@ -19223,6 +19224,7 @@ filegroup {
     srcs: [
         "src/trace_processor/perfetto_sql/pipeline/logical_plan_unittest.cc",
         "src/trace_processor/perfetto_sql/pipeline/physical_plan_unittest.cc",
+        "src/trace_processor/perfetto_sql/pipeline/plan_key_unittest.cc",
         "src/trace_processor/perfetto_sql/pipeline/plan_serialization_unittest.cc",
     ],
 }

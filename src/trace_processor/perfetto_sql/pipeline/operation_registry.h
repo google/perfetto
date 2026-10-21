@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATION_REGISTRY_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 
 #include "perfetto/base/status.h"
@@ -26,7 +27,7 @@
 namespace perfetto::trace_processor::pipeline {
 
 class Compiler;
-class PlanReader;
+class PlanOperation;
 
 // Entry points which need no operation instance: building a plan from an AST
 // and reconstructing it from bytes. Each registration is a static singleton;
@@ -34,29 +35,21 @@ class PlanReader;
 class OperationRegistration {
  public:
   using BuildPlanFn = base::Status (*)(Compiler*, uint32_t);
-  using DecodePlanFn = void (*)(PlanReader*, Available*);
+  using MakeFn = std::unique_ptr<PlanOperation> (*)();
 
   class Encoding {
    public:
-    constexpr Encoding(uint8_t tag, bool is_source, DecodePlanFn decode_plan)
-        : tag_(tag), is_source_(is_source), decode_plan_(decode_plan) {}
+    constexpr Encoding(uint8_t tag, MakeFn make) : tag_(tag), make_(make) {}
 
-    void DecodePlan(PlanReader* reader, Available* available) const {
-      decode_plan_(reader, available);
-    }
+    // An empty operation of this kind, for a reader to fill in.
+    std::unique_ptr<PlanOperation> Make() const { return make_(); }
 
     uint8_t tag() const { return tag_; }
-    bool is_source() const { return is_source_; }
 
    private:
     // Explicit wire identifier, independent of registration order.
     uint8_t tag_;
-    // Starts a serialized pipeline. A source can have children: intersection
-    // embeds its operand scans rather than encoding them as preceding stages.
-    bool is_source_;
-    // Reads the payload after its tag, appends nodes to the reader's plan and
-    // updates available columns. The reader latches malformed-input failures.
-    DecodePlanFn decode_plan_;
+    MakeFn make_;
   };
 
   constexpr OperationRegistration(uint32_t syntax,

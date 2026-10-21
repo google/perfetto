@@ -40,8 +40,8 @@ namespace perfetto::trace_processor::pipeline {
 
 class Catalog;
 class Lowering;
-class PlanReader;
-class PlanWriter;
+class PlanCodec;
+class PlanKey;
 class LogicalPlan;
 class PlanNode;
 
@@ -73,8 +73,11 @@ class PlanOperation {
   virtual void MoveSqlSourcesToDataframeArgs(const NameTable&,
                                              std::vector<std::string>*);
 
-  // Resolves named dataframes against the catalog after decoding a plan.
-  virtual base::Status ResolveDataframes(LogicalPlan*, const Catalog&);
+  // Resolves named dataframes against the catalog after decoding a plan,
+  // checking each against the stamp `key` gave it when the plan was written.
+  virtual base::Status ResolveDataframes(LogicalPlan*,
+                                         const Catalog&,
+                                         const PlanKey& key);
 
   // Attaches runtime dataframe arguments before lowering the decoded plan.
   virtual base::Status BindDataframeArgs(
@@ -86,9 +89,8 @@ class PlanOperation {
   // independent operand pipelines; other stages lower their single input.
   virtual void Lower(Lowering*, const PlanNode&) const = 0;
 
-  // Writes this payload and updates the available column IDs. The driver
-  // writes outer tags and orders stages; sources encode their own children.
-  virtual void Write(PlanWriter*, const PlanNode&, Available*) const = 0;
+  // Writes or reads this payload, as the codec does.
+  virtual void Serialize(PlanCodec&) = 0;
 
   virtual const OperationRegistration& registration() const = 0;
 
@@ -99,6 +101,12 @@ class PlanOperation {
   PlanOperation(PlanOperation&&) noexcept = default;
   PlanOperation& operator=(PlanOperation&&) noexcept = default;
 };
+
+// An empty operation of kind T, for a registration to make.
+template <typename T>
+std::unique_ptr<PlanOperation> MakeOperation() {
+  return std::make_unique<T>();
+}
 
 // -----------------------------------------------------------------------------
 // Plan nodes
@@ -124,6 +132,11 @@ class PlanNode {
   }
 
   // Returns the operation as a T. The node must hold one.
+  template <typename T>
+  T& Cast() {
+    PERFETTO_DCHECK(Is<T>());
+    return static_cast<T&>(*operation_);
+  }
   template <typename T>
   const T& Cast() const {
     PERFETTO_DCHECK(Is<T>());
@@ -161,9 +174,14 @@ class LogicalPlan {
   // plan is built bottom up: each node added is the topmost one so far.
   template <typename T>
   PlanNodeId AddNode(T operation, std::vector<PlanNodeId> children = {}) {
+    std::unique_ptr<PlanOperation> op =
+        std::make_unique<T>(std::move(operation));
+    return AddNode(std::move(op), std::move(children));
+  }
+  PlanNodeId AddNode(std::unique_ptr<PlanOperation> operation,
+                     std::vector<PlanNodeId> children) {
     auto id = static_cast<PlanNodeId>(nodes_.size());
-    nodes_.emplace_back(std::make_unique<T>(std::move(operation)),
-                        std::move(children));
+    nodes_.emplace_back(std::move(operation), std::move(children));
     root_ = id;
     return id;
   }

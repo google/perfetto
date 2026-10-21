@@ -22,10 +22,12 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
@@ -45,6 +47,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 #include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
 #include "src/trace_processor/util/sql_argument.h"
@@ -65,6 +68,46 @@ bool HoldsNoValues(const dataframe::Column& column, uint32_t rows) {
   return present && !present->AnyBitSet();
 }
 
+// The type a pipeline reads a dataframe column as.
+PlanType ColumnType(const dataframe::Dataframe& dataframe, uint32_t i) {
+  return HoldsNoValues(dataframe.column(i), dataframe.row_count())
+             ? PlanType::Null()
+             : PlanType(dataframe.column_type(i));
+}
+
+// The stamp of a table's name and of the index, name and type of each column
+// a scan reads, by which a read plan tells whether the table has changed. In
+// the host's byte order, as only the process which wrote it checks it.
+class TableStamp {
+ public:
+  PERFETTO_NO_INLINE explicit TableStamp(std::string_view table) {
+    AddString(table);
+  }
+
+  PERFETTO_NO_INLINE void AddColumn(uint32_t index,
+                                    std::string_view name,
+                                    const PlanType& type) {
+    data_.append(reinterpret_cast<const char*>(&index), sizeof(index));
+    AddString(name);
+    PERFETTO_DCHECK(type.is_null() || type.storage());
+    data_.push_back(
+        type.is_null() ? '\0' : static_cast<char>(type.storage()->index() + 1));
+  }
+
+  uint64_t Stamp(const PlanKey& key) const {
+    return key.Stamp(PlanKey::Use::kTable, data_);
+  }
+
+ private:
+  void AddString(std::string_view text) {
+    auto size = static_cast<uint32_t>(text.size());
+    data_.append(reinterpret_cast<const char*>(&size), sizeof(size));
+    data_.append(text);
+  }
+
+  std::string data_;
+};
+
 std::optional<uint32_t> FindScanColumn(const dataframe::Dataframe& dataframe,
                                        std::string_view name) {
   const std::vector<std::string>& names = dataframe.column_names();
@@ -80,7 +123,7 @@ std::optional<uint32_t> FindScanColumn(const dataframe::Dataframe& dataframe,
 
 const OperationRegistration Scan::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE, &BuildPlan,
-    OperationRegistration::Encoding{0, true, &DecodePlan}};
+    OperationRegistration::Encoding{0, &MakeOperation<Scan>}};
 
 base::Status Scan::BuildPlan(Compiler* c, uint32_t from) {
   const auto* n = Node<SyntaqlitePerfettoPipeSource>(c->parser(), from);
@@ -196,13 +239,10 @@ Scan Scan::BuildDataframeScan(Compiler* c,
   source.name = std::move(name);
   source.row_count = dataframe.row_count();
   for (const DataframeColumn& column : columns) {
-    Scan::AddScanColumn(
-        c, &scan, column.name,
-        HoldsNoValues(dataframe.column(column.index), dataframe.row_count())
-            ? PlanType::Null()
-            : PlanType(dataframe.column_type(column.index)));
-    source.column_names.push_back(
-        c->Name(dataframe.column_names()[column.index]));
+    Scan::AddScanColumn(c, &scan, column.name,
+                        ColumnType(dataframe, column.index));
+    source.read.push_back(
+        {column.index, c->Name(dataframe.column_names()[column.index])});
     source.columns.push_back(dataframe.shared_column(column.index));
   }
   scan.source_ = std::move(source);
@@ -311,13 +351,13 @@ std::optional<uint32_t> Scan::Prune(std::vector<bool>* needed) {
   switch (scan.source_.index()) {
     case base::variant_index<Scan::Source, Scan::Dataframe>(): {
       auto& dataframe = base::unchecked_get<Scan::Dataframe>(scan.source_);
-      std::vector<NameId> kept_names;
+      std::vector<ScanDataframeColumn> kept_read;
       std::vector<std::shared_ptr<const dataframe::Column>> kept;
       for (uint32_t i : keep) {
-        kept_names.push_back(dataframe.column_names[i]);
+        kept_read.push_back(dataframe.read[i]);
         kept.push_back(std::move(dataframe.columns[i]));
       }
-      dataframe.column_names = std::move(kept_names);
+      dataframe.read = std::move(kept_read);
       dataframe.columns = std::move(kept);
       return std::nullopt;
     }
@@ -369,80 +409,10 @@ std::unique_ptr<PlanOperation> Scan::Clone() const {
   return std::make_unique<Scan>(*this);
 }
 
-void Scan::Write(PlanWriter* c,
-                 const PlanNode&,
-                 Available* available_columns) const {
-  auto& available = *available_columns;
-  const auto& scan = *this;
-  c->writer().U8(static_cast<uint8_t>(scan.source_.index()));
-  switch (scan.source_.index()) {
-    case base::variant_index<Scan::Source, Scan::Dataframe>():
-      c->writer().Str(base::unchecked_get<Scan::Dataframe>(scan.source_).name);
-      break;
-    case base::variant_index<Scan::Source, Scan::DataframeArg>():
-      c->writer().U32(
-          base::unchecked_get<Scan::DataframeArg>(scan.source_).index);
-      break;
-    default:
-      // SQL is moved out into dataframe arguments before a plan is written.
-      PERFETTO_FATAL("Unknown scan source");
-  }
-  const auto* data = std::get_if<Scan::Dataframe>(&scan.source_);
-  c->writer().Size(scan.columns_.size());
-  available.clear();
-  for (size_t i = 0; i < scan.columns_.size(); ++i) {
-    const NamedColumn& column = scan.columns_[i];
-    c->writer().U32(column.name);
-    WriteType(&c->writer(), c->plan().columns()[column.id].type);
-    // The dataframe column read, which a view may have renamed.
-    if (data) {
-      c->writer().U32(data->column_names[i]);
-    }
-    available.push_back(column.id);
-  }
-}
-
-void Scan::DecodePlan(PlanReader* c, Available* available_columns) {
-  auto& available = *available_columns;
-  Scan scan;
-  available = ReadPayload(c, &scan);
-  c->AddNode(std::move(scan));
-}
-
-Available Scan::ReadPayload(PlanReader* c, Scan* scan) {
-  switch (c->reader().U8()) {
-    case base::variant_index<Scan::Source, Scan::Dataframe>(): {
-      Scan::Dataframe source;
-      source.name = c->reader().Str();
-      scan->source_ = std::move(source);
-      break;
-    }
-    case base::variant_index<Scan::Source, Scan::DataframeArg>():
-      scan->source_ = Scan::DataframeArg{c->reader().U32()};
-      break;
-    default:
-      c->reader().Fail();
-      return {};
-  }
-  auto* data = std::get_if<Scan::Dataframe>(&scan->source_);
-  scan->columns_.resize(c->reader().Count());
-  Available available;
-  for (NamedColumn& column : scan->columns_) {
-    column.name = c->Name();
-    column.id = c->AddColumn(column.name, ReadType(&c->reader()));
-    if (data) {
-      data->column_names.push_back(c->Name());
-    }
-    available.push_back(column.id);
-  }
-  return available;
-}
-
-base::Status Scan::ResolveDataframes(LogicalPlan* logical_plan,
-                                     const Catalog& catalog) {
-  auto& plan = *logical_plan;
-  auto& scan = *this;
-  auto* data = std::get_if<Scan::Dataframe>(&scan.source_);
+base::Status Scan::ResolveDataframes(LogicalPlan*,
+                                     const Catalog& catalog,
+                                     const PlanKey& key) {
+  auto* data = std::get_if<Scan::Dataframe>(&source_);
   if (!data) {
     return base::OkStatus();
   }
@@ -451,24 +421,27 @@ base::Status Scan::ResolveDataframes(LogicalPlan* logical_plan,
     return base::ErrStatus("Pipeline: table '%s' no longer exists",
                            data->name.c_str());
   }
-  for (size_t j = 0; j < scan.columns_.size(); ++j) {
-    std::optional<uint32_t> i =
-        FindScanColumn(*dataframe, plan.names().text(data->column_names[j]));
-    const PlanType& type = plan.columns()[scan.columns_[j].id].type;
-    bool same =
-        i &&
-        (type.is_null()
-             ? HoldsNoValues(dataframe->column(*i), dataframe->row_count())
-             : type.storage() && *type.storage() == dataframe->column_type(*i));
-    if (!same) {
-      return base::ErrStatus(
-          "Pipeline: table '%s' has changed since the pipeline was written",
-          data->name.c_str());
+  const std::vector<std::string>& names = dataframe->column_names();
+  TableStamp stamp(data->name);
+  bool in_range = true;
+  PERFETTO_NO_VECTORIZE_LOOP
+  for (const ScanDataframeColumn& column : data->read) {
+    uint32_t i = column.index;
+    in_range = in_range && i < names.size();
+    if (in_range) {
+      stamp.AddColumn(i, names[i], ColumnType(*dataframe, i));
     }
-    data->columns.push_back(dataframe->shared_column(*i));
+  }
+  if (!in_range || stamp.Stamp(key) != data->stamp) {
+    return base::ErrStatus(
+        "Pipeline: table '%s' has changed since the pipeline was written",
+        data->name.c_str());
+  }
+  PERFETTO_NO_VECTORIZE_LOOP
+  for (const ScanDataframeColumn& column : data->read) {
+    data->columns.push_back(dataframe->shared_column(column.index));
   }
   data->row_count = dataframe->row_count();
-
   return base::OkStatus();
 }
 
@@ -511,11 +484,8 @@ base::Status Scan::BindDataframeArgs(
     }
     // The dataframe was built after the plan was written, so it decides
     // what each column holds.
-    plan.columns()[column.id].type =
-        HoldsNoValues(dataframe->column(*i), dataframe->row_count())
-            ? PlanType::Null()
-            : PlanType(dataframe->column_type(*i));
-    data.column_names.push_back(column.name);
+    plan.columns()[column.id].type = ColumnType(*dataframe, *i);
+    data.read.push_back({*i, column.name});
     data.columns.push_back(dataframe->shared_column(*i));
   }
   data.row_count = dataframe->row_count();
@@ -542,6 +512,38 @@ void Scan::MoveSqlSourcesToDataframeArgs(const NameTable& table,
                  QuoteString(base::Join(names, ",")) + ", " +
                  base::Join(references, ", ") + ") FROM " + from);
   scan.source_ = Scan::DataframeArg{static_cast<uint32_t>(args.size() - 1)};
+}
+
+void Scan::Serialize(PlanCodec& c) {
+  // SQL is moved out into dataframe arguments before a plan is written.
+  auto kind = static_cast<uint32_t>(source_.index());
+  c.Pod(&kind);
+  if (c.reading()) {
+    if (kind == base::variant_index<Source, Dataframe>()) {
+      source_ = Dataframe();
+    } else {
+      source_ = DataframeArg();
+    }
+  }
+  c.Vec(&columns_);
+  auto* data = std::get_if<Dataframe>(&source_);
+  if (!data) {
+    c.Pod(&std::get<DataframeArg>(source_).index);
+    return;
+  }
+  c.Str(&data->name);
+  c.Vec(&data->read);
+  if (!c.reading()) {
+    TableStamp stamp(data->name);
+    PERFETTO_NO_VECTORIZE_LOOP
+    for (uint32_t i = 0; i < columns_.size(); ++i) {
+      stamp.AddColumn(data->read[i].index,
+                      c.plan().names().text(data->read[i].name),
+                      c.plan().columns()[columns_[i].id].type);
+    }
+    data->stamp = stamp.Stamp(c.key());
+  }
+  c.Pod(&data->stamp);
 }
 
 }  // namespace perfetto::trace_processor::pipeline

@@ -55,13 +55,23 @@ struct SourceRelation {
   std::vector<NamedColumn> columns;
 };
 
+// A dataframe column a scan reads.
+struct ScanDataframeColumn {
+  uint32_t index = 0;
+  // Its name in the dataframe, which a view may have renamed. Only a compiled
+  // plan has this.
+  NameId name = 0;
+};
+
 // A dataframe read directly. Defined outside Scan because GCC only treats a
 // nested class's member initializers as parsed once the enclosing class is.
 struct ScanDataframe {
   std::string name;
-  // By scan column, the dataframe column it reads: its own name unless the
-  // view it is read through renames it.
-  std::vector<NameId> column_names;
+  // By scan column, the dataframe column it reads.
+  std::vector<ScanDataframeColumn> read;
+  // The stamp of the table's name and the columns read, as SerializePlan
+  // wrote it. Only a read plan has this.
+  uint64_t stamp = 0;
   // Resolved at compile time; only the selected columns are retained.
   std::vector<std::shared_ptr<const dataframe::Column>> columns;
   uint32_t row_count = 0;
@@ -88,8 +98,6 @@ class Scan : public PlanOperation {
       const SyntaqlitePerfettoPipeSource& n);
   std::unique_ptr<core::exec::Source> MakeSource() const;
 
-  // Intersection embeds a scan payload without a separate source tag.
-  static Available ReadPayload(PlanReader*, Scan*);
   const std::vector<NamedColumn>& columns() const { return columns_; }
 
  private:
@@ -114,17 +122,18 @@ class Scan : public PlanOperation {
   std::unique_ptr<PlanOperation> Clone() const override;
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
   void Lower(Lowering*, const PlanNode&) const override;
-  void Write(PlanWriter*, const PlanNode&, Available*) const override;
   void MoveSqlSourcesToDataframeArgs(const NameTable&,
                                      std::vector<std::string>*) override;
-  base::Status ResolveDataframes(LogicalPlan*, const Catalog&) override;
+  void Serialize(PlanCodec&) override;
+  base::Status ResolveDataframes(LogicalPlan*,
+                                 const Catalog&,
+                                 const PlanKey&) override;
   base::Status BindDataframeArgs(
       LogicalPlan*,
       const std::vector<const dataframe::Dataframe*>&,
       StringPool*) override;
 
   static base::Status BuildPlan(Compiler*, uint32_t);
-  static void DecodePlan(PlanReader*, Available*);
 
   // The finalized dataframe a source names, if it can be read without SQLite.
   static const dataframe::Dataframe* FindDirectDataframe(

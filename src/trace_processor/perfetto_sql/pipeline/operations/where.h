@@ -43,9 +43,15 @@ struct WherePredicate {
   Op op{core::Eq{}};
   // The literal is `double_value` if set, `int_value` otherwise.
   bool is_double = false;
+  // Explicit, so a plan's predicates can be copied as bytes.
+  uint8_t pad_[7] = {};
   int64_t int_value = 0;
   double double_value = 0;
 };
+// The double hides from the compiler that there is no other padding.
+static_assert(sizeof(WherePredicate) == 32);
+template <>
+inline constexpr bool kCopiedAsBytes<WherePredicate> = true;
 
 // `|> WHERE condition`. The condition must be a conjunction (AND) of
 // `column OP literal` comparisons; anything else is unsupported.
@@ -61,10 +67,9 @@ class Where : public PlanOperation {
   std::unique_ptr<PlanOperation> Clone() const override;
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
   void Lower(Lowering*, const PlanNode&) const override;
-  void Write(PlanWriter*, const PlanNode&, Available*) const override;
+  void Serialize(PlanCodec&) override;
 
   static base::Status BuildPlan(Compiler*, uint32_t);
-  static void DecodePlan(PlanReader*, Available*);
 
   const OperationRegistration& registration() const override;
 

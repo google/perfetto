@@ -40,7 +40,7 @@ namespace ex = core::exec;
 
 const OperationRegistration TreeAccumulate::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE, &BuildPlan,
-    OperationRegistration::Encoding{1, false, &DecodePlan}};
+    OperationRegistration::Encoding{1, &MakeOperation<TreeAccumulate>}};
 
 base::Status TreeAccumulate::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("TREE ACCUMULATE");
@@ -120,31 +120,11 @@ std::unique_ptr<PlanOperation> TreeAccumulate::Clone() const {
   return std::make_unique<TreeAccumulate>(*this);
 }
 
-void TreeAccumulate::Write(PlanWriter* c,
-                           const PlanNode&,
-                           Available* available_columns) const {
-  auto& available = *available_columns;
-  const auto& acc = *this;
-  c->writer().U8(static_cast<uint8_t>(acc.direction_));
-  c->writer().Position(available, acc.node_column_);
-  c->writer().Position(available, acc.parent_column_);
-  WriteAggregates(c, acc.aggregates_, available);
-  for (const Aggregate& agg : acc.aggregates_) {
-    available.push_back(agg.output);
-  }
-}
-
-void TreeAccumulate::DecodePlan(PlanReader* c, Available* available_columns) {
-  auto& available = *available_columns;
-  TreeAccumulate acc;
-  acc.direction_ = static_cast<TreeDirection>(c->reader().U8());
-  acc.node_column_ = c->reader().Position(available);
-  acc.parent_column_ = c->reader().Position(available);
-  ReadAggregates(c, available, &acc.aggregates_);
-  for (const Aggregate& agg : acc.aggregates_) {
-    available.push_back(agg.output);
-  }
-  c->AddNode(std::move(acc), {c->plan().root()});
+void TreeAccumulate::Serialize(PlanCodec& c) {
+  c.Pod(&direction_);
+  c.Pod(&node_column_);
+  c.Pod(&parent_column_);
+  SerializeAggregates(c, &aggregates_);
 }
 
 }  // namespace perfetto::trace_processor::pipeline

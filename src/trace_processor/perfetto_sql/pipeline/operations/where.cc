@@ -146,7 +146,7 @@ base::Status ParseCondition(Compiler* c,
 
 const OperationRegistration Where::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_WHERE, &BuildPlan,
-    OperationRegistration::Encoding{8, false, &DecodePlan}};
+    OperationRegistration::Encoding{8, &MakeOperation<Where>}};
 
 base::Status Where::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("WHERE");
@@ -201,43 +201,8 @@ std::unique_ptr<PlanOperation> Where::Clone() const {
   return std::make_unique<Where>(*this);
 }
 
-void Where::Write(PlanWriter* c, const PlanNode&, Available* available) const {
-  c->writer().Size(predicates_.size());
-  for (const WherePredicate& p : predicates_) {
-    c->writer().Position(*available, p.column);
-    c->writer().U8(static_cast<uint8_t>(p.op.index()));
-    c->writer().U8(p.is_double ? 1 : 0);
-    if (p.is_double) {
-      c->writer().F64(p.double_value);
-    } else {
-      c->writer().U64(static_cast<uint64_t>(p.int_value));
-    }
-  }
-}
-
-void Where::DecodePlan(PlanReader* c, Available* available) {
-  Where where;
-  where.predicates_.resize(c->reader().Count());
-  if (where.predicates_.empty()) {
-    c->reader().Fail();
-  }
-  for (WherePredicate& p : where.predicates_) {
-    p.column = c->reader().Position(*available);
-    // Only comparisons are written; anything else is corrupt.
-    std::optional<core::Op> op = core::Op::FromIndex(c->reader().U8());
-    if (!op || !op->IsAnyOf<core::NonStringOp>()) {
-      c->reader().Fail();
-      continue;
-    }
-    p.op = *op;
-    p.is_double = c->reader().U8() != 0;
-    if (p.is_double) {
-      p.double_value = c->reader().F64();
-    } else {
-      p.int_value = static_cast<int64_t>(c->reader().U64());
-    }
-  }
-  c->AddNode(std::move(where), {c->plan().root()});
+void Where::Serialize(PlanCodec& c) {
+  c.Vec(&predicates_);
 }
 
 }  // namespace perfetto::trace_processor::pipeline

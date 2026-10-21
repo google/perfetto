@@ -169,6 +169,15 @@ extern "C" void __msan_unpoison(void const volatile*, size_t);
 #define PERFETTO_TRIVIAL_ABI
 #endif
 
+// Asks for the loop which follows to be neither vectorized nor unrolled: for a
+// loop vector instructions do not speed up, where they would only add code.
+#if defined(__clang__)
+#define PERFETTO_NO_VECTORIZE_LOOP \
+  _Pragma("clang loop vectorize(disable) unroll(disable)")
+#else
+#define PERFETTO_NO_VECTORIZE_LOOP
+#endif
+
 // Macro for telling -Wimplicit-fallthrough that a fallthrough is intentional.
 #define PERFETTO_FALLTHROUGH [[fallthrough]]
 
