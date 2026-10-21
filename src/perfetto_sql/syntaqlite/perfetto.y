@@ -200,6 +200,11 @@ perfetto_pipe_source(A) ::= LP select(S) RP perfetto_pipe_alias(Z). {
     A = synq_parse_perfetto_pipe_source(pCtx, SYNQ_NO_SPAN, SYNQ_NO_SPAN,
         S, Z);
 }
+perfetto_pipe_source(A) ::= LP perfetto_intersection_pipeline(S) RP
+                           perfetto_pipe_alias(Z). {
+    A = synq_parse_perfetto_pipe_source(pCtx, SYNQ_NO_SPAN, SYNQ_NO_SPAN,
+        S, Z);
+}
 
 %type perfetto_tree_direction {int}
 perfetto_tree_direction(A) ::= UP.   { A = SYNTAQLITE_PERFETTO_TREE_DIRECTION_UP; }
@@ -462,19 +467,26 @@ perfetto_per_col_list(A) ::= perfetto_per_col_list(L) COMMA nm(N). {
 perfetto_per(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
 perfetto_per(A) ::= PER perfetto_per_col_list(L). { A = L; }
 
-%type perfetto_pipeline {uint32_t}
-perfetto_pipeline(A) ::= FROM perfetto_pipe_source(F)
-                         perfetto_pipe_stage_list(S). {
+%type perfetto_from_pipeline {uint32_t}
+perfetto_from_pipeline(A) ::= FROM perfetto_pipe_source(F)
+                              perfetto_pipe_stage_list(S). {
     A = synq_parse_perfetto_pipeline(pCtx, F, SYNTAQLITE_NULL_NODE, S);
 }
-perfetto_pipeline(A) ::= INTERVAL INTERSECTION OF LP
-                         perfetto_pipe_source_list(L) RP perfetto_per(P)
-                         perfetto_pipe_stage_list(S). {
+
+// INTERVAL is not reserved, so `(interval` in SQL may be a column. A pipeline
+// starting with it is only accepted where a select could not start there.
+// TODO(lalitm): accept it wherever a select is; see
+// https://github.com/google/perfetto/issues/8171.
+%type perfetto_intersection_pipeline {uint32_t}
+perfetto_intersection_pipeline(A) ::= INTERVAL INTERSECTION OF LP
+    perfetto_pipe_source_list(L) RP perfetto_per(P)
+    perfetto_pipe_stage_list(S). {
     uint32_t src = synq_parse_perfetto_interval_intersection(pCtx, L, P);
     A = synq_parse_perfetto_pipeline(pCtx, SYNTAQLITE_NULL_NODE, src, S);
 }
 
-cmd(A) ::= perfetto_pipeline(P). { A = P; }
+select(A) ::= perfetto_from_pipeline(P). { A = P; }
+cmd(A) ::= perfetto_intersection_pipeline(P). { A = P; }
 
 // ---------- PERFETTO PRAGMA ----------
 
@@ -496,16 +508,16 @@ cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO TABLE nm(N)
     A = synq_parse_create_perfetto_table_stmt(pCtx,
         synq_span(pCtx, N),
         R ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
-        I, S, E, select_span, SYNTAQLITE_NULL_NODE);
+        I, S, E, select_span);
 }
 
 cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO TABLE nm(N)
            perfetto_table_impl(I) perfetto_table_schema(S)
-           AS perfetto_pipeline(P). {
+           AS perfetto_intersection_pipeline(P). {
     A = synq_parse_create_perfetto_table_stmt(pCtx,
         synq_span(pCtx, N),
         R ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
-        I, S, SYNTAQLITE_NULL_NODE, SYNQ_NO_SPAN, P);
+        I, S, P, SYNQ_NO_SPAN);
 }
 
 // ---------- CREATE PERFETTO VIEW ----------

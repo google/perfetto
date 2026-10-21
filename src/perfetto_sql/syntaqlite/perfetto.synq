@@ -80,7 +80,6 @@ node CreatePerfettoTableStmt {
   schema: index PerfettoArgDefList
   select: index Select
   select_span: inline SyntaqliteTextSpan
-  pipeline: index PerfettoPipeline
 
   semantic { define_table(name: table_name, columns: schema, select: select) }
 
@@ -102,10 +101,8 @@ node CreatePerfettoTableStmt {
         softline ")"
       }
       if_set(select) { line "AS" }
-      if_set(pipeline) { line "AS" }
     }
     if_set(select) { hardline child(select) }
-    if_set(pipeline) { hardline child(pipeline) }
   }
 }
 
