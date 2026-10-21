@@ -300,24 +300,17 @@ inline PERFETTO_ALWAYS_INLINE void StringFilter(InterpreterState& state,
                                 update.b, val);
 }
 
-template <typename RangeOp, typename DataType, typename ValueType>
-inline PERFETTO_ALWAYS_INLINE void NonIdSortedFilter(
-    const InterpreterState& state,
-    const DataType* data,
-    ValueType val,
-    BoundModifier bound_modifier,
-    Range& update) {
-  if constexpr (std::is_same_v<RangeOp, EqualRange>) {
-    PERFETTO_DCHECK(bound_modifier.Is<BothBounds>());
-    filter::SortedEqualRange(data, val, state.string_pool, update);
-  } else if constexpr (std::is_same_v<RangeOp, LowerBound>) {
-    auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
-    res = filter::SortedLowerBound(data, val, state.string_pool, update);
-  } else if constexpr (std::is_same_v<RangeOp, UpperBound>) {
-    auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
-    res = filter::SortedUpperBound(data, val, state.string_pool, update);
+// The comparison a search by R answers, writing `bound` of the range.
+template <typename R>
+PERFETTO_ALWAYS_INLINE core::RangeOp SortedFilterOp(BoundModifier bound) {
+  if constexpr (std::is_same_v<R, EqualRange>) {
+    PERFETTO_DCHECK(bound.Is<BothBounds>());
+    return Eq{};
+  } else if constexpr (std::is_same_v<R, LowerBound>) {
+    return bound.Is<BeginBound>() ? core::RangeOp(Ge{}) : core::RangeOp(Lt{});
   } else {
-    static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
+    static_assert(std::is_same_v<R, UpperBound>, "Unsupported op");
+    return bound.Is<BeginBound>() ? core::RangeOp(Gt{}) : core::RangeOp(Le{});
   }
 }
 
@@ -335,26 +328,25 @@ inline PERFETTO_ALWAYS_INLINE void SortedFilter(
   if (!HandleInvalidCastFilterValueResult(value.validity, update)) {
     return;
   }
-  using M =
-      StorageType::VariantTypeAtIndex<T, filter::CastFilterValueResult::Value>;
-  M val = base::unchecked_get<M>(value.value);
+  BoundModifier bound = f.template arg<B::write_result_to>();
   if constexpr (std::is_same_v<T, Id>) {
-    uint32_t inner_val = val.value;
+    // An Id's row is its value: too little to be worth a call.
+    uint32_t id =
+        base::unchecked_get<filter::CastFilterValueResult::Id>(value.value)
+            .value;
     if constexpr (std::is_same_v<RangeOp, EqualRange>) {
-      filter::IdEqualRange(inner_val, update);
-    } else if constexpr (std::is_same_v<RangeOp, LowerBound> ||
-                         std::is_same_v<RangeOp, UpperBound>) {
-      BoundModifier bound_to_modify = f.template arg<B::write_result_to>();
-      filter::IdBound(inner_val + std::is_same_v<RangeOp, UpperBound>,
-                      bound_to_modify.template Is<BeginBound>(), update);
+      filter::IdEqualRange(id, update);
     } else {
-      static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
+      filter::IdBound(id + std::is_same_v<RangeOp, UpperBound>,
+                      bound.Is<BeginBound>(), update);
     }
   } else {
-    BoundModifier bound_modifier = f.template arg<B::write_result_to>();
-    const auto* data =
-        state.ReadStorageFromRegister<T>(f.template arg<B::storage_register>());
-    NonIdSortedFilter<RangeOp>(state, data, val, bound_modifier, update);
+    filter::SortedColumn column{
+        T{},
+        state.ReadStorageFromRegister<T>(f.template arg<B::storage_register>()),
+        state.string_pool};
+    update = filter::SearchSorted(column, SortedFilterOp<RangeOp>(bound),
+                                  value.value, update);
   }
 }
 
@@ -431,17 +423,14 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
     state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
     return;
   }
-  using M =
-      StorageType::VariantTypeAtIndex<T, filter::CastFilterValueResult::Value>;
-  const auto& value = base::unchecked_get<M>(filter_value.value);
   const auto* data =
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
   const NullBitvector* nbv =
       state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
 
   auto [bv, popcount] = NullsFor(nbv);
-  std::tie(dest.b, dest.e) = filter::IndexEqualRange<T, N>(
-      source.b, source.e, value, data, bv, popcount, state.string_pool);
+  filter::IndexColumn column{T{}, N{}, data, bv, popcount, state.string_pool};
+  dest = filter::SearchIndexEqual(column, filter_value.value, dest);
   state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
 }
 

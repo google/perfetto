@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/util/galloping_search.h"
+#include "src/trace_processor/util/sorted_search.h"
 
 #include <algorithm>
 #include <cstdint>

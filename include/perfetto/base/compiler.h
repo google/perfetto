@@ -72,6 +72,14 @@
 #define PERFETTO_RESTRICT
 #endif
 
+// Marks a condition the CPU cannot predict, so the compiler chooses between
+// its outcomes with a conditional move rather than a branch.
+#if defined(__clang__)
+#define PERFETTO_UNPREDICTABLE(x) __builtin_unpredictable(x)
+#else
+#define PERFETTO_UNPREDICTABLE(x) (x)
+#endif
+
 #if defined(__GNUC__) || defined(__clang__)
 #define PERFETTO_DEBUG_FUNCTION_IDENTIFIER() __PRETTY_FUNCTION__
 #elif defined(_MSC_VER)

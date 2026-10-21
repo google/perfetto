@@ -42,7 +42,7 @@
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/span.h"
-#include "src/trace_processor/util/galloping_search.h"
+#include "src/trace_processor/util/sorted_search.h"
 
 // Keeping the rows of a column which compare true with a value already cast
 // to the column's type (see filter_value_cast.h), by testing each row or by
@@ -356,6 +356,18 @@ inline PERFETTO_ALWAYS_INLINE void NonIndexedFilterInScan(
 }
 
 // -----------------------------------------------------------------------------
+// Binary search
+// -----------------------------------------------------------------------------
+
+// Whether comparing two values of storage type T, given as its tag or as
+// what it stores, is cheap: one instruction for a number, but a lookup in
+// the string pool and a strcmp for a string. Binary searches take it to
+// choose how to spend their comparisons (see LowerBound).
+template <typename T>
+inline constexpr bool kCheapCompare =
+    !std::is_same_v<T, String> && !std::is_same_v<T, StringPool::Id>;
+
+// -----------------------------------------------------------------------------
 // Searches of sorted columns and indexes
 // -----------------------------------------------------------------------------
 //
@@ -364,86 +376,26 @@ inline PERFETTO_ALWAYS_INLINE void NonIndexedFilterInScan(
 // found by searching rather than testing every row. Each search narrows
 // `range`, rows of the column or entries of the index, to those it keeps.
 
-template <typename DataType>
-inline auto SortedLowerBoundComparator(const StringPool* string_pool) {
-  if constexpr (std::is_same_v<DataType, StringPool::Id>) {
-    return comparators::StringComparator<Lt>{string_pool};
-  } else {
-    base::ignore_result(string_pool);
-    return std::less<>();
-  }
-}
+// A column sorted ascending and holding no nulls, as SearchSorted reads it.
+// Built once by whoever searches the column, rather than for every search.
+struct SortedColumn {
+  StorageType type{Id{}};
+  // The column's storage. Unused for an Id column, whose row is its value.
+  const void* data = nullptr;
+  // Holds the column's strings.
+  const StringPool* pool = nullptr;
+};
 
-template <typename DataType>
-inline auto SortedUpperBoundComparator(const StringPool* string_pool) {
-  if constexpr (std::is_same_v<DataType, StringPool::Id>) {
-    return comparators::StringLessInvert{string_pool};
-  } else {
-    base::ignore_result(string_pool);
-    return std::less<>();
-  }
-}
-
-// The first row of `range` whose value is not less than `val`, in a column
-// sorted ascending.
-template <typename DataType, typename ValueType>
-[[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t
-SortedLowerBound(const DataType* data,
-                 ValueType val,
-                 const StringPool* string_pool,
-                 Range range) {
-  return static_cast<uint32_t>(
-      std::lower_bound(data + range.b, data + range.e, val,
-                       SortedLowerBoundComparator<DataType>(string_pool)) -
-      data);
-}
-
-// The first row of `range` whose value is greater than `val`, in a column
-// sorted ascending.
-template <typename DataType, typename ValueType>
-[[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t
-SortedUpperBound(const DataType* data,
-                 ValueType val,
-                 const StringPool* string_pool,
-                 Range range) {
-  return static_cast<uint32_t>(
-      std::upper_bound(data + range.b, data + range.e, val,
-                       SortedUpperBoundComparator<DataType>(string_pool)) -
-      data);
-}
-
-// Narrows `range` to the rows whose value equals `val`, in a column sorted
-// ascending.
-template <typename DataType, typename ValueType>
-inline PERFETTO_ALWAYS_INLINE void SortedEqualRange(
-    const DataType* data,
-    ValueType val,
-    const StringPool* string_pool,
-    Range& range) {
-  auto* begin = data + range.b;
-  auto* end = data + range.e;
-  DataType cmp_value;
-  if constexpr (std::is_same_v<DataType, StringPool::Id>) {
-    std::optional<StringPool::Id> id =
-        string_pool->GetId(base::StringView(val));
-    if (!id) {
-      range.e = range.b;
-      return;
-    }
-    cmp_value = *id;
-  } else {
-    cmp_value = val;
-  }
-  const DataType* eq_start = std::lower_bound(
-      begin, end, val, SortedLowerBoundComparator<DataType>(string_pool));
-  // Equal rows are usually few, so search from the first of them outwards.
-  const DataType* eq_end =
-      GallopingPartitionPoint(eq_start, end, [cmp_value](const DataType& v) {
-        return std::equal_to<>()(v, cmp_value);
-      });
-  range.b = static_cast<uint32_t>(eq_start - data);
-  range.e = static_cast<uint32_t>(eq_end - data);
-}
+// The rows of `range` which `column` keeps for `op` with `value`: valid, and
+// cast for the column and comparison (see filter_value_cast.h).
+//
+// A search runs once per query, not once per row, so it gains nothing from
+// being inlined into its caller. It is compiled once, in filter_kernels.cc,
+// for every storage type and comparison, and everything searching calls it.
+Range SearchSorted(const SortedColumn& column,
+                   RangeOp op,
+                   const CastFilterValueResult::Value& value,
+                   Range range);
 
 // Narrows `range` to the row of an Id column whose value is `val`: an Id's
 // value is its row.
@@ -536,8 +488,8 @@ inline PERFETTO_ALWAYS_INLINE std::pair<uint32_t*, uint32_t*> IndexEqualRange(
     const BitVector* bv,
     const uint32_t* popcount,
     const StringPool* string_pool) {
-  auto* lb =
-      std::lower_bound(begin, end, target, [&](uint32_t idx, const Resolved&) {
+  auto* lb = LowerBound<kCheapCompare<T>>(
+      begin, end, target, [&](uint32_t idx, const Resolved&) {
         uint32_t si = IndexToStorageIndex<N>(idx, bv, popcount);
         if (si == std::numeric_limits<uint32_t>::max())
           return true;
@@ -547,8 +499,8 @@ inline PERFETTO_ALWAYS_INLINE std::pair<uint32_t*, uint32_t*> IndexEqualRange(
           return data[si] < target;
         }
       });
-  auto* ub =
-      std::upper_bound(lb, end, target, [&](const Resolved&, uint32_t idx) {
+  auto* ub = UpperBound<kCheapCompare<T>>(
+      lb, end, target, [&](const Resolved&, uint32_t idx) {
         uint32_t si = IndexToStorageIndex<N>(idx, bv, popcount);
         if (si == std::numeric_limits<uint32_t>::max())
           return false;
@@ -561,12 +513,35 @@ inline PERFETTO_ALWAYS_INLINE std::pair<uint32_t*, uint32_t*> IndexEqualRange(
   return {lb, ub};
 }
 
+// A column of an index, as SearchIndexEqual reads it. Built once by whoever
+// searches the index, rather than for every search.
+struct IndexColumn {
+  // Any but Id.
+  StorageType type{Uint32{}};
+  Nullability nullability{NonNull{}};
+  // The column's storage, which rows hold a value, and the bits set before
+  // each word of those, read only for a column storing no value for its
+  // nulls.
+  const void* data = nullptr;
+  const BitVector* nulls = nullptr;
+  const uint32_t* popcount = nullptr;
+  // Holds the column's strings.
+  const StringPool* pool = nullptr;
+};
+
+// The part of `entries`, of an index sorted by `column`, whose rows equal
+// `value` in it: valid, and cast for the column (see filter_value_cast.h).
+// Compiled once, in filter_kernels.cc, as SearchSorted is.
+Span<uint32_t> SearchIndexEqual(const IndexColumn& column,
+                                const CastFilterValueResult::Value& value,
+                                Span<uint32_t> entries);
+
 // The rows of an IN found by binary-searching a sorted index for each of its
 // values, written to `dest` in increasing order. Returns false, writing
 // nothing, if the list is empty or too long for searching to beat a scan.
 //
 // TODO(lalitm): since the index is sorted, galloping search could replace
-// repeated std::lower_bound for better locality.
+// a LowerBound per value for better locality.
 template <typename T, typename N>
 [[nodiscard]] inline PERFETTO_ALWAYS_INLINE bool IndexedFilterInBinarySearch(
     const CastFilterValueListResult& cast_result,
