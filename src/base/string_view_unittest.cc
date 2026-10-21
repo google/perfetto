@@ -189,6 +189,16 @@ TEST(StringViewTest, BasicCases) {
   EXPECT_FALSE(StringView("foo").EndsWith("fooo"));
 }
 
+TEST(StringViewTest, DeviationsFromStdStringView) {
+  EXPECT_EQ(StringView().data(), nullptr);
+  EXPECT_EQ(StringView(nullptr, 0).data(), nullptr);
+
+  // substr() past the end returns an empty, non-null view instead of throwing.
+  EXPECT_NE(StringView().substr(1).data(), nullptr);
+  EXPECT_TRUE(StringView("foo").substr(10).empty());
+  EXPECT_NE(StringView("foo").substr(3).data(), nullptr);
+}
+
 TEST(StringViewTest, HashCollisions) {
   std::unordered_map<uint64_t, StringView> hashes;
   std::unordered_set<StringView> sv_set;
