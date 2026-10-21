@@ -55,6 +55,9 @@ class FakeEngine {
   // How long building a table takes, to span several frames.
   createDelayMs = 0;
 
+  // How long loading data takes, to span frames.
+  dataDelayMs = 0;
+
   // Queries that used a table after it was dropped.
   readonly useAfterDrop: string[] = [];
   private readonly dropped = new Set<string>();
@@ -69,6 +72,9 @@ class FakeEngine {
     }
     if (sql.startsWith('CREATE VIRTUAL TABLE') && this.createDelayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, this.createDelayMs));
+    }
+    if (sql.includes('AS minDisplayValue') && this.dataDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, this.dataDelayMs));
     }
     if (sql.includes('AS minDisplayValue')) {
       return numericResult(
@@ -238,7 +244,10 @@ test('dynamic sqlSource changing on every frame is drawn', async () => {
     sqlSource: () => `SELECT ts, value FROM a WHERE gen <= ${generation++}`,
   });
 
-  // Each source is drawn once loaded, then the latest one is loaded.
+  // Each source is drawn once loaded, then the latest one is loaded. Loads
+  // span frames, so each one would be cancelled by the next new table if
+  // tables were rebuilt on every frame.
+  engine.dataDelayMs = 1;
   await renderUntilSettled(track, renderCtx);
   await renderUntilSettled(track, renderCtx);
   expect(drawStepArea).toHaveBeenCalled();
