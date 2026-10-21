@@ -54,11 +54,16 @@ export interface TimeseriesCounter {
   readonly id: number; // counter_track.id
   readonly name: string; // Shown in the legend and tooltip.
   readonly unit?: string; // Used to format its values.
+  // Multiplies the counter's values, e.g. 1e-6 to plot µV in V. Defaults to 1.
+  readonly scale?: number;
 }
 
 export interface TimeseriesRendererOpts {
   /** The mode (value, delta or rate) to open in. Defaults to 'value'. */
   readonly yMode?: YMode;
+
+  /** Whether to open with a row per counter. Defaults to false. */
+  readonly expanded?: boolean;
 
   /** Extra items for the bottom of the track's layout & counters menu. */
   readonly extraMenuItems?: () => m.Children;
@@ -305,6 +310,7 @@ class TimeseriesRenderer implements TrackRenderer {
     private readonly opts: TimeseriesRendererOpts,
   ) {
     this.yMode = opts.yMode ?? 'value';
+    this.expanded = opts.expanded ?? false;
     this.series = counters.map((counter, index) => ({
       counter,
       index,
@@ -714,10 +720,7 @@ class TimeseriesRenderer implements TrackRenderer {
     const values = visible.map((series) => {
       const column = new Float32Array(columnCount);
       for (let c = 0; c < columnCount; c++) {
-        column[c] = Math.max(
-          0,
-          valueAtX(series.frame, columns[c]!, timescale),
-        );
+        column[c] = Math.max(0, valueAtX(series.frame, columns[c]!, timescale));
       }
       return column;
     });
@@ -1173,8 +1176,11 @@ class TimeseriesRenderer implements TrackRenderer {
             CREATE VIRTUAL TABLE ${tableNames[i]}
             USING __intrinsic_counter_mipmap((
               SELECT ts, ${valueExpr} AS value
-              FROM counter
-              WHERE track_id = ${counter.id}
+              FROM (
+                SELECT ts, value * ${counter.scale ?? 1} AS value
+                FROM counter
+                WHERE track_id = ${counter.id}
+              )
             ));`,
         )
         .join('\n'),

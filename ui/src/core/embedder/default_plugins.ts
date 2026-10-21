@@ -34,6 +34,7 @@ export const defaultPlugins = [
   'com.android.AndroidPerf',
   'com.android.AndroidPerfTraceCounters',
   'com.android.AndroidStartup',
+  'com.android.BatteryHistorian',
   'com.android.Bluetooth',
   'com.android.ContainedTraces',
   'com.android.CpuPerUid',
