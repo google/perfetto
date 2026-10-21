@@ -266,6 +266,14 @@ class Lowering {
   // column still used must be declared again.
   void ResetLayout();
 
+  // Records that the rows are a tree walk in `direction`, numbered in the
+  // temporary `columns` from `node` and `parent`, as RequireTreeWalk would
+  // leave them.
+  void DeclareTreeWalk(ColumnId node,
+                       ColumnId parent,
+                       TreeColumns columns,
+                       TreeDirection direction);
+
   // ---------------------------------------------------------------------------
   // Queries: return what is known, change nothing
   // ---------------------------------------------------------------------------

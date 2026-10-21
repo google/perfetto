@@ -765,18 +765,6 @@ TEST_F(PerfettoSqlParserTest, PipelineOnlyAsAStatementTableBodyOrSource) {
   EXPECT_TRUE(std::holds_alternative<pipeline::LogicalPlan>(table->body));
 }
 
-TEST_F(PerfettoSqlParserTest, GraphTreeIsNotSupportedYet) {
-  for (const char* kind : {"BFS", "DFS", "DOMINATOR"}) {
-    std::string sql = std::string("CREATE PERFETTO TABLE t AS GRAPH ") + kind +
-                      " TREE NODES n EDGES (SELECT 1 AS src, 1 AS dst) "
-                      "FROM s AS seeds |> DISTINCT";
-    EXPECT_THAT(Parse(SqlSource::FromExecuteQuery(sql)).status().message(),
-                HasSubstr(std::string("GRAPH ") + kind +
-                          " TREE: this operator is not supported yet"))
-        << sql;
-  }
-}
-
 TEST_F(PerfettoSqlParserTest, Subpipelines) {
   for (const char* sql : {
            "FROM (FROM slice |> DISTINCT) |> DISTINCT",
