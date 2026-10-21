@@ -243,13 +243,13 @@ describe('SliceTrack with a dynamic dataset', () => {
     createdTables(): string[] {
       return this.log
         .filter((q) => q.startsWith('CREATE'))
-        .map((q) => q.split(' ')[3]);
+        .map((q) => q.split(' ')[3]!);
     }
 
     droppedTables(): string[] {
       return this.log
         .filter((q) => q.startsWith('DROP TABLE'))
-        .map((q) => q.split(' ')[4]);
+        .map((q) => q.split(' ')[4]!);
     }
   }
 
