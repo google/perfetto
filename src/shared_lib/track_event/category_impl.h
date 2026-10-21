@@ -18,6 +18,7 @@
 #define SRC_SHARED_LIB_TRACK_EVENT_CATEGORY_IMPL_H_
 
 #include <atomic>
+#include <cstdint>
 
 #include "perfetto/public/abi/track_event_abi.h"
 
@@ -28,6 +29,8 @@ struct PerfettoTeCategoryImpl {
   uint64_t cat_iid = 0;
   PerfettoTeCategoryImplCallback cb = nullptr;
   void* cb_user_arg = nullptr;
+  PerfettoTeCategorySnapshotCallback snapshot_cb = nullptr;
+  void* snapshot_cb_user_arg = nullptr;
 
   void EnableInstance(uint32_t instance_index);
   void DisableInstance(uint32_t instance_index);

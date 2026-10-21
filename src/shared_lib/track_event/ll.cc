@@ -53,7 +53,8 @@ struct PerfettoTeLlImplIterator PerfettoTeLlImplBegin(
   struct PerfettoTeLlImplIterator ret = {};
   uint32_t cached_instances =
       perfetto::shlib::TracePointTraits::GetActiveInstances({cat})->load(
-          std::memory_order_relaxed);
+          std::memory_order_relaxed) &
+      perfetto::shlib::GetTlsSnapshotContext().instance_mask;
   if (!cached_instances) {
     return ret;
   }

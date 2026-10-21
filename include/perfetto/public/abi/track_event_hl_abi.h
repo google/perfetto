@@ -154,6 +154,7 @@ enum PerfettoTeHlExtraType {
   PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS = 19,
   PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID = 20,
   PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR = 21,
+  PERFETTO_TE_HL_EXTRA_TYPE_PERSISTENT_STATE_TRACK = 22,
 };
 
 // An extra event parameter. Each type of parameter should embed this as its
@@ -168,6 +169,12 @@ struct PerfettoTeHlExtraRegisteredTrack {
   struct PerfettoTeHlExtra header;
   // Pointer to a registered track.
   const struct PerfettoTeRegisteredTrackImpl* track;
+};
+
+// PERFETTO_TE_HL_EXTRA_TYPE_PERSISTENT_STATE_TRACK
+struct PerfettoTeHlExtraPersistentStateTrack {
+  struct PerfettoTeHlExtra header;
+  struct PerfettoTePersistentStateTrackImpl* track;
 };
 
 // PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK

@@ -525,6 +525,9 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
     timestamp = std::max(latest_timestamp_, context_->sorter->max_timestamp());
   }
   latest_timestamp_ = std::max(timestamp, latest_timestamp_);
+  if (!decoder.has_track_event() && decoder.has_timestamp()) {
+    module_context_.RecordNonSyntheticTimestamp(timestamp);
+  }
 
   // Track events and Chrome metadata are read by name, so they go straight
   // to their modules. Every other payload field is in the spill

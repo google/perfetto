@@ -35,6 +35,7 @@ PERFETTO_TE_CATEGORIES_DEFINE(EXAMPLE_CATEGORIES)
 
 static struct PerfettoTeRegisteredTrack mytrack;
 static struct PerfettoTeRegisteredTrack mycounter;
+static struct PerfettoTePersistentStateTrack mystate;
 
 static void EnabledCb(struct PerfettoTeCategoryImpl* c,
                       PerfettoDsInstanceIndex inst_id,
@@ -50,6 +51,16 @@ static void EnabledCb(struct PerfettoTeCategoryImpl* c,
   }
 }
 
+static void SnapshotCb(struct PerfettoTeCategoryImpl* c,
+                       PerfettoDsInstanceIndex inst_id,
+                       void* user_arg) {
+  (void)c;
+  (void)inst_id;
+  (void)user_arg;
+  PERFETTO_TE(physics, PERFETTO_TE_STATE("ACTIVE"),
+              PERFETTO_TE_PERSISTENT_STATE_TRACK(&mystate));
+}
+
 int main(void) {
   uint64_t flow_counter = 0;
   struct PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
@@ -61,7 +72,10 @@ int main(void) {
                                PerfettoTeProcessTrackUuid(), true);
   PerfettoTeCounterTrackRegister(&mycounter, "mycounter",
                                  PerfettoTeProcessTrackUuid(), true);
+  PerfettoTePersistentStateTrackRegister(&mystate, "mystate",
+                                         PerfettoTeProcessTrackUuid(), true);
   PerfettoTeCategorySetCallback(&physics, EnabledCb, PERFETTO_NULL);
+  PerfettoTeCategorySetSnapshotCallback(&physics, SnapshotCb, PERFETTO_NULL);
   for (;;) {
     PERFETTO_TE(rendering, PERFETTO_TE_INSTANT("name1"));
     PERFETTO_TE(physics, PERFETTO_TE_INSTANT("name2"),
@@ -137,6 +151,9 @@ int main(void) {
                 PERFETTO_TE_CORRELATION_ID(flow_counter));
     PERFETTO_TE(physics, PERFETTO_TE_INSTANT("frame_label"),
                 PERFETTO_TE_CORRELATION_ID_STR("frame"));
+    PERFETTO_TE(physics, PERFETTO_TE_STATE("IDLE"),
+                PERFETTO_TE_PERSISTENT_STATE_TRACK(&mystate),
+                PERFETTO_TE_STATE_DURATION_NS(500));
     sleep(1);
   }
 }

@@ -1251,6 +1251,103 @@ class TrackEvent(TestSuite):
         1,3000,1000,"state_cat","state_idle","MyStateTrack"
         """))
 
+  def test_track_event_persistent_state(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            name: "MainThread"
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 10
+            name: "PersistentStateTrack"
+            state {}
+          }
+        }
+        # First non-synthetic event at ts=1000 establishes the clamping horizon.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            track_uuid: 1
+            type: TYPE_INSTANT
+            categories: "cat"
+            name: "first_event"
+          }
+        }
+        # State changes from "state_a" (started at ts=200, before 1000) to
+        # "state_b" at ts=2000. Emits backwards-looking "state_a" with
+        # state_duration_ns=1800, which should clamp to ts=1000.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000
+          track_event {
+            track_uuid: 10
+            type: TYPE_STATE
+            categories: "state_cat"
+            name: "state_a"
+            state_duration_ns: 1800
+          }
+        }
+        # Periodic flush at ts=2500 emits forward-looking "state_b" at ts=2000.
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 2000
+          incremental_state_cleared: true
+          track_event {
+            track_uuid: 10
+            type: TYPE_STATE
+            categories: "state_cat"
+            name: "state_b"
+          }
+        }
+        # State changes from "state_b" (started at ts=2000) to "state_c" at
+        # ts=3500. Emits backwards-looking "state_b" (3500 - 1500 = 2000),
+        # which is deduplicated because ts=2000 was already pushed on flush.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3500
+          track_event {
+            track_uuid: 10
+            type: TYPE_STATE
+            categories: "state_cat"
+            name: "state_b"
+            state_duration_ns: 1500
+          }
+        }
+        # Final flush emits forward-looking "state_c" at ts=3500.
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 3500
+          track_event {
+            track_uuid: 10
+            type: TYPE_STATE
+            categories: "state_cat"
+            name: "state_c"
+          }
+        }
+        """),
+        query="""
+        SELECT ts, dur, category, value, track.name AS track_name
+        FROM state
+        JOIN track ON track.id = state.track_id
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","category","value","track_name"
+        1000,1000,"state_cat","state_a","PersistentStateTrack"
+        2000,1500,"state_cat","state_b","PersistentStateTrack"
+        3500,-1,"state_cat","state_c","PersistentStateTrack"
+        """))
+
   def test_state_track_legacy_fallback_error(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""

@@ -16,6 +16,8 @@
 
 #include "src/shared_lib/track_event/global_state.h"
 
+#include <tuple>
+
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/internal/basic_types.h"
 #include "protos/perfetto/common/data_source_descriptor.gen.h"
@@ -25,6 +27,8 @@
 namespace perfetto::shlib {
 
 namespace {
+
+thread_local TlsSnapshotContext g_tls_snapshot_ctx;
 
 bool IsRegisteredCategoryEnabled(
     const PerfettoTeCategoryImpl& cat,
@@ -36,6 +40,10 @@ bool IsRegisteredCategoryEnabled(
 }
 
 }  // namespace
+
+const TlsSnapshotContext& GetTlsSnapshotContext() {
+  return g_tls_snapshot_ctx;
+}
 
 GlobalState::GlobalState() : interned_categories_(0) {
   perfetto_te_any_categories = new PerfettoTeCategoryImpl;
@@ -52,6 +60,35 @@ void GlobalState::OnStart(const perfetto::protos::gen::TrackEventConfig& config,
     }
   }
   active_configs_[instance_id] = config;
+}
+
+void GlobalState::OnSnapshot(uint32_t instance_id, bool full_snapshot)
+    PERFETTO_LOCKS_EXCLUDED(mu_) {
+  std::vector<std::tuple<PerfettoTeCategoryImpl*,
+                         PerfettoTeCategorySnapshotCallback, void*>>
+      callbacks;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    uint8_t mask = static_cast<uint8_t>(1u << instance_id);
+    for (PerfettoTeCategoryImpl* cat : categories_) {
+      if (cat->snapshot_cb &&
+          (cat->instances.load(std::memory_order_relaxed) & mask) != 0) {
+        callbacks.emplace_back(cat, cat->snapshot_cb,
+                               cat->snapshot_cb_user_arg);
+      }
+    }
+  }
+  if (callbacks.empty()) {
+    return;
+  }
+
+  TlsSnapshotContext prev = g_tls_snapshot_ctx;
+  g_tls_snapshot_ctx = {static_cast<uint8_t>(1u << instance_id),
+                        /*in_snapshot=*/true, full_snapshot};
+  for (const auto& [cat, cb, user_arg] : callbacks) {
+    cb(cat, instance_id, user_arg);
+  }
+  g_tls_snapshot_ctx = prev;
 }
 
 void GlobalState::OnStop(uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_) {
@@ -105,6 +142,15 @@ void GlobalState::CategorySetCallback(struct PerfettoTeCategoryImpl* cat,
     cb(cat, i, true, first, user_arg);
     first = false;
   }
+}
+
+void GlobalState::CategorySetSnapshotCallback(
+    struct PerfettoTeCategoryImpl* cat,
+    PerfettoTeCategorySnapshotCallback cb,
+    void* user_arg) PERFETTO_LOCKS_EXCLUDED(mu_) {
+  std::lock_guard<std::mutex> lock(mu_);
+  cat->snapshot_cb = cb;
+  cat->snapshot_cb_user_arg = user_arg;
 }
 
 DataSourceDescriptor GlobalState::GenerateDescriptorFromCategories() const {

@@ -160,6 +160,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
 PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   VARINT,
                   uint64_t,
+                  state_duration_ns,
+                  58);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
+                  VARINT,
+                  uint64_t,
                   flow_ids_old,
                   36);
 PERFETTO_PB_FIELD(perfetto_protos_TrackEvent, FIXED64, uint64_t, flow_ids, 47);

@@ -3159,4 +3159,280 @@ TEST_F(SharedLibTrackEventTest, TrackEventIsCategoryEnabled) {
   EXPECT_FALSE(PERFETTO_TE_IS_CATEGORY_ENABLED(cat1));
 }
 
+TEST_F(SharedLibTrackEventTest, PersistentStateSnapshotUnchangedAndChanged) {
+  struct UserState {
+    PerfettoTePersistentStateTrack dynamic_track{};
+    std::string dynamic_state = "INITIAL_DYNAMIC";
+    PerfettoTeTimestamp dynamic_start_ts{};
+    int64_t dynamic_arg = 10;
+
+    PerfettoTePersistentStateTrack static_track{};
+    std::string static_state = "INITIAL_STATIC";
+
+    size_t callback_invocations = 0;
+  } user_state;
+
+  PerfettoTePersistentStateTrackRegister(&user_state.dynamic_track,
+                                         "DynamicState",
+                                         PerfettoTeProcessTrackUuid(), false);
+  PerfettoTePersistentStateTrackRegister(&user_state.static_track,
+                                         "StaticState",
+                                         PerfettoTeProcessTrackUuid(), false);
+  user_state.dynamic_start_ts = PerfettoTeGetTimestamp();
+
+  // Client always emits all persistent state tracks unconditionally; Perfetto
+  // skips clean tracks automatically on incremental snapshots.
+  auto snapshot_cb = [](struct PerfettoTeCategoryImpl*, PerfettoDsInstanceIndex,
+                        void* user_arg) {
+    auto* state = static_cast<UserState*>(user_arg);
+    state->callback_invocations++;
+    PERFETTO_TE(cat1, PERFETTO_TE_STATE(state->dynamic_state.c_str()),
+                PERFETTO_TE_PERSISTENT_STATE_TRACK(&state->dynamic_track),
+                PERFETTO_TE_TIMESTAMP(state->dynamic_start_ts),
+                PERFETTO_TE_ARG_INT64("seq", state->dynamic_arg),
+                PERFETTO_TE_NO_INTERN());
+    PERFETTO_TE(cat1, PERFETTO_TE_STATE(state->static_state.c_str()),
+                PERFETTO_TE_PERSISTENT_STATE_TRACK(&state->static_track),
+                PERFETTO_TE_NO_INTERN());
+  };
+
+  PerfettoTeCategorySetSnapshotCallback(&cat1, snapshot_cb, &user_state);
+
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("cat1")
+                                       .add_disabled_category("*")
+                                       .Build();
+
+  // 1st flush: full snapshot emits both tracks as backwards-looking states.
+  ASSERT_TRUE(tracing_session.FlushBlocking(/*timeout_ms=*/10000));
+  EXPECT_EQ(user_state.callback_invocations, 1u);
+
+  // 2nd flush with no state changes: callback runs again and calls PERFETTO_TE
+  // on both tracks, but Perfetto skips both clean tracks automatically.
+  ASSERT_TRUE(tracing_session.FlushBlocking(/*timeout_ms=*/10000));
+  EXPECT_EQ(user_state.callback_invocations, 2u);
+
+  // Transition DynamicState from INITIAL_DYNAMIC to UPDATED_DYNAMIC: emitting
+  // on `dynamic_track` automatically marks it dirty without touching
+  // `static_track`.
+  PerfettoTeTimestamp now = PerfettoTeGetTimestamp();
+  uint64_t prev_dur = now.value >= user_state.dynamic_start_ts.value
+                          ? now.value - user_state.dynamic_start_ts.value
+                          : 0;
+  PERFETTO_TE(cat1, PERFETTO_TE_STATE(user_state.dynamic_state.c_str()),
+              PERFETTO_TE_PERSISTENT_STATE_TRACK(&user_state.dynamic_track),
+              PERFETTO_TE_TIMESTAMP(now),
+              PERFETTO_TE_STATE_DURATION_NS(prev_dur),
+              PERFETTO_TE_ARG_INT64("seq", user_state.dynamic_arg),
+              PERFETTO_TE_NO_INTERN());
+  user_state.dynamic_state = "UPDATED_DYNAMIC";
+  user_state.dynamic_arg = 20;
+  user_state.dynamic_start_ts = now;
+
+  // Stop the trace: 3rd snapshot skips clean StaticState and emits dirty
+  // DynamicState forward-looking (no state_duration_ns).
+  tracing_session.StopBlocking();
+  EXPECT_EQ(user_state.callback_invocations, 3u);
+
+  PerfettoTeCategorySetSnapshotCallback(&cat1, nullptr, nullptr);
+  PerfettoTePersistentStateTrackUnregister(&user_state.dynamic_track);
+  PerfettoTePersistentStateTrackUnregister(&user_state.static_track);
+
+  uint64_t kDynamicUuid =
+      PerfettoTeStateTrackUuid("DynamicState", PerfettoTeProcessTrackUuid());
+  uint64_t kStaticUuid =
+      PerfettoTeStateTrackUuid("StaticState", PerfettoTeProcessTrackUuid());
+
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  auto static_matcher = PbField(
+      perfetto_protos_Trace_packet_field_number,
+      AllFieldsWithId(
+          perfetto_protos_TracePacket_track_event_field_number,
+          ElementsAre(AllOf(
+              AllFieldsWithId(perfetto_protos_TrackEvent_type_field_number,
+                              ElementsAre(VarIntField(
+                                  perfetto_protos_TrackEvent_TYPE_STATE))),
+              AllFieldsWithId(perfetto_protos_TrackEvent_name_field_number,
+                              ElementsAre(StringField("INITIAL_STATIC"))),
+              AllFieldsWithId(
+                  perfetto_protos_TrackEvent_track_uuid_field_number,
+                  ElementsAre(VarIntField(kStaticUuid))),
+              AllFieldsWithId(
+                  perfetto_protos_TrackEvent_state_duration_ns_field_number,
+                  ElementsAre(VarIntField(_)))))));
+  size_t static_packets = 0;
+  for (PerfettoPbDecoderField field : FieldView(data)) {
+    if (testing::Value(field, static_matcher)) {
+      static_packets++;
+    }
+  }
+  EXPECT_EQ(static_packets, 1u);
+
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          AllFieldsWithId(
+              perfetto_protos_TracePacket_track_event_field_number,
+              ElementsAre(AllOf(
+                  AllFieldsWithId(perfetto_protos_TrackEvent_type_field_number,
+                                  ElementsAre(VarIntField(
+                                      perfetto_protos_TrackEvent_TYPE_STATE))),
+                  AllFieldsWithId(perfetto_protos_TrackEvent_name_field_number,
+                                  ElementsAre(StringField("INITIAL_DYNAMIC"))),
+                  AllFieldsWithId(
+                      perfetto_protos_TrackEvent_track_uuid_field_number,
+                      ElementsAre(VarIntField(kDynamicUuid))),
+                  AllFieldsWithId(
+                      perfetto_protos_TrackEvent_state_duration_ns_field_number,
+                      ElementsAre(VarIntField(_)))))))));
+
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          AllFieldsWithId(
+              perfetto_protos_TracePacket_track_event_field_number,
+              ElementsAre(AllOf(
+                  AllFieldsWithId(perfetto_protos_TrackEvent_type_field_number,
+                                  ElementsAre(VarIntField(
+                                      perfetto_protos_TrackEvent_TYPE_STATE))),
+                  AllFieldsWithId(perfetto_protos_TrackEvent_name_field_number,
+                                  ElementsAre(StringField("UPDATED_DYNAMIC"))),
+                  AllFieldsWithId(
+                      perfetto_protos_TrackEvent_track_uuid_field_number,
+                      ElementsAre(VarIntField(kDynamicUuid))),
+                  AllFieldsWithId(
+                      perfetto_protos_TrackEvent_state_duration_ns_field_number,
+                      ElementsAre())))))));
+}
+
+TEST_F(SharedLibTrackEventTest, PersistentStateSnapshotMultiSessionConcurrent) {
+  struct ConcurrentUserState {
+    std::mutex mu;
+    PerfettoTePersistentStateTrack track{};
+    std::string val = "BOOT_STATE";
+    PerfettoTeTimestamp start_ts{};
+  } shared_state;
+
+  PerfettoTePersistentStateTrackRegister(&shared_state.track,
+                                         "ConcurrentSnapshotTrack",
+                                         PerfettoTeProcessTrackUuid(), false);
+  shared_state.start_ts = PerfettoTeGetTimestamp();
+
+  auto snapshot_cb = [](struct PerfettoTeCategoryImpl*, PerfettoDsInstanceIndex,
+                        void* user_arg) {
+    auto* s = static_cast<ConcurrentUserState*>(user_arg);
+    std::string snapshot_val;
+    PerfettoTeTimestamp snapshot_ts{};
+    {
+      std::lock_guard<std::mutex> lock(s->mu);
+      snapshot_val = s->val;
+      snapshot_ts = s->start_ts;
+    }
+    PERFETTO_TE(cat1, PERFETTO_TE_STATE(snapshot_val.c_str()),
+                PERFETTO_TE_PERSISTENT_STATE_TRACK(&s->track),
+                PERFETTO_TE_TIMESTAMP(snapshot_ts), PERFETTO_TE_NO_INTERN());
+  };
+
+  PerfettoTeCategorySetSnapshotCallback(&cat1, snapshot_cb, &shared_state);
+
+  TracingSession session1 = TracingSession::Builder()
+                                .set_data_source_name("track_event")
+                                .add_enabled_category("cat1")
+                                .add_disabled_category("*")
+                                .Build();
+  TracingSession session2 = TracingSession::Builder()
+                                .set_data_source_name("track_event")
+                                .add_enabled_category("cat1")
+                                .add_disabled_category("*")
+                                .Build();
+
+  // Verify TLS instance bitmask isolation: flushing session1 first and then
+  // session2 emits BOOT_STATE once per session without leaking into session1.
+  ASSERT_TRUE(session1.FlushBlocking(/*timeout_ms=*/10000));
+  ASSERT_TRUE(session2.FlushBlocking(/*timeout_ms=*/10000));
+
+  auto update_fn = [&shared_state](const char* next_val) {
+    PerfettoTeTimestamp now = PerfettoTeGetTimestamp();
+    std::string prev_val;
+    PerfettoTeTimestamp prev_ts{};
+    {
+      std::lock_guard<std::mutex> lock(shared_state.mu);
+      prev_val = shared_state.val;
+      prev_ts = shared_state.start_ts;
+      shared_state.val = next_val;
+      shared_state.start_ts = now;
+      PerfettoTePersistentStateTrackMarkDirty(&shared_state.track);
+    }
+    uint64_t dur = now.value >= prev_ts.value ? now.value - prev_ts.value : 0;
+    PERFETTO_TE(cat1, PERFETTO_TE_STATE(prev_val.c_str()),
+                PERFETTO_TE_PERSISTENT_STATE_TRACK(&shared_state.track),
+                PERFETTO_TE_TIMESTAMP(now), PERFETTO_TE_STATE_DURATION_NS(dur),
+                PERFETTO_TE_NO_INTERN());
+  };
+
+  std::thread writer([&update_fn]() {
+    for (int i = 0; i < 200; ++i) {
+      update_fn("RACING_STATE");
+    }
+    update_fn("FINAL_STATE");
+  });
+
+  for (int i = 0; i < 5; ++i) {
+    ASSERT_TRUE(session1.FlushBlocking(/*timeout_ms=*/10000));
+    ASSERT_TRUE(session2.FlushBlocking(/*timeout_ms=*/10000));
+  }
+  writer.join();
+
+  session1.StopBlocking();
+  session2.StopBlocking();
+  PerfettoTeCategorySetSnapshotCallback(&cat1, nullptr, nullptr);
+  PerfettoTePersistentStateTrackUnregister(&shared_state.track);
+
+  uint64_t kExpectedUuid = PerfettoTeStateTrackUuid(
+      "ConcurrentSnapshotTrack", PerfettoTeProcessTrackUuid());
+  auto boot_state_packet = PbField(
+      perfetto_protos_Trace_packet_field_number,
+      AllFieldsWithId(
+          perfetto_protos_TracePacket_track_event_field_number,
+          ElementsAre(AllOf(
+              AllFieldsWithId(perfetto_protos_TrackEvent_type_field_number,
+                              ElementsAre(VarIntField(
+                                  perfetto_protos_TrackEvent_TYPE_STATE))),
+              AllFieldsWithId(perfetto_protos_TrackEvent_name_field_number,
+                              ElementsAre(StringField("BOOT_STATE"))),
+              AllFieldsWithId(
+                  perfetto_protos_TrackEvent_track_uuid_field_number,
+                  ElementsAre(VarIntField(kExpectedUuid)))))));
+  for (std::vector<uint8_t> data :
+       {session1.ReadBlocking(), session2.ReadBlocking()}) {
+    size_t boot_state_count = 0;
+    for (PerfettoPbDecoderField field : FieldView(data)) {
+      if (testing::Value(field, boot_state_packet)) {
+        boot_state_count++;
+      }
+    }
+    EXPECT_EQ(boot_state_count, 2u);
+    EXPECT_THAT(
+        FieldView(data),
+        Contains(PbField(
+            perfetto_protos_Trace_packet_field_number,
+            AllFieldsWithId(
+                perfetto_protos_TracePacket_track_event_field_number,
+                ElementsAre(AllOf(
+                    AllFieldsWithId(
+                        perfetto_protos_TrackEvent_type_field_number,
+                        ElementsAre(VarIntField(
+                            perfetto_protos_TrackEvent_TYPE_STATE))),
+                    AllFieldsWithId(
+                        perfetto_protos_TrackEvent_name_field_number,
+                        ElementsAre(StringField("FINAL_STATE"))),
+                    AllFieldsWithId(
+                        perfetto_protos_TrackEvent_track_uuid_field_number,
+                        ElementsAre(VarIntField(kExpectedUuid)))))))));
+  }
+}
+
 }  // namespace

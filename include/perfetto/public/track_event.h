@@ -72,6 +72,17 @@ static inline void PerfettoTeCategorySetCallback(
   PerfettoTeCategoryImplSetCallback(reg_cat->impl, cb, user_arg);
 }
 
+// Registers `cb` to be called when a data source instance with `reg_cat`
+// enabled takes a state snapshot. `user_arg` will be passed unaltered to `cb`.
+//
+// `cb` can be NULL to disable the callback.
+static inline void PerfettoTeCategorySetSnapshotCallback(
+    struct PerfettoTeCategory* reg_cat,
+    PerfettoTeCategorySnapshotCallback cb,
+    void* user_arg) {
+  PerfettoTeCategoryImplSetSnapshotCallback(reg_cat->impl, cb, user_arg);
+}
+
 // Unregisters the category `cat`.
 //
 // WARNING: The category cannot be used for tracing anymore after this.
@@ -304,6 +315,45 @@ static inline void PerfettoTeRegisteredTrackUnregister(
   free(track->impl.descriptor);
   track->impl.descriptor = PERFETTO_NULL;
   track->impl.descriptor_size = 0;
+}
+
+// A persistent state track whose dirty state is tracked per active data source
+// instance so unchanged tracks are automatically skipped on incremental
+// snapshots.
+struct PerfettoTePersistentStateTrack {
+  struct PerfettoTePersistentStateTrackImpl impl;
+};
+
+// Registers a persistent state track named `name` with `parent_uuid` into
+// `track`.
+static inline void PerfettoTePersistentStateTrackRegister(
+    struct PerfettoTePersistentStateTrack* track,
+    const char* name,
+    uint64_t parent_track_uuid,
+    bool is_name_static) {
+  struct PerfettoTeRegisteredTrack reg_track;
+  PerfettoTeStateTrackRegister(&reg_track, name, parent_track_uuid,
+                               is_name_static);
+  track->impl.track = reg_track.impl;
+  PERFETTO_ATOMIC_STORE_EXPLICIT(&track->impl.dirty_instances, 0,
+                                 PERFETTO_MEMORY_ORDER_RELAXED);
+}
+
+// Unregisters the previously registered persistent state track `track`.
+static inline void PerfettoTePersistentStateTrackUnregister(
+    struct PerfettoTePersistentStateTrack* track) {
+  free(track->impl.track.descriptor);
+  track->impl.track.descriptor = PERFETTO_NULL;
+  track->impl.track.descriptor_size = 0;
+}
+
+// Marks all data source instances dirty on `track`. Normal PERFETTO_TE()
+// emissions on `track` mark active instances dirty automatically; this helper
+// is only needed when updating state after or without emitting a transition.
+static inline void PerfettoTePersistentStateTrackMarkDirty(
+    struct PerfettoTePersistentStateTrack* track) {
+  PERFETTO_ATOMIC_STORE_EXPLICIT(&track->impl.dirty_instances, 0xFFu,
+                                 PERFETTO_MEMORY_ORDER_RELEASE);
 }
 
 // Identifies a flow: a link between two events.

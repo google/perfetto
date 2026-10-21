@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <mutex>
 #include <unordered_map>
+#include <vector>
 
 #include "perfetto/base/thread_annotations.h"
 #include "perfetto/tracing/core/forward_decls.h"
@@ -27,6 +28,14 @@
 #include "src/shared_lib/track_event/category_impl.h"
 
 namespace perfetto::shlib {
+
+struct TlsSnapshotContext {
+  uint8_t instance_mask = 0xFFu;
+  bool in_snapshot = false;
+  bool full_snapshot = false;
+};
+
+const TlsSnapshotContext& GetTlsSnapshotContext();
 
 class GlobalState {
  public:
@@ -37,6 +46,8 @@ class GlobalState {
 
   void OnStart(const perfetto::protos::gen::TrackEventConfig& config,
                uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_);
+  void OnSnapshot(uint32_t instance_id, bool full_snapshot)
+      PERFETTO_LOCKS_EXCLUDED(mu_);
   void OnStop(uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_);
   void RegisterCategory(PerfettoTeCategoryImpl* cat)
       PERFETTO_LOCKS_EXCLUDED(mu_);
@@ -45,6 +56,9 @@ class GlobalState {
   void CategorySetCallback(struct PerfettoTeCategoryImpl* cat,
                            PerfettoTeCategoryImplCallback cb,
                            void* user_arg) PERFETTO_LOCKS_EXCLUDED(mu_);
+  void CategorySetSnapshotCallback(struct PerfettoTeCategoryImpl* cat,
+                                   PerfettoTeCategorySnapshotCallback cb,
+                                   void* user_arg) PERFETTO_LOCKS_EXCLUDED(mu_);
   DataSourceDescriptor GenerateDescriptorFromCategories() const
       PERFETTO_LOCKS_EXCLUDED(mu_);
 

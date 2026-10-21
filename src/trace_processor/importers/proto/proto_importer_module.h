@@ -224,6 +224,12 @@ struct ProtoImporterModuleContext {
   InlineSchedWakingStreamFactory inline_sched_waking_stream_factory;
   std::vector<std::unique_ptr<TraceSorter::Stream<InlineSchedWaking>>>
       inline_sched_waking_streams;
+  std::optional<int64_t> min_non_synthetic_ts;
+  void RecordNonSyntheticTimestamp(int64_t ts) {
+    if (ts > 0 && (!min_non_synthetic_ts || ts < *min_non_synthetic_ts)) {
+      min_non_synthetic_ts = ts;
+    }
+  }
 };
 
 }  // namespace trace_processor

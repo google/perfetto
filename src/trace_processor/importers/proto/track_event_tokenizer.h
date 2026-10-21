@@ -21,8 +21,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
@@ -106,6 +108,7 @@ class TrackEventTokenizer {
   const StringId child_order_key_id_;
 
   std::array<StringId, 4> counter_unit_ids_;
+  base::FlatHashMap<uint64_t, int64_t> last_state_ts_by_track_;
 };
 
 }  // namespace trace_processor

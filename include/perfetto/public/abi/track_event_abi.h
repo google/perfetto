@@ -129,10 +129,34 @@ struct PerfettoTeTimestamp {
 // Returns the current timestamp.
 PERFETTO_SDK_EXPORT struct PerfettoTeTimestamp PerfettoTeGetTimestamp(void);
 
+// Called on Perfetto's internal tracing thread when a data source instance with
+// a registered category enabled takes a state snapshot (e.g., on periodic
+// flush, explicit flush, trace clone, or stop). Clients should emit all
+// persistent state tracks associated with the category; Perfetto skips
+// unchanged tracks automatically on incremental snapshots. If synchronizing
+// with other threads via a lock, do not hold that lock across `PERFETTO_TE()`
+// calls on other threads.
+typedef void (*PerfettoTeCategorySnapshotCallback)(
+    struct PerfettoTeCategoryImpl*,
+    PerfettoDsInstanceIndex inst_id,
+    void* user_arg);
+
+// Registers `cb` to be called when a data source instance with `cat` enabled
+// takes a snapshot. `cb` can be NULL to disable the callback.
+PERFETTO_SDK_EXPORT void PerfettoTeCategoryImplSetSnapshotCallback(
+    struct PerfettoTeCategoryImpl* cat,
+    PerfettoTeCategorySnapshotCallback cb,
+    void* user_arg);
+
 struct PerfettoTeRegisteredTrackImpl {
   void* descriptor;  // Owned (malloc).
   size_t descriptor_size;
   uint64_t uuid;
+};
+
+struct PerfettoTePersistentStateTrackImpl {
+  struct PerfettoTeRegisteredTrackImpl track;
+  PERFETTO_ATOMIC(uint8_t) dirty_instances;
 };
 
 // The UUID of the process track for the current process.

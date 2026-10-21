@@ -210,6 +210,12 @@ struct PerfettoTeHlMacroNameAndType {
 // Possible types of extra arguments for the PERFETTO_TE macro
 // -----------------------------------------------------------
 
+// Marks a PERFETTO_TE_STATE() event as backwards-looking with duration
+// `uint64_t DURATION_NS` ending at the event's timestamp.
+#define PERFETTO_TE_STATE_DURATION_NS(DURATION_NS)         \
+  PERFETTO_TE_PROTO_FIELDS(PERFETTO_TE_PROTO_FIELD_VARINT( \
+      perfetto_protos_TrackEvent_state_duration_ns_field_number, DURATION_NS))
+
 // The value (`C`) of an integer counter. A separate parameter must describe the
 // counter track this refers to. This should only be used for events with
 // type PERFETTO_TE_COUNTER().
@@ -238,6 +244,14 @@ struct PerfettoTeHlMacroNameAndType {
   PERFETTO_I_TE_EXTRA(                  \
       PerfettoTeHlExtraRegisteredTrack, \
       {{PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK}, &(T)->impl})
+
+// Specifies that the current track for this event is
+// `struct PerfettoTePersistentStateTrack* T`, which must have been previously
+// registered with PerfettoTePersistentStateTrackRegister().
+#define PERFETTO_TE_PERSISTENT_STATE_TRACK(T) \
+  PERFETTO_I_TE_EXTRA(                        \
+      PerfettoTeHlExtraPersistentStateTrack,  \
+      {{PERFETTO_TE_HL_EXTRA_TYPE_PERSISTENT_STATE_TRACK}, &(T)->impl})
 
 // Specifies that the current track for this event is a track named `const char
 // *NAME`, child of a track whose uuid is `PARENT_UUID`. `NAME`, `uint64_t ID`

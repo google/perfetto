@@ -116,6 +116,7 @@ class TrackEvent
   ~TrackEvent() override;
   void OnSetup(const DataSourceBase::SetupArgs& args) override;
   void OnStart(const DataSourceBase::StartArgs&) override;
+  void OnFlush(const DataSourceBase::FlushArgs&) override;
   void OnStop(const DataSourceBase::StopArgs&) override;
 
   const perfetto::protos::gen::TrackEventConfig& GetConfig() const {
@@ -151,6 +152,7 @@ class TrackEvent
 
  private:
   uint32_t inst_id_;
+  bool initial_snapshot_done_ = false;
   perfetto::protos::gen::TrackEventConfig config_;
 };
 

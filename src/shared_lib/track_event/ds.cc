@@ -35,7 +35,18 @@ void TrackEvent::OnStart(const DataSourceBase::StartArgs&) {
   GlobalState::Instance().OnStart(config_, inst_id_);
 }
 
+void TrackEvent::OnFlush(const DataSourceBase::FlushArgs& args) {
+  bool full_snapshot =
+      !initial_snapshot_done_ ||
+      args.flush_flags.reason() == FlushFlags::Reason::kTraceClone;
+  initial_snapshot_done_ = true;
+  GlobalState::Instance().OnSnapshot(inst_id_, full_snapshot);
+}
+
 void TrackEvent::OnStop(const DataSourceBase::StopArgs&) {
+  bool full_snapshot = !initial_snapshot_done_;
+  initial_snapshot_done_ = true;
+  GlobalState::Instance().OnSnapshot(inst_id_, full_snapshot);
   GlobalState::Instance().OnStop(inst_id_);
 }
 

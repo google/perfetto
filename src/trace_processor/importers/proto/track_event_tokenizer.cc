@@ -586,6 +586,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
                                 event.type() == TrackEvent::TYPE_COUNTER ||
                                 event.type() == TrackEvent::TYPE_STATE;
   if (!needs_processing && args.decoder.has_timestamp() && args.ts >= 0) {
+    module_context_->RecordNonSyntheticTimestamp(args.ts);
     module_context_->track_event_stream->Push(
         args.ts, TrackEventData(std::move(*args.packet), args.state));
     return ModuleResult::Handled();
@@ -740,11 +741,39 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   }
 
   if (event.type() == protos::pbzero::TrackEvent::TYPE_STATE) {
-    if (!event.has_track_uuid() && (!defaults || !defaults->has_track_uuid())) {
+    uint64_t track_uuid;
+    if (event.has_track_uuid()) {
+      track_uuid = event.track_uuid();
+    } else if (defaults && defaults->has_track_uuid()) {
+      track_uuid = defaults->track_uuid();
+    } else {
       RecordTokenizationLog(stats::track_event_state_missing_track_uuid,
                             &data.trace_packet_data.packet);
       return ModuleResult::Handled();
     }
+    if (event.has_state_duration_ns()) {
+      uint64_t dur = event.state_duration_ns();
+      timestamp = dur <= static_cast<uint64_t>(timestamp)
+                      ? timestamp - static_cast<int64_t>(dur)
+                      : 0;
+      if (module_context_->min_non_synthetic_ts &&
+          timestamp < *module_context_->min_non_synthetic_ts) {
+        timestamp = *module_context_->min_non_synthetic_ts;
+      }
+      if (auto* last_ts = last_state_ts_by_track_.Find(track_uuid);
+          last_ts && timestamp <= *last_ts) {
+        return ModuleResult::Handled();
+      }
+      last_state_ts_by_track_[track_uuid] = timestamp;
+    } else {
+      module_context_->RecordNonSyntheticTimestamp(timestamp);
+      if (auto* last_ts = last_state_ts_by_track_.Find(track_uuid);
+          !last_ts || timestamp > *last_ts) {
+        last_state_ts_by_track_[track_uuid] = timestamp;
+      }
+    }
+  } else {
+    module_context_->RecordNonSyntheticTimestamp(timestamp);
   }
 
   size_t index = 0;

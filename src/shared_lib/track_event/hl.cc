@@ -16,6 +16,7 @@
 
 #include "perfetto/public/abi/track_event_hl_abi.h"
 
+#include "perfetto/base/time.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "src/shared_lib/track_event/ds.h"
 #include "src/shared_lib/track_event/serialization.h"
@@ -416,10 +417,10 @@ void InstanceOp(internal::DataSourceType* ds,
     return;
   }
 
-  std::variant<std::monostate, const PerfettoTeRegisteredTrackImpl*,
-               const PerfettoTeHlExtraNamedTrack*,
-               const PerfettoTeHlExtraProtoTrack*,
-               const PerfettoTeHlExtraNestedTracks*>
+  std::variant<
+      std::monostate, const PerfettoTeRegisteredTrackImpl*,
+      PerfettoTePersistentStateTrackImpl*, const PerfettoTeHlExtraNamedTrack*,
+      const PerfettoTeHlExtraProtoTrack*, const PerfettoTeHlExtraNestedTracks*>
       track;
   std::optional<uint64_t> track_uuid;
 
@@ -435,6 +436,11 @@ void InstanceOp(internal::DataSourceType* ds,
     if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK) {
       const auto& cast =
           reinterpret_cast<const struct PerfettoTeHlExtraRegisteredTrack&>(
+              extra);
+      track = cast.track;
+    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_PERSISTENT_STATE_TRACK) {
+      const auto& cast =
+          reinterpret_cast<const struct PerfettoTeHlExtraPersistentStateTrack&>(
               extra);
       track = cast.track;
     } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK) {
@@ -485,6 +491,43 @@ void InstanceOp(internal::DataSourceType* ds,
     }
   }
 
+  std::optional<uint64_t> snapshot_state_duration_ns;
+  if (auto** ptrack =
+          std::get_if<PerfettoTePersistentStateTrackImpl*>(&track)) {
+    const auto& snapshot_ctx = shlib::GetTlsSnapshotContext();
+    uint8_t inst_mask = static_cast<uint8_t>(1u << ii->i);
+    if (!snapshot_ctx.in_snapshot) {
+      (*ptrack)->dirty_instances.fetch_or(inst_mask, std::memory_order_acq_rel);
+    } else {
+      bool was_dirty =
+          ((*ptrack)->dirty_instances.fetch_and(
+               static_cast<uint8_t>(~inst_mask), std::memory_order_acq_rel) &
+           inst_mask) != 0;
+      if (!snapshot_ctx.full_snapshot && !was_dirty) {
+        return;
+      }
+      if (snapshot_ctx.full_snapshot) {
+        if (custom_timestamp) {
+          TraceTimestamp now;
+          if (ts.clock_id == PERFETTO_TE_TIMESTAMP_TYPE_MONOTONIC) {
+            now = {ts.clock_id, static_cast<uint64_t>(
+                                    perfetto::base::GetWallTimeNs().count())};
+          } else if (ts.clock_id == PERFETTO_TE_TIMESTAMP_TYPE_BOOT) {
+            now = {ts.clock_id, static_cast<uint64_t>(
+                                    perfetto::base::GetBootTimeNs().count())};
+          } else {
+            now = TrackEventInternal::GetTraceTime();
+          }
+          snapshot_state_duration_ns =
+              now.value >= ts.value ? now.value - ts.value : 0;
+          ts = now;
+        } else {
+          snapshot_state_duration_ns = ts.value;
+        }
+      }
+    }
+  }
+
   perfetto::TraceWriterBase* trace_writer = ii->instance->trace_writer.get();
 
   const auto& track_event_tls = *static_cast<TrackEventTlsState*>(
@@ -500,6 +543,12 @@ void InstanceOp(internal::DataSourceType* ds,
         std::get<const PerfettoTeRegisteredTrackImpl*>(track);
     track_uuid =
         EmitRegisteredTrack(registered_track, incr_state, trace_writer);
+  } else if (std::holds_alternative<PerfettoTePersistentStateTrackImpl*>(
+                 track)) {
+    auto* persistent_track =
+        std::get<PerfettoTePersistentStateTrackImpl*>(track);
+    track_uuid =
+        EmitRegisteredTrack(&persistent_track->track, incr_state, trace_writer);
   } else if (std::holds_alternative<const PerfettoTeHlExtraNamedTrack*>(
                  track)) {
     auto* named_track = std::get<const PerfettoTeHlExtraNamedTrack*>(track);
@@ -563,6 +612,9 @@ void InstanceOp(internal::DataSourceType* ds,
     auto* track_event = packet->set_track_event();
     WriteTrackEvent(incr_state, track_event, cat, type, name, extra_data,
                     track_uuid, dynamic_cat, use_interning);
+    if (PERFETTO_UNLIKELY(snapshot_state_duration_ns.has_value())) {
+      track_event->set_state_duration_ns(*snapshot_state_duration_ns);
+    }
     track_event->Finalize();
 
     if (!incr_state->serialized_interned_data.empty()) {
@@ -585,7 +637,8 @@ void TeHlEmit(struct PerfettoTeCategoryImpl* cat,
               struct PerfettoTeHlExtra* const* extra_data) {
   uint32_t cached_instances =
       perfetto::shlib::TracePointTraits::GetActiveInstances({cat})->load(
-          std::memory_order_relaxed);
+          std::memory_order_relaxed) &
+      perfetto::shlib::GetTlsSnapshotContext().instance_mask;
   if (!cached_instances) {
     return;
   }
