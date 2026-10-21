@@ -221,7 +221,7 @@ class UnwindBenchmarkFixture {
         sample_.stack_bytes.size());
   }
 
-  std::vector<unwindstack::FrameData> Unwind(bool resolve_names) {
+  std::vector<unwindstack::FrameData> Unwind(bool resolve_names = true) {
     std::unique_ptr<unwindstack::Regs> regs =
         ToLibUnwindstackRegs(sample_.regs);
     PERFETTO_DCHECK(regs != nullptr);
@@ -346,8 +346,7 @@ void BM_Unwind_Dwarf_ColdStart(benchmark::State& state, int depth) {
     unwindstack::Elf::SetCachingEnabled(true);
     state.ResumeTiming();
 
-    std::vector<unwindstack::FrameData> frames =
-        fixture.Unwind(/*resolve_names=*/false);
+    std::vector<unwindstack::FrameData> frames = fixture.Unwind();
     if (frames.empty()) {
       error_count++;
     }
@@ -365,8 +364,7 @@ void BM_Unwind_MemoryCache_Churn(benchmark::State& state) {
 
   size_t count = 0;
   for (auto _ : state) {
-    std::vector<unwindstack::FrameData> frames =
-        fixture.Unwind(/*resolve_names=*/false);
+    std::vector<unwindstack::FrameData> frames = fixture.Unwind();
     benchmark::DoNotOptimize(frames);
     count++;
   }
