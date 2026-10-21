@@ -45,7 +45,7 @@ The design has four parts. Each part is useful without the parts after it.
 
 1. Arrow as a query result format.
 2. A compile-only statement RPC.
-3. `tp.sql()`: a lazy relation over a PerfettoSQL query.
+3. `tp.lazy_query()`: a lazy relation over a PerfettoSQL query.
 4. Filter and projection pushdown from DuckDB into relations.
 
 `tp.query()` does not change. Its eager behaviour, its error behaviour and its
@@ -71,11 +71,20 @@ A server which does not know the field answers with `invalid_request`. The
 client then falls back to `CellsBatch`, so a new client works against an old
 `trace_processor_shell`.
 
-On the Python side, query results gain `.arrow()` and the Arrow PyCapsule
-`__arrow_c_stream__` protocol. `as_pandas_dataframe()` and
-`as_polars_dataframe()` are reimplemented on top of Arrow, so their columns get
-real dtypes. Through the PyCapsule protocol, pyarrow, polars, pandas and DuckDB
-can all consume a result without code specific to each library.
+On the Python side, query results gain `as_arrow_table()` and the Arrow
+PyCapsule `__arrow_c_stream__` protocol. Through the PyCapsule protocol,
+pyarrow, polars, pandas and DuckDB can all consume a result without code
+specific to each library.
+
+This lands in two steps. The first step converts the `CellsBatch` cells to
+Arrow in Python, typing each column from the cell types in it. This gives typed
+interop immediately, with no protocol change. The server-side encoding above is
+the second step, and makes the conversion faster without changing the Python
+API.
+
+`as_pandas_dataframe()` and `as_polars_dataframe()` do not change, for backwards
+compatibility. Their columns keep the `object` dtype. Typed pandas and polars
+output comes from `tp.lazy_query()`, described in part 3.
 
 ### 2. Compile-only statement RPC
 
@@ -96,12 +105,16 @@ explicitly. Today these are `RUN_METRIC` and the file I/O intrinsics.
 The existing statement-at-a-time RPC is not enough on its own: it reports where
 a statement ends only after executing it.
 
-### 3. `tp.sql()`: lazy relations
+### 3. `tp.lazy_query()`: lazy relations
 
-`tp.sql(sql)` returns a `Relation`. Its semantics deliberately match DuckDB's
-`con.sql()`. These were verified against DuckDB 2.0.0:
+`tp.lazy_query(sql)` returns a `LazyQuery`. The name says what distinguishes it
+from `tp.query()`: nothing runs until the result is consumed. A shorter name
+such as `sql()` would read as a synonym for `query()`.
 
-| Behaviour | DuckDB 2.0 `con.sql()` | `tp.sql()` |
+Its semantics deliberately match DuckDB's `con.sql()`. These were verified
+against DuckDB 2.0.0:
+
+| Behaviour | DuckDB 2.0 `con.sql()` | `tp.lazy_query()` |
 | --- | --- | --- |
 | Statements that change state | run at the call | run at the call |
 | Final `SELECT` | lazy relation | lazy relation |
@@ -113,15 +126,21 @@ a statement ends only after executing it.
 
 The last row is the one deliberate difference. A final statement which is not
 read-only, as defined in part 2, runs at the call. This keeps
-`tp.sql("SELECT RUN_METRIC(...)")` working the way users expect.
+`tp.lazy_query("SELECT RUN_METRIC(...)")` working the way users expect.
 
 Consuming a relation runs its query. A relation is consumed by iterating it, by
 `.df()`, `.pl()` and `.arrow()`, and through `__arrow_c_stream__`.
 `.to_table(name)` materialises the relation as a `PERFETTO TABLE` for explicit
 caching.
 
+Results are typed by default. `.arrow()` and `.pl()` give each column an Arrow
+or polars type, with NULLs as nulls. `.df()` converts through Arrow, so pandas
+columns get numeric dtypes even when they contain NULLs. `lazy_query()` has no
+existing callers, so this needs none of the compatibility compromises that
+`as_pandas_dataframe()` would.
+
 Relations compose inside TP. Passing a relation by name, as in
-`tp.sql("SELECT * FROM binder WHERE dur > 1e6", binder=rel)`, inlines the
+`tp.lazy_query("SELECT * FROM binder WHERE dur > 1e6", binder=rel)`, inlines the
 relation's SQL as a subquery. Both relations live in the same TP instance, so
 this costs nothing. The outer query's filters are then pushed down by SQLite;
 see
@@ -136,7 +155,7 @@ The goal is for DuckDB to query a relation like a table, with DuckDB's filters
 and projections pushed into TP:
 
 ```python
-binder = tp.sql("""
+binder = tp.lazy_query("""
   INCLUDE PERFETTO MODULE slices.with_context;
   SELECT ts, dur, thread_name, depth
   FROM thread_slice WHERE name GLOB 'binder*'
@@ -173,7 +192,7 @@ queries get slower, not wrong.
 * **Feature detection.** On import, the integration tries
   `from duckdb._sources import ArrowScanSource, nodes`. It checks that the
   pieces it uses exist. It does not pin DuckDB versions.
-* **Optional base class.** `Relation` derives from `ArrowScanSource` only when
+* **Optional base class.** `LazyQuery` derives from `ArrowScanSource` only when
   the protocol is available. Otherwise it is a plain object with
   `__arrow_c_stream__`. DuckDB can still query it by variable name, and reads
   the full result.
@@ -188,7 +207,7 @@ queries get slower, not wrong.
 * **Tolerant signatures.** `stream()` accepts `*args` and `**kwargs`, so a new
   optional argument does not break it.
 * **Off switch.** Pushdown can be disabled with
-  `tp.sql(..., duckdb_pushdown=False)` or with an environment variable.
+  `tp.lazy_query(..., duckdb_pushdown=False)` or with an environment variable.
 
 #### Error reporting
 
@@ -266,8 +285,8 @@ Con:
   instance is closed.
 
 Making it safe needs flushing pending results before every state change and on
-`close()`. An opt-in `tp.sql()` with DuckDB's semantics is simpler and breaks
-nothing.
+`close()`. An opt-in `tp.lazy_query()` with DuckDB's semantics is simpler and
+breaks nothing.
 
 ### A dataframe-style relation API
 
@@ -314,7 +333,7 @@ the core functions can be ported to it and published as a community extension.
 
 ### A polars LazyFrame bridge
 
-`tp.sql()` could return a polars LazyFrame built with the public
+`tp.lazy_query()` could return a polars LazyFrame built with the public
 `register_io_source`. DuckDB pushes filters into LazyFrames, and polars passes
 them on to the IO source. A prototype pushed DuckDB filters and projections into
 TP using only public APIs.
@@ -357,10 +376,9 @@ the Python surface.
 
 ## Open questions
 
-* What should the method be called? `tp.sql()` matches DuckDB but sits awkwardly
-  next to `tp.query()`.
-* Should `as_pandas_dataframe()` switch to Arrow-backed dtypes by default? Code
-  which relies on `object` columns would see different types.
+* Which pandas dtypes should `LazyQuery.df()` use for columns with NULLs:
+  pandas' nullable dtypes such as `Int64`, or `ArrowDtype`? Both represent NULL
+  as `pd.NA`, which behaves differently from `None` in boolean contexts.
 * Does type inference by first non-null value hold up on real stdlib output, or
   should columns of mixed types become strings instead of an error?
 * Which functions besides `RUN_METRIC` and the file I/O intrinsics need the
