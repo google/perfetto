@@ -206,9 +206,6 @@ class TraceStorage {
   virtual StringId InternString(const std::string& str) {
     return InternString(base::StringView(str));
   }
-  virtual StringId InternString(std::string_view str) {
-    return InternString(base::StringView(str.data(), str.size()));
-  }
 
   // Reading methods.
   // Virtual for testing.

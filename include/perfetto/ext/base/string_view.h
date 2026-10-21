@@ -36,8 +36,6 @@ namespace base {
 // Strings are internally NOT null terminated.
 class StringView {
  public:
-  // Allow hashing with base::FnvHash.
-  static constexpr bool kHashable = true;
   static constexpr size_t npos = static_cast<size_t>(-1);
 
   StringView() = default;
@@ -102,12 +100,6 @@ class StringView {
 
   std::string ToStdString() const { return empty() ? "" : std::string(sv_); }
 
-  uint64_t Hash() const {
-    base::FnvHasher hasher;
-    hasher.Update(data(), size());
-    return hasher.digest();
-  }
-
  private:
   std::string_view sv_;
 };
@@ -167,12 +159,5 @@ EnableIfStringViewCmp<L, R> operator<=(const L& l, const R& r) {
 
 }  // namespace base
 }  // namespace perfetto
-
-template <>
-struct std::hash<::perfetto::base::StringView> {
-  size_t operator()(const ::perfetto::base::StringView& sv) const {
-    return static_cast<size_t>(sv.Hash());
-  }
-};
 
 #endif  // INCLUDE_PERFETTO_EXT_BASE_STRING_VIEW_H_

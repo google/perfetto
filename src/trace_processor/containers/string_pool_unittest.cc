@@ -27,6 +27,7 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/util/concurrency_stress_test_util.h"
@@ -130,8 +131,9 @@ TEST_F(StringPoolTest, StressTest) {
     auto it_pair = string_map.equal_range(it.StringId());
     for (auto in_it = it_pair.first; in_it != it_pair.second; ++in_it) {
       ASSERT_EQ(it.StringView(), in_it->second)
-          << it.StringId().raw_id() << ": " << it.StringView().Hash() << " vs "
-          << in_it->second.Hash();
+          << it.StringId().raw_id() << ": "
+          << base::MurmurHashValue(base::StringView(it.StringView())) << " vs "
+          << base::MurmurHashValue(in_it->second);
     }
     string_map.erase(it_pair.first, it_pair.second);
   }
