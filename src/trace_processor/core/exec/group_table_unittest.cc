@@ -121,6 +121,55 @@ TEST(GroupTableTest, WhichKeysAgree) {
   }
 }
 
+// A batch whose key column has no nulls takes a fast path which skips the
+// null bits, relying on a null group's salt differing from that of key 0.
+TEST(GroupTableTest, ZeroAfterNullInEarlierBatch) {
+  GroupTable table;
+  std::vector<int64_t> keys = {0, 5};
+  BitVector valid = BitVector::CreateWithSize(2, true);
+  valid.clear(0);
+  EXPECT_THAT(
+      Groups(table,
+             {ColumnView::Reference(StorageType{Int64{}}, keys.data(), &valid)},
+             2),
+      ElementsAre(0, 1));
+  std::vector<int64_t> zero = {0, 5};
+  EXPECT_THAT(
+      Groups(table, {ColumnView::Reference(StorageType{Int64{}}, zero.data())},
+             2),
+      ElementsAre(2, 1));
+}
+
+// Nulls are read 64 rows at a time: those at the edges of a word and in a
+// partial last word are found.
+TEST(GroupTableTest, NullsAcrossWords) {
+  for (bool strings : {false, true}) {
+    GroupTable table;
+    constexpr uint32_t kCount = 130;
+    std::vector<int64_t> ints(kCount);
+    std::vector<StringPool::Id> ids(kCount);
+    BitVector valid = BitVector::CreateWithSize(kCount, true);
+    for (uint32_t i = 0; i < kCount; ++i) {
+      ints[i] = i + 1;
+      ids[i] = StringPool::Id::Raw(i + 1);
+    }
+    for (uint32_t i : {0u, 63u, 64u, 127u, 129u}) {
+      valid.clear(i);
+    }
+    ColumnView column =
+        strings
+            ? ColumnView::Reference(StorageType{String{}}, ids.data(), &valid)
+            : ColumnView::Reference(StorageType{Int64{}}, ints.data(), &valid);
+    std::vector<uint32_t> groups = Groups(table, {column}, kCount);
+    // Null rows share the first group. Every other row has its own.
+    uint32_t next = 1;
+    for (uint32_t i = 0; i < kCount; ++i) {
+      bool null = !valid.is_set(i);
+      ASSERT_EQ(groups[i], null ? 0u : next++) << "row " << i;
+    }
+  }
+}
+
 TEST(GroupTableTest, GrowsPastManyGroups) {
   GroupTable table;
   std::vector<int64_t> keys(2048);

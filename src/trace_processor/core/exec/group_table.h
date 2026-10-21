@@ -94,7 +94,7 @@ class GroupTable {
   // Adds a group for the key of `row` and returns its number.
   uint32_t Add(uint32_t row, uint64_t hash);
   uint64_t Hash(uint32_t row) const;
-  bool Equal(uint32_t group, uint32_t row) const;
+  bool Equal(const int64_t* stored_base, uint32_t group, uint32_t row) const;
   // Puts `group` in the first free slot at or after its hash's slot.
   void Place(uint32_t group);
   void Grow(uint32_t groups);
