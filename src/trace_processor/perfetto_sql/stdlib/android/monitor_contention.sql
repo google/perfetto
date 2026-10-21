@@ -525,13 +525,7 @@ INTERVAL INTERSECTION OF (
       AND utid IN (SELECT blocking_utid FROM _first_blocked_contention)
   ) AS t
 ) PER blocking_utid
-|> SELECT
-  c.id AS id,
-  ts,
-  dur,
-  blocking_utid,
-  t.blocked_function AS blocked_function,
-  t.state AS state;
+|> SELECT c.id, ts, dur, blocking_utid, t.blocked_function, t.state;
 
 -- Aggregated thread_states on the 'blocking thread', the thread holding the lock.
 -- This builds on the data from |android_monitor_contention_chain| and

@@ -73,36 +73,25 @@ INTERVAL INTERSECTION OF (
       utid IN (SELECT utid FROM _mipmap_startup)
   ) AS t,
   _mipmap_flat_slice AS f,
-  (
-    SELECT
-      ts,
-      dur,
-      utid,
-      startup_id,
-      upid,
-      startup_type,
-      package,
-      dur AS startup_dur
-    FROM _mipmap_startup
-  ) AS s
+  _mipmap_startup AS s
 ) PER utid
 |> SELECT
   ts,
   dur,
   utid,
-  f.slice_id AS slice_id,
-  f.depth AS depth,
-  f.name AS name,
-  t.state AS state,
-  t.cpu AS cpu,
-  t.io_wait AS io_wait,
-  t.blocked_function AS blocked_function,
-  t.irq_context AS irq_context,
-  s.startup_id AS startup_id,
-  s.upid AS upid,
-  s.startup_type AS startup_type,
-  s.package AS package,
-  s.startup_dur AS startup_dur;
+  f.slice_id,
+  f.depth,
+  f.name,
+  t.state,
+  t.cpu,
+  t.io_wait,
+  t.blocked_function,
+  t.irq_context,
+  s.startup_id,
+  s.upid,
+  s.startup_type,
+  s.package,
+  s.dur AS startup_dur;
 
 -- The slices with thread states that occurred during each startup.
 CREATE PERFETTO VIEW _mipmap_startup_slice AS

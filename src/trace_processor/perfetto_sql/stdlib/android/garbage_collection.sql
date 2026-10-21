@@ -148,7 +148,7 @@ JOIN _gc_slice_heap_min_max AS m USING (gc_id);
 -- Time spent by each GC event in each thread state.
 CREATE PERFETTO TABLE _gc_slice_thread_state_dur AS
 INTERVAL INTERSECTION OF (
-  (SELECT gc_id, ts, dur, utid FROM _gc_slice_heap) AS gc,
+  _gc_slice_heap AS gc,
   (
     -- Thread states still open at the end of the trace have dur = -1.
     SELECT ts, iif(dur = -1, trace_end() - ts, dur) AS dur, utid, state, io_wait
@@ -265,18 +265,15 @@ WHERE
 CREATE PERFETTO TABLE _gc_during_android_startup AS
 INTERVAL INTERSECTION OF (
   (
-    SELECT ts, dur, startup_id AS id
+    SELECT ts, dur, startup_id
     FROM android_startups
     -- b/384732321
     WHERE
       dur > 0
   ) AS startup,
-  (
-    SELECT gc_ts AS ts, gc_dur AS dur, gc_id AS id
-    FROM android_garbage_collection_events
-  ) AS gc
+  _gc_slice_heap AS gc
 )
-|> SELECT ts, dur, startup.id AS startup_id, gc.id AS gc_id;
+|> SELECT ts, dur, startup_id, gc_id;
 
 -- Estimate heap utilization across the trace.
 -- We weight the utilization by gc_period, which is meant to represent the time

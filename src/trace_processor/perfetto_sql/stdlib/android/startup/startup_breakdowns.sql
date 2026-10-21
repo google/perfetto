@@ -149,9 +149,10 @@ ORDER BY
 -- where no normalized slice is active.
 CREATE PERFETTO TABLE _startup_flat_slices AS
 INTERVAL INTERSECTION OF (
-  (SELECT id, ts, dur, utid FROM _startup_normalized_slices) AS s,
-  (SELECT id AS root_id, ts, dur, utid FROM _startup_root_slices) AS r
+  _startup_normalized_slices AS s,
+  _startup_root_slices AS r
 ) PER utid
+|> SELECT ts, dur, utid, s.id, r.id AS root_id
 -- TODO(lalitm): MAX(id) stands in for the deepest slice and relies on a
 -- child's id being greater than its parent's, which is not guaranteed.
 -- Switch to ARG_MAX(id, depth) once pipelines support it.
@@ -184,12 +185,12 @@ INTERVAL INTERSECTION OF (
 |> SELECT
   ts,
   dur,
-  f.root_id AS root_id,
-  f.slice_id AS slice_id,
+  f.root_id,
+  f.slice_id,
   t.id AS thread_state_id,
-  t.state AS state,
-  t.io_wait AS io_wait,
-  t.irq_context AS irq_context;
+  t.state,
+  t.io_wait,
+  t.irq_context;
 
 -- Blended thread state and slice breakdown blocking app startups.
 --
