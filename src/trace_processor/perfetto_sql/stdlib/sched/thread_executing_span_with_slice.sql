@@ -55,12 +55,11 @@ JOIN _wakeup_graph AS root_id_graph
 -- Flattened slices of every thread, with the stretches of the trace no
 -- slice covers filled with a NULL `slice_id`.
 CREATE PERFETTO TABLE _thread_flat_slice_filled AS
-FROM (
-  SELECT slice_id, depth AS slice_depth, ts, dur, utid FROM _slice_flattened
-)
+FROM _slice_flattened
 |> INTERVAL FILL GAPS WITH (
   SELECT utid, trace_start() AS ts, trace_dur() AS dur FROM thread
-) AS trace_extent PER utid;
+) AS trace_extent PER utid
+|> SELECT slice_id, depth, ts, dur, utid;
 
 -- Thread states split at the boundaries of their thread's flattened
 -- slices, in id-space. The slice's name is joined on demand at the leaves
@@ -69,15 +68,7 @@ FROM (
 CREATE PERFETTO TABLE _span_thread_state_slice AS
 INTERVAL INTERSECTION OF (
   (
-    SELECT
-      id AS thread_state_id,
-      ts,
-      dur,
-      utid,
-      state,
-      blocked_function AS function,
-      io_wait,
-      cpu
+    SELECT id, ts, dur, utid, state, blocked_function, io_wait, cpu
     FROM thread_state
     WHERE
       dur > 0
@@ -88,13 +79,13 @@ INTERVAL INTERSECTION OF (
   ts,
   dur,
   utid,
-  th.thread_state_id AS thread_state_id,
-  th.state AS state,
-  th.function AS function,
-  th.cpu AS cpu,
-  th.io_wait AS io_wait,
-  sl.slice_id AS slice_id,
-  sl.slice_depth AS slice_depth;
+  th.id AS thread_state_id,
+  th.state,
+  th.blocked_function AS function,
+  th.cpu,
+  th.io_wait,
+  sl.slice_id,
+  sl.depth AS slice_depth;
 
 -- Critical-path × slice cross product, restricted to id-space columns.
 -- Slice names are not stored here; `_critical_path_stack` joins `slice`
@@ -108,14 +99,14 @@ INTERVAL INTERSECTION OF (
   ts,
   dur,
   utid,
-  th.thread_state_id AS thread_state_id,
-  th.state AS state,
-  th.function AS function,
-  th.cpu AS cpu,
-  th.io_wait AS io_wait,
-  th.slice_id AS slice_id,
-  th.slice_depth AS slice_depth,
-  cr.root_utid AS root_utid;
+  th.thread_state_id,
+  th.state,
+  th.function,
+  th.cpu,
+  th.io_wait,
+  th.slice_id,
+  th.slice_depth,
+  cr.root_utid;
 
 -- Flattened slices joined with their thread_states. This contains the
 -- 'self' information without 'critical_path' (blocking) information. Slice
