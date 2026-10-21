@@ -50,8 +50,8 @@ base::Status TreeAccumulate::BuildPlan(Compiler* c, uint32_t stage) {
   acc.direction_ = n->direction == SYNTAQLITE_PERFETTO_TREE_DIRECTION_DOWN
                        ? TreeDirection::kDown
                        : TreeDirection::kUp;
-  ASSIGN_OR_RETURN(acc.node_column_, c->Resolve("id", stage));
-  ASSIGN_OR_RETURN(acc.parent_column_, c->Resolve("parent_id", stage));
+  ASSIGN_OR_RETURN(acc.node_column_, c->Resolve(c->Name("id"), stage));
+  ASSIGN_OR_RETURN(acc.parent_column_, c->Resolve(c->Name("parent_id"), stage));
 
   std::vector<std::pair<NamedColumn, uint32_t>> output;
   const auto* list =
@@ -61,10 +61,10 @@ base::Status TreeAccumulate::BuildPlan(Compiler* c, uint32_t stage) {
     uint32_t agg_id = syntaqlite_list_child_id(list, i);
     const auto* agg = Node<SyntaqlitePerfettoAggregate>(c->parser(), agg_id);
     ASSIGN_OR_RETURN(Aggregate aggregate, c->ResolveAggregate(agg->expr));
-    std::string name = SpanText(c->parser(), agg->name);
+    NameId name = c->Name(agg->name);
     aggregate.output = c->AddColumn(name, core::Int64{});
     acc.aggregates_.push_back(aggregate);
-    output.push_back({NamedColumn{std::move(name), aggregate.output}, agg_id});
+    output.push_back({NamedColumn{name, aggregate.output}, agg_id});
   }
   // All expressions see the input scope. Add this stage's columns only after
   // resolving every aggregate; duplicate names are ambiguous on lookup.

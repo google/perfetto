@@ -156,7 +156,7 @@ std::string LogicalPlanFormatter::ScanString(const LogicalPlan& plan,
       out += ", ";
     }
     out += ColumnString(plan, scan.columns_[i].id) + " AS " +
-           scan.columns_[i].name;
+           plan.names().text(scan.columns_[i].name);
   }
   return out + "]";
 }
@@ -337,7 +337,7 @@ std::string LogicalPlanFormatter::Format(const LogicalPlan& plan) {
       out += ", ";
     }
     out += "#" + std::to_string(plan.output()[i].id) + " AS " +
-           plan.output()[i].name;
+           plan.names().text(plan.output()[i].name);
   }
   return out + ")\n";
 }

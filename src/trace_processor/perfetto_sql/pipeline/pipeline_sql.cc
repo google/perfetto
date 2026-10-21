@@ -32,7 +32,7 @@ namespace perfetto::trace_processor::pipeline {
 PlanWithDataframeArgs MoveSqlSourcesToDataframeArgs(LogicalPlan plan) {
   PlanWithDataframeArgs out;
   for (PlanNode& node : plan.nodes()) {
-    node.operation().MoveSqlSourcesToDataframeArgs(&out.args);
+    node.operation().MoveSqlSourcesToDataframeArgs(plan.names(), &out.args);
   }
   out.plan = std::move(plan);
   return out;
@@ -46,8 +46,9 @@ base::StatusOr<std::string> SelectPipelineSql(const LogicalPlan& plan) {
   PlanWithDataframeArgs moved = MoveSqlSourcesToDataframeArgs(plan);
   std::vector<std::string> columns;
   for (uint32_t i = 0; i < plan.output().size(); ++i) {
-    columns.push_back("c" + std::to_string(i) + " AS " +
-                      QuoteIdentifier(plan.output()[i].name));
+    columns.push_back(
+        "c" + std::to_string(i) + " AS " +
+        QuoteIdentifier(plan.names().text(plan.output()[i].name)));
   }
   std::string arguments = "X'" + base::ToHex(SerializePlan(moved.plan)) + "'";
   if (!moved.args.empty()) {

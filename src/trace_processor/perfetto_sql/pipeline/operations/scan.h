@@ -61,7 +61,7 @@ struct ScanDataframe {
   std::string name;
   // By scan column, the dataframe column it reads: its own name unless the
   // view it is read through renames it.
-  std::vector<std::string> column_names;
+  std::vector<NameId> column_names;
   // Resolved at compile time; only the selected columns are retained.
   std::vector<std::shared_ptr<const dataframe::Column>> columns;
   uint32_t row_count = 0;
@@ -83,7 +83,7 @@ class Scan : public PlanOperation {
                                                       uint32_t source);
 
   // The name a source's columns can be qualified with, if it has one.
-  static std::optional<std::string> SourceQualifier(
+  static std::optional<NameId> SourceQualifier(
       Compiler*,
       const SyntaqlitePerfettoPipeSource& n);
   std::unique_ptr<core::exec::Source> MakeSource() const;
@@ -101,7 +101,7 @@ class Scan : public PlanOperation {
   using Source = std::variant<Dataframe, SqlSource, DataframeArg>;
   // A column a dataframe scan reads, and the name it is read as.
   struct DataframeColumn {
-    std::string name;
+    NameId name;
     uint32_t index;
   };
 
@@ -115,7 +115,8 @@ class Scan : public PlanOperation {
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
   void Lower(Lowering*, const PlanNode&) const override;
   void Write(PlanWriter*, const PlanNode&, Available*) const override;
-  void MoveSqlSourcesToDataframeArgs(std::vector<std::string>*) override;
+  void MoveSqlSourcesToDataframeArgs(const NameTable&,
+                                     std::vector<std::string>*) override;
   base::Status ResolveDataframes(LogicalPlan*, const Catalog&) override;
   base::Status BindDataframeArgs(
       LogicalPlan*,
@@ -154,10 +155,7 @@ class Scan : public PlanOperation {
       Compiler*,
       uint32_t from,
       const perfetto_sql::analysis::RelationLineage& lineage);
-  static void AddScanColumn(Compiler*,
-                            Scan* scan,
-                            std::string name,
-                            PlanType type);
+  static void AddScanColumn(Compiler*, Scan* scan, NameId name, PlanType type);
 
   const OperationRegistration& registration() const override;
 

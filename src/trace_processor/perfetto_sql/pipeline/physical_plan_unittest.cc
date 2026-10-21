@@ -416,7 +416,9 @@ TEST_F(PhysicalPlanTest, OutputBindingsUseIdsRatherThanBatchPositions) {
   ColumnId total = logical.output().back().id;
   ColumnId id = logical.output().front().id;
   // Project and alias the same value twice, independently of the source names.
-  logical.output() = {{"total", total}, {"id", id}, {"again", total}};
+  logical.output() = {{logical.names().Intern("total"), total},
+                      {logical.names().Intern("id"), id},
+                      {logical.names().Intern("again"), total}};
   auto plan = std::move(*LowerReadingSql(std::move(logical)));
   EXPECT_THAT(Names(*plan), ElementsAre("total", "id", "again"));
   EXPECT_NE(plan->columns()[0].index, total);
@@ -470,8 +472,9 @@ TEST_F(PhysicalPlanTest, DiagnosticsUseDefiningNamesAfterProjection) {
   ASSERT_TRUE(parser.Next()) << parser.status().message();
   auto logical = std::get<PerfettoSqlParser::Pipeline>(parser.statement()).plan;
   // Neither the original input name nor its value is exposed in the result.
-  logical.output() = {{"id", logical.output().front().id},
-                      {"renamed_total", logical.output().back().id}};
+  logical.output() = {
+      {logical.names().Intern("id"), logical.output().front().id},
+      {logical.names().Intern("renamed_total"), logical.output().back().id}};
   EXPECT_THAT(LowerReadingSql(std::move(logical)).status().message(),
               HasSubstr("'self'"));
 }

@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <vector>
 
@@ -69,15 +70,34 @@ class PlanType {
   bool null_ = false;
 };
 
+// Stable within a plan: a name's index in the plan's NameTable.
+using NameId = uint32_t;
+
+// Every name a plan uses, each spelling stored once. Names match ignoring
+// case, as SQL's do: spellings which differ only in case have different ids,
+// so each keeps its spelling, but match.
+class NameTable {
+ public:
+  NameId Intern(std::string_view text);
+  const std::string& text(NameId id) const { return texts_[id]; }
+  bool Same(NameId a, NameId b) const { return keys_[a] == keys_[b]; }
+  uint32_t size() const { return static_cast<uint32_t>(texts_.size()); }
+
+ private:
+  std::vector<std::string> texts_;
+  // By name, the id of the first spelling interned which it matches.
+  std::vector<NameId> keys_;
+};
+
 // A column the plan defines.
 struct PlanColumn {
-  std::string name;
+  NameId name;
   PlanType type;
 };
 
 // A name in a scope or result. Multiple names can refer to the same value.
 struct NamedColumn {
-  std::string name;
+  NameId name;
   ColumnId id;
 };
 

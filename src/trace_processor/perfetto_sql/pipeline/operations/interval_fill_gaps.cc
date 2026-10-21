@@ -47,22 +47,6 @@ const OperationRegistration IntervalFillGaps::kRegistration{
 
 namespace {
 
-// The column named `name`, or nullopt if there is none.
-std::optional<ColumnId> FindColumn(const std::vector<NamedColumn>& columns,
-                                   const std::string& name) {
-  for (const NamedColumn& column : columns) {
-    if (base::CaseInsensitiveEqual(column.name, name)) {
-      return column.id;
-    }
-  }
-  return std::nullopt;
-}
-
-bool IsBounds(const std::string& name) {
-  return base::CaseInsensitiveEqual(name, "ts") ||
-         base::CaseInsensitiveEqual(name, "dur");
-}
-
 // The type of an output column. ts and dur are Int64, since lowering converts
 // them. Other columns get the type both sides convert to. Fillers can make
 // any column null, and Id columns cannot hold nulls, so Id becomes Uint32.
@@ -88,17 +72,21 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
   const auto* n = Node<SyntaqlitePerfettoIntervalFillGaps>(c->parser(), stage);
 
   IntervalFillGaps fill;
-  ASSIGN_OR_RETURN(fill.ts_, c->Resolve("ts", stage));
-  ASSIGN_OR_RETURN(fill.dur_, c->Resolve("dur", stage));
-  std::vector<std::string> per;
+  NameId ts_name = c->Name("ts");
+  NameId dur_name = c->Name("dur");
+  auto is_bounds = [&](NameId name) {
+    return c->Same(name, ts_name) || c->Same(name, dur_name);
+  };
+  ASSIGN_OR_RETURN(fill.ts_, c->Resolve(ts_name, stage));
+  ASSIGN_OR_RETURN(fill.dur_, c->Resolve(dur_name, stage));
+  std::vector<NameId> per;
   if (syntaqlite_node_is_present(n->per)) {
     const auto* list =
         Node<SyntaqlitePerfettoPerColumnList>(c->parser(), n->per);
     for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
       uint32_t col_id = syntaqlite_list_child_id(list, i);
-      std::string name = SpanText(
-          c->parser(),
-          Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id)->name);
+      NameId name =
+          c->Name(Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id)->name);
       ASSIGN_OR_RETURN(ColumnId key, c->Resolve(name, col_id));
       // A PER column listed again adds nothing to the grouping.
       if (std::find(fill.keys_.begin(), fill.keys_.end(), key) !=
@@ -114,16 +102,16 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
   PlanNodeId input = c->plan().root();
   ASSIGN_OR_RETURN(SourceRelation background,
                    Scan::BuildRelation(c, n->background));
-  std::optional<ColumnId> ts = FindColumn(background.columns, "ts");
-  std::optional<ColumnId> dur = FindColumn(background.columns, "dur");
+  std::optional<ColumnId> ts = c->FindColumn(background.columns, ts_name);
+  std::optional<ColumnId> dur = c->FindColumn(background.columns, dur_name);
   if (!ts || !dur) {
     return c->Expected(n->background, std::string("the background to have a ") +
                                           (ts ? "dur" : "ts") + " column");
   }
   fill.background_ts_ = *ts;
   fill.background_dur_ = *dur;
-  for (const std::string& name : per) {
-    if (std::optional<ColumnId> key = FindColumn(background.columns, name)) {
+  for (NameId name : per) {
+    if (std::optional<ColumnId> key = c->FindColumn(background.columns, name)) {
       fill.background_keys_.push_back(*key);
     }
   }
@@ -143,15 +131,15 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
     Output output;
     output.input = column.column.id;
     bool bounds = column.column.id == fill.ts_ || column.column.id == fill.dur_;
-    if (!column.qualified_only && !bounds && !IsBounds(column.column.name)) {
-      output.background = FindColumn(background.columns, column.column.name);
+    if (!column.qualified_only && !bounds && !is_bounds(column.column.name)) {
+      output.background = c->FindColumn(background.columns, column.column.name);
     }
     std::optional<PlanType> type = OutputType(
         types[output.input].type,
         output.background ? &types[*output.background].type : nullptr, bounds);
     if (!type) {
       return c->Expected(n->background,
-                         "the background's '" + column.column.name +
+                         "the background's '" + c->Text(column.column.name) +
                              "' to hold the same kind of values as the "
                              "input's");
     }
@@ -166,10 +154,10 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
     row.push_back(std::move(out));
   }
   for (const NamedColumn& column : background.columns) {
-    if (!IsBounds(column.name) &&
+    if (!is_bounds(column.name) &&
         std::find(matched.begin(), matched.end(), column.id) == matched.end()) {
       return c->Expected(n->background, "the input to have the background's '" +
-                                            column.name + "'");
+                                            c->Text(column.name) + "'");
     }
   }
   // Aliases still refer to their columns.
@@ -244,7 +232,7 @@ void IntervalFillGaps::Lower(Lowering* c, const PlanNode& node) const {
     const auto& column = c->plan().columns()[output.column];
     lowered.fallback =
         column.type.storage().value_or(core::StorageType{core::Int64{}});
-    lowered.name = column.name;
+    lowered.name = c->plan().names().text(column.name);
     spec.outputs.push_back(std::move(lowered));
   }
   spec.background.source = background.FinishSide();
@@ -293,7 +281,7 @@ void IntervalFillGaps::Write(PlanWriter* c,
   // An output's type is derived from its inputs, so only its name is written.
   c->writer().Size(fill.outputs_.size());
   for (const Output& output : fill.outputs_) {
-    c->writer().Str(c->plan().columns()[output.column].name);
+    c->writer().U32(c->plan().columns()[output.column].name);
     c->writer().Position(available, output.input);
     c->writer().U8(output.background ? 1 : 0);
     if (output.background) {
@@ -336,7 +324,7 @@ void IntervalFillGaps::DecodePlan(PlanReader* c, Available* available_columns) {
   const auto& types = c->plan().columns();
   fill.outputs_.resize(c->reader().Count());
   for (Output& output : fill.outputs_) {
-    std::string name = c->reader().Str();
+    NameId name = c->Name();
     output.input = c->reader().Position(available);
     if (c->reader().U8()) {
       output.background = c->reader().Position(in);
@@ -349,7 +337,7 @@ void IntervalFillGaps::DecodePlan(PlanReader* c, Available* available_columns) {
       c->reader().Fail();
       return;
     }
-    output.column = c->AddColumn(std::move(name), *type);
+    output.column = c->AddColumn(name, *type);
   }
   available.clear();
   for (const Output& output : fill.outputs_) {
