@@ -281,9 +281,6 @@ export class CounterTrack implements TrackRenderer {
   // Buffered bounds tracking
   private readonly bufferedBounds = new BufferedBounds();
 
-  // Whether the table was building or data loading in the last frame.
-  private loading = false;
-
   protected readonly trace: Trace;
   protected readonly uri: string;
   private readonly getSqlSource: () => string;
@@ -673,15 +670,7 @@ export class CounterTrack implements TrackRenderer {
 
     // A sqlSource can change faster than its table builds, e.g. with live
     // data. Keep rendering the previous table until the new one is ready.
-    //
-    // As each new table cancels the data load from the previous one, don't
-    // start new tables while a table builds or data loads: the track then
-    // draws a few updates late rather than never. `loading` is cleared until
-    // both memos are used without error, so that a failed build or load can't
-    // block new tables.
     const sqlSource = this.sqlSource;
-    const loading = this.loading;
-    this.loading = false;
     const tableResult = this.tableSlot.use({
       key: {
         sqlSource,
@@ -690,7 +679,6 @@ export class CounterTrack implements TrackRenderer {
       },
       compute: () => this.createMipmapTable(sqlSource),
       retainOn: ['sqlSource'],
-      enabled: !loading,
     });
 
     const table = tableResult.data;
@@ -733,7 +721,6 @@ export class CounterTrack implements TrackRenderer {
       },
       retainOn: ['start', 'end', 'resolution', 'tableName'],
     });
-    this.loading = tableResult.isPending || dataResult.isPending;
 
     const counters = dataResult.data;
     if (counters === undefined) return undefined;
