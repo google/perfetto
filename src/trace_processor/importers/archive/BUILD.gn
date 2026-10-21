@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../gn/test.gni")
-
 source_set("archive") {
   sources = [
     "archive_entry.cc",
@@ -30,9 +28,7 @@ source_set("archive") {
     "../../../../gn:default_deps",
     "../../../../include/perfetto/base",
     "../../../../include/perfetto/ext/base",
-    "../../../../protos/perfetto/trace:zero",
     "../../../base",
-    "../../../protozero",
     "../../../trace_processor:storage_minimal",
     "../../storage",
     "../../tables:tables_python",
@@ -44,19 +40,5 @@ source_set("archive") {
     "../android_bugreport",
     "../common",
     "../proto:minimal",
-  ]
-}
-
-perfetto_unittest_source_set("unittests") {
-  testonly = true
-  sources = [ "archive_entry_unittest.cc" ]
-  deps = [
-    ":archive",
-    "../../../../gn:default_deps",
-    "../../../../gn:gtest_and_gmock",
-    "../../../../include/perfetto/trace_processor:storage",
-    "../../../../protos/perfetto/trace:zero",
-    "../../../protozero",
-    "../../util:trace_type",
   ]
 }

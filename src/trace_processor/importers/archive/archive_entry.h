@@ -35,13 +35,6 @@ class TraceBlobView;
 // macOS load without spurious "unknown trace type" failures.
 bool IsHiddenArchivePath(const std::string& path);
 
-// Returns true if the proto trace made of the chunks [begin, end), consecutive
-// pieces of one file, has a packet carrying a ClockSnapshot, or carrying
-// compressed packets which may hide one. Stops at the first such packet.
-// Malformed input counts as having none: reading the file reports the error.
-bool ProtoTraceMayHaveClockSnapshot(const TraceBlobView* begin,
-                                    const TraceBlobView* end);
-
 // Helper class to determine a proper tokenization. This class can be used as
 // a key of a std::map to automatically sort files before sending them in proper
 // order for tokenization.
@@ -52,8 +45,8 @@ struct ArchiveEntry {
                              const TraceImporterRegistry& registry);
 
   // Returns whether a member of `type` made of the chunks [begin, end) lacks a
-  // ClockSnapshot. Always false for types other than proto, which are not
-  // scanned (see TraceTypeDescriptor::archive_clock_snapshot_first).
+  // ClockSnapshot, as answered by the importer for `type` (see
+  // TraceImporterBase::MayHaveClockSnapshot).
   static bool ComputeLacksClockSnapshot(TraceImporterId type,
                                         const TraceImporterRegistry& registry,
                                         const TraceBlobView* begin,
