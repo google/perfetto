@@ -20,7 +20,9 @@
 #ifndef SRC_PROFILING_MEMORY_WIRE_PROTOCOL_H_
 #define SRC_PROFILING_MEMORY_WIRE_PROTOCOL_H_
 
-#include <cinttypes>
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
 
 #include "perfetto/heap_profile.h"
 #include "src/profiling/memory/shared_ring_buffer.h"

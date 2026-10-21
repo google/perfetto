@@ -19,10 +19,8 @@
 
 #include <stdint.h>
 
-#include <memory>
 #include <optional>
 
-#include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/unwind/cpu_registers.h"
 
 namespace perfetto {

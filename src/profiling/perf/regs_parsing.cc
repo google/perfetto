@@ -20,9 +20,7 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#include <cinttypes>
 #include <cstring>
-#include <memory>
 
 #include "perfetto/base/logging.h"
 #include "src/profiling/unwind/cpu_registers.h"
@@ -112,8 +110,11 @@ struct RawRegisterData {
   uint64_t regs[kMaxSize] = {};
 };
 
-// Converts the kernel uapi |RawRegisterData| array to |CpuRegisters| (which
-// uses DWARF register ordering).
+// Converts the kernel perf_event |RawRegisterData| array (indexed by
+// PERF_REG_*) into a |CpuRegisters| struct (indexed by DWARF register numbers).
+// For architectures where the perf and DWARF register indices match (ARM64,
+// RISCV64, ARM), registers are copied in bulk; for X86/X86_64, where the
+// register orderings differ, registers are mapped individually.
 CpuRegisters PerfRegsToCpuRegs(const RawRegisterData& raw_regs, CpuArch arch) {
   if (arch == CpuArch::ARM64) {
     static_assert(
@@ -137,6 +138,7 @@ CpuRegisters PerfRegsToCpuRegs(const RawRegisterData& raw_regs, CpuArch arch) {
     static_assert(
         static_cast<int>(ARM_REG_MAX) == static_cast<int>(PERF_REG_ARM_MAX),
         "register layout mismatch");
+    // As with arm64, the layouts match, but we need to downcast to u32.
     CpuRegisters cpu_regs(CpuArch::ARM);
     for (size_t i = 0; i < ARM_REG_MAX; i++) {
       cpu_regs.regs[i] = static_cast<uint32_t>(raw_regs.regs[i]);
@@ -145,6 +147,8 @@ CpuRegisters PerfRegsToCpuRegs(const RawRegisterData& raw_regs, CpuArch arch) {
   }
 
   if (arch == CpuArch::X86_64) {
+    // We've sampled more registers than what libunwindstack will use. Don't
+    // copy over cs/ss/flags.
     CpuRegisters cpu_regs(CpuArch::X86_64);
     cpu_regs.regs[X86_64_REG_RAX] = raw_regs.regs[PERF_REG_X86_AX];
     cpu_regs.regs[X86_64_REG_RBX] = raw_regs.regs[PERF_REG_X86_BX];
@@ -167,6 +171,10 @@ CpuRegisters PerfRegsToCpuRegs(const RawRegisterData& raw_regs, CpuArch arch) {
   }
 
   if (arch == CpuArch::X86) {
+    // We've sampled more registers than what libunwindstack will use. Don't
+    // copy over cs/ss/flags.
+    // Both raw_regs.regs and cpu_regs.regs are uint64_t, but the x86 registers
+    // are only 32-bit. We mask them to avoid writing incorrect values.
     CpuRegisters cpu_regs(CpuArch::X86);
     cpu_regs.regs[X86_REG_EAX] =
         static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_AX]);
@@ -197,6 +205,7 @@ CpuRegisters PerfRegsToCpuRegs(const RawRegisterData& raw_regs, CpuArch arch) {
     static_assert(static_cast<int>(RISCV64_REG_VLENB) ==
                       static_cast<int>(PERF_REG_RISCV_MAX),
                   "register layout mismatch");
+    // Register layout matches, copy the raw data to the cpu_regs.regs array.
     CpuRegisters cpu_regs(CpuArch::RISCV64);
     memcpy(cpu_regs.regs, raw_regs.regs, sizeof(uint64_t) * PERF_REG_RISCV_MAX);
     return cpu_regs;

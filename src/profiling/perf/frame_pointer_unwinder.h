@@ -19,8 +19,10 @@
 #include <stdint.h>
 #include <unwindstack/Error.h>
 #include <unwindstack/Unwinder.h>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 #include "src/profiling/unwind/cpu_registers.h"
 
@@ -39,7 +41,6 @@ class FramePointerUnwinder {
         regs_(regs),
         process_memory_(process_memory),
         stack_size_(stack_size),
-        // TODO(safayat): null pointer check or pass ref instead of pointer.
         arch_(regs->arch) {
     stack_end_ = regs->sp() + stack_size;
   }

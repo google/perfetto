@@ -23,6 +23,7 @@
 #include <linux/perf_event.h>
 #include <stdint.h>
 
+#include <sys/types.h>
 #include <unwindstack/Error.h>
 #include <unwindstack/Unwinder.h>  // for FrameData
 

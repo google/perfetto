@@ -15,8 +15,6 @@
  */
 #include "src/profiling/perf/frame_pointer_unwinder.h"
 
-#include <cinttypes>
-
 #include "perfetto/base/logging.h"
 #include "src/profiling/common/unwind_support.h"
 #include "src/profiling/unwind/cpu_registers.h"
@@ -104,8 +102,7 @@ uint64_t FramePointerUnwinder::DecodeFrame(uint64_t fp,
                                            uint64_t* next_pc,
                                            uint64_t* next_sp) {
   uint64_t next_fp;
-  if (!process_memory_->ReadFully(static_cast<uint64_t>(fp), &next_fp,
-                                  sizeof(next_fp)))
+  if (!process_memory_->ReadFully(fp, &next_fp, sizeof(next_fp)))
     return 0;
 
   uint64_t pc;
@@ -117,7 +114,7 @@ uint64_t FramePointerUnwinder::DecodeFrame(uint64_t fp,
   if (__builtin_add_overflow(fp, sizeof(uint64_t) * 2, next_sp))
     return 0;
 
-  *next_pc = static_cast<uint64_t>(pc);
+  *next_pc = pc;
   return next_fp;
 }
 
