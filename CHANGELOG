@@ -160,7 +160,8 @@ Unreleased:
     * Embedders can now stream traces over postMessage as a ReadableStream,
       use the `shareable` and `downloadable` flags in place of `localOnly`,
       and hide the status bar with the `hideStatusbar` route arg.
-    * Improved decoding of query results, espeically when loading track data.
+      Note: Traces posted as a bare ArrayBuffer are now local-only by default.
+    * Improved decoding of query results, especially when loading track data.
     * The timeline now recovers from WebGL context loss.
     * The Chrome extension now only accepts connections from ui.perfetto.dev.
   SDK:
