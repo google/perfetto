@@ -359,27 +359,34 @@ describe('SliceTrack with a dynamic dataset', () => {
     expect(drawnSlices()).toBe(1);
   });
 
-  test('draws a dataset that changes on every frame', async () => {
+  test('draws the latest dataset once it stops changing', async () => {
     const {engine, trace, drawSlices, renderCtx} = setup();
     let generation = 0;
+    let changing = true;
     const track = SliceTrack.create({
       trace,
       uri: 'test',
       dataset: () =>
         new SourceDataset({
-          src: `slices_${generation++}`,
+          src: `slices_${changing ? generation++ : generation}`,
           schema: {id: NUM, ts: LONG, dur: LONG, depth: NUM},
         }),
     });
 
-    // Each dataset is drawn once loaded, then the latest one is loaded.
+    // A new dataset on every frame replaces the pending tables and data.
     await renderUntilSettled(track, renderCtx);
+    expect(engine.createdTables().length).toBeGreaterThan(3);
+
+    // Once it stops changing, the latest one is drawn.
+    changing = false;
+    await renderUntilSettled(track, renderCtx);
+    const sliceQueries = engine.log.filter((q) => q.includes('as __start'));
+    expect(sliceQueries.at(-1)).toContain(`slices_${generation}`);
     expect(drawSlices).toHaveBeenLastCalledWith(
       expect.objectContaining({count: 1}),
       expect.anything(),
       expect.anything(),
     );
-    expect(engine.createdTables().length).toBeGreaterThan(3);
     expect(engine.useAfterDrop).toEqual([]);
   });
 });

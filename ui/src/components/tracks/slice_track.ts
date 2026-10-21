@@ -354,8 +354,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private computedTrackHeight = 0;
   private currentDataFrame?: DataFrame<InferRowType<T>>;
   private rowCount: number;
-  // Whether tables were building or data loading in the last frame.
-  private loading = false;
 
   /**
    * Factory function to create a SliceTrack.
@@ -828,19 +826,10 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     // are cases (e.g. raw ftrace tracks, live data) where it can change. Keep
     // using the previous tables while new ones build, rather than flashing an
     // empty track.
-    //
-    // It can also change faster than tables build and data loads. As each new
-    // table cancels the data load from the previous one, don't start new
-    // tables while either is in progress: the track then draws a few updates
-    // late rather than never. `loading` is cleared until both memos are used
-    // without error, so that a failed build or load can't block new tables.
-    const loading = this.loading;
-    this.loading = false;
-    const {data: tables, isPending: tablesPending} = this.tablesSlot.use({
+    const {data: tables} = this.tablesSlot.use({
       key: {sqlSource},
       compute: () => this.createTables(dataset),
       retainOn: ['sqlSource'],
-      enabled: !loading,
     });
 
     // Can't do anything until we have the tables.
@@ -855,7 +844,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const {slicesMipmapTable, instantsMipmapTable, incompleteSlicesTable} =
       tables;
 
-    const {data: dataFrame, isPending: dataPending} = this.dataFrameSlot.use({
+    const {data: dataFrame} = this.dataFrameSlot.use({
       key: {
         tableName: slicesMipmapTable.name,
         start: bounds.start,
@@ -902,7 +891,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       retainOn: ['tableName', 'start', 'end', 'resolution'],
     });
 
-    this.loading = tablesPending || dataPending;
     return dataFrame;
   }
 
