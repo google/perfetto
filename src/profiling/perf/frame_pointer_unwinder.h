@@ -19,7 +19,7 @@
 #include <stdint.h>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
+#include <utility>
 #include <vector>
 #include "src/profiling/unwind/cpu_registers.h"
 #include "src/profiling/unwind/unwind_context.h"

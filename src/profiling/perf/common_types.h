@@ -18,13 +18,17 @@
 #define SRC_PROFILING_PERF_COMMON_TYPES_H_
 
 #include <optional>
+#include <string>
+#include <utility>
 #include <vector>
-
-#include "src/profiling/unwind/cpu_registers.h"
-#include "src/profiling/unwind/unwind_types.h"
 
 #include <linux/perf_event.h>
 #include <stdint.h>
+
+#include <sys/types.h>
+
+#include "src/profiling/unwind/cpu_registers.h"
+#include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {

@@ -18,10 +18,6 @@
 
 #include <fcntl.h>
 #include <sys/mman.h>
-#include <unistd.h>
-#include <cstdint>
-#include <cstring>
-#include <vector>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"

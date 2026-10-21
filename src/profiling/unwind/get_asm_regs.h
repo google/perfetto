@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
-// Captures current CPU register state into |reg_data| in DWARF register order
-// (matching X86_64Reg etc in cpu_registers.h).
+// Reads current CPU registers in Machine*.h (DWARF) order into |reg_data|.
+// Note: |reg_data| is written as a packed array of native-sized words
+// (uint32_t[] on 32-bit ARM/x86, uint64_t[] on 64-bit ARM64/x86_64/riscv64).
+// Use CreateRegsFromRawData() to unpack into CpuRegisters.
+//
 // ARM, ARM64, and RISC-V implementations are from libunwindstack's
 // RegsGetLocal.h; x86 and x86_64 are adapted into inline assembly from
 // libunwindstack's AsmGetRegsX86.S and AsmGetRegsX86_64.S.

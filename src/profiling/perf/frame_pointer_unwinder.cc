@@ -15,11 +15,6 @@
  */
 #include "src/profiling/perf/frame_pointer_unwinder.h"
 
-#include <cinttypes>
-#include <cstdint>
-#include <cstring>
-#include <utility>
-
 #include "perfetto/base/logging.h"
 #include "src/profiling/unwind/cpu_registers.h"
 #include "src/profiling/unwind/unwind_types.h"
