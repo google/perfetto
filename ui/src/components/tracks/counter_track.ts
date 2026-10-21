@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {valueIfAllEqual} from '../../base/array_utils';
-import {assertUnreachable, ensureExists} from '../../base/assert';
+import {assertUnreachable} from '../../base/assert';
 import {searchSegment} from '../../base/binary_search';
 import {HSLColor} from '../../base/color';
 import type {Point2D} from '../../base/geom';
@@ -284,8 +284,6 @@ export class CounterTrack implements TrackRenderer {
   protected readonly trace: Trace;
   protected readonly uri: string;
   private readonly getSqlSource: () => string;
-  // The SQL source being loaded by useData(), if not done yet.
-  private loadingSqlSource?: string;
   private readonly rangeSharer: RangeSharer;
   private readonly onInitFn?: () => Promise<void>;
 
@@ -671,11 +669,8 @@ export class CounterTrack implements TrackRenderer {
     const {yMode, yDisplay} = this;
 
     // A sqlSource can change faster than its table builds, e.g. with live
-    // data. Keep loading the current one until done, then move to the latest,
-    // so that the track renders a few updates late rather than never. A failed
-    // build throws on the next render, as for a static sqlSource.
-    const sqlSource = this.loadingSqlSource ?? this.sqlSource;
-    this.loadingSqlSource = undefined;
+    // data. Keep rendering the previous table until the new one is ready.
+    const sqlSource = this.sqlSource;
     const tableResult = this.tableSlot.use({
       key: {
         sqlSource,
@@ -683,9 +678,11 @@ export class CounterTrack implements TrackRenderer {
         yDisplay,
       },
       compute: () => this.createMipmapTable(sqlSource),
+      retainOn: ['sqlSource'],
     });
 
     const table = tableResult.data;
+    if (table === undefined) return undefined;
 
     // Step 2: Calculate buffered bounds and fetch counter data
     const visibleSpan = visibleWindow.toTimeSpan();
@@ -708,13 +705,12 @@ export class CounterTrack implements TrackRenderer {
         resolution: bounds.resolution,
         yMode,
         yDisplay,
-        tableName: table?.tableName ?? '',
+        tableName: table.tableName,
       },
-      enabled: table !== undefined,
       compute: async (signal) => {
         return await this.trace.taskTracker.track(
           this.fetchCounterData(
-            ensureExists(table),
+            table,
             queryStart,
             queryEnd,
             bounds.resolution,
@@ -725,10 +721,6 @@ export class CounterTrack implements TrackRenderer {
       },
       retainOn: ['start', 'end', 'resolution', 'tableName'],
     });
-
-    if (tableResult.isPending || dataResult.isPending) {
-      this.loadingSqlSource = sqlSource;
-    }
 
     const counters = dataResult.data;
     if (counters === undefined) return undefined;
