@@ -645,9 +645,9 @@ export class CounterTrack implements TrackRenderer {
     if (left === -1) return undefined;
 
     return {
-      tsRel: data.timestampsRel[left],
+      tsRel: data.timestampsRel[left]!,
       tsEndRel: right === -1 ? undefined : data.timestampsRel[right],
-      lastDisplayValue: data.lastDisplayValues[left],
+      lastDisplayValue: data.lastDisplayValues[left]!,
     };
   }
 
@@ -961,8 +961,8 @@ export class CounterTrack implements TrackRenderer {
     let min = 0;
     let max = 0;
     for (let row = 0; row < numRows; row++) {
-      min = Math.min(min, minCol[row]);
-      max = Math.max(max, maxCol[row]);
+      min = Math.min(min, minCol[row]!);
+      max = Math.max(max, maxCol[row]!);
     }
 
     // timestampsRelNext[i] = timestampsRel[i+1], last element = end - start.

@@ -103,13 +103,20 @@ constexpr size_t kDefaultChunkBudgetBytes = 128 * 1024;
 // ------------------
 //
 //   byte offset
-//   0              4              8              12               64
-//   +--------------+--------------+--------------+----------------+
-//   |   read_pos   |  write_pos   | num_writers_ |    reserved    |
-//   |              |              |   waiting    |                |
-//   +--------------+--------------+--------------+----------------+
+//   0              4              8              12             16
+//   +--------------+--------------+--------------+--------------+
+//   |   read_pos   |  write_pos   | num_writers_ |   padding    |
+//   |              |              |   waiting    |              |
+//   +--------------+--------------+--------------+--------------+
 //   |<------- rw_positions ------>|<- atomic32 ->|
 //          atomic<uint64_t>
+//
+//   16             24             32             40             64
+//   +--------------+--------------+--------------+--------------+
+//   |   dropped_   |    stalls    | stall_time_  |   reserved   |
+//   |   packets    |              |      ms      |              |
+//   +--------------+--------------+--------------+--------------+
+//   |<---------- three atomic<uint64_t> -------->|
 //
 // Writers check capacity by loading rw_positions once. In memory:
 // - The first four bytes hold read_pos.
@@ -125,7 +132,13 @@ constexpr size_t kDefaultChunkBudgetBytes = 128 * 1024;
 // for space. It is only an optimization and never decides whether the ring
 // buffer is full or who owns a chunk.
 //
-// Bytes 12..63 pad the header to one cache line.
+// Bytes 12..15 are padding so the counters below are 8-byte aligned.
+// Writers update them in bytes 16..39 when the ring buffer is full.
+// They are dropped_packets, stalls and stall_time_ms.
+// The service reads them only to report them in TraceStats.
+// No writer or reader decision depends on their values.
+//
+// Bytes 40..63 are reserved and pad the header to one cache line.
 //
 static_assert(sizeof(std::atomic<uint32_t>) == 4 &&
                   alignof(std::atomic<uint32_t>) <= 4,
@@ -139,11 +152,18 @@ static_assert(std::atomic<uint32_t>::is_always_lock_free &&
 struct alignas(64) RingBufferHeader {
   std::atomic<uint64_t> rw_positions;
   std::atomic<uint32_t> num_writers_waiting;
-  uint8_t reserved[52];
+  uint8_t padding[4];
+  std::atomic<uint64_t> dropped_packets;
+  std::atomic<uint64_t> stalls;
+  std::atomic<uint64_t> stall_time_ms;
+  uint8_t reserved[24];
 };
 
 static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
-                  offsetof(RingBufferHeader, reserved) == 12 &&
+                  offsetof(RingBufferHeader, dropped_packets) == 16 &&
+                  offsetof(RingBufferHeader, stalls) == 24 &&
+                  offsetof(RingBufferHeader, stall_time_ms) == 32 &&
+                  offsetof(RingBufferHeader, reserved) == 40 &&
                   sizeof(RingBufferHeader) == 64,
               "RingBufferHeader does not match the shared-memory ABI");
 

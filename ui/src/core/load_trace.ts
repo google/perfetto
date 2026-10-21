@@ -523,7 +523,7 @@ async function computeVisibleTime(
 // component trace if that trace was previously opened individually.
 async function computeGlobalUuid(uuids: string[]): Promise<string> {
   if (uuids.length === 0) return '';
-  if (uuids.length === 1) return uuids[0];
+  if (uuids.length === 1) return uuids[0]!;
   const sortedUuids = [...uuids].sort();
   return await sha1(sortedUuids.join(';'));
 }

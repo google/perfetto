@@ -26,7 +26,7 @@ function mkTime(time: string): HPTime {
   if (array.length > 2) throw new Error(`Bad time format ${time}`);
   const [base, fractions] = array;
   const negative = time.startsWith('-');
-  const numBase = BigInt(base);
+  const numBase = BigInt(base!);
 
   if (fractions) {
     const numFractions = Number(`0.${fractions}`);

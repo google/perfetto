@@ -845,7 +845,7 @@ export async function fetchShortestPaths(
   for (const [targetId, chain] of pathChains) {
     const path: PathEntry[] = [];
     for (let i = 0; i < chain.length; i++) {
-      const row = nodeMap.get(chain[i]);
+      const row = nodeMap.get(chain[i]!);
       if (!row) continue;
       const field =
         i < chain.length - 1
@@ -986,7 +986,7 @@ export async function fetchDominatorPaths(
   for (const [targetId, chain] of pathChains) {
     const path: PathEntry[] = [];
     for (let i = 0; i < chain.length; i++) {
-      const row = nodeMap.get(chain[i]);
+      const row = nodeMap.get(chain[i]!);
       if (!row) continue;
       const field =
         i < chain.length - 1
@@ -1132,7 +1132,7 @@ export async function getInstance(
           OR c.deobfuscated_name = '${classObjName}')
     `);
     const rows = collectRows(cRes);
-    if (rows.length > 0) classObjRow = rows[0];
+    if (rows.length > 0) classObjRow = rows[0]!;
   }
 
   const instanceFields =
@@ -1158,7 +1158,7 @@ export async function getInstance(
             idx: i,
             value: {
               kind: 'prim',
-              v: formatPrimValue(arrayElementType, values[i]),
+              v: formatPrimValue(arrayElementType, values[i]!),
             },
           });
         }
@@ -1541,7 +1541,7 @@ async function computeBitmapDumpData(
   const count = Math.min(nativesPtrs.length, bufferObjIds.length);
   for (let i = 0; i < count; i++) {
     if (bufferObjIds[i] !== undefined && bufferObjIds[i] !== 0) {
-      bufferMap.set(nativesPtrs[i], bufferObjIds[i]);
+      bufferMap.set(nativesPtrs[i]!, bufferObjIds[i]!);
     }
   }
 

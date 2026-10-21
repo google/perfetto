@@ -160,6 +160,15 @@ extern "C" void __msan_unpoison(void const volatile*, size_t);
 #define PERFETTO_NO_DESTROY
 #endif
 
+// Lets a class with a non-trivial destructor or copy still be passed and
+// returned in registers, as a trivial one is. The class must not depend on
+// its address staying the same across a move: the bytes are just copied.
+#if defined(__clang__) && PERFETTO_HAS_ATTRIBUTE(trivial_abi)
+#define PERFETTO_TRIVIAL_ABI __attribute__((trivial_abi))
+#else
+#define PERFETTO_TRIVIAL_ABI
+#endif
+
 // Macro for telling -Wimplicit-fallthrough that a fallthrough is intentional.
 #define PERFETTO_FALLTHROUGH [[fallthrough]]
 

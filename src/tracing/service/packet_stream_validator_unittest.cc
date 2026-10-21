@@ -23,6 +23,7 @@
 #include "protos/perfetto/trace/ftrace/sched.gen.h"
 #include "protos/perfetto/trace/perfetto/trace_provenance.gen.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "test/gtest_and_gmock.h"
@@ -211,6 +212,19 @@ TEST(PacketStreamValidatorTest, SimplePacketWithServiceEvent) {
   Slices seq;
   seq.emplace_back(&ser_buf[0], ser_buf.size());
   EXPECT_FALSE(PacketStreamValidator::Validate(seq));
+}
+
+TEST(PacketStreamValidatorTest, SimplePacketWithTracingV2ProducerStats) {
+  protos::gen::TracePacket proto;
+  proto.mutable_experimental_tracing_v2_producer_stats()->set_producer_id(1);
+  std::string ser_buf = proto.SerializeAsString();
+
+  for (size_t i = 0; i < ser_buf.size(); ++i) {
+    Slices seq;
+    seq.emplace_back(&ser_buf[0], i);
+    seq.emplace_back(&ser_buf[i], ser_buf.size() - i);
+    EXPECT_FALSE(PacketStreamValidator::Validate(seq));
+  }
 }
 
 TEST(PacketStreamValidatorTest, SimplePacketWithTraceProvenance) {

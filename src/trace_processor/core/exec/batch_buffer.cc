@@ -31,7 +31,8 @@ void BatchBuffer::Append(const RowBatch& in, Context& context) {
     PERFETTO_DCHECK(in.column_count() == columns_.size());
 #if PERFETTO_DCHECK_IS_ON()
     for (uint32_t c = 0; c < in.column_count(); ++c) {
-      PERFETTO_DCHECK(SameLogicalType(columns_[c].view, in.column(c)));
+      PERFETTO_DCHECK(SameLogicalType(ColumnShape::Of(columns_[c].view),
+                                      ColumnShape::Of(in.column(c))));
     }
 #endif
   } else {

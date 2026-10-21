@@ -54,14 +54,14 @@ export class SwitchComponent implements m.ClassComponent<SwitchComponentAttrs> {
 
     const setCaseWhen = (index: number, newWhen: string) => {
       if (!column.cases) return;
-      column.cases[index].when = newWhen;
+      column.cases[index]!.when = newWhen;
       this.updateExpression(column);
       onchange();
     };
 
     const setCaseThen = (index: number, newThen: string) => {
       if (!column.cases) return;
-      column.cases[index].then = newThen;
+      column.cases[index]!.then = newThen;
       this.updateExpression(column);
       onchange();
     };
@@ -215,14 +215,14 @@ export class IfComponent implements m.ClassComponent<IfComponentAttrs> {
 
     const setIfCondition = (index: number, newIf: string) => {
       if (!column.clauses) return;
-      column.clauses[index].if = newIf;
+      column.clauses[index]!.if = newIf;
       this.updateExpression(column);
       onchange();
     };
 
     const setThenValue = (index: number, newThen: string) => {
       if (!column.clauses) return;
-      column.clauses[index].then = newThen;
+      column.clauses[index]!.then = newThen;
       this.updateExpression(column);
       onchange();
     };

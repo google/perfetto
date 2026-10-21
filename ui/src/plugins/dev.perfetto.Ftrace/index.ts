@@ -22,17 +22,15 @@ import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {Cpu} from '../../components/cpu';
 import {getMachineCount} from '../../public/utils';
 import {
-  type FtraceFilter,
-  type FtracePluginState as FtraceFilters,
+  type FtracePluginState,
   FTRACE_RAW_TRACK_KIND,
+  FTRACE_STATE_SCHEMA,
 } from './common';
 import {FtraceExplorer, type FtraceExplorerCache} from './ftrace_explorer';
 import {createFtraceTrack} from './ftrace_track';
 
-const VERSION = 2;
-
-const DEFAULT_STATE: FtraceFilters = {
-  version: VERSION,
+const DEFAULT_STATE: FtracePluginState = {
+  version: 2,
   filter: {
     excludeList: [],
   },
@@ -42,26 +40,11 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Ftrace';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const store = ctx.mountStore<FtraceFilters>(
-      'dev.perfetto.FtraceFilters',
-      (init: unknown) => {
-        if (
-          typeof init === 'object' &&
-          init !== null &&
-          'version' in init &&
-          init.version === VERSION
-        ) {
-          return init as {} as FtraceFilters;
-        } else {
-          return DEFAULT_STATE;
-        }
-      },
-    );
-
-    const filterStore = store.createSubStore(
-      ['filter'],
-      (x) => x as FtraceFilter,
-    );
+    const storage = ctx.registerStorage({
+      id: 'dev.perfetto.FtraceFilters',
+      schema: FTRACE_STATE_SCHEMA,
+      defaultValue: DEFAULT_STATE,
+    });
 
     const ftraceTabUri = 'perfetto.FtraceRaw#FtraceEventsTab';
 
@@ -92,7 +75,7 @@ export default class implements PerfettoPlugin {
           ucpu: cpu.ucpu,
           kinds: [FTRACE_RAW_TRACK_KIND],
         },
-        renderer: createFtraceTrack(ctx, uri, cpu.ucpu, filterStore),
+        renderer: createFtraceTrack(ctx, uri, cpu.ucpu, storage),
       });
 
       const track = new TrackNode({
@@ -113,10 +96,13 @@ export default class implements PerfettoPlugin {
 
     // The event-name filter is shared (and persisted) across both the
     // standalone tab and the area-selection tab.
-    const onExcludeListChange = (excludeList: ReadonlyArray<string>) =>
-      filterStore.edit((draft) => {
-        draft.excludeList = Array.from(excludeList);
+    const onExcludeListChange = (excludeList: ReadonlyArray<string>) => {
+      const state = storage.get();
+      storage.set({
+        ...state,
+        filter: {...state.filter, excludeList: Array.from(excludeList)},
       });
+    };
 
     const allUcpus = cpus.map((c) => c.ucpu);
 
@@ -129,17 +115,20 @@ export default class implements PerfettoPlugin {
             trace: ctx,
             cache,
             cpus,
-            excludeList: filterStore.state.excludeList,
+            excludeList: storage.get().filter.excludeList,
             onExcludeListChange,
             // The standalone tab exposes a persisted cpu inclusion filter over
             // all cpus. Undefined persisted state means "show all".
             cpuFilter: {
               kind: 'selectable',
-              show: filterStore.state.visibleCpus ?? allUcpus,
-              onChange: (show) =>
-                filterStore.edit((draft) => {
-                  draft.visibleCpus = Array.from(show);
-                }),
+              show: storage.get().filter.visibleCpus ?? allUcpus,
+              onChange: (show) => {
+                const state = storage.get();
+                storage.set({
+                  ...state,
+                  filter: {...state.filter, visibleCpus: Array.from(show)},
+                });
+              },
             },
           }),
         getTitle: () => 'Ftrace Events',
@@ -175,7 +164,7 @@ export default class implements PerfettoPlugin {
             cache,
             cpus,
             bounds: {start: selection.start, end: selection.end},
-            excludeList: filterStore.state.excludeList,
+            excludeList: storage.get().filter.excludeList,
             onExcludeListChange,
             cpuFilter: {kind: 'fixed', show: selectedUcpus},
           }),

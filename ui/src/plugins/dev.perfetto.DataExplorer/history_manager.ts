@@ -86,7 +86,7 @@ export class HistoryManager {
     this.currentIndex--;
     this.isUndoRedoInProgress = true;
     const state = deserializeState(
-      this.history[this.currentIndex],
+      this.history[this.currentIndex]!,
       this.trace,
       this.sqlModules,
     );
@@ -103,7 +103,7 @@ export class HistoryManager {
     this.currentIndex++;
     this.isUndoRedoInProgress = true;
     const state = deserializeState(
-      this.history[this.currentIndex],
+      this.history[this.currentIndex]!,
       this.trace,
       this.sqlModules,
     );

@@ -67,6 +67,7 @@ source_set("probes_src") {
     "../../base",
     "../../tracing/core",
     "../../tracing/ipc/producer",
+    "../../tracing/v2",
     "android_aflags",
     "android_cpu_per_uid",
     "android_game_intervention_list",

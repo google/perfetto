@@ -1,0 +1,158 @@
+# pid 200 starts mid-trace, is frozen, unfrozen, frozen again and then killed
+# while frozen. pid 500 is frozen near the end and still alive. pids 300 and
+# 400 have no freezer events: the trace-stop snapshot says 300 (started
+# mid-trace) is frozen and 400 is not.
+packet {
+  timestamp: 500
+  process_tree {
+    processes { pid: 400 ppid: 1 cmdline: "proc400" }
+    processes { pid: 500 ppid: 1 cmdline: "proc500" }
+  }
+}
+packet {
+  timestamp: 500
+  track_descriptor {
+    uuid: 2
+    thread {
+      pid: 200
+      tid: 200
+      thread_name: "main"
+    }
+  }
+}
+packet {
+  timestamp: 500
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "trace_begin"
+  }
+}
+packet {
+  timestamp: 1000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      pid: 200
+      package_uid: 10002
+    }
+  }
+}
+packet {
+  timestamp: 3000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "freeze"
+    [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+      pid: 200
+      uid: 10002
+      unfrozen_dur_ms: 1
+    }
+  }
+}
+packet {
+  timestamp: 5000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "unfreeze"
+    [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+      pid: 200
+      uid: 10002
+      frozen_dur_ms: 2
+      unfreeze_reason: UFR_BIND_SERVICE
+    }
+  }
+}
+packet {
+  timestamp: 6000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "freeze"
+    [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+      pid: 200
+      uid: 10002
+      unfrozen_dur_ms: 1
+    }
+  }
+}
+packet {
+  timestamp: 7000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      pid: 300
+      package_uid: 10003
+    }
+  }
+}
+packet {
+  timestamp: 8000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "binder_died"
+    [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+      uid: 10002
+      pid: 200
+      process_name: "com.example.app"
+    }
+  }
+}
+packet {
+  timestamp: 9000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "freeze"
+    [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+      pid: 500
+      uid: 10005
+      unfrozen_dur_ms: 8
+    }
+  }
+}
+packet {
+  timestamp: 10000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "end"
+  }
+}
+packet {
+  timestamp: 10000
+  [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
+    record {
+      pid: 300
+      uid: 10003
+      frozen_dur_ms: 600
+    }
+    record {
+      pid: 400
+      uid: 10004
+      unfrozen_dur_ms: 50
+      unfreeze_reason: UFR_PING
+    }
+    record {
+      pid: 500
+      uid: 10005
+      frozen_dur_ms: 1
+    }
+  }
+}

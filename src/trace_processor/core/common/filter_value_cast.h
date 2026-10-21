@@ -302,22 +302,24 @@ CastFilterValueToDouble(uint32_t index,
   if (PERFETTO_LIKELY(filter_value_type == FilterValueFetcherImpl::kInt64)) {
     int64_t i = fetcher.GetInt64Value(index);
     auto iad = static_cast<double>(i);
-    auto iad_int = static_cast<int64_t>(iad);
 
-    // If the integer value can be converted to a double while preserving
-    // the exact integer value, then we can use the double value for
-    // comparison.
-    if (PERFETTO_LIKELY(i == iad_int)) {
-      out = iad;
-      return CastFilterValueResult::kValid;
+    // Rounding can take `i` up to 2^63, which int64_t cannot hold: casting
+    // that back would be undefined behaviour.
+    bool iad_greater_than_i = iad >= 9223372036854775808.0;
+    bool iad_less_than_i = false;
+    if (PERFETTO_LIKELY(!iad_greater_than_i)) {
+      auto iad_int = static_cast<int64_t>(iad);
+
+      // If the integer value can be converted to a double while preserving
+      // the exact integer value, then we can use the double value for
+      // comparison.
+      if (PERFETTO_LIKELY(i == iad_int)) {
+        out = iad;
+        return CastFilterValueResult::kValid;
+      }
+      iad_greater_than_i = iad_int > i;
+      iad_less_than_i = iad_int < i;
     }
-
-    // This can happen in cases where we round `i` up above
-    // numeric_limits::max(). In that case, still consider the double
-    // larger.
-    bool overflow_positive_to_negative = i > 0 && iad_int < 0;
-    bool iad_greater_than_i = iad_int > i || overflow_positive_to_negative;
-    bool iad_less_than_i = iad_int < i && !overflow_positive_to_negative;
     switch (op.index()) {
       case NonStringOp::GetTypeIndex<Lt>():
         out =
@@ -410,6 +412,50 @@ CastFilterValueToString(uint32_t index,
     }
   }
   PERFETTO_FATAL("Invalid filter spec value");
+}
+
+// Casts the filter value at `index` to the type of a column of storage type
+// T, for comparing with `op`: a value which cannot be cast exactly says
+// whether every row or none matches instead.
+template <typename T, typename FilterValueFetcherImpl>
+[[nodiscard]] inline PERFETTO_ALWAYS_INLINE CastFilterValueResult
+CastFilterValue(uint32_t index, FilterValueFetcherImpl& fetcher, NonNullOp op) {
+  typename FilterValueFetcherImpl::Type filter_value_type =
+      fetcher.GetValueType(index);
+  using ValueType =
+      StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+  CastFilterValueResult result;
+  if constexpr (std::is_same_v<T, Id>) {
+    uint32_t result_value;
+    result.validity =
+        CastFilterValueToInteger<uint32_t, FilterValueFetcherImpl>(
+            index, filter_value_type, fetcher, *op.TryDowncast<NonStringOp>(),
+            result_value);
+    if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
+      result.value = CastFilterValueResult::Id{result_value};
+    }
+  } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
+    ValueType result_value;
+    result.validity =
+        CastFilterValueToIntegerOrDouble<ValueType, FilterValueFetcherImpl>(
+            index, filter_value_type, fetcher, *op.TryDowncast<NonStringOp>(),
+            result_value);
+    if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
+      result.value = result_value;
+    }
+  } else if constexpr (std::is_same_v<T, String>) {
+    static_assert(std::is_same_v<ValueType, const char*>);
+    const char* result_value;
+    result.validity = CastFilterValueToString<FilterValueFetcherImpl>(
+        index, filter_value_type, fetcher, *op.TryDowncast<StringOp>(),
+        result_value);
+    if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
+      result.value = result_value;
+    }
+  } else {
+    static_assert(std::is_same_v<T, Id>, "Unsupported type");
+  }
+  return result;
 }
 
 // Below this threshold, the non-indexed FilterIn path does a linear scan

@@ -93,7 +93,7 @@ export default class MemoryViz implements PerfettoPlugin {
         ];
         trackPromises.push(
           ...tracks.map(([trackName, displayName]) =>
-            this.createBreakdownTrack(ctx, window, trackName, displayName),
+            this.createBreakdownTrack(ctx, window, trackName!, displayName!),
           ),
         );
         const createdTracks = await Promise.all(trackPromises);

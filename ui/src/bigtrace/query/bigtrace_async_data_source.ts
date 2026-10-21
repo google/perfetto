@@ -156,7 +156,7 @@ export class BigtraceAsyncDataSource implements DataSource {
           const col = model.columns?.find((c) => c.field === key);
           const alias =
             col !== undefined && col.alias !== undefined ? col.alias : key;
-          mappedRow[alias] = row[key];
+          mappedRow[alias] = row[key]!;
         }
       }
       return mappedRow;

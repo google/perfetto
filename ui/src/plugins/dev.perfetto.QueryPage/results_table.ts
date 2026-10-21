@@ -100,7 +100,7 @@ export interface ResultsTableAttrs {
  */
 export class ResultsTable implements m.Component<ResultsTableAttrs> {
   // The selected table for linking ID column values.
-  private selectedIdTable = ID_TABLE_OPTIONS[0].sqlTable;
+  private selectedIdTable = ID_TABLE_OPTIONS[0]!.sqlTable;
 
   // DataSource backing the grid. Built lazily from the result rows  and cached
   // for the lifetime of this instance.

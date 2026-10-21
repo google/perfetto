@@ -131,7 +131,7 @@ class QueryBuilder {
 
     // Check if this join is already present.
     for (let i = 0; i < this.tables.length; ++i) {
-      const table = this.tables[i];
+      const table = this.tables[i]!;
       if (
         table.table === column.source.table &&
         table.innerJoin === (column.source.innerJoin ?? false) &&
@@ -172,13 +172,13 @@ class QueryBuilder {
       }
       return `${this.tableAlias}.${column.column}`;
     }
-    const table = this.tables[column.sourceTableId];
+    const table = this.tables[column.sourceTableId]!;
     // Dependent tables are 0-indexed, but we want to display them as 1-indexed to reserve 0 for the primary table.
     return `${table.table}_${column.sourceTableId + 1}.${column.column}`;
   }
 
   printJoin(joinIndex: number): string {
-    const join = this.tables[joinIndex];
+    const join = this.tables[joinIndex]!;
     const alias = `${join.table}_${joinIndex + 1}`;
     const clauses = Object.entries(join.joinOn).map(
       ([key, value]) => `${alias}.${key} = ${this.printReference(value)}`,

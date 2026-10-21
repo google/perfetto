@@ -64,7 +64,7 @@ package perfetto.protos;
 // Note: field IDs up to 15 should be used for frequent data only.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 51.
+// Next id: 53.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -82,6 +82,9 @@ message InternedData {
   repeated InternedString debug_annotation_string_values = 29;
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
+  // Interned names, string values and display names of TrackDimensions (see
+  // TrackDimension.name_iid, string_value_iid and display_name_iid).
+  repeated InternedString track_dimension_strings = 52;
 
   //
   // == STABLE PUBLIC API: Callstacks and symbolization ==

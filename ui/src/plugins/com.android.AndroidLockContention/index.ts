@@ -395,7 +395,7 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
           start: {
             trackUri: trackUri,
             ts: Time.fromRaw(middleTs),
-            depth: targets[0].depth,
+            depth: targets[0]!.depth,
           },
           end: {
             trackUri: ownerTrackUri,

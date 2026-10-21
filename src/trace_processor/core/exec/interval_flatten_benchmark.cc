@@ -66,13 +66,13 @@ void Run(benchmark::State& state, uint32_t rows, uint32_t rows_per_group = 0) {
     batch.SetRowCount(count);
   }
   IntervalFlattenSpec spec;
-  spec.ts_column = 0;
-  spec.dur_column = 1;
+  spec.lanes.ts_column = 0;
+  spec.lanes.dur_column = 1;
   spec.aggregates = {{AggregateCall::Function::kCountStar, 0},
                      {AggregateCall::Function::kSum, 2}};
   if (rows_per_group) {
-    spec.key_columns = {3};
-    spec.group_column = 3;
+    spec.lanes.key_columns = {3};
+    spec.lanes.group_column = 3;
   }
   IntervalFlatten op(spec);
   std::unique_ptr<OperatorState> op_state = op.MakeState(context);

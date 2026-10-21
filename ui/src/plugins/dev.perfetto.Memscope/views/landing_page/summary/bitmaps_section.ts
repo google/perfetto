@@ -329,7 +329,7 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
     const bySize = dims.slice().sort((a, b) => b.bytes - a.bytes);
     const byCount = dims.slice().sort((a, b) => b.count - a.count);
     const hasDims = dims.some((d) => d.key !== 'unknown');
-    const largest = bySize[0];
+    const largest = bySize[0]!;
 
     const javaRetained = data.javaRetainedByTs.get(cur.ts) ?? 0;
     // Bitmap heap-self + registered-native bytes (excludes the estimated ashmem

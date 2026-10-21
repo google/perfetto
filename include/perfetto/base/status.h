@@ -17,10 +17,11 @@
 #ifndef INCLUDE_PERFETTO_BASE_STATUS_H_
 #define INCLUDE_PERFETTO_BASE_STATUS_H_
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <vector>
+#include <utility>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/export.h"
@@ -37,27 +38,47 @@ namespace base {
 // Similar to absl::Status, an optional "payload" can also be included with more
 // context about the error. This allows passing additional metadata about the
 // error (e.g. location of errors, potential mitigations etc).
-class PERFETTO_EXPORT_COMPONENT Status {
+//
+// A Status is one word: zero when ok, else the error, kept on the heap. Errors
+// are rare and statuses are created, moved and destroyed everywhere, so all
+// an ok status costs is inline and trivial, and everything to do with an
+// error is out of line. Being one word, it is passed and returned in a
+// register.
+class PERFETTO_EXPORT_COMPONENT PERFETTO_TRIVIAL_ABI Status {
  public:
-  Status() : ok_(true) {}
-  explicit Status(std::string msg) : ok_(false), message_(std::move(msg)) {
-    PERFETTO_CHECK(!message_.empty());
+  constexpr Status() = default;
+  explicit Status(std::string msg);
+
+  Status(const Status& other)
+      : rep_(other.rep_ > kMovedFrom ? Clone(other.rep_) : other.rep_) {}
+  Status& operator=(const Status& other) {
+    if (this != &other) {
+      Status copy(other);
+      std::swap(rep_, copy.rep_);
+    }
+    return *this;
   }
 
-  // Copy operations.
-  Status(const Status&) = default;
-  Status& operator=(const Status&) = default;
+  // Move operations. A moved-from status is an error saying so, as accessing
+  // it is a bug, rather than passing for ok.
+  Status(Status&& other) noexcept
+      : rep_(std::exchange(other.rep_, kMovedFrom)) {}
+  Status& operator=(Status&& other) noexcept {
+    if (this != &other) {
+      Release();
+      rep_ = std::exchange(other.rep_, kMovedFrom);
+    }
+    return *this;
+  }
 
-  // Move operations. The moved-from state is valid but unspecified.
-  Status(Status&&) noexcept = default;
-  Status& operator=(Status&&) = default;
+  ~Status() { Release(); }
 
-  bool ok() const { return ok_; }
+  bool ok() const { return rep_ == kOk; }
 
   // When ok() is false this returns the error message. Returns the empty string
   // otherwise.
-  const std::string& message() const { return message_; }
-  const char* c_message() const { return message_.c_str(); }
+  const std::string& message() const;
+  const char* c_message() const { return message().c_str(); }
 
   //////////////////////////////////////////////////////////////////////////////
   // Payload Management APIs
@@ -94,14 +115,23 @@ class PERFETTO_EXPORT_COMPONENT Status {
   bool ErasePayload(std::string_view type_url);
 
  private:
-  struct Payload {
-    std::string type_url;
-    std::string payload;
-  };
+  // The error: its message and payloads.
+  struct Rep;
 
-  bool ok_ = false;
-  std::string message_;
-  std::vector<Payload> payloads_;
+  // Values of `rep_` which are not a Rep.
+  static constexpr uintptr_t kOk = 0;
+  static constexpr uintptr_t kMovedFrom = 1;
+
+  void Release() {
+    if (PERFETTO_UNLIKELY(rep_ > kMovedFrom)) {
+      Delete(rep_);
+    }
+  }
+  static void Delete(uintptr_t rep);
+  static uintptr_t Clone(uintptr_t rep);
+  Rep* rep() const;
+
+  uintptr_t rep_ = kOk;
 };
 
 // Returns a status object which represents the Ok status.
