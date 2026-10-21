@@ -6,9 +6,6 @@ Unreleased:
      When TraceConfig.persist_trace_across_reboots is set, the trace file is
      kept on disk and recovered and uploaded on the next boot via
      `perfetto --upload-after-reboot`.
-   * Persistent traces now refuse to start a second session with the same
-     name while the first is still active, instead of deleting or corrupting
-     the active session's trace file.
    * Fixed a crash in `perfetto` when trace data arrived after a trace file
      write failure.
    * Added the "linux.smaps" data source to traced_perf, which records
@@ -68,8 +65,6 @@ Unreleased:
      use `trace_processor export sqlite`.
    * Added `std.gpu.vulkan_debug_names` with the history of Vulkan debug
      object names.
-   * Removed support for recursive PerfettoSQL functions.
-   * `ATTACH DATABASE` can no longer create or write files on disk.
    * Added the `long_trace_mode_bytes_overwritten` data loss stat, reporting
      bytes overwritten in the central buffer before they could be written to
      the file in write_into_file traces.
@@ -81,8 +76,6 @@ Unreleased:
    * Added the `android.lock_held`, `android.cpu.cluster_utilization` and
      `android.job_scheduler_states_track_events` stdlib modules, a
      JobScheduler pending reasons table, and `android_cuj_blocking_calls`.
-   * Added a `profileable` column to the `package_list` table.
-   * Added a `dur_without_trampoline` column to `android_startups`.
    * Added Wattson support for Tensor G6 (CPU, GPU and TPU) and MT6789, and
      for Linux devices identified by their device tree. Removed Wattson's
      inferred idle support.
