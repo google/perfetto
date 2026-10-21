@@ -23,11 +23,11 @@
 #include <type_traits>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/bits.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -39,12 +39,29 @@ constexpr uint32_t kSaltShift = 48;
 constexpr uint64_t kGroupMask = (uint64_t{1} << kSaltShift) - 1;
 constexpr uint64_t kSaltMask = ~kGroupMask;
 
-inline uint64_t Salt(uint64_t hash) {
+uint64_t Salt(uint64_t hash) {
   return hash & kSaltMask;
 }
 
-inline uint32_t GroupFromSlot(uint64_t slot) {
+uint32_t GroupFromSlot(uint64_t slot) {
   return static_cast<uint32_t>(slot & kGroupMask) - 1;
+}
+
+// Calls `fn(row)` for each row in [0, count) that is null in `validity`,
+// reading the bits from `start` 64 at a time.
+template <typename Fn>
+PERFETTO_ALWAYS_INLINE inline void ForEachNull(const BitVector& validity,
+                                               uint32_t start,
+                                               uint32_t count,
+                                               Fn fn) {
+  for (uint32_t row = 0; row < count; row += 64) {
+    uint32_t n = std::min(64u, count - row);
+    uint64_t mask = n == 64 ? ~uint64_t{0} : (uint64_t{1} << n) - 1;
+    uint64_t nulls = ~validity.ReadBits(start + row, n) & mask;
+    for (; nulls; nulls &= nulls - 1) {
+      fn(row + base::CountTrailZeros64(nulls));
+    }
+  }
 }
 
 // Copies the column's values for the selected rows into `out` as int64.
@@ -124,26 +141,8 @@ std::optional<GroupTable::Kind> GroupTable::Load(const ColumnView& column,
     Gather<uint32_t>(column, selection, count, keys);
     if (const BitVector* validity = column.validity()) {
       if (selection.prefix()) {
-        uint32_t start = column.start();
-        for (uint32_t row = 0; row < count; row += 64) {
-          uint32_t n = std::min(64u, count - row);
-          uint64_t valid_word = validity->ReadBits(start + row, n);
-          if (n < 64) {
-            valid_word |= ~((uint64_t{1} << n) - 1);
-          }
-          if (PERFETTO_LIKELY(valid_word == ~uint64_t{0})) {
-            continue;
-          }
-          uint64_t invalid_word = ~valid_word;
-          if (n < 64) {
-            invalid_word &= (uint64_t{1} << n) - 1;
-          }
-          while (invalid_word) {
-            uint32_t bit = base::CountTrailZeros64(invalid_word);
-            keys[row + bit] = 0;
-            invalid_word &= (invalid_word - 1);
-          }
-        }
+        ForEachNull(*validity, column.start(), count,
+                    [keys](uint32_t row) { keys[row] = 0; });
       } else {
         for (uint32_t row = 0; row < count; ++row) {
           bool valid = validity->is_set(column.Index(selection[row]));
@@ -157,28 +156,12 @@ std::optional<GroupTable::Kind> GroupTable::Load(const ColumnView& column,
   }
   if (const BitVector* validity = column.validity()) {
     if (selection.prefix()) {
-      uint32_t start = column.start();
       uint64_t null_bit = uint64_t{1} << k;
-      for (uint32_t row = 0; row < count; row += 64) {
-        uint32_t n = std::min(64u, count - row);
-        uint64_t valid_word = validity->ReadBits(start + row, n);
-        if (n < 64) {
-          valid_word |= ~((uint64_t{1} << n) - 1);
-        }
-        if (PERFETTO_LIKELY(valid_word == ~uint64_t{0})) {
-          continue;
-        }
-        uint64_t invalid_word = ~valid_word;
-        if (n < 64) {
-          invalid_word &= (uint64_t{1} << n) - 1;
-        }
-        while (invalid_word) {
-          uint32_t bit = base::CountTrailZeros64(invalid_word);
-          keys[row + bit] = 0;
-          nulls_[row + bit] |= null_bit;
-          invalid_word &= (invalid_word - 1);
-        }
-      }
+      uint64_t* nulls = nulls_.data();
+      ForEachNull(*validity, column.start(), count, [&](uint32_t row) {
+        keys[row] = 0;
+        nulls[row] |= null_bit;
+      });
     } else {
       for (uint32_t row = 0; row < count; ++row) {
         bool valid = validity->is_set(column.Index(selection[row]));
@@ -279,6 +262,7 @@ void GroupTable::FindValues(uint32_t count, uint32_t* groups) {
       if (Salt(slot) == salt) {
         uint32_t candidate = GroupFromSlot(slot);
         const int64_t* stored = stored_base + uint64_t{candidate} * stride_;
+        // A null group's salt never matches key 0's, the only key it stores.
         if (stored[1] == key) {
           group = candidate;
           break;
@@ -317,7 +301,9 @@ uint64_t GroupTable::Hash(uint32_t row) const {
   return hasher.digest();
 }
 
-bool GroupTable::Equal(const int64_t* stored_base, uint32_t group, uint32_t row) const {
+bool GroupTable::Equal(const int64_t* stored_base,
+                       uint32_t group,
+                       uint32_t row) const {
   const int64_t* stored = stored_base + uint64_t{group} * stride_;
   if (static_cast<uint64_t>(stored[0]) != nulls_[row]) {
     return false;
