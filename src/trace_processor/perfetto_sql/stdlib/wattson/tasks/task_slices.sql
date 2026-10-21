@@ -39,11 +39,12 @@ WHERE
 -- IRQ tree goes to the innermost IRQ running then. Trees with a non-positive
 -- duration slice on the path from the root are dropped.
 CREATE PERFETTO TABLE _hard_irq_flattened_ids AS
-FROM (SELECT id, parent_id, ts, dur FROM linux_hard_irqs)
--- TODO(lalitm): MIN(id) stands in for the root of each tree and relies on a
--- parent's id being smaller than its children's, which is not guaranteed.
--- Switch to ARG_MIN(id, depth) once pipelines support it.
-|> TREE ACCUMULATE DOWN MIN(id) AS root_id, MIN(dur) AS min_dur
+FROM (
+  SELECT id, parent_id, ts, dur, iif(parent_id IS NULL, id, 0) AS own_root_id
+  FROM linux_hard_irqs
+)
+-- Only a root contributes its id, so the sum down each path is the root's id.
+|> TREE ACCUMULATE DOWN SUM(own_root_id) AS root_id, MIN(dur) AS min_dur
 |> WHERE min_dur > 0
 -- TODO(lalitm): MAX(id) stands in for the deepest slice and relies on a
 -- child's id being greater than its parent's, which is not guaranteed.
