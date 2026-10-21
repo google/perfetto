@@ -38,10 +38,13 @@ ANDROID_PROCESS_STATE_TABLE = Table(
         C('upid', CppTableId(PROCESS_TABLE), cpp_access=CppAccess.READ),
         C('proc_state', CppOptional(CppString())),
         C('oom_score', CppOptional(CppInt32())),
+        C('capability_flags', CppOptional(CppInt32())),
         C('process_group', CppOptional(CppString())),
         C('reason', CppOptional(CppString())),
         C('seq_id', CppOptional(CppInt64())),
-        C('arg_set_id', CppOptional(CppUint32())),
+        C('arg_set_id',
+          CppOptional(CppUint32()),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C('is_initial', CppUint32(), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
@@ -56,6 +59,8 @@ ANDROID_PROCESS_STATE_TABLE = Table(
                 'Process state enum name or value.',
             'oom_score':
                 'OOM score.',
+            'capability_flags':
+                'Capability flags.',
             'process_group':
                 'Process group enum name or value.',
             'reason':
@@ -64,7 +69,7 @@ ANDROID_PROCESS_STATE_TABLE = Table(
                 'OOM adjuster sequence ID (if from track event).',
             'arg_set_id':
                 ColumnDoc(
-                    'The id of the argument set associated with this row.',
+                    'Argument set holding decoded capability_flags[i] entries.',
                     joinable='args.arg_set_id'),
             'is_initial':
                 '1 for synthesized initial state row, 0 for change event.',

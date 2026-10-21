@@ -707,17 +707,24 @@ std::optional<uint32_t> DescriptorPool::FindDescriptorIdx(
   return it->second;
 }
 
+std::optional<uint32_t> DescriptorPool::FindDescriptorIdx(
+    CachedDescriptor& cache,
+    std::string_view full_name) const {
+  if (!cache.descriptor_idx_) {
+    cache.descriptor_idx_ = FindDescriptorIdx(std::string(full_name));
+  }
+  return cache.descriptor_idx_;
+}
+
 std::optional<std::string> DescriptorPool::FindEnumString(
     CachedDescriptor& cache,
     std::string_view enum_name,
     int32_t value) const {
-  if (!cache.descriptor_idx_) {
-    cache.descriptor_idx_ = FindDescriptorIdx(std::string(enum_name));
-  }
-  if (!cache.descriptor_idx_) {
+  auto idx = FindDescriptorIdx(cache, enum_name);
+  if (!idx) {
     return std::nullopt;
   }
-  return descriptors_[*cache.descriptor_idx_].FindEnumString(value);
+  return descriptors_[*idx].FindEnumString(value);
 }
 
 int64_t DescriptorPool::FlagSetToViews(
@@ -750,13 +757,11 @@ int64_t DescriptorPool::FlagSetToViews(
     std::string_view enum_name,
     int64_t mask,
     std::vector<std::string_view>* out) const {
-  if (!cache.descriptor_idx_) {
-    cache.descriptor_idx_ = FindDescriptorIdx(std::string(enum_name));
-  }
-  if (!cache.descriptor_idx_) {
+  auto idx = FindDescriptorIdx(cache, enum_name);
+  if (!idx) {
     return mask;
   }
-  return FlagSetToViews(*cache.descriptor_idx_, mask, out);
+  return FlagSetToViews(*idx, mask, out);
 }
 
 std::vector<uint8_t> DescriptorPool::SerializeAsDescriptorSet() const {
