@@ -4082,7 +4082,6 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/helpers.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/object_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/oome.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/raw_dominator_tree.sql",
     ],
 )
 
