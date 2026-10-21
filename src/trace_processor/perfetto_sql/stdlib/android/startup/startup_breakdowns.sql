@@ -145,13 +145,16 @@ ORDER BY
   p.id;
 
 -- Flattened slice stack of each startup's main thread: at every point of
--- the startup, the leaf (i.e. deepest, so highest id) normalized slice, or a
--- NULL slice_id where no normalized slice is active.
+-- the startup, the leaf (i.e. deepest) normalized slice, or a NULL slice_id
+-- where no normalized slice is active.
 CREATE PERFETTO TABLE _startup_flat_slices AS
 INTERVAL INTERSECTION OF (
   (SELECT id, ts, dur, utid FROM _startup_normalized_slices) AS s,
   (SELECT id AS root_id, ts, dur, utid FROM _startup_root_slices) AS r
 ) PER utid
+-- TODO(lalitm): MAX(id) stands in for the deepest slice and relies on a
+-- child's id being greater than its parent's, which is not guaranteed.
+-- Switch to ARG_MAX(id, depth) once pipelines support it.
 |> INTERVAL FLATTEN PER root_id, utid AGGREGATE MAX(id) AS slice_id
 |> INTERVAL FILL GAPS WITH (
   SELECT id AS root_id, ts, dur, utid FROM _startup_root_slices
