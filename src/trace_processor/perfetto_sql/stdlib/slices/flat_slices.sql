@@ -14,14 +14,18 @@
 -- limitations under the License.
 INCLUDE PERFETTO MODULE slices.with_context;
 
--- Each stack flattened to its deepest active slice: a child's id is always
--- greater than its parent's, so the max id among the slices covering a segment
--- is the deepest one. Unfinished and instant slices are dropped, along with
--- everything below them.
+-- Each stack flattened to its deepest active slice. Unfinished and instant
+-- slices are dropped, along with everything below them.
 CREATE PERFETTO TABLE _slice_flat_intervals AS
 FROM slice
+-- TODO(lalitm): MIN(id) stands in for the root of each tree and relies on a
+-- parent's id being smaller than its children's, which is not guaranteed.
+-- Switch to ARG_MIN(id, depth) once pipelines support it.
 |> TREE ACCUMULATE DOWN MIN(id) AS root_id, MIN(dur) AS min_dur
 |> WHERE min_dur > 0
+-- TODO(lalitm): MAX(id) stands in for the deepest slice and relies on a
+-- child's id being greater than its parent's, which is not guaranteed.
+-- Switch to ARG_MAX(id, depth) once pipelines support it.
 |> INTERVAL FLATTEN PER root_id AGGREGATE MAX(id) AS id;
 
 -- The concept of a "flat slice" is to take the data in the slice table and
