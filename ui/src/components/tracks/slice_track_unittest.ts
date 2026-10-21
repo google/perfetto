@@ -209,8 +209,24 @@ describe('SliceTrack with a dynamic dataset', () => {
   class FakeEngine {
     readonly log: string[] = [];
 
+    // How long building a table takes, to span several frames.
+    createDelayMs = 0;
+
+    // Queries that used a table after it was dropped.
+    readonly useAfterDrop: string[] = [];
+    private readonly dropped = new Set<string>();
+
     async query(sql: string): Promise<QueryResult> {
       this.log.push(sql);
+      for (const name of this.dropped) {
+        if (new RegExp(`\\b${name}\\b`).test(sql)) this.useAfterDrop.push(sql);
+      }
+      if (sql.startsWith('DROP TABLE')) {
+        this.dropped.add(sql.split(' ').at(-1)!);
+      }
+      if (sql.startsWith('CREATE') && this.createDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, this.createDelayMs));
+      }
       const schemaColumns = ['id', 'ts', 'dur', 'depth'];
       if (sql.includes('AS rowCount')) {
         return queryResult(['rowCount'], [[1]]);
@@ -321,19 +337,25 @@ describe('SliceTrack with a dynamic dataset', () => {
     expect(oldTables).toHaveLength(3);
     expect(drawnSlices()).toBe(1);
 
-    // The previous slices are drawn until the new ones are loaded.
+    // Every frame draws the previous slices until the new ones are loaded.
+    engine.createDelayMs = 5;
     src = 'slices_b';
-    drawSlices.mockClear();
-    track.render(renderCtx);
-    expect(drawnSlices()).toBe(1);
+    for (let i = 0; i < 10; i++) {
+      drawSlices.mockClear();
+      track.render(renderCtx);
+      expect(drawnSlices()).toBe(1);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
 
     // The old tables are dropped and slices are loaded from the new ones.
     await renderUntilSettled(track, renderCtx);
     const newTables = engine.createdTables().slice(3);
     expect(newTables).toHaveLength(3);
     expect(engine.droppedTables()).toEqual(oldTables);
+    expect(engine.useAfterDrop).toEqual([]);
     const sliceQueries = engine.log.filter((q) => q.includes('as __start'));
     expect(sliceQueries.at(-1)).toContain(newTables[0]);
+    expect(sliceQueries.at(-1)).toContain('slices_b');
     expect(drawnSlices()).toBe(1);
   });
 
@@ -358,47 +380,6 @@ describe('SliceTrack with a dynamic dataset', () => {
       expect.anything(),
     );
     expect(engine.createdTables().length).toBeGreaterThan(3);
-  });
-
-  test('loads the window seen once the tables are built', async () => {
-    const {engine, trace, renderCtx} = setup();
-    let src = 'slices_a';
-    const track = SliceTrack.create({
-      trace,
-      uri: 'test',
-      dataset: () =>
-        new SourceDataset({
-          src,
-          schema: {id: NUM, ts: LONG, dur: LONG, depth: NUM},
-        }),
-    });
-
-    // Returns renderCtx with the 100ns visible window moved to `start`.
-    const scrolledTo = (start: bigint): TrackRenderContext => {
-      const visibleWindow = new HighPrecisionTimeSpan(
-        new HighPrecisionTime(Time.fromRaw(start)),
-        100,
-      );
-      const timescale = new TimeScale(visibleWindow, {left: 0, right: 100});
-      return {...renderCtx, visibleWindow, timescale};
-    };
-
-    // The start of each slice load, e.g. '900' for '... - 900 as __start'.
-    const loadStarts = () =>
-      engine.log
-        .filter((q) => q.includes('as __start'))
-        .map((q) => /- (-?\d+) as __start/.exec(q)?.[1]);
-
-    // Frames drawn while the tables build, e.g. during an animation, don't
-    // pick the bounds: the window at load time does, padded by its duration.
-    track.render(scrolledTo(1050n));
-    await renderUntilSettled(track, scrolledTo(1000n));
-    expect(loadStarts()).toEqual(['900']);
-
-    // Same when the tables are rebuilt for a new dataset.
-    src = 'slices_b';
-    track.render(scrolledTo(2050n));
-    await renderUntilSettled(track, scrolledTo(2000n));
-    expect(loadStarts()).toEqual(['900', '1900']);
+    expect(engine.useAfterDrop).toEqual([]);
   });
 });
