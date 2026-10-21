@@ -580,16 +580,42 @@ node PerfettoIntervalIntersection {
   }
 }
 
-// A pipeline: a source followed by `|>` stages. Exactly one of `from` and
-// `intersection` names the source.
+enum PerfettoGraphTreeKind { BFS DFS DOMINATOR }
+
+// `GRAPH BFS | DFS | DOMINATOR TREE NODES rel EDGES rel FROM rel`: reduces the
+// graph to a tree over the nodes reachable from the seeds in FROM.
+node PerfettoGraphTree {
+  kind: inline PerfettoGraphTreeKind
+  nodes: index PerfettoPipeSource
+  edges: index PerfettoPipeSource
+  seeds: index PerfettoPipeSource
+
+  fmt {
+    group {
+      "GRAPH" space
+      enum_display(kind, { BFS="BFS" DFS="DFS" DOMINATOR="DOMINATOR" })
+      space "TREE"
+      nest {
+        line "NODES" space child(nodes)
+        line "EDGES" space child(edges)
+        line "FROM" space child(seeds)
+      }
+    }
+  }
+}
+
+// A pipeline: a source followed by `|>` stages. Exactly one of `from`,
+// `intersection` and `graph` names the source.
 node PerfettoPipeline {
   from: index PerfettoPipeSource
   intersection: index PerfettoIntervalIntersection
+  graph: index PerfettoGraphTree
   stages: index PerfettoPipeStageList
 
   fmt {
     if_set(from) { "FROM" space child(from) }
     if_set(intersection) { child(intersection) }
+    if_set(graph) { child(graph) }
     if_set(stages) { hardline "|>" space child(stages) }
   }
 }

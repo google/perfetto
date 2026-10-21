@@ -2237,6 +2237,12 @@ typedef enum SyntaqlitePerfettoTreeDirection {
     SYNTAQLITE_PERFETTO_TREE_DIRECTION_DOWN = 1
 } SyntaqlitePerfettoTreeDirection;
 
+typedef enum SyntaqlitePerfettoGraphTreeKind {
+    SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_BFS = 0,
+    SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_DFS = 1,
+    SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_DOMINATOR = 2
+} SyntaqlitePerfettoGraphTreeKind;
+
 // ============ Flags Types ============
 
 typedef union SyntaqliteAggregateFunctionCallFlags {
@@ -2421,7 +2427,8 @@ typedef enum SyntaqliteNodeTag {
     SYNTAQLITE_NODE_PERFETTO_INTERVAL_FLATTEN = 134,
     SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS = 135,
     SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION = 136,
-    SYNTAQLITE_NODE_PERFETTO_PIPELINE = 137,
+    SYNTAQLITE_NODE_PERFETTO_GRAPH_TREE = 137,
+    SYNTAQLITE_NODE_PERFETTO_PIPELINE = 138,
     SYNTAQLITE_NODE_COUNT
 } SyntaqliteNodeTag;
 SYNQ_STATIC_ASSERT(sizeof(SyntaqliteNodeTag) == sizeof(uint32_t),
@@ -3424,10 +3431,19 @@ typedef struct SyntaqlitePerfettoIntervalIntersection {
     uint32_t per;
 } SyntaqlitePerfettoIntervalIntersection;
 
+typedef struct SyntaqlitePerfettoGraphTree {
+    SyntaqliteNodeTag tag;
+    SyntaqlitePerfettoGraphTreeKind kind;
+    uint32_t nodes;
+    uint32_t edges;
+    uint32_t seeds;
+} SyntaqlitePerfettoGraphTree;
+
 typedef struct SyntaqlitePerfettoPipeline {
     SyntaqliteNodeTag tag;
     uint32_t from;
     uint32_t intersection;
+    uint32_t graph;
     uint32_t stages;
 } SyntaqlitePerfettoPipeline;
 
@@ -3571,6 +3587,7 @@ typedef union SyntaqliteNode {
     SyntaqlitePerfettoIntervalFlatten perfetto_interval_flatten;
     SyntaqlitePerfettoIntervalFillGaps perfetto_interval_fill_gaps;
     SyntaqlitePerfettoIntervalIntersection perfetto_interval_intersection;
+    SyntaqlitePerfettoGraphTree perfetto_graph_tree;
     SyntaqlitePerfettoPipeline perfetto_pipeline;
 } SyntaqliteNode;
 
@@ -4728,6 +4745,10 @@ template <> struct NodeTag<SyntaqlitePerfettoIntervalIntersection> {
   static constexpr bool kHasTag = true;
   static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION;
 };
+template <> struct NodeTag<SyntaqlitePerfettoGraphTree> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_GRAPH_TREE;
+};
 template <> struct NodeTag<SyntaqlitePerfettoPipeline> {
   static constexpr bool kHasTag = true;
   static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPELINE;
@@ -4949,7 +4970,13 @@ template <> struct NodeTag<SyntaqlitePerfettoPipeline> {
 #define SYNTAQLITE_TK_AGGREGATE                      204
 #define SYNTAQLITE_TK_FILL                           205
 #define SYNTAQLITE_TK_GAPS                           206
-#define SYNTAQLITE_TK_PIPE                           207
+#define SYNTAQLITE_TK_GRAPH                          207
+#define SYNTAQLITE_TK_BFS                            208
+#define SYNTAQLITE_TK_DFS                            209
+#define SYNTAQLITE_TK_DOMINATOR                      210
+#define SYNTAQLITE_TK_NODES                          211
+#define SYNTAQLITE_TK_EDGES                          212
+#define SYNTAQLITE_TK_PIPE                           213
 
 /* syntaqlite extension: expected terminals for current parser state. */
 uint32_t SynqPerfettoParseExpectedTokens(void* parser, uint32_t* out_tokens, uint32_t out_cap);

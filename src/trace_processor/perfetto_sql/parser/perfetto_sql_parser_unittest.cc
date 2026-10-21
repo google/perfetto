@@ -736,6 +736,9 @@ TEST_F(PerfettoSqlParserTest, PipelineSyntaxDoesNotLeakIntoSql) {
   ASSERT_EQ(*Parse(SqlSource::FromExecuteQuery(
                 "SELECT (interval / 1e9), (interval) FROM t")),
             std::vector<Statement>{Statement(SqliteSql{})});
+  ASSERT_EQ(*Parse(SqlSource::FromExecuteQuery(
+                "SELECT (graph), nodes, edges, bfs, dfs, dominator FROM t")),
+            std::vector<Statement>{Statement(SqliteSql{})});
 }
 
 TEST_F(PerfettoSqlParserTest, PipelineOnlyAsAStatementOrTableBody) {
@@ -750,6 +753,7 @@ TEST_F(PerfettoSqlParserTest, PipelineOnlyAsAStatementOrTableBody) {
            "FROM (FROM slice) |> DISTINCT",
            "CREATE PERFETTO TABLE t AS FROM (FROM slice)",
            "FROM (INTERVAL INTERSECTION OF (a, b)) |> DISTINCT",
+           "FROM (GRAPH BFS TREE NODES n EDGES e FROM s) |> DISTINCT",
        }) {
     EXPECT_THAT(Parse(SqlSource::FromExecuteQuery(sql)).status().message(),
                 HasSubstr("A pipeline can only be a whole statement"))
@@ -762,6 +766,18 @@ TEST_F(PerfettoSqlParserTest, PipelineOnlyAsAStatementOrTableBody) {
   const auto* table = std::get_if<CreateTable>(&(*parsed)[0]);
   ASSERT_NE(table, nullptr);
   EXPECT_TRUE(std::holds_alternative<pipeline::LogicalPlan>(table->body));
+}
+
+TEST_F(PerfettoSqlParserTest, GraphTreeIsNotSupportedYet) {
+  for (const char* kind : {"BFS", "DFS", "DOMINATOR"}) {
+    std::string sql = std::string("CREATE PERFETTO TABLE t AS GRAPH ") + kind +
+                      " TREE NODES n EDGES (SELECT 1 AS src, 1 AS dst) "
+                      "FROM s AS seeds |> DISTINCT";
+    EXPECT_THAT(Parse(SqlSource::FromExecuteQuery(sql)).status().message(),
+                HasSubstr(std::string("GRAPH ") + kind +
+                          " TREE: this operator is not supported yet"))
+        << sql;
+  }
 }
 
 TEST_F(PerfettoSqlParserTest, CreatePerfettoViewWithSchema) {

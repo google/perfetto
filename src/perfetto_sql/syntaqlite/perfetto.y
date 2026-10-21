@@ -23,7 +23,7 @@
 // Allow extension keywords to be used as regular identifiers.
 %fallback ID PERFETTO FUNCTION MODULE RETURNS MACRO DELEGATES INCLUDE
           TREE ACCUMULATE UP DOWN INTERVAL INTERSECTION PER EXTEND FLATTEN
-          AGGREGATE FILL GAPS.
+          AGGREGATE FILL GAPS GRAPH BFS DFS DOMINATOR NODES EDGES.
 
 // ---------- Helper nonterminals ----------
 
@@ -200,7 +200,7 @@ perfetto_pipe_source(A) ::= LP select(S) RP perfetto_pipe_alias(Z). {
     A = synq_parse_perfetto_pipe_source(pCtx, SYNQ_NO_SPAN, SYNQ_NO_SPAN,
         S, Z);
 }
-perfetto_pipe_source(A) ::= LP perfetto_intersection_pipeline(S) RP
+perfetto_pipe_source(A) ::= LP perfetto_keyword_pipeline(S) RP
                            perfetto_pipe_alias(Z). {
     A = synq_parse_perfetto_pipe_source(pCtx, SYNQ_NO_SPAN, SYNQ_NO_SPAN,
         S, Z);
@@ -470,23 +470,45 @@ perfetto_per(A) ::= PER perfetto_per_col_list(L). { A = L; }
 %type perfetto_from_pipeline {uint32_t}
 perfetto_from_pipeline(A) ::= FROM perfetto_pipe_source(F)
                               perfetto_pipe_stage_list(S). {
-    A = synq_parse_perfetto_pipeline(pCtx, F, SYNTAQLITE_NULL_NODE, S);
+    A = synq_parse_perfetto_pipeline(pCtx, F, SYNTAQLITE_NULL_NODE,
+        SYNTAQLITE_NULL_NODE, S);
 }
 
-// INTERVAL is not reserved, so `(interval` in SQL may be a column. A pipeline
-// starting with it is only accepted where a select could not start there.
+%type perfetto_graph_tree_kind {int}
+perfetto_graph_tree_kind(A) ::= BFS. {
+    A = SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_BFS;
+}
+perfetto_graph_tree_kind(A) ::= DFS. {
+    A = SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_DFS;
+}
+perfetto_graph_tree_kind(A) ::= DOMINATOR. {
+    A = SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_DOMINATOR;
+}
+
+// INTERVAL and GRAPH are not reserved, so `(interval` in SQL may be a column.
+// A pipeline starting with one is only accepted where a select could not start
+// there.
 // TODO(lalitm): accept it wherever a select is; see
 // https://github.com/google/perfetto/issues/8171.
-%type perfetto_intersection_pipeline {uint32_t}
-perfetto_intersection_pipeline(A) ::= INTERVAL INTERSECTION OF LP
+%type perfetto_keyword_pipeline {uint32_t}
+perfetto_keyword_pipeline(A) ::= INTERVAL INTERSECTION OF LP
     perfetto_pipe_source_list(L) RP perfetto_per(P)
     perfetto_pipe_stage_list(S). {
     uint32_t src = synq_parse_perfetto_interval_intersection(pCtx, L, P);
-    A = synq_parse_perfetto_pipeline(pCtx, SYNTAQLITE_NULL_NODE, src, S);
+    A = synq_parse_perfetto_pipeline(pCtx, SYNTAQLITE_NULL_NODE, src,
+        SYNTAQLITE_NULL_NODE, S);
+}
+perfetto_keyword_pipeline(A) ::= GRAPH perfetto_graph_tree_kind(K) TREE
+    NODES perfetto_pipe_source(N) EDGES perfetto_pipe_source(E)
+    FROM perfetto_pipe_source(F) perfetto_pipe_stage_list(S). {
+    uint32_t src = synq_parse_perfetto_graph_tree(pCtx,
+        (SyntaqlitePerfettoGraphTreeKind)K, N, E, F);
+    A = synq_parse_perfetto_pipeline(pCtx, SYNTAQLITE_NULL_NODE,
+        SYNTAQLITE_NULL_NODE, src, S);
 }
 
 select(A) ::= perfetto_from_pipeline(P). { A = P; }
-cmd(A) ::= perfetto_intersection_pipeline(P). { A = P; }
+cmd(A) ::= perfetto_keyword_pipeline(P). { A = P; }
 
 // ---------- PERFETTO PRAGMA ----------
 
@@ -513,7 +535,7 @@ cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO TABLE nm(N)
 
 cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO TABLE nm(N)
            perfetto_table_impl(I) perfetto_table_schema(S)
-           AS perfetto_intersection_pipeline(P). {
+           AS perfetto_keyword_pipeline(P). {
     A = synq_parse_create_perfetto_table_stmt(pCtx,
         synq_span(pCtx, N),
         R ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
