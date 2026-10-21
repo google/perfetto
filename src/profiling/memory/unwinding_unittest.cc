@@ -24,56 +24,15 @@
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "src/profiling/common/unwind_support.h"
 #include "src/profiling/memory/client.h"
 #include "src/profiling/memory/wire_protocol.h"
+#include "src/profiling/unwind/unwind_context.h"
+#include "src/profiling/unwind/unwind_types.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace profiling {
 namespace {
-
-TEST(UnwindingTest, StackOverlayMemoryOverlay) {
-  base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
-  ASSERT_TRUE(proc_mem);
-  uint8_t fake_stack[1] = {120};
-  std::shared_ptr<FDMemory> mem(
-      std::make_shared<FDMemory>(std::move(proc_mem)));
-  StackOverlayMemory memory(mem, 0u, fake_stack, 1);
-  uint8_t buf[1] = {};
-  ASSERT_EQ(memory.Read(0u, buf, 1), 1u);
-  ASSERT_EQ(buf[0], 120);
-}
-
-TEST(UnwindingTest, StackOverlayMemoryNonOverlay) {
-  uint8_t value = 52;
-
-  base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
-  ASSERT_TRUE(proc_mem);
-  uint8_t fake_stack[1] = {120};
-  std::shared_ptr<FDMemory> mem(
-      std::make_shared<FDMemory>(std::move(proc_mem)));
-  StackOverlayMemory memory(mem, 0u, fake_stack, 1);
-  uint8_t buf[1] = {1};
-  ASSERT_EQ(memory.Read(reinterpret_cast<uint64_t>(&value), buf, 1), 1u);
-  ASSERT_EQ(buf[0], value);
-}
-
-TEST(UnwindingTest, FDMapsParse) {
-#if defined(ADDRESS_SANITIZER)
-  PERFETTO_LOG("Skipping /proc/self/maps as ASAN distorts what is where");
-  GTEST_SKIP();
-#else
-  base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
-  ASSERT_TRUE(proc_maps);
-  FDMaps maps(std::move(proc_maps));
-  ASSERT_TRUE(maps.Parse());
-  unwindstack::MapInfo* map_info =
-      maps.Find(reinterpret_cast<uint64_t>(&proc_maps)).get();
-  ASSERT_NE(map_info, nullptr);
-  ASSERT_EQ(map_info->name(), "[stack]");
-#endif
-}
 
 void __attribute__((noinline)) AssertFunctionOffset() {
   constexpr auto kMaxFunctionSize = 1000u;
@@ -171,12 +130,12 @@ RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
 TEST(UnwindingTest, DoUnwind) {
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
-  GlobalCallstackTrie callsites;
-  UnwindingMetadata metadata(std::move(proc_maps), std::move(proc_mem));
+  auto unwind_context =
+      UnwindContext::Create(std::move(proc_maps), std::move(proc_mem));
   WireMessage msg;
   auto record = GetRecord(&msg);
   AllocRecord out;
-  ASSERT_TRUE(DoUnwind(&msg, &metadata, &out));
+  ASSERT_TRUE(DoUnwind(&msg, unwind_context.get(), &out));
   ASSERT_GT(out.frames.size(), 0u);
   int st;
   std::unique_ptr<char, base::FreeDeleter> demangled(abi::__cxa_demangle(
@@ -191,14 +150,14 @@ TEST(UnwindingTest, DoUnwind) {
 TEST(UnwindingTest, DoUnwindReparse) {
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
-  GlobalCallstackTrie callsites;
-  UnwindingMetadata metadata(std::move(proc_maps), std::move(proc_mem));
+  auto unwind_context =
+      UnwindContext::Create(std::move(proc_maps), std::move(proc_mem));
   // Force reparse in DoUnwind.
-  metadata.fd_maps.Reset();
+  unwind_context->ResetMaps();
   WireMessage msg;
   auto record = GetRecord(&msg);
   AllocRecord out;
-  ASSERT_TRUE(DoUnwind(&msg, &metadata, &out));
+  ASSERT_TRUE(DoUnwind(&msg, unwind_context.get(), &out));
   ASSERT_GT(out.frames.size(), 0u);
   int st;
   std::unique_ptr<char, base::FreeDeleter> demangled(abi::__cxa_demangle(

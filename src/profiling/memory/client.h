@@ -117,7 +117,7 @@ class Client {
   bool IsConnected();
 
  private:
-  ssize_t GetStackRegister(CpuArch arch);
+  ssize_t GetStackRegisterIndex(CpuArch arch);
   uintptr_t GetStackAddress(char* reg_data, CpuArch arch);
   const char* GetStackEnd(const char* stacktop);
   bool SendControlSocketByte() PERFETTO_WARN_UNUSED_RESULT;

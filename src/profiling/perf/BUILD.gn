@@ -89,19 +89,15 @@ source_set("producer") {
 }
 
 source_set("common_types") {
-  public_deps = [
-    "../../../gn:libunwindstack",
-    "../unwind:unwind_core",
-  ]
+  public_deps = [ "../unwind:unwind_core" ]
   deps = [ "../../../gn:default_deps" ]
   sources = [ "common_types.h" ]
 }
 
 source_set("unwinding") {
   public_deps = [
-    "../../../gn:libunwindstack",
+    "../../../gn:bionic_kernel_uapi_headers",
     "../../../src/tracing/service",  # for metatrace
-    "../common:unwind_support",
     "../unwind:unwind_core",
   ]
   deps = [
@@ -110,6 +106,7 @@ source_set("unwinding") {
     "../../../include/perfetto/ext/tracing/core",
     "../../../src/base",
     "../../../src/kallsyms",
+    "../unwind/libunwindstack",
   ]
   sources = [
     "frame_pointer_unwinder.cc",

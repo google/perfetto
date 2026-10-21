@@ -20,10 +20,10 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
-#include "src/profiling/common/unwind_support.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
 #include "src/profiling/memory/unwinding.h"
 #include "src/profiling/memory/unwound_messages.h"
+#include "src/profiling/unwind/unwind_context.h"
 
 namespace perfetto {
 namespace profiling {
@@ -46,13 +46,14 @@ int FuzzUnwinding(const uint8_t* data, size_t size) {
 
   pid_t self_pid = getpid();
   DataSourceInstanceID id = 0;
-  UnwindingMetadata metadata(base::OpenFile("/proc/self/maps", O_RDONLY),
-                             base::OpenFile("/proc/self/mem", O_RDONLY));
+  auto unwind_context =
+      UnwindContext::Create(base::OpenFile("/proc/self/maps", O_RDONLY),
+                            base::OpenFile("/proc/self/mem", O_RDONLY));
 
   NopDelegate nop_delegate;
   UnwindingWorker::ClientData client_data{id,
                                           /*sock=*/{},
-                                          std::move(metadata),
+                                          std::move(unwind_context),
                                           /*shmem=*/{},
                                           /*client_config=*/{},
                                           /*stream_allocations=*/false,

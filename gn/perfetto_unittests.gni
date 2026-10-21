@@ -83,7 +83,10 @@ if ((is_linux || is_android) && !perfetto_build_with_embedder) {
 }
 
 if (enable_perfetto_heapprofd || enable_perfetto_traced_perf) {
-  _profiling_unittests_targets += [ "src/profiling/common:unittests" ]
+  _profiling_unittests_targets += [
+    "src/profiling/common:unittests",
+    "src/profiling/unwind/libunwindstack:unittests",
+  ]
 }
 
 if (enable_perfetto_heapprofd) {

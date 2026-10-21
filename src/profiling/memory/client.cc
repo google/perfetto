@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cinttypes>
+#include <cstdint>
 #include <new>
 
 #include "perfetto/base/build_config.h"
@@ -42,7 +43,6 @@
 #include "src/profiling/memory/shared_ring_buffer.h"
 #include "src/profiling/memory/wire_protocol.h"
 #include "src/profiling/unwind/cpu_registers.h"
-// TODO(safayat): get local regs?
 #include "src/profiling/unwind/get_asm_regs.h"
 
 namespace perfetto {
@@ -345,7 +345,7 @@ bool Client::IsPostFork() {
   return false;
 }
 
-ssize_t Client::GetStackRegister(CpuArch arch) {
+ssize_t Client::GetStackRegisterIndex(CpuArch arch) {
   ssize_t reg_sp, reg_size;
   switch (arch) {
     case CpuArch::X86:
@@ -375,7 +375,7 @@ ssize_t Client::GetStackRegister(CpuArch arch) {
 }
 
 uintptr_t Client::GetStackAddress(char* reg_data, CpuArch arch) {
-  ssize_t reg = GetStackRegister(arch);
+  ssize_t reg = GetStackRegisterIndex(arch);
   if (reg < 0)
     return reinterpret_cast<uintptr_t>(nullptr);
   return *reinterpret_cast<uintptr_t*>(&reg_data[reg]);
