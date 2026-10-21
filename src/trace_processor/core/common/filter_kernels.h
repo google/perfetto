@@ -42,7 +42,7 @@
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/span.h"
-#include "src/trace_processor/util/galloping_search.h"
+#include "src/trace_processor/util/sorted_search.h"
 
 // Keeping the rows of a column which compare true with a value already cast
 // to the column's type (see filter_value_cast.h), by testing each row or by
@@ -366,80 +366,6 @@ inline PERFETTO_ALWAYS_INLINE void NonIndexedFilterInScan(
 template <typename T>
 inline constexpr bool kCheapCompare =
     !std::is_same_v<T, String> && !std::is_same_v<T, StringPool::Id>;
-
-// The first of [first, last) for which `less(element, value)` is false, as
-// std::lower_bound finds it, calling `less` the same way.
-//
-// With `kCheap` comparisons, the answer is always in [base, base + n]. Each
-// step looks at one element and keeps the half the answer is in, but n
-// halves whatever the comparison says, so the comparison only decides where
-// base moves: one load, one comparison and one conditional move a step, with
-// the number of steps fixed by the length alone. That costs one comparison
-// more than the fewest possible. Without PERFETTO_UNPREDICTABLE, clang turns
-// the move into a branch, which mispredicts about every other step on keys
-// which vary.
-//
-// Otherwise a comparison costs more than a mispredicted branch, so each step
-// shrinks the range by what the comparison says, for the fewest comparisons.
-template <bool kCheap, typename It, typename V, typename Less>
-PERFETTO_ALWAYS_INLINE It
-LowerBound(It first, It last, const V& value, Less less) {
-  auto n = static_cast<size_t>(last - first);
-  if constexpr (kCheap) {
-    if (n == 0) {
-      return first;
-    }
-    while (n > 1) {
-      size_t half = n / 2;
-      first = PERFETTO_UNPREDICTABLE(less(first[half], value)) ? first + half
-                                                               : first;
-      n -= half;
-    }
-    return first + less(*first, value);
-  } else {
-    while (n > 0) {
-      size_t half = n / 2;
-      if (less(first[half], value)) {
-        first += half + 1;
-        n -= half + 1;
-      } else {
-        n = half;
-      }
-    }
-    return first;
-  }
-}
-
-// The first of [first, last) for which `less(value, element)` is true, as
-// std::upper_bound finds it, calling `less` the same way. See LowerBound.
-template <bool kCheap, typename It, typename V, typename Less>
-PERFETTO_ALWAYS_INLINE It
-UpperBound(It first, It last, const V& value, Less less) {
-  auto n = static_cast<size_t>(last - first);
-  if constexpr (kCheap) {
-    if (n == 0) {
-      return first;
-    }
-    while (n > 1) {
-      size_t half = n / 2;
-      first = PERFETTO_UNPREDICTABLE(!less(value, first[half])) ? first + half
-                                                                : first;
-      n -= half;
-    }
-    return first + !less(value, *first);
-  } else {
-    while (n > 0) {
-      size_t half = n / 2;
-      if (!less(value, first[half])) {
-        first += half + 1;
-        n -= half + 1;
-      } else {
-        n = half;
-      }
-    }
-    return first;
-  }
-}
 
 // -----------------------------------------------------------------------------
 // Searches of sorted columns and indexes

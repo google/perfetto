@@ -14,15 +14,90 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_UTIL_GALLOPING_SEARCH_H_
-#define SRC_TRACE_PROCESSOR_UTIL_GALLOPING_SEARCH_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_SORTED_SEARCH_H_
+#define SRC_TRACE_PROCESSOR_UTIL_SORTED_SEARCH_H_
 
 #include <cstddef>
 #include <cstdint>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/public/compiler.h"
 
 namespace perfetto::trace_processor {
+
+// The first of [first, last) for which `less(element, value)` is false, as
+// std::lower_bound finds it, calling `less` the same way.
+//
+// With `kCheap` comparisons, the answer is always in [base, base + n]. Each
+// step looks at one element and keeps the half the answer is in, but n
+// halves whatever the comparison says, so the comparison only decides where
+// base moves: one load, one comparison and one conditional move a step, with
+// the number of steps fixed by the length alone. That costs one comparison
+// more than the fewest possible. Without PERFETTO_UNPREDICTABLE, clang turns
+// the move into a branch, which mispredicts about every other step on keys
+// which vary.
+//
+// Otherwise a comparison costs more than a mispredicted branch, so each step
+// shrinks the range by what the comparison says, for the fewest comparisons.
+template <bool kCheap, typename It, typename V, typename Less>
+PERFETTO_ALWAYS_INLINE It
+LowerBound(It first, It last, const V& value, Less less) {
+  auto n = static_cast<size_t>(last - first);
+  if constexpr (kCheap) {
+    if (n == 0) {
+      return first;
+    }
+    while (n > 1) {
+      size_t half = n / 2;
+      first = PERFETTO_UNPREDICTABLE(less(first[half], value)) ? first + half
+                                                               : first;
+      n -= half;
+    }
+    return first + less(*first, value);
+  } else {
+    while (n > 0) {
+      size_t half = n / 2;
+      if (less(first[half], value)) {
+        first += half + 1;
+        n -= half + 1;
+      } else {
+        n = half;
+      }
+    }
+    return first;
+  }
+}
+
+// The first of [first, last) for which `less(value, element)` is true, as
+// std::upper_bound finds it, calling `less` the same way. See LowerBound.
+template <bool kCheap, typename It, typename V, typename Less>
+PERFETTO_ALWAYS_INLINE It
+UpperBound(It first, It last, const V& value, Less less) {
+  auto n = static_cast<size_t>(last - first);
+  if constexpr (kCheap) {
+    if (n == 0) {
+      return first;
+    }
+    while (n > 1) {
+      size_t half = n / 2;
+      first = PERFETTO_UNPREDICTABLE(!less(value, first[half])) ? first + half
+                                                                : first;
+      n -= half;
+    }
+    return first + !less(value, *first);
+  } else {
+    while (n > 0) {
+      size_t half = n / 2;
+      if (!less(value, first[half])) {
+        first += half + 1;
+        n -= half + 1;
+      } else {
+        n = half;
+      }
+    }
+    return first;
+  }
+}
 
 // Ranges this short are scanned rather than halved: the elements share a cache
 // line or two, so comparing each is cheaper than branching on halves.
@@ -160,4 +235,4 @@ class GallopingSearch {
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_UTIL_GALLOPING_SEARCH_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_SORTED_SEARCH_H_

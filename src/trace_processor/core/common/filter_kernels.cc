@@ -34,13 +34,13 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/span.h"
-#include "src/trace_processor/util/galloping_search.h"
+#include "src/trace_processor/util/sorted_search.h"
 
 namespace perfetto::trace_processor::core::filter {
 namespace {
 
 template <typename DataType>
-inline auto SortedLowerBoundComparator(const StringPool* string_pool) {
+auto SortedLowerBoundComparator(const StringPool* string_pool) {
   if constexpr (std::is_same_v<DataType, StringPool::Id>) {
     return comparators::StringComparator<Lt>{string_pool};
   } else {
@@ -50,7 +50,7 @@ inline auto SortedLowerBoundComparator(const StringPool* string_pool) {
 }
 
 template <typename DataType>
-inline auto SortedUpperBoundComparator(const StringPool* string_pool) {
+auto SortedUpperBoundComparator(const StringPool* string_pool) {
   if constexpr (std::is_same_v<DataType, StringPool::Id>) {
     return comparators::StringLessInvert{string_pool};
   } else {

@@ -37,7 +37,7 @@ source_set("common") {
     "../../../../gn:default_deps",
     "../../../base",
     "../../containers",
-    "../../util:galloping_search",
+    "../../util:sorted_search",
     "../util",
   ]
 }

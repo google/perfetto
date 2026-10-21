@@ -589,7 +589,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_flatbuffer_reader",
         ":src_trace_processor_util_flatbuffer_writer",
-        ":src_trace_processor_util_galloping_search",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_args",
@@ -604,6 +603,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_simple_json_serializer",
+        ":src_trace_processor_util_sorted_search",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_sql_bundle",
         ":src_trace_processor_util_sql_module_doc_parser",
@@ -928,7 +928,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_flatbuffer_reader",
         ":src_trace_processor_util_flatbuffer_writer",
-        ":src_trace_processor_util_galloping_search",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_args",
@@ -943,6 +942,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_simple_json_serializer",
+        ":src_trace_processor_util_sorted_search",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_sql_bundle",
         ":src_trace_processor_util_sql_module_doc_parser",
@@ -6344,14 +6344,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/util:galloping_search
-perfetto_filegroup(
-    name = "src_trace_processor_util_galloping_search",
-    srcs = [
-        "src/trace_processor/util/galloping_search.h",
-    ],
-)
-
 # GN target: //src/trace_processor/util:glob
 perfetto_filegroup(
     name = "src_trace_processor_util_glob",
@@ -6490,6 +6482,14 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/util/simple_json_serializer.cc",
         "src/trace_processor/util/simple_json_serializer.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:sorted_search
+perfetto_filegroup(
+    name = "src_trace_processor_util_sorted_search",
+    srcs = [
+        "src/trace_processor/util/sorted_search.h",
     ],
 )
 
@@ -12144,7 +12144,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_flatbuffer_reader",
         ":src_trace_processor_util_flatbuffer_writer",
-        ":src_trace_processor_util_galloping_search",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_args",
@@ -12159,6 +12158,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_simple_json_serializer",
+        ":src_trace_processor_util_sorted_search",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_sql_bundle",
         ":src_trace_processor_util_sql_module_doc_parser",
@@ -12508,7 +12508,6 @@ perfetto_cc_binary(
         ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_flatbuffer_reader",
         ":src_trace_processor_util_flatbuffer_writer",
-        ":src_trace_processor_util_galloping_search",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_args",
@@ -12523,6 +12522,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_simple_json_serializer",
+        ":src_trace_processor_util_sorted_search",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_sql_bundle",
         ":src_trace_processor_util_sql_module_doc_parser",
