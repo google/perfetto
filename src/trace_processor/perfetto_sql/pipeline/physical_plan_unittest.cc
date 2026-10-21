@@ -377,6 +377,33 @@ TEST_F(PhysicalPlanTest, FillGapsOrdersBothSides) {
 // An intersection needs its operands' bounds and PER columns, but only passes
 // on the columns something after it reads: it neither buffers nor gathers
 // the rest.
+TEST_F(PhysicalPlanTest, ASubpipelineInFromFusesIntoItsParent) {
+  Exec("CREATE TABLE spans(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO spans VALUES (5, 1, 1), (0, 1, 0)");
+  auto plan = Plan("FROM (FROM spans |> WHERE cpu > 0) |> DISTINCT");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "main: DataframeScan | Filter(#2 > ?0) | Distinct(#0, #1, #2)");
+}
+
+TEST_F(PhysicalPlanTest, ASubpipelineBackgroundIsASidePipeline) {
+  Exec("CREATE TABLE spans(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO spans VALUES (5, 1, 1), (0, 1, 0)");
+  Exec("CREATE TABLE windows(ts INTEGER, dur INTEGER, cpu INTEGER, x INTEGER)");
+  Exec("INSERT INTO windows VALUES (9, 10, 1, 0), (0, 10, 0, 0)");
+  auto plan = Plan(
+      "FROM spans |> INTERVAL FILL GAPS WITH "
+      "(FROM windows |> WHERE x = 0 |> SELECT ts, dur, cpu) PER cpu");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "side: DataframeScan | Filter(#3 = ?0) | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | CombineBatches | GroupedSort(#2; #0)\n"
+            "main: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0) | "
+            "IntervalFillGaps(#0, #1, keys: #2, groups: #3; "
+            "background: #0, #1, keys: #2, groups: #4)");
+}
+
 TEST_F(PhysicalPlanTest, IntersectionCarriesOnlyColumnsUsedAfterIt) {
   Exec("CREATE TABLE a(ts INTEGER, dur INTEGER, cpu INTEGER, x INTEGER)");
   Exec("INSERT INTO a VALUES (0, 10, 1, 7)");

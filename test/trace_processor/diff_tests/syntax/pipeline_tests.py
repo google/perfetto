@@ -1338,3 +1338,127 @@ class PerfettoPipeline(TestSuite):
         |> EXTEND a + 1 AS b;
         """,
         out=ExpectedError('a computed column is not supported yet'))
+
+  def test_subpipeline_as_from_source(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 1 AS id, 10 AS self
+        UNION ALL SELECT 2, 20
+        UNION ALL SELECT 3, 30;
+
+        FROM (FROM t |> WHERE self > 10)
+        |> AGGREGATE SUM(self) AS total, COUNT(*) AS n;
+        """,
+        out=Csv("""
+        "total","n"
+        50,2
+        """))
+
+  def test_subpipeline_as_intersection_operand(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS
+        SELECT 0 AS ts, 30 AS dur, 7 AS freq
+        UNION ALL SELECT 40, 10, 8;
+
+        CREATE PERFETTO TABLE b AS
+        SELECT 10 AS ts, 10 AS dur, 1 AS state
+        UNION ALL SELECT 35, 10, 2;
+
+        INTERVAL INTERSECTION OF ((FROM a |> WHERE freq > 7) AS x, b AS y)
+        |> SELECT ts, dur, x.freq, y.state;
+        """,
+        out=Csv("""
+        "ts","dur","freq","state"
+        40,5,8,2
+        """))
+
+  # The background may only hold columns the input has, so a subpipeline
+  # narrows a wider table without a SQL subquery.
+  def test_subpipeline_as_fill_gaps_background(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE rows AS SELECT 10 AS ts, 10 AS dur, 1 AS v;
+        CREATE PERFETTO TABLE extent AS
+        SELECT 0 AS ts, 50 AS dur, 'x' AS name;
+
+        FROM rows
+        |> INTERVAL FILL GAPS WITH (FROM extent |> SELECT ts, dur)
+        |> ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","v"
+        0,10,"[NULL]"
+        10,10,1
+        20,30,"[NULL]"
+        """))
+
+  def test_subpipeline_starting_with_an_intersection(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS
+        SELECT 0 AS ts, 30 AS dur, 7 AS freq
+        UNION ALL SELECT 40, 10, 8;
+
+        CREATE PERFETTO TABLE b AS
+        SELECT 10 AS ts, 10 AS dur, 1 AS state
+        UNION ALL SELECT 35, 10, 2;
+
+        FROM (INTERVAL INTERSECTION OF (a AS x, b AS y) |> SELECT ts, dur)
+        |> AGGREGATE SUM(dur) AS total;
+        """,
+        out=Csv("""
+        "total"
+        15
+        """))
+
+  def test_subpipeline_reading_sql(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (FROM (SELECT 1 AS a UNION ALL SELECT 2) |> WHERE a > 1)
+        |> SELECT a;
+        """,
+        out=Csv("""
+        "a"
+        2
+        """))
+
+  def test_subpipeline_aliases_stay_inside(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 1 AS a;
+        FROM (FROM t AS inner_t |> SELECT a) |> SELECT inner_t.a;
+        """,
+        out=ExpectedError("no such column: 'inner_t.a'"))
+
+  def test_subpipeline_errors_point_inside(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (FROM no_such_table) |> DISTINCT;
+        """,
+        out=ExpectedError("'no_such_table' is not known"))
+
+  def test_pipeline_inside_sql_is_refused(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 1 AS a;
+        SELECT * FROM (FROM t);
+        """,
+        out=ExpectedError('cannot be used inside SQL'))

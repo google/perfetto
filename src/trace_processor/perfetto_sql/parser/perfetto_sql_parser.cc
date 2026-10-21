@@ -358,24 +358,34 @@ bool IsPipeline(SyntaqliteParser* p, uint32_t id) {
 }
 
 // The grammar accepts a pipeline wherever SQLite accepts a select, so that
-// one rule serves every position. Only a whole statement and the body of
-// CREATE PERFETTO TABLE are supported, so reject a pipeline anywhere else.
+// one rule serves every position. A pipeline is only supported as a whole
+// statement, the body of CREATE PERFETTO TABLE, or the source of another
+// pipeline, so reject it anywhere else.
 base::Status CheckPipelinePositions(SyntaqliteParser* p,
                                     const RewriteTree& rb,
                                     uint32_t root,
                                     const SyntaqliteNode* node) {
-  uint32_t allowed = root;
+  std::vector<uint32_t> allowed = {root};
   if (node->tag == SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT) {
-    allowed = node->create_perfetto_table_stmt.select;
+    allowed[0] = node->create_perfetto_table_stmt.select;
   }
   uint32_t count = syntaqlite_parser_node_count(p);
   for (uint32_t id = 0; id < count; ++id) {
-    if (id != allowed && IsPipeline(p, id)) {
+    const auto* n =
+        static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(p, id));
+    if (n->tag == SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE &&
+        IsPipeline(p, n->perfetto_pipe_source.select)) {
+      allowed.push_back(n->perfetto_pipe_source.select);
+    }
+  }
+  for (uint32_t id = 0; id < count; ++id) {
+    if (IsPipeline(p, id) &&
+        std::find(allowed.begin(), allowed.end(), id) == allowed.end()) {
       return NodeSource(rb, id).AddTraceback(
           0, base::ErrStatus(
-                 "A pipeline can only be a whole statement or the body of "
-                 "CREATE PERFETTO TABLE: it cannot be used inside SQL or as "
-                 "the source of another pipeline"));
+                 "A pipeline can only be a whole statement, the body of "
+                 "CREATE PERFETTO TABLE or the source of another pipeline: "
+                 "it cannot be used inside SQL"));
     }
   }
   return base::OkStatus();
