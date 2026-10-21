@@ -279,7 +279,7 @@ export class SQLSchemaResolver {
     }
 
     const [first, ...rest] = parts;
-    const colDef = maybeUndefined(schema.columns?.[first]);
+    const colDef = maybeUndefined(schema.columns?.[first!]);
 
     if (!colDef) {
       // Column not found in schema - treat as raw column name.
@@ -287,7 +287,7 @@ export class SQLSchemaResolver {
       // name (which may come from user/trace data rather than a trusted
       // schema definition) must be quoted as an identifier.
       if (rest.length === 0) {
-        return `${currentAlias}.${quoteIdentifier(first)}`;
+        return `${currentAlias}.${quoteIdentifier(first!)}`;
       }
       return undefined;
     }
@@ -402,7 +402,7 @@ export class SQLSchemaResolver {
     }
 
     const [first, ...rest] = parts;
-    const colDef = maybeUndefined(schema.columns?.[first]);
+    const colDef = maybeUndefined(schema.columns?.[first!]);
     if (!colDef) {
       return undefined;
     }

@@ -85,6 +85,28 @@ class Selection {
     prefix_ = false;
   }
 
+  // Keeps the batch rows `rows`, which are increasing and all kept already.
+  void KeepRows(Span<const uint32_t> rows) {
+    auto count = static_cast<uint32_t>(rows.size());
+    PERFETTO_DCHECK(count <= size_);
+    if (count == size_) {
+      // Kept already, they can only be every row kept.
+      return;
+    }
+    size_ = count;
+    if (count == 0 || rows.b[count - 1] == count - 1) {
+      // Increasing and ending at count - 1, they are the first `count`.
+      prefix_ = true;
+      return;
+    }
+    for (uint32_t i = 0; i < count; ++i) {
+      PERFETTO_DCHECK(rows.b[i] < rows_ &&
+                      (i == 0 || rows.b[i - 1] < rows.b[i]));
+      indices_[i] = static_cast<uint16_t>(rows.b[i]);
+    }
+    prefix_ = false;
+  }
+
   // Keeps `count` of the rows kept, from the `first`.
   void KeepRange(uint32_t first, uint32_t count) {
     PERFETTO_DCHECK(first + count <= size_);

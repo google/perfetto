@@ -3254,12 +3254,12 @@ class AndroidStdlib(TestSuite):
           prev_state,
           prev_state_duration,
           state_rank,
-          reason
+          state_change_reason
         FROM _android_process_state_intervals
         ORDER BY pid, ts, state_rank;
         """,
         out=Csv("""
-        "ts","dur","pid","state","prev_state","prev_state_duration","state_rank","reason"
+        "ts","dur","pid","state","prev_state","prev_state_duration","state_rank","state_change_reason"
         2000,-1,100,"TOP","[NULL]","[NULL]",2,"[NULL]"
         2000,0,200,"TOP","[NULL]","[NULL]",2,"[NULL]"
         2000,2000,200,"IMPORTANT_FOREGROUND","TOP",0,6,"OOM_ADJ_REASON_START_RECEIVER"
@@ -3400,12 +3400,12 @@ class AndroidStdlib(TestSuite):
           prev_state,
           prev_state_duration,
           state_rank,
-          reason
+          state_change_reason
         FROM _android_process_state_intervals
         ORDER BY ts, state_rank;
         """,
         out=Csv("""
-        "ts","dur","pid","state","prev_state","prev_state_duration","state_rank","reason"
+        "ts","dur","pid","state","prev_state","prev_state_duration","state_rank","state_change_reason"
         1000,1000,200,"NONEXISTENT","[NULL]","[NULL]",20,"[NULL]"
         2000,1000,200,"CACHED_EMPTY","NONEXISTENT",1000,19,"OOM_ADJ_REASON_START_RECEIVER"
         3000,2000,200,"RECEIVER","CACHED_EMPTY",1000,11,"OOM_ADJ_REASON_BIND_SERVICE"

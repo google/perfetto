@@ -53,8 +53,9 @@ namespace perfetto {
 
 namespace protos {
 namespace gen {
+class ExperimentalTracingV2ProducerStats;
 enum TraceStats_FinalFlushOutcome : int;
-}
+}  // namespace gen
 namespace pbzero {
 class TracePacket;
 }
@@ -266,6 +267,12 @@ class TracingServiceImpl : public TracingService {
                          TracingSession::ClockSnapshotData,
                          std::vector<TracePacket>*);
   void EmitSyncMarker(std::vector<TracePacket>*);
+  void EmitTracingV2ProducerStats(TracingSession*, std::vector<TracePacket>*);
+  // Returns the tracing v2 stats of the connected producers that have a data
+  // source instance in the session.
+  // For a cloned session, returns the copy taken when it was cloned.
+  std::vector<protos::gen::ExperimentalTracingV2ProducerStats>
+  GetTracingV2ProducerStats(const TracingSession&);
   void EmitStats(TracingSession*, std::vector<TracePacket>*);
   TraceStats GetTraceStats(TracingSession*);
   void EmitLifecycleEvents(TracingSession*, std::vector<TracePacket>*);
@@ -299,11 +306,8 @@ class TracingServiceImpl : public TracingService {
                      bool success);
   void ScrapeSharedMemoryBuffers(TracingSession*, ProducerEndpointImpl*);
   void PeriodicClearIncrementalStateTask(TracingSessionID, bool post_next_only);
-  // Returns nullptr if there is no buffer with this ID, or if |type| is set
-  // and does not match the buffer type.
-  TraceBuffer* GetBufferByID(
-      BufferID,
-      std::optional<TraceBuffer::BufType> type = std::nullopt);
+  // Returns nullptr if there is no buffer with this ID.
+  TraceBuffer* GetBufferByID(BufferID);
   void FlushDataSourceInstances(
       TracingSession*,
       uint32_t timeout_ms,

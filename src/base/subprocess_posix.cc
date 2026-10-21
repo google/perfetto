@@ -236,6 +236,10 @@ void Subprocess::Start() {
   s_->stdouterr_pipe = base::Pipe::Create(base::Pipe::kRdNonBlock);
   proc_args.stdouterr_pipe_wr = *s_->stdouterr_pipe.wr;
 
+  // Flush stdio buffers to prevent the child from writing them.
+  if (args.posix_entrypoint_for_testing)
+    fflush(nullptr);
+
   // Spawn the child process that will exec().
   s_->pid = fork();
   PERFETTO_CHECK(s_->pid >= 0);

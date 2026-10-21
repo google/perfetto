@@ -38,23 +38,6 @@ namespace {
 constexpr char kChildFirst[] = "TREE ORDER CHILD FIRST";
 constexpr char kParentFirst[] = "TREE ORDER PARENT FIRST";
 
-bool IsNodeColumn(const ColumnView& column) {
-  return column.kind() == ColumnView::Kind::kFlat && column.type().Is<Uint32>();
-}
-
-// Fails unless the batch's node and parent columns are node numbers.
-base::Status CheckNodeColumns(const RowBatch& batch,
-                              uint32_t node_column,
-                              uint32_t parent_column,
-                              const char* name) {
-  if (!IsNodeColumn(batch.column(node_column)) ||
-      !IsNodeColumn(batch.column(parent_column))) {
-    return base::ErrStatus(
-        "%s: expected node numbers, which TREE NUMBER NODES makes", name);
-  }
-  return base::OkStatus();
-}
-
 }  // namespace
 
 TreeChildFirst::TreeChildFirst(uint32_t node_column, uint32_t parent_column)
@@ -73,10 +56,9 @@ bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
   if (count == 0) {
     return true;
   }
-  s.status = CheckNodeColumns(in, node_column_, parent_column_, kChildFirst);
-  if (!s.status.ok()) {
-    return false;
-  }
+  // TreeNumberNodes produces these columns.
+  PERFETTO_DCHECK(IsFlat<Uint32>(in.column(node_column_)));
+  PERFETTO_DCHECK(IsFlat<Uint32>(in.column(parent_column_)));
 
   auto base = static_cast<uint32_t>(s.nodes.size());
   for (uint32_t i = 0; i < count; ++i) {
@@ -96,11 +78,8 @@ bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
       s.has_row.resize(s.nodes_seen);
       s.row_of_node.resize(s.nodes_seen);
     }
-    if (s.has_row.is_set(node)) {
-      s.status = base::ErrStatus("%s: more than one row has the same node",
-                                 kChildFirst);
-      return false;
-    }
+    // TreeNumberNodes gives each row a different node.
+    PERFETTO_DCHECK(!s.has_row.is_set(node));
     if (parent != kNoNode) {
       // Having already seen the parent rules out child first; not having
       // seen it rules out parent first.
@@ -209,8 +188,8 @@ bool TreeChildFirst::Serve(RowBatch& out, Breaker::State& state) const {
     count = s.rows.View(&out, s.emitted, count);
   } else {
     const uint32_t* begin = s.order.data() + s.emitted;
-    count = s.rows.View(&out, Span<const uint32_t>(begin, begin + count),
-                        *s.context);
+    count = s.rows.Gather(&out, Span<const uint32_t>(begin, begin + count),
+                          *s.context);
   }
   s.emitted += count;
   return true;
@@ -285,8 +264,8 @@ OpResult TreeParentFirst::LetGo(RowBatch& out, State& s) const {
   auto total = static_cast<uint32_t>(s.letting_go.size());
   uint32_t count = std::min(kMaxBatchRows, total - s.served);
   const uint32_t* begin = s.letting_go.data() + s.served;
-  count = s.held.rows.View(&out, Span<const uint32_t>(begin, begin + count),
-                           *s.context);
+  count = s.held.rows.Gather(&out, Span<const uint32_t>(begin, begin + count),
+                             *s.context);
   s.served += count;
   if (s.served < total) {
     return OpResult::kHaveMoreOutput;
@@ -308,10 +287,9 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
     out.CopyFrom(in);
     return OpResult::kNeedMoreInput;
   }
-  s.status = CheckNodeColumns(in, node_column_, parent_column_, kParentFirst);
-  if (!s.status.ok()) {
-    return OpResult::kError;
-  }
+  // TreeNumberNodes produces these columns.
+  PERFETTO_DCHECK(IsFlat<Uint32>(in.column(node_column_)));
+  PERFETTO_DCHECK(IsFlat<Uint32>(in.column(parent_column_)));
 
   // A row passes if its parent is out, whether from an earlier batch or
   // earlier in this one, and releases whatever was waiting on it. Otherwise
@@ -328,11 +306,8 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
       return OpResult::kError;
     }
     s.nodes.Grow(std::max(node, parent == kNoNode ? 0 : parent) + 1);
-    if (s.nodes.has_row.is_set(node)) {
-      s.status = base::ErrStatus("%s: more than one row has the same node",
-                                 kParentFirst);
-      return OpResult::kError;
-    }
+    // TreeNumberNodes gives each row a different node.
+    PERFETTO_DCHECK(!s.nodes.has_row.is_set(node));
     s.nodes.has_row.set(node);
     if (parent != kNoNode && !s.nodes.out.is_set(parent)) {
       // The row it will be in `held` once the batch's held rows are copied.

@@ -82,6 +82,8 @@ source_set("trace_redaction") {
     "trace_redaction_framework.h",
     "trace_redactor.cc",
     "trace_redactor.h",
+    "trace_redactor_options.cc",
+    "trace_redactor_options.h",
     "verify_integrity.cc",
     "verify_integrity.h",
   ]
@@ -160,6 +162,7 @@ perfetto_unittest_source_set("unittests") {
     "redact_process_events_unittest.cc",
     "redact_sched_events_unittest.cc",
     "timeline_validation_unittest.cc",
+    "trace_redactor_options_unittest.cc",
     "trace_redactor_unittest.cc",
     "verify_integrity_unittest.cc",
   ]
@@ -188,4 +191,15 @@ perfetto_unittest_source_set("unittests") {
     "../base:test_support",
     "../trace_processor/util:blob",
   ]
+}
+
+if (enable_perfetto_unittests) {
+  executable("trace_redactor_unittests") {
+    testonly = true
+    deps = [
+      ":unittests",
+      "../../gn:default_deps",
+      "../../gn:gtest_main",
+    ]
+  }
 }

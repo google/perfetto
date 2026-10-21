@@ -84,6 +84,8 @@ source_set("test_utils") {
   sources = [
     "logical_plan_test_utils.cc",
     "logical_plan_test_utils.h",
+    "physical_plan_test_utils.cc",
+    "physical_plan_test_utils.h",
   ]
   deps = [
     ":pipeline",
@@ -91,6 +93,8 @@ source_set("test_utils") {
     "../../../../gn:default_deps",
     "../../../base",
     "../../core/common",
+    "../../core/exec",
+    "../../core/exec:test_utils",
     "operations",
   ]
 }

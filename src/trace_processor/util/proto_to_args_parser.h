@@ -468,8 +468,10 @@ class ProtoToArgsParser {
   // keyed by pool descriptor index under the kNoPath parent.
   base::FlatHashMap<uint64_t, uint32_t> path_index_;
   Key key_prefix_;
-  // Parameters to ParseMessage that apply uniformly to every ProtoMessage
-  // WorkItem on the stack. Set by ParseMessage; read by StepProtoMessage.
+  // Parameters to ParseMessage/ParseMessageField that apply uniformly to
+  // every ProtoMessage WorkItem on the stack, read by StepProtoMessage /
+  // HandleField. Both setters reset these to their defaults on every exit
+  // path, so no other entry point ever sees a stale value.
   const std::vector<uint32_t>* allowed_fields_ = nullptr;
   int* unknown_extensions_ = nullptr;
   bool add_defaults_ = false;

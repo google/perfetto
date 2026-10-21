@@ -54,15 +54,17 @@ base::Status IntervalFlatten::BuildPlan(Compiler* c, uint32_t stage) {
   if (syntaqlite_node_is_present(n->per)) {
     const auto* per =
         Node<SyntaqlitePerfettoPerColumnList>(c->parser(), n->per);
-    std::vector<std::string> seen;
     for (uint32_t i = 0; i < syntaqlite_list_count(per); ++i) {
       uint32_t col_id = syntaqlite_list_child_id(per, i);
       std::string name = SpanText(
           c->parser(),
           Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id)->name);
-      RETURN_IF_ERROR(c->CheckListedOnce(seen, name, col_id));
       ASSIGN_OR_RETURN(ColumnId key, c->Resolve(name, col_id));
-      flatten.keys_.push_back(key);
+      // Groups once by each column, but outputs one column per item listed.
+      if (std::find(flatten.keys_.begin(), flatten.keys_.end(), key) ==
+          flatten.keys_.end()) {
+        flatten.keys_.push_back(key);
+      }
       keys.push_back({NamedColumn{std::move(name), key}, col_id});
     }
   }
@@ -114,32 +116,32 @@ void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
   const auto& flatten = *this;
   c->LowerNode(node.children()[0]);
 
-  c->RequireInt64(flatten.ts_);
-  c->RequireInt64(flatten.dur_);
-  c->PrepareGroups(flatten.keys_, flatten.ts_);
   ex::IntervalFlattenSpec spec;
-  spec.ts_column = c->Position(flatten.ts_);
-  spec.dur_column = c->Position(flatten.dur_);
-  for (ColumnId key : flatten.keys_) {
-    spec.key_columns.push_back(c->Position(key));
-  }
-  spec.group_column = c->order().group_column;
+  spec.lanes =
+      c->RequireIntervalLanes(flatten.ts_, flatten.dur_, flatten.keys_);
   for (const Aggregate& agg : flatten.aggregates_) {
     spec.aggregates.push_back(LowerAggregate(c, agg));
   }
+  c->RequireFullBatches();
   c->AddOperator(std::make_unique<ex::IntervalFlatten>(std::move(spec)));
 
   // Its rows are the segments, laid out afresh.
   c->ResetLayout();
-  c->Define(flatten.out_ts_);
-  c->Define(flatten.out_dur_);
+  c->DeclareColumn(flatten.out_ts_);
+  c->DeclareColumn(flatten.out_dur_);
   for (ColumnId key : flatten.keys_) {
-    c->Define(key);
+    c->DeclareColumn(key);
   }
   for (const Aggregate& agg : flatten.aggregates_) {
-    c->Define(agg.output);
+    c->DeclareColumn(agg.output);
   }
-  c->SetOrder({flatten.keys_, c->AllocateTemporaryColumn(), {flatten.out_ts_}});
+  uint32_t groups = c->DeclareTemporaryColumn();
+  c->DeclareSortedWithinGroups(flatten.keys_, {{flatten.out_ts_, false}});
+  if (!flatten.keys_.empty()) {
+    c->DeclareGroupNumbers(flatten.keys_, groups);
+  }
+  // Segments are output as each one ends, so batches can be small.
+  c->DeclareSmallBatches();
 }
 
 const OperationRegistration& IntervalFlatten::registration() const {

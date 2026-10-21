@@ -16,11 +16,15 @@
 
 #include "src/tracing/service/service_ring_buffer_drainer.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "src/tracing/service/trace_buffer_v2.h"
+#include "perfetto/base/time.h"
+#include "src/tracing/service/trace_buffer.h"
+
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.gen.h"
 
 namespace perfetto::tracing_v2 {
 
@@ -64,7 +68,13 @@ void ServiceRingBufferDrainer::Drain() {
   // Bound each pass to num_chunks() logical positions, including positions
   // reserved during the pass.
   const SharedRingBufferReader::Stats stats_before = reader_.GetStats();
+  const base::TimeNanos time_before = base::GetWallTimeNs();
   const auto result = reader_.Drain(ring_buffer_.num_chunks());
+  const auto pass_time_ns =
+      static_cast<uint64_t>((base::GetWallTimeNs() - time_before).count());
+  ++drain_passes_;
+  drain_time_ns_ += pass_time_ns;
+  drain_max_time_ns_ = std::max(drain_max_time_ns_, pass_time_ns);
   const SharedRingBufferReader::Stats stats_after = reader_.GetStats();
 
   // The reader discards malformed chunks and chunks in an unknown format. It
@@ -79,8 +89,8 @@ void ServiceRingBufferDrainer::Drain() {
   if (PERFETTO_UNLIKELY(reader_.has_protocol_error())) {
     // Record the error in every authorized destination. Later drains return
     // above, so each destination counts this violation only once.
-    delegate_->ForEachRingBufferDestination(
-        [](TraceBufferV2& buffer) { buffer.RecordAbiViolation(); });
+    delegate_->ForEachV2RingBufferDestination(
+        [](TraceBuffer& buffer) { buffer.RecordAbiViolation(); });
     return;
   }
 
@@ -96,16 +106,51 @@ void ServiceRingBufferDrainer::Drain() {
   }
 }
 
+void ServiceRingBufferDrainer::FillStats(
+    protos::gen::ExperimentalTracingV2ProducerStats* stats) const {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  stats->set_chunk_size_bytes(ring_buffer_.chunk_size());
+  stats->set_num_chunks(ring_buffer_.num_chunks());
+
+  // Counted by the reader.
+  const SharedRingBufferReader::Stats reader = reader_.GetStats();
+  stats->set_chunks_read(reader.chunks_read);
+  stats->set_bytes_read(reader.bytes_read);
+  stats->set_data_loss_chunks(reader.data_loss_chunks);
+  stats->set_malformed_chunks(reader.malformed_chunks);
+  stats->set_unsupported_format_chunks(reader.unsupported_format_chunks);
+  stats->set_rewrite_requests(reader.rewrite_requests);
+  stats->set_positions_skipped(reader.positions_skipped);
+
+  // Counted by this class.
+  stats->set_invalid_writer_chunks(invalid_writer_chunks_);
+  stats->set_invalid_destination_chunks(invalid_destination_chunks_);
+  stats->set_trace_buffer_rejected_chunks(trace_buffer_rejected_chunks_);
+  stats->set_drain_passes(drain_passes_);
+  stats->set_drain_time_ns(drain_time_ns_);
+  stats->set_drain_max_time_ns(drain_max_time_ns_);
+
+  // The producer controls these values, so they are reported as they are.
+  const SharedRingBuffer::RingBufferFullStats full =
+      ring_buffer_.LoadRingBufferFullStatsRelaxed();
+  stats->set_writer_dropped_packets(full.dropped_packets);
+  stats->set_writer_stalls(full.stalls);
+  stats->set_writer_stall_time_ms(full.stall_time_ms);
+}
+
 void ServiceRingBufferDrainer::OnChunkRead(
     const SharedRingBufferReader::ChunkContents& chunk) {
   if (PERFETTO_UNLIKELY(!chunk.writer_id || chunk.writer_id > kMaxWriterID)) {
+    ++invalid_writer_chunks_;
     delegate_->OnRingBufferChunksDiscarded(1);
     return;
   }
 
-  TraceBufferV2* buffer =
-      delegate_->GetRingBufferDestination(chunk.target_buffer);
+  TraceBuffer* buffer =
+      delegate_->GetV2RingBufferDestination(chunk.target_buffer);
   if (PERFETTO_UNLIKELY(!buffer)) {
+    ++invalid_destination_chunks_;
     delegate_->OnRingBufferChunksDiscarded(1);
     RecordWriterLoss(chunk.writer_id);
     return;
@@ -114,7 +159,7 @@ void ServiceRingBufferDrainer::OnChunkRead(
   // The reader reports a chunk with kFlagDataLoss through OnDataLoss(). Only
   // the continuation flags can reach this point.
   PERFETTO_DCHECK(!(chunk.payload_flags & kFlagDataLoss));
-  const TraceBufferV2::PacketSequenceProperties sequence{
+  const TraceBuffer::PacketSequenceProperties sequence{
       producer_id_, client_identity_, chunk.writer_id};
   // On rejection, the trace buffer counts the chunk in its own statistics and
   // records the loss on the sequence.
@@ -123,10 +168,12 @@ void ServiceRingBufferDrainer::OnChunkRead(
   // the reader's scratch, then into a TBv2 chunk. The reader could pass the
   // decoded sizes and one payload range, so that TBv2 copies once. Measure
   // the drain cost in a profile first.
-  buffer->CopyChunkV2Untrusted(
+  const bool stored = buffer->CopyChunkV2Untrusted(
       sequence, chunk.fragments, chunk.num_fragments,
       chunk.payload_flags & kFlagContinuesFromPrevChunk,
       chunk.payload_flags & kFlagContinuesOnNextChunk);
+  if (PERFETTO_UNLIKELY(!stored))
+    ++trace_buffer_rejected_chunks_;
 }
 
 void ServiceRingBufferDrainer::OnDataLoss(WriterID writer_id) {
@@ -145,8 +192,8 @@ void ServiceRingBufferDrainer::RecordWriterLoss(WriterID writer_id) {
   // only a buffer that holds this writer's sequence.
   // - A writer has one destination, so at most one buffer matches.
   // - Before the writer's first stored chunk, no buffer matches.
-  delegate_->ForEachRingBufferDestination(
-      [this, writer_id](TraceBufferV2& buffer) {
+  delegate_->ForEachV2RingBufferDestination(
+      [this, writer_id](TraceBuffer& buffer) {
         buffer.RecordChunkV2DataLoss(producer_id_, writer_id);
       });
 }

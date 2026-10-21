@@ -288,8 +288,12 @@ perfetto_pipe_replace(A) ::= REPLACE LP perfetto_pipe_replace_list(L) RP. {
 // One item of a SELECT or EXTEND stage: a column, optionally qualified and
 // named, or a star.
 %type perfetto_pipe_select_item {uint32_t}
-perfetto_pipe_select_item(A) ::= perfetto_pipe_column(X). { A = X; }
-perfetto_pipe_select_item(A) ::= perfetto_pipe_named_column(X). { A = X; }
+perfetto_pipe_select_item(A) ::= expr(E). {
+    A = synq_parse_perfetto_pipe_expr_item(pCtx, E, SYNQ_NO_SPAN);
+}
+perfetto_pipe_select_item(A) ::= expr(E) AS nm(N). {
+    A = synq_parse_perfetto_pipe_expr_item(pCtx, E, synq_span_dequote(pCtx, N));
+}
 perfetto_pipe_select_item(A) ::= STAR perfetto_pipe_except(E)
                                  perfetto_pipe_replace(R). {
     A = synq_parse_perfetto_pipe_star(pCtx, SYNQ_NO_SPAN, E, R);
@@ -327,7 +331,7 @@ perfetto_pipe_rename_list(A) ::= perfetto_pipe_rename_list(L) COMMA
 
 // SET's list: `name = column, ...`.
 %type perfetto_pipe_set_item {uint32_t}
-perfetto_pipe_set_item(A) ::= nm(N) EQ perfetto_pipe_column(V). {
+perfetto_pipe_set_item(A) ::= nm(N) EQ expr(V). {
     A = synq_parse_perfetto_pipe_set_item(pCtx, synq_span_dequote(pCtx, N), V);
 }
 
@@ -382,6 +386,9 @@ perfetto_pipe_group_by(A) ::= GROUP BY perfetto_pipe_group_list(L). { A = L; }
 %type perfetto_pipe_stage {uint32_t}
 perfetto_pipe_stage(A) ::= WHERE expr(E). {
     A = synq_parse_perfetto_pipe_where(pCtx, E);
+}
+perfetto_pipe_stage(A) ::= DISTINCT. {
+    A = synq_parse_perfetto_pipe_distinct(pCtx);
 }
 perfetto_pipe_stage(A) ::= SELECT perfetto_pipe_select_list(L). {
     A = synq_parse_perfetto_pipe_select(pCtx, L);

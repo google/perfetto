@@ -14,6 +14,7 @@
 
 import {assertUnreachable} from '../../../base/assert';
 import type {SqlValue} from '../../../trace_processor/query_result';
+import {escapeSearchQuery} from '../../../trace_processor/query_utils';
 import type {AggregateFunction, Filter} from './model';
 
 /**
@@ -92,7 +93,7 @@ export function sqlPathsIn(
   if (pathsWithoutNulls.length > 0) {
     if (columns.length === 1) {
       // Single column: simple IN
-      const values = pathsWithoutNulls.map((p) => sqlValue(p[0])).join(', ');
+      const values = pathsWithoutNulls.map((p) => sqlValue(p[0]!)).join(', ');
       conditions.push(`${columns[0]} IN (${values})`);
     } else {
       // Multiple columns: tuple IN
@@ -112,7 +113,7 @@ export function sqlPathsIn(
   if (conditions.length === 0) {
     return 'FALSE';
   } else if (conditions.length === 1) {
-    return conditions[0];
+    return conditions[0]!;
   } else {
     return `(${conditions.join(' OR ')})`;
   }
@@ -136,7 +137,7 @@ export function sqlPathsNotIn(
   if (pathsWithoutNulls.length > 0) {
     if (columns.length === 1) {
       // Single column: simple NOT IN
-      const values = pathsWithoutNulls.map((p) => sqlValue(p[0])).join(', ');
+      const values = pathsWithoutNulls.map((p) => sqlValue(p[0]!)).join(', ');
       conditions.push(`${columns[0]} NOT IN (${values})`);
     } else {
       // Multiple columns: tuple NOT IN
@@ -156,7 +157,7 @@ export function sqlPathsNotIn(
   if (conditions.length === 0) {
     return 'TRUE';
   } else if (conditions.length === 1) {
-    return conditions[0];
+    return conditions[0]!;
   } else {
     return conditions.join(' AND ');
   }
@@ -189,6 +190,34 @@ export function filterToSql(filter: Filter, sqlExpr: string): string {
     default:
       assertUnreachable(filter);
   }
+}
+
+/**
+ * Builds a SQL condition that is true if any of `sqlExprs` contains `text`.
+ * E.g., quickFilterToSql('fo', ['a', 'b']) returns:
+ * ((typeof(a) != 'blob' AND CAST(a AS TEXT) GLOB '*[fF][oO]*') OR (...b...))
+ *
+ * The rules are:
+ * 1. The value, converted to text, contains the filter text.
+ * 2. Upper/lowercase is ignored for A-Z only.
+ * 3. Nulls and blobs never match.
+ *
+ * Keep in sync with valueMatchesQuickFilter() in quick_filter_utils.ts, which
+ * implements the same rules in JS.
+ */
+export function quickFilterToSql(
+  text: string,
+  sqlExprs: readonly string[],
+): string {
+  if (sqlExprs.length === 0) {
+    return 'FALSE';
+  }
+  const pattern = escapeSearchQuery(text);
+  const conditions = sqlExprs.map(
+    (expr) =>
+      `(typeof(${expr}) != 'blob' AND CAST(${expr} AS TEXT) GLOB ${pattern})`,
+  );
+  return `(${conditions.join(' OR ')})`;
 }
 
 /**

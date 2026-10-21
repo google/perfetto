@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/waitable_event.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -47,6 +48,7 @@
 #include "perfetto/tracing/tracing_backend.h"
 #include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/internal/tracing_muxer_fake.h"
+#include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
 #include "protos/perfetto/config/interceptor_config.gen.h"
 
@@ -1410,6 +1412,17 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
       }
     }
 
+    // Select v1 or v2 once, so that all writers of this instance agree.
+    // A startup instance keeps v1, also after adoption.
+    // An intercepted instance takes its writer from the interceptor.
+    internal_state->use_tracing_v2 =
+        !startup_session_id && !internal_state->interceptor_id &&
+        rds.params.supports_tracing_v2 &&
+        tracing_v2::ProducerRingBufferArbiter::ShouldUseTracingV2(cfg);
+    // Complete initialization before writer threads can observe this instance.
+    if (internal_state->use_tracing_v2)
+      backend.producer->service_->InitializeV2RingBuffer(cfg);
+
     // This must be made at the end. See matching acquire-load in
     // DataSource::Trace().
     static_state.valid_instances.fetch_or(1 << i, std::memory_order_release);
@@ -2396,8 +2409,12 @@ std::unique_ptr<TraceWriterBase> TracingMuxerImpl::CreateTraceWriter(
     return service->MaybeSharedMemoryArbiter()->CreateStartupTraceWriter(
         startup_buffer_reservation);
   }
-  return service->CreateTraceWriter(data_source->buffer_id,
-                                    buffer_exhausted_policy);
+
+  return data_source->use_tracing_v2
+             ? service->CreateTraceWriterV2(data_source->buffer_id,
+                                            buffer_exhausted_policy)
+             : service->CreateTraceWriter(data_source->buffer_id,
+                                          buffer_exhausted_policy);
 }
 
 // This is called via the public API Tracing::NewTrace().

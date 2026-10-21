@@ -371,7 +371,7 @@ SELECT ${aliasList} FROM _other WHERE ${measAliases[0]} > 0`.trim();
     const whereClause = this.buildWhereClause(config.filters);
     const groupByExprs = config.dimensions.map((d) => d.column);
     const direction = config.orderDirection ?? 'desc';
-    const firstDimAlias = this.dimAlias(config.dimensions[0], 0);
+    const firstDimAlias = this.dimAlias(config.dimensions[0]!, 0);
     const orderAlias = this.measureAlias(config.measures, 0);
 
     const dimAliases = config.dimensions.map((d, i) => this.dimAlias(d, i));
@@ -606,7 +606,7 @@ ORDER BY _bucket_idx`.trim();
     measures: ReadonlyArray<MeasureSpec>,
     index: number,
   ): string {
-    const meas = measures[index];
+    const meas = measures[index]!;
     if (meas.alias !== undefined) {
       validateColumnName(meas.alias);
       return meas.alias;
@@ -661,7 +661,7 @@ function chartFilterToSql(filter: Filter): string {
         filter.field,
       ),
     );
-    if (parts.length === 1) return parts[0];
+    if (parts.length === 1) return parts[0]!;
     const joiner = negated ? ' AND ' : ' OR ';
     return `(${parts.join(joiner)})`;
   }

@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -45,8 +46,6 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
   const auto* n = Node<SyntaqlitePerfettoPipeAggregate>(c->parser(), stage);
 
   AggregateStage aggregate;
-  // Output column names, keys then aggregates. Each name must be unique.
-  std::vector<std::string> names;
   std::vector<std::pair<NamedColumn, uint32_t>> keys;
   if (syntaqlite_node_is_present(n->group_by)) {
     const auto* list =
@@ -63,8 +62,11 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
       if (IsSpanPresent(item->alias)) {
         name = SpanText(c->parser(), item->alias);
       }
-      RETURN_IF_ERROR(c->CheckListedOnce(names, name, item_id));
-      aggregate.keys_.push_back(key);
+      // Groups once by each column, but outputs one column per item listed.
+      if (std::find(aggregate.keys_.begin(), aggregate.keys_.end(), key) ==
+          aggregate.keys_.end()) {
+        aggregate.keys_.push_back(key);
+      }
       keys.push_back({NamedColumn{std::move(name), key}, item_id});
     }
   }
@@ -77,7 +79,6 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
     const auto* agg = Node<SyntaqlitePerfettoAggregate>(c->parser(), agg_id);
     ASSIGN_OR_RETURN(Aggregate resolved, c->ResolveAggregate(agg->expr));
     std::string name = SpanText(c->parser(), agg->name);
-    RETURN_IF_ERROR(c->CheckListedOnce(names, name, agg_id));
     resolved.output = c->AddColumn(name, core::Int64{});
     aggregate.aggregates_.push_back(resolved);
     aggregates.push_back(
@@ -110,22 +111,28 @@ void AggregateStage::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerNode(node.children()[0]);
   ex::HashAggregateSpec spec;
   for (ColumnId key : keys_) {
-    spec.key_columns.push_back(c->Position(key));
+    spec.key_columns.push_back(c->QueryPosition(key));
   }
   for (const Aggregate& agg : aggregates_) {
     spec.aggregates.push_back(LowerAggregate(c, agg));
   }
+  // Groups are output in the order first seen, so if the input is sorted by
+  // the keys, the output is too.
+  std::vector<SortKey> sorted = c->QuerySortedBy(keys_);
+  c->RequireFullBatches();
   c->AddOperator(std::make_unique<ex::HashAggregate>(std::move(spec)));
 
-  // The output has one row per group, in no particular order.
+  // The output has one row per group, with a new layout.
   c->ResetLayout();
   for (ColumnId key : keys_) {
-    c->Define(key);
+    c->DeclareColumn(key);
   }
   for (const Aggregate& agg : aggregates_) {
-    c->Define(agg.output);
+    c->DeclareColumn(agg.output);
   }
-  c->SetOrder({});
+  if (!sorted.empty()) {
+    c->DeclareSorted(sorted);
+  }
 }
 
 const OperationRegistration& AggregateStage::registration() const {

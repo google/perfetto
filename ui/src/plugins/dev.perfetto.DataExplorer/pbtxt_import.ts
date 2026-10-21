@@ -132,8 +132,8 @@ export async function parsePbtxtToState(
       acc,
       buildNodesFromMetricConfig(
         {
-          query: allTemplateSpecs[i].query,
-          metricsState: templateSpecToMetricsState(allTemplateSpecs[i]),
+          query: allTemplateSpecs[i]!.query,
+          metricsState: templateSpecToMetricsState(allTemplateSpecs[i]!),
         },
         chainX,
         sharedQueries,
@@ -150,8 +150,8 @@ export async function parsePbtxtToState(
       acc,
       buildNodesFromMetricConfig(
         {
-          query: allMetricSpecs[i].query,
-          metricsState: metricSpecToMetricsState(allMetricSpecs[i]),
+          query: allMetricSpecs[i]!.query,
+          metricsState: metricSpecToMetricsState(allMetricSpecs[i]!),
         },
         chainX,
         sharedQueries,
@@ -1049,7 +1049,7 @@ function decomposeFilterGroup(
       result.push(...subNodes);
       // The last node from the sub-group becomes the input for the next.
       if (subNodes.length > 0) {
-        currentInputId = subNodes[subNodes.length - 1].nodeId;
+        currentInputId = subNodes[subNodes.length - 1]!.nodeId;
       }
     }
     return result;
@@ -1111,7 +1111,7 @@ function protoFilterFirstRhsValue(
   const stringRhs = f.stringRhs ?? [];
   const doubleRhs = f.doubleRhs ?? [];
   const int64Rhs = f.int64Rhs ?? [];
-  if (stringRhs.length > 0) return stringRhs[0];
+  if (stringRhs.length > 0) return stringRhs[0]!;
   if (doubleRhs.length > 0) return String(doubleRhs[0]);
   if (int64Rhs.length > 0) return String(int64Rhs[0]);
   return '';

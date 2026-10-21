@@ -131,24 +131,31 @@ void Compiler::AddAlias(Alias alias) {
   scope_.aliases.push_back(std::move(alias));
 }
 
-ColumnId Compiler::AddColumn(std::string name,
-                             std::optional<core::StorageType> type) {
+void Compiler::ReplaceAliasColumns(
+    const std::vector<std::pair<ColumnId, ColumnId>>& replaced) {
+  for (Alias& alias : scope_.aliases) {
+    std::vector<RowColumn> columns;
+    for (RowColumn column : alias.columns) {
+      auto it = std::find_if(
+          replaced.begin(), replaced.end(),
+          [&](const auto& pair) { return pair.first == column.column.id; });
+      if (it != replaced.end()) {
+        column.column.id = it->second;
+        columns.push_back(std::move(column));
+      }
+    }
+    alias.columns = std::move(columns);
+  }
+}
+
+ColumnId Compiler::AddColumn(std::string name, PlanType type) {
   return plan_.AddColumn(std::move(name), type);
 }
 
 base::Status Compiler::BuildOperation(uint32_t stage) {
   uint32_t tag = Node<SyntaqliteNode>(p_, stage)->tag;
   const auto* registration = FindOperationBySyntax(tag);
-  if (!registration) {
-    switch (tag) {
-      case SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS:
-        return Unsupported(stage, "INTERVAL FILL GAPS");
-      case SYNTAQLITE_NODE_PERFETTO_PIPE_WHERE:
-        return Unsupported(stage, "WHERE");
-      default:
-        PERFETTO_FATAL("Unknown pipeline stage");
-    }
-  }
+  PERFETTO_CHECK(registration);
   return registration->BuildPlan(this, stage);
 }
 
@@ -346,8 +353,8 @@ base::StatusOr<Aggregate> Compiler::ResolveAggregate(uint32_t expr) {
   uint32_t arg_id = syntaqlite_list_child_id(args, 0);
   ASSIGN_OR_RETURN(aggregate.column, ResolveColumnExpr(arg_id));
   const auto& type = plan_.columns()[aggregate.column].type;
-  if (type && !(type->Is<core::Id>() || type->Is<core::Uint32>() ||
-                type->Is<core::Int32>() || type->Is<core::Int64>())) {
+  if (type.storage() && !(type.Is<core::Id>() || type.Is<core::Uint32>() ||
+                          type.Is<core::Int32>() || type.Is<core::Int64>())) {
     return Expected(arg_id, "an integer column");
   }
   return aggregate;
@@ -372,9 +379,13 @@ base::Status Compiler::CompilePipeline(uint32_t pipeline) {
 }
 
 LogicalPlan Compiler::Finish() {
+  // The result is the row as a bare name sees it. Columns only an alias
+  // finds, as an intersection's operand columns are, stay behind.
   plan_.output().clear();
   for (const RowColumn& column : scope_.row) {
-    plan_.output().push_back(column.column);
+    if (!column.qualified_only) {
+      plan_.output().push_back(column.column);
+    }
   }
   return std::move(plan_);
 }

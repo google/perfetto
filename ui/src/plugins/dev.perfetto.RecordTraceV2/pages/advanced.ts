@@ -158,8 +158,8 @@ function procThreadAssociation(): RecordProbe {
       // Set to 1/16th of the main buffer size, with reasonable limits.
       const minMax = [256, 8 * 1024];
       const bufSizeKb = Math.min(
-        Math.max(tc.defaultBuffer.sizeKb / 16, minMax[0]),
-        minMax[1],
+        Math.max(tc.defaultBuffer.sizeKb / 16, minMax[0]!),
+        minMax[1]!,
       );
       tc.addBuffer(ADV_PROC_ASSOC_BUF_ID, bufSizeKb);
 

@@ -702,7 +702,7 @@ TEST_P(SharedMemoryArbiterImplTest, CreateUnboundAndBind) {
 
   // Trace writer should be registered in a non-delayed task.
   EXPECT_CALL(mock_producer_endpoint_, RegisterTraceWriter(_, 1))
-      .WillOnce(testing::InvokeWithoutArgs(checkpoint_writer));
+      .WillOnce(checkpoint_writer);
   std::unique_ptr<TraceWriter> writer =
       arbiter_->CreateTraceWriter(1, BufferExhaustedPolicy::kDrop);
   task_runner_->RunUntilCheckpoint("writer_registered", 5000);
@@ -803,7 +803,7 @@ class SharedMemoryArbiterImplStartupTracingTest
     auto checkpoint_register1b =
         task_runner_->CreateCheckpoint("writer1b_registered");
     EXPECT_CALL(mock_producer_endpoint_, RegisterTraceWriter(_, 42))
-        .WillOnce(testing::InvokeWithoutArgs(checkpoint_register1b));
+        .WillOnce(checkpoint_register1b);
     std::unique_ptr<TraceWriter> writer1b =
         arbiter_->CreateStartupTraceWriter(kTargetBufferReservationId1);
     task_runner_->RunUntilCheckpoint("writer1b_registered", 5000);
@@ -853,7 +853,7 @@ class SharedMemoryArbiterImplStartupTracingTest
         task_runner_->CreateCheckpoint("writer_unregistered");
     EXPECT_CALL(mock_producer_endpoint_,
                 UnregisterTraceWriter(writer->writer_id()))
-        .WillOnce(testing::InvokeWithoutArgs(checkpoint_writer));
+        .WillOnce(checkpoint_writer);
     writer.reset();
     task_runner_->RunUntilCheckpoint("writer_unregistered", 5000);
 
@@ -1014,7 +1014,7 @@ class SharedMemoryArbiterImplStartupTracingTest
         task_runner_->CreateCheckpoint("writer_unregistered");
     EXPECT_CALL(mock_producer_endpoint_,
                 UnregisterTraceWriter(writer->writer_id()))
-        .WillOnce(testing::InvokeWithoutArgs(checkpoint_writer));
+        .WillOnce(checkpoint_writer);
     writer.reset();
     task_runner_->RunUntilCheckpoint("writer_unregistered", 5000);
 

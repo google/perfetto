@@ -47,6 +47,52 @@ class PerfettoPipeline(TestSuite):
         "root",10,100,10
         """))
 
+  # A stage walks the tree its own id and parent_id describe, even when an
+  # earlier stage walked another.
+  def test_tree_accumulate_after_the_tree_changes(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 0 AS id, NULL AS parent_id, 1 AS v, 0 AS id2, 1 AS p2
+        UNION ALL SELECT 1, 0, 10, 1, 2
+        UNION ALL SELECT 2, 1, 100, 2, NULL;
+
+        FROM t
+        |> TREE ACCUMULATE UP SUM(v) AS a
+        |> SET id = id2, parent_id = p2
+        |> TREE ACCUMULATE UP SUM(v) AS b
+        |> ORDER BY v
+        |> SELECT v, a, b;
+        """,
+        out=Csv("""
+        "v","a","b"
+        1,111,1
+        10,110,11
+        100,100,111
+        """))
+
+  # Rows dropped between two stages can leave a parent missing, which the
+  # second stage finds as it would with no stage before it.
+  def test_tree_accumulate_after_rows_are_dropped(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 0 AS id, NULL AS parent_id, 1 AS v
+        UNION ALL SELECT 1, 0, 10
+        UNION ALL SELECT 2, 1, 100;
+
+        FROM t
+        |> TREE ACCUMULATE UP SUM(v) AS a
+        |> WHERE v > 1
+        |> TREE ACCUMULATE UP SUM(v) AS b
+        |> SELECT v, a, b;
+        """,
+        out=ExpectedError('a row names a parent which is not itself a row'))
+
   # Must match the descendant closure, which this is meant to replace.
   def test_tree_accumulate_matches_closure(self):
     return DiffTestBlueprint(
@@ -207,6 +253,45 @@ class PerfettoPipeline(TestSuite):
         """))
 
   # AGGREGATE ... GROUP BY gives what SQLite's GROUP BY does.
+  # A key listed again, however it is written, groups nothing new. A stage
+  # which outputs its keys outputs one column for each listed.
+  def test_a_repeated_key_groups_once(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 0 AS ts, 10 AS dur, 1 AS cpu
+        UNION ALL SELECT 5, 10, 1
+        UNION ALL SELECT 0, 3, 2;
+
+        CREATE PERFETTO TABLE aggregated AS
+        FROM t AS t
+        |> AGGREGATE COUNT(*) AS n GROUP BY cpu, t.cpu AS cpu2;
+        CREATE PERFETTO TABLE flattened AS
+        FROM t
+        |> INTERVAL FLATTEN PER cpu, CPU AGGREGATE COUNT(*) AS n
+        |> AGGREGATE COUNT(*) AS n;
+        CREATE PERFETTO TABLE intersected AS
+        INTERVAL INTERSECTION OF (t AS a, t AS b) PER cpu, cpu
+        |> AGGREGATE COUNT(*) AS n;
+        CREATE PERFETTO TABLE filled AS
+        FROM t
+        |> INTERVAL FILL GAPS WITH (SELECT 0 AS ts, 20 AS dur) PER cpu, cpu
+        |> AGGREGATE COUNT(*) AS n;
+
+        SELECT
+          (SELECT group_concat(cpu || ':' || cpu2 || ':' || n, ' ')
+           FROM (SELECT * FROM aggregated ORDER BY cpu)) AS aggregated,
+          (SELECT n FROM flattened) AS flattened,
+          (SELECT n FROM intersected) AS intersected,
+          (SELECT n FROM filled) AS filled;
+        """,
+        out=Csv("""
+        "aggregated","flattened","intersected","filled"
+        "1:1:2 2:2:1",4,5,5
+        """))
+
   def test_aggregate_matches_group_by(self):
     return DiffTestBlueprint(
         trace=DataPath('chrome_input_with_frame_view.pftrace'),
@@ -369,6 +454,70 @@ class PerfettoPipeline(TestSuite):
         """,
         out=ExpectedError('aggregate AVG is not supported yet'))
 
+  # Must match SQL's WHERE and DISTINCT, including comparing an integer
+  # column with a fraction.
+  def test_where_and_distinct_match_sql(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE piped AS
+        FROM (SELECT track_id, depth, dur FROM slice)
+        |> WHERE dur > 999.5 AND depth <= 2
+        |> SELECT track_id, depth
+        |> DISTINCT;
+
+        CREATE PERFETTO TABLE expected AS
+        SELECT DISTINCT track_id, depth FROM slice
+        WHERE dur > 999.5 AND depth <= 2;
+
+        SELECT
+          (SELECT count(*) FROM piped) AS rows,
+          (SELECT count(*) FROM expected) AS expected_rows,
+          (SELECT count(*) FROM (
+            SELECT * FROM piped EXCEPT SELECT * FROM expected))
+          + (SELECT count(*) FROM (
+            SELECT * FROM expected EXCEPT SELECT * FROM piped)) AS mismatches;
+        """,
+        out=Csv("""
+        "rows","expected_rows","mismatches"
+        126,126,0
+        """))
+
+  # DISTINCT compares the columns a bare name finds, so two rows of `a`
+  # meeting `b` over one region give one row.
+  def test_distinct_after_intersection(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS
+        SELECT 0 AS ts, 10 AS dur, 1 AS k
+        UNION ALL SELECT 1, 10, 1;
+        CREATE PERFETTO TABLE b AS SELECT 5 AS ts, 2 AS dur;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y)
+        |> DISTINCT
+        |> SELECT ts, dur, x.k;
+        """,
+        out=Csv("""
+        "ts","dur","k"
+        5,2,1
+        """))
+
+  # A column DISTINCT does not compare has no one value per row, so it is
+  # gone from the aliases too.
+  def test_distinct_drops_columns_it_does_not_compare(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 1 AS x, 2 AS y;
+
+        FROM t AS t |> DROP x |> DISTINCT |> SELECT t.x;
+        """,
+        out=ExpectedError("no such column: 't.x'"))
+
   def test_a_pipeline_needs_the_pragma(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
@@ -459,6 +608,99 @@ class PerfettoPipeline(TestSuite):
         "ts","dur","x_ts","x_dur","y_ts"
         10,20,0,30,10
         """))
+
+  # A star gives the region's ts and dur, not each operand's.
+  def test_interval_intersection_star_is_the_region(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS SELECT 0 AS ts, 30 AS dur, 7 AS freq;
+        CREATE PERFETTO TABLE b AS SELECT 10 AS ts, 100 AS dur, 1 AS state;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y) |> SELECT *;
+        """,
+        out=Csv("""
+        "ts","dur","freq","state"
+        10,20,7,1
+        """))
+
+  def test_interval_intersection_without_a_stage_is_the_region(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS SELECT 0 AS ts, 30 AS dur, 7 AS freq;
+        CREATE PERFETTO TABLE b AS SELECT 10 AS ts, 100 AS dur, 1 AS state;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y);
+        """,
+        out=Csv("""
+        "ts","dur","freq","state"
+        10,20,7,1
+        """))
+
+  def test_interval_intersection_operand_columns_by_bare_name(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS SELECT 0 AS ts, 30 AS dur, 7 AS freq;
+        CREATE PERFETTO TABLE b AS SELECT 10 AS ts, 100 AS dur, 1 AS state;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y)
+        |> SELECT ts, dur, freq, state, x.freq AS x_freq;
+        """,
+        out=Csv("""
+        "ts","dur","freq","state","x_freq"
+        10,20,7,1,7
+        """))
+
+  def test_interval_intersection_new_alias_is_the_region(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS SELECT 0 AS ts, 30 AS dur, 7 AS freq;
+        CREATE PERFETTO TABLE b AS SELECT 10 AS ts, 100 AS dur, 1 AS state;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y)
+        |> AS u
+        |> SELECT u.ts, u.dur, u.freq;
+        """,
+        out=Csv("""
+        "ts","dur","freq"
+        10,20,7
+        """))
+
+  # A later operand's copy of a PER column is reached through its alias.
+  def test_interval_intersection_per_column_of_a_later_operand(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS SELECT 0 AS ts, 30 AS dur, 2 AS cpu;
+        CREATE PERFETTO TABLE b AS SELECT 10 AS ts, 100 AS dur, 2 AS cpu;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y) PER cpu
+        |> SELECT *, y.cpu AS y_cpu;
+        """,
+        out=Csv("""
+        "ts","dur","cpu","y_cpu"
+        10,20,2,2
+        """))
+
+  def test_interval_intersection_shared_column_is_ambiguous(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS SELECT 0 AS ts, 30 AS dur, 7 AS n;
+        CREATE PERFETTO TABLE b AS SELECT 10 AS ts, 100 AS dur, 1 AS n;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y) |> SELECT n;
+        """,
+        out=ExpectedError("column 'n' is ambiguous"))
 
   # PER confines regions to rows which agree on the columns named, and those
   # columns come out under their bare names.
@@ -791,3 +1033,308 @@ class PerfettoPipeline(TestSuite):
         "start","dur","x_start","state"
         10,20,0,1
         """))
+
+  # Rows which never overlap within a cpu, filled over the trace, tile the
+  # trace exactly on every cpu.
+  def test_interval_fill_gaps_tiles_the_trace(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_boot.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+
+        CREATE PERFETTO TABLE sched_rows AS
+        SELECT ts, dur, cpu, utid FROM sched WHERE dur > 0 AND utid != 0;
+
+        CREATE PERFETTO TABLE piped AS
+        FROM sched_rows
+        |> INTERVAL FILL GAPS WITH (
+             SELECT trace_start() AS ts, trace_dur() AS dur
+           ) PER cpu;
+
+        SELECT
+          (SELECT count(*) FROM piped WHERE utid IS NULL) AS fillers,
+          (
+            SELECT count(*) FROM (
+              SELECT cpu FROM piped GROUP BY cpu HAVING sum(dur) != trace_dur()
+            )
+          ) AS untiled_cpus,
+          (
+            SELECT count(*) FROM (
+              SELECT
+                ts + dur > lead(ts) OVER (PARTITION BY cpu ORDER BY ts)
+                  AS overlaps
+              FROM piped
+            )
+            WHERE overlaps
+          ) AS overlaps;
+        """,
+        out=Csv("""
+        "fillers","untiled_cpus","overlaps"
+        76331,0,0
+        """))
+
+  # Without PER, a filler takes the background's columns by name and its own
+  # bounds.
+  def test_interval_fill_gaps_takes_the_background_by_name(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE spans AS
+        SELECT 2 AS ts, 3 AS dur, 'run' AS state
+        UNION ALL SELECT 6, 1, 'run';
+
+        FROM spans
+        |> INTERVAL FILL GAPS WITH (SELECT 0 AS ts, 10 AS dur, 'idle' AS state)
+        |> ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","state"
+        0,2,"idle"
+        2,3,"run"
+        5,1,"idle"
+        6,1,"run"
+        7,3,"idle"
+        """))
+
+  # A background without the PER columns fills every lane of the input, and a
+  # filler takes its lane's PER values.
+  def test_interval_fill_gaps_shares_the_background_across_lanes(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE spans AS
+        SELECT 2 AS ts, 3 AS dur, 0 AS cpu, 'run' AS state
+        UNION ALL SELECT 1, 2, 1, 'sleep';
+
+        FROM spans
+        |> INTERVAL FILL GAPS WITH (SELECT 0 AS ts, 10 AS dur) PER cpu
+        |> ORDER BY cpu, ts;
+        """,
+        out=Csv("""
+        "ts","dur","cpu","state"
+        0,2,0,"[NULL]"
+        2,3,0,"run"
+        5,5,0,"[NULL]"
+        0,1,1,"[NULL]"
+        1,2,1,"sleep"
+        3,7,1,"[NULL]"
+        """))
+
+  # A background with the PER columns names the lanes: one without input is
+  # filled whole, and input in a lane it does not name fills nothing.
+  def test_interval_fill_gaps_background_names_the_lanes(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE spans AS
+        SELECT 2 AS ts, 3 AS dur, 0 AS cpu, 'run' AS state
+        UNION ALL SELECT 1, 2, 1, 'sleep';
+        CREATE PERFETTO TABLE lanes AS
+        SELECT 0 AS ts, 10 AS dur, 0 AS cpu, 'idle' AS state
+        UNION ALL SELECT 0, 4, 2, 'off';
+
+        FROM spans
+        |> INTERVAL FILL GAPS WITH lanes PER cpu
+        |> ORDER BY cpu, ts;
+        """,
+        out=Csv("""
+        "ts","dur","cpu","state"
+        0,2,0,"idle"
+        2,3,0,"run"
+        5,5,0,"idle"
+        1,2,1,"sleep"
+        0,4,2,"off"
+        """))
+
+  # Without input, the background is filled whole.
+  def test_interval_fill_gaps_without_input(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE spans AS
+        SELECT 0 AS ts, 0 AS dur, 'run' AS state WHERE 0;
+
+        FROM spans
+        |> INTERVAL FILL GAPS WITH (SELECT 0 AS ts, 4 AS dur, 'idle' AS state);
+        """,
+        out=Csv("""
+        "ts","dur","state"
+        0,4,"idle"
+        """))
+
+  # Overlapping input covers its union, a dur of -1 covers to the end, and a
+  # row with a null ts covers nothing.
+  def test_interval_fill_gaps_coverage(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE spans AS
+        SELECT 2 AS ts, 3 AS dur, 1 AS id
+        UNION ALL SELECT 4, 3, 2
+        UNION ALL SELECT 25, -1, 3
+        UNION ALL SELECT NULL, 5, 4;
+
+        FROM spans
+        |> INTERVAL FILL GAPS WITH (
+             SELECT 0 AS ts, 10 AS dur UNION ALL SELECT 20, 10)
+        |> ORDER BY ts, id;
+        """,
+        out=Csv("""
+        "ts","dur","id"
+        "[NULL]",5,4
+        0,2,"[NULL]"
+        2,3,1
+        4,3,2
+        7,3,"[NULL]"
+        20,5,"[NULL]"
+        25,-1,3
+        """))
+
+  # An alias still reaches its columns.
+  def test_interval_fill_gaps_keeps_aliases(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE spans AS SELECT 2 AS ts, 3 AS dur, 'run' AS state;
+
+        FROM spans AS s
+        |> INTERVAL FILL GAPS WITH (SELECT 0 AS ts, 10 AS dur, 'idle' AS state)
+        |> SELECT s.ts, s.state
+        |> ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","state"
+        0,"idle"
+        2,"run"
+        5,"idle"
+        """))
+
+  # A dataframe column and a SQL one are brought to one type.
+  def test_interval_fill_gaps_unifies_types(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE spans AS
+        SELECT 1 AS ts, 2 AS dur, 1 AS cpu, 1.5 AS weight;
+
+        FROM spans
+        |> INTERVAL FILL GAPS WITH (SELECT 0 AS ts, 5 AS dur, 0 AS weight)
+        |> ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","cpu","weight"
+        0,1,"[NULL]",0.000000
+        1,2,1,1.500000
+        3,2,"[NULL]",0.000000
+        """))
+
+  # PER columns are brought to one type even when they are not output.
+  def test_interval_fill_gaps_unifies_unused_per_types(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE spans AS
+        SELECT 2 AS ts, 3 AS dur, 0 AS cpu
+        UNION ALL SELECT 1, 2, 1;
+        CREATE PERFETTO TABLE lanes AS
+        SELECT 0 AS ts, 10 AS dur, 0.0 AS cpu
+        UNION ALL SELECT 0, 4, 1.0;
+
+        FROM spans
+        |> INTERVAL FILL GAPS WITH lanes PER cpu
+        |> SELECT ts, dur
+        |> ORDER BY ts, dur;
+        """,
+        out=Csv("""
+        "ts","dur"
+        0,1
+        0,2
+        1,2
+        2,3
+        3,1
+        5,5
+        """))
+
+  def test_interval_fill_gaps_needs_background_bounds(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 0 AS ts, 1 AS dur)
+        |> INTERVAL FILL GAPS WITH (SELECT 0 AS dur);
+        """,
+        out=ExpectedError('expected the background to have a ts'))
+
+  def test_interval_fill_gaps_needs_every_per_column_or_none(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 0 AS ts, 1 AS dur, 0 AS cpu, 0 AS state)
+        |> INTERVAL FILL GAPS WITH (SELECT 0 AS ts, 1 AS dur, 0 AS cpu)
+           PER cpu, state;
+        """,
+        out=ExpectedError('every PER column or none'))
+
+  def test_interval_fill_gaps_needs_background_columns_in_the_input(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 0 AS ts, 1 AS dur)
+        |> INTERVAL FILL GAPS WITH (SELECT 0 AS ts, 5 AS dur, 1 AS filled);
+        """,
+        out=ExpectedError("the input to have the background's 'filled'"))
+
+  def test_interval_fill_gaps_refuses_strings_meeting_numbers(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE spans AS SELECT 2 AS ts, 3 AS dur, 'run' AS state;
+
+        FROM spans
+        |> INTERVAL FILL GAPS WITH (SELECT 0 AS ts, 10 AS dur, 1 AS state);
+        """,
+        out=ExpectedError('holds strings in one input and numbers in another'))
+
+  def test_interval_fill_gaps_refuses_a_negative_ts(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT -1 AS ts, 2 AS dur)
+        |> INTERVAL FILL GAPS WITH (SELECT 0 AS ts, 10 AS dur);
+        """,
+        out=ExpectedError('ts is below zero'))
+
+  def test_interval_fill_gaps_refuses_overlapping_background(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 0 AS ts, 1 AS dur)
+        |> INTERVAL FILL GAPS WITH (
+             SELECT 0 AS ts, 10 AS dur UNION ALL SELECT 5, 10);
+        """,
+        out=ExpectedError('overlap within a lane'))
+
+  # SELECT, EXTEND and SET parse any expression, but only a column can be
+  # computed yet.
+  def test_computed_columns_are_not_supported_yet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 1 AS a)
+        |> EXTEND a + 1 AS b;
+        """,
+        out=ExpectedError('a computed column is not supported yet'))

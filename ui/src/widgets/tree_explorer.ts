@@ -260,7 +260,7 @@ export function createDefaultTreeExplorerState(
   metrics: ReadonlyArray<TreeExplorerMetric>,
 ): TreeExplorerState {
   return {
-    selectedMetricId: metricId(metrics[0]),
+    selectedMetricId: metricId(metrics[0]!),
     addedMetricIds: [],
     displayMode: 'flamegraph',
     filters: [],
@@ -298,7 +298,7 @@ export function updateTreeExplorerState(
     view: state.view,
     addedMetricIds: state.addedMetricIds,
     displayMode: state.displayMode,
-    selectedMetricId: metricId(metrics[0]),
+    selectedMetricId: metricId(metrics[0]!),
   };
 }
 
@@ -357,7 +357,7 @@ export function splitFilters(text: string): string[] {
       let pos = 0;
       while ((pos = lowerText.indexOf(searchStr, pos)) !== -1) {
         // Only split if at start or preceded by whitespace
-        if (pos === 0 || /\s/.test(text[pos - 1])) {
+        if (pos === 0 || /\s/.test(text[pos - 1]!)) {
           splitPositions.push(pos);
         }
         pos += searchStr.length;
@@ -376,7 +376,7 @@ export function splitFilters(text: string): string[] {
   // Split text at those positions
   const result: string[] = [];
   for (let i = 0; i < splitPositions.length; i++) {
-    const start = splitPositions[i];
+    const start = splitPositions[i]!;
     const end = splitPositions[i + 1] ?? text.length;
     const part = text.substring(start, end).trim();
     if (part) {

@@ -97,8 +97,12 @@ const char* const kPipelines[] = {
     "INTERVAL INTERSECTION OF (spans AS a, spans AS b) PER cpu",
     "FROM spans |> INTERVAL FLATTEN PER cpu AGGREGATE SUM(dur) AS d",
     "FROM spans |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n |> SELECT ts, n",
+    "FROM spans |> INTERVAL FILL GAPS WITH spans PER cpu",
+    "FROM spans |> INTERVAL FILL GAPS WITH (SELECT ts, dur FROM spans)",
     "FROM df |> ORDER BY self DESC, id |> SELECT id",
     "FROM spans |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n |> ORDER BY n",
+    "FROM df |> SELECT parent_id |> DISTINCT",
+    "FROM df |> WHERE self > 0 AND id < 10",
     "FROM spans |> AGGREGATE COUNT(*) AS n, SUM(dur) AS d GROUP BY cpu AS c",
     "FROM spans |> AGGREGATE MAX(dur) AS m |> SELECT m",
     // Pruning removes the fold, whose node is left behind unread.
@@ -138,9 +142,13 @@ TEST_F(PlanSerializationTest, MalformedPlansAreRefusedOrRun) {
                  .ok()) {
           continue;
         }
-        auto physical = Lower(*read);
-        core::exec::RowCursor cursor(physical->source());
-        for (bool row = cursor.Open(); row; row = cursor.Next()) {
+        auto physical = Lower(*read, {&pool_});
+        if (!physical.ok()) {
+          continue;
+        }
+        core::exec::RowCursor cursor((*physical)->source());
+        for (bool row = cursor.Open((*physical)->filter_values()); row;
+             row = cursor.Next()) {
         }
       }
     }

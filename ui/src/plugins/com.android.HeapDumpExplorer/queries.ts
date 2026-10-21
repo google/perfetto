@@ -43,6 +43,7 @@ import type {
 import {fmtHex} from './format';
 import {shortClassName, SQL_PREAMBLE} from './components';
 import {Time} from '../../base/time';
+import {mergedClassNamesSql} from '../dev.perfetto.HeapProfile/merged_class_sql';
 
 /**
  * Reinterpret a SQL int64 as an unsigned 64-bit native pointer.
@@ -248,6 +249,21 @@ async function batchBitmapBufferHashes(
 export async function hasFieldValues(engine: Engine): Promise<boolean> {
   const res = await engine.query(`SELECT 1 FROM heap_graph_primitive LIMIT 1`);
   return res.iter({}).valid();
+}
+
+// Names (deobfuscated where possible) of the classes in `dump` that may
+// include other classes merged in by app optimization (e.g. R8 class
+// merging). Empty unless the trace includes a deobfuscation mapping.
+export async function getPotentiallyMergedClasses(
+  engine: Engine,
+  dump: HeapDump,
+): Promise<ReadonlySet<string>> {
+  const res = await engine.query(mergedClassNamesSql(dump.upid, dump.ts));
+  const names = new Set<string>();
+  for (const it = res.iter({name: STR}); it.valid(); it.next()) {
+    names.add(it.name);
+  }
+  return names;
 }
 
 export async function getOverview(
@@ -829,7 +845,7 @@ export async function fetchShortestPaths(
   for (const [targetId, chain] of pathChains) {
     const path: PathEntry[] = [];
     for (let i = 0; i < chain.length; i++) {
-      const row = nodeMap.get(chain[i]);
+      const row = nodeMap.get(chain[i]!);
       if (!row) continue;
       const field =
         i < chain.length - 1
@@ -970,7 +986,7 @@ export async function fetchDominatorPaths(
   for (const [targetId, chain] of pathChains) {
     const path: PathEntry[] = [];
     for (let i = 0; i < chain.length; i++) {
-      const row = nodeMap.get(chain[i]);
+      const row = nodeMap.get(chain[i]!);
       if (!row) continue;
       const field =
         i < chain.length - 1
@@ -1116,7 +1132,7 @@ export async function getInstance(
           OR c.deobfuscated_name = '${classObjName}')
     `);
     const rows = collectRows(cRes);
-    if (rows.length > 0) classObjRow = rows[0];
+    if (rows.length > 0) classObjRow = rows[0]!;
   }
 
   const instanceFields =
@@ -1142,7 +1158,7 @@ export async function getInstance(
             idx: i,
             value: {
               kind: 'prim',
-              v: formatPrimValue(arrayElementType, values[i]),
+              v: formatPrimValue(arrayElementType, values[i]!),
             },
           });
         }
@@ -1525,7 +1541,7 @@ async function computeBitmapDumpData(
   const count = Math.min(nativesPtrs.length, bufferObjIds.length);
   for (let i = 0; i < count; i++) {
     if (bufferObjIds[i] !== undefined && bufferObjIds[i] !== 0) {
-      bufferMap.set(nativesPtrs[i], bufferObjIds[i]);
+      bufferMap.set(nativesPtrs[i]!, bufferObjIds[i]!);
     }
   }
 

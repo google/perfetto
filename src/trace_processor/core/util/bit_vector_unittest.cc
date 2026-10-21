@@ -152,6 +152,16 @@ TEST(BitVectorTest, SetClearAndIsSet) {
 }
 
 // Test the change method
+TEST(BitVectorTest, AnyBitSet) {
+  EXPECT_FALSE(BitVector().AnyBitSet());
+  auto bits = BitVector::CreateWithSize(200);
+  EXPECT_FALSE(bits.AnyBitSet());
+  bits.set(150);
+  EXPECT_TRUE(bits.AnyBitSet());
+  bits.clear(150);
+  EXPECT_FALSE(bits.AnyBitSet());
+}
+
 TEST(BitVectorTest, ChangeMethod) {
   BitVector bits;
 

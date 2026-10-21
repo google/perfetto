@@ -16,8 +16,8 @@
 #include <perfetto/public/abi/data_source_abi.h>
 #include <perfetto/public/abi/heap_buffer.h>
 #include <perfetto/public/abi/pb_decoder_abi.h>
+#include <perfetto/public/abi/pb_msg_writer_abi.h>
 #include <perfetto/public/abi/producer_abi.h>
-#include <perfetto/public/abi/stream_writer_abi.h>
 #include <perfetto/public/abi/tracing_session_abi.h>
 #include <perfetto/public/abi/track_event_abi.h>
 #include <perfetto/public/abi/track_event_hl_abi.h>

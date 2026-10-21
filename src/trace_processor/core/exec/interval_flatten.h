@@ -24,6 +24,7 @@
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/aggregate_function.h"
 #include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
@@ -33,11 +34,7 @@
 namespace perfetto::trace_processor::core::exec {
 
 struct IntervalFlattenSpec {
-  uint32_t ts_column = 0;
-  uint32_t dur_column = 0;
-  std::vector<uint32_t> key_columns;
-  // The group number column appended by GroupedSort. Unused without keys.
-  uint32_t group_column = 0;
+  IntervalLaneSpec lanes;
   std::vector<AggregateCall> aggregates;
 };
 
@@ -52,6 +49,9 @@ struct IntervalFlattenSpec {
 // tree over the segments it was live in, so any function works.
 class IntervalFlatten : public Operator {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   explicit IntervalFlatten(IntervalFlattenSpec);
   ~IntervalFlatten() override;
 
@@ -61,6 +61,8 @@ class IntervalFlatten : public Operator {
   base::Status status(const OperatorState&) const override;
 
  private:
+  friend class PipelineFormatter;
+
   // A live interval: when it ends, the slot holding its aggregates' states,
   // and the first segment of the output batch it's live in.
   struct Live {
@@ -76,7 +78,8 @@ class IntervalFlatten : public Operator {
   };
 
   struct State : OperatorState {
-    State() : OperatorState(ResetEachRun{}) {}
+    explicit State(const IntervalLaneSpec& lanes)
+        : OperatorState(ResetEachRun{}), keys(lanes.key_columns) {}
     ~State() override;
     void Reset() override;
 
@@ -121,14 +124,9 @@ class IntervalFlatten : public Operator {
     std::vector<SeenBytes> seen_bytes;
     AggregateInputLoader input;
 
-    // Keys for the current input batch plus one carried key from the previous
-    // input batch. Groups can share an output batch without retaining earlier
-    // input.
-    RowStore key_rows;
-    RowBatch retained;
-    RowBatch saved_key;
+    // The keys of the input batch's lanes, and the current lane's handle.
+    LaneKeys keys;
     uint32_t key_row = 0;
-    uint32_t first_key = 0;
 
     // At most kMaxBatchRows completed segments, reused after each yield.
     // Active intervals remain in the heap until their ends are reached.
@@ -136,11 +134,8 @@ class IntervalFlatten : public Operator {
     uint32_t segment_capacity = 0;
     // The segments' columns, written straight into the buffers the batch
     // served holds: taken as its first segment is emitted.
-    ColumnBuffer ts_buffer;
-    ColumnBuffer dur_buffer;
+    BoundsColumns bounds;
     ColumnBuffer group_buffer;
-    int64_t* segment_ts = nullptr;
-    int64_t* segment_dur = nullptr;
     uint32_t* segment_groups = nullptr;
     FlexVector<uint32_t> segment_key_rows;
     // By aggregate, the buffer the batch being served has its values in.
@@ -148,8 +143,7 @@ class IntervalFlatten : public Operator {
     RowBatch served_keys;
   };
 
-  bool RetainKeys(const RowBatch&, State&) const;
-  bool AddInterval(State&, uint32_t row, int64_t start, int64_t length) const;
+  void AddInterval(State&, uint32_t row, int64_t start, int64_t end) const;
   uint32_t TakeSlot(State&) const;
   // Aggregates the batch, publishes any completed segments, or
   // propagates an error. `in` is the input batch, if any.
@@ -170,6 +164,8 @@ class IntervalFlatten : public Operator {
   void TakeSegmentBuffers(State&) const;
 
   IntervalFlattenSpec spec_;
+  // Whether the input has PER columns.
+  bool keyed_;
   // By aggregate of the spec.
   std::vector<std::unique_ptr<AggregateFunction>> functions_;
   std::vector<uint32_t> offsets_;

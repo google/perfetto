@@ -143,10 +143,10 @@ void SortedRows::Sort() {
   }
 }
 
-uint32_t SortedRows::View(RowBatch* out, uint32_t at, Context& context) {
+uint32_t SortedRows::Gather(RowBatch* out, uint32_t at, Context& context) {
   uint32_t count = std::min(kMaxBatchRows, rows_.size() - at);
   const uint32_t* begin = order_.data() + at;
-  return rows_.View(out, Span<const uint32_t>(begin, begin + count), context);
+  return rows_.Gather(out, Span<const uint32_t>(begin, begin + count), context);
 }
 
 void SortedRows::Clear() {

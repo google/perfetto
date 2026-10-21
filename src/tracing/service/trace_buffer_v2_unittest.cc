@@ -29,6 +29,7 @@
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -4493,8 +4494,8 @@ TEST_F(TraceBufferV2Test, V2Rewrite_PreservesEarlierLossReasons) {
 // producer 1 must not block SMB v2 writes from producer 2.
 TEST_F(TraceBufferV2Test, V2Admission_RejectsOnlyProtoVmProducers) {
   ResetBuffer(4096);
-  trace_buffer()->MaybeSetUpProtoVm("test", "", 1024, 1);
-  ASSERT_EQ(trace_buffer()->GetProtoVmInstances().size(), 1u);
+  trace_buffer()->protovms()->MaybeSetUp("test", "", 1024, 1);
+  ASSERT_EQ(trace_buffer()->protovms()->instances().size(), 1u);
   auto packet = MakeSimpleGroupPacket(1, 42);
   auto frag = MakeFragView(packet);
   EXPECT_FALSE(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, 1), &frag,
@@ -4556,6 +4557,10 @@ TEST_F(TraceBufferV2Test, V2Mixed_StatsKeysPreserveWriterBits) {
     ++count;
     EXPECT_TRUE(it.key() == MkProducerAndWriterID(1, 0x8001) ||
                 it.key() == MkProducerAndWriterID(1, 1));
+    // Each entry has the protocol that carried the writer's chunk.
+    EXPECT_EQ(it.value().protocol_abi_versions,
+              it.key() == MkProducerAndWriterID(1, 1) ? kProtocolAbiV2
+                                                      : kProtocolAbiV1);
   }
   EXPECT_EQ(count, 2u);
   trace_buffer()->BeginRead();
@@ -4914,7 +4919,7 @@ TEST_F(TraceBufferV2Test, Compaction_RetainsPagesForNextWriteCycle) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   GTEST_SKIP() << "Only Linux and Android release pages deterministically";
-#endif
+#else
   const size_t page_size = base::GetSysPageSize();
   constexpr size_t kChunkSize = 4 * 1024;
   constexpr size_t kNumPages = 16;
@@ -4950,6 +4955,7 @@ TEST_F(TraceBufferV2Test, Compaction_RetainsPagesForNextWriteCycle) {
           << "page " << page;
     }
   }
+#endif
 }
 
 // Smaller write cycles must leave the entire unused tail zero.

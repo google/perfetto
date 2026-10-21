@@ -368,8 +368,20 @@ node PerfettoPipeStar {
   }
 }
 
+// A column a SELECT or EXTEND lists: `expr [AS name]`. Only a column
+// reference may go without a name.
+node PerfettoPipeExprItem {
+  expr: index Expr
+  alias: inline SyntaqliteTextSpan
+
+  fmt {
+    child(expr)
+    if_span(alias) { space "AS" space span(alias) }
+  }
+}
+
 abstract PerfettoPipeSelectItem {
-  PerfettoPipeColumn
+  PerfettoPipeExprItem
   PerfettoPipeStar
 }
 
@@ -378,8 +390,7 @@ list PerfettoPipeSelectItemList {
   fmt { for_each(sep: "," line) { child(_item) } }
 }
 
-// `SELECT item, ...`: picks, orders and renames columns. A computed column
-// has no spelling here yet.
+// `SELECT item, ...`: picks, orders, renames and computes columns.
 node PerfettoPipeSelect {
   columns: index PerfettoPipeSelectItemList
 
@@ -407,10 +418,10 @@ node PerfettoPipeRename {
   fmt { group { "RENAME" nest { line child(columns) } } }
 }
 
-// One assignment of a SET stage: `name = column`.
+// One assignment of a SET stage: `name = expr`.
 node PerfettoPipeSetItem {
   name: inline SyntaqliteTextSpan
-  value: index PerfettoPipeColumn
+  value: index Expr
 
   fmt { span(name) space "=" space child(value) }
 }
@@ -420,7 +431,7 @@ list PerfettoPipeSetItemList {
   fmt { for_each(sep: "," line) { child(_item) } }
 }
 
-// `SET name = column, ...`: replaces the values of columns.
+// `SET name = expr, ...`: replaces the values of columns.
 node PerfettoPipeSet {
   items: index PerfettoPipeSetItemList
 
@@ -482,8 +493,14 @@ node PerfettoPipeWhere {
   fmt { group { "WHERE" nest { line child(condition) } } }
 }
 
+// `DISTINCT`: keeps one of each set of rows equal in every column.
+node PerfettoPipeDistinct {
+  fmt { "DISTINCT" }
+}
+
 abstract PerfettoPipeStage {
   PerfettoPipeWhere
+  PerfettoPipeDistinct
   PerfettoTreeAccumulate
   PerfettoIntervalFlatten
   PerfettoIntervalFillGaps

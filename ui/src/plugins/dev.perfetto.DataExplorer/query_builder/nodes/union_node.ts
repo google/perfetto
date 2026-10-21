@@ -79,7 +79,7 @@ export class UnionNode implements QueryNode {
     // Initialize connections from inputNodes
     if (inputNodes) {
       for (let i = 0; i < inputNodes.length; i++) {
-        this.secondaryInputs.connections.set(i, inputNodes[i]);
+        this.secondaryInputs.connections.set(i, inputNodes[i]!);
       }
     }
     this.nextNodes = [];
@@ -116,11 +116,11 @@ export class UnionNode implements QueryNode {
     if (validPrevNodes.length === 0) {
       return [];
     }
-    let commonCols = validPrevNodes[0].finalCols.map((col) =>
+    let commonCols = validPrevNodes[0]!.finalCols.map((col) =>
       newColumnInfo(col, true),
     );
     for (let i = 1; i < validPrevNodes.length; i++) {
-      const currentNodeCols = validPrevNodes[i].finalCols;
+      const currentNodeCols = validPrevNodes[i]!.finalCols;
       commonCols = commonCols.filter((commonCol) =>
         currentNodeCols.some(
           (currentNodeCol) => currentNodeCol.name === commonCol.name,

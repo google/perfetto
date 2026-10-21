@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
+#include <memory>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
@@ -236,10 +237,13 @@ class CircularQueue {
 
   void erase_front(size_t n) {
     increment_generation();
-    for (; n && (begin_ < end_); --n) {
-      Get(begin_)->~T();
-      begin_++;  // This needs to be its own statement, Get() checks begin_.
-    }
+    // Clamping |n| upfront gives the loop a single exit condition and a known
+    // trip count. For trivially destructible types the body is empty and the
+    // compiler drops the loop entirely, making this O(1).
+    n = std::min(n, size());
+    for (size_t i = 0; i < n; i++)
+      Get(begin_ + i)->~T();
+    begin_ += n;
   }
 
   void pop_front() { erase_front(1); }
@@ -350,15 +354,25 @@ class CircularQueue {
 
     AlignedUniquePtr<T[]> new_vec = AlignedAllocTyped<T[]>(new_capacity);
 
-    // Move all elements in the expanded array.
-    size_t new_size = 0;
-    for (uint64_t i = begin_; i < end_; i++)
-      new (&new_vec[new_size++]) T(std::move(*Get(i)));  // Placement move ctor.
+    // The live elements are at most two contiguous runs in the old buffer:
+    // [start, start + wrap) and, if wrapped, [0, new_size - wrap).
+    // Operating on local pointers, rather than going through Get(), avoids
+    // reloading the members on each iteration (the compiler can't prove the
+    // stores into |new_vec| don't alias them). This lets trivially copyable
+    // types be copied with a vectorized loop and the dtor loop be dropped
+    // for trivially destructible ones.
+    size_t new_size = size();
+    T* src = entries_.get();
+    T* dst = new_vec.get();
+    size_t start = static_cast<size_t>(begin_ & (capacity_ - 1));
+    size_t wrap = std::min(new_size, capacity_ - start);
+    std::uninitialized_move(src + start, src + start + wrap, dst);
+    std::uninitialized_move(src, src + (new_size - wrap), dst + wrap);
 
     // Even if all the elements are std::move()-d and likely empty, we are still
     // required to call the dtor for them.
-    for (uint64_t i = begin_; i < end_; i++)
-      Get(i)->~T();
+    std::destroy(src + start, src + start + wrap);
+    std::destroy(src, src + (new_size - wrap));
 
     begin_ = 0;
     end_ = new_size;

@@ -70,6 +70,8 @@ class Writer {
  public:
   void U8(uint8_t value);
   void U32(uint32_t value);
+  void U64(uint64_t value);
+  void F64(double value);
   void Size(size_t value);
   void Str(std::string_view value);
 
@@ -92,6 +94,8 @@ class Reader {
 
   uint8_t U8();
   uint32_t U32();
+  uint64_t U64();
+  double F64();
 
   // At most the bytes left, so a corrupt count cannot allocate much.
   uint32_t Count();
@@ -111,8 +115,8 @@ class Reader {
   bool ok_ = true;
 };
 
-void WriteType(Writer* w, const std::optional<core::StorageType>& type);
-std::optional<core::StorageType> ReadType(Reader* r);
+void WriteType(Writer* w, const PlanType& type);
+PlanType ReadType(Reader* r);
 
 // -----------------------------------------------------------------------------
 // Plan encoding
@@ -141,7 +145,7 @@ class PlanReader {
   explicit PlanReader(Reader& r);
 
   LogicalPlan Read();
-  ColumnId AddColumn(std::string name, std::optional<core::StorageType> type);
+  ColumnId AddColumn(std::string name, PlanType type);
 
   template <typename T>
   PlanNodeId AddNode(T operation, std::vector<PlanNodeId> children = {}) {

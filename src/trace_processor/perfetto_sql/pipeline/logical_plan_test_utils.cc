@@ -23,13 +23,17 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/variant.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/distinct.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/interval_fill_gaps.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 
 namespace perfetto::trace_processor::pipeline {
 namespace {
@@ -72,11 +76,35 @@ const char* TypeName(core::StorageType type) {
 
 std::string ColumnString(const LogicalPlan& plan, ColumnId id) {
   std::string out = "#" + std::to_string(id);
-  if (plan.columns()[id].type) {
+  const PlanType& type = plan.columns()[id].type;
+  if (type.is_null()) {
+    out += ":null";
+  } else if (type.storage()) {
     out += ":";
-    out += TypeName(*plan.columns()[id].type);
+    out += TypeName(*type.storage());
   }
   return out;
+}
+
+// A WHERE predicate's operator, e.g. `=` in `#2 = 5`.
+std::string OpString(const WherePredicate::Op& op) {
+  if (op.Is<core::Eq>()) {
+    return "=";
+  }
+  if (op.Is<core::Ne>()) {
+    return "!=";
+  }
+  if (op.Is<core::Lt>()) {
+    return "<";
+  }
+  if (op.Is<core::Le>()) {
+    return "<=";
+  }
+  if (op.Is<core::Gt>()) {
+    return ">";
+  }
+  PERFETTO_CHECK(op.Is<core::Ge>());
+  return ">=";
 }
 
 }  // namespace
@@ -94,7 +122,11 @@ class LogicalPlanFormatter {
                                            const IntervalFlatten&);
   static std::string IntervalIntersectString(const LogicalPlan&,
                                              const PlanNode&);
+  static std::string IntervalFillGapsString(const LogicalPlan&,
+                                            const PlanNode&);
   static std::string OrderByString(const OrderBy&);
+  static std::string DistinctString(const Distinct&);
+  static std::string WhereString(const Where&);
   static std::string AggregateStageString(const LogicalPlan&,
                                           const AggregateStage&);
   static std::string SubtreeString(const LogicalPlan&, PlanNodeId);
@@ -183,11 +215,57 @@ std::string LogicalPlanFormatter::IntervalIntersectString(
   return out;
 }
 
+std::string LogicalPlanFormatter::IntervalFillGapsString(
+    const LogicalPlan& plan,
+    const PlanNode& node) {
+  const auto& fill = node.Cast<IntervalFillGaps>();
+  std::string out = "IntervalFillGaps(ts=#" + std::to_string(fill.ts_) +
+                    ", dur=#" + std::to_string(fill.dur_);
+  for (ColumnId key : fill.keys_) {
+    out += ", key=#" + std::to_string(key);
+  }
+  out += ")";
+  for (const auto& output : fill.outputs_) {
+    out += "\n  " + ColumnString(plan, output.column) + " <- ";
+    out += "#" + std::to_string(output.input);
+    out += " | ";
+    out +=
+        output.background ? "#" + std::to_string(*output.background) : "null";
+  }
+  out += "\n  background(ts=#" + std::to_string(fill.background_ts_) +
+         ", dur=#" + std::to_string(fill.background_dur_);
+  for (ColumnId key : fill.background_keys_) {
+    out += ", key=#" + std::to_string(key);
+  }
+  return out + ")\n    " +
+         ScanString(plan, plan.nodes()[node.children()[1]].Cast<Scan>());
+}
+
 std::string LogicalPlanFormatter::OrderByString(const OrderBy& order) {
   std::string out = "OrderBy(";
   for (size_t i = 0; i < order.keys_.size(); ++i) {
     out += (i ? ", #" : "#") + std::to_string(order.keys_[i].column) +
            (order.keys_[i].descending ? " DESC" : "");
+  }
+  return out + ")";
+}
+
+std::string LogicalPlanFormatter::DistinctString(const Distinct& distinct) {
+  std::string out = "Distinct(";
+  for (size_t i = 0; i < distinct.columns_.size(); ++i) {
+    out += (i ? ", #" : "#") + std::to_string(distinct.columns_[i]);
+  }
+  return out + ")";
+}
+
+std::string LogicalPlanFormatter::WhereString(const Where& where) {
+  std::string out = "Where(";
+  for (size_t i = 0; i < where.predicates_.size(); ++i) {
+    const WherePredicate& p = where.predicates_[i];
+    out += (i ? ", #" : "#") + std::to_string(p.column) + " " + OpString(p.op) +
+           " " +
+           (p.is_double ? std::to_string(p.double_value)
+                        : std::to_string(p.int_value));
   }
   return out + ")";
 }
@@ -224,6 +302,10 @@ std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
   if (node.Is<IntervalIntersect>()) {
     return IntervalIntersectString(plan, node) + "\n";
   }
+  if (node.Is<IntervalFillGaps>()) {
+    return SubtreeString(plan, node.children()[0]) +
+           IntervalFillGapsString(plan, node) + "\n";
+  }
   if (node.Is<IntervalFlatten>()) {
     return SubtreeString(plan, node.children()[0]) +
            IntervalFlattenString(plan, node.Cast<IntervalFlatten>()) + "\n";
@@ -235,6 +317,14 @@ std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
   if (node.Is<OrderBy>()) {
     return SubtreeString(plan, node.children()[0]) +
            OrderByString(node.Cast<OrderBy>()) + "\n";
+  }
+  if (node.Is<Distinct>()) {
+    return SubtreeString(plan, node.children()[0]) +
+           DistinctString(node.Cast<Distinct>()) + "\n";
+  }
+  if (node.Is<Where>()) {
+    return SubtreeString(plan, node.children()[0]) +
+           WhereString(node.Cast<Where>()) + "\n";
   }
   PERFETTO_FATAL("Unknown plan operation");
 }

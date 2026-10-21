@@ -61,7 +61,7 @@ export default class implements PerfettoPlugin {
     description: string,
   ): Promise<TrackNode> {
     // The titles live under a "Binder" group, so drop the redundant prefix.
-    const sideName = perspective[0].toUpperCase() + perspective.slice(1);
+    const sideName = perspective[0]!.toUpperCase() + perspective.slice(1);
     const binderCounterBreakdowns = new BreakdownTracks({
       trace: ctx,
       trackTitle: `${sideName} Transaction Counts`,
@@ -87,7 +87,7 @@ export default class implements PerfettoPlugin {
         durCol: `${oppositePerspective}_dur`,
       },
       sliceIdColumn: sliceIdColumn,
-      sortTracks: false,
+      sortTracks: true,
       detailsPanel: (trace: Trace) => new BinderSliceDetailsPanel(trace),
     });
 

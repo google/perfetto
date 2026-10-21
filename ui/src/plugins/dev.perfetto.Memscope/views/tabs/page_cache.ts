@@ -197,8 +197,8 @@ function getPageCacheBillboards(
   if (data === undefined || data.series.length < 4) return undefined;
   // Series order: Mapped+Dirty, Mapped+Clean, Unmapped+Dirty, Unmapped+Clean
   const last = (idx: number) => {
-    const pts = data.series[idx].points;
-    return pts.length > 0 ? pts[pts.length - 1].y : 0;
+    const pts = data.series[idx]!.points;
+    return pts.length > 0 ? pts[pts.length - 1]!.y : 0;
   };
   const mappedDirty = last(0);
   const mappedClean = last(1);

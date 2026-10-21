@@ -44,6 +44,9 @@ using AssertTypeTarget = base::TypeSet<Int64, Double, String>;
 // widen to a float only where the conversion is exact; nothing else converts.
 class AssertType final : public Transform {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   AssertType(uint32_t column, AssertTypeTarget type, std::string name);
   ~AssertType() override;
 
@@ -52,6 +55,8 @@ class AssertType final : public Transform {
   base::Status status(const OperatorState&) const override;
 
  private:
+  friend class PipelineFormatter;
+
   struct State : OperatorState {
     explicit State(Context& c) : OperatorState(ResetEachRun{}), context(&c) {}
     ~State() override;
@@ -71,6 +76,33 @@ class AssertType final : public Transform {
   StorageType type_;
   // Used in the error message when a row disagrees.
   std::string name_;
+};
+
+// Replaces an all-null column with an all-null column of `type`. The planner
+// uses this to give a column of Null type the type of the column it is
+// combined with.
+class NullColumn final : public Transform {
+ public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
+  NullColumn(uint32_t column, StorageType type);
+  ~NullColumn() override;
+
+  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  bool Process(RowBatch& batch, OperatorState&) const override;
+
+ private:
+  friend class PipelineFormatter;
+
+  struct State : OperatorState {
+    explicit State(Context& c) : context(&c) {}
+    ~State() override;
+    Context* context;
+  };
+
+  uint32_t column_;
+  StorageType type_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

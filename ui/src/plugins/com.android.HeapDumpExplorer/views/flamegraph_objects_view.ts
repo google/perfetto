@@ -29,6 +29,7 @@ import {
   rowCountHeading,
   COL_INFO,
   colHeader,
+  classNameCellRenderer,
 } from '../components';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
@@ -42,6 +43,7 @@ interface FlamegraphObjectsViewAttrs {
   readonly isDominator: boolean;
   readonly onBackToTimeline?: () => void;
   readonly nodeName?: string;
+  readonly potentiallyMergedClasses: ReadonlySet<string>;
 }
 
 export function flamegraphQuery(
@@ -80,7 +82,10 @@ export function flamegraphQuery(
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(
+  navigate: NavFn,
+  potentiallyMergedClasses: ReadonlySet<string>,
+): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -163,6 +168,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
     cls: {
       title: 'Class',
       columnType: 'text',
+      cellRenderer: classNameCellRenderer(potentiallyMergedClasses),
     },
     str: {
       title: 'String Value',
@@ -186,7 +192,8 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
       counter.dispose();
     },
     view(vnode) {
-      const {navigate, nodeName, onBackToTimeline} = vnode.attrs;
+      const {navigate, nodeName, onBackToTimeline, potentiallyMergedClasses} =
+        vnode.attrs;
       const {pathHashes, isDominator, engine} = vnode.attrs;
 
       const query = pathHashes
@@ -241,7 +248,7 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
             : null,
         },
         m(DataGrid, {
-          schema: makeUiSchema(navigate),
+          schema: makeUiSchema(navigate, potentiallyMergedClasses),
           data: datasource,
           fillHeight: true,
           initialColumns: [

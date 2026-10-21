@@ -199,6 +199,7 @@ pub struct DataSourceArgs {
     callbacks: DsCallbacks,
     buffer_exhausted_policy: DataSourceBufferExhaustedPolicy,
     buffer_exhausted_policy_configurable: bool,
+    supports_tracing_v2: bool,
     will_notify_on_stop: bool,
     handles_incremental_state_clear: bool,
 }
@@ -233,6 +234,15 @@ impl DataSourceArgsBuilder {
         buffer_exhausted_policy_configurable: bool,
     ) -> Self {
         self.args.buffer_exhausted_policy_configurable = buffer_exhausted_policy_configurable;
+        self
+    }
+
+    /// Lets an instance of the data source take a tracing v2 writer when its
+    /// config selects v2. Its packets are then written in the append-only
+    /// format, which `add_packet` sees to.
+    #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
+    pub fn supports_tracing_v2(mut self, supports: bool) -> Self {
+        self.args.supports_tracing_v2 = supports;
         self
     }
 
@@ -375,17 +385,19 @@ impl TraceContextBase {
     where
         F: FnMut(&mut TracePacket),
     {
+        // SAFETY: a zeroed `PerfettoPbMsgWriter` is valid because it only holds
+        // pointers and integers. PerfettoDsTracerImplPacketBegin() overwrites it.
+        let mut impl_writer: PerfettoPbMsgWriter = unsafe { std::mem::zeroed() };
+        // Fills a writer that must be freed using `PerfettoDsTracerImplPacketEnd`.
+        //
+        // SAFETY:
+        //
+        // - `self.iterator.tracer` must be a pointer provided by a call to
+        //   PerfettoDsImplTraceIterateBegin/Next.
+        unsafe { PerfettoDsTracerImplPacketBegin(self.iterator.tracer, &mut impl_writer) };
         let writer = PbMsgWriter {
             writer: StreamWriter {
-                // Returns a writer that must be freed using `PerfettoDsTracerImplPacketEnd`.
-                //
-                // SAFETY:
-                //
-                // - `self.iterator.tracer` must be a pointer provided by a call to
-                //   PerfettoDsImplTraceIterateBegin/Next.
-                writer: RefCell::new(unsafe {
-                    PerfettoDsTracerImplPacketBegin(self.iterator.tracer)
-                }),
+                writer: RefCell::new(impl_writer),
             },
         };
         let mut msg = PbMsg::new(&writer).unwrap();
@@ -807,6 +819,7 @@ impl<'a: 'static, IncrT: Default + Clear> DataSource<'a, IncrT> {
                 ds_impl,
                 args.buffer_exhausted_policy_configurable,
             );
+            PerfettoDsSetSupportsTracingV2(ds_impl, args.supports_tracing_v2);
             let success = PerfettoDsImplRegister(
                 ds_impl,
                 &raw mut self.enabled,

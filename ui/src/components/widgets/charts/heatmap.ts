@@ -21,6 +21,7 @@ import {
   buildBrushOption,
   buildGridOption,
   buildTooltipOption,
+  renderTooltip,
   SELECTION_COLOR,
 } from './chart_option_builder';
 
@@ -174,7 +175,10 @@ function buildHeatmapOption(
         if (v === undefined) return '';
         const xLabel = data.xLabels[v[0]] ?? '';
         const yLabel = data.yLabels[v[1]] ?? '';
-        return [`${xLabel} / ${yLabel}`, `Value: ${fmtVal(v[2])}`].join('<br>');
+        return renderTooltip([
+          m('div', `${xLabel} / ${yLabel}`),
+          m('div', `Value: ${fmtVal(v[2])}`),
+        ]);
       },
     }),
     visualMap: {
@@ -272,11 +276,11 @@ function buildHeatmapEventHandlers(
           if (xMin <= xMax && yMin <= yMax) {
             const selectedX: string[] = [];
             for (let i = xMin; i <= xMax; i++) {
-              selectedX.push(xLabels[i]);
+              selectedX.push(xLabels[i]!);
             }
             const selectedY: string[] = [];
             for (let i = yMin; i <= yMax; i++) {
-              selectedY.push(yLabels[i]);
+              selectedY.push(yLabels[i]!);
             }
             if (selectedX.length > 0 && selectedY.length > 0) {
               onBrush({xLabels: selectedX, yLabels: selectedY});

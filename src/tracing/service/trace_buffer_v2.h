@@ -25,7 +25,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -42,15 +41,12 @@
 #include "src/tracing/service/histogram.h"
 #include "src/tracing/service/proto_group_rewriter.h"
 #include "src/tracing/service/trace_buffer.h"
+#include "src/tracing/service/trace_buffer_protovms.h"
 
 namespace perfetto {
 
 class TracePacket;
 class TraceBufferV2;
-
-namespace protovm {
-class Vm;
-}
 
 namespace internal {
 
@@ -432,20 +428,6 @@ class TraceBufferV2 : public TraceBuffer {
   using Patch = TraceBuffer::Patch;
   using PacketSequenceProperties = TraceBuffer::PacketSequenceProperties;
 
-  // Represents a ProtoVM instance and some metadata
-  struct Vm {
-    Vm();
-    ~Vm();
-    Vm(Vm&&) noexcept;
-    Vm CloneReadOnly() const;
-
-    std::unique_ptr<protovm::Vm> instance;
-    std::string data_source_name;
-    uint64_t program_hash = 0;
-    uint32_t memory_limit_kb = 0;
-    base::FlatSet<ProducerID> producers;
-  };
-
   // Can return nullptr if the memory allocation fails.
   static std::unique_ptr<TraceBufferV2> Create(size_t size_in_bytes,
                                                OverwritePolicy = kOverwrite);
@@ -501,58 +483,34 @@ class TraceBufferV2 : public TraceBuffer {
                              size_t patches_size,
                              bool other_patches_pending) override;
 
-  // Copies an ordered batch of SMB v2 fragments into one TBChunk. The
-  // caller owns the fragment array and payloads; both must remain unchanged
-  // until this call returns.
+  // Returns true. Both SMB v1 and SMB v2 writers can use this buffer, but each
+  // {ProducerID, WriterID} sequence must use one format throughout its
+  // lifetime.
+  bool supports_tracing_v2() const override;
+
+  // Stores the batch in one TBChunk. See TraceBuffer::CopyChunkV2Untrusted()
+  // for ownership, ordering, continuation flags and loss reporting.
   //
-  // The service supplies the producer identity. It assigns writer IDs from
-  // one ID space per producer, shared by SMB v1 and SMB v2 writers.
+  // Invalid input increments abi_violations. This includes a null fragment
+  // array, a nonempty fragment with a null payload, a batch larger than one
+  // TBChunk or than the whole buffer, or a writer ID whose sequence already
+  // holds SMB v1 chunks.
   //
-  // Each fragment is a whole packet, with two exceptions:
-  // - |first_continues_from_prev|: the first fragment continues a packet
-  //   that started in this writer's previous batch.
-  // - |last_continues_on_next|: the last fragment continues in this writer's
-  //   next batch.
-  // The caller decodes these from its transport. A batch the transport marks
-  // as lossy must not be passed here. Call RecordChunkV2DataLoss() instead.
-  //
-  // Returns true if the whole batch was stored. Returns false if the batch
-  // was rejected:
-  // - The rejection of a nonempty batch records loss as RecordChunkV2DataLoss()
-  //   does. An empty batch changes nothing. Empty fragments can have a null
-  //   data pointer.
-  // - Invalid input increments abi_violations: a null payload, a batch larger
-  //   than one TBChunk or than the whole buffer, or a writer ID whose sequence
-  //   already holds SMB chunks. CopyChunkUntrusted() counts the same cases.
-  // - Other rejections increment chunks_discarded: a full kDiscard buffer or
-  //   a producer with a ProtoVM on this buffer.
+  // Rejection because a kDiscard buffer is full or the producer has a ProtoVM
+  // on this buffer increments chunks_discarded. Once a kDiscard buffer stops
+  // accepting writes, it rejects later batches without validating their input.
   bool CopyChunkV2Untrusted(const PacketSequenceProperties& sequence,
                             const protozero::ConstBytes* fragments,
                             size_t num_fragments,
                             bool first_continues_from_prev,
-                            bool last_continues_on_next);
+                            bool last_continues_on_next) override;
 
-  // Records a gap after the last appended SMB v2 batch of this writer.
-  // Packets already in the buffer remain readable. The next appended chunk
-  // carries the gap.
-  //
-  // Does nothing if the buffer holds no SMB v2 state for the writer:
-  // - A loss before the writer's first stored batch is not a sequence gap.
-  // - A caller that cannot identify the destination can call this on every
-  //   candidate buffer. Buffers the writer never used are not changed.
-  void RecordChunkV2DataLoss(ProducerID, WriterID);
+  // Keeps the gap in the writer's SequenceState until the next stored batch
+  // carries it as kChunkLossBefore. If DeleteStaleEmptySequences() prunes the
+  // state before another batch arrives, the pending gap is forgotten.
+  void RecordChunkV2DataLoss(ProducerID, WriterID) override;
 
-  // Increments abi_violations for a violation that the caller found outside
-  // this buffer. Example: the service stops reading a producer's ring buffer
-  // after a protocol error.
-  void RecordAbiViolation();
-
-  void MaybeSetUpProtoVm(const std::string& data_source_name,
-                         const std::string& program_bytes,
-                         uint32_t memory_limit_kb,
-                         ProducerID producer_id);
-
-  const std::vector<Vm>& GetProtoVmInstances() const { return protovms_; }
+  void RecordAbiViolation() override;
 
   // To read the contents of the buffer the caller needs to:
   //   BeginRead()
@@ -615,20 +573,22 @@ class TraceBufferV2 : public TraceBuffer {
   // new buffer will be reset.
   //
   // Calls to CopyChunkUntrusted(), CopyChunkV2Untrusted(),
-  // TryPatchChunkContents() or RecordChunkV2DataLoss() on the returned clone
-  // will CHECK().
+  // TryPatchChunkContents(), RecordChunkV2DataLoss() or RecordAbiViolation()
+  // on the returned clone will CHECK().
   std::unique_ptr<TraceBuffer> CloneReadOnly() const override;
 
+  TraceBufferProtoVms* protovms() override;
+
+  void set_read_only() override { read_only_ = true; }
+  const TraceStats::BufferStats& stats() const override { return stats_; }
+  const WriterStats& writer_stats() const override { return writer_stats_; }
   size_t size() const override { return size_; }
   size_t used_size() const override { return used_size_; }
   size_t GetMemoryUsageBytes() const override;
   OverwritePolicy overwrite_policy() const override {
     return overwrite_policy_;
   }
-  const TraceStats::BufferStats& stats() const override { return stats_; }
-  const WriterStats& writer_stats() const override { return writer_stats_; }
   bool has_data() const override { return has_data_; }
-  void set_read_only() override { read_only_ = true; }
   BufType buf_type() const override { return kV2; }
 
   void DumpForTesting();
@@ -706,7 +666,6 @@ class TraceBufferV2 : public TraceBuffer {
 
   void DiscardWrite();
   void DeleteStaleEmptySequences();
-  void MaybeProcessOverwrittenPacketWithProtoVm(const TracePacket&, ProducerID);
 
   uint8_t* begin() const { return reinterpret_cast<uint8_t*>(data_.Get()); }
   uint8_t* end() const { return begin() + size_; }
@@ -774,7 +733,7 @@ class TraceBufferV2 : public TraceBuffer {
   bool suppress_client_dchecks_for_testing_ = false;
 
   // ProtoVMs used to process overwritten packets (go/perfetto-proto-vm)
-  std::vector<Vm> protovms_;
+  TraceBufferProtoVms protovms_;
 
   // Used to collect slices of the overwritten packet. Note that this is a
   // member variable (instead of local) so that the memory (internal
@@ -782,13 +741,6 @@ class TraceBufferV2 : public TraceBuffer {
   // allocations only when the vector needs to be expanded (in practice only a
   // few times during the initial iterations).
   TracePacket overwritten_packet_;
-
-  // Storage used to re-write overwritten packets (from TBv2) into contiguous
-  // memory to be used as ProtoVM patches (must be continguous to be decoded
-  // with protozero). Note that this is a member variable (instead of local) so
-  // that the memory is re-used across overwritten packets, thus involving
-  // allocations only when the storage needs to be expanded.
-  std::string protovm_patch_;
 
   // Rewrites SMB v2 packets at readback.
   tracing_v2::ProtoGroupRewriter rewriter_;
