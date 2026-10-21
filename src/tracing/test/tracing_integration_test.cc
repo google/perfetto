@@ -116,7 +116,6 @@ class ProducerIPCClientTestPeer {
 namespace {
 
 using testing::_;
-using testing::InvokeWithoutArgs;
 using tracing_service::TracingServiceImpl;
 
 ipc::TestSocket kProducerSock{"tracing_test-producer"};
@@ -676,8 +675,7 @@ TEST_P(InstanceProtocolIntegrationTest, ExplicitWriterUsesRequestedProtocol) {
   writer.reset();
   auto stopped = task_runner_->CreateCheckpoint("instance_stopped");
   EXPECT_CALL(producer_, StopDataSource(instance));
-  EXPECT_CALL(consumer_, OnTracingDisabled(_))
-      .WillOnce(InvokeWithoutArgs(stopped));
+  EXPECT_CALL(consumer_, OnTracingDisabled(_)).WillOnce(stopped);
   consumer_endpoint_->DisableTracing();
   task_runner_->RunUntilCheckpoint("instance_stopped");
 }
@@ -872,8 +870,7 @@ TEST_F(RingBufferTransportIntegrationTest, StopReadsUnflushedRingBufferData) {
         instance = id;
         target = static_cast<BufferID>(setup.target_buffer());
       });
-  EXPECT_CALL(producer_, StartDataSource(_, _))
-      .WillOnce(InvokeWithoutArgs(started));
+  EXPECT_CALL(producer_, StartDataSource(_, _)).WillOnce(started);
   consumer_endpoint_->EnableTracing(RingBufferConfig(descriptor.name()));
   task_runner_->RunUntilCheckpoint("stop_instance_started");
 
@@ -893,8 +890,7 @@ TEST_F(RingBufferTransportIntegrationTest, StopReadsUnflushedRingBufferData) {
   EXPECT_CALL(producer_, StopDataSource(instance)).WillOnce([&] {
     producer_endpoint_->NotifyDataSourceStopped(instance);
   });
-  EXPECT_CALL(consumer_, OnTracingDisabled(_))
-      .WillOnce(InvokeWithoutArgs(stopped));
+  EXPECT_CALL(consumer_, OnTracingDisabled(_)).WillOnce(stopped);
   consumer_endpoint_->DisableTracing();
   task_runner_->RunUntilCheckpoint("stop_done");
 
@@ -1169,8 +1165,7 @@ TEST_F(RingBufferTransportIntegrationTest, EarlyPublicationAndDrain) {
         EXPECT_TRUE(cfg.supports_tracing_v2());
         target = static_cast<BufferID>(cfg.target_buffer());
       });
-  EXPECT_CALL(producer_, StartDataSource(_, _))
-      .WillOnce(InvokeWithoutArgs(started));
+  EXPECT_CALL(producer_, StartDataSource(_, _)).WillOnce(started);
   consumer_endpoint_->EnableTracing(config);
   task_runner_->RunUntilCheckpoint("ring_buffer_started");
 
@@ -1388,8 +1383,7 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   auto on_tracing_disabled =
       task_runner_->CreateCheckpoint("on_tracing_disabled");
   EXPECT_CALL(producer_, StopDataSource(_));
-  EXPECT_CALL(consumer_, OnTracingDisabled(_))
-      .WillOnce(InvokeWithoutArgs(on_tracing_disabled));
+  EXPECT_CALL(consumer_, OnTracingDisabled(_)).WillOnce(on_tracing_disabled);
   task_runner_->RunUntilCheckpoint("on_tracing_disabled");
 }
 
@@ -1409,8 +1403,7 @@ TEST_F(TracingIntegrationTest, ValidErrorOnDisconnection) {
   // Store the arguments passed to SetupDataSource() and later check that they
   // match the ones passed to StartDataSource().
   EXPECT_CALL(producer_, SetupDataSource(_, _));
-  EXPECT_CALL(producer_, StartDataSource(_, _))
-      .WillOnce(InvokeWithoutArgs(on_create_ds_instance));
+  EXPECT_CALL(producer_, StartDataSource(_, _)).WillOnce(on_create_ds_instance);
   task_runner_->RunUntilCheckpoint("on_create_ds_instance");
 
   EXPECT_CALL(consumer_, OnTracingDisabled(_))
@@ -1472,8 +1465,7 @@ TEST_F(TracingIntegrationTest, WriteIntoFile) {
   auto on_tracing_disabled =
       task_runner_->CreateCheckpoint("on_tracing_disabled");
   EXPECT_CALL(producer_, StopDataSource(_));
-  EXPECT_CALL(consumer_, OnTracingDisabled(_))
-      .WillOnce(InvokeWithoutArgs(on_tracing_disabled));
+  EXPECT_CALL(consumer_, OnTracingDisabled(_)).WillOnce(on_tracing_disabled);
   task_runner_->RunUntilCheckpoint("on_tracing_disabled");
 
   // Check that |tmp_file| contains a valid trace.proto message.
@@ -1601,10 +1593,8 @@ TEST_F(TracingIntegrationTestWithSMBScrapingProducer, ScrapeOnFlush) {
   auto on_tracing_disabled =
       task_runner_->CreateCheckpoint("on_tracing_disabled");
   auto on_stop_ds = task_runner_->CreateCheckpoint("on_stop_ds");
-  EXPECT_CALL(producer_, StopDataSource(_))
-      .WillOnce(InvokeWithoutArgs(on_stop_ds));
-  EXPECT_CALL(consumer_, OnTracingDisabled(_))
-      .WillOnce(InvokeWithoutArgs(on_tracing_disabled));
+  EXPECT_CALL(producer_, StopDataSource(_)).WillOnce(on_stop_ds);
+  EXPECT_CALL(consumer_, OnTracingDisabled(_)).WillOnce(on_tracing_disabled);
   task_runner_->RunUntilCheckpoint("on_stop_ds");
   task_runner_->RunUntilCheckpoint("on_tracing_disabled");
 }

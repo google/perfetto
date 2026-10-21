@@ -114,7 +114,6 @@ using ::testing::Eq;
 using ::testing::ExplainMatchResult;
 using ::testing::HasSubstr;
 using ::testing::InSequence;
-using ::testing::InvokeWithoutArgs;
 using ::testing::IsEmpty;
 using ::testing::IsSupersetOf;
 using ::testing::IsTrue;
@@ -1945,18 +1944,16 @@ TEST_F(TracingServiceImplTest, StartTracingTriggerMultipleTraces) {
   auto checkpoint_name = "on_tracing_disabled_consumer_1_and_2";
   auto on_tracing_disabled = task_runner.CreateCheckpoint(checkpoint_name);
   std::atomic<size_t> counter(0);
-  EXPECT_CALL(*consumer_1, OnTracingDisabled(_))
-      .WillOnce(InvokeWithoutArgs([&]() {
-        if (++counter == 2u) {
-          on_tracing_disabled();
-        }
-      }));
-  EXPECT_CALL(*consumer_2, OnTracingDisabled(_))
-      .WillOnce(InvokeWithoutArgs([&]() {
-        if (++counter == 2u) {
-          on_tracing_disabled();
-        }
-      }));
+  EXPECT_CALL(*consumer_1, OnTracingDisabled(_)).WillOnce([&]() {
+    if (++counter == 2u) {
+      on_tracing_disabled();
+    }
+  });
+  EXPECT_CALL(*consumer_2, OnTracingDisabled(_)).WillOnce([&]() {
+    if (++counter == 2u) {
+      on_tracing_disabled();
+    }
+  });
 
   EXPECT_CALL(*producer, StopDataSource(id1));
   EXPECT_CALL(*producer, StopDataSource(id2));
@@ -2592,8 +2589,7 @@ TEST_F(TracingServiceImplTest, CloneSnapshotTriggers) {
 
     std::string checkpoint_name = "clone_done_" + std::to_string(iter);
     auto clone_done = task_runner.CreateCheckpoint(checkpoint_name);
-    EXPECT_CALL(*clone_cons, OnSessionCloned(_))
-        .WillOnce(InvokeWithoutArgs(clone_done));
+    EXPECT_CALL(*clone_cons, OnSessionCloned(_)).WillOnce(clone_done);
     clone_cons->CloneSession(*orig_tsid);
     // CloneSession() will implicitly issue a flush. Linearize with that.
     producer->ExpectFlush(writer.get());
@@ -4744,7 +4740,7 @@ TEST_F(TracingServiceImplTest, BatchFlushes) {
       .WillOnce(Return())
       .WillOnce(Return())
       .WillOnce(SaveArg<0>(&third_flush_id))
-      .WillOnce(InvokeWithoutArgs([checkpoint] { checkpoint(); }));
+      .WillOnce([checkpoint] { checkpoint(); });
 
   auto flush_req_1 = consumer->Flush();
   auto flush_req_2 = consumer->Flush();
@@ -6324,8 +6320,7 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstancesUnregister) {
     change->set_data_source_name("data_source");
     change->set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STARTED);
     EXPECT_CALL(*consumer, OnObservableEvents(Eq(event)))
-        .WillOnce(InvokeWithoutArgs(
-            task_runner.CreateCheckpoint("data_source_started")));
+        .WillOnce(task_runner.CreateCheckpoint("data_source_started"));
 
     task_runner.RunUntilCheckpoint("data_source_started");
   }
@@ -6337,8 +6332,7 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstancesUnregister) {
     change->set_data_source_name("data_source");
     change->set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STOPPED);
     EXPECT_CALL(*consumer, OnObservableEvents(Eq(event)))
-        .WillOnce(InvokeWithoutArgs(
-            task_runner.CreateCheckpoint("data_source_stopped")));
+        .WillOnce(task_runner.CreateCheckpoint("data_source_stopped"));
   }
   producer->UnregisterDataSource("data_source");
   producer->WaitForDataSourceStop("data_source");
@@ -6824,8 +6818,7 @@ TEST_F(TracingServiceImplTest, LifecycleEventCloneMultipleBuffers) {
 
     std::string clone_checkpoint_name = "clone";
     auto clone_done = task_runner.CreateCheckpoint(clone_checkpoint_name);
-    EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
-        .WillOnce(InvokeWithoutArgs(clone_done));
+    EXPECT_CALL(*clone_consumer, OnSessionCloned(_)).WillOnce(clone_done);
 
     std::string producer1_flush_checkpoint_name = "producer1_flush_requested";
     FlushRequestID flush1_req_id;
@@ -7080,8 +7073,7 @@ TEST_F(TracingServiceImplTest, LimitSessionsPerUid) {
   for (int i = 0; i <= kUids; i++) {
     auto* consumer = start_new_session(/*uid=*/static_cast<uid_t>(i) % kUids);
     auto on_fail = task_runner.CreateCheckpoint("uid_" + std::to_string(i));
-    EXPECT_CALL(*consumer, OnTracingDisabled(StrNe("")))
-        .WillOnce(InvokeWithoutArgs(on_fail));
+    EXPECT_CALL(*consumer, OnTracingDisabled(StrNe(""))).WillOnce(on_fail);
   }
 
   // Wait for failure (only after both attempts).
@@ -7509,8 +7501,7 @@ TEST_F(TracingServiceImplTest, TransferOnClone) {
     std::string clone_checkpoint_name = "clone_" + std::to_string(iteration);
     auto clone_done = task_runner.CreateCheckpoint(clone_checkpoint_name);
     base::Uuid clone_uuid;
-    EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
-        .WillOnce(InvokeWithoutArgs(clone_done));
+    EXPECT_CALL(*clone_consumer, OnSessionCloned(_)).WillOnce(clone_done);
     clone_consumer->CloneSession(1);
 
     // CloneSession() will implicitly issue a flush. Linearize with that.
@@ -7610,8 +7601,7 @@ TEST_F(TracingServiceImplTest, ClearBeforeClone) {
   clone_consumer->Connect(svc.get());
 
   auto clone_done = task_runner.CreateCheckpoint("clone_done");
-  EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
-      .WillOnce(InvokeWithoutArgs(clone_done));
+  EXPECT_CALL(*clone_consumer, OnSessionCloned(_)).WillOnce(clone_done);
   clone_consumer->CloneSession(1);
 
   // CloneSession() will implicitly issue a flush. Write some other packets
@@ -7676,8 +7666,7 @@ TEST_F(TracingServiceImplTest, CloneMainSessionStopped) {
   clone_consumer->Connect(svc.get());
 
   auto clone_done = task_runner.CreateCheckpoint("clone_done");
-  EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
-      .WillOnce(InvokeWithoutArgs(clone_done));
+  EXPECT_CALL(*clone_consumer, OnSessionCloned(_)).WillOnce(clone_done);
   clone_consumer->CloneSession(1);
 
   auto packets = clone_consumer->ReadBuffers();
@@ -7867,8 +7856,7 @@ TEST_F(TracingServiceImplTest, CloneTransferFlush) {
 
     std::string clone_checkpoint_name = "clone";
     auto clone_done = task_runner.CreateCheckpoint(clone_checkpoint_name);
-    EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
-        .WillOnce(InvokeWithoutArgs(clone_done));
+    EXPECT_CALL(*clone_consumer, OnSessionCloned(_)).WillOnce(clone_done);
     clone_consumer->CloneSession(1);
 
     std::string producer1_flush_checkpoint_name = "producer1_flush_requested";
@@ -9136,8 +9124,7 @@ TEST_F(TracingServiceImplTest, DetachDurationTimeoutFreeBuffers) {
   // reattaching fails.
   std::string on_attach_name = "on_attach";
   auto on_attach = task_runner.CreateCheckpoint(on_attach_name);
-  EXPECT_CALL(*consumer, OnAttach(Eq(false), _))
-      .WillOnce(InvokeWithoutArgs(on_attach));
+  EXPECT_CALL(*consumer, OnAttach(Eq(false), _)).WillOnce(on_attach);
   consumer->Attach("mykey");
   task_runner.RunUntilCheckpoint(on_attach_name);
 }
