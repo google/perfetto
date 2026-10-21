@@ -46,22 +46,6 @@ const OperationRegistration IntervalIntersect::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION, &BuildPlan,
     OperationRegistration::Encoding{2, true, &DecodePlan}};
 
-namespace {
-
-// The column of a relation named `name`, or nothing when it has none.
-std::optional<ColumnId> FindColumn(const Compiler& c,
-                                   const std::vector<NamedColumn>& columns,
-                                   NameId name) {
-  for (const NamedColumn& column : columns) {
-    if (c.Same(column.name, name)) {
-      return column.id;
-    }
-  }
-  return std::nullopt;
-}
-
-}  // namespace
-
 base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
   c->SetOperation("INTERVAL INTERSECTION");
   const auto* n =
@@ -113,8 +97,8 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
     }
     ASSIGN_OR_RETURN(SourceRelation relation,
                      Scan::BuildRelation(c, source_id));
-    std::optional<ColumnId> ts = FindColumn(*c, relation.columns, ts_name);
-    std::optional<ColumnId> dur = FindColumn(*c, relation.columns, dur_name);
+    std::optional<ColumnId> ts = c->FindColumn(relation.columns, ts_name);
+    std::optional<ColumnId> dur = c->FindColumn(relation.columns, dur_name);
     if (!ts || !dur) {
       return c->Expected(source_id, c->Text(*alias) + " to have a " +
                                         (ts ? "dur" : "ts") + " column");
@@ -123,7 +107,7 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
     operand.ts = *ts;
     operand.dur = *dur;
     for (const auto& [name, col_id] : per_columns) {
-      std::optional<ColumnId> key = FindColumn(*c, relation.columns, name);
+      std::optional<ColumnId> key = c->FindColumn(relation.columns, name);
       if (!key) {
         return c->Expected(col_id, c->Text(*alias) + " to have a " +
                                        c->Text(name) + " column");

@@ -153,6 +153,9 @@ class Compiler {
     return plan_.names().text(name);
   }
   bool Same(NameId a, NameId b) const { return plan_.names().Same(a, b); }
+  // The column in `columns` named `name`, or nullopt if there is none.
+  std::optional<ColumnId> FindColumn(const std::vector<NamedColumn>& columns,
+                                     NameId name) const;
 
   const Alias* FindAlias(NameId name) const;
 

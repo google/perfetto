@@ -218,6 +218,17 @@ const Compiler::Alias* Compiler::FindAlias(NameId name) const {
   return nullptr;
 }
 
+std::optional<ColumnId> Compiler::FindColumn(
+    const std::vector<NamedColumn>& columns,
+    NameId name) const {
+  for (const NamedColumn& column : columns) {
+    if (Same(column.name, name)) {
+      return column.id;
+    }
+  }
+  return std::nullopt;
+}
+
 void Compiler::RemoveAlias(NameId name) {
   scope_.aliases.erase(
       std::remove_if(
@@ -303,9 +314,9 @@ base::StatusOr<ColumnId> Compiler::ResolveColumnExpr(uint32_t expr) {
   }
   std::optional<NameId> table;
   if (IsSpanPresent(ref.table)) {
-    table = plan_.names().Intern(SpanText(p_, ref.table));
+    table = Name(ref.table);
   }
-  return Resolve(table, plan_.names().Intern(SpanText(p_, ref.column)), expr);
+  return Resolve(table, Name(ref.column), expr);
 }
 
 // Resolves an aggregate call like `SUM(column)` to one of the executor's

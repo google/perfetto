@@ -47,18 +47,6 @@ const OperationRegistration IntervalFillGaps::kRegistration{
 
 namespace {
 
-// The column named `name`, or nullopt if there is none.
-std::optional<ColumnId> FindColumn(const Compiler& c,
-                                   const std::vector<NamedColumn>& columns,
-                                   NameId name) {
-  for (const NamedColumn& column : columns) {
-    if (c.Same(column.name, name)) {
-      return column.id;
-    }
-  }
-  return std::nullopt;
-}
-
 // The type of an output column. ts and dur are Int64, since lowering converts
 // them. Other columns get the type both sides convert to. Fillers can make
 // any column null, and Id columns cannot hold nulls, so Id becomes Uint32.
@@ -114,8 +102,8 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
   PlanNodeId input = c->plan().root();
   ASSIGN_OR_RETURN(SourceRelation background,
                    Scan::BuildRelation(c, n->background));
-  std::optional<ColumnId> ts = FindColumn(*c, background.columns, ts_name);
-  std::optional<ColumnId> dur = FindColumn(*c, background.columns, dur_name);
+  std::optional<ColumnId> ts = c->FindColumn(background.columns, ts_name);
+  std::optional<ColumnId> dur = c->FindColumn(background.columns, dur_name);
   if (!ts || !dur) {
     return c->Expected(n->background, std::string("the background to have a ") +
                                           (ts ? "dur" : "ts") + " column");
@@ -123,8 +111,7 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
   fill.background_ts_ = *ts;
   fill.background_dur_ = *dur;
   for (NameId name : per) {
-    if (std::optional<ColumnId> key =
-            FindColumn(*c, background.columns, name)) {
+    if (std::optional<ColumnId> key = c->FindColumn(background.columns, name)) {
       fill.background_keys_.push_back(*key);
     }
   }
@@ -145,8 +132,7 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
     output.input = column.column.id;
     bool bounds = column.column.id == fill.ts_ || column.column.id == fill.dur_;
     if (!column.qualified_only && !bounds && !is_bounds(column.column.name)) {
-      output.background =
-          FindColumn(*c, background.columns, column.column.name);
+      output.background = c->FindColumn(background.columns, column.column.name);
     }
     std::optional<PlanType> type = OutputType(
         types[output.input].type,
