@@ -187,7 +187,7 @@ export class LockContentionBreakdown implements m.ClassComponent<LockContentionB
     const {trace, plugin, rows, monitorThreadStates, monitorBlockedFunctions} =
       attrs;
 
-    const ownerTid = rows.length > 0 ? rows[0].blockingThreadTid : undefined;
+    const ownerTid = rows.length > 0 ? rows[0]!.blockingThreadTid : undefined;
     const customTrackUri =
       ownerTid !== undefined && ownerTid !== null
         ? `com.android.AndroidLockContention#OwnerEvents_Counter_${ownerTid}`
@@ -196,7 +196,7 @@ export class LockContentionBreakdown implements m.ClassComponent<LockContentionB
       ? plugin.pinningManager.isTrackPinned(customTrackUri)
       : false;
 
-    const threadTrackUri = rows.length > 0 ? rows[0].ownerTrackUri : undefined;
+    const threadTrackUri = rows.length > 0 ? rows[0]!.ownerTrackUri : undefined;
     const isThreadPinned = threadTrackUri
       ? plugin.pinningManager.isTrackPinned(threadTrackUri)
       : false;

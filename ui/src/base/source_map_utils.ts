@@ -69,7 +69,7 @@ function getEmbeddedSourceMap(bundleFileName: string): SourceMap | null {
 
   // Try exact match first
   if (bundleFileName in registry) {
-    return registry[bundleFileName];
+    return registry[bundleFileName]!;
   }
 
   // Try to find by partial match (handles different path prefixes)
@@ -114,7 +114,7 @@ export function decodeVLQ(encoded: string): number[] {
 
     do {
       if (i >= encoded.length) break;
-      const digit = BASE64_CHARS.indexOf(encoded[i++]);
+      const digit = BASE64_CHARS.indexOf(encoded[i++]!);
       if (digit === -1) {
         // Handle invalid characters gracefully, though source maps should be valid
         continuation = 0;
@@ -157,15 +157,15 @@ export function preprocessSourceMap(sourceMap: SourceMap): ProcessedSourceMap {
       const decoded = decodeVLQ(segment);
       if (decoded.length === 0) continue;
 
-      genCol += decoded[0];
+      genCol += decoded[0]!;
 
       if (decoded.length >= 4) {
-        sourceIndex += decoded[1];
-        sourceLine += decoded[2];
-        sourceCol += decoded[3];
+        sourceIndex += decoded[1]!;
+        sourceLine += decoded[2]!;
+        sourceCol += decoded[3]!;
         const hasName = decoded.length >= 5;
         if (hasName) {
-          nameIndex += decoded[4];
+          nameIndex += decoded[4]!;
         }
 
         segments.push({
@@ -198,7 +198,7 @@ function binarySearchSegment(
 
   while (left <= right) {
     const mid = Math.floor((left + right) / 2);
-    const segment = segments[mid];
+    const segment = segments[mid]!;
 
     if (segment.genCol <= targetCol) {
       // This could be a match, but check if there's a better one to the right
@@ -230,7 +230,7 @@ export function findOriginalPosition(
     return {source: null, line: null, column: null, name: null};
   }
 
-  const segments = processed.lineSegments[targetLine];
+  const segments = processed.lineSegments[targetLine]!;
   const bestMatch = binarySearchSegment(segments, column);
 
   if (
@@ -246,10 +246,10 @@ export function findOriginalPosition(
       hasNames &&
       bestMatch.nameIndex >= 0 &&
       bestMatch.nameIndex < sourceMap.names.length
-        ? sourceMap.names[bestMatch.nameIndex]
+        ? sourceMap.names[bestMatch.nameIndex]!
         : null;
     return {
-      source: sourceMap.sources[bestMatch.sourceIndex],
+      source: sourceMap.sources[bestMatch.sourceIndex]!,
       line: bestMatch.sourceLine + 1,
       column: bestMatch.sourceCol,
       name,
@@ -273,9 +273,9 @@ export function mapStackTraceWithMinifiedSourceMap(
       continue;
     }
 
-    const file = match[1];
-    const lineNum = parseInt(match[2], 10);
-    const colNum = parseInt(match[3], 10);
+    const file = match[1]!;
+    const lineNum = parseInt(match[2]!, 10);
+    const colNum = parseInt(match[3]!, 10);
 
     try {
       // Extract just the filename from the path

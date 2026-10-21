@@ -152,7 +152,7 @@ export function rows<R extends SpecType>(
   for (const it = queryResult.iter(spec); it.valid(); it.next()) {
     const row: Row = {};
     for (const key of Object.keys(spec)) {
-      row[key] = it[key];
+      row[key] = it[key]!;
     }
     results.push(row as InferRowType<R>);
   }

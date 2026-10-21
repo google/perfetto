@@ -75,7 +75,7 @@ export function fuzzySearch<T>(
     const result = fuzzySearchMultiKey(items, [keyLookup], searchTerm);
     return result.map((res) => ({
       item: res.item,
-      segments: res.segments[0],
+      segments: res.segments[0]!,
       score: res.score,
     }));
   } else {

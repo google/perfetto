@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
+
 from perfetto.common.exceptions import PerfettoException
 from perfetto.trace_processor.protos import ProtoFactory
 from perfetto.trace_processor.backend import TraceProcessorBackend
@@ -20,7 +22,7 @@ from perfetto.trace_processor.backend import TraceProcessorBackend
 def _not_supported_yet(what: str) -> NotImplementedError:
   return NotImplementedError(
       f'{what} is not supported yet when connected to a trace processor '
-      'session; only query() is.')
+      'session; only query() and metric() are.')
 
 
 class TraceProcessorRpc(TraceProcessorBackend):
@@ -48,9 +50,8 @@ class TraceProcessorRpc(TraceProcessorBackend):
     merged here so callers get the same shape TraceProcessorHttp returns.
     """
     stream = self.protos.TraceProcessorRpcStream()
-    # Fill in the request in place inside the stream, so it isn't copied.
-    request = stream.msg.add()
-    request.request = self.protos.TraceProcessorRpc.TPM_QUERY_STREAMING
+    request = self._add_request(
+        stream, self.protos.TraceProcessorRpc.TPM_QUERY_STREAMING)
     request.query_args.sql_query = query
     self.transport.send(stream.SerializeToString())
 
@@ -63,6 +64,21 @@ class TraceProcessorRpc(TraceProcessorBackend):
       if result.batch and result.batch[-1].is_last_batch:
         return result
 
+  def compute_metric(self, metrics: List[str]):
+    """Computes `metrics` and returns a ComputeMetricResult."""
+    stream = self.protos.TraceProcessorRpcStream()
+    request = self._add_request(
+        stream, self.protos.TraceProcessorRpc.TPM_COMPUTE_METRIC)
+    # format is left unset: the default is BINARY_PROTOBUF, as over HTTP.
+    request.compute_metric_args.metric_names.extend(metrics)
+    self.transport.send(stream.SerializeToString())
+
+    # Unlike queries, the server answers with exactly one message.
+    rpc_message = self.protos.TraceProcessorRpc()
+    rpc_message.ParseFromString(self._read_payload())
+    self._check_envelope(rpc_message)
+    return rpc_message.metric_result
+
   def close(self):
     self.transport.close()
 
@@ -70,9 +86,6 @@ class TraceProcessorRpc(TraceProcessorBackend):
   # protocol supports them, but they are not implemented over this client yet,
   # so fail with a clear message.
   # TODO(gabiyev): implement these over the RPC protocol in a follow-up.
-
-  def compute_metric(self, metrics):
-    raise _not_supported_yet('metric()')
 
   def trace_summary(self, specs, metric_ids=None, metadata_query_id=None):
     raise _not_supported_yet('trace_summary()')
@@ -91,6 +104,12 @@ class TraceProcessorRpc(TraceProcessorBackend):
 
   def notify_eof(self):
     raise _not_supported_yet('Loading a trace')
+
+  def _add_request(self, out_rpc_stream, method):
+    """Appends an empty `method` request to `out_rpc_stream` and returns it."""
+    request = out_rpc_stream.msg.add()
+    request.request = method
+    return request
 
   def _check_envelope(self, rpc_message):
     """Raises if the server replied with an error instead of a result.

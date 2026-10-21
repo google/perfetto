@@ -164,7 +164,7 @@ export function renderExtensionServersSettings(
 ): m.Children {
   const servers = setting.get();
   const shareServer = (index: number) => {
-    const server = servers[index];
+    const server = servers[index]!;
     const stripped = stripSecrets(server);
     const json = JSON.stringify(stripped);
     const b64 = base64Encode(utf8Encode(json));
@@ -179,8 +179,8 @@ export function renderExtensionServersSettings(
   const toggleEnabled = (index: number) => {
     const newServers = [...servers];
     newServers[index] = {
-      ...newServers[index],
-      enabled: !newServers[index].enabled,
+      ...newServers[index]!,
+      enabled: !newServers[index]!.enabled,
     };
     setting.set(newServers);
   };
@@ -217,13 +217,13 @@ export function renderExtensionServersSettings(
             [...servers.keys()]
               .sort((a, b) => {
                 const aManaged =
-                  servers[a].origin === 'embedder_managed' ? 0 : 1;
+                  servers[a]!.origin === 'embedder_managed' ? 0 : 1;
                 const bManaged =
-                  servers[b].origin === 'embedder_managed' ? 0 : 1;
+                  servers[b]!.origin === 'embedder_managed' ? 0 : 1;
                 return aManaged - bManaged || a - b;
               })
               .map((idx) => {
-                const server = servers[idx];
+                const server = servers[idx]!;
                 return m(
                   '.pf-extension-servers-settings__item',
                   {key: idx},
@@ -369,7 +369,7 @@ async function maybeAddExtServerFromUrl(
     // Server already configured — replace its enabled modules with those from
     // the shared link and open the edit modal so the user can review.
     await editServer(setting, dupIdx, {
-      ...servers[dupIdx],
+      ...servers[dupIdx]!,
       enabledModules: prefill.enabledModules,
     });
   } else {

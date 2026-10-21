@@ -30,3 +30,24 @@ class Freezer(TestSuite):
             1000000000,4000000000,1234,"com.example.app","FREEZE_APP",0,"UFR_NONE"
             5000000000,0,1234,"com.example.app","UNFREEZE_APP",4,"UFR_ACTIVITY"
             """))
+
+  def test_android_freezer_intervals(self):
+    return DiffTestBlueprint(
+        trace=Path('freezer_intervals.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.freezer;
+        SELECT ts, dur, pid, state
+        FROM _android_freezer_intervals
+        ORDER BY ts, pid;
+        """,
+        out=Csv("""
+        "ts","dur","pid","state"
+        500,-1,400,"UNFROZEN"
+        500,8500,500,"UNFROZEN"
+        1000,2000,200,"UNFROZEN"
+        3000,2000,200,"FROZEN"
+        5000,1000,200,"UNFROZEN"
+        6000,2000,200,"FROZEN"
+        7000,-1,300,"FROZEN"
+        9000,-1,500,"FROZEN"
+        """))

@@ -23,6 +23,7 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "perfetto/public/abi/track_event_hl_abi.h"
@@ -286,11 +287,16 @@ class CorrelationId {
 
   static void delete_correlation_id(CorrelationId* ptr) { delete ptr; }
 
+  const char* set_str(std::string_view val) {
+    str_ = val;
+    return str_.c_str();
+  }
   PerfettoTeHlExtraCorrelationIdUnion* get() { return &correlation_id_; }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(CorrelationId);
   PerfettoTeHlExtraCorrelationIdUnion correlation_id_;
+  std::string str_;
 };
 
 /**
@@ -303,12 +309,17 @@ class DebugArg {
   static void delete_arg(DebugArg* arg) { delete arg; }
 
   const char* name() const { return name_.c_str(); }
+  const char* set_value(std::string_view val) {
+    value_ = val;
+    return value_.c_str();
+  }
   PerfettoTeHlExtraDebugArgUnion* get() { return &arg_; }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(DebugArg);
   PerfettoTeHlExtraDebugArgUnion arg_;
   const std::string name_;
+  std::string value_;
 };
 
 class ProtoField {
@@ -316,11 +327,16 @@ class ProtoField {
   ProtoField() {}
   static void delete_field(ProtoField* field) { delete field; }
 
+  const char* set_str(std::string_view val) {
+    str_ = val;
+    return str_.c_str();
+  }
   PerfettoTeHlProtoFieldUnion* get() { return &arg_; }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(ProtoField);
   PerfettoTeHlProtoFieldUnion arg_;
+  std::string str_;
 };
 
 class ProtoFieldNested {

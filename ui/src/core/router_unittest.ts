@@ -72,6 +72,11 @@ describe('Router.parseUrl', () => {
     const route = Router.parseUrl(url);
     expect(route.fragment).toBe('myfragment');
   });
+
+  test('hideStatusbar parsing', () => {
+    const route = Router.parseUrl('http://localhost/?hideStatusbar=true');
+    expect(route.args.hideStatusbar).toBe(true);
+  });
 });
 
 describe('Router.parseFragment', () => {
@@ -139,5 +144,10 @@ describe('Router.parseFragment', () => {
   test('bad hideSidebar is coerced to default', () => {
     const {args} = Router.parseFragment('#!/?hideSidebar=helloworld!');
     expect(args.hideSidebar).toEqual(undefined);
+  });
+
+  test('bad hideStatusbar is coerced to default', () => {
+    const {args} = Router.parseFragment('#!/?hideStatusbar=helloworld!');
+    expect(args.hideStatusbar).toEqual(undefined);
   });
 });

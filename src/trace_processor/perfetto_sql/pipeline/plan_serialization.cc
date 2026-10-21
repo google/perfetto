@@ -41,6 +41,14 @@ void Writer::U32(uint32_t value) {
   Append(&value, sizeof(value));
 }
 
+void Writer::U64(uint64_t value) {
+  Append(&value, sizeof(value));
+}
+
+void Writer::F64(double value) {
+  Append(&value, sizeof(value));
+}
+
 void Writer::Size(size_t value) {
   U32(static_cast<uint32_t>(value));
 }
@@ -75,6 +83,18 @@ uint8_t Reader::U8() {
 
 uint32_t Reader::U32() {
   uint32_t value = 0;
+  Read(&value, sizeof(value));
+  return value;
+}
+
+uint64_t Reader::U64() {
+  uint64_t value = 0;
+  Read(&value, sizeof(value));
+  return value;
+}
+
+double Reader::F64() {
+  double value = 0;
   Read(&value, sizeof(value));
   return value;
 }
@@ -182,7 +202,9 @@ std::string PlanWriter::Write() {
   while (
       !plan_.nodes()[id].operation().registration().encoding()->is_source()) {
     stages.push_back(&plan_.nodes()[id]);
-    PERFETTO_CHECK(plan_.nodes()[id].children().size() == 1);
+    // A stage's input is its first child. The stage writes any other children
+    // itself, like FILL GAPS writes its background.
+    PERFETTO_CHECK(!plan_.nodes()[id].children().empty());
     id = plan_.nodes()[id].children()[0];
   }
   const PlanNode& source = plan_.nodes()[id];

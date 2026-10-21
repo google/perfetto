@@ -139,7 +139,7 @@ class PhysicalPlanTest : public ::testing::Test {
     LogicalPlan moved = MoveSqlSourcesToDataframeArgs(std::move(plan)).plan;
     RETURN_IF_ERROR(
         BindDataframeArgs(moved, DataframeArgs(dataframes), &pool_));
-    return Lower(moved);
+    return Lower(moved, {&pool_});
   }
 
   std::vector<std::string> Names(const PhysicalPlan& plan) {
@@ -163,7 +163,8 @@ class PhysicalPlanTest : public ::testing::Test {
     }
     Rows out;
     RowCursor cursor(plan.source());
-    for (bool row = cursor.Open(); row; row = cursor.Next()) {
+    for (bool row = cursor.Open(plan.filter_values()); row;
+         row = cursor.Next()) {
       out.emplace_back(*IntAt(cursor, id_column), IntAt(cursor, value_column));
     }
     if (!cursor.status().ok()) {
@@ -195,7 +196,7 @@ TEST_F(PhysicalPlanTest, PruningACopyLeavesTheOriginalResultsIntact) {
   copy.output().resize(1);
   PruneColumns(copy);
 
-  auto physical = Lower(*original);
+  auto physical = Lower(*original, {&pool_});
   ASSERT_TRUE(physical.ok()) << physical.status().message();
   auto rows = Run(**physical, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
@@ -289,6 +290,46 @@ TEST_F(PhysicalPlanTest, OnlySmallBatchesAreCombined) {
             "IntervalFlatten(#0, #1; COUNT(*)) | CombineBatches | Sort(#2)");
 }
 
+// DISTINCT compares only the columns of the row at that stage: `id`, dropped
+// before it, does not make rows differ.
+TEST_F(PhysicalPlanTest, DistinctComparesTheRowAtItsStage) {
+  Exec("CREATE TABLE t(id INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO t VALUES (0, 1), (1, 2), (2, 1), (3, 3), (4, 2)");
+  auto plan = Plan("FROM t |> SELECT cpu |> DISTINCT");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+
+  uint32_t cpu_column = (*plan)->columns()[0].index;
+  std::vector<int64_t> values;
+  RowCursor cursor((*plan)->source());
+  for (bool row = cursor.Open(); row; row = cursor.Next()) {
+    values.push_back(*IntAt(cursor, cpu_column));
+  }
+  ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
+  EXPECT_THAT(values, ElementsAre(1, 2, 3));
+}
+
+// WHERE keeps the rows matching every comparison. A literal is compared as
+// SQL compares it with the column, whatever their types: an integer column
+// with a fraction and a double column with an integer. The columns keep their
+// types. Each comparison drops at least one row.
+TEST_F(PhysicalPlanTest, WhereKeepsRowsMatchingEveryComparison) {
+  Exec("CREATE TABLE t(cpu INTEGER, value REAL)");
+  Exec("INSERT INTO t VALUES (1, 3.5), (5, 2.5), (3, 1.5), (9, 3.5), (7, 2.5)");
+  auto plan = Plan(
+      "FROM t |> WHERE cpu > 2.5 AND cpu < 9 AND value >= 2 |> SELECT cpu");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+
+  uint32_t cpu_column = (*plan)->columns()[0].index;
+  std::vector<int64_t> values;
+  RowCursor cursor((*plan)->source());
+  for (bool row = cursor.Open((*plan)->filter_values()); row;
+       row = cursor.Next()) {
+    values.push_back(*IntAt(cursor, cpu_column));
+  }
+  ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
+  EXPECT_THAT(values, ElementsAre(5, 7));
+}
+
 // Each operand is grouped by its PER keys and sorted by ts within each group,
 // unless it already is.
 TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {
@@ -303,14 +344,33 @@ TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {
   // ts and dur are converted to Int64. So is cpu, because it has a different
   // integer type in each dataframe.
   EXPECT_EQ(PhysicalPlanToString(**plan),
-            "side: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | AssertType(#2 to Int64) | "
+            "side: DataframeScan | AssertType(#2 to Int64) | "
+            "AssertType(#0 to Int64) | AssertType(#1 to Int64) | "
             "GroupedSort(#2; #0)\n"
-            "side: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | AssertType(#2 to Int64) | "
+            "side: DataframeScan | AssertType(#2 to Int64) | "
+            "AssertType(#0 to Int64) | AssertType(#1 to Int64) | "
             "GroupedSort(#2; #0)\n"
             "main: IntervalIntersect(#0, #1, keys: #2, groups: #3; #0, #1, "
             "keys: #2, groups: #3)");
+}
+
+// The input is grouped by its PER columns and sorted by ts within each group.
+// The background is read from a side pipeline and sorted by ts within each of
+// its lanes.
+TEST_F(PhysicalPlanTest, FillGapsOrdersBothSides) {
+  Exec("CREATE TABLE spans(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO spans VALUES (5, 1, 1), (0, 1, 0)");
+  Exec("CREATE TABLE windows(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO windows VALUES (9, 10, 1), (0, 10, 0)");
+  auto plan = Plan("FROM spans |> INTERVAL FILL GAPS WITH windows PER cpu");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "side: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0)\n"
+            "main: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0) | "
+            "IntervalFillGaps(#0, #1, keys: #2, groups: #3; "
+            "background: #0, #1, keys: #2, groups: #3)");
 }
 
 // An intersection needs its operands' bounds and PER columns, but only passes
@@ -437,7 +497,7 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
   EXPECT_TRUE(moved.args.empty());
   auto read = DeserializePlan(SerializePlan(moved.plan), catalog_);
   ASSERT_TRUE(read.ok()) << read.status().message();
-  auto lowered = Lower(*read);
+  auto lowered = Lower(*read, {&pool_});
   ASSERT_TRUE(lowered.ok()) << lowered.status().message();
   EXPECT_THAT(Names(**lowered),
               ElementsAre("id", "parent_id", "own", "copy", "total"));

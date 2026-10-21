@@ -56,9 +56,9 @@ describe('clipboard_operations', () => {
 
       expect(result).toBeDefined();
       expect(result?.clipboardNodes).toHaveLength(1);
-      expect(result?.clipboardNodes[0].relativeX).toBe(0);
-      expect(result?.clipboardNodes[0].relativeY).toBe(0);
-      expect(result?.clipboardNodes[0].isDocked).toBe(false);
+      expect(result?.clipboardNodes[0]!.relativeX).toBe(0);
+      expect(result?.clipboardNodes[0]!.relativeY).toBe(0);
+      expect(result?.clipboardNodes[0]!.isDocked).toBe(false);
     });
 
     it('should compute relative positions for multiple nodes', () => {
@@ -76,11 +76,11 @@ describe('clipboard_operations', () => {
       expect(result).toBeDefined();
       expect(result?.clipboardNodes).toHaveLength(2);
       // First node is at origin (min x/y)
-      expect(result?.clipboardNodes[0].relativeX).toBe(0);
-      expect(result?.clipboardNodes[0].relativeY).toBe(0);
+      expect(result?.clipboardNodes[0]!.relativeX).toBe(0);
+      expect(result?.clipboardNodes[0]!.relativeY).toBe(0);
       // Second node is offset
-      expect(result?.clipboardNodes[1].relativeX).toBe(200);
-      expect(result?.clipboardNodes[1].relativeY).toBe(200);
+      expect(result?.clipboardNodes[1]!.relativeX).toBe(200);
+      expect(result?.clipboardNodes[1]!.relativeY).toBe(200);
     });
 
     it('should mark nodes without layout as docked', () => {
@@ -94,8 +94,8 @@ describe('clipboard_operations', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result?.clipboardNodes[0].isDocked).toBe(false);
-      expect(result?.clipboardNodes[1].isDocked).toBe(true);
+      expect(result?.clipboardNodes[0]!.isDocked).toBe(false);
+      expect(result?.clipboardNodes[1]!.isDocked).toBe(true);
     });
 
     it('should clone nodes for the clipboard', () => {
@@ -108,7 +108,7 @@ describe('clipboard_operations', () => {
 
       expect(result).toBeDefined();
       // Cloned node should not be the same object reference
-      expect(result?.clipboardNodes[0].node).not.toBe(node);
+      expect(result?.clipboardNodes[0]!.node).not.toBe(node);
     });
 
     it('should capture primaryInput connections between selected nodes', () => {
@@ -127,9 +127,9 @@ describe('clipboard_operations', () => {
 
       expect(result).toBeDefined();
       expect(result?.clipboardConnections).toHaveLength(1);
-      expect(result?.clipboardConnections[0].fromIndex).toBe(0);
-      expect(result?.clipboardConnections[0].toIndex).toBe(1);
-      expect(result?.clipboardConnections[0].portIndex).toBeUndefined();
+      expect(result?.clipboardConnections[0]!.fromIndex).toBe(0);
+      expect(result?.clipboardConnections[0]!.toIndex).toBe(1);
+      expect(result?.clipboardConnections[0]!.portIndex).toBeUndefined();
     });
 
     it('should not capture connections to nodes outside the selection', () => {
@@ -170,7 +170,7 @@ describe('clipboard_operations', () => {
 
       expect(result).toBeDefined();
       expect(result?.clipboardConnections).toHaveLength(1);
-      expect(result?.clipboardConnections[0].portIndex).toBe(0);
+      expect(result?.clipboardConnections[0]!.portIndex).toBe(0);
     });
   });
 
@@ -231,7 +231,7 @@ describe('clipboard_operations', () => {
       expect(result).toBeDefined();
       expect(result?.selectedNodes.size).toBe(1);
       // The selected ID should be the NEW (cloned) node's ID, not the clipboard node
-      const pastedNodeId = result?.rootNodes[0].nodeId;
+      const pastedNodeId = result?.rootNodes[0]!.nodeId;
       expect(result?.selectedNodes.has(pastedNodeId ?? '')).toBe(true);
     });
 
@@ -250,7 +250,7 @@ describe('clipboard_operations', () => {
       );
 
       expect(result).toBeDefined();
-      const pastedNodeId = result?.rootNodes[0].nodeId ?? '';
+      const pastedNodeId = result?.rootNodes[0]!.nodeId ?? '';
       const layout = result?.nodeLayouts.get(pastedNodeId);
       expect(layout).toBeDefined();
       // relativeX + pasteOffsetX (50), relativeY + pasteOffsetY (50)
@@ -273,7 +273,7 @@ describe('clipboard_operations', () => {
       );
 
       expect(result).toBeDefined();
-      const pastedNodeId = result?.rootNodes[0].nodeId ?? '';
+      const pastedNodeId = result?.rootNodes[0]!.nodeId ?? '';
       expect(result?.nodeLayouts.has(pastedNodeId)).toBe(false);
     });
 
@@ -312,8 +312,8 @@ describe('clipboard_operations', () => {
       expect(result2).toBeDefined();
       expect(result2?.rootNodes).toHaveLength(2);
       // The two pasted nodes should have different IDs
-      expect(result2?.rootNodes[0].nodeId).not.toBe(
-        result2?.rootNodes[1].nodeId,
+      expect(result2?.rootNodes[0]!.nodeId).not.toBe(
+        result2?.rootNodes[1]!.nodeId,
       );
     });
 

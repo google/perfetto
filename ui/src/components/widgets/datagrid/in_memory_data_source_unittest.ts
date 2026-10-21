@@ -15,7 +15,7 @@
 import type {Row} from '../../../trace_processor/query_result';
 import type {FlatModel} from './data_source';
 import {InMemoryDataSource} from './in_memory_data_source';
-import type {Filter} from './model';
+import type {Filter, QuickFilter} from './model';
 
 describe('InMemoryDataSource', () => {
   const sampleData: ReadonlyArray<Row> = [
@@ -97,12 +97,14 @@ describe('InMemoryDataSource', () => {
   function makeModel(options?: {
     columns?: FlatModel['columns'];
     filters?: readonly Filter[];
+    quickFilter?: QuickFilter;
     sort?: FlatModel['sort'];
   }): FlatModel {
     return {
       mode: 'flat',
       columns: options?.columns ?? defaultColumns,
       filters: options?.filters,
+      quickFilter: options?.quickFilter,
       sort: options?.sort,
     };
   }
@@ -125,7 +127,7 @@ describe('InMemoryDataSource', () => {
       const filters: Filter[] = [{field: 'name', op: '=', value: 'Alice'}];
       const result = dataSource.useRows(makeModel({filters}));
       expect(result.totalRows).toBe(1);
-      expect(result.rows?.[0].name).toBe('Alice');
+      expect(result.rows?.[0]!.name).toBe('Alice');
     });
 
     test('inequality filter', () => {
@@ -169,7 +171,7 @@ describe('InMemoryDataSource', () => {
       const filters: Filter[] = [{field: 'value', op: 'is null'}];
       const result = dataSource.useRows(makeModel({filters}));
       expect(result.totalRows).toBe(1);
-      expect(result.rows?.[0].id).toBe(4); // David
+      expect(result.rows?.[0]!.id).toBe(4); // David
     });
 
     test('is not null filter', () => {
@@ -183,14 +185,14 @@ describe('InMemoryDataSource', () => {
       const filters: Filter[] = [{field: 'name', op: 'glob', value: 'A*e'}];
       const result = dataSource.useRows(makeModel({filters}));
       expect(result.totalRows).toBe(1);
-      expect(result.rows?.[0].name).toBe('Alice');
+      expect(result.rows?.[0]!.name).toBe('Alice');
     });
 
     test('glob filter with ?', () => {
       const filters: Filter[] = [{field: 'name', op: 'glob', value: 'B?b'}];
       const result = dataSource.useRows(makeModel({filters}));
       expect(result.totalRows).toBe(1);
-      expect(result.rows?.[0].name).toBe('Bob');
+      expect(result.rows?.[0]!.name).toBe('Bob');
     });
 
     test('multiple filters', () => {
@@ -213,6 +215,55 @@ describe('InMemoryDataSource', () => {
       const result = dataSource.useRows(makeModel({filters}));
       expect(result.totalRows).toBe(0);
       expect(result.rows?.length).toBe(0);
+    });
+  });
+
+  describe('quick filter', () => {
+    const ids = (model: FlatModel) =>
+      dataSource.useRows(model).rows?.map((r) => r.id);
+
+    test('keeps rows where any field matches, ignoring case', () => {
+      const quickFilter = {text: 'AL', fields: ['name', 'tag']};
+      // Alice (name), Mallory (name).
+      expect(ids(makeModel({quickFilter}))).toEqual([1, 6]);
+    });
+
+    test('only looks in the given fields', () => {
+      const quickFilter = {text: 'a', fields: ['tag']};
+      expect(ids(makeModel({quickFilter}))).toEqual([1, 3, 7]);
+    });
+
+    test('never matches a field that is missing from the row', () => {
+      // A missing value must not be treated as the text "undefined".
+      const quickFilter = {text: 'undefined', fields: ['missing']};
+      expect(ids(makeModel({quickFilter}))).toEqual([]);
+    });
+
+    test('can look in a field with a dot in the name', () => {
+      // 'foo..bar' is the escaped path for the 'foo.bar' key.
+      const quickFilter = {text: 'value 3', fields: ['foo..bar']};
+      // Charlie, Mallory.
+      expect(ids(makeModel({quickFilter}))).toEqual([3, 6]);
+    });
+
+    test('empty text keeps all rows', () => {
+      const quickFilter = {text: '', fields: ['name']};
+      expect(dataSource.useRows(makeModel({quickFilter})).totalRows).toBe(
+        sampleData.length,
+      );
+    });
+
+    test('is combined with filters using AND', () => {
+      const filters: Filter[] = [{field: 'active', op: '=', value: 1}];
+      const quickFilter = {text: 'e', fields: ['name']};
+      // Alice, Charlie, Eve, Trent have an 'e' and are active.
+      expect(ids(makeModel({filters, quickFilter}))).toEqual([1, 3, 5, 7]);
+    });
+
+    test('changing the quick filter text recomputes rows', () => {
+      const fields = ['name'];
+      expect(ids(makeModel({quickFilter: {text: 'bob', fields}}))).toEqual([2]);
+      expect(ids(makeModel({quickFilter: {text: 'eve', fields}}))).toEqual([5]);
     });
   });
 
@@ -312,6 +363,126 @@ describe('InMemoryDataSource', () => {
     });
   });
 
+  describe('aggregate summaries', () => {
+    function summarize(model: FlatModel) {
+      dataSource.useRows(model);
+      const result = dataSource.useAggregateSummaries(model);
+      expect(result.isPending).toBe(false);
+      return result.data;
+    }
+
+    test('returns an empty row when no columns have aggregates', () => {
+      expect(summarize(makeModel())).toEqual({});
+    });
+
+    test('computes aggregates over numeric values, ignoring nulls', () => {
+      // Values: 100, 200, 150, null, 100, 300n, 250n
+      const summaries = summarize(
+        makeModel({
+          columns: [
+            {field: 'value', alias: 'sum', aggregate: 'SUM'},
+            {field: 'value', alias: 'avg', aggregate: 'AVG'},
+            {field: 'value', alias: 'min', aggregate: 'MIN'},
+            {field: 'value', alias: 'max', aggregate: 'MAX'},
+            {field: 'value', alias: 'distinct', aggregate: 'COUNT_DISTINCT'},
+            {field: 'value', alias: 'p25', aggregate: 'P25'},
+            {field: 'value', alias: 'p50', aggregate: 'P50'},
+          ],
+        }),
+      );
+      expect(summaries).toEqual({
+        sum: 1100,
+        avg: 1100 / 6,
+        min: 100,
+        max: 300n,
+        distinct: 5,
+        p25: 112.5,
+        p50: 175,
+      });
+    });
+
+    test('computes aggregates over string values', () => {
+      const summaries = summarize(
+        makeModel({
+          columns: [
+            {field: 'name', alias: 'any', aggregate: 'ANY'},
+            {field: 'name', alias: 'min', aggregate: 'MIN'},
+            {field: 'name', alias: 'max', aggregate: 'MAX'},
+            {field: 'tag', alias: 'distinct', aggregate: 'COUNT_DISTINCT'},
+          ],
+        }),
+      );
+      expect(summaries).toEqual({
+        any: 'Alice',
+        min: 'Alice',
+        max: 'Trent',
+        distinct: 3,
+      });
+    });
+
+    test('keeps bigint precision when summing only bigints', () => {
+      // Tag C: David (null), Mallory (300n)
+      const summaries = summarize(
+        makeModel({
+          columns: [{field: 'value', alias: 'sum', aggregate: 'SUM'}],
+          filters: [{field: 'tag', op: '=', value: 'C'}],
+        }),
+      );
+      expect(summaries).toEqual({sum: 300n});
+    });
+
+    test('returns null (or 0 for COUNT_DISTINCT) when all values are null', () => {
+      const summaries = summarize(
+        makeModel({
+          columns: [
+            {field: 'value', alias: 'sum', aggregate: 'SUM'},
+            {field: 'value', alias: 'avg', aggregate: 'AVG'},
+            {field: 'value', alias: 'max', aggregate: 'MAX'},
+            {field: 'value', alias: 'p50', aggregate: 'P50'},
+            {field: 'value', alias: 'distinct', aggregate: 'COUNT_DISTINCT'},
+          ],
+          filters: [{field: 'name', op: '=', value: 'David'}],
+        }),
+      );
+      expect(summaries).toEqual({
+        sum: null,
+        avg: null,
+        max: null,
+        p50: null,
+        distinct: 0,
+      });
+    });
+
+    test('aggregates only over filtered rows', () => {
+      const columns: FlatModel['columns'] = [
+        {field: 'value', alias: 'sum', aggregate: 'SUM'},
+      ];
+      expect(summarize(makeModel({columns}))).toEqual({sum: 1100});
+
+      // Active: Alice (100), Charlie (150), Eve (100), Trent (250n)
+      const filters: Filter[] = [{field: 'active', op: '=', value: 1}];
+      expect(summarize(makeModel({columns, filters}))).toEqual({sum: 600});
+    });
+
+    test('recomputes when the aggregate function changes', () => {
+      expect(
+        summarize(
+          makeModel({
+            columns: [{field: 'value', alias: 'value', aggregate: 'SUM'}],
+          }),
+        ),
+      ).toEqual({value: 1100});
+
+      expect(
+        summarize(
+          makeModel({
+            columns: [{field: 'value', alias: 'value', aggregate: 'MIN'}],
+          }),
+        ),
+      ).toEqual({value: 100});
+    });
+  });
+
   describe('caching behavior', () => {
     test('data is not reprocessed if columns and filters are identical', () => {
       const filters: Filter[] = [{field: 'tag', op: '=', value: 'A'}];
@@ -367,11 +538,11 @@ describe('InMemoryDataSource', () => {
 
       const result1 = dataSource.useRows(makeModel({filters: filters1}));
       expect(result1.rows?.length).toBe(1);
-      expect(result1.rows?.[0].id).toBe(1);
+      expect(result1.rows?.[0]!.id).toBe(1);
 
       const result2 = dataSource.useRows(makeModel({filters: filters2}));
       expect(result2.rows?.length).toBe(1);
-      expect(result2.rows?.[0].id).toBe(2);
+      expect(result2.rows?.[0]!.id).toBe(2);
 
       expect(result1.rows).not.toBe(result2.rows);
     });

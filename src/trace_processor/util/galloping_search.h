@@ -17,9 +17,73 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_GALLOPING_SEARCH_H_
 #define SRC_TRACE_PROCESSOR_UTIL_GALLOPING_SEARCH_H_
 
+#include <cstddef>
 #include <cstdint>
 
+#include "perfetto/public/compiler.h"
+
 namespace perfetto::trace_processor {
+
+// Ranges this short are scanned rather than halved: the elements share a cache
+// line or two, so comparing each is cheaper than branching on halves.
+inline constexpr size_t kGallopingLinearScan = 16;
+
+// std::partition_point over [begin, end), where `pred` holds for a prefix of
+// the range: binary search until few elements are left, then a scan.
+template <typename T, typename Pred>
+const T* PartitionPoint(const T* begin, const T* end, Pred pred) {
+  while (static_cast<size_t>(end - begin) > kGallopingLinearScan) {
+    const T* mid = begin + (end - begin) / 2;
+    if (pred(*mid)) {
+      begin = mid + 1;
+    } else {
+      end = mid;
+    }
+  }
+  while (begin != end && pred(*begin)) {
+    ++begin;
+  }
+  return begin;
+}
+
+namespace internal {
+
+// The rest of GallopingPartitionPoint, once `pred` is known to hold for the
+// first kGallopingLinearScan elements: probes at doubling distances, then
+// searches the last gap. Out of line, so callers inline only the scan.
+template <typename T, typename Pred>
+PERFETTO_NO_INLINE const T* Gallop(const T* begin, const T* end, Pred pred) {
+  auto size = static_cast<size_t>(end - begin);
+  size_t lo = kGallopingLinearScan;
+  size_t hi = size;
+  for (size_t step = kGallopingLinearScan; lo + step < size; step *= 2) {
+    if (!pred(begin[lo + step])) {
+      hi = lo + step;
+      break;
+    }
+    lo += step + 1;
+  }
+  return PartitionPoint(begin + lo, begin + hi, pred);
+}
+
+}  // namespace internal
+
+// As PartitionPoint, but in O(log d) for a point d elements from `begin`:
+// scans the first few elements, then probes at doubling distances and
+// searches only the last gap. For when the point is likely near `begin`.
+template <typename T, typename Pred>
+PERFETTO_ALWAYS_INLINE inline const T* GallopingPartitionPoint(const T* begin,
+                                                               const T* end,
+                                                               Pred pred) {
+  // A fixed trip count, not min(size, kGallopingLinearScan), so the scan
+  // unrolls with nothing to compute before it.
+  for (size_t i = 0; i < kGallopingLinearScan; ++i) {
+    if (begin + i == end || !pred(begin[i])) {
+      return begin + i;
+    }
+  }
+  return internal::Gallop(begin, end, pred);
+}
 
 // Galloping (exponential) search optimized for sorted queries.
 //

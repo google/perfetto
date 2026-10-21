@@ -85,8 +85,8 @@ function toArgOrCol(e: RawEntry): ArgOrCol {
     name: e.name,
     type: e.type,
     desc: e.description,
-    table: m ? m[1] : null,
-    column: m ? m[2] : null,
+    table: m ? m[1]! : null,
+    column: m ? m[2]! : null,
   };
 }
 

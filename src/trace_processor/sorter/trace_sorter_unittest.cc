@@ -272,6 +272,45 @@ TEST_F(TraceSorterTest, OutOfOrder) {
       2);
 }
 
+// Sorts events which straddle the point where the queue's memory wraps around.
+TEST_F(TraceSorterTest, SortAcrossQueueWrap) {
+  CreateSorter(false);
+
+  auto sink = std::make_unique<MockSink<FtraceEventData>>();
+  auto* sink_ptr = sink.get();
+  auto stream = context_.sorter->CreateStream(std::move(sink));
+  std::vector<int64_t> parsed;
+  EXPECT_CALL(*sink_ptr, MockParse(_, _))
+      .WillRepeatedly(
+          [&parsed](int64_t ts, FtraceEventData) { parsed.push_back(ts); });
+
+  // Fill most of the queue's 1024 slots in order, then extract them all so the
+  // next events are pushed from near the end of its memory.
+  TraceBlobView tbv(TraceBlob::Allocate(1));
+  constexpr int64_t kFirst = 1000;
+  for (int64_t i = 0; i < kFirst; ++i) {
+    stream->Push(i, {tbv.slice_off(0, 1), 0});
+  }
+  for (int i = 0; i < 2; ++i) {
+    context_.sorter->NotifyFlushEvent();
+    context_.sorter->NotifyFlushEvent();
+    context_.sorter->NotifyReadBufferEvent();
+  }
+  ASSERT_EQ(parsed.size(), static_cast<size_t>(kFirst));
+
+  // Push in reverse, so all of them need sorting.
+  constexpr int64_t kSecond = 100;
+  for (int64_t i = kSecond - 1; i >= 0; --i) {
+    stream->Push(kFirst + i, {tbv.slice_off(0, 1), 0});
+  }
+  context_.sorter->ExtractEventsForced();
+
+  ASSERT_EQ(parsed.size(), static_cast<size_t>(kFirst + kSecond));
+  for (size_t i = 0; i < parsed.size(); ++i) {
+    EXPECT_EQ(parsed[i], static_cast<int64_t>(i));
+  }
+}
+
 // Simulates a random stream of ftrace events happening on random CPUs.
 // Tests that the output of the TraceSorter matches the timestamp order
 // (% events happening at the same time on different CPUs).

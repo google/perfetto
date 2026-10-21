@@ -52,7 +52,7 @@ export function describeDevice(
 ): string {
   const parts: string[] = [];
   const part = (values: ReadonlyArray<string>, noun: string) => {
-    if (values.length === 1) parts.push(values[0]);
+    if (values.length === 1) parts.push(values[0]!);
     else if (values.length > 1) parts.push(count(values.length, noun));
   };
   part(formFactors, 'form factor');

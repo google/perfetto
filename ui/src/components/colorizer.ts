@@ -115,7 +115,7 @@ export const UNEXPECTED_PINK = makeColorScheme(new HSLColor([330, 100, 70]));
 // based on a string seed.
 export function materialColorScheme(seed: string): ColorScheme {
   const colorIdx = hash(seed, MD_PALETTE.length);
-  return MD_PALETTE[colorIdx];
+  return MD_PALETTE[colorIdx]!;
 }
 
 const proceduralColorCache = new Map<string, ColorScheme>();
@@ -167,14 +167,14 @@ export function colorForThread(thread?: {
 export function colorForPriority(priority: number): ColorScheme {
   if (priority < 100) {
     // Realtime scheduling priorities (0..99) -> Red
-    return MD_PALETTE[0];
+    return MD_PALETTE[0]!;
   }
   if (priority < 120) {
     // High priority CFS tasks (100..119) -> Yellow
-    return MD_PALETTE[17];
+    return MD_PALETTE[17]!;
   }
   // Priority 120 onwards (nice >= 0) -> Blue
-  return MD_PALETTE[5];
+  return MD_PALETTE[5]!;
 }
 
 export function colorForCpu(cpu: number): Color {

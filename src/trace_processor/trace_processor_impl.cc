@@ -40,6 +40,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/io.h"
@@ -1243,6 +1244,12 @@ base::Status TraceProcessorImpl::Export(ExportFormat format,
     if (!file_system) {
       return base::ErrStatus("SQLite export requires a file system");
     }
+    // ATTACH-write is disabled by default; re-enable it for this local-only
+    // export.
+    SqliteConnection* conn = engine_->sqlite_connection();
+    conn->SetAttachCreateWriteEnabled(true);
+    auto reset_attach =
+        base::OnScopeExit([conn] { conn->SetAttachCreateWriteEnabled(false); });
     return ExportSqliteDatabase(this, file_system, *path);
   }
   return trace_export::WriteExport(
