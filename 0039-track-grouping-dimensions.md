@@ -49,12 +49,12 @@ instances of, and surface it through a single labeling layer. The goal is:
 3. Expose every dimension through one typed, queryable trace_processor surface,
    independent of whether it came from a typed descriptor, import context, or a
    producer-declared custom value.
-4. Turn collapse-and-label behavior into **shared presentation helpers** — so
-   machine and custom dimensions use them directly, GPU's existing hierarchy
-   consumes the same label metadata, and details panels show the same values.
+4. Provide **source-independent shared presentation** from that query surface.
+   The first UI revision labels custom dimensions with existing track chips;
+   migration of specialized well-known presentation is a separate phase.
 
-A dimension is first a trace_processor/query concept. Track subtitles are its
-normal timeline presentation, but not its only surface: dimensions are also
+A dimension is first a trace_processor/query concept. Custom chips are the
+initial timeline presentation, but not the only surface: dimensions are also
 available to SQL, details panels, and specialized UI. A well-known dimension can
 have specialized presentation — GPU hierarchy today — without becoming a
 special data model. Hierarchy for system-wide concepts comes from
@@ -68,14 +68,23 @@ workload-specific dimension; **rank** is used only as a concrete example of one.
 
 Adopt `Dimension` / `TrackDescriptor.dimensions` as a producer surface and
 normalize custom and well-known dimensions into one typed, track-keyed
-trace_processor relation. A dimension applies to the track which declares it and
-its `parent_uuid` descendants, whatever the kind of track: process and thread
-tracks get no special inheritance. Conflicting child overrides are invalid. The
-standard UI presentation is a multi-label track subtitle, details tabs show the
-same resolved values, and specialized consumers such as GPU hierarchy use the
-same TP data and label helpers. The initial well-known set is `machine`, `gpu`,
-`cpu`, `process`, and `thread`; custom string data is interned; numbering is per
-source trace and machine.
+trace_processor relation. Custom dimensions apply to the declaring track and
+its `parent_uuid` descendants; process/thread association is not inheritance.
+Conflicting inherited overrides are invalid.
+
+The initial UI presents custom dimensions as **chips** in the existing track
+shell. One trace-scoped index consumes the TP relation, independently of which
+plugin or importer supplied the tracks. Labels are derived at render time from
+registered track metadata, not stored as another workspace annotation system.
+Chip participation is explicit: TrackEvent and TraceProcessorTrack provide
+sources by default; other plugins opt in case by case using the same mechanism.
+Details read TP's display values while canonical typed values remain available
+for queries and identity.
+
+Well-known dimensions retain their existing specialized timeline presentation
+in this first revision. A later migration must specify specialized-handler
+ownership before changing machine suffixes or GPU hierarchy labels. Generic
+numbering and label templates are also follow-up presentation work.
 
 ## Design
 
@@ -110,11 +119,10 @@ that declaration as part of their effective dimension set. “Process-scoped ran
 is shorthand for “rank declared on the process track,” not a separate storage or
 importer concept.
 
-Presentation metadata adds a label template (`machine %d`, `GPU %d`, `rank %d`)
-and stable numbering. Numbering is deterministic and gap-free within a
-`(source trace, machine, dimension name)` partition. A producer-supplied
-`display_name` overrides only the rendered numbered label; it does not replace
-the canonical typed value used by SQL or merging.
+The first custom chips use the producer value or optional `display_name`; the
+label does not replace canonical identity. Generic label templates and stable
+numbering are future presentation work, with deterministic numbering per
+`(source trace, machine, dimension name)` partition rather than packet arrival.
 
 ### Well-known identity vs producer-local structure
 
@@ -134,56 +142,98 @@ of the trace. It shapes how dimensions participate in identity and presentation:
 
 Hierarchy that comes from merging system-wide concepts belongs in trace_processor,
 not in a UI mode layered over arbitrary producer trees. This RFC builds the
-shared producer and trace_processor dimension model plus its subtitle/details
+shared producer and trace_processor dimension model plus its chips/details
 presentation. Existing GPU hierarchy remains a specialized UI consumer of the
-well-known `gpu` dimension. Generalizing identity merging to more well-known
-dimensions remains future work.
+well-known `gpu` dimension and is not changed by the initial custom-chip UI.
+Generalizing identity merging and shared well-known presentation remains future
+work.
 
-### Presentation: subtitles, details, and specialized UI
+### Presentation: chips, details, and specialized UI
 
-The normal timeline presentation of a dimension is a **label**: a secondary
-annotation on the affected node, not a mutation of its canonical name. This RFC
-adds a first-class track/group **subtitle** affordance (secondary text under the
-name), modeled on Chrome's existing behavior. It supports multiple labels in a
-stable order, separated by `·`, with truncation and the complete values available
-through tooltip/accessibility text.
+Custom dimension labels use the existing `TrackNode.chips` presentation surface:
+inline annotations beside the title, visible on normal short tracks without
+adding a second subtitle row or changing track heights. Existing titles,
+subtitles (including Chrome process labels), and static status chips remain
+unchanged. Chips consume horizontal space; ordering, truncation, tooltip and
+accessibility behavior use the existing track-shell affordances.
 
-The shared collapse rule is unchanged: if the applicable tracks have a single
-distinct value for a dimension, its subtitle label is invisible; if they have
-more than one, the label is shown. Dimensions collapse independently. Labeling
-never reparents tracks.
+A custom dimension name is labelled when it has more than one distinct **typed
+canonical value** across the trace. Dimensions collapse independently. This is
+the initial approximation of "applicable tracks"; it does not depend on whether
+values are integers or strings. Integer 3 and string "3" are distinct identities.
 
-A process `trainer` on machine 1 with custom `rank 3` in a multi-machine,
-multi-rank trace:
+For example, a process group may show a custom rank chip next to its existing
+name, including an unchanged machine suffix:
 
 ```text
 workspace
-└── trainer                        (process group; name unchanged)
-    ⤷ machine 1 · rank 3           (subtitle labels)
-    └── <threads / tracks>
+└── trainer (machine 1)    [rank 3]
+    └── worker            [stage forward]
 ```
 
-The same effective dimensions are shown in details tabs as canonical name, raw
-typed value, and optional display name. SQL exposes them independently of UI
-presentation.
+The rank chip is omitted on a descendant which has the same typed value as a
+visible ancestor. Workspace ancestry is used only to suppress redundant labels;
+it does not create a TP inheritance edge. Hidden headless ancestors do not
+suppress a visible child's chip.
 
-**No generic LEVEL mode.** GPU hierarchy remains specialized presentation in
-`dev.perfetto.Gpu` / `dev.perfetto.GpuByProcess`. At the trace_processor level,
-`gpu` is indistinguishable in shape from another dimension. The GPU UI consumes
-the shared dimension metadata and label helper, applies the resulting `GPU N` /
-name as its existing group-node title, and keeps its hierarchy behavior:
+Details show the same effective dimensions, including dimensions collapsed from
+the timeline, using `display_value` and optional `display_name`. SQL retains the
+canonical integer/string value for joins; well-known display values resolve
+internal IDs to CPU/GPU numbers, PIDs/TIDs and machine label indexes.
 
-```text
-GPU
-└── GPU 0                          (specialized presentation of gpu dimension)
-    ⤷ machine 1                    (shared subtitle label)
-    └── <gpu tracks>
-```
+**No generic LEVEL mode.** Existing machine suffixes and GPU hierarchy/naming
+remain specialized presentation in this revision. Sharing their labels through
+the generic mechanism is a follow-up, not a permanent name list in core.
+
+### UI architecture and workspace state
+
+1. **One trace-scoped index.** Core constructs an internal `TrackDimensionIndex`
+   after EOF and initializes it once before activating the trace and loading
+   plugins. It queries custom rows from `track_dimension`, with lossless int64
+   values and typed comparison keys. A required schema/query/decode failure
+   rejects trace loading and disposes the unactivated trace; it is not silently
+   treated as an empty index. The HTTP version-compatibility flow remains in
+   charge of using a compatible processor/UI. Optional details sections keep
+   their own failure containment.
+2. **Explicit plugin participation.** During rendering, `TrackView` resolves
+   each node's URI to its registered track. `tags.dimensionSourceTrackIds` opts
+   that track into chips using its TP dimension sources; absent or empty sources
+   mean no chips. TrackEvent and TraceProcessorTrack set this to their event
+   `tags.trackIds` by default. Other plugins opt in case by case; a virtual or
+   summary track can supply different semantic sources. Core does not select
+   plugins by ID. Event lookup, flows, selection and navigation continue to use
+   `tags.trackIds`, whose presence alone does not enable dimension presentation.
+3. **Explicit group sources.** Group creators own the semantic association.
+   The process-summary plugin obtains the process-root TP track IDs in its
+   existing metadata query and registers those sources. It does not union
+   descendants or infer dimensions from `thread.upid`. Other groups can supply
+   their own sources without a process-specific rule in the resolver.
+4. **Conservative aggregation.** Deduplicate source IDs, intersect dimension
+   names across every represented source, and show a value only when all sources
+   agree on typed identity and rendered label. Missing or mixed values are
+   omitted in V1; the UI never selects an arbitrary first value. Surviving
+   dimensions are ordered by name, then redundant visible-ancestor labels are
+   removed.
+5. **Derived, non-persisted chips.** Rendering merges dimension chips with the
+   node's existing chips without mutating the node. `TrackNode.subtitle` stays
+   a string and `TrackNode.chips` stays its existing string array. No keyed
+   subtitle map or contributor state is introduced. Clone, pin, custom workspace
+   and JSON restore preserve static annotations; dimension chips are recomputed
+   from the current URI/registry, so restoration ordering needs no replay hook.
+6. **Staged specialized policy.** V1 labels only custom dimensions; it has no
+   hard-coded `PRESENTED_ELSEWHERE` name list. A later well-known migration must
+   agree how specialized plugins claim presentation and how unclaimed values
+   are labelled. Core must not infer that policy from names or plugin IDs.
+
+Presentation implementations remain internal to the UI. The public surface is
+limited to semantic source-ID metadata, not formatting functions or plugin
+presentation policy. No SQL query runs during rendering and no plugin performs
+its own dimension-label scan.
 
 ### Resolution through `parent_uuid`
 
 Labeling never reparents anything, but effective dimension resolution is explicit
-and shared by SQL, subtitles, details, and specialized UI:
+and shared by SQL, chips, details, and specialized UI:
 
 1. A dimension declared on a track applies to that track and its explicit
    `parent_uuid` descendants, whether it is a process, thread, or any other
@@ -279,39 +329,35 @@ breaking the identity model.
    storage paths.
 
 3. **trace_processor query surface.** Expose effective dimensions through one
-   typed long-form relation (public name to be finalized):
+   typed long-form relation:
 
    ```text
    track_dimension(
      track_id,
      name,
-     value_type,
      int_value,
      string_value,
      display_name,
-     declaring_track_id,
-     is_inherited,
-     is_well_known
+     is_well_known,
+     display_value
    )
    ```
 
-   A small registry exposes dimension metadata such as the well-known bit and
-   label template. The generic relation is keyed by `track_id`, so slices,
-   counters, GPU work, and other track-backed domains use the same join. Raw
-   IIDs never escape into SQL.
+   Canonical values and presentation text are separate. The relation is
+   materialized after EOF and indexed by `track_id`, so repeated slice/counter
+   joins do not re-evaluate a compound view. Raw IIDs never escape into SQL.
+   Provenance and generic template/numbering metadata are possible follow-ups,
+   not prerequisites for the initial UI source-ID contract.
 
-4. **Stable numbering.** Generalize the existing dense machine index into a
-   deterministic index per `(source trace, machine, dimension name)`. Values are
-   ordered by canonical type and value rather than packet arrival. Tracks with
-   no machine use a source-trace-global synthetic machine bucket. Merged input
-   traces retain their source-trace identity for numbering unless future merging
-   explicitly unifies that dimension.
+4. **Stable numbering (future).** Generalize the existing machine label index
+   per `(source trace, machine, dimension name)`, ordering by canonical type and
+   value rather than arrival. This is separate from the first custom-chip UI,
+   which displays producer values or labels directly.
 
-5. **UI.** Factor presentation into: (i) a label helper that maps a canonical
-   value to its template/numbering/display override; (ii) a generic collapse pass
-   that emits subtitle labels; and (iii) a details renderer for all effective
-   dimensions. Machine and custom dimensions use all three. GPU uses the same TP
-   rows and label helper but retains its specialized group presentation.
+5. **UI.** Use the trace index, explicit source-ID contract and render-time chips
+   described above. Details read stdlib presentation columns. Existing machine
+   and GPU presentation remains unchanged until specialized ownership and
+   migration behavior are reviewed.
 
 ### Custom dimensions and GPU work
 
@@ -372,30 +418,30 @@ track receives a custom dimension only from its own descriptor or an explicit
 
 When a selected slice, counter, or other row has a backing `track_id`, the details
 panel resolves and displays that track's effective dimensions. Process/thread
-details use their process/thread tracks. Each entry shows the canonical name, raw
-typed value, and optional display name; well-known dimensions such as machine no
-longer need a separate raw-ID-only presentation. This avoids copying custom
-columns into every event table while making dimensions consistently visible in
+details use their process/thread tracks. Each entry shows the canonical name,
+user-facing display value and optional display name; typed canonical IDs remain
+available through SQL rather than being mistaken for PID/TID or CPU numbers.
+This avoids copying custom columns into every event table while making dimensions consistently visible in
 both SQL and details UI.
 
 ### Migration
 
-- **Machine** → a well-known dimension synthesized on every track. Its timeline
-  label moves from a name suffix to the new subtitle immediately; the machine
-  table and canonical track names remain.
-- **GPU** → a well-known dimension in the generic TP relation. Existing GPU
-  hierarchy and the hardcoded multi-GPU presentation gate remain, but both GPU
-  plugins consume the shared dimension metadata and label helper.
-- **Process/thread** → remain typed top-level concepts. Their tracks declare
-  dimensions like any other track; process/thread association is not an
-  inheritance edge. This RFC does not replace `upid` or `utid` storage.
-- **Custom** → a producer declares a dimension on the track at the root of the
-  producer-defined `parent_uuid` subtree it applies to. To apply process
-  dimensions to thread tracks, re-emit them in the thread descriptors. Adding
-  another custom dimension is then data rather than new TP/UI code.
+- **Machine** → a well-known dimension available for every track through TP.
+  Its existing name suffix stays in the initial UI. A later shared-label migration
+  must define specialized ownership and be reviewed separately.
+- **GPU** → a well-known dimension in the generic query relation. Existing
+  hierarchy, names and presentation gates stay unchanged in V1.
+- **Process/thread** → remain typed concepts; association is not dimension
+  inheritance. Producers re-emit applicable custom dimensions in thread
+  descriptors. Group UI annotations use explicit semantic source IDs.
+- **Custom** → producers declare dimensions on the relevant tracks and their
+  own `parent_uuid` subtrees. One core-owned index and render path labels all
+  opted-in registrations. TrackEvent and TraceProcessorTrack enable ordinary
+  sources by default; other plugins adopt the same metadata case by case.
+  Adding a custom dimension requires no plugin-specific label query or pass.
 
-Labels still collapse when only one distinct value is present. The deliberate
-presentation change is that machine labels move from name suffixes to subtitles.
+Existing workspace subtitles and chips keep their current serialized shape.
+Dimension chips are derived from trace data and are not workspace state.
 
 ## Alternatives considered
 
@@ -403,9 +449,9 @@ presentation change is that machine labels move from name suffixes to subtitles.
 
 Adopt trace_processor's dimension vocabulary, add the producer surface for custom
 dimensions, resolve all effective values into one typed track-keyed relation, and
-extract subtitle/details/label helpers shared by machine, custom dimensions, and
-GPU presentation. Do **not** add a generic hierarchy mode; leave GPU's existing
-merging-based grouping as specialized presentation.
+provide a source-independent custom-chip resolver and details presentation.
+Stage the migration of well-known labels separately. Do **not** add a generic
+hierarchy mode; leave GPU's merging-based grouping specialized.
 
 Pro:
 
@@ -422,8 +468,8 @@ Con:
 - Does not yet unify GPU-style hierarchy under a single presentation mechanism —
   GPU grouping stays specialized until merging work is generalized.
 - Effective-dimension resolution and inheritance validation add TP work.
-- Subtitle rendering is a new UI surface, and moving machine off its name suffix
-  needs a diff-test sweep.
+- Source mapping and agreement across multiplexed tracks/groups need care.
+- Chips add horizontal density; changing specialized labels later needs review.
 
 ### Option 2 — Generic LEVEL presentation mode
 
@@ -464,6 +510,10 @@ Con:
   This is the path to eventually folding GPU's specialized grouping into a shared
   presentation. Replacing the current typed process/thread storage with the generic
   identity model is not required by this RFC.
+- **Shared well-known presentation.** Define specialized-handler ownership,
+  defaults and migration before moving machine suffixes or changing GPU labels.
+- **Generic numbering/templates.** Add deterministic numbering and templates
+  without changing canonical identity.
 - **User-configurable presentation.** Letting the user change how a dimension is
   surfaced (e.g. promote a label to its own subtree) and reorder dimensions at
   runtime.
@@ -471,9 +521,9 @@ Con:
 ## Remaining implementation questions
 
 The review resolves the model-level questions: use `Dimension` / `dimensions`,
-add subtitles now, reserve `machine`/`gpu`/`cpu`/`process`/`thread`, reject
-conflicting inherited values, intern string data, number per source trace and
-machine, and expose dimensions in SQL and details UI. Implementation still needs
+use derived custom chips in the initial UI, reserve the well-known names,
+reject conflicting inherited values, intern string data and expose dimensions
+in SQL and details UI. Generic numbering is separate future work. Implementation still needs
 to settle:
 
 - **Interned-data layout.** Use dedicated dimension-name/value/display-name IID
@@ -487,6 +537,7 @@ to settle:
   because one producer emitted an invalid dimension.
 - **Source-trace numbering key.** Define how archive/manifest imports persist a
   component source-trace identifier used with `machine_id` for stable numbering.
-- **Subtitle layout.** Finalize height, truncation, styling, and accessibility for
-  multiple labels; this is UI implementation detail rather than an optional
-  feature.
+- **Chip presentation.** Validate density, overflow, tooltip and accessibility
+  behavior against the existing track shell; no new subtitle row is introduced.
+- **Future specialized ownership.** Agree on well-known label handling before
+  expanding the custom-only resolver; do not make core depend on plugin policy.
