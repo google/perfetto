@@ -37,6 +37,21 @@ EXAMPLE_CHECKIN = """9,0,i,vers,36,214,AP1A.240305.019.A1,AP2A.240805.005.S4
 9,h,10,-w=3
 """
 
+# Exercises battery state, wakeup reasons and inline (overflowed) history tags.
+BATTERY_CHECKIN = """9,0,i,vers,36,214,AP1A.240305.019.A1,AP2A.240805.005.S4
+9,hsp,0,0,"Abort:Pending Wakeup Sources: wlan"
+9,hsp,1,10216,"com.android.chrome"
+9,hsp,2,1000,"screen"
+9,h,0:RESET:TIME:1732816430344
+9,h,0,Bl=100,Bs=d,Bh=g,Bp=n,Bt=251,Bv=4395,Bcc=4263,Mrc=1.25,Wrc=0,+r,wr=0
+9,h,0,Dcpu=100:50/10216:20:10
+9,h,0,Dpst=10,20,30,40,50,60,
+9,h,1000,Bt=263,Bh=h,Esc=2,-r
+9,h,1000,Bh=c,Bt=-15,Bp=d,+r,wr=0:"Abort:a""b=c",Eds=2
+9,h,1000,+Ejb=u0a52:"com.example/.Job",Xyz=1
+9,h,1000,-Ejb=u0a52:"com.example/.Job",Bh=8,Wrc=0.5
+"""
+
 
 class AndroidDumpstate(TestSuite):
 
@@ -103,4 +118,75 @@ class AndroidDumpstate(TestSuite):
         1732816430384000000,"*alarm*",20000000
         1732816430414000000,"*telephony-radio*",20000000
         1732816430424000000,"*telephony-radio*",20000000
+        """))
+
+  def test_standalone_battery_stats_checkin_battery_state(self):
+    return DiffTestBlueprint(
+        trace=RawText(BATTERY_CHECKIN),
+        query="""
+        SELECT
+          name, unit, ts, value
+        FROM counter
+        JOIN counter_track ON counter.track_id = counter_track.id
+        WHERE
+          name IN (
+            'BatteryTemperature',
+            'BatteryHealth',
+            'PlugType',
+            'ModemRailCharge',
+            'WifiRailCharge'
+          )
+        ORDER BY
+          name, ts
+        """,
+        out=Csv("""
+        "name","unit","ts","value"
+        "BatteryHealth","[NULL]",1732816430344000000,2.000000
+        "BatteryHealth","[NULL]",1732816431344000000,3.000000
+        "BatteryHealth","[NULL]",1732816432344000000,7.000000
+        "BatteryHealth","[NULL]",1732816434344000000,8.000000
+        "BatteryTemperature","celsius",1732816430344000000,25.100000
+        "BatteryTemperature","celsius",1732816431344000000,26.300000
+        "BatteryTemperature","celsius",1732816432344000000,-1.500000
+        "ModemRailCharge","mAh",1732816430344000000,1.250000
+        "PlugType","[NULL]",1732816430344000000,0.000000
+        "PlugType","[NULL]",1732816432344000000,8.000000
+        "WifiRailCharge","mAh",1732816430344000000,0.000000
+        "WifiRailCharge","mAh",1732816434344000000,0.500000
+        """))
+
+  def test_standalone_battery_stats_checkin_events(self):
+    return DiffTestBlueprint(
+        trace=RawText(BATTERY_CHECKIN),
+        query="""
+        SELECT
+          ts, dur, track.name AS track, slice.name
+        FROM slice
+        JOIN track ON slice.track_id = track.id
+        WHERE
+          track.name GLOB 'battery_stats.*'
+        ORDER BY
+          ts, track.name
+        """,
+        out=Csv("""
+        "ts","dur","track","name"
+        1732816430344000000,0,"battery_stats.wakeup_reason","wakeup_reason=0:"Abort:Pending Wakeup Sources: wlan""
+        1732816431344000000,0,"battery_stats.state","state=1000:"screen""
+        1732816432344000000,0,"battery_stats.display_state_changed","display_state_changed=1000:"screen""
+        1732816432344000000,0,"battery_stats.wakeup_reason","wakeup_reason=0:"Abort:a"b=c""
+        1732816433344000000,0,"battery_stats.job","+job=10052:"com.example/.Job""
+        1732816434344000000,0,"battery_stats.job","-job=10052:"com.example/.Job""
+        """))
+
+  def test_standalone_battery_stats_checkin_unhandled_items(self):
+    return DiffTestBlueprint(
+        trace=RawText(BATTERY_CHECKIN),
+        query="""
+        SELECT name, value
+        FROM stats
+        WHERE name = 'android_battery_stats_unhandled_items'
+        """,
+        out=Csv("""
+        "name","value"
+        "android_battery_stats_unhandled_items",1
         """))

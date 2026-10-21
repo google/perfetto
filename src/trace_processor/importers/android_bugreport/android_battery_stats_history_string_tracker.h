@@ -45,13 +45,18 @@ class AndroidBatteryStatsHistoryStringTracker {
 
   // Returns the Uid (user ID) associated with the given HSP index.
   int32_t GetUid(int64_t index) {
-    return index >= 0 ? hsp_items_[static_cast<uint64_t>(index)].uid : -1;
+    return HasIndex(index) ? hsp_items_[static_cast<uint64_t>(index)].uid : -1;
   }
 
   // Gets the string associated with the given HSP index.
   const std::string& GetString(int64_t index) {
-    return index >= 0 ? hsp_items_[static_cast<uint64_t>(index)].str
-                      : invalid_string_;
+    return HasIndex(index) ? hsp_items_[static_cast<uint64_t>(index)].str
+                           : invalid_string_;
+  }
+
+  // Returns true if an item was set for the given HSP index.
+  bool HasIndex(int64_t index) const {
+    return index >= 0 && static_cast<uint64_t>(index) < hsp_items_.size();
   }
 
   // Associate the given uid and string with the given HSP index.

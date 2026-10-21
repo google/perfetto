@@ -34,11 +34,13 @@
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -61,6 +63,7 @@ base::StatusOr<std::string> GetEventFromShortName(base::StringView short_name) {
               {"Eaa", "pkgactive"},  {"Etw", "tmpwhitelist"},
               {"Esw", "screenwake"}, {"Ewa", "wakeupap"},
               {"Elw", "longwake"},   {"Eec", "est_capacity"},
+              {"Esc", "state"},      {"Eds", "display_state_changed"},
           }));
   auto result = checkin_event_name_to_enum.ref().find(short_name);
   if (result == checkin_event_name_to_enum.ref().end()) {
@@ -205,6 +208,84 @@ base::StatusOr<int64_t> StringToStatusOrInt64(base::StringView str) {
   return possible_result.value();
 }
 
+// Parses a uid either given as a number or formatted by
+// UserHandle.formatUid() (e.g. "u0a123" for uid 10123, "u10s1000" for uid
+// 1001000).
+std::optional<int32_t> ParseUid(base::StringView str) {
+  std::optional<int32_t> uid = base::StringViewToInt32(str);
+  if (uid.has_value()) {
+    return uid;
+  }
+  if (str.size() < 4 || str.at(0) != 'u') {
+    return std::nullopt;
+  }
+  size_t type_pos = 1;
+  while (type_pos < str.size() && str.at(type_pos) >= '0' &&
+         str.at(type_pos) <= '9') {
+    type_pos++;
+  }
+  if (type_pos == 1 || type_pos + 1 >= str.size()) {
+    return std::nullopt;
+  }
+  std::optional<int32_t> user =
+      base::StringViewToInt32(str.substr(1, type_pos - 1));
+  std::optional<int32_t> id = base::StringViewToInt32(str.substr(type_pos + 1));
+  if (!user.has_value() || !id.has_value()) {
+    return std::nullopt;
+  }
+  constexpr int32_t kPerUserRange = 100000;     // UserHandle.PER_USER_RANGE
+  constexpr int32_t kFirstAppUid = 10000;       // Process.FIRST_APPLICATION_UID
+  constexpr int32_t kFirstIsolatedUid = 99000;  // Process.FIRST_ISOLATED_UID
+  int32_t app_id;
+  switch (str.at(type_pos)) {
+    case 'a':
+      app_id = kFirstAppUid + *id;
+      break;
+    case 'i':
+      app_id = kFirstIsolatedUid + *id;
+      break;
+    case 's':
+      app_id = *id;
+      break;
+    default:
+      return std::nullopt;
+  }
+  return *user * kPerUserRange + app_id;
+}
+
+// Battery temperature is reported in tenths of a degree Celsius.
+constexpr auto kBatteryTemperatureBlueprint =
+    tracks::CounterBlueprint("battery_temperature",
+                             tracks::StaticUnitBlueprint("celsius"),
+                             tracks::DimensionBlueprints(),
+                             tracks::StaticNameBlueprint("BatteryTemperature"));
+
+constexpr auto kBatteryHealthBlueprint =
+    tracks::CounterBlueprint("battery_health",
+                             tracks::UnknownUnitBlueprint(),
+                             tracks::DimensionBlueprints(),
+                             tracks::StaticNameBlueprint("BatteryHealth"));
+
+// Charge drawn through the modem and wifi power rails, if the device can
+// measure it.
+constexpr auto kRailChargeBlueprint = tracks::CounterBlueprint(
+    "battery_rail_charge",
+    tracks::StaticUnitBlueprint("mAh"),
+    tracks::DimensionBlueprints(tracks::StringDimensionBlueprint("rail")),
+    tracks::FnNameBlueprint([](base::StringView rail) {
+      return base::StackString<255>("%.*sRailCharge", int(rail.size()),
+                                    rail.data());
+    }));
+
+// Slices for battery stats events and wakeup reasons, one track per kind.
+constexpr auto kBatteryStatsEventBlueprint = tracks::SliceBlueprint(
+    "battery_stats",
+    tracks::Dimensions(tracks::StringDimensionBlueprint("bstats_item_name")),
+    tracks::FnNameBlueprint([](base::StringView item) {
+      return base::StackString<1024>("battery_stats.%.*s", int(item.size()),
+                                     item.data());
+    }));
+
 }  // namespace
 
 AndroidDumpstateEventParser::~AndroidDumpstateEventParser() = default;
@@ -213,21 +294,55 @@ void AndroidDumpstateEventParser::Parse(int64_t ts,
                                         AndroidDumpstateEvent event) {
   switch (event.type) {
     case AndroidDumpstateEvent::EventType::kBatteryStatsHistoryEvent:
-      ProcessBatteryStatsHistoryItem(ts, event.raw_event);
+      if (!ProcessBatteryStatsHistoryItem(ts, event.raw_event).ok()) {
+        context_->stats_tracker->IncrementStats(
+            stats::android_battery_stats_unhandled_items);
+      }
       return;
     case AndroidDumpstateEvent::EventType::kNull:
       return;
   }
 }
 
+std::optional<AndroidDumpstateEventParser::HistoryTag>
+AndroidDumpstateEventParser::ResolveHistoryTag(base::StringView value) {
+  // Usually the value is an index into the history string pool.
+  std::optional<int64_t> hsp_index = base::StringViewToInt64(value);
+  if (hsp_index.has_value()) {
+    if (!history_string_tracker_->HasIndex(*hsp_index)) {
+      return std::nullopt;
+    }
+    return HistoryTag{history_string_tracker_->GetUid(*hsp_index),
+                      history_string_tracker_->GetString(*hsp_index)};
+  }
+  // If the string pool overflowed, the tag is inlined as uid:"string", with
+  // quotes in the string doubled.
+  size_t colon = value.find(':');
+  if (colon == base::StringView::npos) {
+    return std::nullopt;
+  }
+  std::optional<int32_t> uid = ParseUid(value.substr(0, colon));
+  base::StringView str = value.substr(colon + 1);
+  if (!uid.has_value() || str.size() < 2 || str.at(0) != '"' ||
+      str.at(str.size() - 1) != '"') {
+    return std::nullopt;
+  }
+  return HistoryTag{
+      *uid, base::ReplaceAll(str.substr(1, str.size() - 2).ToStdString(),
+                             "\"\"", "\"")};
+}
+
 base::Status AndroidDumpstateEventParser::ProcessBatteryStatsHistoryItem(
     int64_t ts,
     const std::string& raw_event) {
-  base::StringViewSplitter splitter(base::StringView(raw_event), '=');
+  base::StringView raw(raw_event);
+  size_t eq = raw.find('=');
   TokenizedBatteryStatsHistoryItem item;
   item.ts = ts;
-  item.key = splitter.NextToken();
-  item.value = splitter.NextToken();
+  item.key = raw.substr(0, eq);
+  // Everything after the first '=': inlined strings may contain '='.
+  item.value =
+      eq == base::StringView::npos ? base::StringView() : raw.substr(eq + 1);
   item.prefix = "";
   if (item.key.size() > 0 && (item.key.at(0) == '+' || item.key.at(0) == '-')) {
     item.prefix = item.key.substr(0, 1);
@@ -262,6 +377,12 @@ base::Status AndroidDumpstateEventParser::ProcessBatteryStatsHistoryItem(
     return base::OkStatus();
   }
 
+  // Attempt to parse kernel wakeup reasons (eg. wr=123)
+  ASSIGN_OR_RETURN(parsed, ProcessBatteryStatsHistoryWakeupReason(item));
+  if (parsed) {
+    return base::OkStatus();
+  }
+
   return base::ErrStatus("Unhandled battery stats event");
 }
 
@@ -273,24 +394,40 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryEvent(
   }
   // Process a history event
   ASSIGN_OR_RETURN(std::string item_name, GetEventFromShortName(item.key));
-  ASSIGN_OR_RETURN(int64_t hsp_index, StringToStatusOrInt64(item.value));
-  const int32_t uid = history_string_tracker_->GetUid(hsp_index);
-  const std::string& event_str = history_string_tracker_->GetString(hsp_index);
+  std::optional<HistoryTag> tag = ResolveHistoryTag(item.value);
+  if (!tag.has_value()) {
+    return base::ErrStatus("Failed to resolve battery stats event tag");
+  }
 
-  static constexpr auto kBlueprint = tracks::SliceBlueprint(
-      "battery_stats",
-      tracks::Dimensions(tracks::StringDimensionBlueprint("bstats_item_name")),
-      tracks::FnNameBlueprint([](base::StringView item) {
-        return base::StackString<1024>("battery_stats.%.*s", int(item.size()),
-                                       item.data());
-      }));
-
-  base::StackString<255> slice_name("%s%s=%d:\"%s\"",
-                                    item.prefix.ToStdString().c_str(),
-                                    item_name.c_str(), uid, event_str.c_str());
+  base::StackString<255> slice_name(
+      "%s%s=%d:\"%s\"", item.prefix.ToStdString().c_str(), item_name.c_str(),
+      tag->uid, tag->str.c_str());
   StringId name_id = context_->storage->InternString(slice_name.c_str());
   TrackId track_id = context_->track_tracker->InternTrack(
-      kBlueprint, tracks::Dimensions(base::StringView(item_name)));
+      kBatteryStatsEventBlueprint,
+      tracks::Dimensions(base::StringView(item_name)));
+  context_->slice_tracker->Scoped(item.ts, track_id, kNullStringId, name_id, 0);
+  return true;
+}
+
+base::StatusOr<bool>
+AndroidDumpstateEventParser::ProcessBatteryStatsHistoryWakeupReason(
+    const TokenizedBatteryStatsHistoryItem& item) {
+  if (!item.prefix.empty() || item.key != "wr" || item.value.empty()) {
+    return false;
+  }
+  // The reason the kernel woke the CPU up, recorded when the CPU starts
+  // running (+r). It is an instant, named like events: wakeup_reason=0:"...".
+  std::optional<HistoryTag> tag = ResolveHistoryTag(item.value);
+  if (!tag.has_value()) {
+    return base::ErrStatus("Failed to resolve wakeup reason tag");
+  }
+  base::StackString<255> slice_name("wakeup_reason=%d:\"%s\"", tag->uid,
+                                    tag->str.c_str());
+  StringId name_id = context_->storage->InternString(slice_name.c_str());
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBatteryStatsEventBlueprint,
+      tracks::Dimensions(base::StringView("wakeup_reason")));
   context_->slice_tracker->Scoped(item.ts, track_id, kNullStringId, name_id, 0);
   return true;
 }
@@ -351,7 +488,8 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryState(
 base::StatusOr<bool>
 AndroidDumpstateEventParser::ProcessBatteryStatsHistoryBatteryCounter(
     const TokenizedBatteryStatsHistoryItem& item) {
-  if (!item.prefix.empty() || item.value.empty() || !item.key.StartsWith("B")) {
+  if (!item.prefix.empty() || item.value.empty() ||
+      !(item.key.StartsWith("B") || item.key == "Mrc" || item.key == "Wrc")) {
     return false;
   }
   // AndroidProbesParser will use the empty string for the battery name if no
@@ -363,28 +501,29 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryBatteryCounter(
 
   // process history state of form "state=12345" or "state=abcde"
   TrackId counter_track;
-  int64_t counter_value;
+  double counter_value;
   if (item.key == "Bl") {
     counter_track = context_->track_tracker->InternTrack(
         tracks::kBatteryCounterBlueprint,
         tracks::Dimensions(kUnknownBatteryName, "capacity_pct"));
-    ASSIGN_OR_RETURN(counter_value, StringToStatusOrInt64(item.value));
+    ASSIGN_OR_RETURN(int64_t level, StringToStatusOrInt64(item.value));
+    counter_value = static_cast<double>(level);
   } else if (item.key == "Bcc") {
     counter_track = context_->track_tracker->InternTrack(
         tracks::kBatteryCounterBlueprint,
         tracks::Dimensions(kUnknownBatteryName, "charge_uah"));
-    ASSIGN_OR_RETURN(counter_value, StringToStatusOrInt64(item.value));
+    ASSIGN_OR_RETURN(int64_t charge_mah, StringToStatusOrInt64(item.value));
     // battery stats gives us charge in milli-amp-hours, but the track
     // expects the value to be in micro-amp-hours
-    counter_value *= 1000;
+    counter_value = static_cast<double>(charge_mah * 1000);
   } else if (item.key == "Bv") {
     counter_track = context_->track_tracker->InternTrack(
         tracks::kBatteryCounterBlueprint,
         tracks::Dimensions(kUnknownBatteryName, "voltage_uv"));
-    ASSIGN_OR_RETURN(counter_value, StringToStatusOrInt64(item.value));
+    ASSIGN_OR_RETURN(int64_t voltage_mv, StringToStatusOrInt64(item.value));
     // battery stats gives us charge in milli-volts, but the track
     // expects the value to be in micro-volts
-    counter_value *= 1000;
+    counter_value = static_cast<double>(voltage_mv * 1000);
   } else if (item.key == "Bs") {
     static constexpr auto kBatteryStatusBlueprint = tracks::CounterBlueprint(
         "battery_status", tracks::UnknownUnitBlueprint(),
@@ -431,15 +570,64 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryBatteryCounter(
       case 'w':
         counter_value = 4;  // BatteryManager.BATTERY_PLUGGED_WIRELESS
         break;
+      case 'd':
+        counter_value = 8;  // BatteryManager.BATTERY_PLUGGED_DOCK
+        break;
       default:
         counter_value = 0;  // BatteryManager.BATTERY_PLUGGED_NONE
     }
+  } else if (item.key == "Bt") {
+    counter_track =
+        context_->track_tracker->InternTrack(kBatteryTemperatureBlueprint);
+    ASSIGN_OR_RETURN(int64_t deci_celsius, StringToStatusOrInt64(item.value));
+    counter_value = static_cast<double>(deci_celsius) / 10.0;
+  } else if (item.key == "Bh") {
+    counter_track =
+        context_->track_tracker->InternTrack(kBatteryHealthBlueprint);
+    switch (item.value.at(0)) {
+      case '?':
+        counter_value = 1;  // BatteryManager.BATTERY_HEALTH_UNKNOWN
+        break;
+      case 'g':
+        counter_value = 2;  // BatteryManager.BATTERY_HEALTH_GOOD
+        break;
+      case 'h':
+        counter_value = 3;  // BatteryManager.BATTERY_HEALTH_OVERHEAT
+        break;
+      case 'd':
+        counter_value = 4;  // BatteryManager.BATTERY_HEALTH_DEAD
+        break;
+      case 'v':
+        counter_value = 5;  // BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE
+        break;
+      case 'f':
+        // BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE
+        counter_value = 6;
+        break;
+      case 'c':
+        counter_value = 7;  // BatteryManager.BATTERY_HEALTH_COLD
+        break;
+      default: {
+        // Values without a short name are printed as numbers.
+        ASSIGN_OR_RETURN(int64_t health, StringToStatusOrInt64(item.value));
+        counter_value = static_cast<double>(health);
+      }
+    }
+  } else if (item.key == "Mrc" || item.key == "Wrc") {
+    std::optional<double> charge_mah =
+        base::StringToDouble(item.value.ToStdString());
+    if (!charge_mah.has_value()) {
+      return base::ErrStatus("Failed to parse rail charge");
+    }
+    counter_track = context_->track_tracker->InternTrack(
+        kRailChargeBlueprint, tracks::Dimensions(base::StringView(
+                                  item.key == "Mrc" ? "Modem" : "Wifi")));
+    counter_value = *charge_mah;
   } else {
     return false;
   }
 
-  context_->event_tracker->PushCounter(
-      item.ts, static_cast<double>(counter_value), counter_track);
+  context_->event_tracker->PushCounter(item.ts, counter_value, counter_track);
   return true;
 }
 

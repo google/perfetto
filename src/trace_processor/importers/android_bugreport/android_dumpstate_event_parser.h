@@ -18,9 +18,12 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_DUMPSTATE_EVENT_PARSER_H_
 
 #include <cstdint>
+#include <optional>
+#include <string>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 
@@ -56,6 +59,16 @@ class AndroidDumpstateEventParser
     base::StringView value;
   };
 
+  // A string tagged with a uid, e.g. the package of a job or a wakelock name.
+  struct HistoryTag {
+    int32_t uid;
+    std::string str;
+  };
+
+  // Resolves a tag given either as a history string pool index or inline as
+  // uid:"string".
+  std::optional<HistoryTag> ResolveHistoryTag(base::StringView value);
+
   base::Status ProcessBatteryStatsHistoryItem(int64_t ts,
                                               const std::string& raw_event);
   base::StatusOr<bool> ProcessBatteryStatsHistoryEvent(
@@ -65,6 +78,8 @@ class AndroidDumpstateEventParser
   base::StatusOr<bool> ProcessBatteryStatsHistoryBatteryCounter(
       const TokenizedBatteryStatsHistoryItem& item);
   base::StatusOr<bool> ProcessBatteryStatsHistoryWakeLocks(
+      const TokenizedBatteryStatsHistoryItem& item);
+  base::StatusOr<bool> ProcessBatteryStatsHistoryWakeupReason(
       const TokenizedBatteryStatsHistoryItem& item);
 };
 

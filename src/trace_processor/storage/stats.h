@@ -29,6 +29,9 @@ namespace perfetto::trace_processor::stats {
        "android.aflags data source. This typically happens if the aflags tool "\
        "fails or its output is malformed."),                                   \
   F(android_br_parse_errors,              kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
+  F(android_battery_stats_unhandled_items, kSingle, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Battery stats history items in a bugreport which were not imported, "   \
+      "because their key is not known or their value could not be parsed."),   \
   F(android_log_num_failed,               kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_format_invalid,           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_skipped,              kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \

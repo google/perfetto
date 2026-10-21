@@ -118,6 +118,11 @@ base::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
     ASSIGN_OR_RETURN(int64_t parsed_timestamp_delta,
                      StringToStatusOrInt64(possible_timestamp));
     current_timestamp_ms_ += parsed_timestamp_delta;
+    base::StringView remainder = splitter.remainder();
+    if (remainder.StartsWith("Dcpu=") || remainder.StartsWith("Dpst=")) {
+      // Ignore CPU usage step details, which are not history items.
+      return base::OkStatus();
+    }
     for (base::StringView item = splitter.NextToken(); !item.empty();
          item = splitter.NextToken()) {
       RETURN_IF_ERROR(ProcessBatteryStatsHistoryEvent(item));

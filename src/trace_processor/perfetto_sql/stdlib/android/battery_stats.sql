@@ -100,6 +100,33 @@ SELECT
       WHEN 22 THEN "Other"
       ELSE "unknown"
     END
+    WHEN $track = "battery_stats.brightness" THEN CASE $value
+      WHEN 0 THEN "dark"
+      WHEN 1 THEN "dim"
+      WHEN 2 THEN "medium"
+      WHEN 3 THEN "light"
+      WHEN 4 THEN "bright"
+      ELSE "unknown"
+    END
+    WHEN $track = "battery_stats.device_idle" THEN CASE $value
+      WHEN 0 THEN "off"
+      WHEN 1 THEN "light"
+      WHEN 2 THEN "full"
+      ELSE "unknown"
+    END
+    WHEN $track = "battery_stats.gps_signal_quality" THEN CASE $value
+      WHEN 0 THEN "poor"
+      WHEN 1 THEN "good"
+      WHEN 2 THEN "none"
+      ELSE "unknown"
+    END
+    WHEN $track = "battery_stats.nr_state" THEN CASE $value
+      WHEN 0 THEN "none"
+      WHEN 1 THEN "restricted"
+      WHEN 2 THEN "not_restricted"
+      WHEN 3 THEN "connected"
+      ELSE "unknown"
+    END
     ELSE cast_string!($value)
   END;
 

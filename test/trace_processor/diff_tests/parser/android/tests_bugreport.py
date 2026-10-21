@@ -77,7 +77,7 @@ class AndroidBugreport(TestSuite):
         """,
         out=Csv("""
         "type","count"
-        "battery_stats_history_events",4237
+        "battery_stats_history_events",10185
         "battery_stats_history_states",12245
         """))
 

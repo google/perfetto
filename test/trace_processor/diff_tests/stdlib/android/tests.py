@@ -112,6 +112,56 @@ class AndroidStdlib(TestSuite):
         4000,-1,0,0,"battery_stats.data_conn",20,"5G (NR)"
         """))
 
+  def test_android_battery_stats_state_names(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.brightness|3\n"
+              }
+            }
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.device_idle|1\n"
+              }
+            }
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.gps_signal_quality|1\n"
+              }
+            }
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.nr_state|3\n"
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.battery_stats;
+        SELECT track_name, value, value_name FROM android_battery_stats_state
+        ORDER BY track_name;
+        """,
+        out=Csv("""
+        "track_name","value","value_name"
+        "battery_stats.brightness",3,"light"
+        "battery_stats.device_idle",1,"light"
+        "battery_stats.gps_signal_quality",1,"good"
+        "battery_stats.nr_state",3,"connected"
+        """))
+
   def test_android_battery_stats_is_partitioned_by_machine(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
