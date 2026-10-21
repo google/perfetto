@@ -307,8 +307,7 @@ bool RelationAnalyzer::Impl::Within(SyntaqliteParser* p,
     case SYNTAQLITE_NODE_CREATE_PERFETTO_VIEW_STMT:
       return Within(p, node->create_perfetto_view_stmt.select, at);
     case SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT:
-      return Within(p, node->create_perfetto_table_stmt.select, at) ||
-             Within(p, node->create_perfetto_table_stmt.pipeline, at);
+      return Within(p, node->create_perfetto_table_stmt.select, at);
     case SYNTAQLITE_NODE_CREATE_PERFETTO_FUNCTION_STMT:
       return Within(p, node->create_perfetto_function_stmt.select, at);
     case SYNTAQLITE_NODE_CREATE_TABLE_STMT:

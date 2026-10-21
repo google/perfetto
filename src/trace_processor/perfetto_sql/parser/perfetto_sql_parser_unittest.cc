@@ -733,6 +733,35 @@ TEST_F(PerfettoSqlParserTest, PipelineSyntaxDoesNotLeakIntoSql) {
   ASSERT_EQ(*Parse(SqlSource::FromExecuteQuery(
                 "SELECT * FROM a JOIN b ON a.x | b.y > 3")),
             std::vector<Statement>{Statement(SqliteSql{})});
+  ASSERT_EQ(*Parse(SqlSource::FromExecuteQuery(
+                "SELECT (interval / 1e9), (interval) FROM t")),
+            std::vector<Statement>{Statement(SqliteSql{})});
+}
+
+TEST_F(PerfettoSqlParserTest, PipelineOnlyAsAStatementOrTableBody) {
+  for (const char* sql : {
+           "SELECT * FROM (FROM slice)",
+           "SELECT * FROM t WHERE id IN (FROM slice |> DISTINCT)",
+           "SELECT (FROM slice)",
+           "WITH x AS (FROM slice) SELECT * FROM x",
+           "CREATE PERFETTO VIEW v AS FROM slice",
+           "CREATE TABLE t AS FROM slice",
+           "INSERT INTO t FROM slice",
+           "FROM (FROM slice) |> DISTINCT",
+           "CREATE PERFETTO TABLE t AS FROM (FROM slice)",
+           "FROM (INTERVAL INTERSECTION OF (a, b)) |> DISTINCT",
+       }) {
+    EXPECT_THAT(Parse(SqlSource::FromExecuteQuery(sql)).status().message(),
+                HasSubstr("A pipeline can only be a whole statement"))
+        << sql;
+  }
+  auto parsed = Parse(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO TABLE t AS FROM slice |> DISTINCT"));
+  ASSERT_TRUE(parsed.ok()) << parsed.status().message();
+  ASSERT_EQ(parsed->size(), 1u);
+  const auto* table = std::get_if<CreateTable>(&(*parsed)[0]);
+  ASSERT_NE(table, nullptr);
+  EXPECT_TRUE(std::holds_alternative<pipeline::LogicalPlan>(table->body));
 }
 
 TEST_F(PerfettoSqlParserTest, CreatePerfettoViewWithSchema) {
