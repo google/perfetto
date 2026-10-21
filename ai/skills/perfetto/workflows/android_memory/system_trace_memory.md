@@ -16,7 +16,7 @@ or callstacks** own it. Hand off to the profiler workflows for that:
 [heap_profile_diff.md]($SKILL_ROOT/workflows/android_memory/heap_profile_diff.md)
 (two profiles).
 
-## Step 1: Load the trace(s) and resolve the target process
+## Step 1: Load the trace(s) and check what they recorded
 
 Load each trace once into a warm session and query it by name:
 
@@ -28,6 +28,100 @@ trace_processor query --remote tp "<SQL>"  # or -f query.sql
 
 For a comparison, load `before_tp` and `after_tp` (`--name before_tp`,
 `--name after_tp`) and run every query on both.
+
+**Before any analysis**, check that each trace recorded the signals the
+question needs. Most memory signals come from data sources, ftrace events or
+atrace categories that are off unless the trace config enables them, and a
+signal that was never recorded looks exactly like one that never changed. This
+reads the trace config embedded in the trace:
+
+```sql
+WITH
+  cfg AS (
+    SELECT (SELECT str_value FROM metadata WHERE name = 'trace_config_pbtxt') AS c
+  ),
+  needs(signal, record_with, p1, p2) AS (
+    VALUES
+      ('mem.rss, mem.rss.*, mem.swap (polled)', 'linux.process_stats', '*"linux.process_stats"*', NULL),
+      ('mem.rss.anon/file/shmem, mem.swap on change', 'ftrace kmem/rss_stat', '*"kmem/rss_stat"*', '*"rss_stat"*'),
+      ('meminfo, vmstat', 'linux.sys_stats', '*meminfo_period_ms*', '*vmstat_period_ms*'),
+      ('psi', 'linux.sys_stats psi_period_ms', '*psi_period_ms*', NULL),
+      ('Heap size (KB), GC slices, JNI Global Refs', 'atrace dalvik', '*atrace_categories: "dalvik"*', NULL),
+      ('Bitmap *, mem.gralloc.*', 'atrace gfx', '*atrace_categories: "gfx"*', NULL),
+      ('*HWUI*, Skia *', 'atrace view', '*atrace_categories: "view"*', NULL),
+      ('binder_proxies', 'atrace aidl', '*atrace_categories: "aidl"*', NULL),
+      ('oom_adj_reason', 'atrace am', '*atrace_categories: "am"*', NULL),
+      ('oom_score_adj on change', 'ftrace oom/oom_score_adj_update', '*oom_score_adj_update*', NULL),
+      ('GPU Memory', 'android.gpu.memory + ftrace gpu_mem/gpu_mem_total', '*"android.gpu.memory"*', '*gpu_mem_total*'),
+      ('mem.dma_heap, android_dmabuf_allocs', 'ftrace dmabuf_heap/dma_heap_stat', '*dma_heap_stat*', NULL),
+      ('mem.dmabuf_rss', 'ftrace kmem/dmabuf_rss_stat', '*dmabuf_rss*', NULL),
+      ('LMK kills', 'atrace_apps lmkd', '*atrace_apps: "lmkd"*', '*atrace_apps: "[*]"*'),
+      ('heap profile / heap dump', 'android.heapprofd / android.java_hprof', '*"android.heapprofd"*', '*"android.java_hprof"*')
+  )
+SELECT
+  signal,
+  record_with,
+  IIF(c IS NULL, NULL, c GLOB p1 OR IFNULL(c GLOB p2, 0)) AS recorded
+FROM needs, cfg;
+```
+
+- `recorded = 0`: the trace cannot answer anything that depends on that
+  signal. **Tell the user up front**, before reporting other results, which
+  signals are missing and which parts of the question they block, then give
+  the recording instructions below. Never read a missing signal as zero or
+  "no change".
+- `recorded = 1` but the process has no such track: the source was on and the
+  process emitted nothing (for example no change of a change-driven counter, no
+  GC, no frames drawn); see [Signal reference](#signal-reference).
+- `recorded` is NULL: the trace has no embedded config (older traces,
+  converted systrace or JSON). Fall back to whether the tracks exist for any
+  process (`SELECT DISTINCT name FROM counter_track`): a counter present for
+  one process proves its source was on.
+- An enabled event can still fail on a given kernel or build. If
+  `SELECT value FROM stats WHERE name = 'ftrace_setup_errors'` is above zero,
+  list the failures with `SELECT EXTRACT_ARG(arg_set_id, 'message') FROM
+  _trace_import_logs WHERE name = 'ftrace_setup_errors'` and treat any event
+  above that appears there as missing.
+
+### Recording the missing signals
+
+Ask the user to record a new trace on the device while reproducing the same
+scenario, with
+[`android_memory.pftxt`]($SKILL_ROOT/infra-references/example-configs/android_memory.pftxt),
+which enables everything this workflow reads:
+
+```bash
+curl -O https://raw.githubusercontent.com/google/perfetto/main/tools/record_android_trace
+chmod +x record_android_trace
+./record_android_trace \
+  -c "$SKILL_ROOT/infra-references/example-configs/android_memory.pftxt" \
+  -o memory.perfetto-trace
+```
+
+Raise `duration_ms` in a copy of the config so the trace covers the whole
+scenario. To add only what is missing to an existing config instead, merge in
+the matching entries (one `linux.ftrace` block per config; see
+[trace_config_reference.md]($SKILL_ROOT/infra-references/trace_config_reference.md)):
+
+| Missing signal | Add to the config |
+| --- | --- |
+| `mem.rss.*`, `mem.swap`, `oom_score_adj` | `linux.process_stats` with `proc_stats_poll_ms`; ftrace `kmem/rss_stat` (with `throttle_rss_stat: true`) and `oom/oom_score_adj_update` |
+| `meminfo`, `vmstat`, `psi` | `linux.sys_stats` with `meminfo_period_ms`, `vmstat_period_ms`, `psi_period_ms` |
+| `Heap size (KB)`, GC slices, `JNI Global Refs` | atrace category `dalvik` |
+| `Bitmap *`, `mem.gralloc.*`, `surfaceflinger` buffers, window queues | atrace category `gfx` |
+| `*HWUI*`, `Skia *` | atrace category `view` |
+| `binder_proxies` | atrace category `aidl` |
+| `oom_adj_reason` | atrace category `am` |
+| `GPU Memory` | `android.gpu.memory` data source and ftrace `gpu_mem/gpu_mem_total` |
+| `mem.dma_heap`, `android_dmabuf_allocs` | ftrace `dmabuf_heap/dma_heap_stat` (plus binder tracing to attribute gralloc allocations) |
+| `mem.dmabuf_rss` | ftrace `kmem/dmabuf_rss_stat`, or `record_process_dmabuf_rss: true` in `linux.process_stats` |
+| LMK kills | `atrace_apps: "lmkd"`; ftrace `lowmemorykiller/lowmemory_kill` on kernels with the in-kernel driver |
+
+Run Step 1 again on the new trace. If the user cannot re-record, continue with
+the signals that are present and state which conclusions the missing ones
+leave open.
+
+## Step 2: Resolve the target process
 
 Resolve the process to a `upid` **in each session** and scope every later query
 by `upid`, not by name. Short-lived children forked from an app keep its name
@@ -47,12 +141,12 @@ WHERE p.name = '<PROCESS>';
 The real app is normally the row whose parent is `zygote64` / `zygote` with
 many threads; report a restart (several such rows) instead of merging them.
 
-## Step 2: Find where each signal lives
+## Step 3: Find where each signal lives
 
-Query only the signals relevant to the question. Check which tracks exist first
-(`SELECT name FROM process_counter_track WHERE upid = <UPID>`; device-wide:
-`SELECT type, name FROM counter_track WHERE type IN (...)`), since each depends
-on what the trace recorded. **Before drawing a conclusion from a signal, read
+Query only the signals relevant to the question and recorded in Step 1. List
+the process's tracks first (`SELECT name FROM process_counter_track WHERE upid =
+<UPID>`; device-wide: `SELECT type, name FROM counter_track WHERE type IN
+(...)`). **Before drawing a conclusion from a signal, read
 its entry in [Signal reference](#signal-reference)**: most of these counters
 are emitted only on change, and several have no value at trace start.
 
@@ -70,7 +164,7 @@ are emitted only on change, and several have no value at trace start.
 | Embedded profiles | `SELECT heap_name, COUNT(*) FROM heap_profile_allocation WHERE upid = <UPID> GROUP BY heap_name` (`com.android.art` / `libc.malloc`); `heap_graph_object` (`upid = <UPID>`). Check `stats` (`heapprofd_buffer_overran`) before trusting completeness; if intact, run the profiler workflows on the same session. |
 | Lost data | `stats` where `severity IN ('error', 'data_loss') AND value > 0` (`heapprofd*`, `ftrace*`, `traced_buf*`), plus the `info`-level `rss_stat_unknown_thread_for_mm_id` |
 
-## Step 3: Summarize counters and GC activity
+## Step 4: Summarize counters and GC activity
 
 ### Counter summary
 
@@ -198,10 +292,12 @@ ORDER BY s.ts;
 `GC: Wait For Completion` rows are waits, not collections: their heap columns
 describe the GC they waited for.
 
-## Step 4: Interpret and route
+## Step 5: Interpret and route
 
-Report concrete numbers (`start -> end` within a trace, `before -> after`
-across traces) and keep measurements separate from hypotheses.
+Report concrete numbers for each counter: `start -> peak -> end` within a trace
+(`start_val`, `max_val`, `end_val`; a peak far above both ends is a transient
+the end value hides), `before -> after` across traces. Keep measurements
+separate from hypotheses.
 
 - **Change-driven counters.** A missing track or a late first sample means
   "nothing changed while tracing", not zero. A track with `samples = 1` shows a
@@ -378,24 +474,6 @@ across traces) and keep measurements separate from hypotheses.
   ones, and the deprecated `kill_one_process` counter (no `kill_reason`) on the
   oldest. Kills from the legacy in-kernel driver (`lowmemorykiller/lowmemory_kill`)
   appear instead as `mem.lmk` rows in the `instant` table.
-
-## If a signal is missing
-
-| Missing signal | Record with |
-| --- | --- |
-| `mem.rss.*`, `mem.swap`, `oom_score_adj` | `linux.process_stats` polling; `kmem/rss_stat` (with `throttle_rss_stat: true`) and `oom/oom_score_adj_update` ftrace events |
-| `meminfo`, `vmstat`, `psi` | `linux.sys_stats` (`meminfo_period_ms`, `vmstat_period_ms`, `psi_period_ms`) |
-| `Heap size (KB)`, GC slices, `JNI Global Refs` | atrace category `dalvik` |
-| `Bitmap *`, `mem.gralloc.*`, `surfaceflinger` buffers, window queues | atrace category `gfx` |
-| `*HWUI*`, `Skia *` | atrace category `view` |
-| `binder_proxies` | atrace category `aidl` |
-| `oom_adj_reason` | atrace category `am` |
-| `GPU Memory` | `android.gpu.memory` data source and ftrace `gpu_mem/gpu_mem_total` |
-| `mem.dma_heap`, `android_dmabuf_allocs` | ftrace `dmabuf_heap/dma_heap_stat` (plus binder tracing to attribute gralloc allocations) |
-| LMK kills | atrace app `lmkd`; ftrace `lowmemorykiller/lowmemory_kill` |
-
-See [recording_android_traces.md]($SKILL_ROOT/infra-references/recording_android_traces.md)
-and `$SKILL_ROOT/infra-references/example-configs/memory_counters.pftxt`.
 
 ## Reference
 
