@@ -275,15 +275,19 @@ TEST_F(WattsonSocModelModuleTest, ParseWattsonSocModel) {
   EXPECT_EQ(policy_table[7].policy(), 7);
 
   // 3. Verify Deep Idle Offsets: policy 0's offset fans out to CPUs 0-3, and
-  // policy 7's to CPU 7. Policy 4 has no offset set, so CPUs 4-6 get no row.
+  // policy 7's to CPU 7. Policy 4 has no offset set, so CPUs 4-6 default to 0.
   const auto& dio_table = storage_->wattson_external_deep_idle_offset_table();
-  ASSERT_EQ(dio_table.row_count(), 5u);
+  ASSERT_EQ(dio_table.row_count(), 8u);
   EXPECT_EQ(dio_table[0].cpu(), 0);
   EXPECT_EQ(dio_table[0].offset_ns(), 0);
   EXPECT_EQ(dio_table[3].cpu(), 3);
   EXPECT_EQ(dio_table[3].offset_ns(), 0);
-  EXPECT_EQ(dio_table[4].cpu(), 7);
-  EXPECT_EQ(dio_table[4].offset_ns(), 200000);
+  EXPECT_EQ(dio_table[4].cpu(), 4);
+  EXPECT_EQ(dio_table[4].offset_ns(), 0);
+  EXPECT_EQ(dio_table[6].cpu(), 6);
+  EXPECT_EQ(dio_table[6].offset_ns(), 0);
+  EXPECT_EQ(dio_table[7].cpu(), 7);
+  EXPECT_EQ(dio_table[7].offset_ns(), 200000);
 
   // 4. Verify Idle State Map
   const auto& idle_table = storage_->wattson_external_idle_state_map_table();

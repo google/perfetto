@@ -23,9 +23,11 @@ WITH
   external_data AS (
     SELECT
       (SELECT device_name FROM __intrinsic_wattson_external_device_info LIMIT 1) AS device,
-      cpu,
-      offset_ns
-    FROM __intrinsic_wattson_external_deep_idle_offset
+      p.cpu,
+      coalesce(d.offset_ns, 0) AS offset_ns
+    FROM __intrinsic_wattson_external_cpu_policy AS p
+    LEFT JOIN __intrinsic_wattson_external_deep_idle_offset AS d
+      ON d.cpu = p.cpu
   ),
   data(device, cpu, offset_ns) AS (
     SELECT *

@@ -117,13 +117,12 @@ void WattsonSocModelModule::ParseWattsonSocModel(ConstBytes blob) {
       context_->storage->mutable_wattson_external_cpu_policy_table()->Insert(
           row);
 
-      if (pol.has_deep_idle_offset_ns()) {
-        tables::WattsonExternalDeepIdleOffsetTable::Row dio_row;
-        dio_row.cpu = cpu;
-        dio_row.offset_ns = pol.deep_idle_offset_ns();
-        context_->storage->mutable_wattson_external_deep_idle_offset_table()
-            ->Insert(dio_row);
-      }
+      tables::WattsonExternalDeepIdleOffsetTable::Row dio_row;
+      dio_row.cpu = cpu;
+      dio_row.offset_ns =
+          pol.has_deep_idle_offset_ns() ? pol.deep_idle_offset_ns() : 0;
+      context_->storage->mutable_wattson_external_deep_idle_offset_table()
+          ->Insert(dio_row);
 
       if (pol.has_vote_by_freq() && pol.vote_by_freq()) {
         tables::WattsonExternalVoteByFreqTable::Row vbf_row;
