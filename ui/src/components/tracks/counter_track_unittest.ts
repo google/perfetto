@@ -83,7 +83,7 @@ class FakeEngine {
 }
 
 function tableName(createStatement: string): string {
-  return createStatement.split(' ')[3];
+  return createStatement.split(' ')[3]!;
 }
 
 function setup() {
@@ -181,10 +181,10 @@ test('dynamic sqlSource rebuilds the tables when it changes', async () => {
   expect(created).toHaveLength(2);
   expect(created[1]).toContain('FROM b');
   expect(engine.droppedTables()).toEqual([
-    `DROP TABLE IF EXISTS ${tableName(first)}`,
+    `DROP TABLE IF EXISTS ${tableName(first!)}`,
   ]);
   const dataQueries = engine.log.filter((q) => q.includes('minDisplayValue'));
-  expect(dataQueries.at(-1)).toContain(tableName(created[1]));
+  expect(dataQueries.at(-1)).toContain(tableName(created[1]!));
 });
 
 test('dynamic sqlSource changing on every frame is drawn', async () => {
