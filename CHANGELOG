@@ -133,8 +133,10 @@ Unreleased:
       collapse a track group and all of its descendants.
     * Shift+click on a track group header expands or collapses it and all of
       its descendants.
-    * Added process and thread fields to slice aggregations.
-    * Removed the pivot table tab, superseded by the slice aggregation.
+    * Added process, thread and track fields as optional columns in the thread
+      slice aggregation panel.
+    * Removed the 'Pivot Table' tab, which has been superseded by the slice
+      aggregation tab.
     * Aggregation drill-downs now open in a new tab.
     * Flamegraphs can now also be shown as a call tree or a flat function
       table.
@@ -158,10 +160,8 @@ Unreleased:
     * Embedders can now stream traces over postMessage as a ReadableStream,
       use the `shareable` and `downloadable` flags in place of `localOnly`,
       and hide the status bar with the `hideStatusbar` route arg.
-    * Faster decoding of query results.
+    * Improved decoding of query results, espeically when loading track data.
     * The timeline now recovers from WebGL context loss.
-    * Fixed heap profile flamegraphs overcounting unreleased memory across
-      intervals.
     * The Chrome extension now only accepts connections from ui.perfetto.dev.
   SDK:
     * Added TraceContext::drop_count() to the C++ SDK and
