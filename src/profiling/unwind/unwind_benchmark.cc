@@ -279,7 +279,7 @@ void BM_Unwind_Dwarf(benchmark::State& state, const UnwindArgs& args) {
     build_ids.reserve(result.frames.size());
     for (const auto& frame : result.frames) {
       build_ids.emplace_back(
-          frame.map_info.has_value() ? frame.map_info->build_id : "");
+          frame.map_info != nullptr ? frame.map_info->build_id() : "");
     }
 
     total_frames += result.frames.size();
@@ -313,7 +313,7 @@ void BM_Unwind_FramePointer(benchmark::State& state, int depth) {
     build_ids.reserve(frames.size());
     for (const auto& frame : frames) {
       build_ids.emplace_back(
-          frame.map_info.has_value() ? frame.map_info->build_id : "");
+          frame.map_info != nullptr ? frame.map_info->build_id() : "");
     }
 
     total_frames += frames.size();

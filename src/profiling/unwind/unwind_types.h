@@ -18,8 +18,9 @@
 #define SRC_PROFILING_UNWIND_UNWIND_TYPES_H_
 
 #include <cstdint>
-#include <optional>
+#include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace perfetto {
@@ -34,32 +35,42 @@ enum class SymbolStatus : uint8_t {
 };
 
 // Represents the additional ELF information associated with a PC.
+// Corresponds to Mapping in
+// protos/perfetto/trace/profiling/profile_common.proto
 struct UnwoundMapping {
+  static std::shared_ptr<UnwoundMapping> Create(std::string name,
+                                                uint64_t start = 0,
+                                                uint64_t end = 0,
+                                                uint64_t offset = 0,
+                                                uint64_t start_offset = 0);
+
+  virtual ~UnwoundMapping();
+
   // `map_name`, `map_start`, `map_end`, `map_offset`: populated directly from
   // the /proc/<pid>/maps entry covering the frame's PC.
   // Example `/proc/<pid>/maps` line:
   //    [map_start]-[map_end]  [perm] [offset] [dev] [inode]  [map_name]
   //   7f7c18042000-7f7c1806a000 r--p 00000000 fd:01 37890545 <binary_file>
   //   7f7c1806a000-7f7c181d3000 r-xp 00028000 fd:01 37890545 <binary_file>
-  std::string map_name;
-  uint64_t map_start = 0;
-  uint64_t map_end = 0;
-  uint64_t map_offset = 0;
+  virtual std::string map_name() const = 0;
+  virtual uint64_t map_start() const = 0;
+  virtual uint64_t map_end() const = 0;
+  virtual uint64_t map_offset() const = 0;
 
   // For split ELFs mapped across an initial
   // read-only (r--p) mapping (containing the ELF header) followed by an
   // executable (r-xp) mapping, the file offset of the initial mapping (0 if the
   // mapping starts at the beginning of the ELF).
-  uint64_t map_start_offset = 0;
+  virtual uint64_t map_start_offset() const = 0;
 
   // populated by parsing the underlying ELF binary
   // (p_vaddr - p_offset) of the executable PT_LOAD segment.
   // Needed to convert `rel_pc` to the ELF symbol table's virtual address.
-  uint64_t map_load_bias = 0;
+  virtual uint64_t map_load_bias() const = 0;
 
   // raw .note.gnu.build-id bytes;
   // 0 / empty if the mapping is not a readable ELF or lacks a build ID).
-  std::string build_id;
+  virtual std::string build_id() const = 0;
 };
 
 struct FrameData {
@@ -72,8 +83,7 @@ struct FrameData {
   uint64_t function_offset = 0;
   SymbolStatus symbol_status = SymbolStatus::kNotAttempted;
 
-  // TODO(safayat): cache these to avoid per-frame allocation.
-  std::optional<UnwoundMapping> map_info;
+  std::shared_ptr<const UnwoundMapping> map_info;
 };
 
 enum class UnwindErrorCode : uint8_t {

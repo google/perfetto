@@ -33,14 +33,8 @@ namespace {
 
 class MockUnwindContext : public UnwindContext {
  public:
-  struct MockMap {
-    uint64_t start;
-    uint64_t end;
-    std::string name;
-  };
-
   void AddMap(uint64_t start, uint64_t end, std::string name) {
-    maps_.push_back({start, end, std::move(name)});
+    maps_.push_back(UnwoundMapping::Create(std::move(name), start, end));
   }
 
   void ReparseMaps() override {}
@@ -51,13 +45,9 @@ class MockUnwindContext : public UnwindContext {
     frame.pc = pc;
     frame.rel_pc = pc;
     for (const auto& m : maps_) {
-      if (pc >= m.start && pc < m.end) {
-        frame.rel_pc = pc - m.start;
-        UnwoundMapping mi;
-        mi.map_name = m.name;
-        mi.map_start = m.start;
-        mi.map_end = m.end;
-        frame.map_info = std::move(mi);
+      if (pc >= m->map_start() && pc < m->map_end()) {
+        frame.rel_pc = pc - m->map_start();
+        frame.map_info = m;
         return frame;
       }
     }
@@ -69,7 +59,7 @@ class MockUnwindContext : public UnwindContext {
   }
 
  private:
-  std::vector<MockMap> maps_;
+  std::vector<std::shared_ptr<UnwoundMapping>> maps_;
 };
 
 constexpr static size_t kMaxFrames = 64;
@@ -204,8 +194,8 @@ TEST_F(FramePointerUnwinderTest, UnwindWithRealLibunwindstackContext) {
   ASSERT_EQ(frames.size(), 2UL);
   EXPECT_EQ(frames[0].function_name, "DummyTargetFunctionForUnwindTest");
   EXPECT_EQ(frames[0].symbol_status, SymbolStatus::kResolved);
-  ASSERT_TRUE(frames[0].map_info.has_value());
-  EXPECT_FALSE(frames[0].map_info->map_name.empty());
+  ASSERT_NE(frames[0].map_info, nullptr);
+  EXPECT_FALSE(frames[0].map_info->map_name().empty());
 }
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_X86_64)
 

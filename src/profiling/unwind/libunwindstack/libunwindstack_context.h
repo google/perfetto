@@ -22,7 +22,10 @@
 #include <unwindstack/Maps.h>
 #include <unwindstack/Memory.h>
 #include <unwindstack/Unwinder.h>
+#include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <utility>
 
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/unwind/cpu_registers.h"
@@ -130,7 +133,6 @@ class LibunwindstackContext : public UnwindContext {
 
   UnwindResult Unwind(const UnwindInputSample& /* sample */,
                       const UnwindOptions& /*options*/ = {}) override;
-  // UnwindingMetadata
 
  private:
   UnwindingMetadata metadata_;

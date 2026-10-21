@@ -1125,10 +1125,10 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord* alloc_rec) {
   const auto& prefixes = ds.config.skip_symbol_prefix();
   if (!prefixes.empty()) {
     for (FrameData& frame_data : alloc_rec->frames) {
-      if (!frame_data.map_info.has_value()) {
+      if (frame_data.map_info == nullptr) {
         continue;
       }
-      const std::string& map = frame_data.map_info->map_name;
+      std::string map = frame_data.map_info->map_name();
       if (std::find_if(prefixes.cbegin(), prefixes.cend(),
                        [&map](const std::string& prefix) {
                          return base::StartsWith(map, prefix);

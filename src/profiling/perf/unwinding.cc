@@ -372,7 +372,7 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
     ret.build_ids.reserve(ret.build_ids.size() + user_frames.size());
     for (FrameData& frame : user_frames) {
       ret.build_ids.emplace_back(
-          frame.map_info.has_value() ? frame.map_info->build_id : "");
+          frame.map_info != nullptr ? frame.map_info->build_id() : "");
       ret.frames.emplace_back(std::move(frame));
     }
     return ret;
@@ -457,7 +457,7 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
   ret.frames.reserve(ret.frames.size() + unwind.frames.size());
   for (FrameData& frame : unwind.frames) {
     ret.build_ids.emplace_back(
-        frame.map_info.has_value() ? frame.map_info->build_id : "");
+        frame.map_info != nullptr ? frame.map_info->build_id() : "");
     ret.frames.emplace_back(std::move(frame));
   }
 
@@ -480,11 +480,8 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
 
 std::vector<FrameData> Unwinder::SymbolizeKernelCallchain(
     const ParsedSample& sample) {
-  static base::NoDestructor<UnwoundMapping> kernel_map_info([] {
-    UnwoundMapping mi{};
-    mi.map_name = "kernel";
-    return mi;
-  }());
+  static base::NoDestructor<std::shared_ptr<const UnwoundMapping>>
+      kernel_map_info(UnwoundMapping::Create("kernel"));
   std::vector<FrameData> ret;
   if (sample.kernel_ips.empty())
     return ret;

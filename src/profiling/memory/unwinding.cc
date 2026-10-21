@@ -153,8 +153,8 @@ bool DoUnwind(WireMessage* msg,
   out->frames.swap(result.frames);
   out->build_ids.resize(out->frames.size());
   for (size_t i = 0; i < out->frames.size(); ++i) {
-    out->build_ids[i] = out->frames[i].map_info.has_value()
-                            ? out->frames[i].map_info->build_id
+    out->build_ids[i] = out->frames[i].map_info != nullptr
+                            ? out->frames[i].map_info->build_id()
                             : "";
   }
 

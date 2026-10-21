@@ -54,6 +54,64 @@
 namespace perfetto {
 namespace profiling {
 
+std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
+    const CpuRegisters& cpu_regs) {
+  switch (cpu_regs.arch) {
+    case CpuArch::ARM64: {
+      static_assert(static_cast<int>(ARM64_REG_MAX) ==
+                        static_cast<int>(unwindstack::ARM64_REG_LAST),
+                    "arm64 register layout mismatch");
+      auto regs = std::make_unique<unwindstack::RegsArm64>();
+      memcpy(regs->RawData(), cpu_regs.regs, sizeof(uint64_t) * ARM64_REG_MAX);
+      return regs;
+    }
+    case CpuArch::ARM: {
+      static_assert(static_cast<int>(ARM_REG_MAX) ==
+                        static_cast<int>(unwindstack::ARM_REG_LAST),
+                    "arm register layout mismatch");
+      auto regs = std::make_unique<unwindstack::RegsArm>();
+      for (size_t i = 0; i < ARM_REG_MAX; ++i) {
+        (*regs)[i] = static_cast<uint32_t>(cpu_regs.regs[i]);
+      }
+      return regs;
+    }
+    case CpuArch::X86_64: {
+      static_assert(static_cast<int>(X86_64_REG_MAX) ==
+                        static_cast<int>(unwindstack::X86_64_REG_LAST),
+                    "x86_64 register layout mismatch");
+      auto regs = std::make_unique<unwindstack::RegsX86_64>();
+      memcpy(regs->RawData(), cpu_regs.regs, sizeof(uint64_t) * X86_64_REG_MAX);
+      return regs;
+    }
+    case CpuArch::X86: {
+      static_assert(static_cast<int>(X86_REG_MAX) ==
+                        static_cast<int>(unwindstack::X86_REG_LAST),
+                    "x86 register layout mismatch");
+      auto regs = std::make_unique<unwindstack::RegsX86>();
+      for (size_t i = 0; i < X86_REG_MAX; ++i) {
+        (*regs)[i] = static_cast<uint32_t>(cpu_regs.regs[i]);
+      }
+      return regs;
+    }
+    case CpuArch::RISCV64: {
+      static_assert(static_cast<int>(RISCV64_REG_MAX) ==
+                        static_cast<int>(unwindstack::RISCV64_REG_COUNT),
+                    "riscv64 register layout mismatch");
+      auto regs = std::make_unique<unwindstack::RegsRiscv64>();
+      memcpy(regs->RawData(), cpu_regs.regs,
+             sizeof(uint64_t) * RISCV64_REG_MAX);
+      if ((*regs)[unwindstack::RISCV64_REG_VLENB] == 0) {
+        (*regs)[unwindstack::RISCV64_REG_VLENB] =
+            unwindstack::RegsRiscv64::GetVlenbFromLocal();
+      }
+      return regs;
+    }
+    case CpuArch::UNKNOWN:
+      return nullptr;
+  }
+  return nullptr;
+}
+
 StackOverlayMemory::StackOverlayMemory(std::shared_ptr<unwindstack::Memory> mem,
                                        uint64_t sp,
                                        const uint8_t* stack,
@@ -193,21 +251,30 @@ static_assert(static_cast<uint8_t>(CpuArch::UNKNOWN) ==
                       static_cast<uint8_t>(unwindstack::ARCH_RISCV64),
               "CpuArch and unwindstack::ArchEnum must match");
 
-inline UnwoundMapping FromLibunwindStackMapInfo(
-    unwindstack::MapInfo* map_info) {
-  UnwoundMapping mi;
-  mi.map_name = map_info->GetFullName();
-  mi.map_start = map_info->start();
-  mi.map_end = map_info->end();
-  mi.map_offset = map_info->offset();
-  mi.map_start_offset = map_info->elf_start_offset();
-  mi.map_load_bias = map_info->GetLoadBias();
-  if (!map_info->name().empty() &&
-      !(map_info->flags() & unwindstack::MAPS_FLAGS_DEVICE_MAP)) {
-    mi.build_id = map_info->GetBuildID();
+class LibunwindstackMapping : public UnwoundMapping {
+ public:
+  explicit LibunwindstackMapping(std::shared_ptr<unwindstack::MapInfo> map_info)
+      : map_info_(std::move(map_info)) {}
+
+  std::string map_name() const override { return map_info_->GetFullName(); }
+  uint64_t map_start() const override { return map_info_->start(); }
+  uint64_t map_end() const override { return map_info_->end(); }
+  uint64_t map_offset() const override { return map_info_->offset(); }
+  uint64_t map_start_offset() const override {
+    return map_info_->elf_start_offset();
   }
-  return mi;
-}
+  uint64_t map_load_bias() const override { return map_info_->GetLoadBias(); }
+  std::string build_id() const override {
+    if (!map_info_->name().empty() &&
+        !(map_info_->flags() & unwindstack::MAPS_FLAGS_DEVICE_MAP)) {
+      return map_info_->GetBuildID();
+    }
+    return "";
+  }
+
+ private:
+  std::shared_ptr<unwindstack::MapInfo> map_info_;
+};
 
 inline UnwindErrorCode FromLibunwindStackErrorCode(unwindstack::ErrorCode e) {
   switch (e) {
@@ -247,64 +314,6 @@ inline UnwindErrorCode FromLibunwindStackErrorCode(unwindstack::ErrorCode e) {
 
 }  // namespace
 
-std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
-    const CpuRegisters& cpu_regs) {
-  switch (cpu_regs.arch) {
-    case CpuArch::ARM64: {
-      static_assert(static_cast<int>(ARM64_REG_MAX) ==
-                        static_cast<int>(unwindstack::ARM64_REG_LAST),
-                    "arm64 register layout mismatch");
-      auto regs = std::make_unique<unwindstack::RegsArm64>();
-      memcpy(regs->RawData(), cpu_regs.regs, sizeof(uint64_t) * ARM64_REG_MAX);
-      return regs;
-    }
-    case CpuArch::ARM: {
-      static_assert(static_cast<int>(ARM_REG_MAX) ==
-                        static_cast<int>(unwindstack::ARM_REG_LAST),
-                    "arm register layout mismatch");
-      auto regs = std::make_unique<unwindstack::RegsArm>();
-      for (size_t i = 0; i < ARM_REG_MAX; ++i) {
-        (*regs)[i] = static_cast<uint32_t>(cpu_regs.regs[i]);
-      }
-      return regs;
-    }
-    case CpuArch::X86_64: {
-      static_assert(static_cast<int>(X86_64_REG_MAX) ==
-                        static_cast<int>(unwindstack::X86_64_REG_LAST),
-                    "x86_64 register layout mismatch");
-      auto regs = std::make_unique<unwindstack::RegsX86_64>();
-      memcpy(regs->RawData(), cpu_regs.regs, sizeof(uint64_t) * X86_64_REG_MAX);
-      return regs;
-    }
-    case CpuArch::X86: {
-      static_assert(static_cast<int>(X86_REG_MAX) ==
-                        static_cast<int>(unwindstack::X86_REG_LAST),
-                    "x86 register layout mismatch");
-      auto regs = std::make_unique<unwindstack::RegsX86>();
-      for (size_t i = 0; i < X86_REG_MAX; ++i) {
-        (*regs)[i] = static_cast<uint32_t>(cpu_regs.regs[i]);
-      }
-      return regs;
-    }
-    case CpuArch::RISCV64: {
-      static_assert(static_cast<int>(RISCV64_REG_MAX) ==
-                        static_cast<int>(unwindstack::RISCV64_REG_COUNT),
-                    "riscv64 register layout mismatch");
-      auto regs = std::make_unique<unwindstack::RegsRiscv64>();
-      memcpy(regs->RawData(), cpu_regs.regs,
-             sizeof(uint64_t) * RISCV64_REG_MAX);
-      if ((*regs)[unwindstack::RISCV64_REG_VLENB] == 0) {
-        (*regs)[unwindstack::RISCV64_REG_VLENB] =
-            unwindstack::RegsRiscv64::GetVlenbFromLocal();
-      }
-      return regs;
-    }
-    case CpuArch::UNKNOWN:
-      return nullptr;
-  }
-  return nullptr;
-}
-
 FrameData LibunwindstackContext::BuildFrameFromPc(uint64_t pc,
                                                   bool resolve_names) {
   FrameData frame{};
@@ -335,12 +344,11 @@ FrameData LibunwindstackContext::BuildFrameFromPc(uint64_t pc,
       frame.function_name = std::string(func_name);
       frame.symbol_status = SymbolStatus::kResolved;
     } else {
-      frame.function_name = "";
       frame.function_offset = 0;
     }
   }
 
-  frame.map_info = FromLibunwindStackMapInfo(map_info.get());
+  frame.map_info = std::make_shared<LibunwindstackMapping>(std::move(map_info));
 
   return frame;
 }
@@ -376,17 +384,28 @@ UnwindResult LibunwindstackContext::Unwind(const UnwindInputSample& sample,
   std::vector<unwindstack::FrameData> raw_frames = unwinder.ConsumeFrames();
   std::vector<FrameData> frames;
   frames.reserve(raw_frames.size());
+  const unwindstack::MapInfo* prev_frame_map_info = nullptr;
+  std::shared_ptr<const UnwoundMapping> prev_mapping;
   for (unwindstack::FrameData& raw_frame : raw_frames) {
-    FrameData frame{};
+    FrameData& frame = frames.emplace_back();
     frame.pc = raw_frame.pc;
     frame.rel_pc = raw_frame.rel_pc;
     frame.sp = raw_frame.sp;
-    frame.function_name = std::string(raw_frame.function_name);
+    if (!raw_frame.function_name.empty()) {
+      frame.function_name = std::string(raw_frame.function_name);
+    }
     frame.function_offset = raw_frame.function_offset;
     if (raw_frame.map_info != nullptr) {
-      frame.map_info = FromLibunwindStackMapInfo(raw_frame.map_info.get());
+      // Consecutive frames in a callstack usually belong to the same binary or
+      // DSO. Reuse the wrapper when `MapInfo*` matches the previous frame to
+      // avoid redundant `make_shared` heap allocations per frame.
+      if (raw_frame.map_info.get() != prev_frame_map_info) {
+        prev_frame_map_info = raw_frame.map_info.get();
+        prev_mapping = std::make_shared<LibunwindstackMapping>(
+            std::move(raw_frame.map_info));
+      }
+      frame.map_info = prev_mapping;
     }
-    frames.emplace_back(std::move(frame));
   }
 
   return {error_code, std::move(frames)};
