@@ -161,7 +161,6 @@ function setupContentSecurityPolicy() {
       'https://*.google.com',
       'https://*.googleusercontent.com',
       'https://www.googletagmanager.com',
-      'https://*.google-analytics.com',
     ],
     'object-src': [`'none'`],
     'connect-src': [
