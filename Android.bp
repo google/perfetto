@@ -16131,6 +16131,7 @@ filegroup {
         "src/base/base64_unittest.cc",
         "src/base/bits_unittest.cc",
         "src/base/circular_queue_unittest.cc",
+        "src/base/ctrl_c_handler_unittest.cc",
         "src/base/dynamic_string_writer_unittest.cc",
         "src/base/file_utils_unittest.cc",
         "src/base/flags_unittest.cc",
