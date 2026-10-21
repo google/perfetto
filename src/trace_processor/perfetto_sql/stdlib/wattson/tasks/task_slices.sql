@@ -15,8 +15,6 @@
 
 INCLUDE PERFETTO MODULE android.process_metadata;
 
-INCLUDE PERFETTO MODULE intervals.overlap;
-
 INCLUDE PERFETTO MODULE linux.irqs;
 
 INCLUDE PERFETTO MODULE wattson.cpu.idle;
@@ -37,24 +35,20 @@ WHERE
   -- of a trace), so need this check to exclude negative dur slices.
   dur > 0;
 
--- Flatten hard IRQs, since they can preempt each other. Only hard IRQs can use
--- the built-in ancestor_slice() and interval functions
-CREATE PERFETTO VIEW _hard_irq_flattened_slices AS
-WITH
-  root_slices AS (
-    SELECT id, ts, dur FROM linux_hard_irqs WHERE parent_id IS NULL
-  ),
-  child_slices AS (
-    SELECT anc.id AS root_id, irq.id, irq.parent_id, irq.ts, irq.dur
-    FROM linux_hard_irqs AS irq, ancestor_slice(irq.id) AS anc
-    WHERE
-      irq.parent_id IS NOT NULL
-  )
-SELECT intervals.ts, intervals.dur, slices.name AS hard_irq_name, cpu_track.cpu
-FROM _intervals_flatten!(_intervals_merge_root_and_children!(root_slices, child_slices)) AS intervals
-JOIN slices USING (id)
-JOIN cpu_track
-  ON cpu_track.id = slices.track_id;
+-- Flatten hard IRQs, since they can preempt each other: each instant of an
+-- IRQ tree goes to the innermost IRQ running then. Trees with a non-positive
+-- duration slice on the path from the root are dropped.
+CREATE PERFETTO TABLE _hard_irq_flattened_ids AS
+FROM (SELECT id, parent_id, ts, dur FROM linux_hard_irqs)
+|> TREE ACCUMULATE DOWN MIN(id) AS root_id, MIN(dur) AS min_dur
+|> WHERE min_dur > 0
+|> INTERVAL FLATTEN PER root_id AGGREGATE MAX(id) AS id;
+
+CREATE PERFETTO TABLE _hard_irq_flattened_slices AS
+SELECT f.ts, f.dur, s.name AS hard_irq_name, cpu_track.cpu
+FROM _hard_irq_flattened_ids AS f
+JOIN slices AS s USING (id)
+JOIN cpu_track ON cpu_track.id = s.track_id;
 
 -- Softirqs run with other softirqs disabled, so will not be preempted by each
 -- other, and thus do not need to be flattened like hard IRQs do.
@@ -76,7 +70,7 @@ CREATE VIRTUAL TABLE _all_irqs_combined_slices USING SPAN_OUTER_JOIN(
 
 -- Replace soft IRQs with hard IRQs if hard IRQs are present. Hard IRQs could
 -- preempt soft IRQs, but not the other way around.
-CREATE PERFETTO VIEW _all_irqs_flattened_slices AS
+CREATE PERFETTO TABLE _all_irqs_flattened_slices AS
 SELECT
   ts,
   dur,
@@ -170,7 +164,11 @@ SELECT
   -- Prefer the earliest real (non-IRQ, non-swapper) task in the group; if the
   -- group has none, fall back to the earliest row of any kind.
   coalesce(min(iif(NOT is_irq AND utid > 0, ts, NULL)), min(ts)) AS boundary_ts,
-  idle_group
+  idle_group,
+  cpu,
+  -- Tasks within an idle exit do not overlap, so the last one to end starts
+  -- after the boundary and also ends the kept island.
+  max(ts + dur) AS island_end
 FROM _active_state_w_tasks
 GROUP BY
   idle_group;
@@ -185,38 +183,35 @@ CREATE PERFETTO INDEX _task_causing_idle_exit_idx ON _task_causing_idle_exit(
 --- and replaced with swapper. The previous table, _active_state_w_tasks, has
 --- many groups of "islands", of which the gaps need to be filled back in with
 --- the swapper task.
-CREATE PERFETTO TABLE _wattson_task_slices AS
-WITH
-  base_tasks AS (
-    SELECT t.*
-    FROM _active_state_w_tasks AS t
-    JOIN _task_causing_idle_exit AS exit USING (idle_group)
-    WHERE
-      t.ts >= exit.boundary_ts
-  ),
-  activity_islands AS (
-    SELECT cpu, idle_group, min(ts) AS island_start, max(ts + dur) AS island_end
-    FROM base_tasks
-    GROUP BY
-      cpu,
-      idle_group
-  ),
-  swapper_gaps AS (
-    SELECT
-      island_end AS ts,
-      lead(island_start) OVER (PARTITION BY cpu ORDER BY island_start)
-      - island_end AS dur,
-      cpu
-    FROM activity_islands
-  )
--- Combine the real tasks with the calculated swapper gaps.
+CREATE PERFETTO TABLE _wattson_swapper_gaps AS
+FROM (
+  SELECT boundary_ts AS ts, island_end - boundary_ts AS dur, cpu, 0 AS is_gap
+  FROM _task_causing_idle_exit
+)
+|> INTERVAL FILL GAPS WITH (
+  SELECT
+    min(boundary_ts) AS ts,
+    max(island_end) - min(boundary_ts) AS dur,
+    cpu,
+    1 AS is_gap
+  FROM _task_causing_idle_exit
+  GROUP BY
+    cpu
+) PER cpu
+|> WHERE is_gap = 1
+|> ORDER BY cpu, ts
+|> SELECT ts, dur, cpu;
+
+-- Combine the real tasks with the swapper gaps between islands.
 --
 -- `idle_group` is carried through for rows from _active_state_w_tasks since
 -- they are already clipped to a single idle exit. Synthesized swapper gaps
 -- can span multiple idle exits and receive NULL.
-SELECT ts, dur, cpu, utid, idle_group FROM base_tasks
-UNION ALL
-SELECT ts, dur, cpu, 0 AS utid, NULL AS idle_group
-FROM swapper_gaps
+CREATE PERFETTO TABLE _wattson_task_slices AS
+SELECT t.ts, t.dur, t.cpu, t.utid, t.idle_group
+FROM _active_state_w_tasks AS t
+JOIN _task_causing_idle_exit AS exit USING (idle_group)
 WHERE
-  dur > 0;
+  t.ts >= exit.boundary_ts
+UNION ALL
+SELECT ts, dur, cpu, 0 AS utid, NULL AS idle_group FROM _wattson_swapper_gaps;
