@@ -172,9 +172,9 @@ test('shows the status and the controls', () => {
   const [follow, pause] = root.querySelectorAll<HTMLElement>(
     '.pf-live-stream-hud__btn',
   );
-  expect(follow.classList).toContain('pf-live-stream-hud__btn--active');
-  follow.click();
-  pause.click();
+  expect(follow!.classList).toContain('pf-live-stream-hud__btn--active');
+  follow!.click();
+  pause!.click();
   expect(props.onToggleFollow).toHaveBeenCalledTimes(1);
   expect(props.onTogglePause).toHaveBeenCalledTimes(1);
 });
@@ -392,7 +392,7 @@ test('opens a clicked target', () => {
   draw();
 
   root
-    .querySelectorAll<HTMLElement>('.pf-live-stream-hud__target-item')[1]
+    .querySelectorAll<HTMLElement>('.pf-live-stream-hud__target-item')[1]!
     .click();
 
   expect(props.onOpenTarget).toHaveBeenCalledWith('job-1/eval');
@@ -504,17 +504,17 @@ test('runs the actions and changes the settings of the more menu', () => {
   const [poll, buffer, history] = root.querySelectorAll('select');
   const options = (select: HTMLSelectElement) =>
     [...select.options].map((o) => o.text);
-  expect(options(poll)).toEqual(['0.25s', '0.5s', '1.0s', '2.0s']);
-  expect(options(buffer)).toEqual(['0s', '1s', '2s', '5s', '10s', '15s']);
-  expect(options(history)).toEqual(['2min', '10min', '1h', '4h']);
-  expect([poll.value, buffer.value, history.value]).toEqual([
+  expect(options(poll!)).toEqual(['0.25s', '0.5s', '1.0s', '2.0s']);
+  expect(options(buffer!)).toEqual(['0s', '1s', '2s', '5s', '10s', '15s']);
+  expect(options(history!)).toEqual(['2min', '10min', '1h', '4h']);
+  expect([poll!.value, buffer!.value, history!.value]).toEqual([
     '0.25',
     '5',
     '60',
   ]);
 
-  buffer.value = '10';
-  buffer.dispatchEvent(new Event('change'));
+  buffer!.value = '10';
+  buffer!.dispatchEvent(new Event('change'));
   expect(settings.bufferDelay.get()).toBe('10');
 
   click('.pf-live-stream-hud__more-item');
@@ -527,7 +527,7 @@ test('lays out the panel: status and target, actions, settings', () => {
 
   const sections = root.querySelectorAll('.pf-live-stream-hud__section');
   expect(sections).toHaveLength(3);
-  expect(sections[0].textContent).toBe('LIVE STREAMworker/3▾');
+  expect(sections[0]!.textContent).toBe('LIVE STREAMworker/3▾');
   expect(texts('.pf-live-stream-hud__btn')).toEqual([
     'Follow Live: ON [Space]',
     'Pause',
@@ -550,16 +550,16 @@ test('runs the actions and changes the settings of the panel', () => {
 
   const [follow, pause, reconnect, download] =
     root.querySelectorAll<HTMLElement>('.pf-live-stream-hud__btn');
-  follow.click();
-  pause.click();
-  reconnect.click();
-  download.click();
+  follow!.click();
+  pause!.click();
+  reconnect!.click();
+  download!.click();
   expect(props.onToggleFollow).toHaveBeenCalledTimes(1);
   expect(props.onTogglePause).toHaveBeenCalledTimes(1);
   expect(props.onReconnect).toHaveBeenCalledTimes(1);
   expect(props.onDownload).toHaveBeenCalledTimes(1);
 
-  const history = root.querySelectorAll('select')[2];
+  const history = root.querySelectorAll('select')[2]!;
   history.value = '240';
   history.dispatchEvent(new Event('change'));
   expect(settings.retention.get()).toBe('240');

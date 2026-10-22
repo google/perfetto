@@ -189,7 +189,7 @@ function setup() {
 
   // Renders the HUD tab and returns what it shows.
   const hud = () => {
-    m.render(root, fake.tabs[0].render());
+    m.render(root, fake.tabs[0]!.render());
     const text = (selector: string) =>
       root.querySelector(selector)?.textContent ?? undefined;
     return {
@@ -257,7 +257,7 @@ test('shows buffering while the first trace opens, then its session', async () =
   expect(openedArgs()).toMatchObject({target: WORKER});
   expect(urlTarget()).toBe(WORKER.id);
   // With the history of the History setting.
-  expect(server.seedRequests[0].get('history_sec')).toBe('3600');
+  expect(server.seedRequests[0]!.get('history_sec')).toBe('3600');
 
   controller.attach(fakeModel(TARGET.parse(WORKER)));
   expect(hud()).toEqual({
@@ -416,7 +416,7 @@ test('opens another target in place, with its URL', async () => {
   expect(openedArgs()).toMatchObject({target: {id: 'job-1/eval/2'}});
   expect(urlTarget()).toBe('job-1/eval/2');
   // Before the trace changed.
-  expect(new URL(openedUrls[1]).searchParams.get(TARGET_ARG)).toBe(
+  expect(new URL(openedUrls[1]!).searchParams.get(TARGET_ARG)).toBe(
     'job-1/eval/2',
   );
 });

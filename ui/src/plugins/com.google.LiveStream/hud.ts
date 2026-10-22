@@ -591,7 +591,7 @@ function highlightTarget(props: LiveHudProps, step: 1 | -1) {
   if (from < 0) from = indexOf(props.target?.id);
   if (from < 0) from = step > 0 ? -1 : shown.length;
   const index = clamp(from + step, 0, shown.length - 1);
-  hudState.highlightedTarget = shown[index].id;
+  hudState.highlightedTarget = shown[index]!.id;
 
   // The row is already rendered; only its highlight waits for the redraw.
   scrollIntoList(document.getElementById(targetOptionId(index)));
@@ -631,7 +631,7 @@ function renderTargetItem(
   activeBase: string,
 ): m.Children {
   const {hudState} = props;
-  const t = shown[index];
+  const t = shown[index]!;
   const isSelected = t.id === props.target?.id;
   const isTemplateMatch =
     !isSelected && activeBase !== '' && targetBaseName(t) === activeBase;

@@ -244,7 +244,7 @@ function fakeTrace() {
     selection,
     timeline,
     traceInfo,
-    minimapProvider: () => minimapProviders[0],
+    minimapProvider: () => minimapProviders[0]!,
     // Runs the callbacks of a frame.
     frame: () => frameCallbacks.forEach((callback) => callback()),
     traceReady: () => readyListeners.forEach((listener) => listener()),
@@ -392,7 +392,7 @@ test('pausing aborts the request and polls again on resume', async () => {
   expect(server.streamRequests.length).toBe(1);
 
   model().togglePause();
-  expect(server.signals[0].aborted).toBe(true);
+  expect(server.signals[0]!.aborted).toBe(true);
   await vi.advanceTimersByTimeAsync(60_000);
   expect(server.streamRequests.length).toBe(1);
 
@@ -870,7 +870,7 @@ test('stops polling and leaves the HUD when disposed', async () => {
   session[Symbol.dispose]();
   await vi.advanceTimersByTimeAsync(60_000);
 
-  expect(server.signals[0].aborted).toBe(true);
+  expect(server.signals[0]!.aborted).toBe(true);
   expect(server.streamRequests.length).toBe(1);
   expect(host.model).toBeUndefined();
 });
