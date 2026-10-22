@@ -190,3 +190,108 @@ FROM intervals_overlap_count_by_group!(
 ) AS c
 LEFT JOIN _android_process_state_rank AS r
   ON r.state = c.group_name;
+
+-- Intervals where each Android process capability flag was enabled.
+CREATE PERFETTO TABLE _android_process_capability_intervals AS
+WITH
+  -- Most rows only change the OOM score: drop repeated capability masks
+  -- before joining lifetimes and decoding args.
+  deduped AS MATERIALIZED (
+    SELECT id, ts, is_initial, upid, arg_set_id
+    FROM (
+      SELECT
+        id,
+        ts,
+        is_initial,
+        upid,
+        coalesce(capability_flags, 0) AS capability_flags,
+        arg_set_id,
+        lag(coalesce(capability_flags, 0)) OVER (
+          PARTITION BY
+            upid
+          ORDER BY ts, is_initial DESC, id
+        ) AS prev_flags
+      FROM __intrinsic_android_process_state
+    )
+    WHERE
+      prev_flags IS NULL
+      OR prev_flags != capability_flags
+  ),
+  mask_spans AS (
+    SELECT
+      ts,
+      lead(ts) OVER (PARTITION BY upid ORDER BY ts, is_initial DESC, id) AS next_ts,
+      upid,
+      arg_set_id
+    FROM (
+      SELECT
+        coalesce(s.ts, fw.fw_start_ts, p.start_ts, trace_start()) AS ts,
+        s.is_initial,
+        s.id,
+        s.upid,
+        s.arg_set_id
+      FROM deduped AS s
+      JOIN process AS p USING (upid)
+      LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
+      UNION ALL
+      SELECT
+        p.end_ts AS ts,
+        -1 AS is_initial,
+        0 AS id,
+        p.upid,
+        NULL AS arg_set_id
+      FROM (SELECT DISTINCT upid FROM deduped)
+      JOIN process AS p USING (upid)
+      WHERE
+        p.end_ts IS NOT NULL
+    )
+  ),
+  capability_slices AS (
+    SELECT
+      m.ts,
+      m.next_ts,
+      m.upid,
+      replace(a.string_value, 'PROCESS_CAPABILITY_', '') AS capability,
+      lag(m.next_ts) OVER (PARTITION BY m.upid, a.string_value ORDER BY m.ts) AS prev_next_ts
+    FROM mask_spans AS m
+    JOIN args AS a USING (arg_set_id)
+    WHERE
+      a.flat_key = 'capability_flags'
+      AND (m.next_ts IS NULL OR m.next_ts > m.ts)
+  ),
+  capability_islands AS (
+    SELECT
+      ts,
+      next_ts,
+      upid,
+      capability,
+      sum(iif(prev_next_ts = ts, 0, 1)) OVER (
+        PARTITION BY
+          upid,
+          capability
+        ORDER BY ts
+      ) AS island
+    FROM capability_slices
+  )
+SELECT
+  row_number() OVER (ORDER BY min(i.ts), i.upid, i.capability) AS id,
+  min(i.ts) AS ts,
+  iif(count() > count(i.next_ts), -1, max(i.next_ts) - min(i.ts)) AS dur,
+  i.upid,
+  p.pid,
+  m.process_name,
+  i.capability
+FROM capability_islands AS i
+JOIN process AS p USING (upid)
+LEFT JOIN android_process_metadata AS m USING (upid)
+GROUP BY
+  i.upid,
+  i.capability,
+  i.island;
+
+-- Number of enabled capabilities for each process over time.
+CREATE PERFETTO TABLE _android_process_capability_count AS
+SELECT c.ts, c.group_name AS upid, c.value AS count
+FROM intervals_overlap_count_by_group!(
+  _android_process_capability_intervals, ts, dur, upid
+) AS c;

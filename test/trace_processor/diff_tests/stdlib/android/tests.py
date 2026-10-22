@@ -3412,6 +3412,170 @@ class AndroidStdlib(TestSuite):
         5000,-1,200,"EXITED","RECEIVER",2000,21,"[NULL]"
         """))
 
+  def test_android_process_capability_intervals(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 500
+          track_descriptor {
+            uuid: 2
+            thread {
+              pid: 200
+              tid: 200
+              thread_name: "main"
+            }
+          }
+        }
+        packet {
+          timestamp: 500
+          track_descriptor {
+            uuid: 3
+            thread {
+              pid: 300
+              tid: 300
+              thread_name: "live"
+            }
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "process_start"
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 200
+              package_uid: 10002
+            }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 200
+              uid: 10002
+              prev_proc_state: PROCESS_STATE_TOP
+              cur_proc_state: PROCESS_STATE_FOREGROUND_SERVICE
+              prev_capability_flags: 3
+              cur_capability_flags: 1
+              reason: 3
+              seq_id: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 2500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 200
+              uid: 10002
+              prev_proc_state: PROCESS_STATE_FOREGROUND_SERVICE
+              cur_proc_state: PROCESS_STATE_FOREGROUND_SERVICE
+              prev_capability_flags: 1
+              cur_capability_flags: 1
+              reason: 3
+              seq_id: 2
+            }
+          }
+        }
+        packet {
+          timestamp: 3000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 200
+              uid: 10002
+              prev_proc_state: PROCESS_STATE_FOREGROUND_SERVICE
+              cur_proc_state: PROCESS_STATE_TOP
+              prev_capability_flags: 1
+              cur_capability_flags: 3
+              reason: 3
+              seq_id: 3
+            }
+          }
+        }
+        packet {
+          timestamp: 4000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 3
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 300
+              uid: 10003
+              prev_proc_state: PROCESS_STATE_CACHED_EMPTY
+              cur_proc_state: PROCESS_STATE_FOREGROUND_SERVICE
+              prev_capability_flags: 0
+              cur_capability_flags: 4
+              reason: 3
+              seq_id: 4
+            }
+          }
+        }
+        packet {
+          timestamp: 5000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              uid: 10002
+              pid: 200
+              process_name: "com.example.app"
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_state;
+        SELECT
+          'interval' AS kind,
+          ts,
+          dur,
+          pid,
+          capability AS label,
+          0 AS count
+        FROM _android_process_capability_intervals
+        UNION ALL
+        SELECT
+          'count' AS kind,
+          c.ts,
+          0 AS dur,
+          p.pid,
+          '' AS label,
+          c.count
+        FROM _android_process_capability_count AS c
+        JOIN process AS p USING (upid)
+        ORDER BY kind DESC, pid, ts, label;
+        """,
+        out=Csv("""
+        "kind","ts","dur","pid","label","count"
+        "interval",1000,1000,200,"FOREGROUND_CAMERA",0
+        "interval",1000,4000,200,"FOREGROUND_LOCATION",0
+        "interval",3000,2000,200,"FOREGROUND_CAMERA",0
+        "interval",4000,-1,300,"FOREGROUND_MICROPHONE",0
+        "count",1000,0,200,"",2
+        "count",2000,0,200,"",1
+        "count",3000,0,200,"",2
+        "count",5000,0,200,"",0
+        "count",4000,0,300,"",1
+        """))
+
   def test_is_relevant_notifications_blocking_call(self):
     # Must keep the same slices as android_sysui_notifications_blocking_calls
     # (see test_android_sysui_notifications_blocking_calls).
