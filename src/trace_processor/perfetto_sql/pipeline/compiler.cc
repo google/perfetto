@@ -401,16 +401,29 @@ base::Status Compiler::CompilePipeline(uint32_t pipeline) {
   return base::OkStatus();
 }
 
-LogicalPlan Compiler::Finish() {
-  // The result is the row as a bare name sees it. Columns only an alias
-  // finds, as an intersection's operand columns are, stay behind.
-  plan_.output().clear();
+std::vector<NamedColumn> Compiler::VisibleColumns() const {
+  std::vector<NamedColumn> columns;
   for (const RowColumn& column : scope_.row) {
     if (!column.qualified_only) {
-      plan_.output().push_back(column.column);
+      columns.push_back(column.column);
     }
   }
+  return columns;
+}
+
+LogicalPlan Compiler::Finish() {
+  plan_.output() = VisibleColumns();
   return std::move(plan_);
+}
+
+base::StatusOr<std::vector<NamedColumn>> Compiler::CompileSubpipeline(
+    uint32_t pipeline) {
+  Scope outer = std::exchange(scope_, Scope{});
+  base::Status status = CompilePipeline(pipeline);
+  std::vector<NamedColumn> columns = VisibleColumns();
+  scope_ = std::move(outer);
+  RETURN_IF_ERROR(status);
+  return columns;
 }
 
 base::StatusOr<LogicalPlan> Compile(SyntaqliteParser* p,
