@@ -24,6 +24,7 @@
 #include <string_view>
 #include <vector>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/plugins/android_process_state/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -52,13 +53,13 @@ class AndroidProcessStateTracker {
 
   // A process_state_changed_event TrackEvent extension at |ts|.
   void ParseProcessStateChange(int64_t ts, protozero::ConstBytes bytes);
-  // An AndroidProcessState dump TracePacket.
-  void ParseProcessStateDump(protozero::ConstBytes bytes);
+  // An AndroidProcessState dump TracePacket at |ts|.
+  void ParseProcessStateDump(int64_t ts, protozero::ConstBytes bytes);
 
   // An AndroidFreezerEvent TrackEvent extension at |ts|.
   void ParseFreezerEvent(int64_t ts, protozero::ConstBytes bytes);
-  // An AndroidFreezerState dump TracePacket.
-  void ParseFreezerDump(protozero::ConstBytes bytes);
+  // An AndroidFreezerState dump TracePacket at |ts|.
+  void ParseFreezerDump(int64_t ts, protozero::ConstBytes bytes);
 
   // Synthesizes the per-process initial-state rows.
   void Finalize();
@@ -108,6 +109,12 @@ class AndroidProcessStateTracker {
   void AddCapabilityFlagsArgs(tables::AndroidProcessStateTable::Id id,
                               int32_t mask);
 
+  void RecordUnknownProcess(int64_t ts,
+                            const char* source,
+                            uint32_t pid,
+                            protozero::ConstChars process_name = {},
+                            std::optional<int64_t> start_seq_id = std::nullopt);
+
   TraceProcessorContext* const context_;
   tables::AndroidProcessStateTable* const process_state_table_;
   tables::AndroidFreezerStateTable* const freezer_state_table_;
@@ -126,6 +133,8 @@ class AndroidProcessStateTracker {
   std::map<UniquePid, ProcessStateValues> process_dump_;
   // Map of upid -> final freezer state from the trace-stop dump snapshot.
   std::map<UniquePid, FreezerStateValues> freezer_dump_;
+
+  base::FlatSet<uint32_t> warned_pids_;
 };
 
 }  // namespace perfetto::trace_processor::android_process_state

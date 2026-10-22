@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
@@ -30,12 +31,16 @@
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event_extension_parser.h"
 #include "src/trace_processor/plugins/android_framework_track_event/tables_py.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto::trace_processor::android_framework_track_event {
@@ -61,6 +66,38 @@ class AndroidTrackEventProcessTableHolder {
       : table_(pool) {}
 
   AndroidTrackEventProcessTable& table() { return table_; }
+
+  // Records a notice (at most once per pid) when a death event references a
+  // process that was neither in DUMP_REASON_START nor created by a
+  // process_start_event.
+  void RecordUnknownProcess(TraceProcessorContext* context,
+                            int64_t ts,
+                            const char* source,
+                            uint32_t pid,
+                            protozero::ConstChars process_name,
+                            std::optional<int64_t> start_seq_id) {
+    if (!warned_pids_.insert(pid).second) {
+      return;
+    }
+    context->import_logs_tracker->RecordParserLog(
+        stats::android_track_event_process_unknown, ts,
+        [&](ArgsTracker::BoundInserter& inserter) {
+          inserter.AddArg(
+              context->storage->InternString("source"),
+              Variadic::String(context->storage->InternString(source)));
+          inserter.AddArg(context->storage->InternString("pid"),
+                          Variadic::UnsignedInteger(pid));
+          if (process_name.size > 0) {
+            inserter.AddArg(
+                context->storage->InternString("process_name"),
+                Variadic::String(context->storage->InternString(process_name)));
+          }
+          if (start_seq_id) {
+            inserter.AddArg(context->storage->InternString("start_seq_id"),
+                            Variadic::Integer(*start_seq_id));
+          }
+        });
+  }
 
   // Returns the row for |upid|, inserting one if needed.
   AndroidTrackEventProcessTable::RowReference GetOrInsertRow(UniquePid upid) {
@@ -110,6 +147,7 @@ class AndroidTrackEventProcessTableHolder {
   // identifies the process after it has died and its pid has been reused.
   base::FlatHashMap<int64_t, AndroidTrackEventProcessTable::Id>
       start_seq_id_to_row_;
+  base::FlatSet<uint32_t> warned_pids_;
 };
 
 // Records AndroidProcessStartEvent, AndroidBinderDiedEvent and
@@ -142,7 +180,7 @@ class Parser : public TrackEventExtensionParser {
         HandleBinderDied(field.Cast<FBTE::kBinderDiedEvent>(), ts);
         break;
       case FBTE::kProcessDiedEventFieldNumber:
-        HandleProcessDied(field.Cast<FBTE::kProcessDiedEvent>());
+        HandleProcessDied(field.Cast<FBTE::kProcessDiedEvent>(), ts);
         break;
       default:
         break;
@@ -220,7 +258,11 @@ class Parser : public TrackEventExtensionParser {
   // up to ~15s after AndroidBinderDiedEvent, when the pid has already been
   // ended and possibly reused by another process.
   std::optional<AndroidTrackEventProcessTable::RowReference>
-  ResolveDyingProcess(uint32_t pid, std::optional<int64_t> start_seq_id) {
+  ResolveDyingProcess(uint32_t pid,
+                      std::optional<int64_t> start_seq_id,
+                      int64_t ts,
+                      const char* source,
+                      protozero::ConstChars process_name) {
     if (auto row = table_->FindRowByStartSeqId(start_seq_id)) {
       auto process = trace_context_->storage->process_table()[row->upid()];
       if (process.pid() != pid) {
@@ -231,6 +273,8 @@ class Parser : public TrackEventExtensionParser {
     std::optional<UniquePid> upid =
         trace_context_->process_tracker->GetProcessOrNull(pid);
     if (!upid) {
+      table_->RecordUnknownProcess(trace_context_, ts, source, pid,
+                                   process_name, start_seq_id);
       return std::nullopt;
     }
     auto row = table_->GetOrInsertRow(*upid);
@@ -258,7 +302,8 @@ class Parser : public TrackEventExtensionParser {
     }
     // Ignores deaths for another process (e.g. an older process whose pid was
     // reused before it was ended) instead of ending the current one.
-    auto row = ResolveDyingProcess(pid, start_seq_id);
+    auto row = ResolveDyingProcess(pid, start_seq_id, ts, "binder_died",
+                                   evt.process_name());
     if (!row) {
       return;
     }
@@ -277,7 +322,7 @@ class Parser : public TrackEventExtensionParser {
 
   // Records why a process died. Ending the process is left to
   // AndroidBinderDiedEvent, which arrives earlier.
-  void HandleProcessDied(protozero::ConstBytes data) {
+  void HandleProcessDied(protozero::ConstBytes data, int64_t ts) {
     AndroidProcessDiedEvent::Decoder evt(data);
     if (!evt.has_pid() || evt.pid() <= 0) {
       return;
@@ -287,7 +332,8 @@ class Parser : public TrackEventExtensionParser {
       start_seq_id = evt.start_seq_id();
     }
     auto row =
-        ResolveDyingProcess(static_cast<uint32_t>(evt.pid()), start_seq_id);
+        ResolveDyingProcess(static_cast<uint32_t>(evt.pid()), start_seq_id, ts,
+                            "process_died", evt.process_name());
     if (!row) {
       return;
     }
