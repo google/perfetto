@@ -96,7 +96,6 @@ source_set("common_types") {
 
 source_set("unwinding") {
   public_deps = [
-    "../../../gn:bionic_kernel_uapi_headers",
     "../../../src/tracing/service",  # for metatrace
     "../unwind:unwind_core",
   ]

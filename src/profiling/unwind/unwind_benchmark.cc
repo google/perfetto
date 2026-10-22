@@ -31,14 +31,11 @@
 #include <vector>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/perf/frame_pointer_unwinder.h"
-#include "src/profiling/unwind/cpu_registers.h"
 #include "src/profiling/unwind/get_asm_regs.h"
 #include "src/profiling/unwind/unwind_context.h"
-#include "src/profiling/unwind/unwind_types.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_UNWINDER_LIBUNWINDSTACK)
 #include <unwindstack/Unwinder.h>

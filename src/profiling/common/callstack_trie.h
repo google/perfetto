@@ -19,7 +19,6 @@
 
 #include <set>
 #include <string>
-#include <typeindex>
 #include <vector>
 
 #include "src/profiling/common/interner.h"

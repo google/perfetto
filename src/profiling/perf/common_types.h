@@ -18,8 +18,6 @@
 #define SRC_PROFILING_PERF_COMMON_TYPES_H_
 
 #include <optional>
-#include <string>
-#include <utility>
 #include <vector>
 
 #include <linux/perf_event.h>

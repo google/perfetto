@@ -26,8 +26,6 @@
 namespace perfetto {
 namespace profiling {
 
-enum class UnwindMode { kUnwindStack, kFramePointer, kKernelFramePointer };
-
 enum class SymbolStatus : uint8_t {
   kNotAttempted = 0,
   kResolved = 1,
@@ -38,12 +36,6 @@ enum class SymbolStatus : uint8_t {
 // Corresponds to Mapping in
 // protos/perfetto/trace/profiling/profile_common.proto
 struct UnwoundMapping {
-  static std::shared_ptr<UnwoundMapping> Create(std::string name,
-                                                uint64_t start = 0,
-                                                uint64_t end = 0,
-                                                uint64_t offset = 0,
-                                                uint64_t start_offset = 0);
-
   virtual ~UnwoundMapping();
 
   // `map_name`, `map_start`, `map_end`, `map_offset`: populated directly from
@@ -53,24 +45,24 @@ struct UnwoundMapping {
   //   7f7c18042000-7f7c1806a000 r--p 00000000 fd:01 37890545 <binary_file>
   //   7f7c1806a000-7f7c181d3000 r-xp 00028000 fd:01 37890545 <binary_file>
   virtual std::string map_name() const = 0;
-  virtual uint64_t map_start() const = 0;
-  virtual uint64_t map_end() const = 0;
-  virtual uint64_t map_offset() const = 0;
+  virtual uint64_t map_start() const { return 0; }
+  virtual uint64_t map_end() const { return 0; }
+  virtual uint64_t map_offset() const { return 0; }
 
   // For split ELFs mapped across an initial
   // read-only (r--p) mapping (containing the ELF header) followed by an
   // executable (r-xp) mapping, the file offset of the initial mapping (0 if the
   // mapping starts at the beginning of the ELF).
-  virtual uint64_t map_start_offset() const = 0;
+  virtual uint64_t map_start_offset() const { return 0; }
 
   // populated by parsing the underlying ELF binary
   // (p_vaddr - p_offset) of the executable PT_LOAD segment.
   // Needed to convert `rel_pc` to the ELF symbol table's virtual address.
-  virtual uint64_t map_load_bias() const = 0;
+  virtual uint64_t map_load_bias() const { return 0; }
 
   // raw .note.gnu.build-id bytes;
   // 0 / empty if the mapping is not a readable ELF or lacks a build ID).
-  virtual std::string build_id() const = 0;
+  virtual std::string build_id() const { return ""; }
 };
 
 struct FrameData {
@@ -151,8 +143,6 @@ struct UnwindResult {
   UnwindErrorCode error_code = UnwindErrorCode::kNone;
   // callstack frames are ordered from the leaf to root.
   std::vector<FrameData> frames;
-
-  bool success() const { return error_code == UnwindErrorCode::kNone; }
 
   UnwindResult() = default;
   UnwindResult(UnwindErrorCode e, std::vector<FrameData> f)

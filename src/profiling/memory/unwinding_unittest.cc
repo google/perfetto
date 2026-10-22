@@ -27,7 +27,6 @@
 #include "src/profiling/memory/client.h"
 #include "src/profiling/memory/wire_protocol.h"
 #include "src/profiling/unwind/unwind_context.h"
-#include "src/profiling/unwind/unwind_types.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {

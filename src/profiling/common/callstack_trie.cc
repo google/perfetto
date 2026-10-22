@@ -106,8 +106,7 @@ Interned<Frame> GlobalCallstackTrie::InternCodeLocation(
     map.start = loc.map_info->map_start();
     map.end = loc.map_info->map_end();
     map.load_bias = loc.map_info->map_load_bias();
-    std::string map_name = loc.map_info->map_name();
-    base::StringSplitter sp(std::move(map_name), '/');
+    base::StringSplitter sp(loc.map_info->map_name(), '/');
     while (sp.Next())
       map.path_components.emplace_back(string_interner_.Intern(sp.cur_token()));
   }

@@ -24,12 +24,9 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cinttypes>
 #include <cstdint>
-#include <new>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/thread_utils.h"
 #include "perfetto/base/time.h"
@@ -38,8 +35,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/profiling/memory/sampler.h"
-#include "src/profiling/memory/scoped_spinlock.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
 #include "src/profiling/memory/wire_protocol.h"
 #include "src/profiling/unwind/cpu_registers.h"
@@ -346,7 +341,8 @@ bool Client::IsPostFork() {
 }
 
 ssize_t Client::GetStackRegisterIndex(CpuArch arch) {
-  ssize_t reg_sp, reg_size;
+  ssize_t reg_sp;
+  ssize_t reg_size;
   switch (arch) {
     case CpuArch::X86:
       reg_sp = X86_REG_ESP;
@@ -374,11 +370,11 @@ ssize_t Client::GetStackRegisterIndex(CpuArch arch) {
   return reg_sp * reg_size;
 }
 
-uintptr_t Client::GetStackAddress(char* reg_data, CpuArch arch) {
+uintptr_t Client::GetStackAddress(const char* reg_data, CpuArch arch) {
   ssize_t reg = GetStackRegisterIndex(arch);
   if (reg < 0)
     return reinterpret_cast<uintptr_t>(nullptr);
-  return *reinterpret_cast<uintptr_t*>(&reg_data[reg]);
+  return *reinterpret_cast<const uintptr_t*>(&reg_data[reg]);
 }
 
 // The stack grows towards numerically smaller addresses, so the stack layout

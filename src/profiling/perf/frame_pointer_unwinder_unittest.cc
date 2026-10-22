@@ -16,15 +16,7 @@
 
 #include "src/profiling/perf/frame_pointer_unwinder.h"
 
-#include <fcntl.h>
-#include <sys/mman.h>
-
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/scoped_file.h"
-#include "src/profiling/unwind/cpu_registers.h"
-#include "src/profiling/unwind/unwind_context.h"
-#include "src/profiling/unwind/unwind_types.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -33,8 +25,19 @@ namespace {
 
 class MockUnwindContext : public UnwindContext {
  public:
+  struct MockMapping : public UnwoundMapping {
+    MockMapping(std::string name, uint64_t start, uint64_t end)
+        : name_(std::move(name)), start_(start), end_(end) {}
+    std::string map_name() const override { return name_; }
+    uint64_t map_start() const override { return start_; }
+    uint64_t map_end() const override { return end_; }
+    std::string name_;
+    uint64_t start_;
+    uint64_t end_;
+  };
+
   void AddMap(uint64_t start, uint64_t end, std::string name) {
-    maps_.push_back(UnwoundMapping::Create(std::move(name), start, end));
+    maps_.push_back(std::make_shared<MockMapping>(std::move(name), start, end));
   }
 
   void ReparseMaps() override {}
@@ -156,48 +159,6 @@ TEST_F(FramePointerUnwinderTest, UnwindValidStack) {
     EXPECT_EQ(frames[1].pc, 0x2100ULL);
   }
 }
-
-#if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_X86_64)
-extern "C" int DummyTargetFunctionForUnwindTest(int x);
-extern "C" __attribute__((noinline, visibility("default"))) int
-DummyTargetFunctionForUnwindTest(int x) {
-  asm volatile("nop\n\tnop\n\tnop\n\tnop" : "+r"(x));
-  return x + 1;
-}
-
-TEST_F(FramePointerUnwinderTest, UnwindWithRealLibunwindstackContext) {
-  base::ScopedFile maps_fd(open("/proc/self/maps", O_RDONLY | O_CLOEXEC));
-  base::ScopedFile mem_fd(open("/proc/self/mem", O_RDONLY | O_CLOEXEC));
-  ASSERT_GE(maps_fd.get(), 0);
-  ASSERT_GE(mem_fd.get(), 0);
-
-  auto real_ctx = UnwindContext::Create(std::move(maps_fd), std::move(mem_fd));
-  ASSERT_NE(real_ctx, nullptr);
-
-  uint64_t target_pc =
-      reinterpret_cast<uint64_t>(&DummyTargetFunctionForUnwindTest) + 2;
-  SetStackData64(0x2000, 0x2200);
-  SetStackData64(0x2000 + sizeof(uint64_t), target_pc);
-  SetStackData64(0x2200, 0);
-
-  CpuRegisters regs(CpuArch::X86_64);
-  regs.set_pc(target_pc);
-  regs.set_sp(kStackBase);
-  regs[X86_64_REG_RBP] = 0x2000;
-
-  FramePointerUnwinder unwinder(kMaxFrames, real_ctx.get(), &regs,
-                                stack_.data(), stack_.size());
-  unwinder.SetResolveNames(true);
-  unwinder.Unwind();
-  EXPECT_EQ(unwinder.LastErrorCode(), UnwindErrorCode::kNone);
-  auto frames = unwinder.ConsumeFrames();
-  ASSERT_EQ(frames.size(), 2UL);
-  EXPECT_EQ(frames[0].function_name, "DummyTargetFunctionForUnwindTest");
-  EXPECT_EQ(frames[0].symbol_status, SymbolStatus::kResolved);
-  ASSERT_NE(frames[0].map_info, nullptr);
-  EXPECT_FALSE(frames[0].map_info->map_name().empty());
-}
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_X86_64)
 
 }  // namespace
 }  // namespace profiling

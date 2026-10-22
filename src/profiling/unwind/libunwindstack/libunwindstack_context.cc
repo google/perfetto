@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2026 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,19 +17,10 @@
 #include "src/profiling/unwind/libunwindstack/libunwindstack_context.h"
 
 #include <cinttypes>
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
-#include <memory>
-#include <string>
-#include <vector>
 
 #include <procinfo/process_map.h>
 #include <unistd.h>
-#include <unwindstack/Arch.h>
 #include <unwindstack/Elf.h>
-#include <unwindstack/Error.h>
 #include <unwindstack/MachineArm.h>
 #include <unwindstack/MachineArm64.h>
 #include <unwindstack/MachineRiscv64.h>
@@ -42,17 +33,27 @@
 #include <unwindstack/RegsRiscv64.h>
 #include <unwindstack/RegsX86.h>
 #include <unwindstack/RegsX86_64.h>
-#include <unwindstack/SharedString.h>
 #include <unwindstack/Unwinder.h>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/scoped_file.h"
-#include "src/profiling/unwind/unwind_context.h"
-#include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
+
+static_assert(static_cast<uint8_t>(CpuArch::UNKNOWN) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_UNKNOWN) &&
+                  static_cast<uint8_t>(CpuArch::ARM) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_ARM) &&
+                  static_cast<uint8_t>(CpuArch::ARM64) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_ARM64) &&
+                  static_cast<uint8_t>(CpuArch::X86) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_X86) &&
+                  static_cast<uint8_t>(CpuArch::X86_64) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_X86_64) &&
+                  static_cast<uint8_t>(CpuArch::RISCV64) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_RISCV64),
+              "CpuArch and unwindstack::ArchEnum must match");
 
 std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
     const CpuRegisters& cpu_regs) {
@@ -236,20 +237,6 @@ std::unique_ptr<UnwindContext> UnwindContext::Create(base::ScopedFile maps_fd,
 }
 
 namespace {
-
-static_assert(static_cast<uint8_t>(CpuArch::UNKNOWN) ==
-                      static_cast<uint8_t>(unwindstack::ARCH_UNKNOWN) &&
-                  static_cast<uint8_t>(CpuArch::ARM) ==
-                      static_cast<uint8_t>(unwindstack::ARCH_ARM) &&
-                  static_cast<uint8_t>(CpuArch::ARM64) ==
-                      static_cast<uint8_t>(unwindstack::ARCH_ARM64) &&
-                  static_cast<uint8_t>(CpuArch::X86) ==
-                      static_cast<uint8_t>(unwindstack::ARCH_X86) &&
-                  static_cast<uint8_t>(CpuArch::X86_64) ==
-                      static_cast<uint8_t>(unwindstack::ARCH_X86_64) &&
-                  static_cast<uint8_t>(CpuArch::RISCV64) ==
-                      static_cast<uint8_t>(unwindstack::ARCH_RISCV64),
-              "CpuArch and unwindstack::ArchEnum must match");
 
 class LibunwindstackMapping : public UnwoundMapping {
  public:

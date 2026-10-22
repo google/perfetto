@@ -18,6 +18,7 @@
 
 #include <fcntl.h>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "test/gtest_and_gmock.h"
@@ -67,6 +68,40 @@ TEST(LibunwindstackContextTest, FDMapsParse) {
   ASSERT_EQ(map_info->name(), "[stack]");
 #endif
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_X86_64)
+// Real target function in the test binary for testing ELF symbol resolution:
+// - Forward declaration satisfies -Wmissing-prototypes.
+// - extern "C" keeps the ELF symbol name unmangled.
+// - noinline + visibility("default") prevent stripping/inlining and export the
+//   symbol into .dynsym.
+// - nop instructions ensure the body is >2 bytes so |target_pc - pc_adjustment|
+//   still lands inside this function.
+extern "C" int DummyTargetFunctionForUnwindTest(int x);
+extern "C" __attribute__((noinline, visibility("default"))) int
+DummyTargetFunctionForUnwindTest(int x) {
+  asm volatile("nop\n\tnop\n\tnop\n\tnop" : "+r"(x));
+  return x + 1;
+}
+
+TEST(LibunwindstackContextTest, BuildFrameFromPc) {
+  base::ScopedFile maps_fd(base::OpenFile("/proc/self/maps", O_RDONLY));
+  base::ScopedFile mem_fd(base::OpenFile("/proc/self/mem", O_RDONLY));
+  ASSERT_TRUE(maps_fd);
+  ASSERT_TRUE(mem_fd);
+
+  auto ctx = UnwindContext::Create(std::move(maps_fd), std::move(mem_fd));
+  ASSERT_NE(ctx, nullptr);
+
+  uint64_t target_pc =
+      reinterpret_cast<uint64_t>(&DummyTargetFunctionForUnwindTest) + 2;
+  FrameData frame = ctx->BuildFrameFromPc(target_pc, /*resolve_names=*/true);
+  EXPECT_EQ(frame.function_name, "DummyTargetFunctionForUnwindTest");
+  EXPECT_EQ(frame.symbol_status, SymbolStatus::kResolved);
+  ASSERT_NE(frame.map_info, nullptr);
+  EXPECT_FALSE(frame.map_info->map_name().empty());
+}
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_X86_64)
 
 }  // namespace
 }  // namespace profiling

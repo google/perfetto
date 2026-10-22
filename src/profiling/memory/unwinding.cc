@@ -24,10 +24,7 @@
 #include <optional>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/task_runner.h"
-#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 
 #include "src/profiling/memory/unwound_messages.h"
@@ -98,9 +95,9 @@ bool DoUnwind(WireMessage* msg,
               AllocRecord* out,
               base::TimeMillis* last_maps_reparse_time) {
   AllocMetadata* alloc_metadata = msg->alloc_header;
-  std::optional<CpuRegisters> regs = CreateRegsFromRawData(
+  std::optional<CpuRegisters> cpu_regs = CreateRegsFromRawData(
       alloc_metadata->arch, alloc_metadata->register_data);
-  if (!regs) {
+  if (!cpu_regs) {
     PERFETTO_DLOG("Unable to construct CpuRegisters");
     FrameData frame_data{};
     frame_data.function_name = "ERROR READING REGISTERS";
@@ -114,10 +111,10 @@ bool DoUnwind(WireMessage* msg,
   }
 
   // Overriding sp intentionally since where payload may be truncated up to fp
-  regs->set_sp(alloc_metadata->stack_pointer);
+  cpu_regs->set_sp(alloc_metadata->stack_pointer);
 
   UnwindInputSample sample;
-  sample.regs = &(*regs);
+  sample.regs = &(*cpu_regs);
   sample.stack_data = reinterpret_cast<const uint8_t*>(msg->payload);
   sample.stack_size = msg->payload_size;
 
@@ -158,7 +155,8 @@ bool DoUnwind(WireMessage* msg,
                             : "";
   }
 
-  if (result.error_code != UnwindErrorCode::kNone) {
+  if (result.error_code != UnwindErrorCode::kNone &&
+      result.error_code != UnwindErrorCode::kDexPcNotInMap) {
     PERFETTO_DLOG("Unwinding error %" PRIu8,
                   static_cast<uint8_t>(result.error_code));
     FrameData frame_data{};

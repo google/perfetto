@@ -15,9 +15,9 @@
  */
 #include "src/profiling/perf/frame_pointer_unwinder.h"
 
+#include <cstring>
+
 #include "perfetto/base/logging.h"
-#include "src/profiling/unwind/cpu_registers.h"
-#include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
@@ -67,13 +67,14 @@ void FramePointerUnwinder::TryUnwind() {
     if (!IsFrameValid(fp, sp))
       return;
 
+    // Looks up the mapping for |pc|, computes the ELF-relative PC and return
+    // address adjustment, and optionally resolves the symbol name.
     FrameData frame = context_->BuildFrameFromPc(pc, resolve_names_);
     if (!frame.map_info) {
       last_error_ = UnwindErrorCode::kInvalidMap;
       return;
     }
 
-    frame.sp = sp;
     frames_.push_back(std::move(frame));
     fp = DecodeFrame(fp, &pc, &sp);
   }

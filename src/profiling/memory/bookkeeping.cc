@@ -20,11 +20,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <cinttypes>
-
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/common/callstack_trie.h"
 #include "src/profiling/unwind/unwind_types.h"
 

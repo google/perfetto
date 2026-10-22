@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <benchmark/benchmark.h>
 #include <unistd.h>
+
+#include <benchmark/benchmark.h>
 
 #include "perfetto/heap_profile.h"
 #include "src/profiling/memory/heap_profile_internal.h"

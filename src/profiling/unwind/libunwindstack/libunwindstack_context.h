@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2026 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,15 +17,17 @@
 #ifndef SRC_PROFILING_UNWIND_LIBUNWINDSTACK_LIBUNWINDSTACK_CONTEXT_H_
 #define SRC_PROFILING_UNWIND_LIBUNWINDSTACK_LIBUNWINDSTACK_CONTEXT_H_
 
-#include <unwindstack/DexFiles.h>
-#include <unwindstack/JitDebug.h>
+// defines PERFETTO_BUILDFLAG
+#include "perfetto/base/build_config.h"
+
+#include <memory>
+
 #include <unwindstack/Maps.h>
 #include <unwindstack/Memory.h>
-#include <unwindstack/Unwinder.h>
-#include <cstddef>
-#include <cstdint>
-#include <memory>
-#include <utility>
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#include <unwindstack/DexFiles.h>
+#include <unwindstack/JitDebug.h>
+#endif
 
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/unwind/cpu_registers.h"
@@ -79,7 +81,7 @@ class FDMemory : public unwindstack::Memory {
 
 // Overlays size bytes pointed to by stack for addresses in [sp, sp + size).
 // Addresses outside of that range are read from mem_fd, which should be an fd
-// that opened /proc/$pid/mem.
+// that opened /proc/[pid]/mem.
 class StackOverlayMemory : public unwindstack::Memory {
  public:
   StackOverlayMemory(std::shared_ptr<unwindstack::Memory> mem,

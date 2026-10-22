@@ -54,7 +54,6 @@
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
-#include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {

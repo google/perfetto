@@ -20,7 +20,6 @@
 #include <stdint.h>
 #include <condition_variable>
 #include <map>
-#include <optional>
 #include <thread>
 
 #include <linux/perf_event.h>
@@ -30,12 +29,10 @@
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
-#include "src/kallsyms/kernel_symbol_map.h"
 #include "src/kallsyms/lazy_kernel_symbolizer.h"
 #include "src/profiling/perf/common_types.h"
 #include "src/profiling/perf/unwind_queue.h"
 #include "src/profiling/unwind/unwind_context.h"
-#include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
@@ -75,7 +72,7 @@ class Unwinder {
  public:
   friend class UnwinderHandle;
 
-  using UnwindMode = profiling::UnwindMode;
+  enum class UnwindMode { kUnwindStack, kFramePointer, kKernelFramePointer };
 
   // Callbacks from the unwinder to the primary producer thread.
   class Delegate {

@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/utils.h"
+#include "src/kallsyms/kernel_symbol_map.h"
 #include "src/profiling/perf/frame_pointer_unwinder.h"
 #include "src/profiling/unwind/cpu_registers.h"
 #include "src/profiling/unwind/unwind_context.h"
@@ -392,29 +393,24 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
                                  ? metatrace::PROFILER_UNWIND_ATTEMPT
                                  : metatrace::PROFILER_UNWIND_INITIAL_ATTEMPT);
 
-    // Unwindstack clobbers registers, so make a copy in case of retries.
-    CpuRegisters regs_copy = *sample.regs;
+    // The backend does not mutate the registers, so we can pass a reference.
+    const CpuRegisters& regs = *sample.regs;
 
     switch (unwind_mode) {
       case UnwindMode::kFramePointer: {
         FramePointerUnwinder unwinder(
-            kUnwindingMaxFrames, unwind_state, &regs_copy,
+            kUnwindingMaxFrames, unwind_state, &regs,
             reinterpret_cast<const uint8_t*>(sample.stack.data()),
             sample.stack.size());
         unwinder.Unwind();
         return {unwinder.LastErrorCode(), unwinder.ConsumeFrames()};
       }
       case UnwindMode::kUnwindStack: {
-        UnwindInputSample input_sample;
-        input_sample.regs = &regs_copy;
-        input_sample.stack_data =
-            reinterpret_cast<const uint8_t*>(sample.stack.data());
-        input_sample.stack_size = sample.stack.size();
-        input_sample.stack_maxed = sample.stack_maxed;
-
-        UnwindOptions options;
-        options.max_frames = kUnwindingMaxFrames;
-        options.resolve_names = true;
+        UnwindInputSample input_sample{
+            &regs, reinterpret_cast<const uint8_t*>(sample.stack.data()),
+            sample.stack.size(), sample.stack_maxed};
+        UnwindOptions options{kUnwindingMaxFrames, /*resolve_names=*/true,
+                              /*skip_initial_maps=*/{}};
         return unwind_state->Unwind(input_sample, options);
       }
       case UnwindMode::kKernelFramePointer:
@@ -464,7 +460,9 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
   // In case of an unwinding error, add a synthetic error frame (which will
   // appear as a caller of the partially-unwound fragment), for easier
   // visualization of errors.
-  if (unwind.error_code != UnwindErrorCode::kNone) {
+  if (unwind.error_code != UnwindErrorCode::kNone &&
+      // This is an libunwindstack internal warning, not a real error.
+      unwind.error_code != UnwindErrorCode::kDexPcNotInMap) {
     PERFETTO_DLOG("Unwinding error %" PRIu8,
                   static_cast<uint8_t>(unwind.error_code));
     FrameData frame_data{};
@@ -480,8 +478,11 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
 
 std::vector<FrameData> Unwinder::SymbolizeKernelCallchain(
     const ParsedSample& sample) {
+  struct KernelMapping : public UnwoundMapping {
+    std::string map_name() const override { return "kernel"; }
+  };
   static base::NoDestructor<std::shared_ptr<const UnwoundMapping>>
-      kernel_map_info(UnwoundMapping::Create("kernel"));
+      kernel_map_info(std::make_shared<KernelMapping>());
   std::vector<FrameData> ret;
   if (sample.kernel_ips.empty())
     return ret;
@@ -506,9 +507,9 @@ std::vector<FrameData> Unwinder::SymbolizeKernelCallchain(
     if (ip == PERF_CONTEXT_USER)
       break;
 
-    // Synthesise a partially-valid libunwindstack frame struct for the kernel
-    // frame. We reuse the type for convenience. The kernel frames are marked
-    // by a magical "kernel" MapInfo object as their containing mapping.
+    // Synthesise a partially-valid FrameData struct for the kernel frame.
+    // The kernel frames are marked by a magical "kernel" UnwoundMapping object
+    // as their containing mapping.
     FrameData& frame = ret.emplace_back();
     frame.function_name = kernel_map->Lookup(ip);
     frame.map_info = kernel_map_info.ref();
@@ -646,6 +647,8 @@ void Unwinder::ClearCachedStatePeriodic(DataSourceInstanceID ds_id,
   PostClearCachedStatePeriodic(ds_id, period_ms);  // repost
 }
 
+// TODO(safayat): libunwindstack maintains a fixed size LRU cache.
+// We can completely remove cache clearing behavior.
 void Unwinder::ResetAndEnableUnwinderCache() {
 #if PERFETTO_BUILDFLAG(PERFETTO_UNWINDER_LIBUNWINDSTACK)
   PERFETTO_DLOG("Resetting unwindstack cache");
@@ -657,7 +660,6 @@ void Unwinder::ResetAndEnableUnwinderCache() {
   // TODO(rsavitski): consider fixing this in libunwindstack itself.
   static std::mutex* lock = new std::mutex{};
   std::lock_guard<std::mutex> guard{*lock};
-
   unwindstack::Elf::SetCachingEnabled(false);  // free any existing state
   unwindstack::Elf::SetCachingEnabled(true);   // reallocate a fresh cache
 #endif

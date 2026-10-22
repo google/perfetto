@@ -17,12 +17,6 @@
 #ifndef SRC_PROFILING_UNWIND_UNWIND_CONTEXT_H_
 #define SRC_PROFILING_UNWIND_UNWIND_CONTEXT_H_
 
-#include <cstddef>
-#include <cstdint>
-#include <memory>
-#include <string>
-#include <vector>
-
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/unwind/cpu_registers.h"
 #include "src/profiling/unwind/unwind_types.h"
@@ -41,8 +35,8 @@ struct UnwindInputSample {
 
 struct UnwindOptions {
   size_t max_frames = kUnwindingMaxFrames;
-  // if true will resovle function names online.
-  // if set to false will do offline symbolization. which may help to reduce
+  // If true, will resolve function names online.
+  // Can be set to false to do offline symbolization, which reduces
   // unwinding time.
   bool resolve_names = true;
   std::vector<std::string> skip_initial_maps;
