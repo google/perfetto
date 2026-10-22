@@ -2420,6 +2420,11 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
             *target_buffer_id, packet_count, packet_flags, chunk_complete,
             chunk->payload_begin(), chunk->payload_size());
       });
+
+  // The scrape copies chunks in page order, which can differ from ChunkID
+  // order, so this producer's write batch is complete only once the scrape is
+  // done.
+  producer->NotifyWriteBatchComplete();
 }
 
 void TracingServiceImpl::FlushAndDisableTracing(TracingSessionID tsid) {
@@ -2839,6 +2844,10 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
       PERFETTO_DCHECK(packet.size() > 0);
       if (!PacketStreamValidator::Validate(packet.slices())) {
         tracing_session->invalid_packets++;
+        // TODO(sashwinbalaji): Dropping the packet also drops the loss bits in
+        // |previous_packet_dropped|.
+        // Carry them to the next valid packet on the same buffer and
+        // sequence, including across read batches and clones.
         PERFETTO_DLOG("Dropping invalid packet");
         continue;
       }
@@ -2873,6 +2882,9 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
       if (client_identity_trusted.has_non_default_machine_id()) {
         trusted_packet->set_machine_id(client_identity_trusted.machine_id());
       }
+      // TODO(sashwinbalaji): Keep the producer's loss reasons too.
+      // A packet can carry the producer's |previous_packet_dropped|, and the
+      // value we append replaces it, because the last instance of a field wins.
       if (previous_packet_dropped)
         trusted_packet->set_previous_packet_dropped(previous_packet_dropped);
       slice.size = trusted_packet.Finalize();
@@ -3533,6 +3545,21 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
   PERFETTO_DCHECK(global_id);
 
   const TraceBuffer* target_buffer = GetBufferByID(global_id);
+  if (target_buffer && target_buffer->buf_type() == TraceBuffer::kV3 &&
+      GetShmemMode(producer->client_identity(), producer->in_process_) ==
+          SharedMemoryABI::ShmemMode::kShmemEmulation) {
+    // TODO(sashwinbalaji): Support shared memory emulation.
+    // SharedMemoryArbiterImpl::CommitDataWithSplitting() can split one commit
+    // or scrape across requests.
+    // Notifying after each can make TraceBufferV3 skip chunks in later
+    // requests. Add a CommitDataRequest field to call
+    // NotifyWriteBatchComplete() only after the batch's last request.
+    PERFETTO_ELOG(
+        "Cannot set up data source \"%s\" on producer \"%s\": "
+        "TraceBufferV3 does not support shared memory emulation",
+        ds_cfg.name().c_str(), producer->name_.c_str());
+    return nullptr;
+  }
   const bool supports_tracing_v2 =
       (producer->protocol_abi_versions_ & kProtocolAbiV2) && target_buffer &&
       target_buffer->supports_tracing_v2();
@@ -3898,10 +3925,11 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
     total_buffer_bytes += id_to_producer.second->ring_buffer_size_bytes();
   }
 
-  // Sum up all the trace buffers.
+  // Sum up all the trace buffers and the state they share.
   for (const auto& id_to_buffer : buffers_) {
     total_buffer_bytes += id_to_buffer.second->GetMemoryUsageBytes();
   }
+  total_buffer_bytes += trace_buffer_factory_.GetMemoryUsageBytes();
 
   // Sum up all the cloned traced buffers.
   for (const auto& id_to_ts : tracing_sessions_) {
