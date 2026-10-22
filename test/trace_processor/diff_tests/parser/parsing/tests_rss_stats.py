@@ -40,6 +40,9 @@ class ParsingRssStats(TestSuite):
         """))
 
   def test_rss_stat_mm_id_clone(self):
+    # While a vfork()/CLONE_VM child shares its parent's mm, its curr=true
+    # events for that mm are attributed to the parent which owns it. The same
+    # applies to the kernel threads sharing an mm below.
     return DiffTestBlueprint(
         trace=Path('rss_stat_mm_id_clone.py'),
         query="""
@@ -53,9 +56,9 @@ class ParsingRssStats(TestSuite):
         "ts","name","pid","name","value"
         100,"mem.rss.file",3,"kernel_thread",10.000000
         100,"mem.rss.file",10,"parent_process",100.000000
-        102,"mem.rss.file",4,"kernel_thread2",20.000000
-        102,"mem.rss.file",11,"child_process",90.000000
-        103,"mem.rss.file",11,"child_process",85.000000
+        102,"mem.rss.file",3,"kernel_thread",20.000000
+        102,"mem.rss.file",10,"parent_process",90.000000
+        103,"mem.rss.file",10,"parent_process",85.000000
         104,"mem.rss.file",11,"child_process",10.000000
         105,"mem.rss.file",10,"parent_process",95.000000
         107,"mem.rss.file",10,"parent_process",105.000000
@@ -112,24 +115,6 @@ class ParsingRssStats(TestSuite):
         100,"mem.rss.file",10,"exiting_process",100.000000
         101,"mem.rss.file",10,"exiting_process",50.000000
         102,"mem.rss.file",10,"exiting_process",0.000000
-        """))
-
-  def test_rss_stat_throttled_vfork(self):
-    return DiffTestBlueprint(
-        trace=Path('rss_stat_throttled_vfork.py'),
-        query="""
-        SELECT c.ts, t.name, p.pid, p.name, c.value
-        FROM counter c
-        JOIN process_counter_track t ON c.track_id = t.id
-        JOIN process p USING (upid)
-        ORDER BY ts, pid;
-        """,
-        out=Csv("""
-        "ts","name","pid","name","value"
-        100,"mem.rss.file",10,"parent_process",100.000000
-        102,"mem.rss.file",10,"parent_process",90.000000
-        103,"mem.rss.file",11,"child_process",10.000000
-        104,"mem.rss.file",10,"parent_process",95.000000
         """))
 
   def test_rss_stat_curr_race(self):

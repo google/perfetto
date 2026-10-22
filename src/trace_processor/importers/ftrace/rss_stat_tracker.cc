@@ -79,7 +79,7 @@ void RssStatTracker::ParseRssStat(int64_t ts,
       mm_id = std::make_optional(rss.mm_id());
     }
 
-    ParseRssStat(ts, pid, size, member, curr, mm_id, /*throttled=*/false);
+    ParseRssStat(ts, pid, size, member, curr, mm_id);
   } else if (field_id == FtraceEvent::kRssStatThrottledFieldNumber) {
     protos::pbzero::RssStatThrottledFtraceEvent::Decoder rss(blob);
 
@@ -88,7 +88,7 @@ void RssStatTracker::ParseRssStat(int64_t ts,
     curr = std::make_optional(static_cast<bool>(rss.curr()));
     mm_id = std::make_optional(rss.mm_id());
 
-    ParseRssStat(ts, pid, size, member, curr, mm_id, /*throttled=*/true);
+    ParseRssStat(ts, pid, size, member, curr, mm_id);
   } else {
     PERFETTO_DFATAL("Unexpected field id");
   }
@@ -99,8 +99,7 @@ void RssStatTracker::ParseRssStat(int64_t ts,
                                   int64_t size,
                                   uint32_t member,
                                   std::optional<bool> curr,
-                                  std::optional<int64_t> mm_id,
-                                  bool throttled) {
+                                  std::optional<int64_t> mm_id) {
   const char* memory_key = GetProcessMemoryKey(member);
   if (!memory_key) {
     context_->stats_tracker->IncrementStats(stats::rss_stat_unknown_keys);
@@ -113,7 +112,7 @@ void RssStatTracker::ParseRssStat(int64_t ts,
 
   std::optional<UniqueTid> utid;
   if (mm_id.has_value() && curr.has_value()) {
-    utid = FindUtidForMmId(*mm_id, *curr, pid, throttled);
+    utid = FindUtidForMmId(*mm_id, *curr, pid);
   } else {
     utid = context_->process_tracker->GetOrCreateThread(pid);
   }
@@ -130,25 +129,22 @@ void RssStatTracker::ParseRssStat(int64_t ts,
 
 std::optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
                                                          bool is_curr,
-                                                         uint32_t pid,
-                                                         bool throttled) {
+                                                         uint32_t pid) {
   // If curr is true, we can usually just overwrite the state in the map and
   // return the utid correspodning to |pid|.
   if (is_curr) {
     UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
     auto [owner_utid, inserted] = mm_id_to_utid_.Insert(mm_id, utid);
-    if (throttled && !inserted && *owner_utid != utid &&
+    if (!inserted && *owner_utid != utid &&
         IsRacyCurrEvent(mm_id, *owner_utid, utid)) {
       context_->stats_tracker->IncrementStats(
           stats::rss_stat_curr_ignored_mm_owned_by_other_process);
       return *owner_utid;
     }
     *owner_utid = utid;
-    if (throttled) {
-      if (utid >= utid_to_curr_mm_id_.size())
-        utid_to_curr_mm_id_.resize(utid + 1, kNoMmId);
-      utid_to_curr_mm_id_[utid] = mm_id;
-    }
+    if (utid >= utid_to_curr_mm_id_.size())
+      utid_to_curr_mm_id_.resize(utid + 1, kNoMmId);
+    utid_to_curr_mm_id_[utid] = mm_id;
     return utid;
   }
 
@@ -180,8 +176,7 @@ std::optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
 bool RssStatTracker::IsRacyCurrEvent(int64_t mm_id,
                                      UniqueTid owner_utid,
                                      UniqueTid utid) {
-  // BEST EFFORT heuristic for b/576695708; only applied to rss_stat_throttled
-  // as raw rss_stat events are not affected by the race.
+  // BEST EFFORT heuristic for b/576695708.
   //
   // The hist trigger backing rss_stat_throttled keeps one element per
   // (mm_id, member) shared by all CPUs. The curr/size field variables are
