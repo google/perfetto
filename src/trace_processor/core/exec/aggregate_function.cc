@@ -39,35 +39,40 @@ void AggregateInputLoader::Load(const ColumnView& column,
   auto index = [&](uint32_t i) {
     return column.Index(selection[rows ? rows[i] : i]);
   };
-  bool contiguous = !rows && selection.prefix();
+  const BitVector* validity = column.validity();
   out->rows = count;
-  if (contiguous) {
-    out->values = data + column.start();
-  } else {
-    values_.resize(count);
-    for (uint32_t i = 0; i < count; ++i) {
-      values_[i] = data[index(i)];
-    }
-    out->values = values_.data();
-  }
   out->valid = nullptr;
-  if (const BitVector* validity = column.validity()) {
-    // The rows' validity from bit 0, a word at a time.
+  if (validity) {
     valid_.resize((count + 63) / 64);
-    for (uint32_t row = 0; row < count; row += 64) {
-      uint32_t n = std::min(64u, count - row);
-      uint64_t word = 0;
-      if (contiguous) {
-        word = validity->ReadBits(column.Index(row), n);
-      } else {
-        for (uint32_t i = 0; i < n; ++i) {
-          word |= uint64_t{validity->is_set(index(row + i))} << i;
-        }
-      }
-      valid_[row / 64] = word;
-    }
     out->valid = valid_.data();
   }
+  if (!rows && selection.prefix()) {
+    // The rows are a run: read in place, with their validity a word at a time.
+    out->values = data + column.start();
+    for (uint32_t row = 0; validity && row < count; row += 64) {
+      uint32_t n = std::min(64u, count - row);
+      valid_[row / 64] = validity->ReadBits(column.Index(row), n);
+    }
+    return;
+  }
+  // Gathered, a word of rows at a time: each row's value and validity are read
+  // from where it is stored, found once. Vector instructions do not speed up
+  // gathers, and only add code.
+  values_.resize(count);
+  for (uint32_t row = 0; row < count; row += 64) {
+    uint32_t n = std::min(64u, count - row);
+    uint64_t word = 0;
+    PERFETTO_NO_VECTORIZE_LOOP
+    for (uint32_t i = 0; i < n; ++i) {
+      uint32_t at = index(row + i);
+      values_[row + i] = data[at];
+      word |= uint64_t{validity && validity->is_set(at)} << i;
+    }
+    if (validity) {
+      valid_[row / 64] = word;
+    }
+  }
+  out->values = values_.data();
 }
 
 uint8_t* SeenBytes::For(uint32_t groups, bool nulls) {
@@ -433,7 +438,7 @@ ColumnBuffer FinalizeToBuffer(Context& context,
                               uint32_t count) {
   ColumnBuffer buffer = context.TakeBuffer();
   ColumnChunk& chunk = buffer.chunk();
-  chunk.validity.resize(kMaxBatchRows);
+  chunk.SizeValidity();
   function.Finalize(states, groups, count, chunk.Values<int64_t>(),
                     &chunk.validity);
   return buffer;

@@ -76,7 +76,7 @@ ColumnView WriteKeys(const GroupTable& groups,
   if (!nulls) {
     return ColumnView::Reference(type, data);
   }
-  chunk.validity.resize(kMaxBatchRows);
+  chunk.SizeValidity();
   for (uint32_t i = 0; i < count; ++i) {
     chunk.validity.change(i, !groups.IsNull(first + i, k));
   }
