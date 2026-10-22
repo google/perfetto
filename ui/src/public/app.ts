@@ -116,7 +116,7 @@ export interface App {
 
     // Whether the trace may be stored in the browser cache so that reloading
     // the page reopens it. Defaults to true. Set it to false for traces that
-    // the opener regenerates on reload (e.g. live streams).
+    // the opener regenerates on reload.
     cacheable?: boolean;
   }): Promise<Trace>;
   closeCurrentTrace(): void;
