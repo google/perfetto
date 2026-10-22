@@ -82,6 +82,8 @@ export function hudPlacement(arg: unknown): LiveHudPlacement {
 
 const FOLLOW_COMMAND = 'com.google.LiveStream#ToggleFollowLive';
 const HUD_TAB = `${PLUGIN_ID}#hud`;
+// The attribute of <html> with the displayed status, for embedding pages.
+const STATUS_ATTRIBUTE = 'data-live-stream-status';
 
 // An open of a live trace, at page open or in place of the current one.
 interface Opening {
@@ -106,6 +108,9 @@ type ShownState = Omit<LiveSessionState, 'target'> & {readonly target?: Target};
  * fails, or once the open failed. The error of a failed switch shows until
  * dismissed or the next open. While another trace is open, the tab says so
  * and the top row hides.
+ *
+ * The page's <html> has the displayed status in STATUS_ATTRIBUTE, also while
+ * the HUD doesn't render, e.g. in a closed side panel.
  */
 export class LiveController implements LiveHost {
   readonly settings: LiveSettings;
@@ -130,7 +135,11 @@ export class LiveController implements LiveHost {
     placement: LiveHudPlacement = 'panel',
   ) {
     this.settings = registerLiveSettings(app.settings);
-    this.hudState = new LiveHudState(() => this.redraw());
+    // Delayed statuses show on the page too.
+    this.hudState = new LiveHudState(() => {
+      this.syncStatus();
+      this.redraw();
+    });
     this.hudState.listen();
     // App-level, so that trace switches keep the HUD. Never disposed: it
     // lives as long as the page.
@@ -222,7 +231,7 @@ export class LiveController implements LiveHost {
   }
 
   refreshStatus(): void {
-    const {changed} = this.hudState.syncStatus(() => this.state().status);
+    const {changed} = this.syncStatus();
 
     // The error changes without the status too, e.g. as the server's reason
     // to fail does.
@@ -247,7 +256,21 @@ export class LiveController implements LiveHost {
     this.followCommand?.[Symbol.dispose]();
     this.followCommand = undefined;
     this.hudState.closeMenus();
+    this.syncStatus();
     this.redraw();
+  }
+
+  // Whether another trace shows, and no live one opens.
+  private showsOtherTrace(): boolean {
+    return this.otherTrace && this.opening === undefined;
+  }
+
+  // Syncs the displayed status, see LiveHudState.syncStatus(), and the page's
+  // STATUS_ATTRIBUTE, which is absent while another trace shows.
+  private syncStatus() {
+    const synced = this.hudState.syncStatus(() => this.state().status);
+    setPageStatus(this.showsOtherTrace() ? undefined : synced.status);
+    return synced;
   }
 
   // The state of a pending or failed open, else the session's.
@@ -273,12 +296,12 @@ export class LiveController implements LiveHost {
   private render(layout: LiveHudLayout): m.Children {
     // The HUD of another trace shows only while a live one opens. The panel's
     // tab stays, so it says why it's empty.
-    if (this.otherTrace && this.opening === undefined) {
+    if (this.showsOtherTrace()) {
       return layout === 'panel' ? renderOtherTraceNote() : undefined;
     }
     const state = this.state();
     if (state.error !== undefined) this.lastError = state.error;
-    const {status} = this.hudState.syncStatus(() => this.state().status);
+    const {status} = this.syncStatus();
     return renderLiveStreamHud({
       layout,
       status,
@@ -393,6 +416,18 @@ function mountTopRow(app: App, render: () => m.Children) {
 
 function appTheme(app: App): 'dark' | 'light' {
   return app.settings.get('theme')?.get() === 'dark' ? 'dark' : 'light';
+}
+
+// Sets STATUS_ATTRIBUTE to `status`, or removes it. Only on changes, so that
+// observers of the attribute see no repeats.
+function setPageStatus(status: LiveStatus | undefined) {
+  const html = document.documentElement;
+  if (html.getAttribute(STATUS_ATTRIBUTE) === (status ?? null)) return;
+  if (status === undefined) {
+    html.removeAttribute(STATUS_ATTRIBUTE);
+  } else {
+    html.setAttribute(STATUS_ATTRIBUTE, status);
+  }
 }
 
 // Points the page's URL at `target`, so that reloading opens it.

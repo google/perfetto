@@ -188,6 +188,8 @@ plugin never sets them. E.g.:
 Values set on `:root` must be literals: the theme's variables are defined only
 within `.pf-theme-provider`.
 
-The page may also follow the status: the HUD's badge has the class
-`pf-live-stream-hud__badge--<status>`, for `live`, `buffering`, `paused` and
-`error`. E.g. a loading screen over the UI may end on errors.
+The page may also follow the status that the HUD shows, also while the side
+panel is closed: `<html>` has the attribute `data-live-stream-status`, with
+`live`, `buffering`, `paused` or `error`, and none while another trace is open.
+E.g. a loading screen over the UI may end on errors. The HUD's badge has the
+class `pf-live-stream-hud__badge--<status>` too.

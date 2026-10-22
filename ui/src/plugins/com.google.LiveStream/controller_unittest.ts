@@ -31,6 +31,7 @@ const EVAL = {id: 'job-1/eval', short_name: 'eval', task_count: 4};
 const TARGET_ARG = `${PLUGIN_ID}:target`;
 const FOLLOW_COMMAND = 'com.google.LiveStream#ToggleFollowLive';
 const HUD_TAB = 'com.google.LiveStream#hud';
+const STATUS_ATTRIBUTE = 'data-live-stream-status';
 
 // Answers target requests with WORKER and EVAL, and seed requests with a
 // seed, 503 for `unavailable` targets, or 502 with the error of `failing`
@@ -201,12 +202,18 @@ afterEach(() => {
     row.remove();
   });
   document.body.style.paddingTop = '';
+  document.documentElement.removeAttribute(STATUS_ATTRIBUTE);
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
 function urlTarget(): string | null {
   return new URL(window.location.href).searchParams.get(TARGET_ARG);
+}
+
+// The status that the page's <html> shows.
+function pageStatus(): string | null {
+  return document.documentElement.getAttribute(STATUS_ATTRIBUTE);
 }
 
 // The root of the HUD's top row.
@@ -635,4 +642,49 @@ test('hides the HUD and frees Space while another trace is open', async () => {
   controller.attach(fakeModel(TARGET.parse(WORKER)));
   expect(hud()).toMatchObject({badge: 'LIVE STREAM', note: undefined});
   expect(commands.has(FOLLOW_COMMAND)).toBe(true);
+});
+
+test('shows the status on the page, also while the HUD is closed', async () => {
+  server.unreachable = true;
+  // The HUD never renders, as in a closed side panel.
+  const {controller} = setup();
+
+  controller.open(WORKER.id);
+  await vi.advanceTimersByTimeAsync(0);
+  // Once it lasts 1 s, as in the HUD.
+  expect(pageStatus()).toBe('buffering');
+  await vi.advanceTimersByTimeAsync(1_000);
+  expect(pageStatus()).toBe('error');
+
+  // Retries 1 s, then 2 s later.
+  server.unreachable = false;
+  await vi.advanceTimersByTimeAsync(2_000);
+  controller.attach(fakeModel(TARGET.parse(WORKER), 'paused'));
+  expect(pageStatus()).toBe('paused');
+});
+
+test('sets the page status only when it changes', async () => {
+  const {controller, hud} = await openWorker();
+  const observer = new MutationObserver(() => {});
+  observer.observe(document.documentElement, {attributes: true});
+
+  hud();
+  controller.refreshStatus();
+  expect(observer.takeRecords()).toEqual([]);
+  expect(pageStatus()).toBe('live');
+  observer.disconnect();
+});
+
+test('removes the page status while another trace is open', async () => {
+  const {controller, state} = await openWorker();
+
+  state.closeTrace();
+  controller.showOtherTrace();
+  expect(pageStatus()).toBeNull();
+  // Also once the closed trace's buffering would show.
+  await vi.advanceTimersByTimeAsync(1_000);
+  expect(pageStatus()).toBeNull();
+
+  controller.open(WORKER.id);
+  expect(pageStatus()).toBe('buffering');
 });
