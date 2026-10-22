@@ -590,6 +590,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_flatbuffer_reader",
         ":src_trace_processor_util_flatbuffer_writer",
         ":src_trace_processor_util_glob",
+        ":src_trace_processor_util_graph",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
@@ -929,6 +930,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_flatbuffer_reader",
         ":src_trace_processor_util_flatbuffer_writer",
         ":src_trace_processor_util_glob",
+        ":src_trace_processor_util_graph",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
@@ -6378,6 +6380,15 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/util/glob.cc",
         "src/trace_processor/util/glob.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:graph
+perfetto_filegroup(
+    name = "src_trace_processor_util_graph",
+    srcs = [
+        "src/trace_processor/util/graph.cc",
+        "src/trace_processor/util/graph.h",
     ],
 )
 
@@ -12211,6 +12222,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_flatbuffer_reader",
         ":src_trace_processor_util_flatbuffer_writer",
         ":src_trace_processor_util_glob",
+        ":src_trace_processor_util_graph",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
@@ -12575,6 +12587,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_flatbuffer_reader",
         ":src_trace_processor_util_flatbuffer_writer",
         ":src_trace_processor_util_glob",
+        ":src_trace_processor_util_graph",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",

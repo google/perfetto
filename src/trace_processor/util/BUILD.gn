@@ -249,6 +249,17 @@ source_set("zip_reader") {
   }
 }
 
+source_set("graph") {
+  sources = [
+    "graph.cc",
+    "graph.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+}
+
 perfetto_component("cold_sort") {
   sources = [
     "cold_sort.cc",
@@ -515,6 +526,7 @@ source_set("unittests") {
     "descriptors_unittest.cc",
     "flatbuffer_reader_unittest.cc",
     "glob_unittest.cc",
+    "graph_unittest.cc",
     "json_parser_unittest.cc",
     "json_serializer_unittest.cc",
     "json_value_unittest.cc",
@@ -542,6 +554,7 @@ source_set("unittests") {
     ":flatbuffer_reader",
     ":flatbuffer_writer",
     ":glob",
+    ":graph",
     ":json_parser",
     ":json_serializer",
     ":json_value",

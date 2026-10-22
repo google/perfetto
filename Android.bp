@@ -3303,6 +3303,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_flatbuffer_reader",
         ":perfetto_src_trace_processor_util_flatbuffer_writer",
         ":perfetto_src_trace_processor_util_glob",
+        ":perfetto_src_trace_processor_util_graph",
         ":perfetto_src_trace_processor_util_interned_message_view",
         ":perfetto_src_trace_processor_util_json_args",
         ":perfetto_src_trace_processor_util_json_parser",
@@ -21807,6 +21808,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_flatbuffer_reader",
         ":perfetto_src_trace_processor_util_flatbuffer_writer",
         ":perfetto_src_trace_processor_util_glob",
+        ":perfetto_src_trace_processor_util_graph",
         ":perfetto_src_trace_processor_util_interned_message_view",
         ":perfetto_src_trace_processor_util_json_args",
         ":perfetto_src_trace_processor_util_json_parser",
@@ -22285,6 +22287,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/util:graph
+filegroup {
+    name: "perfetto_src_trace_processor_util_graph",
+    srcs: [
+        "src/trace_processor/util/graph.cc",
+    ],
+}
+
 // GN: //src/trace_processor/util:interned_message_view
 filegroup {
     name: "perfetto_src_trace_processor_util_interned_message_view",
@@ -22494,6 +22504,7 @@ filegroup {
         "src/trace_processor/util/descriptors_unittest.cc",
         "src/trace_processor/util/flatbuffer_reader_unittest.cc",
         "src/trace_processor/util/glob_unittest.cc",
+        "src/trace_processor/util/graph_unittest.cc",
         "src/trace_processor/util/gzip_decompressor_unittest.cc",
         "src/trace_processor/util/json_parser_unittest.cc",
         "src/trace_processor/util/json_serializer_unittest.cc",
@@ -24947,6 +24958,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_flatbuffer_reader",
         ":perfetto_src_trace_processor_util_flatbuffer_writer",
         ":perfetto_src_trace_processor_util_glob",
+        ":perfetto_src_trace_processor_util_graph",
         ":perfetto_src_trace_processor_util_interned_message_view",
         ":perfetto_src_trace_processor_util_json_args",
         ":perfetto_src_trace_processor_util_json_parser",
@@ -26088,6 +26100,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_flatbuffer_reader",
         ":perfetto_src_trace_processor_util_flatbuffer_writer",
         ":perfetto_src_trace_processor_util_glob",
+        ":perfetto_src_trace_processor_util_graph",
         ":perfetto_src_trace_processor_util_interned_message_view",
         ":perfetto_src_trace_processor_util_json_args",
         ":perfetto_src_trace_processor_util_json_parser",
@@ -26812,6 +26825,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_flatbuffer_reader",
         ":perfetto_src_trace_processor_util_flatbuffer_writer",
         ":perfetto_src_trace_processor_util_glob",
+        ":perfetto_src_trace_processor_util_graph",
         ":perfetto_src_trace_processor_util_interned_message_view",
         ":perfetto_src_trace_processor_util_json_args",
         ":perfetto_src_trace_processor_util_json_parser",
