@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type m from 'mithril';
+import type {Rect2D} from '../base/geom';
 import type {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import type {duration, time} from '../base/time';
+import type {TimeScale} from '../base/time_scale';
 
 export interface MinimapCell {
   readonly ts: time;
@@ -31,6 +34,43 @@ export interface MinimapContentProvider {
   ): Promise<MinimapRow[]>;
 }
 
+export interface MinimapRenderContext {
+  readonly ctx: CanvasRenderingContext2D;
+  // Maps the whole trace onto the horizontal extent of the minimap.
+  readonly timescale: TimeScale;
+  // The content area below the time axis. Drawing is clipped to it.
+  readonly rect: Rect2D;
+}
+
+/**
+ * A minimap visualization, such as the built-in activity overview or a
+ * filmstrip of screen recordings. When more than one mode is registered, the
+ * minimap gets a menu to switch between them.
+ */
+export interface MinimapMode {
+  // Unique identifier, e.g. 'dev.perfetto.VideoFrames#display0'.
+  readonly id: string;
+
+  // Name shown in the minimap menu.
+  readonly name: string;
+
+  // The mode with the highest priority is shown by default. The built-in
+  // activity overview has priority 0.
+  readonly priority: number;
+
+  // Default height of the minimap (including the time axis) in pixels.
+  readonly heightPx?: number;
+
+  render(ctx: MinimapRenderContext): void;
+
+  // Optional tooltip shown while hovering the minimap at `ts`.
+  renderTooltip?(ts: time): m.Children;
+
+  // Optional handler for clicks (as opposed to drags) on the minimap.
+  onClick?(ts: time): void;
+}
+
 export interface MinimapManager {
   registerContentProvider(x: MinimapContentProvider): void;
+  registerMode(mode: MinimapMode): void;
 }

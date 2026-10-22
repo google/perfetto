@@ -18,6 +18,7 @@ import {TrackNode} from '../../public/workspace';
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {VideoFramePlayer} from './video_frame_player';
 import {createVideoFramesTrack} from './video_frames_track';
+import {VideoMinimapMode} from './video_minimap';
 
 interface StreamInfo {
   displayId: number;
@@ -29,7 +30,7 @@ export default class implements PerfettoPlugin {
   static readonly description =
     'Shows display frames captured by the android.display.video data source. ' +
     'Adds a per-display timeline track with a decoded frame preview and ' +
-    'playback.';
+    'playback, and a filmstrip of the frames to the minimap.';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const res = await ctx.engine.query(`
@@ -55,7 +56,7 @@ export default class implements PerfettoPlugin {
       sortOrder: -55,
     });
 
-    for (const stream of streams) {
+    for (const [i, stream] of streams.entries()) {
       const uri = `/video_frames/${stream.displayId}`;
       const player = new VideoFramePlayer(ctx, uri, stream.displayId);
 
@@ -64,6 +65,16 @@ export default class implements PerfettoPlugin {
         renderer: createVideoFramesTrack(ctx, uri, stream.displayId, player),
       });
       group.addChildInOrder(new TrackNode({uri, name: stream.displayName}));
+
+      // Not awaited: thumbnails are decoded in the background.
+      void new VideoMinimapMode(
+        ctx,
+        player,
+        `dev.perfetto.VideoFrames#display${stream.displayId}`,
+        streams.length > 1 ? `Video (${stream.displayName})` : 'Video',
+        // Above the activity overview (0), preferring the first display.
+        streams.length - i,
+      ).load();
     }
 
     ctx.defaultWorkspace.addChildInOrder(group);
