@@ -17,6 +17,8 @@ import type {
   SidePanelTabDescriptor,
 } from '../public/side_panel';
 
+const DEFAULT_WIDTH_PX = 400;
+
 export class SidePanelManagerImpl implements SidePanelManager {
   // The registry of tabs.
   private _registry = new Map<string, SidePanelTabDescriptor>();
@@ -26,6 +28,10 @@ export class SidePanelManagerImpl implements SidePanelManager {
 
   // Whether the entire side panel is visible or not.
   private _visible = false;
+
+  // The width of the side panel in pixels. Kept here, not in the side panel
+  // component, because that remounts whenever the trace or theme changes.
+  private _widthPx = DEFAULT_WIDTH_PX;
 
   registerTab(desc: SidePanelTabDescriptor): Disposable {
     this._registry.set(desc.uri, desc);
@@ -56,6 +62,14 @@ export class SidePanelManagerImpl implements SidePanelManager {
 
   set visible(v: boolean) {
     this._visible = v;
+  }
+
+  get widthPx(): number {
+    return this._widthPx;
+  }
+
+  set widthPx(px: number) {
+    this._widthPx = px;
   }
 
   get currentTabUri(): string | undefined {
