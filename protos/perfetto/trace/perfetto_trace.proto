@@ -6338,7 +6338,7 @@ message SystemInfo {
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 25.
+  // Next id: 42.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -6363,6 +6363,8 @@ message TraceStats {
     // Note that this represents the total size of buffered data in the buffer,
     // yet this data may be spread non-contiguously through the buffer and may
     // be overridden before the utilization reaches 100%.
+    // This calculation does not apply to TraceBufferV3, where |bytes_written|
+    // counts staging chunk bytes and |bytes_read| counts decoded record bytes.
     optional uint64 bytes_read = 14;
 
     // Num. bytes that were allocated as padding between chunks in the circular
@@ -6413,8 +6415,12 @@ message TraceStats {
     optional uint64 write_wrap_count = 4;
 
     // Number of completed TraceBufferV2 compactions.
-    // Includes compactions that move no chunks and excludes calls that skip
-    // compaction, such as calls on DISCARD or read-only buffers.
+    // Includes compactions that move no chunks.
+    // Excludes calls that skip compaction, such as calls on read-only buffers
+    // or on standalone DISCARD TraceBufferV2 buffers.
+    // For TraceBufferV3, counts staging compactions under either fill policy.
+    // Staging can compact during reads and after intake stops.
+    // Compaction never reopens TraceBufferV3 intake after DISCARD stops it.
     //
     // Compaction moves remaining chunks to the front and clears the unused
     // tail.
@@ -6477,6 +6483,109 @@ message TraceStats {
     // four-byte length field. The packet can be valid. Loss is reported on the
     // next packet of the same sequence.
     optional uint64 oversized_packets_dropped = 22;
+
+    // The fields below are for the experimental TraceBufferV3 only.
+    // It copies chunks into a staging TraceBufferV2, then moves their packets
+    // into compressed bundles.
+    // Most counters above come from staging, with these exceptions.
+    // - |buffer_size| is the capacity of the bundled buffer.
+    // - |bytes_read| counts decoded record bytes for packets returned to the
+    //   consumer.
+    //   Each record has three varints, a sequence index, loss bits and a
+    //   packet size, followed by the packet bytes.
+    //   A clone resets it to 0.
+    // - |chunks_read| and |readaheads_*| stay 0.
+    //   Staging reads are counted in the separate |staging_*| fields below.
+    //
+    // |bytes_written| counts staging chunk bytes, including chunk headers.
+    // |bytes_overwritten| and |chunks_overwritten| count chunks lost in staging
+    // before bundling.
+    // Bundle overwrites are counted in |bundles_overwritten|.
+    //
+    // Introduced in v59 / Android 26Q4+.
+
+    // Number of bundles stored in the bundled buffer, or kept as the overflow
+    // bundle when DISCARD stops intake.
+    // The overflow bundle is the one complete bundle that did not fit in the
+    // free space when intake stopped.
+    // It is kept so that a read can still return its packets.
+    // Counts bundles built during writes and reads.
+    // Moving the overflow bundle into the bundled buffer does not count it
+    // again.
+    // Reads and overwrites do not decrease this counter or the two byte totals
+    // below.
+    // A clone copies them.
+    optional uint64 bundles_written = 25;
+
+    // Total uncompressed record bytes in the bundles counted in
+    // |bundles_written|.
+    // Includes each packet and its three preceding varints.
+    optional uint64 bundle_bytes_uncompressed = 26;
+
+    // Total stored bytes of the bundles counted in |bundles_written|.
+    // Includes each bundle's header, sequence list and zstd frame.
+    // DISCARD stops intake when this total reaches or exceeds |buffer_size|.
+    // Already accepted staging packets remain readable after intake stops.
+    optional uint64 bundle_bytes_stored = 27;
+
+    // Number of bundles overwritten with unread packets in RING_BUFFER mode.
+    // Decoded bundles retained for the consumer are excluded.
+    optional uint64 bundles_overwritten = 28;
+
+    // Number of bundles dropped because their complete stored size exceeded
+    // |buffer_size| or their uncompressed record size did not fit the 32-bit
+    // size field in the bundle header.
+    // A large packet can exceed either limit on its own.
+    // This happens in both RING_BUFFER and DISCARD mode.
+    optional uint64 bundles_too_large = 29;
+
+    // Number of bundles dropped because their metadata, zstd frame or
+    // records were invalid.
+    // A nonzero value points to a service bug or corrupted memory.
+    optional uint64 bundles_corrupted = 35;
+
+    // Elapsed time of the longest bundling pass, in microseconds.
+    // A pass is a checkpoint pass, a pressure pass or a read-triggered pass.
+    // Each pass adds one measurement, however many bundles it builds or drops.
+    // A pass with no readable packets still counts.
+    // The time includes staging reads, compression, storing bundles,
+    // synchronous eviction and ProtoVM work, and compaction.
+    // The pass runs on the service thread, so it blocks all other service work.
+    optional uint64 bundling_max_us = 30;
+
+    // Distribution of the same passes, measured with CLOCK_MONOTONIC.
+    // Definitions are inclusive upper bounds in microseconds.
+    // Counts and sums have one extra entry for values above the last bound.
+    // Current bounds are 10, 100, 1000, 10000 and 100000 us.
+    // Sums are also in microseconds.
+    repeated int64 bundling_time_us_histogram_def = 36 [packed = true];
+    repeated uint64 bundling_time_us_histogram_counts = 37 [packed = true];
+    repeated int64 bundling_time_us_histogram_sum = 38 [packed = true];
+
+    // Number of bundling passes requested by a write under staging pressure.
+    // Includes passes with no readable packets.
+    // Excludes checkpoint and read-triggered passes.
+    // A clone copies this counter and the two pressure counters below.
+    optional uint64 staging_pressure_passes = 39;
+
+    // Total elapsed time of |staging_pressure_passes|, in microseconds.
+    // Uses the same measurement as |bundling_time_us_histogram_sum|, including
+    // the compaction attempt at the end of the pass.
+    optional uint64 staging_pressure_time_us = 40;
+
+    // Number of compactions skipped during |staging_pressure_passes| because
+    // live chunks were on both sides of the staging write cursor.
+    // This is a subset of |compactions_skipped|.
+    optional uint64 staging_pressure_compactions_skipped = 41;
+
+    // The equivalents of |bytes_read|, |chunks_read|, |readaheads_succeeded|
+    // and |readaheads_failed| for the reads that move packets out of the
+    // staging buffer.
+    // A clone resets these counters to 0.
+    optional uint64 staging_bytes_read = 31;
+    optional uint64 staging_chunks_read = 32;
+    optional uint64 staging_readaheads_succeeded = 33;
+    optional uint64 staging_readaheads_failed = 34;
   }
 
   // Stats for the TraceBuffer(s) of the current trace session.

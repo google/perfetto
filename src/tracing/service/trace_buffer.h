@@ -49,11 +49,12 @@ class TraceBuffer {
   enum OverwritePolicy { kOverwrite, kDiscard };
 
   // Type of trace buffer implementation.
-  // TODO(primiano): remove this once TraceBufferV2 proves itself.
-  // kV2 is experimental.
+  // TODO(primiano): Remove this once one implementation remains.
+  // kV2 and kV3 are experimental.
   enum BufType {
     kV1,
     kV2,
+    kV3,
   };
 
   // Argument for out-of-band patches applied through TryPatchChunkContents().
@@ -76,7 +77,8 @@ class TraceBuffer {
   };
 
   // Creates the requested implementation and never falls back to another type.
-  // Returns an error if allocation fails.
+  // Returns an error if the build lacks the implementation (kV3 needs zstd)
+  // or allocation fails.
   static base::StatusOr<std::unique_ptr<TraceBuffer>>
   Create(BufType, size_t size_in_bytes, OverwritePolicy);
 
@@ -151,11 +153,29 @@ class TraceBuffer {
   // updates the statistic and does not record a gap on any packet sequence.
   virtual void RecordAbiViolation() = 0;
 
+  // Call this after copying a complete write batch, including its patches.
+  // A CommitData request, an SMB v2 drain pass and an SMB v1 scrape each end
+  // a batch.
+  // Chunks can arrive out of ChunkID order within a batch.
+  // This call lets the buffer read past gaps that the rest of the batch did
+  // not fill.
+  // A batch can end in the middle of a packet.
+  // The checkpoint can read packets from every producer, not only from the
+  // one that ended the batch.
+  // It does not have to read every readable packet.
+  // TraceBufferV3 bundles staged packets here once staging has stored enough
+  // new data.
+  //
+  // The default implementation does nothing.
+  virtual void OnWriteCheckpoint();
+
   // To read the contents of the buffer the caller needs to:
   //   BeginRead()
   //   while (ReadNextTracePacket(packet_fragments)) { ... }
   // No other calls to any other method should be interleaved between
   // BeginRead() and ReadNextTracePacket().
+  // Release packets from the previous read before calling BeginRead() again.
+  // TraceBufferV3 reuses the decode memory behind their slices.
   // Reads in the TraceBuffer are NOT idempotent.
   virtual void BeginRead() = 0;
 
@@ -163,9 +183,12 @@ class TraceBuffer {
   // producer_uid, and writer_id of the producer/writer that wrote it.
   // Returns false if no packets can be read at this point.
   // |previous_packet_on_sequence_dropped| is a bitmask: 0 if no data was lost
-  // on the sequence before this packet, otherwise nonzero. TraceBufferV2 sets
-  // the DataLossReason cause bits; TraceBufferV1 just sets 1. The value is
-  // forwarded into TracePacket.previous_packet_dropped.
+  // on the sequence before this packet, otherwise nonzero.
+  // TraceBufferV2 and TraceBufferV3 set DataLossReason bits.
+  // TraceBufferV1 sets 1.
+  // The returned bytes have not passed PacketStreamValidator.
+  // The service validates the packet first, then appends a nonzero value as
+  // TracePacket.previous_packet_dropped.
   virtual bool ReadNextTracePacket(
       TracePacket*,
       PacketSequenceProperties* sequence_properties,
@@ -173,12 +196,14 @@ class TraceBuffer {
 
   // Attempts to reclaim unused buffer space.
   // The caller must release all packets from previous reads before this call,
-  // because their slices can point into the buffer.
+  // because their slices can point into memory this call moves or frees.
   // Call BeginRead() before reading again.
   virtual void MaybeCompact() = 0;
 
-  // Creates a read-only clone of the trace buffer. The read iterators of the
-  // new buffer will be reset, as if no Read() had been called.
+  // Creates a read-only clone of the trace buffer.
+  // Call BeginRead() before reading the clone.
+  // Consumed packets stay consumed, except in TraceBufferV1 when
+  // BUFFER_CLONE_PRESERVE_READ_ITER is disabled.
   virtual std::unique_ptr<TraceBuffer> CloneReadOnly() const = 0;
 
   // Returns the ProtoVM state owned by this buffer, or nullptr if the

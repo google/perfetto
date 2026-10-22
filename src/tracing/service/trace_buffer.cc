@@ -16,9 +16,14 @@
 
 #include "src/tracing/service/trace_buffer.h"
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/status.h"
 #include "src/tracing/service/trace_buffer_v1.h"
 #include "src/tracing/service/trace_buffer_v2.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+#include "src/tracing/service/trace_buffer_v3.h"
+#endif
 
 namespace perfetto {
 
@@ -35,6 +40,14 @@ base::StatusOr<std::unique_ptr<TraceBuffer>> TraceBuffer::Create(
     case kV2:
       buffer = TraceBufferV2::Create(size_in_bytes, policy);
       break;
+    case kV3:
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+      buffer = TraceBufferV3::Create(size_in_bytes, policy);
+      break;
+#else
+      return base::ErrStatus(
+          "TraceBufferV3 is not available in this build (zstd disabled)");
+#endif
   }
   if (!buffer) {
     return base::ErrStatus("Not enough memory for a trace buffer of %zu bytes",
@@ -44,5 +57,7 @@ base::StatusOr<std::unique_ptr<TraceBuffer>> TraceBuffer::Create(
 }
 
 TraceBuffer::~TraceBuffer() = default;
+
+void TraceBuffer::OnWriteCheckpoint() {}
 
 }  // namespace perfetto
