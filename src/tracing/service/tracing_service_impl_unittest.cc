@@ -8255,7 +8255,7 @@ TEST_F(TracingServiceImplTest, InvalidBufferSizes) {
   EXPECT_CALL(*consumer, OnTracingDisabled(_))
       .WillOnce(DoAll(SaveArg<0>(&error), checkpoint));
   task_runner.RunUntilCheckpoint("tracing_disabled");
-  EXPECT_THAT(error, HasSubstr("Invalid buffer sizes"));
+  EXPECT_THAT(error, HasSubstr("buffers[2].size_kb must be nonzero"));
 }
 
 TEST_F(TracingServiceImplTest, StringFiltering) {

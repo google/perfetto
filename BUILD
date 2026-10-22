@@ -7212,6 +7212,7 @@ perfetto_filegroup(
         "src/tracing/service/random.h",
         "src/tracing/service/service_ring_buffer_drainer.cc",
         "src/tracing/service/service_ring_buffer_drainer.h",
+        "src/tracing/service/trace_buffer.cc",
         "src/tracing/service/trace_buffer.h",
         "src/tracing/service/trace_buffer_protovms.cc",
         "src/tracing/service/trace_buffer_protovms.h",
