@@ -92,7 +92,7 @@ function generateSampleItems(): SampleItem[] {
 
   function toCamelCase(words: string[]): string {
     return (
-      words[0].toLowerCase() +
+      words[0]!.toLowerCase() +
       words
         .slice(1)
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))

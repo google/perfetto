@@ -339,7 +339,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
                 this.tooltipPos = undefined;
                 return;
               }
-              const renderNode = this.renderNodes![newHoveredIdx];
+              const renderNode = this.renderNodes![newHoveredIdx]!;
               this.tooltipPos = {
                 x: offsetX,
                 y: renderNode.y,
@@ -482,7 +482,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       .trim();
 
     for (let i = 0; i < this.renderNodes.length; i++) {
-      const node = this.renderNodes[i];
+      const node = this.renderNodes[i]!;
       const {x, y, width: width, source, state} = node;
       if (y + NODE_HEIGHT <= yStart || y >= yEnd) {
         continue;
@@ -503,7 +503,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         name = '(merged)';
         colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       } else {
-        name = nodes[source.queryIdx].name;
+        name = nodes[source.queryIdx]!.name;
         colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       }
       const highlighted =
@@ -616,7 +616,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       parentCumulativeValue,
       properties,
       marker,
-    } = nodes[queryIdx];
+    } = nodes[queryIdx]!;
 
     const percent = displayPercentage(
       cumulativeValue,
@@ -674,10 +674,10 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         }
         return null;
       }),
-      this.renderNodeActionBar(source, name, nodes[queryIdx], nodeActions),
+      this.renderNodeActionBar(source, name, nodes[queryIdx]!, nodeActions),
     ];
     const {renderNodeTooltip} = this.attrs;
-    const node = nodes[queryIdx];
+    const node = nodes[queryIdx]!;
     return m(
       'div',
       renderNodeTooltip === undefined
@@ -1215,7 +1215,7 @@ function computeRenderNodes(
 
   const zoomQueryWidth = zoomRegion.queryXEnd - zoomRegion.queryXStart;
   for (let i = 0; i < nodes.length; i++) {
-    const {id, parentId, depth, xStart: qXStart, xEnd: qXEnd} = nodes[i];
+    const {id, parentId, depth, xStart: qXStart, xEnd: qXEnd} = nodes[i]!;
     assertTrue(depth !== 0);
 
     const depthMatchingZoom = isDepthMatchingZoom(depth, zoomRegion);
@@ -1257,7 +1257,7 @@ function computeRenderNodes(
       const mergedXKey = `${id}_${depth > 0 ? depth + 1 : depth - 1}`;
       const childMergedIdx = keyToChildMergedIdx.get(parentChildMergeKey);
       if (childMergedIdx !== undefined) {
-        const r = renderNodes[childMergedIdx];
+        const r = renderNodes[childMergedIdx]!;
         const mergedWidth = isDepthMatchingZoom(depth, zoomRegion)
           ? Math.min(qXEnd - r.source.queryXStart, zoomQueryWidth) / queryXPerPx
           : (qXEnd - r.source.queryXStart) / queryXPerPx;

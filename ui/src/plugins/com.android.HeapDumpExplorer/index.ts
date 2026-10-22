@@ -25,7 +25,7 @@ import HeapProfilePlugin, {
 } from '../dev.perfetto.HeapProfile';
 import {HeapDumpPage} from './heap_dump_page';
 import {HeapDumpExplorerSession} from './session';
-import {migrateHdeState} from './persisted_state';
+import {DEFAULT_HDE_STATE, HDE_STATE_SCHEMA} from './persisted_state';
 import type {time} from '../../base/time';
 
 const PLUGIN_ID = 'com.android.HeapDumpExplorer';
@@ -48,9 +48,13 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
   }
 
   constructor(trace: Trace) {
-    // The core restores this store (phase 1) before plugins run, so the session
+    // The core restores this storage (phase 1) before plugins run, so the session
     // reads any shared-link state straight from it.
-    const store = trace.mountStore(PLUGIN_ID, migrateHdeState);
+    const storage = trace.registerStorage({
+      id: PLUGIN_ID,
+      schema: HDE_STATE_SCHEMA,
+      defaultValue: DEFAULT_HDE_STATE,
+    });
 
     const hideDefaultChangedHint = trace.settings.register({
       id: 'com.android.HideHeapDumpExplorerDefaultChangedHint',
@@ -68,7 +72,7 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
       trace.engine,
       hideDefaultChangedHint,
       defaultFlamegraph,
-      store,
+      storage,
     );
   }
 

@@ -121,5 +121,6 @@ data_sources: {
     protovm_config {
       memory_limit_kb: 4096
     }
+    buffer_exhausted_policy: BUFFER_EXHAUSTED_DROP
   }
 }

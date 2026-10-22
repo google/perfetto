@@ -1054,7 +1054,7 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
 base::StatusOr<SqliteConnection::PreparedStatement>
 PerfettoSqlConnection::PreparePipeline(const pipeline::LogicalPlan& plan,
                                        const SqlSource& source) {
-  auto sql = pipeline::SelectPipelineSql(plan);
+  auto sql = pipeline::SelectPipelineSql(plan, plan_key_);
   if (!sql.ok()) {
     return source.AddTraceback(0, sql.status());
   }
@@ -1071,9 +1071,11 @@ PerfettoSqlConnection::LoadPipeline(
     const std::vector<const dataframe::Dataframe*>& args) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "PIPELINE_LOAD");
   ASSIGN_OR_RETURN(pipeline::LogicalPlan plan,
-                   pipeline::DeserializePlan(serialized, *catalog_));
+                   pipeline::DeserializePlan(serialized, plan_key_, *catalog_));
   RETURN_IF_ERROR(pipeline::BindDataframeArgs(plan, args, pool_));
-  return pipeline::Lower(plan);
+  pipeline::LoweringContext context;
+  context.pool = pool_;
+  return pipeline::Lower(plan, context);
 }
 
 base::Status PerfettoSqlConnection::ExecuteCreateView(

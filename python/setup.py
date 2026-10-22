@@ -89,6 +89,7 @@ setup(
         'numpy': ['numpy'],
         'pandas': ['pandas'],
         'polars': ['polars'],
+        'pyarrow': ['pyarrow'],
     },
     classifiers=[
         'Development Status :: 3 - Alpha',

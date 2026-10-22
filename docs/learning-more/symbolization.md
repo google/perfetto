@@ -209,6 +209,20 @@ when `PERFETTO_BINARY_PATH` is set.
 - You must manage `PERFETTO_BINARY_PATH` / `PERFETTO_PROGUARD_MAP` by hand; none
   of the auto-discovery from Option 1 applies.
 
+### Merged classes {#merged-classes}
+
+Optimizing and obfuscating an app (for example, with R8) can merge several
+classes into one. When the deobfuscation mapping records which classes were
+merged, Perfetto marks the resulting classes in heap dumps as potentially
+merged (`heap_graph_class.potentially_merged`) and shows a warning next to them
+in the UI; see
+[Heap Dump Explorer](/docs/visualization/heap-dump-explorer.md#merged-classes).
+
+If the mapping doesn't record merged classes, Perfetto can't tell which classes
+were merged, so it flags every renamed class instead. For example, R8 records
+merged classes in `com.android.tools.r8.mergedClasses` comments starting with
+mapping format 2.3; older R8 mapping files don't.
+
 ### Symbol lookup order
 
 For each native mapping in the trace, the symbolizer looks for a file with

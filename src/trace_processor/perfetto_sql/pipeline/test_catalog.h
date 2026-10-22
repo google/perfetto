@@ -149,8 +149,9 @@ TestCatalog::BuildSqlSources(SqliteConnection* connection,
     std::vector<std::string> names;
     std::vector<std::string> references;
     for (const NamedColumn& column : scan.columns_) {
-      names.push_back(column.name);
-      references.push_back("\"" + column.name + "\"");
+      const std::string& name = plan.names().text(column.name);
+      names.push_back(name);
+      references.push_back("\"" + name + "\"");
     }
     auto statement = connection->PrepareStatement(SqlSource::FromExecuteQuery(
         "SELECT " + base::Join(references, ", ") + " FROM " +

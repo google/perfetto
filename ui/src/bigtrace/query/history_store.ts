@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {ensureDefined} from '../../base/assert';
 import {queryHistoryStorage} from './query_history_storage';
 import {queryStore, type QueryExecution} from './query_store';
 
@@ -61,7 +62,7 @@ function formatDayLabel(d: Date, dayKey: string, now: Date): string {
     now.getDate() - 1,
   ).toDateString();
   if (dayKey === yesterdayKey) return 'Yesterday';
-  return `${MONTH_NAMES[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`;
+  return `${ensureDefined(MONTH_NAMES[d.getMonth()]).slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
 // Buckets sorted entries by local calendar day.

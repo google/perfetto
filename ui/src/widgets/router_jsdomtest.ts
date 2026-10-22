@@ -252,7 +252,7 @@ describe('Router', () => {
       const objects = container.querySelectorAll('.object');
       expect(objects.length, dumpDom()).toBe(1);
       expect(objects[0], dumpDom()).toBe(objectEl);
-      expect(objects[0].textContent, dumpDom()).toBe('2');
+      expect(objects[0]!.textContent, dumpDom()).toBe('2');
     });
 
     test('renders cached routes in declaration order', () => {

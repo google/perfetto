@@ -32,7 +32,7 @@ class PinCujMetricHandler implements MetricHandler {
       return undefined;
     }
     return {
-      cujName: match.groups.cujName,
+      cujName: match.groups.cujName!,
     };
   }
 

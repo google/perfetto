@@ -17,6 +17,7 @@
 #include "src/trace_processor/core/exec/hash_aggregate.h"
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -92,6 +93,57 @@ TEST(HashAggregateTest, NoKeysIsOneGroupEvenWithoutRows) {
   ASSERT_EQ(op.Finish(out, *state), OpResult::kHaveMoreOutput);
   EXPECT_THAT(ReadColumn<int64_t>(out, 0), ElementsAre(3));
   EXPECT_THAT(ReadNullableColumn<int64_t>(out, 1), ElementsAre(15));
+}
+
+TEST(HashAggregateTest, NoKeysFoldsEachBatchAtOnce) {
+  // Two batches of one nullable column, with rows 1 and 5 null.
+  constexpr int64_t kHalf = std::numeric_limits<int64_t>::max() / 2;
+  std::vector<int64_t> values = {-7, 5, kHalf, 0, -kHalf, 9, 3};
+  BitVector valid = BitVector::CreateWithSize(7, true);
+  valid.clear(1);
+  valid.clear(5);
+
+  using F = AggregateCall::Function;
+  HashAggregate op(HashAggregateSpec{{},
+                                     {{F::kCountStar, 0},
+                                      {F::kCount, 0},
+                                      {F::kSum, 0},
+                                      {F::kMin, 0},
+                                      {F::kMax, 0}}});
+  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  RowBatch out;
+  for (uint32_t at : {0u, 4u}) {
+    RowBatch in;
+    in.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Int64{}}, values.data(), &valid, at));
+    in.SetRowCount(at == 0 ? 4 : 3);
+    ASSERT_EQ(op.Execute(in, out, *state), OpResult::kNeedMoreInput);
+  }
+  ASSERT_EQ(op.Finish(out, *state), OpResult::kHaveMoreOutput);
+  EXPECT_THAT(ReadColumn<int64_t>(out, 0), ElementsAre(7));
+  EXPECT_THAT(ReadColumn<int64_t>(out, 1), ElementsAre(5));
+  EXPECT_THAT(ReadNullableColumn<int64_t>(out, 2), ElementsAre(-4));
+  EXPECT_THAT(ReadNullableColumn<int64_t>(out, 3), ElementsAre(-kHalf));
+  EXPECT_THAT(ReadNullableColumn<int64_t>(out, 4), ElementsAre(kHalf));
+}
+
+TEST(HashAggregateTest, NoKeysSumFailsPastInt64) {
+  using F = AggregateCall::Function;
+  HashAggregate op(HashAggregateSpec{{}, {{F::kSum, 0}}});
+  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  RowBatch out;
+  // The least Int64 fits; one less doesn't.
+  std::vector<int64_t> least = {std::numeric_limits<int64_t>::min(), 0};
+  std::vector<int64_t> one = {-1};
+  for (std::vector<int64_t>* values : {&least, &one}) {
+    RowBatch in;
+    in.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Int64{}}, values->data()));
+    in.SetRowCount(static_cast<uint32_t>(values->size()));
+    OpResult expected =
+        values == &least ? OpResult::kNeedMoreInput : OpResult::kError;
+    ASSERT_EQ(op.Execute(in, out, *state), expected);
+  }
 }
 
 }  // namespace

@@ -262,9 +262,13 @@ perfetto_component("cold_sort") {
   ]
 }
 
-source_set("galloping_search") {
-  sources = [ "galloping_search.h" ]
-  deps = [ "../../../gn:default_deps" ]
+source_set("sorted_search") {
+  sources = [ "sorted_search.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/public",
+  ]
 }
 
 source_set("concurrency_stress_test_util") {
@@ -510,7 +514,6 @@ source_set("unittests") {
     "concurrency_stress_test_util_unittest.cc",
     "descriptors_unittest.cc",
     "flatbuffer_reader_unittest.cc",
-    "galloping_search_unittest.cc",
     "glob_unittest.cc",
     "json_parser_unittest.cc",
     "json_serializer_unittest.cc",
@@ -521,6 +524,7 @@ source_set("unittests") {
     "protozero_to_text_unittests.cc",
     "simple_json_parser_unittest.cc",
     "simple_json_serializer_unittest.cc",
+    "sorted_search_unittest.cc",
     "sql_argument_unittest.cc",
     "streaming_line_reader_unittest.cc",
     "tar_writer_unittest.cc",
@@ -537,7 +541,6 @@ source_set("unittests") {
     ":descriptors",
     ":flatbuffer_reader",
     ":flatbuffer_writer",
-    ":galloping_search",
     ":glob",
     ":json_parser",
     ":json_serializer",
@@ -548,6 +551,7 @@ source_set("unittests") {
     ":protozero_to_text",
     ":simple_json_parser",
     ":simple_json_serializer",
+    ":sorted_search",
     ":sql_argument",
     ":tar_writer",
     ":trace_blob_view_reader",

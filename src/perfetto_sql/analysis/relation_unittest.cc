@@ -284,6 +284,17 @@ TEST_F(RelationAnalyzerTest, Ctes) {
   EXPECT_EQ(result->row_origin(), std::nullopt);
 }
 
+// A relation read by a pipe stage is in scope, like a pipeline's source.
+TEST_F(RelationAnalyzerTest, ReadsWithinPipeStages) {
+  const std::string kHere = "SELECT 1 AS here";
+  std::vector<std::string> from = ReadAt("FROM (SELECT 1 AS here)", kHere, "");
+  ASSERT_FALSE(from.empty());
+  EXPECT_NE(from[0][0], '!') << from[0];
+  EXPECT_EQ(ReadAt("FROM slice |> INTERVAL FILL GAPS WITH (SELECT 1 AS here)",
+                   kHere, ""),
+            from);
+}
+
 // What is read at a node of a statement sees the CTEs in scope there, and only
 // those.
 TEST_F(RelationAnalyzerTest, ReadsSeeTheCtesInScope) {

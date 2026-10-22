@@ -134,7 +134,8 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
   RowStore store;
   ASSERT_TRUE(store.Append(input).ok());
   ASSERT_EQ(
-      store.View(&output, Span<const uint32_t>(rows), test::TestContext()), 4u);
+      store.Gather(&output, Span<const uint32_t>(rows), test::TestContext()),
+      4u);
   for (uint32_t i = 0; i < 4; ++i) {
     double value = output.Value<double>(0, i);
     uint64_t actual;
@@ -193,9 +194,9 @@ TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
     }
     RowBatch out;
     ASSERT_EQ(
-        store.View(&out,
-                   Span<const uint32_t>(order.data(), order.data() + count),
-                   context),
+        store.Gather(&out,
+                     Span<const uint32_t>(order.data(), order.data() + count),
+                     context),
         count);
     EXPECT_NE(out.column(0).data(), stable.data());
     EXPECT_TRUE(out.selection().prefix());

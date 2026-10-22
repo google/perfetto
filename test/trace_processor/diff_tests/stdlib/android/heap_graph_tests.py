@@ -103,6 +103,24 @@ class HeapGraph(TestSuite):
           "java.lang.String",1,666,1,666
         """))
 
+  def test_heap_graph_class_tree_native_size(self):
+    return DiffTestBlueprint(
+        trace=Path('../../parser/profiling/heap_graph_native_size.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
+
+          SELECT p.name AS parent_name, c.name, c.heap_type, c.self_count, c.self_size
+          FROM _heap_graph_class_tree c
+          LEFT JOIN _heap_graph_class_tree p ON c.parent_id = p.id
+          WHERE c.name GLOB '*Bitmap*'
+          ORDER BY c.name;
+        """,
+        out=Csv("""
+          "parent_name","name","heap_type","self_count","self_size"
+          "android.graphics.Bitmap","[native] android.graphics.Bitmap","HEAP_TYPE_NATIVE",1,123456
+          "[NULL]","android.graphics.Bitmap","[NULL]",1,46
+        """))
+
   # The same class loaded by two class loaders has the same name but distinct
   # type_ids. The class tree keys on class name, so the two instances must
   # coalesce into a single node (self_count = 2) rather than splitting.

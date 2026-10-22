@@ -37,7 +37,7 @@ namespace perfetto::trace_processor::pipeline {
 
 const OperationRegistration OrderBy::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_ORDER_BY, &BuildPlan,
-    OperationRegistration::Encoding{4, false, &DecodePlan}};
+    OperationRegistration::Encoding{4, &MakeOperation<OrderBy>}};
 
 base::Status OrderBy::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("ORDER BY");
@@ -82,27 +82,8 @@ std::unique_ptr<PlanOperation> OrderBy::Clone() const {
   return std::make_unique<OrderBy>(*this);
 }
 
-void OrderBy::Write(PlanWriter* c,
-                    const PlanNode&,
-                    Available* available) const {
-  c->writer().Size(keys_.size());
-  for (const SortKey& key : keys_) {
-    c->writer().Position(*available, key.column);
-    c->writer().U8(key.descending);
-  }
-}
-
-void OrderBy::DecodePlan(PlanReader* c, Available* available) {
-  OrderBy order;
-  order.keys_.resize(c->reader().Count());
-  if (order.keys_.empty()) {
-    c->reader().Fail();
-  }
-  for (SortKey& key : order.keys_) {
-    key.column = c->reader().Position(*available);
-    key.descending = c->reader().U8() != 0;
-  }
-  c->AddNode(std::move(order), {c->plan().root()});
+void OrderBy::Serialize(PlanCodec& c) {
+  c.Vec(&keys_);
 }
 
 }  // namespace perfetto::trace_processor::pipeline

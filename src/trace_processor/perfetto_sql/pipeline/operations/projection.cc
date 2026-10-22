@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -43,6 +44,15 @@ base::StatusOr<std::vector<Compiler::RowColumn>>
 ResolveItems(Compiler*, uint32_t list_id, bool allow_unqualified_star);
 base::StatusOr<std::vector<Compiler::RowColumn>>
 ExpandStar(Compiler*, uint32_t star_id, bool allow_unqualified_star);
+
+// Resolves an item's expression, which must be a column reference.
+base::StatusOr<ColumnId> ResolveColumnItem(Compiler* c, uint32_t expr) {
+  if (Node<SyntaqliteNode>(c->parser(), expr)->tag !=
+      SYNTAQLITE_NODE_COLUMN_REF) {
+    return c->Unsupported(expr, "a computed column");
+  }
+  return c->ResolveColumnExpr(expr);
+}
 
 // Replaces the row. What it leaves is a new table: no alias reaches into it.
 base::Status BuildSelectPlan(Compiler* c, uint32_t stage) {
@@ -73,23 +83,21 @@ base::Status BuildDropPlan(Compiler* c, uint32_t stage) {
   const auto* n = Node<SyntaqlitePerfettoPipeDrop>(c->parser(), stage);
   const auto* list =
       Node<SyntaqlitePerfettoPipeNameList>(c->parser(), n->columns);
-  std::vector<std::string> names;
+  std::vector<NameId> names;
   for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
     uint32_t item_id = syntaqlite_list_child_id(list, i);
-    std::string name =
-        SpanText(c->parser(),
-                 Node<SyntaqlitePerfettoPipeName>(c->parser(), item_id)->name);
+    NameId name =
+        c->Name(Node<SyntaqlitePerfettoPipeName>(c->parser(), item_id)->name);
     RETURN_IF_ERROR(c->CheckListedOnce(names, name, item_id));
     bool found =
         std::any_of(c->row().begin(), c->row().end(), [&](const auto& column) {
-          return !column.qualified_only &&
-                 base::CaseInsensitiveEqual(column.column.name, name);
+          return !column.qualified_only && c->Same(column.column.name, name);
         });
     if (!found) {
       return c->NoSuchColumn(name, item_id);
     }
   }
-  for (const std::string& name : names) {
+  for (NameId name : names) {
     c->DropColumn(name);
   }
   if (c->row().empty()) {
@@ -106,19 +114,19 @@ base::Status BuildRenamePlan(Compiler* c, uint32_t stage) {
   const auto* n = Node<SyntaqlitePerfettoPipeRename>(c->parser(), stage);
   const auto* list =
       Node<SyntaqlitePerfettoPipeColumnList>(c->parser(), n->columns);
-  std::vector<std::string> seen;
+  std::vector<NameId> seen;
   std::vector<std::pair<size_t, uint32_t>> renames;
   for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
     uint32_t item_id = syntaqlite_list_child_id(list, i);
     const auto* item = Node<SyntaqlitePerfettoPipeColumn>(c->parser(), item_id);
-    std::string name = SpanText(c->parser(), item->name);
+    NameId name = c->Name(item->name);
     RETURN_IF_ERROR(c->CheckListedOnce(seen, name, item_id));
     ASSIGN_OR_RETURN(size_t at, c->FindInRow(name, item_id));
     renames.push_back({at, item_id});
   }
   for (const auto& [at, item_id] : renames) {
     const auto* item = Node<SyntaqlitePerfettoPipeColumn>(c->parser(), item_id);
-    c->RenameColumn(at, SpanText(c->parser(), item->alias), item_id);
+    c->RenameColumn(at, c->Name(item->alias), item_id);
   }
   return base::OkStatus();
 }
@@ -132,7 +140,7 @@ base::Status BuildSetPlan(Compiler* c, uint32_t stage) {
   const auto* n = Node<SyntaqlitePerfettoPipeSet>(c->parser(), stage);
   const auto* list =
       Node<SyntaqlitePerfettoPipeSetItemList>(c->parser(), n->items);
-  std::vector<std::string> seen;
+  std::vector<NameId> seen;
   struct Assignment {
     size_t at;
     ColumnId value;
@@ -143,17 +151,10 @@ base::Status BuildSetPlan(Compiler* c, uint32_t stage) {
     uint32_t item_id = syntaqlite_list_child_id(list, i);
     const auto* item =
         Node<SyntaqlitePerfettoPipeSetItem>(c->parser(), item_id);
-    std::string name = SpanText(c->parser(), item->name);
+    NameId name = c->Name(item->name);
     RETURN_IF_ERROR(c->CheckListedOnce(seen, name, item_id));
     ASSIGN_OR_RETURN(size_t at, c->FindInRow(name, item_id));
-    const auto* value =
-        Node<SyntaqlitePerfettoPipeColumn>(c->parser(), item->value);
-    std::string qualifier = IsSpanPresent(value->qualifier)
-                                ? SpanText(c->parser(), value->qualifier)
-                                : "";
-    ASSIGN_OR_RETURN(
-        ColumnId id,
-        c->Resolve(qualifier, SpanText(c->parser(), value->name), item->value));
+    ASSIGN_OR_RETURN(ColumnId id, ResolveColumnItem(c, item->value));
     assignments.push_back({at, id, item_id});
   }
   for (const Assignment& assignment : assignments) {
@@ -162,12 +163,20 @@ base::Status BuildSetPlan(Compiler* c, uint32_t stage) {
   return base::OkStatus();
 }
 
-// Replaces every alias with one covering the whole row as it is now.
+// Replaces every alias with one covering the row as a bare name sees it now.
+// Columns which only an earlier alias found go with that alias.
 base::Status BuildAsPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("AS");
   const auto* n = Node<SyntaqlitePerfettoPipeAs>(c->parser(), stage);
+  std::vector<Compiler::RowColumn> row;
+  for (const Compiler::RowColumn& column : c->row()) {
+    if (!column.qualified_only) {
+      row.push_back(column);
+    }
+  }
   c->ClearAliases();
-  c->AddAlias({SpanText(c->parser(), n->alias), c->row()});
+  c->AddAlias({c->Name(n->alias), row});
+  c->ReplaceRow(std::move(row));
   return base::OkStatus();
 }
 
@@ -185,16 +194,14 @@ ResolveItems(Compiler* c, uint32_t list_id, bool allow_unqualified_star) {
       columns.insert(columns.end(), expanded.begin(), expanded.end());
       continue;
     }
-    const auto* item = Node<SyntaqlitePerfettoPipeColumn>(c->parser(), item_id);
-    std::string qualifier = IsSpanPresent(item->qualifier)
-                                ? SpanText(c->parser(), item->qualifier)
-                                : "";
-    std::string name = SpanText(c->parser(), item->name);
-    ASSIGN_OR_RETURN(ColumnId id, c->Resolve(qualifier, name, item_id));
-    if (IsSpanPresent(item->alias)) {
-      name = SpanText(c->parser(), item->alias);
-    }
-    columns.push_back({{std::move(name), id}, c->operation(), item_id});
+    const auto* item =
+        Node<SyntaqlitePerfettoPipeExprItem>(c->parser(), item_id);
+    ASSIGN_OR_RETURN(ColumnId id, ResolveColumnItem(c, item->expr));
+    NameId name = c->Name(
+        IsSpanPresent(item->alias)
+            ? item->alias
+            : Node<SyntaqliteNode>(c->parser(), item->expr)->column_ref.column);
+    columns.push_back({{name, id}, c->operation(), item_id});
   }
   return columns;
 }
@@ -204,10 +211,10 @@ ExpandStar(Compiler* c, uint32_t star_id, bool allow_unqualified_star) {
   const auto* star = Node<SyntaqlitePerfettoPipeStar>(c->parser(), star_id);
   std::vector<Compiler::RowColumn> columns;
   if (IsSpanPresent(star->qualifier)) {
-    std::string qualifier = SpanText(c->parser(), star->qualifier);
+    NameId qualifier = c->Name(star->qualifier);
     const Compiler::Alias* alias = c->FindAlias(qualifier);
     if (!alias) {
-      return c->Err(star_id, Compiler::Error::kNoSuchAlias, qualifier);
+      return c->Err(star_id, Compiler::Error::kNoSuchAlias, c->Text(qualifier));
     }
     columns = alias->columns;
   } else {
@@ -215,26 +222,31 @@ ExpandStar(Compiler* c, uint32_t star_id, bool allow_unqualified_star) {
     if (!allow_unqualified_star) {
       return c->Expected(star_id, "a table alias before the star, as in `t.*`");
     }
-    columns = c->row();
+    // A bare star is the columns a bare name finds. Others, as an
+    // intersection's operand columns are, come through their alias.
+    for (const Compiler::RowColumn& column : c->row()) {
+      if (!column.qualified_only) {
+        columns.push_back(column);
+      }
+    }
   }
 
   if (syntaqlite_node_is_present(star->except)) {
     const auto* list =
         Node<SyntaqlitePerfettoPipeNameList>(c->parser(), star->except);
-    std::vector<std::string> seen;
+    std::vector<NameId> seen;
     for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
       uint32_t item_id = syntaqlite_list_child_id(list, i);
-      std::string name = SpanText(
-          c->parser(),
-          Node<SyntaqlitePerfettoPipeName>(c->parser(), item_id)->name);
+      NameId name =
+          c->Name(Node<SyntaqlitePerfettoPipeName>(c->parser(), item_id)->name);
       RETURN_IF_ERROR(c->CheckListedOnce(seen, name, item_id));
       // Every column of that name goes.
       auto matches = [&](const Compiler::RowColumn& column) {
-        return base::CaseInsensitiveEqual(column.column.name, name);
+        return c->Same(column.column.name, name);
       };
       auto it = std::remove_if(columns.begin(), columns.end(), matches);
       if (it == columns.end()) {
-        return c->Err(item_id, Compiler::Error::kNoSuchColumn, name);
+        return c->Err(item_id, Compiler::Error::kNoSuchColumn, c->Text(name));
       }
       columns.erase(it, columns.end());
     }
@@ -246,33 +258,34 @@ ExpandStar(Compiler* c, uint32_t star_id, bool allow_unqualified_star) {
   if (syntaqlite_node_is_present(star->replace)) {
     const auto* list =
         Node<SyntaqlitePerfettoPipeColumnList>(c->parser(), star->replace);
-    std::vector<std::string> seen;
+    std::vector<NameId> seen;
     for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
       uint32_t item_id = syntaqlite_list_child_id(list, i);
       const auto* item =
           Node<SyntaqlitePerfettoPipeColumn>(c->parser(), item_id);
-      std::string target = SpanText(c->parser(), item->alias);
+      NameId target = c->Name(item->alias);
       RETURN_IF_ERROR(c->CheckListedOnce(seen, target, item_id));
       std::vector<Compiler::RowColumn*> matches;
       for (Compiler::RowColumn& column : columns) {
-        if (base::CaseInsensitiveEqual(column.column.name, target)) {
+        if (c->Same(column.column.name, target)) {
           matches.push_back(&column);
         }
       }
       if (matches.empty()) {
-        return c->Err(item_id, Compiler::Error::kNoSuchColumn, target);
+        return c->Err(item_id, Compiler::Error::kNoSuchColumn, c->Text(target));
       }
       if (matches.size() > 1) {
-        return c->Err(item_id, Compiler::Error::kAmbiguousColumn, target,
+        return c->Err(item_id, Compiler::Error::kAmbiguousColumn,
+                      c->Text(target),
                       c->AmbiguousCandidates({matches.begin(), matches.end()}));
       }
-      std::string qualifier = IsSpanPresent(item->qualifier)
-                                  ? SpanText(c->parser(), item->qualifier)
-                                  : "";
-      ASSIGN_OR_RETURN(
-          ColumnId value,
-          c->Resolve(qualifier, SpanText(c->parser(), item->name), item_id));
-      *matches.front() = {{std::move(target), value}, c->operation(), item_id};
+      std::optional<NameId> qualifier;
+      if (IsSpanPresent(item->qualifier)) {
+        qualifier = c->Name(item->qualifier);
+      }
+      ASSIGN_OR_RETURN(ColumnId value,
+                       c->Resolve(qualifier, c->Name(item->name), item_id));
+      *matches.front() = {{target, value}, c->operation(), item_id};
     }
   }
 

@@ -353,7 +353,7 @@ describe('cloneTab', () => {
       },
     ];
     expect(src.traceFilters).toHaveLength(1);
-    expect(src.querySettings[0].values).toEqual(['/traces']);
+    expect(src.querySettings[0]!.values).toEqual(['/traces']);
   });
 
   test('an unknown id is a no-op', () => {
@@ -458,7 +458,7 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
     openSettings(tab);
     edit(tab);
     closeSettings(tab, {keep: true});
-    expect(tab.querySettings[0].values).toEqual(['/other']);
+    expect(tab.querySettings[0]!.values).toEqual(['/other']);
     expect(tab.traceFilters).toEqual([]);
     expect(tab.limit).toBe(10);
     expect(tab.traceLimit).toBe(11);
@@ -470,10 +470,10 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
   test('the snapshot is a copy: later mutation of the tab does not reach it', () => {
     const tab = workingTab();
     openSettings(tab);
-    tab.querySettings[0].values.push('/extra');
+    tab.querySettings[0]!.values.push('/extra');
     (tab.traceFilters as unknown[]).push({field: 'x', op: 'is null'});
     closeSettings(tab, {keep: false});
-    expect(tab.querySettings[0].values).toEqual(['/traces']);
+    expect(tab.querySettings[0]!.values).toEqual(['/traces']);
     expect(tab.traceFilters).toHaveLength(1);
   });
 
@@ -481,8 +481,8 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
     const tab = workingTab();
     const snap = snapshotTabConfig(tab);
     restoreTabConfig(tab, snap);
-    tab.querySettings[0].values.push('/extra');
-    expect(snap.querySettings[0].values).toEqual(['/traces']);
+    tab.querySettings[0]!.values.push('/extra');
+    expect(snap.querySettings[0]!.values).toEqual(['/traces']);
   });
 
   test('a new tab starting its first query has no session and keeps its setup', () => {
@@ -606,7 +606,7 @@ describe('trace UUID selection mode', () => {
     expect(traceUuidsActive(tab)).toBe(true);
     // Filter-mode configuration is hidden, not cleared...
     expect(tab.traceFilters).toHaveLength(1);
-    expect(tab.querySettings[0].values).toEqual(['/traces']);
+    expect(tab.querySettings[0]!.values).toEqual(['/traces']);
     // ...and an earlier stint's values survive re-entry.
     expect(
       tab.querySettings.find((s) => s.settingId === TRACE_UUIDS_SETTING_ID)
@@ -765,7 +765,7 @@ describe('experiment filter', () => {
     );
     const tabs = new QueryTabsState();
     expect(tabs.tabs).toHaveLength(1);
-    expect(tabs.tabs[0].experimentFilter).toBeUndefined();
+    expect(tabs.tabs[0]!.experimentFilter).toBeUndefined();
   });
 
   test('a preset naming an experiment runs the query over it', () => {
@@ -881,18 +881,18 @@ describe('date filter persistence', () => {
 
   test('a stored range round-trips; a corrupt one re-defaults', () => {
     storeTab({kind: 'fixed', from: '2026-09-20', to: '2026-09-25'});
-    expect(new QueryTabsState().tabs[0].dateFilter).toEqual({
+    expect(new QueryTabsState().tabs[0]!.dateFilter).toEqual({
       kind: 'fixed',
       from: '2026-09-20',
       to: '2026-09-25',
     });
 
     storeTab(null);
-    expect(new QueryTabsState().tabs[0].dateFilter).toBeNull();
+    expect(new QueryTabsState().tabs[0]!.dateFilter).toBeNull();
 
     // A hand-edited or foreign-build entry must not reach the date math.
     storeTab({kind: 'fixed', from: 123});
-    const restored = new QueryTabsState().tabs[0].dateFilter;
+    const restored = new QueryTabsState().tabs[0]!.dateFilter;
     expect(restored).toBeUndefined();
     expect(() => describeDateFilter(restored, '2026-10-05')).not.toThrow();
   });

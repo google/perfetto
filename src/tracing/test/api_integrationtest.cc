@@ -219,7 +219,6 @@ using ::testing::Contains;
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
-using ::testing::InvokeWithoutArgs;
 using ::testing::IsEmpty;
 using ::testing::MockFunction;
 using ::testing::NiceMock;

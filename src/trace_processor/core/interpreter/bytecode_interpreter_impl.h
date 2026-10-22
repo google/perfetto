@@ -219,56 +219,17 @@ inline PERFETTO_ALWAYS_INLINE void NullFilter(InterpreterState& state,
   update.e = nbv.bv->template PackLeft<kInvert>(update.b, update.e, update.b);
 }
 
-// Attempts to cast a filter value to the specified type and stores the
-// result. Currently only supports casting to Id type.
+// Casts a filter value to the column's type and stores the result.
 template <typename T, typename FilterValueFetcherImpl>
 inline PERFETTO_ALWAYS_INLINE void CastFilterValue(
     InterpreterState& state,
     FilterValueFetcherImpl& fetcher,
     const CastFilterValueBase& f) {
   using B = CastFilterValueBase;
-  FilterValueHandle handle = f.arg<B::fval_handle>();
-  typename FilterValueFetcherImpl::Type filter_value_type =
-      fetcher.GetValueType(handle.index);
-
-  using ValueType =
-      StorageType::VariantTypeAtIndex<T, filter::CastFilterValueResult::Value>;
-  filter::CastFilterValueResult result;
-  if constexpr (std::is_same_v<T, Id>) {
-    auto op = *f.arg<B::op>().TryDowncast<NonStringOp>();
-    uint32_t result_value;
-    result.validity =
-        filter::CastFilterValueToInteger<uint32_t, FilterValueFetcherImpl>(
-            handle.index, filter_value_type, fetcher, op, result_value);
-    if (PERFETTO_LIKELY(result.validity ==
-                        filter::CastFilterValueResult::kValid)) {
-      result.value = filter::CastFilterValueResult::Id{result_value};
-    }
-  } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
-    auto op = *f.arg<B::op>().TryDowncast<NonStringOp>();
-    ValueType result_value;
-    result.validity =
-        filter::CastFilterValueToIntegerOrDouble<ValueType,
-                                                 FilterValueFetcherImpl>(
-            handle.index, filter_value_type, fetcher, op, result_value);
-    if (PERFETTO_LIKELY(result.validity ==
-                        filter::CastFilterValueResult::kValid)) {
-      result.value = result_value;
-    }
-  } else if constexpr (std::is_same_v<T, String>) {
-    static_assert(std::is_same_v<ValueType, const char*>);
-    auto op = *f.arg<B::op>().TryDowncast<StringOp>();
-    const char* result_value;
-    result.validity = filter::CastFilterValueToString<FilterValueFetcherImpl>(
-        handle.index, filter_value_type, fetcher, op, result_value);
-    if (PERFETTO_LIKELY(result.validity ==
-                        filter::CastFilterValueResult::kValid)) {
-      result.value = result_value;
-    }
-  } else {
-    static_assert(std::is_same_v<T, Id>, "Unsupported type");
-  }
-  state.WriteToRegister(f.arg<B::write_register>(), result);
+  state.WriteToRegister(
+      f.arg<B::write_register>(),
+      filter::CastFilterValue<T>(f.arg<B::fval_handle>().index, fetcher,
+                                 f.arg<B::op>()));
 }
 
 template <typename T, typename Op>
@@ -339,81 +300,17 @@ inline PERFETTO_ALWAYS_INLINE void StringFilter(InterpreterState& state,
                                 update.b, val);
 }
 
-template <typename DataType>
-inline auto GetLbComprarator(const InterpreterState& state) {
-  if constexpr (std::is_same_v<DataType, StringPool::Id>) {
-    return filter::comparators::StringComparator<Lt>{state.string_pool};
+// The comparison a search by R answers, writing `bound` of the range.
+template <typename R>
+PERFETTO_ALWAYS_INLINE core::RangeOp SortedFilterOp(BoundModifier bound) {
+  if constexpr (std::is_same_v<R, EqualRange>) {
+    PERFETTO_DCHECK(bound.Is<BothBounds>());
+    return Eq{};
+  } else if constexpr (std::is_same_v<R, LowerBound>) {
+    return bound.Is<BeginBound>() ? core::RangeOp(Ge{}) : core::RangeOp(Lt{});
   } else {
-    return std::less<>();
-  }
-}
-
-template <typename DataType>
-inline auto GetUbComparator(const InterpreterState& state) {
-  if constexpr (std::is_same_v<DataType, StringPool::Id>) {
-    return filter::comparators::StringLessInvert{state.string_pool};
-  } else {
-    return std::less<>();
-  }
-}
-
-template <typename RangeOp, typename DataType, typename ValueType>
-inline PERFETTO_ALWAYS_INLINE void NonIdSortedFilter(
-    const InterpreterState& state,
-    const DataType* data,
-    ValueType val,
-    BoundModifier bound_modifier,
-    Range& update) {
-  auto* begin = data + update.b;
-  auto* end = data + update.e;
-  if constexpr (std::is_same_v<RangeOp, EqualRange>) {
-    PERFETTO_DCHECK(bound_modifier.Is<BothBounds>());
-    DataType cmp_value;
-    if constexpr (std::is_same_v<DataType, StringPool::Id>) {
-      std::optional<StringPool::Id> id =
-          state.string_pool->GetId(base::StringView(val));
-      if (!id) {
-        update.e = update.b;
-        return;
-      }
-      cmp_value = *id;
-    } else {
-      cmp_value = val;
-    }
-    const DataType* eq_start =
-        std::lower_bound(begin, end, val, GetLbComprarator<DataType>(state));
-    const DataType* eq_end = eq_start;
-
-    // Scan 16 rows: it's often the case that we have just a very small number
-    // of equal rows, so we can avoid a binary search.
-    const DataType* eq_end_limit = eq_start + 16;
-    for (;; ++eq_end) {
-      if (eq_end == end) {
-        break;
-      }
-      if (eq_end == eq_end_limit) {
-        eq_end = std::upper_bound(eq_start, end, val,
-                                  GetUbComparator<DataType>(state));
-        break;
-      }
-      if (std::not_equal_to<>()(*eq_end, cmp_value)) {
-        break;
-      }
-    }
-    update.b = static_cast<uint32_t>(eq_start - data);
-    update.e = static_cast<uint32_t>(eq_end - data);
-  } else if constexpr (std::is_same_v<RangeOp, LowerBound>) {
-    auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
-    res = static_cast<uint32_t>(
-        std::lower_bound(begin, end, val, GetLbComprarator<DataType>(state)) -
-        data);
-  } else if constexpr (std::is_same_v<RangeOp, UpperBound>) {
-    auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
-    res = static_cast<uint32_t>(
-        std::upper_bound(begin, end, val, GetUbComparator<DataType>(state)) -
-        data);
-  } else {
-    static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
+    static_assert(std::is_same_v<R, UpperBound>, "Unsupported op");
+    return bound.Is<BeginBound>() ? core::RangeOp(Gt{}) : core::RangeOp(Le{});
   }
 }
 
@@ -431,37 +328,25 @@ inline PERFETTO_ALWAYS_INLINE void SortedFilter(
   if (!HandleInvalidCastFilterValueResult(value.validity, update)) {
     return;
   }
-  using M =
-      StorageType::VariantTypeAtIndex<T, filter::CastFilterValueResult::Value>;
-  M val = base::unchecked_get<M>(value.value);
+  BoundModifier bound = f.template arg<B::write_result_to>();
   if constexpr (std::is_same_v<T, Id>) {
-    uint32_t inner_val = val.value;
+    // An Id's row is its value: too little to be worth a call.
+    uint32_t id =
+        base::unchecked_get<filter::CastFilterValueResult::Id>(value.value)
+            .value;
     if constexpr (std::is_same_v<RangeOp, EqualRange>) {
-      bool in_bounds = inner_val >= update.b && inner_val < update.e;
-      update.b = inner_val;
-      update.e = inner_val + in_bounds;
-    } else if constexpr (std::is_same_v<RangeOp, LowerBound> ||
-                         std::is_same_v<RangeOp, UpperBound>) {
-      BoundModifier bound_to_modify = f.template arg<B::write_result_to>();
-
-      uint32_t effective_val = inner_val + std::is_same_v<RangeOp, UpperBound>;
-      bool is_begin_bound = bound_to_modify.template Is<BeginBound>();
-
-      uint32_t new_b =
-          is_begin_bound ? std::max(update.b, effective_val) : update.b;
-      uint32_t new_e =
-          !is_begin_bound ? std::min(update.e, effective_val) : update.e;
-
-      update.b = new_b;
-      update.e = std::max(new_b, new_e);
+      filter::IdEqualRange(id, update);
     } else {
-      static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
+      filter::IdBound(id + std::is_same_v<RangeOp, UpperBound>,
+                      bound.Is<BeginBound>(), update);
     }
   } else {
-    BoundModifier bound_modifier = f.template arg<B::write_result_to>();
-    const auto* data =
-        state.ReadStorageFromRegister<T>(f.template arg<B::storage_register>());
-    NonIdSortedFilter<RangeOp>(state, data, val, bound_modifier, update);
+    filter::SortedColumn column{
+        T{},
+        state.ReadStorageFromRegister<T>(f.template arg<B::storage_register>()),
+        state.string_pool};
+    update = filter::SearchSorted(column, SortedFilterOp<RangeOp>(bound),
+                                  value.value, update);
   }
 }
 
@@ -516,65 +401,12 @@ inline PERFETTO_ALWAYS_INLINE void LinearFilterEq(
   span.e = o_write;
 }
 
-template <typename N>
-inline PERFETTO_ALWAYS_INLINE uint32_t
-IndexToStorageIndex(uint32_t index, const NullBitvector* nbv) {
-  if constexpr (std::is_same_v<N, NonNull>) {
-    base::ignore_result(nbv);
-    return index;
-  } else if constexpr (std::is_same_v<N, SparseNull>) {
-    if (!nbv->bv->is_set(index)) {
-      // Null values are always less than non-null values.
-      return std::numeric_limits<uint32_t>::max();
-    }
-    return static_cast<uint32_t>(nbv->popcount[index / 64] +
-                                 nbv->bv->count_set_bits_until_in_word(index));
-  } else if constexpr (std::is_same_v<N, DenseNull>) {
-    return nbv->bv->is_set(index) ? index
-                                  : std::numeric_limits<uint32_t>::max();
-  } else {
-    static_assert(std::is_same_v<N, NonNull>, "Unsupported type");
-  }
-}
-
-// Binary-searches a sorted index for all entries whose resolved storage
-// value equals |target|. Returns the [lb, ub) range of matching index
-// entries.
-//
-// |target| should be a NullTermStringView for String columns (i.e. a
-// pre-resolved string_pool->Get result) or the raw value for other types.
-// This avoids repeated string_pool->Get calls inside the comparators.
-template <typename T, typename N, typename Resolved>
-inline PERFETTO_ALWAYS_INLINE std::pair<uint32_t*, uint32_t*> IndexEqualRange(
-    uint32_t* begin,
-    uint32_t* end,
-    const Resolved& target,
-    const typename T::cpp_type* data,
-    const NullBitvector* nbv,
-    const StringPool* string_pool) {
-  auto* lb =
-      std::lower_bound(begin, end, target, [&](uint32_t idx, const Resolved&) {
-        uint32_t si = IndexToStorageIndex<N>(idx, nbv);
-        if (si == std::numeric_limits<uint32_t>::max())
-          return true;
-        if constexpr (std::is_same_v<T, String>) {
-          return string_pool->Get(data[si]) < target;
-        } else {
-          return data[si] < target;
-        }
-      });
-  auto* ub =
-      std::upper_bound(lb, end, target, [&](const Resolved&, uint32_t idx) {
-        uint32_t si = IndexToStorageIndex<N>(idx, nbv);
-        if (si == std::numeric_limits<uint32_t>::max())
-          return false;
-        if constexpr (std::is_same_v<T, String>) {
-          return target < string_pool->Get(data[si]);
-        } else {
-          return target < data[si];
-        }
-      });
-  return {lb, ub};
+// The null bitvector and popcount an index search reads, or nulls for a
+// column without one.
+inline std::pair<const BitVector*, const uint32_t*> NullsFor(
+    const NullBitvector* nbv) {
+  return nbv ? std::make_pair(nbv->bv, nbv->popcount.data())
+             : std::make_pair(nullptr, nullptr);
 }
 
 template <typename T, typename N>
@@ -591,16 +423,14 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
     state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
     return;
   }
-  using M =
-      StorageType::VariantTypeAtIndex<T, filter::CastFilterValueResult::Value>;
-  const auto& value = base::unchecked_get<M>(filter_value.value);
   const auto* data =
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
   const NullBitvector* nbv =
       state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
 
-  std::tie(dest.b, dest.e) = IndexEqualRange<T, N>(
-      source.b, source.e, value, data, nbv, state.string_pool);
+  auto [bv, popcount] = NullsFor(nbv);
+  filter::IndexColumn column{T{}, N{}, data, bv, popcount, state.string_pool};
+  dest = filter::SearchIndexEqual(column, filter_value.value, dest);
   state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
 }
 
@@ -656,9 +486,6 @@ inline PERFETTO_ALWAYS_INLINE void CastFilterValueList(
 // searches the sorted index for each value and populates dest. Returns
 // true if binary search was performed, false if the caller should use
 // a different strategy.
-//
-// TODO(lalitm): since the index is sorted, galloping search could replace
-// repeated std::lower_bound for better locality.
 template <typename T, typename N>
 inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
     InterpreterState& state,
@@ -677,42 +504,12 @@ inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
       return false;
     }
 
-    using VL = StorageType::VariantTypeAtIndex<
-        T, filter::CastFilterValueListResult::ValueList>;
-    const VL& vl = base::unchecked_get<VL>(cast_result.value_list);
-    if (vl.empty() ||
-        vl.size() > filter::kFilterInIndexedBinarySearchThreshold) {
-      return false;
-    }
-
     const auto* data =
         state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
-    const NullBitvector* nbv =
-        state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
-    const StringPool* string_pool = state.string_pool;
-
-    uint32_t* write = dest.b;
-    for (const auto& cmp_val : vl) {
-      // For String columns, resolve StringPool::Id to NullTermStringView
-      // once per value to avoid repeated lookups in the comparators.
-      std::pair<uint32_t*, uint32_t*> range;
-      if constexpr (std::is_same_v<T, String>) {
-        auto target = string_pool->Get(cmp_val);
-        range = IndexEqualRange<T, N>(index->b, index->e, target, data, nbv,
-                                      string_pool);
-      } else {
-        range = IndexEqualRange<T, N>(index->b, index->e, cmp_val, data, nbv,
-                                      string_pool);
-      }
-      auto n = static_cast<size_t>(range.second - range.first);
-      memcpy(write, range.first, n * sizeof(uint32_t));
-      write += n;
-    }
-    dest.e = write;
-
-    // Binary search produces output in key order. Sort by raw index.
-    std::sort(dest.b, dest.e);
-    return true;
+    auto [bv, popcount] = NullsFor(
+        state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>()));
+    return filter::IndexedFilterInBinarySearch<T, N>(
+        cast_result, *index, data, bv, popcount, state.string_pool, dest);
   }
 }
 
@@ -727,35 +524,13 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterInRangeScan(
     const filter::CastFilterValueListResult& cast_result,
     Span<uint32_t>& dest) {
   using B = FilterInBase;
-  using HM = StorageType::VariantTypeAtIndex<
-      T, filter::CastFilterValueListResult::ValueHashMap>;
   const auto* data =
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
-  // |data| is unused for Id columns (the storage index IS the value).
-  base::ignore_result(data);
-  const NullBitvector* nbv =
-      state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
-  const auto& hm = base::unchecked_get<HM>(cast_result.hash_map);
+  auto [bv, popcount] = NullsFor(
+      state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>()));
   const Range& range =
       state.ReadFromRegister(bytecode.arg<B::source_range_register>());
-
-  uint32_t* write = dest.b;
-  for (uint32_t i = range.b; i < range.e; ++i) {
-    uint32_t si = IndexToStorageIndex<N>(i, nbv);
-    if (si == std::numeric_limits<uint32_t>::max()) {
-      continue;
-    }
-    if constexpr (std::is_same_v<T, Id>) {
-      if (hm.Find(filter::CastFilterValueResult::Id{si}) != nullptr) {
-        *write++ = i;
-      }
-    } else {
-      if (hm.Find(data[si]) != nullptr) {
-        *write++ = i;
-      }
-    }
-  }
-  dest.e = write;
+  filter::FilterInRangeScan<T, N>(cast_result, range, data, bv, popcount, dest);
 }
 
 // Unified filter-in bytecode entry point.
@@ -815,17 +590,7 @@ inline PERFETTO_ALWAYS_INLINE void Uint32SetIdSortedEq(
   auto val = base::unchecked_get<ValueType>(cast_result.value);
   const auto* storage = state.ReadStorageFromRegister<Uint32>(
       bytecode.arg<B::storage_register>());
-  const auto* start =
-      std::clamp(storage + val, storage + update.b, storage + update.e);
-
-  update.b = static_cast<uint32_t>(start - storage);
-  const auto* it = start;
-  for (; it != storage + update.e; ++it) {
-    if (*it != val) {
-      break;
-    }
-  }
-  update.e = static_cast<uint32_t>(it - storage);
+  filter::SetIdSortedEqualRange(storage, val, update);
 }
 
 inline PERFETTO_ALWAYS_INLINE void SpecializedStorageSmallValueEq(
@@ -848,14 +613,7 @@ inline PERFETTO_ALWAYS_INLINE void SpecializedStorageSmallValueEq(
   const Span<const uint32_t>& popcount =
       state.ReadFromRegister(bytecode.arg<B::small_value_popcount_register>());
 
-  uint32_t k =
-      val < bv->size() && bv->is_set(val)
-          ? static_cast<uint32_t>(popcount.b[val / 64] +
-                                  bv->count_set_bits_until_in_word(val))
-          : update.e;
-  bool in_bounds = update.b <= k && k < update.e;
-  update.b = in_bounds ? k : update.e;
-  update.e = in_bounds ? k + 1 : update.b;
+  filter::SmallValueEqualRange(*bv, popcount.b, val, update);
 }
 
 template <typename T, typename Nullability>
