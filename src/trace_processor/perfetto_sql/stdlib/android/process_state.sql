@@ -73,16 +73,60 @@ SELECT replace(state, 'PROCESS_STATE_', '') AS state, rank FROM r;
 -- One interval per state a process was in.
 CREATE PERFETTO TABLE _android_process_state_intervals AS
 WITH
-  process_lifetimes AS (
+  process_lifetimes AS MATERIALIZED (
     SELECT
       p.upid,
       -- AndroidProcessStartEvent only sets fw_start_ts; process.start_ts comes
       -- from ftrace forks.
       coalesce(fw.fw_start_ts, p.start_ts, trace_start()) AS start_ts,
-      p.end_ts AS death_ts
-    FROM (SELECT DISTINCT upid FROM __intrinsic_android_process_state)
+      p.end_ts AS death_ts,
+      s.first_ts,
+      s.last_ts
+    FROM (
+      SELECT upid, min(ts) AS first_ts, max(ts) AS last_ts
+      FROM __intrinsic_android_process_state
+      GROUP BY
+        upid
+    ) AS s
     JOIN process AS p USING (upid)
     LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
+  ),
+  -- Most rows only change the OOM score: drop repeated states before the
+  -- join and sort below.
+  deduped AS MATERIALIZED (
+    SELECT ts, is_initial, upid, proc_state, reason
+    FROM (
+      SELECT
+        ts,
+        is_initial,
+        upid,
+        proc_state,
+        reason,
+        lag(proc_state) OVER (PARTITION BY upid ORDER BY ts, is_initial DESC) AS prev_proc_state
+      FROM __intrinsic_android_process_state
+    )
+    WHERE
+      prev_proc_state IS NULL
+      OR proc_state IS NULL
+      OR prev_proc_state != proc_state
+  ),
+  -- Rows outside the lifetime interleave with the synthesized ones below, so
+  -- these processes keep all of their rows.
+  out_of_lifetime AS (
+    SELECT upid
+    FROM process_lifetimes
+    WHERE
+      first_ts < start_ts
+      OR last_ts >= death_ts
+  ),
+  state_events AS (
+    SELECT * FROM deduped WHERE upid NOT IN (SELECT upid FROM out_of_lifetime)
+    UNION ALL
+    SELECT s.ts, s.is_initial, s.upid, s.proc_state, s.reason
+    FROM out_of_lifetime AS o
+    CROSS JOIN __intrinsic_android_process_state AS s
+    WHERE
+      s.upid = o.upid
   ),
   all_events AS (
     SELECT
@@ -91,7 +135,7 @@ WITH
       s.upid,
       replace(s.proc_state, 'PROCESS_STATE_', '') AS cur_state,
       s.reason AS cur_reason
-    FROM __intrinsic_android_process_state AS s
+    FROM state_events AS s
     JOIN process_lifetimes AS p USING (upid)
     UNION ALL
     -- Death is never reported by the state stream, so synthesize it. Left open
