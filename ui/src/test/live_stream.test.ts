@@ -25,6 +25,8 @@ import {
 } from '../plugins/com.google.LiveStream/demo/demo_backend';
 
 const TARGET = 'job-1/trainer';
+// Another target, without workers: other tracks than TARGET's.
+const EVALUATOR = 'job-1/evaluator';
 const ERROR = 'Cannot reach the target';
 const SEC = 1e9;
 
@@ -42,12 +44,47 @@ class LiveControls {
     });
   }
 
+  // Where the HUD shows: ["panel"] in the side panel, ["top"] in the top row.
+  placements(): Promise<string[]> {
+    return this.page.evaluate(() =>
+      Array.from(document.querySelectorAll('.pf-live-stream-hud'), (hud) => {
+        if (hud.closest('.pf-live-stream-hud-root')) return 'top';
+        return hud.closest('.pf-side-panel') ? 'panel' : 'other';
+      }),
+    );
+  }
+
+  // The top row's box and background, and whether it's first in <body>.
+  topRow() {
+    return this.page.evaluate(() => {
+      const root = document.querySelector('.pf-live-stream-hud-root');
+      const hud = root?.querySelector('.pf-live-stream-hud');
+      const box = root?.getBoundingClientRect() ?? new DOMRect();
+      return {
+        left: box.left,
+        top: box.top,
+        right: box.right,
+        bottom: box.bottom,
+        first: root !== null && root === document.body.firstElementChild,
+        background: hud ? getComputedStyle(hud).backgroundColor : '',
+      };
+    });
+  }
+
   toggleFollow(): Promise<void> {
     return this.button(/^Follow Live/).click();
   }
 
   togglePause(): Promise<void> {
     return this.button(/^(Pause|Resume Live)$/).click();
+  }
+
+  // Opens the target named `name` from the target menu.
+  async pickTarget(name: string): Promise<void> {
+    await this.page.locator('.pf-live-stream-hud__target-trigger').click();
+    await this.page
+      .locator('.pf-live-stream-hud__target-item', {hasText: name})
+      .click();
   }
 
   private button(text: RegExp) {
@@ -90,9 +127,9 @@ async function serve(route: Route) {
     .catch(() => undefined);
 }
 
-// The names of the server's tracks, in display order.
-async function serverTracks(): Promise<string[]> {
-  const reply = await backend.handle(`/api/stream?target=${TARGET}&window=1`);
+// The names of the tracks of `target` on the server, in display order.
+async function serverTracks(target = TARGET): Promise<string[]> {
+  const reply = await backend.handle(`/api/stream?target=${target}&window=1`);
   const text = new TextDecoder().decode(reply?.body);
   const body = JSON.parse(text) as {tracks: Array<{name: string}>};
   return body.tracks.map((t) => t.name);
@@ -133,6 +170,36 @@ function sqlNumber(query: string): Promise<number> {
   }, query);
 }
 
+// The plugin's argument `name` in the page's URL.
+function urlArg(name: string): Promise<string | null> {
+  return page.evaluate(
+    (key) => new URLSearchParams(location.search).get(key),
+    `com.google.LiveStream:${name}`,
+  );
+}
+
+// The status on the page's <html>, for embedding pages.
+function pageStatus(): Promise<string | undefined> {
+  return page.evaluate(() => document.documentElement.dataset.liveStreamStatus);
+}
+
+function toggleSidePanel(): Promise<void> {
+  return page.getByTitle('Toggle sidebar', {exact: true}).click();
+}
+
+// How far, in pixels, the app is from filling the page below the top row.
+async function appGap(): Promise<number> {
+  const row = await controls.topRow();
+  const app = await page.evaluate(() => {
+    const box = document.querySelector('.pf-ui-main')?.getBoundingClientRect();
+    return {top: box?.top ?? NaN, bottom: box?.bottom ?? NaN, end: innerHeight};
+  });
+  return Math.max(
+    Math.abs(app.top - row.bottom),
+    Math.abs(app.bottom - app.end),
+  );
+}
+
 test('opens the target with the server tracks, live', async () => {
   await page.goto(uiPath(TARGET));
   await expect.poll(() => controls.status(), {timeout: 30_000}).toBe('live');
@@ -140,10 +207,7 @@ test('opens the target with the server tracks, live', async () => {
   expect(tracks).toContain('Worker 3');
   await expect.poll(async () => (await traceState()).tracks).toEqual(tracks);
 
-  const urlTarget = await page.evaluate(() =>
-    new URLSearchParams(location.search).get('com.google.LiveStream:target'),
-  );
-  expect(urlTarget).toBe(TARGET);
+  expect(await urlArg('target')).toBe(TARGET);
   const steps = `SELECT COUNT(*) FROM __live_stream_slice WHERE name = 'train_step'`;
   expect(await sqlNumber(steps)).toBeGreaterThan(10);
   const points = 'SELECT COUNT(*) FROM __live_stream_counter';
@@ -222,6 +286,22 @@ test('shows buffering and errors', async () => {
   await expect.poll(() => controls.status()).toBe('live');
 });
 
+test('shows the HUD in the side panel, and the status on the page', async () => {
+  expect(await controls.placements()).toEqual(['panel']);
+  expect(await pageStatus()).toBe('live');
+
+  // Also while the panel, and so the HUD, is closed.
+  await toggleSidePanel();
+  await expect.poll(() => controls.placements()).toEqual([]);
+  backend.set([['error', ERROR]]);
+  await expect.poll(pageStatus).toBe('error');
+  backend.set([['error', '']]);
+  await expect.poll(pageStatus).toBe('live');
+
+  await toggleSidePanel();
+  await expect.poll(() => controls.status()).toBe('live');
+});
+
 test('shows errors before the first data, then goes live', async () => {
   // A new stream that gets no data: the page opens with the error.
   backend.set([['error', ERROR]]);
@@ -233,4 +313,48 @@ test('shows errors before the first data, then goes live', async () => {
   // Retried with backoff.
   backend.set([['error', '']]);
   await expect.poll(() => controls.status(), {timeout: 30_000}).toBe('live');
+});
+
+test('shows the HUD in a row above the app', async () => {
+  // Seeds fail for now: the row shows before the trace.
+  backend.set([['seed_status', '503']]);
+  await page.goto(uiPath(TARGET, 'top'));
+  await expect.poll(() => controls.status()).toBe('buffering');
+  expect(await page.evaluate(() => window.app.trace === undefined)).toBe(true);
+  expect(await controls.placements()).toEqual(['top']);
+  expect(await pageStatus()).toBe('buffering');
+  const row = await controls.topRow();
+  const width = page.viewportSize()?.width;
+  expect(row).toMatchObject({left: 0, top: 0, right: width, first: true});
+  expect(row.bottom).toBeGreaterThan(0);
+
+  backend.set([['seed_status', '0']]);
+  await expect.poll(() => controls.status(), {timeout: 30_000}).toBe('live');
+  expect(await pageStatus()).toBe('live');
+  await expect.poll(appGap).toBeLessThan(1);
+});
+
+test('keeps the top row through target switches and themes', async () => {
+  // Clicks need the target menu on top, i.e. over the app.
+  await controls.pickTarget('evaluator');
+  const tracks = await serverTracks(EVALUATOR);
+  await expect
+    .poll(async () => (await traceState()).tracks, {timeout: 30_000})
+    .toEqual(tracks);
+  await waitForGrowth();
+  expect(await controls.status()).toBe('live');
+  expect(await urlArg('target')).toBe(EVALUATOR);
+  expect(await urlArg('hud')).toBe('top');
+  expect(await controls.placements()).toEqual(['top']);
+  expect((await controls.topRow()).first).toBe(true);
+
+  const {background} = await controls.topRow();
+  await page.evaluate(() =>
+    window.app.commands.runCommand('dev.perfetto.ToggleTheme'),
+  );
+  await expect
+    .poll(async () => (await controls.topRow()).background)
+    .not.toBe(background);
+  expect(await controls.topRow()).toMatchObject({top: 0, first: true});
+  await expect.poll(appGap).toBeLessThan(1);
 });
