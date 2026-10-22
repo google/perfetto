@@ -165,6 +165,9 @@ Unreleased:
     * Improved decoding of query results, especially when loading track data.
     * The timeline now recovers from WebGL context loss.
     * The Chrome extension now only accepts connections from ui.perfetto.dev.
+    * Extended the `org.chromium.LoadLine2` plugin with renderer subsystem and
+      presentation sub-stage breakdowns, stage and script details panels, and a
+      JS script lifecycle track.
   SDK:
     * Added TraceContext::drop_count() to the C++ SDK and
       PerfettoDsTracerGetDropCount() to the C SDK to detect data lost to
