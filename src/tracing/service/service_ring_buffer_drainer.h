@@ -24,7 +24,6 @@
 #include <memory>
 
 #include "perfetto/ext/base/thread_checker.h"
-#include "perfetto/ext/base/weak_runner.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
@@ -56,13 +55,13 @@ class ServiceRingBufferDrainerTestPeer;
 //                     |-- owns ---> SharedRingBuffer: the view
 //                     |-- owns ---> SharedRingBufferReader
 //                     |-- uses ---> Delegate (the ProducerEndpointImpl)
-//                     |-- uses ---> the service task runner
 //
 // Over IPC, |memory_| holds the service's separate mapping. In-process, the
 // producer and service share the same mapping.
 class ServiceRingBufferDrainer : public SharedRingBufferReader::Delegate {
  public:
-  // Delegate calls must not destroy or reenter the drainer.
+  // Delegate calls run on the service sequence.
+  // They must not destroy or reenter the drainer.
   class Delegate {
    public:
     virtual ~Delegate();
@@ -83,33 +82,40 @@ class ServiceRingBufferDrainer : public SharedRingBufferReader::Delegate {
     virtual void OnRingBufferChunksDiscarded(uint64_t count) = 0;
   };
 
-  // Shares ownership of |memory|. The mapping and |chunk_size_bytes| must
-  // describe a valid ring buffer layout. |delegate| and |task_runner| must
-  // remain valid until destruction.
+  // Shares ownership of |memory|.
+  // The mapping and |chunk_size_bytes| must describe a valid ring buffer
+  // layout.
+  // |delegate| must remain valid until destruction.
   ServiceRingBufferDrainer(std::shared_ptr<SharedMemory> memory,
                            uint32_t chunk_size_bytes,
                            ProducerID,
                            ClientIdentity,
-                           Delegate* delegate,
-                           base::TaskRunner* task_runner);
+                           Delegate* delegate);
 
-  // Cancels pending retry tasks. Destruction does not call Drain() or copy any
-  // remaining data from |ring_buffer_|.
+  // Destruction does not call Drain() or copy remaining data from
+  // |ring_buffer_|.
   ~ServiceRingBufferDrainer() override;
   ServiceRingBufferDrainer(const ServiceRingBufferDrainer&) = delete;
   ServiceRingBufferDrainer& operator=(const ServiceRingBufferDrainer&) = delete;
   ServiceRingBufferDrainer(ServiceRingBufferDrainer&&) = delete;
   ServiceRingBufferDrainer& operator=(ServiceRingBufferDrainer&&) = delete;
 
-  // Reads at most |ring_buffer_.num_chunks()| logical positions. Reaching the
-  // position or retry limit schedules another pass after a delay. At most one
-  // retry task is pending at a time.
+  // Reads at most |ring_buffer_.num_chunks()| logical positions.
+  // Returns true if the position or retry limit was reached and the owner
+  // should schedule another pass.
+  // Returns false when caught up or stopped by a protocol error.
+  //
+  // Only copies chunks.
+  // The owner schedules any retry and calls TraceBuffer::OnWriteCheckpoint()
+  // after each pass.
   //
   // A protocol error stops all future reads and records one ABI violation in
-  // each authorized destination. Data already copied is kept. The producer
-  // stays connected without notification or a v1 fallback. When the ring buffer
-  // fills, its writers drop packets, or stall and time out.
-  void Drain();
+  // each authorized destination.
+  // Data already copied is kept.
+  // The producer stays connected without notification or a v1 fallback.
+  // When the ring buffer fills, its writers drop packets, or stall and time
+  // out.
+  bool Drain();
 
   // Mapping size for the service's memory guardrail.
   size_t size_bytes() const { return memory_->size(); }
@@ -145,8 +151,6 @@ class ServiceRingBufferDrainer : public SharedRingBufferReader::Delegate {
   SharedRingBuffer ring_buffer_;
   SharedRingBufferReader reader_;
 
-  bool retry_scheduled_ = false;
-
   // Chunks that the reader delivered but no trace buffer stored.
   // See ExperimentalTracingV2ProducerStats for each case.
   uint64_t invalid_writer_chunks_ = 0;
@@ -160,9 +164,6 @@ class ServiceRingBufferDrainer : public SharedRingBufferReader::Delegate {
   uint64_t drain_max_time_ns_ = 0;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
-
-  // Declared last to cancel retry tasks before reader or mapping destruction.
-  base::WeakRunner weak_runner_;
 };
 
 }  // namespace tracing_v2

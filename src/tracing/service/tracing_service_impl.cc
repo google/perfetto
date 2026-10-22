@@ -1281,6 +1281,9 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
         base::ErrStatus("Unknown experimental_mode %d",
                         static_cast<int>(buffer_cfg.experimental_mode()));
     switch (buffer_cfg.experimental_mode()) {
+      case TraceConfig::BufferConfig::TRACE_BUFFER_V3:
+        new_buffer = TraceBuffer::Create(TraceBuffer::kV3, buf_size, policy);
+        break;
       case TraceConfig::BufferConfig::TRACE_BUFFER_V2:
         new_buffer = TraceBuffer::Create(TraceBuffer::kV2, buf_size, policy);
         break;
@@ -1301,6 +1304,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   // - All the kMaxTraceBufferID slots are taken.
   // - OOM, or, more realistically, we exhausted virtual memory.
   // - The buffer size in the config is invalid.
+  // - The requested buffer type is unknown or not available in this build.
   // In any case, free all the previously allocated buffers and abort.
   if (!buffers_status.ok()) {
     for (BufferID global_id : tracing_session->buffers_index) {
@@ -2446,6 +2450,10 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
             *target_buffer_id, packet_count, packet_flags, chunk_complete,
             chunk->payload_begin(), chunk->payload_size());
       });
+
+  // The page walk can copy a writer's chunks out of ChunkID order, so
+  // checkpoint once after all of them.
+  producer->OnWriteCheckpoint();
 }
 
 void TracingServiceImpl::FlushAndDisableTracing(TracingSessionID tsid) {
@@ -2865,6 +2873,10 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
       PERFETTO_DCHECK(packet.size() > 0);
       if (!PacketStreamValidator::Validate(packet.slices())) {
         tracing_session->invalid_packets++;
+        // TODO(sashwinbalaji): Dropping the packet also drops the loss bits in
+        // |previous_packet_dropped|.
+        // Carry them to the next valid packet on the same buffer and
+        // sequence, including across read batches and clones.
         PERFETTO_DLOG("Dropping invalid packet");
         continue;
       }
@@ -2899,6 +2911,9 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
       if (client_identity_trusted.has_non_default_machine_id()) {
         trusted_packet->set_machine_id(client_identity_trusted.machine_id());
       }
+      // TODO(sashwinbalaji): Combine buffer and producer loss reasons.
+      // For now, the appended value replaces any value that the producer
+      // wrote, because the last instance of a field wins.
       if (previous_packet_dropped)
         trusted_packet->set_previous_packet_dropped(previous_packet_dropped);
       slice.size = trusted_packet.Finalize();
@@ -3559,6 +3574,21 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
   PERFETTO_DCHECK(global_id);
 
   const TraceBuffer* target_buffer = GetBufferByID(global_id);
+  if (target_buffer && target_buffer->buf_type() == TraceBuffer::kV3 &&
+      GetShmemMode(producer->client_identity(), producer->in_process_) ==
+          SharedMemoryABI::ShmemMode::kShmemEmulation) {
+    // TODO(sashwinbalaji): Support shared memory emulation.
+    // An emulated batch can arrive as several CommitData requests, and a
+    // checkpoint between them can read past a chunk that a later request
+    // carries.
+    // The endpoint could assemble the batch first, but the IPC does not mark
+    // the last request yet.
+    PERFETTO_ELOG(
+        "Cannot set up data source \"%s\" on producer \"%s\": "
+        "TraceBufferV3 does not support shared memory emulation",
+        ds_cfg.name().c_str(), producer->name_.c_str());
+    return nullptr;
+  }
   const bool supports_tracing_v2 =
       (producer->protocol_abi_versions_ & kProtocolAbiV2) && target_buffer &&
       target_buffer->supports_tracing_v2();
