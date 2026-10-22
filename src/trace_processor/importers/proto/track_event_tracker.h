@@ -23,6 +23,7 @@
 #include <unordered_set>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -79,6 +80,15 @@ class TrackEventTracker {
       kByKey = 2,
     };
 
+    // A producer-declared custom dimension (see TrackDescriptor.dimensions).
+    // Exactly one of |int_value| / |string_value| is set.
+    struct Dimension {
+      StringId name = kNullStringId;
+      std::optional<int64_t> int_value;
+      std::optional<StringId> string_value;
+      std::optional<StringId> display_name;
+    };
+
     uint64_t parent_uuid = 0;
     std::optional<int64_t> pid;
     std::optional<int64_t> tid;
@@ -103,6 +113,14 @@ class TrackEventTracker {
     SiblingMergeBehavior sibling_merge_behavior = SiblingMergeBehavior::kByName;
     StringId sibling_merge_key = kNullStringId;
 
+    // Producer-declared custom dimensions, sorted by name and without repeated
+    // names. Dimensions are part of the track's identity, so they are compared
+    // by |IsForSameTrack|.
+    std::vector<Dimension> dimensions;
+
+    // HashDimensions() of |dimensions|.
+    uint64_t dimensions_hash = 0;
+
     // Whether |other| is a valid descriptor for this track reservation. A track
     // should always remain nested underneath its original parent.
     bool IsForSameTrack(const DescriptorTrackReservation& other) {
@@ -113,12 +131,37 @@ class TrackEventTracker {
           !counter_details->IsForSameTrack(*other.counter_details)) {
         return false;
       }
+      if (!HasSameDimensions(other)) {
+        return false;
+      }
       return std::tie(parent_uuid, pid, tid, is_counter, is_state,
                       sibling_merge_behavior, sibling_merge_key) ==
              std::tie(other.parent_uuid, other.pid, other.tid, other.is_counter,
                       other.is_state, other.sibling_merge_behavior,
                       other.sibling_merge_key);
     }
+
+    // Whether |other| declares the same dimension names and values (display
+    // names only affect presentation and are ignored).
+    bool HasSameDimensions(const DescriptorTrackReservation& other) const {
+      if (dimensions_hash != other.dimensions_hash ||
+          dimensions.size() != other.dimensions.size()) {
+        return false;
+      }
+      for (size_t i = 0; i < dimensions.size(); ++i) {
+        const Dimension& a = dimensions[i];
+        const Dimension& b = other.dimensions[i];
+        if (std::tie(a.name, a.int_value, a.string_value) !=
+            std::tie(b.name, b.int_value, b.string_value)) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    // Hash of the names and typed values of |dims|, sorted by name. Display
+    // names only affect presentation and are not part of it.
+    static uint64_t HashDimensions(const std::vector<Dimension>& dims);
   };
 
   // A descriptor track which has been resolved to a concrete track in the
@@ -199,8 +242,9 @@ class TrackEventTracker {
   // Associate a TrackDescriptor track identified by the given |uuid| with a
   // given track description. This is called during tokenization. If a
   // reservation for the same |uuid| already exists, verifies that the present
-  // reservation matches the new one.
-  void ReserveDescriptorTrack(uint64_t uuid, const DescriptorTrackReservation&);
+  // reservation matches the new one. Returns whether this is the first
+  // reservation for |uuid|.
+  bool ReserveDescriptorTrack(uint64_t uuid, const DescriptorTrackReservation&);
 
   // Resolves a descriptor track UUID to a `ResolvedDescriptorTrack` object.
   // This object contains information about the track's scope (global, process,
@@ -348,11 +392,17 @@ class TrackEventTracker {
   }
 
  private:
+  using DimensionVec = std::vector<DescriptorTrackReservation::Dimension>;
+
   struct State {
     DescriptorTrackReservation reservation;
     std::optional<ResolvedDescriptorTrack> resolved = std::nullopt;
     std::optional<std::variant<TrackId, TrackCompressor::TrackFactory>>
         track_id_or_factory = std::nullopt;
+    // The custom dimensions of the tracks of this descriptor, i.e. the ones of
+    // its parent plus the ones it declares, sorted by name. Computed by
+    // |ResolveDimensions| when the first track of the descriptor is created.
+    std::optional<DimensionVec> dimensions = std::nullopt;
   };
 
   std::optional<TrackId> InternDescriptorTrackForParent(
@@ -389,6 +439,10 @@ class TrackEventTracker {
       s = descriptor_tracks_state_.Find(uuid);
       PERFETTO_CHECK(s);
       s->track_id_or_factory = std::move(res);
+      // Merged tracks record their dimensions as they are created instead.
+      if (auto* track_id = std::get_if<TrackId>(&*s->track_id_or_factory)) {
+        RecordTrackDimensions(uuid, *track_id);
+      }
     }
     return s;
   }
@@ -411,6 +465,20 @@ class TrackEventTracker {
                     bool,
                     ArgsTracker::BoundInserter&);
 
+  // Writes the custom dimensions of the descriptor |uuid| (see
+  // |ResolveDimensions|) to the track dimension table for |track_id|, a track
+  // created for that descriptor.
+  void RecordTrackDimensions(uint64_t uuid, TrackId track_id);
+
+  // Returns the custom dimensions of the descriptor |uuid|: the ones of its
+  // parent plus the ones it declares itself. A declared value conflicting with
+  // an inherited one, or with one declared earlier on the same descriptor, is
+  // ignored and recorded as `track_dimension_conflicting_value`. This is
+  // computed once per descriptor, when its first track is created, so each bad
+  // declaration is only recorded once. The parent of a descriptor is always
+  // interned, and so resolved, before its children.
+  const DimensionVec& ResolveDimensions(uint64_t uuid);
+
   // Helper to record analysis errors with track_uuid arg
   void RecordTrackError(size_t stat_key, uint64_t track_uuid);
 
@@ -422,6 +490,10 @@ class TrackEventTracker {
   base::FlatHashMap<UniqueTid, uint64_t /*uuid*/> descriptor_uuids_by_utid_;
 
   std::unordered_set<uint32_t> sequences_with_first_packet_;
+
+  // Whether any descriptor declared custom dimensions: if none did, no track
+  // has any and |RecordTrackDimensions| has nothing to do.
+  bool has_dimensions_ = false;
 
   const StringId source_key_;
   const StringId source_id_key_;

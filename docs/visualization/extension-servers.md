@@ -340,6 +340,9 @@ The server was reachable but returned an HTTP error.
   hasn't expired and has read access to the repository (Settings > Personal
   access tokens). For HTTPS servers with SSO, try logging into the server
   directly in a new tab to refresh your session, then reload the Perfetto UI.
+  For Googlers accessing the internal extension server, third-party cookies
+  must be enabled; see
+  [Googler Features & 3rd-Party Cookies](/docs/visualization/googler-features.md).
 - **404** — The endpoint doesn't exist. Check that the server implements the
   expected [endpoint paths](/docs/visualization/extension-server-protocol.md#endpoints)
   and that the repository/branch/path are correct.

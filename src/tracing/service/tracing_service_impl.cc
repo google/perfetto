@@ -137,6 +137,8 @@
 #include "protos/perfetto/trace/perfetto/concurrent_session_event.pbzero.h"
 #include "protos/perfetto/trace/perfetto/trace_provenance.pbzero.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.gen.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.pbzero.h"
 #include "protos/perfetto/trace/remote_clock_sync.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_uuid.pbzero.h"
@@ -2945,6 +2947,11 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
     EmitLifecycleEvents(tracing_session, &packets);
   }
 
+  // Emit producer stats before MaybeFilterPackets to respect the session's
+  // trace filtering rules.
+  if (!*has_more && tracing_session->should_emit_stats)
+    EmitTracingV2ProducerStats(tracing_session, &packets);
+
   MaybeFilterPackets(tracing_session, &packets);
 
   // Only emit the stats when there is no more trace data is available to read.
@@ -4179,6 +4186,34 @@ void TracingServiceImpl::EmitSyncMarker(std::vector<TracePacket>* packets) {
   packets->back().AddSlice(&sync_marker_packet_[0], sync_marker_packet_size_);
 }
 
+void TracingServiceImpl::EmitTracingV2ProducerStats(
+    TracingSession* tracing_session,
+    std::vector<TracePacket>* packets) {
+  for (const auto& stats : GetTracingV2ProducerStats(*tracing_session)) {
+    protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+    SetServiceTracePacketHeader(packet.get());
+    stats.Serialize(packet->set_experimental_tracing_v2_producer_stats());
+    SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+  }
+}
+
+std::vector<protos::gen::ExperimentalTracingV2ProducerStats>
+TracingServiceImpl::GetTracingV2ProducerStats(const TracingSession& session) {
+  // A cloned session has no data source instances.
+  // It keeps the copy that FinishCloneSession() took from its source session.
+  if (session.state == TracingSession::CLONED_READ_ONLY)
+    return session.tracing_v2_producer_stats_at_clone;
+
+  std::vector<protos::gen::ExperimentalTracingV2ProducerStats> producer_stats;
+  for (const auto& [producer_id, producer] : producers_) {
+    if (session.data_source_instances.count(producer_id) == 0)
+      continue;
+    if (auto stats = producer->GetTracingV2Stats())
+      producer_stats.emplace_back(std::move(*stats));
+  }
+  return producer_stats;
+}
+
 void TracingServiceImpl::EmitStats(TracingSession* tracing_session,
                                    std::vector<TracePacket>* packets) {
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
@@ -4241,7 +4276,7 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
       if (!buf)
         continue;
       for (auto it = buf->writer_stats().GetIterator(); it; ++it) {
-        const auto& hist = it.value();
+        const auto& hist = it.value().chunk_payload_histogram;
         ProducerID p;
         WriterID w;
         GetProducerAndWriterID(it.key(), &p, &w);
@@ -4258,6 +4293,7 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
         wri_stats->set_sequence_id(
             tracing_session->GetPacketSequenceID(kDefaultMachineID, p, w));
         wri_stats->set_buffer(buf_idx);
+        wri_stats->set_protocol_abi_versions(it.value().protocol_abi_versions);
         for (size_t i = 0; i < hist.num_buckets(); ++i) {
           wri_stats->add_chunk_payload_histogram_counts(hist.GetBucketCount(i));
           wri_stats->add_chunk_payload_histogram_sum(hist.GetBucketSum(i));
@@ -5132,6 +5168,8 @@ base::Status TracingServiceImpl::FinishCloneSession(
   cloned_session->flushes_requested = src->flushes_requested;
   cloned_session->flushes_succeeded = src->flushes_succeeded;
   cloned_session->flushes_failed = src->flushes_failed;
+  cloned_session->tracing_v2_producer_stats_at_clone =
+      GetTracingV2ProducerStats(*src);
   if (src->trace_filter && !skip_trace_filter) {
     // Copy the trace filter, unless it's a clone-for-bugreport (b/317065412).
     cloned_session->trace_filter.reset(

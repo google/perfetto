@@ -22,8 +22,8 @@ export default class implements PerfettoPlugin {
     trace.onTraceReady.addListener(() => {
       // If there is only one group, expand it
       const rootLevelChildren = trace.defaultWorkspace.children;
-      if (rootLevelChildren.length === 1 && rootLevelChildren[0].hasChildren) {
-        rootLevelChildren[0].expand();
+      if (rootLevelChildren.length === 1 && rootLevelChildren[0]!.hasChildren) {
+        rootLevelChildren[0]!.expand();
       }
     });
   }

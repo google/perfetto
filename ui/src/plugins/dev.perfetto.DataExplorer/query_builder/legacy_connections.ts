@@ -81,7 +81,7 @@ export function restoreLegacySecondaryInputs(
     const ids = s[spec.field] as string[] | undefined;
     if (!ids) return;
     for (let i = 0; i < ids.length; i++) {
-      const n = allNodes.get(ids[i]);
+      const n = allNodes.get(ids[i]!);
       if (n) node.secondaryInputs.connections.set(i, n);
     }
   } else if (spec.type === 'singleField') {

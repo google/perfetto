@@ -111,10 +111,18 @@ std::optional<uint32_t> GroupTable::FindOrCreate(
     const RowBatch& batch,
     const std::vector<uint32_t>& columns,
     uint32_t* groups) {
+  return FindOrCreate(batch, batch.selection(), columns, groups);
+}
+
+std::optional<uint32_t> GroupTable::FindOrCreate(
+    const RowBatch& batch,
+    const Selection& rows,
+    const std::vector<uint32_t>& columns,
+    uint32_t* groups) {
   // Nulls are stored as one bit per column in a 64-bit word.
   PERFETTO_CHECK(columns.size() <= 64);
   PERFETTO_DCHECK(kinds_.empty() || kinds_.size() == columns.size());
-  uint32_t count = batch.size();
+  uint32_t count = rows.size();
   keys_.resize(columns.size());
   nulls_.resize(count);
   memset(nulls_.data(), 0, count * sizeof(uint64_t));
@@ -123,8 +131,7 @@ std::optional<uint32_t> GroupTable::FindOrCreate(
   for (uint32_t k = 0; k < columns.size(); ++k) {
     keys_[k].resize(count);
     may_be_null |= batch.column(columns[k]).validity() != nullptr;
-    std::optional<Kind> kind =
-        Load(batch.column(columns[k]), batch.selection(), k, count);
+    std::optional<Kind> kind = Load(batch.column(columns[k]), rows, k, count);
     if (!kind || (!first && kinds_[k] != *kind)) {
       // Only keep the first batch's kinds if every column is a valid key.
       if (first) {

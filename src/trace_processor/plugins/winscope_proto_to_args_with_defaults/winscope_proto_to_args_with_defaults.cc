@@ -416,7 +416,7 @@ bool WinscopeProtoToArgsWithDefaults::Cursor::Run(
         base::ErrStatus("Failed to find %s table.", table_name_str.c_str()));
   }
 
-  base::StatusOr<const char* const> proto_name =
+  base::StatusOr<const char*> proto_name =
       util::winscope_proto_mapping::GetProtoName(table_name_str);
   if (!proto_name.ok()) {
     return OnFailure(proto_name.status());

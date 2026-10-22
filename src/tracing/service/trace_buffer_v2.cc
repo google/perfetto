@@ -26,6 +26,7 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/protozero/proto_utils.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -959,7 +960,8 @@ void TraceBufferV2::CopyChunkUntrusted(
   }
 
   auto seq_key = MkProducerAndWriterID(producer_id_trusted, writer_id);
-  writer_stats_.Insert(seq_key, static_cast<HistValue>(all_frags_size));
+  writer_stats_.Insert(seq_key, static_cast<HistValue>(all_frags_size),
+                       kProtocolAbiV1);
 
   auto [seq_it, seq_is_new] = sequences_.try_emplace(
       seq_key,
@@ -1246,7 +1248,8 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
 
   auto seq_key =
       MkProducerAndWriterID(sequence.producer_id_trusted, sequence.writer_id);
-  writer_stats_.Insert(seq_key, static_cast<HistValue>(total_payload));
+  writer_stats_.Insert(seq_key, static_cast<HistValue>(total_payload),
+                       kProtocolAbiV2);
 
   auto [seq_it, seq_is_new] = sequences_.try_emplace(
       seq_key, SequenceState(sequence.producer_id_trusted, sequence.writer_id,

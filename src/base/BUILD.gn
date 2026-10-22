@@ -341,6 +341,7 @@ if (enable_perfetto_benchmarks) {
       "flat_set_benchmark.cc",
       "regex/regex_benchmark.cc",
       "rt_mutex_benchmark.cc",
+      "status_benchmark.cc",
       "task_runner_benchmark.cc",
     ]
   }

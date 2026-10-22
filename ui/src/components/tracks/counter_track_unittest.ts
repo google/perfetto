@@ -52,8 +52,24 @@ class FakeEngine {
   // Rows returned by the global limits query; empty if the source is empty.
   limitsRows = [[0, 10]];
 
+  // How long building a table takes, to span several frames.
+  createDelayMs = 0;
+
+  // Queries that used a table after it was dropped.
+  readonly useAfterDrop: string[] = [];
+  private readonly dropped = new Set<string>();
+
   async query(sql: string): Promise<QueryResult> {
     this.log.push(sql);
+    for (const name of this.dropped) {
+      if (new RegExp(`\\b${name}\\b`).test(sql)) this.useAfterDrop.push(sql);
+    }
+    if (sql.startsWith('DROP TABLE')) {
+      this.dropped.add(sql.split(' ').at(-1)!);
+    }
+    if (sql.startsWith('CREATE VIRTUAL TABLE') && this.createDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, this.createDelayMs));
+    }
     if (sql.includes('AS minDisplayValue')) {
       return numericResult(
         ['minDisplayValue', 'maxDisplayValue', 'tsRel', 'lastDisplayValue'],
@@ -83,7 +99,7 @@ class FakeEngine {
 }
 
 function tableName(createStatement: string): string {
-  return createStatement.split(' ')[3];
+  return createStatement.split(' ')[3]!;
 }
 
 function setup() {
@@ -181,10 +197,36 @@ test('dynamic sqlSource rebuilds the tables when it changes', async () => {
   expect(created).toHaveLength(2);
   expect(created[1]).toContain('FROM b');
   expect(engine.droppedTables()).toEqual([
-    `DROP TABLE IF EXISTS ${tableName(first)}`,
+    `DROP TABLE IF EXISTS ${tableName(first!)}`,
   ]);
   const dataQueries = engine.log.filter((q) => q.includes('minDisplayValue'));
-  expect(dataQueries.at(-1)).toContain(tableName(created[1]));
+  expect(dataQueries.at(-1)).toContain(tableName(created[1]!));
+});
+
+test('dynamic sqlSource keeps the old table drawn while rebuilding', async () => {
+  const {engine, trace, drawStepArea, renderCtx} = setup();
+  let sqlSource = 'SELECT ts, value FROM a';
+  const track = CounterTrack.create({
+    trace,
+    uri: 'test',
+    sqlSource: () => sqlSource,
+  });
+  await renderUntilSettled(track, renderCtx);
+
+  // Every frame during the rebuild draws the old data, not an empty track.
+  engine.createDelayMs = 20;
+  sqlSource = 'SELECT ts, value FROM b';
+  for (let i = 0; i < 10; i++) {
+    drawStepArea.mockClear();
+    track.render(renderCtx);
+    expect(drawStepArea).toHaveBeenCalledTimes(1);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  await renderUntilSettled(track, renderCtx);
+
+  expect(engine.createdTables()).toHaveLength(2);
+  expect(engine.droppedTables()).toHaveLength(1);
+  expect(engine.useAfterDrop).toEqual([]);
 });
 
 test('dynamic sqlSource changing on every frame is drawn', async () => {
@@ -201,6 +243,7 @@ test('dynamic sqlSource changing on every frame is drawn', async () => {
   await renderUntilSettled(track, renderCtx);
   expect(drawStepArea).toHaveBeenCalled();
   expect(engine.createdTables().length).toBeGreaterThan(1);
+  expect(engine.useAfterDrop).toEqual([]);
 });
 
 test('materialization evaluates a dynamic sqlSource once', async () => {

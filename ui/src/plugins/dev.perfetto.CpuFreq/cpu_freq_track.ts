@@ -101,10 +101,10 @@ function computeHover(
   if (left === -1) return undefined;
 
   return {
-    ts: Time.fromRaw(data.timestamps[left]),
+    ts: Time.fromRaw(data.timestamps[left]!),
     tsEnd: right === -1 ? undefined : Time.fromRaw(data.timestamps[right]),
-    value: data.lastFreqKHz[left],
-    idle: data.lastIdleValues[left],
+    value: data.lastFreqKHz[left]!,
+    idle: data.lastIdleValues[left]!,
   };
 }
 
@@ -315,11 +315,11 @@ export class CpuFreqTrack implements TrackRenderer {
         }
       }
 
-      const ts = tsCol[i];
-      const minFreq = minFreqCol[i];
-      const maxFreq = maxFreqCol[i];
-      const lastFreq = lastFreqCol[i];
-      const lastIdle = lastIdleCol[i];
+      const ts = tsCol[i]!;
+      const minFreq = minFreqCol[i]!;
+      const maxFreq = maxFreqCol[i]!;
+      const lastFreq = lastFreqCol[i]!;
+      const lastIdle = lastIdleCol[i]!;
 
       // Populate step area buffers with raw values
       const x = Number(ts - start);
@@ -329,7 +329,7 @@ export class CpuFreqTrack implements TrackRenderer {
       fills[i] = lastIdle < 0 ? 1.0 : 0.0;
       if (i > 0) {
         xnext[i - 1] = x;
-        const yprev = ys[i - 1];
+        const yprev = ys[i - 1]!;
         minYs[i] = Math.min(minFreq, yprev);
         maxYs[i] = Math.max(maxFreq, yprev);
       } else {

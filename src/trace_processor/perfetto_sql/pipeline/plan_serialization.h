@@ -70,6 +70,8 @@ class Writer {
  public:
   void U8(uint8_t value);
   void U32(uint32_t value);
+  void U64(uint64_t value);
+  void F64(double value);
   void Size(size_t value);
   void Str(std::string_view value);
 
@@ -92,6 +94,8 @@ class Reader {
 
   uint8_t U8();
   uint32_t U32();
+  uint64_t U64();
+  double F64();
 
   // At most the bytes left, so a corrupt count cannot allocate much.
   uint32_t Count();

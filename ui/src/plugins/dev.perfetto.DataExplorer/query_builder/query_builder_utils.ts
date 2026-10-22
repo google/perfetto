@@ -197,7 +197,7 @@ export function buildEmbeddedQueryTree(
     }
   }
 
-  const root = queries[queries.length - 1];
+  const root = queries[queries.length - 1]!;
   const rootObj = protos.PerfettoSqlStructuredQuery.toObject(root);
   const resolved = inlineQueryRefs(rootObj, queryMap, new Set());
   return protos.PerfettoSqlStructuredQuery.fromObject(resolved);

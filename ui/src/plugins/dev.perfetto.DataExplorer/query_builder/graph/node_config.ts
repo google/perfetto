@@ -140,12 +140,12 @@ export function buildReadOnlyNodeConfig(
   let next: Omit<Node, 'x' | 'y'> | undefined;
   if (
     qnode.nextNodes.length === 1 &&
-    singleNodeOperation(qnode.nextNodes[0].type) &&
-    qnode.nextNodes[0].primaryInput === qnode &&
-    innerSet.has(qnode.nextNodes[0].nodeId)
+    singleNodeOperation(qnode.nextNodes[0]!.type) &&
+    qnode.nextNodes[0]!.primaryInput === qnode &&
+    innerSet.has(qnode.nextNodes[0]!.nodeId)
   ) {
     next = buildReadOnlyNodeConfig(
-      qnode.nextNodes[0],
+      qnode.nextNodes[0]!,
       innerSet,
       connectedInputs,
       connectedOutputs,

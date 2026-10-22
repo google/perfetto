@@ -32,6 +32,7 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
+#include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
@@ -74,7 +75,20 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
       syntaqlite_node_is_present(n->per)
           ? Node<SyntaqlitePerfettoPerColumnList>(c->parser(), n->per)
           : nullptr;
-  uint32_t key_count = per ? syntaqlite_list_count(per) : 0;
+  // A PER column listed again adds nothing to the grouping.
+  std::vector<std::pair<std::string, uint32_t>> per_columns;
+  for (uint32_t k = 0; per && k < syntaqlite_list_count(per); k++) {
+    uint32_t col_id = syntaqlite_list_child_id(per, k);
+    std::string name =
+        SpanText(c->parser(),
+                 Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id)->name);
+    if (std::none_of(per_columns.begin(), per_columns.end(),
+                     [&](const auto& p) {
+                       return base::CaseInsensitiveEqual(p.first, name);
+                     })) {
+      per_columns.emplace_back(std::move(name), col_id);
+    }
+  }
 
   IntervalIntersect isect;
   // The region's bounds are the operation's own, so they are named before an
@@ -108,24 +122,25 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
     IntervalIntersect::Operand operand;
     operand.ts = *ts;
     operand.dur = *dur;
-    for (uint32_t k = 0; k < key_count; k++) {
-      uint32_t col_id = syntaqlite_list_child_id(per, k);
-      const auto* col = Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id);
-      std::string name = SpanText(c->parser(), col->name);
+    for (const auto& [name, col_id] : per_columns) {
       std::optional<ColumnId> key = FindColumn(relation.columns, name);
       if (!key) {
         return c->Expected(col_id, *alias + " to have a " + name + " column");
       }
       operand.keys.push_back(*key);
     }
-    // Every operand column is carried, reachable through the operand's alias.
-    // A PER column holds the same value in every operand, so the first
-    // operand's is also the one a bare name finds.
+    // Every operand column is carried, reachable through the operand's alias
+    // and, for most, by its bare name too. The region's ts and dur are what
+    // a bare ts and dur mean, so an operand's own are found only through its
+    // alias. A PER column holds the same value in every operand, so only the
+    // first operand's is found by its bare name.
     Compiler::Alias operand_alias{*alias, {}};
     for (const NamedColumn& column : relation.columns) {
       bool is_key = std::find(operand.keys.begin(), operand.keys.end(),
                               column.id) != operand.keys.end();
-      c->Append(column, source_id, /*qualified_only=*/!(is_key && i == 0));
+      bool is_bound = column.id == operand.ts || column.id == operand.dur;
+      c->Append(column, source_id,
+                /*qualified_only=*/is_bound || (is_key && i != 0));
       operand_alias.columns.push_back(c->row().back());
       operand.carried.push_back(column.id);
     }
@@ -170,15 +185,11 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
   c->DeclareColumn(isect.ts_);
   c->DeclareColumn(isect.dur_);
 
-  // Each operand is read from its own side pipeline, which converts ts and
-  // dur to Int64 if needed.
+  // Each operand is read from its own side pipeline.
   std::vector<Lowering*> sides;
   for (uint32_t i = 0; i < isect.operands_.size(); i++) {
-    const IntervalIntersect::Operand& operand = isect.operands_[i];
     Lowering& side = c->AddSidePipeline();
     side.LowerNode(children[i]);
-    side.RequireType(operand.ts, core::Int64{});
-    side.RequireType(operand.dur, core::Int64{});
     sides.push_back(&side);
   }
 
@@ -194,22 +205,13 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
     c->RequireCommonType(same);
   }
 
-  std::vector<ex::IntervalIntersectOperand> inputs;
+  std::vector<ex::CollectedInputSpec> inputs;
   for (uint32_t i = 0; i < isect.operands_.size(); i++) {
     const IntervalIntersect::Operand& operand = isect.operands_[i];
     Lowering& side = *sides[i];
-    ex::IntervalIntersectOperand lowered;
-    // The operator reads each key's intervals sorted by start.
-    std::vector<SortKey> by_start = {{operand.ts, false}};
-    side.RequireSortedWithinGroups(operand.keys, by_start);
-    if (!operand.keys.empty()) {
-      lowered.group_column = side.RequireGroupNumbers(operand.keys);
-    }
-    lowered.ts_column = side.QueryPosition(operand.ts);
-    lowered.dur_column = side.QueryPosition(operand.dur);
-    for (ColumnId key : operand.keys) {
-      lowered.key_columns.push_back(side.QueryPosition(key));
-    }
+    ex::CollectedInputSpec lowered;
+    lowered.lanes =
+        side.RequireIntervalLanes(operand.ts, operand.dur, operand.keys);
     for (ColumnId id : operand.carried) {
       lowered.retained_columns.push_back(side.QueryPosition(id));
     }

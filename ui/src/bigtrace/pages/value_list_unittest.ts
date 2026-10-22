@@ -162,7 +162,7 @@ describe('ValueList', () => {
     const {calls, load} = makeLoader();
     h = mount(load);
     expect(calls).toHaveLength(1);
-    expect(calls[0].search).toBe('');
+    expect(calls[0]!.search).toBe('');
     expect(vi.getTimerCount()).toBe(0);
     expect(h.notes()).toEqual(['Loading…']);
   });
@@ -170,7 +170,7 @@ describe('ValueList', () => {
   test('a typing burst becomes one request after the debounce', async () => {
     const {calls, load} = makeLoader();
     h = mount(load);
-    calls[0].resolve(['Pixel 8', 'Pixel 9', 'Galaxy']);
+    calls[0]!.resolve(['Pixel 8', 'Pixel 9', 'Galaxy']);
     await flush();
     h.redraw();
     expect(h.rows()).toEqual(['Pixel 8', 'Pixel 9', 'Galaxy']);
@@ -187,13 +187,13 @@ describe('ValueList', () => {
     await vi.advanceTimersByTimeAsync(1);
     h.redraw();
     expect(calls).toHaveLength(2);
-    expect(calls[1].search).toBe('abc');
+    expect(calls[1]!.search).toBe('abc');
   });
 
   test('reverting to the sent search cancels the pending timer', async () => {
     const {calls, load} = makeLoader();
     h = mount(load);
-    calls[0].resolve(['x']);
+    calls[0]!.resolve(['x']);
     await flush();
     h.redraw();
     h.attrs.search = 'a';
@@ -210,19 +210,19 @@ describe('ValueList', () => {
   test('a facet change aborts the request in flight and drops its answer', async () => {
     const {calls, load} = makeLoader({honourAbort: false});
     h = mount(load);
-    const first = calls[0];
+    const first = calls[0]!;
     h.attrs.facet = [{field: 'ff', op: 'in', value: ['phone']}];
     h.redraw();
     expect(first.signal?.aborted).toBe(true);
     expect(calls).toHaveLength(2);
-    expect(calls[1].facet).toEqual(h.attrs.facet);
+    expect(calls[1]!.facet).toEqual(h.attrs.facet);
     // The loader ignored the abort and answers late: not shown.
     first.resolve(['STALE']);
     await flush();
     h.redraw();
     expect(h.rows()).toEqual([]);
     expect(h.notes()).toEqual(['Loading…']);
-    calls[1].resolve(['fresh']);
+    calls[1]!.resolve(['fresh']);
     await flush();
     h.redraw();
     expect(h.rows()).toEqual(['fresh']);
@@ -244,7 +244,7 @@ describe('ValueList', () => {
   test('searching keeps the last list, narrowed locally, while updating', async () => {
     const {calls, load} = makeLoader();
     h = mount(load);
-    calls[0].resolve(['Pixel 8', 'Pixel 9', 'Galaxy']);
+    calls[0]!.resolve(['Pixel 8', 'Pixel 9', 'Galaxy']);
     await flush();
     h.redraw();
     h.attrs.search = 'pix';
@@ -258,7 +258,7 @@ describe('ValueList', () => {
     expect(h.rows()).toEqual(['Pixel 8', 'Pixel 9']);
     expect(h.notes()).toEqual(['Updating…']);
     expect(h.root.querySelectorAll('mark')).toHaveLength(2);
-    calls[1].resolve(['Pixel 8']);
+    calls[1]!.resolve(['Pixel 8']);
     await flush();
     h.redraw();
     expect(h.rows()).toEqual(['Pixel 8']);
@@ -270,7 +270,7 @@ describe('ValueList', () => {
     h.attrs.pinSelected = true;
     h.attrs.selected.add('b');
     h.attrs.selected.add('a');
-    calls[0].resolve(['c', 'a', 'd']);
+    calls[0]!.resolve(['c', 'a', 'd']);
     await flush();
     h.redraw();
     expect(h.rows()).toEqual(['a', 'b', 'c', 'd']);
@@ -282,13 +282,13 @@ describe('ValueList', () => {
   test('without pinning, rows keep their order and ticking does not move them', async () => {
     const {calls, load} = makeLoader();
     h = mount(load);
-    calls[0].resolve(['ALPHA', 'BETA', 'STABLE']);
+    calls[0]!.resolve(['ALPHA', 'BETA', 'STABLE']);
     await flush();
     h.redraw();
     const boxes = h.root.querySelectorAll<HTMLInputElement>(
       'input[type=checkbox]',
     );
-    boxes[1].click();
+    boxes[1]!.click();
     h.redraw();
     expect(h.attrs.selected.has('BETA')).toBe(true);
     expect(h.rows()).toEqual(['ALPHA', 'BETA', 'STABLE']);
@@ -297,7 +297,7 @@ describe('ValueList', () => {
   test('a failure is shown once, not refetched, and Retry asks again', async () => {
     const {calls, load} = makeLoader();
     h = mount(load);
-    calls[0].reject(
+    calls[0]!.reject(
       new BigtraceHttpError(400, '{"error":{"message":"bad col"}}'),
     );
     await flush();
@@ -318,7 +318,7 @@ describe('ValueList', () => {
     h.redraw();
     expect(calls).toHaveLength(2);
     expect(h.notes()).toEqual(['Loading…']);
-    calls[1].resolve(['ok']);
+    calls[1]!.resolve(['ok']);
     await flush();
     h.redraw();
     expect(h.rows()).toEqual(['ok']);
@@ -328,7 +328,7 @@ describe('ValueList', () => {
   test('a failure is forgotten when the facet changes', async () => {
     const {calls, load} = makeLoader();
     h = mount(load);
-    calls[0].reject(new BigtraceHttpError(400, 'x'));
+    calls[0]!.reject(new BigtraceHttpError(400, 'x'));
     await flush();
     h.redraw();
     h.attrs.facet = [{field: 'f', op: '=', value: 1}];
@@ -340,7 +340,7 @@ describe('ValueList', () => {
   test('empty answers and the limit note', async () => {
     const {calls, load} = makeLoader();
     h = mount(load);
-    calls[0].resolve([]);
+    calls[0]!.resolve([]);
     await flush();
     h.redraw();
     expect(h.notes()).toEqual(['No values match.']);
@@ -348,7 +348,7 @@ describe('ValueList', () => {
 
     const under = makeLoader();
     h = mount(under.load);
-    under.calls[0].resolve(
+    under.calls[0]!.resolve(
       Array.from({length: VALUE_LIST_LIMIT - 1}, (_, i) => `v${i}`),
     );
     await flush();
@@ -358,7 +358,7 @@ describe('ValueList', () => {
 
     const at = makeLoader();
     h = mount(at.load);
-    at.calls[0].resolve(
+    at.calls[0]!.resolve(
       Array.from({length: VALUE_LIST_LIMIT}, (_, i) => `v${i}`),
     );
     await flush();
@@ -374,7 +374,7 @@ describe('ValueList', () => {
     h.attrs.search = 'q';
     h.redraw();
     expect(vi.getTimerCount()).toBe(1);
-    const signal = calls[0].signal;
+    const signal = calls[0]!.signal;
     const redraw = vi.spyOn(m, 'redraw');
     h.unmount();
     h = undefined;
@@ -388,7 +388,7 @@ describe('ValueList', () => {
   test('toggling a row does not refetch', async () => {
     const {calls, load} = makeLoader();
     h = mount(load);
-    calls[0].resolve(['a', 'b']);
+    calls[0]!.resolve(['a', 'b']);
     await flush();
     h.redraw();
     const box = h.root.querySelector<HTMLInputElement>('input[type=checkbox]');

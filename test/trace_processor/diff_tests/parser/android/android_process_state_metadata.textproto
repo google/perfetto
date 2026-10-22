@@ -192,6 +192,7 @@ packet {
   [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
     record {
       pid: 200
+      unfrozen_dur_ms: 50
       unfreeze_reason: UFR_PING
     }
   }

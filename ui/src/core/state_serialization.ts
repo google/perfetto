@@ -154,9 +154,7 @@ export function serializeAppState(trace: TraceImpl): SerializedAppState {
   }
 
   const store = new Array<SerializedStoreState>();
-  const traceStore = trace.store;
-
-  for (const [id, pluginState] of Object.entries(traceStore.state)) {
+  for (const [id, pluginState] of trace.storageEntries) {
     store.push({id, state: pluginState});
   }
 
@@ -220,11 +218,9 @@ export function deserializeAppStatePhase1(
   appState: SerializedAppState,
   trace: TraceImpl,
 ): void {
-  trace.store.edit((draft) => {
-    for (const p of appState.store ?? []) {
-      draft[p.id] = p.state ?? {};
-    }
-  });
+  for (const p of appState.store ?? []) {
+    trace.setStorageState(p.id, p.state ?? {});
+  }
 }
 
 /**

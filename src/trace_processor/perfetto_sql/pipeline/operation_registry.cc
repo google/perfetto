@@ -17,12 +17,15 @@
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 
 #include "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/distinct.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/interval_fill_gaps.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/projection.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 
 namespace perfetto::trace_processor::pipeline {
 
@@ -33,8 +36,11 @@ const OperationRegistration* const kOperations[] = {
     &TreeAccumulate::kRegistration,
     &IntervalIntersect::kRegistration,
     &IntervalFlatten::kRegistration,
+    &IntervalFillGaps::kRegistration,
     &OrderBy::kRegistration,
     &AggregateStage::kRegistration,
+    &Distinct::kRegistration,
+    &Where::kRegistration,
     &projection::kSelect,
     &projection::kExtend,
     &projection::kDrop,

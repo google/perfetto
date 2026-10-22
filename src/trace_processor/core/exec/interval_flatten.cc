@@ -34,6 +34,7 @@
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/util/heap.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -89,7 +90,7 @@ const Tree& GetTree() {
 }  // namespace
 
 IntervalFlatten::IntervalFlatten(IntervalFlattenSpec spec)
-    : spec_(std::move(spec)) {
+    : spec_(std::move(spec)), keyed_(!spec_.lanes.key_columns.empty()) {
   subtract_ = true;
   for (const AggregateCall& call : spec_.aggregates) {
     functions_.push_back(MakeAggregateFunction(call.function));
@@ -104,7 +105,7 @@ IntervalFlatten::State::~State() = default;
 
 std::unique_ptr<OperatorState> IntervalFlatten::MakeState(
     Context& context) const {
-  auto state = std::make_unique<State>();
+  auto state = std::make_unique<State>(spec_.lanes);
   state->context = &context;
   state->seen_bytes.resize(functions_.size());
   state->outputs.resize(functions_.size());
@@ -122,33 +123,33 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
   if (!s.status.ok()) {
     return OpResult::kError;
   }
-  PERFETTO_DCHECK(IsFlat<Int64>(in.column(spec_.ts_column)));
-  PERFETTO_DCHECK(IsFlat<Int64>(in.column(spec_.dur_column)));
-  FlatColumnReader<int64_t> ts(in, spec_.ts_column);
-  FlatColumnReader<int64_t> dur(in, spec_.dur_column);
+  LaneBatch lanes(in, spec_.lanes);
   // A full output batch can interrupt consumption of the same input. Keep its
   // keys in place until all rows have been consumed.
   if (!s.input_pending) {
-    if (!RetainKeys(in, s)) {
-      return OpResult::kError;
+    if (keyed_) {
+      s.status = s.keys.Hold(in);
+      s.key_row = LaneKeys::kCarried;
     }
     s.input_pending = true;
   }
+  if (!s.status.ok()) {
+    return OpResult::kError;
+  }
   uint32_t rows = in.size();
-  bool keyed = !spec_.key_columns.empty();
   for (; s.input_row < rows; ++s.input_row) {
     uint32_t row = s.input_row;
     int64_t start;
-    int64_t length;
-    if (!ts.Read(row, &start) || !dur.Read(row, &length)) {
-      continue;
-    }
-    if (start < 0 || length < 0) {
-      s.status =
-          base::ErrStatus("INTERVAL FLATTEN: a row's ts or dur is below zero");
+    int64_t end;
+    LaneBatch::Result result = lanes.Read(row, &start, &end);
+    if (result != LaneBatch::Result::kOk) {
+      if (result == LaneBatch::Result::kSkip) {
+        continue;
+      }
+      s.status = lanes.Error(result, {"INTERVAL FLATTEN", "the input"});
       return OpResult::kError;
     }
-    uint32_t group = keyed ? in.Value<uint32_t>(spec_.group_column, row) : 0;
+    uint32_t group = lanes.lane(row);
     if (!s.in_group || group != s.input_group) {
       if (s.in_group) {
         // Finish the old group before accepting any rows from the new one.
@@ -160,7 +161,7 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
       }
       s.in_group = true;
       s.input_group = group;
-      s.key_row = s.first_key + row;
+      s.key_row = s.keys.Of(row);
       s.input_ts = std::numeric_limits<int64_t>::min();
     }
     if (start != s.input_ts) {
@@ -171,40 +172,32 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
       }
       s.input_ts = start;
     }
-    if (!AddInterval(s, row, start, length)) {
-      return OpResult::kError;
-    }
+    AddInterval(s, row, start, end);
   }
   s.input_row = 0;
   s.input_pending = false;
   // Only the current group's key must survive reuse of the input buffers.
-  if (keyed && s.in_group) {
-    s.key_rows.View(&s.saved_key, s.key_row, 1);
+  if (keyed_ && s.in_group) {
+    s.keys.Carry(s.key_row);
   }
   return Yield(out, s, OpResult::kNeedMoreInput, &in);
 }
 
 // The interval's state goes into a slot of its own, kept until it ends.
-PERFETTO_ALWAYS_INLINE bool IntervalFlatten::AddInterval(State& s,
+PERFETTO_ALWAYS_INLINE void IntervalFlatten::AddInterval(State& s,
                                                          uint32_t row,
                                                          int64_t start,
-                                                         int64_t length) const {
+                                                         int64_t end) const {
   uint32_t slot = TakeSlot(s);
   s.rows.push_back(row);
   s.row_slots.push_back(slot);
-  if (length == 0) {
+  if (end == start) {
     // Counted only by the point at its time, emitted when the time is done.
     s.instants.push_back(Live{start, slot, s.segments});
-    return true;
-  }
-  int64_t end;
-  if (!base::CheckedAdd(start, length, &end)) {
-    s.status = base::ErrStatus("INTERVAL FLATTEN: integer overflow");
-    return false;
+    return;
   }
   PushEnd(s.ends, Live{end, slot, s.segments});
   ++s.live;
-  return true;
 }
 
 PERFETTO_ALWAYS_INLINE uint32_t IntervalFlatten::TakeSlot(State& s) const {
@@ -215,26 +208,6 @@ PERFETTO_ALWAYS_INLINE uint32_t IntervalFlatten::TakeSlot(State& s) const {
   uint32_t slot = s.free_slots.back();
   s.free_slots.pop_back();
   return slot;
-}
-
-bool IntervalFlatten::RetainKeys(const RowBatch& in, State& s) const {
-  if (spec_.key_columns.empty()) {
-    return true;
-  }
-  s.key_rows.Clear();
-  // The sweep may still emit rows for the group from the previous input, even
-  // after that input's borrowed buffers have been reused.
-  if (s.saved_key.size()) {
-    s.status = s.key_rows.Append(s.saved_key);
-    if (!s.status.ok()) {
-      return false;
-    }
-  }
-  s.key_row = 0;
-  s.first_key = s.key_rows.size();
-  s.retained.Project(in, spec_.key_columns);
-  s.status = s.key_rows.Append(s.retained);
-  return s.status.ok();
 }
 
 bool IntervalFlatten::Advance(State& s, int64_t time) const {
@@ -296,11 +269,11 @@ bool IntervalFlatten::Emit(State& s, int64_t ts, int64_t dur) const {
   if (PERFETTO_UNLIKELY(n == s.segment_capacity)) {
     GrowSegments(s);
   }
-  if (PERFETTO_UNLIKELY(!s.ts_buffer)) {
+  if (PERFETTO_UNLIKELY(!s.bounds.taken())) {
     TakeSegmentBuffers(s);
   }
-  s.segment_ts[n] = ts;
-  s.segment_dur[n] = dur;
+  s.bounds.ts[n] = ts;
+  s.bounds.dur[n] = dur;
   s.segment_groups[n] = s.output_group;
   s.segment_key_rows[n] = s.key_row;
   s.segments = n + 1;
@@ -313,11 +286,8 @@ PERFETTO_NO_INLINE void IntervalFlatten::GrowSegments(State& s) const {
 }
 
 PERFETTO_NO_INLINE void IntervalFlatten::TakeSegmentBuffers(State& s) const {
-  s.ts_buffer = s.context->TakeBuffer();
-  s.dur_buffer = s.context->TakeBuffer();
+  s.bounds.Take(*s.context);
   s.group_buffer = s.context->TakeBuffer();
-  s.segment_ts = s.ts_buffer.chunk().Values<int64_t>();
-  s.segment_dur = s.dur_buffer.chunk().Values<int64_t>();
   s.segment_groups = s.group_buffer.chunk().Values<uint32_t>();
 }
 
@@ -499,13 +469,10 @@ OpResult IntervalFlatten::Yield(RowBatch& out,
   }
   // The batch takes the segments' buffers; the next batch's first segment
   // takes new ones.
-  out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, s.segment_ts),
-                std::move(s.ts_buffer));
-  out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, s.segment_dur),
-                std::move(s.dur_buffer));
-  if (!spec_.key_columns.empty()) {
+  s.bounds.AddTo(&out);
+  if (keyed_) {
     const uint32_t* rows = s.segment_key_rows.data();
-    s.key_rows.View(&s.served_keys, {rows, rows + count}, *s.context);
+    s.keys.Gather(&s.served_keys, {rows, rows + count}, *s.context);
     for (uint32_t k = 0; k < s.served_keys.column_count(); ++k) {
       out.AddColumn(s.served_keys.column(k), s.served_keys.buffer(k));
     }
@@ -527,7 +494,6 @@ void IntervalFlatten::State::Reset() {
   s.status = base::OkStatus();
   s.input_row = 0;
   s.input_pending = false;
-  s.first_key = 0;
   s.input_group = 0;
   s.output_group = 0;
   s.in_group = false;
@@ -547,14 +513,11 @@ void IntervalFlatten::State::Reset() {
   for (SeenBytes& bytes : s.seen_bytes) {
     bytes.Clear();
   }
-  s.key_rows.Clear();
+  s.keys.Clear();
   s.segments = 0;
-  s.retained.Reset();
-  s.saved_key.Reset();
   s.key_row = 0;
   s.served_keys.Reset();
-  s.ts_buffer = ColumnBuffer();
-  s.dur_buffer = ColumnBuffer();
+  s.bounds.Clear();
   s.group_buffer = ColumnBuffer();
 }
 
