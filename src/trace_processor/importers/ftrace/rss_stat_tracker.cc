@@ -197,9 +197,11 @@ bool RssStatTracker::IsRacyCurrEvent(int64_t mm_id,
   //  2. the emitting thread is in a different process to the owner and
   //  3. the owner is still alive.
   //
+  // Note: vfork()/CLONE_VM children use their parent's mm until they exec;
+  // their curr=true events for it are (intentionally) attributed to the
+  // parent which owns the mm.
+  //
   // Known cases where this is wrong:
-  //  * vfork()/CLONE_VM children legitimately use their parent's mm until
-  //    they exec: their curr=true events are attributed to the parent.
   //  * mm_id reuse after the owner exits but before the owner is reaped
   //    (sched_process_free can arrive 100s of ms after the mm is released):
   //    the new process' events are attributed to the dead owner until the
