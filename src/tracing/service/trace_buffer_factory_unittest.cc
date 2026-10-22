@@ -16,6 +16,9 @@
 
 #include "src/tracing/service/trace_buffer_factory.h"
 
+#include <memory>
+
+#include "perfetto/base/build_config.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "test/gtest_and_gmock.h"
 
@@ -27,6 +30,9 @@ TEST(TraceBufferFactoryTest, CreatesRequestedImplementation) {
   const TraceBuffer::BufType types[] = {
       TraceBuffer::kV1,
       TraceBuffer::kV2,
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+      TraceBuffer::kV3,
+#endif
   };
   for (auto type : types) {
     for (auto policy : {TraceBuffer::kOverwrite, TraceBuffer::kDiscard}) {
@@ -35,10 +41,16 @@ TEST(TraceBufferFactoryTest, CreatesRequestedImplementation) {
       config.set_fill_policy(policy == TraceBuffer::kDiscard
                                  ? TraceConfig::BufferConfig::DISCARD
                                  : TraceConfig::BufferConfig::RING_BUFFER);
-      if (type == TraceBuffer::kV2) {
-        config.mutable_buffer_type()->mutable_v2();
-      } else {
-        config.mutable_buffer_type()->mutable_v1();
+      switch (type) {
+        case TraceBuffer::kV1:
+          config.mutable_buffer_type()->mutable_v1();
+          break;
+        case TraceBuffer::kV2:
+          config.mutable_buffer_type()->mutable_v2();
+          break;
+        case TraceBuffer::kV3:
+          config.mutable_buffer_type()->mutable_v3();
+          break;
       }
 
       auto buffer = factory.Create(config);
@@ -51,6 +63,35 @@ TEST(TraceBufferFactoryTest, CreatesRequestedImplementation) {
     }
   }
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+// The factory counts the codec once for all TraceBufferV3s and their clones,
+// and the last of them frees it.
+TEST(TraceBufferFactoryTest, TraceBufferV3sShareCodec) {
+  TraceBufferFactory factory;
+  TraceConfig::BufferConfig config;
+  config.set_size_kb(128);
+  config.mutable_buffer_type()->mutable_v3();
+  EXPECT_EQ(factory.GetMemoryUsageBytes(), 0u);
+
+  auto first = factory.Create(config);
+  ASSERT_TRUE(first.ok()) << first.status().message();
+  const size_t codec_memory = factory.GetMemoryUsageBytes();
+  EXPECT_GT(codec_memory, 0u);
+
+  auto second = factory.Create(config);
+  ASSERT_TRUE(second.ok()) << second.status().message();
+  std::unique_ptr<TraceBuffer> clone = (*second)->CloneReadOnly();
+  ASSERT_TRUE(clone);
+  EXPECT_EQ(factory.GetMemoryUsageBytes(), codec_memory);
+
+  first->reset();
+  second->reset();
+  EXPECT_EQ(factory.GetMemoryUsageBytes(), codec_memory);
+  clone.reset();
+  EXPECT_EQ(factory.GetMemoryUsageBytes(), 0u);
+}
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 
 }  // namespace
 }  // namespace perfetto

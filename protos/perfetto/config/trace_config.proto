@@ -107,15 +107,26 @@ message TraceConfig {
       message V1 {}
       message V2 {}
 
+      // Stages chunks in a TraceBufferV2, then moves complete packets into
+      // compressed bundles in a second buffer.
+      // Design: RFC 0050, https://github.com/google/perfetto/discussions/7838.
+      message V3 {}
+
       optional V1 v1 = 1;
       optional V2 v2 = 2;
+      optional V3 v3 = 3;
     }
     optional BufferTypeConfig buffer_type = 9;
   }
   repeated BufferConfig buffers = 1;
 
-  // Enables compaction after reads for this session's TraceBufferV2.
-  // Defaults to false and does not affect V1, DISCARD, or read-only buffers.
+  // Enables compaction after reads for this session's TraceBufferV2 and
+  // TraceBufferV3 buffers.
+  // Defaults to false and does not affect V1, read-only V2 or DISCARD V2
+  // buffers.
+  // V3 compacts staging under either fill policy, and also after each bundling
+  // pass that finds no more readable packets, even when this flag is false.
+  // Compaction never lets a DISCARD V3 buffer accept data again once it stops.
   optional bool experimental_trace_buffer_v2_compaction = 50;
 
   message DataSource {

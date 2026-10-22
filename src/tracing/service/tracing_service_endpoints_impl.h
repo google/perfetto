@@ -163,6 +163,11 @@ class ProducerEndpointImpl
   std::optional<protos::gen::ExperimentalTracingV2ProducerStats>
   GetTracingV2Stats() const;
 
+  // Tells this producer's target buffers that a write batch is complete, so
+  // they can read and move its packets without waiting for more chunks.
+  // A batch is a CommitData request, an SMB v2 drain pass or an SMB v1 scrape.
+  void NotifyWriteBatchComplete();
+
   ProducerID const id_;
   ClientIdentity const client_identity_;
   TracingServiceImpl* const service_;
@@ -223,6 +228,8 @@ class ProducerEndpointImpl
   // DisconnectProducer() runs the final drain through |v2_ring_buffer_drainer_|
   // before |allowed_target_buffers_| is destroyed.
   std::unique_ptr<tracing_v2::ServiceRingBufferDrainer> v2_ring_buffer_drainer_;
+  // True while a delayed DrainV2RingBuffer() retry is pending.
+  bool v2_drain_retry_scheduled_ = false;
   PERFETTO_THREAD_CHECKER(thread_checker_)
   base::WeakRunner weak_runner_;
 };
