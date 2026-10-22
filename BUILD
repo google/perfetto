@@ -7226,6 +7226,8 @@ perfetto_filegroup(
         "src/tracing/service/tracing_service_session.cc",
         "src/tracing/service/tracing_service_session.h",
         "src/tracing/service/tracing_service_structs.h",
+        "src/tracing/service/zstd_frame_codec.cc",
+        "src/tracing/service/zstd_frame_codec.h",
     ],
 )
 

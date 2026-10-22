@@ -88,6 +88,11 @@ source_set("service") {
   }
   if (enable_perfetto_zstd) {
     deps += [ ":zstd_compressor" ]
+    deps += [ "../../../gn:zstd" ]
+    sources += [
+      "zstd_frame_codec.cc",
+      "zstd_frame_codec.h",
+    ]
   }
 }
 
@@ -218,6 +223,10 @@ perfetto_unittest_source_set("unittests") {
   if (enable_perfetto_zlib || enable_perfetto_zstd) {
     deps += [ ":packet_compressor_common" ]
     sources += [ "compressor_unittest.cc" ]
+  }
+
+  if (enable_perfetto_zstd) {
+    sources += [ "zstd_frame_codec_unittest.cc" ]
   }
 
   # These tests rely on test_task_runner.h which
