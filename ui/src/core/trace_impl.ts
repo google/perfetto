@@ -59,10 +59,6 @@ import type {SidePanelManagerImpl} from './side_panel_manager';
 import type {SidePanelTabDescriptor} from '../public/side_panel';
 import type {Route} from '../public/app';
 
-// While extendTraceEnd() grows a trace, the minimap reloads at most this often,
-// as each reload queries the whole trace.
-const MINIMAP_RELOAD_INTERVAL_MS = 5_000;
-
 /**
  * This implementation provides the plugin access to trace related resources,
  * such as the engine and the store. This exists for the whole duration a plugin
@@ -102,17 +98,10 @@ export class TraceImpl implements Trace, Disposable {
     return this.storageState.entries();
   }
 
-  // Set while a minimap reload is pending or running, see extendTraceEnd().
-  private minimapReloadTimer?: ReturnType<typeof setTimeout>;
-
-  // Set once a minimap reload failed, so later failures are only logged.
-  private minimapReloadFailed = false;
-
   constructor(app: AppImpl, engine: EngineBase, traceInfo: TraceInfoImpl) {
     this.app = app;
     this.engine = engine;
     this.trash.use(engine);
-    this.trash.defer(() => clearTimeout(this.minimapReloadTimer));
     this.traceInfo = traceInfo;
 
     this.timeline = new TimelineImpl(
@@ -246,35 +235,7 @@ export class TraceImpl implements Trace, Disposable {
   extendTraceEnd(end: time): void {
     if (end <= this.traceInfo.end) return;
     this.traceInfo.end = end;
-    this.scheduleMinimapReload();
     this.raf.scheduleFullRedraw();
-  }
-
-  // Reloads the minimap for the grown bounds, at most every
-  // MINIMAP_RELOAD_INTERVAL_MS. Minimap loads run one at a time, so a reload
-  // waits for the initial load. A failure doesn't stop later reloads. Only
-  // the first failure reaches the global error handler; later ones are logged.
-  private scheduleMinimapReload() {
-    if (this.minimapReloadTimer !== undefined || this.trash.disposed) return;
-    this.minimapReloadTimer = setTimeout(async () => {
-      const end = this.traceInfo.end;
-      try {
-        await this.minimap.load(this.traceInfo.start, end);
-      } catch (e) {
-        if (this.minimapReloadFailed) {
-          console.error('Minimap reload failed:', e);
-          return;
-        }
-        this.minimapReloadFailed = true;
-        throw e;
-      } finally {
-        this.minimapReloadTimer = undefined;
-
-        // The bounds grew during the load, which may have failed.
-        if (this.traceInfo.end > end) this.scheduleMinimapReload();
-      }
-      this.raf.scheduleCanvasRedraw();
-    }, MINIMAP_RELOAD_INTERVAL_MS);
   }
 
   async getTraceFile(): Promise<Blob> {

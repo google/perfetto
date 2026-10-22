@@ -93,8 +93,8 @@ export interface Trace extends App {
 
   // Moves the end of the trace bounds (traceInfo.end) forward, e.g. for live
   // traces whose content keeps growing after the trace has been loaded. The
-  // bounds never shrink. Does not affect trace_end() in SQL. The minimap
-  // reloads for the new bounds, at most every few seconds.
+  // bounds never shrink. Does not affect trace_end() in SQL, nor reload the
+  // minimap (see MinimapContentProvider).
   extendTraceEnd(end: time): void;
 
   /**
