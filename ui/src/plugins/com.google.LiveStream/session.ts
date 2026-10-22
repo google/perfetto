@@ -73,6 +73,10 @@ const ZOOM_INPUT_MS = 1_000;
 // The trace end grows in steps, as each extension redraws the whole UI.
 const TRACE_END_STEP_NS = 1_000_000_000n;
 
+// The minimap follows the growing trace this often, as each refresh rebuilds
+// all its rows. Refreshes skip when nothing changed.
+const MINIMAP_REFRESH_MS = 5_000;
+
 const PRUNE_INTERVAL_MS = 5_000;
 
 // Tracks rebuild for a window this many times narrower than their rows'
@@ -131,6 +135,7 @@ export class LiveSession implements Disposable {
   private readonly epochRetry: boolean;
   private readonly store: LiveStore;
   private readonly busy = new BusyTime();
+  private readonly minimap: LiveMinimapProvider;
   private readonly settings: LiveSettings;
   private readonly clock = new PlayheadClock();
   private readonly targetsLoader = new AsyncLimiter();
@@ -152,6 +157,9 @@ export class LiveSession implements Disposable {
   private loadedRange?: Span;
   private lastRangeMs = -Infinity;
   private rangeTimer?: ReturnType<typeof setTimeout>;
+
+  // Whether refreshMinimap() runs.
+  private minimapRefreshing = false;
 
   // Position in the server stream.
   private streamId: string;
@@ -199,6 +207,7 @@ export class LiveSession implements Disposable {
     this.streamId = args.streamId;
     this.seq = BigInt(args.seedSeq);
     this.store = new LiveStore(trace.engine, BigInt(WINDOW_SEC) * NS_PER_SEC);
+    this.minimap = new LiveMinimapProvider(trace.engine, this.busy);
     this.settings = host.settings;
   }
 
@@ -208,9 +217,15 @@ export class LiveSession implements Disposable {
   async init(): Promise<void> {
     await this.store.createTables();
     this.registerAreaSelectionTabs();
-    this.trace.minimap.registerContentProvider(
-      new LiveMinimapProvider(this.trace.engine, this.busy),
-    );
+    this.trace.minimap.registerContentProvider(this.minimap);
+
+    // The core loads the minimap after onTraceLoad, but not for an empty
+    // trace span, which would leave the minimap without our rows for good.
+    const {start, end} = this.trace.traceInfo;
+    if (end <= start) {
+      this.trace.extendTraceEnd(Time.fromRaw(start + TRACE_END_STEP_NS));
+    }
+
     this.useTraceTimeZone();
     this.trash.use(this.host.attach(this.model()));
 
@@ -221,8 +236,13 @@ export class LiveSession implements Disposable {
       this.publish();
       this.refreshStatus();
     }, TICK_MS);
+    const minimapTimer = setInterval(
+      () => void this.refreshMinimap(),
+      MINIMAP_REFRESH_MS,
+    );
     this.trash.defer(() => {
       clearInterval(timer);
+      clearInterval(minimapTimer);
       clearTimeout(this.rangeTimer);
     });
     this.watchPointer();
@@ -759,6 +779,24 @@ export class LiveSession implements Disposable {
   private extendTraceEnd(ts: time) {
     if (ts <= this.trace.traceInfo.end) return;
     this.trace.extendTraceEnd(Time.fromRaw(ts + TRACE_END_STEP_NS));
+  }
+
+  // Updates the minimap for the trace bounds, which the core loads once. On
+  // failure, the old rows stay until the next refresh.
+  private async refreshMinimap() {
+    if (this.minimapRefreshing) return;
+    this.minimapRefreshing = true;
+    try {
+      const {start, end} = this.trace.traceInfo;
+      if (await this.minimap.refresh(start, end)) {
+        this.trace.raf.scheduleCanvasRedraw();
+      }
+    } catch (e) {
+      if (this.lifetime.signal.aborted) return;
+      this.showMessage(`Cannot update the minimap: ${getErrorMessage(e)}`);
+    } finally {
+      this.minimapRefreshing = false;
+    }
   }
 
   private setFollowing(following: boolean) {

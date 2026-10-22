@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {defer} from '../../base/deferred';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
 import {Time} from '../../base/time';
 import type {QueryResult} from '../../trace_processor/query_result';
@@ -27,7 +28,7 @@ const SPAN = HighPrecisionTimeSpan.fromTime(Time.ZERO, Time.fromRaw(10n * B));
 
 // Answers queries with `result`, and records them. Without a result, queries
 // fail.
-function fakeEngine(result?: QueryResult) {
+function fakeEngine(result?: QueryResult | Promise<QueryResult>) {
   const queries: string[] = [];
   return {
     queries,
@@ -153,4 +154,74 @@ test('needs a resolution', async () => {
   const provider = new LiveMinimapProvider(fakeEngine(), busy);
 
   expect(await provider.getData(SPAN, 0n)).toEqual([]);
+});
+
+test('returns the same rows each time', async () => {
+  const busy = new BusyTime();
+  busy.add(1, 0n, B);
+  const provider = new LiveMinimapProvider(fakeEngine(), busy);
+  const rows = await provider.getData(SPAN, B);
+
+  busy.add(2, 0n, B);
+
+  expect(await provider.getData(SPAN, B)).toBe(rows);
+  expect(rows).toEqual([
+    [{ts: 0n, dur: B, load: 1}],
+    [{ts: 0n, dur: B, load: 1}],
+  ]);
+});
+
+test('refreshes the rows in place for new bounds or busy time', async () => {
+  const busy = new BusyTime();
+  busy.add(1, 0n, B);
+  const provider = new LiveMinimapProvider(fakeEngine(), busy);
+  const rows = await provider.getData(SPAN, B);
+  const end = Time.fromRaw(200n * B);
+
+  // 200 buckets: 100 cells of 2.
+  expect(await provider.refresh(Time.ZERO, end)).toBe(true);
+  expect(rows).toEqual([[{ts: 0n, dur: 2n * B, load: 0.5}]]);
+
+  busy.add(2, 4n * B, B);
+  expect(await provider.refresh(Time.ZERO, end)).toBe(true);
+  expect(rows).toEqual([
+    [{ts: 0n, dur: 2n * B, load: 0.5}],
+    [{ts: 4n * B, dur: 2n * B, load: 0.5}],
+  ]);
+});
+
+test('refreshes nothing without changes', async () => {
+  const engine = fakeEngine(queryResult(['trackId', 'cell', 'load']));
+  const provider = new LiveMinimapProvider(engine, new BusyTime());
+  await provider.getData(SPAN, B / 16n);
+
+  expect(await provider.refresh(Time.ZERO, Time.fromRaw(10n * B))).toBe(false);
+  expect(engine.queries.length).toBe(1);
+});
+
+test('refreshes nothing before the core loads the rows', async () => {
+  const engine = fakeEngine();
+  const busy = new BusyTime();
+  busy.add(1, 0n, B);
+
+  const provider = new LiveMinimapProvider(engine, busy);
+
+  expect(await provider.refresh(Time.ZERO, Time.fromRaw(10n * B))).toBe(false);
+  expect(engine.queries).toEqual([]);
+});
+
+test('drops an update that ends after a newer one started', async () => {
+  const slow = defer<QueryResult>();
+  const busy = new BusyTime();
+  busy.add(1, 0n, B);
+  const provider = new LiveMinimapProvider(fakeEngine(slow), busy);
+  const rows = await provider.getData(SPAN, B);
+
+  // 50 buckets: cells under a bucket, from a query.
+  const first = provider.refresh(Time.ZERO, Time.fromRaw(50n * B));
+  expect(await provider.refresh(Time.ZERO, Time.fromRaw(200n * B))).toBe(true);
+  slow.resolve(queryResult(['trackId', 'cell', 'load'], [[1, 0, 1]]));
+
+  expect(await first).toBe(false);
+  expect(rows).toEqual([[{ts: 0n, dur: 2n * B, load: 0.5}]]);
 });
