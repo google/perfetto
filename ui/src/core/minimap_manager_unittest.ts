@@ -48,7 +48,7 @@ test('runs loads one at a time, in order', async () => {
   await flush();
   expect(loads.map((l) => l.end)).toEqual([Time.fromSeconds(10)]);
 
-  loads[0].resolve([]);
+  loads[0]!.resolve([]);
   await first;
   await flush();
   expect(loads.map((l) => l.end)).toEqual([
@@ -58,7 +58,7 @@ test('runs loads one at a time, in order', async () => {
 
   // The latest load's rows win.
   const rows: MinimapRow[] = [[]];
-  loads[1].resolve(rows);
+  loads[1]!.resolve(rows);
   await second;
   expect(minimap.getLoad()).toBe(rows);
 });
@@ -69,13 +69,13 @@ test('runs a load after a failed one', async () => {
   const second = minimap.load(Time.ZERO, Time.fromSeconds(20));
   await flush();
 
-  loads[0].reject(new Error('Minimap failed'));
+  loads[0]!.reject(new Error('Minimap failed'));
   await expect(first).rejects.toThrow('Minimap failed');
   await flush();
   expect(loads.length).toBe(2);
 
   const rows: MinimapRow[] = [[]];
-  loads[1].resolve(rows);
+  loads[1]!.resolve(rows);
   await second;
   expect(minimap.getLoad()).toBe(rows);
 });
