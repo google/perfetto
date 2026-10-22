@@ -16,12 +16,17 @@
 
 #include "src/traced/probes/cgroup/memcg_reader.h"
 
+#include <fcntl.h>
+
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/config/linux/cgroup_config.gen.h"
 #include "protos/perfetto/trace/linux/memcg_stats.gen.h"
@@ -48,6 +53,15 @@ std::optional<MemcgReader::Config> CreateConfig(
       packages_list_path);
 }
 
+// Creates or replaces a file, without tracking it in a TmpDirTree.
+void WriteFile(const std::string& path, const std::string& contents) {
+  base::ScopedFile fd =
+      base::OpenFile(path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+  ASSERT_TRUE(fd);
+  ASSERT_EQ(base::WriteAll(*fd, contents.data(), contents.size()),
+            static_cast<ssize_t>(contents.size()));
+}
+
 class MemcgReaderTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -67,12 +81,18 @@ class MemcgReaderTest : public ::testing::Test {
     return MemcgReader(std::move(config), tree_.path());
   }
 
-  // Reads once, and returns the decoded packet.
+  // Reads once, and returns the decoded message.
   MemcgStats Read(MemcgReader* reader) {
     protozero::HeapBuffered<protos::pbzero::MemcgStats> msg;
-    reader->Read(msg.get());
+    bool asked_for_out = false;
+    reader->Read([&] {
+      asked_for_out = true;
+      return msg.get();
+    });
     MemcgStats stats;
     EXPECT_TRUE(stats.ParseFromString(msg.SerializeAsString()));
+    // The message is only asked for if there's a cgroup to record.
+    EXPECT_EQ(asked_for_out, !stats.cgroup().empty());
     return stats;
   }
 
@@ -216,6 +236,106 @@ TEST_F(MemcgReaderTest, NewCgroupsArePickedUp) {
   ASSERT_EQ(stats.cgroup().size(), 1u);
   EXPECT_EQ(stats.cgroup()[0].pid(), 42u);
   EXPECT_EQ(stats.cgroup()[0].current(), 7u);
+}
+
+TEST_F(MemcgReaderTest, CacheTtlPolls) {
+  MC config_pb;
+  config_pb.set_poll_period_ms(1000);
+  EXPECT_EQ(CreateConfig(config_pb)->cache_ttl_polls, 0u);
+  // Rounded down to a multiple of the poll period.
+  config_pb.set_cache_ttl_ms(2999);
+  EXPECT_EQ(CreateConfig(config_pb)->cache_ttl_polls, 2u);
+  config_pb.set_cache_ttl_ms(999);
+  EXPECT_EQ(CreateConfig(config_pb)->cache_ttl_polls, 0u);
+  // Shorter than two polls: no caching.
+  config_pb.set_cache_ttl_ms(1999);
+  EXPECT_EQ(CreateConfig(config_pb)->cache_ttl_polls, 0u);
+  // Read once: no caching.
+  config_pb.set_poll_period_ms(0);
+  config_pb.set_cache_ttl_ms(10000);
+  EXPECT_EQ(CreateConfig(config_pb)->cache_ttl_polls, 0u);
+}
+
+TEST_F(MemcgReaderTest, WithoutCacheTtlEveryReadRecordsAllValues) {
+  MC config_pb;
+  config_pb.add_field(MC::MEMCG_CURRENT);
+  config_pb.set_poll_period_ms(1000);
+  MemcgReader reader = CreateReader(*CreateConfig(config_pb));
+  for (int i = 0; i < 2; i++) {
+    MemcgStats stats = Read(&reader);
+    ASSERT_EQ(stats.cgroup().size(), 2u);
+    EXPECT_EQ(stats.cgroup()[0].current(), 123u);
+    EXPECT_EQ(stats.cgroup()[1].current(), 456u);
+  }
+}
+
+TEST_F(MemcgReaderTest, CacheTtl) {
+  MC config_pb;
+  config_pb.add_field(MC::MEMCG_CURRENT);
+  config_pb.add_field(MC::MEMCG_HIGH);
+  config_pb.add_field(MC::MEMCG_STAT_ANON);
+  config_pb.set_poll_period_ms(1000);
+  config_pb.set_cache_ttl_ms(4000);
+  MemcgReader reader = CreateReader(*CreateConfig(config_pb));
+
+  // All values.
+  MemcgStats stats = Read(&reader);
+  ASSERT_EQ(stats.cgroup().size(), 2u);
+  EXPECT_EQ(stats.cgroup()[0].current(), 123u);
+  EXPECT_EQ(stats.cgroup()[0].high(), kMemcgValueMax);
+  EXPECT_EQ(stats.cgroup()[0].stat().anon(), 10u);
+  EXPECT_EQ(stats.cgroup()[1].current(), 456u);
+  // system/uid_1000 doesn't have a memory.high or memory.stat.
+  EXPECT_FALSE(stats.cgroup()[1].has_high());
+  EXPECT_FALSE(stats.cgroup()[1].has_stat());
+
+  // Only the value that changed.
+  WriteFile(tree_.AbsolutePath("apps/uid_10001/memory.current"), "124\n");
+  stats = Read(&reader);
+  ASSERT_EQ(stats.cgroup().size(), 1u);
+  EXPECT_EQ(stats.cgroup()[0].uid(), 10001u);
+  EXPECT_EQ(stats.cgroup()[0].current(), 124u);
+  EXPECT_FALSE(stats.cgroup()[0].has_high());
+  EXPECT_FALSE(stats.cgroup()[0].has_stat());
+
+  // A new cgroup has all its values recorded, including zeroes.
+  tree_.AddDir("system/uid_1001");
+  tree_.AddFile("system/uid_1001/memory.current", "0\n");
+  stats = Read(&reader);
+  ASSERT_EQ(stats.cgroup().size(), 1u);
+  EXPECT_EQ(stats.cgroup()[0].uid(), 1001u);
+  EXPECT_TRUE(stats.cgroup()[0].has_current());
+
+  // Nothing changed.
+  EXPECT_TRUE(Read(&reader).cgroup().empty());
+
+  // The period elapsed: all values again.
+  stats = Read(&reader);
+  ASSERT_EQ(stats.cgroup().size(), 3u);
+  EXPECT_EQ(stats.cgroup()[0].current(), 124u);
+  EXPECT_EQ(stats.cgroup()[0].high(), kMemcgValueMax);
+  EXPECT_EQ(stats.cgroup()[0].stat().anon(), 10u);
+  EXPECT_TRUE(stats.cgroup()[1].has_current());
+  EXPECT_TRUE(stats.cgroup()[2].has_current());
+}
+
+TEST_F(MemcgReaderTest, CacheTtlPidCgroups) {
+  // Pid cgroups of the same uid, with the same value.
+  tree_.AddDir("apps/uid_10001/pid_1");
+  tree_.AddFile("apps/uid_10001/pid_1/memory.current", "7\n");
+  tree_.AddDir("apps/uid_10001/pid_2");
+  tree_.AddFile("apps/uid_10001/pid_2/memory.current", "7\n");
+
+  MC config_pb;
+  config_pb.add_field(MC::MEMCG_CURRENT);
+  config_pb.add_android_scope()->add_level(MC::AndroidScope::LEVEL_PID);
+  config_pb.set_poll_period_ms(1000);
+  config_pb.set_cache_ttl_ms(4000);
+  MemcgReader reader = CreateReader(*CreateConfig(config_pb));
+  MemcgStats stats = Read(&reader);
+  ASSERT_EQ(stats.cgroup().size(), 2u);
+  EXPECT_EQ(stats.cgroup()[0].current(), 7u);
+  EXPECT_EQ(stats.cgroup()[1].current(), 7u);
 }
 
 TEST_F(MemcgReaderTest, PackageScope) {

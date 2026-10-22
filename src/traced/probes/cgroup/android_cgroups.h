@@ -21,6 +21,8 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/flat_set.h"
@@ -46,6 +48,21 @@ struct AndroidCgroup {
   uint32_t uid = 0;
   // Only meaningful at pid level.
   uint32_t pid = 0;
+
+  auto AsTuple() const { return std::tie(level, group, uid, pid); }
+
+  bool operator==(const AndroidCgroup& other) const {
+    return AsTuple() == other.AsTuple();
+  }
+
+  template <typename H>
+  friend H PerfettoHashValue(H h, const AndroidCgroup& cgroup) {
+    return std::apply(
+        [&h](const auto&... fields) {
+          return H::Combine(std::move(h), fields...);
+        },
+        cgroup.AsTuple());
+  }
 };
 
 // A validated MemcgConfig.AndroidScope. The filters that are set are AND'd,
