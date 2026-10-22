@@ -89,10 +89,19 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   }
 
   private renderMinimap(trace: TraceImpl): m.Children {
-    return m(Minimap, {
-      trace,
-      className: 'pf-timeline-page__overview',
-    });
+    return [
+      m(Minimap, {
+        trace,
+        className: 'pf-timeline-page__overview',
+      }),
+      m(ResizeHandle, {
+        onResize: (deltaPx: number) => {
+          trace.minimap.heightPx += deltaPx;
+          m.redraw();
+        },
+        ondblclick: () => trace.minimap.resetHeight(),
+      }),
+    ];
   }
 
   private renderHeader(trace: TraceImpl): m.Children {

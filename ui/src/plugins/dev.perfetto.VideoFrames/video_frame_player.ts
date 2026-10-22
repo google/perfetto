@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {range} from '../../base/array_utils';
 import type {Trace} from '../../public/trace';
 import {BLOB, LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
 
@@ -37,7 +38,7 @@ export interface FrameInfo {
 // Decoder setup, cached once per stream.
 interface Setup {
   codecString: string; // RFC 6381, e.g. "avc1.42c029"
-  config: Uint8Array; // Annex-B SPS/PPS, prepended to the first decoded chunk
+  config: Uint8Array; // Annex-B SPS/PPS, prepended to every key frame
 }
 
 // A decoded frame queued for paint, tagged with its index into `frames`.
@@ -75,6 +76,7 @@ export class VideoFramePlayer {
   // the details panel. Empty = healthy.
   errors: string[] = [];
   private framesLoaded = false;
+  private framesLoading?: Promise<void>;
   private configId?: number;
   private codecString?: string;
   private setup?: Setup;
@@ -122,8 +124,14 @@ export class VideoFramePlayer {
     this.stop();
   }
 
-  async ensureFramesLoaded(): Promise<void> {
-    if (this.framesLoaded) return;
+  // Idempotent and safe to call concurrently (e.g. from the details panel,
+  // the track tooltip and the minimap).
+  ensureFramesLoaded(): Promise<void> {
+    this.framesLoading ??= this.loadFrames();
+    return this.framesLoading;
+  }
+
+  private async loadFrames(): Promise<void> {
     const res = await this.trace.engine.query(`
       SELECT id, ts, frame_number AS frameNumber,
              COALESCE(is_key_frame, 0) AS isKey,
@@ -221,34 +229,14 @@ export class VideoFramePlayer {
     for (const f of s.queue) f.frame.close();
   }
 
-  // Decode nearestKey(idx)..idx with a one-shot decoder, returning the
-  // frames and the key-frame index k. The caller owns closing them. Pure:
-  // touches no playback state, so seek and the tooltip path can call it
-  // concurrently. Cost is O(distance to the preceding key frame).
-  private async decodeUpTo(
-    idx: number,
-  ): Promise<{outs: VideoFrame[]; k: number} | undefined> {
-    if (typeof VideoDecoder === 'undefined') return undefined;
-    const setup = await this.loadSetup();
-    if (setup === undefined) return undefined;
-    const k = this.nearestKey(idx);
-    // No key frame precedes idx (ring buffer dropped the GOP start); the
-    // decoder can't be seeded, so this frame is undecodable.
-    if (k < 0) return undefined;
-    const range = this.frames.slice(k, idx + 1);
-    const datas = await this.fetchAuData(range.map((f) => f.id));
-    const outs: VideoFrame[] = [];
-    const decoder = new VideoDecoder({
-      output: (f) => outs.push(f),
-      error: (e) => console.warn('VideoFrames:', e),
+  // Decodes the frame at `idx`; the caller must close it. Touches no playback
+  // state, so seek and the tooltip path can call it concurrently.
+  private async decodeFrame(idx: number): Promise<VideoFrame | undefined> {
+    let result: VideoFrame | undefined;
+    await this.decodeFrames([idx], (_, frame) => {
+      result = frame;
     });
-    decoder.configure(decoderConfig(setup));
-    for (let i = 0; i < range.length; i++) {
-      decoder.decode(chunkFor(setup, range[i], datas[i], i === 0));
-    }
-    await decoder.flush().catch(() => undefined);
-    if (decoder.state !== 'closed') decoder.close();
-    return {outs, k};
+    return result;
   }
 
   // Seek to a frame by index and paint it onto the live preview canvas.
@@ -259,17 +247,15 @@ export class VideoFramePlayer {
     this.stop();
     const token = this.token;
     this.currentIdx = idx;
-    const decoded = await this.decodeUpTo(idx);
-    if (decoded === undefined) return;
-    const {outs, k} = decoded;
-    if (token !== this.token) {
-      for (const f of outs) f.close();
-      return;
+    const frame = await this.decodeFrame(idx);
+    if (frame === undefined) return;
+    try {
+      if (token !== this.token) return;
+      this.drawFrame(frame);
+      m.redraw();
+    } finally {
+      frame.close();
     }
-    const target = outs[idx - k] ?? outs[outs.length - 1];
-    if (target !== undefined) this.drawFrame(target);
-    for (const f of outs) f.close();
-    m.redraw();
   }
 
   // Decode one frame (by event id) to a PNG data URL for the hover
@@ -278,24 +264,90 @@ export class VideoFramePlayer {
   async decodeFrameImage(eventId: number): Promise<string | undefined> {
     await this.ensureFramesLoaded();
     const idx = this.frames.findIndex((f) => f.id === eventId);
-    if (idx < 0) return undefined;
-    const decoded = await this.decodeUpTo(idx);
-    if (decoded === undefined) return undefined;
-    const {outs, k} = decoded;
+    const frame = await this.decodeFrame(idx);
+    if (frame === undefined) return undefined;
     try {
-      const frame = outs[idx - k] ?? outs[outs.length - 1];
-      if (frame === undefined) return undefined;
-      const w = frame.displayWidth || frame.codedWidth;
-      const h = frame.displayHeight || frame.codedHeight;
-      if (w <= 0 || h <= 0) return undefined;
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      canvas.getContext('2d')?.drawImage(frame, 0, 0);
-      return canvas.toDataURL('image/png');
+      return frameToCanvas(frame)?.toDataURL('image/png');
     } finally {
-      for (const f of outs) f.close();
+      frame.close();
     }
+  }
+
+  // Decodes `frames[i]` for each of `indices` (sorted ascending), passing each
+  // to `onFrame` in order; `onFrame` must close it. Only the GOPs containing
+  // the requested frames are decoded, so sparse requests on long streams are
+  // cheap. Undecodable frames (no preceding key frame, unsupported codec) are
+  // skipped.
+  async decodeFrames(
+    indices: ReadonlyArray<number>,
+    onFrame: (idx: number, frame: VideoFrame) => void,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.ensureFramesLoaded();
+    if (typeof VideoDecoder === 'undefined') return;
+    const setup = await this.loadSetup();
+    if (setup === undefined || signal?.aborted) return;
+    const config = decoderConfig(setup);
+    const {supported} = await VideoDecoder.isConfigSupported(config);
+    if (supported !== true || signal?.aborted) return;
+
+    const wanted = new Set(indices);
+    // Frames fed to the decoder, in order. The decoder outputs one frame per
+    // input, in the same order.
+    const fed: number[] = [];
+    const decoder = new VideoDecoder({
+      output: (f) => {
+        const idx = fed.shift();
+        if (idx !== undefined && wanted.has(idx) && !signal?.aborted) {
+          onFrame(idx, f);
+        } else {
+          f.close();
+        }
+      },
+      error: (e) => console.warn('VideoFrames:', e),
+    });
+    decoder.configure(config);
+    try {
+      const toDecode = this.gopRanges(indices).flatMap(([start, end]) =>
+        range(end - start + 1).map((i) => start + i),
+      );
+      // Fetch a batch at a time so peak JS memory is O(batch), not O(stream).
+      for (let base = 0; base < toDecode.length; base += FETCH_BATCH) {
+        const batch = toDecode.slice(base, base + FETCH_BATCH);
+        const datas = await this.fetchAuData(
+          batch.map((i) => this.frames[i].id),
+        );
+        for (let i = 0; i < batch.length; i++) {
+          while (decoder.decodeQueueSize > DECODER_BACKPRESSURE_LIMIT) {
+            await new Promise((r) => setTimeout(r));
+          }
+          if (signal?.aborted || decoder.state === 'closed') return;
+          fed.push(batch[i]);
+          decoder.decode(chunkFor(setup, this.frames[batch[i]], datas[i]));
+        }
+      }
+      await decoder.flush().catch(() => undefined);
+    } finally {
+      if (decoder.state !== 'closed') decoder.close();
+    }
+  }
+
+  // Merges the ranges [nearestKey(idx), idx] for each of `indices` (sorted)
+  // into the minimal set of frame ranges that need decoding.
+  private gopRanges(indices: ReadonlyArray<number>): Array<[number, number]> {
+    const ranges: Array<[number, number]> = [];
+    for (const idx of indices) {
+      if (idx < 0 || idx >= this.frames.length) continue;
+      const k = this.nearestKey(idx);
+      if (k < 0) continue;
+      const last = ranges[ranges.length - 1];
+      if (last !== undefined && k <= last[1] + 1) {
+        last[1] = Math.max(last[1], idx);
+      } else {
+        ranges.push([k, idx]);
+      }
+    }
+    return ranges;
   }
 
   // openPlaySession() sets up the decoder, startPlaybackLoop() paints from
@@ -425,9 +477,7 @@ export class VideoFramePlayer {
         if (!(await this.waitForDecoderCapacity(token, session.decoder))) {
           return;
         }
-        session.decoder.decode(
-          chunkFor(setup, batch[i], datas[i], base + i === k),
-        );
+        session.decoder.decode(chunkFor(setup, batch[i], datas[i]));
       }
     }
     // flush() rejects if the decoder was already closed (end-of-stream or
@@ -492,19 +542,36 @@ export class VideoFramePlayer {
   }
 }
 
-// The first chunk per stream carries the codec_config (SPS/PPS) prepended,
-// since those NALs were emitted out-of-band.
+// Key frames carry the codec_config (SPS/PPS) prepended, since those NALs
+// were emitted out-of-band. Every key frame needs it (not just the first) for
+// the decoder to accept it when decoding across GOPs.
 function chunkFor(
   setup: Setup,
   frame: FrameInfo,
   bytes: Uint8Array,
-  isFirst: boolean,
 ): EncodedVideoChunk {
   return new EncodedVideoChunk({
     type: frame.isKey ? 'key' : 'delta',
     timestamp: frame.ptsUs,
-    data: isFirst ? concat(setup.config, bytes) : bytes,
+    data: frame.isKey ? concat(setup.config, bytes) : bytes,
   });
+}
+
+// Copies a decoded frame onto a new canvas, downscaled to fit within
+// `maxSizePx` x `maxSizePx`. Returns undefined for frames without dimensions.
+export function frameToCanvas(
+  frame: VideoFrame,
+  maxSizePx = Infinity,
+): HTMLCanvasElement | undefined {
+  const w = frame.displayWidth || frame.codedWidth;
+  const h = frame.displayHeight || frame.codedHeight;
+  if (w <= 0 || h <= 0) return undefined;
+  const scale = Math.min(1, maxSizePx / w, maxSizePx / h);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(w * scale));
+  canvas.height = Math.max(1, Math.round(h * scale));
+  canvas.getContext('2d')?.drawImage(frame, 0, 0, canvas.width, canvas.height);
+  return canvas;
 }
 
 function concat(a: Uint8Array, b: Uint8Array): Uint8Array {

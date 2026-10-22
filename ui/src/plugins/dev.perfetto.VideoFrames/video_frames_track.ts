@@ -29,16 +29,17 @@ export function createVideoFramesTrack(
   displayId: number,
   player: VideoFramePlayer,
 ) {
-  // dur spans each frame to the next (last frame: 0). is_config rows are
-  // decoder setup, not displayable, so excluded. Frames before the first key
-  // frame can't be decoded (no key frame to seed the decoder, e.g. a ring
-  // buffer whose GOP start was overwritten), so start the track at the first
-  // key frame.
+  // dur spans each frame to the next. Frames are only emitted when the screen
+  // changes, so the last frame stays on screen until the end of the trace: it
+  // is an incomplete slice (dur -1). is_config rows are decoder setup, not
+  // displayable, so excluded. Frames before the first key frame can't be
+  // decoded (no key frame to seed the decoder, e.g. a ring buffer whose GOP
+  // start was overwritten), so start the track at the first key frame.
   const src = `
     SELECT
       id,
       ts,
-      COALESCE(LEAD(ts) OVER (ORDER BY ts) - ts, 0) AS dur,
+      COALESCE(LEAD(ts) OVER (ORDER BY ts) - ts, -1) AS dur,
       0 AS depth,
       'Frame ' || frame_number AS name
     FROM __intrinsic_video_frames
