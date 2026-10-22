@@ -29,6 +29,14 @@ export type NavState =
   | {view: 'callstack'; params: Record<string, never>};
 
 export type NavView = NavState['view'];
+export type DefaultNavView = 'overview' | 'flamegraph';
+
+function defaultNavState(view: DefaultNavView): NavState {
+  if (view === 'flamegraph') {
+    return {view: 'flamegraph', params: {}};
+  }
+  return {view: 'overview', params: {}};
+}
 
 // A `key=value` query fragment (URI-encoded), or '' when the value is absent.
 function queryParam(key: string, value?: string): string {
@@ -47,7 +55,7 @@ function pathSegment(base: string, value?: string): string {
 function stateToParts(state: NavState): {path: string; query: string} {
   switch (state.view) {
     case 'overview':
-      return {path: '', query: ''};
+      return {path: 'overview', query: ''};
     case 'classes':
       return {
         path: 'classes',
@@ -106,8 +114,11 @@ export function stateToSubpage(state: NavState): string {
   return query ? `${path}?${query}` : path;
 }
 
-export function subpageToState(subpage: string | undefined): NavState {
-  if (!subpage) return {view: 'overview', params: {}};
+export function subpageToState(
+  subpage: string | undefined,
+  defaultView: DefaultNavView = 'overview',
+): NavState {
+  if (!subpage) return defaultNavState(defaultView);
 
   const [path, queryStr] = subpage.split('?', 2);
   const sp = new URLSearchParams(queryStr ?? '');
@@ -127,6 +138,7 @@ export function subpageToState(subpage: string | undefined): NavState {
 
   switch (view) {
     case '':
+      return defaultNavState(defaultView);
     case 'overview':
       return {view: 'overview', params: {}};
     case 'classes': {

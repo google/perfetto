@@ -49,6 +49,11 @@ export interface TraceInfo {
   // Wheteher the current trace has been successfully stored into cache storage.
   readonly cached: boolean;
 
+  // Whether the UI may re-share the current trace externally (e.g. upload
+  // it to GCS as a permalink). It is false when the trace was pushed via
+  // postMessage and the caller did not opt into sharing.
+  readonly shareable: boolean;
+
   // Returns true if the current trace can be downloaded via getTraceFile().
   // The trace isn't downloadable in the following cases:
   // - It comes from a source (e.g. HTTP+RPC) that doesn't support re-download

@@ -15,6 +15,7 @@
  */
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/progress_reporter.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -35,6 +36,13 @@
 
 #if PERFETTO_ENABLE_LOG_RING_BUFFER() && PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <android/set_abort_message.h>
+#endif
+
+// The __attribute__((constructor)) below is intentional, it sets the crash
+// reporter globally for Perfetto. It's only enabled on debug builds so should
+// be pretty safe.
+#if defined(__clang__)
+#pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
 
 namespace perfetto {
@@ -119,6 +127,7 @@ void LogMessage(LogLev level,
     log_msg = &large_buf[0];
   }
 
+  ProgressReporter::GetInstance().Clear();
   LogMessageCallback cb = g_log_callback.load(std::memory_order_relaxed);
   if (cb) {
     cb({level, line, fname, log_msg});
@@ -141,13 +150,7 @@ void LogMessage(LogLev level,
       break;
   }
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
-  static const bool use_colors = isatty(STDERR_FILENO);
-#else
-  static const bool use_colors = false;
-#endif
+  const bool use_colors = StderrSupportsColor();
 
   // Formats file.cc:line as a space-padded fixed width string. If the file name
   // |fname| is too long, truncate it on the left-hand side.

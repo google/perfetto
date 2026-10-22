@@ -16,10 +16,26 @@
 from python.generators.diff_tests.testing import DataPath
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import ExpectedError
 from python.generators.diff_tests.testing import TestSuite
 
 
 class DominatorTree(TestSuite):
+
+  def test_rejects_negative_node_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.dominator_tree;
+          WITH edges AS (
+            SELECT -1 AS source_node_id, 0 AS dest_node_id
+            UNION ALL
+            SELECT 1, 2
+          )
+          SELECT * FROM graph_dominator_tree!(edges, 0);
+        """,
+        out=ExpectedError(
+            'dominator_tree: node ids must be non-negative 32-bit integers'))
 
   def test_empty_table(self):
     return DiffTestBlueprint(

@@ -19,6 +19,8 @@
 #include <stdio.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/progress_reporter.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/trace_processor/export_json.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/traceconv/utils.h"
@@ -62,11 +64,12 @@ class TraceWriterOutputWriter final
 
 bool ExportUserspaceEvents(trace_processor::TraceProcessor* tp,
                            TraceWriter* writer) {
-  ProgressLine("Converting userspace events");
+  auto& progress = base::ProgressReporter::GetInstance();
+  progress.Update("Converting userspace events");
 
   TraceWriterOutputWriter output(writer);
   base::Status status = trace_processor::json::ExportJson(tp, &output);
-  EndProgressLine();
+  progress.Clear();
   if (!status.ok()) {
     PERFETTO_ELOG("Could not convert userspace events: %s", status.c_message());
     return false;
@@ -114,12 +117,10 @@ base::Status TraceToJson(std::istream* input,
   int ret = ExtractSystrace(tp.get(), trace_writer.get(),
                             /*wrapped_in_json=*/true, truncate_keep);
   if (ret) {
-    EndProgressLine();
     return base::ErrStatus("failed to convert ftrace events");
   }
 
   trace_writer->Write(kTraceFooter);
-  EndProgressLine();
   return base::OkStatus();
 }
 

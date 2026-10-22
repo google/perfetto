@@ -19,6 +19,7 @@
 
 #include <string>
 #include <vector>
+#include "src/trace_processor/util/symbolizer/debuginfod.h"
 
 #include "perfetto/base/status.h"
 
@@ -32,6 +33,7 @@ struct ProguardMapSpec {
 
 // Context structure for bundle configuration
 struct BundleContext {
+  profiling::DebuginfodConfig debuginfod;
   // Additional paths to search for symbols (beyond automatic discovery)
   std::vector<std::string> symbol_paths;
 
@@ -46,6 +48,9 @@ struct BundleContext {
 
   // If true, output verbose details (all paths tried, etc.)
   bool verbose = false;
+
+  // If true, suppress routine status output; warnings are still printed.
+  bool quiet = false;
 
   // Value of ANDROID_PRODUCT_OUT for AOSP builds symbol discovery
   std::string android_product_out;

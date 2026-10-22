@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Presentational widgets shared by the Memscope per-section panels (Java,
-// bitmaps, native): the compact top-N table, class-name cells, the share bar,
-// the delta cell and the single-ratio bar.
+// bitmaps, native): the compact top-N table, class-name cells, the delta cell
+// and the single-ratio bar.
 
 import m from 'mithril';
 import {Panel} from '../../components/panel';
@@ -131,16 +131,23 @@ export function heapDumpClassHref(cls: string): string {
   return `#!/heapdump/objects_${encodeURIComponent(cls)}`;
 }
 
+// Link to the Heap Dump Explorer's bitmaps view.
+export function heapDumpBitmapsHref(): string {
+  return '#!/heapdump/bitmaps';
+}
+
 // A class-name cell. The class name links to that class's instances in the Heap
 // Dump Explorer. When `retainers` are given, each one adds a `↳ via <owner>`
 // line naming an app-side class that dominates this (library) class's instances
 // up the dominator chain, with the bytes attributed to that owner; the owner
 // name links to the explorer too. A class held through several owners shows
 // several lines, so a single misleading "via" can't imply all the retained
-// bytes flow through one owner.
+// bytes flow through one owner. `onclick` runs before any of the links is
+// followed.
 export function classNameCell(
   full: string,
   retainers?: ReadonlyArray<{name: string; bytes: number}>,
+  onclick?: () => void,
 ): m.Child {
   const vias = (retainers ?? []).filter((r) => r.name !== full);
   // With one owner the byte count just echoes the row's retained size, so omit
@@ -149,7 +156,7 @@ export function classNameCell(
   return m('.pf-memscope-classcell', [
     m(
       'a.pf-memscope-classname',
-      {href: heapDumpClassHref(full), title: full},
+      {href: heapDumpClassHref(full), title: full, onclick},
       shortClassName(full),
     ),
     ...vias.map((r) =>
@@ -160,7 +167,7 @@ export function classNameCell(
           '↳ via ',
           m(
             'a.pf-memscope-classcell__vialink',
-            {href: heapDumpClassHref(r.name)},
+            {href: heapDumpClassHref(r.name), onclick},
             shortClassName(r.name),
           ),
           showBytes ? ` · ${formatBytes(r.bytes)}` : '',

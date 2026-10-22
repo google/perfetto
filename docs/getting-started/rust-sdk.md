@@ -148,8 +148,9 @@ fn draw_player(player_number: u32, x: f64, y: f64) {
 }
 ```
 
-The macro wraps the function body in a `scoped_track_event!` so the
-event spans the full function execution. The category name is passed
+The macro emits a slice begin event before the function body and a
+slice end event after it, so the event spans the full function
+execution. The category name is passed
 as the macro argument.
 
 ## Using the `tracing` crate

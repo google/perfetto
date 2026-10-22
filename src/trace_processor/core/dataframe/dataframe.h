@@ -46,6 +46,7 @@ class TraceBlobViewReader;
 namespace perfetto::trace_processor::core::dataframe {
 
 struct QueryPlanImpl;
+struct LogicalPlan;
 
 // Dataframe is a columnar data structure for efficient querying and filtering
 // of tabular data. It provides:
@@ -55,6 +56,11 @@ struct QueryPlanImpl;
 // - Efficient query execution with optimized bytecode generation
 // - Support for serializable query plans that separate planning from execution
 // - Memory-efficient storage with support for specialized column types
+//
+// A finalized Dataframe is safe for concurrent reads from multiple threads as
+// long as each thread uses its own cursor: PlanQuery, PrepareCursor and cursor
+// iteration touch no shared mutable state. Mutating operations (Insert*,
+// SetCell*, Clear, Finalize) are not thread-safe and must not race with reads.
 class Dataframe {
  public:
   // QueryPlan encapsulates an executable, serializable representation of a
@@ -158,6 +164,15 @@ class Dataframe {
       const LimitSpec& limit_spec,
       uint64_t cols_used_bitmap) const;
 
+  // Returns the logical plan PlanQuery would lower, for tests which assert on
+  // the planner's choices rather than on the bytecode they produce.
+  base::StatusOr<LogicalPlan> PlanQueryLogicalForTesting(
+      std::vector<FilterSpec>& filter_specs,
+      const std::vector<DistinctSpec>& distinct_specs,
+      const std::vector<SortSpec>& sort_specs,
+      const LimitSpec& limit_spec,
+      uint64_t cols_used_bitmap) const;
+
   // Prepares a cursor for executing the query plan. The template parameter
   // `FilterValueFetcherImpl` is a subclass of `ValueFetcher` that defines the
   // logic for fetching filter values for each filter specs specified when
@@ -249,6 +264,11 @@ class Dataframe {
   // If the dataframe is already finalized, this function does nothing.
   void Finalize();
 
+  // As Finalize, but without estimating how many distinct values each column
+  // holds, which only query planning uses. Cheaper, for a dataframe which is
+  // only ever scanned.
+  void FinalizeWithoutStatistics();
+
   // Makes a copy of the dataframe which has been finalized. Unfinalized
   // dataframes *cannot* be copied, so this function will assert if not
   // finalized.
@@ -265,6 +285,22 @@ class Dataframe {
 
   // Returns the column names of the dataframe.
   const std::vector<std::string>& column_names() const { return column_names_; }
+
+  // Returns `column`'s values and which rows hold one, for reading them
+  // without going through a cursor.
+  const Column& column(uint32_t column) const { return *column_ptrs_[column]; }
+
+  // Returns `column` with shared ownership, for readers that must outlive
+  // the dataframe. Only valid on a finalized dataframe as columns are
+  // immutable after that.
+  std::shared_ptr<const Column> shared_column(uint32_t column) const {
+    PERFETTO_DCHECK(finalized_);
+    return columns_[column];
+  }
+  // Returns the type of the values in `column`.
+  StorageType column_type(uint32_t column) const {
+    return column_ptrs_[column]->storage.type();
+  }
 
   // Returns the number of rows in the dataframe.
   uint32_t row_count() const { return row_count_; }
@@ -419,6 +455,9 @@ class Dataframe {
             std::vector<std::shared_ptr<Column>> columns,
             uint32_t row_count,
             StringPool* string_pool);
+
+  // Finalize, estimating distinct counts only if `estimate_distinct`.
+  void FinalizeColumns(bool estimate_distinct);
 
   template <typename D, typename... Args, size_t... Is>
   PERFETTO_ALWAYS_INLINE void InsertUncheckedInternal(

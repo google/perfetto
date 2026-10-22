@@ -24,8 +24,8 @@ source_set("tokenizer") {
   deps = [
     "../../../../gn:default_deps",
     "../../../base",
+    "../../../perfetto_sql/syntaqlite",
     "../../sqlite",
-    "../syntaqlite",
   ]
 }
 

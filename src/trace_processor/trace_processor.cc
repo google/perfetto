@@ -29,7 +29,6 @@
 namespace perfetto::trace_processor {
 
 TraceProcessor::MetatraceConfig::MetatraceConfig() = default;
-TraceProcessor_PlatformInterface::~TraceProcessor_PlatformInterface() = default;
 
 // static
 std::unique_ptr<TraceProcessor> TraceProcessor::CreateInstance(

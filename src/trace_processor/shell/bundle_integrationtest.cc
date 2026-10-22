@@ -26,6 +26,8 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/trace_processor/read_trace.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "protos/perfetto/trace/ftrace/ftrace.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
@@ -36,6 +38,7 @@
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
+#include "test/test_helper.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <unistd.h>
@@ -65,7 +68,7 @@ class ArgvInvoker {
 };
 
 base::TempFile WriteTempFile(const std::string& content) {
-  auto f = base::TempFile::Create();
+  auto f = base::TempFile::Create().ValueOrDie();
   PERFETTO_CHECK(base::WriteAll(f.fd(), content.data(), content.size()) ==
                  static_cast<ssize_t>(content.size()));
   return f;
@@ -103,9 +106,11 @@ std::map<std::string, std::string> ReadTarMembers(const std::string& path) {
 class TraceconvShellBundleTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    base::UnsetEnv("DEBUGINFOD_URLS");
+    base::UnsetEnv("LLVM_SYMBOLIZER_OPTS");
     input_trace_ = base::GetTestDataPath(
         "test/data/heapprofd_standalone_client_example-trace");
-    output_path_ = temp_dir_.path() + "/bundle.tar";
+    output_path_ = output_file_.path();
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     GTEST_SKIP() << "do not run traceconv tests on Android target";
 #endif
@@ -113,8 +118,6 @@ class TraceconvShellBundleTest : public ::testing::Test {
     GTEST_SKIP() << "TarWriter is not supported on Windows";
 #endif
   }
-
-  void TearDown() override { remove(output_path_.c_str()); }
 
   // Collects every package_name found in a deobfuscation.pb proto stream.
   static std::set<std::string> PackageNames(const std::string& deob_bytes) {
@@ -129,7 +132,9 @@ class TraceconvShellBundleTest : public ::testing::Test {
     return names;
   }
 
+  TestEnvCleaner env_{"DEBUGINFOD_URLS", "LLVM_SYMBOLIZER_OPTS"};
   base::TempDir temp_dir_ = base::TempDir::Create();
+  base::TempFile output_file_ = base::TempFile::Create().ValueOrDie();
   std::string input_trace_;
   std::string output_path_;
 };
@@ -179,6 +184,67 @@ TEST_F(TraceconvShellBundleTest, BundleWithProguardMap) {
   EXPECT_EQ(cls.deobfuscated_name(), "com.example.Foo");
   ASSERT_EQ(cls.obfuscated_methods().size(), 1u);
   EXPECT_EQ(cls.obfuscated_methods()[0].obfuscated_name(), "b");
+}
+
+// HPROF rows must participate in the same deobfuscation lookup as proto heap
+// graphs, including normalized array/class names and inherited fields.
+TEST_F(TraceconvShellBundleTest, HprofDeobfuscation) {
+  auto mapping = WriteTempFile(
+      "com.example.String -> java.lang.String:\n"
+      "    byte[] restoredValue -> value\n"
+      "com.example.Super -> SuperDumpedStuff:\n"
+      "    java.lang.Object restoredField -> a\n");
+  for (const std::string& package :
+       {std::string(), std::string("com.example=")}) {
+    SCOPED_TRACE(package);
+    ArgvInvoker invoker;
+    invoker.Add("trace_processor_shell");
+    invoker.Add("bundle");
+    invoker.Add("--no-auto-symbol-paths");
+    invoker.Add("--no-auto-proguard-maps");
+    invoker.Add("--proguard-map");
+    invoker.Add(package + mapping.path());
+    invoker.Add(base::GetTestDataPath("test/data/test-dump.hprof"));
+    invoker.Add(output_path_);
+    ASSERT_EQ(invoker.Run(), 0);
+
+    auto tp = TraceProcessor::CreateInstance(Config{});
+    ASSERT_TRUE(ReadTrace(tp.get(), output_path_.c_str()).ok());
+    auto classes = tp->ExecuteQuery(
+        "SELECT name, deobfuscated_name FROM heap_graph_class "
+        "WHERE name IN ('java.lang.String', 'java.lang.String[]', "
+        "'java.lang.String[][]', 'java.lang.Class<java.lang.String>', "
+        "'java.lang.Class<java.lang.String[]>', "
+        "'java.lang.Class<java.lang.String[][]>') ORDER BY name");
+    const char* expected[] = {"java.lang.Class<com.example.String>",
+                              "java.lang.Class<com.example.String[]>",
+                              "java.lang.Class<com.example.String[][]>",
+                              "com.example.String",
+                              "com.example.String[]",
+                              "com.example.String[][]"};
+    for (const char* name : expected) {
+      ASSERT_TRUE(classes.Next());
+      ASSERT_EQ(classes.Get(1).type, SqlValue::kString);
+      EXPECT_STREQ(classes.Get(1).string_value, name);
+    }
+    EXPECT_FALSE(classes.Next());
+    EXPECT_TRUE(classes.Status().ok());
+
+    auto fields = tp->ExecuteQuery(
+        "SELECT field_name, deobfuscated_field_name, COUNT(*) "
+        "FROM heap_graph_reference WHERE field_name IN "
+        "('java.lang.String.value', 'SuperDumpedStuff.a') GROUP BY 1, 2 "
+        "ORDER BY field_name");
+    for (const char* name : {"com.example.Super.restoredField",
+                             "com.example.String.restoredValue"}) {
+      ASSERT_TRUE(fields.Next());
+      ASSERT_EQ(fields.Get(1).type, SqlValue::kString);
+      EXPECT_STREQ(fields.Get(1).string_value, name);
+      EXPECT_GT(fields.Get(2).long_value, 0);
+    }
+    EXPECT_FALSE(fields.Next());
+    EXPECT_TRUE(fields.Status().ok());
+  }
 }
 
 // Repeating --proguard-map should produce one DeobfuscationMapping per input
@@ -575,6 +641,130 @@ TEST_F(TraceconvShellBundleTest, BundleRejectsSymbolPathsAsSeparateArgs) {
 
   EXPECT_NE(invoker.Run(), 0);
 }
+
+TEST_F(TraceconvShellBundleTest, BundleFailurePreservesExistingOutput) {
+  base::TempFile trace = WriteTempFile("");
+  base::TempFile destination = WriteTempFile("existing output");
+  ArgvInvoker invoker;
+  invoker.Add("trace_processor_shell");
+  invoker.Add("bundle");
+  invoker.Add("--no-progress");
+  invoker.Add("--no-auto-symbol-paths");
+  invoker.Add("--proguard-map");
+  invoker.Add(temp_dir_.path() + "/missing.map");
+  invoker.Add(trace.path());
+  invoker.Add(destination.path());
+  EXPECT_NE(invoker.Run(), 0);
+  std::string contents;
+  ASSERT_TRUE(base::ReadFile(destination.path(), &contents));
+  EXPECT_EQ(contents, "existing output");
+}
+
+TEST_F(TraceconvShellBundleTest, BundleRejectsSameInputAndOutput) {
+  base::TempFile trace = WriteTempFile("original trace");
+  ArgvInvoker invoker;
+  invoker.Add("trace_processor_shell");
+  invoker.Add("bundle");
+  invoker.Add(trace.path());
+  invoker.Add(trace.path());
+  EXPECT_NE(invoker.Run(), 0);
+  std::string contents;
+  ASSERT_TRUE(base::ReadFile(trace.path(), &contents));
+  EXPECT_EQ(contents, "original trace");
+}
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+TEST_F(TraceconvShellBundleTest, BundleRejectsHardLinkedInputAndOutput) {
+  base::TempFile trace = WriteTempFile("original trace");
+  std::string alias = temp_dir_.path() + "/alias";
+  ASSERT_EQ(link(trace.path().c_str(), alias.c_str()), 0);
+  ArgvInvoker invoker;
+  invoker.Add("trace_processor_shell");
+  invoker.Add("bundle");
+  invoker.Add(trace.path());
+  invoker.Add(alias);
+  EXPECT_NE(invoker.Run(), 0);
+  std::string contents;
+  ASSERT_TRUE(base::ReadFile(trace.path(), &contents));
+  EXPECT_EQ(contents, "original trace");
+  ASSERT_TRUE(base::Unlink(alias.c_str()));
+}
+
+TEST_F(TraceconvShellBundleTest, RedirectedProgressIsPlainAndWarningsRemain) {
+  base::TempFile trace = WriteTempFile(BuildFuncgraphTrace(false));
+  for (bool no_progress : {false, true}) {
+    ArgvInvoker invoker;
+    invoker.Add("trace_processor_shell");
+    invoker.Add("bundle");
+    invoker.Add("--no-auto-symbol-paths");
+    if (no_progress)
+      invoker.Add("--no-progress");
+    invoker.Add(trace.path());
+    invoker.Add(output_path_);
+    ScopedStderrCapture capture;
+    ASSERT_EQ(invoker.Run(), 0);
+    auto output = capture.Get();
+    EXPECT_THAT(output, Not(HasSubstr("\r")));
+    EXPECT_THAT(output, HasSubstr("Symbolization:"));
+    EXPECT_THAT(output, HasSubstr("symbolize_ksyms"));
+  }
+}
+#endif
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+TEST_F(TraceconvShellBundleTest, QuietBundleSuppressesRoutineOutput) {
+  base::TempFile trace = WriteTempFile(BuildFuncgraphTrace(true));
+  ArgvInvoker invoker;
+  for (const char* arg :
+       {"trace_processor_shell", "bundle", "--quiet", "--verbose",
+        "--no-auto-symbol-paths", "--no-auto-proguard-maps"})
+    invoker.Add(arg);
+  invoker.Add(trace.path());
+  invoker.Add(output_path_);
+  testing::internal::CaptureStdout();
+  ScopedStderrCapture capture;
+  int status = invoker.Run();
+  auto stdout_text = testing::internal::GetCapturedStdout();
+  auto stderr_text = WithoutDebugLogs(capture.Get());
+  EXPECT_EQ(status, 0);
+  EXPECT_TRUE(stdout_text.empty()) << stdout_text;
+  EXPECT_TRUE(stderr_text.empty()) << stderr_text;
+  EXPECT_TRUE(base::FileExists(output_path_));
+}
+
+TEST_F(TraceconvShellBundleTest, QuietBundleKeepsResourceErrors) {
+  base::TempFile trace = WriteTempFile(BuildFuncgraphTrace(true));
+  ArgvInvoker invoker;
+  for (const char* arg : {"trace_processor_shell", "bundle", "--quiet",
+                          "--no-auto-symbol-paths", "--proguard-map"})
+    invoker.Add(arg);
+  invoker.Add(temp_dir_.path() + "/missing.map");
+  invoker.Add(trace.path());
+  invoker.Add(output_path_);
+  ScopedStderrCapture capture;
+  EXPECT_NE(invoker.Run(), 0);
+  auto output = capture.Get();
+  EXPECT_THAT(output, HasSubstr("missing.map"));
+  EXPECT_THAT(output, Not(HasSubstr("Symbolization:")));
+}
+
+TEST_F(TraceconvShellBundleTest, QuietQueryKeepsResults) {
+  base::TempFile trace = WriteTempFile(BuildFuncgraphTrace(true));
+  ArgvInvoker invoker;
+  for (const char* arg : {"trace_processor_shell", "query", "--quiet"})
+    invoker.Add(arg);
+  invoker.Add(trace.path());
+  invoker.Add("select 42 as answer");
+  testing::internal::CaptureStdout();
+  ScopedStderrCapture capture;
+  int status = invoker.Run();
+  auto stdout_text = testing::internal::GetCapturedStdout();
+  auto stderr_text = WithoutDebugLogs(capture.Get());
+  EXPECT_EQ(status, 0);
+  EXPECT_THAT(stdout_text, HasSubstr("42"));
+  EXPECT_TRUE(stderr_text.empty()) << stderr_text;
+}
+#endif
 
 }  // namespace
 }  // namespace perfetto::trace_processor

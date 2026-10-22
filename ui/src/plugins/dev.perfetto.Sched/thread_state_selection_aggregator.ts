@@ -14,12 +14,13 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
-import {Duration} from '../../base/time';
+import {Duration, Time} from '../../base/time';
 import type {BarChartData} from '../../components/aggregation';
 import {
   type Aggregation,
   type Aggregator,
   type AggregatorGridPreset,
+  createAggregationData,
   createIITable,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
@@ -48,6 +49,8 @@ import {
   formatDurationValue,
   formatPercentValue,
 } from '../../components/aggregation_panel';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
+import {Timestamp} from '../../components/widgets/timestamp';
 
 const THREAD_STATE_SPEC = {
   id: NUM,
@@ -117,27 +120,30 @@ export class ThreadStateSelectionAggregator implements Aggregator {
           area.end,
         );
 
-        await engine.query(`
-          include perfetto module android.cpu.cluster_type;
+        await engine.query('include perfetto module android.cpu.cluster_type');
 
-          create or replace perfetto table ${this.id} as
-          select
-            json_object('id', tstate.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
-            process.name as process_name,
-            process.pid as pid,
-            thread.name as thread_name,
-            thread.tid as tid,
-            tstate.state as state,
-            utid,
-            ucpu,
-            dur,
-            dur * 1.0 / sum(dur) OVER () as fraction_of_total,
-            android_cpu_cluster_mapping.cluster_type as cluster_type
-          from ${iiTable.name} tstate
-          join thread using (utid)
-          left join process using (upid)
-          left join android_cpu_cluster_mapping using(ucpu)
-        `);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            select
+              json_object('id', tstate.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
+              process.name as process_name,
+              process.pid as pid,
+              thread.name as thread_name,
+              thread.tid as tid,
+              tstate.state as state,
+              utid,
+              ucpu,
+              tstate.ts,
+              dur,
+              dur * 1.0 / sum(dur) OVER () as fraction_of_total,
+              android_cpu_cluster_mapping.cluster_type as cluster_type
+            from ${iiTable.name} tstate
+            join thread using (utid)
+            left join process using (upid)
+            left join android_cpu_cluster_mapping using(ucpu)
+          `,
+        });
 
         const query = `
           select
@@ -164,10 +170,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
           });
         }
 
-        return {
-          tableName: this.id,
-          barChartData: states,
-        };
+        return createAggregationData(table, states);
       },
     };
   }
@@ -206,6 +209,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
               onclick: () => {
                 this.trace.selection.selectTrackEvent(track.uri, id, {
                   scrollToSelection: true,
+                  switchToCurrentSelectionTab: false,
                 });
               },
             },
@@ -221,6 +225,16 @@ export class ThreadStateSelectionAggregator implements Aggregator {
       ucpu: {title: 'CPU', columnType: 'quantitative' as const},
       utid: {title: 'UTID', columnType: 'identifier' as const},
       state: {title: 'State', columnType: 'text' as const},
+      ts: {
+        title: 'Timestamp',
+        columnType: 'quantitative' as const,
+        cellRenderer: (value: unknown) => {
+          if (typeof value === 'bigint') {
+            return m(Timestamp, {trace: this.trace, ts: Time.fromRaw(value)});
+          }
+          return String(value ?? '');
+        },
+      },
       dur: {
         title: 'Wall duration',
         columnType: 'quantitative' as const,
@@ -253,11 +267,24 @@ export class ThreadStateSelectionAggregator implements Aggregator {
       {id: 'dur_avg', field: 'dur', function: 'AVG' as const},
     ];
 
+    const initialColumns = [
+      {id: 'id_with_lineage', field: 'id_with_lineage'},
+      {id: 'process_name', field: 'process_name'},
+      {id: 'pid', field: 'pid'},
+      {id: 'thread_name', field: 'thread_name'},
+      {id: 'tid', field: 'tid'},
+      {id: 'state', field: 'state'},
+      {id: 'ts', field: 'ts'},
+      {id: 'dur', field: 'dur'},
+      {id: 'ucpu', field: 'ucpu'},
+    ];
+
     return [
       {
         displayName: 'By Thread',
         config: {
           schema,
+          initialColumns,
           initialPivot: {
             groupBy: [
               {id: 'thread_name', field: 'thread_name'},
@@ -271,6 +298,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         displayName: 'By CPU',
         config: {
           schema,
+          initialColumns,
           initialPivot: {
             groupBy: [
               {id: 'thread_name', field: 'thread_name'},

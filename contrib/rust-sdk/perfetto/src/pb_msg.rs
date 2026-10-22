@@ -63,9 +63,9 @@ impl PbMsgSizeField {
         assert!(!self.ptr.is_null());
         let mut writer = writer.writer.writer.borrow_mut();
         // SAFETY:
-        // - `writer` must be a properly initialized PerfettoStreamWriter struct.
+        // - `writer` must be a properly initialized PerfettoPbMsgWriter struct.
         // - `self.ptr` must be pointing to a `PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE` sized buffer.
-        self.ptr = unsafe { PerfettoStreamWriterAnnotatePatch(&mut *writer as *mut _, self.ptr) };
+        self.ptr = unsafe { PerfettoPbMsgWriterAnnotatePatch(&mut *writer as *mut _, self.ptr) };
     }
 
     pub fn patch_stack(&mut self, writer: &PbMsgWriter) {

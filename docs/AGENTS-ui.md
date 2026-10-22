@@ -50,7 +50,7 @@ The UI uses:
 
 - **TypeScript** for type safety
 - **Mithril** as the UI framework
-- **Rollup** for bundling
+- **Vite** for bundling
 - **pnpm** for package management
 - **ESLint** for linting (based on Google style)
 - **Playwright** for integration tests
@@ -112,7 +112,7 @@ export default class MyPlugin implements PerfettoPlugin {
 - `trace.commands` - Register commands
 - `trace.tabs` - Register tabs in the details panel
 - `trace.timeline` - Access timeline state
-- `trace.workspace` - Manage the track tree structure
+- `trace.workspaces`, `trace.currentWorkspace` - Manage the track tree structure
 
 ## Mithril Patterns and Best Practices
 
@@ -143,7 +143,7 @@ export class MyComponent implements m.ClassComponent<MyComponentAttrs> {
 **Mithril Rules:**
 
 - No need to call`m.redraw()` most of the times. We automatically schedules redraws: (1) in Mithril's DOM event handlers; (2) after trace processor queries complete. But NOT after manually registered JS event handlers.
-- Use `constructor` for initialization if no DOM access is needed, or `onCreate` if DOM is needed.
+- Use `constructor` for initialization if no DOM access is needed, or `oncreate` if DOM is needed.
 - Prefer using the existing widget library (`ui/src/widgets/`) over creating new components.
 - Use `readonly` for attrs properties to prevent accidental mutation. We like things to be immutable.
 
@@ -155,6 +155,138 @@ import {Gate} from '../base/mithril_utils';
 m(Gate, {open: this.isVisible}, m(ExpensiveComponent));
 ```
 
+### Declarative Data Loading (`AsyncMemo`)
+
+UI components in Mithril render synchronously, but often depend on asynchronous data (e.g. SQL queries). **Never hand-roll data fetching in lifecycle hooks (`oninit`/`onupdate`) using manual `loading` booleans, sequence counters (`fetchSeq`), or `prevId` tracking.** Likewise, **avoid initiating data fetching directly inside DOM event handlers (`onclick`, `onkeydown`, etc.)**. Loading should be a declarative product of state, which could be triggered from many different places (e.g. keyboard shortcuts, external selection, deep links). Update the state in the event handler and let the redraw mechanism handle data loading automatically.
+
+#### Using `AsyncMemo`
+
+`AsyncMemo<T>` provides declarative, keyed async fetching directly inside `view()`:
+
+```typescript
+import m from 'mithril';
+import {AsyncMemo, TASK_CANCELLED} from '../base/async_memo';
+
+export function MyComponent(): m.Component<MyComponentAttrs> {
+  // 1. Instantiate once per component (closure or class field), NOT inside view(), as this is where the cache is stored.
+  const dataMemo = new AsyncMemo<MyData>();
+
+  return {
+    view({attrs}) {
+      // 2. Declare dependencies via `key`. compute() runs automatically when key changes.
+      const result = dataMemo.use({
+        key: {traceId: attrs.trace.id, filter: attrs.filter},
+        compute: async (signal) => {
+          const summary = await querySummary(attrs.trace.engine, attrs.filter);
+
+          // Optional: check cancellation to bail out early if superseded or disposed.
+          if (signal.isCancelled) return TASK_CANCELLED;
+
+          const details = await queryDetails(attrs.trace.engine, attrs.filter);
+          return {summary, details};
+        },
+        // Optional: show stale data while fetching when only certain keys change
+        retainOn: ['filter'],
+      });
+
+      if (result.isPending) {
+        return m(Spinner);
+      }
+
+      return m('.my-component', renderData(result.data));
+    },
+    onremove() {
+      // 3. Optional: dispose the memo on unmount to cancel pending tasks or clean up resources early
+      dataMemo.dispose();
+    },
+  };
+}
+```
+
+**Key behaviors of `AsyncMemo`:**
+- **Keys are compared by value (structural equality)**: The `key` can be any JSON-compatible structure (primitives, objects, arrays, bigints). Keys are serialized via `stringifyJsonWithBigints` and compared by value rather than object reference, so passing an object literal created during render (e.g. `key: {traceId: attrs.trace.id, filter: attrs.filter}`) will only trigger a re-fetch if its contents actually change. When the key changes, any pending task is superseded ("latest wins").
+- **Automatic Redraw**: `AsyncMemo` automatically calls `m.redraw()` when `compute` finishes. Never call `m.redraw()` manually inside `compute`.
+- **Concurrency Control**: Tasks are executed serially via an internal `AtomicTaskQueue`, preventing interleaved queries against shared resources (like temporary tables). Multiple memos can share an `AtomicTaskQueue` if needed.
+- **Cancellation**: `compute` receives a `CancellationSignal`. Long tasks can check `signal.isCancelled` and return `TASK_CANCELLED` to avoid caching stale results.
+- **Stale Transitions (`retainOn`)**: If you specify `retainOn: ['pagination']`, changing pagination will continue returning the previous `result.data` with `result.isPending = true`, avoiding visual flicker while fetching.
+- **Automatic Resource Disposal (`AsyncDisposable`)**: If the returned value is disposable (implements `AsyncDisposable`), it will automatically be disposed when no longer required—specifically, when a new value replaces it after a key change, when `memo.invalidate()` is called, or when the memo itself is disposed in `onremove()`. Disposal is coordinated through the task queue so it stays synchronized with in-flight work.
+- **`compute` functions should be side-effect free**: A `compute` function should only derive data or manage cached SQL structures. Do not mutate external state inside `compute`. The only allowed side effects are temporary SQL entities (tables, views, indexes)—and these **must be dropped in the returned disposable** (`AsyncDisposable`) so they are cleaned up automatically when evicted or invalidated.
+
+#### Multi-Step Operations & `AtomicTaskQueue`
+
+When an operation requires more than one asynchronous step (e.g., creating temporary tables/views, dropping old tables, and then querying them), standard async/await code easily suffers from race conditions. If inputs change while task A is halfway through, task B might start and drop or overwrite temporary tables that task A is still querying.
+
+`AtomicTaskQueue` runs one task at a time to completion then starts the next task. Sharing a single `AtomicTaskQueue` across multiple `AsyncMemo` instances guarantees that their multi-step queries never interleave.
+
+#### Chaining `AsyncMemo` Instances (Multi-Tier Caching)
+
+When some state changes infrequently (e.g., creating temporary mipmap tables or preparing views) while other derived state changes frequently (e.g., timeline pan/zoom bounds, pagination, or filters), chain two `AsyncMemo` instances together:
+
+```typescript
+import {AsyncMemo, AtomicTaskQueue} from '../base/async_memo';
+
+class MyTrack {
+  // Share an AtomicTaskQueue so table setup and table querying never race
+  private readonly queue = new AtomicTaskQueue();
+  private readonly tableSlot = new AsyncMemo<MipmapTables>(this.queue);
+  private readonly dataSlot = new AsyncMemo<Data>(this.queue);
+
+  render(ctx: TrackRenderContext) {
+    // 1. Slow/infrequent step: create temporary tables (only re-runs if track config changes)
+    const tableResult = this.tableSlot.use({
+      key: {trackId: this.config.trackId},
+      compute: () => this.createMipmapTables(),
+    });
+
+    // If the dependent table hasn't been created yet, return a loading spinner
+    // (here we just return early / undefined for brevity).
+    if (tableResult.data === undefined) return;
+
+    // 2. Fast/frequent step: query tables for visible bounds
+    const dataResult = this.dataSlot.use({
+      key: {
+        tableName: tableResult.data.tableName,
+        start: ctx.bounds.start,
+        end: ctx.bounds.end,
+        resolution: ctx.bounds.resolution,
+      },
+      compute: async (signal) => {
+        return this.fetchData(tableResult.data.tableName, ctx.bounds, signal);
+      },
+      retainOn: ['start', 'end', 'resolution'],
+    });
+
+    if (dataResult.data === undefined) return;
+    this.renderData(ctx, dataResult.data);
+  }
+
+  private async fetchData(
+    tableName: string,
+    bounds: Bounds,
+    signal: CancellationSignal,
+  ): Promise<Data | typeof TASK_CANCELLED> {
+    // Multi-step query: query summary stats first, then detail slices
+    const summary = await this.engine.query(`SELECT ... FROM ${tableName} ...`);
+    if (signal.isCancelled) return TASK_CANCELLED;
+
+    const details = await this.engine.query(`SELECT ... FROM ${tableName} ...`);
+    if (signal.isCancelled) return TASK_CANCELLED;
+
+    return {summary, details};
+  }
+
+  dispose() {
+    this.tableSlot.dispose();
+    this.dataSlot.dispose();
+  }
+}
+```
+
+Key takeaways:
+- **Multi-tier caching**: When the user pans or zooms, only `dataSlot` re-runs; `tableSlot` remains cached and does not re-create tables.
+- **Guaranteed non-interleaving**: Notice that `fetchData` runs multiple queries across asynchronous `await` points. Because `tableSlot` and `dataSlot` share the same `AtomicTaskQueue`, it is **impossible for `createMipmapTables` (or any other task on this queue) to run in between the two queries in `fetchData`**. The queue ensures all tasks run to completion atomically and serially.
+
+
 ### Widget Library
 
 The `ui/src/widgets/` directory contains reusable components. Always check here before creating new UI elements:
@@ -165,7 +297,7 @@ The `ui/src/widgets/` directory contains reusable components. Always check here 
 - `Modal` - Modal dialogs
 - `TextInput`, `Select`, `Checkbox`, `Switch` - Form controls
 - `Tree` - Tree view component
-- `DataGrid` - Tabular data grid component
+- `DataGrid` - Tabular data grid component (in `ui/src/components/widgets/`)
 - `Tabs` - Tabbed interface
 - `Spinner` - Loading indicator
 - `EmptyState` - Empty state placeholder
@@ -193,8 +325,8 @@ Follow these guidelines for TypeScript code:
 - **Strict boolean expressions**: Don't use numbers or strings in boolean contexts implicitly.
 - **Readonly by default**: Use `readonly` for interface properties and function parameters.
 - **Use existing utilities**: Check `ui/src/base/` for utilities before writing your own:
-  - `time.ts`, `duration.ts` - Time handling
-  - `logging.ts` - `assertTrue()`, `assertExists()`, `assertFalse()`
+  - `time.ts` - Time handling
+  - `assert.ts` - `assertTrue()`, `assertExists()`, `assertFalse()`
   - `disposable_stack.ts` - Resource cleanup
   - `deferred.ts` - Promise utilities
   - `string_utils.ts` - String manipulation
@@ -226,10 +358,45 @@ async onTraceLoad(trace: Trace): Promise<void> {
 }
 ```
 
+### Prefer `NUM` (number) over `LONG` (bigint) for TraceProcessor ID fields
+
+When pulling out TraceProcessor-assigned ID columns (e.g. `track_id`, `upid`, `utid`, `slice.id`), use `NUM`/`NUM_NULL` and `number` instead of `LONG`/`LONG_NULL` and `bigint`:
+
+```typescript
+const iter = result.iter({
+  track_id: NUM,   // GOOD: number — preferred for IDs
+  // track_id: LONG, // BAD: bigint — avoid for IDs
+});
+```
+
+TraceProcessor IDs are assigned sequentially by the engine, so they are small integers guaranteed to fit well within the 2^53 limit of JS `number`s (the largest safe integer). Using `number` avoids the awkwardness of `bigint` arithmetic and comparisons (`1n !== 1`), the need for `Number()`/`BigInt()` conversions at boundaries (e.g. track tags, URLs, JSON), and avoids the performance hit of `bigint` operations, which are significantly slower than number ops.
+
+### Prefer `LONG` (bigint) over `NUM` (number) for timestamps and durations
+
+Timestamps (`ts`) and durations (`dur`) in nanoseconds should use `LONG`/`bigint`, as they can genuinely exceed 2^53 — e.g. a ns timestamp overflows once the trace spans ~104 days (2^53 ns), and arithmetic on ns values (e.g. sums) can exceed it well before that. `bigint` is the only safe representation for those values.
+
+### Keep times and durations as `Time`/`Duration` where possible
+
+The UI has first-class types for these values in `ui/src/base/time.ts`: the branded `time` type (via the `Time` class) and `duration`, which is a type alias for `bigint` (via the `Duration` class). When pulling `ts`/`dur` (or any ns timestamp/duration) out of a query result, immediately convert to these types rather than passing raw `bigint`s around:
+
+```typescript
+const iter = result.iter({
+  ts: LONG,
+  dur: LONG,
+});
+
+for (; iter.valid(); iter.next()) {
+  const start = Time.fromRaw(iter.ts);      // time (branded bigint)
+  const dur = Duration.fromRaw(iter.dur);   // duration
+}
+```
+
+Because `time` is branded, TypeScript will reject passing a `duration` or plain `bigint` where a `time` is expected (and vice versa), catching time/duration mixups at compile time. Both classes also provide helpers for arithmetic and formatting (e.g. `Time.add`/`Time.clamp`, `Duration.humanise`/`Duration.format`, `Timecode`). Only hold raw `bigint`s at the query boundary; convert to `Time`/`Duration` as soon as you leave the query iteration.
+
 ## Track creation
 
 Rarely you need to create a new Track from scratch.
-In most cases you can use higher level components in ui/src/components/tracks/, especially DatasetSliceTrack (examples in /docs/contributing/ui-plugins.md).
+In most cases you can use higher level components in ui/src/components/tracks/, especially SliceTrack (examples in /docs/contributing/ui-plugins.md).
 Look at those examples first and keep creating a track via trace.tracks.registerTrack as a last-resort.
 
 ## CSS/SCSS Conventions
@@ -245,6 +412,9 @@ Stylesheets live in `ui/src/assets/` and component-specific `.scss` files alongs
 
 1. **Don't create new widgets without checking existing ones** - The widget library is comprehensive.
 2. **Try to use the Trace object as much as possible** - Plumb the Trace object through the hierarchy wherever needed.
+3. **Don't fetch async data in `oninit`/`onupdate` or DOM events (`onclick`, `onkeydown`)** - Loading should be a declarative product of state; update state and let `AsyncMemo` in `view()` handle fetching via the redraw mechanism.
+4. **Disposing `AsyncMemo` instances in `onremove()` is optional** - You can call `.dispose()` to cancel pending tasks and clean up cached disposable resources eagerly when the component unmounts.
+5. **Never instantiate `AsyncMemo` inside `view()`** - It must be created in the component setup closure or class constructor/field so its cache persists across render cycles.
 
 ## Code Review Pet Peeves and Style Preferences
 
@@ -289,7 +459,7 @@ const cls = classNames('pf-row', isSelected && 'pf-row--selected', isDisabled &&
 
 **Use `assertUnreachable()` in switch default cases:**
 ```typescript
-import {assertUnreachable} from '../base/logging';
+import {assertUnreachable} from '../base/assert';
 
 switch (value) {
   case 'a': return handleA();
@@ -340,7 +510,7 @@ m('.pf-my-component', 'content') // with styles in .scss file
 
 // Good
 .pf-my-component {
-  color: var(--pf-color-foreground);
+  color: var(--pf-color-text);
   background: var(--pf-color-background);
 }
 ```
@@ -366,7 +536,7 @@ view() {
 **Use the `Anchor` widget for links:**
 ```typescript
 import {Anchor} from '../widgets/anchor';
-import {Icons} from '../widgets/icons';
+import {Icons} from '../base/semantic_icons';
 
 // Bad
 m('a', {href: 'https://example.com', target: '_blank'}, 'Link')
@@ -427,10 +597,10 @@ const config = ConfigSchema.parse(JSON.parse(data));
 
 Unit tests are run with:
 ```sh
-$ui/run-unittests
+ui/run-unittests
 ```
 
-TypeScript unit tests follow the pattern `*_unittest.ts` and use Jest.
+TypeScript unit tests follow the pattern `*_unittest.ts` and use Vitest.
 
 ### UI Integration Tests
 

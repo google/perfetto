@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 616> descriptors{{
+std::array<FtraceMessageDescriptor, 618> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -6001,7 +6001,7 @@ std::array<FtraceMessageDescriptor, 616> descriptors{{
     },
     {
         "sched_wakeup_task_attr",
-        5,
+        9,
         {
             {},
             {"pid", ProtoSchemaType::kInt32},
@@ -6009,6 +6009,10 @@ std::array<FtraceMessageDescriptor, 616> descriptors{{
             {"task_util", ProtoSchemaType::kUint64},
             {"uclamp_min", ProtoSchemaType::kUint64},
             {"vruntime", ProtoSchemaType::kUint64},
+            {"sched_qos_user_defined_flag", ProtoSchemaType::kUint64},
+            {"rampup_multiplier", ProtoSchemaType::kUint32},
+            {"effect_rampup_multiplier", ProtoSchemaType::kUint32},
+            {"tag_nice", ProtoSchemaType::kInt32},
         },
     },
     {
@@ -6876,6 +6880,26 @@ std::array<FtraceMessageDescriptor, 616> descriptors{{
             {"cpu_id", ProtoSchemaType::kUint32},
             {"state", ProtoSchemaType::kUint32},
             {"s2idle", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "long_irq",
+        3,
+        {
+            {},
+            {"irq", ProtoSchemaType::kInt32},
+            {"latency", ProtoSchemaType::kUint32},
+            {"count", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "long_softirq",
+        3,
+        {
+            {},
+            {"vec_nr", ProtoSchemaType::kInt32},
+            {"latency", ProtoSchemaType::kUint32},
+            {"count", ProtoSchemaType::kUint32},
         },
     },
 }};

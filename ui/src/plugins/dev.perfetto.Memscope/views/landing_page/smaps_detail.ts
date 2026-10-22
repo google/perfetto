@@ -20,7 +20,7 @@
 import m from 'mithril';
 import {AsyncMemo} from '../../../../base/async_memo';
 import type {Trace} from '../../../../public/trace';
-import {LONG, NUM, STR} from '../../../../trace_processor/query_result';
+import {LONG, NUM, STR_NULL} from '../../../../trace_processor/query_result';
 import {Button} from '../../../../widgets/button';
 import {Icon} from '../../../../widgets/icon';
 import {RadioGroup} from '../../../../widgets/radio_group';
@@ -194,7 +194,7 @@ async function loadSmapsPaths(
   `);
   for (
     const it = res.iter({
-      path: STR,
+      path: STR_NULL,
       rss: NUM,
       pss: NUM,
       anon: NUM,
@@ -208,7 +208,7 @@ async function loadSmapsPaths(
     it.next()
   ) {
     rows.push({
-      path: it.path,
+      path: it.path ?? '',
       rss: it.rss,
       pss: it.pss,
       anon: it.anon,

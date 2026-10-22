@@ -24,9 +24,20 @@ import WasmModuleGen from '../gen/proto_utils';
  * It guarantees to have the same behaviour of perfetto_cmd and trace_processor
  * by using precisely the same code via WebAssembly.
  */
+// Each takes the number of bytes in |buf| and returns the number written back.
+const kConvertFns = [
+  'trace_config_pb_to_txt',
+  'trace_config_txt_to_pb',
+  'trace_summary_spec_to_text',
+  'trace_summary_spec_txt_to_pb',
+] as const;
+type ConvertFn = (typeof kConvertFns)[number];
+
 interface WasmModule {
   module: WasmModuleGen.Module;
   buf: Uint8Array;
+  // cwrap() resolves the export once; ccall() would redo it on every call.
+  fns: Record<ConvertFn, (size: number) => number>;
 }
 
 let moduleInstance: WasmModule | undefined = undefined;
@@ -38,7 +49,7 @@ let moduleInstance: WasmModule | undefined = undefined;
 async function pbToText<T>(
   input: Uint8Array | T,
   encode: (val: T) => {finish(): Uint8Array},
-  ccallName: string,
+  fnName: ConvertFn,
 ): Promise<string> {
   const wasm = await initWasmOnce();
   const inputU8: Uint8Array =
@@ -50,8 +61,7 @@ async function pbToText<T>(
   }
   wasm.buf.set(inputU8);
 
-  const txtSize =
-    wasm.module.ccall(ccallName, 'number', ['number'], [inputU8.length]) >>> 0;
+  const txtSize = wasm.fns[fnName](inputU8.length) >>> 0;
   return utf8Decode(wasm.buf.subarray(0, txtSize));
 }
 
@@ -71,7 +81,7 @@ export async function traceConfigToTxt(
  */
 async function textToPb(
   input: string,
-  ccallName: string,
+  fnName: ConvertFn,
 ): Promise<Result<Uint8Array>> {
   const wasm = await initWasmOnce();
 
@@ -83,9 +93,7 @@ async function textToPb(
   }
   wasm.buf.set(inputUtf8);
 
-  const resSize =
-    wasm.module.ccall(ccallName, 'number', ['number'], [inputUtf8.length]) >>>
-    0;
+  const resSize = wasm.fns[fnName](inputUtf8.length) >>> 0;
 
   const success = wasm.buf.at(0) === 1;
   const payload = wasm.buf.slice(1, 1 + resSize);
@@ -133,12 +141,17 @@ async function initWasmOnce(): Promise<WasmModule> {
       onRuntimeInitialized: () => {},
       wasmBinary,
     } as WasmModuleGen.ModuleArgs);
-    const bufAddr = instance.ccall('proto_utils_buf', 'number', [], []) >>> 0;
+    const bufAddr = instance.cwrap('proto_utils_buf', 'number', [])() >>> 0;
     const bufSize =
-      instance.ccall('proto_utils_buf_size', 'number', [], []) >>> 0;
+      instance.cwrap('proto_utils_buf_size', 'number', [])() >>> 0;
+    const fns = {} as Record<ConvertFn, (size: number) => number>;
+    for (const name of kConvertFns) {
+      fns[name] = instance.cwrap(name, 'number', ['number']);
+    }
     moduleInstance = {
       module: instance,
       buf: instance.HEAPU8.subarray(bufAddr, bufAddr + bufSize),
+      fns,
     };
   }
   return moduleInstance;

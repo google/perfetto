@@ -70,6 +70,7 @@ namespace metadata {
   F(trace_uuid,                        KeyType::kSingle,  Variadic::kString, Scope::kTrace),           \
   F(unique_session_name,               KeyType::kSingle,  Variadic::kString, Scope::kTrace),           \
   F(ui_state,                          KeyType::kSingle,  Variadic::kString, Scope::kTrace),           \
+  F(trace_recovery_reason,             KeyType::kSingle,  Variadic::kString, Scope::kTrace),           \
   F(android_build_fingerprint,         KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
   F(android_device_manufacturer,       KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
   F(android_guest_soc_model,           KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
@@ -80,6 +81,7 @@ namespace metadata {
   F(android_serial_console,            KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
   F(android_soc_model,                 KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
   F(android_storage_model,             KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
+  F(device_tree_compatible,            KeyType::kMulti,   Variadic::kString, Scope::kMachine),         \
   F(system_machine,                    KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
   F(system_name,                       KeyType::kSingle,  Variadic::kString, Scope::kMachine),         \
   F(system_ram_bytes,                  KeyType::kSingle,  Variadic::kInt,    Scope::kMachine),         \

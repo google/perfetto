@@ -46,9 +46,7 @@ export class Slider implements ProbeSetting {
   }
 
   deserialize(state: unknown): void {
-    if (typeof state === 'number') {
-      this._value = state;
-    }
+    this.setValue(typeof state === 'number' ? state : undefined);
   }
 
   get value(): number {

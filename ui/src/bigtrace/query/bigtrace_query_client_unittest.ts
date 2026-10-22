@@ -18,6 +18,7 @@ import {
   BigtraceQueryClient,
   parseQueryResponse,
   QueryNotFoundError,
+  toExperimentFilterSpec,
 } from './bigtrace_query_client';
 import {coerceFiltersForWire, encodeFilters} from './filter_encoding';
 import type {Filter} from '../../components/widgets/datagrid/model';
@@ -235,6 +236,31 @@ describe('BigtraceQueryClient trace-metadata wire', () => {
     ]);
     expect(schema.columns[0].defaultVisible).toBe(true);
   });
+
+  test('listTraceMetadataColumnValues POSTs column, search and coerced trace_filters', async () => {
+    const fetchMock = captureFetch({values: ['Google', 'Samsung']});
+    const client = new BigtraceQueryClient('http://example/');
+    const values = await client.listTraceMetadataColumnValues(
+      [traceDir],
+      'device_manufacturer',
+      {
+        search: 'goo',
+        traceFilters: [{field: 'trace_population', op: 'in', value: ['A']}],
+      },
+    );
+
+    expect(urlFrom(fetchMock)).toBe(
+      'http://example//trace_metadata_column_values',
+    );
+    const body = bodyFrom(fetchMock);
+    expect(body.column_name).toBe('device_manufacturer');
+    expect(body.search_pattern).toBe('goo');
+    expect(body.trace_filters).toEqual([
+      {field: 'trace_population', op: 'in', value: ['A']},
+    ]);
+    expect(body.limit).toBeUndefined();
+    expect(values).toEqual(['Google', 'Samsung']);
+  });
 });
 
 describe('BigtraceQueryClient execute trace-selection snapshot', () => {
@@ -395,7 +421,10 @@ describe('BigtraceQueryClient.fetchResults', () => {
 
   test('exposes availableColumnNames from the response (the column-picker union)', async () => {
     const fetchMock = captureFetch({
-      columnNames: ['name', 'dur'],
+      schema: [
+        {name: 'name', type: 'STRING'},
+        {name: 'dur', type: 'STRING'},
+      ],
       rows: [{values: ['slice', '10']}],
       availableColumnNames: ['name', 'dur', 'device_name', 'android_id'],
     });
@@ -457,13 +486,332 @@ describe('BigtraceQueryClient error responses', () => {
 });
 
 describe('parseQueryResponse', () => {
-  test('passes values through: JSON null is SQL NULL, the string "NULL" stays text', () => {
+  test('normalizes JSON null and "NULL" string to null for all columns', () => {
     const page = parseQueryResponse({
-      columnNames: ['name', 'note'],
+      schema: [
+        {name: 'name', type: 'STRING'},
+        {name: 'note', type: 'STRING'},
+      ],
       rows: [{values: ['NULL', null]}, {values: ['x', 'y']}],
     });
     expect(page.columns).toEqual(['name', 'note']);
-    expect(page.rows[0]).toEqual({name: 'NULL', note: null});
+    expect(page.rows[0]).toEqual({name: null, note: null});
     expect(page.rows[1]).toEqual({name: 'x', note: 'y'});
+  });
+
+  test('parses rows according to schema when schema is present', () => {
+    const page = parseQueryResponse({
+      schema: [
+        {name: 'id', type: 'INT64'},
+        {name: 'score', type: 'FLOAT64'},
+        {name: 'data', type: 'BYTES'},
+        {name: 'name', type: 'STRING'},
+      ],
+      rows: [
+        {values: ['123', '3.14', 'aGVsbG8=', 'alice']},
+        {values: ['NULL', 'NULL', 'NULL', 'NULL']},
+      ],
+    });
+    expect(page.columns).toEqual(['id', 'score', 'data', 'name']);
+    expect(page.rows[0].id).toBe(123n);
+    expect(page.rows[0].score).toBe(3.14);
+    expect(page.rows[0].data).toBeInstanceOf(Uint8Array);
+    expect(Array.from(page.rows[0].data as Uint8Array)).toEqual([
+      104, 101, 108, 108, 111,
+    ]);
+    expect(page.rows[0].name).toBe('alice');
+
+    expect(page.rows[1].id).toBeNull();
+    expect(page.rows[1].score).toBeNull();
+    expect(page.rows[1].data).toBeNull();
+    expect(page.rows[1].name).toBeNull();
+  });
+
+  test('derives columns from schema', () => {
+    const page = parseQueryResponse({
+      schema: [
+        {name: 'id', type: 'INT64'},
+        {name: 'name', type: 'STRING'},
+      ],
+      rows: [{values: ['123', 'alice']}],
+    });
+    expect(page.columns).toEqual(['id', 'name']);
+    expect(page.rows[0]).toEqual({id: 123n, name: 'alice'});
+  });
+
+  test('returns empty when schema is missing or empty', () => {
+    const page = parseQueryResponse({
+      rows: [{values: ['123', 'alice']}],
+    });
+    expect(page.columns).toEqual([]);
+    expect(page.rows).toEqual([]);
+    expect(page.schema).toEqual([]);
+  });
+});
+
+describe('BigtraceQueryClient experiments', () => {
+  const originalFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  function captureFetch(payload: unknown): ReturnType<typeof vi.fn> {
+    const fakeResp = {
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(payload)),
+      json: () => Promise.resolve(payload),
+    };
+    const fn = vi.fn().mockResolvedValue(fakeResp);
+    global.fetch = fn as unknown as typeof fetch;
+    return fn;
+  }
+
+  function urlFrom(fetchMock: ReturnType<typeof vi.fn>): string {
+    return (fetchMock.mock.calls[0] as unknown[])[0] as string;
+  }
+
+  function bodyFrom(
+    fetchMock: ReturnType<typeof vi.fn>,
+  ): Record<string, unknown> {
+    const init = (fetchMock.mock.calls[0] as unknown[])[1] as RequestInit;
+    return JSON.parse(init.body as string);
+  }
+
+  const item = {
+    experimentId: 123456,
+    experimentName: 'an experiment',
+    controlId: 123457,
+    controlName: 'its control',
+    isExperimentDenied: false,
+    isControlDenied: true,
+  };
+
+  test('listExperiments POSTs the search with one capped page', async () => {
+    const fetchMock = captureFetch({experiments: [item]});
+    const client = new BigtraceQueryClient('http://example');
+    const got = await client.listExperiments('exp');
+
+    expect(urlFrom(fetchMock)).toBe('http://example/experiments');
+    expect(bodyFrom(fetchMock)).toEqual({
+      search_query: 'exp',
+      limit: 50,
+      offset: 0,
+    });
+    // Ids stay numbers and denial flags stay booleans: the wire types are
+    // the UI's types, with nothing in between to drift.
+    expect(got).toEqual([item]);
+    expect(typeof got[0].experimentId).toBe('number');
+    expect(got[0].isControlDenied).toBe(true);
+  });
+
+  test('listExperiments reads an absent list as no matches', async () => {
+    captureFetch({});
+    const client = new BigtraceQueryClient('http://example');
+    expect(await client.listExperiments('nothing')).toEqual([]);
+  });
+
+  test('getExperimentMetadata asks by numeric id', async () => {
+    const fetchMock = captureFetch({experiment: item});
+    const client = new BigtraceQueryClient('http://example');
+    const got = await client.getExperimentMetadata(123456);
+
+    expect(urlFrom(fetchMock)).toBe('http://example/experiment_metadata');
+    expect(bodyFrom(fetchMock)).toEqual({experiment_id: 123456});
+    expect(got).toEqual(item);
+  });
+
+  test('an id the backend does not know is not an error', async () => {
+    captureFetch({});
+    const client = new BigtraceQueryClient('http://example');
+    await expect(client.getExperimentMetadata(999)).resolves.toBeUndefined();
+  });
+
+  test('toExperimentFilterSpec keeps only what travels', () => {
+    expect(
+      toExperimentFilterSpec({
+        experimentId: 1,
+        controlId: 2,
+        isTreatment: false,
+        experimentName: 'a name',
+        controlName: 'another',
+        experimentDenied: true,
+        controlDenied: false,
+      } as never),
+    ).toEqual({experimentId: 1, controlId: 2, isTreatment: false});
+    expect(toExperimentFilterSpec(undefined)).toBeUndefined();
+  });
+
+  test('execute ships the experiment filter as the snake triple', async () => {
+    const fetchMock = captureFetch({
+      queryUuid: 'uid',
+      columnNames: [],
+      rows: [],
+    });
+    const client = new BigtraceQueryClient('http://example');
+    await client.executeAsync('select 1', 100, [], undefined, {
+      experimentFilter: {experimentId: 1, controlId: 2, isTreatment: true},
+    });
+    expect(bodyFrom(fetchMock).experiment_filter).toEqual({
+      experiment_id: 1,
+      control_id: 2,
+      is_treatment: true,
+    });
+  });
+
+  test('execute omits the field when nothing is selected', async () => {
+    const fetchMock = captureFetch({
+      queryUuid: 'uid',
+      columnNames: [],
+      rows: [],
+    });
+    const client = new BigtraceQueryClient('http://example');
+    await client.executeAsync('select 1', 100, []);
+    expect(bodyFrom(fetchMock).experiment_filter).toBeUndefined();
+  });
+
+  test('the trace grid asks for the same selection a run would use', async () => {
+    const fetchMock = captureFetch({columnNames: [], rows: []});
+    const client = new BigtraceQueryClient('http://example');
+    await client.listTraceMetadata(
+      [],
+      50,
+      0,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        experimentId: 7,
+        controlId: 8,
+        isTreatment: false,
+      },
+    );
+    expect(bodyFrom(fetchMock).experiment_filter).toEqual({
+      experiment_id: 7,
+      control_id: 8,
+      is_treatment: false,
+    });
+  });
+
+  test('the trace grid omits the field when nothing is selected', async () => {
+    const fetchMock = captureFetch({columnNames: [], rows: []});
+    const client = new BigtraceQueryClient('http://example');
+    await client.listTraceMetadata([], 50, 0);
+    expect(bodyFrom(fetchMock).experiment_filter).toBeUndefined();
+  });
+});
+
+describe('BigtraceQueryClient result tables', () => {
+  const originalFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  function captureFetch(payload: unknown): ReturnType<typeof vi.fn> {
+    const fakeResp = {
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(payload)),
+      json: () => Promise.resolve(payload),
+    };
+    const fn = vi.fn().mockResolvedValue(fakeResp);
+    global.fetch = fn as unknown as typeof fetch;
+    return fn;
+  }
+
+  function callOf(fetchMock: ReturnType<typeof vi.fn>) {
+    const call = fetchMock.mock.calls[0] as unknown[];
+    const init = call[1] as RequestInit;
+    return {
+      url: call[0] as string,
+      method: init.method,
+      body: init.body === undefined ? {} : JSON.parse(init.body as string),
+    };
+  }
+
+  const EXEC = {queryUuid: 'uid', columnNames: [], rows: []};
+
+  test('a named table and its lifetime ride on the run', async () => {
+    const fetchMock = captureFetch(EXEC);
+    const client = new BigtraceQueryClient('http://example');
+    await client.executeAsync('select 1', 100, [], undefined, {
+      tableName: 'jank_by_device',
+      tableTtlDays: 30,
+    });
+    const {body} = callOf(fetchMock);
+    expect(body.table_name).toBe('jank_by_device');
+    expect(body.table_ttl_days).toBe(30);
+  });
+
+  test('an unnamed run says nothing about a table', async () => {
+    const fetchMock = captureFetch(EXEC);
+    const client = new BigtraceQueryClient('http://example');
+    await client.executeAsync('select 1', 100, []);
+    const {body} = callOf(fetchMock);
+    expect(body.table_name).toBeUndefined();
+    expect(body.table_ttl_days).toBeUndefined();
+  });
+
+  test('an empty name asks the backend to choose, so it is not sent', async () => {
+    const fetchMock = captureFetch(EXEC);
+    const client = new BigtraceQueryClient('http://example');
+    await client.executeAsync('select 1', 100, [], undefined, {
+      tableName: '',
+      tableTtlDays: 30,
+    });
+    const {body} = callOf(fetchMock);
+    expect(body.table_name).toBeUndefined();
+    // The lifetime still applies: the backend names the table, but it is
+    // still this run's table.
+    expect(body.table_ttl_days).toBe(30);
+  });
+
+  test('checkTableExists asks about a name and reads back the resolved one', async () => {
+    const fetchMock = captureFetch({
+      exists: true,
+      resolvedTableName: 'ns_jank',
+    });
+    const client = new BigtraceQueryClient('http://example');
+    const got = await client.checkTableExists('jank');
+
+    const {url, method, body} = callOf(fetchMock);
+    expect(url).toBe('http://example/check_table_exists');
+    expect(method).toBe('POST');
+    expect(body).toEqual({table_name: 'jank'});
+    expect(got).toEqual({exists: true, resolvedTableName: 'ns_jank'});
+  });
+
+  test('a backend that resolves nothing leaves the name as asked', async () => {
+    captureFetch({exists: false});
+    const client = new BigtraceQueryClient('http://example');
+    expect(await client.checkTableExists('jank')).toEqual({
+      exists: false,
+      resolvedTableName: 'jank',
+    });
+  });
+
+  test('deleting an execution takes its table with it', async () => {
+    const fetchMock = captureFetch({});
+    const client = new BigtraceQueryClient('http://example');
+    await client.deleteQueryExecution('uid-1');
+    const {url, method} = callOf(fetchMock);
+    expect(url).toBe('http://example/query_executions/uid-1?drop_table=true');
+    expect(method).toBe('DELETE');
+  });
+
+  test('fetchColumnValues asks one column of the result table', async () => {
+    const fetchMock = captureFetch({values: ['a', 'b']});
+    const client = new BigtraceQueryClient('http://example');
+    const values = await client.fetchColumnValues(
+      'uid-1',
+      'process_name',
+      'sys',
+    );
+    const {url, method, body} = callOf(fetchMock);
+    expect(url).toBe('http://example/query_executions/uid-1:column_values');
+    expect(method).toBe('POST');
+    expect(body).toEqual({column_name: 'process_name', search_pattern: 'sys'});
+    expect(values).toEqual(['a', 'b']);
   });
 });

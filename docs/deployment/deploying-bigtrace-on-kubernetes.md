@@ -70,7 +70,7 @@ You can follow these instructions on device or in cloud shell using the followin
 ```bash
 gcloud auth login
 
-gcloud container clusters get-credentials [CLUSTER_NAME] --zone [ZONE]--project [PROJECT_NAME]
+gcloud container clusters get-credentials [CLUSTER_NAME] --zone [ZONE] --project [PROJECT_NAME]
 ```
 
 
@@ -160,7 +160,7 @@ kubectl apply -f infra/bigtrace/gke/worker-service.yaml
 This image builds on top of the base Clickhouse image and provides the necessary Python libraries for gRPC to communicate with the Orchestrator.
 
 ```bash
-docker build -t clickhouse infra/bigtrace/bigtrace_clickhouse
+docker build -t clickhouse infra/bigtrace/clickhouse
 
 docker tag clickhouse [ZONE]-docker.pkg.dev/[PROJECT_NAME]/[REPO_NAME]/clickhouse
 
@@ -172,9 +172,9 @@ To deploy this on a pod in a cluster, the provided yaml files must be applied us
 ```
 kubectl apply -f infra/bigtrace/clickhouse/clickhouse-config.yaml
 
-kubectl apply -f infra/bigtrace/clickhouse/pvc.yaml
+kubectl apply -f infra/bigtrace/clickhouse/clickhouse-pvc.yaml
 
-kubectl apply -f infra/bigtrace/clickhouse/pv.yaml
+kubectl apply -f infra/bigtrace/clickhouse/clickhouse-pv.yaml
 
 kubectl apply -f infra/bigtrace/clickhouse/clickhouse-deployment.yaml
 

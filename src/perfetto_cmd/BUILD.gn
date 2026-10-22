@@ -73,7 +73,10 @@ source_set("perfetto_cmd") {
   assert_no_deps = [ "../trace_processor/*" ]
 
   if (is_android) {
-    deps += [ "../android_internal:lazy_library_loader" ]
+    deps += [
+      "../../protos/perfetto/trace/android:zero",
+      "../android_internal:lazy_library_loader",
+    ]
     sources += [ "perfetto_cmd_android.cc" ]
   }
 
@@ -148,6 +151,9 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config/ftrace:cpp",
     "../../protos/perfetto/trace:cpp",
+
+    # Required to pass GN header checking across all targets
+    "../../protos/perfetto/trace/android:zero",
     "../tracing/core",
     "../tracing/test:test_support",
   ]

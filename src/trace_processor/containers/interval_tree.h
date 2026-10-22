@@ -56,6 +56,10 @@ inline bool IsOverlapping(bool query_is_instant,
   return e > i.start && s < i.end;
 }
 
+inline bool IsOverlapping(const Interval& a, const Interval& b) {
+  return IsOverlapping(a.start == a.end, a.start, a.end, b);
+}
+
 // An implementation of a centered interval tree data structure, designed to
 // efficiently find all overlap queries on a set of intervals. Centered interval
 // tree has a build complexity of O(N*logN) and a query time of O(logN + k),

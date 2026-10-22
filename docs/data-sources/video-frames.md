@@ -175,29 +175,31 @@ the speed selector to play back slower (down to 0.1×) or faster (up to
 
 ### Exporting to an .mp4 from the command line
 
-`tools/trace_video_conv.py` pulls the captured video out of a trace into an
-`.mp4` using ffmpeg (the encoded frames are copied as-is, not re-encoded).
-It needs `ffmpeg` on the `PATH`; `trace_processor` is downloaded
+`python/tools/trace_video_conv.py` pulls the captured video out of a trace
+into an `.mp4` using ffmpeg's libav (the encoded frames are copied as-is, not
+re-encoded). It needs the PyAV package (`pip install av`), plus `ffmpeg` on the
+`PATH` for `--compare` and for clips with frameless gaps that need padding;
+`trace_processor` is downloaded
 automatically, or pass `--trace-processor` to use a local build.
 
 ```bash
 # List the video streams in a trace.
-tools/trace_video_conv.py TRACE.perfetto-trace --list
+python3 python/tools/trace_video_conv.py TRACE.perfetto-trace --list
 
 # Convert the whole video to an .mp4.
-tools/trace_video_conv.py TRACE.perfetto-trace -o out.mp4
+python3 python/tools/trace_video_conv.py TRACE.perfetto-trace -o out.mp4
 
 # Clip to a time range (trace ts, ns), or to whatever a query selects
 # (the query returns a `ts` column, and optionally `dur`).
-tools/trace_video_conv.py TRACE.perfetto-trace -o clip.mp4 --start <ts> --end <ts>
-tools/trace_video_conv.py TRACE.perfetto-trace -o clip.mp4 \
+python3 python/tools/trace_video_conv.py TRACE.perfetto-trace -o clip.mp4 --start <ts> --end <ts>
+python3 python/tools/trace_video_conv.py TRACE.perfetto-trace -o clip.mp4 \
     --query "SELECT ts, dur FROM slice WHERE name = 'my_cuj'"
 
 # Slow motion (0.5x) or 2x faster.
-tools/trace_video_conv.py TRACE.perfetto-trace -o out.mp4 --speed 0.5
+python3 python/tools/trace_video_conv.py TRACE.perfetto-trace -o out.mp4 --speed 0.5
 
 # Two traces side by side, each captioned (defaults to the file names).
-tools/trace_video_conv.py before.perfetto-trace --compare after.perfetto-trace \
+python3 python/tools/trace_video_conv.py before.perfetto-trace --compare after.perfetto-trace \
     -o compare.mp4 --title Before --title2 After
 ```
 

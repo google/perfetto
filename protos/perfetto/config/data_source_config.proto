@@ -23,6 +23,7 @@ import "protos/perfetto/config/android/android_game_intervention_list_config.pro
 import "protos/perfetto/config/android/android_input_event_config.proto";
 import "protos/perfetto/config/android/android_log_config.proto";
 import "protos/perfetto/config/android/android_polled_state_config.proto";
+import "protos/perfetto/config/android/android_process_state_config.proto";
 import "protos/perfetto/config/android/android_system_property_config.proto";
 import "protos/perfetto/config/android/android_sdk_sysprop_guard_config.proto";
 import "protos/perfetto/config/android/app_wakelock_config.proto";
@@ -57,16 +58,28 @@ import "protos/perfetto/config/process_stats/process_stats_config.proto";
 import "protos/perfetto/config/profiling/heapprofd_config.proto";
 import "protos/perfetto/config/profiling/java_hprof_config.proto";
 import "protos/perfetto/config/profiling/perf_event_config.proto";
+import "protos/perfetto/config/profiling/smaps_config.proto";
 import "protos/perfetto/config/sys_stats/sys_stats_config.proto";
 import "protos/perfetto/config/test_config.proto";
 import "protos/perfetto/config/track_event/track_event_config.proto";
 import "protos/perfetto/config/system_info/system_info_config.proto";
 import "protos/perfetto/config/chrome/histogram_samples.proto";
+import "protos/perfetto/config/chrome/sampling_heap_profiler.proto";
+import "protos/perfetto/config/chrome/stack_sampling_profiler.proto";
 import "protos/perfetto/config/linux/journald_config.proto";
 import "protos/perfetto/config/qnx/qnx_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 143
+//
+// Keep the lower IDs (up to 99) for fields that are *not* specific to
+// data-sources and needs to be processed by the traced daemon.
+//
+// All data source config fields must be marked as [lazy=true]. This prevents
+// the proto-to-cpp generator from recursing into those when generating the
+// cpp classes and polluting tracing/core with data-source-specific classes.
+// Instead they are treated as opaque strings containing raw proto bytes.
+//
+// Next id: 149
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -163,7 +176,7 @@ message DataSourceConfig {
   // overwritten packets (patches) using a ProtoVM instance with this config.
   // The ProtoVM program is specified at data source registration time through
   // the descriptor.
-
+  //
   // TODO(primiano): today when we enable a protovm_config, we actually accept
   // that if N producers advertise M different versions of the same program we
   // will create M instances of that program.
@@ -173,13 +186,65 @@ message DataSourceConfig {
   // onto that.
   optional ProtoVmConfig protovm_config = 12;
 
-  // Keep the lower IDs (up to 99) for fields that are *not* specific to
-  // data-sources and needs to be processed by the traced daemon.
+  // Set by the service to indicate that this data source can write to its
+  // target buffer through the tracing v2 ring buffer. True only if:
+  // - v2 is in the connection's common ProtocolAbiVersion mask, and
+  // - the target buffer is a TraceBufferV2.
+  // Absent means false. True permits v2 but does not select it. The producer
+  // can select v1 only if v1 is also in the common mask. If no common version
+  // is permitted by the config and target buffer, the instance cannot run.
+  // One buffer can hold both formats. Each writer sequence uses one format.
+  //
+  // Not supported: a ProtoVM data source on the same buffer.
+  // DO NOT SET in consumer as this will be overridden by the service.
+  optional bool supports_tracing_v2 = 147;
 
-  // All data source config fields must be marked as [lazy=true]. This prevents
-  // the proto-to-cpp generator from recursing into those when generating the
-  // cpp classes and polluting tracing/core with data-source-specific classes.
-  // Instead they are treated as opaque strings containing raw proto bytes.
+  // Experimental.
+  // Lets the producer write this data source through the tracing v2 ring
+  // buffer.
+  // - Selecting v2 requires a TRACE_BUFFER_V2 target buffer and support from
+  //   the producer and data source.
+  // - Instances that do not select v2 use v1 only if the connection permits it.
+  //   If neither transport is available, writers discard their data.
+  // - If the producer cannot create or attach the ring buffer, selected
+  //   instances discard their data and do not fall back to v1.
+  message ExperimentalTracingV2Config {
+    // Percent of instances that use v2, from 0 (the default) to 100.
+    // The service rejects a nonzero use_v2_probability_percent and a
+    // ProtoVM data source on the same buffer.
+    optional uint32 use_v2_probability_percent = 1;
+
+    // One chunk size that the producer can choose for the ring buffer.
+    message ChunkSizeOption {
+      // Bytes per chunk, from 256 to 65536, and a multiple of 4.
+      // The service rejects other values.
+      optional uint32 size_bytes = 1;
+      // The chance of this option, relative to the other options.
+      // Absent means 1, and 0 means never.
+      optional uint32 weight = 2;
+    }
+    // The producer chooses one option at random, by weight, when it creates
+    // the ring buffer.
+    // With no option, or with all weights 0, it uses 256 bytes.
+    //
+    // The first instance that selects v2 chooses the size for the connection,
+    // and the options of later instances have no effect.
+    repeated ChunkSizeOption chunk_size_options = 2;
+
+    // When the writers ask the service to drain the ring buffer.
+    // After each publication, a writer counts the ring buffer positions that
+    // wait for the reader, and asks for a drain when the count reaches:
+    // - 0 or absent: 25% of the positions.
+    // - 1 to 100: this percent of the positions, and at least one.
+    // - -1: one position, so it asks after every publication.
+    // Flushes and full ring buffers still ask for a drain at once.
+    // The service rejects other values.
+    //
+    // As for chunk_size_options, the first instance that selects v2 sets it
+    // for the connection, and the values of later instances have no effect.
+    optional int32 drain_occupancy_percent = 3;
+  }
+  optional ExperimentalTracingV2Config experimental_tracing_v2 = 148;
 
   // Data source name: linux.ftrace
   optional FtraceConfig ftrace_config = 100 [lazy = true];
@@ -312,6 +377,21 @@ message DataSourceConfig {
 
   // Data source name: android.display.video
   optional DisplayVideoConfig display_video_config = 142 [lazy = true];
+
+  // Data source name: org.chromium.sampler_profiler
+  optional ChromiumStackSamplingProfilerConfig
+      chromium_stack_sampling_profiler = 143 [lazy = true];
+
+  // Data source name: org.chromium.native_heap_profiler
+  optional ChromiumSamplingHeapProfilerConfig chromium_sampling_heap_profiler =
+      144 [lazy = true];
+
+  // Data source name: android.process_state
+  optional AndroidProcessStateConfig android_process_state_config = 145
+      [lazy = true];
+
+  // Data source name: linux.smaps
+  optional ProcessSmapsConfig process_smaps_config = 146 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

@@ -184,8 +184,9 @@ uint64_t ScanPacketsSelective(const LoadedTrace& trace) {
       kDenseMask{};
   uint64_t acc = 0;
   for (const ConstBytes& p : trace.packets) {
-    protozero::SelectiveTypedProtoDecoder<kMaxDirectFieldId> d(p.data, p.size,
-                                                               kDenseMask);
+    protozero::SelectiveTypedProtoDecoder<
+        protozero::TypedProtoDecoder<kMaxDirectFieldId>>
+        d(p.data, p.size, kDenseMask);
     if (d.at<TP::kTimestampFieldNumber>().valid())
       acc += d.at<TP::kTimestampFieldNumber>().as_uint64();
     acc += d.at<TP::kTrustedPacketSequenceIdFieldNumber>().as_uint32();

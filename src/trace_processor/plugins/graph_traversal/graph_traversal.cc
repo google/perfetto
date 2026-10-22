@@ -19,8 +19,10 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -69,13 +71,8 @@ struct Dfs : public sqlite::AggregateFunction<Dfs> {
 
     auto* graph = sqlite::value::Pointer<perfetto_sql::Graph>(argv[0], "GRAPH");
     auto table = std::make_unique<tables::TreeTable>(GetUserData(ctx));
-    if (!graph) {
-      return sqlite::result::UniquePointer(
-          ctx,
-          std::make_unique<dataframe::Dataframe>(std::move(table->dataframe())),
-          "TABLE");
-    }
-    PERFETTO_DCHECK(!graph->empty());
+    // A null graph means there were no edges: still traverse it (as an empty
+    // graph) so that the start nodes themselves are returned.
 
     // If the array is empty, be forgiving and return an empty array. We could
     // return an error here but in 99% of cases, the caller will simply want
@@ -90,12 +87,25 @@ struct Dfs : public sqlite::AggregateFunction<Dfs> {
     }
     PERFETTO_DCHECK(!start_ids->empty());
 
-    uint32_t graph_size = static_cast<uint32_t>(graph->size());
-    uint32_t max_id = graph_size;
+    uint32_t graph_size = graph ? static_cast<uint32_t>(graph->size()) : 0;
     for (int64_t x : *start_ids) {
-      max_id = std::max(max_id, static_cast<uint32_t>(x) + 1);
+      if (x < 0 || x > std::numeric_limits<int32_t>::max()) {
+        return sqlite::result::Error(
+            ctx, "DFS: node ids must be non-negative 32-bit integers");
+      }
     }
-    std::vector<bool> visited(max_id);
+    std::vector<bool> visited(graph_size);
+    std::unordered_set<uint32_t> visited_outside_graph;
+    auto mark_visited = [&](uint32_t id) {
+      if (id >= graph_size) {
+        return visited_outside_graph.insert(id).second;
+      }
+      if (visited[id]) {
+        return false;
+      }
+      visited[id] = true;
+      return true;
+    };
     std::vector<State> stack;
     for (int64_t x : *start_ids) {
       stack.emplace_back(State{static_cast<uint32_t>(x), std::nullopt});
@@ -104,11 +114,10 @@ struct Dfs : public sqlite::AggregateFunction<Dfs> {
       State state = stack.back();
       stack.pop_back();
 
-      if (visited[state.id]) {
+      if (!mark_visited(state.id)) {
         continue;
       }
       table->Insert({state.id, state.parent_id});
-      visited[state.id] = true;
 
       if (state.id >= graph_size) {
         continue;
@@ -141,13 +150,8 @@ struct Bfs : public sqlite::AggregateFunction<Bfs> {
 
     auto* graph = sqlite::value::Pointer<perfetto_sql::Graph>(argv[0], "GRAPH");
     tables::TreeTable data(GetUserData(ctx));
-    if (!graph) {
-      return sqlite::result::UniquePointer(
-          ctx,
-          std::make_unique<dataframe::Dataframe>(std::move(data.dataframe())),
-          "TABLE");
-    }
-    PERFETTO_DCHECK(!graph->empty());
+    // A null graph means there were no edges: still traverse it (as an empty
+    // graph) so that the start nodes themselves are returned.
 
     // If the array is empty, be forgiving and return an empty array. We could
     // return an error here but in 99% of cases, the caller will simply want
@@ -162,19 +166,31 @@ struct Bfs : public sqlite::AggregateFunction<Bfs> {
     }
     PERFETTO_DCHECK(!start_ids->empty());
 
-    uint32_t graph_size = static_cast<uint32_t>(graph->size());
-    uint32_t max_id = graph_size;
+    uint32_t graph_size = graph ? static_cast<uint32_t>(graph->size()) : 0;
     for (int64_t raw_id : *start_ids) {
-      max_id = std::max(max_id, static_cast<uint32_t>(raw_id) + 1);
+      if (raw_id < 0 || raw_id > std::numeric_limits<int32_t>::max()) {
+        return sqlite::result::Error(
+            ctx, "BFS: node ids must be non-negative 32-bit integers");
+      }
     }
-    std::vector<bool> visited(max_id);
+    std::vector<bool> visited(graph_size);
+    std::unordered_set<uint32_t> visited_outside_graph;
+    auto mark_visited = [&](uint32_t id) {
+      if (id >= graph_size) {
+        return visited_outside_graph.insert(id).second;
+      }
+      if (visited[id]) {
+        return false;
+      }
+      visited[id] = true;
+      return true;
+    };
     base::CircularQueue<State> queue;
     for (int64_t raw_id : *start_ids) {
       auto id = static_cast<uint32_t>(raw_id);
-      if (visited[id]) {
+      if (!mark_visited(id)) {
         continue;
       }
-      visited[id] = true;
       queue.emplace_back(State{id, std::nullopt});
     }
     while (!queue.empty()) {
@@ -187,10 +203,9 @@ struct Bfs : public sqlite::AggregateFunction<Bfs> {
       }
       auto& node = (*graph)[state.id];
       for (uint32_t n : node.outgoing_edges) {
-        if (visited[n]) {
+        if (!mark_visited(n)) {
           continue;
         }
-        visited[n] = true;
         queue.emplace_back(State{n, state.id});
       }
     }

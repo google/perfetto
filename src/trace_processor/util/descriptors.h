@@ -113,7 +113,7 @@ class ProtoDescriptor {
 
   void AddField(FieldDescriptor descriptor) {
     PERFETTO_DCHECK(type_ == Type::kMessage);
-    fields_.emplace(descriptor.number(), std::move(descriptor));
+    fields_.insert_or_assign(descriptor.number(), std::move(descriptor));
   }
 
   void AddEnumValue(int32_t integer_representation,
@@ -209,7 +209,7 @@ struct ExtensionInfo {
 struct ExtensionTypeCheck {
   std::string extendee_full_name;
   std::string field_name;
-  std::string existing_raw_type;
+  FieldDescriptor existing_field;
   std::string new_raw_type;
 };
 
@@ -246,7 +246,12 @@ class DescriptorPool {
 
   std::vector<uint8_t> SerializeAsDescriptorSet() const;
 
+  // Bumped whenever a descriptor is added or changed, so that state derived
+  // from the pool can tell it is stale.
+  uint32_t generation() const { return generation_; }
+
   void AddProtoDescriptorForTesting(ProtoDescriptor descriptor) {
+    generation_++;
     AddProtoDescriptor(std::move(descriptor));
   }
 
@@ -324,6 +329,8 @@ class DescriptorPool {
   // Adds a new descriptor to the pool and returns its index. There must not be
   // already a descriptor with the same full_name in the pool.
   uint32_t AddProtoDescriptor(ProtoDescriptor descriptor);
+
+  uint32_t generation_ = 0;
 
   bool DescriptorsStructurallyEqual(
       uint32_t root_existing_idx,

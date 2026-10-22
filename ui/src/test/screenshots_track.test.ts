@@ -46,7 +46,7 @@ test('screenshot track hover preview', async () => {
 
     // Take a screenshot of the tooltip
     await expect(page.locator('.pf-cursor-tooltip')).toHaveScreenshot(
-      'screenshots_track_hover.png',
+      pth.screenshotName('screenshots_track_hover.png'),
     );
   }
 });

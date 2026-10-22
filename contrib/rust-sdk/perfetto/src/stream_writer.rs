@@ -17,7 +17,7 @@ use std::{cell::RefCell, ptr, slice};
 
 /// A `StreamWriter` owns a chunk of memory that the user can write to.
 pub struct StreamWriter {
-    pub(crate) writer: RefCell<PerfettoStreamWriter>,
+    pub(crate) writer: RefCell<PerfettoPbMsgWriter>,
 }
 
 impl StreamWriter {
@@ -65,7 +65,7 @@ impl StreamWriter {
 
         // SAFETY: `writer` must be valid.
         unsafe {
-            PerfettoStreamWriterAppendBytesSlowpath(&mut *writer as *mut _, src.as_ptr(), src.len())
+            PerfettoPbMsgWriterAppendBytesSlowpath(&mut *writer as *mut _, src.as_ptr(), src.len())
         };
     }
 
@@ -77,7 +77,7 @@ impl StreamWriter {
         // Create new chunk if needed.
         if crate::__unlikely!(self.available_bytes() < 1) {
             // SAFETY: `writer` must be valid.
-            unsafe { PerfettoStreamWriterNewChunk(&mut *writer as *mut _) };
+            unsafe { PerfettoPbMsgWriterNewChunk(&mut *writer as *mut _) };
         }
 
         assert!(1 <= self.available_bytes());
@@ -132,7 +132,7 @@ impl StreamWriter {
         assert!(!writer.impl_.is_null());
 
         // SAFETY: `writer` must be valid.
-        unsafe { PerfettoStreamWriterReserveBytesSlowpath(&mut *writer as *mut _, size) };
+        unsafe { PerfettoPbMsgWriterReserveBytesSlowpath(&mut *writer as *mut _, size) };
 
         // Get current write pointer.
         let start_ptr = writer.write_ptr.wrapping_sub(size);
@@ -165,12 +165,15 @@ impl StreamWriter {
 impl Default for StreamWriter {
     fn default() -> Self {
         Self {
-            writer: RefCell::new(PerfettoStreamWriter {
+            writer: RefCell::new(PerfettoPbMsgWriter {
                 impl_: ptr::null_mut(),
                 begin: ptr::null_mut(),
                 end: ptr::null_mut(),
                 write_ptr: ptr::null_mut(),
                 written_previously: 0,
+                // Standard length-delimited protobuf, the only encoding this
+                // SDK writes.
+                encoding: 0,
             }),
         }
     }

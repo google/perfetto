@@ -59,7 +59,9 @@ WHERE
 
 CREATE PERFETTO TABLE _heap_object_marked_for_dominated_stats AS
 SELECT id, iif(parent_id IS NULL, 1, 0) AS marked
-FROM tree_structural_partition_by_group!(_heap_graph_dominator_tree_for_partition)
+FROM tree_structural_partition_by_group!(
+  _heap_graph_dominator_tree_for_partition
+)
 ORDER BY
   id;
 

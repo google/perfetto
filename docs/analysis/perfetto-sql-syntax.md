@@ -63,7 +63,7 @@ schemas, function arguments and return types:
 |------|-------------|
 | `LONG` | 64-bit signed integer |
 | `DOUBLE` | Double precision floating-point number |
-| `BOOLEAN` | Boolean value (true/false) |
+| `BOOL` | Boolean value (true/false) |
 | `STRING` | Text string |
 | `BYTES` | Binary data |
 | `TIMESTAMP` | Absolute timestamp in nanoseconds |

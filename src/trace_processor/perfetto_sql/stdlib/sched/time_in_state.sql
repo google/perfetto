@@ -135,9 +135,11 @@ SELECT state, io_wait, blocked_function, sum(ii.dur) AS dur
 FROM thread_state
 JOIN (
   SELECT *
-  FROM _interval_intersect_single!($ts, $dur, (
-      SELECT id, ts, dur FROM thread_state WHERE utid = $utid AND dur > 0
-    ))
+  FROM _interval_intersect_single!(
+    $ts,
+    $dur,
+    (SELECT id, ts, dur FROM thread_state WHERE utid = $utid AND dur > 0)
+  )
 ) AS ii USING (id)
 GROUP BY
   1,
@@ -177,9 +179,11 @@ SELECT state, io_wait, cpu, blocked_function, sum(ii.dur) AS dur
 FROM thread_state
 JOIN (
   SELECT *
-  FROM _interval_intersect_single!($ts, $dur, (
-      SELECT id, ts, dur FROM thread_state WHERE utid = $utid AND dur > 0
-    ))
+  FROM _interval_intersect_single!(
+    $ts,
+    $dur,
+    (SELECT id, ts, dur FROM thread_state WHERE utid = $utid AND dur > 0)
+  )
 ) AS ii USING (id)
 GROUP BY
   1,

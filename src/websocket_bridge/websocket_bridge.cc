@@ -48,6 +48,25 @@ class WSBridge : public base::HttpRequestHandler,
   void Main(int argc, char** argv);
 
   // base::HttpRequestHandler implementation.
+  // None of the bridge's HTTP endpoints take a body.
+  uint8_t* OnHttpRequestBody(const base::HttpRequest&, size_t) override {
+    return nullptr;
+  }
+  // A payload can span several reads, and payloads on different connections
+  // can be in flight at once, so it is buffered with the connection.
+  uint8_t* OnWebsocketPayload(base::HttpServerConnection* conn,
+                              size_t size) override {
+    auto it = conns_.find(conn);
+    PERFETTO_CHECK(it != conns_.end());
+    Conn& c = it->second;
+    if (size > c.payload_size) {
+      // Deliberately not value-initialized: |size| comes off the wire, so
+      // touching it here would make an unsent payload resident.
+      c.payload.reset(new uint8_t[size]);
+      c.payload_size = size;
+    }
+    return c.payload.get();
+  }
   void OnHttpRequest(const base::HttpRequest&) override;
   void OnWebsocketMessage(const base::WebsocketMessage&) override;
   void OnHttpConnectionClosed(base::HttpServerConnection*) override;
@@ -62,10 +81,15 @@ class WSBridge : public base::HttpRequestHandler,
  private:
   base::HttpServerConnection* GetWebsocket(base::UnixSocket*);
 
+  struct Conn {
+    std::unique_ptr<base::UnixSocket> sock;
+    std::unique_ptr<uint8_t[]> payload;
+    size_t payload_size = 0;
+  };
+
   base::MaybeLockFreeTaskRunner task_runner_;
   std::vector<Endpoint> endpoints_;
-  std::map<base::HttpServerConnection*, std::unique_ptr<base::UnixSocket>>
-      conns_;
+  std::map<base::HttpServerConnection*, Conn> conns_;
 };
 
 void PrintUsage(char** argv) {
@@ -200,7 +224,7 @@ void WSBridge::OnHttpRequest(const base::HttpRequest& req) {
     sock_raw.SetBlocking(false);
 
     PERFETTO_DLOG("[WSBridge] Connected to %s", ep.endpoint);
-    conns_[req.conn] = base::UnixSocket::AdoptConnected(
+    conns_[req.conn].sock = base::UnixSocket::AdoptConnected(
         sock_raw.ReleaseFd(), this, &task_runner_, ep.family,
         base::SockType::kStream);
 
@@ -215,7 +239,7 @@ void WSBridge::OnWebsocketMessage(const base::WebsocketMessage& msg) {
   auto it = conns_.find(msg.conn);
   PERFETTO_CHECK(it != conns_.end());
   // Pass through the websocket message onto the endpoint TCP socket.
-  base::UnixSocket& sock = *it->second;
+  base::UnixSocket& sock = *it->second.sock;
   sock.Send(msg.data.data(), msg.data.size());
 }
 
@@ -241,7 +265,7 @@ void WSBridge::OnHttpConnectionClosed(base::HttpServerConnection* websocket) {
   auto it = conns_.find(websocket);
   if (it == conns_.end())
     return;  // Can happen if ADB closed first.
-  base::UnixSocket& sock = *it->second;
+  base::UnixSocket& sock = *it->second.sock;
   sock.Shutdown(/*notify=*/true);
   conns_.erase(websocket);
 }
@@ -258,7 +282,7 @@ void WSBridge::OnDisconnect(base::UnixSocket* sock) {
 
 base::HttpServerConnection* WSBridge::GetWebsocket(base::UnixSocket* sock) {
   for (const auto& it : conns_) {
-    if (it.second.get() == sock) {
+    if (it.second.sock.get() == sock) {
       return it.first;
     }
   }

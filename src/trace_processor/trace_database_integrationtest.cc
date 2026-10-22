@@ -255,8 +255,8 @@ TEST(TraceProcessorCustomConfigTest, ExportJsonRejectsIntegerFileDescriptor) {
 }
 
 TEST(TraceProcessorCustomConfigTest, ExportJsonUsesConfiguredFileSystem) {
-  base::TempDir dir = base::TempDir::Create();
-  std::string path = dir.path() + "/trace.json";
+  base::TempFile file = base::TempFile::Create().ValueOrDie();
+  const std::string& path = file.path();
   ASSERT_EQ(path.find('\''), std::string::npos);
 
   auto file_system = io::CreateLocalFileSystem();
@@ -272,12 +272,33 @@ TEST(TraceProcessorCustomConfigTest, ExportJsonUsesConfiguredFileSystem) {
   std::string contents;
   ASSERT_TRUE(base::ReadFile(path, &contents));
   EXPECT_THAT(contents, HasSubstr("\"traceEvents\""));
-  ASSERT_TRUE(base::Unlink(path.c_str()));
+}
+
+TEST(TraceProcessorCustomConfigTest, ExportJsonAfterParsingTrace) {
+  base::TempFile file = base::TempFile::Create().ValueOrDie();
+  const std::string& path = file.path();
+  ASSERT_EQ(path.find('\''), std::string::npos);
+
+  auto file_system = io::CreateLocalFileSystem();
+  FileSystemPlatform platform(file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  ASSERT_OK(processor->Parse(
+      TraceBlobView(TraceBlob::CopyFrom(R"({"traceEvents":[]})", 18))));
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON('" + path + "')");
+  ASSERT_TRUE(it.Next());
+  EXPECT_OK(it.Status());
+
+  std::string contents;
+  ASSERT_TRUE(base::ReadFile(path, &contents));
+  EXPECT_THAT(contents, HasSubstr("\"traceEvents\""));
 }
 
 TEST(TraceProcessorCustomConfigTest,
      RpcImplicitResetPreservesSqlFileAccessGrant) {
-  base::TempDir dir = base::TempDir::Create();
+  base::TempFile first_file = base::TempFile::Create().ValueOrDie();
   auto file_system = io::CreateLocalFileSystem();
   FileSystemPlatform platform(file_system);
   Config config;
@@ -292,16 +313,13 @@ TEST(TraceProcessorCustomConfigTest,
     EXPECT_OK(it.Status());
   };
 
-  std::string first_path = dir.path() + "/before_reset";
-  write_file(first_path);
-  ASSERT_TRUE(base::Unlink(first_path.c_str()));
+  write_file(first_file.path());
 
   ASSERT_OK(rpc.NotifyEndOfFile());
-  ASSERT_OK(rpc.Parse(nullptr, 0));
+  ASSERT_OK(rpc.Parse(TraceBlobView()));
 
-  std::string second_path = dir.path() + "/after_reset";
-  write_file(second_path);
-  ASSERT_TRUE(base::Unlink(second_path.c_str()));
+  base::TempFile second_file = base::TempFile::Create().ValueOrDie();
+  write_file(second_file.path());
 }
 
 TEST(TraceProcessorCustomConfigTest, ExportJsonPropagatesWriteFailure) {
@@ -343,8 +361,8 @@ TEST(TraceProcessorCustomConfigTest,
 
 TEST(TraceProcessorCustomConfigTest,
      IntrinsicFileWriteUsesConfiguredFileSystem) {
-  base::TempDir dir = base::TempDir::Create();
-  std::string path = dir.path() + "/file_write";
+  base::TempFile file = base::TempFile::Create().ValueOrDie();
+  const std::string& path = file.path();
   ASSERT_EQ(path.find('\''), std::string::npos);
 
   auto file_system = io::CreateLocalFileSystem();
@@ -362,7 +380,6 @@ TEST(TraceProcessorCustomConfigTest,
   std::string contents;
   ASSERT_TRUE(base::ReadFile(path, &contents));
   EXPECT_EQ(contents, std::string("\0\1\2\xff", 4));
-  ASSERT_TRUE(base::Unlink(path.c_str()));
 }
 
 namespace {
@@ -1090,12 +1107,11 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageExecuteQuery) {
   ASSERT_FALSE(it.Next());
   ASSERT_FALSE(it.Status().ok());
 
-  ASSERT_THAT(it.Status().message(),
-              testing::Eq(R"(Traceback (most recent call last):
-  File "stdin" line 1 col 8
-    select t from slice
-           ^
-no such column: t)"));
+  ASSERT_THAT(it.Status().message(), testing::Eq(R"( --> query:1:8
+  |
+1 | select t from slice
+  |        ^
+error: no such column: t)"));
 }
 
 TEST_F(TraceProcessorIntegrationTest, ErrorMessageMetricFile) {
@@ -1108,14 +1124,15 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageMetricFile) {
   ASSERT_FALSE(it.Status().ok());
 
   ASSERT_EQ(it.Status().message(),
-            R"(Traceback (most recent call last):
-  File "stdin" line 1 col 1
-    select RUN_METRIC('foo/bar.sql')
-    ^
-  Metric file "foo/bar.sql" line 1 col 8
-    select t from slice
-           ^
-no such column: t)");
+            R"( --> query:1:1
+  |
+1 | select RUN_METRIC('foo/bar.sql')
+  | ^
+ --> metric foo/bar.sql:1:8
+  |
+1 | select t from slice
+  |        ^
+error: no such column: t)");
 }
 
 TEST_F(TraceProcessorIntegrationTest, ErrorMessageModule) {
@@ -1131,14 +1148,15 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageModule) {
   ASSERT_FALSE(it.Status().ok());
 
   ASSERT_EQ(it.Status().message(),
-            R"(Traceback (most recent call last):
-  File "stdin" line 1 col 1
-    include perfetto module foo.bar
-    ^
-  Module include "foo.bar" line 1 col 8
-    select t from slice
-           ^
-no such column: t)");
+            R"( --> query:1:1
+  |
+1 | include perfetto module foo.bar
+  | ^
+ --> module foo.bar:1:8
+  |
+1 | select t from slice
+  |        ^
+error: no such column: t)");
 }
 
 TEST_F(TraceProcessorIntegrationTest, FunctionRegistrationError) {
@@ -1338,6 +1356,13 @@ std::vector<TarMember> ReadTarMembers(const std::string& tar) {
     offset = data_offset + ((size + 511) / 512) * 512;
   }
   return members;
+}
+
+TEST_F(TraceProcessorIntegrationTest, ExportSqliteRequiresFilePath) {
+  StringExportOutput output;
+  EXPECT_THAT(
+      Processor()->Export(TraceProcessor::ExportFormat::kSqlite, &output),
+      IsError());
 }
 
 TEST_F(TraceProcessorIntegrationTest, ExportPerfetto) {

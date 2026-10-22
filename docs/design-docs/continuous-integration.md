@@ -57,7 +57,7 @@ create - but not delete or overwrite - artifacts in gs://perfetto-ci-artifacts
 This is what happens, in order, on a worker instance from boot to the test run.
 
 ```bash
-make -C /infra/ci worker-start
+make -C /infra/ci start-workers
 ┗━ gcloud start ...
 
 [GCE] # From /infra/ci/worker/gce-startup-script.sh
@@ -99,7 +99,7 @@ Deploy with `make -C infra/ci/frontend deploy`
 
 ## Security considerations
 
-- The gs://perfetto-artifacts GCS bucket are world-readable and writable by
+- The gs://perfetto-ci-artifacts GCS bucket are world-readable and writable by
   the GAE and GCE service accounts.
 
 - Overall, no account in this project has any interesting privilege:

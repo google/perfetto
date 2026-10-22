@@ -348,6 +348,15 @@ export class ChromeCategoriesWidget implements ProbeSetting {
   }
 
   deserialize(state: unknown): void {
+    // Back to the defaults first: the fields that `state` doesn't carry (it
+    // can be undefined, or the legacy list-only format below) must not keep
+    // the value they had for the previously loaded config.
+    this.options.forEach((o) => (o.checked = false));
+    this.enabledTags.clear();
+    this.disabledTags.clear();
+    this.enabledPresets.clear();
+    this.privacyToggle.deserialize(undefined);
+
     if (Array.isArray(state)) {
       // Backward compatibility for when state was just a list of categories.
       this.maybeDeserializeCategories(state);

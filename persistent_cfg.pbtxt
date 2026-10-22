@@ -34,6 +34,13 @@ buffers {
   fill_policy: RING_BUFFER
 }
 
+# Buffer 4: for android.surfaceflinger.layers (MODE_PROTOVM)
+buffers {
+  size_kb: 2048
+  fill_policy: RING_BUFFER
+  experimental_mode: TRACE_BUFFER_V2
+}
+
 data_sources: {
   config {
     name: "android.surfaceflinger.transactions"
@@ -97,6 +104,22 @@ data_sources: {
       }
       trace_dispatcher_input_events: true
       trace_dispatcher_window_dispatch: true
+    }
+  }
+}
+
+data_sources: {
+  config {
+    name: "android.surfaceflinger.layers"
+    target_buffer: 4
+    surfaceflinger_layers_config: {
+      mode: MODE_PROTOVM
+      trace_flags: TRACE_FLAG_INPUT
+      trace_flags: TRACE_FLAG_BUFFERS
+      trace_flags: TRACE_FLAG_EXTRA
+    }
+    protovm_config {
+      memory_limit_kb: 4096
     }
   }
 }

@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/gecko/gecko_trace_tokenizer.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -37,6 +38,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/create_mapping_params.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
@@ -44,6 +46,7 @@
 #include "src/trace_processor/importers/gecko/gecko_trace_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/simple_json_parser.h"
 #include "src/trace_processor/util/trace_type.h"
@@ -83,6 +86,10 @@ struct GeckoThread {
   // Preprocessed format: flat arrays.
   std::vector<uint32_t> frame_func_indices;
   std::vector<uint32_t> func_names;
+  // -1 means no value.
+  std::vector<int64_t> frame_addresses;
+  std::vector<int64_t> func_resources;
+  std::vector<int64_t> resource_libs;
   std::vector<std::optional<uint32_t>> stack_prefixes;
   std::vector<uint32_t> stack_frames;
   std::vector<std::optional<uint32_t>> sample_stacks;
@@ -98,6 +105,12 @@ struct GeckoThread {
   std::vector<std::string> marker_data;  // Raw JSON for `data`; empty for null.
 
   bool is_preprocessed = false;
+};
+
+struct GeckoLib {
+  std::string name;
+  std::string path;
+  std::string code_id;
 };
 
 namespace {
@@ -154,6 +167,15 @@ base::Status ParseOptionalUint32Array(
   });
 }
 
+// Maps null to -1.
+base::Status ParseNullableInt64Array(json::SimpleJsonParser& reader,
+                                     std::vector<int64_t>& out) {
+  return reader.ForEachArrayElement([&]() {
+    out.push_back(reader.IsNull() ? -1 : reader.GetInt64().value_or(-1));
+    return base::OkStatus();
+  });
+}
+
 // Reads a uint that may have been emitted as either a JSON number or a numeric
 // string (Gecko sometimes serializes pids/tids as strings).
 uint32_t ReadUint32OrStringifiedUint32(json::SimpleJsonParser& reader) {
@@ -187,17 +209,36 @@ base::Status ParseFrameTable(json::SimpleJsonParser& reader, GeckoThread& t) {
       }
       return json::FieldResult::Handled{};
     }
+    if (key == "address" && reader.IsArray()) {
+      RETURN_IF_ERROR(ParseNullableInt64Array(reader, t.frame_addresses));
+      return json::FieldResult::Handled{};
+    }
     return json::FieldResult::Skip{};
   });
 }
 
-// Parses the preprocessed `funcTable`. We only care about the `name` array.
+// Parses the preprocessed `funcTable` (`name` and `resource` arrays).
 base::Status ParseFuncTable(json::SimpleJsonParser& reader, GeckoThread& t) {
   return reader.ForEachField([&](std::string_view key) -> json::FieldResult {
     if (key == "name" && reader.IsArray()) {
       if (auto r = reader.CollectUint32Array(); r.ok()) {
         t.func_names = std::move(*r);
       }
+      return json::FieldResult::Handled{};
+    }
+    if (key == "resource" && reader.IsArray()) {
+      RETURN_IF_ERROR(ParseNullableInt64Array(reader, t.func_resources));
+      return json::FieldResult::Handled{};
+    }
+    return json::FieldResult::Skip{};
+  });
+}
+
+base::Status ParseResourceTable(json::SimpleJsonParser& reader,
+                                GeckoThread& t) {
+  return reader.ForEachField([&](std::string_view key) -> json::FieldResult {
+    if (key == "lib" && reader.IsArray()) {
+      RETURN_IF_ERROR(ParseNullableInt64Array(reader, t.resource_libs));
       return json::FieldResult::Handled{};
     }
     return json::FieldResult::Skip{};
@@ -363,6 +404,10 @@ base::Status ParseThread(json::SimpleJsonParser& reader, GeckoThread& t) {
       RETURN_IF_ERROR(ParseFuncTable(reader, t));
       return json::FieldResult::Handled{};
     }
+    if (key == "resourceTable" && reader.IsObject()) {
+      RETURN_IF_ERROR(ParseResourceTable(reader, t));
+      return json::FieldResult::Handled{};
+    }
     if (key == "stackTable" && reader.IsObject()) {
       RETURN_IF_ERROR(ParseStackTable(reader, t));
       return json::FieldResult::Handled{};
@@ -385,6 +430,7 @@ struct GeckoProfile {
   // `name` field of each entry in `meta.categories`. Used to resolve marker
   // category indices to a human-readable string.
   std::vector<std::string> category_names;
+  std::vector<GeckoLib> libs;
 };
 
 // Parses `meta.categories`. Each entry is `{name, color, subcategories}`; we
@@ -420,6 +466,75 @@ base::Status ParseMeta(json::SimpleJsonParser& reader, GeckoProfile& profile) {
   });
 }
 
+base::Status ParseLibs(json::SimpleJsonParser& reader,
+                       std::vector<GeckoLib>& out) {
+  return reader.ForEachArrayElement([&]() {
+    GeckoLib lib;
+    if (reader.IsObject()) {
+      RETURN_IF_ERROR(
+          reader.ForEachField([&](std::string_view key) -> json::FieldResult {
+            if (key == "name") {
+              lib.name = std::string(reader.GetString().value_or(""));
+              return json::FieldResult::Handled{};
+            }
+            if (key == "path") {
+              lib.path = std::string(reader.GetString().value_or(""));
+              return json::FieldResult::Handled{};
+            }
+            if (key == "codeId") {
+              lib.code_id = std::string(reader.GetString().value_or(""));
+              return json::FieldResult::Handled{};
+            }
+            return json::FieldResult::Skip{};
+          }));
+    }
+    out.push_back(std::move(lib));
+    return base::OkStatus();
+  });
+}
+
+bool IsHexBuildId(const std::string& id) {
+  return !id.empty() && id.size() % 2 == 0 &&
+         std::all_of(id.begin(), id.end(),
+                     [](char c) { return std::isxdigit(c) != 0; });
+}
+
+// Returns the library index of an unsymbolicated frame, if it can be
+// symbolized.
+std::optional<size_t> GetLibIndexForUnsymbolizedFrame(
+    const GeckoThread& t,
+    size_t frame_idx,
+    uint32_t func_idx,
+    const std::vector<GeckoLib>& libs,
+    base::StringView name) {
+  // Unsymbolicated frames are named by their address.
+  if (!name.StartsWith(base::StringView("0x"))) {
+    return std::nullopt;
+  }
+  if (frame_idx >= t.frame_addresses.size() ||
+      t.frame_addresses[frame_idx] < 0 || func_idx >= t.func_resources.size()) {
+    return std::nullopt;
+  }
+  int64_t resource = t.func_resources[func_idx];
+  if (resource < 0 || static_cast<size_t>(resource) >= t.resource_libs.size()) {
+    return std::nullopt;
+  }
+  int64_t lib = t.resource_libs[static_cast<size_t>(resource)];
+  if (lib < 0 || static_cast<size_t>(lib) >= libs.size() ||
+      !IsHexBuildId(libs[static_cast<size_t>(lib)].code_id)) {
+    return std::nullopt;
+  }
+  return static_cast<size_t>(lib);
+}
+
+VirtualMemoryMapping& InternLibMapping(TraceProcessorContext* context,
+                                       const GeckoLib& lib) {
+  CreateMappingParams params;
+  params.name = lib.path.empty() ? lib.name : lib.path;
+  params.build_id = BuildId::FromHex(base::StringView(lib.code_id));
+  return context->mapping_tracker->InternMemoryMapping(std::move(params));
+}
+
 // Parses the `threads` array.
 base::Status ParseThreads(json::SimpleJsonParser& reader,
                           std::vector<GeckoThread>& out) {
@@ -453,6 +568,10 @@ base::StatusOr<GeckoProfile> ParseGeckoProfile(std::string_view json) {
         }
         if (key == "threads" && reader.IsArray()) {
           RETURN_IF_ERROR(ParseThreads(reader, profile.threads));
+          return json::FieldResult::Handled{};
+        }
+        if (key == "libs" && reader.IsArray()) {
+          RETURN_IF_ERROR(ParseLibs(reader, profile.libs));
           return json::FieldResult::Handled{};
         }
         return json::FieldResult::Skip{};
@@ -496,9 +615,10 @@ base::Status GeckoTraceTokenizer::OnPushDataToSorter() {
   std::optional<std::vector<Callsite>> shared_callsites;
   if (shared_has_frames) {
     const auto& s = *profile_or->shared;
-    shared_callsites = s.is_preprocessed
-                           ? ProcessPreprocessedFramesAndStacks(s, s.strings)
-                           : ProcessLegacyFramesAndStacks(s, s.strings);
+    shared_callsites =
+        s.is_preprocessed
+            ? ProcessPreprocessedFramesAndStacks(s, s.strings, profile_or->libs)
+            : ProcessLegacyFramesAndStacks(s, s.strings);
   }
 
   for (const auto& t : profile_or->threads) {
@@ -515,7 +635,8 @@ base::Status GeckoTraceTokenizer::OnPushDataToSorter() {
         ProcessLegacySamples(t, *shared_callsites);
       }
     } else if (t.is_preprocessed) {
-      auto callsites = ProcessPreprocessedFramesAndStacks(t, strings);
+      auto callsites =
+          ProcessPreprocessedFramesAndStacks(t, strings, profile_or->libs);
       ProcessSamples(t, callsites);
     } else {
       auto callsites = ProcessLegacyFramesAndStacks(t, strings);
@@ -658,12 +779,15 @@ void GeckoTraceTokenizer::ProcessLegacySamples(
 
 std::vector<Callsite> GeckoTraceTokenizer::ProcessPreprocessedFramesAndStacks(
     const GeckoThread& t,
-    const std::vector<std::string>& strings) {
+    const std::vector<std::string>& strings,
+    const std::vector<GeckoLib>& libs) {
   std::vector<FrameId> frame_ids;
   std::vector<Callsite> callsites;
+  std::vector<VirtualMemoryMapping*> lib_mappings(libs.size());
 
   // Process frames using func table indirection.
-  for (uint32_t func_idx : t.frame_func_indices) {
+  for (size_t i = 0; i < t.frame_func_indices.size(); ++i) {
+    uint32_t func_idx = t.frame_func_indices[i];
     if (func_idx >= t.func_names.size()) {
       continue;
     }
@@ -671,7 +795,19 @@ std::vector<Callsite> GeckoTraceTokenizer::ProcessPreprocessedFramesAndStacks(
     if (name_str_idx >= strings.size()) {
       continue;
     }
-    frame_ids.push_back(InternFrame(base::StringView(strings[name_str_idx])));
+    base::StringView name(strings[name_str_idx]);
+    std::optional<size_t> lib_idx =
+        GetLibIndexForUnsymbolizedFrame(t, i, func_idx, libs, name);
+    if (!lib_idx) {
+      frame_ids.push_back(InternFrame(name));
+      continue;
+    }
+    VirtualMemoryMapping*& mapping = lib_mappings[*lib_idx];
+    if (!mapping) {
+      mapping = &InternLibMapping(context_, libs[*lib_idx]);
+    }
+    frame_ids.push_back(mapping->InternFrame(
+        static_cast<uint64_t>(t.frame_addresses[i]), name));
   }
 
   // Process stacks using separate prefix/frame arrays.

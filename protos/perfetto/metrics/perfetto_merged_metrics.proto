@@ -3293,7 +3293,7 @@ message CloneDuration {
 // Begin of protos/perfetto/metrics/metrics.proto
 
 // Trace processor metadata
-// Next id: 21
+// Next id: 22
 message TraceMetadata {
   reserved 1;
   optional int64 trace_duration_ns = 2;
@@ -3315,6 +3315,7 @@ message TraceMetadata {
   optional int64 suspend_count = 13;
   optional int64 data_loss_count = 14;
   optional int64 error_count = 15;
+  optional string trace_recovery_reason = 21;
 }
 
 // Stats counters for the trace.

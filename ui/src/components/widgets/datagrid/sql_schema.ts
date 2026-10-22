@@ -382,6 +382,52 @@ export class SQLSchemaResolver {
   }
 
   /**
+   * Resolves a parameterized column by path, accumulating any necessary joins.
+   * Returns the colDef and the target table alias (e.g. 't0' or 'base').
+   */
+  resolveParameterizedColumn(
+    path: string,
+  ): {colDef: SQLExpressionDef; targetAlias: string} | undefined {
+    const parts = splitPath(path);
+    return this.resolveParamPath(parts, this.schema, this.baseAlias);
+  }
+
+  private resolveParamPath(
+    parts: string[],
+    schema: SQLTableSchema,
+    currentAlias: string,
+  ): {colDef: SQLExpressionDef; targetAlias: string} | undefined {
+    if (parts.length === 0) {
+      return undefined;
+    }
+
+    const [first, ...rest] = parts;
+    const colDef = maybeUndefined(schema.columns?.[first]);
+    if (!colDef) {
+      return undefined;
+    }
+
+    if ('schema' in colDef) {
+      const targetSchema = colDef.schema;
+      const joinAlias = this.getOrCreateJoin(
+        currentAlias,
+        targetSchema.tableOrSubquery,
+        colDef.foreignKey,
+        targetSchema.primaryKey ?? 'id',
+        colDef.innerJoin ?? false,
+      );
+
+      return this.resolveParamPath(rest, targetSchema, joinAlias);
+    }
+
+    if ('expression' in colDef && colDef.parameterized && rest.length === 0) {
+      return {colDef, targetAlias: currentAlias};
+    }
+
+    return undefined;
+  }
+
+  /**
    * Resets the resolver state, clearing all accumulated joins.
    */
   reset(): void {

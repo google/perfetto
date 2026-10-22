@@ -213,6 +213,11 @@ base::Status ArtMethodTokenizer::ParseRecord(uint32_t tid,
   }
 
   uint32_t methodid_action = ToInt(record.slice_off(0, 4));
+  if (clock_ == kDual && record.size() < 12) {
+    return base::ErrStatus(
+        "ART method trace: dual-clock record too small (%zu bytes, need 12)",
+        record.size());
+  }
   uint32_t ts_delta = clock_ == kDual ? ToInt(record.slice_off(8, 4))
                                       : ToInt(record.slice_off(4, 4));
 

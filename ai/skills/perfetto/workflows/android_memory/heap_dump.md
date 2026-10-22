@@ -18,8 +18,8 @@ Deep Dive) if the user explicitly states that this first pass triage is not
 good, not working, or inconclusive.
 
 1.  Run the trace query using the provided compiled script to extract the heap
-    dump details. The script takes the trace file as its argument and returns
-    the query result as CSV.
+    dump details. The script runs against the warm session and returns the
+    query result as CSV.
 
     ```bash
     trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/android_memory/scripts/triage_dominator_path.sql
@@ -59,11 +59,10 @@ good, not working, or inconclusive.
     > reference specific locations in the code showing the leak and create an
     > implementation plan for fixing the leak.
 
-4.  Present each generated string as a system prompt asking the underlying LLM
-    to generate the final analysis response for the user. When the query
-    returned multiple heap dumps, analyze each one and clearly label its section
-    by `{process_name}` and `{graph_sample_ts}` so the dumps don't blur
-    together. Provide the model's analysis cleanly.
+4.  Treat each generated string as the brief for your own analysis and write
+    the final response for the user from it. When the query returned multiple
+    heap dumps, analyze each one and clearly label its section by
+    `{process_name}` and `{graph_sample_ts}` so the dumps don't blur together.
 
 ---
 
@@ -210,23 +209,22 @@ Dive), a high-quality summary for the user MUST contain:
 1.  **Orienting Context:** The process name and timestamp of the heap dump.
 2.  **Primary Leak Signatures:** The top retaining class chains by
     cumulative/dominated memory size.
-3.  **Code-Grounded Hypothesis & Philosophical Advice:**
-    - You MUST search the workspace codebase for the application source code
-      matching the process name or leaky class names to understand the
-      architectural intent and lifecycle of the suspected classes.
-    - Use that source code to assist in generating a grounded hypothesis for the
-      leak. If you cannot find the source code, explicitly inform the user that
-      the source code cannot be found, so the exact leak mechanism cannot be
-      definitively verified.
+3.  **Code-Grounded Hypothesis & Architectural Recommendations:**
+    - Search the workspace codebase for the application source code matching the
+      process name or leaky class names to understand the lifecycle and ownership
+      of suspected classes.
+    - Formulate a grounded hypothesis for the leak based on source code and heap
+      references. If source code is not available, state findings based on the
+      heap dump data.
     - If `class_name` is a primitive array like `byte[]` and the path begins
-      with `[ROOT_JNI_GLOBAL]`, advise the user they likely have a JNI global
-      reference leak.
-    - Provide expert philosophical advice on the architectural approach to take
-      (e.g., decoupling static singletons, adopting weak references, or clearing
-      listeners in `onDestroy`).
-4.  **Actionable Implementation Plan:** Reference specific locations in the
-    codebase (filenames and line numbers) showing the leak and create a concrete
-    implementation plan for fixing it.
+      with `[ROOT_JNI_GLOBAL]`, advise the user of a likely JNI global reference
+      leak.
+    - Provide concrete architectural recommendations (e.g., clearing listeners
+      in `onDestroy`, avoiding static references to Activities/Contexts, or using
+      `WeakReference`).
+4.  **Actionable Implementation Plan:** Reference specific code locations
+    (filenames and line numbers) where possible and provide a concrete plan for
+    fixing or mitigating the leak.
 
 Always keep the underlying SQL and object IDs available so the user can audit.
 Do not make claims about what the code is doing without inspecting the

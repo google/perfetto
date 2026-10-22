@@ -16,10 +16,34 @@
 from python.generators.diff_tests.testing import DataPath
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import ExpectedError
 from python.generators.diff_tests.testing import TestSuite
 
 
 class GraphSearchTests(TestSuite):
+
+  def test_graph_rejects_negative_node_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          SELECT __intrinsic_graph_agg(source_node_id, dest_node_id)
+          FROM (
+            SELECT 1 AS source_node_id, 2 AS dest_node_id
+            UNION ALL
+            SELECT -1, -1
+          );
+        """,
+        out=ExpectedError(
+            'GRAPH: node ids must be non-negative 32-bit integers'))
+
+  def test_graph_rejects_node_id_above_int32_max(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          SELECT __intrinsic_graph_agg(4294967295, 0);
+        """,
+        out=ExpectedError(
+            'GRAPH: node ids must be non-negative 32-bit integers'))
 
   def test_dfs_empty_table(self):
     return DiffTestBlueprint(
@@ -38,6 +62,28 @@ class GraphSearchTests(TestSuite):
         """,
         out=Csv("""
         "node_id","parent_node_id"
+        """))
+
+  def test_dfs_no_edges_returns_start_nodes(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+
+          WITH foo AS (
+            SELECT 0 AS source_node_id, 0 AS dest_node_id
+            WHERE FALSE
+          )
+          SELECT * FROM graph_reachable_dfs!(
+            foo,
+            (SELECT 3 AS node_id UNION ALL SELECT 7)
+          )
+          ORDER BY node_id;
+        """,
+        out=Csv("""
+        "node_id","parent_node_id"
+        3,"[NULL]"
+        7,"[NULL]"
         """))
 
   def test_dfs_one_node(self):
@@ -200,6 +246,18 @@ class GraphSearchTests(TestSuite):
         99,"[NULL]"
         """))
 
+  def test_dfs_rejects_negative_start_node(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+          SELECT * FROM graph_reachable_dfs!(
+            (SELECT 1 AS source_node_id, 2 AS dest_node_id),
+            (SELECT -1 AS node_id)
+          );
+        """,
+        out=ExpectedError('DFS: node ids must be non-negative 32-bit integers'))
+
   def test_bfs_start_node_not_in_graph(self):
     return DiffTestBlueprint(
         trace=DataPath('counters.json'),
@@ -238,6 +296,18 @@ class GraphSearchTests(TestSuite):
         99,"[NULL]"
         """))
 
+  def test_bfs_rejects_start_node_above_int32_max(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+          SELECT * FROM graph_reachable_bfs!(
+            (SELECT 1 AS source_node_id, 2 AS dest_node_id),
+            (SELECT 4294967295 AS node_id)
+          );
+        """,
+        out=ExpectedError('BFS: node ids must be non-negative 32-bit integers'))
+
   def test_bfs_empty_table(self):
     return DiffTestBlueprint(
         trace=DataPath('counters.json'),
@@ -254,6 +324,28 @@ class GraphSearchTests(TestSuite):
         """,
         out=Csv("""
         "node_id","parent_node_id"
+        """))
+
+  def test_bfs_no_edges_returns_start_nodes(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+
+          WITH foo AS (
+            SELECT 0 AS source_node_id, 0 AS dest_node_id
+            WHERE FALSE
+          )
+          SELECT * FROM graph_reachable_bfs!(
+            foo,
+            (SELECT 3 AS node_id UNION ALL SELECT 7)
+          )
+          ORDER BY node_id;
+        """,
+        out=Csv("""
+        "node_id","parent_node_id"
+        3,"[NULL]"
+        7,"[NULL]"
         """))
 
   def test_bfs_one_node(self):
@@ -459,3 +551,34 @@ class GraphSearchTests(TestSuite):
         3,6,5
         2,2,"[NULL]"
         """))
+
+  def test_weight_bounded_dfs_root_outside_graph(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+          SELECT * FROM graph_reachable_weight_bounded_dfs!(
+            (SELECT 1 AS source_node_id, 2 AS dest_node_id, 1 AS edge_weight),
+            (SELECT 2147483632 AS root_node_id, 1000 AS root_target_weight),
+            TRUE
+          );
+        """,
+        out=Csv("""
+        "root_node_id","node_id","parent_node_id"
+        2147483632,2147483632,"[NULL]"
+        """))
+
+  def test_weight_bounded_dfs_rejects_negative_root(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+          SELECT * FROM graph_reachable_weight_bounded_dfs!(
+            (SELECT 1 AS source_node_id, 2 AS dest_node_id, 1 AS edge_weight),
+            (SELECT -1 AS root_node_id, 1000 AS root_target_weight),
+            TRUE
+          );
+        """,
+        out=ExpectedError(
+            'dfs_weight_bounded: root ids must be non-negative 32-bit integers')
+    )

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {addErrorHandler, type ErrorDetails, reportError} from '../base/logging';
-import {ensureExists} from '../base/assert';
 import type {time} from '../base/time';
 import traceconv from '../gen/traceconv';
 
@@ -64,12 +63,7 @@ function forwardError(error: ErrorDetails) {
   });
 }
 
-function fsNodeToBuffer(fsNode: traceconv.FileSystemNode): Uint8Array {
-  const fileSize = ensureExists(fsNode.usedBytes);
-  return new Uint8Array(fsNode.contents.buffer, 0, fileSize);
-}
-
-async function runTraceconv(trace: Blob, args: string[]) {
+async function runTraceconv(trace: Blob, args: string[], outDir?: string) {
   const module = await traceconv({
     noInitialRun: true,
     locateFile: (s: string) => s,
@@ -77,14 +71,20 @@ async function runTraceconv(trace: Blob, args: string[]) {
     printErr: updateStatus,
     onRuntimeInitialized: () => {},
   });
-  // Use the explicitly exported functions rather than methods on module.FS.
-  // Closure Compiler can rename the latter, making e.g. FS.mkdir undefined.
+  // Only the explicitly exported functions survive Closure Compiler: it
+  // renames the methods of module.FS and the properties of the nodes they
+  // return, so neither may be touched from here.
   module.FS_mkdir('/fs');
   module.FS_mount(
     module.WORKERFS,
     {blobs: [{name: 'trace.proto', data: trace}]},
     '/fs',
   );
+  if (outDir !== undefined) {
+    // Created up front so it can be listed even when traceconv writes
+    // nothing into it.
+    module.FS_mkdir(outDir);
+  }
   updateStatus('Converting trace');
   module.callMain(args);
   updateStatus('Trace conversion completed');
@@ -126,8 +126,7 @@ async function ConvertTraceAndDownload(
   args.push('/fs/trace.proto', outPath);
   try {
     const module = await runTraceconv(trace, args);
-    const fsNode = module.FS_lookupPath(outPath).node;
-    downloadFile(fsNodeToBuffer(fsNode), `trace.${format}`);
+    downloadFile(module.FS_readFile(outPath), `trace.${format}`);
     module.FS_unlink(outPath);
   } finally {
     notifyJobCompleted();
@@ -161,11 +160,7 @@ async function ConvertTraceAndOpenInLegacy(
   args.push('/fs/trace.proto', outPath);
   try {
     const module = await runTraceconv(trace, args);
-    const fsNode = module.FS_lookupPath(outPath).node;
-    const data = fsNode.contents.buffer;
-    const size = fsNode.usedBytes;
-    const buffer = new Uint8Array(data, 0, size);
-    openTraceInLegacy(buffer);
+    openTraceInLegacy(module.FS_readFile(outPath));
     module.FS_unlink(outPath);
   } finally {
     notifyJobCompleted();
@@ -195,6 +190,9 @@ async function ConvertTraceToPprof(
   pid: number,
   ts: time,
 ) {
+  // Name the destination rather than letting traceconv invent a random
+  // directory under /tmp: the profiles have to be found again from here.
+  const outDir = '/profiles';
   const args = [
     'profile',
     `--${profileType}`,
@@ -202,30 +200,25 @@ async function ConvertTraceToPprof(
     `${pid}`,
     `--timestamps`,
     `${ts}`,
+    `--output-dir`,
+    outDir,
     '/fs/trace.proto',
   ];
 
   try {
-    const module = await runTraceconv(trace, args);
-    const heapDirName = Object.keys(
-      module.FS_lookupPath('/tmp/').node.contents,
-    )[0];
-    if (heapDirName === undefined) {
+    const module = await runTraceconv(trace, args, outDir);
+    const profiles = module
+      .FS_readdir(outDir)
+      .filter((name) => name !== '.' && name !== '..');
+    if (profiles.length === 0) {
       throw new Error(
         'No profiles generated; the trace has no profile matching ' +
           `type=${profileType} pid=${pid} ts=${ts}`,
       );
     }
-    const heapDirContents = module.FS_lookupPath(`/tmp/${heapDirName}`).node
-      .contents;
-    const heapDumpFiles = Object.keys(heapDirContents);
-    for (let i = 0; i < heapDumpFiles.length; ++i) {
-      const heapDump = heapDumpFiles[i];
-      const fileNode = module.FS_lookupPath(
-        `/tmp/${heapDirName}/${heapDump}`,
-      ).node;
-      const fileName = `/heap_dump.${i}.${pid}.pb`;
-      downloadFile(fsNodeToBuffer(fileNode), fileName);
+    for (const profile of profiles) {
+      // traceconv already names each file after the profile it holds.
+      downloadFile(module.FS_readFile(`${outDir}/${profile}`), profile);
     }
   } finally {
     notifyJobCompleted();

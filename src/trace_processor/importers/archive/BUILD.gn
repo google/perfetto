@@ -26,8 +26,8 @@ source_set("archive") {
   deps = [
     "../..:storage_minimal",
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/base:base",
-    "../../../../include/perfetto/ext/base:base",
+    "../../../../include/perfetto/base",
+    "../../../../include/perfetto/ext/base",
     "../../../base",
     "../../../trace_processor:storage_minimal",
     "../../storage",

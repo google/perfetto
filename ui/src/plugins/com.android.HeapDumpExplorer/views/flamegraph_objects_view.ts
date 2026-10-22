@@ -26,17 +26,24 @@ import {
   shortClassName,
   SQL_PREAMBLE,
   RowCounter,
+  rowCountHeading,
   COL_INFO,
   colHeader,
+  classNameCellRenderer,
 } from '../components';
+import {Anchor} from '../../../widgets/anchor';
+import {DetailsShell} from '../../../widgets/details_shell';
+import {Memo} from '../../../base/memo';
+import type {Filter} from '../../../components/widgets/datagrid/model';
 
 interface FlamegraphObjectsViewAttrs {
-  engine: Engine;
-  navigate: NavFn;
-  onBackToTimeline?: () => void;
-  nodeName?: string;
-  pathHashes?: string;
-  isDominator?: boolean;
+  readonly engine: Engine;
+  readonly navigate: NavFn;
+  readonly pathHashes?: string;
+  readonly isDominator: boolean;
+  readonly onBackToTimeline?: () => void;
+  readonly nodeName?: string;
+  readonly potentiallyMergedClasses: ReadonlySet<string>;
 }
 
 export function flamegraphQuery(
@@ -75,7 +82,10 @@ export function flamegraphQuery(
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(
+  navigate: NavFn,
+  potentiallyMergedClasses: ReadonlySet<string>,
+): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -87,9 +97,8 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         const str = row.str != null ? String(row.str) : null;
         return m('span', [
           m(
-            'button',
+            Anchor,
             {
-              class: 'pf-hde-link',
               onclick: () =>
                 navigate('object', {id, label: str ? `"${str}"` : display}),
             },
@@ -97,8 +106,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
           ),
           str
             ? m(
-                'span',
-                {class: 'pf-hde-str-badge'},
+                'span.pf-hde-str-badge',
                 ` "${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`,
               )
             : null,
@@ -160,6 +168,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
     cls: {
       title: 'Class',
       columnType: 'text',
+      cellRenderer: classNameCellRenderer(potentiallyMergedClasses),
     },
     str: {
       title: 'String Value',
@@ -169,88 +178,78 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
 }
 
 export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs> {
-  let dataSource: SQLDataSource | null = null;
-  let lastPathHashes: string | undefined;
+  // The data source depends on the selected flamegraph node (pathHashes),
+  // which changes within this component's lifetime. Memo recreates it on
+  // change and disposes the previous one (SQLDataSource is a Disposable).
+  const datasourceMemo = new Memo<SQLDataSource>();
   const counter = new RowCounter();
-
-  function initDataSource(
-    engine: Engine,
-    pathHashes: string,
-    isDominator: boolean,
-  ): void {
-    const query = flamegraphQuery(pathHashes, isDominator);
-    dataSource = new SQLDataSource({
-      engine,
-      tableOrSubquery: query,
-      preamble: SQL_PREAMBLE,
-    });
-    counter.init(engine, query, SQL_PREAMBLE);
-  }
+  // The grid owns its filters; this mirrors them for the row count.
+  let filters: readonly Filter[] = [];
 
   return {
-    oninit(vnode) {
-      const {pathHashes, isDominator, engine} = vnode.attrs;
-      lastPathHashes = pathHashes;
-      if (pathHashes) {
-        initDataSource(engine, pathHashes, isDominator ?? false);
-      }
-    },
-    onupdate(vnode) {
-      if (vnode.attrs.pathHashes !== lastPathHashes) {
-        const {pathHashes, isDominator, engine} = vnode.attrs;
-        lastPathHashes = pathHashes;
-        if (pathHashes) {
-          initDataSource(engine, pathHashes, isDominator ?? false);
-        } else {
-          dataSource = null;
-        }
-      }
+    onremove() {
+      datasourceMemo.dispose();
+      counter.dispose();
     },
     view(vnode) {
-      const {navigate, nodeName, onBackToTimeline} = vnode.attrs;
+      const {navigate, nodeName, onBackToTimeline, potentiallyMergedClasses} =
+        vnode.attrs;
+      const {pathHashes, isDominator, engine} = vnode.attrs;
 
-      if (!dataSource) {
-        return m('div', [
-          nodeName
-            ? m(
-                'h2',
-                {class: 'pf-hde-view-heading'},
-                'Flamegraph: ',
-                m('span', {class: 'pf-hde-mono'}, nodeName),
-              )
-            : null,
+      const query = pathHashes
+        ? flamegraphQuery(pathHashes, isDominator)
+        : undefined;
+      const datasource =
+        query !== undefined
+          ? datasourceMemo.use({
+              key: {pathHashes, isDominator},
+              compute: () =>
+                new SQLDataSource({
+                  engine,
+                  tableOrSubquery: query,
+                  preamble: SQL_PREAMBLE,
+                }),
+            })
+          : undefined;
+
+      if (datasource === undefined || query === undefined) {
+        return m(
+          DetailsShell,
+          {
+            title: nodeName ? `Flamegraph: ${nodeName}` : 'Flamegraph Objects',
+            fillHeight: true,
+            className: 'pf-hde-tab--padded',
+          },
           m(
-            'div',
-            {class: 'pf-hde-card pf-hde-mb-3'},
+            '.pf-hde-card.pf-hde-mb-3',
             m(
               'p',
               'No flamegraph selection found. Select a node in the ',
               'flamegraph and choose "Open in Heapdump Explorer" to see objects here.',
             ),
           ),
-        ]);
+        );
       }
 
-      return m('div', {class: 'pf-hde-view-content'}, [
-        m('div', {class: 'pf-hde-heading-row'}, [
-          m(
-            'h2',
-            {class: 'pf-hde-view-heading'},
-            counter.heading(
-              nodeName ? `Flamegraph: ${nodeName}` : 'Flamegraph Objects',
-            ),
+      return m(
+        DetailsShell,
+        {
+          title: rowCountHeading(
+            nodeName ? `Flamegraph: ${nodeName}` : 'Flamegraph Objects',
+            counter.use({engine, query, preamble: SQL_PREAMBLE, filters}),
           ),
-          onBackToTimeline
+          fillHeight: true,
+          buttons: onBackToTimeline
             ? m(
-                'button',
+                Anchor,
                 {class: 'pf-hde-download-link', onclick: onBackToTimeline},
                 'Back to Timeline',
               )
             : null,
-        ]),
+        },
         m(DataGrid, {
-          schema: makeUiSchema(navigate),
-          data: dataSource,
+          schema: makeUiSchema(navigate, potentiallyMergedClasses),
+          data: datasource,
           fillHeight: true,
           initialColumns: [
             {id: 'id', field: 'id'},
@@ -266,9 +265,11 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
             {id: 'heap', field: 'heap'},
           ],
           showExportButton: true,
-          onFiltersChanged: counter.onFiltersChanged,
+          onFiltersChanged: (newFilters) => {
+            filters = newFilters;
+          },
         }),
-      ]);
+      );
     },
   };
 }

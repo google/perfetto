@@ -68,6 +68,22 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
+// Legacy fields (delta timestamps, thread time and instruction counts, the
+// legacy event) are absent from almost every event; one presence-mask test
+// covers them all.
+using TrackEvent = protos::pbzero::TrackEvent;
+constexpr protozero::SelectiveDecodeMask<
+    TrackEvent::kTimestampDeltaUsFieldNumber,
+    TrackEvent::kTimestampAbsoluteUsFieldNumber,
+    TrackEvent::kThreadTimeDeltaUsFieldNumber,
+    TrackEvent::kThreadTimeAbsoluteUsFieldNumber,
+    TrackEvent::kThreadInstructionCountDeltaFieldNumber,
+    TrackEvent::kThreadInstructionCountAbsoluteFieldNumber,
+    TrackEvent::kLegacyEventFieldNumber>
+    kLegacyTrackEventFields{};
+static_assert(decltype(kLegacyTrackEventFields)::kMaxFieldId < 64,
+              "mask must fit one presence word");
 using protos::pbzero::CounterDescriptor;
 
 class V8Sink : public TraceSorter::Sink<LegacyV8CpuProfileEvent, V8Sink> {
@@ -435,19 +451,31 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
 
   protos::pbzero::TrackEvent::Decoder event(
       args.field.Cast<protos::pbzero::TracePacket::kTrackEvent>());
+  const bool legacy = event.HasAnyField(kLegacyTrackEventFields.data(), 1);
+  const bool needs_processing = legacy || event.has_extra_counter_values() ||
+                                event.has_extra_double_counter_values() ||
+                                event.type() == TrackEvent::TYPE_COUNTER ||
+                                event.type() == TrackEvent::TYPE_STATE;
+  if (!needs_processing && args.decoder.has_timestamp() && args.ts >= 0) {
+    module_context_->track_event_stream->Push(
+        args.ts, TrackEventData(std::move(*args.packet), args.state));
+    return ModuleResult::Handled();
+  }
   protos::pbzero::TrackEventDefaults::Decoder* defaults =
       args.state->GetTrackEventDefaults();
 
   int64_t timestamp;
   bool timestamp_needs_clock_conversion = false;
   TrackEventData data(std::move(*args.packet), args.state);
-  auto* track_event = args.state->GetCustomState<TrackEventSequenceState>();
+  // The sequence-local state is only needed for deltas.
+  TrackEventSequenceState* track_event =
+      legacy ? args.state->GetCustomState<TrackEventSequenceState>() : nullptr;
 
   // TODO(eseckler): Remove handling of timestamps relative to ThreadDescriptors
   // once all producers have switched to clock-domain timestamps (e.g.
   // TracePacket's timestamp).
 
-  if (event.has_timestamp_delta_us()) {
+  if (legacy && event.has_timestamp_delta_us()) {
     // Delta timestamps require a valid ThreadDescriptor packet since the last
     // packet loss.
     if (!track_event->timestamps_valid()) {
@@ -460,7 +488,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     timestamp = track_event->IncrementAndGetTrackEventTimeNs(
         base::SaturatingMultiply(event.timestamp_delta_us(), 1000));
     timestamp_needs_clock_conversion = true;
-  } else if (int64_t ts_absolute_us = event.timestamp_absolute_us()) {
+  } else if (int64_t ts_absolute_us =
+                 legacy ? event.timestamp_absolute_us() : 0) {
     // One-off absolute timestamps don't affect delta computation.
     timestamp = base::SaturatingMultiply(ts_absolute_us, 1000);
     timestamp_needs_clock_conversion = true;
@@ -492,7 +521,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   }
 
   // Handle legacy sample events which might have timestamps embedded inside.
-  if (PERFETTO_UNLIKELY(event.has_legacy_event())) {
+  if (PERFETTO_UNLIKELY(legacy && event.has_legacy_event())) {
     protos::pbzero::TrackEvent::LegacyEvent::Decoder leg(event.legacy_event());
     if (PERFETTO_UNLIKELY(leg.phase() == 'P')) {
       base::Status status = TokenizeLegacySampleEvent(
@@ -504,7 +533,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     }
   }
 
-  if (event.has_thread_time_delta_us()) {
+  if (legacy && event.has_thread_time_delta_us()) {
     // Delta timestamps require a valid ThreadDescriptor packet since the last
     // packet loss.
     if (!track_event->timestamps_valid()) {
@@ -516,13 +545,13 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     }
     data.thread_timestamp = track_event->IncrementAndGetTrackEventThreadTimeNs(
         base::SaturatingMultiply(event.thread_time_delta_us(), 1000));
-  } else if (event.has_thread_time_absolute_us()) {
+  } else if (legacy && event.has_thread_time_absolute_us()) {
     // One-off absolute timestamps don't affect delta computation.
     data.thread_timestamp =
         base::SaturatingMultiply(event.thread_time_absolute_us(), 1000);
   }
 
-  if (event.has_thread_instruction_count_delta()) {
+  if (legacy && event.has_thread_instruction_count_delta()) {
     // Delta timestamps require a valid ThreadDescriptor packet since the last
     // packet loss.
     if (!track_event->timestamps_valid()) {
@@ -536,7 +565,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     data.thread_instruction_count =
         track_event->IncrementAndGetTrackEventThreadInstructionCount(
             event.thread_instruction_count_delta());
-  } else if (event.has_thread_instruction_count_absolute()) {
+  } else if (legacy && event.has_thread_instruction_count_absolute()) {
     // One-off absolute timestamps don't affect delta computation.
     data.thread_instruction_count = event.thread_instruction_count_absolute();
   }
@@ -592,14 +621,16 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   size_t index = 0;
   const protozero::RepeatedFieldIterator<uint64_t> kEmptyIterator;
   uint32_t seq_id = args.decoder.trusted_packet_sequence_id();
-  if (!AddExtraCounterValues(
+  if (PERFETTO_UNLIKELY(event.has_extra_counter_values()) &&
+      !AddExtraCounterValues(
           *args.state, data, index, event.extra_counter_values(),
           event.extra_counter_track_uuids(),
           defaults ? defaults->extra_counter_track_uuids() : kEmptyIterator,
           seq_id, &data.trace_packet_data.packet)) {
     return ModuleResult::Handled();
   }
-  if (!AddExtraCounterValues(
+  if (PERFETTO_UNLIKELY(event.has_extra_double_counter_values()) &&
+      !AddExtraCounterValues(
           *args.state, data, index, event.extra_double_counter_values(),
           event.extra_double_counter_track_uuids(),
           defaults ? defaults->extra_double_counter_track_uuids()

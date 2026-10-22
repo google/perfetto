@@ -53,15 +53,6 @@ class BigTraceHelpContent implements m.ClassComponent {
           m('td', 'Format query'),
         ),
       ),
-      m('h2', 'Running commands'),
-      m(
-        'table',
-        m(
-          'tr',
-          m('td', keycap('>'), ' in the (empty) search box'),
-          m('td', 'Switch to command mode'),
-        ),
-      ),
       m('h2', 'Command Hotkeys'),
       m(
         'table',

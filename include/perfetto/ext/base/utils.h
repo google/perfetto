@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <atomic>
 #include <functional>
@@ -71,6 +72,74 @@ inline uint32_t GetSysPageSize() {
 template <typename T, size_t TSize>
 constexpr size_t ArraySize(const T (&)[TSize]) {
   return TSize;
+}
+
+// Adds `a` and `b` into `*result`, returning false on overflow. The value of
+// `*result` is unspecified when false is returned.
+inline bool CheckedAdd(int64_t a, int64_t b, int64_t* result) {
+#if defined(__clang__) || defined(__GNUC__)
+  return !__builtin_add_overflow(a, b, result);
+#else
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+  if ((b > 0 && a > kMax - b) || (b < 0 && a < kMin - b))
+    return false;
+  *result = a + b;
+  return true;
+#endif
+}
+
+// Subtracts `b` from `a` into `*result`, returning false on overflow. The
+// value of `*result` is unspecified when false is returned.
+inline bool CheckedSub(int64_t a, int64_t b, int64_t* result) {
+#if defined(__clang__) || defined(__GNUC__)
+  return !__builtin_sub_overflow(a, b, result);
+#else
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+  if ((b < 0 && a > kMax + b) || (b > 0 && a < kMin + b))
+    return false;
+  *result = a - b;
+  return true;
+#endif
+}
+
+// Returns whether `value` is positive or negative zero. Compares the bit
+// pattern so it can be used in translation units compiled with -Wfloat-equal.
+inline bool IsZero(double value) {
+  uint64_t bits;
+  memcpy(&bits, &value, sizeof(bits));
+  return (bits << 1) == 0;
+}
+inline bool IsZero(int64_t value) {
+  return value == 0;
+}
+
+// Returns the bits of `value` with -0.0 turned into 0.0 and every NaN into
+// the same NaN, so equal values, and all NaNs, have the same bits.
+inline uint64_t CanonicalFloatBits(double value) {
+  uint64_t bits;
+  memcpy(&bits, &value, sizeof(bits));
+  if (PERFETTO_UNLIKELY((bits << 1) == 0)) {
+    return 0;
+  }
+  if (PERFETTO_UNLIKELY((bits << 1) > (uint64_t{0x7FF} << 53))) {
+    double nan = std::numeric_limits<double>::quiet_NaN();
+    memcpy(&bits, &nan, sizeof(bits));
+  }
+  return bits;
+}
+inline uint32_t CanonicalFloatBits(float value) {
+  uint32_t bits;
+  memcpy(&bits, &value, sizeof(bits));
+  if (PERFETTO_UNLIKELY((bits << 1) == 0)) {
+    return 0;
+  }
+  if (PERFETTO_UNLIKELY((bits << 1) > (uint32_t{0xFF} << 24))) {
+    float nan = std::numeric_limits<float>::quiet_NaN();
+    memcpy(&bits, &nan, sizeof(bits));
+  }
+  return bits;
 }
 
 // Adds `a` and `b`, clamping to INT64_MIN / INT64_MAX on overflow instead of

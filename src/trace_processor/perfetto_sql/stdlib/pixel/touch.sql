@@ -12,8 +12,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 CREATE PERFETTO TABLE _pixel_touch_twoshay_events AS
 WITH
   base AS (
@@ -31,7 +29,8 @@ SELECT
   twoshay_ts,
   twoshay_dur,
   in_ts,
-  cast_int!(IFNULL(
+  cast_int!(
+    IFNULL(
       (
         SELECT c.value
         FROM counter AS c
@@ -45,7 +44,8 @@ SELECT
         LIMIT 1
       ),
       0
-    )) AS resample_latency_offset
+    )
+  ) AS resample_latency_offset
 FROM base;
 
 CREATE PERFETTO TABLE _pixel_touch_bottom_half_events AS
@@ -77,31 +77,27 @@ WITH
 SELECT * FROM bh_with_in_ts;
 
 CREATE PERFETTO TABLE _pixel_touch_top_half_events AS
-WITH
-  irq_counters AS (
-    SELECT id, ts, 0 AS dur, value, track_id
-    FROM counter
-    WHERE
-      track_id = (SELECT id FROM track WHERE name = 'gti_th_irq_index' LIMIT 1)
-  ),
-  irq_slices AS (
+INTERVAL INTERSECTION OF (
+  (
     SELECT id, ts, dur, track_id
     FROM slice
     WHERE
       name GLOB 'IRQ (*)'
       AND dur > 0
-  )
-SELECT
+  ) AS s,
+  (
+    SELECT id, ts, 0 AS dur, value, track_id
+    FROM counter
+    WHERE
+      track_id = (SELECT id FROM track WHERE name = 'gti_th_irq_index' LIMIT 1)
+  ) AS c
+)
+|> SELECT
   s.id AS th_slice_id,
   s.ts AS th_start_ts,
   s.dur AS th_dur,
   s.track_id AS th_track_id,
-  c.value AS irq_idx
-FROM _interval_intersect!((irq_slices, irq_counters), ()) AS ii
-JOIN irq_slices AS s
-  ON s.id = ii.id_0
-JOIN irq_counters AS c
-  ON c.id = ii.id_1;
+  c.value AS irq_idx;
 
 -- Pixel-specific touch events, including top and bottom half IRQ, and Twoshay touch processing.
 CREATE PERFETTO TABLE pixel_touch_events(

@@ -38,6 +38,7 @@
 #include "perfetto/public/data_source.h"
 #include "perfetto/public/pb_decoder.h"
 #include "perfetto/public/pb_msg.h"
+#include "perfetto/public/pb_msg_writer.h"
 #include "perfetto/public/pb_packed.h"
 #include "perfetto/public/pb_utils.h"
 #include "perfetto/public/producer.h"
@@ -50,7 +51,6 @@
 #include "perfetto/public/protos/trace/track_event/track_descriptor.pzc.h"
 #include "perfetto/public/protos/trace/track_event/track_event.pzc.h"
 #include "perfetto/public/protos/trace/trigger.pzc.h"
-#include "perfetto/public/stream_writer.h"
 #include "perfetto/public/te_category_macros.h"
 #include "perfetto/public/te_macros.h"
 #include "perfetto/public/tracing_session.h"
@@ -242,19 +242,19 @@ TEST(SharedLibProtobufTest, PerfettoPbDecoderIteratorExample) {
 class SharedLibProtozeroSerializationTest : public testing::Test {
  protected:
   SharedLibProtozeroSerializationTest() {
-    hb = PerfettoHeapBufferCreate(&writer.writer);
+    hb = PerfettoHeapBufferCreate(&writer);
   }
 
   std::vector<uint8_t> GetData() {
     std::vector<uint8_t> data;
-    size_t size = PerfettoStreamWriterGetWrittenSize(&writer.writer);
+    size_t size = PerfettoPbMsgWriterGetWrittenSize(&writer);
     data.resize(size);
-    PerfettoHeapBufferCopyInto(hb, &writer.writer, data.data(), data.size());
+    PerfettoHeapBufferCopyInto(hb, &writer, data.data(), data.size());
     return data;
   }
 
   ~SharedLibProtozeroSerializationTest() {
-    PerfettoHeapBufferDestroy(hb, &writer.writer);
+    PerfettoHeapBufferDestroy(hb, &writer);
   }
 
   template <typename T>
@@ -294,6 +294,112 @@ class SharedLibProtozeroSerializationTest : public testing::Test {
   struct PerfettoPbMsgWriter writer;
   struct PerfettoHeapBuffer* hb;
 };
+
+TEST_F(SharedLibProtozeroSerializationTest, FinalizeRootAndReuse) {
+  PerfettoPbMsg msg;
+  PerfettoPbMsgInit(&msg, &writer);
+  EXPECT_FALSE(msg.is_finalized);
+  EXPECT_EQ(PerfettoPbMsgFinalize(&msg), 0u);
+  EXPECT_TRUE(msg.is_finalized);
+  EXPECT_EQ(PerfettoPbMsgFinalize(&msg), 0u);
+  EXPECT_TRUE(GetData().empty());
+
+  PerfettoPbMsgInit(&msg, &writer);
+  EXPECT_FALSE(msg.is_finalized);
+  PerfettoPbMsgAppendType0Field(&msg, 1, 42);
+  EXPECT_EQ(PerfettoPbMsgFinalize(&msg), 2u);
+  EXPECT_TRUE(msg.is_finalized);
+  const auto data = GetData();
+  EXPECT_EQ(PerfettoPbMsgFinalize(&msg), data.size());
+  EXPECT_EQ(GetData(), data);
+  EXPECT_THAT(FieldView(data), ElementsAre(PbField(1, VarIntField(42))));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, FinalizeChildBeforeEndNested) {
+  PerfettoPbMsg parent;
+  PerfettoPbMsg child;
+  PerfettoPbMsgInit(&parent, &writer);
+  PerfettoPbMsgBeginNested(&parent, &child, 1);
+  EXPECT_FALSE(child.is_finalized);
+  PerfettoPbMsgAppendType0Field(&child, 2, 42);
+  EXPECT_EQ(PerfettoPbMsgFinalize(&child), 2u);
+  EXPECT_TRUE(child.is_finalized);
+  EXPECT_FALSE(parent.is_finalized);
+  EXPECT_EQ(parent.nested, &child);
+  EXPECT_EQ(parent.size, 5u);
+  const auto data = GetData();
+  EXPECT_EQ(PerfettoPbMsgFinalize(&child), 2u);
+  EXPECT_EQ(GetData(), data);
+
+  PerfettoPbMsgEndNested(&parent);
+  EXPECT_EQ(parent.nested, nullptr);
+  EXPECT_EQ(parent.size, data.size());
+  EXPECT_EQ(PerfettoPbMsgFinalize(&child), 2u);
+  EXPECT_EQ(parent.size, data.size());
+
+  PerfettoPbMsgBeginNested(&parent, &child, 3);
+  EXPECT_FALSE(child.is_finalized);
+  EXPECT_EQ(child.size, 0u);
+  EXPECT_EQ(PerfettoPbMsgFinalize(&child), 0u);
+  EXPECT_TRUE(child.is_finalized);
+  EXPECT_EQ(PerfettoPbMsgFinalize(&parent), data.size() + 5);
+  EXPECT_EQ(parent.nested, nullptr);
+  const auto final_data = GetData();
+  EXPECT_EQ(PerfettoPbMsgFinalize(&parent), final_data.size());
+  EXPECT_EQ(GetData(), final_data);
+  EXPECT_THAT(
+      FieldView(final_data),
+      ElementsAre(
+          PbField(1, MsgField(ElementsAre(PbField(2, VarIntField(42))))),
+          PbField(3, MsgField(ElementsAre()))));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest,
+       FinalizeOpenDescendantsAcrossChunks) {
+  PerfettoPbMsg root;
+  PerfettoPbMsg child;
+  PerfettoPbMsg grandchild;
+  PerfettoPbMsgInit(&root, &writer);
+  PerfettoPbMsgBeginNested(&root, &child, 1);
+  PerfettoPbMsgBeginNested(&child, &grandchild, 2);
+  const std::string payload(PerfettoPbMsgWriterAvailableBytes(&writer) + 1,
+                            'x');
+  PerfettoPbMsgAppendCStrField(&grandchild, 3, payload.c_str());
+  EXPECT_GT(writer.written_previously, 0u);
+
+  EXPECT_EQ(PerfettoPbMsgFinalize(&root), GetData().size());
+  EXPECT_TRUE(root.is_finalized);
+  EXPECT_TRUE(child.is_finalized);
+  EXPECT_TRUE(grandchild.is_finalized);
+  EXPECT_EQ(root.nested, nullptr);
+  EXPECT_EQ(child.nested, nullptr);
+  const auto data = GetData();
+  EXPECT_EQ(PerfettoPbMsgFinalize(&grandchild), grandchild.size);
+  EXPECT_EQ(PerfettoPbMsgFinalize(&child), child.size);
+  EXPECT_EQ(PerfettoPbMsgFinalize(&root), data.size());
+  EXPECT_EQ(GetData(), data);
+  EXPECT_THAT(
+      FieldView(data),
+      ElementsAre(PbField(
+          1,
+          MsgField(ElementsAre(PbField(
+              2, MsgField(ElementsAre(PbField(3, StringField(payload))))))))));
+}
+
+#ifndef NDEBUG
+TEST_F(SharedLibProtozeroSerializationTest, WritesAfterFinalizeAssert) {
+  PerfettoPbMsg root;
+  PerfettoPbMsg child;
+  PerfettoPbMsgInit(&root, &writer);
+  PerfettoPbMsgBeginNested(&root, &child, 1);
+  PerfettoPbMsgFinalize(&root);
+
+  EXPECT_DEATH_IF_SUPPORTED(PerfettoPbMsgAppendByte(&root, 0), "is_finalized");
+  EXPECT_DEATH_IF_SUPPORTED(PerfettoPbMsgAppendByte(&child, 0), "is_finalized");
+  EXPECT_DEATH_IF_SUPPORTED(PerfettoPbMsgBeginNested(&root, &child, 2),
+                            "is_finalized");
+}
+#endif
 
 TEST_F(SharedLibProtozeroSerializationTest, SimpleFieldsNoNesting) {
   struct protozero_test_protos_EveryField msg;
@@ -617,6 +723,116 @@ TEST_F(SharedLibProtozeroSerializationTest, PackedRepeatedMsgFixed) {
                                    ElementsAre(3.14, 42.1))))));
 }
 
+// --- C proto-group encoding tests ---
+
+TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupGeneratedMessages) {
+  protozero_test_protos_EveryField root, outer, inner, leaf;
+  writer.encoding = PERFETTO_PB_MSG_ENCODING_PROTO_GROUP;
+  PerfettoPbMsgInit(&root.msg, &writer);
+  protozero_test_protos_EveryField_begin_field_nested(&root, &outer);
+  protozero_test_protos_EveryField_begin_field_nested(&outer, &inner);
+  protozero_test_protos_EveryField_begin_field_nested(&inner, &leaf);
+  protozero_test_protos_EveryField_set_field_int32(&leaf, 150);
+  protozero_test_protos_EveryField_end_field_nested(&root, &outer);
+  protozero_test_protos_EveryField_set_field_int32(&root, 42);
+  EXPECT_EQ(11u, PerfettoPbMsgFinalize(&root.msg));
+  EXPECT_EQ(11u, PerfettoPbMsgFinalize(&root.msg));
+  EXPECT_EQ(GetData(), (std::vector<uint8_t>{0x73, 0x73, 0x73, 0x08, 0x96, 0x01,
+                                             0x04, 0x04, 0x04, 0x08, 0x2a}));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupEmptyAndReset) {
+  PerfettoPbMsg root, child;
+  writer.encoding = PERFETTO_PB_MSG_ENCODING_PROTO_GROUP;
+  PerfettoPbMsgInit(&root, &writer);
+  EXPECT_EQ(0u, PerfettoPbMsgFinalize(&root));
+  EXPECT_EQ(0u, PerfettoPbMsgFinalize(&root));
+  EXPECT_TRUE(GetData().empty());
+  writer.encoding = PERFETTO_PB_MSG_ENCODING_PROTO_GROUP;
+  PerfettoPbMsgInit(&root, &writer);
+  PerfettoPbMsgBeginNested(&root, &child, 1);
+  EXPECT_EQ(2u, PerfettoPbMsgFinalize(&root));
+  writer.encoding = PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED;
+  PerfettoPbMsgInit(&root, &writer);
+  PerfettoPbMsgBeginNested(&root, &child, 1);
+  EXPECT_EQ(5u, PerfettoPbMsgFinalize(&root));
+  EXPECT_EQ(GetData(),
+            (std::vector<uint8_t>{0x0b, 0x04, 0x0a, 0x80, 0x80, 0x80, 0}));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupHighFieldIdAndSiblings) {
+  PerfettoPbMsg root, child;
+  writer.encoding = PERFETTO_PB_MSG_ENCODING_PROTO_GROUP;
+  PerfettoPbMsgInit(&root, &writer);
+  PerfettoPbMsgBeginNested(&root, &child, 100);
+  PerfettoPbMsgAppendType0Field(&child, 1, 0);
+
+  // The child's size excludes its closing byte. PerfettoPbMsgEndNested()
+  // writes that byte, once.
+  EXPECT_EQ(2u, PerfettoPbMsgFinalize(&child));
+  EXPECT_EQ(2u, PerfettoPbMsgFinalize(&child));
+  PerfettoPbMsgEndNested(&root);
+
+  PerfettoPbMsgBeginNested(&root, &child, 1);
+  PerfettoPbMsgAppendType0Field(&child, 2, 150);
+  PerfettoPbMsgEndNested(&root);
+  PerfettoPbMsgAppendType0Field(&root, 2, 42);
+  EXPECT_EQ(12u, PerfettoPbMsgFinalize(&root));
+  EXPECT_EQ(GetData(),
+            (std::vector<uint8_t>{0xa3, 0x06, 0x08, 0, 0x04, 0x0b, 0x10, 0x96,
+                                  0x01, 0x04, 0x10, 0x2a}));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupCloseAtChunkBoundary) {
+  PerfettoPbMsg root, child;
+  writer.encoding = PERFETTO_PB_MSG_ENCODING_PROTO_GROUP;
+  PerfettoPbMsgInit(&root, &writer);
+  PerfettoPbMsgBeginNested(&root, &child, 1);
+  // The heap buffer hands out 4096-byte slices. The start tag, the field tag,
+  // the 2-byte length and the payload fill the first slice exactly.
+  constexpr size_t kSliceSize = 4096;
+  constexpr size_t kPreambleSize = 4;
+  const std::vector<uint8_t> payload(kSliceSize - kPreambleSize, 0x55);
+  PerfettoPbMsgAppendType2Field(&child, 2, payload.data(), payload.size());
+  ASSERT_EQ(0u, PerfettoPbMsgWriterAvailableBytes(&writer));
+  EXPECT_EQ(nullptr, child.size_field);
+  const auto published = GetData();
+  ASSERT_EQ(kSliceSize, published.size());
+  EXPECT_EQ(kSliceSize + 1, PerfettoPbMsgFinalize(&root));
+  EXPECT_EQ(kSliceSize + 1, PerfettoPbMsgFinalize(&root));
+  auto expected = std::vector<uint8_t>{0x0b, 0x12, 0xfc, 0x1f};
+  expected.insert(expected.end(), payload.begin(), payload.end());
+  EXPECT_EQ(expected, published);
+  expected.push_back(0x04);
+  EXPECT_EQ(expected, GetData());
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupStringAndBytes) {
+  protozero_test_protos_EveryField root;
+  writer.encoding = PERFETTO_PB_MSG_ENCODING_PROTO_GROUP;
+  PerfettoPbMsgInit(&root.msg, &writer);
+  protozero_test_protos_EveryField_set_cstr_field_string(&root, "a");
+  protozero_test_protos_EveryField_set_field_string(&root, "bc", 2);
+  protozero_test_protos_EveryField_set_field_bytes(&root, "\x11\x00\xbe\xef",
+                                                   4);
+  EXPECT_EQ(16u, PerfettoPbMsgFinalize(&root.msg));
+  EXPECT_EQ(GetData(),
+            (std::vector<uint8_t>{0xa2, 0x1f, 1, 'a', 0xa2, 0x1f, 2, 'b', 'c',
+                                  0xca, 0x1f, 4, 0x11, 0, 0xbe, 0xef}));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupIncrementalPackedAborts) {
+  protozero_test_protos_PackedRepeatedFields root;
+  writer.encoding = PERFETTO_PB_MSG_ENCODING_PROTO_GROUP;
+  PerfettoPbMsgInit(&root.msg, &writer);
+  PerfettoPbPackedMsgInt32 payload;
+  // abort() prints no message, so the matcher is empty.
+  EXPECT_DEATH_IF_SUPPORTED(
+      protozero_test_protos_PackedRepeatedFields_begin_field_int32(&root,
+                                                                   &payload),
+      "");
+}
+
 class SharedLibDataSourceTest : public testing::Test {
  protected:
   void SetUp() override {
@@ -738,6 +954,63 @@ class SharedLibDataSourceTest : public testing::Test {
   NiceMock<MockDs2Callbacks> ds2_callbacks_;
   void* ds2_user_arg_ = kDataSource2UserArg;
 };
+
+// Writes a v2 packet with a nested message that spans several chunks.
+// The payload is 2000 bytes and a chunk is 256, so the nested message must
+// cross chunk boundaries. The trace reader should get the same packet back as
+// standard protobuf.
+TEST_F(SharedLibDataSourceTest, TracingV2RoundTrip) {
+  WaitableEvent started;
+  EXPECT_CALL(ds2_callbacks_, OnStart(_, _, _, _, _)).WillOnce([&started] {
+    started.Notify();
+  });
+  auto session = TracingSession::Builder()
+                     .set_data_source_name(kDataSourceName2)
+                     .set_v2_probability(100)
+                     .Build();
+  started.WaitForNotification();
+  bool wrote = false;
+  WaitableEvent flushed;
+  std::string payload(2000, 'v');
+  PERFETTO_DS_TRACE(data_source_2, ctx) {
+    wrote = true;
+    PerfettoDsRootTracePacket packet;
+    PerfettoDsTracerPacketBegin(&ctx, &packet);
+    EXPECT_EQ(packet.msg.msg.encoding, PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+    perfetto_protos_TestEvent event;
+    perfetto_protos_TracePacket_begin_for_testing(&packet.msg, &event);
+    perfetto_protos_TestEvent_TestPayload nested;
+    perfetto_protos_TestEvent_begin_payload(&event, &nested);
+    perfetto_protos_TestEvent_TestPayload_set_str(&nested, payload.data(),
+                                                  payload.size());
+    perfetto_protos_TestEvent_end_payload(&event, &nested);
+    perfetto_protos_TracePacket_end_for_testing(&packet.msg, &event);
+    PerfettoDsTracerPacketEnd(&ctx, &packet);
+    PerfettoDsTracerFlush(
+        &ctx, [](void* arg) { static_cast<WaitableEvent*>(arg)->Notify(); },
+        &flushed);
+  }
+  ASSERT_TRUE(wrote);
+  flushed.WaitForNotification();
+  ASSERT_TRUE(session.FlushBlocking(5000));
+  session.StopBlocking();
+  bool found = false;
+  auto trace = session.ReadBlocking();
+  for (auto trace_field : FieldView(trace)) {
+    IdFieldView events(trace_field,
+                       perfetto_protos_TracePacket_for_testing_field_number);
+    if (events.size() == 0)
+      continue;
+    found = true;
+    EXPECT_THAT(FieldView(events.front()),
+                ElementsAre(PbField(
+                    perfetto_protos_TestEvent_payload_field_number,
+                    MsgField(ElementsAre(PbField(
+                        perfetto_protos_TestEvent_TestPayload_str_field_number,
+                        StringField(payload)))))));
+  }
+  EXPECT_TRUE(found);
+}
 
 TEST_F(SharedLibDataSourceTest, DisabledNotExecuted) {
   bool executed = false;
@@ -883,6 +1156,61 @@ TEST_F(SharedLibDataSourceTest, FlushCb) {
   EXPECT_TRUE(notification.IsNotified());
 }
 
+TEST_F(SharedLibDataSourceTest, DropCount) {
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name(kDataSourceName2).Build();
+  WaitableEvent on_flush_started;
+  WaitableEvent on_flush_unblocked;
+  EXPECT_CALL(ds2_callbacks_, OnFlush(_, _, _, _, _))
+      .WillOnce([&] {
+        on_flush_started.Notify();
+        on_flush_unblocked.WaitForNotification();
+      })
+      .WillRepeatedly([] {});
+
+  // Block the internal perfetto thread inside the OnFlush callback. The
+  // in-process tracing service runs on the same thread, so it cannot free
+  // shared memory buffer chunks while blocked: writing enough data below is
+  // guaranteed to exhaust the buffer and cause data loss.
+  PerfettoTracingSessionFlushAsync(tracing_session.session(), 0, nullptr,
+                                   nullptr);
+  on_flush_started.WaitForNotification();
+
+  uint64_t initial_drop_count = 0;
+  uint64_t final_drop_count = 0;
+  PERFETTO_DS_TRACE(data_source_2, ctx) {
+    initial_drop_count = PerfettoDsTracerGetDropCount(&ctx);
+    // Write way more data than the shared memory buffer can hold (the default
+    // shared memory buffer size is 256 KiB).
+    std::string large_str(1024, 'x');
+    for (size_t i = 0; i < 2048; i++) {
+      struct PerfettoDsRootTracePacket trace_packet;
+      PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
+      {
+        struct perfetto_protos_TestEvent for_testing;
+        perfetto_protos_TracePacket_begin_for_testing(&trace_packet.msg,
+                                                      &for_testing);
+        {
+          struct perfetto_protos_TestEvent_TestPayload payload;
+          perfetto_protos_TestEvent_begin_payload(&for_testing, &payload);
+          perfetto_protos_TestEvent_TestPayload_set_cstr_str(&payload,
+                                                             large_str.c_str());
+          perfetto_protos_TestEvent_end_payload(&for_testing, &payload);
+        }
+        perfetto_protos_TracePacket_end_for_testing(&trace_packet.msg,
+                                                    &for_testing);
+      }
+      PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
+    }
+    final_drop_count = PerfettoDsTracerGetDropCount(&ctx);
+  }
+  on_flush_unblocked.Notify();
+  tracing_session.StopBlocking();
+
+  EXPECT_EQ(initial_drop_count, 0u);
+  EXPECT_GT(final_drop_count, 0u);
+}
+
 TEST_F(SharedLibDataSourceTest, LifetimeCallbacks) {
   void* const kInstancePtr = reinterpret_cast<void*>(0x44);
   testing::InSequence seq;
@@ -998,6 +1326,25 @@ TEST_F(SharedLibDataSourceTest, FlushDone) {
   t.join();
 }
 
+TEST_F(SharedLibDataSourceTest, FlushReason) {
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name(kDataSourceName2).Build();
+
+  uint64_t reason = PERFETTO_DS_FLUSH_REASON_UNKNOWN;
+  WaitableEvent flush_called;
+
+  EXPECT_CALL(ds2_callbacks_, OnFlush(_, _, kDataSource2UserArg, _, _))
+      .WillOnce([&](struct PerfettoDsImpl*, PerfettoDsInstanceIndex, void*,
+                    void*, struct PerfettoDsOnFlushArgs* args) {
+        reason = PerfettoDsOnFlushArgsGetReason(args);
+        flush_called.Notify();
+      });
+
+  tracing_session.FlushBlocking(/*timeout_ms=*/10000);
+  flush_called.WaitForNotification();
+  EXPECT_EQ(reason, static_cast<uint64_t>(PERFETTO_DS_FLUSH_REASON_EXPLICIT));
+}
+
 TEST_F(SharedLibDataSourceTest, ThreadLocalState) {
   bool ignored = false;
   void* const kTlsPtr = &ignored;
@@ -1055,23 +1402,12 @@ TEST_F(SharedLibDataSourceTest, IncrementalStateClearSuccess) {
   void* const kIncrPtr = &ignored;
   WaitableEvent clear_notification;
 
-  // Create tracing session with periodic incremental state clearing
-  TracingSession tracing_session = TracingSession::Builder()
-                                       .set_data_source_name(kDataSourceName2)
-                                       .set_clear_period_ms(10)
-                                       .Build();
-
   EXPECT_CALL(ds2_callbacks_, OnCreateIncr).WillOnce(Return(kIncrPtr));
 
-  // Get incremental state - this should create it
-  void* tls_state = nullptr;
-  PERFETTO_DS_TRACE(data_source_2, ctx) {
-    tls_state = PerfettoDsGetIncrementalState(&data_source_2, &ctx);
-  }
-  EXPECT_EQ(Ds2ActualCustomState(tls_state), kIncrPtr);
-
   // Set up expectation that clear will be called and will return true.
-  // It may be called multiple times since clear_period_ms keeps firing.
+  // It may be called multiple times since clear_period_ms keeps firing
+  // (including potentially during the very first trace point if the periodic
+  // timer fires between PopulateTlsInst and PerfettoDsGetIncrementalState).
   EXPECT_CALL(ds2_callbacks_, OnClearIncr(kIncrPtr, _))
       .WillRepeatedly([&clear_notification](void*, void*) {
         clear_notification.Notify();
@@ -1080,6 +1416,19 @@ TEST_F(SharedLibDataSourceTest, IncrementalStateClearSuccess) {
 
   // OnDeleteIncr should NOT be called because clear succeeded
   EXPECT_CALL(ds2_callbacks_, OnDeleteIncr).Times(0);
+
+  // Create tracing session with periodic incremental state clearing
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name(kDataSourceName2)
+                                       .set_clear_period_ms(10)
+                                       .Build();
+
+  // Get incremental state - this should create it
+  void* tls_state = nullptr;
+  PERFETTO_DS_TRACE(data_source_2, ctx) {
+    tls_state = PerfettoDsGetIncrementalState(&data_source_2, &ctx);
+  }
+  EXPECT_EQ(Ds2ActualCustomState(tls_state), kIncrPtr);
 
   // Wait for at least one clear period to elapse, then access the incremental
   // state which will trigger the clear callback.
@@ -1121,6 +1470,33 @@ TEST_F(SharedLibDataSourceTest, IncrementalStateClearFailure) {
   void* const kIncrPtr1 = &ignored1;
   void* const kIncrPtr2 = &ignored2;
   WaitableEvent clear_notification;
+  bool should_fail_clear = false;
+
+  // First creation returns kIncrPtr1; subsequent recreations after failed clear
+  // return kIncrPtr2.
+  EXPECT_CALL(ds2_callbacks_, OnCreateIncr)
+      .WillOnce(Return(kIncrPtr1))
+      .WillRepeatedly(Return(kIncrPtr2));
+
+  // If a clear happens during the initial trace point (before should_fail_clear
+  // is set), succeed so the initial pointer remains kIncrPtr1. Once
+  // should_fail_clear is true, return false to trigger destruction and
+  // recreation with kIncrPtr2.
+  EXPECT_CALL(ds2_callbacks_, OnClearIncr(kIncrPtr1, _))
+      .WillRepeatedly([&clear_notification, &should_fail_clear](void*, void*) {
+        if (!should_fail_clear) {
+          return true;
+        }
+        clear_notification.Notify();
+        return false;  // Clear failed
+      });
+
+  // OnDeleteIncr SHOULD be called once for kIncrPtr1 when clear returns false
+  EXPECT_CALL(ds2_callbacks_, OnDeleteIncr(kIncrPtr1));
+
+  // OnClearIncr may be called again with the new pointer
+  EXPECT_CALL(ds2_callbacks_, OnClearIncr(kIncrPtr2, _))
+      .WillRepeatedly(Return(true));
 
   // Create tracing session with periodic incremental state clearing
   TracingSession tracing_session = TracingSession::Builder()
@@ -1128,35 +1504,13 @@ TEST_F(SharedLibDataSourceTest, IncrementalStateClearFailure) {
                                        .set_clear_period_ms(10)
                                        .Build();
 
-  EXPECT_CALL(ds2_callbacks_, OnCreateIncr).WillOnce(Return(kIncrPtr1));
-
   // Get incremental state - this should create it
   void* tls_state = nullptr;
   PERFETTO_DS_TRACE(data_source_2, ctx) {
     tls_state = PerfettoDsGetIncrementalState(&data_source_2, &ctx);
   }
   EXPECT_EQ(Ds2ActualCustomState(tls_state), kIncrPtr1);
-
-  // Set up expectation that clear will be called but will return false.
-  // After the first call returns false, subsequent calls should recreate with
-  // a new pointer. We use WillOnce to return false once, then WillRepeatedly
-  // for subsequent attempts which should get the new pointer.
-  EXPECT_CALL(ds2_callbacks_, OnClearIncr(kIncrPtr1, _))
-      .WillOnce([&clear_notification](void*, void*) {
-        clear_notification.Notify();
-        return false;  // Clear failed
-      });
-
-  // OnDeleteIncr SHOULD be called because clear returned false
-  EXPECT_CALL(ds2_callbacks_, OnDeleteIncr(kIncrPtr1));
-
-  // OnCreateIncr should be called again to recreate the state. It may be
-  // called multiple times if clear keeps firing.
-  EXPECT_CALL(ds2_callbacks_, OnCreateIncr).WillRepeatedly(Return(kIncrPtr2));
-
-  // OnClearIncr may be called again with the new pointer
-  EXPECT_CALL(ds2_callbacks_, OnClearIncr(kIncrPtr2, _))
-      .WillRepeatedly(Return(true));
+  should_fail_clear = true;
 
   // Wait for at least one clear period to elapse, then access the incremental
   // state which will trigger the clear callback.
@@ -1386,7 +1740,7 @@ class SharedLibProducerTest : public testing::Test {
 
 TEST_F(SharedLibProducerTest, ActivateTriggers) {
   struct PerfettoPbMsgWriter writer;
-  struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer.writer);
+  struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer);
 
   struct perfetto_protos_TraceConfig cfg;
   PerfettoPbMsgInit(&cfg.msg, &writer);
@@ -1415,10 +1769,10 @@ TEST_F(SharedLibProducerTest, ActivateTriggers) {
     }
     perfetto_protos_TraceConfig_end_trigger_config(&cfg, &trigger_config);
   }
-  size_t cfg_size = PerfettoStreamWriterGetWrittenSize(&writer.writer);
+  size_t cfg_size = PerfettoPbMsgWriterGetWrittenSize(&writer);
   std::unique_ptr<uint8_t[]> ser(new uint8_t[cfg_size]);
-  PerfettoHeapBufferCopyInto(hb, &writer.writer, ser.get(), cfg_size);
-  PerfettoHeapBufferDestroy(hb, &writer.writer);
+  PerfettoHeapBufferCopyInto(hb, &writer, ser.get(), cfg_size);
+  PerfettoHeapBufferDestroy(hb, &writer);
 
   struct PerfettoTracingSessionImpl* ts =
       PerfettoTracingSessionCreate(PERFETTO_BACKEND_IN_PROCESS);
@@ -1733,11 +2087,24 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlDynamicCategoryMultipleSessions) {
                                   StringField("interned_string"))))))))))))));
 }
 
-TEST_F(SharedLibTrackEventTest, TrackEventHlInstant) {
-  TracingSession tracing_session = TracingSession::Builder()
-                                       .set_data_source_name("track_event")
-                                       .add_enabled_category("*")
-                                       .Build();
+// Runs each test on a v1 writer and on a tracing v2 writer.
+// The parameter is the packet encoding that the writer gives.
+class SharedLibTrackEventEncodingTest
+    : public SharedLibTrackEventTest,
+      public testing::WithParamInterface<uint32_t> {
+ protected:
+  TracingSession StartSession() {
+    auto builder = TracingSession::Builder()
+                       .set_data_source_name("track_event")
+                       .add_enabled_category("*");
+    if (GetParam() == PERFETTO_PB_MSG_ENCODING_PROTO_GROUP)
+      builder.set_v2_probability(100);
+    return builder.Build();
+  }
+};
+
+TEST_P(SharedLibTrackEventEncodingTest, TrackEventHlInstant) {
+  auto tracing_session = StartSession();
 
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"));
 
@@ -1776,11 +2143,8 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlInstant) {
   EXPECT_TRUE(found);
 }
 
-TEST_F(SharedLibTrackEventTest, TrackEventLlInstant) {
-  TracingSession tracing_session = TracingSession::Builder()
-                                       .set_data_source_name("track_event")
-                                       .add_enabled_category("*")
-                                       .Build();
+TEST_P(SharedLibTrackEventEncodingTest, TrackEventLlInstant) {
+  auto tracing_session = StartSession();
 
   if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
           cat1.enabled, PERFETTO_MEMORY_ORDER_RELAXED))) {
@@ -1795,6 +2159,7 @@ TEST_F(SharedLibTrackEventTest, TrackEventLlInstant) {
       {
         struct PerfettoDsRootTracePacket trace_packet;
         PerfettoTeLlPacketBegin(&ctx, &trace_packet);
+        EXPECT_EQ(trace_packet.msg.msg.encoding, GetParam());
         PerfettoTeLlWriteTimestamp(&trace_packet.msg, &timestamp);
         perfetto_protos_TracePacket_set_sequence_flags(
             &trace_packet.msg,
@@ -1857,6 +2222,15 @@ TEST_F(SharedLibTrackEventTest, TrackEventLlInstant) {
   }
   EXPECT_TRUE(found);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Encoding,
+    SharedLibTrackEventEncodingTest,
+    testing::Values(PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED,
+                    PERFETTO_PB_MSG_ENCODING_PROTO_GROUP),
+    [](const testing::TestParamInfo<uint32_t>& info) {
+      return info.param == PERFETTO_PB_MSG_ENCODING_PROTO_GROUP ? "V2" : "V1";
+    });
 
 TEST_F(SharedLibTrackEventTest, TrackEventHlInstantNoIntern) {
   TracingSession tracing_session = TracingSession::Builder()

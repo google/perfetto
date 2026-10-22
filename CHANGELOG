@@ -1,12 +1,181 @@
-Unreleased:
+v59.0 - 2026-10-22:
   Tracing service and probes:
-   *
+   * Changed compression logic to always emit clock snapshot, trace config and
+   trace UUID uncompressed for metadata inspection by on-device tools.
+   * Added support for persistent traces surviving device reboots on Android.
+     When TraceConfig.persist_trace_across_reboots is set, the trace file is
+     kept on disk and recovered and uploaded on the next boot via
+     `perfetto --upload-after-reboot`.
+   * Fixed a crash in `perfetto` when trace data arrived after a trace file
+     write failure.
+   * Added the "linux.smaps" data source to traced_perf, which records
+     /proc/pid/smaps of selected processes, either once or periodically.
+     Processes can be selected by cmdline and uid range, and
+     max_processes_per_period caps how many are read per period.
+   * When a config traces every syscall, the x86_64 uprobe/uretprobe
+     trampoline syscalls are now filtered out, as their sys_enter is never
+     closed by a matching sys_exit.
+   * Added GpuRenderStagesConfig.drawcall_stages to emit per-draw-call slices
+     on the gpu.renderstages data source.
+   * Added the pixel_metrics/long_irq and pixel_metrics/long_softirq ftrace
+     events.
+   * The tracing service now rejects producers with an invalid or unusable
+     shared memory buffer instead of crashing.
+   * Fixed heapprofd unwinding failures on x86_64 when the stack below the
+     interceptor's frame address was not captured.
   Trace Processor:
-   *
+   * SQL errors are now laid out like rustc diagnostics: a
+     `--> source:line:col` location naming where the SQL came from (query,
+     module, macro or metric), a line-number gutter and a caret, with the
+     message on a final `error:` line.
+   * `trace_processor query` can now print results as compact markdown tables
+     with `--format markdown`. Markdown output is capped at 1000 rows, 10000
+     bytes and 500 characters per cell by default. `--max-rows`, `--max-bytes`
+     and `--max-cell-width` change the limits, and also apply to CSV output
+     when passed explicitly.
+   * Added agent mode to `trace_processor query`. When it is run by a coding
+     agent (detected from environment variables such as `CLAUDECODE` or
+     `AI_AGENT`) with stdout not a terminal, results default to markdown and
+     errors are printed as a single line of JSON. `--agent` and `--no-agent`
+     force it on or off. See
+     https://perfetto.dev/docs/reference/trace-processor-cli#agent-mode.
+   * Fixed conversion of TracingServiceEvent timestamps (tracing_started_ns,
+     all_data_source_started_ns, ...) to trace time when primary_trace_clock
+     is not BOOTTIME. They were previously stored unconverted, which could
+     also cause ftrace events to be dropped when preserve_ftrace_buffer is
+     disabled.
+   * Changed `graph_reachable_dfs` and `graph_reachable_bfs` to return the
+     start nodes when the graph has no edges, consistent with how start nodes
+     not in the graph are handled when it does have edges. Previously an empty
+     table was returned. See
+     https://perfetto.dev/docs/analysis/perfetto-sql-backcompat.
+   * The Python `TraceProcessor` can now connect to a warm
+     `trace_processor server unix` session via the new `remote` parameter,
+     e.g. `TraceProcessor(remote='my-session')`. Only `query()` is supported
+     over Unix sockets for now. `remote` also accepts HTTP addresses, and
+     `addr` is deprecated in its favour.
+   * The interactive shell now prints results as aligned tables with columns
+     sized to their contents, and prints the result of every statement in the
+     input rather than only the last. Ctrl-D at the paging prompt now ends the
+     current result instead of exiting the shell.
+   * Removed the `.dump`, `.load-metrics-sql` and `.run-metrics` interactive
+     shell commands, and deprecated `.width` and `-W/--wide`, which no longer
+     do anything. Using any of them prints what to do instead: for `.dump`,
+     use `trace_processor export sqlite`.
+   * Added `std.gpu.vulkan_debug_names` with the history of Vulkan debug
+     object names.
+   * Added the `long_trace_mode_bytes_overwritten` data loss stat, reporting
+     bytes overwritten in the central buffer before they could be written to
+     the file in write_into_file traces.
+   * Added `trace_recovery_reason` to the metadata table for traces recovered
+     after a device reboot.
+   * Added parsing of Android process state and freezer state dumps, and of
+     AndroidProcessDiedEvent exit reasons, with the new
+     `android.process_state` stdlib module.
+   * Added the `android.lock_held`, `android.cpu.cluster_utilization` and
+     `android.job_scheduler_states_track_events` stdlib modules, a
+     JobScheduler pending reasons table, and `android_cuj_blocking_calls`.
+   * Added Wattson support for Tensor G6 (CPU, GPU and TPU) and MT6789, and
+     for Linux devices identified by their device tree. Removed Wattson's
+     inferred idle support.
+   * Added explicit debuginfod lookup of native symbols, enabled with
+     `--debuginfod`. Symbolization now sends far fewer requests to
+     llvm-symbolizer, fails gracefully when llvm-symbolizer cannot be run,
+     and can symbolize unsymbolicated Firefox Profiler (samply) profiles.
+   * Deobfuscation mappings without a package name now apply to every
+     package. ART hprof heap dumps can now be deobfuscated with `bundle`, and
+     R8 mergedClasses metadata is used to flag potentially merged classes.
+   * Sped up ART hprof heap dump import and reduced its peak memory.
+   * perf.data imports now handle PERF_RECORD_FORK and PERF_RECORD_EXIT, and
+     support thread-scoped PMU counters (`perf_counter_track` gains a `utid`
+     column).
+   * Fixed the strace importer on real `strace -f` and `-T` output.
+   * x86_64 uprobe/uretprobe trampoline syscalls in older traces are now
+     imported as instants instead of leaving open slices.
+   * Merged trace manifests now accept `TRACE_FILE` as a clock name. Fixed
+     `offset_ns` being ignored for proto files without clock snapshots.
+   * Added terminal-aware progress reporting, `--no-progress`, and support
+     for the `NO_COLOR` and `FORCE_COLOR` environment variables.
+   * Trace summary specs now ignore unknown fields.
+   * Extension descriptors in a trace now override built-in definitions of
+     the same fields.
+   * Upgraded SQLite to 3.53.4.
+   * traceconv now fails instead of writing an empty profile when profile
+     conversion fails.
   UI:
-   *
+    * Double-clicking a timeline slice now selects and zooms into it.
+    * ART heap dumps can now be exported as pprof from the flamegraph.
+    * Added a setting to default to the flamegraph tab in the Heap Dump
+      Explorer.
+    * The query page editor now autofocuses when a new tab is created.
+    * Fixed a flamegraph crash on heap profiles with negative allocation
+      sizes.
+    * Fixed flicker when selecting between track events.
+    * Memscope: native callstack snippet table no longer truncates frames.
+    * Intelletto: registered tools with Chrome's WebMCP API.
+    * Serialize workspaces to permalinks.
+    * Added a "Show only direct flows" setting to the FlowEvents plugin: when
+      enabled, selecting a slice shows only the flows directly connected to it
+      (one step) instead of following the entire flow chain. Useful for traces
+      with dense flow graphs (e.g. build dependencies).
+    * Fix issue where horizontal two-finger scrolling to pan the timeline would
+      also trigger browser navigation gestures in Chrome under ChromeOS, Linux
+      and Windows.
+    * Add option to record smaps snapshots alongside ART heap dumps in the
+      record page.
+    * Added "Expand all" and "Collapse all" to the track menu to expand or
+      collapse a track group and all of its descendants.
+    * Shift+click on a track group header expands or collapses it and all of
+      its descendants.
+    * Added process, thread and track fields as optional columns in the thread
+      slice aggregation panel.
+    * Removed the 'Pivot Table' tab, which has been superseded by the slice
+      aggregation tab.
+    * Aggregation drill-downs now open in a new tab.
+    * Flamegraphs can now also be shown as a call tree or a flat function
+      table.
+    * Sampled callstacks are now shown over time in a track beneath each
+      thread's Callstacks track.
+    * Frame timeline tracks are now grouped by layer.
+    * Revamped the AndroidLockContention plugin: a lock contention breakdown
+      in the selection details, and links from held locks to their slices.
+    * Added a "CPU Time / Wall Time" column, shown by default, to CPU slice
+      aggregations.
+    * Battery status and plug type tracks are now always top level.
+    * Day Explorer flamegraphs can be filtered by the selected tracks.
+    * The Heap Dump Explorer now flags classes potentially merged by R8.
+    * Added a slider to the record page to control the GPU counter
+      collection rate. Loading a record config now restores every probe
+      setting.
+    * Embedders can now stream traces over postMessage as a ReadableStream,
+      and use the `shareable` and `downloadable` flags in place of
+      `localOnly`.
+      Note: Traces posted as a bare ArrayBuffer are now local-only by default.
+    * Improved decoding of query results, especially when loading track data.
+    * The timeline now recovers from WebGL context loss.
+    * The Chrome extension now only accepts connections from ui.perfetto.dev.
   SDK:
-   *
+    * Added TraceContext::drop_count() to the C++ SDK and
+      PerfettoDsTracerGetDropCount() to the C SDK to detect data lost to
+      shared memory buffer exhaustion.
+    * Exposed the flush reason and flags to C SDK data sources via
+      PerfettoDsOnFlushArgsGetReason() and PerfettoDsOnFlushArgsGetFlags().
+    * Added big-endian support to the in-process tracing SDK.
+    * Fixed process-scoped flows with a named scope colliding across
+      processes.
+    * Fixed a crash in Tracing::Shutdown() when data sources were still
+      active.
+    * Android Java SDK: only allowlisted apps can now register with the
+      system tracing service.
+  Misc:
+    * Added the `perfetto_cxx_standard` GN arg (default "c++17") to allow
+      standalone builds to use a newer C++ standard (e.g. "c++20").
+    * Added the `perfetto_use_system_re2`, `perfetto_use_system_zstd`,
+      `perfetto_use_system_linenoise` and `perfetto_use_system_expat` GN args.
+    * Perfetto can now be used as a non-root Bazel module.
+    * Release zips now include the LICENSE file.
+    * `tools/open_trace_in_ui` can open traces on remote hosts with
+      `--trampoline-host`.
 
 v58.3 - 2026-08-27:
   Misc:

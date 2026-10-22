@@ -26,24 +26,9 @@ TrackEventExtensionParser::TrackEventExtensionParser(
 
 TrackEventExtensionParser::~TrackEventExtensionParser() = default;
 
-TrackEventExtensionParser::Result
-TrackEventExtensionParser::OnTrackEventCounterExtension(
+TrackEventExtensionParser::Result TrackEventExtensionParser::OnTrackEventField(
     const TrackEventExtensionField&,
-    CounterId) {
-  return Result::kIgnored;
-}
-
-TrackEventExtensionParser::Result
-TrackEventExtensionParser::OnTrackEventSliceExtension(
-    const TrackEventExtensionField&,
-    SliceId) {
-  return Result::kIgnored;
-}
-
-TrackEventExtensionParser::Result
-TrackEventExtensionParser::OnTrackEventStateExtension(
-    const TrackEventExtensionField&,
-    StateId) {
+    const TrackEventFieldContext&) {
   return Result::kIgnored;
 }
 

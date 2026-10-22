@@ -60,6 +60,40 @@ export type PersistedDataExplorerTabsState = z.infer<
   typeof PERSISTED_DATA_EXPLORER_TABS_STATE_SCHEMA
 >;
 
+// Version for the permalink store.
+export const STORE_VERSION = 2;
+
+// Schema for the permalink store.
+const DATA_EXPLORER_PERSISTED_STATE_SCHEMA = z.object({
+  // Only version numbers allowed are 1 and 2.
+  // v1 = old single-graph format, v2 = multi-tab format.
+  version: z.union([z.literal(1), z.literal(STORE_VERSION)]),
+  // Multi-tab format (version 2+)
+  tabs: z.array(PERSISTED_DATA_EXPLORER_TAB_SCHEMA).optional(),
+  activeTabId: z.string().optional(),
+  // Flat list of dashboards, each referencing its parent graph tab.
+  dashboards: z.array(PERSISTED_DASHBOARD_SCHEMA).optional(),
+  // Old single-graph format (version 1) - kept for backward compat
+  graphJson: z.string().optional(),
+});
+
+// Type for the permalink store inferred from the schema.
+export type DataExplorerPersistedState = z.infer<
+  typeof DATA_EXPLORER_PERSISTED_STATE_SCHEMA
+>;
+
+/**
+ * Validates permalink state for the Data Explorer. Permalink state comes from
+ * untrusted JSON, so anything that doesn't match the schema is discarded and
+ * an empty state is returned instead.
+ */
+export function parseDataExplorerPersistedState(
+  init: unknown,
+): DataExplorerPersistedState {
+  const result = DATA_EXPLORER_PERSISTED_STATE_SCHEMA.safeParse(init);
+  return result.data ?? {version: STORE_VERSION};
+}
+
 /**
  * Storage class for data explorer tabs state.
  * Persists tab layout (IDs, titles, serialized graphs) and active tab to

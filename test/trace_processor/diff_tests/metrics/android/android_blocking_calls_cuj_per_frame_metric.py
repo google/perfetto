@@ -369,6 +369,13 @@ def add_blocking_call_crossing_frame_boundary(trace, cuj_name):
       tid=LAUNCHER_RTID,
       pid=LAUNCHER_PID)
 
+  trace.add_atrace_for_thread(
+      ts=121_500_000,
+      ts_end=121_700_000,
+      buf="waitForBufferRelease",
+      tid=LAUNCHER_RTID,
+      pid=LAUNCHER_PID)
+
   trace.add_frame(
       vsync=82,
       ts_do_frame=141_000_000,

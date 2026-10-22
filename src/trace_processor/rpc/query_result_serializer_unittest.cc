@@ -347,9 +347,11 @@ TEST(QueryResultSerializerTest, ErrorBeforeStartingQuery) {
   deser.SerializeAndDeserialize(&ser);
   EXPECT_EQ(deser.cells.size(), 0u);
   EXPECT_EQ(deser.error,
-            "Traceback (most recent call last):\n  File \"stdin\" line 1 col "
-            "29\n    insert into incomplete_input\n                            "
-            "    ^\nincomplete SQL statement");
+            R"( --> query:1:29
+  |
+1 | insert into incomplete_input
+  |                             ^
+error: incomplete SQL statement)");
   EXPECT_TRUE(deser.eof_reached);
 }
 

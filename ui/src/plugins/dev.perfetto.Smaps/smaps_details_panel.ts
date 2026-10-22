@@ -27,7 +27,7 @@ import {Timestamp} from '../../components/widgets/timestamp';
 import type {TrackEventDetailsPanel} from '../../public/details_panel';
 import type {Trace} from '../../public/trace';
 import type {Engine} from '../../trace_processor/engine';
-import {NUM_NULL, type Row} from '../../trace_processor/query_result';
+import {NUM_NULL, type SpecType} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Spinner} from '../../widgets/spinner';
 
@@ -76,7 +76,7 @@ export async function computeInitialColumns(
     SELECT ${numeric.map((c) => `MAX(${c.name}) AS ${c.name}`).join(', ')}
     FROM process_memory_mappings
   `);
-  const spec: Row = {};
+  const spec: SpecType = {};
   for (const c of numeric) {
     spec[c.name] = NUM_NULL;
   }

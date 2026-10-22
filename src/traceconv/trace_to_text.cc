@@ -18,7 +18,9 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/progress_reporter.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "src/traceconv/android_extension.descriptor.h"
 #include "src/traceconv/trace.descriptor.h"
@@ -59,7 +61,13 @@ class OnlineTraceToText {
   }
   OnlineTraceToText(const OnlineTraceToText&) = delete;
   OnlineTraceToText& operator=(const OnlineTraceToText&) = delete;
-  void Feed(const uint8_t* data, size_t len);
+  uint8_t* BeginWrite(size_t size) {
+    pending_write_ = ring_buffer_.BeginWrite(size);
+    return pending_write_.data();
+  }
+  void EndWrite(size_t size_written);
+  void AbortWrite() { pending_write_.AbortWrite(); }
+
   bool ok() const { return ok_; }
   const std::string& error() const { return error_; }
 
@@ -73,6 +81,7 @@ class OnlineTraceToText {
   std::string error_;
   std::ostream* output_;
   protozero::ProtoRingBuffer ring_buffer_;
+  protozero::ProtoRingBuffer::WriteHandle pending_write_;
   DescriptorPool pool_;
   size_t bytes_processed_ = 0;
   size_t packet_ = 0;
@@ -124,11 +133,11 @@ void OnlineTraceToText::PrintCompressedPackets(protozero::ConstBytes packets,
   WriteToOutput(output_, "}\n");
 }
 
-void OnlineTraceToText::Feed(const uint8_t* data, size_t len) {
-  ring_buffer_.Append(data, static_cast<size_t>(len));
+void OnlineTraceToText::EndWrite(size_t size_written) {
+  pending_write_.EndWrite(size_written);
   while (true) {
     auto token = ring_buffer_.ReadMessage();
-    if (token.fatal_framing_error) {
+    if (token.fatal_framing_error()) {
       error_ = "failed to tokenize trace packet (corrupt or truncated)";
       ok_ = false;
       return;
@@ -139,14 +148,16 @@ void OnlineTraceToText::Feed(const uint8_t* data, size_t len) {
       break;
     }
 
-    if (token.field_id != protos::pbzero::Trace::kPacketFieldNumber) {
+    if (token.field_id() != protos::pbzero::Trace::kPacketFieldNumber) {
       PERFETTO_ELOG("Skipping invalid field");
       continue;
     }
-    protos::pbzero::TracePacket::Decoder decoder(token.start, token.len);
-    bytes_processed_ += token.len;
+    protos::pbzero::TracePacket::Decoder decoder(token.data(), token.size());
+    bytes_processed_ += token.size();
     if ((packet_++ & 0x3f) == 0) {
-      ProgressLine("Processing trace: %8zu KB", bytes_processed_ / 1024);
+      base::StackString<128> msg("Processing trace: %8zu KB",
+                                 bytes_processed_ / 1024);
+      base::ProgressReporter::GetInstance().Update(msg.ToStdStringView());
     }
     if (decoder.has_compressed_packets()) {
       PrintCompressedPackets(decoder.compressed_packets(),
@@ -156,7 +167,7 @@ void OnlineTraceToText::Feed(const uint8_t* data, size_t len) {
                              util::CompressionType::kZstd);
     } else {
       WriteToOutput(output_, "packet {\n");
-      protozero::ConstBytes packet = {token.start, token.len};
+      protozero::ConstBytes packet = {token.data(), token.size()};
       std::string text = TracePacketToText(packet, 1 /* indent_depth */);
       output_->write(text.data(), std::streamsize(text.size()));
       WriteToOutput(output_, "\n}\n");
@@ -197,16 +208,24 @@ class InputReader {
 base::Status TraceToText(std::istream* input,
                          std::ostream* output,
                          const TraceToTextOptions& options) {
-  constexpr size_t kMaxMsgSize = protozero::ProtoRingBuffer::kMaxMsgSize;
-  std::unique_ptr<uint8_t[]> buffer(new uint8_t[kMaxMsgSize]);
+  constexpr uint32_t kReadSize = 1024 * 1024;
+  std::unique_ptr<uint8_t[]> buffer(new uint8_t[kReadSize]);
   uint32_t buffer_len = 0;
 
   InputReader input_reader(input);
+  auto& progress = base::ProgressReporter::GetInstance();
   OnlineTraceToText online_trace_to_text(output, options);
 
-  input_reader.Read(buffer.get(), &buffer_len, kMaxMsgSize);
+  // Sniff the first chunk inside the tokenizer's own buffer, so a proto trace
+  // is never copied. Only a compressed one moves to the decompressor's input.
+  uint8_t* first = online_trace_to_text.BeginWrite(kReadSize);
+  input_reader.Read(first, &buffer_len, kReadSize);
   trace_processor::CompressedTraceType type =
-      trace_processor::SniffCompressedTraceType(buffer.get(), buffer_len);
+      trace_processor::SniffCompressedTraceType(first, buffer_len);
+  if (type != trace_processor::CompressedTraceType::kProto) {
+    memcpy(buffer.get(), first, buffer_len);
+    online_trace_to_text.AbortWrite();
+  }
 
   if (type == trace_processor::CompressedTraceType::kGzip ||
       type == trace_processor::CompressedTraceType::kZstd) {
@@ -224,7 +243,7 @@ base::Status TraceToText(std::istream* input,
     }
 
     using ResultCode = util::Decompressor::ResultCode;
-    uint8_t out[4096];
+    constexpr size_t kExtractSize = 4096;
     ResultCode code = ResultCode::kNeedsMoreInput;
     do {
       // A frame that ended right at the previous chunk's edge means this chunk
@@ -234,16 +253,17 @@ base::Status TraceToText(std::istream* input,
 
       decompressor->Feed(buffer.get(), buffer_len);
       for (;;) {
-        auto res = decompressor->ExtractOutput(out, sizeof(out));
+        auto res = decompressor->ExtractOutput(
+            online_trace_to_text.BeginWrite(kExtractSize), kExtractSize);
         if (res.ret == ResultCode::kError) {
-          EndProgressLine();
+          online_trace_to_text.AbortWrite();
+          progress.Clear();
           return base::ErrStatus(
               "failed to decompress, trace is likely corrupt");
         }
-        if (res.bytes_written > 0)
-          online_trace_to_text.Feed(out, res.bytes_written);
+        online_trace_to_text.EndWrite(res.bytes_written);
         if (!online_trace_to_text.ok()) {
-          EndProgressLine();
+          progress.Clear();
           return base::ErrStatus("failed to convert trace to text: %s",
                                  online_trace_to_text.error().c_str());
         }
@@ -262,36 +282,42 @@ base::Status TraceToText(std::istream* input,
       // At EOF, Read() returns true once more with buffer_len == 0; stop rather
       // than feed an empty chunk, which would flip `code` off kEof and be
       // misread as a truncated stream below.
-    } while (input_reader.Read(buffer.get(), &buffer_len, kMaxMsgSize) &&
+    } while (input_reader.Read(buffer.get(), &buffer_len, kReadSize) &&
              buffer_len > 0);
 
     if (code != ResultCode::kEof) {
-      EndProgressLine();
+      progress.Clear();
       return base::ErrStatus(
           "compressed stream incomplete, trace is likely corrupt");
     }
     if (!input_reader.ok()) {
-      EndProgressLine();
+      progress.Clear();
       return base::ErrStatus("failed to read trace: %s",
                              input_reader.error().c_str());
     }
-    EndProgressLine();
+    progress.Clear();
     return base::OkStatus();
   } else if (type == trace_processor::CompressedTraceType::kProto) {
-    do {
-      online_trace_to_text.Feed(buffer.get(), buffer_len);
+    for (;;) {
+      online_trace_to_text.EndWrite(buffer_len);
       if (!online_trace_to_text.ok()) {
-        EndProgressLine();
+        progress.Clear();
         return base::ErrStatus("failed to convert trace to text: %s",
                                online_trace_to_text.error().c_str());
       }
-    } while (input_reader.Read(buffer.get(), &buffer_len, kMaxMsgSize));
+      uint8_t* next = online_trace_to_text.BeginWrite(kReadSize);
+      if (!input_reader.Read(next, &buffer_len, kReadSize)) {
+        // Nothing was read (EOF or a read error): release the reservation.
+        online_trace_to_text.AbortWrite();
+        break;
+      }
+    }
     if (!input_reader.ok()) {
-      EndProgressLine();
+      progress.Clear();
       return base::ErrStatus("failed to read trace: %s",
                              input_reader.error().c_str());
     }
-    EndProgressLine();
+    progress.Clear();
     return base::OkStatus();
   } else {
     return base::ErrStatus(

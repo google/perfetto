@@ -19,6 +19,7 @@
 
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
+#include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
 #include "src/trace_processor/core/tree/tree.h"
 
 namespace perfetto::trace_processor::core {
@@ -27,6 +28,7 @@ namespace perfetto::trace_processor::core {
 // The first two columns must be integer id and parent_id columns. This
 // validates their relationships and normalizes parent ids to row indices.
 base::StatusOr<Tree> BuildTree(dataframe::AdhocDataframeBuilder&& builder);
+base::StatusOr<Tree> BuildTree(dataframe::RuntimeDataframeBuilder&& builder);
 
 }  // namespace perfetto::trace_processor::core
 

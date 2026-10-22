@@ -13,24 +13,26 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {getColorForSample} from '../../components/colorizer';
+import {sampleColorScheme} from './sample_colors';
 import {
   metricsFromTableOrSubquery,
-  type QueryFlamegraphMetric,
-} from '../../components/query_flamegraph';
-import {FlamegraphPanel} from '../../components/flamegraph_panel';
+  TreeExplorerFetcher,
+} from '../../components/tree_explorer_fetcher';
+import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import {FlamegraphProfile} from '../../components/flamegraph_profile';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {Time, type time} from '../../base/time';
+import {Memo} from '../../base/memo';
 import {
-  Flamegraph,
-  type FlamegraphState,
-  FLAMEGRAPH_STATE_SCHEMA,
-} from '../../widgets/flamegraph';
+  createDefaultTreeExplorerState,
+  type TreeExplorerState,
+  TREE_EXPLORER_STATE_SCHEMA,
+} from '../../widgets/tree_explorer';
 import type {Trace} from '../../public/trace';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {SourceDataset} from '../../trace_processor/dataset';
+import type {LONG, NUM, STR} from '../../trace_processor/query_result';
 
 /**
  * Configuration for creating a profiling track (CPU profile, perf samples, etc)
@@ -38,12 +40,14 @@ import type {SourceDataset} from '../../trace_processor/dataset';
 export interface ProfilingTrackConfig {
   /**
    * The SourceDataset that provides the profiling samples.
-   * Must have schema: {id: NUM, ts: LONG, callsiteId: NUM}
+   * Must have schema: {id: NUM, ts: LONG, callsiteId: NUM, category: NUM, mappingName: STR}
    */
   readonly dataset: SourceDataset<{
-    id: number;
-    ts: bigint;
-    callsiteId: number;
+    id: typeof NUM;
+    ts: typeof LONG;
+    callsiteId: typeof NUM;
+    category: typeof NUM;
+    mappingName: typeof STR;
   }>;
 
   /**
@@ -104,20 +108,27 @@ export function createProfilingTrack(
   trace: Trace,
   uri: string,
   config: ProfilingTrackConfig,
-  detailsPanelState: FlamegraphState | undefined,
-  onDetailsPanelStateChange: (state: FlamegraphState) => void,
+  detailsPanelState: TreeExplorerState | undefined,
+  onDetailsPanelStateChange: (state: TreeExplorerState) => void,
 ) {
+  // The metrics (and so the fetcher which owns the virtual tables built from
+  // them) depend only on the selected sample timestamp: the memo keeps exactly
+  // one generation alive and disposes it when the selection moves on.
+  const fetcherMemo = new Memo<TreeExplorerFetcher>();
+
   return SliceTrack.create({
     trace,
     uri,
     dataset: config.dataset,
     sliceName: () => config.sliceName,
-    colorizer: (row) => getColorForSample(row.callsiteId),
+    colorizer: (row) => sampleColorScheme(row.category, row.mappingName),
     detailsPanel: (row) => {
       const ts = Time.fromRaw(row.ts);
-      const metrics: ReadonlyArray<QueryFlamegraphMetric> =
-        metricsFromTableOrSubquery({
-          tableOrSubquery: `
+      const fetcher = fetcherMemo.use({
+        key: {ts},
+        compute: () => {
+          const metrics = metricsFromTableOrSubquery({
+            tableOrSubquery: `
             (
               select
                 id,
@@ -131,28 +142,32 @@ export function createProfilingTrack(
               ))
             )
           `,
-          tableMetrics: [
-            {
-              name: config.metricName,
-              unit: '',
-              columnName: 'self_count',
-            },
-          ],
-          dependencySql: `include perfetto module ${config.sqlModule}`,
-          unaggregatableProperties: [
-            {name: 'mapping_name', displayName: 'Mapping'},
-          ],
-          aggregatableProperties: [
-            {
-              name: 'source_location',
-              displayName: 'Source Location',
-              mergeAggregation: 'ONE_OR_SUMMARY',
-            },
-          ],
-          nameColumnLabel: 'Symbol',
-        });
+            tableMetrics: [
+              {
+                name: config.metricName,
+                unit: '',
+                columnName: 'self_count',
+              },
+            ],
+            dependencySql: `include perfetto module ${config.sqlModule}`,
+            unaggregatableProperties: [
+              {name: 'mapping_name', displayName: 'Mapping'},
+            ],
+            aggregatableProperties: [
+              {
+                name: 'source_location',
+                displayName: 'Source Location',
+                mergeAggregation: 'ONE_OR_SUMMARY',
+              },
+            ],
+            nameColumnLabel: 'Symbol',
+          });
+          return new TreeExplorerFetcher(trace, metrics);
+        },
+      });
+      const metrics = fetcher.metrics;
       // Use provided state or create initial state once
-      let state = detailsPanelState ?? Flamegraph.createDefaultState(metrics);
+      let state = detailsPanelState ?? createDefaultTreeExplorerState(metrics);
       if (detailsPanelState === undefined) {
         onDetailsPanelStateChange(state);
       }
@@ -168,14 +183,14 @@ export function createProfilingTrack(
               state = newState;
               onDetailsPanelStateChange(newState);
             },
-            metrics,
+            fetcher,
           ),
         // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
         // We moved serialization from being attached to selections to instead being
         // attached to the plugin that loaded the panel.
         serialization: {
-          schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
-          state: undefined as FlamegraphState | undefined,
+          schema: TREE_EXPLORER_STATE_SCHEMA.optional(),
+          state: undefined as TreeExplorerState | undefined,
         },
       };
     },
@@ -188,10 +203,10 @@ export function createProfilingTrack(
 function renderProfilingDetailsPanel(
   trace: Trace,
   ts: time,
-  config: ProfilingTrackConfig,
-  state: FlamegraphState,
-  onStateChange: (state: FlamegraphState) => void,
-  metrics: ReadonlyArray<QueryFlamegraphMetric>,
+  config: Omit<ProfilingTrackConfig, 'dataset'>,
+  state: TreeExplorerState,
+  onStateChange: (state: TreeExplorerState) => void,
+  fetcher: TreeExplorerFetcher,
 ): m.Children {
   return m(
     FlamegraphProfile,
@@ -202,7 +217,7 @@ function renderProfilingDetailsPanel(
         title: config.panelTitle,
         buttons: m('span', 'Timestamp: ', m(Timestamp, {trace, ts})),
       },
-      m(FlamegraphPanel, {trace, metrics, state, onStateChange}),
+      m(TreeExplorerPanel, {fetcher, state, onStateChange}),
     ),
   );
 }

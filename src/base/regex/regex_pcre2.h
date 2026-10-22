@@ -50,7 +50,7 @@ using ScopedPcre2Code = std::unique_ptr<pcre2_code, Pcre2CodeDeleter>;
 using ScopedPcre2MatchData =
     std::unique_ptr<pcre2_match_data, Pcre2MatchDataDeleter>;
 
-// PCRE2 backend for Regex. Used on Android when the use_pcre2 flag is enabled.
+// PCRE2 backend for Regex.
 // Header-only so the compiler can inline through unique_ptr<RegexImpl>.
 class RegexPcre2 {
  public:

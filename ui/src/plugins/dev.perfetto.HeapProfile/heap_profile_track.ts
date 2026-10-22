@@ -17,10 +17,11 @@ import {materialColorScheme} from '../../components/colorizer';
 import {Time, type time} from '../../base/time';
 import {formatBytesIec} from '../../base/bytes_format';
 import {SliceTrack} from '../../components/tracks/slice_track';
+import {Memo} from '../../base/memo';
 import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
-import type {FlamegraphState} from '../../widgets/flamegraph';
+import type {TreeExplorerState} from '../../widgets/tree_explorer';
 import {profileDescriptor} from './common';
 import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
 
@@ -30,8 +31,8 @@ export function createHeapProfileTrack(
   tableName: string,
   upid: number,
   heapProfileIsIncomplete: boolean,
-  detailsPanelState: FlamegraphState | undefined,
-  onDetailsPanelStateChange: (state: FlamegraphState) => void,
+  detailsPanelState: TreeExplorerState | undefined,
+  onDetailsPanelStateChange: (state: TreeExplorerState) => void,
   onNodeSelected?: (args: {
     pathHashes: string;
     isDominator: boolean;
@@ -39,6 +40,11 @@ export function createHeapProfileTrack(
     ts: time;
   }) => void,
 ) {
+  // One panel at a time: `detailsPanel` is called again for every selection,
+  // and the memo disposes the previous panel (and so the fetcher, and so the
+  // virtual tables built for its metrics) as soon as the key changes.
+  const panelMemo = new Memo<HeapProfileFlamegraphDetailsPanel>();
+
   return SliceTrack.create({
     trace,
     uri,
@@ -61,17 +67,22 @@ export function createHeapProfileTrack(
       const ts = Time.fromRaw(row.ts);
       const tsEnd = Time.fromRaw(row.ts + row.dur);
       const descriptor = profileDescriptor(row.type);
-      return new HeapProfileFlamegraphDetailsPanel(
-        trace,
-        heapProfileIsIncomplete,
-        upid,
-        descriptor,
-        ts,
-        tsEnd,
-        detailsPanelState,
-        onDetailsPanelStateChange,
-        onNodeSelected,
-      );
+      return panelMemo.use({
+        key: {type: row.type, ts, tsEnd},
+        compute: () =>
+          new HeapProfileFlamegraphDetailsPanel(
+            trace,
+            heapProfileIsIncomplete,
+            upid,
+            descriptor,
+            ts,
+            tsEnd,
+            detailsPanelState,
+            onDetailsPanelStateChange,
+            /* isAreaSelection= */ false,
+            onNodeSelected,
+          ),
+      });
     },
     sliceName: (row) => intervalSliceName(row),
     tooltip: (slice) => intervalTooltip(slice.row),

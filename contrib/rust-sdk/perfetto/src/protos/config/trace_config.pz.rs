@@ -20,6 +20,7 @@ use crate::pb_enum;
 use crate::pb_msg;
 use crate::protos::common::builtin_clock::*;
 use crate::protos::common::semantic_type::*;
+use crate::protos::common::trace_attributes::*;
 use crate::protos::config::data_source_config::*;
 use crate::protos::config::priority_boost::priority_boost_config::*;
 
@@ -78,7 +79,6 @@ pb_enum!(BufferConfigFillPolicy {
 pb_enum!(BufferConfigExperimentalMode {
     MODE_UNSPECIFIED: 0,
     TRACE_BUFFER_V2: 1,
-    TRACE_BUFFER_V2_SHADOW_MODE: 2,
 });
 
 pb_msg!(TraceConfig {
@@ -109,6 +109,7 @@ pb_msg!(TraceConfig {
     allow_user_build_tracing: bool, primitive, 19,
     unique_session_name: String, primitive, 22,
     compression_type: TraceConfigCompressionType, enum, 24,
+    compression: TraceConfigCompressionConfig, msg, 47,
     incident_report_config: TraceConfigIncidentReportConfig, msg, 25,
     statsd_logging: TraceConfigStatsdLogging, enum, 31,
     trace_uuid_msb: i64, primitive, 27,
@@ -122,12 +123,7 @@ pb_msg!(TraceConfig {
     write_flush_mode: TraceConfigWriteFlushMode, enum, 44,
     fflush_post_write: TraceConfigFFlushMode, enum, 45,
     trace_all_machines: bool, primitive, 43,
-    notes: TraceConfigNote, msg, 46,
-});
-
-pb_msg!(TraceConfigNote {
-    key: String, primitive, 1,
-    value: String, primitive, 2,
+    trace_attributes: TraceAttributes, msg, 48,
 });
 
 pb_msg!(TraceConfigSessionSemaphore {
@@ -174,6 +170,17 @@ pb_msg!(TraceConfigIncidentReportConfig {
     skip_incidentd: bool, primitive, 5,
     skip_dropbox: bool, primitive, 4,
 });
+
+pb_msg!(TraceConfigCompressionConfig {
+    deflate: TraceConfigCompressionConfigDeflate, msg, 1,
+    zstd: TraceConfigCompressionConfigZstd, msg, 2,
+});
+
+pb_msg!(TraceConfigCompressionConfigZstd {
+    level: i32, primitive, 1,
+});
+
+pb_msg!(TraceConfigCompressionConfigDeflate {});
 
 pb_msg!(TraceConfigIncrementalStateConfig {
     clear_period_ms: u32, primitive, 1,
@@ -222,6 +229,7 @@ pb_msg!(TraceConfigBuiltinDataSource {
     prefer_suspend_clock_for_snapshot: bool, primitive, 7,
     disable_chunk_usage_histograms: bool, primitive, 8,
     disable_extension_descriptors: bool, primitive, 9,
+    enable_concurrent_session_events: bool, primitive, 10,
 });
 
 pb_msg!(TraceConfigDataSource {

@@ -22,7 +22,7 @@ source_set("trace_enrichment") {
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base",
-    "../../../../include/perfetto/trace_processor:trace_processor",
+    "../../../../include/perfetto/trace_processor",
     "../deobfuscation:deobfuscator",
     "../symbolizer:symbolize_database",
   ]

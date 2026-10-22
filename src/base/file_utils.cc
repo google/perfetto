@@ -266,6 +266,51 @@ bool FlushFile(int fd) {
 #endif
 }
 
+ScopedFile DupFile(int fd) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  ScopedFile duplicate(_dup(fd));
+  if (duplicate && !SetHandleInformation(
+                       reinterpret_cast<HANDLE>(_get_osfhandle(*duplicate)),
+                       HANDLE_FLAG_INHERIT, 0))
+    return ScopedFile();
+  return duplicate;
+#else
+  return ScopedFile(fcntl(fd, F_DUPFD_CLOEXEC, 0));
+#endif
+}
+
+bool IsRegularFile(const std::string& path) {
+  struct stat st{};
+  if (stat(path.c_str(), &st) != 0)
+    return false;
+  PERFETTO_MSAN_UNPOISON(&st, sizeof(st));
+  return (st.st_mode & S_IFMT) == S_IFREG;
+}
+
+bool IsSameFile(const std::string& first, const std::string& second) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  auto identity = [](const std::string& path,
+                     BY_HANDLE_FILE_INFORMATION* info) {
+    ScopedPlatformHandle file(CreateFileA(
+        path.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+    return file && GetFileInformationByHandle(*file, info);
+  };
+  BY_HANDLE_FILE_INFORMATION a{}, b{};
+  return identity(first, &a) && identity(second, &b) &&
+         a.dwVolumeSerialNumber == b.dwVolumeSerialNumber &&
+         a.nFileIndexHigh == b.nFileIndexHigh &&
+         a.nFileIndexLow == b.nFileIndexLow;
+#else
+  struct stat a{}, b{};
+  if (stat(first.c_str(), &a) != 0 || stat(second.c_str(), &b) != 0)
+    return false;
+  PERFETTO_MSAN_UNPOISON(&a, sizeof(a));
+  PERFETTO_MSAN_UNPOISON(&b, sizeof(b));
+  return a.st_dev == b.st_dev && a.st_ino == b.st_ino;
+#endif
+}
+
 bool SeekFile(int fd, uint64_t offset) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   if (fd < 0) {
@@ -357,15 +402,6 @@ ScopedFile OpenFile(const std::string& path, int flags, FileOpenMode mode) {
 
 ScopedFstream OpenFstream(const std::string& path, const std::string& mode) {
   ScopedFstream file;
-  // On Windows fopen interprets filename using the ANSI or OEM codepage but
-  // sqlite3_value_text returns a UTF-8 string. To make sure we interpret the
-  // filename correctly we use _wfopen and a UTF-16 string on windows.
-  //
-  // On Windows fopen also open files in the text mode by default, but we want
-  // to open them in the binary mode, to avoid silly EOL translations (and to be
-  // consistent with base::OpenFile). So we check the mode first and append 'b'
-  // mode only when it makes sense.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   std::string s_mode(mode);
   // Windows supports non-standard mode extension that sets encoding in text
   // mode. If you need to open a FILE* in text mode, use the fopen API directly.
@@ -375,13 +411,22 @@ ScopedFstream OpenFstream(const std::string& path, const std::string& mode) {
   if (!is_binary_mode)
     s_mode += 'b';
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // On Windows fopen interprets filename using the ANSI or OEM codepage but
+  // sqlite3_value_text returns a UTF-8 string. To make sure we interpret the
+  // filename correctly we use _wfopen and a UTF-16 string on windows.
+  //
+  // On Windows fopen also open files in the text mode by default, but we want
+  // to open them in the binary mode, to avoid silly EOL translations (and to be
+  // consistent with base::OpenFile). So we check the mode first and append 'b'
+  // mode only when it makes sense.
   auto w_path = ToUtf16(path);
   auto w_mode = ToUtf16(s_mode);
   if (w_path && w_mode) {
     file.reset(_wfopen(w_path->c_str(), w_mode->c_str()));
   }
 #else
-  file.reset(fopen(path.c_str(), mode.c_str()));
+  file.reset(fopen(path.c_str(), s_mode.c_str()));
 #endif
   return file;
 }

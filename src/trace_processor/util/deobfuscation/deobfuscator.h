@@ -46,6 +46,23 @@ struct MethodMapping {
 
 class ObfuscatedClass {
  public:
+  struct MergedClass;
+
+  // Represents R8 merged classes mapping information for an obfuscated class.
+  struct MergedClasses {
+    std::string class_id_field_name;
+    std::vector<MergedClass> merged_classes;
+    bool unknown_merged_classes = false;
+  };
+
+  // Represents an individual class merged by R8 into an obfuscated target
+  // class.
+  struct MergedClass {
+    std::string name;
+    std::optional<int32_t> class_id;
+    MergedClasses nested_merged_classes;
+  };
+
   explicit ObfuscatedClass(std::string d) : deobfuscated_name_(std::move(d)) {}
 
   const std::string& deobfuscated_name() const { return deobfuscated_name_; }
@@ -73,10 +90,15 @@ class ObfuscatedClass {
     return method_mappings_;
   }
 
+  const MergedClasses& merged_classes() const { return merged_classes_; }
+
+  MergedClasses* mutable_merged_classes() { return &merged_classes_; }
+
  private:
   std::string deobfuscated_name_;
   std::map<std::string, std::string> deobfuscated_fields_;
   std::vector<MethodMapping> method_mappings_;
+  MergedClasses merged_classes_;
 };
 
 class ProguardParser {
@@ -86,13 +108,14 @@ class ProguardParser {
   base::Status AddLine(std::string line);
   bool AddLines(std::string contents);
 
-  std::map<std::string, ObfuscatedClass> ConsumeMapping() {
-    return std::move(mapping_);
-  }
+  std::map<std::string, ObfuscatedClass> ConsumeMapping();
 
  private:
   std::map<std::string, ObfuscatedClass> mapping_;
   ObfuscatedClass* current_class_ = nullptr;
+  // Set to true if the mapping file declares R8 mapping format version >= 2.3
+  // or contains any `com.android.tools.r8.mergedClasses` comment.
+  bool supports_merged_classes_ = false;
 };
 
 struct ProguardMap {

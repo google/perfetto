@@ -33,16 +33,72 @@ const MONTH_NAMES = [
   'December',
 ] as const;
 
-// Sidebar history-row date format: "May 9, 2026, 6:01 PM".
-export function formatCompactDate(d: Date): string {
-  const month = MONTH_NAMES[d.getMonth()];
-  const day = d.getDate();
-  const year = d.getFullYear();
+// Sidebar history-row time format: "6:01 PM".
+export function formatCompactTime(d: Date): string {
   let h = d.getHours();
   const m12 = h >= 12 ? 'PM' : 'AM';
   h = h % 12 || 12;
   const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${month} ${day}, ${year}, ${h}:${mm} ${m12}`;
+  return `${h}:${mm} ${m12}`;
+}
+
+// Full local date + time for tooltips and modals: "May 9, 2026, 6:01 PM".
+export function formatCompactDate(d: Date): string {
+  return `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}, ${formatCompactTime(d)}`;
+}
+
+interface HistoryDayGroup {
+  readonly dayKey: string;
+  readonly label: string;
+  readonly entries: QueryExecution[];
+}
+
+function formatDayLabel(d: Date, dayKey: string, now: Date): string {
+  if (dayKey === now.toDateString()) return 'Today';
+  const yesterdayKey = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() - 1,
+  ).toDateString();
+  if (dayKey === yesterdayKey) return 'Yesterday';
+  return `${MONTH_NAMES[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+// Buckets sorted entries by local calendar day.
+export function groupHistoryByDay(
+  entries: ReadonlyArray<QueryExecution>,
+  now: Date = new Date(),
+): HistoryDayGroup[] {
+  const groups: HistoryDayGroup[] = [];
+  for (const entry of entries) {
+    const d = new Date(entry.startTime ?? 0);
+    const dayKey = d.toDateString();
+    let last: HistoryDayGroup | undefined = groups[groups.length - 1];
+    if (last === undefined || last.dayKey !== dayKey) {
+      last = {dayKey, label: formatDayLabel(d, dayKey, now), entries: []};
+      groups.push(last);
+    }
+    last.entries.push(entry);
+  }
+  return groups;
+}
+
+// Which kinds of run the history list shows. Independent, so both on shows
+// everything and both off shows nothing (the list says so).
+export interface HistoryFilter {
+  readonly ephemeral: boolean;
+  readonly persistent: boolean;
+}
+
+export const ALL_KINDS: HistoryFilter = {ephemeral: true, persistent: true};
+
+export function filterHistory(
+  entries: ReadonlyArray<QueryExecution>,
+  filter: HistoryFilter,
+): QueryExecution[] {
+  return entries.filter((e) =>
+    e.materialized === true ? filter.persistent : filter.ephemeral,
+  );
 }
 
 // Module-level: survives sidebar toggles so we don't re-fetch on every show.
@@ -50,7 +106,7 @@ export class HistoryStore {
   history: QueryExecution[] = [];
   isLoading = true;
   error: string | null = null;
-  activeTabKey = 'standard';
+  filter: HistoryFilter = ALL_KINDS;
   private lastRefreshSignal = -1;
   private debounceTimer?: number;
   private hasEverLoaded = false;
@@ -99,11 +155,3 @@ export class HistoryStore {
 }
 
 export const historyStore = new HistoryStore();
-
-// Point the History sidebar at the tab matching the impending run.
-export function setHistoryActiveTab(materialize: boolean): void {
-  const key = materialize ? 'materialized' : 'standard';
-  if (historyStore.activeTabKey === key) return;
-  historyStore.activeTabKey = key;
-  m.redraw();
-}

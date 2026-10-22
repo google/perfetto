@@ -32,7 +32,7 @@
 import './virtual_overlay_canvas.scss';
 import m from 'mithril';
 import {DisposableStack} from '../base/disposable_stack';
-import {findRef, toHTMLElement} from '../base/dom_utils';
+import {bindEventListener, findRef, toHTMLElement} from '../base/dom_utils';
 import type {Rect2D, Size2D} from '../base/geom';
 import {ensureExists} from '../base/assert';
 import {VirtualCanvas} from '../base/virtual_canvas';
@@ -77,9 +77,9 @@ export interface VirtualOverlayCanvasApi {
   // Redraw the canvas synchronously.
   redrawCanvas(): void;
 
-  // Set the scroll position of the scrolling container. Either axis may be
-  // omitted to leave it unchanged. The browser clamps to the valid range.
-  scrollTo(opts: {x?: number; y?: number}): void;
+  // Set the scroll position of the scrolling container and return the applied
+  // position. Either axis may be omitted. The browser clamps to the valid range.
+  scrollTo(opts: {x?: number; y?: number}): {x: number; y: number};
 }
 
 export interface VirtualOverlayCanvasAttrs extends HTMLAttrs {
@@ -94,7 +94,7 @@ export interface VirtualOverlayCanvasAttrs extends HTMLAttrs {
 
   // Called when the canvas needs to be repainted due to a layout shift or
   // or resize.
-  onCanvasRedraw?(ctx: VirtualOverlayCanvasDrawContext): void;
+  readonly onCanvasRedraw?: (ctx: VirtualOverlayCanvasDrawContext) => void;
 
   // When true the canvas will not be redrawn on mithril update cycles. Disable
   // this if you want to manage the canvas redraw cycle yourself (i.e. possibly
@@ -105,11 +105,11 @@ export interface VirtualOverlayCanvasAttrs extends HTMLAttrs {
   // Called when the canvas is mounted. The passed api object exposes
   // imperative methods for controlling the canvas. Any returned disposable
   // will be disposed of when the component is removed.
-  onMount?(api: VirtualOverlayCanvasApi): Disposable | void;
+  readonly onMount?: (api: VirtualOverlayCanvasApi) => Disposable | void;
 
   // Override styles from base interface, only allowing object type styles
   // rather than strings.
-  style?: Partial<CSSStyleDeclaration>;
+  readonly style?: Partial<CSSStyleDeclaration>;
 
   // Enable a second canvas for WebGL rendering. When enabled, webglCanvas and
   // webglCtx will be provided in the draw context.
@@ -195,6 +195,7 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
 
     // Create the canvas rendering context
     this.ctx = ensureExists(virtualCanvas.canvasElement.getContext('2d'));
+    const ctx = this.ctx;
 
     // Create WebGL canvas if enabled
     if (attrs.enableWebGL) {
@@ -219,19 +220,29 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
       });
       if (webglCtx) {
         this.webglRenderer = new WebGLRenderer(this.ctx, webglCtx);
-        // Fail loudly if we lose context
-        const onContextLost = (e: Event) => {
-          const statusMessage =
-            (e as WebGLContextEvent).statusMessage || 'no status message';
-          throw new Error(`WebGL context lost: ${statusMessage}`);
-        };
-        this.webglCanvas.addEventListener('webglcontextlost', onContextLost);
-        this.trash.defer(() => {
-          this.webglCanvas?.removeEventListener(
+        this.trash.use(
+          bindEventListener(
+            this.webglCanvas,
             'webglcontextlost',
-            onContextLost,
-          );
-        });
+            (e: Event) => {
+              // Set the webgl renderer to undefined means that the canvas
+              // renderer will just be used instead.
+              this.webglRenderer = undefined;
+
+              // Calling preventDefault here allows tells the browser to send us
+              // a 'webglcontextrestored' event when context is restored.
+              e.preventDefault();
+            },
+          ),
+        );
+        this.trash.use(
+          bindEventListener(this.webglCanvas, 'webglcontextrestored', () => {
+            // Recreate the webgl renderer to continue rendering with WebGL.
+            // WebGL state such as buffers and textures shall be recrated lazily
+            // on first render.
+            this.webglRenderer = new WebGLRenderer(ctx, webglCtx);
+          }),
+        );
       }
     }
 
@@ -288,6 +299,7 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
       scrollTo: ({x, y}) => {
         if (x !== undefined) scrollEl.scrollLeft = x;
         if (y !== undefined) scrollEl.scrollTop = y;
+        return {x: scrollEl.scrollLeft, y: scrollEl.scrollTop};
       },
     };
     const disposable = attrs.onMount?.(api);

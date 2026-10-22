@@ -113,6 +113,11 @@ export interface OmniboxManager {
   // Programmatically activates a registered mode, optionally focusing the
   // omnibox input.
   activateRegisteredMode(trigger: string, focus?: boolean): void;
+
+  // Shows a transient status message in the omnibox (e.g. "Converting...").
+  // The message disappears after |durationMs| (default 2000ms) or when the
+  // next status message is shown.
+  showStatusMessage(msg: string, durationMs?: number): void;
 }
 
 export interface PromptChoices<T> {

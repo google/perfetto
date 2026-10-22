@@ -118,7 +118,6 @@ perfetto_sql_source_set("android") {
     "power_profile_data/taimen.sql",
     "power_profile_data/walleye.sql",
     "process_counter_span_view.sql",
-    "process_counter_span_view.sql",
     "process_mem.sql",
     "process_metadata.sql",
     "process_oom_score.sql",

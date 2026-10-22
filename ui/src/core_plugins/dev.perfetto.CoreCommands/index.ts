@@ -48,6 +48,7 @@ import {ensureExists} from '../../base/assert';
 import type {Setting} from '../../public/settings';
 import {toggleHelp} from '../../frontend/help_modal';
 import {legacyMacrosConfigSchema} from './legacy_macros_schema';
+import {Intent} from '../../widgets/common';
 
 const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 
@@ -184,6 +185,77 @@ export default class CoreCommands implements PerfettoPlugin {
     // Register the new macros setting (array format)
     const macroSettingsEditor = new JsonSettingsEditor<MacrosConfig>({
       schema: macrosConfigSchema,
+      validator: (macros) => {
+        const ids = new Set<string>();
+        for (const macro of macros) {
+          if (ids.has(macro.id)) {
+            return `Duplicate macro ID "${macro.id}". Macro IDs must be unique.`;
+          }
+          ids.add(macro.id);
+        }
+        return undefined;
+      },
+      onValidate: (macros) => {
+        if (macros.length === 0) {
+          return {
+            message: 'No macros configured.',
+            intent: Intent.Success,
+            icon: 'check_circle',
+          };
+        }
+
+        const definedMacroIds = new Set(macros.map((m) => m.id));
+
+        for (const macro of macros) {
+          if (macro.id.trim() === '') {
+            return {
+              message: 'Macro ID cannot be empty.',
+              intent: Intent.Danger,
+              icon: 'error',
+            };
+          }
+          if (macro.name.trim() === '') {
+            return {
+              message: `Macro "${macro.id}" must have a non-empty name.`,
+              intent: Intent.Danger,
+              icon: 'error',
+            };
+          }
+
+          for (const command of macro.run) {
+            if (command.id.trim() === '') {
+              return {
+                message: `Macro "${macro.name}" (${macro.id}) contains an empty command ID in its run list.`,
+                intent: Intent.Danger,
+                icon: 'error',
+              };
+            }
+            if (command.id === macro.id) {
+              return {
+                message: `Macro "${macro.name}" (${macro.id}) cannot invoke itself (self-reference detected).`,
+                intent: Intent.Danger,
+                icon: 'error',
+              };
+            }
+            if (
+              !ctx.commands.hasCommand(command.id) &&
+              !definedMacroIds.has(command.id)
+            ) {
+              return {
+                message: `Macro "${macro.name}" (${macro.id}) references unknown command "${command.id}".`,
+                intent: Intent.Danger,
+                icon: 'error',
+              };
+            }
+          }
+        }
+
+        return {
+          message: `All ${macros.length} macro(s) validated successfully.`,
+          intent: Intent.Success,
+          icon: 'check_circle',
+        };
+      },
     });
     CoreCommands.macrosSetting = ctx.settings.register({
       id: 'perfetto.CoreCommands#Macros',
@@ -615,34 +687,6 @@ export default class CoreCommands implements PerfettoPlugin {
         ctx.selection.clearSelection();
       },
       defaultHotkey: 'Escape',
-    });
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.NextFlow',
-      name: 'Next flow',
-      callback: () => ctx.flows.focusOtherFlow('Forward'),
-      defaultHotkey: 'Mod+]',
-    });
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.PrevFlow',
-      name: 'Prev flow',
-      callback: () => ctx.flows.focusOtherFlow('Backward'),
-      defaultHotkey: 'Mod+[',
-    });
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.MoveNextFlow',
-      name: 'Move next flow',
-      callback: () => ctx.flows.moveByFocusedFlow('Forward'),
-      defaultHotkey: ']',
-    });
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.MovePrevFlow',
-      name: 'Move prev flow',
-      callback: () => ctx.flows.moveByFocusedFlow('Backward'),
-      defaultHotkey: '[',
     });
 
     // Provides a test bed for resolving events using a SQL table name and ID

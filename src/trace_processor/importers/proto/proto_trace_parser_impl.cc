@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <optional>
@@ -29,6 +28,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -54,6 +54,7 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/cold_sort.h"
 
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
@@ -116,10 +117,23 @@ void ProtoTraceParserImpl::ParseTracePacket(int64_t ts, TracePacketData data) {
   }
 }
 
-void ProtoTraceParserImpl::ParseTrackEvent(int64_t ts, TrackEventData data) {
+void ProtoTraceParserImpl::ParseTrackEvent(int64_t ts,
+                                           const TrackEventData& data) {
   const TraceBlobView& blob = data.trace_packet_data.packet;
-  protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
-  module_context_->track_module->ParseTrackEventData(packet, ts, data);
+  protozero::ProtoDecoder packet(blob.data(), blob.length());
+  protozero::ConstBytes event{};
+  uint32_t sequence_id = 0;
+  for (auto field = packet.ReadField(); field.valid();
+       field = packet.ReadField()) {
+    if (field.id() == protos::pbzero::TracePacket::kTrackEventFieldNumber) {
+      event = field.as_bytes();
+    } else if (field.id() == protos::pbzero::TracePacket::
+                                 kTrustedPacketSequenceIdFieldNumber) {
+      sequence_id = field.as_uint32();
+    }
+  }
+  module_context_->track_module->ParseTrackEventData(ts, data, event,
+                                                     sequence_id);
 }
 
 void ProtoTraceParserImpl::ParseEtwEvent(uint32_t cpu,
@@ -276,10 +290,8 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
 
     // We stable sort instead of sorting here to avoid changing the order of the
     // args in arrays.
-    std::stable_sort(interned.begin(), interned.end(),
-                     [](const Arg& a, const Arg& b) {
-                       return a.first.raw_id() < b.first.raw_id();
-                     });
+    ColdStableSortByKey(interned.begin(), interned.end(),
+                        [](const Arg& arg) { return arg.first.raw_id(); });
 
     // Compute the correct key for each arg, possibly adding an index to
     // the end of the key if needed.
