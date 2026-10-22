@@ -57,8 +57,6 @@ import type {TraceStream} from '../public/stream';
 import type {OmniboxModeDescriptor} from '../public/omnibox';
 import type {SidePanelManagerImpl} from './side_panel_manager';
 import type {SidePanelTabDescriptor} from '../public/side_panel';
-import type {HeaderManagerImpl} from './header_manager';
-import type {HeaderItem} from '../public/header';
 import type {Route} from '../public/app';
 
 // While extendTraceEnd() grows a trace, the minimap reloads at most this often,
@@ -203,14 +201,6 @@ export class TraceImpl implements Trace, Disposable {
         return disposable;
       },
     });
-
-    this.headerProxy = createProxy(app.header, {
-      registerItem: (item: HeaderItem) => {
-        const disposable = app.header.registerItem(item);
-        this.trash.use(disposable);
-        return disposable;
-      },
-    });
   }
 
   // This method wires up changes to selection to side effects on search and
@@ -236,7 +226,6 @@ export class TraceImpl implements Trace, Disposable {
   private readonly commandMgrProxy: CommandManagerImpl;
   private readonly sidebarProxy: SidebarManagerImpl;
   private readonly sidePanelProxy: SidePanelManagerImpl;
-  private readonly headerProxy: HeaderManagerImpl;
   private readonly pageMgrProxy: PageManagerImpl;
   private readonly settingsProxy: SettingsManagerImpl;
   private readonly omniboxProxy: OmniboxManagerImpl;
@@ -334,10 +323,6 @@ export class TraceImpl implements Trace, Disposable {
 
   get sidePanel(): SidePanelManagerImpl {
     return this.sidePanelProxy;
-  }
-
-  get header(): HeaderManagerImpl {
-    return this.headerProxy;
   }
 
   get pages(): PageManager {
