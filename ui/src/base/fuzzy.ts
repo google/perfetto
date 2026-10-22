@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import fuzzysort from 'fuzzysort';
+import {mapTuple, type MapTuple, type ReadonlyNonEmpty} from './array_utils';
 
 export interface FuzzySegment {
   readonly matching: boolean;
@@ -27,15 +28,28 @@ export interface FuzzyResult<T> {
   readonly score: number;
 }
 
-export interface FuzzyMultiResult<T> {
+export type KeyLookup<T> = (x: T) => string;
+
+// One array of segments per key lookup, with the same length (and therefore
+// the same valid indices) as the key lookup tuple K.
+export type FuzzySegmentsPerKey<K extends readonly unknown[]> = MapTuple<
+  K,
+  readonly FuzzySegment[]
+>;
+
+export interface FuzzyMultiResult<
+  T,
+  K extends ReadonlyNonEmpty<KeyLookup<T>> = ReadonlyNonEmpty<KeyLookup<T>>,
+> {
   readonly item: T;
-  readonly segments: readonly (readonly FuzzySegment[])[];
+  // An array of matching segments for each key. Each element corresponds to
+  // the key lookup function at the same index and contains an array of
+  // FuzzySegment objects.
+  readonly segments: FuzzySegmentsPerKey<K>;
   // Relevance score of the match, higher is better. Exact matches score higher
   // than fuzzy ones. Empty search terms produce a uniform score of 1.
   readonly score: number;
 }
-
-export type KeyLookup<T> = (x: T) => string;
 
 /**
  * Performs character-subsequence fuzzy matching over a list of items using
@@ -44,6 +58,9 @@ export type KeyLookup<T> = (x: T) => string;
  * Accepts either a single key lookup function or an array of key lookup
  * functions. When multiple key lookups are provided, matches across any key
  * will be returned with per-key highlight segments and a unified match score.
+ * When the key lookups are passed as a tuple (e.g. an inline array literal),
+ * the returned segments are typed with the same length, so indexing them by
+ * key position needs no non-null assertions.
  *
  * An empty `searchTerm` returns all items in original order with uniform scores
  * of 1.
@@ -55,11 +72,11 @@ export type KeyLookup<T> = (x: T) => string;
  * @returns Array of matching items ordered by relevance score, with highlight
  * segments and match scores.
  */
-export function fuzzySearch<T>(
+export function fuzzySearch<T, const K extends ReadonlyNonEmpty<KeyLookup<T>>>(
   items: readonly T[],
-  keyLookup: readonly KeyLookup<T>[],
+  keyLookup: K,
   searchTerm: string,
-): FuzzyMultiResult<T>[];
+): FuzzyMultiResult<T, K>[];
 export function fuzzySearch<T>(
   items: readonly T[],
   keyLookup: KeyLookup<T>,
@@ -67,15 +84,15 @@ export function fuzzySearch<T>(
 ): FuzzyResult<T>[];
 export function fuzzySearch<T>(
   items: readonly T[],
-  keyLookup: KeyLookup<T> | readonly KeyLookup<T>[],
+  keyLookup: KeyLookup<T> | ReadonlyNonEmpty<KeyLookup<T>>,
   searchTerm: string,
 ): FuzzyMultiResult<T>[] | FuzzyResult<T>[] {
   if (typeof keyLookup === 'function') {
     // Single key: delegate to multi-key search and unwrap segments.
-    const result = fuzzySearchMultiKey(items, [keyLookup], searchTerm);
+    const result = fuzzySearchMultiKey(items, [keyLookup] as const, searchTerm);
     return result.map((res) => ({
       item: res.item,
-      segments: res.segments[0]!,
+      segments: res.segments[0],
       score: res.score,
     }));
   } else {
@@ -84,14 +101,14 @@ export function fuzzySearch<T>(
   }
 }
 
-function fuzzySearchMultiKey<T>(
+function fuzzySearchMultiKey<T, K extends ReadonlyNonEmpty<KeyLookup<T>>>(
   items: readonly T[],
-  keyLookup: readonly KeyLookup<T>[],
+  keyLookup: K,
   searchTerm: string,
-): FuzzyMultiResult<T>[] {
+): FuzzyMultiResult<T, K>[] {
   if (searchTerm === '') {
     return items.map((item) => {
-      const segments = keyLookup.map((lookup) => [
+      const segments = mapTuple(keyLookup, (lookup) => [
         {matching: false, value: lookup(item)},
       ]);
       return {item, segments, score: 1};
@@ -103,7 +120,7 @@ function fuzzySearchMultiKey<T>(
   });
 
   return results.map((result) => {
-    const segments = keyLookup.map((lookup, i) => {
+    const segments = mapTuple(keyLookup, (lookup, i) => {
       const text = lookup(result.obj);
       const keyMatch = result[i];
       const indexes =

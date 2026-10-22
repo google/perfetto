@@ -80,7 +80,6 @@ node CreatePerfettoTableStmt {
   schema: index PerfettoArgDefList
   select: index Select
   select_span: inline SyntaqliteTextSpan
-  pipeline: index PerfettoPipeline
 
   semantic { define_table(name: table_name, columns: schema, select: select) }
 
@@ -102,10 +101,8 @@ node CreatePerfettoTableStmt {
         softline ")"
       }
       if_set(select) { line "AS" }
-      if_set(pipeline) { line "AS" }
     }
     if_set(select) { hardline child(select) }
-    if_set(pipeline) { hardline child(pipeline) }
   }
 }
 
@@ -368,8 +365,20 @@ node PerfettoPipeStar {
   }
 }
 
+// A column a SELECT or EXTEND lists: `expr [AS name]`. Only a column
+// reference may go without a name.
+node PerfettoPipeExprItem {
+  expr: index Expr
+  alias: inline SyntaqliteTextSpan
+
+  fmt {
+    child(expr)
+    if_span(alias) { space "AS" space span(alias) }
+  }
+}
+
 abstract PerfettoPipeSelectItem {
-  PerfettoPipeColumn
+  PerfettoPipeExprItem
   PerfettoPipeStar
 }
 
@@ -378,8 +387,7 @@ list PerfettoPipeSelectItemList {
   fmt { for_each(sep: "," line) { child(_item) } }
 }
 
-// `SELECT item, ...`: picks, orders and renames columns. A computed column
-// has no spelling here yet.
+// `SELECT item, ...`: picks, orders, renames and computes columns.
 node PerfettoPipeSelect {
   columns: index PerfettoPipeSelectItemList
 
@@ -407,10 +415,10 @@ node PerfettoPipeRename {
   fmt { group { "RENAME" nest { line child(columns) } } }
 }
 
-// One assignment of a SET stage: `name = column`.
+// One assignment of a SET stage: `name = expr`.
 node PerfettoPipeSetItem {
   name: inline SyntaqliteTextSpan
-  value: index PerfettoPipeColumn
+  value: index Expr
 
   fmt { span(name) space "=" space child(value) }
 }
@@ -420,7 +428,7 @@ list PerfettoPipeSetItemList {
   fmt { for_each(sep: "," line) { child(_item) } }
 }
 
-// `SET name = column, ...`: replaces the values of columns.
+// `SET name = expr, ...`: replaces the values of columns.
 node PerfettoPipeSet {
   items: index PerfettoPipeSetItemList
 
@@ -572,16 +580,42 @@ node PerfettoIntervalIntersection {
   }
 }
 
-// A pipeline: a source followed by `|>` stages. Exactly one of `from` and
-// `intersection` names the source.
+enum PerfettoGraphTreeKind { BFS DFS DOMINATOR }
+
+// `GRAPH BFS | DFS | DOMINATOR TREE NODES rel EDGES rel FROM rel`: reduces the
+// graph to a tree over the nodes reachable from the seeds in FROM.
+node PerfettoGraphTree {
+  kind: inline PerfettoGraphTreeKind
+  nodes: index PerfettoPipeSource
+  edges: index PerfettoPipeSource
+  seeds: index PerfettoPipeSource
+
+  fmt {
+    group {
+      "GRAPH" space
+      enum_display(kind, { BFS="BFS" DFS="DFS" DOMINATOR="DOMINATOR" })
+      space "TREE"
+      nest {
+        line "NODES" space child(nodes)
+        line "EDGES" space child(edges)
+        line "FROM" space child(seeds)
+      }
+    }
+  }
+}
+
+// A pipeline: a source followed by `|>` stages. Exactly one of `from`,
+// `intersection` and `graph` names the source.
 node PerfettoPipeline {
   from: index PerfettoPipeSource
   intersection: index PerfettoIntervalIntersection
+  graph: index PerfettoGraphTree
   stages: index PerfettoPipeStageList
 
   fmt {
     if_set(from) { "FROM" space child(from) }
     if_set(intersection) { child(intersection) }
+    if_set(graph) { child(graph) }
     if_set(stages) { hardline "|>" space child(stages) }
   }
 }

@@ -113,6 +113,15 @@ std::optional<uint32_t> GetErrorOffsetDb(sqlite3* db) {
 constexpr int kSqliteOpenFlags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE |
                                  SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_URI;
 
+void ApplyAttachCreateWriteConfig(sqlite3* db, bool enabled) {
+  int unused = 0;
+  int val = enabled ? 1 : 0;
+  PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_ENABLE_ATTACH_WRITE, val,
+                                   &unused) == SQLITE_OK);
+  PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_ENABLE_ATTACH_CREATE,
+                                   val, &unused) == SQLITE_OK);
+}
+
 }  // namespace
 
 std::unique_ptr<SqliteConnection>
@@ -135,6 +144,9 @@ SqliteConnection::SqliteConnection(std::shared_ptr<SqliteDatabase> database)
   // queries.
   PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_LOOKASIDE, nullptr,
                                    /*sz=*/1200, /*cnt=*/1000) == SQLITE_OK);
+  // Untrusted SQL (e.g. the RPC server) must never be able to ATTACH-write
+  // OS files.
+  ApplyAttachCreateWriteConfig(db, /*enabled=*/false);
 #ifdef SQLITE_DBCONFIG_FP_DIGITS
   // SQLite 3.52 went from 15 to 17 significant digits when turning a double
   // into text. Keep the 15 older versions produce.
@@ -147,6 +159,10 @@ SqliteConnection::SqliteConnection(std::shared_ptr<SqliteDatabase> database)
 
 std::unique_ptr<SqliteConnection> SqliteConnection::Fork() {
   return std::make_unique<SqliteConnection>(database_);
+}
+
+void SqliteConnection::SetAttachCreateWriteEnabled(bool enabled) {
+  ApplyAttachCreateWriteConfig(db_.get(), enabled);
 }
 
 SqliteConnection::~SqliteConnection() = default;

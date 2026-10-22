@@ -66,13 +66,11 @@ class AssertType final : public Transform {
     base::Status status = base::OkStatus();
   };
 
-  // The buffer in `chunk` holding values of the target type.
-  const void* Data(const ColumnChunk& chunk) const;
   bool Widen(const ColumnView&, const Selection&, ColumnChunk&, State&) const;
 
   uint32_t column_;
-  AssertTypeTarget target_;
-  // `target_` as a StorageType, which is what a column carries.
+  // One of AssertTypeTarget's types, as a StorageType, which is what a column
+  // carries.
   StorageType type_;
   // Used in the error message when a row disagrees.
   std::string name_;

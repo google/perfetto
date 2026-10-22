@@ -67,11 +67,9 @@ class TreeChildFirst : public Breaker {
     bool parent_first = true;
     bool child_first = true;
 
-    // The node and parent of each row in order of arrival, and each node's
-    // row: what a sort needs.
+    // The node and parent of each row in order of arrival: what a sort needs.
     FlexVector<uint32_t> nodes;
     FlexVector<uint32_t> parents;
-    FlexVector<uint32_t> row_of_node;
 
     RowStore rows;
     // The order to emit the rows in. Empty means in arrival order.
@@ -129,12 +127,12 @@ class TreeParentFirst : public Operator {
 
     // What is known about each node number.
     struct Nodes {
-      BitVector has_row;
       // The node's row is out, or is on its way out in `letting_go`.
       BitVector out;
       // The first row of `held` waiting on this node, or kNoNode.
       FlexVector<uint32_t> first_waiting;
 
+      // Grows to at least `count` nodes, ahead of need.
       void Grow(uint32_t count);
       void Clear();
     };

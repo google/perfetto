@@ -102,7 +102,7 @@ class Compiler {
   // A table alias: the row's columns as they were when the alias was given.
   // Dropping, renaming or replacing a column later does not change them.
   struct Alias {
-    std::string name;
+    NameId name;
     std::vector<RowColumn> columns;
   };
 
@@ -133,7 +133,7 @@ class Compiler {
   // ---------------------------------------------------------------------------
 
   // Allocates a logical value without making a name visible in the row.
-  ColumnId AddColumn(std::string name, PlanType type);
+  ColumnId AddColumn(NameId name, PlanType type);
 
   // Appends an operation and makes it the plan root; does not update scope.
   template <typename T>
@@ -145,17 +145,29 @@ class Compiler {
   // Name resolution and expression checks
   // ---------------------------------------------------------------------------
 
-  const Alias* FindAlias(const std::string& name) const;
+  // Names are interned in the plan, so that the row, aliases and plan can
+  // all refer to them by id: comparing two is comparing integers.
+  NameId Name(std::string_view text) { return plan_.names().Intern(text); }
+  NameId Name(SyntaqliteTextSpan span) { return Name(SpanText(p_, span)); }
+  const std::string& Text(NameId name) const {
+    return plan_.names().text(name);
+  }
+  bool Same(NameId a, NameId b) const { return plan_.names().Same(a, b); }
+  // The column in `columns` named `name`, or nullopt if there is none.
+  std::optional<ColumnId> FindColumn(const std::vector<NamedColumn>& columns,
+                                     NameId name) const;
+
+  const Alias* FindAlias(NameId name) const;
 
   // The position in the row of the one column a bare `name` finds.
-  base::StatusOr<size_t> FindInRow(const std::string& name, uint32_t at) const;
+  base::StatusOr<size_t> FindInRow(NameId name, uint32_t at) const;
 
   // The error for a bare `name` which finds no column.
-  base::Status NoSuchColumn(const std::string& name, uint32_t at) const;
+  base::Status NoSuchColumn(NameId name, uint32_t at) const;
 
   // Fails if a name appears twice in a list of names.
-  base::Status CheckListedOnce(std::vector<std::string>& seen,
-                               const std::string& name,
+  base::Status CheckListedOnce(std::vector<NameId>& seen,
+                               NameId name,
                                uint32_t at) const;
 
   // Resolves an aggregate call, e.g. `SUM(column)`, to the shared function
@@ -163,10 +175,11 @@ class Compiler {
   base::StatusOr<Aggregate> ResolveAggregate(uint32_t expr);
   // Resolves an expression which must be a column reference; any other
   // expression is unsupported.
-  base::StatusOr<ColumnId> ResolveColumnExpr(uint32_t expr) const;
-  base::StatusOr<ColumnId> Resolve(const std::string& name, uint32_t at) const;
-  base::StatusOr<ColumnId> Resolve(const std::string& qualifier,
-                                   const std::string& name,
+  base::StatusOr<ColumnId> ResolveColumnExpr(uint32_t expr);
+  base::StatusOr<ColumnId> Resolve(NameId name, uint32_t at) const;
+  // `qualifier` is the table alias, if there is one.
+  base::StatusOr<ColumnId> Resolve(std::optional<NameId> qualifier,
+                                   NameId name,
                                    uint32_t at) const;
 
   // ---------------------------------------------------------------------------
@@ -197,11 +210,11 @@ class Compiler {
   void ExtendRow(std::vector<RowColumn> columns);
 
   // Removes matching unqualified columns and the alias with this name.
-  void DropColumn(const std::string& name);
+  void DropColumn(NameId name);
 
   // Changes a row binding, preserving earlier alias snapshots. `at` is a row
   // index; `node` records the AST location for later diagnostics.
-  void RenameColumn(size_t at, std::string name, uint32_t node);
+  void RenameColumn(size_t at, NameId name, uint32_t node);
 
   // Rebinds a row position and removes the alias with that column name.
   void SetColumnValue(size_t at, ColumnId value, uint32_t node);
@@ -211,8 +224,14 @@ class Compiler {
   void ClearAliases();
   void AddAlias(Alias alias);
 
+  // Updates each alias to point at new columns, for a stage that replaces
+  // every column. `replaced` holds (`from`, `to`) pairs. Columns with no
+  // replacement are removed from the alias.
+  void ReplaceAliasColumns(
+      const std::vector<std::pair<ColumnId, ColumnId>>& replaced);
+
   // Forgets the table alias `name`, if there is one.
-  void RemoveAlias(const std::string& name);
+  void RemoveAlias(NameId name);
 
   // ---------------------------------------------------------------------------
   // Inputs and current scope

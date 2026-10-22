@@ -590,8 +590,9 @@ export function createAutoGroupedFiltersProto(
   }
 
   // If only one column, create a simple flat group
-  if (filtersByColumn.size === 1) {
-    const columnFilters = [...filtersByColumn.values()][0]!;
+  const columnFilters =
+    filtersByColumn.size === 1 ? [...filtersByColumn.values()][0] : undefined;
+  if (columnFilters !== undefined) {
     const protoFilters = createFiltersProto(columnFilters, sourceCols);
     if (!protoFilters) {
       return undefined;

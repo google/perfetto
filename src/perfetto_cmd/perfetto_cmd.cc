@@ -1433,7 +1433,7 @@ void PerfettoCmd::SetupCtrlCSignalHandler() {
   if (g_perfetto_cmd != this)
     return;
   ctrl_c_handler_installed_ = true;
-  base::InstallCtrlCHandler([] {
+  base::InstallCtrlCHandler([](int /*signal*/) {
     if (PerfettoCmd* main_thread = g_perfetto_cmd.load())
       main_thread->SignalCtrlC();
   });

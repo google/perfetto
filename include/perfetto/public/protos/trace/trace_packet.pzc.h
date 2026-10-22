@@ -44,6 +44,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_CpuPerUidData);
 PERFETTO_PB_MSG_DECL(perfetto_protos_DeobfuscationMapping);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EntityStateResidency);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EtwTraceEventBundle);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ExperimentalTracingV2ProducerStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ExtensionDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceEventBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceStats);
@@ -242,6 +243,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_TraceStats,
                   trace_stats,
                   35);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_ExperimentalTracingV2ProducerStats,
+                  experimental_tracing_v2_producer_stats,
+                  139);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_ProfilePacket,

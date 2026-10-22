@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppInt32
@@ -41,6 +42,9 @@ ANDROID_PROCESS_STATE_TABLE = Table(
         C('process_group', CppOptional(CppString())),
         C('reason', CppOptional(CppString())),
         C('seq_id', CppOptional(CppInt64())),
+        C('arg_set_id',
+          CppOptional(CppUint32()),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C('is_initial', CppUint32(), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
@@ -63,6 +67,10 @@ ANDROID_PROCESS_STATE_TABLE = Table(
                 'Reason for state change (if from track event).',
             'seq_id':
                 'OOM adjuster sequence ID (if from track event).',
+            'arg_set_id':
+                ColumnDoc(
+                    'Argument set holding decoded capability_flags[i] entries.',
+                    joinable='args.arg_set_id'),
             'is_initial':
                 '1 for synthesized initial state row, 0 for change event.',
         },

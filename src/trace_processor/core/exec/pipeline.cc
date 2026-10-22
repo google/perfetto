@@ -22,6 +22,7 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/variant.h"
@@ -34,28 +35,20 @@ namespace {
 
 constexpr size_t kTransformStep =
     base::variant_index<Pipeline::Step, std::unique_ptr<Transform>>();
-constexpr size_t kOperatorStep =
-    base::variant_index<Pipeline::Step, std::unique_ptr<Operator>>();
 
 }  // namespace
 
 Pipeline::Pipeline(const Source& source, std::vector<Step> steps)
     : source_(source), steps_(std::move(steps)) {
-  segments_.emplace_back();
+  segments_.push_back({-1, nullptr, 0, 0});
   for (uint32_t i = 0; i < steps_.size(); ++i) {
-    switch (steps_[i].index()) {
-      case kTransformStep:
-        segments_.back().transforms.push_back(i);
-        segments_.back().transform_ops.push_back(
-            base::unchecked_get<std::unique_ptr<Transform>>(steps_[i]).get());
-        break;
-      case kOperatorStep: {
-        const Operator* op =
-            base::unchecked_get<std::unique_ptr<Operator>>(steps_[i]).get();
-        segments_.push_back({static_cast<int32_t>(i), op, {}, {}});
-        break;
-      }
+    if (steps_[i].index() == kTransformStep) {
+      segments_.back().end = i + 1;
+      continue;
     }
+    const Operator* op =
+        base::unchecked_get<std::unique_ptr<Operator>>(steps_[i]).get();
+    segments_.push_back({static_cast<int32_t>(i), op, i + 1, i + 1});
   }
   last_segment_ = static_cast<uint32_t>(segments_.size() - 1);
   if (segments_.size() > 1) {
@@ -71,27 +64,24 @@ std::unique_ptr<OperatorState> Pipeline::MakeState(Context& context) const {
   state->owned_source_state = source_.MakeState(context);
   state->source = &source_;
   state->source_state = state->owned_source_state.get();
+  state->operators.reserve(steps_.size());
   for (const Step& step : steps_) {
-    switch (step.index()) {
-      case kTransformStep:
-        state->operators.push_back(
-            base::unchecked_get<std::unique_ptr<Transform>>(step)->MakeState(
-                context));
-        break;
-      case kOperatorStep:
-        state->operators.push_back(
-            base::unchecked_get<std::unique_ptr<Operator>>(step)->MakeState(
-                context));
-        break;
-    }
+    const auto* transform = std::get_if<std::unique_ptr<Transform>>(&step);
+    state->operators.push_back(
+        transform
+            ? (*transform)->MakeState(context)
+            : base::unchecked_get<std::unique_ptr<Operator>>(step)->MakeState(
+                  context));
   }
-  state->starts.resize(segments_.size());
+  // Built at its size, the vector needs no code to grow.
+  state->starts = std::vector<State::Start>(segments_.size());
   for (size_t seg = 0; seg < segments_.size(); ++seg) {
     const Segment& segment = segments_[seg];
     auto& links = seg == 0 ? state->source_links : state->starts[seg].links;
-    for (size_t t = 0; t < segment.transforms.size(); ++t) {
-      links.push_back({segment.transform_ops[t],
-                       state->operators[segment.transforms[t]].get()});
+    for (uint32_t t = segment.first; t < segment.end; ++t) {
+      links.push_back(
+          {base::unchecked_get<std::unique_ptr<Transform>>(steps_[t]).get(),
+           state->operators[t].get()});
     }
   }
   for (auto& op_state : state->operators) {
@@ -122,7 +112,9 @@ void Pipeline::Rewind(OperatorState& state) const {
 // A batch is one pull, from the source or the operator starting the last
 // segment, and that segment's transforms. Limits, combining, cancellation and
 // failure are NextSlow()'s.
-RowBatch* Pipeline::Next(RowBatch&, OperatorState& state) const {
+// Out of line, so GetData calls it rather than holding a copy.
+PERFETTO_NO_INLINE RowBatch* Pipeline::Next(RowBatch&,
+                                            OperatorState& state) const {
   auto& s = state.Cast<State>();
   uint8_t flags = s.flags;
   if (PERFETTO_UNLIKELY(flags & State::kNextSlow)) {

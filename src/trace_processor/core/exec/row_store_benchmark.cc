@@ -66,7 +66,7 @@ void Run(benchmark::State& state, uint32_t rows) {
     for (uint32_t at = 0; at < rows; at += kMaxBatchRows) {
       const uint32_t* begin = order.data() + at;
       uint32_t count = std::min(kMaxBatchRows, rows - at);
-      store.View(&out, Span<const uint32_t>(begin, begin + count), context);
+      store.Gather(&out, Span<const uint32_t>(begin, begin + count), context);
       benchmark::DoNotOptimize(out.size());
     }
     store.Clear();

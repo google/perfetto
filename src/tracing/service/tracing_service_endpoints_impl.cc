@@ -41,6 +41,7 @@
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.gen.h"
 
 namespace perfetto::tracing_service {
 
@@ -853,6 +854,20 @@ void ProducerEndpointImpl::DrainV2RingBuffer() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (v2_ring_buffer_drainer_)
     v2_ring_buffer_drainer_->Drain();
+}
+
+std::optional<protos::gen::ExperimentalTracingV2ProducerStats>
+ProducerEndpointImpl::GetTracingV2Stats() const {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!v2_ring_buffer_drainer_)
+    return std::nullopt;
+
+  protos::gen::ExperimentalTracingV2ProducerStats stats;
+  stats.set_producer_id(id_);
+  stats.set_pid(static_cast<int32_t>(pid()));
+  stats.set_producer_name(name_);
+  v2_ring_buffer_drainer_->FillStats(&stats);
+  return stats;
 }
 
 TraceBuffer* ProducerEndpointImpl::GetV2RingBufferDestination(BufferID id) {

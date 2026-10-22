@@ -1421,6 +1421,14 @@ TEST_F(TraceProcessorIntegrationTest, PerfettoExportRoundTrip) {
       QuerySingleInt(Processor(), "SELECT count() FROM slice");
   int64_t slice_dur_sum =
       QuerySingleInt(Processor(), "SELECT sum(dur) FROM slice");
+  int64_t dimension_count =
+      QuerySingleInt(Processor(), "SELECT count() FROM track_dimension");
+  const std::string arg_lookup =
+      "SELECT extract_arg(a.arg_set_id, a.key) = a.int_value FROM args AS a "
+      "WHERE a.int_value IS NOT NULL "
+      "AND a.value_type IN ('int', 'uint', 'bool', 'pointer') "
+      "ORDER BY a.arg_set_id, a.key LIMIT 1";
+  ASSERT_EQ(QuerySingleInt(Processor(), arg_lookup), 1);
   std::string first_thread_name = QuerySingleString(
       Processor(),
       "SELECT name FROM thread WHERE name IS NOT NULL ORDER BY name LIMIT 1");
@@ -1431,7 +1439,17 @@ TEST_F(TraceProcessorIntegrationTest, PerfettoExportRoundTrip) {
       ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
 
   auto reimport = TraceProcessor::CreateInstance(Config());
+  ASSERT_EQ(QuerySingleInt(reimport.get(),
+                           "SELECT extract_arg(0, 'missing') IS NULL"),
+            1);
+  ASSERT_EQ(QuerySingleString(reimport.get(),
+                              "SELECT __intrinsic_arg_set_to_json(0)"),
+            "{}");
   ASSERT_OK(ParsePerfettoExport(reimport.get(), tar));
+  EXPECT_EQ(QuerySingleInt(reimport.get(), arg_lookup), 1);
+  EXPECT_EQ(
+      QuerySingleInt(reimport.get(), "SELECT count() FROM track_dimension"),
+      dimension_count);
 
   EXPECT_EQ(QuerySingleInt(reimport.get(), "SELECT count() FROM thread"),
             thread_count);

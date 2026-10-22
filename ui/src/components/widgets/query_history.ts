@@ -15,7 +15,7 @@
 import './query_history.scss';
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
-import {assertTrue} from '../../base/assert';
+import {assertTrue, ensureDefined} from '../../base/assert';
 import {z} from 'zod';
 import type {Trace} from '../../public/trace';
 import {Button} from '../../widgets/button';
@@ -129,20 +129,21 @@ class HistoryStorage {
     let countUnstarred = 0;
     let existingIndex = -1;
 
-    for (let i = 0; i < items.length; i++) {
-      if (!items[i]!.starred) {
+    for (const [i, item] of items.entries()) {
+      if (!item.starred) {
         countUnstarred++;
         lastUnstarred = i;
       }
 
-      if (items[i]!.query === query) {
+      if (item.query === query) {
         existingIndex = i;
       }
     }
 
     // If query already exists, move it to the front (index 0)
-    if (existingIndex !== -1) {
-      const isStarred = items[existingIndex]!.starred;
+    const existing = items[existingIndex];
+    if (existing !== undefined) {
+      const isStarred = existing.starred;
       items.splice(existingIndex, 1);
       // Re-add at the front with same starred status
       items.unshift({query, starred: isStarred});
@@ -162,8 +163,7 @@ class HistoryStorage {
   }
 
   setStarred(index: number, starred: boolean) {
-    assertTrue(index >= 0 && index < this.data.length);
-    this.data[index]!.starred = starred;
+    ensureDefined(this.data[index]).starred = starred;
     this.save();
   }
 

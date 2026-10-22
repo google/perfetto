@@ -8,6 +8,7 @@
   "license": "Apache-2.0",
   "dependencies": {
     "mermaid": "^11.16.1",
+    "railroad-diagrams": "1.0.0",
     "sass": "^1.94.0"
   },
   "devDependencies": {
