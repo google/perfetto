@@ -102,6 +102,9 @@ Unreleased:
      for the `NO_COLOR` and `FORCE_COLOR` environment variables.
    * The Python `TraceProcessor` now supports `metric()` over `remote` Unix
      socket sessions.
+   * Python query results can now be converted to typed Arrow tables with
+     `as_arrow_table()`, and implement the Arrow PyCapsule interface so they
+     can be passed straight to pyarrow, polars and DuckDB.
    * Trace summary specs now ignore unknown fields.
    * Extension descriptors in a trace now override built-in definitions of
      the same fields.
