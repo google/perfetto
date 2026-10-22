@@ -268,7 +268,7 @@ export class LiveStore {
       const match = SEED_MARKER.exec(it.marker);
       if (match === null) continue;
       const depth = Number(match[1]);
-      const id = match[2];
+      const id = match[2]!;
       const kind = it.isCounter ? 'KIND_COUNTER' : 'KIND_SLICE';
       let track = newTracks.get(id);
       if (track === undefined) {

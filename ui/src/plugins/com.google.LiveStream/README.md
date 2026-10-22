@@ -18,10 +18,10 @@ nothing.
 
 ## How it works
 
-1. `onActivate` shows the HUD above the topbar (`app.header`), for the page's
-   lifetime. It fetches `api/targets` and the seed trace `api/seed`, and opens
-   the seed, without caching it, with plugin args that carry the target and the
-   seed's stream position.
+1. `onActivate` shows the HUD in a side panel tab (`app.sidePanel`), for the
+   page's lifetime. It fetches `api/targets` and the seed trace `api/seed`, and
+   opens the seed, without caching it, with plugin args that carry the target
+   and the seed's stream position.
 2. `onTraceLoad` starts a `LiveSession`. Before the trace shows, it copies the
    history of the seed's marked tracks into SQL tables (`store.ts`), and
    replaces the seed's tracks with its own `SliceTrack`s and `CounterTrack`s.
@@ -136,7 +136,8 @@ the last `window` seconds otherwise:
 
 ## Controls
 
-The HUD, a row above the topbar:
+The HUD is the "Live Stream" tab of the side panel, shown from page load; the
+topbar's side panel button hides and shows it. From top to bottom:
 
 - Status badge: STREAM ERROR, PAUSED, BUFFERING or LIVE STREAM, in this order of
   precedence. Buffering: no data yet, or none for over 5 s, or a trace opens.
@@ -154,11 +155,13 @@ The HUD, a row above the topbar:
   e.g. panning or `F` on a slice, and selecting an area stop following. `Space`
   works while a button has the focus, but not in text boxes.
 - Pause / Resume Live: stop or restart updates.
-- ⋯: Reconnect, Download Trace, Poll Interval, Buffer Window and History. The
-  settings persist, also on the Settings page.
+- Reconnect, Download Trace.
+- Settings: Poll Interval, Buffer Window and History. They persist, also on the
+  Settings page.
 
 The command "Live Stream: Toggle Follow Live Scroll" has the `Space` hotkey.
-Other traces, e.g. opened from a file, hide the HUD and turn the command off.
+Other traces, e.g. opened from a file, replace the HUD with a note and turn the
+command off.
 
 ## Embedding
 
@@ -167,7 +170,8 @@ The page that embeds the UI may restyle the HUD. Its colors are CSS variables:
 `background`, `background-secondary`, `text`, `text-muted`, `accent`,
 `text-on-accent`, `success`, `warning` and `danger`.
 `--pf-live-stream-hud-padding-left` (default 14px, 10px below 820 px wide) makes
-room, e.g. for a logo over the HUD. The plugin never sets them. E.g.:
+room in the HUD's row layout, e.g. for a logo over it; the side panel ignores
+it. The plugin never sets them. E.g.:
 
 ```css
 :root {

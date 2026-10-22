@@ -13,8 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 INCLUDE PERFETTO MODULE wattson.estimates;
 
 INCLUDE PERFETTO MODULE wattson.tasks.attribution;
@@ -23,15 +21,30 @@ INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
 
 INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 
-INCLUDE PERFETTO MODULE wattson.utils;
+-- Active energy (mW * ns) of each thread over the part of its slices that
+-- overlaps [win_ts, win_ts + win_dur), with the same half-open and
+-- zero-duration point semantics as interval intersection.
+CREATE PERFETTO FUNCTION _wattson_window_active_mw_ns(
+  win_ts TIMESTAMP,
+  win_dur LONG
+)
+RETURNS TABLE(utid JOINID(thread.id), mw_ns DOUBLE)
+AS
+SELECT
+  utid,
+  sum(estimated_mw * (min(ts + dur, $win_ts + $win_dur) - max(ts, $win_ts))) AS mw_ns
+FROM _estimates_w_tasks_attribution
+WHERE
+  (ts < $win_ts + $win_dur OR (ts = $win_ts AND $win_dur = 0))
+  AND (ts + dur > $win_ts OR (ts = $win_ts AND dur = 0))
+GROUP BY
+  utid;
 
--- ========================================================
--- MACRO: _wattson_threads_aggregation
---
--- Low-level macro to calculate energy and power attribution per thread/process.
--- ========================================================
-CREATE PERFETTO MACRO _wattson_threads_aggregation(
-  tasks_table TableOrSubquery,
+-- Joins per (period_id, utid) active energy with the idle transition cost and
+-- the thread metadata.
+CREATE PERFETTO MACRO _wattson_threads_summary(
+  -- Table with columns (period_id, utid, total_mw_ns).
+  active_table TableOrSubquery,
   window_table TableOrSubquery,
   cpus_table TableOrSubquery
 )
@@ -42,12 +55,9 @@ AS (
       SELECT
         period_id,
         utid,
-        sum(estimated_mw * dur) / 1e9 AS active_mws,
-        sum(estimated_mw * dur) AS total_mw_ns
-      FROM $tasks_table
-      GROUP BY
-        period_id,
-        utid
+        total_mw_ns / 1e9 AS active_mws,
+        total_mw_ns
+      FROM $active_table
     ),
     -- Calculate Idle Cost
     idle_summary AS (
@@ -97,6 +107,36 @@ AS (
 );
 
 -- ========================================================
+-- MACRO: _wattson_threads_aggregation
+--
+-- Low-level macro to calculate energy and power attribution per thread/process.
+-- ========================================================
+CREATE PERFETTO MACRO _wattson_threads_aggregation(
+  tasks_table TableOrSubquery,
+  window_table TableOrSubquery,
+  cpus_table TableOrSubquery
+)
+RETURNS TableOrSubquery
+AS (
+  SELECT
+    *
+  FROM _wattson_threads_summary!(
+    (
+      SELECT
+        period_id,
+        utid,
+        sum(estimated_mw * dur) AS total_mw_ns
+      FROM $tasks_table
+      GROUP BY
+        period_id,
+        utid
+    ),
+    $window_table,
+    $cpus_table
+  )
+);
+
+-- ========================================================
 -- MACRO: wattson_threads_aggregation
 --
 -- Calculates energy and power attribution per thread/process for the
@@ -118,23 +158,6 @@ CREATE PERFETTO MACRO wattson_threads_aggregation(
 )
 RETURNS TableOrSubquery
 AS (
-  WITH
-    windowed_active_state AS (
-      SELECT
-        ii.dur,
-        ii.id_1 AS period_id,
-        tasks.estimated_mw,
-        tasks.utid
-      FROM _interval_intersect!(
-      (
-        _ii_subquery!(_estimates_w_tasks_attribution),
-        (SELECT period_id AS id, * FROM $window_table)
-      ),
-      ()
-    ) AS ii
-      JOIN _estimates_w_tasks_attribution AS tasks
-        ON tasks._auto_id = id_0
-    )
   SELECT
     period_id,
     period_dur,
@@ -148,8 +171,17 @@ AS (
     estimated_mw,
     idle_transitions_mws,
     total_mws
-  FROM _wattson_threads_aggregation!(
-    windowed_active_state,
+  FROM _wattson_threads_summary!(
+    (
+      SELECT
+        w.period_id,
+        a.utid,
+        sum(a.mw_ns) AS total_mw_ns
+      FROM $window_table AS w, _wattson_window_active_mw_ns(w.ts, w.dur) AS a
+      GROUP BY
+        w.period_id,
+        a.utid
+    ),
     $window_table,
     _wattson_cpus
   )

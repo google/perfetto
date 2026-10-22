@@ -29,6 +29,7 @@
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -4556,6 +4557,10 @@ TEST_F(TraceBufferV2Test, V2Mixed_StatsKeysPreserveWriterBits) {
     ++count;
     EXPECT_TRUE(it.key() == MkProducerAndWriterID(1, 0x8001) ||
                 it.key() == MkProducerAndWriterID(1, 1));
+    // Each entry has the protocol that carried the writer's chunk.
+    EXPECT_EQ(it.value().protocol_abi_versions,
+              it.key() == MkProducerAndWriterID(1, 1) ? kProtocolAbiV2
+                                                      : kProtocolAbiV1);
   }
   EXPECT_EQ(count, 2u);
   trace_buffer()->BeginRead();

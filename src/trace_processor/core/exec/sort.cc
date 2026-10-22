@@ -53,7 +53,7 @@ bool Sort::Serve(RowBatch& out, Breaker::State& state) const {
   if (s.emitted == s.rows.size()) {
     return false;
   }
-  s.emitted += s.rows.View(&out, s.emitted, *s.context);
+  s.emitted += s.rows.Gather(&out, s.emitted, *s.context);
   return true;
 }
 

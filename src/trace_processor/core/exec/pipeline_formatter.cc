@@ -22,15 +22,20 @@
 #include <variant>
 #include <vector>
 
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/aggregate_function.h"
 #include "src/trace_processor/core/exec/assert_type.h"
 #include "src/trace_processor/core/exec/combine_batches.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
+#include "src/trace_processor/core/exec/distinct.h"
+#include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/hash_aggregate.h"
+#include "src/trace_processor/core/exec/interval_fill_gaps.h"
 #include "src/trace_processor/core/exec/interval_flatten.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
+#include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/sort.h"
@@ -42,6 +47,29 @@
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
+std::string OpName(const Op& op) {
+  switch (op.index()) {
+    case Op::GetTypeIndex<Eq>():
+      return "=";
+    case Op::GetTypeIndex<Ne>():
+      return "!=";
+    case Op::GetTypeIndex<Lt>():
+      return "<";
+    case Op::GetTypeIndex<Le>():
+      return "<=";
+    case Op::GetTypeIndex<Gt>():
+      return ">";
+    case Op::GetTypeIndex<Ge>():
+      return ">=";
+    case Op::GetTypeIndex<IsNull>():
+      return "IS NULL";
+    case Op::GetTypeIndex<IsNotNull>():
+      return "IS NOT NULL";
+    default:
+      return "?";
+  }
+}
+
 std::string Column(uint32_t position) {
   return "#" + std::to_string(position);
 }
@@ -50,6 +78,15 @@ std::string Columns(const std::vector<uint32_t>& positions) {
   std::string out;
   for (uint32_t position : positions) {
     out += (out.empty() ? "" : ", ") + Column(position);
+  }
+  return out;
+}
+
+std::string Lanes(const IntervalLaneSpec& lanes) {
+  std::string out = Column(lanes.ts_column) + ", " + Column(lanes.dur_column);
+  if (!lanes.key_columns.empty()) {
+    out += ", keys: " + Columns(lanes.key_columns) +
+           ", groups: " + Column(lanes.group_column);
   }
   return out;
 }
@@ -133,13 +170,7 @@ std::string PipelineFormatter::SourceString(const Source& source) {
     const auto& isect = static_cast<const IntervalIntersect&>(source);
     std::string out = "IntervalIntersect(";
     for (size_t i = 0; i < isect.operands_.size(); ++i) {
-      const IntervalIntersectOperand& operand = isect.operands_[i];
-      out += (i == 0 ? "" : "; ") + Column(operand.ts_column) + ", " +
-             Column(operand.dur_column);
-      if (!operand.key_columns.empty()) {
-        out += ", keys: " + Columns(operand.key_columns) +
-               ", groups: " + Column(operand.group_column);
-      }
+      out += (i == 0 ? "" : "; ") + Lanes(isect.operands_[i].lanes);
     }
     return out + ")";
   }
@@ -156,6 +187,21 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
                          : assert.target_.Is<Double>() ? "Double"
                                                        : "String";
     return "AssertType(" + Column(assert.column_) + " to " + target + ")";
+  }
+  if (transform.Is<Distinct>()) {
+    return "Distinct(" +
+           Columns(static_cast<const Distinct&>(transform).columns_) + ")";
+  }
+  if (transform.Is<Filter>()) {
+    const auto& filter = static_cast<const Filter&>(transform);
+    std::string out;
+    for (const Filter::Condition& c : filter.conditions_) {
+      out += (out.empty() ? "" : ", ") + Column(c.column) + " " + OpName(c.op);
+      if (!c.op.IsAnyOf<NullOp>()) {
+        out += " ?" + std::to_string(c.value);
+      }
+    }
+    return "Filter(" + out + ")";
   }
   if (transform.Is<NullColumn>()) {
     const auto& null = static_cast<const NullColumn&>(transform);
@@ -202,15 +248,16 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
     return "HashAggregate(keys: " + Columns(spec.key_columns) + "; " +
            Aggregates(spec.aggregates) + ")";
   }
+  if (op.Is<IntervalFillGaps>()) {
+    const IntervalFillGapsSpec& spec =
+        static_cast<const IntervalFillGaps&>(op).spec_;
+    return "IntervalFillGaps(" + Lanes(spec.input) +
+           "; background: " + Lanes(spec.background.lanes) + ")";
+  }
   if (op.Is<IntervalFlatten>()) {
     const IntervalFlattenSpec& spec =
         static_cast<const IntervalFlatten&>(op).spec_;
-    std::string out = "IntervalFlatten(" + Column(spec.ts_column) + ", " +
-                      Column(spec.dur_column);
-    if (!spec.key_columns.empty()) {
-      out += ", keys: " + Columns(spec.key_columns) +
-             ", groups: " + Column(spec.group_column);
-    }
+    std::string out = "IntervalFlatten(" + Lanes(spec.lanes);
     if (!spec.aggregates.empty()) {
       out += "; " + Aggregates(spec.aggregates);
     }

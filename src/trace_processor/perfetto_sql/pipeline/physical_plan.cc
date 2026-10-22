@@ -57,11 +57,8 @@ std::vector<SortKey> Without(const std::vector<SortKey>& keys,
   return kept;
 }
 
-// Returns the type that both `a` and `b` convert to without loss. Returns
-// nullopt if one is a string and the other a number.
-//
-// A column of unknown type is checked at runtime to hold the other side's
-// type. For integers the check uses Int64, so it accepts any integer.
+}  // namespace
+
 std::optional<PlanType> CommonType(const PlanType& a, const PlanType& b) {
   if (a.is_null()) {
     return b;
@@ -92,8 +89,6 @@ std::optional<PlanType> CommonType(const PlanType& a, const PlanType& b) {
   }
   return PlanType(core::Int64{});
 }
-
-}  // namespace
 
 Lowering::Lowering(PlanLowering* plan)
     : plan_(plan),
@@ -134,6 +129,16 @@ const core::exec::Source* Lowering::FinishSide() {
   return out.side_pipelines_.back().get();
 }
 
+uint32_t Lowering::AddFilterValue(core::exec::FilterValue value) {
+  std::vector<core::exec::FilterValue>& values = plan_->out_->filter_values_;
+  values.push_back(std::move(value));
+  return static_cast<uint32_t>(values.size() - 1);
+}
+
+const LoweringContext& Lowering::context() const {
+  return plan_->context_;
+}
+
 void Lowering::RequireType(ColumnId column, core::StorageType type) {
   std::optional<PlanType> common =
       CommonType(plan_->TypeOf(column), PlanType(type));
@@ -141,8 +146,9 @@ void Lowering::RequireType(ColumnId column, core::StorageType type) {
     const char* what = type.Is<core::String>()   ? "strings"
                        : type.Is<core::Double>() ? "numbers"
                                                  : "integers";
-    Fail(base::ErrStatus("column '%s' must hold %s",
-                         plan().columns()[column].name.c_str(), what));
+    Fail(base::ErrStatus(
+        "column '%s' must hold %s",
+        plan().names().text(plan().columns()[column].name).c_str(), what));
     return;
   }
   Convert({this, column}, type);
@@ -156,7 +162,7 @@ PlanType Lowering::RequireCommonType(const std::vector<Side>& sides) {
     if (!next) {
       Fail(base::ErrStatus(
           "column '%s' holds strings in one input and numbers in another",
-          plan().columns()[side.column].name.c_str()));
+          plan().names().text(plan().columns()[side.column].name).c_str()));
       return common;
     }
     common = *next;
@@ -235,19 +241,42 @@ void Lowering::RequireFullBatches() {
   }
 }
 
+core::exec::IntervalLaneSpec Lowering::RequireIntervalLanes(
+    ColumnId ts,
+    ColumnId dur,
+    const std::vector<ColumnId>& keys) {
+  RequireType(ts, core::Int64{});
+  RequireType(dur, core::Int64{});
+  RequireSortedWithinGroups(keys, {{ts, false}});
+  core::exec::IntervalLaneSpec spec;
+  if (!keys.empty()) {
+    spec.group_column = RequireGroupNumbers(keys);
+  }
+  spec.ts_column = QueryPosition(ts);
+  spec.dur_column = QueryPosition(dur);
+  for (ColumnId key : keys) {
+    spec.key_columns.push_back(QueryPosition(key));
+  }
+  return spec;
+}
+
 Lowering::TreeColumns Lowering::RequireTreeWalk(ColumnId node,
                                                 ColumnId parent,
                                                 TreeDirection direction) {
-  if (!tree_columns_) {
+  bool same_tree =
+      tree_columns_ && tree_node_ == node && tree_parent_ == parent;
+  if (same_tree && tree_walk_ == direction) {
+    return *tree_columns_;
+  }
+  if (same_tree && DropOpenSort() && tree_walk_ == direction) {
+    return *tree_columns_;
+  }
+  if (!same_tree) {
     AddOrderIndependent(std::make_unique<ex::TreeNumberNodes>(
         QueryPosition(node), QueryPosition(parent)));
     tree_columns_ = TreeColumns{column_count_++, column_count_++};
-  }
-  if (tree_walk_ == direction) {
-    return *tree_columns_;
-  }
-  if (DropOpenSort() && tree_walk_ == direction) {
-    return *tree_columns_;
+    tree_node_ = node;
+    tree_parent_ = parent;
   }
   if (direction == TreeDirection::kUp) {
     AddBreaker(std::make_unique<ex::TreeChildFirst>(tree_columns_->node,
@@ -289,6 +318,11 @@ void Lowering::DeclareSmallBatches() {
   full_batches_ = false;
 }
 
+void Lowering::DeclareRowsDropped() {
+  tree_walk_.reset();
+  tree_columns_.reset();
+}
+
 void Lowering::DeclareGroupNumbers(const std::vector<ColumnId>& keys,
                                    uint32_t position) {
   group_numbers_.push_back({keys, position});
@@ -307,6 +341,10 @@ void Lowering::ResetLayout() {
 uint32_t Lowering::QueryPosition(ColumnId id) const {
   PERFETTO_DCHECK(positions_[id] != std::numeric_limits<uint32_t>::max());
   return positions_[id];
+}
+
+PlanType Lowering::QueryType(ColumnId id) const {
+  return plan_->TypeOf(id);
 }
 
 std::vector<SortKey> Lowering::QuerySortedBy(
@@ -465,15 +503,18 @@ void Lowering::Convert(const Side& side, const PlanType& type) {
   }
   PERFETTO_DCHECK(target.Is<core::String>() == type.Is<core::String>());
   side.pipeline->AddOrderIndependent(std::make_unique<ex::AssertType>(
-      position, target, plan.plan().columns()[side.column].name));
+      position, target,
+      plan.plan().names().text(plan.plan().columns()[side.column].name)));
 }
 
 std::unique_ptr<ex::Pipeline> Lowering::Build() {
   return std::make_unique<ex::Pipeline>(*input_, std::move(operators_));
 }
 
-PlanLowering::PlanLowering(const LogicalPlan& plan)
+PlanLowering::PlanLowering(const LogicalPlan& plan,
+                           const LoweringContext& context)
     : plan_(plan),
+      context_(context),
       converted_(plan.columns().size()),
       out_(std::make_unique<PhysicalPlan>()) {
   pipelines_.push_back(std::make_unique<Lowering>(this));
@@ -493,7 +534,8 @@ base::StatusOr<std::unique_ptr<PhysicalPlan>> PlanLowering::Finish() {
   out_->pipeline_ = lowering.Build();
   out_->input_ = std::move(lowering.input_);
   for (const NamedColumn& column : plan_.output()) {
-    out_->columns_.push_back({column.name, lowering.QueryPosition(column.id)});
+    out_->columns_.push_back(
+        {plan_.names().text(column.name), lowering.QueryPosition(column.id)});
   }
   return std::move(out_);
 }
@@ -508,8 +550,10 @@ PlanType PlanLowering::TypeOf(ColumnId column) const {
 PhysicalPlan::PhysicalPlan() = default;
 PhysicalPlan::~PhysicalPlan() = default;
 
-base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan& plan) {
-  PlanLowering lowering(plan);
+base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(
+    const LogicalPlan& plan,
+    const LoweringContext& context) {
+  PlanLowering lowering(plan, context);
   lowering.main().LowerNode(plan.root());
   return lowering.Finish();
 }

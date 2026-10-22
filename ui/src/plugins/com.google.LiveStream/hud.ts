@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The HUD: a full-width row above the topbar.
+// The HUD, in one of two layouts. Row: a full-width row, e.g. above the
+// topbar.
 //
 //   [● LIVE STREAM] [worker/3 ▾]      [Follow Live: ON [Space]] [Pause] [⋯]
 //     │               │                                              │
@@ -20,6 +21,19 @@
 //   popout below    filter or <name>/<index>      Poll Interval, Buffer
 //   on errors and                                 Window, History
 //   buffering
+//
+// Panel: a side panel tab, with the ⋯ menu's items in the open.
+//
+//   [● LIVE STREAM] [worker/3          ▾]   status and target
+//   [popout on errors and buffering    ×]
+//   ─────────────────────────────────────
+//   [      Follow Live: ON [Space]      ]   actions
+//   [Pause] [↻ Reconnect] [⬇ Download Trace]
+//   ─────────────────────────────────────
+//   SETTINGS                                settings
+//   Poll Interval                [0.25s ▾]
+//   Buffer Window                [5s    ▾]
+//   History                      [1h    ▾]
 //
 // Embedding pages may style the root class .pf-live-stream-hud, e.g. through
 // the CSS variables in styles.scss, and read the status from the badge's
@@ -54,8 +68,12 @@ import type {Target} from './wire';
 // short hiccups don't flicker.
 const STATUS_DELAY_MS = 1_000;
 
+/** Where the HUD shows: a full-width row, or a side panel tab. */
+export type LiveHudLayout = 'row' | 'panel';
+
 /** What the HUD shows, and what its controls do. */
 export interface LiveHudProps {
+  readonly layout: LiveHudLayout;
   // The displayed status, see LiveHudState.syncStatus().
   readonly status: LiveStatus;
   // Shown in the popout of the error status.
@@ -211,55 +229,122 @@ const BADGES: Record<LiveStatus, {readonly label: string}> = {
   error: {label: 'STREAM ERROR'},
 };
 
-/** Renders the HUD. */
+/** Renders the HUD in `props.layout`. */
 export function renderLiveStreamHud(props: LiveHudProps): m.Children {
+  return props.layout === 'panel' ? renderPanel(props) : renderRow(props);
+}
+
+/** What the panel shows while a trace that isn't live is open. */
+export function renderOtherTraceNote(): m.Children {
   return m(
-    '.pf-live-stream-hud',
+    '.pf-live-stream-hud.pf-live-stream-hud--panel',
+    m(
+      '.pf-live-stream-hud__note',
+      'Live stream controls are off while another trace is open.',
+    ),
+  );
+}
+
+// Status and target on the left, actions on the right, the rest in ⋯.
+function renderRow(props: LiveHudProps): m.Children {
+  const {badge, popout} = renderStatus(props);
+  return m(
+    '.pf-live-stream-hud.pf-live-stream-hud--row',
     m(
       '.pf-live-stream-hud__row.pf-live-stream-hud__row--left',
-      renderStatus(props),
+      m('.pf-live-stream-hud__status-wrap', badge, popout),
       props.targets.length > 0 && renderTargetDropdown(props),
     ),
     m(
       '.pf-live-stream-hud__row.pf-live-stream-hud__row--right',
-      m(
-        'button.pf-live-stream-hud__btn',
-        {
-          className: classNames(
-            props.following && 'pf-live-stream-hud__btn--active',
-          ),
-          title: 'Toggle live auto-scroll (Shortcut: Space)',
-          onclick: (e: MouseEvent) => {
-            blurTarget(e);
-            props.onToggleFollow();
-          },
-        },
-        props.following
-          ? 'Follow Live: ON [Space]'
-          : 'Follow Live: OFF [Space]',
-      ),
-      m(
-        'button.pf-live-stream-hud__btn',
-        {
-          className: classNames(
-            props.paused && 'pf-live-stream-hud__btn--active',
-          ),
-          onclick: (e: MouseEvent) => {
-            blurTarget(e);
-            props.onTogglePause();
-          },
-        },
-        props.paused ? 'Resume Live' : 'Pause',
-      ),
+      renderFollowButton(props),
+      renderPauseButton(props),
       renderMoreDropdown(props),
     ),
   );
 }
 
+// Status and target, then all actions, then the settings. The popout shows
+// in line, so that it covers no control.
+function renderPanel(props: LiveHudProps): m.Children {
+  const {badge, popout} = renderStatus(props);
+  return m(
+    '.pf-live-stream-hud.pf-live-stream-hud--panel',
+    m(
+      '.pf-live-stream-hud__section',
+      m(
+        '.pf-live-stream-hud__status-line',
+        badge,
+        props.targets.length > 0 && renderTargetDropdown(props),
+      ),
+      popout,
+    ),
+    m(
+      '.pf-live-stream-hud__section.pf-live-stream-hud__actions',
+      renderFollowButton(props),
+      renderPauseButton(props),
+      moreActions(props).map((action) =>
+        m(
+          'button.pf-live-stream-hud__btn',
+          {
+            title: action.title,
+            onclick: (e: MouseEvent) => {
+              blurTarget(e);
+              action.run();
+            },
+          },
+          m('span.pf-live-stream-hud__btn-icon', action.icon),
+          action.label,
+        ),
+      ),
+    ),
+    m(
+      '.pf-live-stream-hud__section',
+      m('.pf-live-stream-hud__section-title', 'Settings'),
+      renderSettings(props.settings),
+    ),
+  );
+}
+
+function renderFollowButton(props: LiveHudProps): m.Children {
+  return m(
+    'button.pf-live-stream-hud__btn.pf-live-stream-hud__btn--follow',
+    {
+      className: classNames(
+        props.following && 'pf-live-stream-hud__btn--active',
+      ),
+      title: 'Toggle live auto-scroll (Shortcut: Space)',
+      onclick: (e: MouseEvent) => {
+        blurTarget(e);
+        props.onToggleFollow();
+      },
+    },
+    props.following ? 'Follow Live: ON [Space]' : 'Follow Live: OFF [Space]',
+  );
+}
+
+function renderPauseButton(props: LiveHudProps): m.Children {
+  return m(
+    'button.pf-live-stream-hud__btn',
+    {
+      className: classNames(props.paused && 'pf-live-stream-hud__btn--active'),
+      onclick: (e: MouseEvent) => {
+        blurTarget(e);
+        props.onTogglePause();
+      },
+    },
+    props.paused ? 'Resume Live' : 'Pause',
+  );
+}
+
 // The status badge, and the popout under it for errors and buffering until
-// dismissed. A new text, a click on the badge, or Enter shows a dismissed
-// popout again; Space stays the Follow hotkey.
-function renderStatus(props: LiveHudProps): m.Children {
+// dismissed, apart so that each layout places them. A new text, a click on
+// the badge, or Enter shows a dismissed popout again; Space stays the Follow
+// hotkey.
+function renderStatus(props: LiveHudProps): {
+  readonly badge: m.Children;
+  readonly popout: m.Children;
+} {
   const {status, hudState} = props;
   const popoutKey =
     status === 'error'
@@ -274,61 +359,60 @@ function renderStatus(props: LiveHudProps): m.Children {
     if (dismissed) hudState.dismissedPopoutKey = '';
   };
 
-  return m(
-    '.pf-live-stream-hud__status-wrap',
-    m(
-      `.pf-live-stream-hud__badge.pf-live-stream-hud__badge--${status}`,
-      {
-        role: 'button',
-        tabindex: 0,
-        title: dismissed ? 'Click to show stream status details' : undefined,
-        onclick: showPopout,
-        // Not for the timeline's hotkeys, e.g. Enter for the next search
-        // result.
-        onkeydown: (e: KeyboardEvent) => {
-          if (e.key !== 'Enter') return;
-          e.stopPropagation();
-          showPopout();
-        },
+  const badge = m(
+    `.pf-live-stream-hud__badge.pf-live-stream-hud__badge--${status}`,
+    {
+      role: 'button',
+      tabindex: 0,
+      title: dismissed ? 'Click to show stream status details' : undefined,
+      onclick: showPopout,
+      // Not for the timeline's hotkeys, e.g. Enter for the next search
+      // result.
+      onkeydown: (e: KeyboardEvent) => {
+        if (e.key !== 'Enter') return;
+        e.stopPropagation();
+        showPopout();
       },
-      m('.pf-live-stream-hud__dot', {
-        className: classNames(pulse && 'pf-live-stream-hud__dot--pulse'),
-      }),
-      BADGES[status].label,
-    ),
+    },
+    m('.pf-live-stream-hud__dot', {
+      className: classNames(pulse && 'pf-live-stream-hud__dot--pulse'),
+    }),
+    BADGES[status].label,
+  );
+  const popout =
     popoutKey !== '' &&
-      !dismissed &&
+    !dismissed &&
+    m(
+      `.pf-live-stream-hud__popout.pf-live-stream-hud__popout--${status}`,
+      m('.pf-live-stream-hud__popout-arrow'),
       m(
-        `.pf-live-stream-hud__popout.pf-live-stream-hud__popout--${status}`,
-        m('.pf-live-stream-hud__popout-arrow'),
+        '.pf-live-stream-hud__popout-body',
         m(
-          '.pf-live-stream-hud__popout-body',
-          m(
-            `.pf-live-stream-hud__popout-title` +
-              `.pf-live-stream-hud__popout-title--${status}`,
-            status === 'error' ? 'Stream Error' : 'Buffering',
-          ),
-          m(
-            '.pf-live-stream-hud__popout-msg',
-            status === 'error' ? props.error : 'Buffering live stream...',
-          ),
+          `.pf-live-stream-hud__popout-title` +
+            `.pf-live-stream-hud__popout-title--${status}`,
+          status === 'error' ? 'Stream Error' : 'Buffering',
         ),
         m(
-          'button.pf-live-stream-hud__popout-close',
-          {
-            'title': 'Dismiss',
-            'aria-label': 'Dismiss',
-            'onclick': (e: MouseEvent) => {
-              e.stopPropagation();
-              blurTarget(e);
-              hudState.dismissedPopoutKey = popoutKey;
-              if (status === 'error') props.onDismissError(props.error);
-            },
-          },
-          '×',
+          '.pf-live-stream-hud__popout-msg',
+          status === 'error' ? props.error : 'Buffering live stream...',
         ),
       ),
-  );
+      m(
+        'button.pf-live-stream-hud__popout-close',
+        {
+          'title': 'Dismiss',
+          'aria-label': 'Dismiss',
+          'onclick': (e: MouseEvent) => {
+            e.stopPropagation();
+            blurTarget(e);
+            hudState.dismissedPopoutKey = popoutKey;
+            if (status === 'error') props.onDismissError(props.error);
+          },
+        },
+        '×',
+      ),
+    );
+  return {badge, popout};
 }
 
 function renderTargetDropdown(props: LiveHudProps): m.Children {
@@ -507,7 +591,7 @@ function highlightTarget(props: LiveHudProps, step: 1 | -1) {
   if (from < 0) from = indexOf(props.target?.id);
   if (from < 0) from = step > 0 ? -1 : shown.length;
   const index = clamp(from + step, 0, shown.length - 1);
-  hudState.highlightedTarget = shown[index].id;
+  hudState.highlightedTarget = shown[index]!.id;
 
   // The row is already rendered; only its highlight waits for the redraw.
   scrollIntoList(document.getElementById(targetOptionId(index)));
@@ -547,7 +631,7 @@ function renderTargetItem(
   activeBase: string,
 ): m.Children {
   const {hudState} = props;
-  const t = shown[index];
+  const t = shown[index]!;
   const isSelected = t.id === props.target?.id;
   const isTemplateMatch =
     !isSelected && activeBase !== '' && targetBaseName(t) === activeBase;
@@ -621,39 +705,59 @@ function renderMoreDropdown(props: LiveHudProps): m.Children {
     hudState.isMoreMenuOpen &&
       m(
         '.pf-live-stream-hud__more-menu',
-        m(
-          'button.pf-live-stream-hud__more-item',
-          {onclick: choose(props.onReconnect)},
-          m('span.pf-live-stream-hud__more-item-icon', '↻'),
-          m('span.pf-live-stream-hud__more-item-label', 'Reconnect'),
-        ),
-        m(
-          'button.pf-live-stream-hud__more-item',
-          {
-            title: 'Download a Perfetto trace (.pftrace) to load later',
-            onclick: choose(props.onDownload),
-          },
-          m('span.pf-live-stream-hud__more-item-icon', '⬇'),
-          m('span.pf-live-stream-hud__more-item-label', 'Download Trace'),
+        moreActions(props).map((action) =>
+          m(
+            'button.pf-live-stream-hud__more-item',
+            {title: action.title, onclick: choose(action.run)},
+            m('span.pf-live-stream-hud__more-item-icon', action.icon),
+            m('span.pf-live-stream-hud__more-item-label', action.label),
+          ),
         ),
         m('.pf-live-stream-hud__more-divider'),
-        renderSelect(
-          'Poll Interval',
-          settings.updateInterval,
-          UPDATE_INTERVALS,
-          (o) => `${Number(o).toFixed(o === '0.25' ? 2 : 1)}s`,
-        ),
-        renderSelect(
-          'Buffer Window',
-          settings.bufferDelay,
-          BUFFER_DELAYS,
-          (o) => `${o}s`,
-        ),
-        renderSelect('History', settings.retention, RETENTIONS, (o) =>
-          Number(o) % 60 === 0 ? `${Number(o) / 60}h` : `${o}min`,
-        ),
+        renderSettings(settings),
       ),
   );
+}
+
+interface HudAction {
+  readonly icon: string;
+  readonly label: string;
+  readonly title?: string;
+  run(): void;
+}
+
+// The actions of the row's ⋯ menu, which the panel shows as buttons.
+function moreActions(props: LiveHudProps): readonly HudAction[] {
+  return [
+    {icon: '↻', label: 'Reconnect', run: props.onReconnect},
+    {
+      icon: '⬇',
+      label: 'Download Trace',
+      title: 'Download a Perfetto trace (.pftrace) to load later',
+      run: props.onDownload,
+    },
+  ];
+}
+
+// The settings: in the row's ⋯ menu, and the panel's last section.
+function renderSettings(settings: LiveSettings): m.Children {
+  return [
+    renderSelect(
+      'Poll Interval',
+      settings.updateInterval,
+      UPDATE_INTERVALS,
+      (o) => `${Number(o).toFixed(o === '0.25' ? 2 : 1)}s`,
+    ),
+    renderSelect(
+      'Buffer Window',
+      settings.bufferDelay,
+      BUFFER_DELAYS,
+      (o) => `${o}s`,
+    ),
+    renderSelect('History', settings.retention, RETENTIONS, (o) =>
+      Number(o) % 60 === 0 ? `${Number(o) / 60}h` : `${o}min`,
+    ),
+  ];
 }
 
 interface ChoiceSetting<T extends string> {

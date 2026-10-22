@@ -919,9 +919,9 @@ function overlaps(a: Span, b: Span): boolean {
   return a.start <= b.end && a.end >= b.start;
 }
 
-// The smallest span that holds all `spans`.
+// The smallest span that holds all `spans`, which must not be empty.
 function coverSpans(spans: readonly Span[]): Span {
-  let {start, end} = spans[0];
+  let {start, end} = spans[0]!;
   for (const span of spans) {
     if (span.start < start) start = span.start;
     if (span.end > end) end = span.end;

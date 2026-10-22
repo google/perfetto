@@ -394,7 +394,7 @@ int PipelineModule::Filter(sqlite3_vtab_cursor* cursor,
       return rc;
     }
   }
-  c->eof = !c->rows->Open();
+  c->eof = !c->rows->Open(c->plan->filter_values());
   if (c->eof)
     return CheckStatus(c);
   CacheColumnReaders(c);

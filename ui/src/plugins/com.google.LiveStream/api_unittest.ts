@@ -77,7 +77,7 @@ test('requests changes since the last response', async () => {
 
   const resp = await fetchStream(REQUEST, signal());
 
-  expect(fetchMock.mock.calls[0][0]).toBe(
+  expect(fetchMock.mock.calls[0]![0]).toBe(
     'api/stream?target=job-1%2Fworker%2F3&stream_id=s1&since_seq=6&window=120',
   );
   expect(resp.seq).toBe(7n);
@@ -88,7 +88,7 @@ test('lets the server select the default target', async () => {
 
   await fetchTargets('', signal());
 
-  expect(fetchMock.mock.calls[0][0]).toBe('api/targets');
+  expect(fetchMock.mock.calls[0]![0]).toBe('api/targets');
 });
 
 test('requests the seed with its history', async () => {
@@ -97,7 +97,7 @@ test('requests the seed with its history', async () => {
 
   const seed = await fetchSeed('job-1/worker', 3600, signal());
 
-  expect(fetchMock.mock.calls[0][0]).toBe(
+  expect(fetchMock.mock.calls[0]![0]).toBe(
     'api/seed?target=job-1%2Fworker&history_sec=3600',
   );
   expect(seed).toMatchObject({streamId: 's1', seq: 42n});
@@ -150,11 +150,11 @@ test('cancels requests that time out', async () => {
 
   // A busy server may answer after 20 s.
   await vi.advanceTimersByTimeAsync(20_000);
-  expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(false);
+  expect(fetchMock.mock.calls[0]![1]?.signal?.aborted).toBe(false);
 
   await vi.advanceTimersByTimeAsync(10_000);
   await rejected;
-  expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true);
+  expect(fetchMock.mock.calls[0]![1]?.signal?.aborted).toBe(true);
 });
 
 test('times out while reading the body', async () => {

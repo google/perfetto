@@ -131,7 +131,7 @@ function point(tsNs: bigint, value: number) {
 // tracks: native track 1 holds "steps", tracks 2 and 3 depths 0 and 1 of
 // "tasks". Its slices have ids up to `lastId`, and `errors` are
 // [id, ts, end] on "tasks".
-function seed(lastId: number, errors: number[][] = []) {
+function seed(lastId: number, errors: Array<[number, number, number]> = []) {
   const marker = (depth: number, id: string) =>
     `com.google.LiveStream:depth=${depth};track_id=${id}`;
   return (sql: string) => {

@@ -310,10 +310,10 @@ export class AdbWebusbDevice extends AdbDevice {
     remoteStreamId: number,
   ): TxQueueEntry {
     for (let i = 0; i < this.txQueue.length; i++) {
-      const tx = this.txQueue[i];
+      const tx = this.txQueue[i]!;
       if (tx.stream.localId !== localStreamId) continue;
       if (tx.stream.remoteId !== remoteStreamId) continue;
-      return this.txQueue.splice(i, 1)[0];
+      return this.txQueue.splice(i, 1)[0]!;
     }
     throw new WebusbTransportError(
       `Could not find ADB queue entry L=${localStreamId}, ` +

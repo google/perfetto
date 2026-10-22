@@ -188,8 +188,8 @@ bool TreeChildFirst::Serve(RowBatch& out, Breaker::State& state) const {
     count = s.rows.View(&out, s.emitted, count);
   } else {
     const uint32_t* begin = s.order.data() + s.emitted;
-    count = s.rows.View(&out, Span<const uint32_t>(begin, begin + count),
-                        *s.context);
+    count = s.rows.Gather(&out, Span<const uint32_t>(begin, begin + count),
+                          *s.context);
   }
   s.emitted += count;
   return true;
@@ -264,8 +264,8 @@ OpResult TreeParentFirst::LetGo(RowBatch& out, State& s) const {
   auto total = static_cast<uint32_t>(s.letting_go.size());
   uint32_t count = std::min(kMaxBatchRows, total - s.served);
   const uint32_t* begin = s.letting_go.data() + s.served;
-  count = s.held.rows.View(&out, Span<const uint32_t>(begin, begin + count),
-                           *s.context);
+  count = s.held.rows.Gather(&out, Span<const uint32_t>(begin, begin + count),
+                             *s.context);
   s.served += count;
   if (s.served < total) {
     return OpResult::kHaveMoreOutput;

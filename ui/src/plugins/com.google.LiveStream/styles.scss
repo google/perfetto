@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The HUD, a row of the core's header above the topbar.
+// The HUD: a full-width row (--row) or a side panel tab (--panel), see hud.ts.
+// The base class styles the row; --panel overrides what differs.
 //
 // Embedding pages may restyle it without !important: each color reads
 // --pf-live-stream-hud-<name>, falling back to the theme's --pf-color-<name>,
@@ -568,33 +569,141 @@ $shadow: var(--pf-color-box-shadow);
   }
 }
 
+// The side panel: sections in a column, as wide as the panel. Viewport media
+// queries don't apply: the panel's width is the user's.
+.pf-live-stream-hud--panel {
+  flex-flow: column nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0;
+  min-height: 0;
+  padding: 12px;
+  background: none;
+  border-bottom: none;
+  box-shadow: none;
+  white-space: normal;
+
+  .pf-live-stream-hud__section {
+    display: flex;
+    flex-flow: column nowrap;
+    gap: 8px;
+    padding: 12px 0;
+
+    &:first-child {
+      padding-top: 0;
+    }
+
+    & + .pf-live-stream-hud__section {
+      border-top: 1px solid hud-tint(text, 12%);
+    }
+  }
+
+  .pf-live-stream-hud__section-title {
+    color: hud-color(text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  // The badge, then the target as wide as the rest. The target menu drops
+  // below both, as wide as the panel.
+  .pf-live-stream-hud__status-line {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pf-live-stream-hud__badge {
+    flex-shrink: 0;
+  }
+
+  .pf-live-stream-hud__target-dropdown {
+    position: static;
+    flex: 1 1 140px;
+  }
+
+  .pf-live-stream-hud__target-trigger {
+    width: 100%;
+  }
+
+  .pf-live-stream-hud__target-trigger-label {
+    max-width: none;
+  }
+
+  .pf-live-stream-hud__target-menu {
+    right: 0;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+
+  // In line, under the status line.
+  .pf-live-stream-hud__popout {
+    position: relative;
+    top: auto;
+    min-width: 0;
+    max-width: none;
+  }
+
+  // Follow on its own line, the others share the next.
+  .pf-live-stream-hud__actions {
+    flex-flow: row wrap;
+    gap: 6px;
+
+    .pf-live-stream-hud__btn {
+      flex: 1 1 auto;
+      gap: 6px;
+    }
+
+    .pf-live-stream-hud__btn--follow {
+      flex-basis: 100%;
+      height: 30px;
+    }
+  }
+
+  .pf-live-stream-hud__btn-icon {
+    font-size: 13px;
+  }
+
+  .pf-live-stream-hud__more-interval-row {
+    padding: 0;
+  }
+
+  .pf-live-stream-hud__note {
+    color: hud-color(text-muted);
+  }
+}
+
 // Narrow windows: two full-width rows, and a full-width target menu.
 @media (max-width: 820px) {
-  .pf-live-stream-hud {
+  .pf-live-stream-hud--row {
     padding: 6px 10px 6px var(--pf-live-stream-hud-padding-left, 10px);
 
-    &__row--left {
+    .pf-live-stream-hud__row--left {
       width: 100%;
     }
 
-    &__row--right {
+    .pf-live-stream-hud__row--right {
       width: 100%;
       margin-left: 0;
     }
 
-    &__target-dropdown {
+    .pf-live-stream-hud__target-dropdown {
       flex: 1 1 120px;
     }
 
-    &__target-trigger {
+    .pf-live-stream-hud__target-trigger {
       width: 100%;
     }
 
-    &__target-trigger-label {
+    .pf-live-stream-hud__target-trigger-label {
       max-width: none;
     }
 
-    &__target-menu {
+    .pf-live-stream-hud__target-menu {
       position: fixed;
       top: 38px;
       left: 8px;
@@ -604,7 +713,7 @@ $shadow: var(--pf-color-box-shadow);
       max-width: none;
     }
 
-    &__btn {
+    .pf-live-stream-hud__btn {
       padding: 0 8px;
     }
   }

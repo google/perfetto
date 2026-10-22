@@ -150,7 +150,8 @@ export function resolveTargetSpec(
 
   const match = /^([a-z0-9_.-]+)\/([0-9]+)$/.exec(query.trim().toLowerCase());
   if (match === null) return undefined;
-  const [, base, index] = match;
+  const base = match[1]!;
+  const index = match[2]!;
   for (const t of targets) {
     if (!isIndexed(t) || !matchesBase(t, base)) continue;
     const task = taskSpec(t, index);

@@ -85,7 +85,7 @@ test('parses targets', () => {
     targets: [{id: 'job-1/worker', task_count: 8}],
   });
 
-  expect(resp.targets[0].task_count).toBe(8);
+  expect(resp.targets[0]!.task_count).toBe(8);
   expect(resp.selected).toBeUndefined();
   expect(resp.page_title).toBe('');
 });

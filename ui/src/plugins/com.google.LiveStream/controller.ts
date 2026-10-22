@@ -13,18 +13,23 @@
 // limitations under the License.
 
 // The app-level side of the plugin: the HUD, the settings, and opening live
-// traces. The HUD lives as long as the page, so it shows from page open and
-// stays while a target switch replaces the trace:
+// traces. The HUD is a side panel tab that lives as long as the page, so it
+// shows from page open and stays while a target switch replaces the trace:
 //
 //   page open ──► LiveController ──openLiveTrace──► trace ──► LiveSession
-//                   │  HUD above the topbar  ◄──attach(model)────┘
+//                   │  HUD tab in the side panel ◄──attach(model)─┘
 //                   └─ opens the first trace, switches and reconnects, and
 //                      shows their state until the new session attaches
 
 import type m from 'mithril';
 import {getErrorMessage} from '../../base/errors';
 import type {App} from '../../public/app';
-import {LiveHudState, renderLiveStreamHud} from './hud';
+import {
+  LiveHudState,
+  type LiveHudLayout,
+  renderLiveStreamHud,
+  renderOtherTraceNote,
+} from './hud';
 import {openLiveTrace, type OpenObserver, PLUGIN_ID} from './opener';
 import {type LiveSettings, registerLiveSettings} from './settings';
 import type {LiveStatus} from './status';
@@ -67,6 +72,7 @@ export interface LiveHost {
 }
 
 const FOLLOW_COMMAND = 'com.google.LiveStream#ToggleFollowLive';
+const HUD_TAB = `${PLUGIN_ID}#hud`;
 
 // An open of a live trace, at page open or in place of the current one.
 interface Opening {
@@ -85,11 +91,11 @@ interface Opening {
 type ShownState = Omit<LiveSessionState, 'target'> & {readonly target?: Target};
 
 /**
- * Shows the HUD for the page's lifetime, unless another trace is open, and
- * opens live traces. Sessions attach to it. While an open is pending or
- * failed, the HUD shows its state: buffering, or an error while the server or
- * its target fails, or once the open failed. The error of a failed switch
- * shows until dismissed or the next open.
+ * Shows the HUD in a side panel tab for the page's lifetime, and opens live
+ * traces. Sessions attach to it. While an open is pending or failed, the HUD
+ * shows its state: buffering, or an error while the server or its target
+ * fails, or once the open failed. The error of a failed switch shows until
+ * dismissed or the next open. While another trace is open, the tab says so.
  */
 export class LiveController implements LiveHost {
   readonly settings: LiveSettings;
@@ -113,7 +119,15 @@ export class LiveController implements LiveHost {
     this.settings = registerLiveSettings(app.settings);
     this.hudState = new LiveHudState(() => this.redraw());
     this.hudState.listen();
-    app.header.registerItem({render: () => this.render()});
+    // App-level, so that trace switches keep the tab. Never disposed: it
+    // lives as long as the page.
+    app.sidePanel.registerTab({
+      uri: HUD_TAB,
+      title: 'Live Stream',
+      icon: 'sensors',
+      render: () => this.render('panel'),
+    });
+    app.sidePanel.showTab(HUD_TAB);
     this.registerFollowCommand();
     this.redraw();
   }
@@ -207,8 +221,9 @@ export class LiveController implements LiveHost {
   }
 
   /**
-   * Hides the HUD and frees Space while a trace that isn't live is open, e.g.
-   * one opened from a file. A live trace that opens shows them again.
+   * Hides the HUD's controls and frees Space while a trace that isn't live is
+   * open, e.g. one opened from a file. A live trace that opens shows them
+   * again.
    */
   showOtherTrace(): void {
     this.otherTrace = true;
@@ -238,13 +253,17 @@ export class LiveController implements LiveHost {
     };
   }
 
-  private render(): m.Children {
-    // The HUD of another trace shows only while a live one opens.
-    if (this.otherTrace && this.opening === undefined) return undefined;
+  private render(layout: LiveHudLayout): m.Children {
+    // The HUD of another trace shows only while a live one opens. The panel's
+    // tab stays, so it says why it's empty.
+    if (this.otherTrace && this.opening === undefined) {
+      return layout === 'panel' ? renderOtherTraceNote() : undefined;
+    }
     const state = this.state();
     if (state.error !== undefined) this.lastError = state.error;
     const {status} = this.hudState.syncStatus(() => this.state().status);
     return renderLiveStreamHud({
+      layout,
       status,
       error: state.error ?? this.lastError,
       targets: this.targets,

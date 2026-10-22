@@ -129,7 +129,7 @@ describe('TraceImpl.extendTraceEnd', () => {
     expect(loads.length).toBe(1);
 
     // The end grew during the load: reload once more.
-    loads[0]();
+    loads[0]!();
     await vi.advanceTimersByTimeAsync(5_000);
     expect(loads.length).toBe(2);
   });
@@ -198,22 +198,5 @@ describe('TraceImpl.extendTraceEnd', () => {
     expect(loadedEnds.length).toBe(3);
     expect(unhandled).toHaveBeenCalledTimes(1);
     expect(consoleError).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe('TraceImpl.header', () => {
-  test('removes the items of a closed trace', () => {
-    const trace = createFakeTraceImpl();
-    const appHeader = trace.app.header;
-    const render = () =>
-      Array.from(appHeader.items.values(), (item) => item.render());
-
-    trace.header.registerItem({render: () => 'trace'});
-    const appItem = appHeader.registerItem({render: () => 'app'});
-    onTestFinished(() => appItem[Symbol.dispose]());
-    expect(render()).toEqual(['trace', 'app']);
-
-    trace[Symbol.dispose]();
-    expect(render()).toEqual(['app']);
   });
 });

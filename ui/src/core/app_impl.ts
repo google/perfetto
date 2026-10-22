@@ -32,7 +32,6 @@ import {
   type Macro,
 } from './command_manager';
 import {featureFlags} from './feature_flags';
-import {HeaderManagerImpl} from './header_manager';
 import {loadTrace} from './load_trace';
 import {OmniboxManagerImpl} from './omnibox_manager';
 import {PageManagerImpl} from './page_manager';
@@ -83,7 +82,6 @@ export class AppImpl implements App {
   readonly sidebar: SidebarManagerImpl;
   readonly plugins: PluginManagerImpl;
   readonly sidePanel = new SidePanelManagerImpl();
-  readonly header = new HeaderManagerImpl();
   readonly perfDebugging = new PerfManager();
   readonly analytics: AnalyticsInternal;
   readonly serviceWorkerController = new ServiceWorkerController();

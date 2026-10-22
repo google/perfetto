@@ -163,13 +163,13 @@ describe('Multi-node operations', () => {
       // First paste
       const newNodes1 = clipboardNodes.map((entry) => entry.node.clone());
       expect(newNodes1).toHaveLength(1);
-      expect(newNodes1[0].nodeId).not.toBe(node1.nodeId);
+      expect(newNodes1[0]!.nodeId).not.toBe(node1.nodeId);
 
       // Second paste - should create different nodes
       const newNodes2 = clipboardNodes.map((entry) => entry.node.clone());
       expect(newNodes2).toHaveLength(1);
-      expect(newNodes2[0].nodeId).not.toBe(node1.nodeId);
-      expect(newNodes2[0].nodeId).not.toBe(newNodes1[0].nodeId);
+      expect(newNodes2[0]!.nodeId).not.toBe(node1.nodeId);
+      expect(newNodes2[0]!.nodeId).not.toBe(newNodes1[0]!.nodeId);
     });
 
     test('should restore connections between pasted nodes', () => {
@@ -287,13 +287,13 @@ describe('Multi-node operations', () => {
       // Verify connections are restored
       // Find the restored table node (should be root)
       expect(restoredState!.rootNodes.length).toBe(1);
-      const restoredTable = restoredState!.rootNodes[0];
+      const restoredTable = restoredState!.rootNodes[0]!;
       expect(restoredTable.nextNodes.length).toBe(1);
 
-      const restoredFilter1 = restoredTable.nextNodes[0];
+      const restoredFilter1 = restoredTable.nextNodes[0]!;
       expect(restoredFilter1.nextNodes.length).toBe(1);
 
-      const restoredFilter2 = restoredFilter1.nextNodes[0];
+      const restoredFilter2 = restoredFilter1.nextNodes[0]!;
       expect(restoredFilter2.nextNodes.length).toBe(0);
     });
   });

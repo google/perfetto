@@ -33,6 +33,7 @@ enum class Architecture {
   kArm32,
   kX86_64,
   kX86,
+  kS390x,
 };
 
 class SyscallTable {
