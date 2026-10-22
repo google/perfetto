@@ -353,3 +353,84 @@ class StdlibSched(TestSuite):
         9610234867,1469,670736,7,18555
         9610202640,889,12532,7,32227
         """))
+
+  def test_sched_critical_path(self):
+    return DiffTestBlueprint(
+        trace=DataPath('api34_startup_cold.perfetto-trace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.startup.startups;
+        INCLUDE PERFETTO MODULE sched.critical_path;
+
+        SELECT
+          p.ready_ts,
+          p.ts,
+          p.dur,
+          t.tid,
+          rt.tid AS ready_tid,
+          p.ready_type,
+          p.ready_info,
+          p.thread_name,
+          p.process_name,
+          p.running_dur,
+          p.runnable_dur,
+          p.sleeping_dur,
+          p.uninterruptible_sleep_dur
+        FROM sched_critical_path(
+          (SELECT ts FROM android_startups WHERE package = 'com.android.systemui.people'),
+          (SELECT dur FROM android_startups WHERE package = 'com.android.systemui.people'),
+          (SELECT utid FROM thread WHERE tid = 28573)
+        ) p
+        JOIN thread t USING (utid)
+        LEFT JOIN thread rt ON rt.utid = p.ready_utid;
+        """,
+        out=Csv("""
+        "ready_ts","ts","dur","tid","ready_tid","ready_type","ready_info","thread_name","process_name","running_dur","runnable_dur","sleeping_dur","uninterruptible_sleep_dur"
+        "[NULL]",17806781251694,16249431,2139,28838,"thread_ready","","binder:1719_6","system_server",13046143,3203288,0,0
+        17806797501125,17806797757513,539225,1754,2139,"thread_ready","","android.anim","system_server",539225,0,0,0
+        17806798296738,17806798435492,931884,3242,1754,"binder transaction async","AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppClient","binder:598_4","/system/bin/surfaceflinger",931884,0,0,0
+        17806799367376,17806799589626,134928,710,3242,"thread_ready","","appSf","/system/bin/surfaceflinger",134928,0,0,0
+        17806799724554,17806799802760,114991,1818,710,"thread_ready","","binder:598_3","/system/bin/surfaceflinger",114991,0,0,0
+        17806799917751,17806802325181,2637288,2139,1818,"binder reply","AIDL::cpp::ISurfaceComposerClient::createSurface::cppClient","binder:1719_6","system_server",2637288,0,0,0
+        17806804962469,17806805002061,113647,1818,2139,"binder transaction","AIDL::cpp::ISurfaceComposerClient::createSurface::cppClient","binder:598_3","/system/bin/surfaceflinger",113647,0,0,0
+        17806805115708,17806805896185,1247599,2139,1818,"binder reply","AIDL::cpp::ISurfaceComposerClient::createSurface::cppClient","binder:1719_6","system_server",1074218,173381,0,0
+        17806807143784,17806807221217,570435,28422,2139,"binder transaction async","","binder:24955_8","com.google.android.apps.nexuslauncher",352702,217733,0,0
+        17806807791652,17806807862534,1182780,24955,28422,"thread_ready","","s.nexuslauncher","com.google.android.apps.nexuslauncher",750732,432048,0,0
+        17806809045314,17806809311509,353841,3674,24955,"binder transaction","","binder:1719_11","system_server",353841,0,0,0
+        17806809665350,17806815300563,214885,3674,3674,"lock contention","Lock contention on a monitor lock (owner tid: 2139)","binder:1719_11","system_server",173991,40894,0,0
+        17806815515448,17806815834987,284749,24955,3674,"binder reply","","s.nexuslauncher","com.google.android.apps.nexuslauncher",284749,0,0,0
+        17806816119736,17806816599025,152018,4133,24955,"binder transaction","","binder:1719_16","system_server",152018,0,0,0
+        17806816751043,17806817159613,1506917,4133,4133,"lock contention","Lock contention on a monitor lock (owner tid: 1754)","binder:1719_16","system_server",1506917,0,0,0
+        17806818666530,17806818732244,669393,28592,4133,"binder transaction async","","binder:28573_3","com.android.systemui.people",669393,0,0,0
+        17806819401637,17806819440049,710856,28573,28592,"thread_ready","","systemui.people","com.android.systemui.people",710856,0,0,0
+        17806820150905,17806820532497,77759,3674,28573,"binder transaction","","binder:1719_11","system_server",77759,0,0,0
+        17806820610256,17806824594061,267049,3674,3674,"lock contention","Lock contention on a monitor lock (owner tid: 4133)","binder:1719_11","system_server",267049,0,0,0
+        17806824861110,17806824884710,234986,28573,3674,"binder reply","","systemui.people","com.android.systemui.people",234986,0,0,0
+        17806825119696,17806825671535,140584,518,28573,"binder transaction","","servicemanager","/system/bin/servicemanager",140584,0,0,0
+        17806825812119,17806826195379,51026,28573,518,"binder reply","","systemui.people","com.android.systemui.people",51026,0,0,0
+        17806826246405,17806828421901,69377,3236,28573,"binder transaction","","binder:1719_B","system_server",69377,0,0,0
+        17806828491278,17806828513657,544108,28573,3236,"binder reply","","systemui.people","com.android.systemui.people",544108,0,0,0
+        17806829057765,17806829381496,102783,3236,28573,"binder transaction","","binder:1719_B","system_server",102783,0,0,0
+        17806829484279,17806829617620,210083,3236,3236,"lock contention","Lock contention on a monitor lock (owner tid: 1754)","binder:1719_B","system_server",210083,0,0,0
+        17806829827703,17806829891017,519613,28573,3236,"binder reply","","systemui.people","com.android.systemui.people",519613,0,0,0
+        17806830410630,17806830452988,97331,3674,28573,"binder transaction","","binder:1719_11","system_server",97331,0,0,0
+        17806830550319,17806830774033,77678,3674,3674,"lock contention","Lock contention on a monitor lock (owner tid: 1753)","binder:1719_11","system_server",77678,0,0,0
+        17806830851711,17806830892848,250407,28573,3674,"binder reply","","systemui.people","com.android.systemui.people",250407,0,0,0
+        17806831143255,17806831226955,133952,518,28573,"binder transaction","","servicemanager","/system/bin/servicemanager",133952,0,0,0
+        17806831360907,17806831403387,41585,28573,518,"binder reply","","systemui.people","com.android.systemui.people",41585,0,0,0
+        17806831444972,17806834131740,51676,3674,28573,"binder transaction","","binder:1719_11","system_server",51676,0,0,0
+        17806834183416,17806834250474,4493449,28573,3674,"binder reply","","systemui.people","com.android.systemui.people",3286011,1207438,0,0
+        17806838743923,17806838809474,131796,518,28573,"binder transaction","","servicemanager","/system/bin/servicemanager",131796,0,0,0
+        17806838941270,17806838974554,168742,28573,518,"binder reply","","systemui.people","com.android.systemui.people",168742,0,0,0
+        17806839143296,17806839157171,19247,3242,28573,"binder transaction","AIDL::cpp::ISurfaceComposer::createConnection::cppClient","binder:598_4","/system/bin/surfaceflinger",19247,0,0,0
+        17806839176418,17806839210882,199056,28573,3242,"binder reply","AIDL::cpp::ISurfaceComposer::createConnection::cppClient","systemui.people","com.android.systemui.people",199056,0,0,0
+        17806839409938,17806839422959,37842,28595,28573,"thread_ready","","RenderThread","com.android.systemui.people",37842,0,0,0
+        17806839460801,17806839480535,269410,4269,28595,"binder transaction","AIDL::cpp::IHintManager::createHintSession::cppClient","binder:1719_1E","system_server",269410,0,0,0
+        17806839749945,17806839796860,53060,719,4269,"binder transaction","AIDL::cpp::IPower::createHintSession::cppClient","android.hardwar","/vendor/bin/hw/android.hardware.power-service.pixel-libperfmgr",53060,0,0,0
+        17806839849920,17806840449001,174682,4269,719,"binder reply","AIDL::cpp::IPower::createHintSession::cppClient","binder:1719_1E","system_server",174682,0,0,0
+        17806840623683,17806840650417,27832,28595,4269,"binder reply","AIDL::cpp::IHintManager::createHintSession::cppClient","RenderThread","com.android.systemui.people",27832,0,0,0
+        17806840678249,17806840695257,44068,28573,28595,"thread_ready","","systemui.people","com.android.systemui.people",44068,0,0,0
+        17806840739325,17806845572129,5002075,28573,28573,"vsync","571743","systemui.people","com.android.systemui.people",4857218,144857,0,0
+        17806850574204,17806850604030,409668,3236,28573,"binder transaction","","binder:1719_B","system_server",409668,0,0,0
+        17806851013698,17806851040269,1713216,28573,3236,"binder reply","","systemui.people","com.android.systemui.people",1690471,22745,0,0
+        17806852753485,17806888976182,2055989,28573,28573,"vsync","571765","systemui.people","com.android.systemui.people",2055989,0,0,0
+        """))

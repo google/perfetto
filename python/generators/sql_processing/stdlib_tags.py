@@ -227,6 +227,7 @@ MODULE_TAGS = {
     'linux.threads': ['linux'],
 
     # Scheduling
+    'sched.critical_path': ['scheduling', 'cpu', 'performance'],
     'sched.states': ['scheduling', 'cpu'],
     'sched.runnable': ['scheduling', 'cpu'],
     'sched.thread_level_parallelism': ['scheduling', 'cpu'],
