@@ -353,3 +353,71 @@ class StdlibSched(TestSuite):
         9610234867,1469,670736,7,18555
         9610202640,889,12532,7,32227
         """))
+
+  # Synthetic work-passing edges, hand-checkable:
+  #   A: irq      -> utid 3, ready 90,  starts 95
+  #   B: utid 3   -> utid 2, ready 100, starts 110
+  #   C: utid 2   -> utid 1, ready 200, starts 220
+  #   D: utid 1   -> utid 1, ready 250, starts 280 (same-thread wait)
+  #   E: utid 1   -> utid 1, ready 300, starts 300 (zero wait)
+  _CRITICAL_PATH_EDGES = """
+    WITH edges(ready_ts, ready_utid, ts, utid, type, info) AS (
+      VALUES
+        (90, NULL, 95, 3, 'A', ''),
+        (100, 3, 110, 2, 'B', ''),
+        (200, 2, 220, 1, 'C', ''),
+        (250, 1, 280, 1, 'D', ''),
+        (300, 1, 300, 1, 'E', '')
+    )
+    SELECT * FROM edges
+  """
+
+  def test_critical_path_pass_work_graph(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+        INCLUDE PERFETTO MODULE sched.critical_path;
+
+        SELECT id, ready_type, waker_id
+        FROM _critical_path_pass_work_graph!(({self._CRITICAL_PATH_EDGES}));
+        """,
+        out=Csv("""
+        "id","ready_type","waker_id"
+        0,"A","[NULL]"
+        1,"B",0
+        2,"C",1
+        3,"D",2
+        4,"E",3
+        """))
+
+  def test_critical_path_pass_work_hops(self):
+    # Two intervals walked in one call: [50, 350) and [150, 250), both ending
+    # on utid 1.
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query=f"""
+        INCLUDE PERFETTO MODULE sched.critical_path;
+
+        CREATE PERFETTO TABLE graph AS
+        SELECT * FROM _critical_path_pass_work_graph!(({self._CRITICAL_PATH_EDGES}));
+
+        SELECT interval_id, depth, ready_ts, ts, dur, utid, ready_type
+        FROM _critical_path_pass_work_hops!(
+          (
+            SELECT 1 AS id, 50 AS ts, 300 AS dur, 1 AS utid
+            UNION ALL
+            SELECT 2, 150, 100, 1
+          ),
+          graph
+        );
+        """,
+        out=Csv("""
+        "interval_id","depth","ready_ts","ts","dur","utid","ready_type"
+        1,4,90,95,5,3,"A"
+        1,3,100,110,90,2,"B"
+        1,2,200,220,30,1,"C"
+        1,1,250,280,20,1,"D"
+        1,0,300,300,50,1,"E"
+        2,1,"[NULL]",150,50,2,"B"
+        2,0,200,220,30,1,"C"
+        """))

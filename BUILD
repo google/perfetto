@@ -4170,6 +4170,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/broadcasts.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/codec.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/critical_blocking_calls.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/critical_path.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/desktop_mode.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/device.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/dvfs.sql",
@@ -4403,6 +4404,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_sched_sched",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/sched/critical_path.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/latency.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/runnable.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/states.sql",

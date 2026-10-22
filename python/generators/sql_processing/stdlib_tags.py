@@ -163,6 +163,7 @@ MODULE_TAGS = {
     'android.process_metadata': ['android', 'metadata'],
     'android.thread': ['android', 'metadata'],
     'android.monitor_contention': ['android', 'performance'],
+    'android.critical_path': ['android', 'scheduling', 'performance'],
     'android.lock_held': ['android', 'performance'],
     'android.oom_adjuster': ['android', 'app-lifecycle', 'memory'],
     'android.kernel_wakelocks': ['android', 'power'],
@@ -227,6 +228,7 @@ MODULE_TAGS = {
     'linux.threads': ['linux'],
 
     # Scheduling
+    'sched.critical_path': ['scheduling', 'performance'],
     'sched.states': ['scheduling', 'cpu'],
     'sched.runnable': ['scheduling', 'cpu'],
     'sched.thread_level_parallelism': ['scheduling', 'cpu'],

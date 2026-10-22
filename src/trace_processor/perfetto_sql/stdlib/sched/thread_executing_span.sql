@@ -18,6 +18,8 @@ INCLUDE PERFETTO MODULE intervals.overlap;
 
 INCLUDE PERFETTO MODULE intervals.intersect;
 
+INCLUDE PERFETTO MODULE sched.critical_path;
+
 -- A 'thread_executing_span' is thread_state span starting with a runnable slice
 -- until the next runnable slice that's woken up by a process (as opposed
 -- to an interrupt). Note that within a 'thread_executing_span' we can have sleep
@@ -343,50 +345,6 @@ AS (
   JOIN _interval_to_root_nodes
     ON _interval_to_root_nodes.id BETWEEN _start_id AND _end_id
     AND _interval_to_root_nodes.utid = _bound.utid
-);
-
--- Critical path for the given roots with the chain depth retained.
--- One row per `(root_id, depth, ts, dur, id, parent_id)` blocker
--- frame: `id` is the on-CPU blocker at this depth, `parent_id` is
--- the blocker one level up (the root at depth 0). At a self-wake the
--- woken thread is the depth-N fallback (it is in kernel) and the
--- waker chain layers at depth N+1. `_critical_path_by_roots`
--- collapses these depths to one blocker per `(root_id, ts)`.
-CREATE PERFETTO MACRO _critical_path_with_depth_by_roots(
-  _roots_table TableOrSubQuery,
-  _node_table TableOrSubQuery
-)
-RETURNS TableOrSubQuery
-AS (
-  SELECT
-    c0 AS root_id,
-    c1 AS depth,
-    c2 AS ts,
-    c3 AS dur,
-    c4 AS id,
-    c6 AS parent_id
-  FROM __intrinsic_table_ptr(
-    __intrinsic_critical_path_walk(
-      (
-        SELECT
-          __intrinsic_wakeup_graph_agg(id, utid, ts, dur, idle_dur, waker_id, prev_id)
-        FROM $_node_table
-      ),
-      (
-        SELECT
-          __intrinsic_array_agg(root_node_id)
-        FROM $_roots_table
-      )
-    )
-  )
-  WHERE
-    __intrinsic_table_ptr_bind(c0, 'root_id')
-    AND __intrinsic_table_ptr_bind(c1, 'depth')
-    AND __intrinsic_table_ptr_bind(c2, 'ts')
-    AND __intrinsic_table_ptr_bind(c3, 'dur')
-    AND __intrinsic_table_ptr_bind(c4, 'blocker_id')
-    AND __intrinsic_table_ptr_bind(c5, 'blocker_utid')
-    AND __intrinsic_table_ptr_bind(c6, 'parent_id')
 );
 
 -- Critical path for the given roots, one blocker per `(root_id, ts)`.
