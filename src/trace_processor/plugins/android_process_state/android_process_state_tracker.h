@@ -21,6 +21,8 @@
 #include <limits>
 #include <map>
 #include <optional>
+#include <string_view>
+#include <vector>
 
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/plugins/android_process_state/tables_py.h"
@@ -102,14 +104,21 @@ class AndroidProcessStateTracker {
   // the AndroidFreezerState table.
   void EmitInitialFreezerRow(const FreezerStateValues& v);
 
+  // Populates capability_flags[i] args on the given AndroidProcessState row.
+  void AddCapabilityFlagsArgs(tables::AndroidProcessStateTable::Id id,
+                              int32_t mask);
+
   TraceProcessorContext* const context_;
   tables::AndroidProcessStateTable* const process_state_table_;
   tables::AndroidFreezerStateTable* const freezer_state_table_;
+  const StringId capability_flags_id_;
 
   DescriptorPool::CachedDescriptor proc_state_cache_;
   DescriptorPool::CachedDescriptor process_group_cache_;
   DescriptorPool::CachedDescriptor reason_cache_;
   DescriptorPool::CachedDescriptor unfreeze_reason_cache_;
+  DescriptorPool::CachedDescriptor capability_flags_cache_;
+  std::vector<std::string_view> flag_views_;
 
   // Map of upid -> earliest observed delta transition during the trace.
   std::map<UniquePid, EarliestDelta> earliest_prev_;

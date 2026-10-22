@@ -523,3 +523,59 @@ class AndroidParser(TestSuite):
           2000000000,400,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",7,0
           "[NULL]",500,"PROCESS_STATE_TOP",100,0,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
         """))
+
+  def test_android_process_state_capability_flags(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 500
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+          }
+        }
+        packet {
+          timestamp: 1000
+          track_descriptor {
+            uuid: 1
+            thread { pid: 100 tid: 100 thread_name: "main" }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 100
+              uid: 10001
+              prev_proc_state: PROCESS_STATE_TOP
+              cur_proc_state: PROCESS_STATE_FOREGROUND_SERVICE
+              prev_capability_flags: 3
+              cur_capability_flags: -2147483131
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.ts,
+          t.is_initial,
+          t.capability_flags,
+          a.flat_key,
+          a.key,
+          a.string_value,
+          a.value_type
+        FROM __intrinsic_android_process_state t
+        JOIN args a USING (arg_set_id)
+        ORDER BY t.is_initial DESC, a.key;
+        """,
+        out=Csv("""
+          "ts","is_initial","capability_flags","flat_key","key","string_value","value_type"
+          "[NULL]",1,3,"capability_flags","capability_flags[0]","PROCESS_CAPABILITY_FOREGROUND_LOCATION","string"
+          "[NULL]",1,3,"capability_flags","capability_flags[1]","PROCESS_CAPABILITY_FOREGROUND_CAMERA","string"
+          2000,0,-2147483131,"capability_flags","capability_flags[0]","PROCESS_CAPABILITY_FOREGROUND_LOCATION","string"
+          2000,0,-2147483131,"capability_flags","capability_flags[1]","PROCESS_CAPABILITY_FOREGROUND_MICROPHONE","string"
+          2000,0,-2147483131,"capability_flags","capability_flags[2]","0x80000200","string"
+        """))
