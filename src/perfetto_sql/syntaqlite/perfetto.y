@@ -23,7 +23,7 @@
 // Allow extension keywords to be used as regular identifiers.
 %fallback ID PERFETTO FUNCTION MODULE RETURNS MACRO DELEGATES INCLUDE
           TREE ACCUMULATE UP DOWN INTERVAL INTERSECTION PER EXTEND FLATTEN
-          AGGREGATE FILL GAPS GRAPH BFS DFS DOMINATOR NODES EDGES.
+          AGGREGATE FILL GAPS WALK GRAPH BFS DFS DOMINATOR NODES EDGES.
 
 // ---------- Helper nonterminals ----------
 
@@ -417,6 +417,11 @@ perfetto_pipe_stage(A) ::= INTERVAL FLATTEN perfetto_per(P)
 perfetto_pipe_stage(A) ::= INTERVAL FILL GAPS WITH perfetto_pipe_source(B)
                            perfetto_per(P). {
     A = synq_parse_perfetto_interval_fill_gaps(pCtx, B, P);
+}
+perfetto_pipe_stage(A) ::= INTERVAL WALK WITH perfetto_pipe_source(B)
+                           PER perfetto_per_col_list(P)
+                           TO perfetto_per_col_list(T). {
+    A = synq_parse_perfetto_interval_walk(pCtx, B, P, T);
 }
 perfetto_pipe_stage(A) ::= ORDER BY perfetto_pipe_order_list(L). {
     A = synq_parse_perfetto_pipe_order_by(pCtx, L);

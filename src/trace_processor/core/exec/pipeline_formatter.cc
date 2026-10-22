@@ -36,6 +36,7 @@
 #include "src/trace_processor/core/exec/interval_flatten.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
+#include "src/trace_processor/core/exec/interval_walk.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/sort.h"
@@ -253,6 +254,12 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
         static_cast<const IntervalFillGaps&>(op).spec_;
     return "IntervalFillGaps(" + Lanes(spec.input) +
            "; background: " + Lanes(spec.background.lanes) + ")";
+  }
+  if (op.Is<IntervalWalk>()) {
+    const IntervalWalkSpec& spec = static_cast<const IntervalWalk&>(op).spec_;
+    return "IntervalWalk(" + Lanes(spec.input) +
+           "; edges: " + Lanes(spec.edges.lanes) +
+           "; to: " + Columns(spec.next_key_columns) + ")";
   }
   if (op.Is<IntervalFlatten>()) {
     const IntervalFlattenSpec& spec =

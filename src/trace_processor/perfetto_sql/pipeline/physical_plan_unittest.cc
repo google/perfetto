@@ -374,6 +374,37 @@ TEST_F(PhysicalPlanTest, FillGapsOrdersBothSides) {
             "background: #0, #1, keys: #2, groups: #3)");
 }
 
+TEST_F(PhysicalPlanTest, IntervalWalkTransitivelyResolvesLeafIntervals) {
+  Exec(
+      "CREATE TABLE edges(ts INTEGER, dur INTEGER, utid INTEGER, "
+      "target_utid INTEGER, node_id INTEGER)");
+  Exec(
+      "INSERT INTO edges VALUES "
+      "(0, 30, 1, 2, 100), "
+      "(0, 10, 2, NULL, 200), "
+      "(10, 20, 2, 3, 201), "
+      "(10, 20, 3, NULL, 300)");
+  auto plan = Plan(
+      "FROM (SELECT * FROM edges WHERE utid = 1) AS root "
+      "|> INTERVAL WALK WITH edges PER utid TO target_utid "
+      "|> SELECT ts, dur, root.utid AS root_utid, utid, node_id");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+
+  RowCursor cursor((*plan)->source());
+  ASSERT_TRUE(cursor.Open((*plan)->filter_values()));
+  std::vector<std::vector<std::optional<int64_t>>> rows;
+  for (bool has_row = true; has_row; has_row = cursor.Next()) {
+    std::vector<std::optional<int64_t>> row;
+    for (const PhysicalPlan::Column& column : (*plan)->columns()) {
+      row.push_back(IntAt(cursor, column.index));
+    }
+    rows.push_back(std::move(row));
+  }
+  ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
+  EXPECT_THAT(rows, ElementsAre(ElementsAre(0, 10, 1, 2, 200),
+                                ElementsAre(10, 20, 1, 3, 300)));
+}
+
 // An intersection needs its operands' bounds and PER columns, but only passes
 // on the columns something after it reads: it neither buffers nor gathers
 // the rest.

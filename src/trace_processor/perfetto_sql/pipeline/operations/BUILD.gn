@@ -28,6 +28,8 @@ source_set("operations") {
     "interval_flatten.h",
     "interval_intersect.cc",
     "interval_intersect.h",
+    "interval_walk.cc",
+    "interval_walk.h",
     "order_by.cc",
     "order_by.h",
     "projection.cc",

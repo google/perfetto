@@ -105,6 +105,7 @@ const char* const kPipelines[] = {
     "FROM spans |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n |> SELECT ts, n",
     "FROM spans |> INTERVAL FILL GAPS WITH spans PER cpu",
     "FROM spans |> INTERVAL FILL GAPS WITH (SELECT ts, dur FROM spans)",
+    "FROM spans |> INTERVAL WALK WITH spans PER cpu TO cpu",
     "FROM df |> ORDER BY self DESC, id |> SELECT id",
     "FROM spans |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n |> ORDER BY n",
     "FROM df |> SELECT parent_id |> DISTINCT",

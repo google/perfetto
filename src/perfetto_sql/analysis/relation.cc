@@ -335,6 +335,8 @@ bool RelationAnalyzer::Impl::Within(SyntaqliteParser* p,
     // background.
     case SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS:
       return Within(p, node->perfetto_interval_fill_gaps.background, at);
+    case SYNTAQLITE_NODE_PERFETTO_INTERVAL_WALK:
+      return Within(p, node->perfetto_interval_walk.edges, at);
     case SYNTAQLITE_NODE_PERFETTO_GRAPH_TREE:
       return Within(p, node->perfetto_graph_tree.nodes, at) ||
              Within(p, node->perfetto_graph_tree.edges, at) ||

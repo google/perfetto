@@ -22,6 +22,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_fill_gaps.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/interval_walk.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/projection.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
@@ -38,6 +39,7 @@ const OperationRegistration* const kOperations[] = {
     &IntervalIntersect::kRegistration,
     &IntervalFlatten::kRegistration,
     &IntervalFillGaps::kRegistration,
+    &IntervalWalk::kRegistration,
     &OrderBy::kRegistration,
     &AggregateStage::kRegistration,
     &Distinct::kRegistration,

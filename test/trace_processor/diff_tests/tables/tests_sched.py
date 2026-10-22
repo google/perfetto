@@ -229,92 +229,26 @@ class TablesSched(TestSuite):
         30
         """))
 
-  def test_thread_executing_span_intervals_to_roots_edge_case(self):
-    return DiffTestBlueprint(
-        trace=DataPath('sched_wakeup_trace.atr'),
-        query="""
-        INCLUDE PERFETTO MODULE sched.thread_executing_span;
-
-        SELECT * FROM
-        _intervals_to_roots!((SELECT 1477 AS utid, trace_start() AS ts, trace_end() - trace_start() AS dur), _wakeup_graph)
-        ORDER BY root_node_id
-        LIMIT 10;
-        """,
-        out=Csv("""
-        "root_node_id","capacity"
-        11889,0
-        11980,91
-        12057,77
-        12254,197
-        12521,267
-        12672,151
-        12796,124
-        12802,6
-        12827,25
-        12833,6
-        """))
-
-  def test_thread_executing_span_intervals_to_roots(self):
-    return DiffTestBlueprint(
-        trace=DataPath('sched_wakeup_trace.atr'),
-        query="""
-        INCLUDE PERFETTO MODULE sched.thread_executing_span;
-
-        SELECT * FROM
-        _intervals_to_roots!((SELECT 1477 AS utid, 1737362149192 AS ts, CAST(2e7 AS INT) AS dur), _wakeup_graph)
-        ORDER BY root_node_id
-        LIMIT 10;
-        """,
-        out=Csv("""
-        "root_node_id","capacity"
-        11980,91
-        12057,77
-        12254,197
-        """))
-
-  def test_thread_executing_span_critical_path_by_roots(self):
-    return DiffTestBlueprint(
-        trace=DataPath('sched_switch_original.pb'),
-        query="""
-        INCLUDE PERFETTO MODULE sched.thread_executing_span;
-
-        SELECT *
-        FROM _critical_path_by_roots!(
-          _intervals_to_roots!(
-            (SELECT 6 AS utid, trace_start() AS ts, trace_end() - trace_start() AS dur),
-            _wakeup_graph),
-          _wakeup_graph);
-        """,
-        out=Csv("""
-        "root_id","id","ts","dur"
-        14,14,807082865019382,14160157
-        62,60,807082947223556,23282
-        62,62,807082947246838,2000260
-        107,105,807082959078401,95105
-        107,107,807082959173506,73362507
-        139,139,807083032536013,98125
-        139,139,807083032634138,340625
-        142,142,807083032974763,16615
-        142,142,807083032991378,89218
-        """))
-
-  def test_thread_executing_span_critical_path_by_intervals(self):
+  def test_thread_executing_span_critical_path(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_switch_original.pb'),
         query="""
         INCLUDE PERFETTO MODULE sched.thread_executing_span;
 
         SELECT root_utid, root_id, id, ts, dur, utid
-        FROM _critical_path_by_intervals!(
-          (SELECT 6 AS utid, trace_start() AS ts, trace_end() - trace_start() AS dur),
-          _wakeup_graph)
+        FROM _thread_executing_span_critical_path(
+          6,
+          trace_start(),
+          trace_end() - trace_start())
         ORDER BY root_id, ts;
         """,
         out=Csv("""
         "root_utid","root_id","id","ts","dur","utid"
         6,14,14,807082865019382,14160157,6
+        6,62,60,807082879179539,68044017,11
         6,62,60,807082947223556,23282,11
         6,62,62,807082947246838,2000260,6
+        6,107,105,807082949247098,9831303,18
         6,107,105,807082959078401,95105,18
         6,107,107,807082959173506,73362507,6
         6,139,139,807083032536013,98125,6

@@ -30,6 +30,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_fill_gaps.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/interval_walk.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.h"
@@ -124,6 +125,7 @@ class LogicalPlanFormatter {
                                              const PlanNode&);
   static std::string IntervalFillGapsString(const LogicalPlan&,
                                             const PlanNode&);
+  static std::string IntervalWalkString(const LogicalPlan&, const PlanNode&);
   static std::string OrderByString(const OrderBy&);
   static std::string DistinctString(const Distinct&);
   static std::string WhereString(const Where&);
@@ -241,6 +243,28 @@ std::string LogicalPlanFormatter::IntervalFillGapsString(
          ScanString(plan, plan.nodes()[node.children()[1]].Cast<Scan>());
 }
 
+std::string LogicalPlanFormatter::IntervalWalkString(const LogicalPlan& plan,
+                                                     const PlanNode& node) {
+  const auto& walk = node.Cast<IntervalWalk>();
+  std::string out = "IntervalWalk(ts=#" + std::to_string(walk.in_ts_) +
+                    ", dur=#" + std::to_string(walk.in_dur_);
+  for (ColumnId key : walk.keys_) {
+    out += ", key=#" + std::to_string(key);
+  }
+  out += ") -> " + ColumnString(plan, walk.out_ts_) + ", " +
+         ColumnString(plan, walk.out_dur_);
+  out += "\n  edges(ts=#" + std::to_string(walk.edges_ts_) + ", dur=#" +
+         std::to_string(walk.edges_dur_);
+  for (ColumnId key : walk.edges_keys_) {
+    out += ", key=#" + std::to_string(key);
+  }
+  for (ColumnId to_key : walk.edges_next_keys_) {
+    out += ", to=#" + std::to_string(to_key);
+  }
+  return out + ")\n    " +
+         ScanString(plan, plan.nodes()[node.children()[1]].Cast<Scan>());
+}
+
 std::string LogicalPlanFormatter::OrderByString(const OrderBy& order) {
   std::string out = "OrderBy(";
   for (size_t i = 0; i < order.keys_.size(); ++i) {
@@ -305,6 +329,10 @@ std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
   if (node.Is<IntervalFillGaps>()) {
     return SubtreeString(plan, node.children()[0]) +
            IntervalFillGapsString(plan, node) + "\n";
+  }
+  if (node.Is<IntervalWalk>()) {
+    return SubtreeString(plan, node.children()[0]) +
+           IntervalWalkString(plan, node) + "\n";
   }
   if (node.Is<IntervalFlatten>()) {
     return SubtreeString(plan, node.children()[0]) +
