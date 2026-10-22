@@ -375,8 +375,7 @@ export function splitFilters(text: string): string[] {
 
   // Split text at those positions
   const result: string[] = [];
-  for (let i = 0; i < splitPositions.length; i++) {
-    const start = splitPositions[i]!;
+  for (const [i, start] of splitPositions.entries()) {
     const end = splitPositions[i + 1] ?? text.length;
     const part = text.substring(start, end).trim();
     if (part) {

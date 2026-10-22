@@ -97,7 +97,10 @@ const QUICK_FILTER_DEBOUNCE_MS = 250;
 const QUICK_FILTER_MATCH_CLASS = 'pf-data-grid__cell--quick-filter-match';
 
 // Compare two SqlValues for equality, handling nulls, undefined, and different types.
-function sqlValuesEqual(a: SqlValue, b: SqlValue): boolean {
+function sqlValuesEqual(
+  a: SqlValue | undefined,
+  b: SqlValue | undefined,
+): boolean {
   // Normalize undefined to null (SQL has no concept of undefined)
   const normA = a === undefined ? null : a;
   const normB = b === undefined ? null : b;
@@ -119,7 +122,7 @@ function sqlValuesEqual(a: SqlValue, b: SqlValue): boolean {
 function groupPathsEqual(a: GroupPath, b: GroupPath): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
-    if (!sqlValuesEqual(a[i]!, b[i]!)) return false;
+    if (!sqlValuesEqual(a[i], b[i])) return false;
   }
   return true;
 }
@@ -2043,8 +2046,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     // Build aggregate columns
     const aggregates = pivot.aggregates ?? [];
-    for (let i = 0; i < aggregates.length; i++) {
-      const agg = aggregates[i]!;
+    for (const [i, agg] of aggregates.entries()) {
       const sort = agg.sort;
       const alias = getAggregateAlias(agg);
 
@@ -2433,11 +2435,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       columnNames = buildColumnNames(schema, fieldPaths);
 
       // Map aliases to field paths for column name lookup
-      for (let i = 0; i < columns.length; i++) {
-        const alias = columns[i]!;
-        const field = fieldPaths[i]!;
+      for (const col of this.columns) {
+        const alias = getColumnAlias(col);
+        const field = col.field;
         if (alias !== field) {
-          columnNames[alias] = columnNames[field]!;
+          const name = columnNames[field];
+          if (name !== undefined) {
+            columnNames[alias] = name;
+          }
         }
       }
     }
