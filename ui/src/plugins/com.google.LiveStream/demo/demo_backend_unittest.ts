@@ -73,7 +73,7 @@ function fields(buf: Uint8Array): Fields {
   const varint = () => {
     let value = 0;
     for (let scale = 1; ; scale *= 128) {
-      const byte = buf[pos++];
+      const byte = buf[pos++]!;
       value += (byte & 0x7f) * scale;
       if (byte < 0x80) return value;
     }
@@ -156,7 +156,7 @@ test('a snapshot, then deltas that complete active slices by key', async () => {
   expect(snapshot.counter_points.some((p) => p.track_id === 'step')).toBe(true);
   const seen = new Set(snapshot.completed_slices.map((s) => s.key));
 
-  const active = snapshot.active_slices[0];
+  const active = snapshot.active_slices[0]!;
   let resp = snapshot;
   for (let i = 0; i < 100; i++) {
     resp = await stream({stream_id: resp.stream_id, since_seq: resp.seq});

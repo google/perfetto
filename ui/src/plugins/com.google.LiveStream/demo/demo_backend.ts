@@ -309,7 +309,7 @@ function job(
   taskCount: number,
   profile: Profile,
 ): Job {
-  const [jobName, role] = id.split('/');
+  const [jobName, role = id] = id.split('/');
   const target = {
     id,
     short_name: role,
@@ -410,7 +410,7 @@ function addPhases(
   let ts = parent.ts;
   let sum = 0;
   phases.forEach((phase, i) => {
-    sum += weights[i];
+    sum += weights[i]!;
     const stop =
       i === phases.length - 1
         ? end
@@ -463,7 +463,7 @@ function* mainThread(
     if (metric !== undefined && random.chance(1 / 500)) {
       const message = arg('Message', 'Skipped the batch');
       const name = `${metric.name} is NaN`;
-      slices.push(errorSlice(`${key}/error`, end, name, [args[0], message]));
+      slices.push(errorSlice(`${key}/error`, end, name, [args[0]!, message]));
     } else if (metric !== undefined) {
       const range = metric.from - metric.to;
       const value =
@@ -560,7 +560,7 @@ function* worker(
       const message = arg('Message', 'Deadline exceeded; retrying');
       const name = `Worker ${lane}: task failed`;
       slices.push(
-        errorSlice(`${key}/error`, ts + dur, name, [args[0], message]),
+        errorSlice(`${key}/error`, ts + dur, name, [args[0]!, message]),
       );
     }
     const slice: Slice = {
@@ -944,7 +944,7 @@ class StreamBuffer {
     const counts = new Map<number, number>();
     const count = (entries: ReadonlyArray<Entry<unknown>>) => {
       for (let i = firstAfter(entries, base); i < entries.length; i++) {
-        const seq = entries[i].seq;
+        const seq = entries[i]!.seq;
         counts.set(seq, (counts.get(seq) ?? 0) + 1);
       }
     };
@@ -991,12 +991,12 @@ class StreamBuffer {
     const minEnd = this.playhead - this.options.history * SEC;
     const evict = <T>(entries: Array<Entry<T>>, count: number) => {
       if (count <= 0) return;
-      this.evictedSeq = Math.max(this.evictedSeq, entries[count - 1].seq);
+      this.evictedSeq = Math.max(this.evictedSeq, entries[count - 1]!.seq);
       entries.splice(0, count);
     };
     const old = (entries: ReadonlyArray<Entry<Slice | Point>>) => {
       let n = 0;
-      while (n < entries.length && endOf(entries[n].item) < minEnd) n++;
+      while (n < entries.length && endOf(entries[n]!.item) < minEnd) n++;
       return n;
     };
     const history = this.history;
@@ -1045,7 +1045,7 @@ function firstAfter(entries: ReadonlyArray<Entry<unknown>>, seq: number) {
   let hi = entries.length;
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
-    if (entries[mid].seq <= seq) {
+    if (entries[mid]!.seq <= seq) {
       lo = mid + 1;
     } else {
       hi = mid;
@@ -1062,8 +1062,9 @@ function between<T>(
 ) {
   const out: Array<Entry<T>> = [];
   for (let i = firstAfter(entries, from); i < entries.length; i++) {
-    if (entries[i].seq > to) break;
-    out.push(entries[i]);
+    const entry = entries[i]!;
+    if (entry.seq > to) break;
+    out.push(entry);
   }
   return out;
 }
@@ -1265,10 +1266,11 @@ export class DemoBackend {
     const {pathname, searchParams} = new URL(url, 'http://localhost');
     const route = /^\/(api|demo)\/(\w+)$/.exec(pathname);
     if (route === null) return undefined;
+    const name = route[2]!;
     const reply =
       route[1] === 'api'
-        ? this.api(route[2], searchParams, signal)
-        : Promise.resolve(this.demo(route[2], searchParams));
+        ? this.api(name, searchParams, signal)
+        : Promise.resolve(this.demo(name, searchParams));
     return reply.catch((e) => errorReply(500, `demo failed: ${e}`));
   }
 
@@ -1292,7 +1294,7 @@ export class DemoBackend {
 
   /** The URL path of the UI for `?target=<spec>`: the default if unknown. */
   pagePath(spec: string): string {
-    return uiPath((findJob(spec) ?? JOBS[0]).target.id);
+    return uiPath((findJob(spec) ?? JOBS[0]!).target.id);
   }
 
   /** Stops all sessions; pending requests return at once. */
@@ -1654,10 +1656,10 @@ function layOut(slices: readonly Placed[], markers: boolean): ChildTrack[] {
 // start.
 function fits(child: ChildTrack, placed: Placed): boolean {
   const open = child.open;
-  while (open.length > 0 && open[open.length - 1] <= placed.slice.ts) {
+  while (open.length > 0 && open[open.length - 1]! <= placed.slice.ts) {
     open.pop();
   }
-  return open.length === 0 || placed.end <= open[open.length - 1];
+  return open.length === 0 || placed.end <= open[open.length - 1]!;
 }
 
 // The track description that maps seed tracks to the stream's.

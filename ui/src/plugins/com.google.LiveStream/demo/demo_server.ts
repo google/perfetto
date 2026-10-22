@@ -38,7 +38,7 @@ const {DemoBackend, SECURITY_HEADERS} = (await import(
   new URL('demo_backend.ts', import.meta.url).href
 )) as typeof Backend;
 
-const USAGE = `Usage: ui/node ${path.relative(process.cwd(), process.argv[1])} [flags]
+const USAGE = `Usage: ui/node ${path.relative(process.cwd(), process.argv[1]!)} [flags]
 
 Serves a simulated live stream for com.google.LiveStream, with the UI.
 

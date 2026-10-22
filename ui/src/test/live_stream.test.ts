@@ -129,7 +129,7 @@ function sqlNumber(query: string): Promise<number> {
   return page.evaluate(async (query) => {
     const result = await window.app.trace?.engine.query(query);
     const columns = result?.columns() ?? [];
-    return Number(result?.iter({}).get(columns[0]) ?? NaN);
+    return Number(result?.iter({}).get(columns[0]!) ?? NaN);
   }, query);
 }
 
