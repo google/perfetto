@@ -45,5 +45,19 @@ TEST(GraphSearchTest, DepthFirstSkipsSeedsAlreadyReached) {
   EXPECT_THAT(tree.parent, ElementsAre(4, 0, 0, 1, kNone));
 }
 
+// The example in the Lengauer-Tarjan paper, with R = 0, A = 1, ..., L = 12.
+TEST(DominatorTreeTest, PaperExample) {
+  enum : uint32_t { R, A, B, C, D, E, F, G, H, I, J, K, L, kCount };
+  std::vector<uint32_t> sources = {R, R, R, A, B, B, B, C, C, D, E,
+                                   F, G, G, H, H, I, J, K, K, L};
+  std::vector<uint32_t> targets = {A, B, C, D, A, D, E, F, G, L, H,
+                                   I, I, J, E, K, K, I, I, R, H};
+  GraphTree tree =
+      DominatorTree(Digraph::FromEdges(kCount, sources, targets), R);
+  EXPECT_THAT(tree.order, ElementsAre(R, A, D, L, H, E, K, I, B, C, F, G, J));
+  EXPECT_THAT(tree.parent,
+              ElementsAre(kNone, R, R, R, R, R, C, C, R, R, G, R, D));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::util

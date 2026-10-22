@@ -61,6 +61,17 @@ GraphTree BreadthFirstSearch(const Digraph&,
 // node it was reached from.
 GraphTree DepthFirstSearch(const Digraph&, const std::vector<uint32_t>& seeds);
 
+// The dominator tree [1] of the nodes reachable from `root`: each node's parent
+// is its immediate dominator. The nodes are in the order a depth first search
+// from `root` reaches them.
+//
+// This is the Lengauer-Tarjan algorithm [2], which runs in O(E log(N)) time.
+// It is chosen because the graphs can be as large as Java heap graphs.
+//
+// [1] https://en.wikipedia.org/wiki/Dominator_(graph_theory)
+// [2] https://dl.acm.org/doi/10.1145/357062.357071
+GraphTree DominatorTree(const Digraph&, uint32_t root);
+
 }  // namespace perfetto::trace_processor::util
 
 #endif  // SRC_TRACE_PROCESSOR_UTIL_GRAPH_H_
