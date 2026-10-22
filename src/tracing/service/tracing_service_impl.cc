@@ -112,8 +112,6 @@
 #include "src/tracing/service/random.h"
 #include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/service/trace_buffer_protovms.h"
-#include "src/tracing/service/trace_buffer_v1.h"
-#include "src/tracing/service/trace_buffer_v2.h"
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "src/tracing/service/tracing_service_session.h"
 #include "src/tracing/service/tracing_service_structs.h"
@@ -350,21 +348,6 @@ void AppendOwnedSlicesToPacket(std::unique_ptr<uint8_t[]> data,
     src_ptr += slice_size;
     size_left -= slice_size;
   }
-}
-
-// Creates an empty trace buffer of the given implementation.
-// Returns nullptr if the memory allocation fails.
-std::unique_ptr<TraceBuffer> CreateTraceBuffer(
-    TraceBuffer::BufType type,
-    size_t size_in_bytes,
-    TraceBuffer::OverwritePolicy policy) {
-  switch (type) {
-    case TraceBuffer::kV1:
-      return TraceBufferV1::Create(size_in_bytes, policy);
-    case TraceBuffer::kV2:
-      return TraceBufferV2::Create(size_in_bytes, policy);
-  }
-  return nullptr;
 }
 
 // Shmem emulation is only for relay (remote-host) producers whose SMB is copied
@@ -1259,8 +1242,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 #endif
 
   // Initialize the log buffers.
-  bool did_allocate_all_buffers = true;
-  bool invalid_buffer_config = false;
+  base::Status buffers_status;
 
   // Allocate the trace buffers. Also create a map to translate a consumer
   // relative index (TraceConfig.DataSourceConfig.target_buffer) into the
@@ -1272,50 +1254,29 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     const TraceConfig::BufferConfig& buffer_cfg = cfg.buffers()[i];
     BufferID global_id = buffer_ids_.Allocate();
     if (!global_id) {
-      did_allocate_all_buffers = false;  // We ran out of IDs.
+      buffers_status = base::ErrStatus(
+          "Failed to create buffers[%zu]: all trace buffer IDs are in use", i);
       break;
     }
     tracing_session->buffers_index.push_back(global_id);
-    // TraceBuffer size is limited to 32-bit.
-    const uint32_t buf_size_kb = buffer_cfg.size_kb();
-    const uint64_t buf_size_bytes = buf_size_kb * static_cast<uint64_t>(1024);
-    const size_t buf_size = static_cast<size_t>(buf_size_bytes);
-    if (buf_size_bytes == 0 ||
-        buf_size_bytes > std::numeric_limits<uint32_t>::max() ||
-        buf_size != buf_size_bytes) {
-      invalid_buffer_config = true;
-      did_allocate_all_buffers = false;
+    auto new_buffer = trace_buffer_factory_.Create(buffer_cfg);
+    if (!new_buffer.ok()) {
+      buffers_status = base::ErrStatus("Failed to create buffers[%zu]: %s", i,
+                                       new_buffer.status().c_message());
       break;
     }
-    total_buf_size_kb += buf_size_kb;
-    TraceBuffer::OverwritePolicy policy =
-        buffer_cfg.fill_policy() == TraceConfig::BufferConfig::DISCARD
-            ? TraceBuffer::kDiscard
-            : TraceBuffer::kOverwrite;
-    std::unique_ptr<TraceBuffer> new_buffer;
-    switch (buffer_cfg.experimental_mode()) {
-      case TraceConfig::BufferConfig::TRACE_BUFFER_V2:
-        new_buffer = CreateTraceBuffer(TraceBuffer::kV2, buf_size, policy);
-        break;
-      case TraceConfig::BufferConfig::MODE_UNSPECIFIED:
-        new_buffer = CreateTraceBuffer(TraceBuffer::kV1, buf_size, policy);
-        break;
-    }
-    auto it_and_inserted = buffers_.emplace(global_id, std::move(new_buffer));
+    total_buf_size_kb += buffer_cfg.size_kb();
+    auto it_and_inserted = buffers_.emplace(global_id, std::move(*new_buffer));
     PERFETTO_DCHECK(it_and_inserted.second);  // buffers_.count(global_id) == 0.
-    std::unique_ptr<TraceBuffer>& trace_buffer = it_and_inserted.first->second;
-    if (!trace_buffer) {
-      did_allocate_all_buffers = false;
-      break;
-    }
   }
 
   // This can happen if either:
   // - All the kMaxTraceBufferID slots are taken.
   // - OOM, or, more realistically, we exhausted virtual memory.
   // - The buffer size in the config is invalid.
+  // - The config omits buffer_type and sets an unknown experimental_mode.
   // In any case, free all the previously allocated buffers and abort.
-  if (!did_allocate_all_buffers) {
+  if (!buffers_status.ok()) {
     for (BufferID global_id : tracing_session->buffers_index) {
       buffer_ids_.Free(global_id);
       buffers_.erase(global_id);
@@ -1323,12 +1284,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     MaybeLogUploadEvent(tracing_session->config, uuid,
                         PerfettoStatsdAtom::kTracedEnableTracingOom);
     tracing_sessions_.erase(tsid);
-    if (invalid_buffer_config) {
-      return PERFETTO_SVC_ERR(
-          "Failed to allocate tracing buffers: Invalid buffer sizes");
-    }
-    return PERFETTO_SVC_ERR(
-        "Failed to allocate tracing buffers: OOM or too many buffers");
+    return PERFETTO_SVC_ERR("%s", buffers_status.c_message());
   }
 
   UpdateMemoryGuardrail();
@@ -4257,7 +4213,16 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
       PERFETTO_DFATAL("Buffer not found.");
       continue;
     }
-    *trace_stats.add_buffer_stats() = buf->stats();
+    auto* buffer_stats = trace_stats.add_buffer_stats();
+    *buffer_stats = buf->stats();
+    switch (buf->buf_type()) {
+      case TraceBuffer::kV1:
+        buffer_stats->set_buffer_type(TraceStats::BufferStats::BUFFER_TYPE_V1);
+        break;
+      case TraceBuffer::kV2:
+        buffer_stats->set_buffer_type(TraceStats::BufferStats::BUFFER_TYPE_V2);
+        break;
+    }
   }  // for (buf in session).
 
   if (!tracing_session->config.builtin_data_sources()
@@ -4871,7 +4836,9 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
   // issuing the Flush(kCloneReason).
   size_t buf_idx = 0;
   for (BufferID src_buf_id : session->buffers_index) {
-    if (!session->config.buffers()[buf_idx++].clear_before_clone())
+    const TraceConfig::BufferConfig& buf_cfg =
+        session->config.buffers()[buf_idx++];
+    if (!buf_cfg.clear_before_clone())
       continue;
     auto buf_iter = buffers_.find(src_buf_id);
     PERFETTO_CHECK(buf_iter != buffers_.end());
@@ -4886,18 +4853,16 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
       continue;
 
     // Some leftover data was left in the buffer. Recreate it to empty it.
-    std::unique_ptr<TraceBuffer> old_buf = std::move(buf);
-    buf = CreateTraceBuffer(old_buf->buf_type(), old_buf->size(),
-                            old_buf->overwrite_policy());
-    if (!buf) {
+    auto new_buf = trace_buffer_factory_.Create(buf_cfg);
+    if (!new_buf.ok()) {
       // This is extremely rare but could happen on 32-bit. If the new buffer
-      // allocation failed, put back the buffer where it was and fail the clone.
+      // allocation failed, keep the original buffer and fail the clone.
       // We cannot leave the original tracing session buffer-less as it would
       // cause crashes when data sources commit new data.
-      buf = std::move(old_buf);
       return base::ErrStatus(
           "Buffer allocation failed while attempting to clone");
     }
+    buf = std::move(*new_buf);
   }
 
   auto weak_consumer = consumer->GetWeakPtr();
@@ -5056,20 +5021,19 @@ bool TracingServiceImpl::DoCloneBuffers(const TracingSession& src,
     PERFETTO_CHECK(buf_iter != buffers_.end());
     std::unique_ptr<TraceBuffer>& src_buf = buf_iter->second;
     std::unique_ptr<TraceBuffer> new_buf;
-    if (src.config.buffers()[buf_idx].transfer_on_clone()) {
+    const TraceConfig::BufferConfig& buf_cfg = src.config.buffers()[buf_idx];
+    if (buf_cfg.transfer_on_clone()) {
+      auto new_src_buf = trace_buffer_factory_.Create(buf_cfg);
+      if (!new_src_buf.ok())
+        return false;
+
       new_buf = std::move(src_buf);
-      src_buf = CreateTraceBuffer(new_buf->buf_type(), new_buf->size(),
-                                  new_buf->overwrite_policy());
-      if (!src_buf) {
-        // If the allocation fails put the buffer back and let the code below
-        // handle the failure gracefully.
-        src_buf = std::move(new_buf);
-      }
+      src_buf = std::move(*new_src_buf);
     } else {
       new_buf = src_buf->CloneReadOnly();
-    }
-    if (!new_buf.get()) {
-      return false;
+      if (!new_buf) {
+        return false;
+      }
     }
     clone_op->buffers[buf_idx] = std::move(new_buf);
     clone_op->buffer_cloned_timestamps[buf_idx] = now;

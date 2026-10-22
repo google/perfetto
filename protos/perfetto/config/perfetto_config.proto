@@ -5536,6 +5536,7 @@ message DataSourceConfig {
 //
 // Next id: 51.
 message TraceConfig {
+  // Next id: 10.
   message BufferConfig {
     optional uint32 size_kb = 1;
 
@@ -5583,9 +5584,10 @@ message TraceConfig {
     // configure which buffer a data source writes to.
     optional string name = 7;
 
-    // When true, uses the experimental TraceBufferV2 implementation for this
-    // buffer. This is for testing purposes only and may be removed in future
-    // versions.
+    // Legacy selector to be deprecated, but kept for backwards compatibility
+    // because older services do not understand |buffer_type|.
+    // Set it alongside |buffer_type| to select the buffer type on older
+    // services.
     enum ExperimentalMode {
       // Use the default V1 implementation.
       MODE_UNSPECIFIED = 0;
@@ -5598,6 +5600,22 @@ message TraceConfig {
       reserved 2;
     }
     optional ExperimentalMode experimental_mode = 8;
+
+    // Selects the trace buffer implementation, ignoring |experimental_mode|.
+    // The service picks the supported type with the highest field number, or V1
+    // if none is supported.
+    // If allocating the picked type fails, tracing fails without a fallback.
+    //
+    // Introduced in: perfetto v60.
+    // Supported on: Android 27Q1+.
+    message BufferTypeConfig {
+      message V1 {}
+      message V2 {}
+
+      optional V1 v1 = 1;
+      optional V2 v2 = 2;
+    }
+    optional BufferTypeConfig buffer_type = 9;
   }
   repeated BufferConfig buffers = 1;
 
