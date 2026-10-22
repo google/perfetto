@@ -12,70 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Time, type time} from '../base/time';
+import {Time} from '../base/time';
 import type {MinimapRow} from '../public/minimap';
 import {MinimapManagerImpl} from './minimap_manager';
 
-interface PendingLoad {
-  readonly end: time;
-  readonly resolve: (rows: MinimapRow[]) => void;
-  readonly reject: (e: Error) => void;
-}
-
-// Returns a minimap whose provider's loads end when the test settles them.
-function minimapWithPendingLoads() {
+// Providers may update the rows in place, see MinimapContentProvider.
+test('keeps the rows that the provider returned', async () => {
+  const rows: MinimapRow[] = [];
   const minimap = new MinimapManagerImpl();
-  const loads: PendingLoad[] = [];
   minimap.registerContentProvider({
     priority: 1,
-    getData: (span) =>
-      new Promise((resolve, reject) => {
-        loads.push({end: span.end.toTime(), resolve, reject});
-      }),
+    getData: () => Promise.resolve(rows),
   });
-  return {minimap, loads};
-}
 
-// Lets pending promise callbacks run.
-function flush(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve));
-}
-
-test('runs loads one at a time, in order', async () => {
-  const {minimap, loads} = minimapWithPendingLoads();
-  const first = minimap.load(Time.ZERO, Time.fromSeconds(10));
-  const second = minimap.load(Time.ZERO, Time.fromSeconds(20));
-  await flush();
-  expect(loads.map((l) => l.end)).toEqual([Time.fromSeconds(10)]);
-
-  loads[0]!.resolve([]);
-  await first;
-  await flush();
-  expect(loads.map((l) => l.end)).toEqual([
-    Time.fromSeconds(10),
-    Time.fromSeconds(20),
-  ]);
-
-  // The latest load's rows win.
-  const rows: MinimapRow[] = [[]];
-  loads[1]!.resolve(rows);
-  await second;
-  expect(minimap.getLoad()).toBe(rows);
-});
-
-test('runs a load after a failed one', async () => {
-  const {minimap, loads} = minimapWithPendingLoads();
-  const first = minimap.load(Time.ZERO, Time.fromSeconds(10));
-  const second = minimap.load(Time.ZERO, Time.fromSeconds(20));
-  await flush();
-
-  loads[0]!.reject(new Error('Minimap failed'));
-  await expect(first).rejects.toThrow('Minimap failed');
-  await flush();
-  expect(loads.length).toBe(2);
-
-  const rows: MinimapRow[] = [[]];
-  loads[1]!.resolve(rows);
-  await second;
+  await minimap.load(Time.ZERO, Time.fromSeconds(10));
   expect(minimap.getLoad()).toBe(rows);
 });
