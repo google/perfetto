@@ -234,6 +234,17 @@ export function renderLiveStreamHud(props: LiveHudProps): m.Children {
   return props.layout === 'panel' ? renderPanel(props) : renderRow(props);
 }
 
+/** What the panel shows while a trace that isn't live is open. */
+export function renderOtherTraceNote(): m.Children {
+  return m(
+    '.pf-live-stream-hud.pf-live-stream-hud--panel',
+    m(
+      '.pf-live-stream-hud__note',
+      'Live stream controls are off while another trace is open.',
+    ),
+  );
+}
+
 // Status and target on the left, actions on the right, the rest in ⋯.
 function renderRow(props: LiveHudProps): m.Children {
   const {badge, popout} = renderStatus(props);

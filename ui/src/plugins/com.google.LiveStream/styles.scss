@@ -671,6 +671,10 @@ $shadow: var(--pf-color-box-shadow);
   .pf-live-stream-hud__more-interval-row {
     padding: 0;
   }
+
+  .pf-live-stream-hud__note {
+    color: hud-color(text-muted);
+  }
 }
 
 // Narrow windows: two full-width rows, and a full-width target menu.

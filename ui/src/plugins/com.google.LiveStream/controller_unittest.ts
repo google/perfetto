@@ -15,7 +15,7 @@
 import m from 'mithril';
 import type {App} from '../../public/app';
 import type {Command} from '../../public/commands';
-import type {HeaderItem} from '../../public/header';
+import type {SidePanelTabDescriptor} from '../../public/side_panel';
 import {LiveController, type LiveSessionModel} from './controller';
 import {PLUGIN_ID} from './opener';
 import type {LiveStatus} from './status';
@@ -25,6 +25,7 @@ const WORKER = {id: 'job-1/worker', short_name: 'worker'};
 const EVAL = {id: 'job-1/eval', short_name: 'eval', task_count: 4};
 const TARGET_ARG = `${PLUGIN_ID}:target`;
 const FOLLOW_COMMAND = 'com.google.LiveStream#ToggleFollowLive';
+const HUD_TAB = 'com.google.LiveStream#hud';
 
 // Answers target requests with WORKER and EVAL, and seed requests with a
 // seed, 503 for `unavailable` targets, or 502 with the error of `failing`
@@ -91,7 +92,9 @@ function fakeModel(target: Target, status: LiveStatus = 'live') {
 // An app with what LiveController uses. Like AppImpl, opening a trace closes
 // the current one, then may fail.
 function fakeApp() {
-  const headerItems: HeaderItem[] = [];
+  // The registered side panel tabs, and the uris of showTab() calls.
+  const tabs: SidePanelTabDescriptor[] = [];
+  const shownTabs: string[] = [];
   const commands = new Map<string, Command>();
   // The page URL when each trace was opened.
   const openedUrls: string[] = [];
@@ -99,7 +102,6 @@ function fakeApp() {
     closeTrace: () => {},
     openError: undefined as Error | undefined,
   };
-  const disposable = {[Symbol.dispose]: () => {}};
   const scheduleFullRedraw = vi.fn();
   const openTraceFromBuffer = vi.fn(
     async (_args: {
@@ -118,11 +120,12 @@ function fakeApp() {
         set: () => {},
       }),
     },
-    header: {
-      registerItem: (item: HeaderItem) => {
-        headerItems.push(item);
-        return disposable;
+    sidePanel: {
+      registerTab: (tab: SidePanelTabDescriptor) => {
+        tabs.push(tab);
+        return {[Symbol.dispose]: () => tabs.splice(tabs.indexOf(tab), 1)};
       },
+      showTab: (uri: string) => shownTabs.push(uri),
     },
     commands: {
       // Like the core's registry, ids are unique.
@@ -138,7 +141,8 @@ function fakeApp() {
   return {
     app,
     state,
-    headerItems,
+    tabs,
+    shownTabs,
     commands,
     openedUrls,
     openTraceFromBuffer,
@@ -183,15 +187,16 @@ function setup() {
   const fake = fakeApp();
   const controller = new LiveController(fake.app);
 
-  // Renders the HUD and returns what it shows.
+  // Renders the HUD tab and returns what it shows.
   const hud = () => {
-    m.render(root, fake.headerItems[0].render());
+    m.render(root, fake.tabs[0].render());
     const text = (selector: string) =>
       root.querySelector(selector)?.textContent ?? undefined;
     return {
       badge: text('.pf-live-stream-hud__badge'),
       popout: text('.pf-live-stream-hud__popout-msg'),
       target: text('.pf-live-stream-hud__target-trigger-label'),
+      note: text('.pf-live-stream-hud__note'),
     };
   };
 
@@ -203,10 +208,21 @@ function setup() {
     element.click();
   };
 
+  // Clicks the HUD's button that reads `label`, e.g. "Reconnect".
+  const press = (label: string) => {
+    hud();
+    const button = Array.from(root.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes(label),
+    );
+    if (button === undefined) throw new Error(`No ${label} button`);
+    button.click();
+  };
+
   return {
     controller,
     hud,
     click,
+    press,
     runCommand: (id: string) => fake.commands.get(id)?.callback(),
     // The plugin args of the latest trace.
     openedArgs: () =>
@@ -248,7 +264,32 @@ test('shows buffering while the first trace opens, then its session', async () =
     badge: 'LIVE STREAM',
     popout: undefined,
     target: 'worker',
+    note: undefined,
   });
+});
+
+test('shows the HUD in a side panel tab from page open', () => {
+  const {tabs, shownTabs, hud} = setup();
+
+  expect(tabs).toMatchObject([
+    {uri: HUD_TAB, title: 'Live Stream', icon: 'sensors'},
+  ]);
+  expect(shownTabs).toEqual([HUD_TAB]);
+  expect(hud().badge).toBe('BUFFERING');
+  expect(root.querySelector('.pf-live-stream-hud--panel')).not.toBeNull();
+});
+
+test('keeps the tab while a target switch replaces the trace', async () => {
+  const {controller, tabs, shownTabs, hud} = await openWorker();
+
+  controller.open('job-1/eval/2');
+  await vi.advanceTimersByTimeAsync(0);
+  controller.attach(fakeModel(TARGET.parse(findTarget('job-1/eval/2'))));
+
+  expect(tabs).toHaveLength(1);
+  // Shown at page open only: a panel that the user closed stays closed.
+  expect(shownTabs).toEqual([HUD_TAB]);
+  expect(hud()).toMatchObject({badge: 'LIVE STREAM', target: 'eval/2'});
 });
 
 test('shows an error while the server is unreachable', async () => {
@@ -318,7 +359,7 @@ test('redraws when only the error changes, e.g. the reason to fail', () => {
 });
 
 test('shows a failed first open until the next open', async () => {
-  const {controller, hud, click} = setup();
+  const {controller, hud, click, press} = setup();
 
   controller.open('job-2/unknown');
   await vi.advanceTimersByTimeAsync(1_000);
@@ -332,8 +373,7 @@ test('shows a failed first open until the next open', async () => {
   click('.pf-live-stream-hud__popout-close');
   expect(hud()).toMatchObject({badge: 'STREAM ERROR', popout: undefined});
 
-  click('.pf-live-stream-hud__more-trigger');
-  click('.pf-live-stream-hud__more-item');
+  press('Reconnect');
   expect(server.targetRequests).toEqual(['job-2/unknown', 'job-2/unknown']);
 });
 
@@ -402,12 +442,9 @@ test('a new open replaces a pending one', async () => {
 
 test('reconnects to the pending target, else the open one', async () => {
   server.unavailable.add('job-1/eval/2');
-  const {controller, click, openTraceFromBuffer, openedArgs} =
+  const {controller, click, press, openTraceFromBuffer, openedArgs} =
     await openWorker();
-  const reconnect = () => {
-    click('.pf-live-stream-hud__more-trigger');
-    click('.pf-live-stream-hud__more-item');
-  };
+  const reconnect = () => press('Reconnect');
 
   controller.open('job-1/eval/2');
   await vi.advanceTimersByTimeAsync(5_000);
@@ -477,10 +514,13 @@ test('toggles following with Space, also between sessions', () => {
 test('hides the HUD and frees Space while another trace is open', async () => {
   const {controller, hud, commands, state} = await openWorker();
 
-  // E.g. a trace opened from a file.
+  // E.g. a trace opened from a file. The tab stays, and says why.
   state.closeTrace();
   controller.showOtherTrace();
-  expect(hud().badge).toBeUndefined();
+  expect(hud()).toMatchObject({
+    badge: undefined,
+    note: 'Live stream controls are off while another trace is open.',
+  });
   expect(commands.has(FOLLOW_COMMAND)).toBe(false);
 
   // Until a live trace opens.
@@ -488,6 +528,6 @@ test('hides the HUD and frees Space while another trace is open', async () => {
   await vi.advanceTimersByTimeAsync(1_000);
   expect(hud().badge).toBe('BUFFERING');
   controller.attach(fakeModel(TARGET.parse(WORKER)));
-  expect(hud().badge).toBe('LIVE STREAM');
+  expect(hud()).toMatchObject({badge: 'LIVE STREAM', note: undefined});
   expect(commands.has(FOLLOW_COMMAND)).toBe(true);
 });
