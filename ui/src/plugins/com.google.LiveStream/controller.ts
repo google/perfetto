@@ -13,15 +13,16 @@
 // limitations under the License.
 
 // The app-level side of the plugin: the HUD, the settings, and opening live
-// traces. The HUD is a side panel tab that lives as long as the page, so it
-// shows from page open and stays while a target switch replaces the trace:
+// traces. The HUD, a side panel tab or a row above the app, lives as long as
+// the page, so it shows from page open and stays while a target switch
+// replaces the trace:
 //
 //   page open ──► LiveController ──openLiveTrace──► trace ──► LiveSession
-//                   │  HUD tab in the side panel ◄──attach(model)─┘
+//                   │  HUD in the panel or top row ◄──attach(model)─┘
 //                   └─ opens the first trace, switches and reconnects, and
 //                      shows their state until the new session attaches
 
-import type m from 'mithril';
+import m from 'mithril';
 import {getErrorMessage} from '../../base/errors';
 import type {App} from '../../public/app';
 import {
@@ -71,6 +72,14 @@ export interface LiveHost {
   reopen(target: string, epochRetry: boolean): void;
 }
 
+/** Where the HUD shows: a side panel tab, or a row above the app. */
+export type LiveHudPlacement = 'panel' | 'top';
+
+/** The placement of route argument `hud`: "top", else the panel. */
+export function hudPlacement(arg: unknown): LiveHudPlacement {
+  return arg === 'top' ? 'top' : 'panel';
+}
+
 const FOLLOW_COMMAND = 'com.google.LiveStream#ToggleFollowLive';
 const HUD_TAB = `${PLUGIN_ID}#hud`;
 
@@ -91,11 +100,12 @@ interface Opening {
 type ShownState = Omit<LiveSessionState, 'target'> & {readonly target?: Target};
 
 /**
- * Shows the HUD in a side panel tab for the page's lifetime, and opens live
+ * Shows the HUD at `placement` for the page's lifetime, and opens live
  * traces. Sessions attach to it. While an open is pending or failed, the HUD
  * shows its state: buffering, or an error while the server or its target
  * fails, or once the open failed. The error of a failed switch shows until
- * dismissed or the next open. While another trace is open, the tab says so.
+ * dismissed or the next open. While another trace is open, the tab says so
+ * and the top row hides.
  */
 export class LiveController implements LiveHost {
   readonly settings: LiveSettings;
@@ -115,19 +125,26 @@ export class LiveController implements LiveHost {
   private otherTrace = false;
   private followCommand?: Disposable;
 
-  constructor(private readonly app: App) {
+  constructor(
+    private readonly app: App,
+    placement: LiveHudPlacement = 'panel',
+  ) {
     this.settings = registerLiveSettings(app.settings);
     this.hudState = new LiveHudState(() => this.redraw());
     this.hudState.listen();
-    // App-level, so that trace switches keep the tab. Never disposed: it
+    // App-level, so that trace switches keep the HUD. Never disposed: it
     // lives as long as the page.
-    app.sidePanel.registerTab({
-      uri: HUD_TAB,
-      title: 'Live Stream',
-      icon: 'sensors',
-      render: () => this.render('panel'),
-    });
-    app.sidePanel.showTab(HUD_TAB);
+    if (placement === 'top') {
+      mountTopRow(app, () => this.render('row'));
+    } else {
+      app.sidePanel.registerTab({
+        uri: HUD_TAB,
+        title: 'Live Stream',
+        icon: 'sensors',
+        render: () => this.render('panel'),
+      });
+      app.sidePanel.showTab(HUD_TAB);
+    }
     this.registerFollowCommand();
     this.redraw();
   }
@@ -345,6 +362,37 @@ export class LiveController implements LiveHost {
   private redraw() {
     this.app.raf.scheduleFullRedraw();
   }
+}
+
+// Shows the HUD row of `render` above the app. The row has a root of its
+// own, first in <body>, which the app's root (<body> itself) leaves in place.
+// The body's top padding, kept at the row's height, moves the app below it.
+function mountTopRow(app: App, render: () => m.Children) {
+  const root = document.createElement('div');
+  root.className = 'pf-live-stream-hud-root';
+  document.body.prepend(root);
+  new ResizeObserver(() => {
+    const height = root.getBoundingClientRect().height;
+    document.body.style.paddingTop = `${height}px`;
+  }).observe(root);
+
+  // The app's m.mount, so the row redraws with the app.
+  m.mount(root, {
+    view: () => {
+      // E.g. once something replaced the body's children.
+      if (!root.isConnected) document.body.prepend(root);
+      // The app's theme provider wraps only the app.
+      return m(
+        '.pf-theme-provider',
+        {className: `pf-theme-provider--${appTheme(app)}`},
+        render(),
+      );
+    },
+  });
+}
+
+function appTheme(app: App): 'dark' | 'light' {
+  return app.settings.get('theme')?.get() === 'dark' ? 'dark' : 'light';
 }
 
 // Points the page's URL at `target`, so that reloading opens it.

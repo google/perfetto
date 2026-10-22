@@ -17,7 +17,7 @@ import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {RouteArgs} from '../../public/route_schema';
 import type {Trace} from '../../public/trace';
-import {LiveController} from './controller';
+import {hudPlacement, LiveController} from './controller';
 import {LIVE_TRACE_ARGS, PLUGIN_ID} from './opener';
 import {LiveSession} from './session';
 
@@ -37,8 +37,9 @@ export default class LiveStreamPlugin implements PerfettoPlugin {
   static onActivate(app: App, args: RouteArgs): void {
     const target = args.target;
     if (typeof target !== 'string') return;
-    LiveStreamPlugin.controller = new LiveController(app);
-    LiveStreamPlugin.controller.open(target);
+    const controller = new LiveController(app, hudPlacement(args.hud));
+    LiveStreamPlugin.controller = controller;
+    controller.open(target);
   }
 
   async onTraceLoad(
