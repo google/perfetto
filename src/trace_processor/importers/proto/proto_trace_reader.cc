@@ -1166,6 +1166,70 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_oversized_packets_dropped, buf_num,
         static_cast<int64_t>(buf.oversized_packets_dropped()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundles_written, buf_num,
+        static_cast<int64_t>(buf.bundles_written()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundle_bytes_uncompressed, buf_num,
+        static_cast<int64_t>(buf.bundle_bytes_uncompressed()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundle_bytes_stored, buf_num,
+        static_cast<int64_t>(buf.bundle_bytes_stored()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundles_overwritten, buf_num,
+        static_cast<int64_t>(buf.bundles_overwritten()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundles_too_large, buf_num,
+        static_cast<int64_t>(buf.bundles_too_large()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundles_corrupted, buf_num,
+        static_cast<int64_t>(buf.bundles_corrupted()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundling_max_us, buf_num,
+        static_cast<int64_t>(buf.bundling_max_us()));
+    // The stats table holds one value per buffer index, so import the total
+    // count and time of the bundling passes instead of each bucket.
+    // The full distribution stays in the TraceStats packet.
+    bool histogram_error = false;
+    uint64_t bundling_passes = 0;
+    uint64_t bundling_time_us = 0;
+    for (auto count = buf.bundling_time_us_histogram_counts(&histogram_error);
+         count; ++count) {
+      bundling_passes += *count;
+    }
+    for (auto sum = buf.bundling_time_us_histogram_sum(&histogram_error); sum;
+         ++sum) {
+      bundling_time_us += static_cast<uint64_t>(*sum);
+    }
+    if (!histogram_error) {
+      context_->stats_tracker->SetIndexedStats(
+          stats::traced_buf_bundling_passes, buf_num,
+          static_cast<int64_t>(bundling_passes));
+      context_->stats_tracker->SetIndexedStats(
+          stats::traced_buf_bundling_time_us, buf_num,
+          static_cast<int64_t>(bundling_time_us));
+    }
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_staging_bytes_read, buf_num,
+        static_cast<int64_t>(buf.staging_bytes_read()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_staging_chunks_read, buf_num,
+        static_cast<int64_t>(buf.staging_chunks_read()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_staging_pressure_passes, buf_num,
+        static_cast<int64_t>(buf.staging_pressure_passes()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_staging_pressure_time_us, buf_num,
+        static_cast<int64_t>(buf.staging_pressure_time_us()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_staging_pressure_compactions_skipped, buf_num,
+        static_cast<int64_t>(buf.staging_pressure_compactions_skipped()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_staging_readaheads_succeeded, buf_num,
+        static_cast<int64_t>(buf.staging_readaheads_succeeded()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_staging_readaheads_failed, buf_num,
+        static_cast<int64_t>(buf.staging_readaheads_failed()));
   }
 
   struct BufStats {

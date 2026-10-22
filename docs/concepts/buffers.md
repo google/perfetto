@@ -353,6 +353,35 @@ traced_buf_chunks_di                    0 info                 trace       0
 traced_buf_chunks_ov                    0 info                 trace       0
 ```
 
+A [compressed buffer](#compressed-central-buffers-experimental) can also lose
+data after compression. Its stats are experimental like the mode itself, and
+can change with it. For such a buffer:
+
+* `chunks_overwritten` and `chunks_discarded` count only the chunks lost in
+  its staging buffer, before their packets were compressed.
+  `chunks_discarded` can also count late commits of chunks that the service
+  already scraped and compressed after a flush. Those packets are not lost.
+* `bundles_overwritten` (`traced_buf_bundles_overwritten`) counts bundles that
+  a `RING_BUFFER` overwrote before they were read. This is how a compressed
+  ring buffer normally drops old data.
+* `bundles_too_large` (`traced_buf_bundles_too_large`) counts bundles dropped
+  because they were larger than `size_kb` after compression, with either fill
+  policy. This happens when a large packet doesn't compress well. Use a larger
+  buffer.
+* `bundles_corrupted` (`traced_buf_bundles_corrupted`) counts bundles that the
+  service could not decode. This is a bug in the tracing service.
+
+`traced_buf_bundle_bytes_uncompressed` divided by
+`traced_buf_bundle_bytes_stored` is the compression ratio including bundle
+overhead. This helps to size `size_kb`.
+
+The service compresses on its main thread. While a pass runs, it doesn't copy
+chunks out of the producers' shared memory buffers, so long passes can add to
+[shared memory losses](#shared-memory-losses).
+`traced_buf_bundling_max_us` is the longest pass, and
+`traced_buf_bundling_passes` and `traced_buf_bundling_time_us` count all
+passes and their total time. `TraceStats` also has the full histogram.
+
 When using [streaming mode] an overwrite is also a data loss: the overwritten
 data is never written into the file, so the trace has a gap. This data is
 available in the `stats` table, one entry per affected central buffer, where
@@ -368,6 +397,13 @@ long_trace_mode_byte                    0 data_loss            trace    2048
 Traces with a `file_write_period_ms` of a day or more do not get this stat: a
 write that far out never really happens, so the buffer is a plain ring buffer
 again. Traceur does this because detached mode forces `write_into_file` on it.
+
+For a compressed buffer, this stat only covers bytes overwritten in staging.
+Check `traced_buf_bundles_overwritten` for the bundles that were overwritten
+before they reached the file. A sequence that lost packets in those bundles
+still shows up in `traced_buf_data_loss_overwrite` and
+`traced_buf_sequence_packet_loss` once a later packet of it reaches the
+trace, so the query below finds it.
 
 Summary: the best way to detect and debug data losses is to use Trace Processor
 and issue the query:
