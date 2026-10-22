@@ -112,6 +112,9 @@ Unreleased:
    * traceconv now fails instead of writing an empty profile when profile
      conversion fails.
   UI:
+    * Extended the `org.chromium.LoadLine2` plugin with renderer subsystem and
+      presentation sub-stage breakdowns, interactive details panels, and a JS
+      script lifecycle track.
     * Double-clicking a timeline slice now selects and zooms into it.
     * ART heap dumps can now be exported as pprof from the flamegraph.
     * Added a setting to default to the flamegraph tab in the Heap Dump
