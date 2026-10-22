@@ -42,7 +42,7 @@ class OperationRegistration {
     constexpr Encoding(uint8_t tag, MakeFn make) : tag_(tag), make_(make) {}
 
     // An empty operation of this kind, for a reader to fill in.
-    std::unique_ptr<PlanOperation> Make() const { return make_(); }
+    std::unique_ptr<PlanOperation> Make() const;
 
     uint8_t tag() const { return tag_; }
 
