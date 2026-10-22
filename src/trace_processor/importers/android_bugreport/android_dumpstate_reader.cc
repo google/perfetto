@@ -251,14 +251,14 @@ class AndroidDumpstateImporter
   AndroidDumpstateImporter() : TraceImporter(MakeDescriptor()) {}
   ~AndroidDumpstateImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     std::string start(reinterpret_cast<const char*>(data),
                       std::min<size_t>(size, kGuessTraceMaxLookahead));
-    return base::StartsWith(start, "9,0,i,vers,") ||
-           base::StartsWith(
-               start,
-               "======================================================="
-               "=\n== dumpstate: ");
+    return {base::StartsWith(start, "9,0,i,vers,") ||
+            base::StartsWith(
+                start,
+                "======================================================="
+                "=\n== dumpstate: ")};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

@@ -497,14 +497,14 @@ class ArtMethodV2Importer : public TraceImporter<ArtMethodV2Importer> {
   ArtMethodV2Importer() : TraceImporter(MakeDescriptor()) {}
   ~ArtMethodV2Importer() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     static constexpr char kMagic[] = {'S', 'L', 'O', 'W'};
     if (size < 6 || memcmp(data, kMagic, sizeof(kMagic)) != 0) {
-      return false;
+      return {false};
     }
     uint16_t version = data[4] | static_cast<uint16_t>(data[5] << 8);
-    return version == 0x0004 || version == 0x0005 || version == 0x00f4 ||
-           version == 0x00f5;
+    return {version == 0x0004 || version == 0x0005 || version == 0x00f4 ||
+            version == 0x00f5};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

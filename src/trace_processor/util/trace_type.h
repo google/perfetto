@@ -30,7 +30,6 @@
 namespace perfetto::trace_processor {
 
 class ChunkedTraceReader;
-class TraceBlobView;
 class TraceProcessorContext;
 
 // The minimum sort ordering a trace type requires from the TraceSorter.
@@ -114,10 +113,21 @@ class TraceImporterId {
   const void* tag_ = nullptr;
 };
 
+// What TraceImporterBase::Sniff() found in the first bytes of a file.
+struct SniffResult {
+  // Whether the file is in this importer's format.
+  bool matches = false;
+  // Orders archive members of the same TraceTypeDescriptor::archive_priority,
+  // lower first, so that an importer can read some of its files before others
+  // based on their content. Only meaningful if `matches`.
+  int archive_subpriority = 0;
+};
+
 // Pure-virtual interface for trace importers (mirrors PluginBase). Concrete
 // importers derive from TraceImporter<Self> below, which supplies identity and
 // descriptor storage; a metadata-only type (one detected structurally
-// elsewhere) implements Sniff() as false and CreateReader() as an error.
+// elsewhere) never matches in Sniff() and implements CreateReader() as an
+// error.
 //
 // Detection and reader creation are deliberately separate calls: archives sniff
 // every member up front to order them, then create readers later in that order,
@@ -132,21 +142,15 @@ class TraceImporterBase {
   // The static metadata for this trace type.
   virtual const TraceTypeDescriptor& descriptor() const = 0;
 
-  // Returns true if `data` (the first bytes of a file) is this format.
-  virtual bool Sniff(const uint8_t* data, size_t size) const = 0;
+  // Returns whether `data` (the first bytes of a file) is this format and, if
+  // so, the file's archive_subpriority.
+  virtual SniffResult Sniff(const uint8_t* data, size_t size) const = 0;
 
   // Creates the reader for this format. `file_id` is the trace_file_table id of
   // the file being read.
   virtual base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
       TraceProcessorContext* context,
       uint32_t file_id) const = 0;
-
-  // Returns whether the file made of the chunks [begin, end), consecutive
-  // pieces of one file of this format, may carry clock synchronization data
-  // (a ClockSnapshot). Archives read members which may before those which do
-  // not (see ArchiveEntry::lacks_clock_snapshot).
-  virtual bool MayHaveClockSnapshot(const TraceBlobView* begin,
-                                    const TraceBlobView* end) const = 0;
 };
 
 // CRTP subclass supplying compile-time identity and descriptor storage (mirrors
@@ -159,12 +163,6 @@ class TraceImporter : public TraceImporterBase {
       TraceImporterId(TraceImporterTag<Self>::Id());
   TraceImporterId id() const final { return kId; }
   const TraceTypeDescriptor& descriptor() const final { return descriptor_; }
-  // By default a file counts as carrying clock synchronization data, so that
-  // archives never read it later than they would otherwise.
-  bool MayHaveClockSnapshot(const TraceBlobView*,
-                            const TraceBlobView*) const override {
-    return true;
-  }
 
  protected:
   explicit TraceImporter(TraceTypeDescriptor descriptor)
@@ -189,20 +187,22 @@ class TraceImporterRegistry {
   // Returns the importer for `id`, or nullptr if none is registered.
   const TraceImporterBase* FindImporter(TraceImporterId id) const;
 
+  // What Guess() found: the first importer whose Sniff() matched.
+  struct GuessResult {
+    // Invalid if no importer matched.
+    TraceImporterId id;
+    // The matching importer's SniffResult::archive_subpriority.
+    int archive_subpriority = 0;
+  };
+
   // Runs every importer's Sniff() in detection_priority order (lowest first,
-  // and priorities are globally unique) and returns the matching id, or an
+  // and priorities are globally unique) and returns the first match, or an
   // invalid id if none match.
-  TraceImporterId Guess(const uint8_t* data, size_t size) const;
+  GuessResult Guess(const uint8_t* data, size_t size) const;
 
   // Per-type metadata helpers.
   const char* ToString(TraceImporterId id) const;
   bool IsContainer(TraceImporterId id) const;
-
-  // TraceImporterBase::MayHaveClockSnapshot() of the importer for `id`; true if
-  // none is registered.
-  bool MayHaveClockSnapshot(TraceImporterId id,
-                            const TraceBlobView* begin,
-                            const TraceBlobView* end) const;
 
  private:
   base::FlatHashMap<TraceImporterId,
@@ -211,9 +211,13 @@ class TraceImporterRegistry {
       importers_;
 };
 
-// The number of leading bytes an importer's Sniff() may inspect. Detection
-// must decide from at most this prefix.
+// The number of leading bytes an importer's Sniff() may inspect to detect its
+// format. Detection must decide from at most this prefix.
 constexpr size_t kGuessTraceMaxLookahead = 128;
+// The number of leading bytes an importer's Sniff() may inspect to choose
+// SniffResult::archive_subpriority. Archives pass at least this much of each
+// member to TraceImporterRegistry::Guess(), or the whole member if smaller.
+constexpr size_t kArchiveSubpriorityLookahead = 64 * 1024;
 // The formats read_trace distinguishes, detected from magic bytes only, so
 // tools that merely decompress or pass through a trace need not build the
 // importer registry or link any tokenizer. kGzip/kZstd map to the matching

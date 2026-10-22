@@ -49,20 +49,11 @@ int ArchiveEntry::ComputePriority(TraceImporterId type,
   return registry.Find(type)->archive_priority;
 }
 
-bool ArchiveEntry::ComputeLacksClockSnapshot(
-    TraceImporterId type,
-    const TraceImporterRegistry& registry,
-    const TraceBlobView* begin,
-    const TraceBlobView* end) {
-  return !registry.MayHaveClockSnapshot(type, begin, end);
-}
-
 bool ArchiveEntry::operator<(const ArchiveEntry& rhs) const {
-  // Compare first by archive priority, then members with a ClockSnapshot
-  // before those without, then by name, and finally by index to ensure strict
-  // ordering.
-  return std::tie(priority, lacks_clock_snapshot, name, index) <
-         std::tie(rhs.priority, rhs.lacks_clock_snapshot, rhs.name, rhs.index);
+  // Compare first by archive priority, then by subpriority, then by name, and
+  // finally by index to ensure strict ordering.
+  return std::tie(priority, subpriority, name, index) <
+         std::tie(rhs.priority, rhs.subpriority, rhs.name, rhs.index);
 }
 
 }  // namespace perfetto::trace_processor
