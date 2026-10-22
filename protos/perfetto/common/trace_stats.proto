@@ -24,7 +24,7 @@ package perfetto.protos;
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 26.
+  // Next id: 27.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -35,6 +35,7 @@ message TraceStats {
       BUFFER_TYPE_UNSPECIFIED = 0;
       BUFFER_TYPE_V1 = 1;
       BUFFER_TYPE_V2 = 2;
+      BUFFER_TYPE_V3 = 3;
     }
     // Reports the implementation actually used, which can differ from the
     // requested type because the service skips unsupported implementations.
@@ -112,8 +113,12 @@ message TraceStats {
     optional uint64 write_wrap_count = 4;
 
     // Number of completed TraceBufferV2 compactions.
-    // Includes compactions that move no chunks and excludes calls that skip
-    // compaction, such as calls on DISCARD or read-only buffers.
+    // Includes compactions that move no chunks.
+    // Excludes skipped compactions, including read-only and standalone DISCARD
+    // TraceBufferV2 buffers.
+    // For TraceBufferV3, counts staging compactions under either fill policy.
+    // Staging can compact during reads and after intake stops, but compaction
+    // never reopens DISCARD intake.
     //
     // Compaction moves remaining chunks to the front and clears the unused
     // tail.
@@ -176,6 +181,54 @@ message TraceStats {
     // four-byte length field. The packet can be valid. Loss is reported on the
     // next packet of the same sequence.
     optional uint64 oversized_packets_dropped = 22;
+
+    // Experimental statistics for TraceBufferV3, subject to change.
+    // BufferStats write and overwrite counters describe staging chunks.
+    // |BufferStats.buffer_size| is the bundle buffer's capacity, and
+    // |BufferStats.bytes_read| counts decoded record bytes read by consumers.
+    // |BufferStats.chunks_read| and |BufferStats.readaheads_*| remain 0.
+    //
+    // Introduced in: perfetto v60.
+    // Supported on: Android 27Q1+.
+    //
+    // Next id: 11.
+    message ExperimentalV3Stats {
+      // Total bundles stored, including DISCARD overflow.
+      // Reads and overwrites do not reduce this count or the two byte totals.
+      optional uint64 bundles_written = 1;
+
+      // Uncompressed bytes in |bundles_written|, including record headers.
+      optional uint64 bundle_bytes_uncompressed = 2;
+
+      // Total stored bytes in |bundles_written|, including bundle metadata.
+      optional uint64 bundle_bytes_stored = 3;
+
+      // Number of bundles overwritten with unread packets in RING_BUFFER mode.
+      optional uint64 bundles_overwritten = 4;
+
+      // Bundles dropped because they exceed |BufferStats.buffer_size| when
+      // stored or the 32 bit limit on uncompressed size.
+      optional uint64 bundles_too_large = 5;
+
+      // Longest bundling pass in microseconds, including compaction.
+      // Includes passes triggered by checkpoints, reads and
+      // |staging_space_passes|.
+      // Passes with no readable packets are included.
+      optional uint64 bundling_max_us = 6;
+
+      // Distribution of bundling pass durations in microseconds.
+      // Definitions are inclusive upper bounds, and sums are in microseconds.
+      // Counts and sums include an extra bucket above the last bound.
+      repeated int64 bundling_time_us_histogram_def = 7 [packed = true];
+      repeated uint64 bundling_time_us_histogram_counts = 8 [packed = true];
+      repeated int64 bundling_time_us_histogram_sum = 9 [packed = true];
+
+      // Bundling passes run when a chunk does not fit in staging.
+      optional uint64 staging_space_passes = 10;
+    }
+
+    // Experimental counters for TBv3.
+    optional ExperimentalV3Stats experimental_v3_stats = 26;
   }
 
   // Stats for the TraceBuffer(s) of the current trace session.

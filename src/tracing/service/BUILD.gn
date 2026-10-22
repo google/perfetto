@@ -93,7 +93,11 @@ source_set("service") {
       ":zstd_compressor",
       "../../../gn:zstd",
     ]
+
+    # TraceBufferV3 needs zstd to store packets, so include it only with zstd.
     sources += [
+      "trace_buffer_v3.cc",
+      "trace_buffer_v3.h",
       "zstd_frame_codec.cc",
       "zstd_frame_codec.h",
     ]
@@ -211,6 +215,7 @@ perfetto_unittest_source_set("unittests") {
     deps += [
       ":zstd_compressor",
       "../../../gn:zstd",
+      "../../protovm",
     ]
   }
 
@@ -231,7 +236,10 @@ perfetto_unittest_source_set("unittests") {
   }
 
   if (enable_perfetto_zstd) {
-    sources += [ "zstd_frame_codec_unittest.cc" ]
+    sources += [
+      "trace_buffer_v3_unittest.cc",
+      "zstd_frame_codec_unittest.cc",
+    ]
   }
 
   # These tests rely on test_task_runner.h which
