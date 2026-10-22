@@ -61,75 +61,16 @@ class Selection {
   }
 
   // Keeps the rows kept at `positions`, which are increasing.
-  void Keep(Span<const uint32_t> positions) {
-    auto count = static_cast<uint32_t>(positions.size());
-    PERFETTO_DCHECK(count <= size_);
-    if (count == size_) {
-      // Increasing, they can only be every position.
-      return;
-    }
-    if (count == 0 || positions.b[count - 1] == count - 1) {
-      // Increasing and ending at count - 1, they are the first `count`: the
-      // rows kept stay as they are, a prefix if they were one, so readers
-      // keep their contiguous paths.
-      size_ = count;
-      return;
-    }
-    // Each index is written at or before where it is read from.
-    for (uint32_t i = 0; i < count; ++i) {
-      PERFETTO_DCHECK(positions.b[i] < size_ &&
-                      (i == 0 || positions.b[i - 1] < positions.b[i]));
-      indices_[i] = static_cast<uint16_t>((*this)[positions.b[i]]);
-    }
-    size_ = count;
-    prefix_ = false;
-  }
+  void Keep(Span<const uint32_t> positions);
 
   // Keeps the batch rows `rows`, which are increasing and all kept already.
-  void KeepRows(Span<const uint32_t> rows) {
-    auto count = static_cast<uint32_t>(rows.size());
-    PERFETTO_DCHECK(count <= size_);
-    if (count == size_) {
-      // Kept already, they can only be every row kept.
-      return;
-    }
-    size_ = count;
-    if (count == 0 || rows.b[count - 1] == count - 1) {
-      // Increasing and ending at count - 1, they are the first `count`.
-      prefix_ = true;
-      return;
-    }
-    for (uint32_t i = 0; i < count; ++i) {
-      PERFETTO_DCHECK(rows.b[i] < rows_ &&
-                      (i == 0 || rows.b[i - 1] < rows.b[i]));
-      indices_[i] = static_cast<uint16_t>(rows.b[i]);
-    }
-    prefix_ = false;
-  }
+  void KeepRows(Span<const uint32_t> rows);
 
   // Keeps `count` of the rows kept, from the `first`.
-  void KeepRange(uint32_t first, uint32_t count) {
-    PERFETTO_DCHECK(first + count <= size_);
-    if (first != 0) {
-      for (uint32_t i = 0; i < count; ++i) {
-        indices_[i] = static_cast<uint16_t>((*this)[first + i]);
-      }
-      prefix_ = false;
-    }
-    size_ = count;
-  }
+  void KeepRange(uint32_t first, uint32_t count);
 
   // Keeps the rows `other` does, copying only the indices in use.
-  void CopyFrom(const Selection& other) {
-    rows_ = other.rows_;
-    size_ = other.size_;
-    prefix_ = other.prefix_;
-    if (!prefix_) {
-      for (uint32_t i = 0; i < size_; ++i) {
-        indices_[i] = other.indices_[i];
-      }
-    }
-  }
+  void CopyFrom(const Selection& other);
 
  private:
   uint32_t rows_ = 0;

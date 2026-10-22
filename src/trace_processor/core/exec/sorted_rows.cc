@@ -66,13 +66,10 @@ base::Status SortedRows::Append(const RowBatch& in,
   if (count == 0) {
     return base::OkStatus();
   }
-  if (types_.empty()) {
-    types_.resize(keys.size());
-  }
-  bool first = !types_.empty() && !types_[0];
+  bool first = types_.empty() && !keys.empty();
   for (uint32_t k = 0; k < keys.size(); ++k) {
     std::optional<RowLayout::Type> type = LayoutType(in.column(keys[k].column));
-    if (!type || (types_[k] && *types_[k] != *type)) {
+    if (!type || (!first && types_[k] != *type)) {
       return base::ErrStatus("key %u must be a column of numbers of one type",
                              k + 1);
     }
@@ -83,8 +80,8 @@ base::Status SortedRows::Append(const RowBatch& in,
     // out as nullable, because nullability can change from batch to batch.
     std::vector<RowLayout::Column> columns;
     for (uint32_t k = 0; k < keys.size(); ++k) {
-      types_[k] = LayoutType(in.column(keys[k].column));
-      columns.push_back({*types_[k], true, keys[k].descending});
+      types_.push_back(*LayoutType(in.column(keys[k].column)));
+      columns.push_back({types_[k], true, keys[k].descending});
     }
     layout_ = RowLayout(columns);
   }
@@ -101,7 +98,7 @@ base::Status SortedRows::Append(const RowBatch& in,
       continue;
     }
     const void* data = column.data();
-    switch (*types_[k]) {
+    switch (types_[k]) {
       case RowLayout::Type::kUint32:
         WriteLayoutColumn<uint32_t>(
             column, in.selection(), slot, rows, [data](uint32_t index) {
@@ -150,7 +147,7 @@ uint32_t SortedRows::Gather(RowBatch* out, uint32_t at, Context& context) {
 }
 
 void SortedRows::Clear() {
-  std::fill(types_.begin(), types_.end(), std::nullopt);
+  types_.clear();
   keys_.clear();
   rows_.Clear();
   order_.clear();
