@@ -580,16 +580,17 @@ $shadow: var(--pf-color-box-shadow);
   z-index: 1;
 }
 
-// The side panel: sections in a column, as wide as the panel. Viewport media
-// queries don't apply: the panel's width is the user's.
+// The side panel: sections in a column, as wide as the panel and at least as
+// tall, so that the HUD's background fills it. Viewport media queries don't
+// apply: the panel's width is the user's.
 .pf-live-stream-hud--panel {
   flex-flow: column nowrap;
   align-items: stretch;
   justify-content: flex-start;
   gap: 0;
-  min-height: 0;
+  min-height: 100%;
   padding: 12px;
-  background: none;
+  background: hud-color(background);
   border-bottom: none;
   box-shadow: none;
   white-space: normal;
