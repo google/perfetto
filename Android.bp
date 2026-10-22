@@ -667,6 +667,8 @@ cc_library_shared {
         ":perfetto_src_kallsyms_kallsyms",
         ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
+        ":perfetto_src_profiling_common_proc_cmdline",
+        ":perfetto_src_profiling_common_proc_utils",
         ":perfetto_src_protovm_protovm",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
@@ -681,6 +683,10 @@ cc_library_shared {
         ":perfetto_src_traced_probes_android_kernel_wakelocks_android_kernel_wakelocks",
         ":perfetto_src_traced_probes_android_log_android_log",
         ":perfetto_src_traced_probes_android_system_property_android_system_property",
+        ":perfetto_src_traced_probes_cgroup_android_cgroups",
+        ":perfetto_src_traced_probes_cgroup_cgroup",
+        ":perfetto_src_traced_probes_cgroup_memcg_fields",
+        ":perfetto_src_traced_probes_cgroup_memcg_reader",
         ":perfetto_src_traced_probes_common_common",
         ":perfetto_src_traced_probes_data_source",
         ":perfetto_src_traced_probes_filesystem_filesystem",
@@ -2056,6 +2062,8 @@ cc_library_static {
         ":perfetto_src_kallsyms_kallsyms",
         ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
+        ":perfetto_src_profiling_common_proc_cmdline",
+        ":perfetto_src_profiling_common_proc_utils",
         ":perfetto_src_protovm_protovm",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_generator",
@@ -2072,6 +2080,10 @@ cc_library_static {
         ":perfetto_src_traced_probes_android_kernel_wakelocks_android_kernel_wakelocks",
         ":perfetto_src_traced_probes_android_log_android_log",
         ":perfetto_src_traced_probes_android_system_property_android_system_property",
+        ":perfetto_src_traced_probes_cgroup_android_cgroups",
+        ":perfetto_src_traced_probes_cgroup_cgroup",
+        ":perfetto_src_traced_probes_cgroup_memcg_fields",
+        ":perfetto_src_traced_probes_cgroup_memcg_reader",
         ":perfetto_src_traced_probes_common_common",
         ":perfetto_src_traced_probes_data_source",
         ":perfetto_src_traced_probes_filesystem_filesystem",
@@ -2449,6 +2461,8 @@ cc_library_static {
         ":perfetto_src_kallsyms_kallsyms",
         ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
+        ":perfetto_src_profiling_common_proc_cmdline",
+        ":perfetto_src_profiling_common_proc_utils",
         ":perfetto_src_protovm_protovm",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
@@ -2463,6 +2477,10 @@ cc_library_static {
         ":perfetto_src_traced_probes_android_kernel_wakelocks_android_kernel_wakelocks",
         ":perfetto_src_traced_probes_android_log_android_log",
         ":perfetto_src_traced_probes_android_system_property_android_system_property",
+        ":perfetto_src_traced_probes_cgroup_android_cgroups",
+        ":perfetto_src_traced_probes_cgroup_cgroup",
+        ":perfetto_src_traced_probes_cgroup_memcg_fields",
+        ":perfetto_src_traced_probes_cgroup_memcg_reader",
         ":perfetto_src_traced_probes_common_common",
         ":perfetto_src_traced_probes_data_source",
         ":perfetto_src_traced_probes_filesystem_filesystem",
@@ -3314,6 +3332,10 @@ cc_test {
         ":perfetto_src_traced_probes_android_kernel_wakelocks_android_kernel_wakelocks",
         ":perfetto_src_traced_probes_android_log_android_log",
         ":perfetto_src_traced_probes_android_system_property_android_system_property",
+        ":perfetto_src_traced_probes_cgroup_android_cgroups",
+        ":perfetto_src_traced_probes_cgroup_cgroup",
+        ":perfetto_src_traced_probes_cgroup_memcg_fields",
+        ":perfetto_src_traced_probes_cgroup_memcg_reader",
         ":perfetto_src_traced_probes_common_common",
         ":perfetto_src_traced_probes_data_source",
         ":perfetto_src_traced_probes_filesystem_filesystem",
@@ -22730,11 +22752,27 @@ filegroup {
     ],
 }
 
+// GN: //src/traced/probes/cgroup:cgroup
+filegroup {
+    name: "perfetto_src_traced_probes_cgroup_cgroup",
+    srcs: [
+        "src/traced/probes/cgroup/cgroup_data_source.cc",
+    ],
+}
+
 // GN: //src/traced/probes/cgroup:memcg_fields
 filegroup {
     name: "perfetto_src_traced_probes_cgroup_memcg_fields",
     srcs: [
         "src/traced/probes/cgroup/memcg_fields.cc",
+    ],
+}
+
+// GN: //src/traced/probes/cgroup:memcg_reader
+filegroup {
+    name: "perfetto_src_traced_probes_cgroup_memcg_reader",
+    srcs: [
+        "src/traced/probes/cgroup/memcg_reader.cc",
     ],
 }
 
@@ -22744,6 +22782,7 @@ filegroup {
     srcs: [
         "src/traced/probes/cgroup/android_cgroups_unittest.cc",
         "src/traced/probes/cgroup/memcg_fields_unittest.cc",
+        "src/traced/probes/cgroup/memcg_reader_unittest.cc",
     ],
 }
 
@@ -24953,7 +24992,9 @@ cc_test {
         ":perfetto_src_traced_probes_android_system_property_android_system_property",
         ":perfetto_src_traced_probes_android_system_property_unittests",
         ":perfetto_src_traced_probes_cgroup_android_cgroups",
+        ":perfetto_src_traced_probes_cgroup_cgroup",
         ":perfetto_src_traced_probes_cgroup_memcg_fields",
+        ":perfetto_src_traced_probes_cgroup_memcg_reader",
         ":perfetto_src_traced_probes_cgroup_unittests",
         ":perfetto_src_traced_probes_common_common",
         ":perfetto_src_traced_probes_common_test_support",
@@ -25435,6 +25476,8 @@ cc_library_static {
         ":perfetto_src_kallsyms_kallsyms",
         ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
+        ":perfetto_src_profiling_common_proc_cmdline",
+        ":perfetto_src_profiling_common_proc_utils",
         ":perfetto_src_protovm_protovm",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
@@ -25449,6 +25492,10 @@ cc_library_static {
         ":perfetto_src_traced_probes_android_kernel_wakelocks_android_kernel_wakelocks",
         ":perfetto_src_traced_probes_android_log_android_log",
         ":perfetto_src_traced_probes_android_system_property_android_system_property",
+        ":perfetto_src_traced_probes_cgroup_android_cgroups",
+        ":perfetto_src_traced_probes_cgroup_cgroup",
+        ":perfetto_src_traced_probes_cgroup_memcg_fields",
+        ":perfetto_src_traced_probes_cgroup_memcg_reader",
         ":perfetto_src_traced_probes_common_common",
         ":perfetto_src_traced_probes_data_source",
         ":perfetto_src_traced_probes_filesystem_filesystem",
