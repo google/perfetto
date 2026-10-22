@@ -58,11 +58,11 @@ namespace perfetto::trace_processor::stats {
       "android.display.video stream exceeded the parse-time size cap; frames " \
       "dropped. See the trace_import_logs table for the affected display."),   \
   F(android_track_event_process_unknown,  kSingle,  kNotice,   kAnalysis, Scope::kMachineAndTrace,      \
-      "An Android framework death event or state dump referenced a process "   \
-      "that was not present in the trace-start dump (DUMP_REASON_START) and "  \
-      "had no process_start_event in the trace. This can happen when a "       \
-      "process start races with the trace-start dump, leaving the process "    \
-      "without a known name."),                                                \
+      "An Android framework event or state dump referenced a process that was "  \
+      "not present in the trace-start dump (DUMP_REASON_START) and had no "    \
+      "process_start_event in the trace. This can happen when a process "      \
+      "start races with the trace-start dump, leaving the process without a "  \
+      "known name."),                                                          \
   F(deobfuscate_location_parse_error,     kSingle,  kError,    kAnalysis, Scope::kGlobal,          ""), \
   F(energy_breakdown_missing_values,      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(energy_descriptor_invalid,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \

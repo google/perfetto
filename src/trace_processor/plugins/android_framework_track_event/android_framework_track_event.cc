@@ -74,7 +74,8 @@ class AndroidTrackEventProcessTableHolder {
                             int64_t ts,
                             const char* source,
                             uint32_t pid,
-                            protozero::ConstChars process_name) {
+                            protozero::ConstChars process_name,
+                            std::optional<int64_t> start_seq_id) {
     if (!warned_pids_.insert(pid).second) {
       return;
     }
@@ -90,6 +91,10 @@ class AndroidTrackEventProcessTableHolder {
             inserter.AddArg(
                 context->storage->InternString("process_name"),
                 Variadic::String(context->storage->InternString(process_name)));
+          }
+          if (start_seq_id) {
+            inserter.AddArg(context->storage->InternString("start_seq_id"),
+                            Variadic::Integer(*start_seq_id));
           }
         });
   }
@@ -269,7 +274,7 @@ class Parser : public TrackEventExtensionParser {
         trace_context_->process_tracker->GetProcessOrNull(pid);
     if (!upid) {
       table_->RecordUnknownProcess(trace_context_, ts, source, pid,
-                                   process_name);
+                                   process_name, start_seq_id);
       return std::nullopt;
     }
     auto row = table_->GetOrInsertRow(*upid);

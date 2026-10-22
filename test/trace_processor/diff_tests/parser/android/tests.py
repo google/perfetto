@@ -571,11 +571,40 @@ class AndroidParser(TestSuite):
           }
         }
         packet {
+          timestamp: 2200
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 300
+              cur_proc_state: PROCESS_STATE_TOP
+            }
+          }
+        }
+        packet {
+          timestamp: 2500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "freezer_event"
+            [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+              pid: 350
+              unfreeze_reason: UFR_PING
+            }
+          }
+        }
+        packet {
           timestamp: 3000
           [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
             dump_reason: DUMP_REASON_END
             record { pid: 100 proc_state: 1002 }
-            record { pid: 400 process_name: "com.example.end_dump" proc_state: 1002 }
+            record {
+              pid: 400
+              process_name: "com.example.end_dump"
+              start_seq_id: 4
+              proc_state: 1002
+            }
           }
         }
         packet {
@@ -593,14 +622,17 @@ class AndroidParser(TestSuite):
           name,
           extract_arg(arg_set_id, 'source') AS source,
           extract_arg(arg_set_id, 'pid') AS pid,
-          extract_arg(arg_set_id, 'process_name') AS process_name
+          extract_arg(arg_set_id, 'process_name') AS process_name,
+          extract_arg(arg_set_id, 'start_seq_id') AS start_seq_id
         FROM _trace_import_logs
         WHERE name = 'android_track_event_process_unknown'
         ORDER BY ts, pid;
         """,
         out=Csv("""
-          "ts","severity","name","source","pid","process_name"
-          1000,"notice","android_track_event_process_unknown","binder_died",200,"com.example.died"
-          3000,"notice","android_track_event_process_unknown","process_dump",400,"com.example.end_dump"
-          4000,"notice","android_track_event_process_unknown","freezer_dump",500,"[NULL]"
+          "ts","severity","name","source","pid","process_name","start_seq_id"
+          1000,"notice","android_track_event_process_unknown","binder_died",200,"com.example.died",2
+          2200,"notice","android_track_event_process_unknown","process_state_changed",300,"[NULL]","[NULL]"
+          2500,"notice","android_track_event_process_unknown","freezer_event",350,"[NULL]","[NULL]"
+          3000,"notice","android_track_event_process_unknown","process_dump",400,"com.example.end_dump",4
+          4000,"notice","android_track_event_process_unknown","freezer_dump",500,"[NULL]","[NULL]"
         """))

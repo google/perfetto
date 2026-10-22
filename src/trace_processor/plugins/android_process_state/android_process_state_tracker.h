@@ -22,6 +22,7 @@
 #include <map>
 #include <optional>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/plugins/android_process_state/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -102,6 +103,12 @@ class AndroidProcessStateTracker {
   // the AndroidFreezerState table.
   void EmitInitialFreezerRow(const FreezerStateValues& v);
 
+  void RecordUnknownProcess(int64_t ts,
+                            const char* source,
+                            uint32_t pid,
+                            protozero::ConstChars process_name = {},
+                            std::optional<int64_t> start_seq_id = std::nullopt);
+
   TraceProcessorContext* const context_;
   tables::AndroidProcessStateTable* const process_state_table_;
   tables::AndroidFreezerStateTable* const freezer_state_table_;
@@ -117,6 +124,8 @@ class AndroidProcessStateTracker {
   std::map<UniquePid, ProcessStateValues> process_dump_;
   // Map of upid -> final freezer state from the trace-stop dump snapshot.
   std::map<UniquePid, FreezerStateValues> freezer_dump_;
+
+  base::FlatSet<uint32_t> warned_pids_;
 };
 
 }  // namespace perfetto::trace_processor::android_process_state
