@@ -579,3 +579,72 @@ class AndroidParser(TestSuite):
           2000,0,-2147483131,"capability_flags","capability_flags[1]","PROCESS_CAPABILITY_FOREGROUND_MICROPHONE","string"
           2000,0,-2147483131,"capability_flags","capability_flags[2]","0x80000200","string"
         """))
+
+  def test_android_service_state_changed_flags(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          track_descriptor {
+            uuid: 1
+            thread { pid: 100 tid: 100 thread_name: "main" }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            name: "fgs_start"
+            [com.android.internal.FrameworksBaseTrackEvent.fg_service_state_changed_event] {
+              pid: 100
+              uid: 10001
+              component_name: "com.example/.MyFgService"
+              foreground_service_type: -2147483639
+            }
+          }
+        }
+        packet {
+          timestamp: 3000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            name: "service_binding"
+            [com.android.internal.FrameworksBaseTrackEvent.service_state_changed_event] {
+              pid: 100
+              uid: 10001
+              component_name: "com.example/.MyBoundService"
+              bind_flags_32: -2147482559
+              bind_flags_32_to_64: 5
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          s.ts,
+          s.name,
+          a.flat_key,
+          a.key,
+          a.string_value,
+          a.value_type
+        FROM slice s
+        JOIN args a USING (arg_set_id)
+        WHERE a.flat_key GLOB '*foreground_service_type'
+           OR a.flat_key GLOB '*bind_flags*'
+        ORDER BY s.ts, a.key;
+        """,
+        out=Csv("""
+          "ts","name","flat_key","key","string_value","value_type"
+          2000,"fgs_start","fg_service_state_changed_event.foreground_service_type","fg_service_state_changed_event.foreground_service_type[0]","FOREGROUND_SERVICE_TYPE_DATA_SYNC","string"
+          2000,"fgs_start","fg_service_state_changed_event.foreground_service_type","fg_service_state_changed_event.foreground_service_type[1]","FOREGROUND_SERVICE_TYPE_LOCATION","string"
+          2000,"fgs_start","fg_service_state_changed_event.foreground_service_type","fg_service_state_changed_event.foreground_service_type[2]","0x80000000","string"
+          3000,"service_binding","service_state_changed_event.bind_flags_32","service_state_changed_event.bind_flags_32[0]","SERVICE_BIND_FLAG_AUTO_CREATE","string"
+          3000,"service_binding","service_state_changed_event.bind_flags_32","service_state_changed_event.bind_flags_32[1]","SERVICE_BIND_FLAG_IMPORTANT","string"
+          3000,"service_binding","service_state_changed_event.bind_flags_32","service_state_changed_event.bind_flags_32[2]","SERVICE_BIND_FLAG_EXTERNAL_SERVICE","string"
+          3000,"service_binding","service_state_changed_event.bind_flags_32","service_state_changed_event.bind_flags_32[3]","0x400","string"
+          3000,"service_binding","service_state_changed_event.bind_flags_32_to_64","service_state_changed_event.bind_flags_32_to_64[0]","SERVICE_BIND_FLAG_LONG_BYPASS_USER_NETWORK_RESTRICTIONS","string"
+          3000,"service_binding","service_state_changed_event.bind_flags_32_to_64","service_state_changed_event.bind_flags_32_to_64[1]","SERVICE_BIND_FLAG_LONG_ALLOW_FREEZE","string"
+        """))
