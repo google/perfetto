@@ -66,10 +66,14 @@ _SYSTEM_EVENTS = '''
 
 _SYSTEM_WITH_SNAPSHOT = TextProto(_SYSTEM_SNAPSHOT + _SYSTEM_EVENTS)
 
+# Packets which carry nothing, to move what follows a few hundred bytes in.
+_PADDING = 'packet { trusted_packet_sequence_id: 3 }\n' * 200
+
 
 # A packet holding `trace` (serialized packets) as deflated compressed_packets.
-def _compressed_packets(trace):
-  escaped = ''.join('\\%03o' % b for b in zlib.compress(trace))
+# Level 0 stores `trace` as is, which keeps the packet as big as `trace`.
+def _compressed_packets(trace, level=-1):
+  escaped = ''.join('\\%03o' % b for b in zlib.compress(trace, level))
   return 'packet { compressed_packets: "%s" }' % escaped
 
 
@@ -454,12 +458,15 @@ class Zip(TestSuite):
         "sys",6000
         '''))
 
-  # Same in a tar archive.
+  # Same in a tar archive. The ClockSnapshot comes a few hundred bytes in, so
+  # tar must hand over more than the first bytes of each member to be sniffed.
   def test_tar_proto_with_clock_snapshot_read_first(self):
     return DiffTestBlueprint(
         trace=Tar({
-            'a_sdk.pb': _SDK_NO_SNAPSHOT,
-            'b_system.pb': _SYSTEM_WITH_SNAPSHOT,
+            'a_sdk.pb':
+                _SDK_NO_SNAPSHOT,
+            'b_system.pb':
+                TextProto(_PADDING + _SYSTEM_SNAPSHOT + _SYSTEM_EVENTS),
         }),
         query='''
           SELECT name, ts FROM slice ORDER BY ts;
@@ -470,8 +477,7 @@ class Zip(TestSuite):
         "sys",6000
         '''))
 
-  # The ClockSnapshot is found wherever it is in the file, not only in its
-  # first packet.
+  # The ClockSnapshot need not be in the first packet.
   def test_zip_proto_with_late_clock_snapshot_read_first(self):
     return DiffTestBlueprint(
         trace=ZipTrace({
@@ -493,15 +499,18 @@ class Zip(TestSuite):
   # Compressed packets are not inflated to look for a ClockSnapshot: a trace
   # holding some counts as carrying one (traced versions from before September
   # 2026 compressed their snapshots too), so it is read before a trace without
-  # any.
+  # any. This holds even when the compressed packet runs past the part of the
+  # file looked at, as traced compresses whole batches of packets into one.
   def test_zip_proto_with_compressed_packets_read_first(self):
     return DiffTestBlueprint(
         trace=ZipTrace({
             'a_plain.pb':
                 TextProto('packet { trusted_packet_sequence_id: 1 }'),
-            # Holds packet { trusted_packet_sequence_id: 2 }.
+            # Holds 20000 x packet { trusted_packet_sequence_id: 2 }, stored
+            # as is: a single packet of about 80 KB.
             'b_compressed.pb':
-                TextProto(_compressed_packets(b'\x0a\x02\x50\x02')),
+                TextProto(
+                    _compressed_packets(b'\x0a\x02\x50\x02' * 20000, level=0)),
         }),
         query='''
           SELECT name, processing_order

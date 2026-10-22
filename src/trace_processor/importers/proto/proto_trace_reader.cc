@@ -1340,14 +1340,105 @@ bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
   return tag == kModuleSymbolsTag;
 }
 
+// Returns whether the TracePacket bytes [pos, end), possibly cut off at `end`,
+// have a field carrying a ClockSnapshot, or compressed packets which may hide
+// one. Only field headers are read: payloads are skipped.
+bool PacketMayHaveClockSnapshot(const uint8_t* pos, const uint8_t* end) {
+  using protos::pbzero::TracePacket;
+  using protozero::proto_utils::ParseVarInt;
+  using protozero::proto_utils::ProtoWireType;
+  while (pos < end) {
+    uint64_t tag;
+    const uint8_t* next = ParseVarInt(pos, end, &tag);
+    if (next == pos) {
+      return false;
+    }
+    auto id = static_cast<uint32_t>(protozero::proto_utils::GetTagFieldId(tag));
+    if (id == TracePacket::kClockSnapshotFieldNumber ||
+        id == TracePacket::kCompressedPacketsFieldNumber ||
+        id == TracePacket::kZstdCompressedPacketsFieldNumber) {
+      return true;
+    }
+    pos = next;
+    uint64_t payload_size = 0;
+    auto type =
+        static_cast<uint8_t>(protozero::proto_utils::GetTagFieldType(tag));
+    if (type == static_cast<uint8_t>(ProtoWireType::kVarInt) ||
+        type == static_cast<uint8_t>(ProtoWireType::kLengthDelimited)) {
+      uint64_t value;
+      next = ParseVarInt(pos, end, &value);
+      if (next == pos) {
+        return false;
+      }
+      if (type == static_cast<uint8_t>(ProtoWireType::kLengthDelimited)) {
+        payload_size = value;
+      }
+    } else if (type == static_cast<uint8_t>(ProtoWireType::kFixed64)) {
+      payload_size = sizeof(uint64_t);
+    } else if (type == static_cast<uint8_t>(ProtoWireType::kFixed32)) {
+      payload_size = sizeof(uint32_t);
+    } else {
+      return false;
+    }
+    if (payload_size > static_cast<uint64_t>(end - next)) {
+      return false;
+    }
+    pos = next + payload_size;
+  }
+  return false;
+}
+
+// Returns whether a packet of the proto trace starting with [data, data + size)
+// carries a ClockSnapshot, or compressed packets which may hide one. Only field
+// headers are read, so a packet cut off at `size` still counts: traced
+// compresses whole batches of packets into one, often bigger than `size`, and
+// older versions put the first ClockSnapshot in there too. Malformed input
+// counts as carrying none: reading the file reports the error.
+bool TraceMayHaveClockSnapshot(const uint8_t* data, size_t size) {
+  using protozero::proto_utils::ParseVarInt;
+  const uint8_t* const end = data + size;
+  for (const uint8_t* pos = data; pos < end;) {
+    uint64_t tag;
+    const uint8_t* next = ParseVarInt(pos, end, &tag);
+    if (next == pos || tag != kTracePacketTag) {
+      return false;
+    }
+    pos = next;
+    uint64_t packet_size;
+    next = ParseVarInt(pos, end, &packet_size);
+    if (next == pos) {
+      return false;
+    }
+    pos = next;
+    auto avail = static_cast<uint64_t>(end - pos);
+    if (PacketMayHaveClockSnapshot(pos, pos + std::min(packet_size, avail))) {
+      return true;
+    }
+    if (packet_size > avail) {
+      return false;
+    }
+    pos += packet_size;
+  }
+  return false;
+}
+
 // Perfetto proto trace.
 class ProtoImporter : public TraceImporter<ProtoImporter> {
  public:
   ProtoImporter() : TraceImporter(MakeDescriptor()) {}
   ~ProtoImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
-    return size > 0 && data[0] == kTracePacketTag;
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
+    if (size == 0 || data[0] != kTracePacketTag) {
+      return {};
+    }
+    // In an archive, traces with a ClockSnapshot near their start are read
+    // before those without: the first trace read on a machine is its primary
+    // trace, and traces without a ClockSnapshot of their own (e.g. in-process
+    // SDK traces) are converted through its clocks. Only the start is looked
+    // at, as traced writes its first ClockSnapshot there.
+    size_t lookahead = std::min(size, kArchiveSubpriorityLookahead);
+    return {true, TraceMayHaveClockSnapshot(data, lookahead) ? 0 : 1};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
@@ -1355,42 +1446,6 @@ class ProtoImporter : public TraceImporter<ProtoImporter> {
       uint32_t) const override {
     return std::unique_ptr<ChunkedTraceReader>(
         std::make_unique<ProtoTraceReader>(context));
-  }
-
-  // Looks for a packet carrying a ClockSnapshot, reading only the field
-  // numbers of each packet and stopping at the first match. Compressed packets
-  // are not inflated and count as carrying one, as they may hide one.
-  // Malformed input counts as carrying none: reading the file reports the
-  // error.
-  bool MayHaveClockSnapshot(const TraceBlobView* begin,
-                            const TraceBlobView* end) const override {
-    using protos::pbzero::TracePacket;
-    bool found = false;
-    auto check_packet = [&found](TraceBlobView packet) {
-      protozero::ProtoDecoder decoder(packet.data(), packet.size());
-      for (protozero::Field f = decoder.ReadField(); !found && f.valid();
-           f = decoder.ReadField()) {
-        found = f.id() == TracePacket::kClockSnapshotFieldNumber ||
-                f.id() == TracePacket::kCompressedPacketsFieldNumber ||
-                f.id() == TracePacket::kZstdCompressedPacketsFieldNumber;
-      }
-      return base::OkStatus();
-    };
-    // The tokenizer is fed slices rather than whole chunks, so that the walk
-    // stops soon after the first match even in a large chunk. A packet split
-    // across slices or chunks is stitched together by the tokenizer.
-    constexpr size_t kSliceSize = 1024 * 1024;
-    ProtoTraceTokenizer tokenizer;
-    for (const TraceBlobView* chunk = begin; chunk != end && !found; ++chunk) {
-      for (size_t off = 0; off < chunk->size() && !found; off += kSliceSize) {
-        size_t size = std::min(kSliceSize, chunk->size() - off);
-        if (!tokenizer.Tokenize(chunk->slice_off(off, size), check_packet)
-                 .ok()) {
-          return false;
-        }
-      }
-    }
-    return found;
   }
 
  private:
@@ -1417,8 +1472,8 @@ class SymbolsImporter : public TraceImporter<SymbolsImporter> {
   SymbolsImporter() : TraceImporter(MakeDescriptor()) {}
   ~SymbolsImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
-    return IsProtoTraceWithSymbols(data, size);
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
+    return {IsProtoTraceWithSymbols(data, size)};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

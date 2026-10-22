@@ -24,8 +24,6 @@
 
 namespace perfetto::trace_processor {
 
-class TraceBlobView;
-
 // Returns true if `path` should be ignored when reading an archive (tar/zip),
 // i.e. if any of its path components starts with a '.' (other than the "." and
 // ".." path segments). Such entries are hidden files and directories which are
@@ -44,14 +42,6 @@ struct ArchiveEntry {
   static int ComputePriority(TraceImporterId type,
                              const TraceImporterRegistry& registry);
 
-  // Returns whether a member of `type` made of the chunks [begin, end) lacks a
-  // ClockSnapshot, as answered by the importer for `type` (see
-  // TraceImporterBase::MayHaveClockSnapshot).
-  static bool ComputeLacksClockSnapshot(TraceImporterId type,
-                                        const TraceImporterRegistry& registry,
-                                        const TraceBlobView* begin,
-                                        const TraceBlobView* end);
-
   // File name. Used to break ties.
   std::string name;
   // Position. Used to break ties.
@@ -62,11 +52,9 @@ struct ArchiveEntry {
   // This is the main attribute traces are ordered by; proto is read first as it
   // may contain clock sync data needed to correctly parse other traces.
   int priority;
-  // See ComputeLacksClockSnapshot. Among members of the same priority, those
-  // with a ClockSnapshot are read first: the first trace read on a machine is
-  // its primary trace, and a trace without a ClockSnapshot of its own (e.g. an
-  // in-process SDK trace) can only be converted through the primary's clocks.
-  bool lacks_clock_snapshot = false;
+  // Order among members of the same priority, from the member's content: the
+  // SniffResult::archive_subpriority its importer returned.
+  int subpriority = 0;
   // Comparator used to determine the order in which files in the ZIP will be
   // read.
   bool operator<(const ArchiveEntry& rhs) const;

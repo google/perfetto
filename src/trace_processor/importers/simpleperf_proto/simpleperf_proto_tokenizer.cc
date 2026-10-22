@@ -268,10 +268,11 @@ class SimpleperfProtoImporter : public TraceImporter<SimpleperfProtoImporter> {
   SimpleperfProtoImporter() : TraceImporter(MakeDescriptor()) {}
   ~SimpleperfProtoImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     static constexpr char kMagic[] = {'S', 'I', 'M', 'P', 'L',
                                       'E', 'P', 'E', 'R', 'F'};
-    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+    return {size >= sizeof(kMagic) &&
+            memcmp(data, kMagic, sizeof(kMagic)) == 0};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
