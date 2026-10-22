@@ -100,8 +100,9 @@ export function extractBrushRange(
     areas?: ReadonlyArray<{coordRange?: [number, number]}>;
   };
   const areas = p.areas;
-  if (areas !== undefined && areas.length > 0 && areas[0]!.coordRange) {
-    const [a, b] = areas[0]!.coordRange;
+  const coordRange = areas?.[0]?.coordRange;
+  if (coordRange !== undefined) {
+    const [a, b] = coordRange;
     return [Math.min(a, b), Math.max(a, b)];
   }
   return undefined;
@@ -123,8 +124,7 @@ export function extractBrushRect(
     }>;
   };
   const areas = p.areas;
-  if (areas === undefined || areas.length === 0) return undefined;
-  const coordRange = areas[0]!.coordRange;
+  const coordRange = areas?.[0]?.coordRange;
   if (coordRange === undefined) return undefined;
   const [[x1, x2], [y1, y2]] = coordRange;
   return {

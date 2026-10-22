@@ -1132,7 +1132,8 @@ export async function getInstance(
           OR c.deobfuscated_name = '${classObjName}')
     `);
     const rows = collectRows(cRes);
-    if (rows.length > 0) classObjRow = rows[0]!;
+    const firstRow = rows[0];
+    if (firstRow !== undefined) classObjRow = firstRow;
   }
 
   const instanceFields =

@@ -45,16 +45,14 @@ function pickMeasureColumn(
   }
   if (agg === 'COUNT_DISTINCT') {
     // COUNT_DISTINCT works on any column; keep current or pick first.
-    return (
-      currentCol ?? (allColumns.length > 0 ? allColumns[0]!.name : undefined)
-    );
+    return currentCol ?? allColumns[0]?.name;
   }
   // Numeric aggregations: reset if current column isn't numeric.
   const numericNames = new Set(numericColumns.map((c) => c.name));
   if (currentCol && numericNames.has(currentCol)) {
     return currentCol;
   }
-  return numericColumns.length > 0 ? numericColumns[0]!.name : undefined;
+  return numericColumns[0]?.name;
 }
 
 export interface ChartConfigPopupContext {

@@ -873,8 +873,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         }
 
         const validInputs = inputs.filter((sql) => sql);
-        if (validInputs.length === 0) return '';
-        if (validInputs.length === 1) return validInputs[0]!;
+        const firstInput = validInputs[0];
+        if (firstInput === undefined) return '';
+        if (validInputs.length === 1) return firstInput;
         return validInputs.map((sql) => `(${sql})`).join(` ${unionType} `);
       }
 

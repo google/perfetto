@@ -67,8 +67,13 @@ function sparkline(
   if (values.length < 2) {
     return m('span.pf-memscope-sparkline-empty', '—');
   }
-  let min = values[0]!;
-  let max = values[0]!;
+  const first = values[0];
+  const last = values[values.length - 1];
+  if (first === undefined || last === undefined) {
+    return m('span.pf-memscope-sparkline-empty', '—');
+  }
+  let min = first;
+  let max = first;
   for (const v of values) {
     if (v < min) min = v;
     if (v > max) max = v;
@@ -84,8 +89,6 @@ function sparkline(
       return `${x},${y}`;
     })
     .join(' ');
-  const last = values[values.length - 1]!;
-  const first = values[0]!;
   const stroke =
     last > first
       ? 'var(--pf-color-danger)'

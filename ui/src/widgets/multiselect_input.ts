@@ -155,13 +155,13 @@ export class MultiselectInput implements m.ClassComponent<MultiselectInputAttrs>
                 }
                 ev.preventDefault();
               } else if (ev.key === 'Backspace') {
+                const lastSelected =
+                  selectedOptions[selectedOptions.length - 1];
                 if (
                   this.currentTextValue === '' &&
-                  selectedOptions.length > 0
+                  lastSelected !== undefined
                 ) {
-                  attrs.onOptionRemove(
-                    selectedOptions[selectedOptions.length - 1]!,
-                  );
+                  attrs.onOptionRemove(lastSelected);
                   ev.preventDefault();
                 }
               }

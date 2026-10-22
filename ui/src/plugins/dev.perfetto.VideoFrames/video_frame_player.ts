@@ -357,8 +357,11 @@ export class VideoFramePlayer {
       if (token !== this.token) return;
       // Drop seed frames decoded before fromIdx without painting (they
       // exist only to prime the decoder's reference list).
-      while (session.queue.length > 0 && session.queue[0]!.idx < fromIdx) {
-        session.queue.shift()!.frame.close();
+      for (;;) {
+        const front = session.queue[0];
+        if (front === undefined || front.idx >= fromIdx) break;
+        front.frame.close();
+        session.queue.shift();
       }
       let due: QueuedFrame | undefined;
       if (!started) {

@@ -424,7 +424,11 @@ function buildWhereClause(
       if (hasNull) {
         parts.push(`${column} IS NULL`);
       }
-      clauses.push(parts.length > 1 ? `(${parts.join(' OR ')})` : parts[0]!);
+      // `parts` is non-empty here: the enclosing if guarantees at least one
+      // push above.
+      clauses.push(
+        parts.length > 1 ? `(${parts.join(' OR ')})` : (parts[0] ?? ''),
+      );
     }
 
     for (const rc of rangeConditions) {
@@ -442,7 +446,7 @@ export function createDefaultChartConfig(
   columns: ReadonlyArray<{name: string}>,
   chartType: ChartType = 'bar',
 ): ChartConfig {
-  const column = columns.length > 0 ? columns[0]!.name : '';
+  const column = columns[0]?.name ?? '';
   return {
     id: generateChartId(),
     column,

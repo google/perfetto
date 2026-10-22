@@ -179,15 +179,18 @@ function downsample(
   points: readonly LineChartPoint[],
   maxPoints: number,
 ): LineChartPoint[] {
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (first === undefined || last === undefined) return [];
   if (points.length <= maxPoints) return [...points];
   if (maxPoints <= 2) {
-    return [points[0]!, points[points.length - 1]!];
+    return [first, last];
   }
-  const result: LineChartPoint[] = [points[0]!];
+  const result: LineChartPoint[] = [first];
   const step = (points.length - 1) / (maxPoints - 1);
   for (let i = 1; i < maxPoints - 1; i++) {
     result.push(points[Math.round(i * step)]!);
   }
-  result.push(points[points.length - 1]!);
+  result.push(last);
   return result;
 }

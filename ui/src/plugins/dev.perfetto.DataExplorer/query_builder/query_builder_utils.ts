@@ -188,7 +188,8 @@ export function isAQuery(
 export function buildEmbeddedQueryTree(
   queries: protos.PerfettoSqlStructuredQuery[],
 ): protos.PerfettoSqlStructuredQuery | undefined {
-  if (queries.length === 0) return undefined;
+  const root = queries[queries.length - 1];
+  if (root === undefined) return undefined;
 
   const queryMap = new Map<string, protos.PerfettoSqlStructuredQuery>();
   for (const q of queries) {
@@ -197,7 +198,6 @@ export function buildEmbeddedQueryTree(
     }
   }
 
-  const root = queries[queries.length - 1]!;
   const rootObj = protos.PerfettoSqlStructuredQuery.toObject(root);
   const resolved = inlineQueryRefs(rootObj, queryMap, new Set());
   return protos.PerfettoSqlStructuredQuery.fromObject(resolved);

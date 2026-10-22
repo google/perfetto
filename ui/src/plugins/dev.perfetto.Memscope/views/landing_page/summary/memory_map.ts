@@ -19,6 +19,7 @@
 // its own query slot and loading logic and shows the latest smaps snapshot.
 
 import m from 'mithril';
+import {ensureDefined} from '../../../../../base/assert';
 import {AsyncMemo} from '../../../../../base/async_memo';
 import {Time, type time} from '../../../../../base/time';
 import {
@@ -225,8 +226,9 @@ export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
       },
     }).data?.tree;
 
-    const first = snaps[0]!;
-    const last = snaps[snaps.length - 1]!;
+    // `snaps` is non-empty (checked above).
+    const first = ensureDefined(snaps[0]);
+    const last = ensureDefined(snaps[snaps.length - 1]);
     // Insight: biggest slice of the latest snapshot + fastest-growing slice.
     const catVal = (s: MemSnapshot, key: string) => {
       const r = s.byCategory.get(key);
