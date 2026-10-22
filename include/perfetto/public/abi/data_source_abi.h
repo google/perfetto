@@ -22,7 +22,7 @@
 
 #include "perfetto/public/abi/atomic.h"
 #include "perfetto/public/abi/export.h"
-#include "perfetto/public/abi/stream_writer_abi.h"
+#include "perfetto/public/abi/pb_msg_writer_abi.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -127,6 +127,7 @@ typedef void (*PerfettoDsOnDestroyCb)(struct PerfettoDsImpl*,
                                       void* inst_ctx);
 
 // Opaque handle used to perform operations from the OnFlush callback.
+// Pointers to this struct are valid only during the OnFlush callback.
 struct PerfettoDsOnFlushArgs;
 
 // Opaque handle used to signal when the data source flush operation is
@@ -143,6 +144,22 @@ PerfettoDsOnFlushArgsPostpone(struct PerfettoDsOnFlushArgs*);
 // source instance (whose stop operation was previously postponed with
 // PerfettoDsOnFlushArgsPostpone).
 PERFETTO_SDK_EXPORT void PerfettoDsFlushDone(struct PerfettoDsAsyncFlusher*);
+
+// Reason for the flush operation.
+// Mirrors `perfetto::FlushFlags::Reason` in
+// `perfetto/tracing/core/flush_flags.h`. Keep this enum aligned with it.
+enum PerfettoDsFlushReason {
+  PERFETTO_DS_FLUSH_REASON_UNKNOWN = 0,
+  PERFETTO_DS_FLUSH_REASON_PERIODIC = 1,
+  PERFETTO_DS_FLUSH_REASON_TRACE_STOP = 2,
+  PERFETTO_DS_FLUSH_REASON_TRACE_CLONE = 3,
+  PERFETTO_DS_FLUSH_REASON_EXPLICIT = 4,
+};
+
+// Returns the reason for the flush operation (see enum PerfettoDsFlushReason).
+// `args` is valid only during the OnFlush callback.
+PERFETTO_SDK_EXPORT uint64_t
+PerfettoDsOnFlushArgsGetReason(struct PerfettoDsOnFlushArgs* args);
 
 // Called when the tracing service requires all the pending tracing data to be
 // flushed for a data source instance. `user_arg` is the value passed to
@@ -259,6 +276,17 @@ PERFETTO_SDK_EXPORT bool PerfettoDsSetBufferExhaustedPolicyConfigurable(
     struct PerfettoDsImpl*,
     bool configurable);
 
+// If `supports` is true (false by default), an instance of the data source
+// gets a tracing v2 writer when its config selects v2.
+// The data source must then start the root message of every packet with the
+// encoding that PerfettoDsTracerImplPacketBegin() returns.
+//
+// Should not be called after PerfettoDsImplRegister().
+//
+// Returns true if successful, false otherwise.
+PERFETTO_SDK_EXPORT bool PerfettoDsSetSupportsTracingV2(struct PerfettoDsImpl*,
+                                                        bool supports);
+
 // Registers the `*ds_impl` data source type.
 //
 // `ds_impl` must be obtained via a call to `PerfettoDsImplCreate()`.
@@ -356,20 +384,27 @@ PERFETTO_SDK_EXPORT void PerfettoDsImplTraceIterateBreak(
     struct PerfettoDsImpl* ds_impl,
     struct PerfettoDsImplTracerIterator* iterator);
 
-// Creates a new trace packet on `tracer`. Returns a stream writer that can be
-// used to write data to the packet. The caller must use
-// PerfettoDsTracerImplPacketEnd() when done.
-PERFETTO_SDK_EXPORT struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
-    struct PerfettoDsTracerImpl* tracer);
-
-// Signals that the trace packets created previously on `tracer` with
-// PerfettoDsTracerImplBeginPacket(), has been fully written.
+// Creates a new trace packet on `tracer`. Fills `writer` with the stream
+// writer for the packet and the encoding of its root message.
 //
-// `writer` should point to the writer returned by
-// PerfettoDsTracerImplBeginPacket() and cannot be used anymore after this call.
+// The trace writer picks the encoding. A tracing v2 writer uses the
+// append-only format and a v1 writer uses standard protobuf.
+// PerfettoPbMsgInit() reads it from `writer` for the root message, and nested
+// messages take it from the root.
+//
+// The caller must use PerfettoDsTracerImplPacketEnd() when done.
+PERFETTO_SDK_EXPORT void PerfettoDsTracerImplPacketBegin(
+    struct PerfettoDsTracerImpl* tracer,
+    struct PerfettoPbMsgWriter* writer);
+
+// Signals that the packet created on `tracer` with
+// PerfettoDsTracerImplPacketBegin() has been fully written.
+//
+// `writer` should point to the writer that PerfettoDsTracerImplPacketBegin()
+// filled. It cannot be used anymore after this call.
 PERFETTO_SDK_EXPORT void PerfettoDsTracerImplPacketEnd(
     struct PerfettoDsTracerImpl* tracer,
-    struct PerfettoStreamWriter* writer);
+    struct PerfettoPbMsgWriter* writer);
 
 // Called when a flush request is complete.
 typedef void (*PerfettoDsTracerOnFlushCb)(void* user_arg);
@@ -407,6 +442,17 @@ PERFETTO_SDK_EXPORT void PerfettoDsTracerImplFlush(
     struct PerfettoDsTracerImpl* tracer,
     PerfettoDsTracerOnFlushCb cb,
     void* user_arg);
+
+// Returns the number of times `tracer` entered a mode in which it started
+// dropping data (e.g. because the shared memory buffer was exhausted and the
+// buffer exhausted policy is PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP).
+//
+// Note that this does *not* necessarily correspond to the number of dropped
+// packets, as multiple packets can be dropped on each entry into the drop
+// mode. A non-zero (or increased) value indicates that some data written on
+// this tracer was lost.
+PERFETTO_SDK_EXPORT uint64_t
+PerfettoDsTracerImplGetDropCount(struct PerfettoDsTracerImpl* tracer);
 
 #ifdef __cplusplus
 }

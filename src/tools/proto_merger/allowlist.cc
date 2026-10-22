@@ -87,6 +87,19 @@ void AllowlistField(const google::protobuf::FieldDescriptor& desc,
       return;
   }
 
+  if (desc.is_map()) {
+    const auto* val_field = desc.message_type()->field(1);
+    if (val_field->type() == google::protobuf::FieldDescriptor::TYPE_MESSAGE) {
+      for (int i = 0; i < val_field->message_type()->field_count(); ++i) {
+        AllowlistField(*val_field->message_type()->field(i), allowlist);
+      }
+    } else if (val_field->type() ==
+               google::protobuf::FieldDescriptor::TYPE_ENUM) {
+      AllowlistEnum(*val_field->enum_type(), allowlist);
+    }
+    return;
+  }
+
   switch (desc.type()) {
     case google::protobuf::FieldDescriptor::TYPE_MESSAGE:
       // For message types, we recursively allow all fields under it including

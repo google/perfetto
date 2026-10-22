@@ -238,6 +238,10 @@ async function loadTraceIntoEngine(
     await engine.restoreInitialTables();
   }
 
+  // Set once the connection is in its final state: restoreInitialTables
+  // rebuilds it, which resets the flag.
+  await engine.query('PERFETTO PRAGMA pipelines = 1;');
+
   for (const p of await app.sqlPackages()) {
     await engine.registerSqlPackages(p);
   }
@@ -605,6 +609,9 @@ async function getTraceInfo(
       const arrayBufferSizeMB = Math.ceil(traceSource.buffer.byteLength / 1e6);
       traceTitle += ` (${arrayBufferSizeMB} MB)`;
       break;
+    case 'STREAM':
+      traceTitle = traceSource.title ?? '';
+      break;
     case 'HTTP_RPC':
       traceTitle = `RPC @ ${HttpRpcEngine.hostAndPort}`;
       break;
@@ -650,11 +657,17 @@ async function getTraceInfo(
   updateStatus(app, 'Caching trace...');
   const cached = await cacheTrace(traceSource, uuid);
 
-  const downloadable =
-    (traceSource.type === 'ARRAY_BUFFER' && !traceSource.localOnly) ||
+  const shareable =
     traceSource.type === 'FILE' ||
     traceSource.type === 'URL' ||
-    traceSource.type === 'MULTIPLE_FILES';
+    traceSource.type === 'MULTIPLE_FILES' ||
+    (traceSource.type === 'ARRAY_BUFFER' && traceSource.shareable !== false);
+
+  const downloadable =
+    traceSource.type === 'FILE' ||
+    traceSource.type === 'URL' ||
+    traceSource.type === 'MULTIPLE_FILES' ||
+    (traceSource.type === 'ARRAY_BUFFER' && traceSource.downloadable !== false);
 
   return {
     ...traceTime,
@@ -668,6 +681,7 @@ async function getTraceInfo(
     hasFtrace,
     uuid,
     cached,
+    shareable,
     downloadable,
   };
 }

@@ -259,21 +259,18 @@ export class SQLDataSourceRollupTree {
   private useRollupTable(
     model: PivotModel,
   ): AsyncMemoResult<DisposableSqlEntity> {
-    const {groupBy, aggregates, filters = []} = model;
-
-    const sourceQuery = this.buildSourceQuery(filters);
-    const groupByColumns = groupBy.map((col) => col.field);
-    const aggregateExprs = this.buildAggregateExprs(aggregates);
+    const {sourceTable, groupByColumns, aggregateExprs} =
+      this.buildRollupQueryParts(model);
 
     return this.rollupTableSlot.use({
       key: {
-        sourceQuery,
+        sourceTable,
         groupByColumns,
         aggregateExprs,
       },
       compute: async () => {
         return await createRollupTable(this.engine, {
-          sourceTable: sourceQuery,
+          sourceTable,
           groupByColumns,
           aggregateExprs,
           tableName: this.rollupTableName,
@@ -291,14 +288,52 @@ export class SQLDataSourceRollupTree {
     return `rollup_${this.uuid}`;
   }
 
-  private buildAggregateExprs(aggregates: PivotModel['aggregates']): string[] {
-    return aggregates.map((agg) => {
+  private buildRollupQueryParts(model: PivotModel): {
+    sourceTable: string;
+    groupByColumns: string[];
+    aggregateExprs: string[];
+  } {
+    const {groupBy, aggregates, filters = []} = model;
+    const resolver = new SQLSchemaResolver(this.sqlSchema);
+
+    // Resolve all column paths in filters, groupBy, and aggregates to accumulate joins
+    if (filters.length > 0) {
+      for (const filter of filters) {
+        resolver.resolveColumnPath(filter.field);
+      }
+    }
+
+    const groupByColumns = groupBy.map((col) => {
+      return resolver.resolveColumnPath(col.field) ?? col.field;
+    });
+
+    const aggregateExprs = aggregates.map((agg) => {
       if (agg.function === 'COUNT') {
         return 'COUNT(*)';
       } else {
-        return sqlAggregateExpr(agg.function, agg.field);
+        const sqlExpr = resolver.resolveColumnPath(agg.field);
+        return sqlAggregateExpr(agg.function, sqlExpr ?? agg.field);
       }
     });
+
+    const baseTable = resolver.getBaseTableOrSubquery();
+    const baseAlias = resolver.getBaseAlias();
+    const joinClauses = resolver.buildJoinClauses();
+
+    let sourceTable = `(${baseTable}) AS ${baseAlias}`;
+    if (joinClauses) {
+      sourceTable += `\n${joinClauses}`;
+    }
+
+    if (filters.length > 0) {
+      const whereConditions = filters.map((filter) => {
+        const sqlExpr = resolver.resolveColumnPath(filter.field);
+        return filterToSql(filter, sqlExpr ?? filter.field);
+      });
+      sourceTable += `\nWHERE ${whereConditions.join(' AND ')}`;
+    }
+
+    return {sourceTable, groupByColumns, aggregateExprs};
   }
 
   /**
@@ -353,21 +388,13 @@ export class SQLDataSourceRollupTree {
    * created.
    */
   getQuery(model: PivotModel): string {
-    const {
-      groupBy,
-      aggregates,
-      filters = [],
-      expandedGroups,
-      collapsedGroups,
-    } = model;
-
-    const sourceQuery = this.buildSourceQuery(filters);
-    const groupByColumns = groupBy.map((col) => col.field);
-    const aggregateExprs = this.buildAggregateExprs(aggregates);
+    const {expandedGroups, collapsedGroups} = model;
+    const {sourceTable, groupByColumns, aggregateExprs} =
+      this.buildRollupQueryParts(model);
     const tableName = this.rollupTableName;
     const {columnAliases, aliasToColumn} = this.buildColumnAliases(
-      groupBy,
-      aggregates,
+      model.groupBy,
+      model.aggregates,
     );
     const {sortColumn, sortDirection} = this.resolveSort(
       model.sort,
@@ -389,7 +416,7 @@ export class SQLDataSourceRollupTree {
       `-- Materialize rollup table:`,
       `CREATE PERFETTO TABLE ${tableName} AS`,
       buildRollupTableCreateQuery(
-        sourceQuery,
+        sourceTable,
         groupByColumns,
         aggregateExprs,
       ).trim(),
@@ -397,33 +424,6 @@ export class SQLDataSourceRollupTree {
       `-- Traverse rollup table:`,
       traversalQuery.trim(),
     ].join('\n');
-  }
-
-  private buildSourceQuery(filters: PivotModel['filters']): string {
-    const resolver = new SQLSchemaResolver(this.sqlSchema);
-    const baseTable = resolver.getBaseTableOrSubquery();
-    const baseAlias = resolver.getBaseAlias();
-
-    let sql = `SELECT ${baseAlias}.* FROM (${baseTable}) AS ${baseAlias}`;
-
-    if (filters && filters.length > 0) {
-      for (const filter of filters) {
-        resolver.resolveColumnPath(filter.field);
-      }
-
-      const joinClauses = resolver.buildJoinClauses();
-      if (joinClauses) {
-        sql += `\n${joinClauses}`;
-      }
-
-      const whereConditions = filters.map((filter) => {
-        const sqlExpr = resolver.resolveColumnPath(filter.field);
-        return filterToSql(filter, sqlExpr ?? filter.field);
-      });
-      sql += `\nWHERE ${whereConditions.join(' AND ')}`;
-    }
-
-    return `(${sql})`;
   }
 
   dispose(): void {

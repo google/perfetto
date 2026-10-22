@@ -117,14 +117,10 @@ rendered when the component is present on the page.
 ### Component state
 
 Local state of components can reside in class members and accessed directly in
-methods via accessing `this`. State that is shared across different components
-is stored in the `State` class definition, and should be modified via
-implementing a new action in `src/common/actions.ts`. A new field added to
-`State` should be initialized in `src/common/empty_state.ts`.
+methods via accessing `this`. State that needs to be persisted (e.g. into
+permalinks) is kept in a `Store` mounted via `trace.mountStore()`, see
+[UI plugins](ui-plugins#state).
 
-There are restrictions on what can be used in the global state: plain JS objects
+There are restrictions on what can be used in a store: plain JS objects
 are OK, but class instances are not (this limitation is due to state
-serialization: the state should be a valid JSON object). If storing class
-instances (like `Map` and `Set` data structures) is necessary, these can be
-stored in the `NonSerializableState` portion of the state, that is omitted from
-saving into JSON objects.
+serialization: the state should be a valid JSON object).

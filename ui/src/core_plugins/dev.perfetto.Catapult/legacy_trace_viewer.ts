@@ -18,7 +18,9 @@ import {assertTrue} from '../../base/assert';
 import {isString} from '../../base/object_utils';
 import {showModal} from '../../widgets/modal';
 import {utf8Decode} from '../../base/string_utils';
-import {convertToJson} from '../../frontend/trace_converter';
+import {convertTrace} from '../../base/trace_converter';
+import {AppImpl} from '../../core/app_impl';
+import {maybeShowErrorDialog} from '../../frontend/error_dialog';
 import {assetSrc} from '../../base/assets';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
@@ -177,7 +179,7 @@ function openBufferWithLegacyTraceViewer(
 export async function openInOldUIWithSizeCheck(trace: Blob): Promise<void> {
   // Perfetto traces smaller than 50mb can be safely opened in the legacy UI.
   if (trace.size < 1024 * 1024 * 50) {
-    return await convertToJson(trace, openBufferWithLegacyTraceViewer);
+    return await openTraceInCatapult(trace);
   }
 
   // Give the user the option to truncate larger perfetto traces.
@@ -214,31 +216,18 @@ export async function openInOldUIWithSizeCheck(trace: Blob): Promise<void> {
     buttons: [
       {
         text: 'Open full trace (not recommended)',
-        action: () =>
-          setNextPromise(convertToJson(trace, openBufferWithLegacyTraceViewer)),
+        action: () => setNextPromise(openTraceInCatapult(trace)),
       },
       {
         text: 'Open beginning of trace',
         action: () =>
-          setNextPromise(
-            convertToJson(
-              trace,
-              openBufferWithLegacyTraceViewer,
-              /* truncate*/ 'start',
-            ),
-          ),
+          setNextPromise(openTraceInCatapult(trace, {truncate: 'start'})),
       },
       {
         text: 'Open end of trace',
         primary: true,
         action: () =>
-          setNextPromise(
-            convertToJson(
-              trace,
-              openBufferWithLegacyTraceViewer,
-              /* truncate*/ 'end',
-            ),
-          ),
+          setNextPromise(openTraceInCatapult(trace, {truncate: 'end'})),
       },
     ],
   });
@@ -251,4 +240,21 @@ export async function openInOldUIWithSizeCheck(trace: Blob): Promise<void> {
 // TraceViewer method that we wire up to trigger the file load.
 interface TraceViewerAPI extends Element {
   setActiveTrace(name: string, data: ArrayBuffer | string): void;
+}
+
+async function openTraceInCatapult(
+  trace: Blob,
+  opts: {truncate?: 'start' | 'end' | undefined} = {},
+) {
+  const result = await convertTrace(trace, {
+    format: 'json',
+    truncate: opts.truncate,
+    onStatus: (s) => AppImpl.instance.omnibox.showStatusMessage(s),
+  });
+  if (!result.ok) {
+    maybeShowErrorDialog(result.error);
+    return;
+  }
+  const str = utf8Decode(result.result.buffer);
+  openBufferWithLegacyTraceViewer(result.result.name, str, str.length);
 }

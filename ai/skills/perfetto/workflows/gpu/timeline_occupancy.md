@@ -25,8 +25,8 @@ If the user has not yet loaded a trace into `trace_processor`, follow
 
 Run this before any open-ended exploration. It produces the headline verdict.
 
-1.  Run the decomposition script. It takes the trace file as its argument and
-    returns one row per GPU as CSV.
+1.  Run the decomposition script against the warm session. It returns one
+    row per GPU as CSV.
 
     ```bash
     trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_timeline_decomposition.sql

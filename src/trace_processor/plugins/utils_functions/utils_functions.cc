@@ -56,10 +56,10 @@ namespace perfetto::trace_processor {
 namespace {
 
 io::FileSystem* GetSqlFileSystem(TraceProcessorContext* context) {
-  if (!context->config.enable_sql_file_access || !context->platform) {
+  if (!context->config.enable_sql_file_access) {
     return nullptr;
   }
-  return context->platform->GetFileSystem();
+  return context->file_system;
 }
 
 class FileOutputWriter final : public json::OutputWriter {

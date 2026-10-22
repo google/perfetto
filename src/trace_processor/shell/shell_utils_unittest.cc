@@ -29,7 +29,9 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/io.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/local_file_system.h"  // no-include-violation-check
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor {
@@ -73,17 +75,21 @@ std::string MakeAttachUri(const std::string& path) {
 #define DisableFuchsia(x) x
 #endif
 
+class FileSystemPlatform final : public TraceProcessor::PlatformInterface {
+ public:
+  io::FileSystem* GetFileSystem() override {
+    return io::CreateLocalFileSystem();
+  }
+};
+
 // Verifies the export produces an on-disk SQLite database that can be read back
 // by a standalone SQLite connection and re-attached and queried by a trace
 // processor.
-TEST(ShellUtilsTest, DisableFuchsia(ExportTraceToDatabaseWritesToDisk)) {
-  base::TempDir dir = base::TempDir::Create();
-  std::string output = dir.path() + "/export.db";
+TEST(ShellUtilsTest, DisableFuchsia(ExportTraceToSqliteWritesToDisk)) {
+  base::TempFile output = base::TempFile::Create().ValueOrDie();
 
-  auto remove_output =
-      base::OnScopeExit([&output] { base::Unlink(output.c_str()); });
-
-  auto tp = TraceProcessor::CreateInstance(Config());
+  FileSystemPlatform platform;
+  auto tp = TraceProcessor::CreateInstance(Config(), &platform);
 
   int64_t expected_tables = ScalarCount(tp.get(),
                                         "SELECT COUNT(*) FROM "
@@ -91,18 +97,19 @@ TEST(ShellUtilsTest, DisableFuchsia(ExportTraceToDatabaseWritesToDisk)) {
   int64_t expected_views = ScalarCount(
       tp.get(), "SELECT COUNT(*) FROM sqlite_master WHERE type='view'");
 
-  base::Status export_status = ExportTraceToDatabase(tp.get(), output);
+  base::Status export_status = ExportTrace(
+      tp.get(), TraceProcessor::ExportFormat::kSqlite, output.path());
   ASSERT_TRUE(export_status.ok()) << export_status.c_message();
 
   std::string contents;
-  ASSERT_TRUE(base::ReadFile(output, &contents));
+  ASSERT_TRUE(base::ReadFile(output.path(), &contents));
   ASSERT_GT(contents.size(), 0u);
   ASSERT_EQ(contents.rfind("SQLite format 3", 0), 0u);
 
   // Read back with a standalone connection on the default (on-disk) VFS.
   PERFETTO_CHECK(sqlite3_initialize() == SQLITE_OK);
   sqlite3* db = nullptr;
-  ASSERT_EQ(sqlite3_open(output.c_str(), &db), SQLITE_OK);
+  ASSERT_EQ(sqlite3_open(output.path().c_str(), &db), SQLITE_OK);
   EXPECT_EQ(
       ScalarCount(db, "SELECT COUNT(*) FROM sqlite_master WHERE type='table'"),
       expected_tables);
@@ -114,8 +121,8 @@ TEST(ShellUtilsTest, DisableFuchsia(ExportTraceToDatabaseWritesToDisk)) {
   // Reload the exported database into a fresh trace processor and query it.
   auto reloaded = TraceProcessor::CreateInstance(Config());
   {
-    auto it = reloaded->ExecuteQuery("ATTACH DATABASE '" +
-                                     MakeAttachUri(output) + "' AS reimported");
+    auto it = reloaded->ExecuteQuery(
+        "ATTACH DATABASE '" + MakeAttachUri(output.path()) + "' AS reimported");
     EXPECT_FALSE(it.Next());
     ASSERT_TRUE(it.Status().ok()) << it.Status().c_message();
   }

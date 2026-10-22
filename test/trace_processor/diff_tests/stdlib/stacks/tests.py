@@ -181,6 +181,67 @@ class Stacks(TestSuite):
         1,"/libc.so","6275696c642d6964",123456,"[NULL]"
         """))
 
+  def test_symbolization_candidates_chrome_heap_profile(self):
+    return DiffTestBlueprint(
+        trace=TextProto("""
+        packet {
+          trusted_packet_sequence_id: 1
+          clock_snapshot {
+            clocks {
+              clock_id: 3  # BUILTIN_CLOCK_MONOTONIC
+              timestamp: 0
+            }
+          }
+        }
+        packet {
+          timestamp: 1
+          trusted_packet_sequence_id: 1
+          incremental_state_cleared: true
+          thread_descriptor {
+            reference_timestamp_us: 0
+          }
+          interned_data {
+            build_ids {
+              iid: 1
+              str: "4C4C445755553144A139A656472E617C0"
+            }
+            mapping_paths {
+              iid: 1
+              str: "/Google Chrome Framework"
+            }
+            mappings {
+              iid: 1
+              build_id: 1
+              path_string_ids: 1
+            }
+            frames {
+              iid: 1
+              mapping_id: 1
+              rel_pc: 0x1000
+            }
+            callstacks {
+              iid: 1
+              frame_ids: 1
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          streaming_profile_packet {
+            callstack_iid: 1
+            timestamp_delta_us: 100
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE stacks.symbolization_candidates;
+        SELECT * FROM _stacks_symbolization_candidates ORDER BY upid, build_id, rel_pc;
+        """,
+        out=Csv("""
+        "upid","module","build_id","rel_pc","breakpad_module_id"
+        0,"/Google Chrome Framework","4C4C445755553144A139A656472E617C0",4096,"[NULL]"
+        """))
+
   def test_stack_profile_unknown_frame_name(self):
     return DiffTestBlueprint(
         trace=TextProto("""

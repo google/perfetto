@@ -37,9 +37,9 @@ if (enable_perfetto_trace_processor_mac_instruments) {
     deps = [
       "../../../../gn:default_deps",
       "../../../../gn:expat",
-      "../../../../include/perfetto/ext/base:base",
+      "../../../../include/perfetto/ext/base",
       "../../../../include/perfetto/public",
-      "../../../../include/perfetto/trace_processor:trace_processor",
+      "../../../../include/perfetto/trace_processor",
       "../../../../protos/perfetto/trace:zero",
       "../../../base",
       "../../sorter",

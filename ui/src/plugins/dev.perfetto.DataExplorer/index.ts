@@ -48,40 +48,17 @@ import {
   createEmptyState,
   serializeAllDashboards,
   deserializeDashboardsForTab,
+  parseDataExplorerPersistedState,
+  STORE_VERSION,
 } from './data_explorer_tabs_storage';
 import {dashboardRegistry} from './dashboard/dashboard_registry';
 import type {DashboardTabState} from './data_explorer';
 import type {
+  DataExplorerPersistedState,
   PersistedDataExplorerTabData,
   PersistedDashboardData,
 } from './data_explorer_tabs_storage';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
-
-// --- Permalink persistence ---
-
-const STORE_VERSION = 2;
-
-interface DataExplorerPersistedState {
-  version: number;
-  // Multi-tab format (version 2+)
-  tabs?: PersistedDataExplorerTabData[];
-  activeTabId?: string;
-  // Flat list of dashboards, each referencing its parent graph tab.
-  dashboards?: PersistedDashboardData[];
-  // Old single-graph format (version 1) - kept for backward compat
-  graphJson?: string;
-}
-
-function isValidPersistedState(
-  init: unknown,
-): init is DataExplorerPersistedState {
-  if (typeof init !== 'object' || init === null || !('version' in init)) {
-    return false;
-  }
-  const version = (init as {version: unknown}).version;
-  // Accept both v1 (old single-graph) and v2 (multi-tab)
-  return version === 1 || version === STORE_VERSION;
-}
 
 // --- Plugin ---
 
@@ -288,12 +265,7 @@ export default class implements PerfettoPlugin {
 
     this.permalinkStore = trace.mountStore<DataExplorerPersistedState>(
       'dev.perfetto.DataExplorer',
-      (init: unknown) => {
-        if (isValidPersistedState(init)) {
-          return init;
-        }
-        return {version: STORE_VERSION};
-      },
+      parseDataExplorerPersistedState,
     );
   }
 

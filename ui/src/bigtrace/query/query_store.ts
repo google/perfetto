@@ -66,6 +66,8 @@ export function formatCompact(n: number): string {
   return reconstructed === n ? compact : `~${compact}`;
 }
 
+import type {BigtraceColumnSchema} from './column_types';
+
 // UI-side execution record; times are epoch ms (ISO→epoch happens at the
 // wire boundary in QueryHistoryStorage).
 export interface QueryExecution {
@@ -82,6 +84,7 @@ export interface QueryExecution {
   materialized?: boolean;
   tableName?: string;
   tableLink?: string;
+  schema?: ReadonlyArray<BigtraceColumnSchema>;
 }
 
 // Merges live polling with bulk history. Without the rule below, a history
@@ -165,6 +168,7 @@ export class QueryStore {
     if (patch.perfettoSql !== undefined) obj.perfettoSql = patch.perfettoSql;
     if (patch.limit !== undefined) obj.limit = patch.limit;
     if (patch.materialized !== undefined) obj.materialized = patch.materialized;
+    if (patch.schema !== undefined) obj.schema = patch.schema;
   }
 }
 

@@ -96,7 +96,8 @@ export async function cacheTrace(
   let fileName = '';
   let url = '';
   let contentLength = 0;
-  let localOnly = false;
+  let shareable = true;
+  let downloadable = true;
   switch (traceSource.type) {
     case 'ARRAY_BUFFER':
       trace = traceSource.buffer;
@@ -104,7 +105,10 @@ export async function cacheTrace(
       fileName = traceSource.fileName ?? '';
       url = traceSource.url ?? '';
       contentLength = traceSource.buffer.byteLength;
-      localOnly = traceSource.localOnly || false;
+      // shareable/downloadable default to true when unset (mirroring
+      // load_trace.ts); the postMessage handler sets them explicitly.
+      shareable = traceSource.shareable ?? true;
+      downloadable = traceSource.downloadable ?? true;
       break;
     case 'FILE':
       trace = traceSource.file.stream();
@@ -119,7 +123,8 @@ export async function cacheTrace(
     ['x-trace-title', encodeURI(title)],
     ['x-trace-url', url],
     ['x-trace-filename', fileName],
-    ['x-trace-local-only', `${localOnly}`],
+    ['x-trace-shareable', `${shareable}`],
+    ['x-trace-downloadable', `${downloadable}`],
     ['content-type', 'application/octet-stream'],
     ['content-length', `${contentLength}`],
     [
@@ -154,6 +159,12 @@ export async function tryGetTrace(
   const response = await cacheMatch(`/_${TRACE_CACHE_NAME}/${traceUuid}`);
 
   if (!response) return undefined;
+
+  // Legacy entries only carry the |x-trace-local-only| header; derive both
+  // flags from it. Newer entries have the split headers.
+  const localOnly = response.headers.get('x-trace-local-only') === 'true';
+  const shareableHeader = response.headers.get('x-trace-shareable');
+  const downloadableHeader = response.headers.get('x-trace-downloadable');
   return {
     type: 'ARRAY_BUFFER',
     buffer: await response.arrayBuffer(),
@@ -161,7 +172,10 @@ export async function tryGetTrace(
     fileName: response.headers.get('x-trace-filename') ?? undefined,
     url: response.headers.get('x-trace-url') ?? undefined,
     uuid: traceUuid,
-    localOnly: response.headers.get('x-trace-local-only') === 'true',
+    shareable:
+      shareableHeader !== null ? shareableHeader === 'true' : !localOnly,
+    downloadable:
+      downloadableHeader !== null ? downloadableHeader === 'true' : !localOnly,
   };
 }
 

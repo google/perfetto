@@ -83,7 +83,6 @@ public class PerfettoTraceTest {
 
   @Before
   public void setUp() {
-    System.loadLibrary("perfetto_jni");
     PerfettoTrace.registerWithDebugChecks(true);
     // 'var unused' suppress error-prone warning
     var unused = FOO_CATEGORY.register();
@@ -1443,5 +1442,12 @@ public class PerfettoTraceTest {
     if (desc.hasStaticName()) {
       mTrackNames.add(desc.getStaticName());
     }
+  }
+
+  @Test
+  public void testRegisterSystemBackendOnHost() {
+    // On host / default variant, system backend registration is unrestricted.
+    assertThat(PerfettoTrace.register(false)).isTrue();
+    assertThat(PerfettoTrace.getAttempedSystemRegistration()).isTrue();
   }
 }

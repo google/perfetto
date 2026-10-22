@@ -130,7 +130,8 @@ unwindstack::DexFiles* UnwindingMetadata::GetDexFiles(
 #endif
 
 std::string UnwindingMetadata::GetBuildId(const unwindstack::FrameData& frame) {
-  if (frame.map_info != nullptr && !frame.map_info->name().empty()) {
+  if (frame.map_info != nullptr && !frame.map_info->name().empty() &&
+      !(frame.map_info->flags() & unwindstack::MAPS_FLAGS_DEVICE_MAP)) {
     return frame.map_info->GetBuildID();
   }
 

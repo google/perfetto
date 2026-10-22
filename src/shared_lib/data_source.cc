@@ -33,7 +33,8 @@
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "perfetto/public/abi/atomic.h"
 #include "perfetto/public/abi/data_source_abi.h"
-#include "perfetto/public/abi/stream_writer_abi.h"
+#include "perfetto/public/abi/pb_msg_writer_abi.h"
+#include "perfetto/public/pb_msg.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/data_source.h"
@@ -42,8 +43,8 @@
 #include "perfetto/tracing/internal/data_source_type.h"
 #include "perfetto/tracing/internal/tracing_muxer.h"
 #include "perfetto/tracing/internal/tracing_tls.h"
+#include "src/shared_lib/pb_msg_writer.h"
 #include "src/shared_lib/reset_for_testing.h"
-#include "src/shared_lib/stream_writer.h"
 
 #include "protos/perfetto/common/data_source_descriptor.gen.h"  // IWYU pragma: keep
 
@@ -88,6 +89,9 @@ struct PerfettoDsImpl {
       perfetto::BufferExhaustedPolicy::kDrop;
 
   bool buffer_exhausted_policy_configurable = false;
+
+  // PerfettoDsSetSupportsTracingV2() sets it before registration.
+  bool supports_tracing_v2 = false;
 
   DataSourceType cpp_type;
   std::atomic<bool> enabled{false};
@@ -375,6 +379,17 @@ bool PerfettoDsSetBufferExhaustedPolicyConfigurable(
   return true;
 }
 
+bool PerfettoDsSetSupportsTracingV2(struct PerfettoDsImpl* ds_impl,
+                                    bool supports) {
+  if (ds_impl->IsRegistered()) {
+    return false;
+  }
+
+  ds_impl->supports_tracing_v2 = supports;
+
+  return true;
+}
+
 bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
                             PERFETTO_ATOMIC(bool) * *enabled_ptr,
                             const void* descriptor,
@@ -412,6 +427,7 @@ bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
   perfetto::internal::DataSourceParams params;
   params.buffer_exhausted_policy_configurable =
       ds_impl->buffer_exhausted_policy_configurable;
+  params.supports_tracing_v2 = ds_impl->supports_tracing_v2;
   params.supports_multiple_instances = true;
   params.requires_callbacks_under_lock = false;
   params.default_buffer_exhausted_policy =
@@ -461,6 +477,14 @@ void PerfettoDsFlushDone(PerfettoDsAsyncFlusher* stopper) {
   auto* cb = reinterpret_cast<std::function<void()>*>(stopper);
   (*cb)();
   delete cb;
+}
+
+uint64_t PerfettoDsOnFlushArgsGetReason(struct PerfettoDsOnFlushArgs* args) {
+  if (!args) {
+    return PERFETTO_DS_FLUSH_REASON_UNKNOWN;
+  }
+  auto* flush_args = reinterpret_cast<const ShlibDataSource::FlushArgs*>(args);
+  return static_cast<uint64_t>(flush_args->flush_flags.reason());
 }
 
 void* PerfettoDsImplGetInstanceLocked(struct PerfettoDsImpl* ds_impl,
@@ -575,21 +599,26 @@ void PerfettoDsImplTraceIterateBreak(
   ds_impl->cpp_type.TraceEpilogue(tls);
 }
 
-struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
-    struct PerfettoDsTracerImpl* tracer) {
+void PerfettoDsTracerImplPacketBegin(struct PerfettoDsTracerImpl* tracer,
+                                     struct PerfettoPbMsgWriter* writer) {
   auto* tls_inst =
       reinterpret_cast<DataSourceInstanceThreadLocalState*>(tracer);
 
   auto message_handle = tls_inst->trace_writer->NewTracePacket();
-  struct PerfettoStreamWriter ret;
+
+  // Read the encoding before TakeStreamWriter() as that call clears the handle.
+  writer->encoding =
+      message_handle->encoding() == protozero::Message::Encoding::kProtoGroup
+          ? PERFETTO_PB_MSG_ENCODING_PROTO_GROUP
+          : PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED;
+
   protozero::ScatteredStreamWriter* sw = message_handle.TakeStreamWriter();
-  ret.impl = reinterpret_cast<PerfettoStreamWriterImpl*>(sw);
-  perfetto::UpdateStreamWriter(*sw, &ret);
-  return ret;
+  writer->impl = reinterpret_cast<PerfettoPbMsgWriterImpl*>(sw);
+  perfetto::UpdatePbMsgWriter(*sw, writer);
 }
 
 void PerfettoDsTracerImplPacketEnd(struct PerfettoDsTracerImpl* tracer,
-                                   struct PerfettoStreamWriter* w) {
+                                   struct PerfettoPbMsgWriter* w) {
   auto* tls_inst =
       reinterpret_cast<DataSourceInstanceThreadLocalState*>(tracer);
   auto* sw = reinterpret_cast<protozero::ScatteredStreamWriter*>(w->impl);
@@ -609,6 +638,13 @@ void PerfettoDsTracerImplFlush(struct PerfettoDsTracerImpl* tracer,
     fn = [user_arg, cb]() { cb(user_arg); };
   }
   tls_inst->trace_writer->Flush(fn);
+}
+
+uint64_t PerfettoDsTracerImplGetDropCount(struct PerfettoDsTracerImpl* tracer) {
+  auto* tls_inst =
+      reinterpret_cast<DataSourceInstanceThreadLocalState*>(tracer);
+
+  return tls_inst->trace_writer->drop_count();
 }
 
 uint32_t PerfettoDsGetDefaultClockId() {

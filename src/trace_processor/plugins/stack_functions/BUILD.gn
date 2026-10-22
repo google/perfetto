@@ -24,7 +24,7 @@ source_set("stack_functions") {
   deps = [
     "../../../../gn:default_deps",
     "../../../../gn:sqlite",
-    "../../../../include/perfetto/protozero:protozero",
+    "../../../../include/perfetto/protozero",
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../../../protos/perfetto/trace_processor:zero",
     "../../../base",

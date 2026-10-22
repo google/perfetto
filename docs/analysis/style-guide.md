@@ -22,6 +22,6 @@ over any set of files or directories and automatically formats the code to
 adhere to the above rules.
 
 This script is _required_ to be run when making contributions to the standard
-library. It's automatically executed as part of running `tools/gen_all` which
-is part of the standard development workflow in Perfetto. Presubmit will check
-to make sure you've done this.
+library. It's automatically executed as part of running `tools/format-sources`
+which is part of the standard development workflow in Perfetto. Presubmit will
+check to make sure you've done this.

@@ -25,10 +25,11 @@ import {
 } from '../../trace_processor/sql_utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import type {Track} from '../../public/track';
-import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {TREE_EXPLORER_STATE_SCHEMA} from '../../widgets/tree_explorer';
 import type {Store} from '../../base/store';
 import {z} from 'zod';
 import {ensureExists} from '../../base/assert';
+import {Memo} from '../../base/memo';
 import {
   isProfileDescriptor,
   type ProfileDescriptor,
@@ -36,8 +37,8 @@ import {
   ProfileType,
 } from './common';
 import {
+  areaSelectionKey,
   type AreaSelection,
-  areaSelectionsEqual,
   type AreaSelectionTab,
 } from '../../public/selection';
 import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
@@ -51,8 +52,8 @@ const EVENT_TABLE_NAME = 'heap_profile_events';
 const HEAP_PROFILE_PLUGIN_STATE_SCHEMA = z.record(
   z.enum(ProfileType),
   z.object({
-    trackFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
-    areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    trackFlamegraphState: TREE_EXPLORER_STATE_SCHEMA.optional(),
+    areaSelectionFlamegraphState: TREE_EXPLORER_STATE_SCHEMA.optional(),
   }),
 );
 
@@ -382,8 +383,10 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     descriptor: ProfileDescriptor,
     priority: number,
   ): AreaSelectionTab {
-    let previousSelection: AreaSelection | undefined;
-    let flamegraphPanel: HeapProfileFlamegraphDetailsPanel | undefined;
+    // One panel at a time, created for the selection it renders and disposed by
+    // the memo as soon as the selection moves on. One memo per registered tab:
+    // the selection key alone does not distinguish two heap types.
+    const panelMemo = new Memo<HeapProfileFlamegraphDetailsPanel | undefined>();
     return {
       id: `heap_profiler_flamegraph_selection_${descriptor.heapName}`,
       name: `${descriptor.label} flamegraph`,
@@ -392,17 +395,14 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       priority: -priority,
       render: (selection: AreaSelection) => {
         const store = ensureExists(this.store);
-        const selectionChanged =
-          previousSelection === undefined ||
-          !areaSelectionsEqual(previousSelection, selection);
-        previousSelection = selection;
-        if (selectionChanged) {
-          const upids = matchingTracks(selection, descriptor.type).map(
-            (track) => track.tags!.upid,
-          );
-          // For the time being support selecting exactly one process.
-          flamegraphPanel =
-            upids.length !== 1
+        const panel = panelMemo.use({
+          key: areaSelectionKey(selection),
+          compute: () => {
+            const upids = matchingTracks(selection, descriptor.type).map(
+              (track) => track.tags!.upid,
+            );
+            // For the time being support selecting exactly one process.
+            return upids.length !== 1
               ? undefined
               : new HeapProfileFlamegraphDetailsPanel(
                   trace,
@@ -418,14 +418,16 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
                         state;
                     });
                   },
+                  /* isAreaSelection= */ true,
                 );
-        }
+          },
+        });
         // Hide the tab entirely when this selection has no flamegraph for this
         // heap type, rather than showing a tab handle with empty content.
-        if (flamegraphPanel === undefined) {
+        if (panel === undefined) {
           return undefined;
         }
-        return {isLoading: false, content: flamegraphPanel.render()};
+        return {isLoading: false, content: panel.render()};
       },
     };
   }

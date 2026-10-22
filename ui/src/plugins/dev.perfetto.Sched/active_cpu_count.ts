@@ -23,7 +23,12 @@ export enum CPUType {
 }
 
 export class ActiveCPUCountTrack extends CounterTrack {
-  constructor(trackUri: string, trace: Trace, cpuType?: CPUType) {
+  constructor(
+    trackUri: string,
+    trace: Trace,
+    machineId: number,
+    cpuType?: CPUType,
+  ) {
     const sourceTable =
       cpuType === undefined
         ? 'sched_active_cpu_count'
@@ -31,7 +36,11 @@ export class ActiveCPUCountTrack extends CounterTrack {
     super({
       trace,
       uri: trackUri,
-      sqlSource: `select ts, active_cpu_count as value from ${sourceTable}`,
+      sqlSource: `
+        select ts, active_cpu_count as value
+        from ${sourceTable}
+        where machine_id = ${machineId}
+      `,
       yRangeRounding: 'strict',
       yRange: 'viewport',
       onInit: async () => {

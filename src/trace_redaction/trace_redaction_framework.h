@@ -22,6 +22,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -227,6 +228,11 @@ class Context {
   // the uid to the timeline.
   std::optional<uint64_t> package_uid;
 
+  // The timestamp when tracing started, collected from TracingServiceEvent.
+  // This is used to avoid merging events across the start of tracing, which
+  // can result in events being dropped during parsing.
+  std::optional<uint64_t> tracing_started_ts;
+
   // Trace packets contain a "one of" entry called "data". This field can be
   // thought of as the message. A track packet with have other fields along
   // side "data" (e.g. "timestamp"). These fields can be thought of as metadata.
@@ -359,6 +365,32 @@ class Context {
   std::unique_ptr<SyntheticProcess> synthetic_process;
 
   RedactorClockConverter clock_converter;
+
+  struct ProcessTreeProcess {
+    std::vector<std::string> cmdline;
+    bool is_kthread = false;
+    int32_t pid = 0;
+    int32_t ppid = 0;
+    int32_t uid = 0;
+  };
+
+  struct ProcessTreeThread {
+    int32_t tid = 0;
+    int32_t tgid = 0;
+    std::string name;
+  };
+
+  struct MergedProcessTree {
+    std::unordered_map<int32_t, ProcessTreeProcess> processes_by_pid;
+    std::unordered_map<int32_t, ProcessTreeThread> threads_by_tid;
+    uint64_t timestamp = 0;
+    int32_t trusted_uid = 0;
+    bool collected_global_packet_fields = false;
+  };
+
+  // Deduplicated representation of all processes and threads in the trace.
+  // Used to produce the final process tree packets.
+  std::optional<MergedProcessTree> merged_process_tree;
 };
 
 // Extracts low-level data from the trace and writes it into the context. The
@@ -405,6 +437,29 @@ class TransformPrimitive {
   // Modifies a packet using data from the context.
   virtual base::Status Transform(const Context& context,
                                  std::string* packet) const = 0;
+};
+
+// Responsible for producing new trace packets using data from the context.
+// Augment primitives are executed after the Transform phase, and all generated
+// packets are appended to the end of the trace.
+class AugmentPrimitive {
+ public:
+  virtual ~AugmentPrimitive();
+
+  // Generates a trace packet using data from the context and writes it into
+  // `packet`. Returns base::OkStatus() on success.
+  // When no more packets are available to generate, `packet` is left empty.
+  virtual base::Status Augment(const Context& context, std::string* packet) = 0;
+};
+
+// Responsible for validating data from the context, returning an error if
+// validation fails.
+class ValidatorPrimitive {
+ public:
+  virtual ~ValidatorPrimitive();
+
+  // Checks the context and returns an error status if validation fails.
+  virtual base::Status Validate(const Context& context) const = 0;
 };
 
 }  // namespace perfetto::trace_redaction

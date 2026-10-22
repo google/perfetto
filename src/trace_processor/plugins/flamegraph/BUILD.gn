@@ -26,11 +26,38 @@ source_set("flamegraph") {
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base",
     "../../../base",
     "../../../base/regex",
     "../../containers",
-    "../../core/dataframe",
+    "../../core/common",
+    "../../core/tree",
     "../../core/util",
+  ]
+}
+
+# The SQL intrinsics exposing the computation to PerfettoSQL.
+source_set("intrinsics") {
+  sources = [
+    "flamegraph_function.cc",
+    "flamegraph_function.h",
+  ]
+  deps = [
+    ":flamegraph",
+    "../../../../gn:default_deps",
+    "../../../../gn:sqlite",
+    "../../../base",
+    "../../../base/regex",
+    "../../containers",
+    "../../core/common",
+    "../../core/dataframe",
+    "../../core/plugin",
+    "../../core/tree",
+    "../../core/util",
+    "../../perfetto_sql/engine",
+    "../../sqlite",
+    "../../storage",
+    "../../types",
   ]
 }
 
@@ -44,7 +71,9 @@ if (enable_perfetto_benchmarks) {
       "../../../../gn:default_deps",
       "../../../base",
       "../../containers",
-      "../../core/dataframe",
+      "../../core/common",
+      "../../core/tree",
+      "../../core/util",
     ]
   }
 }
@@ -58,7 +87,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../../gn:gtest_and_gmock",
     "../../../base",
     "../../containers",
-    "../../core/dataframe",
+    "../../core/tree",
     "../../core/util",
   ]
 }

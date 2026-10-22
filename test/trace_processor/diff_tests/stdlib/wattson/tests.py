@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Csv, Path, DataPath
+from python.generators.diff_tests.testing import Csv, Path, DataPath, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
@@ -31,6 +31,125 @@ class WattsonStdlib(TestSuite):
             "name"
             "monaco"
             """))
+
+  # Test that Wattson device is resolved from Linux devicetree compatible metadata.
+  def test_wattson_linux_device_name(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+              release: "6.1.0"
+              machine: "aarch64"
+            }
+            device_tree_compatibles: "google,gs101-oriole"
+            device_tree_compatibles: "google,gs101"
+          }
+          trusted_uid: 158158
+          trusted_packet_sequence_id: 1
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE wattson.device_infos;
+        SELECT name FROM _wattson_device;
+        """,
+        out=Csv("""
+        "name"
+        "Tensor"
+        """))
+
+  # Test that Wattson device is resolved from SoC compatible when board is unknown.
+  def test_wattson_linux_device_soc_fallback(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+              release: "6.1.0"
+              machine: "aarch64"
+            }
+            device_tree_compatibles: "vendor,unknown-board"
+            device_tree_compatibles: "google,gs101"
+          }
+          trusted_uid: 158158
+          trusted_packet_sequence_id: 1
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE wattson.device_infos;
+        SELECT name FROM _wattson_device;
+        """,
+        out=Csv("""
+        "name"
+        "Tensor"
+        """))
+
+  # Test that Wattson device is resolved from board compatible fallback.
+  def test_wattson_linux_device_board_fallback(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+              release: "6.1.0"
+              machine: "aarch64"
+            }
+            device_tree_compatibles: "google,GS101 BLUEJAY"
+          }
+          trusted_uid: 158158
+          trusted_packet_sequence_id: 1
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE wattson.device_infos;
+        SELECT name FROM _wattson_device;
+        """,
+        out=Csv("""
+        "name"
+        "Tensor"
+        """))
+
+  # Test that Wattson device ignores devicetree compatibles from remote machines.
+  def test_wattson_linux_device_multi_machine(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+              release: "6.1.0"
+              machine: "aarch64"
+            }
+            device_tree_compatibles: "google,gs101"
+          }
+          trusted_uid: 158158
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          machine_id: 1001
+          system_info {
+            utsname {
+              sysname: "Linux"
+              release: "6.6.0"
+              machine: "aarch64"
+            }
+            device_tree_compatibles: "qcom,sm8750-mtp"
+          }
+          trusted_uid: 158158
+          trusted_packet_sequence_id: 2
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE wattson.device_infos;
+        SELECT name FROM _wattson_device;
+        """,
+        out=Csv("""
+        "name"
+        "Tensor"
+        """))
 
   # Tests intermediate table
   def test_wattson_intermediate_table(self):
@@ -271,12 +390,12 @@ class WattsonStdlib(TestSuite):
               ss.power_state = 'suspended' AS suspended
             FROM _interval_intersect!(
               (
-                _ii_subquery!(_w_independent_cpus_calc),
+                _ii_subquery!(_w_cpu_slices),
                 _ii_subquery!(android_suspend_state)
               ),
               ()
             ) AS ii
-            JOIN _w_independent_cpus_calc AS stats
+            JOIN _w_cpu_slices AS stats
               ON stats._auto_id = id_0
             JOIN android_suspend_state AS ss
               ON ss._auto_id = id_1
@@ -456,6 +575,7 @@ class WattsonStdlib(TestSuite):
           SUM(dur) AS dur,
           thread_name
         FROM _wattson_task_slices
+        JOIN _wattson_task_metadata USING (utid)
         GROUP BY thread_name
         ORDER BY dur DESC
         LIMIT 10
@@ -510,7 +630,7 @@ class WattsonStdlib(TestSuite):
             """),
         out=Csv("""
             "avg_tpu_mw","total_tpu_mws"
-            52.389828,592.702934
+            43.459353,592.702934
             """))
 
   # Verify intermediate GPU active region extraction

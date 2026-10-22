@@ -150,19 +150,17 @@ export class ConfigManager {
     this.indirectlyEnabledProbes.clear();
     this.getProbesOrderedByDep().forEach((probe) => {
       const probeState = state[probe.id];
-      if (probeState === undefined || probeState.settings === undefined) {
-        return;
+      // A probe is enabled iff it appears in the serialized state.
+      if (probeState !== undefined) {
+        this.setProbeEnabled(probe.id, true);
       }
-      this.setProbeEnabled(probe.id, true);
-      if (probe.settings === undefined) {
-        // The probe has no settings, there is nothing to restore.
-        // This return is theoretically redundant but is here to make tsc happy.
-        return;
-      }
-      for (const [key, settingState] of Object.entries(probeState.settings)) {
-        if (key in probe.settings) {
-          probe.settings[key].deserialize(settingState);
-        }
+      // Restore ALL the settings the probe declares, not just the ones present
+      // in the config: a setting the config doesn't mention gets undefined,
+      // which puts it back to its default (@see ProbeSetting.deserialize).
+      // Otherwise it would keep the value from the previously loaded config.
+      const settingsState = probeState?.settings ?? {};
+      for (const [key, setting] of Object.entries(probe.settings ?? {})) {
+        setting.deserialize(settingsState[key]);
       }
     });
   }

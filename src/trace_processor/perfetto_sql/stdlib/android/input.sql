@@ -70,14 +70,14 @@ WITH
   _extracted_input_read_args AS (
     SELECT
       name,
-      str_split(str_split(str_split(name, 'id=', 1), ',', 0), ')', 0) AS input_event_id,
-      str_split(str_split(name, 'eventTime=', 1), ')', 0) AS event_time_str,
-      ts AS read_time
+      regexp_extract(name, 'id=([^,\)]+)') AS input_event_id,
+      ts AS read_time,
+      cast_int!(regexp_extract(name, 'eventTime=(\d+)')) AS event_time
     FROM slice
     WHERE
       name GLOB 'UnwantedInteractionBlocker::notifyMotion*'
   )
-SELECT name, input_event_id, cast_int!(event_time_str) AS event_time, read_time
+SELECT name, input_event_id, read_time, event_time
 FROM _extracted_input_read_args;
 
 CREATE PERFETTO TABLE _event_seq_to_input_event_id AS
@@ -112,16 +112,14 @@ FROM _send_message_events;
 
 CREATE PERFETTO TABLE _clean_android_frames AS
 SELECT
-  f.ts,
-  f.dur,
   do_frame_slice.id AS do_frame_id,
   do_frame_slice.ts AS do_frame_ts,
   do_frame_slice.dur AS do_frame_dur,
   cast_int!(ui_thread_utid) AS utid,
   frame_id
-FROM android_frames AS f
+FROM android_frames_choreographer_do_frame AS f
 JOIN slice AS do_frame_slice
-  ON f.do_frame_id = do_frame_slice.id;
+  ON f.id = do_frame_slice.id;
 
 CREATE PERFETTO TABLE _clean_deliver_events AS
 SELECT
@@ -132,7 +130,8 @@ SELECT
   cast_int!(t.upid) AS upid,
   t.process_name,
   str_split(s.name, '=', 3) AS extracted_input_event_id,
-  str_split(str_split(parent.name, '_', 1), ' ', 0) AS event_action,
+  str_split(str_split(parent.name, ' ', 2), ' ', 0) AS event_action,
+  cast_int!(str_split(str_split(s.name, ' ', 2), '=', 1)) AS event_time,
   parent.ts AS consume_time,
   parent.ts + parent.dur AS finish_time
 FROM slice AS s
@@ -203,13 +202,14 @@ CREATE PERFETTO TABLE _input_event_id_to_android_frame AS
 SELECT
   dev.extracted_input_event_id AS input_event_id,
   dev.event_action,
+  dev.event_time,
   dev.consume_time,
   dev.finish_time,
   dev.utid,
   dev.upid,
   dev.process_name,
   af.frame_id,
-  af.ts AS frame_ts,
+  af.do_frame_ts AS frame_ts,
   map.event_channel,
   CAST(assoc.is_speculative_match AS BOOL) AS is_speculative_match
 FROM _input_event_frame_association AS assoc
@@ -239,7 +239,6 @@ CREATE PERFETTO TABLE _first_non_dropped_frame_after_input AS
 SELECT
   _input_read_time.input_event_id,
   _input_read_time.read_time,
-  _input_read_time.event_time,
   (
     SELECT surface_flinger_ts + surface_flinger_dur
     FROM _app_frame_to_surface_flinger_frame AS sf_frames
@@ -252,6 +251,7 @@ SELECT
   _input_event_id_to_android_frame.frame_id,
   event_seq,
   event_action,
+  _input_event_id_to_android_frame.event_time,
   _input_event_id_to_android_frame.is_speculative_match
 FROM _input_event_id_to_android_frame
 RIGHT JOIN _event_seq_to_input_event_id
@@ -346,7 +346,9 @@ CREATE PERFETTO TABLE android_input_events(
   -- Indicates if the frame association was speculative rather than exact based on id match.
   is_speculative_frame BOOL,
   -- Timestamp when the input event actually occurred.
-  event_time TIMESTAMP
+  event_time TIMESTAMP,
+  -- Timestamp of the input event that the frame receives. This can differ from event_time due to resampling.
+  frame_event_time TIMESTAMP
 )
 AS
 WITH
@@ -416,7 +418,8 @@ SELECT
   receive.track_id AS receive_track_id,
   frame.frame_id,
   frame.is_speculative_match AS is_speculative_frame,
-  read_time.event_time
+  read_time.event_time,
+  frame.event_time AS frame_event_time
 FROM dispatch
 JOIN receive
   ON receive.dispatch_event_channel = dispatch.event_channel

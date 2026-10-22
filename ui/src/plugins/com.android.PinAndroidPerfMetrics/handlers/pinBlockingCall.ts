@@ -38,7 +38,7 @@ class BlockingCallMetricHandler implements MetricHandler {
    */
   public match(metricKey: string): BlockingCallMetricData | undefined {
     const matcher =
-      /perfetto_android_blocking_call(?:_per_frame)?-cuj-name-(?<process>.*)-name-(?<cujName>.*)-blocking_calls-name-(?<blockingCallName>([^\-]*))-(?<aggregation>.*)/;
+      /perfetto_android_blocking_call(?:_per_frame)?-cuj-name-(?<process>.*)-name-(?<cujName>.*)-blocking_calls-name-(?<blockingCallName>.*)-(?<aggregation>(?:(?:total|max|min|avg|mean)_(?:dur|cnt)(?:_per_frame)?(?:_ms|_ns)?|cnt)(?:-[^-]+)?)$/;
     const match = matcher.exec(metricKey);
     if (!match?.groups) {
       return undefined;
@@ -64,8 +64,7 @@ class BlockingCallMetricHandler implements MetricHandler {
     const config = this.blockingCallTrackConfig(metricData);
     addDebugSliceTrack({trace: ctx, ...config});
     // Only trigger adding track for frame when the aggregation is for max duration per frame.
-    const MAX_DUR_PER_FRAME_NS_MEAN = 'max_dur_per_frame_ns-mean';
-    if (metricData.aggregation === MAX_DUR_PER_FRAME_NS_MEAN) {
+    if (metricData.aggregation.startsWith('max_dur_per_frame_')) {
       const frameConfigArgs = await this.frameWithMaxDurBlockingCallTrackConfig(
         ctx,
         metricData,
@@ -93,21 +92,29 @@ class BlockingCallMetricHandler implements MetricHandler {
     }
   }
 
-  private blockingCallTrackConfig(metricData: BlockingCallMetricData) {
+  private blockingCallWhereClause(metricData: BlockingCallMetricData): string {
     const cuj = metricData.cujName;
     const processName = metricData.process;
     const blockingCallName = metricData.blockingCallName;
-
-    // TODO: b/296349525 - Migrate jank tables from run metrics to stdlib
-    const blockingCallDuringCujQuery = `
-  SELECT name, ts, dur
-  FROM blocking_call_slices_scoped_to_cujs
-  WHERE process_name = "${processName}"
+    // Some lab pipelines replace spaces with underscores in metric names (e.g.
+    // 'drawLayer_[StatusBarIconView]'), whereas standardized slice names
+    // in PerfettoSQL tables retain spaces ('drawLayer [StatusBarIconView]').
+    const normalizedName = blockingCallName.replaceAll('_', ' ');
+    return `
+      process_name = "${processName}"
       AND cuj_name = "${cuj}"
-      AND name = "${blockingCallName}"
-  `;
+      AND name IN ("${blockingCallName}", "${normalizedName}")
+    `;
+  }
 
-    const trackName = 'Blocking calls in ' + processName;
+  private blockingCallTrackConfig(metricData: BlockingCallMetricData) {
+    const blockingCallDuringCujQuery = `
+      SELECT name, ts, dur
+      FROM android_cuj_blocking_calls
+      WHERE ${this.blockingCallWhereClause(metricData)}
+    `;
+
+    const trackName = 'Blocking calls in ' + metricData.process;
     return {
       data: {
         sqlSource: blockingCallDuringCujQuery,
@@ -123,10 +130,6 @@ class BlockingCallMetricHandler implements MetricHandler {
     ctx: Trace,
     metricData: BlockingCallMetricData,
   ): Promise<QueryResult> {
-    const cuj = metricData.cujName;
-    const processName = metricData.process;
-    const blockingCallName = metricData.blockingCallName;
-
     // Fetch the frame_id of the frame with the max duration blocking call.
     return ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
@@ -134,10 +137,7 @@ class BlockingCallMetricHandler implements MetricHandler {
       SELECT
         frame_id
       FROM _blocking_calls_frame_cuj
-      WHERE
-        process_name = '${processName}'
-        AND name = '${blockingCallName}'
-        AND cuj_name = '${cuj}'
+      WHERE ${this.blockingCallWhereClause(metricData)}
       -- select frame_id for the metric with the maximum duration.
       ORDER BY dur DESC
       LIMIT 1`);

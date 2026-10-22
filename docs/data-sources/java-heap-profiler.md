@@ -21,7 +21,7 @@ records allocation events / call stacks.
 ## UI
 
 Heap dumps are shown as flamegraphs in the UI after clicking on the
-diamond in the _"Heap Profile"_ track of a process. Each diamond corresponds to
+diamond in the _"ART heap dump"_ track of a process. Each diamond corresponds to
 a heap dump.
 
 ![ART heap dumps in the process tracks](/docs/images/profile-diamond.png)

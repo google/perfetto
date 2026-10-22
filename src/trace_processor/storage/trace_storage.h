@@ -392,6 +392,24 @@ class TraceStorage {
     return mutable_table<tables::AndroidInputEventDispatchTable>();
   }
 
+  const tables::AndroidJobSchedulerPendingReasonsTrackEventTable&
+  android_job_scheduler_pending_reasons_track_event_table() const {
+    return table<tables::AndroidJobSchedulerPendingReasonsTrackEventTable>();
+  }
+  tables::AndroidJobSchedulerPendingReasonsTrackEventTable*
+  mutable_android_job_scheduler_pending_reasons_track_event_table() {
+    return mutable_table<
+        tables::AndroidJobSchedulerPendingReasonsTrackEventTable>();
+  }
+
+  const tables::AndroidJobSchedulerTrackEventTable&
+  android_job_scheduler_track_event_table() const {
+    return table<tables::AndroidJobSchedulerTrackEventTable>();
+  }
+  tables::AndroidJobSchedulerTrackEventTable*
+  mutable_android_job_scheduler_track_event_table() {
+    return mutable_table<tables::AndroidJobSchedulerTrackEventTable>();
+  }
   const tables::MetadataTable& metadata_table() const {
     return table<tables::MetadataTable>();
   }
@@ -700,6 +718,14 @@ class TraceStorage {
 
   tables::AggregateSampleTable* mutable_aggregate_sample_table() {
     return mutable_table<tables::AggregateSampleTable>();
+  }
+
+  const tables::VulkanDebugNamesTable& vulkan_debug_names_table() const {
+    return table<tables::VulkanDebugNamesTable>();
+  }
+
+  tables::VulkanDebugNamesTable* mutable_vulkan_debug_names_table() {
+    return mutable_table<tables::VulkanDebugNamesTable>();
   }
 
   const tables::VulkanMemoryAllocationsTable& vulkan_memory_allocations_table()

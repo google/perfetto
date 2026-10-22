@@ -66,11 +66,10 @@ expect.extend({
   },
 });
 
-declare global {
-  namespace jest {
-    interface Matchers<R> {
-      toHaveViewport(start: number, end: number): R;
-    }
+declare module 'vitest' {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface Matchers<R, T> {
+    toHaveViewport(start: number, end: number): R;
   }
 }
 

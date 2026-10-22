@@ -17,8 +17,6 @@ import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 import {ensureExists} from '../base/assert';
 import type {Locator} from '@playwright/test';
 
-test.describe.configure({mode: 'serial'});
-
 let pth: PerfettoTestHelper;
 let page: Page;
 let drawerPanel: Locator;
@@ -30,108 +28,112 @@ test.beforeAll(async ({browser}, _testInfo) => {
   drawerPanel = page.locator('.pf-drawer-panel__drawer');
 });
 
-test('sched', async () => {
-  await page.mouse.move(600, 250);
-  await page.mouse.down();
-  await page.mouse.move(800, 350);
-  await page.mouse.up();
-  await pth.waitForPerfettoIdle();
-  await pth.waitForIdleAndScreenshot('cpu-by-thread.png', {
-    locator: drawerPanel,
+test('aggregation', async () => {
+  test.setTimeout(4 * 60_000);
+
+  await pth.step('sched', async () => {
+    await page.mouse.move(600, 250);
+    await page.mouse.down();
+    await page.mouse.move(800, 350);
+    await page.mouse.up();
+    await pth.waitForPerfettoIdle();
+    await pth.waitForIdleAndScreenshot('cpu-by-thread.png', {
+      locator: drawerPanel,
+    });
+
+    await page.click('button[label="By Process"]');
+    await pth.waitForIdleAndScreenshot('cpu-by-process.png', {
+      locator: drawerPanel,
+    });
+
+    // Now test sorting.
+    const hdr = page
+      .getByRole('columnheader')
+      .filter({has: page.getByText('CPU Time', {exact: true})})
+      .filter({has: page.getByText('AVG', {exact: true})});
+    await hdr.hover();
+
+    // Press the sort button to sort ascending.
+    await hdr.getByRole('button', {name: 'Sort column'}).click();
+    await pth.waitForIdleAndScreenshot('sort-by-wall-duration.png', {
+      locator: drawerPanel,
+    });
+
+    // Press the button again to sort descending.
+    await hdr.getByRole('button', {name: 'Sort column'}).click();
+    await pth.waitForIdleAndScreenshot('sort-by-wall-duration-desc.png', {
+      locator: drawerPanel,
+    });
+
+    const hdrCount = page
+      .getByRole('columnheader')
+      .filter({has: page.getByText('Count', {exact: true})});
+    await hdrCount.hover();
+
+    // Press the sort button to sort ascending on this column.
+    await hdrCount.getByRole('button', {name: 'Sort column'}).click();
+    await pth.waitForIdleAndScreenshot('sort-by-occurrences.png', {
+      locator: drawerPanel,
+    });
   });
 
-  await page.click('button[label="By Process"]');
-  await pth.waitForIdleAndScreenshot('cpu-by-process.png', {
-    locator: drawerPanel,
+  await pth.step('gpu counter', async () => {
+    await page.keyboard.press('Escape');
+    const gpuGroup = pth.locateTrack('GPU');
+    await gpuGroup.scrollIntoViewIfNeeded();
+    await pth.toggleTrackGroup(gpuGroup);
+    const gpuFreqGroup = pth.locateTrack('GPU/Frequency', gpuGroup);
+    await pth.toggleTrackGroup(gpuFreqGroup);
+    const gpuTrack = pth.locateTrack(
+      'GPU/Frequency/GPU 0 Frequency',
+      gpuFreqGroup,
+    );
+    const coords = ensureExists(await gpuTrack.boundingBox());
+    await page.mouse.move(600, coords.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(800, coords.y + 60);
+    await page.mouse.up();
+    await pth.waitForIdleAndScreenshot('gpu-counter-aggregation.png', {
+      locator: drawerPanel,
+    });
   });
 
-  // Now test sorting.
-  const hdr = page
-    .getByRole('columnheader')
-    .filter({has: page.getByText('CPU Time', {exact: true})})
-    .filter({has: page.getByText('AVG', {exact: true})});
-  await hdr.hover();
-
-  // Press the sort button to sort ascending.
-  await hdr.getByRole('button', {name: 'Sort column'}).click();
-  await pth.waitForIdleAndScreenshot('sort-by-wall-duration.png', {
-    locator: drawerPanel,
+  await pth.step('frametimeline', async () => {
+    await page.keyboard.press('Escape');
+    const sysui = pth.locateTrack('com.android.systemui 25348');
+    await sysui.scrollIntoViewIfNeeded();
+    await pth.toggleTrackGroup(sysui);
+    const actualTimeline = pth.locateTrack(
+      'com.android.systemui 25348/Actual Timeline',
+      sysui,
+    );
+    const coords = ensureExists(await actualTimeline.boundingBox());
+    await page.mouse.move(600, coords.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(1000, coords.y + 20);
+    await page.mouse.up();
+    await pth.waitForIdleAndScreenshot('frame-timeline-aggregation.png', {
+      locator: drawerPanel,
+    });
   });
 
-  // Press the button again to sort descending.
-  await hdr.getByRole('button', {name: 'Sort column'}).click();
-  await pth.waitForIdleAndScreenshot('sort-by-wall-duration-desc.png', {
-    locator: drawerPanel,
-  });
-
-  const hdrCount = page
-    .getByRole('columnheader')
-    .filter({has: page.getByText('Count', {exact: true})});
-  await hdrCount.hover();
-
-  // Press the sort button to sort ascending on this column.
-  await hdrCount.getByRole('button', {name: 'Sort column'}).click();
-  await pth.waitForIdleAndScreenshot('sort-by-occurrences.png', {
-    locator: drawerPanel,
-  });
-});
-
-test('gpu counter', async () => {
-  await page.keyboard.press('Escape');
-  const gpuGroup = pth.locateTrack('GPU');
-  await gpuGroup.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(gpuGroup);
-  const gpuFreqGroup = pth.locateTrack('GPU/Frequency', gpuGroup);
-  await pth.toggleTrackGroup(gpuFreqGroup);
-  const gpuTrack = pth.locateTrack(
-    'GPU/Frequency/GPU 0 Frequency',
-    gpuFreqGroup,
-  );
-  const coords = ensureExists(await gpuTrack.boundingBox());
-  await page.mouse.move(600, coords.y + 10);
-  await page.mouse.down();
-  await page.mouse.move(800, coords.y + 60);
-  await page.mouse.up();
-  await pth.waitForIdleAndScreenshot('gpu-counter-aggregation.png', {
-    locator: drawerPanel,
-  });
-});
-
-test('frametimeline', async () => {
-  await page.keyboard.press('Escape');
-  const sysui = pth.locateTrack('com.android.systemui 25348');
-  await sysui.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(sysui);
-  const actualTimeline = pth.locateTrack(
-    'com.android.systemui 25348/Actual Timeline',
-    sysui,
-  );
-  const coords = ensureExists(await actualTimeline.boundingBox());
-  await page.mouse.move(600, coords.y + 10);
-  await page.mouse.down();
-  await page.mouse.move(1000, coords.y + 20);
-  await page.mouse.up();
-  await pth.waitForIdleAndScreenshot('frame-timeline-aggregation.png', {
-    locator: drawerPanel,
-  });
-});
-
-test('slices', async () => {
-  await page.keyboard.press('Escape');
-  const syssrv = pth.locateTrack('system_server 1719');
-  await syssrv.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(syssrv);
-  const animThread = pth
-    .locateTrack('system_server 1719/android.anim 1754', syssrv)
-    .nth(1);
-  await animThread.scrollIntoViewIfNeeded();
-  await pth.waitForPerfettoIdle();
-  const coords = ensureExists(await animThread.boundingBox());
-  await page.mouse.move(600, coords.y + 10);
-  await page.mouse.down();
-  await page.mouse.move(1000, coords.y + 20);
-  await page.mouse.up();
-  await pth.waitForIdleAndScreenshot('slice-aggregation.png', {
-    locator: drawerPanel,
+  await pth.step('slices', async () => {
+    await page.keyboard.press('Escape');
+    const syssrv = pth.locateTrack('system_server 1719');
+    await syssrv.scrollIntoViewIfNeeded();
+    await pth.toggleTrackGroup(syssrv);
+    const animThread = pth
+      .locateTrack('system_server 1719/android.anim 1754', syssrv)
+      .nth(1);
+    await animThread.scrollIntoViewIfNeeded();
+    await pth.waitForPerfettoIdle();
+    const coords = ensureExists(await animThread.boundingBox());
+    await page.mouse.move(600, coords.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(1000, coords.y + 20);
+    await page.mouse.up();
+    await pth.waitForIdleAndScreenshot('slice-aggregation.png', {
+      locator: drawerPanel,
+    });
   });
 });

@@ -301,8 +301,8 @@ https://ui.perfetto.dev and drag-n-drop your file into the window (or press
 `Ctrl+O` to bring up the open file dialog).
 
 Expand the "Ftrace Events" track group for a per-cpu view of events, which can
-be selected to show their fields. Additionally, `Ctrl+shift+P -> "Show Ftrace
-Tab"` opens up a tab with an approximation of the textual output. However note
+be selected to show their fields. Additionally, `Ctrl+shift+P -> "Show ftrace
+tab"` opens up a tab with an approximation of the textual output. However note
 that because perfetto records the binary representation of events, it does not
 textualise the events according to the `TP_printk(..)` specifier.
 
@@ -386,7 +386,7 @@ static constexpr auto kTickerCountBlueprint = tracks::CounterBlueprint(
 
 // ~~ snip ~~
 
-      case FtraceEvent::kTickerEventFieldNumber: {
+      case FtraceEvent::kTickerTickFieldNumber: {
         ParseTickerEvent(cpu, ts, fld_bytes);
         break;
       }
@@ -396,7 +396,7 @@ static constexpr auto kTickerCountBlueprint = tracks::CounterBlueprint(
 void FtraceParser::ParseTickerEvent(uint32_t cpu,
                                     int64_t timestamp,
                                     protozero::ConstBytes data) {
-  protos::pbzero::TickerEventFtraceEvent::Decoder ticker_event(data);
+  protos::pbzero::TickerTickFtraceEvent::Decoder ticker_event(data);
 
   PERFETTO_LOG("Parsing ticker event: %" PRId64 ", %" PRIu32 ", %d",
                timestamp,
@@ -570,9 +570,9 @@ for (int i=0; i < 3; i++) {
 TRACE_EX_END();
 ```
 
-We can record a trace with the following config (at the time of writing, the
-`denser_generic_event_encoding` is necessary, but is likely to become the
-default):
+We can record a trace with the following config (the
+`denser_generic_event_encoding` option is the default since perfetto v53, but
+is necessary on older versions):
 
 ```
 // trace.txtpb
@@ -633,23 +633,28 @@ Tracepoint declaration example, named `trk_example/tgid_track_example`:
 
 #include <linux/tracepoint.h>
 
-TRACE_EVENT(tgid_counter_example,
+TRACE_EVENT(tgid_track_example,
     TP_PROTO(
-        u64 counter_value,
+        char track_event_type,
+        const char *slice_name,
         int scope_tgid
     ),
-    TP_ARGS(counter_value, scope_tgid),
+    TP_ARGS(track_event_type, slice_name, scope_tgid),
     TP_STRUCT__entry(
-        __field(u64, counter_value)
+        __field(char, track_event_type)
+        __string(slice_name, slice_name)
         __field(int, scope_tgid)
     ),
     TP_fast_assign(
-        __entry->counter_value = counter_value;
+        __entry->track_event_type = track_event_type;
+        /* kernels before v6.10: __assign_str(slice_name, slice_name) */
+        __assign_str(slice_name);
         __entry->scope_tgid = scope_tgid;
     ),
     TP_printk(
-        "counter_value=%llu tgid=%d",
-        (unsigned long long)__entry->counter_value,
+        "type=%c slice_name=%s tgid=%d",
+        __entry->track_event_type,
+        __get_str(slice_name),
         __entry->scope_tgid
     )
 );

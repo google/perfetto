@@ -294,6 +294,11 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // notice. Do not depend on this interface in production code.
 
   enum class ExportFormat {
+    // A standard SQLite database containing all SQL-visible Perfetto tables
+    // and views, including objects created at runtime. This format requires an
+    // ExportOutput which provides a file path.
+    kSqlite,
+
     // A Perfetto-internal archive that can be loaded as input by a fresh Trace
     // Processor instance from the same version. Loading it in a different
     // version may work but is not guaranteed.

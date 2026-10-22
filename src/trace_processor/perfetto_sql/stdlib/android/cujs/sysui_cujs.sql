@@ -17,6 +17,10 @@ INCLUDE PERFETTO MODULE android.frames.timeline;
 
 INCLUDE PERFETTO MODULE android.cujs.base;
 
+INCLUDE PERFETTO MODULE android.critical_blocking_calls;
+
+INCLUDE PERFETTO MODULE android.render_thread;
+
 -- Table tracking all jank CUJs information.
 CREATE PERFETTO TABLE android_sysui_jank_cujs(
   -- Unique incremental ID for each CUJ.
@@ -211,7 +215,9 @@ WHERE
 
 -- Table tracking all jank/latency CUJs information.
 CREATE PERFETTO TABLE android_jank_latency_cujs(
-  -- Unique incremental ID for each CUJ.
+  -- CUJ ID inherited directly from the underlying jank/latency source without
+  -- remapping. Note that this ID is not globally unique across this table (jank and
+  -- latency CUJs can share the same numeric ID).
   cuj_id LONG,
   -- An alias for cuj_id for compatibility purposes.
   id LONG,
@@ -221,7 +227,7 @@ CREATE PERFETTO TABLE android_jank_latency_cujs(
   process_name STRING,
   -- Name of the CUJ slice.
   cuj_slice_name STRING,
-  -- Name of the CUJ without the 'J<' prefix.
+  -- Name of the CUJ without the 'J<' or 'L<' prefix.
   cuj_name STRING,
   -- Id of the CUJ slice in perfetto. Keeping the slice id column as part of this table
   -- as provision to lookup the actual CUJ slice ts and dur. The ts and dur in this table
@@ -252,25 +258,9 @@ CREATE PERFETTO TABLE android_jank_latency_cujs(
   cuj_type STRING
 )
 AS
-WITH
-  combined_cujs AS (
-    SELECT *, "jank" AS cuj_type, cuj_id AS original_cuj_id
-    FROM android_sysui_jank_cujs
-    UNION ALL
-    SELECT
-      *,
-      -- upid is used as the ui_thread as it's the tid of the main thread.
-      upid AS ui_thread,
-      NULL AS layer_id,
-      NULL AS begin_vsync,
-      NULL AS end_vsync,
-      "latency" AS cuj_type,
-      cuj_id AS original_cuj_id
-    FROM android_sysui_latency_cujs
-  )
 SELECT
-  row_number() OVER (ORDER BY cuj_type, original_cuj_id) AS cuj_id,
-  row_number() OVER (ORDER BY cuj_type, original_cuj_id) AS id,
+  cuj_id,
+  cuj_id AS id,
   upid,
   process_name,
   cuj_slice_name,
@@ -284,5 +274,105 @@ SELECT
   layer_id,
   begin_vsync,
   end_vsync,
-  cuj_type
-FROM combined_cujs;
+  'jank' AS cuj_type
+FROM android_sysui_jank_cujs
+UNION ALL
+SELECT
+  cuj.cuj_id,
+  cuj.cuj_id AS id,
+  cuj.upid,
+  cuj.process_name,
+  cuj.cuj_slice_name,
+  cuj.cuj_name,
+  cuj.slice_id,
+  cuj.ts,
+  cuj.ts_end,
+  cuj.dur,
+  cuj.state,
+  -- Latency CUJs use the main thread of the process as the UI thread. Note
+  -- that the upid of the process can not be used as a utid.
+  main_thread.utid AS ui_thread,
+  NULL AS layer_id,
+  NULL AS begin_vsync,
+  NULL AS end_vsync,
+  'latency' AS cuj_type
+FROM android_sysui_latency_cujs AS cuj
+LEFT JOIN thread AS main_thread
+  ON main_thread.upid = cuj.upid
+  AND main_thread.is_main_thread
+ORDER BY
+  cuj_id;
+
+-- Slices corresponding to critical blocking calls that occurred during a CUJ,
+-- clipped to the CUJ time boundaries.
+CREATE PERFETTO TABLE android_cuj_blocking_calls(
+  -- Unique slice id.
+  slice_id JOINID(slice.id),
+  -- Standardized name of the blocking call.
+  name STRING,
+  -- Timestamp of the blocking call, clamped to the CUJ start timestamp.
+  ts TIMESTAMP,
+  -- Duration of the blocking call within the CUJ boundaries.
+  dur DURATION,
+  -- End timestamp of the blocking call, clamped to the CUJ end timestamp.
+  ts_end TIMESTAMP,
+  -- CUJ ID.
+  cuj_id LONG,
+  -- Name of the CUJ.
+  cuj_name STRING,
+  -- Process name.
+  process_name STRING,
+  -- Process upid.
+  upid JOINID(process.id),
+  -- Thread utid.
+  utid JOINID(thread.id),
+  -- Type of CUJ, i.e. jank or latency.
+  cuj_type STRING
+)
+AS
+WITH
+  -- Collect the target threads (UI thread and RenderThread) for each CUJ upfront
+  -- so the join against `_android_critical_blocking_calls` uses a direct
+  -- equality condition on `(upid, utid)` rather than an `OR` across two tables.
+  cuj_threads AS (
+    SELECT cuj_id, cuj_name, cuj_type, upid, ts, ts_end, ui_thread AS utid
+    FROM android_jank_latency_cujs
+    WHERE
+      ui_thread IS NOT NULL
+    UNION ALL
+    -- Also include blocking calls on the process's RenderThread (excluding
+    -- cases where RenderThread is already the CUJ's ui_thread to avoid
+    -- duplicate rows).
+    SELECT
+      cuj.cuj_id,
+      cuj.cuj_name,
+      cuj.cuj_type,
+      cuj.upid,
+      cuj.ts,
+      cuj.ts_end,
+      rt.render_thread_utid AS utid
+    FROM android_jank_latency_cujs AS cuj
+    JOIN _render_thread_per_process AS rt
+      ON rt.upid = cuj.upid
+    WHERE
+      cuj.ui_thread IS NULL
+      OR rt.render_thread_utid != cuj.ui_thread
+  )
+SELECT
+  s.id AS slice_id,
+  s.name,
+  max(s.ts, cuj.ts) AS ts,
+  min(s.ts + s.dur, cuj.ts_end) - max(s.ts, cuj.ts) AS dur,
+  min(s.ts + s.dur, cuj.ts_end) AS ts_end,
+  cuj.cuj_id,
+  cuj.cuj_name,
+  s.process_name,
+  s.upid,
+  s.utid,
+  cuj.cuj_type
+FROM cuj_threads AS cuj
+JOIN _android_critical_blocking_calls AS s
+  ON s.utid = cuj.utid
+  AND s.upid = cuj.upid
+  AND s.ts + s.dur > cuj.ts
+  AND s.ts < cuj.ts_end;

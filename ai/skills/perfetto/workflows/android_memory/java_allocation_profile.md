@@ -42,7 +42,7 @@ This section is the mandatory first-pass triage for analyzing a Java allocation 
     >
     > This allocation path is a primary candidate for memory churn. To find where the allocation is happening, search for the class and method names in the codebase. Use the source code to identify if these allocations are temporary and if they can be avoided (e.g., by reusing objects, avoiding allocations in loops, or using primitive types). Reference specific locations in the code and create an implementation plan for optimizing it.
 
-4.  Present this generated string as a system prompt asking the underlying LLM to generate the final analysis response for the user. Provide the model's analysis cleanly.
+4.  Treat the generated string as the brief for your own analysis and write the final response for the user from it.
 
 ---
 

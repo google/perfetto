@@ -492,6 +492,7 @@ class TracingMuxerImpl : public TracingMuxer {
   void InitializeConsumer(TracingSessionGlobalID session_id);
   void OnConsumerDisconnected(ConsumerImpl* consumer);
   void OnProducerDisconnected(ProducerImpl* producer);
+  void DestroyAllTraceWritersForCurrentThread();
   // Test only method.
   void SweepDeadBackends();
 

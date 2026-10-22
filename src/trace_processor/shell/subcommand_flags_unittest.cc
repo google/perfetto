@@ -95,22 +95,11 @@ SubcommandContext CtxWithPositionals(std::vector<std::string> positionals) {
 }
 
 base::TempFile WriteTempFile(const std::string& content) {
-  base::TempFile f = base::TempFile::Create();
+  base::TempFile f = base::TempFile::Create().ValueOrDie();
   PERFETTO_CHECK(base::WriteAll(f.fd(), content.data(), content.size()) ==
                  static_cast<ssize_t>(content.size()));
   return f;
 }
-
-// A path for an output file the code under test creates. Not a TempFile: on
-// Windows an open TempFile lacks FILE_SHARE_WRITE, so reopening it for write
-// hits a sharing violation.
-struct OutputPath {
-  base::TempDir dir = base::TempDir::Create();
-  std::string path() const { return dir.path() + "/out"; }
-  ~OutputPath() {
-    base::Unlink(path().c_str());
-  }  // TempDir needs an empty dir.
-};
 
 class TestFileSystem final : public io::FileSystem {
  public:
@@ -418,7 +407,7 @@ TEST(ConvertSubcommandTest, RequiresFormat) {
 
 TEST(ConvertSubcommandTest, RejectsUnknownFormat) {
   base::TempFile input = WriteTempFile("ignored");
-  OutputPath output;
+  base::TempFile output = base::TempFile::Create().ValueOrDie();
 
   ConvertSubcommand convert;
   base::Status s =
@@ -431,7 +420,7 @@ TEST(ConvertSubcommandTest, RejectsUnknownFormat) {
 // in favour of `convert profile --java-heap`; `convert` must reject them all.
 TEST(ConvertSubcommandTest, RejectsFormatsMovedOrRemoved) {
   base::TempFile input = WriteTempFile("ignored");
-  OutputPath output;
+  base::TempFile output = base::TempFile::Create().ValueOrDie();
 
   for (const char* fmt :
        {"binary", "decompress_packets", "java_heap_profile"}) {
@@ -487,7 +476,7 @@ TEST(UtilSubcommandTest, RejectsUnknownUtility) {
 // must be converted to a non-empty binary trace.
 TEST(UtilSubcommandTest, TextToBinaryConvertsTextProto) {
   base::TempFile input = WriteTempFile("packet { timestamp: 42 }");
-  OutputPath output;
+  base::TempFile output = base::TempFile::Create().ValueOrDie();
 
   UtilSubcommand util;
   base::Status s = util.Run(

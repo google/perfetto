@@ -39,7 +39,7 @@ struct FlagSpec {
   char short_name;        // e.g. 'f', or '\0' for no short form
   bool has_arg;           // true if the flag takes an argument
   const char* arg_name;   // e.g. "FILE", or nullptr if no argument
-  const char* help;       // one-line description
+  const char* help;       // one-line description, or nullptr to not list it
   std::function<void(const char*)> handler;
 };
 

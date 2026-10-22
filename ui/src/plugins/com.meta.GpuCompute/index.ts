@@ -31,7 +31,7 @@ import type {SummaryRow} from './summary';
 import {registerSpeedOfLightSection} from './section/speed_of_light';
 import {registerLaunchStatisticsSection} from './section/launch_statistics';
 import {registerOccupancySection} from './section/occupancy';
-import {registerWorkloadAnalysisSection} from './section/workload_analysis';
+import {registerComputeWorkloadAnalysisSection} from './section/compute_workload_analysis';
 import {cudaTerminology} from './terminology/cuda';
 import {openclTerminology} from './terminology/opencl';
 import {TerminologyRegistry} from './terminology';
@@ -76,7 +76,9 @@ class Compute {
 
   private sliceId: number | undefined = -1;
   private options: KernelLaunchOption[] = [];
-  private summaryRows: SummaryRow[] = [];
+  // Undefined until the prefetch completes, so that a tab opened before then
+  // runs its own query instead of caching an empty table.
+  private summaryRows: SummaryRow[] | undefined;
   private knownKernelIds = new Set<number>();
 
   // Selection-driven metric fetching via QuerySlot. Selection changes
@@ -373,7 +375,7 @@ export default class GpuComputePlugin implements PerfettoPlugin {
     registerSpeedOfLightSection(this.sectionRegistry);
     registerLaunchStatisticsSection(this.sectionRegistry);
     registerOccupancySection(this.sectionRegistry);
-    registerWorkloadAnalysisSection(this.sectionRegistry);
+    registerComputeWorkloadAnalysisSection(this.sectionRegistry);
   }
 
   registerAnalysisProvider(provider: AnalysisProvider): void {
@@ -417,19 +419,27 @@ export default class GpuComputePlugin implements PerfettoPlugin {
       content: content,
     });
 
-    try {
-      const rows = await fetchKernelSummaryRows(
-        this.getContext(),
-        trace.engine,
-      );
-      content.setSummaryRows(rows);
-      content.setOptions(rows.map((r) => ({id: r.id, label: r.demangledName})));
-      if (rows.length > 0) {
-        trace.tabs.showTab(tabUri);
+    // The summary query is built from the well-known metric roles, and a
+    // plugin that depends on this one registers its ids in its own
+    // onTraceLoad, which runs after this one. onTraceReady is the first point
+    // at which the registry holds every id.
+    trace.onTraceReady.addListener(async () => {
+      try {
+        const rows = await fetchKernelSummaryRows(
+          this.getContext(),
+          trace.engine,
+        );
+        content.setSummaryRows(rows);
+        content.setOptions(
+          rows.map((r) => ({id: r.id, label: r.demangledName})),
+        );
+        if (rows.length > 0) {
+          trace.tabs.showTab(tabUri);
+        }
+      } catch (e) {
+        console.warn('GpuCompute: failed to fetch kernel launch list:', e);
+        content.setOptions([]);
       }
-    } catch (e) {
-      console.warn('GpuCompute: failed to fetch kernel launch list:', e);
-      content.setOptions([]);
-    }
+    });
   }
 }

@@ -15,7 +15,7 @@ Query Analysis (Validation) → Query Materialization → Result Display
 
 ## Node Graph Structure
 
-**QueryNode** (`ui/src/plugins/dev.perfetto.DataExplorer/query_node.ts:128-161`)
+**QueryNode** (`ui/src/plugins/dev.perfetto.DataExplorer/query_node.ts:139-175`)
 - Base abstraction for all node types
 - Maintains bidirectional connections: `primaryInput` (upstream), `nextNodes` (downstream), `secondaryInputs` (side connections)
 - Generates structured query protobuf via `getStructuredQuery()`
@@ -259,7 +259,7 @@ Manual execution (autoExecute=false):
 
 This ensures SQL/Proto tabs display correctly for both automatic and manual execution modes.
 
-**Race Condition Prevention** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/builder.ts:283-292`)
+**Race Condition Prevention** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/builder.ts:309-316`)
 
 The callback captures the selected node at creation time to prevent stale query leakage:
 ```typescript

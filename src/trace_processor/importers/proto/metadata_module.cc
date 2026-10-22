@@ -40,6 +40,7 @@
 #include "src/trace_processor/util/protozero_to_text.h"
 
 #include "protos/perfetto/config/trace_config.pbzero.h"
+#include "protos/perfetto/trace/android/recovered_trace_info.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trigger.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_uuid.pbzero.h"
@@ -74,6 +75,7 @@ MetadataModule::MetadataModule(ProtoImporterModuleContext* module_context,
   RegisterForField(TracePacket::kChromeTriggerFieldNumber);
   RegisterForField(TracePacket::kCloneSnapshotTriggerFieldNumber);
   RegisterForField(TracePacket::kTraceUuidFieldNumber);
+  RegisterForField(TracePacket::kRecoveredTraceInfoFieldNumber);
 }
 
 ModuleResult MetadataModule::TokenizePacket(const TokenizePacketArgs& args) {
@@ -103,6 +105,20 @@ ModuleResult MetadataModule::TokenizePacket(const TokenizePacketArgs& args) {
                                                 Variadic::String(id));
         context_->uuid_state->uuid_found_in_trace = true;
       }
+      return ModuleResult::Handled();
+    }
+    case TracePacket::kRecoveredTraceInfoFieldNumber: {
+      protos::pbzero::RecoveredTraceInfo::Decoder info(
+          args.field.Cast<TracePacket::kRecoveredTraceInfo>());
+      auto reason =
+          info.has_reason()
+              ? static_cast<protos::pbzero::RecoveredTraceInfo::Reason>(
+                    info.reason())
+              : protos::pbzero::RecoveredTraceInfo::REASON_UNSPECIFIED;
+      context_->metadata_tracker->SetMetadata(
+          metadata::trace_recovery_reason,
+          Variadic::String(context_->storage->InternString(
+              protos::pbzero::RecoveredTraceInfo::Reason_Name(reason))));
       return ModuleResult::Handled();
     }
   }

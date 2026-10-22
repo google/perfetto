@@ -303,9 +303,6 @@ message FormFillingRequest {
   // Specifies a field that is part of the form. Autofill will be triggered from
   // this field, but will fill other fields of the same autofill section with
   // the available data.
-  //
-  // TODO(crbug.com/452946211): This field is repeated to be able to support a form that
-  // is spread over multiple autofill sections.
   repeated ActionTarget trigger_fields = 1;
 
   // Specifies which data is requested. The requested data type will be
@@ -357,11 +354,15 @@ message FormFillingRequest {
 // This AttemptFormFillingAction in development and future changes are possible
 // once the model constraings/performance are understood.
 //
-// Next ID: 3
+// Next ID: 4
 message AttemptFormFillingAction {
   int32 tab_id = 1 [features = { field_presence: EXPLICIT }];
 
   repeated FormFillingRequest form_filling_requests = 2;
+
+  // Opaque token representing an authorized token for credit card fetching for
+  // autofill without additional user prompting in Chrome.
+  string credit_card_opaque_token = 3 [features = { field_presence: EXPLICIT }];
 }
 
 // Attempts to fill One-Time Password (OTP) /verification codes in the tab. This
@@ -392,6 +393,34 @@ message AttemptOtpFillingAction {
 
     OTP_TYPE_AUTHENTICATOR_APP = 3;
   }
+}
+
+// Special change password action. Fills in the old password
+// and generates a new password on a change password page.
+// It also updates the stored passwords.
+//
+// This is NOT SAFE to use and should never be exposed to the user
+// through the chat panel. Instead, the underlying tool should only be used
+// in the specialized Automated Password Change flow.
+//
+// This action is only here to allow testing from the chat panel.
+// Next ID: 6
+message ChangePasswordAction {
+  // The tab ID in which to perform password change.
+  int32 tab_id = 1 [features = { field_presence: EXPLICIT }];
+
+  // The input field for the current password, if present.
+  ActionTarget current_password_field = 2 [features = { field_presence: EXPLICIT }];
+
+  // The input field for the new password, if present.
+  ActionTarget new_password_field = 3 [features = { field_presence: EXPLICIT }];
+
+  // The input field to confirm the new password, if present.
+  ActionTarget confirm_new_password_field = 4 [features = { field_presence: EXPLICIT }];
+
+  // The button, if present, which will confirm the password change or proceed
+  // in a multi-step form.
+  ActionTarget confirm_button = 5 [features = { field_presence: EXPLICIT }];
 }
 
 // Scrolls the DOM element into viewport.
@@ -465,9 +494,55 @@ message LoadAndExtractContentAction {
   repeated string urls = 1;
 }
 
+// Translates the page in a tab.
+// Note: This action is not currently used by Gemini in Chrome (GiC).
+// Next ID: 3
+message TranslatePageAction {
+  // The BCP-47 language tag of the language to translate to. If empty or
+  // not set, the default translation target language is used.
+  string target_language = 1 [features = { field_presence: EXPLICIT }];
+
+  // The id of the tab to translate.
+  int32 tab_id = 2 [features = { field_presence: EXPLICIT }];
+}
+
+// Clicks a file upload target and attaches the specified files.
+// Next ID: 4
+message ClickToUploadAction {
+  // The file input element, or the control that opens the file chooser.
+  ActionTarget target = 1 [features = { field_presence: EXPLICIT }];
+
+  // Files to attach.
+  repeated File files = 2;
+
+  // The id of the tab containing the target.
+  int32 tab_id = 3 [features = { field_presence: EXPLICIT }];
+
+  // A file to attach.
+  // Next ID: 4
+  message File {
+    // Opaque server-assigned identifier for the file (e.g. "file_1"), used for
+    // logging and tracing.
+    string file_alias = 1 [features = { field_presence: EXPLICIT }];
+
+    // URL from which the client fetches the file contents.
+    // Access control: It only encodes the file's storage identifier, which is
+    // keyed to the uploading user's Gaia. The storage backend (ContribService)
+    // enforces the file's ACL against the fetching request's EUC. The client
+    // must fetch this URL with the end user's credentials (EUC/cookies): an
+    // anonymous fetch, or one by a Gaia other than the file's owner is denied.
+    string download_url = 2 [features = { field_presence: EXPLICIT }];
+
+    // The original name of the file as uploaded by the user (e.g.
+    // "resume.pdf"), for display in the client UI (e.g. the upload chip or
+    // file list). Not used to identify or fetch the file.
+    string file_name = 3 [features = { field_presence: EXPLICIT }];
+  }
+}
+
 // All of the actions that can be taken.
 // Only one of these is allowed per action.
-// Next ID: 25
+// Next ID: 28
 message Action {
 
   oneof action {
@@ -518,6 +593,12 @@ message Action {
     LoadAndExtractContentAction load_and_extract_content = 23;
 
     AttemptOtpFillingAction attempt_otp_filling = 24;
+
+    TranslatePageAction translate_page = 25;
+
+    ClickToUploadAction click_to_upload = 26;
+
+    ChangePasswordAction change_password = 27;
   }
 }
 
@@ -796,9 +877,6 @@ message ActionsResult {
 message BrowserStartTask {
   // The id of the tab the task should be started in. If not set, the task
   // will be started in a new tab.
-  // TODO(crbug.com/421441072): Remove this field. This is only needed in the short term
-  // since we need a mechanism to start tasks in a new tab, and the model has
-  // not yet been trained to use CreateTabAction.
   int32 tab_id = 1 [features = { field_presence: EXPLICIT }];
 }
 

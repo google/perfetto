@@ -18,10 +18,10 @@ import {classNames} from '../base/classnames';
 
 export interface TextParagraphAttrs {
   // Paragraph text.
-  text: string;
+  readonly text: string;
   // Whether to compress multiple spaces (e.g. the string is multi-line but
   // should render with the default UI wrapping)
-  compressSpace?: boolean;
+  readonly compressSpace?: boolean;
 }
 
 export class TextParagraph implements m.ClassComponent<TextParagraphAttrs> {

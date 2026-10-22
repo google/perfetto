@@ -43,7 +43,7 @@ const char* ExportSubcommand::detailed_help() const {
   return R"(Load a trace and export it to a file.
 
 Supported formats:
-  sqlite      Exports using the SQLite database format.
+  sqlite      Exports all SQL-visible tables and views to SQLite.
   arrow_tar   Exports static tables as a cross-version-compatible tar of Arrow
               files for external consumers. It cannot be loaded back into Trace
               Processor.
@@ -92,14 +92,18 @@ base::Status ExportSubcommand::Run(const SubcommandContext& ctx) {
   ASSIGN_OR_RETURN(Config config, BuildConfig(*ctx.global, ctx.platform));
   ASSIGN_OR_RETURN(auto tp,
                    SetupTraceProcessor(*ctx.global, config, ctx.platform));
-  RETURN_IF_ERROR(LoadTraceFile(tp.get(), ctx.platform, trace_file).status());
+  RETURN_IF_ERROR(LoadTraceFile(tp.get(), ctx.platform, trace_file,
+                                ctx.global->quiet, ctx.global->debuginfod)
+                      .status());
 
+  TraceProcessor::ExportFormat export_format;
   if (format == "sqlite") {
-    return ExportTraceToDatabase(tp.get(), output_path_);
+    export_format = TraceProcessor::ExportFormat::kSqlite;
+  } else if (format == "arrow_tar") {
+    export_format = TraceProcessor::ExportFormat::kArrowTar;
+  } else {
+    export_format = TraceProcessor::ExportFormat::kPerfetto;
   }
-  TraceProcessor::ExportFormat export_format =
-      format == "arrow_tar" ? TraceProcessor::ExportFormat::kArrowTar
-                            : TraceProcessor::ExportFormat::kPerfetto;
   return ExportTrace(tp.get(), export_format, output_path_);
 }
 

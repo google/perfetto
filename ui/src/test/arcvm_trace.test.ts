@@ -15,8 +15,6 @@
 import {test, type Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
-test.describe.configure({mode: 'serial'});
-
 let pth: PerfettoTestHelper;
 let page: Page;
 
@@ -26,17 +24,21 @@ test.beforeAll(async ({browser}, _testInfo) => {
   await pth.openTraceFile('arcvm_trace.pb.gz');
 });
 
-test('sched_tracks', async () => {
-  // Tests CPU number and machine labels of sched tracks.
-  await pth.waitForIdleAndScreenshot('sched_tracks.png', {
-    locator: page.locator('.pf-timeline-page'),
-  });
-});
+test('arcvm_trace', async () => {
+  test.setTimeout(2 * 60_000);
 
-test('ftrace_events', async () => {
-  // Tests CPU number and machine labels of ftrace tracks.
-  await page.locator('.pf-track__title').getByText('Ftrace Events').click();
-  await pth.waitForIdleAndScreenshot('ftrace_events.png', {
-    locator: page.locator('.pf-timeline-page'),
+  await pth.step('sched_tracks', async () => {
+    // Tests CPU number and machine labels of sched tracks.
+    await pth.waitForIdleAndScreenshot('sched_tracks.png', {
+      locator: page.locator('.pf-timeline-page'),
+    });
+  });
+
+  await pth.step('ftrace_events', async () => {
+    // Tests CPU number and machine labels of ftrace tracks.
+    await page.locator('.pf-track__title').getByText('Ftrace Events').click();
+    await pth.waitForIdleAndScreenshot('ftrace_events.png', {
+      locator: page.locator('.pf-timeline-page'),
+    });
   });
 });

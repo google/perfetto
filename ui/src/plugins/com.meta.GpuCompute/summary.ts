@@ -17,7 +17,7 @@
 // Shows a sortable, double-click-navigable list of every compute kernel
 // launch in the trace.  Each row contains the kernel's demangled name,
 // duration, compute/memory throughput, register count, and grid size
-// rendered as relative percent-bars so hot kernels stand out visually.
+// rendered as percent-bars so hot kernels stand out visually.
 
 import m from 'mithril';
 import type {Engine} from '../../trace_processor/engine';
@@ -49,8 +49,6 @@ const PAGE_SIZE = 100;
 type SummaryState = {
   rows?: SummaryRow[];
   maxDurationNSec?: number;
-  maxComputePct?: number;
-  maxMemoryPct?: number;
   maxRegisters?: number;
   maxGridSize?: number;
   launchIndexBySliceId: Map<number, number>;
@@ -75,6 +73,16 @@ const renderRelPercentBar = (
   const clamped = Math.max(0, Math.min(curVal, maxVal));
   const pct = Math.max(0, Math.min(100, (clamped / maxVal) * 100));
   return renderPercentBar(pct, null, false, label ?? '');
+};
+
+// Renders a bar whose width and label are the value itself, for metrics
+// already expressed as a percentage of a hardware peak.
+const renderAbsPercentBar = (val?: number | string | null): m.Children => {
+  const curVal = Number(val);
+  if (val == null || !Number.isFinite(curVal)) {
+    return renderPercentBar(0, null, false, '—');
+  }
+  return renderPercentBar(Math.max(0, Math.min(100, curVal)), null, true);
 };
 
 // =============================================================================
@@ -289,8 +297,6 @@ export const KernelSummarySection: m.Component<
     state.maxDurationNSec = finiteMax(
       rows.map((r) => Number(r.durationNSecNum)),
     );
-    state.maxComputePct = finiteMax(rows.map((r) => Number(r.computePct)));
-    state.maxMemoryPct = finiteMax(rows.map((r) => Number(r.memoryPct)));
     state.maxRegisters = finiteMax(
       rows.map((r) => Number(r.registersPerThread)),
     );
@@ -441,19 +447,11 @@ export const KernelSummarySection: m.Component<
                   ),
                   m(
                     'td.pf-gpu-compute__summary-td',
-                    renderRelPercentBar(
-                      Number(r.computePct),
-                      state.maxComputePct,
-                      label(r.computePct),
-                    ),
+                    renderAbsPercentBar(r.computePct),
                   ),
                   m(
                     'td.pf-gpu-compute__summary-td',
-                    renderRelPercentBar(
-                      Number(r.memoryPct),
-                      state.maxMemoryPct,
-                      label(r.memoryPct),
-                    ),
+                    renderAbsPercentBar(r.memoryPct),
                   ),
                   m(
                     'td.pf-gpu-compute__summary-td',

@@ -13,70 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE graphs.scan;
-
 INCLUDE PERFETTO MODULE android.memory.heap_graph.raw_dominator_tree;
-
-CREATE PERFETTO TABLE _heap_graph_dominator_tree_bottom_up_scan AS
-SELECT *
-FROM _graph_aggregating_scan!(
-  (
-    SELECT id AS source_node_id, idom_id AS dest_node_id
-    FROM _raw_heap_graph_dominator_tree
-    WHERE idom_id IS NOT NULL
-  ),
-  (
-    SELECT
-    p.id,
-    1 AS subtree_count,
-    o.self_size AS subtree_size_bytes,
-    o.native_size AS subtree_native_size_bytes
-    FROM _raw_heap_graph_dominator_tree p
-    JOIN heap_graph_object o USING (id)
-    LEFT JOIN _raw_heap_graph_dominator_tree c ON p.id = c.idom_id
-    WHERE c.id IS NULL
-  ),
-  (subtree_count, subtree_size_bytes, subtree_native_size_bytes),
-  (
-    WITH children_agg AS (
-      SELECT
-      t.id,
-      SUM(t.subtree_count) AS subtree_count,
-      SUM(t.subtree_size_bytes) AS subtree_size_bytes,
-      SUM(t.subtree_native_size_bytes) AS subtree_native_size_bytes
-      FROM $table t
-      GROUP BY t.id
-    )
-    SELECT
-    c.id,
-    c.subtree_count + 1 AS subtree_count,
-    c.subtree_size_bytes + self_size AS subtree_size_bytes,
-    c.subtree_native_size_bytes + native_size AS subtree_native_size_bytes
-    FROM children_agg c
-    JOIN heap_graph_object o USING (id)
-  )
-)
-ORDER BY
-  id;
-
-CREATE PERFETTO TABLE _heap_graph_dominator_tree_top_down_scan AS
-SELECT *
-FROM _graph_scan!(
-  (
-    SELECT idom_id AS source_node_id, id AS dest_node_id
-    FROM _raw_heap_graph_dominator_tree
-    WHERE idom_id IS NOT NULL
-  ),
-  (
-    SELECT id, 1 AS depth
-    FROM _raw_heap_graph_dominator_tree
-    WHERE idom_id IS NULL
-  ),
-  (depth),
-  (SELECT t.id, t.depth + 1 AS depth FROM $table t)
-)
-ORDER BY
-  id;
 
 -- All reachable heap graph objects, their immediate dominators and summary of
 -- their dominated sets.
@@ -103,16 +40,39 @@ CREATE PERFETTO TABLE heap_graph_dominator_tree(
 )
 AS
 SELECT
-  r.id,
-  r.idom_id AS idom_id,
-  d.subtree_count AS dominated_obj_count,
-  d.subtree_size_bytes AS dominated_size_bytes,
-  d.subtree_native_size_bytes AS dominated_native_size_bytes,
-  t.depth
-FROM _raw_heap_graph_dominator_tree AS r
-JOIN _heap_graph_dominator_tree_bottom_up_scan AS d USING (id)
-JOIN _heap_graph_dominator_tree_top_down_scan AS t USING (id)
+  c0 AS id,
+  c1 AS idom_id,
+  c2 AS dominated_obj_count,
+  c3 AS dominated_size_bytes,
+  c4 AS dominated_native_size_bytes,
+  c5 AS depth
+FROM __intrinsic_table_ptr(
+  (
+    SELECT
+      __intrinsic_tree_dominator_summary(
+        __intrinsic_tree_from_table(
+          'id',
+          p.id,
+          'parent_id',
+          p.idom_id,
+          'self_size',
+          o.self_size,
+          'native_size',
+          o.native_size,
+          'self_count',
+          1
+        )
+      )
+    FROM _raw_heap_graph_dominator_tree AS p
+    JOIN heap_graph_object AS o USING (id)
+  )
+)
 WHERE
-  r.id IS NOT NULL
+  __intrinsic_table_ptr_bind(c0, 'id')
+  AND __intrinsic_table_ptr_bind(c1, 'idom_id')
+  AND __intrinsic_table_ptr_bind(c2, 'dominated_obj_count')
+  AND __intrinsic_table_ptr_bind(c3, 'dominated_size_bytes')
+  AND __intrinsic_table_ptr_bind(c4, 'dominated_native_size_bytes')
+  AND __intrinsic_table_ptr_bind(c5, 'depth')
 ORDER BY
   id;

@@ -1,129 +1,119 @@
-# Perfetto Skills
+# The Perfetto agent skill
 
-This directory holds a single **skill**: model-agnostic instructions
-that teach an AI agent how to do something useful with Perfetto. A
-skill is how Perfetto and the teams that use it encode the knowledge
-an expert would share when sitting next to a colleague — what to look
-at, which tables to query, what good queries look like, and how to
-interpret the results.
+`ai/skills/perfetto/` is the skill that teaches a coding agent (any
+agent that reads the [Agent Skills](https://agentskills.io) format) how
+to record and analyse Perfetto traces. It is what `perfetto.dev/docs/getting-started/using-ai`
+installs. This file explains what it does, how it is put together and
+why; the mechanics of shipping it are at the end.
 
-The format follows the [Agent Skills](https://agentskills.io)
-convention: a skill is a directory containing a `SKILL.md` with YAML
-frontmatter (`name`, `description`) and a markdown body. Any tool that
-implements the convention — Claude Code, Gemini CLI, OpenAI Codex —
-can load it.
+## What the agent gets
 
-This is part of the ecosystem described in
-[RFC-0025: AI in Perfetto](https://github.com/google/perfetto/discussions/5763)
-and [RFC-0026](https://github.com/google/perfetto/discussions/5892).
+Once installed, the agent has:
 
-## One skill, a router, and reusable files
+- **`trace_processor`**, bundled inside the skill as a wrapper that
+  downloads the matching prebuilt on first use. No separate install.
+- **A router** (`SKILL.md`) whose `description` is what makes the agent
+  reach for the skill at all. It names symptoms and file types (slow
+  startup, jank, ANRs, memory growth, GPU, `.pftrace`, systrace, Chrome
+  JSON) rather than just "Perfetto", because users describe problems,
+  not tools. The body is short: setup, then "which of these is your
+  situation", each pointing at one file.
+- **Workflows** (`workflows/<domain>/*.md`) for investigations we know
+  how to do well: Android Java heap dumps, native heap profiles,
+  allocation churn, GPU busy/idle decomposition, frequency residency,
+  compute kernel analysis. Each is a runbook that runs shipped SQL or
+  Python scripts and tells the agent how to read the result. They exist
+  because a fixed procedure with a script beats open-ended exploration
+  on these problems: faster, cheaper and less likely to invent a leak
+  that is not there.
+- **A querying reference** (`infra-references/querying.md`) for
+  everything else: how to keep a trace loaded across many queries, how
+  to discover tables and the SQL standard library instead of guessing,
+  which modules answer the common questions, and a short list of
+  PerfettoSQL rules of thumb.
+- **Recording guides** for Android and Linux, with example configs, for
+  when there is no trace yet.
 
-Everything Perfetto ships is consolidated into **one** skill,
-`ai/skills/perfetto/`. Its entry point is a lean router; the actual
-knowledge lives in reference and workflow files the router dispatches
-to and loads on demand. This keeps a single, broad `description` in
-the agent's context budget instead of many sibling skills competing to
-match, and lets each piece be loaded only when the task needs it.
+## Design choices, and the evidence behind them
+
+The skill was measured with the harness in [`ai/evals/`](../evals/):
+the same prompts run with and without it, several times, on two models.
+The findings that shaped it:
+
+- **Capable models already write correct PerfettoSQL.** With only the
+  binary on `PATH`, Opus answered nearly every test question correctly.
+  The skill's job is therefore not to teach SQL from scratch but to make
+  the agent efficient (load once, query many), honest (report numbers
+  from the trace, say when the trace does not contain what was asked),
+  and reliable on the guided workflows, where a weaker model without the
+  skill did invent a memory leak.
+- **Every extra instruction has a price.** An earlier version with a
+  mandatory setup document, a smoke test, a schema-check checklist and
+  an always-on report file made simple questions three times slower for
+  the same answer. Keep the router lean, keep references short, and say
+  why rather than shouting MUST; agents follow reasons better than
+  rules.
+- **Warm sessions are the single biggest efficiency win.** Without
+  guidance agents re-parse the trace for every query, dozens of times
+  per investigation. `querying.md` makes `server unix` plus
+  `query --remote` the default.
+- **Workflows carry their own scripts.** A workflow that says "run this
+  SQL file, then interpret these columns" is repeatable and cheap to
+  verify; a workflow that says "explore the heap" is neither.
+- **Reports for multi-step work.** Anything that took more than a few
+  queries writes `perfetto_analysis_report.md` so a person can follow
+  what was done and re-run the validated queries. One-off questions stay
+  in chat.
+
+When you change the skill, run the evals. A change that reads well but
+costs more or scores lower is not an improvement.
+
+## Layout
 
 ```
 ai/skills/perfetto/
-├── SKILL-template.md            # the router (see below — NOT named SKILL.md)
+├── SKILL-template.md            the router (becomes SKILL.md when bundled)
 ├── infra-references/
-│   └── querying.md              # how to run trace_processor + PerfettoSQL
+│   ├── querying.md              trace_processor sessions, discovery, PerfettoSQL
+│   ├── recording_android_traces.md
+│   ├── recording_linux_traces.md
+│   ├── trace_config_reference.md
+│   └── example-configs/
 ├── environment-references/
-│   └── setup.md                 # $SKILL_ROOT + the bundled trace_processor
+│   └── setup.md                 $SKILL_ROOT and the bundled trace_processor
 └── workflows/
-    └── android_memory/
-        ├── heap_dump.md
-        ├── heap_dump_cluster.md
-        ├── heap_dump_caching_optimizer.md
-        └── scripts/             # SQL/Python shipped with these workflows
+    ├── android_memory/          heap dumps, native heap, allocations + scripts/
+    └── gpu/                     occupancy, frequency, compute kernels + scripts/
 ```
 
-Three kinds of file:
-
-- **`workflows/<domain>/*.md`** — entry points the router dispatches
-  *to*: domain-specific guided investigations (a heap dump on Android,
-  jank on Chrome, …). Group related workflows in a `<domain>/`
-  subfolder. A workflow is self-contained — it carries its own queries
-  and any helper scripts under a sibling `scripts/` dir.
-- **`infra-references/*.md`** — domain-agnostic mechanics a workflow
-  (or an ad-hoc request) pulls *in*: how to query a trace, etc.
-- **`environment-references/*.md`** — environment setup: what to set
-  `$SKILL_ROOT` to and how to invoke the bundled `trace_processor`.
-
-## The source tree is a build input, not a drop-in
-
-Unlike a normal Agent Skill, this tree is **not** directly loadable.
-Two source-only conventions mean it has to pass through the bundler
-(`tools/release/build_ai_agents.py`) before any agent can load it:
-
-1. **`SKILL-template.md`, not `SKILL.md`.** The router is named so a
-   discovery layer scanning for `SKILL.md` will not pick up the
-   unassembled source tree. The bundler renames it to `SKILL.md`.
-2. **No `bin/trace_processor` in source.** The setup doc points every
-   `trace_processor` invocation at `$SKILL_ROOT/bin/trace_processor`,
-   but that wrapper is not checked in here — the bundler copies it in
-   from `tools/trace_processor` at build time, so every install
-   (plugin or fallback) carries a working binary inside the skill.
-
-Every agent gets the identical assembled skill. See
-[`ai/extensions/README.md`](../extensions/README.md) for how the
-assembled bundle reaches end users.
-
-## Reference other files by `$SKILL_ROOT`-anchored path
-
-Every path a file mentions — links to other skill files, and the
-helper scripts a workflow runs — is written as `$SKILL_ROOT/<path>`,
-where `<path>` is relative to the skill root (the directory holding
-`SKILL.md`) and never relative to the file doing the referencing. So
-from `workflows/android_memory/heap_dump.md`:
-
-```markdown
-follow `$SKILL_ROOT/infra-references/querying.md` first, then come back here.
-```
-
-Not `../../infra-references/querying.md` (file-relative), and not a
-bare `infra-references/querying.md` either. Likewise a helper script is
-`$SKILL_ROOT/workflows/android_memory/scripts/cluster_paths.py`, and a
-`trace_processor` invocation spells the full path:
-
-```sh
-trace_processor query --remote SESSION --query-file \
-  $SKILL_ROOT/workflows/android_memory/scripts/triage_dominator_path.sql
-```
-
-`$SKILL_ROOT` is the one anchor that makes this unambiguous. The skill
-is loaded from a plugin/install directory that is **not** the agent's
-working directory (that's the user's workspace, where the trace lives),
-so a bare relative path would resolve against the wrong place.
-`environment-references/setup.md` — the always-required first read —
-tells the agent to set `$SKILL_ROOT` to the directory it loaded
-`SKILL.md` from, and to put the bundled `$SKILL_ROOT/bin` on the
-session's `PATH` so bare `trace_processor` commands work. Once it's set,
-every `$SKILL_ROOT/...` path resolves the same way regardless of the
-working directory, whether the agent is opening a referenced markdown
-file or passing a script to the shell.
-
-The router (`SKILL-template.md`) sits at the skill root, so its
-`$SKILL_ROOT/...` links have no intermediate `../`; every other file
-speaks the same path language. A file can move between subfolders
-without rewriting its outgoing links (only references *to* it change).
+Paths inside the skill are written as `$SKILL_ROOT/<path>`, where
+`$SKILL_ROOT` is the directory holding `SKILL.md`. The skill is loaded
+from a plugin directory, not from the user's workspace, so relative
+paths would resolve against the wrong place; the router tells the agent
+to set `$SKILL_ROOT` once.
 
 ## Authoring
 
-- **Portability.** A file will be read by tools without access to this
-  checkout. Never use repo-relative paths like `src/trace_processor/...`
-  or refer to `tools/...` scripts; assume the reader only has
-  `trace_processor` and a trace. Link to absolute URLs on
-  [perfetto.dev/docs](https://perfetto.dev/docs).
-- **The router (`SKILL-template.md`)** stays minimal: match broad in
-  its `description`, then route. When you add a workflow, add one row
-  to its table. Keep it short.
-- **Add a workflow** as `workflows/<domain>/<name>.md`, with any
-  scripts in a sibling `scripts/`. Write the body in the imperative,
-  like a runbook. Pull in `$SKILL_ROOT/infra-references/querying.md`
-  (anchored path, as above) rather than re-explaining how to query.
-- **Test against a real trace** before checking in. Files that have
-  never been run end up with broken syntax and wrong column names.
+- Write for an agent that has only `trace_processor` and a trace: no
+  repo paths, no `tools/` scripts. Link to <https://perfetto.dev/docs>.
+- Adding a workflow: `workflows/<domain>/<name>.md` in the imperative,
+  scripts in a sibling `scripts/`, one new line in the router. Point at
+  `querying.md` for how to query rather than repeating it.
+- Run every query in a new or changed file against a real trace first.
+  Files that were never run ship with wrong column names.
+- Add an eval case for any workflow, with ground truth computed by
+  `trace_processor_shell`, and check the with/without numbers before
+  sending the change.
+
+## How it ships
+
+The tree here is a build input, not a drop-in: `SKILL-template.md` is
+named so that skill loaders scanning for `SKILL.md` do not pick up the
+unassembled source, and the `trace_processor` wrapper is not checked in
+alongside it. `tools/release/build_ai_agents.py` renames the router,
+copies in `tools/trace_processor` as `bin/trace_processor`, adds the
+per-agent manifests from [`ai/extensions/`](../extensions/README.md) and
+writes the result to the `ai-agents` branch at each release. Users
+install from that branch; see
+[`docs/getting-started/using-ai.md`](../../docs/getting-started/using-ai.md).
+To try the local tree, `ai/evals/setup_assets.py` bundles it the same way.

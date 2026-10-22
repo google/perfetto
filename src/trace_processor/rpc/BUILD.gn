@@ -81,8 +81,8 @@ source_set("session_util") {
   ]
 }
 
-# Self-managing lifecycle (idle-timeout reaping + orphan detection) shared by the
-# unix and http servers. Base-only.
+# Self-managing lifecycle (idle-timeout reaping + orphan detection) shared by
+# the unix and http servers. Base-only.
 source_set("lifecycle") {
   sources = [
     "session_lifecycle.cc",
@@ -167,6 +167,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "query_result_serializer_unittest.cc",
+    "rpc_unittest.cc",
     "session_paths_unittest.cc",
   ]
   deps = [

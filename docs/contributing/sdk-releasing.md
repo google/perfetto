@@ -120,13 +120,12 @@ git checkout vX.Y
 5. Run `tools/release/package-github-release-artifacts vX.Y`. This will:
    - Verify the working directory is clean (no uncommitted changes)
    - Verify you're on the correct git tag (vX.Y)
-   - Download the prebuilt binaries from LUCI
-   - Generate amalgamated SDK source files **from the current checkout**
+   - Download the prebuilt binaries and SDK source zips from LUCI
    - Package everything into `/tmp/perfetto-vX.Y-github-release/`
 
   - There must be 12 zips in total:
     - 10 prebuilt binaries: linux-{arm,arm64,amd64},
-      android-{arm,arm64,x86,x64}, mac-{amd64,arm64}, win-amd64
+      android-{arm,arm64,x86,x64}, mac-{amd64,arm64}, windows-amd64
     - 2 SDK source zips: perfetto-cpp-sdk-src.zip, perfetto-c-sdk-src.zip
   - If one or more prebuilt zips are missing it means that one of the LUCI bots failed,
     check the logs (follow the "Task URL: " link) from the invocation log.
@@ -140,8 +139,8 @@ git checkout vX.Y
   - "Attach binaries" -> Attach all twelve .zip files from the previous step
     (10 prebuilt binaries + 2 SDK source zips).
 
-7. Run `tools/roll-prebuilts vX.Y`. It will update the SHA256 into the various
-   scripts under `tools/`. Upload a CL with the changes.
+7. Run `tools/release/roll-prebuilts vX.Y`. It will update the SHA256 into the
+   various scripts under `tools/`. Upload a CL with the changes.
 
 8. Send an email with the CHANGELOG to perfetto-dev@ (internal) and to the
    [public perfetto-dev](https://groups.google.com/forum/#!forum/perfetto-dev).

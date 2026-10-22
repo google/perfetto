@@ -166,6 +166,17 @@ UniqueTid ProcessTracker::GetOrCreateThreadWithParentInternal(
   auto opt_utid = GetThreadOrNull(tid, ps.pid());
   UniqueTid utid = opt_utid ? *opt_utid : StartNewThread(std::nullopt, tid);
 
+  // When an existing thread is reaffirmed with its parent process, update
+  // the live_tid_ cache and move it to the back of tids_ so subsequent
+  // bare lookups and RefreshLiveTid() calls resolve to this active thread.
+  if (opt_utid.has_value()) {
+    live_tid_[tid] = utid;
+    if (auto* vec = tids_.Find(tid); vec && vec->back() != utid) {
+      vec->erase(std::remove(vec->begin(), vec->end(), utid), vec->end());
+      vec->push_back(utid);
+    }
+  }
+
   auto td = thread_table[utid];
   PERFETTO_DCHECK(td.tid() == tid);
   // Ensure that the thread's machine ID matches the context's machine ID.

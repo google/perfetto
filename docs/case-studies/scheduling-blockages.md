@@ -90,7 +90,7 @@ The interesting part is _which specific event_. Typically this can be:
 
 - The overflow of a timer, to achieve the "grab a callstack every X ms".
 - The overflow of a PMU counter, e.g. to achieve the "grab a callstack every N instructions retired / M cache misses"
-- Any kernel trace point available in `/sys/kernel/tracing/event/**/*`.
+- Any kernel trace point available in `/sys/kernel/tracing/events/**/*`.
 
 The latter is the interesting option that can turn callstack sampling into a
 practical Swiss army knife.
@@ -242,12 +242,12 @@ So we updated our config adding as follows:
 ...
   tracepoint {
     name: "sched/sched_switch"
-    filter: "prev_comm ~ \"*systemui*\" || next_comm ~ \"*systemui*\"
+    filter: "prev_comm ~ \"*systemui*\" || next_comm ~ \"*systemui*\""
   }
 ...
   tracepoint {
     name: "sched/sched_waking"
-    filter: "comm ~ \"*systemui*\"
+    filter: "comm ~ \"*systemui*\""
   }
 ...
 ```

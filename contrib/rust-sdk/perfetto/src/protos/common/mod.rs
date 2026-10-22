@@ -31,6 +31,10 @@ pub mod descriptor;
 #[path = "semantic_type.pz.rs"]
 pub mod semantic_type;
 
+/// `trace_attributes` protos.
+#[path = "trace_attributes.pz.rs"]
+pub mod trace_attributes;
+
 /// `track_event_descriptor` protos.
 #[path = "track_event_descriptor.pz.rs"]
 pub mod track_event_descriptor;

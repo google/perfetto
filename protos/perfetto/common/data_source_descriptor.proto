@@ -66,7 +66,7 @@ message DataSourceDescriptor {
   // program to detect and disambiguate between different versions; if multiple
   // versions (from different producers) are specified for the same data source,
   // the service instantiates a dedicated ProtoVM for each.
-  optional VmProgram protovm_program = 10;
+  optional VmProgram protovm_program = 10 [lazy = true];
 
   // Optional specification about available GPU counters.
   optional GpuCounterDescriptor gpu_counter_descriptor = 5 [lazy = true];

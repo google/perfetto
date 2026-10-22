@@ -100,6 +100,7 @@
     - [Embedding the UI](visualization/embedding-the-ui.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Debug Tracks](analysis/debug-tracks.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Heap Dump Explorer](visualization/heap-dump-explorer.md) {.tag-android}
+    - [Memscope & Memory Overview](visualization/memscope.md) {.tag-android .tag-linux}
 
     - [Extending the UI](#)
 
@@ -136,6 +137,7 @@
 
   - [CLI Tools](#)
 
+    - [trace_processor](reference/trace-processor-cli.md)
     - [perfetto](reference/perfetto-cli.md) {.tag-android .tag-linux}
     - [traced](reference/traced.md) {.tag-android .tag-linux}
     - [traced_probes](reference/traced_probes.md) {.tag-android .tag-linux}
@@ -175,7 +177,6 @@
 
     - [Building](contributing/build-instructions.md) {.tag-contrib}
     - [Testing](contributing/testing.md) {.tag-contrib}
-    - [Developer Tools](contributing/developer-tools.md) {.tag-contrib}
 
     - [UI Development](#)
 

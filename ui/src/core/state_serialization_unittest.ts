@@ -16,13 +16,16 @@ import {z} from 'zod';
 import {Time} from '../base/time';
 import type {TrackEventDetailsPanel} from '../public/details_panel';
 import type {Track} from '../public/track';
+import {TrackNode} from '../public/workspace';
 import {createFakeTraceImpl} from './fake_trace_impl';
 import {
   deserializeAppStatePhase1,
   deserializeAppStatePhase2,
+  deserializeTrackNode,
   JsonSerialize,
   parseAppState,
   serializeAppState,
+  serializeTrackNode,
 } from './state_serialization';
 
 vi.hoisted(() => {
@@ -208,5 +211,183 @@ describe('state serialization', () => {
       });
     });
     expect(trace2.selection.getDetailsPanelForSelection()).toBeUndefined();
+  });
+
+  test('serialize and deserialize TrackNode', () => {
+    const root = new TrackNode({
+      name: 'Group A',
+      collapsed: false,
+      isSummary: true,
+    });
+    const child = new TrackNode({
+      name: 'Track 1',
+      uri: 'test.track.1',
+      collapsed: true,
+      removable: true,
+    });
+    root.addChildLast(child);
+
+    const serialized = serializeTrackNode(root);
+    expect(serialized.name).toBe('Group A');
+    expect(serialized.collapsed).toBe(false);
+    expect(serialized.isSummary).toBe(true);
+    expect(serialized.children).toHaveLength(1);
+    expect(serialized.children![0].name).toBe('Track 1');
+    expect(serialized.children![0].uri).toBe('test.track.1');
+
+    const deserialized = deserializeTrackNode(serialized);
+    expect(deserialized.name).toBe('Group A');
+    expect(deserialized.collapsed).toBe(false);
+    expect(deserialized.isSummary).toBe(true);
+    expect(deserialized.children).toHaveLength(1);
+    expect(deserialized.children[0].name).toBe('Track 1');
+    expect(deserialized.children[0].uri).toBe('test.track.1');
+    expect(deserialized.children[0].removable).toBe(true);
+  });
+
+  test('serialize and deserialize non-default workspaces', () => {
+    const trace = createFakeTraceImpl();
+
+    const customWs = trace.workspaces.createEmptyWorkspace('Custom Workspace');
+    customWs.userEditable = false;
+
+    const track = new TrackNode({
+      name: 'Custom Track',
+      uri: 'foo.bar.track',
+    });
+    customWs.tracks.addChildLast(track);
+
+    const pinnedTrack = new TrackNode({
+      name: 'Pinned Track',
+      uri: 'foo.bar.pinned',
+    });
+    customWs.pinnedTracksNode.addChildLast(pinnedTrack);
+
+    const serialized = serializeAppState(trace);
+    expect(serialized.workspaces).toHaveLength(1);
+    expect(serialized.workspaces![0].title).toBe('Custom Workspace');
+    expect(serialized.workspaces![0].userEditable).toBe(false);
+    expect(serialized.workspaces![0].tracks).toHaveLength(1);
+    expect(serialized.workspaces![0].tracks[0].name).toBe('Custom Track');
+    expect(serialized.workspaces![0].tracks[0].uri).toBe('foo.bar.track');
+    expect(serialized.workspaces![0].pinnedTracks).toHaveLength(1);
+    expect(serialized.workspaces![0].pinnedTracks[0].uri).toBe(
+      'foo.bar.pinned',
+    );
+
+    const targetTrace = createFakeTraceImpl();
+    deserializeAppStatePhase2(serialized, targetTrace);
+
+    const workspaces = targetTrace.workspaces.all;
+    const restoredWs = workspaces.find((w) => w.title === 'Custom Workspace');
+    expect(restoredWs).toBeDefined();
+    expect(restoredWs!.userEditable).toBe(false);
+    expect(restoredWs!.tracks.children).toHaveLength(1);
+    expect(restoredWs!.tracks.children[0].name).toBe('Custom Track');
+    expect(restoredWs!.tracks.children[0].uri).toBe('foo.bar.track');
+    expect(restoredWs!.pinnedTracks).toHaveLength(1);
+    expect(restoredWs!.pinnedTracks[0].name).toBe('Pinned Track');
+    expect(restoredWs!.pinnedTracks[0].uri).toBe('foo.bar.pinned');
+  });
+
+  test('serialize and deserialize current workspace', () => {
+    const trace = createFakeTraceImpl();
+
+    const customWs = trace.workspaces.createEmptyWorkspace('Active Workspace');
+    trace.workspaces.switchWorkspace(customWs);
+
+    const serialized = serializeAppState(trace);
+    expect(serialized.currentWorkspace).toBe(customWs.id);
+
+    const targetTrace = createFakeTraceImpl();
+    deserializeAppStatePhase2(serialized, targetTrace);
+
+    expect(targetTrace.workspaces.currentWorkspace.title).toBe(
+      'Active Workspace',
+    );
+    expect(targetTrace.workspaces.currentWorkspace.id).toBe(customWs.id);
+  });
+
+  test('serialize and deserialize default workspace as current workspace', () => {
+    const trace = createFakeTraceImpl();
+
+    const serialized = serializeAppState(trace);
+    expect(serialized.currentWorkspace).toBe(trace.defaultWorkspace.id);
+
+    const targetTrace = createFakeTraceImpl();
+    const otherWs =
+      targetTrace.workspaces.createEmptyWorkspace('Other Workspace');
+    targetTrace.workspaces.switchWorkspace(otherWs);
+
+    deserializeAppStatePhase2(serialized, targetTrace);
+
+    expect(targetTrace.workspaces.currentWorkspace).toBe(
+      targetTrace.defaultWorkspace,
+    );
+    expect(targetTrace.workspaces.currentWorkspace.id).toBe(
+      serialized.currentWorkspace,
+    );
+  });
+
+  test('replaces non-default workspaces when loading multiple times', () => {
+    const trace = createFakeTraceImpl();
+
+    const customWs = trace.workspaces.createEmptyWorkspace(
+      'Plugin Workspace',
+      'stable-plugin-id-1234',
+    );
+    customWs.tracks.addChildLast(
+      new TrackNode({name: 'Track A', uri: 'track.a'}),
+    );
+
+    const serialized = serializeAppState(trace);
+    expect(serialized.workspaces![0].id).toBe('stable-plugin-id-1234');
+
+    const targetTrace = createFakeTraceImpl();
+    deserializeAppStatePhase2(serialized, targetTrace);
+    deserializeAppStatePhase2(serialized, targetTrace);
+
+    const nonDefaultWorkspaces = targetTrace.workspaces.all.filter(
+      (w) => w !== targetTrace.defaultWorkspace,
+    );
+    expect(nonDefaultWorkspaces).toHaveLength(1);
+    expect(nonDefaultWorkspaces[0].id).toBe('stable-plugin-id-1234');
+    expect(nonDefaultWorkspaces[0].title).toBe('Plugin Workspace');
+    expect(nonDefaultWorkspaces[0].tracks.children).toHaveLength(1);
+  });
+
+  test('legacy state without workspaces preserves existing non-default workspaces', () => {
+    const targetTrace = createFakeTraceImpl();
+    targetTrace.workspaces.createEmptyWorkspace('Plugin Workspace');
+
+    const legacyState = parseAppState({version: 1});
+    expect(legacyState.ok).toBe(true);
+    if (!legacyState.ok) return;
+    expect(legacyState.value.workspaces).toBeUndefined();
+
+    deserializeAppStatePhase2(legacyState.value, targetTrace);
+
+    const nonDefaultWorkspaces = targetTrace.workspaces.all.filter(
+      (w) => w !== targetTrace.defaultWorkspace,
+    );
+    expect(nonDefaultWorkspaces).toHaveLength(1);
+    expect(nonDefaultWorkspaces[0].title).toBe('Plugin Workspace');
+  });
+
+  test('state with empty workspaces removes existing non-default workspaces', () => {
+    const targetTrace = createFakeTraceImpl();
+    targetTrace.workspaces.createEmptyWorkspace('Plugin Workspace');
+
+    const state = parseAppState({version: 1, workspaces: []});
+    expect(state.ok).toBe(true);
+    if (!state.ok) return;
+    expect(state.value.workspaces).toEqual([]);
+
+    deserializeAppStatePhase2(state.value, targetTrace);
+
+    const nonDefaultWorkspaces = targetTrace.workspaces.all.filter(
+      (w) => w !== targetTrace.defaultWorkspace,
+    );
+    expect(nonDefaultWorkspaces).toHaveLength(0);
   });
 });

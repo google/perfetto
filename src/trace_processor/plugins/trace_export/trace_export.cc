@@ -126,6 +126,10 @@ base::Status WriteExport(const std::vector<PluginDataframe>& dataframes,
     return base::ErrStatus("Export output is null");
   }
 
+  if (format == TraceProcessor::ExportFormat::kSqlite) {
+    return base::ErrStatus("SQLite export must use random-access output");
+  }
+
   util::TarWriter tar(std::make_unique<ExportTarWriterSink>(output));
   if (format == TraceProcessor::ExportFormat::kArrowTar ||
       format == TraceProcessor::ExportFormat::kPerfetto) {

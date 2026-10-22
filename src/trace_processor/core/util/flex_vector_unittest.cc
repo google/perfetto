@@ -265,5 +265,13 @@ TEST(FlexVectorTest, ResizeGrow) {
   EXPECT_EQ(vec[2], 3);
 }
 
+TEST(FlexVectorTest, ResizeGrowsGeometrically) {
+  FlexVector<int> vec;
+  vec.resize(1000);
+  uint64_t capacity = vec.capacity();
+  vec.resize(capacity + 1);
+  EXPECT_GE(vec.capacity(), capacity * 3 / 2);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core

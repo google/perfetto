@@ -266,6 +266,17 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_chunks_written,            kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_committed_out_of_order,                                  \
                                           kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(traced_buf_compactions,               kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+    "Number of completed TraceBufferV2 compactions, including those that "     \
+    "move no chunks and excluding calls that skip compaction, such as "        \
+    "calls on DISCARD or read-only buffers."),                                 \
+  F(traced_buf_compactions_skipped,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+    "Number of TraceBufferV2 compactions skipped because live chunks were "    \
+    "on both sides of the write cursor."),                                     \
+  F(traced_buf_oversized_packets_dropped, kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "TraceBufferV2 only. Num. proto-group packets dropped at read time "     \
+      "because length-delimited protobuf cannot encode them: a nested "        \
+      "message larger than 256 MiB or a packet larger than 4 GiB."),           \
   F(traced_buf_padding_bytes_cleared,     kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_padding_bytes_written,     kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_patches_failed,            kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
@@ -678,6 +689,12 @@ namespace perfetto::trace_processor::stats {
       "uses a `DISCARD` buffer. This configuration is strongly discouraged "   \
       "and can cause mysterious data loss in the trace. Please use "           \
       "`RING_BUFFER` buffers instead."),                                       \
+  F(long_trace_mode_bytes_overwritten,    kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "Number of bytes this buffer overwrote while the trace was collected "   \
+      "in streaming mode (`write_into_file` with a periodic "                  \
+      "`file_write_period_ms`). The overwritten bytes were never written "     \
+      "out, so they are missing from the trace file. Consider a larger "       \
+      "buffer or a shorter `file_write_period_ms`."),                          \
    F(hprof_string_counter,                 kSingle,  kInfo,   kAnalysis, Scope::kMachineAndTrace,       \
          "Number of strings encountered."),                                    \
    F(hprof_class_counter,                  kSingle,  kInfo,   kAnalysis, Scope::kMachineAndTrace,       \

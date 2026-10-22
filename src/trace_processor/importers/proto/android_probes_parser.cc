@@ -138,8 +138,6 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context,
     : context_(context),
       tracker_(tracker),
       power_rails_args_tracker_(std::make_unique<ArgsTracker>(context)),
-      battery_status_id_(context->storage->InternString("BatteryStatus")),
-      plug_type_id_(context->storage->InternString("PlugType")),
       energy_consumer_id_(
           context_->storage->InternString("energy_consumer_id")),
       consumer_type_id_(context_->storage->InternString("consumer_type")),
@@ -604,6 +602,15 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
       continue;
     }
 
+    if (name == "debug.tracing.wallpaper.package_name" ||
+        name == "debug.tracing.wallpaper.class_name") {
+      StringId name_id = context_->storage->InternString(name);
+      StringId value_id = context_->storage->InternString(kv.value());
+      context_->metadata_tracker->SetDynamicMetadata(
+          name_id, Variadic::String(value_id));
+      continue;
+    }
+
     std::optional<int32_t> state =
         base::StringToInt32(kv.value().ToStdString());
     if (!state) {
@@ -657,16 +664,16 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
       continue;
     }
 
-    std::optional<StringId> mapped_name_id;
     if (name == "debug.tracing.battery_status") {
-      mapped_name_id = battery_status_id_;
+      context_->event_tracker->PushCounter(
+          ts, *state,
+          context_->track_tracker->InternTrack(
+              tracks::kAndroidBatteryStatusBlueprint));
     } else if (name == "debug.tracing.plug_type") {
-      mapped_name_id = plug_type_id_;
-    }
-    if (mapped_name_id) {
-      TrackId track = context_->track_tracker->InternTrack(
-          kBlueprint, tracks::Dimensions(name), *mapped_name_id);
-      context_->event_tracker->PushCounter(ts, *state, track);
+      context_->event_tracker->PushCounter(
+          ts, *state,
+          context_->track_tracker->InternTrack(
+              tracks::kAndroidPlugTypeBlueprint));
     }
   }
 }
@@ -773,14 +780,21 @@ StringId AndroidProbesParser::ToFlagTypeId(int32_t type) {
 }
 
 void AndroidProbesParser::ParseAndroidAflags(int64_t ts, ConstBytes blob) {
+  auto sanitize_and_intern = [&](base::StringView sv) {
+    if (!base::CheckAsciiAndRemoveInvalidUTF8(sv, temp_string_utf8_)) {
+      sv = base::StringView(temp_string_utf8_);
+    }
+    return context_->storage->InternString(sv);
+  };
+
   protos::pbzero::AndroidAflags::Decoder decoder(blob.data, blob.size);
   if (decoder.has_error()) {
     context_->import_logs_tracker->RecordCollectionLog(
         stats::android_aflags_errors, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
-          inserter.AddArg(context_->storage->InternString("error"),
-                          Variadic::String(context_->storage->InternString(
-                              decoder.error())));
+          inserter.AddArg(
+              context_->storage->InternString("error"),
+              Variadic::String(sanitize_and_intern(decoder.error())));
         });
     return;
   }
@@ -790,13 +804,13 @@ void AndroidProbesParser::ParseAndroidAflags(int64_t ts, ConstBytes blob) {
 
     tables::AndroidAflagsTable::Row row;
     row.ts = ts;
-    row.package = context_->storage->InternString(flag.pkg());
-    row.name = context_->storage->InternString(flag.name());
-    row.flag_namespace = context_->storage->InternString(flag.flag_namespace());
-    row.container = context_->storage->InternString(flag.container());
-    row.value = context_->storage->InternString(flag.value());
+    row.package = sanitize_and_intern(flag.pkg());
+    row.name = sanitize_and_intern(flag.name());
+    row.flag_namespace = sanitize_and_intern(flag.flag_namespace());
+    row.container = sanitize_and_intern(flag.container());
+    row.value = sanitize_and_intern(flag.value());
     if (flag.has_staged_value()) {
-      row.staged_value = context_->storage->InternString(flag.staged_value());
+      row.staged_value = sanitize_and_intern(flag.staged_value());
     }
     row.permission = ToPermissionId(flag.permission());
     row.value_picked_from = ToValuePickedFromId(flag.value_picked_from());

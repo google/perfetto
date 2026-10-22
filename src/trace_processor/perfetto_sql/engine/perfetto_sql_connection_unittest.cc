@@ -16,11 +16,15 @@
 
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -58,110 +62,15 @@ sql_modules::RegisteredPackage CreateTestPackage(
 // Functional tests are covered by the diff tests in
 // test/trace_processor/diff_tests/syntax/perfetto_sql.
 
-TEST_F(PerfettoSqlConnectionTest, Function_Create) {
-  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO FUNCTION foo() RETURNS INT AS select 1"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-
-  res = connection_->Execute(
-      SqlSource::FromExecuteQuery("creatE PeRfEttO FUNCTION foo(x INT, y LONG) "
-                                  "RETURNS INT AS select $x + $y"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-}
-
-TEST_F(PerfettoSqlConnectionTest, Function_CreateWithArgs) {
-  auto res = connection_->ExecuteUntilLastStatement(
-      SqlSource::FromExecuteQuery("creatE PeRfEttO FUNCTION foo(x INT, y LONG) "
-                                  "RETURNS INT AS select $x + $y;"
-                                  "SELECT foo(1, 2)"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-  ASSERT_FALSE(res->stmt.IsDone());
-  ASSERT_EQ(sqlite3_column_int64(res->stmt.sqlite_stmt(), 0), 3);
-  ASSERT_FALSE(res->stmt.Step());
-}
-
-TEST_F(PerfettoSqlConnectionTest, Function_Invalid) {
-  auto res = connection_->ExecuteUntilLastStatement(
-      SqlSource::FromExecuteQuery("creatE PeRfEttO FUNCTION foo(x INT, y LONG) "
-                                  "AS select $x + $y;"
-                                  "SELECT foo(1, 2)"));
-  ASSERT_FALSE(res.ok());
-}
-
-TEST_F(PerfettoSqlConnectionTest, Function_Duplicates) {
-  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO FUNCTION foo() RETURNS INT AS SELECT 1"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-
-  res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO FUNCTION foo() RETURNS INT AS SELECT 2"));
-  ASSERT_FALSE(res.ok());
-
-  res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE OR REPLACE PERFETTO FUNCTION foo() RETURNS INT AS SELECT 3"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-}
-
-TEST_F(PerfettoSqlConnectionTest, TableFunction_Create) {
-  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
-      "select 1 AS x"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-}
-
-TEST_F(PerfettoSqlConnectionTest, TableFunction_Duplicates) {
-  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
-      "select 1 AS x"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-
-  res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
-      "select 1 AS x"));
-  ASSERT_FALSE(res.ok());
-
-  res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE OR REPLACE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
-      "select 2 AS x"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-}
-
-TEST_F(PerfettoSqlConnectionTest, Table_Create) {
-  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO TABLE foo AS SELECT 42 AS bar"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-}
-
-TEST_F(PerfettoSqlConnectionTest, Table_StringColumns) {
-  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO TABLE foo AS SELECT 'foo' AS bar"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-}
-
-TEST_F(PerfettoSqlConnectionTest, Table_Schema) {
-  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO TABLE foo(bar INT) AS SELECT 42 AS bar"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-
-  res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO TABLE foo2(bar INT) AS SELECT 42 AS bar; SELECT 1"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-}
-
-TEST_F(PerfettoSqlConnectionTest, Table_Schema_EmptyTable) {
-  // This test checks that the type checks correctly work on empty tables (and
-  // that columns with no data do not default to "int").
+// A column with no values, or only nulls, has no type to check. It does not
+// default to integer.
+TEST_F(PerfettoSqlConnectionTest, Table_Schema_ColumnWithNoValues) {
   auto res = connection_->Execute(
       SqlSource::FromExecuteQuery("CREATE PERFETTO TABLE foo(bar STRING) AS "
                                   "SELECT 'bar' as bar WHERE bar = 'foo'"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
-}
-
-TEST_F(PerfettoSqlConnectionTest, Table_Schema_NullColumn) {
-  // This test checks that the type checks correctly work on columns without
-  // data (and that columns with no non-NULL data do not default to "int").
-  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO TABLE foo(bar STRING) AS SELECT NULL as bar"));
+  res = connection_->Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO TABLE foo2(bar STRING) AS SELECT NULL as bar"));
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
@@ -184,131 +93,6 @@ TEST_F(PerfettoSqlConnectionTest, Table_IncorrectSchema_IncorrectType) {
       res.status().c_message(),
       testing::EndsWith("CREATE PERFETTO TABLE(foo): column 'x' declared as "
                         "LONG in the schema, but STRING found"));
-}
-
-TEST_F(PerfettoSqlConnectionTest, Table_Drop) {
-  auto res_create = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO TABLE foo AS SELECT 'foo' AS bar"));
-  ASSERT_TRUE(res_create.ok());
-
-  auto res_drop =
-      connection_->Execute(SqlSource::FromExecuteQuery("DROP TABLE foo"));
-  ASSERT_TRUE(res_drop.ok());
-}
-
-TEST_F(PerfettoSqlConnectionTest, Table_Duplicates) {
-  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO TABLE foo AS SELECT 1 as bar"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-
-  res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO TABLE foo AS SELECT 1 as bar"));
-  ASSERT_FALSE(res.ok());
-
-  res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE OR REPLACE PERFETTO TABLE foo AS SELECT 1 as bar"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-}
-
-TEST_F(PerfettoSqlConnectionTest, View_Create) {
-  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO VIEW foo AS SELECT 42 AS bar"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-}
-
-TEST_F(PerfettoSqlConnectionTest, View_Schema) {
-  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO VIEW foo(bar INT) AS SELECT 42 AS bar"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-
-  res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO VIEW foo2(bar INT) AS SELECT 42 AS bar; SELECT 1"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-}
-
-TEST_F(PerfettoSqlConnectionTest, View_Drop) {
-  auto res_create = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO VIEW foo AS SELECT 'foo' AS bar"));
-  ASSERT_TRUE(res_create.ok());
-
-  auto res_drop =
-      connection_->Execute(SqlSource::FromExecuteQuery("DROP VIEW foo"));
-  ASSERT_TRUE(res_drop.ok());
-}
-
-TEST_F(PerfettoSqlConnectionTest, View_IncorrectSchema) {
-  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO VIEW foo(x INT) AS SELECT 1 as y"));
-  ASSERT_FALSE(res.ok());
-  EXPECT_THAT(
-      res.status().c_message(),
-      testing::EndsWith("CREATE PERFETTO VIEW: the following columns are "
-                        "declared in the schema, but do not exist: x; and the "
-                        "following columns exist, but are not declared: y"));
-}
-
-TEST_F(PerfettoSqlConnectionTest, View_Duplicates) {
-  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO VIEW foo AS SELECT 1 as bar"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-
-  res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO VIEW foo AS SELECT 1 as bar"));
-  ASSERT_FALSE(res.ok());
-
-  res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE OR REPLACE PERFETTO VIEW foo AS SELECT 1 as bar"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-}
-
-TEST_F(PerfettoSqlConnectionTest, Macro_Create) {
-  auto res_create = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO MACRO foo() RETURNS TableOrSubquery AS select 42 AS x"));
-  ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
-
-  res_create = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO MACRO bar(x TableOrSubquery) RETURNS TableOrSubquery AS "
-      "select * from $x"));
-  ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
-
-  auto res = connection_->ExecuteUntilLastStatement(
-      SqlSource::FromExecuteQuery("bar!((foo!()))"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-  ASSERT_FALSE(res->stmt.IsDone());
-  ASSERT_EQ(sqlite3_column_int64(res->stmt.sqlite_stmt(), 0), 42);
-  ASSERT_FALSE(res->stmt.Step());
-}
-
-TEST_F(PerfettoSqlConnectionTest, Macro_Duplicates) {
-  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO MACRO foo() RETURNS TableOrSubquery AS select 42 AS x"));
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-
-  res = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO MACRO foo() RETURNS TableOrSubquery AS select 42 AS x"));
-  ASSERT_FALSE(res.ok());
-
-  res = connection_->Execute(
-      SqlSource::FromExecuteQuery("CREATE OR REPLACE PERFETTO MACRO foo() "
-                                  "RETURNS TableOrSubquery AS select 42 AS x"));
-  ASSERT_TRUE(res.ok());
-}
-
-TEST_F(PerfettoSqlConnectionTest, Include_All) {
-  connection_->RegisterPackage(
-      "foo", CreateTestPackage(
-                 {{"foo.foo", "CREATE PERFETTO TABLE foo AS SELECT 42 AS x"}}));
-  connection_->RegisterPackage(
-      "bar",
-      CreateTestPackage(
-          {{"bar.bar", "CREATE PERFETTO TABLE bar AS SELECT 42 AS x "}}));
-
-  auto res_create = connection_->Execute(
-      SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE *"));
-  ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
-  auto* db = connection_->database_for_testing();
-  ASSERT_TRUE(db->IsModuleIncluded("foo.foo"));
-  ASSERT_TRUE(db->IsModuleIncluded("bar.bar"));
 }
 
 TEST_F(PerfettoSqlConnectionTest, Include_Module) {
@@ -384,26 +168,6 @@ TEST_F(PerfettoSqlConnectionTest, Include_PoisonPropagatesUpStack) {
 }
 
 TEST_F(PerfettoSqlConnectionTest,
-       Include_PoisonError_Direct_HasImmediateTraceback) {
-  // Re-including a poisoned module via a direct INCLUDE statement should
-  // surface the immediate INCLUDE line in the error traceback, matching the
-  // error format produced by the asynchronous failure path.
-  connection_->RegisterPackage(
-      "foo", CreateTestPackage({{"foo.bad", "this is not valid sql"}}));
-  ASSERT_THAT(connection_->Execute(SqlSource::FromExecuteQuery(
-                  "INCLUDE PERFETTO MODULE foo.bad")),
-              IsError());
-
-  auto retry = connection_->Execute(
-      SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.bad"));
-  ASSERT_THAT(retry, IsError());
-  EXPECT_THAT(retry.status().c_message(),
-              testing::HasSubstr("INCLUDE PERFETTO MODULE foo.bad"));
-  EXPECT_THAT(retry.status().c_message(),
-              testing::HasSubstr("poisoned by earlier failure"));
-}
-
-TEST_F(PerfettoSqlConnectionTest,
        Include_PoisonError_Wildcard_HasImmediateTraceback) {
   // Same as above but the retry happens via a wildcard expansion. The
   // wildcard's own statement line should appear in the traceback.
@@ -420,25 +184,6 @@ TEST_F(PerfettoSqlConnectionTest,
               testing::HasSubstr("INCLUDE PERFETTO MODULE foo.*"));
   EXPECT_THAT(retry.status().c_message(),
               testing::HasSubstr("poisoned by earlier failure"));
-}
-
-TEST_F(PerfettoSqlConnectionTest, Include_PoisonReason_StableAcrossRetries) {
-  // Each retry of a poisoned include must produce an error message of the
-  // same length — the stored poison reason should not be padded with the
-  // retry's own traceback layers each time.
-  connection_->RegisterPackage(
-      "foo", CreateTestPackage({{"foo.bad", "this is not valid sql"}}));
-  ASSERT_THAT(connection_->Execute(SqlSource::FromExecuteQuery(
-                  "INCLUDE PERFETTO MODULE foo.bad")),
-              IsError());
-
-  auto a = connection_->Execute(
-      SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.bad"));
-  auto b = connection_->Execute(
-      SqlSource::FromExecuteQuery("INCLUDE PERFETTO MODULE foo.bad"));
-  ASSERT_THAT(a, IsError());
-  ASSERT_THAT(b, IsError());
-  EXPECT_EQ(a.status().message().size(), b.status().message().size());
 }
 
 TEST_F(PerfettoSqlConnectionTest, Include_CycleDetected) {
@@ -476,21 +221,6 @@ TEST_F(PerfettoSqlConnectionTest, RegisterPackage_FailsAfterModuleIncluded) {
   EXPECT_THAT(status.c_message(), testing::HasSubstr("already been included"));
 }
 
-TEST_F(PerfettoSqlConnectionTest, RegisterPackage_FailsAfterModulePoisoned) {
-  // Likewise for the poisoned case.
-  ASSERT_OK(connection_->RegisterPackage(
-      "foo", CreateTestPackage({{"foo.bad", "this is not valid sql"}})));
-  ASSERT_THAT(connection_->Execute(SqlSource::FromExecuteQuery(
-                  "INCLUDE PERFETTO MODULE foo.bad")),
-              IsError());
-
-  auto status = connection_->RegisterPackage(
-      "foo", CreateTestPackage({{"foo.bad", "SELECT 1"}}));
-  ASSERT_THAT(status, IsError());
-  EXPECT_THAT(status.c_message(), testing::HasSubstr("foo.bad"));
-  EXPECT_THAT(status.c_message(), testing::HasSubstr("poisoned"));
-}
-
 TEST_F(PerfettoSqlConnectionTest, DelegatingFunction_Error_TargetNotFound) {
   // Test error when target function doesn't exist in registry
   auto res = connection_->Execute(
@@ -500,28 +230,6 @@ TEST_F(PerfettoSqlConnectionTest, DelegatingFunction_Error_TargetNotFound) {
   EXPECT_THAT(res.status().c_message(),
               testing::HasSubstr(
                   "Target function 'nonexistent_func' not found in registry"));
-}
-
-TEST_F(PerfettoSqlConnectionTest, DelegatingFunction_Error_ReplaceRequired) {
-  // First, we need to register a target function for aliasing
-  // Since we can't easily access the intrinsic registry in tests,
-  // let's test the replace logic with a regular function first
-  auto res1 = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO FUNCTION test_func() RETURNS INT AS SELECT 42"));
-  ASSERT_TRUE(res1.ok()) << res1.status().c_message();
-
-  // Try to create same function without replace - should fail
-  auto res2 = connection_->Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO FUNCTION test_func() RETURNS INT AS SELECT 43"));
-  ASSERT_FALSE(res2.ok());
-  EXPECT_THAT(res2.status().c_message(),
-              testing::HasSubstr("function already exists"));
-
-  // Try with OR REPLACE - should succeed
-  auto res3 = connection_->Execute(
-      SqlSource::FromExecuteQuery("CREATE OR REPLACE PERFETTO FUNCTION "
-                                  "test_func() RETURNS INT AS SELECT 44"));
-  ASSERT_TRUE(res3.ok()) << res3.status().c_message();
 }
 
 TEST(SqlModulesTest, IsPackagePrefixOf) {
@@ -595,34 +303,6 @@ TEST_F(PerfettoSqlConnectionTest, NextStatement_EveryResultSetReturned) {
   ASSERT_EQ(end, 0u);
 }
 
-TEST_F(PerfettoSqlConnectionTest, NextStatement_StatePersistsAcrossCalls) {
-  std::string sql =
-      "CREATE PERFETTO MACRO life() RETURNS Expr AS 42;"
-      "CREATE PERFETTO TABLE t AS SELECT life!() AS x;"
-      "SELECT x FROM t";
-  auto src = SqlSource::FromExecuteQuery(sql);
-  auto size = static_cast<uint32_t>(sql.size());
-
-  uint32_t offset = 0;
-  for (int i = 0; i < 2; ++i) {
-    uint32_t end = 0;
-    auto res = connection_->ExecuteNextStatement(
-        src.Substr(offset, size - offset), &end);
-    ASSERT_TRUE(res.ok()) << res.status().c_message();
-    ASSERT_TRUE(res->has_value());
-    ASSERT_TRUE((*res)->stmt.IsDone());
-    offset += end;
-  }
-
-  uint32_t end = 0;
-  auto res = connection_->ExecuteNextStatement(
-      src.Substr(offset, size - offset), &end);
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-  ASSERT_TRUE(res->has_value());
-  ASSERT_FALSE((*res)->stmt.IsDone());
-  ASSERT_EQ(sqlite3_column_int64((*res)->stmt.sqlite_stmt(), 0), 42);
-}
-
 TEST_F(PerfettoSqlConnectionTest, NextStatement_CommentsOnly) {
   std::string sql = "-- comment\n/* another */";
   uint32_t end = 0;
@@ -631,38 +311,6 @@ TEST_F(PerfettoSqlConnectionTest, NextStatement_CommentsOnly) {
   ASSERT_TRUE(res.ok()) << res.status().c_message();
   ASSERT_FALSE(res->has_value());
   ASSERT_EQ(end, static_cast<uint32_t>(sql.size()));
-}
-
-TEST_F(PerfettoSqlConnectionTest, NextStatement_Include) {
-  connection_->RegisterPackage(
-      "foo", CreateTestPackage(
-                 {{"foo.foo", "CREATE PERFETTO TABLE foo AS SELECT 42 AS x"}}));
-
-  std::string sql = "INCLUDE PERFETTO MODULE foo.foo; SELECT x FROM foo";
-  auto src = SqlSource::FromExecuteQuery(sql);
-  auto size = static_cast<uint32_t>(sql.size());
-
-  uint32_t end = 0;
-  auto res = connection_->ExecuteNextStatement(src.Substr(0, size), &end);
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-  ASSERT_TRUE(res->has_value());
-  ASSERT_TRUE((*res)->stmt.IsDone());
-  ASSERT_TRUE(connection_->database_for_testing()->IsModuleIncluded("foo.foo"));
-
-  uint32_t start = end;
-  res =
-      connection_->ExecuteNextStatement(src.Substr(start, size - start), &end);
-  ASSERT_TRUE(res.ok()) << res.status().c_message();
-  ASSERT_TRUE(res->has_value());
-  ASSERT_FALSE((*res)->stmt.IsDone());
-  ASSERT_EQ(sqlite3_column_int64((*res)->stmt.sqlite_stmt(), 0), 42);
-}
-
-TEST_F(PerfettoSqlConnectionTest, NextStatement_Error) {
-  uint32_t end = 0;
-  auto res = connection_->ExecuteNextStatement(
-      SqlSource::FromExecuteQuery("SELECT * FROM not_a_table; SELECT 1"), &end);
-  ASSERT_THAT(res, IsError());
 }
 
 TEST_F(PerfettoSqlConnectionTest, NextStatement_ErrorInLaterStatement) {
@@ -758,6 +406,585 @@ TEST_F(PerfettoSqlConnectionTest, NextStatement_TrailingDummyStatement) {
   ASSERT_TRUE(res.ok()) << res.status().c_message();
   ASSERT_TRUE(res->has_value());
   ASSERT_EQ(sqlite3_column_int64((*res)->stmt.sqlite_stmt(), 0), 2);
+}
+
+TEST_F(PerfettoSqlConnectionTest, PipelinePragmaIncludeChangesCaller) {
+  ASSERT_OK(connection_->RegisterPackage(
+      "foo", CreateTestPackage(
+                 {{"foo.enable",
+                   "PERFETTO PRAGMA pipelines = 1; "
+                   "CREATE PERFETTO TABLE enabled AS FROM (SELECT 1 AS x)"},
+                  {"foo.disable", "PERFETTO PRAGMA pipelines = 0"}})));
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
+      "INCLUDE PERFETTO MODULE foo.enable; FROM (SELECT 1 AS x)"));
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  res = connection_->Execute(SqlSource::FromExecuteQuery(
+      "INCLUDE PERFETTO MODULE foo.disable; FROM (SELECT 1 AS x)"));
+  ASSERT_FALSE(res.ok());
+  EXPECT_THAT(res.status().message(),
+              testing::HasSubstr("Pipelines are not enabled"));
+}
+
+TEST_F(PerfettoSqlConnectionTest, PipelinePragmaBuiltinExemption) {
+  auto package = CreateTestPackage(
+      {{"foo.pipeline",
+        "PERFETTO PRAGMA pipelines = 0; "
+        "CREATE PERFETTO TABLE builtin AS FROM (SELECT 1 AS x)"}});
+  package.builtin = true;
+  ASSERT_OK(connection_->RegisterPackage("foo", std::move(package)));
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
+      "INCLUDE PERFETTO MODULE foo.*; FROM (SELECT 1 AS x)"));
+  ASSERT_FALSE(res.ok());
+  EXPECT_TRUE(
+      connection_->database_for_testing()->IsModuleIncluded("foo.pipeline"));
+  EXPECT_THAT(res.status().message(),
+              testing::HasSubstr("Pipelines are not enabled"));
+}
+
+class PerfettoSqlConnectionPipelineTest : public PerfettoSqlConnectionTest {
+ protected:
+  void SetUp() override {
+    auto res = connection_->Execute(SqlSource::FromExecuteQuery(R"(
+      PERFETTO PRAGMA pipelines = 1;
+      CREATE TABLE tree(id INTEGER, parent_id INTEGER, self INTEGER,
+                        name TEXT);
+      INSERT INTO tree VALUES
+        (0, NULL, 10, 'root'), (1, 0, 20, 'a'), (2, 0, 30, NULL),
+        (3, 1, 40, 'c');
+    )"));
+    ASSERT_TRUE(res.ok()) << res.status().c_message();
+  }
+
+  // Runs `sql` and returns the rows of the last statement as text, sorted
+  // unless the order they came in is wanted.
+  base::StatusOr<std::vector<std::string>> Rows(const std::string& sql,
+                                                bool in_order = false) {
+    auto res = connection_->ExecuteUntilLastStatement(
+        SqlSource::FromExecuteQuery(sql));
+    RETURN_IF_ERROR(res.status());
+    std::vector<std::string> rows;
+    sqlite3_stmt* stmt = res->stmt.sqlite_stmt();
+    for (bool more = !res->stmt.IsDone(); more; more = res->stmt.Step()) {
+      std::string row;
+      for (int i = 0; i < sqlite3_column_count(stmt); ++i) {
+        const auto* text =
+            reinterpret_cast<const char*>(sqlite3_column_text(stmt, i));
+        row += (i ? "," : "") + std::string(text ? text : "NULL");
+      }
+      rows.push_back(std::move(row));
+    }
+    RETURN_IF_ERROR(res->stmt.status());
+    if (!in_order) {
+      std::sort(rows.begin(), rows.end());
+    }
+    return rows;
+  }
+
+  // The SQL a pipeline statement is prepared as.
+  std::string PipelineSql(const std::string& pipeline) {
+    auto res = connection_->ExecuteUntilLastStatement(
+        SqlSource::FromExecuteQuery(pipeline));
+    if (!res.ok()) {
+      PERFETTO_FATAL("%s", res.status().c_message());
+    }
+    return res->stmt.sql();
+  }
+
+  // The FROM clause of `sql`, from its leading space.
+  static std::string From(const std::string& sql) {
+    return sql.substr(sql.find(" FROM "));
+  }
+
+  std::vector<std::string> ColumnNames(const std::string& sql) {
+    auto res = connection_->ExecuteUntilLastStatement(
+        SqlSource::FromExecuteQuery(sql));
+    PERFETTO_CHECK(res.ok());
+    std::vector<std::string> names;
+    for (uint32_t i = 0; i < res->stats.column_count; ++i) {
+      names.push_back(
+          sqlite3_column_name(res->stmt.sqlite_stmt(), static_cast<int>(i)));
+    }
+    return names;
+  }
+};
+
+TEST_F(PerfettoSqlConnectionPipelineTest, StartsFromSqlWithCtes) {
+  auto rows = Rows(R"(
+    FROM (
+      WITH nodes AS (SELECT id, parent_id, self FROM tree)
+      SELECT * FROM nodes
+    )
+    |> TREE ACCUMULATE UP SUM(self) AS total
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().c_message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,NULL,10,100", "1,0,20,60",
+                                          "2,0,30,30", "3,1,40,40"));
+}
+
+// A table has the same columns however a pipeline reads it: directly as a
+// dataframe, or through SQL, as SQLite's own `SELECT *` shows it. Its hidden
+// `_auto_id` is left out either way.
+TEST_F(PerfettoSqlConnectionPipelineTest, SourcesAgreeOnColumnNames) {
+  ASSERT_TRUE(connection_
+                  ->Execute(SqlSource::FromExecuteQuery(R"(
+    CREATE PERFETTO TABLE spans AS SELECT 0 AS ts, 10 AS dur, 'a' AS name;
+    CREATE PERFETTO VIEW spans_view AS SELECT * FROM spans;
+  )"))
+                  .ok());
+  std::vector<std::string> expected = {"ts", "dur", "name"};
+  EXPECT_EQ(ColumnNames("SELECT * FROM spans"), expected);
+  EXPECT_EQ(ColumnNames("FROM spans"), expected);
+  EXPECT_EQ(ColumnNames("FROM (SELECT * FROM spans)"), expected);
+  EXPECT_EQ(ColumnNames("FROM spans_view"), expected);
+}
+
+// A source's columns need valid names, but a pipeline can give its own
+// columns any name, which must reach SQLite intact.
+TEST_F(PerfettoSqlConnectionPipelineTest, OutputNamesAreQuoted) {
+  const char* kSql =
+      R"(FROM (SELECT 1 AS x, 2 AS y) |> SELECT x AS "", y AS "a""b")";
+  EXPECT_THAT(ColumnNames(kSql), testing::ElementsAre("", "a\"b"));
+  auto rows = Rows(kSql);
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("1,2"));
+}
+
+// Replacing a table mid-read must not affect a running pipeline.
+TEST_F(PerfettoSqlConnectionPipelineTest, AReadTableCanBeReplaced) {
+  ASSERT_TRUE(connection_
+                  ->Execute(SqlSource::FromExecuteQuery(
+                      "CREATE PERFETTO TABLE df AS SELECT * FROM tree"))
+                  .ok());
+  auto res = connection_->ExecuteUntilLastStatement(SqlSource::FromExecuteQuery(
+      "FROM df |> TREE ACCUMULATE UP SUM(self) AS total"));
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_FALSE(res->stmt.IsDone());
+
+  auto replace = connection_->Execute(SqlSource::FromExecuteQuery(
+      "CREATE OR REPLACE PERFETTO TABLE df AS SELECT 1 AS id"));
+  ASSERT_TRUE(replace.ok()) << replace.status().c_message();
+
+  uint32_t rows = 1;
+  while (res->stmt.Step()) {
+    ++rows;
+  }
+  ASSERT_TRUE(res->stmt.status().ok()) << res->stmt.status().c_message();
+  EXPECT_EQ(rows, 4u);
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest,
+       DifferentSchemasAndConcurrentStatements) {
+  auto first =
+      connection_->ExecuteUntilLastStatement(SqlSource::FromExecuteQuery(
+          "FROM tree |> TREE ACCUMULATE UP SUM(self) AS total"));
+  ASSERT_TRUE(first.ok()) << first.status().message();
+  auto second = connection_->ExecuteUntilLastStatement(
+      SqlSource::FromExecuteQuery("FROM (SELECT name FROM tree)"));
+  ASSERT_TRUE(second.ok()) << second.status().message();
+  EXPECT_EQ(first->stats.column_count, 5u);
+  EXPECT_EQ(second->stats.column_count, 1u);
+  uint32_t rows = 1;
+  while (first->stmt.Step())
+    ++rows;
+  EXPECT_EQ(rows, 4u);
+  EXPECT_TRUE(first->stmt.status().ok());
+  rows = 1;
+  while (second->stmt.Step())
+    ++rows;
+  EXPECT_EQ(rows, 4u);
+  EXPECT_TRUE(second->stmt.status().ok());
+  // The schema changed after preparing the first statement. Resetting and
+  // rerunning it loads the pipeline again from its plan.
+  ASSERT_EQ(sqlite3_reset(first->stmt.sqlite_stmt()), SQLITE_OK);
+  rows = 0;
+  while (first->stmt.Step())
+    ++rows;
+  EXPECT_EQ(rows, 4u);
+  EXPECT_TRUE(first->stmt.status().ok());
+}
+
+// SQL holding a pipeline's plan can be stored and run later, against the
+// tables as they are by then.
+TEST_F(PerfettoSqlConnectionPipelineTest, StoredPipelinesRunLater) {
+  std::string sql = PipelineSql(
+      "FROM tree |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id, total");
+  ASSERT_TRUE(Rows("CREATE VIEW totals AS " + sql).ok());
+  auto rows = Rows("SELECT id, total FROM totals");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,100", "1,60", "2,30", "3,40"));
+
+  ASSERT_TRUE(Rows("DELETE FROM tree WHERE id = 3").ok());
+  rows = Rows("SELECT id, total FROM totals");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,60", "1,20", "2,30"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, BadPlans) {
+  auto rows = Rows("SELECT c0 FROM __intrinsic_pipeline('FROM tree')");
+  EXPECT_THAT(rows.status().message(), testing::HasSubstr("expected a plan"));
+  rows = Rows("SELECT c0 FROM __intrinsic_pipeline(X'00')");
+  EXPECT_THAT(rows.status().message(), testing::HasSubstr("malformed plan"));
+  rows = Rows("SELECT c1" + From(PipelineSql("FROM (SELECT 1 AS x)")));
+  EXPECT_THAT(rows.status().message(), testing::HasSubstr("no such column"));
+}
+
+// Anyone can write SQL running a plan, so the dataframes it is passed are
+// checked.
+TEST_F(PerfettoSqlConnectionPipelineTest, BadDataframeArgs) {
+  std::string sql = PipelineSql("FROM (SELECT 1 AS x)");
+  size_t start = sql.find("X'");
+  std::string plan = sql.substr(start, sql.find('\'', start + 2) + 1 - start);
+  auto run = [&](const std::string& args) {
+    return Rows("SELECT c0 FROM __intrinsic_pipeline(" + plan + args + ")")
+        .status();
+  };
+  EXPECT_THAT(run("").message(), testing::HasSubstr("no dataframe argument 0"));
+  EXPECT_THAT(run(", 1").message(), testing::HasSubstr("expected dataframes"));
+  EXPECT_THAT(run(", __intrinsic_dataframes(1)").message(),
+              testing::HasSubstr("expected dataframes"));
+  EXPECT_THAT(run(", __intrinsic_dataframes((SELECT "
+                  "__intrinsic_dataframe_agg('y', 1)))")
+                  .message(),
+              testing::HasSubstr("dataframe argument 0 has no column 'x'"));
+  EXPECT_THAT(run(", __intrinsic_dataframes("
+                  "(SELECT __intrinsic_dataframe_agg('x,y', 1)))")
+                  .message(),
+              testing::HasSubstr("expected 2 values, not 1"));
+  EXPECT_THAT(run(R"(, __intrinsic_dataframes(
+                (SELECT __intrinsic_dataframe_agg('x', v)
+                 FROM (SELECT 1 AS v UNION ALL SELECT 'a'))))")
+                  .message(),
+              testing::HasSubstr("column 'x' was inferred to be"));
+  EXPECT_THAT(run(", __intrinsic_dataframes("
+                  "(SELECT __intrinsic_dataframe_agg('x', X'00')))")
+                  .message(),
+              testing::HasSubstr("holds a blob"));
+  auto rows = Rows(
+      "SELECT c0 FROM __intrinsic_pipeline(" + plan +
+      ", __intrinsic_dataframes((SELECT __intrinsic_dataframe_agg('x', 7))))");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("7"));
+  // A relation with no rows is passed as NULL.
+  EXPECT_TRUE(run(", __intrinsic_dataframes(NULL)").ok());
+}
+
+// A cursor keeps the dataframes it loaded, so SQL passing it others later
+// cannot free them from under it.
+TEST_F(PerfettoSqlConnectionPipelineTest, NewDataframeArgsAreSafe) {
+  std::string sql = PipelineSql("FROM (SELECT 1 AS x)");
+  size_t start = sql.find("X'");
+  std::string plan = sql.substr(start, sql.find('\'', start + 2) + 1 - start);
+  auto rows =
+      Rows("SELECT v, (SELECT c0 FROM __intrinsic_pipeline(" + plan +
+           ", __intrinsic_dataframes((SELECT __intrinsic_dataframe_agg('x', y)"
+           " FROM (SELECT v AS y)))))"
+           " FROM (SELECT 1 AS v UNION ALL SELECT 2 UNION ALL SELECT 3)");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_EQ(rows->size(), 3u);
+}
+
+// Nulls agree with each other, as under GROUP BY.
+TEST_F(PerfettoSqlConnectionPipelineTest, IntervalIntersectionPerAnyType) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE TABLE a(ts INTEGER, dur INTEGER, name TEXT, n INTEGER);
+    CREATE TABLE b(ts INTEGER, dur INTEGER, name TEXT, n INTEGER);
+    INSERT INTO a VALUES (0, 10, 'x', 1), (0, 10, 'y', 2), (0, 10, NULL, 3);
+    INSERT INTO b VALUES (5, 10, 'x', 1), (5, 10, NULL, 2), (5, 10, 'z', 3);
+  )")
+                  .ok());
+  auto rows = Rows(R"(
+    INTERVAL INTERSECTION OF (a AS a, b AS b) PER name
+    |> SELECT ts, dur, name
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("5,5,NULL", "5,5,x"));
+
+  // A key that holds strings in one operand and numbers in another is an
+  // error when the plan is lowered.
+  EXPECT_THAT(Rows(R"(
+    INTERVAL INTERSECTION OF (
+      a AS a, (SELECT ts, dur, n AS name FROM b) AS b
+    ) PER name
+  )")
+                  .status()
+                  .message(),
+              testing::HasSubstr("holds strings in one input and numbers"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFlatten) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE TABLE spans(ts INTEGER, dur INTEGER, cpu INTEGER, weight INTEGER);
+    INSERT INTO spans VALUES
+      (0, 10, 1, 5), (5, 10, 1, NULL), (15, 5, 1, 2), (7, 0, 1, 1),
+      (30, 5, 2, 4), (40, 5, NULL, 1), (NULL, 5, 1, 1);
+  )")
+                  .ok());
+  // Overlaps are cut at every boundary; a point makes an instant counting the
+  // rows spanning it; rows which only meet stay apart; nulls sum to nothing.
+  auto rows = Rows(R"(
+    FROM spans
+    |> INTERVAL FLATTEN PER cpu
+       AGGREGATE COUNT(*) AS n, SUM(weight) AS w
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows,
+              testing::ElementsAre("0,5,1,1,5", "10,5,1,1,NULL", "15,5,1,1,2",
+                                   "30,5,2,1,4", "40,5,NULL,1,1", "5,2,1,2,5",
+                                   "7,0,1,3,6", "7,3,1,2,5"));
+
+  // Input order doesn't matter.
+  for (const char* order : {"ts", "ts DESC"}) {
+    rows = Rows(base::StackString<256>(R"(
+      FROM (SELECT * FROM spans ORDER BY %s)
+      |> INTERVAL FLATTEN PER cpu
+         AGGREGATE COUNT(*) AS n, SUM(weight) AS w
+    )",
+                                       order)
+                    .ToStdString());
+    ASSERT_TRUE(rows.ok()) << rows.status().message();
+    EXPECT_THAT(*rows,
+                testing::ElementsAre("0,5,1,1,5", "10,5,1,1,NULL", "15,5,1,1,2",
+                                     "30,5,2,1,4", "40,5,NULL,1,1", "5,2,1,2,5",
+                                     "7,0,1,3,6", "7,3,1,2,5"));
+  }
+
+  // Segments never overlap, so flattening again keeps each.
+  rows = Rows(R"(
+    FROM (SELECT * FROM spans WHERE dur > 0)
+    |> INTERVAL FLATTEN PER cpu AGGREGATE COUNT(*) AS n
+    |> INTERVAL FLATTEN PER cpu AGGREGATE COUNT(*) AS m, SUM(n) AS n
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows,
+              testing::ElementsAre("0,5,1,1,1", "10,5,1,1,1", "15,5,1,1,1",
+                                   "30,5,2,1,1", "40,5,NULL,1,1", "5,5,1,1,2"));
+
+  // Aliases can repeat a logical key. Grouping by (a, b) cannot be reused
+  // when the next stage groups by (a, a), even though both lists have length 2.
+  rows = Rows(R"(
+    FROM (SELECT 0 AS ts, 10 AS dur, 1 AS a, 1 AS b
+          UNION ALL SELECT 0, 10, 1, 2)
+    |> INTERVAL FLATTEN PER a, b AGGREGATE COUNT(*) AS n
+    |> SELECT ts, dur, a AS x, a AS y, n
+    |> INTERVAL FLATTEN PER x, y AGGREGATE SUM(n) AS n
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,10,1,1,2"));
+
+  // Check accumulation, removal, instant/live combination and endpoint
+  // arithmetic. Each case must fail rather than wrapping a signed integer.
+  for (const char* values : {
+           "(0, 2, 9223372036854775807), (0, 2, 1)",
+           "(0, 2, -9223372036854775808), (0, 2, -1)",
+           "(0, 1, -1), (0, 2, 9223372036854775807), (0, 2, 1)",
+           "(0, 1, 1), (0, 2, -9223372036854775808), (0, 2, -1)",
+           "(0, 1, -9223372036854775808), (0, 2, 9223372036854775807), "
+           "(0, 2, 1)",
+           "(0, 2, 9223372036854775807), (1, 0, 1)",
+           "(9223372036854775807, 1, 0)",
+       }) {
+    SCOPED_TRACE(values);
+    auto result =
+        Rows(std::string("FROM (WITH v(ts, dur, weight) AS (VALUES ") + values +
+             ") SELECT ts, dur, weight FROM v) "
+             "|> INTERVAL FLATTEN AGGREGATE SUM(weight) AS w");
+    ASSERT_FALSE(result.ok());
+    EXPECT_THAT(result.status().message(), testing::HasSubstr("overflow"));
+  }
+  // The limits themselves are valid, including subtracting the minimum value
+  // when its interval ends, and intervals and points at the maximum timestamp.
+  rows = Rows(R"(
+    FROM (SELECT 0 AS ts, 1 AS dur, -9223372036854775808 AS weight
+          UNION ALL SELECT 1, 1, 9223372036854775807
+          UNION ALL SELECT 9223372036854775806, 1, 0
+          UNION ALL SELECT 9223372036854775807, 0, 7)
+    |> INTERVAL FLATTEN AGGREGATE SUM(weight) AS w
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre(
+                         "0,1,-9223372036854775808", "1,1,9223372036854775807",
+                         "9223372036854775806,1,0", "9223372036854775807,0,7"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, Aggregate) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE TABLE spans(ts INTEGER, dur INTEGER, cpu INTEGER, name TEXT);
+    INSERT INTO spans VALUES
+      (0, 10, 1, 'a'), (5, NULL, 1, 'b'), (15, 5, 2, 'a'), (7, 3, NULL, 'a'),
+      (30, 5, 2, NULL), (40, 7, NULL, 'b');
+  )")
+                  .ok());
+  // A null key forms its own group. Null values are skipped.
+  auto rows = Rows(R"(
+    FROM spans
+    |> AGGREGATE COUNT(*) AS n, SUM(dur) AS d, MIN(ts) AS lo, MAX(dur) AS hi
+       GROUP BY cpu
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("1,2,10,0,10", "2,2,10,15,5",
+                                          "NULL,2,10,7,7"));
+
+  // Keys of any type can be renamed with AS, and the next stage sees the new
+  // names.
+  rows = Rows(R"(
+    FROM spans
+    |> AGGREGATE COUNT(*) AS n GROUP BY name AS label, cpu
+    |> SELECT label, cpu, n
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("NULL,2,1", "a,1,1", "a,2,1",
+                                          "a,NULL,1", "b,1,1", "b,NULL,1"));
+
+  // Without GROUP BY, the whole input is one group, which outputs a row even
+  // if the input is empty.
+  rows = Rows("FROM spans |> AGGREGATE COUNT(*) AS n, SUM(dur) AS d");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("6,30"));
+  rows = Rows(
+      "FROM (SELECT dur FROM spans WHERE ts < 0) "
+      "|> AGGREGATE COUNT(*) AS n, SUM(dur) AS d");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,NULL"));
+
+  EXPECT_THAT(Rows("FROM (SELECT 9223372036854775807 AS v UNION ALL SELECT 1) "
+                   "|> AGGREGATE SUM(v) AS s")
+                  .status()
+                  .message(),
+              testing::HasSubstr("overflow"));
+  EXPECT_THAT(Rows("FROM spans |> AGGREGATE COUNT(*) AS cpu GROUP BY cpu")
+                  .status()
+                  .message(),
+              testing::HasSubstr("listed only once"));
+}
+
+// Every alias in pipe syntax needs AS, so a keyword after a relation, like
+// PER, is never taken for one.
+TEST_F(PerfettoSqlConnectionPipelineTest, AliasNeedsAs) {
+  ASSERT_TRUE(Rows("CREATE TABLE t(ts INTEGER, dur INTEGER)").ok());
+  for (const char* query :
+       {"FROM t AS x |> SELECT x.ts", "FROM t |> SELECT ts AS start",
+        "FROM t |> SELECT t.ts AS start", "FROM t |> RENAME ts AS start"}) {
+    EXPECT_TRUE(Rows(query).ok()) << query;
+  }
+  for (const char* query :
+       {"FROM t x |> SELECT x.ts", "FROM t |> SELECT ts start",
+        "FROM t |> SELECT t.ts start", "FROM t |> RENAME ts start",
+        "FROM t |> AGGREGATE COUNT(*) AS n GROUP BY ts start"}) {
+    EXPECT_THAT(Rows(query).status().message(),
+                testing::HasSubstr("syntax error"))
+        << query;
+  }
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, OrderBy) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE TABLE points(a INTEGER, b INTEGER, name TEXT);
+    INSERT INTO points VALUES
+      (2, 1, 'x'), (1, 5, 'y'), (NULL, 3, 'z'), (2, 0, 'w'), (1, 7, 'v');
+    CREATE PERFETTO TABLE typed AS SELECT a, b, name FROM points;
+  )")
+                  .ok());
+  // A fold's rows can be put back in order, and folded again afterwards.
+  auto rows = Rows(R"(
+    FROM tree
+    |> TREE ACCUMULATE UP SUM(self) AS total
+    |> ORDER BY id
+    |> TREE ACCUMULATE UP SUM(total) AS again
+    |> ORDER BY id DESC
+    |> SELECT id, total, again
+  )",
+                   true);
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("3,40,40", "2,30,30", "1,60,100",
+                                          "0,100,230"));
+
+  // A string key is refused where its type is known, and fails the run
+  // where it is not.
+  EXPECT_THAT(
+      Rows("FROM typed |> ORDER BY name").status().message(),
+      testing::HasSubstr("ordering by a string column is not supported yet"));
+  EXPECT_FALSE(Rows("FROM points |> ORDER BY name").ok());
+
+  // A key parses as an expression, but only a column is supported.
+  for (const char* key : {"(a | b) DESC", "abs(a)"}) {
+    EXPECT_THAT(
+        Rows(std::string("FROM points |> ORDER BY ") + key).status().message(),
+        testing::HasSubstr(
+            "an expression other than a column is not supported yet"));
+  }
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, ForksRunPipelinesIndependently) {
+  auto fork = connection_->Fork();
+  auto first = connection_->ExecuteUntilLastStatement(
+      SqlSource::FromExecuteQuery("FROM (SELECT 123 AS value)"));
+  auto second = fork->ExecuteUntilLastStatement(SqlSource::FromExecuteQuery(
+      "FROM (SELECT 456 AS value, 'fork' AS name)"));
+  ASSERT_TRUE(first.ok()) << first.status().message();
+  ASSERT_TRUE(second.ok()) << second.status().message();
+  EXPECT_EQ(sqlite3_column_int(first->stmt.sqlite_stmt(), 0), 123);
+  EXPECT_EQ(sqlite3_column_int(second->stmt.sqlite_stmt(), 0), 456);
+  EXPECT_EQ(first->stats.column_count, 1u);
+  EXPECT_EQ(second->stats.column_count, 2u);
+}
+
+// A position in one run of a pipeline need not be the same row in another,
+// filtered differently, so its rows have no rowid rather than a misleading one.
+TEST_F(PerfettoSqlConnectionPipelineTest, RowsHaveNoRowid) {
+  std::string from = From(PipelineSql("FROM tree"));
+  EXPECT_THAT(Rows("SELECT rowid" + from).status().message(),
+              testing::HasSubstr("no rowid"));
+  EXPECT_THAT(Rows("SELECT c0" + from + " WHERE rowid = 1").status().message(),
+              testing::HasSubstr("no rowid"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, ColumnReadersRefreshAcrossBatches) {
+  ASSERT_TRUE(connection_
+                  ->Execute(SqlSource::FromExecuteQuery(R"(
+    CREATE PERFETTO TABLE values_table AS
+    WITH RECURSIVE numbers(n) AS (SELECT 0 UNION ALL SELECT n + 1 FROM numbers WHERE n < 4999)
+    SELECT n AS id, n - 5000 AS negative, n + 10000000000 AS large,
+           n + 0.5 AS real_value, CASE WHEN n % 2 = 0 THEN n END AS nullable,
+           CASE WHEN n % 3 = 0 THEN 'text' END AS text_value
+    FROM numbers;
+  )"))
+                  .ok());
+  auto res = connection_->ExecuteUntilLastStatement(
+      SqlSource::FromExecuteQuery("FROM values_table"));
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  uint32_t count = 0;
+  for (bool more = !res->stmt.IsDone(); more; more = res->stmt.Step()) {
+    sqlite3_stmt* stmt = res->stmt.sqlite_stmt();
+    EXPECT_EQ(sqlite3_column_int64(stmt, 0), static_cast<int64_t>(count));
+    EXPECT_EQ(sqlite3_column_int64(stmt, 1),
+              static_cast<int64_t>(count) - 5000);
+    EXPECT_EQ(sqlite3_column_int64(stmt, 2),
+              static_cast<int64_t>(count) + 10000000000LL);
+    EXPECT_EQ(sqlite3_column_double(stmt, 3), count + 0.5);
+    if (count % 2 == 0)
+      EXPECT_EQ(sqlite3_column_int64(stmt, 4), static_cast<int64_t>(count));
+    else
+      EXPECT_EQ(sqlite3_column_type(stmt, 4), SQLITE_NULL);
+    if (count % 3 == 0)
+      EXPECT_STREQ(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5)),
+                   "text");
+    else
+      EXPECT_EQ(sqlite3_column_type(stmt, 5), SQLITE_NULL);
+    ++count;
+  }
+  EXPECT_TRUE(res->stmt.status().ok());
+  EXPECT_EQ(count, 5000u);
+  // A pipeline reads SQL as a dataframe, whose columns each hold one type, so
+  // a column changing type part way through is refused.
+  EXPECT_THAT(Rows(R"(
+    FROM (
+      SELECT CASE WHEN id < 3000 THEN id ELSE 'last' END AS value
+      FROM values_table
+    )
+  )")
+                  .status()
+                  .message(),
+              testing::HasSubstr("column 'value' was inferred to be"));
 }
 
 }  // namespace
