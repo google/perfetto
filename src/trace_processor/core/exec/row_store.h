@@ -52,7 +52,7 @@ class RowStore {
 
   // Copies up to kMaxBatchRows of `rows`, in that order and repeats included,
   // into buffers taken from `context`. Returns how many.
-  uint32_t View(RowBatch* out, Span<const uint32_t> rows, Context& context);
+  uint32_t Gather(RowBatch* out, Span<const uint32_t> rows, Context& context);
 
   // Lets go of every row held.
   void Clear();

@@ -42,9 +42,9 @@ describe('stack sample colors', () => {
         utid: 1,
         upid: 1,
       });
-      track.settings[0].update('mapping');
-      const instantColor = create.mock.calls[0][0].colorizer!;
-      const frameColor = create.mock.calls[1][0].colorizer!;
+      track.settings[0]!.update('mapping');
+      const instantColor = create.mock.calls[0]![0].colorizer!;
+      const frameColor = create.mock.calls[1]![0].colorizer!;
       const row = {
         id: 1,
         ts: 10n,
@@ -73,7 +73,7 @@ describe('stack sample colors', () => {
       utid: 1,
       upid: 1,
     });
-    const attrs = create.mock.calls[0][0];
+    const attrs = create.mock.calls[0]![0];
     const row = {
       id: 1,
       ts: 10n,
@@ -86,7 +86,7 @@ describe('stack sample colors', () => {
       sampleCount: 1,
     };
     const functionKey = attrs.getKey!();
-    expect(track.settings[0].value).toBe('function');
+    expect(track.settings[0]!.value).toBe('function');
     const functionColor = getColorForSlice(row.name, {
       stripTrailingDigits: false,
     });
@@ -95,13 +95,13 @@ describe('stack sample colors', () => {
       attrs.colorizer!({...row, category: 1, mappingName: '/lib/libc.so'}),
     ).toEqual(functionColor);
     expect(scheduleFullRedraw).not.toHaveBeenCalled();
-    track.settings[0].update('mapping');
+    track.settings[0]!.update('mapping');
     expect(attrs.getKey!()).not.toBe(functionKey);
     expect(attrs.colorizer!(row)).toEqual(
       sampleColorScheme(row.category, row.mappingName),
     );
     expect(scheduleFullRedraw).toHaveBeenCalledOnce();
-    track.settings[0].update('function');
+    track.settings[0]!.update('function');
     expect(attrs.getKey!()).toBe(functionKey);
     expect(attrs.colorizer!(row)).toEqual(functionColor);
     expect(scheduleFullRedraw).toHaveBeenCalledTimes(2);
@@ -122,8 +122,8 @@ describe('stack sample colors', () => {
       utid: 2,
       upid: 1,
     });
-    expect(first.settings[0].descriptor).toBe(second.settings[0].descriptor);
-    first.settings[0].update('mapping');
-    expect(second.settings[0].value).toBe('function');
+    expect(first.settings[0]!.descriptor).toBe(second.settings[0]!.descriptor);
+    first.settings[0]!.update('mapping');
+    expect(second.settings[0]!.value).toBe('function');
   });
 });

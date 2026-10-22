@@ -576,7 +576,7 @@ class TargetSelector implements m.ClassComponent<TargetSelectorAttrs> {
           {
             onchange: (e: Event) => {
               const idx = (e.target as HTMLSelectElement).selectedIndex;
-              recMgr.setTarget(this.targets[idx]);
+              recMgr.setTarget(this.targets[idx]!);
               m.redraw();
             },
           },

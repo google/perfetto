@@ -12,76 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ensureExists} from './assert';
-import {exists} from './utils';
-
-export type PathKey = string | number;
-export type Path = PathKey[];
-
-/**
- * Gets the |value| at a |path| of |object|. If a portion of the path doesn't
- * exist, |undefined| is returned.
- *
- * Example:
- * const obj = {
- *   a: [
- *     {b: 'c'},
- *     {d: 'e', f: 123},
- *   ],
- * };
- * getPath(obj, ['a']) -> [{b: 'c'}, {d: 'e', f: 123}]
- * getPath(obj, ['a', 1]) -> {d: 'e', f: 123}
- * getPath(obj, ['a', 1, 'd']) -> 'e'
- * getPath(obj, ['g']) -> undefined
- * getPath(obj, ['g', 'h']) -> undefined
- *
- * Note: This is an appropriate use of `any`, as we are knowingly getting fast
- * and loose with the type system in this function: it's basically JavaScript.
- * Attempting to pretend it's anything else would result in superfluous type
- * assertions which would serve no benefit.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function getPath<T>(obj: any, path: Path): T | undefined {
-  let x = obj;
-  for (const node of path) {
-    if (x === undefined) return undefined;
-    x = x[node];
-  }
-  return x;
-}
-
-/**
- * Sets the |value| at |path| of |object|. If the final node of the path doesn't
- * exist, the value will be created. Otherwise, TypeError is thrown.
- *
- * Example:
- * const obj = {
- *   a: [
- *     {b: 'c'},
- *     {d: 'e', f: 123},
- *   ],
- * };
- * setPath(obj, ['a'], 'foo') -> {a: 'foo'}
- * setPath(obj, ['a', 1], 'foo') -> {a: [{b: 'c'}, 'foo']}
- * setPath(obj, ['g'], 'foo') -> {a: [...], g: 'foo'}
- * setPath(obj, ['g', 'h'], 'foo') -> TypeError!
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function setPath<T>(obj: any, path: Path, value: T): void {
-  const pathClone = [...path];
-  let o = obj;
-  while (pathClone.length > 1) {
-    const p = ensureExists(pathClone.shift());
-    o = o[p];
-  }
-
-  const p = pathClone.shift();
-  if (!exists(p)) {
-    throw TypeError('Path array is empty');
-  }
-  o[p] = value;
-}
-
 export function shallowEquals(a: unknown, b: unknown) {
   if (a === b) {
     return true;
@@ -117,4 +47,14 @@ export function isEnumValue<T extends {}>(
   value: unknown,
 ): value is T[keyof T] {
   return Object.values(enm).includes(value);
+}
+
+/**
+ * Recursively freezes an object and all its properties to prevent mutation.
+ */
+export function deepFreeze<T>(obj: T): T {
+  if (obj === null || typeof obj !== 'object') return obj;
+  Object.freeze(obj);
+  Object.values(obj).forEach(deepFreeze);
+  return obj;
 }

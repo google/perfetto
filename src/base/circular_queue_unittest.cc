@@ -322,6 +322,54 @@ TEST(CircularQueueTest, InsertBeforeWithGrowAfterWrap) {
   ASSERT_THAT(queue, ElementsAre(10, 20, 25, 30, 40));
 }
 
+// Grow a full queue for every possible internal begin_ offset, so that the
+// elements are split in two runs ([begin, capacity) and [0, end)) of all the
+// possible lengths, including the non-wrapped case.
+TEST(CircularQueueTest, GrowWhileWrapped) {
+  for (int offset = 0; offset < 8; offset++) {
+    CircularQueue<int> queue(/*initial_capacity=*/8);
+    for (int i = 0; i < offset; i++)
+      queue.emplace_back(-1);
+    queue.erase_front(static_cast<size_t>(offset));
+    for (int i = 0; i < 8; i++)
+      queue.emplace_back(i);
+    ASSERT_EQ(queue.capacity(), 8u);
+
+    queue.emplace_back(8);  // Triggers the growth.
+    ASSERT_EQ(queue.capacity(), 16u);
+    ASSERT_THAT(queue, ElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8));
+  }
+}
+
+TEST(CircularQueueTest, ShrinkWhileWrapped) {
+  CircularQueue<int> queue(/*initial_capacity=*/8192);
+  for (int i = 0; i < 8000; i++)
+    queue.emplace_back(-1);
+  queue.erase_front(7950);
+  for (int i = 0; i < 200; i++)  // Wraps after the first 192.
+    queue.emplace_back(i);
+  ASSERT_EQ(queue.capacity(), 8192u);
+  ASSERT_EQ(queue.size(), 250u);
+
+  queue.shrink_to_fit();
+  ASSERT_EQ(queue.capacity(), 4096u);
+  ASSERT_EQ(queue.size(), 250u);
+  for (size_t i = 0; i < 50; i++)
+    ASSERT_EQ(queue.at(i), -1);
+  for (size_t i = 0; i < 200; i++)
+    ASSERT_EQ(queue.at(50 + i), static_cast<int>(i));
+}
+
+TEST(CircularQueueTest, EraseFrontMoreThanSize) {
+  CircularQueue<int> queue(/*initial_capacity=*/4);
+  queue.emplace_back(1);
+  queue.emplace_back(2);
+  queue.erase_front(10);
+  ASSERT_TRUE(queue.empty());
+  queue.emplace_back(3);
+  ASSERT_THAT(queue, ElementsAre(3));
+}
+
 TEST(CircularQueueTest, ObjectLifetime) {
   class Checker {
    public:
@@ -428,6 +476,27 @@ TEST(CircularQueueTest, ObjectLifetime) {
     ASSERT_TRUE(std::is_sorted(q2.begin(), q2.end(), comparer));
     ASSERT_EQ(stats.num_alive, 200);
   }
+
+  // Check moves and dtors when growing while the queue is wrapped.
+  stats = Checker::Stats();
+  {
+    CircularQueue<Checker> queue(/*initial_capacity=*/4);
+    queue.emplace_back(&stats, 0);
+    queue.emplace_back(&stats, 1);
+    queue.erase_front(2);
+    ASSERT_EQ(stats.num_dtors, 2);
+    for (int i = 0; i < 4; i++)  // Occupies slots 2, 3, 0, 1.
+      queue.emplace_back(&stats, 10 + i);
+
+    queue.emplace_back(&stats, 14);  // Grows, moving the 4 wrapped elements.
+    ASSERT_EQ(queue.capacity(), 8u);
+    ASSERT_EQ(stats.num_dtors, 2 + 4);
+    ASSERT_EQ(stats.num_alive, 5);
+    for (size_t i = 0; i < 5; i++)
+      ASSERT_EQ(queue.at(i).n_, 10 + static_cast<int>(i));
+  }
+  ASSERT_EQ(stats.num_alive, 0);
+  ASSERT_EQ(stats.num_dtors, 2 + 4 + 5);
 }
 
 }  // namespace

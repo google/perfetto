@@ -627,7 +627,7 @@ function requiredSchema(
     ...columns,
     ...(inputs.filter === undefined ? [] : [inputs.filter.col]),
   ])) {
-    schema[col] = inputs.dataset.schema[col];
+    schema[col] = inputs.dataset.schema[col]!;
   }
   return schema;
 }

@@ -14,6 +14,7 @@
 
 import {assertUnreachable} from '../../../base/assert';
 import type {SqlValue} from '../../../trace_processor/query_result';
+import {escapeSearchQuery} from '../../../trace_processor/query_utils';
 import type {AggregateFunction, Filter} from './model';
 
 /**
@@ -90,10 +91,11 @@ export function sqlPathsIn(
 
   // Paths without NULLs can use efficient IN syntax
   if (pathsWithoutNulls.length > 0) {
-    if (columns.length === 1) {
+    const [onlyColumn] = columns;
+    if (columns.length === 1 && onlyColumn !== undefined) {
       // Single column: simple IN
-      const values = pathsWithoutNulls.map((p) => sqlValue(p[0])).join(', ');
-      conditions.push(`${columns[0]} IN (${values})`);
+      const values = pathsWithoutNulls.map((p) => sqlValue(p[0]!)).join(', ');
+      conditions.push(`${onlyColumn} IN (${values})`);
     } else {
       // Multiple columns: tuple IN
       const colTuple = columns.join(', ');
@@ -109,10 +111,11 @@ export function sqlPathsIn(
     conditions.push(sqlPathMatch(columns, path));
   }
 
-  if (conditions.length === 0) {
+  const [firstCondition] = conditions;
+  if (firstCondition === undefined) {
     return 'FALSE';
   } else if (conditions.length === 1) {
-    return conditions[0];
+    return firstCondition;
   } else {
     return `(${conditions.join(' OR ')})`;
   }
@@ -134,10 +137,11 @@ export function sqlPathsNotIn(
 
   // Paths without NULLs can use efficient NOT IN syntax
   if (pathsWithoutNulls.length > 0) {
-    if (columns.length === 1) {
+    const [onlyColumn] = columns;
+    if (columns.length === 1 && onlyColumn !== undefined) {
       // Single column: simple NOT IN
-      const values = pathsWithoutNulls.map((p) => sqlValue(p[0])).join(', ');
-      conditions.push(`${columns[0]} NOT IN (${values})`);
+      const values = pathsWithoutNulls.map((p) => sqlValue(p[0]!)).join(', ');
+      conditions.push(`${onlyColumn} NOT IN (${values})`);
     } else {
       // Multiple columns: tuple NOT IN
       const colTuple = columns.join(', ');
@@ -153,10 +157,11 @@ export function sqlPathsNotIn(
     conditions.push(sqlPathNotMatch(columns, path));
   }
 
-  if (conditions.length === 0) {
+  const [firstCondition] = conditions;
+  if (firstCondition === undefined) {
     return 'TRUE';
   } else if (conditions.length === 1) {
-    return conditions[0];
+    return firstCondition;
   } else {
     return conditions.join(' AND ');
   }
@@ -189,6 +194,34 @@ export function filterToSql(filter: Filter, sqlExpr: string): string {
     default:
       assertUnreachable(filter);
   }
+}
+
+/**
+ * Builds a SQL condition that is true if any of `sqlExprs` contains `text`.
+ * E.g., quickFilterToSql('fo', ['a', 'b']) returns:
+ * ((typeof(a) != 'blob' AND CAST(a AS TEXT) GLOB '*[fF][oO]*') OR (...b...))
+ *
+ * The rules are:
+ * 1. The value, converted to text, contains the filter text.
+ * 2. Upper/lowercase is ignored for A-Z only.
+ * 3. Nulls and blobs never match.
+ *
+ * Keep in sync with valueMatchesQuickFilter() in quick_filter_utils.ts, which
+ * implements the same rules in JS.
+ */
+export function quickFilterToSql(
+  text: string,
+  sqlExprs: readonly string[],
+): string {
+  if (sqlExprs.length === 0) {
+    return 'FALSE';
+  }
+  const pattern = escapeSearchQuery(text);
+  const conditions = sqlExprs.map(
+    (expr) =>
+      `(typeof(${expr}) != 'blob' AND CAST(${expr} AS TEXT) GLOB ${pattern})`,
+  );
+  return `(${conditions.join(' OR ')})`;
 }
 
 /**

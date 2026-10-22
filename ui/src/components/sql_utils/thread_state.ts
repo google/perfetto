@@ -74,7 +74,7 @@ export function translateState(
   if (state === null) {
     return 'Unknown';
   }
-  let result = states[state[0]];
+  let result = states[state[0]!]!;
   if (ioWait === true) {
     result += ' (IO)';
   } else if (ioWait === false) {
@@ -82,7 +82,7 @@ export function translateState(
   }
   for (let i = 1; i < state.length; i++) {
     result += state[i] === '+' ? ' ' : ' + ';
-    result += states[state[i]];
+    result += states[state[i]!]!;
   }
   // state is some string we don't know how to translate.
   if (result === undefined) return state;

@@ -119,7 +119,7 @@ export function LlmSettings(): m.Component<LlmSettingsAttrs> {
               variant: ButtonVariant.Filled,
               onclick: () => {
                 // New providers default to the first registered protocol.
-                const protocol = protocols[0];
+                const protocol = protocols[0]!;
                 update(setting, (ps) => [
                   ...ps,
                   {

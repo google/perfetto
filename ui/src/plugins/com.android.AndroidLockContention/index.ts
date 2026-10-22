@@ -387,15 +387,15 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
       const middleTs = row.ts + row.dur / 2n;
       const ownerTrackUri = `com.android.AndroidLockContention#OwnerEvents_Slice_${row.owner_tid}_${row.blocked_utid}`;
 
-      const targets = [{id: eventId, trackUri: trackUri, depth: 0}];
-      await enrichDepths(trace, targets);
+      const targets = {id: eventId, trackUri: trackUri, depth: 0};
+      await enrichDepths(trace, [targets]);
 
       return [
         {
           start: {
             trackUri: trackUri,
             ts: Time.fromRaw(middleTs),
-            depth: targets[0].depth,
+            depth: targets.depth,
           },
           end: {
             trackUri: ownerTrackUri,

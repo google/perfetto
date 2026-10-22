@@ -163,7 +163,7 @@ class Compute {
       // while the query was in flight, discard the result.
       if (this.sliceId !== requestedSliceId) return;
       const hasMetrics = Array.isArray(data) && data.length > 0;
-      this.setToolbarInfo(hasMetrics ? data[0].toolbar : undefined);
+      this.setToolbarInfo(hasMetrics ? data[0]!.toolbar : undefined);
       if (!hasMetrics) {
         this.sliceId = firstId;
         this.ctx.activeInfoTab = 'summary';
@@ -287,7 +287,7 @@ class Compute {
           const hasMetrics = Array.isArray(data) && data.length > 0;
           return {
             hasMetrics,
-            toolbar: hasMetrics ? data[0].toolbar : undefined,
+            toolbar: hasMetrics ? data[0]!.toolbar : undefined,
           };
         },
       });

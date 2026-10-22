@@ -277,6 +277,11 @@ base::Status ProtoToArgsParser::ParseMessage(
   if (!idx) {
     return base::Status("Failed to find proto descriptor for " + type);
   }
+  auto reset_call_params = base::OnScopeExit([this] {
+    allowed_fields_ = nullptr;
+    unknown_extensions_ = nullptr;
+    add_defaults_ = false;
+  });
   allowed_fields_ = allowed_fields;
   unknown_extensions_ = unknown_extensions;
   add_defaults_ = add_defaults;
@@ -307,9 +312,12 @@ base::Status ProtoToArgsParser::ParseMessageField(
     RepeatedFieldIndex* repeated_field_index) {
   PERFETTO_DCHECK(work_stack_.empty());
   PERFETTO_DCHECK(descriptor_idx < pool_.descriptors().size());
-  allowed_fields_ = nullptr;
+  auto reset_call_params = base::OnScopeExit([this] {
+    allowed_fields_ = nullptr;
+    unknown_extensions_ = nullptr;
+    add_defaults_ = false;
+  });
   unknown_extensions_ = unknown_extensions;
-  add_defaults_ = false;
   uint64_t root_key = PathEdgeKey(kNoPath, descriptor_idx);
   uint32_t* slot = path_index_.Find(root_key);
   uint32_t root_path = slot ? *slot

@@ -69,7 +69,7 @@ function getEmbeddedSourceMap(bundleFileName: string): SourceMap | null {
 
   // Try exact match first
   if (bundleFileName in registry) {
-    return registry[bundleFileName];
+    return registry[bundleFileName]!;
   }
 
   // Try to find by partial match (handles different path prefixes)
@@ -114,7 +114,7 @@ export function decodeVLQ(encoded: string): number[] {
 
     do {
       if (i >= encoded.length) break;
-      const digit = BASE64_CHARS.indexOf(encoded[i++]);
+      const digit = BASE64_CHARS.indexOf(encoded[i++]!);
       if (digit === -1) {
         // Handle invalid characters gracefully, though source maps should be valid
         continuation = 0;
@@ -155,17 +155,18 @@ export function preprocessSourceMap(sourceMap: SourceMap): ProcessedSourceMap {
     for (const segment of segmentStrings) {
       if (!segment) continue;
       const decoded = decodeVLQ(segment);
-      if (decoded.length === 0) continue;
+      const first = decoded[0];
+      if (first === undefined) continue;
 
-      genCol += decoded[0];
+      genCol += first;
 
       if (decoded.length >= 4) {
-        sourceIndex += decoded[1];
-        sourceLine += decoded[2];
-        sourceCol += decoded[3];
+        sourceIndex += decoded[1]!;
+        sourceLine += decoded[2]!;
+        sourceCol += decoded[3]!;
         const hasName = decoded.length >= 5;
         if (hasName) {
-          nameIndex += decoded[4];
+          nameIndex += decoded[4]!;
         }
 
         segments.push({
@@ -199,6 +200,7 @@ function binarySearchSegment(
   while (left <= right) {
     const mid = Math.floor((left + right) / 2);
     const segment = segments[mid];
+    if (segment === undefined) break;
 
     if (segment.genCol <= targetCol) {
       // This could be a match, but check if there's a better one to the right
@@ -226,34 +228,27 @@ export function findOriginalPosition(
       : preprocessSourceMap(sourceMapOrProcessed);
   const targetLine = line - 1; // Convert to 0-indexed
 
-  if (targetLine < 0 || targetLine >= processed.lineSegments.length) {
+  const segments = processed.lineSegments[targetLine];
+  if (segments === undefined) {
     return {source: null, line: null, column: null, name: null};
   }
 
-  const segments = processed.lineSegments[targetLine];
   const bestMatch = binarySearchSegment(segments, column);
-
-  if (
-    bestMatch &&
-    bestMatch.sourceIndex >= 0 &&
-    bestMatch.sourceIndex < processed.sourceMap.sources.length
-  ) {
+  if (bestMatch) {
     const sourceMap = processed.sourceMap;
-    const hasNames =
-      sourceMap.names !== undefined && sourceMap.names.length > 0;
-    const name =
-      bestMatch.hasName &&
-      hasNames &&
-      bestMatch.nameIndex >= 0 &&
-      bestMatch.nameIndex < sourceMap.names.length
-        ? sourceMap.names[bestMatch.nameIndex]
-        : null;
-    return {
-      source: sourceMap.sources[bestMatch.sourceIndex],
-      line: bestMatch.sourceLine + 1,
-      column: bestMatch.sourceCol,
-      name,
-    };
+    const source = sourceMap.sources[bestMatch.sourceIndex];
+    if (source !== undefined) {
+      const name =
+        bestMatch.hasName && sourceMap.names !== undefined
+          ? (sourceMap.names[bestMatch.nameIndex] ?? null)
+          : null;
+      return {
+        source,
+        line: bestMatch.sourceLine + 1,
+        column: bestMatch.sourceCol,
+        name,
+      };
+    }
   }
 
   return {source: null, line: null, column: null, name: null};
@@ -273,9 +268,9 @@ export function mapStackTraceWithMinifiedSourceMap(
       continue;
     }
 
-    const file = match[1];
-    const lineNum = parseInt(match[2], 10);
-    const colNum = parseInt(match[3], 10);
+    const file = match[1]!;
+    const lineNum = parseInt(match[2]!, 10);
+    const colNum = parseInt(match[3]!, 10);
 
     try {
       // Extract just the filename from the path

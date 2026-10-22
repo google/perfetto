@@ -340,7 +340,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         const s = chartData.series.find(
           (sr: LineChartSeries) => sr.name === name,
         );
-        return s !== undefined && s.points.length > 0 ? s.points[0].y : 0;
+        return s !== undefined && s.points.length > 0 ? s.points[0]!.y : 0;
       };
       this.profileBaseline = {
         anonSwap: first('RSS Anon + Swap'),

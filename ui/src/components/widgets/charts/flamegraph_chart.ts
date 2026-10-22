@@ -94,17 +94,17 @@ function parseHexColor(c: string): [number, number, number] | undefined {
   const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(c);
   if (short) {
     return [
-      parseInt(short[1] + short[1], 16),
-      parseInt(short[2] + short[2], 16),
-      parseInt(short[3] + short[3], 16),
+      parseInt(short[1]! + short[1]!, 16),
+      parseInt(short[2]! + short[2]!, 16),
+      parseInt(short[3]! + short[3]!, 16),
     ];
   }
   const long = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c);
   if (long) {
     return [
-      parseInt(long[1], 16),
-      parseInt(long[2], 16),
-      parseInt(long[3], 16),
+      parseInt(long[1]!, 16),
+      parseInt(long[2]!, 16),
+      parseInt(long[3]!, 16),
     ];
   }
   return undefined;

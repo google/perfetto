@@ -79,8 +79,8 @@ describe('filter operations', () => {
         const result = createFiltersProto(filters, sourceCols);
 
         expect(result).toHaveLength(2);
-        expect(result![0].columnName).toBe('id');
-        expect(result![1].columnName).toBe('age');
+        expect(result![0]!.columnName).toBe('id');
+        expect(result![1]!.columnName).toBe('age');
       });
 
       it('should return undefined if all filters are disabled', () => {
@@ -100,8 +100,8 @@ describe('filter operations', () => {
         const result = createFiltersProto(filters, sourceCols);
 
         expect(result).toHaveLength(1);
-        expect(result![0].columnName).toBe('name');
-        expect(result![0].stringRhs).toEqual(['test']);
+        expect(result![0]!.columnName).toBe('name');
+        expect(result![0]!.stringRhs).toEqual(['test']);
       });
 
       it('should create proto for number filter', () => {
@@ -110,8 +110,8 @@ describe('filter operations', () => {
         const result = createFiltersProto(filters, sourceCols);
 
         expect(result).toHaveLength(1);
-        expect(result![0].columnName).toBe('id');
-        expect(result![0].int64Rhs).toEqual([42]);
+        expect(result![0]!.columnName).toBe('id');
+        expect(result![0]!.int64Rhs).toEqual([42]);
       });
 
       it('should handle multiple filters', () => {
@@ -124,9 +124,9 @@ describe('filter operations', () => {
         const result = createFiltersProto(filters, sourceCols);
 
         expect(result).toHaveLength(3);
-        expect(result![0].columnName).toBe('id');
-        expect(result![1].columnName).toBe('name');
-        expect(result![2].columnName).toBe('age');
+        expect(result![0]!.columnName).toBe('id');
+        expect(result![1]!.columnName).toBe('name');
+        expect(result![2]!.columnName).toBe('age');
       });
     });
 

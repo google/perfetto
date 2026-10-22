@@ -468,7 +468,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
                 {
                   // Default to the latest snapshot when nothing is picked.
                   value: (
-                    this.selectedTs ?? snapshots[snapshots.length - 1].ts
+                    this.selectedTs ?? snapshots[snapshots.length - 1]!.ts
                   ).toString(),
                   onchange: (e: Event) => {
                     const v = (e.target as HTMLSelectElement).value;

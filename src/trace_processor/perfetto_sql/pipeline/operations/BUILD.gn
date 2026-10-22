@@ -20,6 +20,10 @@ source_set("operations") {
   sources = [
     "aggregate_stage.cc",
     "aggregate_stage.h",
+    "distinct.cc",
+    "distinct.h",
+    "interval_fill_gaps.cc",
+    "interval_fill_gaps.h",
     "interval_flatten.cc",
     "interval_flatten.h",
     "interval_intersect.cc",
@@ -32,6 +36,8 @@ source_set("operations") {
     "scan.h",
     "tree_accumulate.cc",
     "tree_accumulate.h",
+    "where.cc",
+    "where.h",
   ]
   deps = [
     "..:plan",

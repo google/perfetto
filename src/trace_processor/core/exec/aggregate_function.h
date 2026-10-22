@@ -117,6 +117,12 @@ class AggregateFunction {
                       const uint32_t* groups,
                       GroupStates states,
                       bool* overflow) const = 0;
+  // As Update, with every row of `in` in group `group`, as without keys. A
+  // function can then fold the batch before touching the state.
+  virtual void UpdateGroup(const AggregateInput& in,
+                           uint32_t group,
+                           GroupStates states,
+                           bool* overflow) const = 0;
   // In order, for each of the `count` merges, adds the state of group
   // `from` into that of group `into`.
   virtual void Combine(const GroupMerge* merges,

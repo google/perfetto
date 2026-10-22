@@ -13,11 +13,10 @@
 // limitations under the License.
 
 import {DisposableStack} from '../base/disposable_stack';
-import {createStore, type Migrate, type Store} from '../base/store';
 import type {time} from '../base/time';
 import {TimelineImpl} from './timeline';
 import type {Command} from '../public/commands';
-import type {Trace} from '../public/trace';
+import type {Storage, StorageDescriptor, Trace} from '../public/trace';
 import type {ScrollToArgs} from '../public/scroll_helper';
 import type {Engine, EngineBase} from '../trace_processor/engine';
 import type {CommandManagerImpl} from './command_manager';
@@ -42,6 +41,7 @@ import {tarFileListToBlob} from './trace_stream';
 import type {TraceInfoImpl} from './trace_info_impl';
 import type {PageHandler, PageManager} from '../public/page';
 import {createProxy} from '../base/utils';
+import {deepFreeze} from '../base/object_utils';
 import type {PageManagerImpl} from './page_manager';
 import type {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
 import type {SerializedAppState} from './state_serialization_schema';
@@ -88,10 +88,19 @@ export class TraceImpl implements Trace, Disposable {
   readonly initialPage = new InitialPageManagerImpl();
   readonly loadingErrors: string[] = [];
   readonly app: AppImpl;
-  readonly store = createStore<Record<string, unknown>>({});
+  private readonly storageState = new Map<string, unknown>();
 
-  // Do we need this?
-  readonly pluginSerializableState = createStore<{[key: string]: {}}>({});
+  getStorageState(id: string): unknown {
+    return this.storageState.get(id);
+  }
+
+  setStorageState(id: string, value: unknown): void {
+    this.storageState.set(id, deepFreeze(value));
+  }
+
+  get storageEntries(): IterableIterator<[string, unknown]> {
+    return this.storageState.entries();
+  }
 
   // Set while a minimap reload is pending or running, see extendTraceEnd().
   private minimapReloadTimer?: ReturnType<typeof setTimeout>;
@@ -398,8 +407,34 @@ export class TraceImpl implements Trace, Disposable {
     return this.app.perfDebugging;
   }
 
-  mountStore<T>(id: string, migrate: Migrate<T>): Store<T> {
-    return this.store.createSubStore([id], migrate);
+  registerStorage<T>(descriptor: StorageDescriptor<T>): Storage<T> {
+    return new TraceStorage(this, descriptor);
+  }
+}
+
+class TraceStorage<T> implements Storage<T> {
+  private cache?: {rawValue: unknown; normalizedValue: T};
+
+  constructor(
+    private readonly trace: TraceImpl,
+    private readonly desc: StorageDescriptor<T>,
+  ) {}
+
+  get(): T {
+    const rawValue = this.trace.getStorageState(this.desc.id);
+    const cache = this.cache;
+    if (cache !== undefined && cache.rawValue === rawValue) {
+      return cache.normalizedValue;
+    }
+    const result = this.desc.schema.safeParse(rawValue);
+    const value = result.success ? result.data : this.desc.defaultValue;
+    const normalizedValue = deepFreeze(value);
+    this.cache = {rawValue, normalizedValue};
+    return normalizedValue;
+  }
+
+  set(newValue: T): void {
+    this.trace.setStorageState(this.desc.id, newValue);
   }
 }
 

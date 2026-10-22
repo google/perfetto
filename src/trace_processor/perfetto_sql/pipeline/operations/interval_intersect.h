@@ -55,10 +55,9 @@ class IntervalIntersect : public PlanOperation {
   std::unique_ptr<PlanOperation> Clone() const override;
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
   void Lower(Lowering*, const PlanNode&) const override;
-  void Write(PlanWriter*, const PlanNode&, Available*) const override;
+  void Serialize(PlanCodec&) override;
 
   static base::Status BuildPlan(Compiler*, uint32_t);
-  static void DecodePlan(PlanReader*, Available*);
 
   const OperationRegistration& registration() const override;
 
