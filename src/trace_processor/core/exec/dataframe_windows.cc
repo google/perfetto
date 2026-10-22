@@ -17,8 +17,8 @@
 #include "src/trace_processor/core/exec/dataframe_windows.h"
 
 #include <cstdint>
+#include <cstring>
 #include <memory>
-#include <type_traits>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -57,11 +57,16 @@ DataframeWindows::Expander::~Expander() = default;
 
 namespace {
 
-template <typename T>
+// Expands a column whose values are kWidth bytes. Values are copied as bytes,
+// so types of the same width share one expander.
+template <uint32_t kWidth>
 class ExpanderImpl final : public DataframeWindows::Expander {
  public:
-  ExpanderImpl(StorageType type, const T* packed, const BitVector* bits)
-      : type_(type), packed_(packed), bits_(bits) {}
+  // `packed` is null for an Id column, whose values are their positions.
+  ExpanderImpl(StorageType type, const void* packed, const BitVector* bits)
+      : type_(type), packed_(static_cast<const uint8_t*>(packed)), bits_(bits) {
+    PERFETTO_DCHECK(packed_ || kWidth == sizeof(uint32_t));
+  }
 
   void Expand(uint32_t from,
               uint32_t count,
@@ -71,23 +76,23 @@ class ExpanderImpl final : public DataframeWindows::Expander {
     PERFETTO_DCHECK(from == next_);
     *buffer = context.TakeBuffer();
     ColumnChunk& chunk = buffer->chunk();
-    T* values = chunk.Values<T>();
-    chunk.validity.resize(kMaxBatchRows);
+    uint8_t* values = chunk.Values<uint8_t>();
+    chunk.SizeValidity();
     chunk.validity.ClearAllBits();
     for (uint32_t row = 0; row < count; ++row) {
+      uint8_t* value = values + uint64_t{row} * kWidth;
       if (bits_->is_set(from + row)) {
-        if constexpr (std::is_same_v<T, uint32_t>) {
-          values[row] =
-              packed_ ? packed_[consumed_] : static_cast<uint32_t>(consumed_);
+        if (packed_) {
+          memcpy(value, packed_ + uint64_t{consumed_} * kWidth, kWidth);
         } else {
-          PERFETTO_DCHECK(packed_);
-          values[row] = packed_[consumed_];
+          memcpy(value, &consumed_, sizeof(consumed_));
         }
         ++consumed_;
         chunk.validity.set(row);
       } else {
-        // Written even for a null row, so the storage is readable everywhere.
-        values[row] = T{};
+        // Written even for a null row, so the storage is readable everywhere:
+        // zero bytes are zero, 0.0 and the null string.
+        memset(value, 0, kWidth);
       }
     }
     next_ = from + count;
@@ -101,35 +106,48 @@ class ExpanderImpl final : public DataframeWindows::Expander {
 
  private:
   StorageType type_;
-  const T* packed_;
+  const uint8_t* packed_;
   const BitVector* bits_;
   // How many of the packed values are before `next_`.
   uint32_t consumed_ = 0;
   uint32_t next_ = 0;
 };
 
-// Builds either a view straight onto the dataframe's storage or, for a column
-// without a slot per row, the expander which fills one window of it.
+// The expander for a column of `type` whose values are `width` bytes.
+std::unique_ptr<DataframeWindows::Expander> MakeExpander(
+    uint32_t width,
+    StorageType type,
+    const void* packed,
+    const BitVector* bits) {
+  if (width == sizeof(uint32_t)) {
+    return std::make_unique<ExpanderImpl<sizeof(uint32_t)>>(type, packed, bits);
+  }
+  PERFETTO_DCHECK(width == sizeof(uint64_t));
+  return std::make_unique<ExpanderImpl<sizeof(uint64_t)>>(type, packed, bits);
+}
+
+// Sets `view` straight onto the dataframe's storage or, for a column without
+// a slot per row, returns the expander which fills one window of it.
 template <typename T>
-void BuildColumn(const dataframe::Column& column,
-                 StorageType type,
-                 ColumnView* view,
-                 std::unique_ptr<DataframeWindows::Expander>* expander) {
+std::unique_ptr<DataframeWindows::Expander> BuildColumn(
+    const dataframe::Column& column,
+    StorageType type,
+    ColumnView* view) {
   const T* data =
       column.storage
           .template unchecked_data<typename core::TypeTagFor<T>::type>();
   const auto& nulls = column.null_storage;
   if (nulls.nullability().template Is<core::NonNull>()) {
     *view = ColumnView::Reference(type, data, nullptr);
-    return;
+    return nullptr;
   }
   const BitVector& bits = nulls.GetNullBitVector();
   if (nulls.nullability().template Is<core::DenseNull>()) {
     // Already one slot per row, so the values can be read where they lie.
     *view = ColumnView::Reference(type, data, &bits);
-    return;
+    return nullptr;
   }
-  *expander = std::make_unique<ExpanderImpl<T>>(type, data, &bits);
+  return MakeExpander(sizeof(T), type, data, &bits);
 }
 
 }  // namespace
@@ -156,19 +174,19 @@ void DataframeWindows::Init(
         lent_[i] =
             ColumnView::Reference(type, nullptr, &nulls.GetNullBitVector());
       } else {
-        expander = std::make_unique<ExpanderImpl<uint32_t>>(
-            StorageType{Uint32{}}, nullptr, &nulls.GetNullBitVector());
+        expander = MakeExpander(sizeof(uint32_t), StorageType{Uint32{}},
+                                nullptr, &nulls.GetNullBitVector());
       }
     } else if (type.Is<Uint32>()) {
-      BuildColumn<uint32_t>(column, type, &lent_[i], &expander);
+      expander = BuildColumn<uint32_t>(column, type, &lent_[i]);
     } else if (type.Is<Int32>()) {
-      BuildColumn<int32_t>(column, type, &lent_[i], &expander);
+      expander = BuildColumn<int32_t>(column, type, &lent_[i]);
     } else if (type.Is<Int64>()) {
-      BuildColumn<int64_t>(column, type, &lent_[i], &expander);
+      expander = BuildColumn<int64_t>(column, type, &lent_[i]);
     } else if (type.Is<Double>()) {
-      BuildColumn<double>(column, type, &lent_[i], &expander);
+      expander = BuildColumn<double>(column, type, &lent_[i]);
     } else {
-      BuildColumn<StringPool::Id>(column, type, &lent_[i], &expander);
+      expander = BuildColumn<StringPool::Id>(column, type, &lent_[i]);
     }
     if (expander) {
       expanded_.push_back({i, std::move(expander)});

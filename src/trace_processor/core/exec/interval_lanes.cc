@@ -80,7 +80,7 @@ base::Status LaneReader::Start(const RowBatch& in, GroupTable* shared) {
   // A lane's rows arrive together, so only the first row of each lane is
   // looked up in the shared table.
   first_rows_.clear();
-  std::optional<uint32_t> last = last_group_;
+  uint32_t last = last_group_;
   for (uint32_t row = 0; row < in.size(); ++row) {
     uint32_t group = in.Value<uint32_t>(spec_->group_column, row);
     if (group != last) {

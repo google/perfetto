@@ -62,7 +62,7 @@ class SortedRows {
   void Clear();
 
  private:
-  std::vector<std::optional<RowLayout::Type>> types_;
+  std::vector<RowLayout::Type> types_;
   RowLayout layout_;
   FlexVector<uint8_t> keys_;
   RowStore rows_;

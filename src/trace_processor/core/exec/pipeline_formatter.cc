@@ -183,9 +183,9 @@ std::string PipelineFormatter::SourceString(const Source& source) {
 std::string PipelineFormatter::TransformString(const Transform& transform) {
   if (transform.Is<AssertType>()) {
     const auto& assert = static_cast<const AssertType&>(transform);
-    std::string target = assert.target_.Is<Int64>()    ? "Int64"
-                         : assert.target_.Is<Double>() ? "Double"
-                                                       : "String";
+    std::string target = assert.type_.Is<Int64>()    ? "Int64"
+                         : assert.type_.Is<Double>() ? "Double"
+                                                     : "String";
     return "AssertType(" + Column(assert.column_) + " to " + target + ")";
   }
   if (transform.Is<Distinct>()) {

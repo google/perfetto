@@ -23,6 +23,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/bits.h"
 #include "perfetto/ext/base/murmur_hash.h"
@@ -70,20 +71,21 @@ void Gather(const ColumnView& column,
             const Selection& selection,
             uint32_t count,
             int64_t* out) {
-  const auto* data = static_cast<const T*>(column.data());
+  const auto* data = static_cast<const T*>(column.data()) + column.Index(0);
   if (selection.prefix()) {
-    const auto* src = data + column.start();
     if constexpr (std::is_same_v<T, int64_t>) {
-      memcpy(out, src, count * sizeof(int64_t));
+      memcpy(out, data, count * sizeof(int64_t));
     } else {
       for (uint32_t row = 0; row < count; ++row) {
-        out[row] = src[row];
+        out[row] = data[row];
       }
     }
-  } else {
-    for (uint32_t row = 0; row < count; ++row) {
-      out[row] = data[column.Index(selection[row])];
-    }
+    return;
+  }
+  // A gather, which vector instructions do not speed up.
+  PERFETTO_NO_VECTORIZE_LOOP
+  for (uint32_t row = 0; row < count; ++row) {
+    out[row] = data[selection[row]];
   }
 }
 

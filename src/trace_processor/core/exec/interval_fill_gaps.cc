@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
@@ -42,8 +43,8 @@ namespace {
 constexpr char kName[] = "INTERVAL FILL GAPS";
 
 // Adds a null column of the same kind and type as `like`, or of `fallback` if
-// `like` is not known.
-void AddNulls(const std::optional<ColumnShape>& like,
+// `like` is null.
+void AddNulls(const ColumnShape* like,
               StorageType fallback,
               Context& context,
               RowBatch* out) {
@@ -92,8 +93,9 @@ struct IntervalFillGaps::State : OperatorState {
   uint32_t lane = 0;
   IntervalGaps gaps;
 
-  // The shape of each output's input column, from the first input batch.
-  std::vector<std::optional<ColumnShape>> shapes;
+  // The shape of each output's input column, from the first input batch:
+  // empty until then.
+  std::vector<ColumnShape> shapes;
 
   // How many gaps have been output, and whether the current input batch has
   // been output but its gaps have not.
@@ -118,7 +120,7 @@ void IntervalFillGaps::State::Reset() {
   visited.clear();
   keys.Clear();
   gaps.Clear();
-  std::fill(shapes.begin(), shapes.end(), std::nullopt);
+  shapes.clear();
   served = 0;
   serving = false;
 }
@@ -139,9 +141,8 @@ IntervalFillGaps::IntervalFillGaps(IntervalFillGapsSpec spec)
       filler_columns_.push_back({FillerSource::kTs, 0});
     } else if (output.input == spec_.input.dur_column) {
       filler_columns_.push_back({FillerSource::kDur, 0});
-    } else if (output.background) {
-      filler_columns_.push_back(
-          {FillerSource::kBackground, *output.background});
+    } else if (output.background != IntervalFillGapsSpec::Output::kNone) {
+      filler_columns_.push_back({FillerSource::kBackground, output.background});
     } else if (broadcast_ && key != keys.end()) {
       filler_columns_.push_back(
           {FillerSource::kLaneKey, static_cast<uint32_t>(key - keys.begin())});
@@ -157,7 +158,6 @@ std::unique_ptr<OperatorState> IntervalFillGaps::MakeState(
     Context& context) const {
   auto state = std::make_unique<State>(spec_, context);
   state->background_state = spec_.background.source->MakeState(context);
-  state->shapes.resize(spec_.outputs.size());
   return state;
 }
 
@@ -259,9 +259,9 @@ OpResult IntervalFillGaps::Execute(const RowBatch& in,
   if (!s.status.ok()) {
     return OpResult::kError;
   }
-  for (size_t i = 0; i < spec_.outputs.size(); ++i) {
-    if (!s.shapes[i]) {
-      s.shapes[i] = ColumnShape::Of(in.column(spec_.outputs[i].input));
+  if (s.shapes.empty()) {
+    for (const IntervalFillGapsSpec::Output& output : spec_.outputs) {
+      s.shapes.push_back(ColumnShape::Of(in.column(output.input)));
     }
   }
   out.Project(in, input_columns_);
@@ -301,6 +301,8 @@ OpResult IntervalFillGaps::ServeFillers(RowBatch& out, State& s) const {
   BoundsColumns bounds;
   bounds.Take(*s.context);
   s.rows.resize(count);
+  // Strided reads from the gaps, which vector instructions do not speed up.
+  PERFETTO_NO_VECTORIZE_LOOP
   for (uint32_t i = 0; i < count; ++i) {
     bounds.ts[i] = static_cast<int64_t>(fillers[i].start);
     bounds.dur[i] = static_cast<int64_t>(fillers[i].end - fillers[i].start);
@@ -309,6 +311,7 @@ OpResult IntervalFillGaps::ServeFillers(RowBatch& out, State& s) const {
   const uint32_t* rows = s.rows.data();
   s.background.rows().Gather(&s.gathered, {rows, rows + count}, *s.context);
   if (broadcast_) {
+    PERFETTO_NO_VECTORIZE_LOOP
     for (uint32_t i = 0; i < count; ++i) {
       s.rows[i] = fillers[i].lane;
     }
@@ -328,8 +331,8 @@ OpResult IntervalFillGaps::ServeFillers(RowBatch& out, State& s) const {
         const ColumnView& column = s.gathered.column(filler.index);
         // Lowering only converts typed columns, so untyped ones can still
         // differ between the input and the background.
-        if (s.shapes[i] &&
-            !SameLogicalType(ColumnShape::Of(column), *s.shapes[i])) {
+        if (!s.shapes.empty() &&
+            !SameLogicalType(ColumnShape::Of(column), s.shapes[i])) {
           s.status = base::ErrStatus(
               "%s: column '%s' holds a different type in the background than "
               "in the input",
@@ -344,7 +347,8 @@ OpResult IntervalFillGaps::ServeFillers(RowBatch& out, State& s) const {
                       s.gathered_keys.buffer(filler.index));
         break;
       case FillerSource::kNull:
-        AddNulls(s.shapes[i], spec_.outputs[i].fallback, *s.context, &out);
+        AddNulls(s.shapes.empty() ? nullptr : &s.shapes[i],
+                 spec_.outputs[i].fallback, *s.context, &out);
         break;
     }
   }
