@@ -245,6 +245,7 @@ export class LiveController implements LiveHost {
     if (state.error !== undefined) this.lastError = state.error;
     const {status} = this.hudState.syncStatus(() => this.state().status);
     return renderLiveStreamHud({
+      layout: 'row',
       status,
       error: state.error ?? this.lastError,
       targets: this.targets,

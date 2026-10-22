@@ -85,10 +85,11 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-// Renders the HUD of a live stream of WORKER, with `overrides`. draw()
+// Renders the HUD row of a live stream of WORKER, with `overrides`. draw()
 // renders it again, e.g. after a click.
 function hud(overrides: Partial<LiveHudProps> = {}) {
   const props: LiveHudProps = {
+    layout: 'row',
     status: 'live',
     error: '',
     targets: [WORKER, EVAL],
@@ -519,4 +520,57 @@ test('runs the actions and changes the settings of the more menu', () => {
   click('.pf-live-stream-hud__more-item');
   expect(props.onReconnect).toHaveBeenCalledTimes(1);
   expect(hudState.isMoreMenuOpen).toBe(false);
+});
+
+test('lays out the panel: status and target, actions, settings', () => {
+  hud({layout: 'panel'});
+
+  const sections = root.querySelectorAll('.pf-live-stream-hud__section');
+  expect(sections).toHaveLength(3);
+  expect(sections[0].textContent).toBe('LIVE STREAMworker/3▾');
+  expect(texts('.pf-live-stream-hud__btn')).toEqual([
+    'Follow Live: ON [Space]',
+    'Pause',
+    '↻Reconnect',
+    '⬇Download Trace',
+  ]);
+  expect(texts('.pf-live-stream-hud__section-title')).toEqual(['Settings']);
+  expect(texts('.pf-live-stream-hud__more-interval-label')).toEqual([
+    'Poll Interval',
+    'Buffer Window',
+    'History',
+  ]);
+
+  // No ⋯ menu: its items are in the open.
+  expect(root.querySelector('.pf-live-stream-hud__more-trigger')).toBeNull();
+});
+
+test('runs the actions and changes the settings of the panel', () => {
+  const {props} = hud({layout: 'panel'});
+
+  const [follow, pause, reconnect, download] =
+    root.querySelectorAll<HTMLElement>('.pf-live-stream-hud__btn');
+  follow.click();
+  pause.click();
+  reconnect.click();
+  download.click();
+  expect(props.onToggleFollow).toHaveBeenCalledTimes(1);
+  expect(props.onTogglePause).toHaveBeenCalledTimes(1);
+  expect(props.onReconnect).toHaveBeenCalledTimes(1);
+  expect(props.onDownload).toHaveBeenCalledTimes(1);
+
+  const history = root.querySelectorAll('select')[2];
+  history.value = '240';
+  history.dispatchEvent(new Event('change'));
+  expect(settings.retention.get()).toBe('240');
+});
+
+test('pops out errors in line in the panel, under the status', () => {
+  hud({layout: 'panel', status: 'error', error: 'Disk full'});
+
+  const status = find('.pf-live-stream-hud__section');
+  expect(status.lastElementChild?.classList).toContain(
+    'pf-live-stream-hud__popout',
+  );
+  expect(text('.pf-live-stream-hud__popout-msg')).toBe('Disk full');
 });
