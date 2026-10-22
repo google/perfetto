@@ -8610,6 +8610,7 @@ perfetto_cc_protocpp_library(
 perfetto_proto_library(
     name = "protos_perfetto_config_linux_protos",
     srcs = [
+        "protos/perfetto/config/linux/cgroup_config.proto",
         "protos/perfetto/config/linux/journald_config.proto",
     ],
     visibility = [
@@ -9787,6 +9788,7 @@ perfetto_proto_library(
     name = "protos_perfetto_trace_linux_protos",
     srcs = [
         "protos/perfetto/trace/linux/journald_event.proto",
+        "protos/perfetto/trace/linux/memcg_stats.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
