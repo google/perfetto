@@ -130,11 +130,21 @@ void RssStatTracker::ParseRssStat(int64_t ts,
 std::optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
                                                          bool is_curr,
                                                          uint32_t pid) {
-  // If curr is true, we can just overwrite the state in the map and return
-  // the utid correspodning to |pid|.
+  // If curr is true, we can usually just overwrite the state in the map and
+  // return the utid correspodning to |pid|.
   if (is_curr) {
     UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-    mm_id_to_utid_[mm_id] = utid;
+    auto [owner_utid, inserted] = mm_id_to_utid_.Insert(mm_id, utid);
+    if (!inserted && *owner_utid != utid &&
+        IsRacyCurrEvent(mm_id, *owner_utid, utid)) {
+      context_->stats_tracker->IncrementStats(
+          stats::rss_stat_curr_ignored_mm_owned_by_other_process);
+      return *owner_utid;
+    }
+    *owner_utid = utid;
+    if (utid >= utid_to_curr_mm_id_.size())
+      utid_to_curr_mm_id_.resize(utid + 1, kNoMmId);
+    utid_to_curr_mm_id_[utid] = mm_id;
     return utid;
   }
 
@@ -161,6 +171,34 @@ std::optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
   // new mm has been installed). In either case the event describes the
   // recorded owner's mm, so return that utid.
   return mm_utid;
+}
+
+bool RssStatTracker::IsRacyCurrEvent(int64_t mm_id,
+                                     UniqueTid owner_utid,
+                                     UniqueTid utid) {
+  // The hist trigger backing rss_stat_throttled has a race (b/576695708)
+  // where a thread touching another process's mm (e.g. in direct reclaim) can
+  // emit an event with curr=true and the values of the owner's event. Detect
+  // the impossible case where:
+  //  1. the owner of the mm is still using this mm (i.e. it has not exec-ed
+  //     and the mm has not been reused by another process),
+  //  2. the emitting thread is in a different process to the owner and
+  //  3. the owner is still alive.
+  // This is only called when the emitting thread differs from the recorded
+  // owner; checks are ordered cheapest first. The most common caller is other
+  // threads of the same process, which bail out at (2).
+  if (owner_utid >= utid_to_curr_mm_id_.size() ||
+      utid_to_curr_mm_id_[owner_utid] != mm_id) {
+    return false;
+  }
+  const auto& threads = context_->storage->thread_table();
+  std::optional<UniquePid> upid = threads[utid].upid();
+  if (!upid)
+    return false;
+  std::optional<UniquePid> owner_upid = threads[owner_utid].upid();
+  if (!owner_upid || *owner_upid == *upid)
+    return false;
+  return context_->process_tracker->IsThreadAlive(owner_utid);
 }
 
 }  // namespace perfetto::trace_processor

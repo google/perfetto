@@ -207,6 +207,13 @@ namespace perfetto::trace_processor::stats {
   F(rss_stat_unknown_keys,                kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(rss_stat_negative_size,               kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
   F(rss_stat_unknown_thread_for_mm_id,    kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(rss_stat_curr_ignored_mm_owned_by_other_process,                           \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+       "Number of rss_stat events with curr=true which were treated as "       \
+       "curr=false because the mm is still in use by a live thread of a "      \
+       "different process. "                                                   \
+       "This is caused by a race in the kernel hist trigger backing "          \
+       "rss_stat_throttled (b/576695708)."),                                   \
   F(filter_input_bytes,                   kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,         \
        "Number of bytes pre-TraceFilter. The trace file would have been this " \
        "many bytes big if the TraceConfig didn't specify any TraceFilter. "    \
