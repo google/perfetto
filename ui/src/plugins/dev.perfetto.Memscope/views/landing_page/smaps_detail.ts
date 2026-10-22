@@ -464,7 +464,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
           ]),
           m('.pf-memscope-smaps__controls', [
             snapshots.length > 1 &&
-              lastSnapshot !== undefined &&
+              lastSnapshot &&
               m(
                 Select,
                 {

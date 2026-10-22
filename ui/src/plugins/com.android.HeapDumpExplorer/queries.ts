@@ -1133,7 +1133,7 @@ export async function getInstance(
     `);
     const rows = collectRows(cRes);
     const firstRow = rows[0];
-    if (firstRow !== undefined) classObjRow = firstRow;
+    if (firstRow) classObjRow = firstRow;
   }
 
   const instanceFields =

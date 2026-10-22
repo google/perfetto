@@ -359,7 +359,7 @@ export class VideoFramePlayer {
       // exist only to prime the decoder's reference list).
       for (;;) {
         const front = session.queue[0];
-        if (front === undefined || front.idx >= fromIdx) break;
+        if (!front || front.idx >= fromIdx) break;
         front.frame.close();
         session.queue.shift();
       }

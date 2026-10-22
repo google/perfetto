@@ -463,14 +463,8 @@ export class CreateSlicesNode implements QueryNode {
     );
 
     // Display the auto-selected column if there's only one option
-    const autoTsColumn =
-      timestampCols.length === 1
-        ? (timestampCols[0]?.name ?? tsColumn)
-        : tsColumn;
-    const autoDurColumn =
-      durationCols.length === 1
-        ? (durationCols[0]?.name ?? durColumn)
-        : durColumn;
+    const autoTsColumn = timestampCols[0]?.name ?? tsColumn;
+    const autoDurColumn = durationCols[0]?.name ?? durColumn;
 
     return [
       // Mode selector

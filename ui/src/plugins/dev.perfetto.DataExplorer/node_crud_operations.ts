@@ -246,7 +246,7 @@ export async function addSourceNode(
   // If no nodes were successfully created, return early
   // (errors were already logged in the try-catch above)
   const lastNode = newNodes[newNodes.length - 1];
-  if (lastNode === undefined) {
+  if (!lastNode) {
     console.warn('No nodes were created from the preCreate result');
     return;
   }

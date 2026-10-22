@@ -204,9 +204,9 @@ export async function loadMetadataData(engine: Engine): Promise<MetadataData> {
 
   // If nothing matched a curated section, there is only the "Other" bucket;
   // drop its header and show a plain list.
-  const onlySection = sections[0];
-  if (sections.length === 1 && onlySection?.title === OTHER_TITLE) {
-    sections[0] = {entries: onlySection.entries};
+  const firstSection = sections[0];
+  if (sections.length === 1 && firstSection?.title === OTHER_TITLE) {
+    sections[0] = {entries: firstSection.entries};
   }
 
   return {

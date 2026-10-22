@@ -171,7 +171,7 @@ function buildSystemBillboards(
   const getLatest = (name: string): number => {
     const arr = data.systemCounters.get(name);
     const last = arr?.[arr.length - 1];
-    if (last === undefined) return 0;
+    if (!last) return 0;
     return Math.round(last.value / 1024);
   };
   const totalKb = getLatest('MemTotal');
