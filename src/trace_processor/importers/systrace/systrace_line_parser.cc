@@ -333,7 +333,7 @@ base::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
       curr = std::make_optional(static_cast<bool>(*opt_curr));
     }
     rss_stat_tracker_.ParseRssStat(line.ts, line.pid, *size, *member, curr,
-                                   mm_id);
+                                   mm_id, /*throttled=*/false);
   }
 
   return base::OkStatus();

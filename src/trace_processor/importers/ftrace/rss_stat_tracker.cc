@@ -79,7 +79,7 @@ void RssStatTracker::ParseRssStat(int64_t ts,
       mm_id = std::make_optional(rss.mm_id());
     }
 
-    ParseRssStat(ts, pid, size, member, curr, mm_id);
+    ParseRssStat(ts, pid, size, member, curr, mm_id, /*throttled=*/false);
   } else if (field_id == FtraceEvent::kRssStatThrottledFieldNumber) {
     protos::pbzero::RssStatThrottledFtraceEvent::Decoder rss(blob);
 
@@ -88,7 +88,7 @@ void RssStatTracker::ParseRssStat(int64_t ts,
     curr = std::make_optional(static_cast<bool>(rss.curr()));
     mm_id = std::make_optional(rss.mm_id());
 
-    ParseRssStat(ts, pid, size, member, curr, mm_id);
+    ParseRssStat(ts, pid, size, member, curr, mm_id, /*throttled=*/true);
   } else {
     PERFETTO_DFATAL("Unexpected field id");
   }
@@ -99,7 +99,8 @@ void RssStatTracker::ParseRssStat(int64_t ts,
                                   int64_t size,
                                   uint32_t member,
                                   std::optional<bool> curr,
-                                  std::optional<int64_t> mm_id) {
+                                  std::optional<int64_t> mm_id,
+                                  bool throttled) {
   const char* memory_key = GetProcessMemoryKey(member);
   if (!memory_key) {
     context_->stats_tracker->IncrementStats(stats::rss_stat_unknown_keys);
@@ -112,7 +113,7 @@ void RssStatTracker::ParseRssStat(int64_t ts,
 
   std::optional<UniqueTid> utid;
   if (mm_id.has_value() && curr.has_value()) {
-    utid = FindUtidForMmId(*mm_id, *curr, pid);
+    utid = FindUtidForMmId(*mm_id, *curr, pid, throttled);
   } else {
     utid = context_->process_tracker->GetOrCreateThread(pid);
   }
@@ -129,22 +130,25 @@ void RssStatTracker::ParseRssStat(int64_t ts,
 
 std::optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
                                                          bool is_curr,
-                                                         uint32_t pid) {
+                                                         uint32_t pid,
+                                                         bool throttled) {
   // If curr is true, we can usually just overwrite the state in the map and
   // return the utid correspodning to |pid|.
   if (is_curr) {
     UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
     auto [owner_utid, inserted] = mm_id_to_utid_.Insert(mm_id, utid);
-    if (!inserted && *owner_utid != utid &&
+    if (throttled && !inserted && *owner_utid != utid &&
         IsRacyCurrEvent(mm_id, *owner_utid, utid)) {
       context_->stats_tracker->IncrementStats(
           stats::rss_stat_curr_ignored_mm_owned_by_other_process);
       return *owner_utid;
     }
     *owner_utid = utid;
-    if (utid >= utid_to_curr_mm_id_.size())
-      utid_to_curr_mm_id_.resize(utid + 1, kNoMmId);
-    utid_to_curr_mm_id_[utid] = mm_id;
+    if (throttled) {
+      if (utid >= utid_to_curr_mm_id_.size())
+        utid_to_curr_mm_id_.resize(utid + 1, kNoMmId);
+      utid_to_curr_mm_id_[utid] = mm_id;
+    }
     return utid;
   }
 
@@ -176,14 +180,35 @@ std::optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
 bool RssStatTracker::IsRacyCurrEvent(int64_t mm_id,
                                      UniqueTid owner_utid,
                                      UniqueTid utid) {
-  // The hist trigger backing rss_stat_throttled has a race (b/576695708)
-  // where a thread touching another process's mm (e.g. in direct reclaim) can
-  // emit an event with curr=true and the values of the owner's event. Detect
-  // the impossible case where:
-  //  1. the owner of the mm is still using this mm (i.e. it has not exec-ed
-  //     and the mm has not been reused by another process),
+  // BEST EFFORT heuristic for b/576695708; only applied to rss_stat_throttled
+  // as raw rss_stat events are not affected by the race.
+  //
+  // The hist trigger backing rss_stat_throttled keeps one element per
+  // (mm_id, member) shared by all CPUs. The curr/size field variables are
+  // written into it and read back to build the synthetic event without any
+  // cross-CPU serialization. So a thread touching another process's mm (e.g.
+  // direct reclaim, kswapd) can emit curr=true with the values of an event
+  // emitted concurrently by the mm's owner. The curr field of these events is
+  // therefore not trustworthy and the trace does not, in general, contain
+  // enough information to tell such events apart from legitimate ones.
+  //
+  // We treat curr=true as curr=false when:
+  //  1. the recorded owner thread's last curr=true event was for this mm,
   //  2. the emitting thread is in a different process to the owner and
   //  3. the owner is still alive.
+  //
+  // Known cases where this is wrong:
+  //  * vfork()/CLONE_VM children legitimately use their parent's mm until
+  //    they exec: their curr=true events are attributed to the parent.
+  //  * mm_id reuse after the owner exits but before the owner is reaped
+  //    (sched_process_free can arrive 100s of ms after the mm is released):
+  //    the new process' events are attributed to the dead owner until the
+  //    owner thread is marked as dead.
+  // Known cases this does not catch:
+  //  * The racing event is the first curr=true event we see for the mm or
+  //    races with a curr=true event which was itself bogus.
+  //  * Either thread is not associated with a process.
+  //
   // This is only called when the emitting thread differs from the recorded
   // owner; checks are ordered cheapest first. The most common caller is other
   // threads of the same process, which bail out at (2).

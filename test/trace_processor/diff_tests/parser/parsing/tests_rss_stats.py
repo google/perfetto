@@ -40,9 +40,6 @@ class ParsingRssStats(TestSuite):
         """))
 
   def test_rss_stat_mm_id_clone(self):
-    # While a CLONE_VM child shares its parent's mm, curr=true events from the
-    # child for that mm are attributed to the (live) parent which owns it: we
-    # cannot distinguish this from the hist trigger race in b/576695708.
     return DiffTestBlueprint(
         trace=Path('rss_stat_mm_id_clone.py'),
         query="""
@@ -56,9 +53,9 @@ class ParsingRssStats(TestSuite):
         "ts","name","pid","name","value"
         100,"mem.rss.file",3,"kernel_thread",10.000000
         100,"mem.rss.file",10,"parent_process",100.000000
-        102,"mem.rss.file",3,"kernel_thread",20.000000
-        102,"mem.rss.file",10,"parent_process",90.000000
-        103,"mem.rss.file",10,"parent_process",85.000000
+        102,"mem.rss.file",4,"kernel_thread2",20.000000
+        102,"mem.rss.file",11,"child_process",90.000000
+        103,"mem.rss.file",11,"child_process",85.000000
         104,"mem.rss.file",11,"child_process",10.000000
         105,"mem.rss.file",10,"parent_process",95.000000
         107,"mem.rss.file",10,"parent_process",105.000000

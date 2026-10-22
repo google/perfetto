@@ -44,12 +44,14 @@ class RssStatTracker {
                     int64_t size,
                     uint32_t member,
                     std::optional<bool> curr,
-                    std::optional<int64_t> mm_id);
+                    std::optional<int64_t> mm_id,
+                    bool throttled);
 
  private:
   std::optional<UniqueTid> FindUtidForMmId(int64_t mm_id,
                                            bool is_curr,
-                                           uint32_t pid);
+                                           uint32_t pid,
+                                           bool throttled);
 
   bool IsRacyCurrEvent(int64_t mm_id, UniqueTid owner_utid, UniqueTid utid);
 
