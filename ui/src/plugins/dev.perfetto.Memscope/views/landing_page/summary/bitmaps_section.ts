@@ -172,7 +172,7 @@ async function loadBitmapRetainer(
 ): Promise<string | undefined> {
   try {
     await trace.engine.query(
-      'INCLUDE PERFETTO MODULE android.memory.heap_graph.raw_dominator_tree;',
+      'INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;',
     );
     const res = await trace.engine.query(`
       WITH RECURSIVE
@@ -205,13 +205,13 @@ async function loadBitmapRetainer(
       walk(seed_size, cur_id, depth) AS (
         SELECT ob.size, d.idom_id, 1
         FROM obj ob
-        JOIN _raw_heap_graph_dominator_tree d ON d.id = ob.id
+        JOIN heap_graph_dominator_tree d ON d.id = ob.id
         WHERE ob.class_name = 'android.graphics.Bitmap' AND d.idom_id IS NOT NULL
         UNION ALL
         SELECT w.seed_size, d.idom_id, w.depth + 1
         FROM walk w
         JOIN obj cur ON cur.id = w.cur_id
-        JOIN _raw_heap_graph_dominator_tree d ON d.id = w.cur_id
+        JOIN heap_graph_dominator_tree d ON d.id = w.cur_id
         WHERE cur.is_app = 0 AND d.idom_id IS NOT NULL AND w.depth < 24
       ),
       hits AS (

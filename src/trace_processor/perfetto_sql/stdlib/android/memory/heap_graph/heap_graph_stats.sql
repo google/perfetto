@@ -53,6 +53,28 @@ AS (
   LIMIT 1
 );
 
+CREATE PERFETTO TABLE _heap_graph_totals AS
+FROM heap_graph_object
+|> AGGREGATE
+  COUNT(*) AS total_obj_count,
+  SUM(self_size) AS total_heap_size,
+  SUM(native_size) AS total_native_alloc_registry_size
+GROUP BY
+  upid,
+  graph_sample_ts
+|> ORDER BY upid, graph_sample_ts;
+
+CREATE PERFETTO TABLE _heap_graph_reachable_totals AS
+FROM heap_graph_object
+|> WHERE reachable = 1
+|> AGGREGATE
+  COUNT(*) AS reachable_obj_count,
+  SUM(self_size) AS reachable_heap_size,
+  SUM(native_size) AS reachable_native_alloc_registry_size
+GROUP BY
+  upid,
+  graph_sample_ts;
+
 -- Table summarizing java heap graphs collected with the ART perfetto module.
 -- Contains one row per heap graph, with summary statistics (e.g. total / reachable objects)
 -- and memory stats for the corresponding process at the time of the heap dump.
@@ -95,18 +117,16 @@ AS
 WITH
   base_stats AS (
     SELECT
-      upid,
-      graph_sample_ts,
-      sum(self_size) AS total_heap_size,
-      sum(native_size) AS total_native_alloc_registry_size,
-      count(1) AS total_obj_count,
-      sum(iif(reachable, self_size, 0)) AS reachable_heap_size,
-      sum(iif(reachable, native_size, 0)) AS reachable_native_alloc_registry_size,
-      sum(iif(reachable, 1, 0)) AS reachable_obj_count
-    FROM heap_graph_object
-    GROUP BY
-      1,
-      2
+      t.upid,
+      t.graph_sample_ts,
+      t.total_heap_size,
+      t.total_native_alloc_registry_size,
+      t.total_obj_count,
+      coalesce(r.reachable_heap_size, 0) AS reachable_heap_size,
+      coalesce(r.reachable_native_alloc_registry_size, 0) AS reachable_native_alloc_registry_size,
+      coalesce(r.reachable_obj_count, 0) AS reachable_obj_count
+    FROM _heap_graph_totals AS t
+    LEFT JOIN _heap_graph_reachable_totals AS r USING (upid, graph_sample_ts)
   )
 SELECT
   base_stats.upid,
