@@ -15,7 +15,7 @@
 import {HighPrecisionTime} from '../../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
 import {errResult, okResult, type Result} from '../../base/result';
-import {Time} from '../../base/time';
+import {Time, type time} from '../../base/time';
 import type {MinimapContentProvider} from '../../public/minimap';
 import type {Selection} from '../../public/selection';
 import type {Trace} from '../../public/trace';
@@ -202,7 +202,11 @@ function fakeTrace() {
       this.visibleWindow = span;
     },
   };
-  const traceInfo = {unixOffset: Time.fromRaw(-EPOCH_NS), end: Time.ZERO};
+  const traceInfo = {
+    unixOffset: Time.fromRaw(-EPOCH_NS),
+    start: Time.ZERO,
+    end: Time.ZERO,
+  };
   const trace = {
     engine,
     settings: {
@@ -234,7 +238,9 @@ function fakeTrace() {
     defaultWorkspace: new Workspace(),
     timeline,
     traceInfo,
-    extendTraceEnd: () => {},
+    extendTraceEnd: (end: time) => {
+      traceInfo.end = end;
+    },
   } as unknown as Trace;
 
   return {
@@ -606,6 +612,32 @@ test('shows the busy time of completed slices in the minimap', async () => {
   expect(await minimapRows(minimapProvider())).toEqual([
     [{ts: 0n, dur: BUCKET_NS, load: 0.5}],
   ]);
+});
+
+test('refreshes the minimap rows as the trace grows', async () => {
+  // A slice beyond the 10 buckets of the core's load.
+  server.respond({
+    ...data(120),
+    tracks: TRACKS,
+    completed_slices: [
+      slice('a', Number(100n * BUCKET_NS), Number(BUCKET_NS / 2n)),
+    ],
+  });
+  const {minimapProvider, raf} = await start();
+  const rows = await minimapRows(minimapProvider());
+  expect(rows).toEqual([]);
+  raf.scheduleCanvasRedraw.mockClear();
+
+  // After 5 s, for the trace up to 121 s: cells of a bucket.
+  await vi.advanceTimersByTimeAsync(5_000);
+  expect(rows).toEqual([[{ts: 100n * BUCKET_NS, dur: BUCKET_NS, load: 0.5}]]);
+  expect(raf.scheduleCanvasRedraw).toHaveBeenCalled();
+});
+
+test('gives an empty trace span a second, for the core to load the minimap', async () => {
+  // The span of a seed without history.
+  const {traceInfo} = await start();
+  expect(traceInfo.end).toBe(Time.fromSeconds(1));
 });
 
 test('a new area selection stops following', async () => {

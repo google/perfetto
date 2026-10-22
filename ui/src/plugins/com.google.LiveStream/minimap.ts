@@ -20,11 +20,15 @@
 //
 // The minimap has 100 cells of a power-of-2 width (calculateResolution()),
 // so cells reach BUCKET_NS for traces over ~107 s. From then on, sums kept per
-// bucket build the rows, so that reloads cost the same for any history.
+// bucket build the rows, so that updates cost the same for any history.
 // Shorter traces query their few slices.
+//
+// The core loads the minimap once, so the provider updates the rows that it
+// returned in place as the trace grows, see refresh().
 
-import type {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
-import {Time, type duration} from '../../base/time';
+import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
+import {calculateResolution} from '../../base/resolution';
+import {Time, type duration, type time} from '../../base/time';
 import type {MinimapContentProvider, MinimapRow} from '../../public/minimap';
 import {LONG, NUM, type QueryResult} from '../../trace_processor/query_result';
 import {SLICE_TABLE} from './store';
@@ -41,6 +45,9 @@ export interface MinimapEngine {
  * slices, by start bucket of BUCKET_NS.
  */
 export class BusyTime {
+  // Bumped whenever the sums change.
+  version = 0;
+
   // Busy ns by bucket, by track id in the tables.
   private readonly tracks = new Map<number, Map<number, number>>();
 
@@ -53,6 +60,7 @@ export class BusyTime {
       GROUP BY trackId, bucket
     `);
     this.tracks.clear();
+    this.version++;
     const spec = {trackId: NUM, bucket: LONG, busy: NUM};
     for (const it = result.iter(spec); it.valid(); it.next()) {
       this.addToBucket(it.trackId, Number(it.bucket), it.busy);
@@ -70,7 +78,10 @@ export class BusyTime {
     const first = Number(cutoff / BUCKET_NS);
     for (const [trackId, buckets] of this.tracks) {
       for (const bucket of buckets.keys()) {
-        if (bucket < first) buckets.delete(bucket);
+        if (bucket < first) {
+          buckets.delete(bucket);
+          this.version++;
+        }
       }
       if (buckets.size === 0) this.tracks.delete(trackId);
     }
@@ -115,6 +126,7 @@ export class BusyTime {
       this.tracks.set(trackId, buckets);
     }
     buckets.set(bucket, (buckets.get(bucket) ?? 0) + busy);
+    this.version++;
   }
 }
 
@@ -122,6 +134,16 @@ export class BusyTime {
 export class LiveMinimapProvider implements MinimapContentProvider {
   // Wins over the core's providers, which find no data in a seed trace.
   readonly priority = 10;
+
+  // The rows of every getData(), which the core keeps: updates change them in
+  // place.
+  private readonly rows: MinimapRow[] = [];
+  // The bounds and busy time that the rows show. Unset until getData(): the
+  // core holds no rows of ours before.
+  private shown?: {start: time; end: time; version: number};
+  // Numbers the updates: one that ends after a newer one started, e.g. a slow
+  // query, drops its rows.
+  private lastUpdate = 0;
 
   constructor(
     private readonly engine: MinimapEngine,
@@ -132,10 +154,48 @@ export class LiveMinimapProvider implements MinimapContentProvider {
     timeSpan: HighPrecisionTimeSpan,
     resolution: duration,
   ): Promise<MinimapRow[]> {
-    if (resolution <= 0n) return [];
     const {start, end} = timeSpan.toTimeSpan();
-    if (resolution >= BUCKET_NS) return this.busy.rows(start, end, resolution);
-    return queryRows(this.engine, start, end, resolution);
+    await this.update(start, end, resolution);
+    return this.rows;
+  }
+
+  // Updates the rows for the trace bounds [start, end], in cells as the core's
+  // load picks them, unless nothing changed. Returns whether it updated them.
+  async refresh(start: time, end: time): Promise<boolean> {
+    const shown = this.shown;
+    if (shown === undefined) return false;
+    if (
+      start === shown.start &&
+      end === shown.end &&
+      this.busy.version === shown.version
+    ) {
+      return false;
+    }
+    const timeSpan = HighPrecisionTimeSpan.fromTime(start, end);
+    const resolution = calculateResolution(timeSpan, 100);
+    if (!resolution.ok) return false;
+    return this.update(start, end, resolution.value);
+  }
+
+  // Replaces the rows with those of [start, end] in cells of `resolution`,
+  // unless a newer update started meanwhile. Returns whether it did.
+  private async update(
+    start: time,
+    end: time,
+    resolution: duration,
+  ): Promise<boolean> {
+    const id = ++this.lastUpdate;
+    const version = this.busy.version;
+    let rows: MinimapRow[] = [];
+    if (resolution >= BUCKET_NS) {
+      rows = this.busy.rows(start, end, resolution);
+    } else if (resolution > 0n) {
+      rows = await queryRows(this.engine, start, end, resolution);
+    }
+    if (id !== this.lastUpdate) return false;
+    this.rows.splice(0, this.rows.length, ...rows);
+    this.shown = {start, end, version};
+    return true;
   }
 }
 

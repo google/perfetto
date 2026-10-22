@@ -62,9 +62,9 @@ next open. A failed history load shows until dismissed; streaming then starts
 without the history.
 
 The minimap shows one row per slice track: the time the track spent in slices,
-per cell, over the whole history. Area selections get a "Slices" tab, by name
-with count and duration stats, where running slices last until the playhead, and
-a "Counters" tab.
+per cell, over the whole history, updated every 5 s. Area selections get a
+"Slices" tab, by name with count and duration stats, where running slices last
+until the playhead, and a "Counters" tab.
 
 The details panel shows wall-clock times in the server's latest time zone, also
 for slices from before a daylight saving time change.

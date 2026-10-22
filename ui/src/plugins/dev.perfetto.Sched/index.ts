@@ -390,10 +390,7 @@ export default class SchedPlugin implements PerfettoPlugin {
 
         const intervalsTableName = '__minimap_sched_intervals';
 
-        // Dropped first, as getData() runs again when the trace grows.
         await trace.engine.query(`
-          DROP TABLE IF EXISTS ${intervalsTableName};
-
           CREATE TABLE ${intervalsTableName} (
             id INTEGER PRIMARY KEY,
             ts INTEGER,
