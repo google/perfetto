@@ -591,7 +591,7 @@ JAVA_SDK_DEPS = [
 
 # Sysroots required to cross-compile Linux targets (linux-arm{,64}).
 # These are taken from Chromium's build/linux/sysroot_scripts/sysroots.json.
-BUILD_DEPS_LINUX_CROSS_SYSROOTS = [
+BUILD_DEPS_LINUX_CROSS_SYSROOTS_ARM = [
     Dependency(
         'buildtools/debian_sid_arm-sysroot.tgz',
         'https://commondatastorage.googleapis.com/chrome-linux-sysroot/toolchain/11d6f690ca49e8ba01a1d8c5346cedad2cf308fd/debian_sid_arm_sysroot.tar.xz',
@@ -603,10 +603,18 @@ BUILD_DEPS_LINUX_CROSS_SYSROOTS = [
         'e4389eab2fe363f3fbdfa4d3ce9d94457d78fd2c0e62171a7534867623eadc90',
         'linux', 'all'),
 ]
+BUILD_DEPS_LINUX_CROSS_SYSROOTS_S390X = [
+    Dependency(
+        'buildtools/debian_bullseye_s390x-sysroot.tgz',
+        'https://commondatastorage.googleapis.com/chrome-linux-sysroot/46d561a32665a7ef4db334d66ba10b0db7750eea3fed1fee4896c2f5c4f87167',
+        '46d561a32665a7ef4db334d66ba10b0db7750eea3fed1fee4896c2f5c4f87167',
+        'linux', 'all'),
+]
 
 ALL_DEPS = (
     BUILD_DEPS_HOST + BUILD_DEPS_BAZEL + BUILD_DEPS_ANDROID +
-    BUILD_DEPS_LINUX_CROSS_SYSROOTS + TEST_DEPS_ANDROID +
+    BUILD_DEPS_LINUX_CROSS_SYSROOTS_ARM +
+    BUILD_DEPS_LINUX_CROSS_SYSROOTS_S390X + TEST_DEPS_ANDROID +
     EMULATOR_DEPS_ANDROID + UI_DEPS + BUILD_DEPS_RUST + SYNTAQLITE_DEPS)
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -962,6 +970,10 @@ def Main():
       action='store_true',
       help='Debian sysroots for target_os="linux" target_cpu="arm|arm64"')
   parser.add_argument(
+      '--linux-s390x',
+      action='store_true',
+      help='Debian sysroots for target_os="linux" target_cpu="s390x"')
+  parser.add_argument(
       '--ui',
       action='store_true',
       help='Node and NPM packages to Build the Web-based UI via ./ui/build')
@@ -1026,7 +1038,9 @@ def Main():
   if args.android:
     deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID + EMULATOR_DEPS_ANDROID
   if args.linux_arm:
-    deps += BUILD_DEPS_LINUX_CROSS_SYSROOTS
+    deps += BUILD_DEPS_LINUX_CROSS_SYSROOTS_ARM
+  if args.linux_s390x:
+    deps += BUILD_DEPS_LINUX_CROSS_SYSROOTS_S390X
   if args.ui:
     deps += UI_DEPS
   # TODO(b/360084012) Change the arg name to bigtrace

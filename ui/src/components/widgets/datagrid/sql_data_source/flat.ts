@@ -22,7 +22,9 @@ import {NUM, type Row} from '../../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import type {DataSourceRows, FlatModel} from '../data_source';
 import {type SQLTableSchema, SQLSchemaResolver} from '../sql_schema';
-import {filterToSql, quoteIdentifier} from '../sql_utils';
+import type {Filter, QuickFilter} from '../model';
+import {isQuickFilterActive} from '../quick_filter_utils';
+import {filterToSql, quickFilterToSql, quoteIdentifier} from '../sql_utils';
 
 export class SQLDataSourceFlat {
   private readonly rowCountSlot: AsyncMemo<number>;
@@ -49,7 +51,7 @@ export class SQLDataSourceFlat {
    * Returns aggregate summaries for columns that have an aggregate function defined.
    */
   getSummaries(model: FlatModel): AsyncMemoResult<Row> {
-    const {columns, filters = []} = model;
+    const {columns, filters = [], quickFilter} = model;
 
     // Find columns with aggregate functions
     const aggColumns = columns.filter((col) => col.aggregate !== undefined);
@@ -63,6 +65,7 @@ export class SQLDataSourceFlat {
       key: {
         columns: aggColumns,
         filters: serializeFilters(filters),
+        quickFilter: serializeQuickFilter(quickFilter),
       },
       compute: async () => {
         const resolver = new SQLSchemaResolver(this.sqlSchema);
@@ -78,9 +81,14 @@ export class SQLDataSourceFlat {
           );
         }
 
+        const whereConditions = buildWhereConditions(
+          resolver,
+          filters,
+          quickFilter,
+        );
         let sql = `SELECT ${selectExprs.join(', ')}`;
         sql = addFromClause(sql, resolver);
-        sql = addFilterClause(sql, resolver, filters);
+        sql = addWhereClause(sql, whereConditions);
 
         const result = await this.engine.query(sql);
         return result.firstRow({}) as Row;
@@ -89,7 +97,7 @@ export class SQLDataSourceFlat {
   }
 
   getRows(model: FlatModel): DataSourceRows {
-    const {columns, filters = [], pagination, sort} = model;
+    const {columns, filters = [], quickFilter, pagination, sort} = model;
 
     // Load the row count first
     const rowCountResult = this.rowCountSlot.use({
@@ -97,12 +105,14 @@ export class SQLDataSourceFlat {
         // The row count doesn't depend on pagination or sort
         columns,
         filters: serializeFilters(filters),
+        quickFilter: serializeQuickFilter(quickFilter),
       },
       compute: async () => {
         const query = buildQuery(this.sqlSchema, {
           mode: 'flat',
           columns,
           filters,
+          quickFilter,
         });
         const result = await this.engine.query(
           `SELECT COUNT(*) as count FROM (${query})`,
@@ -115,6 +125,7 @@ export class SQLDataSourceFlat {
       key: {
         columns: model.columns,
         filters: serializeFilters(filters),
+        quickFilter: serializeQuickFilter(quickFilter),
         pagination,
         sort,
       },
@@ -173,15 +184,50 @@ function serializeFilters(filters: FlatModel['filters']) {
   return filters?.map((filter) => filterToSql(filter, filter.field));
 }
 
+/**
+ * Returns a version of the quick filter suitable for use as a cache key.
+ * Inactive quick filters (empty text) all map to undefined, so they don't
+ * trigger refetches.
+ */
+function serializeQuickFilter(quickFilter: QuickFilter | undefined) {
+  return isQuickFilterActive(quickFilter) ? quickFilter : undefined;
+}
+
+/**
+ * Builds the WHERE conditions for the column filters and quick filter, to be
+ * joined with AND.
+ *
+ * This resolves every referenced column path, which can add joins to the
+ * resolver. Call it before `resolver.buildJoinClauses()`.
+ */
+function buildWhereConditions(
+  resolver: SQLSchemaResolver,
+  filters: readonly Filter[] = [],
+  quickFilter?: QuickFilter,
+): string[] {
+  const conditions = filters.map((filter) => {
+    const sqlExpr = resolver.resolveColumnPath(filter.field);
+    return filterToSql(filter, sqlExpr ?? filter.field);
+  });
+  if (isQuickFilterActive(quickFilter)) {
+    const sqlExprs = quickFilter.fields.map(
+      (field) => resolver.resolveColumnPath(field) ?? field,
+    );
+    conditions.push(quickFilterToSql(quickFilter.text, sqlExprs));
+  }
+  return conditions;
+}
+
 function buildQuery(
   sqlSchema: SQLTableSchema,
-  {columns, filters, pagination, sort}: FlatModel,
+  {columns, filters, quickFilter, pagination, sort}: FlatModel,
 ): string {
   const resolver = new SQLSchemaResolver(sqlSchema);
 
   let sql = buildSelectClause(resolver, columns);
+  const whereConditions = buildWhereConditions(resolver, filters, quickFilter);
   sql = addFromClause(sql, resolver);
-  sql = addFilterClause(sql, resolver, filters);
+  sql = addWhereClause(sql, whereConditions);
   sql = addOrderByClause(sql, sort);
   sql = addPaginationClause(sql, pagination);
 
@@ -221,16 +267,8 @@ function addFromClause(sql: string, resolver: SQLSchemaResolver): string {
   return sql;
 }
 
-function addFilterClause(
-  sql: string,
-  resolver: SQLSchemaResolver,
-  filters: FlatModel['filters'],
-): string {
-  if (filters && filters.length > 0) {
-    const whereConditions = filters.map((filter) => {
-      const sqlExpr = resolver.resolveColumnPath(filter.field);
-      return filterToSql(filter, sqlExpr ?? filter.field);
-    });
+function addWhereClause(sql: string, whereConditions: string[]): string {
+  if (whereConditions.length > 0) {
     sql += `\nWHERE ${whereConditions.join(' AND ')}`;
   }
   return sql;

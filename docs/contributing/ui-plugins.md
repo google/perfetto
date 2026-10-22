@@ -1528,121 +1528,75 @@ NOTE: It is important to consider version skew when using persistent state.
 Plugins can persist information into permalinks. This allows plugins to
 gracefully handle permalinking and is an opt-in - not automatic - mechanism.
 
-Persistent plugin state works using a `Store<T>` where `T` is some JSON
-serializable object. `Store` is implemented
-[here](https://github.com/google/perfetto/blob/main/ui/src/base/store.ts).
-`Store` allows for reading and writing `T`. Reading:
+Persistent plugin state is registered with `registerStorage()` on your `Trace`
+object. You provide a unique id, a [Zod](https://zod.dev) schema describing
+the shape of the state, and a default value. The schema's output type must be
+JSON serializable.
 
 ```typescript
-interface Foo {
-  bar: string;
-}
+import {z} from 'zod';
 
-const store: Store<Foo> = getFooStoreSomehow();
-
-// store.state is immutable and must not be edited.
-const foo = store.state.foo;
-const bar = foo.bar;
-
-console.log(bar);
-```
-
-Writing:
-
-```typescript
-interface Foo {
-  bar: string;
-}
-
-const store: Store<Foo> = getFooStoreSomehow();
-
-store.edit((draft) => {
-  draft.foo.bar = 'Hello, world!';
+const MY_STATE_SCHEMA = z.object({
+  version: z.literal(1),
+  favouriteSlices: z.array(z.number()),
 });
 
-console.log(store.state.foo.bar);
-// > Hello, world!
-```
+type MyState = z.infer<typeof MY_STATE_SCHEMA>;
 
-First define an interface for your specific plugin state.
-
-```typescript
-interface MyState {
-  favouriteSlices: MySliceInfo[];
-}
-```
-
-To access permalink state, call `mountStore()` on your `Trace` object, passing
-in a store id and a migration function.
-
-```typescript
 export default class implements PerfettoPlugin {
   static readonly id = 'com.example.MyPlugin';
   async onTraceLoad(trace: Trace): Promise<void> {
-    const store = trace.mountStore('com.example.MyPlugin', migrate);
+    const storage = trace.registerStorage({
+      id: 'com.example.MyPlugin',
+      schema: MY_STATE_SCHEMA,
+      defaultValue: {version: 1, favouriteSlices: []},
+    });
   }
-}
-
-function migrate(initialState: unknown): MyState {
-  // ...
 }
 ```
 
-When it comes to migration, there are two cases to consider:
-
-- Loading a new trace
-- Loading from a permalink
-
-In case of a new trace, your migration function is called with `undefined`. In
-this case you should return a default version of `MyState`:
+The returned `Storage<MyState>` allows reading and writing the state:
 
 ```typescript
-const DEFAULT = {favouriteSlices: []};
+// The returned value is deeply frozen and must not be edited.
+const slices = storage.get().favouriteSlices;
 
-function migrate(initialState: unknown): MyState {
-  if (initialState === undefined) {
-    // Return default version of MyState.
-    return DEFAULT;
-  } else {
-    // Migrate old version here.
-  }
-}
+// To update the state, set a new value.
+const current = storage.get();
+storage.set({...current, favouriteSlices: [...current.favouriteSlices, 42]});
 ```
 
-In the permalink case, your migration function is called with the state of the
-plugin store at the time the permalink was generated. This may be from an older
-or newer version of the plugin.
+`get()` validates the stored value against the schema:
 
-**Plugins must not make assumptions about the contents of `initialState`!**
+- Loading a new trace: there is no stored value, so `defaultValue` is returned.
+- Loading from a permalink: the value stored at the time the permalink was
+  generated is validated against the schema. This may come from an older or
+  newer version of the plugin. If it is valid, the parsed value is returned,
+  otherwise `defaultValue` is returned.
 
-In this case you need to carefully validate the state object. This could be
-achieved in several ways, none of which are particularly straight forward. State
-migration is difficult!
+**Plugins must not make assumptions about the contents of a permalink!** The
+schema is the only thing standing between your plugin and arbitrary JSON, so
+keep it strict.
 
-One brute force way would be to use a version number.
+Including a version number (e.g. `version: z.literal(1)`) makes it easy to
+reject state from incompatible versions of the plugin: anything that doesn't
+match falls back to `defaultValue`.
+
+If you would rather recover from partially invalid state than discard all of
+it, add `.catch()` to individual fields. Only the invalid fields are then
+replaced:
 
 ```typescript
-interface MyState {
-  version: number;
-  favouriteSlices: MySliceInfo[];
-}
-
-const VERSION = 3;
-const DEFAULT = {favouriteSlices: []};
-
-function migrate(initialState: unknown): MyState {
-  if (initialState && (initialState as {version: any}).version === VERSION) {
-    // Version number checks out, assume the structure is correct.
-    return initialState as State;
-  } else {
-    // Null, undefined, or bad version number - return default value.
-    return DEFAULT;
-  }
-}
+const MY_STATE_SCHEMA = z.object({
+  version: z.literal(1),
+  favouriteSlices: z.array(z.number()).catch([]),
+});
 ```
 
-You'll need to remember to update your version number when making changes!
-Migration should be unit-tested to ensure compatibility.
+Permalinks live forever, so be careful when changing the schema. Changes that
+make previously stored state invalid will silently reset the state of anyone
+opening an older permalink. Schemas should be unit-tested against examples of
+previously stored state to ensure compatibility.
 
 Examples:
 

@@ -151,12 +151,8 @@ void CopySpanIntersectingRange(
       state.ReadFromRegister(bytecode.arg<B::source_range_register>());
   auto& update = state.ReadFromRegister(bytecode.arg<B::update_register>());
   PERFETTO_DCHECK(source.size() <= update.size());
-  uint32_t* write_ptr = update.b;
-  for (const uint32_t* it = source.b; it != source.e; ++it) {
-    *write_ptr = *it;
-    write_ptr += (*it >= source_range.b && *it < source_range.e);
-  }
-  update.e = write_ptr;
+  update.e = filter::CopySpanIntersectingRange(
+      Span<const uint32_t>(source.b, source.e), source_range, update.b);
 }
 
 void InitRankMap(InterpreterState& state, const struct InitRankMap& bytecode) {

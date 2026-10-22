@@ -528,7 +528,7 @@ function VirtualGridDemo(): m.ClassComponent<VirtualGridDemoAttrs> {
     loadedRows = [];
     for (let i = 0; i < limit && offset + i < totalRows; i++) {
       const idx = offset + i;
-      const langData = languages[idx % languages.length];
+      const langData = languages[idx % languages.length]!;
 
       const menuItems = contextMenus
         ? [

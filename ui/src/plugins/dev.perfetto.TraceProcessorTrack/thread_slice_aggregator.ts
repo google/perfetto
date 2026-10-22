@@ -300,7 +300,7 @@ export class ThreadSliceAggregator implements Aggregator {
               ),
             );
           } else {
-            const track = tracks[0];
+            const track = tracks[0]!;
             return m(
               Anchor,
               {

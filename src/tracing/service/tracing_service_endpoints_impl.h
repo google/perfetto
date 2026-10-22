@@ -49,6 +49,10 @@ namespace perfetto {
 
 class SharedMemoryArbiterImpl;
 
+namespace protos::gen {
+class ExperimentalTracingV2ProducerStats;
+}
+
 namespace tracing_service {
 
 class TracingServiceImpl;
@@ -153,6 +157,11 @@ class ProducerEndpointImpl
   friend class ConsumerEndpointImpl;
   ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
   ProducerEndpointImpl& operator=(const ProducerEndpointImpl&) = delete;
+
+  // Returns this producer's ring buffer stats, or nullopt if no ring buffer
+  // is attached.
+  std::optional<protos::gen::ExperimentalTracingV2ProducerStats>
+  GetTracingV2Stats() const;
 
   ProducerID const id_;
   ClientIdentity const client_identity_;

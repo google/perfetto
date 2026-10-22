@@ -75,10 +75,10 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
   }
 
   IntervalFlattenSpec spec;
-  spec.ts_column = 0;
-  spec.dur_column = 1;
-  spec.key_columns = {2};
-  spec.group_column = 4;
+  spec.lanes.ts_column = 0;
+  spec.lanes.dur_column = 1;
+  spec.lanes.key_columns = {2};
+  spec.lanes.group_column = 4;
   spec.aggregates = {{AggregateCall::Function::kCountStar, 0},
                      {AggregateCall::Function::kSum, 3}};
   IntervalFlatten op(spec);
@@ -166,8 +166,8 @@ TEST(IntervalFlattenTest, RunningTotalsMatchTheTree) {
   }
   auto run = [&](std::vector<AggregateCall> aggregates) {
     IntervalFlattenSpec spec;
-    spec.ts_column = 0;
-    spec.dur_column = 1;
+    spec.lanes.ts_column = 0;
+    spec.lanes.dur_column = 1;
     spec.aggregates = std::move(aggregates);
     IntervalFlatten op(spec);
     auto state = op.MakeState(test::TestContext());
@@ -232,8 +232,8 @@ TEST(IntervalFlattenTest, ResumingAnInputDoesNotAddItsRowsAgain) {
                                              weight.data(), &weight_valid));
   in.SetRowCount(2 * kPairs);
   IntervalFlattenSpec spec;
-  spec.ts_column = 0;
-  spec.dur_column = 1;
+  spec.lanes.ts_column = 0;
+  spec.lanes.dur_column = 1;
   spec.aggregates = {{AggregateCall::Function::kSum, 2}};
   IntervalFlatten op(spec);
   auto state = op.MakeState(test::TestContext());

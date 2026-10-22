@@ -38,7 +38,7 @@ CtrlCHandlerFunction g_handler = nullptr;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 BOOL WINAPI Trampoline(DWORD type) {
   if (type == CTRL_C_EVENT) {
-    g_handler();
+    g_handler(0);
     return TRUE;
   }
   return FALSE;
@@ -63,7 +63,7 @@ void InstallCtrlCHandler(CtrlCHandlerFunction handler) {
 #if defined(__clang__)
 #pragma GCC diagnostic ignored "-Wdisabled-macro-expansion"
 #endif
-  sa.sa_handler = [](int) { g_handler(); };
+  sa.sa_handler = g_handler;
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
   sa.sa_flags = static_cast<decltype(sa.sa_flags)>(SA_RESETHAND | SA_RESTART);
 #else  // POSIX-compliant

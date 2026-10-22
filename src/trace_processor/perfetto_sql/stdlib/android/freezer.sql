@@ -13,6 +13,8 @@
 -- limitations under the License.
 --
 
+INCLUDE PERFETTO MODULE android.process_metadata;
+
 CREATE PERFETTO FUNCTION _extract_freezer_pid(name STRING)
 RETURNS LONG
 AS
@@ -217,3 +219,83 @@ SELECT
   time_unfrozen_millis,
   unfreeze_reason
 FROM app_freeze_changes;
+
+-- FROZEN/UNFROZEN spans of each process over its lifetime. Freezer events and
+-- the trace-stop snapshot rows carry an unfreeze_reason only when the process
+-- is unfrozen, which is what tells the two states apart.
+CREATE PERFETTO TABLE _android_freezer_intervals AS
+WITH
+  -- A frozen process that gets killed emits no unfreeze, so spans stop at its
+  -- death. death is NULL while the process lives on at trace end.
+  lifetimes AS (
+    SELECT
+      p.upid,
+      coalesce(fw.fw_start_ts, p.start_ts, trace_start()) AS birth,
+      p.end_ts AS death
+    FROM process AS p
+    LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
+  ),
+  events AS (
+    SELECT
+      upid,
+      ts,
+      iif(unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state,
+      lag(ts) OVER (PARTITION BY upid ORDER BY ts) AS prev_ts,
+      lead(ts) OVER (PARTITION BY upid ORDER BY ts) AS next_ts
+    FROM __intrinsic_android_freezer_state
+    WHERE
+      is_initial = 0
+  ),
+  -- Spans still open at trace end have dur = -1, like unfinished slices.
+  spans AS (
+    SELECT
+      e.upid,
+      e.ts,
+      iif(
+        e.next_ts IS NULL
+        AND l.death IS NULL,
+        -1,
+        min(coalesce(e.next_ts, trace_end()), coalesce(l.death, trace_end()))
+        - e.ts
+      ) AS dur,
+      e.state
+    FROM events AS e
+    JOIN lifetimes AS l USING (upid)
+    UNION ALL
+    -- Before its first event a process was in the opposite state.
+    SELECT
+      e.upid,
+      l.birth AS ts,
+      e.ts - l.birth AS dur,
+      iif(e.state = 'FROZEN', 'UNFROZEN', 'FROZEN') AS state
+    FROM events AS e
+    JOIN lifetimes AS l USING (upid)
+    WHERE
+      e.prev_ts IS NULL
+    UNION ALL
+    -- Processes without events kept their trace-stop state throughout.
+    SELECT
+      s.upid,
+      l.birth AS ts,
+      iif(l.death IS NULL, -1, l.death - l.birth) AS dur,
+      iif(s.unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state
+    FROM __intrinsic_android_freezer_state AS s
+    JOIN lifetimes AS l USING (upid)
+    WHERE
+      s.is_initial = 1
+      AND NOT EXISTS (SELECT 1 FROM events AS e WHERE e.upid = s.upid)
+  )
+SELECT
+  row_number() OVER (ORDER BY s.ts, s.upid) AS id,
+  s.ts,
+  s.dur,
+  s.upid,
+  p.pid,
+  m.process_name,
+  s.state
+FROM spans AS s
+JOIN process AS p USING (upid)
+LEFT JOIN android_process_metadata AS m USING (upid)
+WHERE
+  s.dur > 0
+  OR s.dur = -1;

@@ -1197,6 +1197,48 @@ TEST_F(DebugAnnotationParserTest, TypedMessageInsideUntyped) {
                           "root.field_string root.field_string value"));
 }
 
+// ParseDebugAnnotation takes no unknown_extensions parameter of its own, so
+// it must not act on one left behind by an earlier, unrelated
+// ParseMessageField call on the same parser instance (as
+// TrackEventEventImporter::ParseTrackEventArgs makes on every event). A
+// proto_value naming a message with undeclared fields must not touch that
+// stale pointer.
+TEST_F(DebugAnnotationParserTest, DoesNotReuseStaleUnknownExtensionsPointer) {
+  DescriptorPool pool;
+  ASSERT_TRUE(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                            kTestMessagesDescriptor.size())
+                  .ok());
+  ProtoToArgsParser args_parser(pool, string_pool_);
+
+  uint32_t every_field =
+      *pool.FindDescriptorIdx(".protozero.test.protos.EveryField");
+  int unknown = 0;
+  protozero::Field unknown_field;
+  unknown_field.initialize(
+      9999,
+      static_cast<uint8_t>(protozero::proto_utils::ProtoWireType::kVarInt), 1,
+      0);
+  ASSERT_TRUE(
+      args_parser.ParseMessageField(every_field, unknown_field, *this, &unknown)
+          .ok());
+  ASSERT_EQ(unknown, 1);
+
+  protozero::HeapBuffered<protozero::Message> inner{kChunkSize, kChunkSize};
+  inner->AppendVarInt(9001, 1);
+  inner->AppendVarInt(9002, 2);
+  inner->AppendVarInt(9003, 3);
+  auto inner_bytes = inner.SerializeAsArray();
+
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
+  msg->set_name("root");
+  msg->set_proto_type_name(".protozero.test.protos.EveryField");
+  msg->set_proto_value(inner_bytes.data(), inner_bytes.size());
+
+  base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
+  EXPECT_TRUE(status.ok()) << status.message();
+  EXPECT_EQ(unknown, 1);
+}
+
 // Verifies that a DebugAnnotation whose proto_value is itself a
 // DebugAnnotation (an arbitrarily deep cycle) is parsed iteratively without
 // consuming C++ stack per level.

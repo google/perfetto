@@ -226,14 +226,14 @@ class ProcessWorkspaceFactory {
       const {groupName, trackName} = match.groups;
 
       const newTrack = track.clone();
-      newTrack.name = trackName;
+      newTrack.name = trackName!;
 
-      if (!trackGroups.has(groupName)) {
+      if (!trackGroups.has(groupName!)) {
         const newGroup = new TrackNode({name: groupName, isSummary: true});
         this.ws.addChildLast(newGroup);
-        trackGroups.set(groupName, newGroup);
+        trackGroups.set(groupName!, newGroup);
       }
-      trackGroups.get(groupName)!.addChildLast(newTrack);
+      trackGroups.get(groupName!)!.addChildLast(newTrack);
     });
   }
 }

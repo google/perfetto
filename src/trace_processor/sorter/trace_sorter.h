@@ -286,6 +286,19 @@ class TraceSorter {
 
   std::vector<Queue> queues_;
 
+  // SortAndExtractEventsUntilAllocId()'s heap of queues, kept to reuse its
+  // memory. Each entry holds its queue's earliest timestamp, so the heap is
+  // ordered without reading the queues.
+  struct QueueHeapEntry {
+    int64_t min_ts;
+    uint32_t queue;
+  };
+  std::vector<QueueHeapEntry> queue_heap_;
+
+  // Whether events are being extracted: the heap of queues assumes none are
+  // pushed meanwhile.
+  bool extracting_ = false;
+
   // Whether we should ignore incremental extraction and just wait for
   // forced extractionn at the end of the trace.
   SortingMode sorting_mode_ = SortingMode::kDefault;
@@ -379,6 +392,7 @@ class TraceSorter::Stream {
       sorter_->use_slow_sorting_ =
           sorter_->use_slow_sorting_ || data.phase == 'X';
     }
+    PERFETTO_DCHECK(!sorter_->extracting_);
     TraceTokenBuffer::Id id = sorter_->token_buffer_.Append(std::move(data));
     Queue& queue = sorter_->queues_[queue_idx_];
     queue.Append(ts, id, std::is_same_v<T, JsonEvent>,
