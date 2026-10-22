@@ -355,3 +355,63 @@ class ParsingTracedStats(TestSuite):
         "traced_buf_compactions_skipped",0,1
         "traced_buf_compactions_skipped",1,0
         """))
+
+  # Check the actual buffer type and V3 counters in the stats table.
+  # The second buffer omits these fields, so its stats should be zero.
+  def test_buffer_bundle_stats(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+          trace_stats {
+            buffer_stats {
+              buffer_type: BUFFER_TYPE_V3
+              experimental_v3_stats {
+                bundles_written: 12
+                bundle_bytes_uncompressed: 4000
+                bundle_bytes_stored: 1000
+                bundles_overwritten: 3
+                bundles_too_large: 2
+                bundling_max_us: 250
+                bundling_time_us_histogram_def: [10, 100, 1000, 10000, 100000]
+                bundling_time_us_histogram_counts: [2, 1, 1, 0, 0, 0]
+                bundling_time_us_histogram_sum: [12, 45, 250, 0, 0, 0]
+                staging_space_passes: 2
+              }
+            }
+            buffer_stats { bytes_read: 10 }
+          }
+        }
+        """),
+        query="""
+          SELECT name, idx, severity, value
+          FROM stats
+          WHERE name GLOB 'traced_buf_bundl*'
+            OR name GLOB 'traced_buf_staging_*'
+            OR name = 'traced_buf_buffer_type'
+          ORDER BY name, idx;
+        """,
+        out=Csv("""
+        "name","idx","severity","value"
+        "traced_buf_buffer_type",0,"info",3
+        "traced_buf_buffer_type",1,"info",0
+        "traced_buf_bundle_bytes_stored",0,"info",1000
+        "traced_buf_bundle_bytes_stored",1,"info",0
+        "traced_buf_bundle_bytes_uncompressed",0,"info",4000
+        "traced_buf_bundle_bytes_uncompressed",1,"info",0
+        "traced_buf_bundles_overwritten",0,"info",3
+        "traced_buf_bundles_overwritten",1,"info",0
+        "traced_buf_bundles_too_large",0,"data_loss",2
+        "traced_buf_bundles_too_large",1,"data_loss",0
+        "traced_buf_bundles_written",0,"info",12
+        "traced_buf_bundles_written",1,"info",0
+        "traced_buf_bundling_max_us",0,"info",250
+        "traced_buf_bundling_max_us",1,"info",0
+        "traced_buf_bundling_passes",0,"info",4
+        "traced_buf_bundling_passes",1,"info",0
+        "traced_buf_bundling_time_us",0,"info",307
+        "traced_buf_bundling_time_us",1,"info",0
+        "traced_buf_staging_space_passes",0,"info",2
+        "traced_buf_staging_space_passes",1,"info",0
+        """))
