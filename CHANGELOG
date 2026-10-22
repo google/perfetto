@@ -165,6 +165,10 @@ Unreleased:
     * Improved decoding of query results, especially when loading track data.
     * The timeline now recovers from WebGL context loss.
     * The Chrome extension now only accepts connections from ui.perfetto.dev.
+    * Added the `com.android.ProcessState` plugin (enabled by default),
+      visualizing Android framework process states and freezer state per
+      process and per state, with residency and transition breakdowns for area
+      selections.
   SDK:
     * Added TraceContext::drop_count() to the C++ SDK and
       PerfettoDsTracerGetDropCount() to the C SDK to detect data lost to
