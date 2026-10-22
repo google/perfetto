@@ -763,6 +763,33 @@ test('keeps following after a Ctrl+wheel zoom that moves the window', async () =
   expect(timeline.visibleWindow.end.equals(playhead)).toBe(true);
 });
 
+test('follows the playhead when zoomed out to the whole trace', async () => {
+  const {host, frame, timeline, traceInfo, model} = await startFollowing();
+  const playhead = timeline.visibleWindow.end;
+
+  // A trace from 2 s on, in a timeline that shifts windows starting before
+  // it, like the core's.
+  traceInfo.start = Time.fromSeconds(2);
+  timeline.setVisibleWindow = (span) => {
+    timeline.visibleWindow = span.fitWithin(traceInfo.start, traceInfo.end);
+  };
+
+  // Follow again, zoomed out to the whole trace.
+  model().toggleFollow();
+  const {start, end} = traceInfo;
+  timeline.setVisibleWindow(HighPrecisionTimeSpan.fromTime(start, end));
+  model().toggleFollow();
+  frame();
+
+  expect(host.following).toBe(true);
+  expect(timeline.visibleWindow.start.toTime()).toBe(start);
+  expect(timeline.visibleWindow.end.equals(playhead)).toBe(true);
+
+  await vi.advanceTimersByTimeAsync(100);
+  frame();
+  expect(timeline.visibleWindow.end.gt(playhead.toTime())).toBe(true);
+});
+
 test('stops following after a pan, even right after zoom input', async () => {
   const {host, frame, timeline} = await startFollowing();
 

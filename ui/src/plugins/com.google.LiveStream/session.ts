@@ -295,8 +295,10 @@ export class LiveSession implements Disposable {
   // response: the tracks then load only the rows near it.
   private showHistoryEnd() {
     const delayNs = BigInt(this.settings.bufferDelay.get()) * NS_PER_SEC;
-    const end = Time.fromRaw(this.trace.traceInfo.end - delayNs);
-    this.trace.timeline.setVisibleWindow(followWindow(end, this.followWidthNs));
+    const {start, end} = this.trace.traceInfo;
+    this.trace.timeline.setVisibleWindow(
+      followWindow(Time.sub(end, delayNs), this.followWidthNs, start),
+    );
   }
 
   // Polls the server until disposed, or until the stream restarts.
@@ -681,7 +683,10 @@ export class LiveSession implements Disposable {
 
     this.extendTraceEnd(display);
     const timeline = this.trace.timeline;
-    timeline.setVisibleWindow(followWindow(display, this.followWidthNs));
+    const traceStart = this.trace.traceInfo.start;
+    timeline.setVisibleWindow(
+      followWindow(display, this.followWidthNs, traceStart),
+    );
     this.followedWindow = timeline.visibleWindow;
     this.followedDisplay = display;
     this.trace.raf.scheduleCanvasRedraw();

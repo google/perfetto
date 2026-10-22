@@ -104,17 +104,24 @@ test('never moves backwards', () => {
 });
 
 test('followWindow ends at the playhead', () => {
-  // [start, end] of a 10 s wide window.
-  const bounds = (end: bigint) => {
-    const span = followWindow(Time.fromRaw(end), 10e9).toTimeSpan();
+  // [start, end] of a 10 s wide window, in a trace from `traceStart`.
+  const bounds = (end: bigint, traceStart = 0n) => {
+    const span = followWindow(
+      Time.fromRaw(end),
+      10e9,
+      Time.fromRaw(traceStart),
+    ).toTimeSpan();
     return [span.start, span.end];
   };
 
   expect(bounds(30n * SEC)).toEqual([20n * SEC, 30n * SEC]);
+  expect(bounds(30n * SEC, 15n * SEC)).toEqual([20n * SEC, 30n * SEC]);
 
-  // Starts at 0 and spans at least 1 s.
+  // Starts at the trace start and spans at least 1 s.
   expect(bounds(3n * SEC)).toEqual([0n, 3n * SEC]);
   expect(bounds(-2n * SEC)).toEqual([0n, SEC]);
+  expect(bounds(18n * SEC, 15n * SEC)).toEqual([15n * SEC, 18n * SEC]);
+  expect(bounds(15n * SEC, 15n * SEC)).toEqual([15n * SEC, 16n * SEC]);
 });
 
 test('isSameWidth tells a pan from a zoom', () => {

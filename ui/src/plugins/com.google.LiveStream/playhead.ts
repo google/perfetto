@@ -33,7 +33,7 @@ const MAX_FRAME_GAP_MS = 500;
 const MAX_EXTRAPOLATION_NS = 5e9;
 
 // Narrowest follow window, used right after the stream starts.
-const MIN_FOLLOW_WIDTH_NS = 1e9;
+const MIN_FOLLOW_WIDTH_NS = 1_000_000_000n;
 
 /**
  * The live playhead: the server playhead, interpolated between responses by
@@ -83,17 +83,20 @@ export class PlayheadClock {
   }
 }
 
-/** The visible window that follows the playhead `end` with `widthNs`. */
+/**
+ * The visible window that follows the playhead `end` with `widthNs`. Starts
+ * at `traceStart` at the earliest: the timeline would shift an earlier window
+ * off the playhead, e.g. one zoomed out to the whole trace.
+ */
 export function followWindow(
   end: time,
   widthNs: number,
+  traceStart: time,
 ): HighPrecisionTimeSpan {
-  const endNs = Math.max(Number(end), MIN_FOLLOW_WIDTH_NS);
-  const startNs = Math.max(0, endNs - widthNs);
-  return HighPrecisionTimeSpan.fromTime(
-    Time.fromRaw(BigInt(Math.round(startNs))),
-    Time.fromRaw(BigInt(Math.round(endNs))),
-  );
+  const endTs = Time.max(end, Time.add(traceStart, MIN_FOLLOW_WIDTH_NS));
+  const width = BigInt(Math.round(widthNs));
+  const startTs = Time.max(traceStart, Time.sub(endTs, width));
+  return HighPrecisionTimeSpan.fromTime(startTs, endTs);
 }
 
 // Relative difference of two window widths below which they are the same:
