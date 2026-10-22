@@ -26,7 +26,8 @@ export type MinimapRow = MinimapCell[];
 export interface MinimapContentProvider {
   readonly priority: number;
 
-  // May be called again, e.g. when the trace grows, but never concurrently.
+  // The returned rows are kept and drawn on each canvas redraw. Providers
+  // may update them in place later, e.g. as a live trace grows.
   getData(
     timeSpan: HighPrecisionTimeSpan,
     resolution: duration,
