@@ -142,8 +142,6 @@ Unreleased:
       table.
     * Sampled callstacks are now shown over time in a track beneath each
       thread's Callstacks track.
-    * Added Android process state tracks, a per-process freezer timeline, and
-      Process Starts and Process Exits aggregation tabs.
     * Frame timeline tracks are now grouped by layer.
     * Revamped the AndroidLockContention plugin: a lock contention breakdown
       in the selection details, and links from held locks to their slices.
