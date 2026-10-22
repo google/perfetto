@@ -235,12 +235,22 @@ void ClockTracker::FlushDeferredClockSync() {
   // Bridge the clock this file's timestamps are actually in. That is the
   // default clock, which may have been set after the sync was registered (e.g.
   // by a proto ClockSnapshot's primary_trace_clock), else the fallback.
-  ClockId from = trace_default_clock_.value_or(*deferred_clock_sync_);
+  ClockId fallback = *deferred_clock_sync_;
+  ClockId from = trace_default_clock_.value_or(fallback);
   deferred_clock_sync_.reset();
+
+  // If this file's own snapshots relate the default clock to the fallback,
+  // bridge the fallback: another file may have set up trace time through it.
+  ClockId qualified = ClockId::Qualify(from, machine_id_, current_file_tag_);
+  if (from != fallback && sync_->Convert(qualified, 0,
+                                         ClockId::Qualify(fallback, machine_id_,
+                                                          current_file_tag_))) {
+    from = fallback;
+    qualified = ClockId::Qualify(from, machine_id_, current_file_tag_);
+  }
 
   // Bridge via the machine-canonical node, so an isolated file's other clocks
   // stay isolated yet it can still reach trace time.
-  ClockId qualified = ClockId::Qualify(from, machine_id_, current_file_tag_);
   ClockId canonical = ClockId::Qualify(from, machine_id_, 0);
   if (qualified != canonical && !sync_->Convert(qualified, 0, canonical)) {
     AddSnapshotInternal({{qualified, 0}, {canonical, 0}});

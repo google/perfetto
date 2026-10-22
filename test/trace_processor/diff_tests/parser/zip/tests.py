@@ -250,3 +250,91 @@ class Zip(TestSuite):
         1276407306585477
         1276408471040116
         '''))
+
+  # The second trace's primary_trace_clock (MONOTONIC) is related only to its
+  # own BOOTTIME, and the first trace never mentions MONOTONIC. The second
+  # trace must reach trace time through its BOOTTIME.
+  def test_zip_primary_clock_related_to_boottime_by_own_snapshot(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'a.pb':
+                TextProto('''
+              packet {
+                clock_snapshot {
+                  clocks { clock_id: 6 timestamp: 10000 }  # BOOTTIME
+                }
+              }
+            '''),
+            'b.pb':
+                TextProto('''
+              packet {
+                clock_snapshot {
+                  primary_trace_clock: 3  # BUILTIN_CLOCK_MONOTONIC
+                  clocks { clock_id: 3 timestamp: 1000 }  # MONOTONIC
+                  clocks { clock_id: 6 timestamp: 5000 }  # BOOTTIME
+                }
+              }
+              packet {
+                trusted_packet_sequence_id: 1
+                timestamp: 2000
+                incremental_state_cleared: true
+                track_descriptor { uuid: 1 name: "t" }
+              }
+              packet {
+                trusted_packet_sequence_id: 1
+                timestamp: 2000
+                track_event { type: TYPE_INSTANT track_uuid: 1 name: "ev" }
+              }
+            '''),
+        }),
+        query='''
+          SELECT ts, name FROM slice;
+        ''',
+        out=Csv('''
+        "ts","name"
+        6000,"ev"
+        '''))
+
+  # A system trace relates MONOTONIC to BOOTTIME; the second trace's
+  # snapshot only has its primary_trace_clock (MONOTONIC). The second trace
+  # must reach trace time through the system trace's MONOTONIC.
+  def test_zip_primary_clock_without_boottime_uses_shared_clock(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'a.pb':
+                TextProto('''
+              packet {
+                clock_snapshot {
+                  clocks { clock_id: 6 timestamp: 10000 }  # BOOTTIME
+                  clocks { clock_id: 3 timestamp: 1000 }  # MONOTONIC
+                }
+              }
+            '''),
+            'b.pb':
+                TextProto('''
+              packet {
+                clock_snapshot {
+                  primary_trace_clock: 3  # BUILTIN_CLOCK_MONOTONIC
+                  clocks { clock_id: 3 timestamp: 1000 }  # MONOTONIC
+                }
+              }
+              packet {
+                trusted_packet_sequence_id: 1
+                timestamp: 2000
+                incremental_state_cleared: true
+                track_descriptor { uuid: 1 name: "t" }
+              }
+              packet {
+                trusted_packet_sequence_id: 1
+                timestamp: 2000
+                track_event { type: TYPE_INSTANT track_uuid: 1 name: "ev" }
+              }
+            '''),
+        }),
+        query='''
+          SELECT ts, name FROM slice;
+        ''',
+        out=Csv('''
+        "ts","name"
+        11000,"ev"
+        '''))
