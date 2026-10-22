@@ -21,6 +21,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/flat_set.h"
@@ -46,6 +47,17 @@ struct AndroidCgroup {
   uint32_t uid = 0;
   // Only meaningful at pid level.
   uint32_t pid = 0;
+
+  bool operator==(const AndroidCgroup& other) const {
+    return level == other.level && group == other.group && uid == other.uid &&
+           pid == other.pid;
+  }
+
+  template <typename H>
+  friend H PerfettoHashValue(H h, const AndroidCgroup& cgroup) {
+    return H::Combine(std::move(h), cgroup.level, cgroup.group, cgroup.uid,
+                      cgroup.pid);
+  }
 };
 
 // A validated MemcgConfig.AndroidScope. The filters that are set are AND'd,
