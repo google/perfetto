@@ -308,7 +308,11 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
   onSliceClick?(args: OnSliceClickArgs<InferRowType<T>>): void;
 }
 
-interface Tables extends AsyncDisposable {
+interface Tables<T extends RowSchema> extends AsyncDisposable {
+  // What the tables were built from. While new tables build, the previous
+  // ones are still used, with their own dataset and row count.
+  readonly dataset: SourceDataset<T>;
+  readonly rowCount: number;
   readonly slicesMipmapTable: DisposableSqlEntity;
   readonly instantsMipmapTable: DisposableSqlEntity;
   readonly incompleteSlicesTable: DisposableSqlEntity;
@@ -337,7 +341,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private readonly attrs: SliceTrackAttrs<T>;
   private readonly instantWidthPx: number;
   private readonly queue = new AtomicTaskQueue();
-  private readonly tablesSlot = new AsyncMemo<Tables>(this.queue);
+  private readonly tablesSlot = new AsyncMemo<Tables<T>>(this.queue);
   private readonly dataFrameSlot = new AsyncMemo<DataFrame<InferRowType<T>>>(
     this.queue,
   );
@@ -349,8 +353,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private charWidth = {title: -1, subtitle: -1};
   private computedTrackHeight = 0;
   private currentDataFrame?: DataFrame<InferRowType<T>>;
-  // The dataset being loaded by useData(), if not done yet.
-  private loadingDataset?: SourceDataset<T>;
   private rowCount: number;
 
   /**
@@ -746,11 +748,11 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
   // Creates the mipmap table for efficient slice queries
   // Also pre-computes incomplete slices with their next_ts
-  private async createTables(sqlSource: string): Promise<Tables> {
+  private async createTables(dataset: SourceDataset<T>): Promise<Tables<T>> {
     const engine = this.trace.engine;
+    const sqlSource = generateRenderQuery(dataset);
 
     const rowCount = await this.getRowCount(sqlSource);
-    this.rowCount = rowCount;
 
     const slicesMipmapTable = await createVirtualTable({
       engine,
@@ -786,6 +788,8 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     });
 
     return {
+      dataset,
+      rowCount,
       slicesMipmapTable,
       instantsMipmapTable,
       incompleteSlicesTable,
@@ -814,47 +818,41 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   ): DataFrame<InferRowType<T>> | undefined {
     const {resolution, visibleWindow} = trackCtx;
 
-    // A dataset can change faster than its tables build, e.g. with live data.
-    // Keep loading the current one until done, then move to the latest, so
-    // that the track renders a few updates late rather than never. After an
-    // error, the latest is tried.
-    const dataset = this.loadingDataset ?? this.getDataset();
-    this.loadingDataset = undefined;
+    const dataset = this.getDataset();
     const sqlSource = generateRenderQuery(dataset);
 
-    // 1. Create the mipmap tables which only depend on the sql query source
+    // 1. Create the mipmap tables which only depend on the sql query source.
+    // sqlSource is constant for most tracks with a static dataset, but there
+    // are cases (e.g. raw ftrace tracks, live data) where it can change. Keep
+    // using the previous tables while new ones build, rather than flashing an
+    // empty track.
     const {data: tables} = this.tablesSlot.use({
       key: {sqlSource},
-      compute: () => this.createTables(sqlSource),
+      compute: () => this.createTables(dataset),
+      retainOn: ['sqlSource'],
     });
 
-    // 2. Load the slices into a data frame based on the visible window and
-    // resolution, which could change every frame. Only move the bounds once
-    // the tables exist: slices are drawn as Float32 offsets from
-    // bounds.start, so bounds picked from a frame seen while the tables
-    // build, e.g. mid-animation, would make sub-pixel positions depend on
-    // timing.
-    const visibleSpan = visibleWindow.toTimeSpan();
-    const bounds = tables
-      ? this.bufferedBounds.update(visibleSpan, resolution)
-      : this.bufferedBounds.bounds;
+    // Can't do anything until we have the tables.
+    if (!tables) return undefined;
+    this.rowCount = tables.rowCount;
 
-    const {data: dataFrame, isPending} = this.dataFrameSlot.use({
-      // sqlSource is constant for most tracks with a static dataset, but
-      // there are cases (e.g. raw ftrace tracks) where the query can
-      // change dynamically.
+    // 2. Load the slices into a data frame based on the visible window and
+    // resolution, which could change every frame. Keyed on the tables rather
+    // than sqlSource, so the previous data stays until the new tables load.
+    const visibleSpan = visibleWindow.toTimeSpan();
+    const bounds = this.bufferedBounds.update(visibleSpan, resolution);
+    const {slicesMipmapTable, instantsMipmapTable, incompleteSlicesTable} =
+      tables;
+
+    const {data: dataFrame} = this.dataFrameSlot.use({
       key: {
-        sqlSource,
+        tableName: slicesMipmapTable.name,
         start: bounds.start,
         end: bounds.end,
         resolution: bounds.resolution,
         key: this.attrs.getKey?.(),
       },
-      // Can't load anything until we have the tables.
-      enabled: tables !== undefined,
       compute: async (signal) => {
-        const {instantsMipmapTable, slicesMipmapTable, incompleteSlicesTable} =
-          ensureExists(tables);
         const promise = (async () => {
           // Load complete and incomplete slices in a single query
           const instants = await this.getInstantBuffers(
@@ -863,7 +861,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
             bounds.end,
             bounds.resolution,
             signal,
-            dataset,
+            tables.dataset,
           );
 
           const slices = await this.getSliceBuffers(
@@ -873,7 +871,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
             bounds.end,
             bounds.resolution,
             signal,
-            dataset,
+            tables.dataset,
           );
 
           return {
@@ -890,12 +888,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         this.trace.raf.scheduleFullRedraw();
         return result;
       },
-      // While the tables are rebuilt for a new sqlSource, keep returning the
-      // previous data instead of flashing an empty track.
-      retainOn: ['sqlSource', 'start', 'end', 'resolution'],
+      retainOn: ['tableName', 'start', 'end', 'resolution'],
     });
 
-    if (tables === undefined || isPending) this.loadingDataset = dataset;
     return dataFrame;
   }
 
