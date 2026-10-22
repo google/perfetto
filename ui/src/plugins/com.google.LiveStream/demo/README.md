@@ -27,7 +27,8 @@ ui/run-dev-server
 ui/node ui/src/plugins/com.google.LiveStream/demo/demo_server.ts --ui-proxy http://127.0.0.1:10000
 ```
 
-`/?target=<id>` opens another target. The server listens on 127.0.0.1, or
+`/?target=<id>` opens another target. `--hud top` shows the HUD in a row above
+the topbar rather than in the side panel. The server listens on 127.0.0.1, or
 `--host`, and answers only requests to those or localhost. Other sites can't use
 the `demo/` routes. `--help` lists all flags. Node warns about
 `MODULE_TYPELESS_PACKAGE_JSON`: that's harmless.

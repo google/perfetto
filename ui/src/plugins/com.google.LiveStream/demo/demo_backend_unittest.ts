@@ -148,6 +148,22 @@ test('api/targets: the default target, tasks and long names', async () => {
   expect((await get(`/api/targets?target=${TRAINER}/9`)).status).toBe(404);
 });
 
+test('pagePath: the UI of a target, the default if unknown, with the HUD', () => {
+  start();
+  const args = (path: string) => new URL(path, 'http://127.0.0.1').searchParams;
+  const targetArg = 'com.google.LiveStream:target';
+  const hudArg = 'com.google.LiveStream:hud';
+
+  const reader = args(backend.pagePath('job-2/reader'));
+  expect(reader.get('enablePlugins')).toBe('com.google.LiveStream');
+  expect(reader.get(targetArg)).toBe('job-2/reader');
+  // In the side panel by default.
+  expect(reader.has(hudArg)).toBe(false);
+
+  const top = args(backend.pagePath('nope', 'top'));
+  expect([top.get(targetArg), top.get(hudArg)]).toEqual([TRAINER, 'top']);
+});
+
 test('a snapshot, then deltas that complete active slices by key', async () => {
   start();
   const snapshot = await stream({});

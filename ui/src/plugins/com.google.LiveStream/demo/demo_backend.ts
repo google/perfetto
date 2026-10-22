@@ -29,6 +29,7 @@
 //   Session, every 250 ms: Feed.advance() ──► StreamBuffer.publish()
 
 import type {z} from 'zod';
+import type {LiveHudPlacement} from '../controller';
 import type {STREAM_RESPONSE, TARGETS_RESPONSE} from '../wire';
 
 // JSON bodies, typed by the plugin's schemas.
@@ -72,12 +73,16 @@ export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
     "object-src 'none'; base-uri 'self'",
 };
 
-/** The path of the UI page that shows target `id`, see ../README.md. */
-export function uiPath(id: string): string {
+/**
+ * The path of the UI page that shows target `id`, with the HUD at `hud`, see
+ * ../README.md.
+ */
+export function uiPath(id: string, hud: LiveHudPlacement = 'panel'): string {
+  const hudArg = hud === 'panel' ? '' : `&com.google.LiveStream:hud=${hud}`;
   return (
     '/index.html?mode=embedded&hideSidebar=true&hideStatusbar=true' +
     '&enablePlugins=com.google.LiveStream' +
-    `&com.google.LiveStream:target=${encodeURIComponent(id)}#!/viewer`
+    `&com.google.LiveStream:target=${encodeURIComponent(id)}${hudArg}#!/viewer`
   );
 }
 
@@ -1292,9 +1297,12 @@ export class DemoBackend {
     return undefined;
   }
 
-  /** The URL path of the UI for `?target=<spec>`: the default if unknown. */
-  pagePath(spec: string): string {
-    return uiPath((findJob(spec) ?? JOBS[0]!).target.id);
+  /**
+   * The URL path of the UI for `?target=<spec>`, the default if unknown, with
+   * the HUD at `hud`.
+   */
+  pagePath(spec: string, hud: LiveHudPlacement = 'panel'): string {
+    return uiPath((findJob(spec) ?? JOBS[0]!).target.id, hud);
   }
 
   /** Stops all sessions; pending requests return at once. */

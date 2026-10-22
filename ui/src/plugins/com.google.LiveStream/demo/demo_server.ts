@@ -30,6 +30,7 @@ import type * as net from 'net';
 import * as path from 'path';
 import * as stream from 'stream';
 import {parseArgs} from 'util';
+import type {LiveHudPlacement} from '../controller';
 import type * as Backend from './demo_backend';
 
 // Node runs this file without a bundler, so the import needs the .ts
@@ -48,6 +49,8 @@ Serves a simulated live stream for com.google.LiveStream, with the UI.
   --ui-dist <dir>     Serves a built UI, e.g. out/ui/ui/dist.
   --ui-proxy <url>    Forwards UI requests to ui/run-dev-server, e.g.
                       http://127.0.0.1:10000.
+  --hud <placement>   Where the UI shows the HUD: panel, a side panel tab
+                      (default), or top, a row above the topbar.
 
 Settings, also changed by GET /demo/set?<name>=<value> (e.g. page_size=10):
   --seed <n>          Seed of the simulation (default 1).
@@ -83,6 +86,7 @@ const {
   'host': host,
   'ui-dist': uiDist,
   'ui-proxy': uiProxy,
+  'hud': hudFlag,
   'help': help,
   'stall': stall,
   ...settings
@@ -92,6 +96,8 @@ if (help === true) {
   process.exit(0);
 }
 if (!/^\d+$/.test(port) || Number(port) > 65535) fail(`bad --port ${port}`);
+if (hudFlag !== 'panel' && hudFlag !== 'top') fail(`bad --hud ${hudFlag}`);
+const hud: LiveHudPlacement = hudFlag;
 
 const backend = new DemoBackend();
 const entries = Object.entries(settings).map(
@@ -141,6 +147,7 @@ function parseFlags() {
         'host': {type: 'string', default: '127.0.0.1'},
         'ui-dist': {type: 'string'},
         'ui-proxy': {type: 'string'},
+        'hud': {type: 'string', default: 'panel'},
         'help': {type: 'boolean'},
         // Settings, as in demo/set.
         'seed': {type: 'string'},
@@ -211,7 +218,7 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse) {
   }
 
   if (url.pathname === '/') {
-    const page = backend.pagePath(url.searchParams.get('target') ?? '');
+    const page = backend.pagePath(url.searchParams.get('target') ?? '', hud);
     send(res, 302, {'Location': page, 'Cache-Control': 'no-store'});
     return;
   }
