@@ -16,11 +16,17 @@
 
 #include "src/trace_processor/plugins/android_process_state/android_process_state_tracker.h"
 
+#include <cstdint>
+#include <optional>
 #include <string>
 
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_common.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
@@ -29,6 +35,27 @@
 namespace perfetto::trace_processor::android_process_state {
 namespace {
 namespace fb = com::android::internal::pbzero;
+
+void RecordUnknownProcess(TraceProcessorContext* context,
+                          int64_t ts,
+                          const char* source,
+                          uint32_t pid,
+                          protozero::ConstChars process_name = {}) {
+  context->import_logs_tracker->RecordParserLog(
+      stats::android_track_event_process_unknown, ts,
+      [&](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(
+            context->storage->InternString("source"),
+            Variadic::String(context->storage->InternString(source)));
+        inserter.AddArg(context->storage->InternString("pid"),
+                        Variadic::UnsignedInteger(pid));
+        if (process_name.size > 0) {
+          inserter.AddArg(
+              context->storage->InternString("process_name"),
+              Variadic::String(context->storage->InternString(process_name)));
+        }
+      });
+}
 }  // namespace
 
 StringId InternEnum(TraceProcessorContext* context,
@@ -129,6 +156,7 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
 }
 
 void AndroidProcessStateTracker::ParseProcessStateDump(
+    int64_t ts,
     protozero::ConstBytes blob) {
   fb::AndroidProcessStateSnapshot::Decoder dump(blob);
   // The trace-start dump carries no state. It is handled by
@@ -146,6 +174,9 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
         context_->process_tracker->GetProcessOrNull(
             static_cast<uint32_t>(rec.pid()));
     if (!opt_upid) {
+      RecordUnknownProcess(context_, ts, "process_dump",
+                           static_cast<uint32_t>(rec.pid()),
+                           rec.process_name());
       continue;
     }
     ProcessStateValues v;
@@ -201,7 +232,8 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
   freezer_state_table_->Insert(row);
 }
 
-void AndroidProcessStateTracker::ParseFreezerDump(protozero::ConstBytes blob) {
+void AndroidProcessStateTracker::ParseFreezerDump(int64_t ts,
+                                                  protozero::ConstBytes blob) {
   fb::AndroidFreezerStateSnapshot::Decoder dump(blob);
   for (auto it = dump.record(); it; ++it) {
     fb::AndroidFreezerStateSnapshot::Record::Decoder rec(*it);
@@ -212,6 +244,8 @@ void AndroidProcessStateTracker::ParseFreezerDump(protozero::ConstBytes blob) {
         context_->process_tracker->GetProcessOrNull(
             static_cast<uint32_t>(rec.pid()));
     if (!opt_upid) {
+      RecordUnknownProcess(context_, ts, "freezer_dump",
+                           static_cast<uint32_t>(rec.pid()));
       continue;
     }
     FreezerStateValues v;

@@ -50,13 +50,13 @@ class AndroidProcessStateTracker {
 
   // A process_state_changed_event TrackEvent extension at |ts|.
   void ParseProcessStateChange(int64_t ts, protozero::ConstBytes bytes);
-  // An AndroidProcessState dump TracePacket.
-  void ParseProcessStateDump(protozero::ConstBytes bytes);
+  // An AndroidProcessState dump TracePacket at |ts|.
+  void ParseProcessStateDump(int64_t ts, protozero::ConstBytes bytes);
 
   // An AndroidFreezerEvent TrackEvent extension at |ts|.
   void ParseFreezerEvent(int64_t ts, protozero::ConstBytes bytes);
-  // An AndroidFreezerState dump TracePacket.
-  void ParseFreezerDump(protozero::ConstBytes bytes);
+  // An AndroidFreezerState dump TracePacket at |ts|.
+  void ParseFreezerDump(int64_t ts, protozero::ConstBytes bytes);
 
   // Synthesizes the per-process initial-state rows.
   void Finalize();

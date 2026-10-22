@@ -540,16 +540,9 @@ class AndroidParser(TestSuite):
           timestamp: 100
           [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
             dump_reason: DUMP_REASON_START
-            record {
-              pid: 100
-              uid: 10001
-              process_name: "com.example.known"
-              start_seq_id: 1
-            }
+            record { pid: 100 process_name: "com.example.known" start_seq_id: 1 }
           }
         }
-        # Unknown pid 200 dies (binder_died followed by process_died); only one
-        # notice should be recorded for pid 200.
         packet {
           timestamp: 1000
           trusted_packet_sequence_id: 1
@@ -558,6 +551,7 @@ class AndroidParser(TestSuite):
             name: "binder_died"
             [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
               pid: 200
+              process_name: "com.example.died"
               start_seq_id: 2
             }
           }
@@ -570,9 +564,25 @@ class AndroidParser(TestSuite):
             name: "process_died"
             [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
               pid: 200
+              process_name: "com.example.died"
               start_seq_id: 2
               reason: APP_EXIT_REASON_CRASH
             }
+          }
+        }
+        packet {
+          timestamp: 3000
+          [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+            dump_reason: DUMP_REASON_END
+            record { pid: 100 proc_state: 1002 }
+            record { pid: 400 process_name: "com.example.end_dump" proc_state: 1002 }
+          }
+        }
+        packet {
+          timestamp: 4000
+          [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
+            record { pid: 100 unfreeze_reason: UFR_PING }
+            record { pid: 500 unfreeze_reason: UFR_PING }
           }
         }
         """),
@@ -581,13 +591,16 @@ class AndroidParser(TestSuite):
           ts,
           severity,
           name,
+          extract_arg(arg_set_id, 'source') AS source,
           extract_arg(arg_set_id, 'pid') AS pid,
-          extract_arg(arg_set_id, 'start_seq_id') AS start_seq_id
+          extract_arg(arg_set_id, 'process_name') AS process_name
         FROM _trace_import_logs
         WHERE name = 'android_track_event_process_unknown'
-        ORDER BY pid;
+        ORDER BY ts, pid;
         """,
         out=Csv("""
-          "ts","severity","name","pid","start_seq_id"
-          1000,"notice","android_track_event_process_unknown",200,2
+          "ts","severity","name","source","pid","process_name"
+          1000,"notice","android_track_event_process_unknown","binder_died",200,"com.example.died"
+          3000,"notice","android_track_event_process_unknown","process_dump",400,"com.example.end_dump"
+          4000,"notice","android_track_event_process_unknown","freezer_dump",500,"[NULL]"
         """))

@@ -70,21 +70,26 @@ class AndroidTrackEventProcessTableHolder {
   // Records a notice (at most once per pid) when a death event references a
   // process that was neither in DUMP_REASON_START nor created by a
   // process_start_event.
-  void MaybeWarnUnknownProcess(TraceProcessorContext* context,
-                               int64_t ts,
-                               uint32_t pid,
-                               std::optional<int64_t> start_seq_id) {
+  void RecordUnknownProcess(TraceProcessorContext* context,
+                            int64_t ts,
+                            const char* source,
+                            uint32_t pid,
+                            protozero::ConstChars process_name) {
     if (!warned_pids_.insert(pid).second) {
       return;
     }
     context->import_logs_tracker->RecordParserLog(
         stats::android_track_event_process_unknown, ts,
-        [context, pid, start_seq_id](ArgsTracker::BoundInserter& inserter) {
+        [&](ArgsTracker::BoundInserter& inserter) {
+          inserter.AddArg(
+              context->storage->InternString("source"),
+              Variadic::String(context->storage->InternString(source)));
           inserter.AddArg(context->storage->InternString("pid"),
                           Variadic::UnsignedInteger(pid));
-          if (start_seq_id) {
-            inserter.AddArg(context->storage->InternString("start_seq_id"),
-                            Variadic::Integer(*start_seq_id));
+          if (process_name.size > 0) {
+            inserter.AddArg(
+                context->storage->InternString("process_name"),
+                Variadic::String(context->storage->InternString(process_name)));
           }
         });
   }
@@ -250,7 +255,9 @@ class Parser : public TrackEventExtensionParser {
   std::optional<AndroidTrackEventProcessTable::RowReference>
   ResolveDyingProcess(uint32_t pid,
                       std::optional<int64_t> start_seq_id,
-                      int64_t ts) {
+                      int64_t ts,
+                      const char* source,
+                      protozero::ConstChars process_name) {
     if (auto row = table_->FindRowByStartSeqId(start_seq_id)) {
       auto process = trace_context_->storage->process_table()[row->upid()];
       if (process.pid() != pid) {
@@ -261,7 +268,8 @@ class Parser : public TrackEventExtensionParser {
     std::optional<UniquePid> upid =
         trace_context_->process_tracker->GetProcessOrNull(pid);
     if (!upid) {
-      table_->MaybeWarnUnknownProcess(trace_context_, ts, pid, start_seq_id);
+      table_->RecordUnknownProcess(trace_context_, ts, source, pid,
+                                   process_name);
       return std::nullopt;
     }
     auto row = table_->GetOrInsertRow(*upid);
@@ -289,7 +297,8 @@ class Parser : public TrackEventExtensionParser {
     }
     // Ignores deaths for another process (e.g. an older process whose pid was
     // reused before it was ended) instead of ending the current one.
-    auto row = ResolveDyingProcess(pid, start_seq_id, ts);
+    auto row = ResolveDyingProcess(pid, start_seq_id, ts, "binder_died",
+                                   evt.process_name());
     if (!row) {
       return;
     }
@@ -318,7 +327,8 @@ class Parser : public TrackEventExtensionParser {
       start_seq_id = evt.start_seq_id();
     }
     auto row =
-        ResolveDyingProcess(static_cast<uint32_t>(evt.pid()), start_seq_id, ts);
+        ResolveDyingProcess(static_cast<uint32_t>(evt.pid()), start_seq_id, ts,
+                            "process_died", evt.process_name());
     if (!row) {
       return;
     }
