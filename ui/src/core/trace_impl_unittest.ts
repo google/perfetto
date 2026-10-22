@@ -129,7 +129,7 @@ describe('TraceImpl.extendTraceEnd', () => {
     expect(loads.length).toBe(1);
 
     // The end grew during the load: reload once more.
-    loads[0]();
+    loads[0]!();
     await vi.advanceTimersByTimeAsync(5_000);
     expect(loads.length).toBe(2);
   });
