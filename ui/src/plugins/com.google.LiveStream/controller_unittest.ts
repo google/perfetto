@@ -16,7 +16,12 @@ import m from 'mithril';
 import type {App} from '../../public/app';
 import type {Command} from '../../public/commands';
 import type {SidePanelTabDescriptor} from '../../public/side_panel';
-import {LiveController, type LiveSessionModel} from './controller';
+import {
+  hudPlacement,
+  LiveController,
+  type LiveHudPlacement,
+  type LiveSessionModel,
+} from './controller';
 import {PLUGIN_ID} from './opener';
 import type {LiveStatus} from './status';
 import {TARGET, type Target} from './wire';
@@ -26,6 +31,7 @@ const EVAL = {id: 'job-1/eval', short_name: 'eval', task_count: 4};
 const TARGET_ARG = `${PLUGIN_ID}:target`;
 const FOLLOW_COMMAND = 'com.google.LiveStream#ToggleFollowLive';
 const HUD_TAB = 'com.google.LiveStream#hud';
+const STATUS_ATTRIBUTE = 'data-live-stream-status';
 
 // Answers target requests with WORKER and EVAL, and seed requests with a
 // seed, 503 for `unavailable` targets, or 502 with the error of `failing`
@@ -101,6 +107,7 @@ function fakeApp() {
   const state = {
     closeTrace: () => {},
     openError: undefined as Error | undefined,
+    theme: 'light',
   };
   const scheduleFullRedraw = vi.fn();
   const openTraceFromBuffer = vi.fn(
@@ -119,6 +126,9 @@ function fakeApp() {
         get: () => setting.defaultValue,
         set: () => {},
       }),
+      // The app's settings.
+      get: (id: string) =>
+        id === 'theme' ? {get: () => state.theme} : undefined,
     },
     sidePanel: {
       registerTab: (tab: SidePanelTabDescriptor) => {
@@ -152,6 +162,8 @@ function fakeApp() {
 
 let server: FakeServer;
 let root: HTMLElement;
+// The callbacks of the ResizeObservers, which jsdom lacks, for resize().
+let resizeCallbacks: Array<() => void>;
 
 beforeEach(() => {
   vi.useFakeTimers({
@@ -165,6 +177,16 @@ beforeEach(() => {
   });
   server = new FakeServer();
   vi.stubGlobal('fetch', vi.fn(server.fetch));
+  resizeCallbacks = [];
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(callback: () => void) {
+        resizeCallbacks.push(callback);
+      }
+      observe() {}
+    },
+  );
   const url = new URL(window.location.href);
   url.searchParams.delete(TARGET_ARG);
   window.history.replaceState(null, '', url);
@@ -175,6 +197,12 @@ beforeEach(() => {
 afterEach(() => {
   m.render(root, null);
   root.remove();
+  document.querySelectorAll('.pf-live-stream-hud-root').forEach((row) => {
+    m.mount(row, null);
+    row.remove();
+  });
+  document.body.style.paddingTop = '';
+  document.documentElement.removeAttribute(STATUS_ATTRIBUTE);
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
@@ -183,15 +211,42 @@ function urlTarget(): string | null {
   return new URL(window.location.href).searchParams.get(TARGET_ARG);
 }
 
-function setup() {
-  const fake = fakeApp();
-  const controller = new LiveController(fake.app);
+// The status that the page's <html> shows.
+function pageStatus(): string | null {
+  return document.documentElement.getAttribute(STATUS_ATTRIBUTE);
+}
 
-  // Renders the HUD tab and returns what it shows.
-  const hud = () => {
+// The root of the HUD's top row.
+function topRow(): HTMLElement {
+  const row = document.querySelector('.pf-live-stream-hud-root');
+  if (!(row instanceof HTMLElement)) throw new Error('No top row');
+  return row;
+}
+
+// Calls back the ResizeObservers, as layout would.
+function resize() {
+  resizeCallbacks.forEach((callback) => callback());
+}
+
+function setup(placement?: LiveHudPlacement) {
+  const fake = fakeApp();
+  const controller = new LiveController(fake.app, placement);
+
+  // Renders the HUD and returns its container.
+  const render = (): Element => {
+    if (placement === 'top') {
+      m.redraw.sync();
+      return topRow();
+    }
     m.render(root, fake.tabs[0]!.render());
+    return root;
+  };
+
+  // Renders the HUD and returns what it shows.
+  const hud = () => {
+    const shown = render();
     const text = (selector: string) =>
-      root.querySelector(selector)?.textContent ?? undefined;
+      shown.querySelector(selector)?.textContent ?? undefined;
     return {
       badge: text('.pf-live-stream-hud__badge'),
       popout: text('.pf-live-stream-hud__popout-msg'),
@@ -202,16 +257,15 @@ function setup() {
 
   // Clicks the element of `selector` in the HUD.
   const click = (selector: string) => {
-    hud();
-    const element = root.querySelector(selector);
+    const element = render().querySelector(selector);
     if (!(element instanceof HTMLElement)) throw new Error(`No ${selector}`);
     element.click();
   };
 
   // Clicks the HUD's button that reads `label`, e.g. "Reconnect".
   const press = (label: string) => {
-    hud();
-    const button = Array.from(root.querySelectorAll('button')).find((b) =>
+    const buttons = render().querySelectorAll('button');
+    const button = Array.from(buttons).find((b) =>
       b.textContent?.includes(label),
     );
     if (button === undefined) throw new Error(`No ${label} button`);
@@ -232,8 +286,8 @@ function setup() {
 }
 
 // Sets up a page that shows the trace of WORKER.
-async function openWorker() {
-  const page = setup();
+async function openWorker(placement?: LiveHudPlacement) {
+  const page = setup(placement);
   page.controller.open(WORKER.id);
   await vi.advanceTimersByTimeAsync(0);
   const model = fakeModel(TARGET.parse(WORKER));
@@ -290,6 +344,64 @@ test('keeps the tab while a target switch replaces the trace', async () => {
   // Shown at page open only: a panel that the user closed stays closed.
   expect(shownTabs).toEqual([HUD_TAB]);
   expect(hud()).toMatchObject({badge: 'LIVE STREAM', target: 'eval/2'});
+});
+
+test('reads the HUD placement from route argument hud', () => {
+  expect(hudPlacement('top')).toBe('top');
+  expect(hudPlacement('panel')).toBe('panel');
+  expect(hudPlacement(undefined)).toBe('panel');
+  // Other values.
+  expect(hudPlacement('row')).toBe('panel');
+  expect(hudPlacement(true)).toBe('panel');
+});
+
+test('shows the HUD in a row above the app with hud=top', async () => {
+  const {controller, tabs, shownTabs, hud} = setup('top');
+  const row = topRow();
+
+  expect(tabs).toEqual([]);
+  expect(shownTabs).toEqual([]);
+  expect(document.body.firstElementChild).toBe(row);
+  expect(row.querySelector('.pf-live-stream-hud--row')).not.toBeNull();
+  expect(hud().badge).toBe('BUFFERING');
+
+  // The app starts below the row.
+  vi.spyOn(row, 'getBoundingClientRect').mockReturnValue({
+    height: 42.5,
+  } as DOMRect);
+  resize();
+  expect(document.body.style.paddingTop).toBe('42.5px');
+
+  // Kept while a target switch replaces the trace.
+  controller.open(WORKER.id);
+  await vi.advanceTimersByTimeAsync(0);
+  controller.attach(fakeModel(TARGET.parse(WORKER)));
+  expect(hud()).toMatchObject({badge: 'LIVE STREAM', target: 'worker'});
+  expect(topRow()).toBe(row);
+});
+
+test('keeps the top row first in the page, in the app theme', () => {
+  const {hud, state} = setup('top');
+  const row = topRow();
+  expect(row.querySelector('.pf-theme-provider--light')).not.toBeNull();
+
+  state.theme = 'dark';
+  hud();
+  expect(row.querySelector('.pf-theme-provider--dark')).not.toBeNull();
+
+  // E.g. once something replaced the body's children.
+  document.body.replaceChildren(root);
+  expect(hud().badge).toBe('BUFFERING');
+  expect(document.body.firstElementChild).toBe(row);
+});
+
+test('hides the top row while another trace is open', async () => {
+  const {controller, hud, state} = await openWorker('top');
+
+  state.closeTrace();
+  controller.showOtherTrace();
+  expect(hud()).toMatchObject({badge: undefined, note: undefined});
+  expect(topRow().querySelector('.pf-live-stream-hud')).toBeNull();
 });
 
 test('shows an error while the server is unreachable', async () => {
@@ -530,4 +642,49 @@ test('hides the HUD and frees Space while another trace is open', async () => {
   controller.attach(fakeModel(TARGET.parse(WORKER)));
   expect(hud()).toMatchObject({badge: 'LIVE STREAM', note: undefined});
   expect(commands.has(FOLLOW_COMMAND)).toBe(true);
+});
+
+test('shows the status on the page, also while the HUD is closed', async () => {
+  server.unreachable = true;
+  // The HUD never renders, as in a closed side panel.
+  const {controller} = setup();
+
+  controller.open(WORKER.id);
+  await vi.advanceTimersByTimeAsync(0);
+  // Once it lasts 1 s, as in the HUD.
+  expect(pageStatus()).toBe('buffering');
+  await vi.advanceTimersByTimeAsync(1_000);
+  expect(pageStatus()).toBe('error');
+
+  // Retries 1 s, then 2 s later.
+  server.unreachable = false;
+  await vi.advanceTimersByTimeAsync(2_000);
+  controller.attach(fakeModel(TARGET.parse(WORKER), 'paused'));
+  expect(pageStatus()).toBe('paused');
+});
+
+test('sets the page status only when it changes', async () => {
+  const {controller, hud} = await openWorker();
+  const observer = new MutationObserver(() => {});
+  observer.observe(document.documentElement, {attributes: true});
+
+  hud();
+  controller.refreshStatus();
+  expect(observer.takeRecords()).toEqual([]);
+  expect(pageStatus()).toBe('live');
+  observer.disconnect();
+});
+
+test('removes the page status while another trace is open', async () => {
+  const {controller, state} = await openWorker();
+
+  state.closeTrace();
+  controller.showOtherTrace();
+  expect(pageStatus()).toBeNull();
+  // Also once the closed trace's buffering would show.
+  await vi.advanceTimersByTimeAsync(1_000);
+  expect(pageStatus()).toBeNull();
+
+  controller.open(WORKER.id);
+  expect(pageStatus()).toBe('buffering');
 });

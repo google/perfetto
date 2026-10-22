@@ -16,12 +16,17 @@ The route arguments are in the query string because Perfetto rewrites the hash
 after loading a trace. Without `com.google.LiveStream:target` the plugin does
 nothing.
 
+`com.google.LiveStream:hud` picks where the HUD shows: `panel`, the default, for
+a side panel tab, or `top` for a row above the topbar. Other values mean
+`panel`.
+
 ## How it works
 
-1. `onActivate` shows the HUD in a side panel tab (`app.sidePanel`), for the
-   page's lifetime. It fetches `api/targets` and the seed trace `api/seed`, and
-   opens the seed, without caching it, with plugin args that carry the target
-   and the seed's stream position.
+1. `onActivate` shows the HUD for the page's lifetime: in a side panel tab
+   (`app.sidePanel`), or with `hud=top` in a row of its own, first in `<body>`,
+   whose top padding moves the app below the row. It fetches `api/targets` and
+   the seed trace `api/seed`, and opens the seed, without caching it, with
+   plugin args that carry the target and the seed's stream position.
 2. `onTraceLoad` starts a `LiveSession`. Before the trace shows, it copies the
    history of the seed's marked tracks into SQL tables (`store.ts`), and
    replaces the seed's tracks with its own `SliceTrack`s and `CounterTrack`s.
@@ -137,7 +142,9 @@ the last `window` seconds otherwise:
 ## Controls
 
 The HUD is the "Live Stream" tab of the side panel, shown from page load; the
-topbar's side panel button hides and shows it. From top to bottom:
+topbar's side panel button hides and shows it. With `hud=top`, it is a row above
+the topbar instead, with Reconnect, Download Trace and the settings in its ⋯
+menu. From top to bottom, or left to right in the row:
 
 - Status badge: STREAM ERROR, PAUSED, BUFFERING or LIVE STREAM, in this order of
   precedence. Buffering: no data yet, or none for over 5 s, or a trace opens.
@@ -160,8 +167,8 @@ topbar's side panel button hides and shows it. From top to bottom:
   Settings page.
 
 The command "Live Stream: Toggle Follow Live Scroll" has the `Space` hotkey.
-Other traces, e.g. opened from a file, replace the HUD with a note and turn the
-command off.
+Other traces, e.g. opened from a file, replace the HUD with a note, or hide the
+row, and turn the command off.
 
 ## Embedding
 
@@ -170,8 +177,8 @@ The page that embeds the UI may restyle the HUD. Its colors are CSS variables:
 `background`, `background-secondary`, `text`, `text-muted`, `accent`,
 `text-on-accent`, `success`, `warning` and `danger`.
 `--pf-live-stream-hud-padding-left` (default 14px, 10px below 820 px wide) makes
-room in the HUD's row layout, e.g. for a logo over it; the side panel ignores
-it. The plugin never sets them. E.g.:
+room in the top row, e.g. for a logo over it; the side panel ignores it. The
+plugin never sets them. E.g.:
 
 ```css
 :root {
@@ -183,6 +190,8 @@ it. The plugin never sets them. E.g.:
 Values set on `:root` must be literals: the theme's variables are defined only
 within `.pf-theme-provider`.
 
-The page may also follow the status: the HUD's badge has the class
-`pf-live-stream-hud__badge--<status>`, for `live`, `buffering`, `paused` and
-`error`. E.g. a loading screen over the UI may end on errors.
+The page may also follow the status that the HUD shows, also while the side
+panel is closed: `<html>` has the attribute `data-live-stream-status`, with
+`live`, `buffering`, `paused` or `error`, and none while another trace is open.
+E.g. a loading screen over the UI may end on errors. The HUD's badge has the
+class `pf-live-stream-hud__badge--<status>` too.
