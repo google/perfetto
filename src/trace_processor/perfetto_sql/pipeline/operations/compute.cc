@@ -65,7 +65,7 @@ void Compute::Lower(Lowering* c, const PlanNode& node) const {
     programs.push_back(LowerExpr(c, item.expr, &type));
     types.push_back(type);
   }
-  c->AddRowLocal(std::make_unique<ex::Compute>(std::move(programs)));
+  c->AddOrderIndependent(std::make_unique<ex::Compute>(std::move(programs)));
   for (size_t i = 0; i < items_.size(); ++i) {
     c->DeclareColumn(items_[i].output);
     c->DeclareType(items_[i].output, types[i]);

@@ -116,10 +116,6 @@ void Lowering::AddOperator(core::exec::Pipeline::Step operation) {
   operators_.push_back(std::move(operation));
 }
 
-void Lowering::AddRowLocal(core::exec::Pipeline::Step step) {
-  AddOrderIndependent(std::move(step));
-}
-
 Lowering& Lowering::AddSidePipeline() {
   plan_->pipelines_.push_back(std::make_unique<Lowering>(plan_));
   return *plan_->pipelines_.back();

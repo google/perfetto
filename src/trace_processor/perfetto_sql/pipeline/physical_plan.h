@@ -168,9 +168,9 @@ class Lowering {
   // must be declared with the Declare methods.
   void AddOperator(core::exec::Pipeline::Step);
 
-  // Adds a step which reads and writes each row on its own: it does not
-  // depend on or change the order of the rows.
-  void AddRowLocal(core::exec::Pipeline::Step);
+  // Adds `step`, which does not depend on or change the order of rows or the
+  // size of batches.
+  void AddOrderIndependent(core::exec::Pipeline::Step step);
 
   // Creates a new side pipeline.
   Lowering& AddSidePipeline();
@@ -340,10 +340,6 @@ class Lowering {
     std::vector<Arrangement> arrangements;
     std::optional<TreeDirection> tree_walk;
   };
-
-  // Adds `step`, which does not depend on or change the order of rows or the
-  // size of batches.
-  void AddOrderIndependent(core::exec::Pipeline::Step step);
 
   // Adds `step`, which depends on the order of rows but does not change the
   // size of batches.
