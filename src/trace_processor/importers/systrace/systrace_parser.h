@@ -144,6 +144,13 @@ inline SystraceParseResult ParseSystraceTracePoint(
       break;
   }
   base::StringView str = str_untrimmed.substr(0, len);
+
+  // Reject `trace_marker` events that do not follow the `<phase>|field1|...`
+  // format, but don't count it as a parse failure.
+  if (PERFETTO_UNLIKELY(str.size() > 1 && str.at(1) != '|')) {
+    return SystraceParseResult::kUnsupported;
+  }
+
   size_t off = 0;
 
   // This function reads the next field up to the next '|', '\0' or end(). It
@@ -257,8 +264,8 @@ inline SystraceParseResult ParseSystraceTracePoint(
       return SystraceParseResult::kSuccess;
     }
     default:
-      if (str.find("trace_event_clock_sync:") == 0)
-        return SystraceParseResult::kUnsupported;
+      // A recognised phase byte followed by '|'-separated fields, but with
+      // an unknown phase: treat it as a genuine parse failure.
       return SystraceParseResult::kFailure;
   }
 }
