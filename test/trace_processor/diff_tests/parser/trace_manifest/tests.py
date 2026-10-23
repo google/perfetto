@@ -1009,6 +1009,42 @@ class TraceManifest(TestSuite):
         "b_slice",1100000000,"server"
         '''))
 
+  # REALTIME rendezvous is per machine, not per file: a second file of a machine
+  # whose own snapshots only have BOOTTIME is placed through the REALTIME of
+  # its machine, which a sibling file of that machine provides. Here watch
+  # BOOTTIME 5_000_000_000 is phone BOOTTIME 1_000_000_000 by wall clock, so
+  # 'c' at watch BOOTTIME 5_200_000_000 lands at 1_200_000_000; a BOOTTIME
+  # overlay would instead put it at 5_200_000_000.
+  def test_realtime_from_sibling_file_of_same_machine(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        _machine_file('a.pb', 'phone'),
+                        _machine_file('b.pb', 'watch'),
+                        _machine_file('c.pb', 'watch'),
+                    ],
+                }),
+            'a.pb':
+                _proto_rt('a_slice', 1, 111, 1000000000, 1700000001000000000,
+                          1100000000),
+            'b.pb':
+                _proto_rt('b_slice', 2, 222, 5000000000, 1700000001000000000,
+                          5100000000),
+            'c.pb':
+                _proto_boot_snap('c_slice', 3, 333, 5000000000, 5200000000),
+        }),
+        query=_ALIGN_QUERY,
+        out=Csv('''
+        "name","ts","machine"
+        "a_slice",1100000000,"phone"
+        "b_slice",1100000000,"watch"
+        "c_slice",1200000000,"watch"
+        '''))
+
   # A peer machine with no REALTIME (BOOTTIME only) cannot align on wall clock,
   # so it falls back to the same-domain BOOTTIME overlay with the trace time
   # clock (here BOOTTIME, owned by the first machine), keeping its raw
