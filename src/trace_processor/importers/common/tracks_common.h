@@ -107,14 +107,15 @@ static constexpr auto kChromeProcessInstantBlueprint = tracks::SliceBlueprint(
 
 // Begin counter blueprints.
 
-inline constexpr auto kBatteryCounterBlueprint = tracks::CounterBlueprint(
-    "battery_counter",
-    tracks::UnknownUnitBlueprint(),
-    tracks::DimensionBlueprints(
-        tracks::StringDimensionBlueprint("battery_name"),
-        tracks::StringDimensionBlueprint("counter_name")),
-    tracks::FnNameBlueprint(
-        [](base::StringView battery_name, base::StringView counter_name) {
+inline constexpr auto kBatteryCounterBlueprint =
+    tracks::MachineCounterBlueprint(
+        "battery_counter",
+        tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(
+            tracks::StringDimensionBlueprint("battery_name"),
+            tracks::StringDimensionBlueprint("counter_name")),
+        tracks::FnNameBlueprint([](base::StringView battery_name,
+                                   base::StringView counter_name) {
           if (battery_name.size() > 0) {
             return base::StackString<1024>(
                 "batt.%.*s.%.*s", int(battery_name.size()), battery_name.data(),
@@ -141,36 +142,38 @@ inline constexpr auto kClockStateBlueprint = tracks::CounterBlueprint(
       return base::StackString<255>("%.*s State", int(key.size()), key.data());
     }));
 
-inline constexpr auto kCpuFrequencyBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kCpuFrequencyBlueprint = tracks::MachineCounterBlueprint(
     "cpu_frequency",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(kCpuDimensionBlueprint),
     tracks::StaticNameBlueprint("cpufreq"));
 
-inline constexpr auto kCpuMaxFrequencyLimitBlueprint = tracks::CounterBlueprint(
-    "cpu_max_frequency_limit",
-    tracks::UnknownUnitBlueprint(),
-    tracks::DimensionBlueprints(kCpuDimensionBlueprint),
-    tracks::FnNameBlueprint([](uint32_t cpu) {
-      return base::StackString<255>("Cpu %u Max Freq Limit", cpu);
-    }));
+inline constexpr auto kCpuMaxFrequencyLimitBlueprint =
+    tracks::MachineCounterBlueprint(
+        "cpu_max_frequency_limit",
+        tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(kCpuDimensionBlueprint),
+        tracks::FnNameBlueprint([](uint32_t cpu) {
+          return base::StackString<255>("Cpu %u Max Freq Limit", cpu);
+        }));
 
-inline constexpr auto kCpuMinFrequencyLimitBlueprint = tracks::CounterBlueprint(
-    "cpu_min_frequency_limit",
-    tracks::UnknownUnitBlueprint(),
-    tracks::DimensionBlueprints(kCpuDimensionBlueprint),
-    tracks::FnNameBlueprint([](uint32_t cpu) {
-      return base::StackString<255>("Cpu %u Min Freq Limit", cpu);
-    }));
+inline constexpr auto kCpuMinFrequencyLimitBlueprint =
+    tracks::MachineCounterBlueprint(
+        "cpu_min_frequency_limit",
+        tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(kCpuDimensionBlueprint),
+        tracks::FnNameBlueprint([](uint32_t cpu) {
+          return base::StackString<255>("Cpu %u Min Freq Limit", cpu);
+        }));
 
-inline constexpr auto kGpuFrequencyBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kGpuFrequencyBlueprint = tracks::MachineCounterBlueprint(
     "gpu_frequency",
     tracks::StaticUnitBlueprint("kHz"),
     tracks::DimensionBlueprints(kUgpuDimensionBlueprint,
                                 kGpuIdDimensionBlueprint),
     tracks::StaticNameBlueprint("gpufreq"));
 
-inline constexpr auto kCpuIdleBlueprint = tracks::CounterBlueprint(
+inline constexpr auto kCpuIdleBlueprint = tracks::MachineCounterBlueprint(
     "cpu_idle",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(kCpuDimensionBlueprint),

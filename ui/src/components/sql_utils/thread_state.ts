@@ -143,7 +143,15 @@ export async function getThreadStateFromConstraints(
       ts.irq_context,
       sched.priority
     FROM thread_state ts
-    LEFT JOIN sched USING (utid, ts)
+    -- Join at most one sched row: when several traces of the same machine
+    -- are merged, sched can contain duplicate slices with the same (utid, ts),
+    -- which would otherwise duplicate this thread_state row.
+    LEFT JOIN sched ON sched.id = (
+      SELECT s.id FROM sched s
+      WHERE s.utid = ts.utid AND s.ts = ts.ts
+      ORDER BY s.id
+      LIMIT 1
+    )
     )
     SELECT * FROM raw
 

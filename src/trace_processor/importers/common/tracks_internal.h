@@ -28,6 +28,15 @@
 
 namespace perfetto::trace_processor::tracks {
 
+// Identifies whether a track's identity is scoped to a single trace (the
+// default) or shared across all traces for a machine. Machine-scoped tracks
+// describe physical hardware (e.g. cpu_frequency) whose identity does not
+// depend on which trace observed it.
+enum class Scope : uint8_t {
+  kTrace,
+  kMachine,
+};
+
 template <typename... T>
 using DimensionsT = std::tuple<T...>;
 
@@ -65,6 +74,7 @@ struct BlueprintBase {
   std::string_view type;
   base::FnvHasher hasher;
   std::array<DimensionBlueprintBase, 8> dimension_blueprints;
+  Scope scope = Scope::kTrace;
 };
 
 template <typename NB, typename UB, typename DeB, typename... DB>
