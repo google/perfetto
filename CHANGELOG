@@ -1,3 +1,9 @@
+v59.1 - 2026-10-23:
+  Misc:
+    * Fixed the Linux and Android release builds, which failed on the
+      release builder because of a newer GCC installation there. v59.0 was
+      never released because of this.
+
 v59.0 - 2026-10-22:
   Tracing service and probes:
    * Changed compression logic to always emit clock snapshot, trace config and
