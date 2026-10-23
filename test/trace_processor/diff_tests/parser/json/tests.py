@@ -1659,6 +1659,35 @@ class JsonParser(TestSuite):
           "Routine Identifier",2000,2000
         """))
 
+  def test_json_explicit_tid_zero_nonzero_pid(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {"name":"thread_name","ph":"M","pid":1,"tid":0,"args":{"name":"T0"}},
+            {"name":"thread_name","ph":"M","pid":1,"tid":1,"args":{"name":"T1"}},
+            {"name":"thread_name","ph":"M","pid":1,"tid":2,"args":{"name":"T2"}},
+            {"name":"OnTid0","ph":"X","pid":1,"tid":0,"ts":10,"dur":5},
+            {"name":"OnTid1","ph":"X","pid":1,"tid":1,"ts":20,"dur":5},
+            {"name":"OnTid2","ph":"X","pid":1,"tid":2,"ts":30,"dur":5},
+            {"name":"NoTid","ph":"X","pid":1,"ts":40,"dur":5}
+          ]
+        '''),
+        query='''
+          SELECT s.name, t.tid, t.name AS thread_name, p.pid
+          FROM slice s
+          JOIN thread_track tt ON s.track_id = tt.id
+          JOIN thread t USING (utid)
+          JOIN process p USING (upid)
+          ORDER BY s.ts
+        ''',
+        out=Csv("""
+          "name","tid","thread_name","pid"
+          "OnTid0",0,"T0",1
+          "OnTid1",1,"T1",1
+          "OnTid2",2,"T2",1
+          "NoTid",1,"T1",1
+        """))
+
   def test_json_thread_state(self):
     return DiffTestBlueprint(
         trace=Json('''
