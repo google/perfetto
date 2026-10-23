@@ -563,6 +563,9 @@ std::optional<EventConfig> EventConfig::CreateSampling(
                                 process_sharding)
             : ParseTargetFilter(pb_config,
                                 process_sharding);  // backwards compatibility
+    // Only the Scope message has it; the legacy top-level fields do not.
+    target_filter.pid_descendants =
+        pb_config.callstack_sampling().scope().target_pid_descendants();
 
     // Kernel callstacks.
     kernel_frames = pb_config.callstack_sampling().kernel_frames() ||
