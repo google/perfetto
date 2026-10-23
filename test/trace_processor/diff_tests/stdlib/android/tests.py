@@ -3413,28 +3413,16 @@ class AndroidStdlib(TestSuite):
         """))
 
   def test_android_process_capability_intervals(self):
+    # pid 200: LOCATION|CAMERA (3) from its start, drops CAMERA (1), repeats
+    # the same mask, regains CAMERA (3), dies. pid 300: gains MICROPHONE (4)
+    # and stays alive.
     return DiffTestBlueprint(
         trace=TextProto(r"""
         packet {
           timestamp: 500
-          track_descriptor {
-            uuid: 2
-            thread {
-              pid: 200
-              tid: 200
-              thread_name: "main"
-            }
-          }
-        }
-        packet {
-          timestamp: 500
-          track_descriptor {
-            uuid: 3
-            thread {
-              pid: 300
-              tid: 300
-              thread_name: "live"
-            }
+          process_tree {
+            processes { pid: 200 ppid: 1 cmdline: "app" }
+            processes { pid: 300 ppid: 1 cmdline: "live" }
           }
         }
         packet {
@@ -3442,11 +3430,8 @@ class AndroidStdlib(TestSuite):
           trusted_packet_sequence_id: 1
           track_event {
             type: TYPE_INSTANT
-            track_uuid: 2
-            name: "process_start"
             [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
               pid: 200
-              package_uid: 10002
             }
           }
         }
@@ -3455,17 +3440,8 @@ class AndroidStdlib(TestSuite):
           trusted_packet_sequence_id: 1
           track_event {
             type: TYPE_INSTANT
-            track_uuid: 2
-            name: "proc_state_change"
             [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
-              pid: 200
-              uid: 10002
-              prev_proc_state: PROCESS_STATE_TOP
-              cur_proc_state: PROCESS_STATE_FOREGROUND_SERVICE
-              prev_capability_flags: 3
-              cur_capability_flags: 1
-              reason: 3
-              seq_id: 1
+              pid: 200 prev_capability_flags: 3 cur_capability_flags: 1
             }
           }
         }
@@ -3474,17 +3450,8 @@ class AndroidStdlib(TestSuite):
           trusted_packet_sequence_id: 1
           track_event {
             type: TYPE_INSTANT
-            track_uuid: 2
-            name: "proc_state_change"
             [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
-              pid: 200
-              uid: 10002
-              prev_proc_state: PROCESS_STATE_FOREGROUND_SERVICE
-              cur_proc_state: PROCESS_STATE_FOREGROUND_SERVICE
-              prev_capability_flags: 1
-              cur_capability_flags: 1
-              reason: 3
-              seq_id: 2
+              pid: 200 prev_capability_flags: 1 cur_capability_flags: 1
             }
           }
         }
@@ -3493,17 +3460,8 @@ class AndroidStdlib(TestSuite):
           trusted_packet_sequence_id: 1
           track_event {
             type: TYPE_INSTANT
-            track_uuid: 2
-            name: "proc_state_change"
             [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
-              pid: 200
-              uid: 10002
-              prev_proc_state: PROCESS_STATE_FOREGROUND_SERVICE
-              cur_proc_state: PROCESS_STATE_TOP
-              prev_capability_flags: 1
-              cur_capability_flags: 3
-              reason: 3
-              seq_id: 3
+              pid: 200 prev_capability_flags: 1 cur_capability_flags: 3
             }
           }
         }
@@ -3512,17 +3470,8 @@ class AndroidStdlib(TestSuite):
           trusted_packet_sequence_id: 1
           track_event {
             type: TYPE_INSTANT
-            track_uuid: 3
-            name: "proc_state_change"
             [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
-              pid: 300
-              uid: 10003
-              prev_proc_state: PROCESS_STATE_CACHED_EMPTY
-              cur_proc_state: PROCESS_STATE_FOREGROUND_SERVICE
-              prev_capability_flags: 0
-              cur_capability_flags: 4
-              reason: 3
-              seq_id: 4
+              pid: 300 prev_capability_flags: 0 cur_capability_flags: 4
             }
           }
         }
@@ -3531,12 +3480,8 @@ class AndroidStdlib(TestSuite):
           trusted_packet_sequence_id: 1
           track_event {
             type: TYPE_INSTANT
-            track_uuid: 2
-            name: "binder_died"
             [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
-              uid: 10002
               pid: 200
-              process_name: "com.example.app"
             }
           }
         }

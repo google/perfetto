@@ -217,6 +217,8 @@ WITH
       prev_flags IS NULL
       OR prev_flags != capability_flags
   ),
+  -- One span per mask, closed by the next mask or by the death, a synthetic
+  -- mask 0 (NULL arg_set_id) sorted after any event at the same ts.
   mask_spans AS (
     SELECT
       ts,
@@ -225,7 +227,12 @@ WITH
       arg_set_id
     FROM (
       SELECT
-        coalesce(s.ts, fw.fw_start_ts, p.start_ts, trace_start()) AS ts,
+        -- The initial row has no ts: anchor it at the process start, but not
+        -- before the trace, as the mask is only known from there.
+        max(
+          coalesce(s.ts, fw.fw_start_ts, p.start_ts, trace_start()),
+          trace_start()
+        ) AS ts,
         s.is_initial,
         s.id,
         s.upid,
@@ -246,6 +253,8 @@ WITH
         p.end_ts IS NOT NULL
     )
   ),
+  -- One row per enabled bit of each non-empty span, with the end of the
+  -- previous span that had the same bit.
   capability_slices AS (
     SELECT
       m.ts,
@@ -259,6 +268,8 @@ WITH
       a.flat_key = 'capability_flags'
       AND (m.next_ts IS NULL OR m.next_ts > m.ts)
   ),
+  -- Gaps and islands: a bit kept across mask changes stays in its island, a
+  -- gap starts a new one.
   capability_islands AS (
     SELECT
       ts,
@@ -273,6 +284,7 @@ WITH
       ) AS island
     FROM capability_slices
   )
+-- One interval per island, open ended (dur = -1) when its last span is.
 SELECT
   row_number() OVER (ORDER BY min(i.ts), i.upid, i.capability) AS id,
   min(i.ts) AS ts,
