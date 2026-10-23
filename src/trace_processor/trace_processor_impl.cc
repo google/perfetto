@@ -103,7 +103,6 @@
 #include "src/trace_processor/plugins/create_function/create_function.h"
 #include "src/trace_processor/plugins/create_intervals/create_intervals.h"
 #include "src/trace_processor/plugins/create_view_function/create_view_function.h"
-#include "src/trace_processor/plugins/critical_path/critical_path.h"
 #include "src/trace_processor/plugins/descendant/descendant.h"
 #include "src/trace_processor/plugins/developer_functions/developer_functions.h"
 #include "src/trace_processor/plugins/dfs_weight_bounded/dfs_weight_bounded.h"
@@ -356,7 +355,6 @@ TraceProcessorImpl::TraceProcessorImpl(
   create_function::RegisterPlugin();
   create_intervals::RegisterPlugin();
   create_view_function::RegisterPlugin();
-  critical_path::RegisterPlugin();
   descendant::RegisterPlugin();
   developer_functions::RegisterPlugin();
   dfs_weight_bounded::RegisterPlugin();

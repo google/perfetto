@@ -502,8 +502,6 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_create_function_create_function",
         ":src_trace_processor_plugins_create_intervals_create_intervals",
         ":src_trace_processor_plugins_create_view_function_create_view_function",
-        ":src_trace_processor_plugins_critical_path_critical_path",
-        ":src_trace_processor_plugins_critical_path_tables",
         ":src_trace_processor_plugins_descendant_descendant",
         ":src_trace_processor_plugins_developer_functions_developer_functions",
         ":src_trace_processor_plugins_developer_functions_tables",
@@ -832,8 +830,6 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_create_function_create_function",
         ":src_trace_processor_plugins_create_intervals_create_intervals",
         ":src_trace_processor_plugins_create_view_function_create_view_function",
-        ":src_trace_processor_plugins_critical_path_critical_path",
-        ":src_trace_processor_plugins_critical_path_tables",
         ":src_trace_processor_plugins_descendant_descendant",
         ":src_trace_processor_plugins_developer_functions_developer_functions",
         ":src_trace_processor_plugins_developer_functions_tables",
@@ -3931,7 +3927,6 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/types/sorted_timestamps.h",
         "src/trace_processor/perfetto_sql/intrinsics/types/struct.h",
         "src/trace_processor/perfetto_sql/intrinsics/types/value.h",
-        "src/trace_processor/perfetto_sql/intrinsics/types/wakeup_graph.h",
     ],
 )
 
@@ -4885,28 +4880,6 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/create_view_function/create_view_function.cc",
         "src/trace_processor/plugins/create_view_function/create_view_function.h",
-    ],
-)
-
-# GN target: //src/trace_processor/plugins/critical_path:critical_path
-perfetto_filegroup(
-    name = "src_trace_processor_plugins_critical_path_critical_path",
-    srcs = [
-        "src/trace_processor/plugins/critical_path/critical_path.cc",
-        "src/trace_processor/plugins/critical_path/critical_path.h",
-    ],
-)
-
-# GN target: //src/trace_processor/plugins/critical_path:tables
-perfetto_cc_tp_tables(
-    name = "src_trace_processor_plugins_critical_path_tables",
-    srcs = [
-        "src/trace_processor/plugins/critical_path/tables.py",
-    ],
-    outs = [
-        "src/trace_processor/plugins/critical_path/all_tables_fwd.h",
-        "src/trace_processor/plugins/critical_path/tables_fwd.h",
-        "src/trace_processor/plugins/critical_path/tables_py.h",
     ],
 )
 
@@ -12125,8 +12098,6 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_create_function_create_function",
         ":src_trace_processor_plugins_create_intervals_create_intervals",
         ":src_trace_processor_plugins_create_view_function_create_view_function",
-        ":src_trace_processor_plugins_critical_path_critical_path",
-        ":src_trace_processor_plugins_critical_path_tables",
         ":src_trace_processor_plugins_descendant_descendant",
         ":src_trace_processor_plugins_developer_functions_developer_functions",
         ":src_trace_processor_plugins_developer_functions_tables",
@@ -12489,8 +12460,6 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_create_function_create_function",
         ":src_trace_processor_plugins_create_intervals_create_intervals",
         ":src_trace_processor_plugins_create_view_function_create_view_function",
-        ":src_trace_processor_plugins_critical_path_critical_path",
-        ":src_trace_processor_plugins_critical_path_tables",
         ":src_trace_processor_plugins_descendant_descendant",
         ":src_trace_processor_plugins_developer_functions_developer_functions",
         ":src_trace_processor_plugins_developer_functions_tables",

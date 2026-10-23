@@ -345,6 +345,298 @@ AS (
     AND _interval_to_root_nodes.utid = _bound.utid
 );
 
+-- Wakeup graph nodes partitioned into disjoint lanes per (utid, idle_dur IS NULL).
+CREATE PERFETTO TABLE _critical_path_node_base AS
+SELECT
+  id,
+  utid,
+  ts,
+  coalesce(dur, 0) AS dur,
+  idle_dur,
+  waker_id,
+  prev_id,
+  (utid << 32)
+  | sum(idle_dur IS NULL) OVER (
+    PARTITION BY
+      utid
+    ORDER BY ts, id
+    ROWS UNBOUNDED PRECEDING
+  ) AS lane
+FROM _wakeup_graph
+ORDER BY
+  id;
+
+-- Earliest waiter timestamp per target lane from hops with known idle_dur.
+CREATE PERFETTO TABLE _critical_path_direct_lane_min AS
+SELECT w.lane, min(n.ts - n.idle_dur) AS direct_min_ts
+FROM _critical_path_node_base AS n
+JOIN _critical_path_node_base AS w
+  ON w.id = n.waker_id
+WHERE
+  n.idle_dur IS NOT NULL
+  AND min(n.ts, w.ts + w.dur) > n.ts - n.idle_dur
+GROUP BY
+  w.lane;
+
+-- Propagate earliest waiter timestamp UP across lanes whose first wakeup has idle_dur IS NULL.
+CREATE PERFETTO TABLE _critical_path_null_lane_min AS
+FROM (
+  SELECT
+    n.lane AS id,
+    iif(
+      w.lane != n.lane
+      AND w.ts <= n.ts + n.dur
+      AND w.lane IN (
+        SELECT lane FROM _critical_path_node_base WHERE idle_dur IS NULL
+      ),
+      w.lane,
+      NULL
+    ) AS parent_id,
+    d.direct_min_ts
+  FROM _critical_path_node_base AS n
+  LEFT JOIN _critical_path_node_base AS w
+    ON w.id = n.waker_id
+  LEFT JOIN _critical_path_direct_lane_min AS d
+    ON d.lane = n.lane
+  WHERE
+    n.idle_dur IS NULL
+)
+|> TREE ACCUMULATE UP MIN(direct_min_ts) AS lane_min_ts
+|> SELECT id AS lane, lane_min_ts;
+
+-- Wakeup graph nodes with bounded idle_ts.
+CREATE PERFETTO TABLE _critical_path_node AS
+SELECT n.*, coalesce(n.ts - n.idle_dur, m.lane_min_ts, n.ts) AS idle_ts
+FROM _critical_path_node_base AS n
+LEFT JOIN _critical_path_null_lane_min AS m USING (lane)
+ORDER BY
+  n.id;
+
+-- Terminal intervals on each lane (running spans and unattributed IRQ/kernel wakeups).
+CREATE PERFETTO TABLE _critical_path_terminal AS
+SELECT lane, ts, dur, id AS blocker_id FROM _critical_path_node WHERE dur > 0
+UNION ALL
+SELECT lane, idle_ts AS ts, ts - idle_ts AS dur, id AS blocker_id
+FROM _critical_path_node
+WHERE
+  waker_id IS NULL
+  AND prev_id IS NOT NULL
+  AND idle_ts < ts;
+
+-- Wakeup hop intervals delegating from a waiter lane to a waker target_lane.
+CREATE PERFETTO TABLE _critical_path_hop AS
+SELECT
+  n.id,
+  n.lane,
+  n.idle_ts AS ts,
+  min(n.ts, w.ts + w.dur) - n.idle_ts AS dur,
+  min(n.ts, w.ts + w.dur) AS hop_end,
+  w.lane AS target_lane,
+  n.idle_dur IS NOT NULL AS is_root_hop
+FROM _critical_path_node AS n
+JOIN _critical_path_node AS w
+  ON w.id = n.waker_id
+WHERE
+  min(n.ts, w.ts + w.dur) > n.idle_ts;
+
+-- Flattened intervals per lane where at least one hop waits.
+CREATE PERFETTO TABLE _critical_path_waited AS
+FROM (SELECT target_lane AS lane, ts, dur FROM _critical_path_hop)
+|> INTERVAL FLATTEN PER lane AGGREGATE COUNT(*) AS n;
+
+-- Hops some other hop waits on, intersected with waiter coverage.
+CREATE PERFETTO TABLE _critical_path_hop1_raw AS
+INTERVAL INTERSECTION OF (_critical_path_hop AS g, _critical_path_waited AS w) PER lane
+|> SELECT g.id, g.lane, ts, g.hop_end, g.target_lane;
+
+-- Internal hops clamped to earliest waiter overlap.
+CREATE PERFETTO TABLE _critical_path_hop1 AS
+SELECT id, lane, min(ts) AS ts, hop_end - min(ts) AS dur, hop_end, target_lane
+FROM _critical_path_hop1_raw
+GROUP BY
+  id;
+
+-- 2-hop chains (c -> p) inside _critical_path_hop1.
+CREATE PERFETTO TABLE _critical_path_edge AS
+INTERVAL INTERSECTION OF (
+  (
+    SELECT target_lane AS lane, ts, dur, id AS hop_id, lane AS hop_lane
+    FROM _critical_path_hop1
+  ) AS c,
+  (
+    SELECT
+      lane,
+      ts,
+      dur,
+      id AS parent_hop_id,
+      target_lane AS res_lane,
+      hop_end AS p_end
+    FROM _critical_path_hop1
+  ) AS p
+) PER lane
+|> SELECT ts, dur, c.hop_id, c.hop_lane, p.parent_hop_id, p.res_lane, p.p_end;
+
+-- Core hops that both wait on a hop in _critical_path_hop1 and are waited on.
+CREATE PERFETTO TABLE _critical_path_core_id AS
+SELECT hop_id AS id FROM _critical_path_edge
+INTERSECT
+SELECT parent_hop_id AS id FROM _critical_path_edge;
+
+-- Waiter edges whose parent_hop_id is a core hop, clamped to the parent's outgoing edge spans.
+CREATE PERFETTO TABLE _critical_path_waiter_clamped AS
+INTERVAL INTERSECTION OF (
+  (
+    SELECT parent_hop_id AS mid_id, ts, dur, hop_id, hop_lane, ts AS hop_ts
+    FROM _critical_path_edge
+  ) AS e1,
+  (
+    SELECT
+      hop_id AS mid_id,
+      iif(
+        parent_hop_id IN (SELECT id FROM _critical_path_core_id),
+        ts,
+        p_end - 1
+      ) AS ts,
+      iif(parent_hop_id IN (SELECT id FROM _critical_path_core_id), dur, 1) AS dur
+    FROM _critical_path_edge
+  ) AS e2
+) PER mid_id
+|> SELECT ts, dur, e1.hop_id, e1.hop_lane, e1.hop_ts, e1.mid_id AS parent_hop_id;
+
+-- 1ns right-endpoint probes at each distinct p_end of outgoing edges from core hops.
+CREATE PERFETTO TABLE _critical_path_probe AS
+SELECT
+  p_end - 1 AS ts,
+  1 AS dur,
+  p_end AS probe_end,
+  row_number() OVER (ORDER BY p_end) - 1 AS probe_idx
+FROM (
+  SELECT DISTINCT p_end
+  FROM _critical_path_edge
+  WHERE
+    hop_id IN (SELECT id FROM _critical_path_core_id)
+);
+
+-- Child tree nodes at each 1ns probe point.
+CREATE PERFETTO TABLE _critical_path_child_slice AS
+INTERVAL INTERSECTION OF (
+  _critical_path_waiter_clamped AS e,
+  _critical_path_probe AS p
+)
+|> SELECT
+  e.hop_id,
+  e.hop_lane,
+  e.hop_ts,
+  e.parent_hop_id,
+  p.probe_end,
+  p.probe_idx;
+
+-- Root tree nodes at each 1ns probe point.
+CREATE PERFETTO TABLE _critical_path_root_slice AS
+SELECT
+  e.hop_id,
+  e.hop_lane,
+  e.ts AS hop_ts,
+  e.res_lane AS leaf_lane,
+  p.probe_end,
+  p.probe_idx
+FROM _critical_path_edge AS e
+JOIN _critical_path_probe AS p
+  ON p.probe_end = e.p_end
+WHERE
+  e.hop_id IN (SELECT id FROM _critical_path_core_id);
+
+-- Combined probe tree nodes for >= 3-hop internal chains.
+CREATE PERFETTO TABLE _critical_path_tree_node AS
+SELECT
+  (hop_id << 20) | probe_idx AS id,
+  (parent_hop_id << 20) | probe_idx AS raw_parent_id,
+  hop_lane,
+  hop_ts,
+  probe_end,
+  NULL AS leaf_lane
+FROM _critical_path_child_slice
+UNION ALL
+SELECT
+  (hop_id << 20) | probe_idx AS id,
+  NULL AS raw_parent_id,
+  hop_lane,
+  hop_ts,
+  probe_end,
+  leaf_lane
+FROM _critical_path_root_slice;
+
+-- Propagate leaf_lane, chain_start, and edge_cnt down the probe tree.
+CREATE PERFETTO TABLE _critical_path_chain3 AS
+FROM (
+  SELECT
+    id,
+    iif(
+      raw_parent_id IN (SELECT id FROM _critical_path_tree_node),
+      raw_parent_id,
+      NULL
+    ) AS parent_id,
+    hop_lane,
+    hop_ts,
+    probe_end,
+    leaf_lane
+  FROM _critical_path_tree_node
+)
+|> TREE ACCUMULATE DOWN
+  MIN(leaf_lane) AS res_lane,
+  MAX(hop_ts) AS chain_start,
+  COUNT(*) AS edge_cnt
+|> SELECT hop_lane, res_lane, chain_start, probe_end, edge_cnt;
+
+-- All internal hop chains (k = 1, k = 2, and k >= 3).
+CREATE PERFETTO TABLE _critical_path_all_chains AS
+SELECT target_lane AS lane, ts, dur, lane AS hop_lane, 1 AS depth
+FROM _critical_path_hop1
+UNION ALL
+SELECT res_lane AS lane, ts, dur, hop_lane, 2 AS depth FROM _critical_path_edge
+UNION ALL
+SELECT
+  res_lane AS lane,
+  chain_start AS ts,
+  probe_end - chain_start AS dur,
+  hop_lane,
+  edge_cnt + 1 AS depth
+FROM _critical_path_chain3
+WHERE
+  res_lane IS NOT NULL
+  AND edge_cnt >= 2;
+
+-- Intersect internal hop chains with terminal intervals on res_lane.
+CREATE PERFETTO TABLE _critical_path_internal_piece AS
+INTERVAL INTERSECTION OF (
+  _critical_path_all_chains AS c,
+  _critical_path_terminal AS t
+) PER lane
+|> SELECT c.hop_lane AS lane, ts, dur, t.blocker_id, c.depth;
+
+-- Resolved terminal blockers on every lane across all internal depths.
+CREATE PERFETTO TABLE _critical_path_lane_res AS
+SELECT lane, ts, dur, blocker_id, 0 AS depth FROM _critical_path_terminal
+UNION ALL
+SELECT lane, ts, dur, blocker_id, depth FROM _critical_path_internal_piece;
+
+-- Resolved critical path pieces for all root hops (depth >= 1).
+CREATE PERFETTO TABLE _critical_path_root_hop_res AS
+INTERVAL INTERSECTION OF (
+  (
+    SELECT target_lane AS lane, ts, dur, id AS hop_id
+    FROM _critical_path_hop
+    WHERE
+      is_root_hop
+  ) AS h,
+  _critical_path_lane_res AS r
+) PER lane
+|> SELECT ts, dur, h.hop_id AS root_id, r.depth, r.blocker_id;
+
+CREATE PERFETTO INDEX _critical_path_root_hop_res_idx ON _critical_path_root_hop_res(
+  root_id
+);
+
 -- Critical path for the given roots with the chain depth retained.
 -- One row per `(root_id, depth, ts, dur, id, parent_id)` blocker
 -- frame: `id` is the on-CPU blocker at this depth, `parent_id` is
@@ -358,35 +650,48 @@ CREATE PERFETTO MACRO _critical_path_with_depth_by_roots(
 )
 RETURNS TableOrSubQuery
 AS (
-  SELECT
-    c0 AS root_id,
-    c1 AS depth,
-    c2 AS ts,
-    c3 AS dur,
-    c4 AS id,
-    c6 AS parent_id
-  FROM __intrinsic_table_ptr(
-    __intrinsic_critical_path_walk(
-      (
-        SELECT
-          __intrinsic_wakeup_graph_agg(id, utid, ts, dur, idle_dur, waker_id, prev_id)
-        FROM $_node_table
-      ),
-      (
-        SELECT
-          __intrinsic_array_agg(root_node_id)
-        FROM $_roots_table
-      )
+  WITH
+    _roots AS (
+      SELECT DISTINCT
+        root_node_id AS root_id
+      FROM $_roots_table
     )
-  )
+  SELECT
+    n.id AS root_id,
+    0 AS depth,
+    n.ts,
+    n.dur,
+    n.id,
+    n.id AS parent_id
+  FROM _roots AS r
+  JOIN _critical_path_node AS n
+    ON n.id = r.root_id
   WHERE
-    __intrinsic_table_ptr_bind(c0, 'root_id')
-    AND __intrinsic_table_ptr_bind(c1, 'depth')
-    AND __intrinsic_table_ptr_bind(c2, 'ts')
-    AND __intrinsic_table_ptr_bind(c3, 'dur')
-    AND __intrinsic_table_ptr_bind(c4, 'blocker_id')
-    AND __intrinsic_table_ptr_bind(c5, 'blocker_utid')
-    AND __intrinsic_table_ptr_bind(c6, 'parent_id')
+    n.dur > 0
+  UNION ALL
+  SELECT
+    n.id AS root_id,
+    0 AS depth,
+    n.idle_ts AS ts,
+    n.idle_dur AS dur,
+    n.id,
+    n.id AS parent_id
+  FROM _roots AS r
+  JOIN _critical_path_node AS n
+    ON n.id = r.root_id
+  WHERE
+    n.idle_dur > 0 AND n.waker_id IS NULL AND n.prev_id IS NOT NULL
+  UNION ALL
+  SELECT
+    h.root_id,
+    h.depth + 1 AS depth,
+    h.ts,
+    h.dur,
+    h.blocker_id AS id,
+    h.root_id AS parent_id
+  FROM _roots AS r
+  JOIN _critical_path_root_hop_res AS h
+    ON h.root_id = r.root_id
 );
 
 -- Critical path for the given roots, one blocker per `(root_id, ts)`.
