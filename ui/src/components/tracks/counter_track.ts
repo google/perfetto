@@ -64,7 +64,9 @@ interface DataFrame {
   readonly start: time; // Start time of the dataframe
   readonly end: time; // End time of the dataframe
   readonly limits: Limits; // Min and max values within the dataframe
-  readonly globalLimits: Limits; // Global limits of the source mipmap table
+  // Global limits of the table this frame was loaded from. While a rebuilt
+  // table's data loads, the previous frame is drawn with its own limits.
+  readonly globalLimits: Limits;
   readonly timestampsRel: Float32Array; // Timestamps relative to dataStart
   readonly timestampsRelNext: Float32Array; // Timestamps of next sample relative to dataStart
   readonly minDisplayValues: Float32Array; // Min value within each bucket
@@ -231,9 +233,9 @@ export interface CounterTrackAttrs {
   /**
    * SQL source selecting the necessary data (must expose ts and value).
    *
-   * Pass a function if the data changes after the track is created (e.g. rows
-   * appended to a table by a live data source). It is evaluated on every
-   * render and returning a different query rebuilds the track's tables.
+   * Pass a function if the data changes after the track is created. It is
+   * evaluated on every render and returning a different query rebuilds the
+   * track's tables.
    */
   readonly sqlSource: string | (() => string);
 
@@ -668,8 +670,8 @@ export class CounterTrack implements TrackRenderer {
     // Include yMode and yDisplay in key since they affect the value expression
     const {yMode, yDisplay} = this;
 
-    // A sqlSource can change faster than its table builds, e.g. with live
-    // data. Keep rendering the previous table until the new one is ready.
+    // A sqlSource can change faster than its table builds. Keep rendering the
+    // previous table until the new one is ready.
     const sqlSource = this.sqlSource;
     const tableResult = this.tableSlot.use({
       key: {
@@ -881,18 +883,16 @@ export class CounterTrack implements TrackRenderer {
       ))`,
     });
 
-    // Fetch the global limits as a single bucket from the trace start onwards,
-    // not just up to trace_end(): a source may hold rows appended after the
-    // trace was loaded (e.g. by a live data source). The bucket starts at or
-    // before 0 so that start + INT64_MAX can't overflow.
+    // Fetch the global limits across all time, as a single bucket. A changed
+    // sqlSource rebuilds the table, which reloads them.
     const limitsQuery = await this.engine.query(`
       SELECT
         min_value AS min,
         max_value AS max
       FROM ${table.name}(
-        MIN(trace_start(), 0),
-        MIN(trace_start(), 0) + ${Time.MAX},
-        ${Time.MAX}
+        ${Time.MIN},
+        ${Time.MAX},
+        ${Time.MAX - Time.MIN}
       );
     `);
 
