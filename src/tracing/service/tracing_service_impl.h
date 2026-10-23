@@ -203,6 +203,7 @@ class TracingServiceImpl : public TracingService {
  private:
   friend class ProducerEndpointImpl;
   friend class ConsumerEndpointImpl;
+  friend class TracingServiceImplTestPeer;
 
   TracingServiceImpl(const TracingServiceImpl&) = delete;
   TracingServiceImpl& operator=(const TracingServiceImpl&) = delete;

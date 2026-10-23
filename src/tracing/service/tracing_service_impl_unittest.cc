@@ -24,6 +24,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <random>
 #include <string>
 #include <thread>
 #include <utility>
@@ -43,6 +44,7 @@
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
+#include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
@@ -72,6 +74,7 @@
 #include "src/tracing/test/proxy_producer_endpoint.h"
 #include "src/tracing/test/test_shared_memory.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
+#include "src/tracing/v2/shared_ring_buffer_test_utils.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/semantic_type.gen.h"
@@ -96,6 +99,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 #include <zstd.h>
+#include "src/tracing/service/trace_buffer_v3.h"
 #include "src/tracing/service/zstd_compressor.h"
 #endif
 
@@ -132,6 +136,26 @@ using ::testing::StrNe;
 using ::testing::UnorderedElementsAre;
 
 namespace perfetto::tracing_service {
+
+class TracingServiceImplTestPeer {
+ public:
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+  static TraceBufferV3* GetTraceBufferV3(TracingService* svc) {
+    auto* impl = static_cast<TracingServiceImpl*>(svc);
+    auto& buffer = impl->buffers_.begin()->second;
+    PERFETTO_CHECK(buffer->buf_type() == TraceBuffer::kV3);
+    return static_cast<TraceBufferV3*>(buffer.get());
+  }
+
+  static void ScrapeProducer(TracingService* svc,
+                             TracingService::ProducerEndpoint* producer) {
+    auto* impl = static_cast<TracingServiceImpl*>(svc);
+    impl->ScrapeSharedMemoryBuffers(
+        &impl->tracing_sessions_.begin()->second,
+        static_cast<ProducerEndpointImpl*>(producer));
+  }
+#endif
+};
 
 namespace {
 constexpr size_t kDefaultShmSizeKb = TracingServiceImpl::kDefaultShmSize / 1024;
@@ -442,6 +466,54 @@ TEST_F(TracingServiceImplTest, RejectedRingBufferCanBeAttachedAgain) {
   task_runner.RunUntilIdle();
 }
 
+TEST_F(TracingServiceImplTest, RingBufferDrainRetry) {
+  using Ring = tracing_v2::SharedRingBuffer;
+  using Internals = tracing_v2::test::SharedRingBufferInternalsForTest;
+  constexpr uint32_t kNumChunks = 4;
+  constexpr uint32_t kChunkSize = 256;
+  for (bool disconnect : {false, true}) {
+    SCOPED_TRACE(disconnect);
+    NiceMock<MockProducer> producer(&task_runner);
+    auto endpoint = svc->ConnectProducer(
+        &producer, ClientIdentity(42, 1025), "ring_buffer",
+        /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
+        TracingService::ProducerSMBScrapingMode::kDefault,
+        /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+        /*sdk_version=*/{}, /*machine_name=*/{}, kProtocolAbiV2);
+    task_runner.RunUntilIdle();
+    auto memory = std::make_shared<InProcessSharedMemory>(
+        sizeof(tracing_v2::RingBufferHeader) + kNumChunks * kChunkSize);
+    Ring ring(static_cast<uint8_t*>(memory->start()), memory->size(),
+              kChunkSize);
+    bool attached = false;
+    endpoint->AttachV2RingBuffer(memory, kChunkSize,
+                                 [&](bool result) { attached = result; });
+    ASSERT_TRUE(attached);
+
+    // A full ring buffer of unclaimed reservations exhausts the drain's
+    // position budget. Repeat while its retry is pending, then leave one more
+    // position for the delayed pass. No producer notification follows that
+    // position.
+    for (uint32_t pass = 0; pass < 2; ++pass) {
+      for (uint32_t i = 0; i < kNumChunks; ++i) {
+        ASSERT_EQ(ring.TryReserveWritePos().result,
+                  Ring::ReserveResult::kReserved);
+      }
+      endpoint->DrainV2RingBuffer();
+    }
+    EXPECT_EQ(Internals::GetReadPos(&ring), 2 * kNumChunks);
+    ASSERT_EQ(ring.TryReserveWritePos().result, Ring::ReserveResult::kReserved);
+    if (disconnect)
+      endpoint.reset();
+    task_runner.AdvanceTimeAndRunUntilIdle(1);
+
+    // The endpoint owns the retry, so disconnect cancels it. Keep our own
+    // mapping alive to observe whether the pending position was consumed.
+    EXPECT_EQ(Internals::GetReadPos(&ring),
+              2 * kNumChunks + (disconnect ? 0u : 1u));
+  }
+}
+
 TEST_F(TracingServiceImplTest, RejectsEmptyProtocolVersionMask) {
   NiceMock<MockProducer> producer(&task_runner);
   EXPECT_CALL(producer, OnConnect()).Times(0);
@@ -535,7 +607,13 @@ GetTracingV2ProducerStats(
 
 // An in-process producer with v2 uses the same producer code as over IPC.
 // The service shares its mapping of the ring buffer.
-TEST_F(TracingServiceImplTest, InProcessWriterUsesV2) {
+class TracingServiceImplSmbV2BufferTest
+    : public TracingServiceImplTest,
+      public testing::WithParamInterface<
+          TraceConfig::BufferConfig::ExperimentalMode> {};
+
+TEST_P(TracingServiceImplSmbV2BufferTest, InProcessWriterUsesV2) {
+  svc->SetSMBScrapingEnabled(true);
   NiceMock<MockProducer> producer(&task_runner);
   auto endpoint = svc->ConnectProducer(
       &producer, ClientIdentity(42, 1025), "ring_buffer",
@@ -566,7 +644,9 @@ TEST_F(TracingServiceImplTest, InProcessWriterUsesV2) {
         EXPECT_EQ(id, instance);
         started();
       });
-  consumer->EnableTracing(RingBufferConfig(descriptor.name()));
+  TraceConfig config = RingBufferConfig(descriptor.name());
+  config.mutable_buffers()->at(0).set_experimental_mode(GetParam());
+  consumer->EnableTracing(config);
   task_runner.RunUntilCheckpoint("instance_started");
   // The config permits v2, but setup does not allocate the ring buffer.
   EXPECT_EQ(impl->ring_buffer_size_bytes(), 0u);
@@ -579,7 +659,7 @@ TEST_F(TracingServiceImplTest, InProcessWriterUsesV2) {
 
   auto writer =
       proxy.CreateTraceWriterV2(target_buffer, BufferExhaustedPolicy::kDrop);
-  const std::string payload(2000, 'r');
+  const std::string payload(12000, 'r');
   {
     auto packet = writer->NewTracePacket();
     // Only a ring buffer writer encodes nested messages as proto groups.
@@ -589,6 +669,12 @@ TEST_F(TracingServiceImplTest, InProcessWriterUsesV2) {
   auto written = task_runner.CreateCheckpoint("instance_written");
   writer->Flush(written);
   task_runner.RunUntilCheckpoint("instance_written");
+  if (GetParam() == TraceConfig::BufferConfig::TRACE_BUFFER_V3) {
+    consumer->GetTraceStats();
+    EXPECT_GT(
+        consumer->WaitForTraceStats(true).buffer_stats()[0].bundles_written(),
+        0u);
+  }
   EXPECT_CALL(producer, Flush(_, _, _, _))
       .WillOnce([&](FlushRequestID id, const DataSourceInstanceID* instances,
                     size_t count, FlushFlags) {
@@ -619,11 +705,52 @@ TEST_F(TracingServiceImplTest, InProcessWriterUsesV2) {
   ASSERT_EQ(stats.writer_stats().size(), 1u);
   EXPECT_EQ(stats.writer_stats()[0].protocol_abi_versions(), kProtocolAbiV2);
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+  if (GetParam() == TraceConfig::BufferConfig::TRACE_BUFFER_V3) {
+    auto legacy = endpoint->CreateTraceWriter(target_buffer,
+                                              BufferExhaustedPolicy::kDrop);
+    task_runner.RunUntilIdle();
+    auto* buffer = TracingServiceImplTestPeer::GetTraceBufferV3(svc.get());
+    auto bundling_passes = [&] {
+      uint64_t count = 0;
+      for (auto n : buffer->stats().bundling_time_us_histogram_counts())
+        count += n;
+      return count;
+    };
+    const uint64_t before = bundling_passes();
+    for (int i = 0; i < 40; ++i)
+      legacy->NewTracePacket()->set_for_testing()->set_str(
+          std::string(300, 's'));
+    legacy->NewTracePacket()->Finalize();  // Publish the preceding packet.
+    {
+      auto packet = writer->NewTracePacket();
+      packet->set_for_testing()->set_str(payload);
+    }
+    // Leave producer notifications queued. The scrape drains v2, then copies
+    // v1. Each ends with a checkpoint, and each brought more than the 8 KiB
+    // bundle target, so each runs a pass.
+    TracingServiceImplTestPeer::ScrapeProducer(svc.get(), impl);
+    EXPECT_EQ(bundling_passes(), before + 2);
+    EXPECT_EQ(TestPayloads(consumer->ReadBuffers()).size(), 41u);
+    legacy.reset();
+    task_runner.RunUntilIdle();
+  }
+#endif
   writer.reset();
   EXPECT_CALL(producer, StopDataSource(instance));
   consumer->DisableTracing();
   consumer->WaitForTracingDisabled();
 }
+
+const TraceConfig::BufferConfig::ExperimentalMode kSmbV2BufferModes[] = {
+    TraceConfig::BufferConfig::TRACE_BUFFER_V2,
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+    TraceConfig::BufferConfig::TRACE_BUFFER_V3,
+#endif
+};
+INSTANTIATE_TEST_SUITE_P(All,
+                         TracingServiceImplSmbV2BufferTest,
+                         testing::ValuesIn(kSmbV2BufferModes));
 
 // Only a session with a data source of the producer lists its stats. A clone
 // keeps the stats from the time of the clone.
@@ -5455,6 +5582,168 @@ TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
 }
 #endif  // !PERFETTO_DCHECK_IS_ON()
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+TEST_F(TracingServiceImplTest, TraceBufferV3CheckpointAfterPatches) {
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  auto producer = CreateMockProducer();
+  producer->Connect(svc.get(), "checkpoint_producer");
+  producer->RegisterDataSource("data_source");
+  TraceConfig config = RingBufferConfig("data_source");
+  config.mutable_buffers()->at(0).set_experimental_mode(
+      TraceConfig::BufferConfig::TRACE_BUFFER_V3);
+  consumer->EnableTracing(config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+  auto* buffer = TracingServiceImplTestPeer::GetTraceBufferV3(svc.get());
+  auto writer = producer->CreateTraceWriter("data_source");
+
+  // The nested message crosses SMB chunks and needs patches. The commit
+  // checkpoint must run after those patches, before a consumer read.
+  const std::string payload(20000, 'p');
+  writer->NewTracePacket()->set_for_testing()->set_str(payload);
+  writer->Flush();
+  task_runner.RunUntilIdle();
+  EXPECT_GT(buffer->stats().patches_succeeded(), 0u);
+  EXPECT_GT(buffer->stats().bundles_written(), 0u);
+  EXPECT_THAT(TestPayloads(consumer->ReadBuffers()), ElementsAre(payload));
+
+  consumer->GetTraceStats();
+  const auto stats = consumer->WaitForTraceStats(true);
+  EXPECT_EQ(stats.invalid_packets(), 0u);
+  EXPECT_EQ(stats.buffer_stats()[0].bundling_time_us_histogram_counts().size(),
+            6u);
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, TraceBufferV3RejectsEmulatedProducer) {
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  NiceMock<MockProducer> producer(&task_runner);
+  auto endpoint = svc->ConnectProducer(
+      &producer, ClientIdentity(42, 1025, 1234), "remote",
+      /*shared_memory_size_hint_bytes=*/0, /*in_process=*/false);
+  ASSERT_TRUE(endpoint);
+  for (const char* name : {"compressed", "uncompressed"}) {
+    DataSourceDescriptor descriptor;
+    descriptor.set_name(name);
+    endpoint->RegisterDataSource(descriptor);
+  }
+
+  TraceConfig config = RingBufferConfig("compressed");
+  config.set_trace_all_machines(true);
+  config.mutable_buffers()->at(0).set_experimental_mode(
+      TraceConfig::BufferConfig::TRACE_BUFFER_V3);
+  auto* uncompressed = config.add_buffers();
+  uncompressed->set_size_kb(64);
+  uncompressed->set_experimental_mode(
+      TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* source = config.add_data_sources()->mutable_config();
+  source->set_name("uncompressed");
+  source->set_target_buffer(1);
+
+  // Reject the TBv3 instance while allowing the same producer to use TBv2.
+  EXPECT_CALL(producer, SetupDataSource(_, _))
+      .WillOnce([](DataSourceInstanceID, const DataSourceConfig& setup) {
+        EXPECT_EQ(setup.name(), "uncompressed");
+      });
+  EXPECT_CALL(producer, StartDataSource(_, _)).Times(1);
+  consumer->EnableTracing(config);
+  task_runner.RunUntilIdle();
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, TraceBufferV3RejectsInlineChunkData) {
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  auto producer = CreateMockProducer();
+  producer->Connect(svc.get(), "producer");
+  producer->RegisterDataSource("data_source");
+  TraceConfig config = RingBufferConfig("data_source");
+  config.mutable_buffers()->at(0).set_experimental_mode(
+      TraceConfig::BufferConfig::TRACE_BUFFER_V3);
+  consumer->EnableTracing(config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+  auto* buffer = TracingServiceImplTestPeer::GetTraceBufferV3(svc.get());
+
+  // Send valid emulated chunk data through an otherwise supported endpoint.
+  ProxyProducerEndpoint proxy;
+  proxy.set_backend(producer->endpoint());
+  InProcessSharedMemory memory(256 * 1024);
+  SharedMemoryArbiterImpl arbiter(memory.start(), memory.size(),
+                                  SharedMemoryABI::ShmemMode::kShmemEmulation,
+                                  4096, &proxy, &task_runner);
+  const BufferID target =
+      producer->GetDataSourceInstance("data_source")->target_buffer;
+  auto writer = arbiter.CreateTraceWriter(target, BufferExhaustedPolicy::kDrop);
+  writer->NewTracePacket()->set_for_testing()->set_str("rejected");
+  bool replied = false;
+  writer->Flush([&] { replied = true; });
+  task_runner.RunUntilIdle();
+  EXPECT_TRUE(replied);
+  EXPECT_FALSE(buffer->has_data());
+  EXPECT_EQ(buffer->stats().chunks_written(), 0u);
+  EXPECT_THAT(TestPayloads(consumer->ReadBuffers()), IsEmpty());
+  consumer->GetTraceStats();
+  EXPECT_EQ(consumer->WaitForTraceStats(true).chunks_discarded(), 1u);
+  writer.reset();
+  task_runner.RunUntilIdle();
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, TraceBufferV3CheckpointAfterEachProducerScrape) {
+  svc->SetSMBScrapingEnabled(true);
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  auto first = CreateMockProducer();
+  auto second = CreateMockProducer();
+  first->Connect(svc.get(), "first");
+  second->Connect(svc.get(), "second");
+  first->RegisterDataSource("data_source");
+  second->RegisterDataSource("data_source");
+  TraceConfig config = RingBufferConfig("data_source");
+  config.mutable_buffers()->at(0).set_experimental_mode(
+      TraceConfig::BufferConfig::TRACE_BUFFER_V3);
+  consumer->EnableTracing(config);
+  for (auto* producer : {first.get(), second.get()}) {
+    producer->WaitForTracingSetup();
+    producer->WaitForDataSourceSetup("data_source");
+  }
+  for (auto* producer : {first.get(), second.get()}) {
+    producer->WaitForDataSourceStart("data_source");
+  }
+  auto* buffer = TracingServiceImplTestPeer::GetTraceBufferV3(svc.get());
+  auto writer1 = first->CreateTraceWriter("data_source");
+  auto writer2 = second->CreateTraceWriter("data_source");
+  task_runner.RunUntilIdle();
+  // Keep CommitData queued while scraping each producer's completed chunks.
+  for (auto* writer : {writer1.get(), writer2.get()}) {
+    for (int i = 0; i < 50; ++i)
+      writer->NewTracePacket()->set_for_testing()->set_str(
+          std::string(300, 's'));
+  }
+  TracingServiceImplTestPeer::ScrapeProducer(svc.get(), first->endpoint());
+  const uint64_t first_bundles = buffer->stats().bundles_written();
+  EXPECT_GT(first_bundles, 0u);
+  TracingServiceImplTestPeer::ScrapeProducer(svc.get(), second->endpoint());
+  EXPECT_GT(buffer->stats().bundles_written(), first_bundles);
+  EXPECT_EQ(buffer->stats().chunks_overwritten(), 0u);
+  EXPECT_EQ(TestPayloads(consumer->ReadBuffers()).size(), 100u);
+  consumer->DisableTracing();
+  for (auto* producer : {first.get(), second.get()})
+    producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+}
+#endif
+
 TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
   svc->SetSMBScrapingEnabled(true);
 
@@ -6081,6 +6370,470 @@ TEST_F(TracingServiceImplTest, TraceBufferV2Compaction) {
     }
   }
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+// One buffer of each implementation in the same session. The config selects
+// TraceBufferV3 for the third one only. Its packets come back as ordinary
+// packets, and its stats show that they went through bundles.
+TEST_F(TracingServiceImplTest, TraceBufferV3WithOtherBufferTypes) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+
+  TraceConfig trace_config;
+  const char* kDataSources[] = {"ds_v1", "ds_v2", "ds_v3"};
+  for (uint32_t i = 0; i < 3; i++) {
+    producer->RegisterDataSource(kDataSources[i]);
+    auto* buffer = trace_config.add_buffers();
+    buffer->set_size_kb(128);
+    if (i == 1)
+      buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+    if (i == 2)
+      buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V3);
+    auto* ds_config = trace_config.add_data_sources()->mutable_config();
+    ds_config->set_name(kDataSources[i]);
+    ds_config->set_target_buffer(i);
+  }
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  for (const char* data_source : kDataSources)
+    producer->WaitForDataSourceSetup(data_source);
+  for (const char* data_source : kDataSources)
+    producer->WaitForDataSourceStart(data_source);
+  std::vector<std::unique_ptr<TraceWriter>> writers;
+  for (const char* data_source : kDataSources)
+    writers.push_back(producer->CreateTraceWriter(data_source));
+
+  // Enough packets for several chunks and for several bundling passes: a
+  // 128 KiB TraceBufferV3 starts a pass every 16 KiB.
+  static constexpr int kNumPackets = 300;
+  std::vector<std::string> expected[3];
+  for (int n = 0; n < kNumPackets; n++) {
+    for (size_t i = 0; i < 3; i++) {
+      expected[i].push_back(std::string(kDataSources[i]) + "-" +
+                            std::to_string(n) + std::string(200, 'x'));
+      writers[i]->NewTracePacket()->set_for_testing()->set_str(
+          expected[i].back());
+    }
+  }
+  auto flush_request = consumer->Flush();
+  producer->ExpectFlush({writers[0].get(), writers[1].get(), writers[2].get()});
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  // The bundles exist before the read: OnWriteCheckpoint() made them.
+  consumer->GetTraceStats();
+  TraceStats stats = consumer->WaitForTraceStats(true);
+  ASSERT_EQ(stats.buffer_stats().size(), 3u);
+  EXPECT_GT(stats.buffer_stats()[2].bundles_written(), 1u);
+  EXPECT_EQ(stats.buffer_stats()[2].bytes_read(), 0u);
+
+  std::vector<protos::gen::TracePacket> packets = consumer->ReadBuffers();
+  std::vector<std::string> actual[3];
+  for (const auto& packet : packets) {
+    if (!packet.has_for_testing())
+      continue;
+    const size_t buffer =
+        static_cast<size_t>(packet.for_testing().str().at(4) - '1');
+    ASSERT_LT(buffer, 3u);
+    actual[buffer].push_back(packet.for_testing().str());
+    EXPECT_EQ(packet.trusted_uid(), 42);
+    EXPECT_EQ(packet.trusted_pid(), 1025);
+    EXPECT_NE(packet.trusted_packet_sequence_id(), 0u);
+    // TraceBufferV1 flags the first packet of each sequence. V2 and V3 do not.
+    if (buffer != 0)
+      EXPECT_FALSE(packet.previous_packet_dropped());
+  }
+  for (size_t i = 0; i < 3; i++)
+    EXPECT_THAT(actual[i], ElementsAreArray(expected[i])) << kDataSources[i];
+
+  consumer->GetTraceStats();
+  stats = consumer->WaitForTraceStats(true);
+  EXPECT_EQ(stats.invalid_packets(), 0u);
+  for (size_t i = 0; i < 2; i++) {
+    const auto& buf_stats = stats.buffer_stats()[i];
+    EXPECT_EQ(buf_stats.bundles_written(), 0u);
+    EXPECT_GT(buf_stats.chunks_read(), 0u);
+    EXPECT_EQ(buf_stats.staging_chunks_read(), 0u);
+  }
+  const auto& v3_stats = stats.buffer_stats()[2];
+  EXPECT_EQ(v3_stats.buffer_size(), 128 * 1024u);
+  EXPECT_GT(v3_stats.bundles_written(), 1u);
+  EXPECT_GT(v3_stats.bundle_bytes_uncompressed(),
+            v3_stats.bundle_bytes_stored());
+  EXPECT_EQ(v3_stats.bytes_read(), v3_stats.bundle_bytes_uncompressed());
+  EXPECT_EQ(v3_stats.chunks_read(), 0u);
+  EXPECT_EQ(v3_stats.staging_chunks_read(), v3_stats.chunks_written());
+  EXPECT_EQ(v3_stats.bundles_overwritten(), 0u);
+  EXPECT_EQ(v3_stats.chunks_overwritten(), 0u);
+
+  consumer->DisableTracing();
+  for (const char* data_source : kDataSources)
+    producer->WaitForDataSourceStop(data_source);
+  consumer->WaitForTracingDisabled();
+}
+
+// A TraceBufferV3 session that writes into a file, with a trace filter and
+// output compression. The file has the service's zstd packets, not the
+// bundles of the buffer. The session does not set
+// experimental_trace_buffer_v2_compaction in the first round: the buffer must
+// not need that call to free what a read used.
+TEST_F(TracingServiceImplTest, TraceBufferV3WriteIntoFile) {
+  uint32_t num_producers = 0;
+  for (bool enable_compaction : {false, true}) {
+    SCOPED_TRACE(enable_compaction);
+    auto consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    auto producer = CreateMockProducer();
+    producer->Connect(svc.get(),
+                      "mock_producer_" + std::to_string(num_producers++));
+    producer->RegisterDataSource("data_source");
+
+    TraceConfig trace_config;
+    auto* buffer = trace_config.add_buffers();
+    buffer->set_size_kb(1024);
+    buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V3);
+    trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+    trace_config.set_write_into_file(true);
+    trace_config.set_file_write_period_ms(10000);
+    trace_config.set_write_flush_mode(TraceConfig::WRITE_FLUSH_DISABLED);
+    trace_config.mutable_compression()->mutable_zstd();
+    if (enable_compaction)
+      trace_config.set_experimental_trace_buffer_v2_compaction(true);
+
+    protozero::FilterBytecodeGenerator filt;
+    // Message 0: root Trace proto.
+    filt.AddNestedField(1 /* root trace.packet*/, 1);
+    filt.EndMessage();
+    // Message 1: TracePacket proto. Allow all fields.
+    filt.AddSimpleFieldRange(1, 1000);
+    filt.EndMessage();
+    trace_config.mutable_trace_filter()->set_bytecode(
+        filt.Serialize().bytecode);
+
+    auto trace_file = base::TempFile::Create().ValueOrDie();
+    consumer->EnableTracing(trace_config,
+                            base::ScopedFile(dup(trace_file.fd())));
+    producer->WaitForTracingSetup();
+    producer->WaitForDataSourceSetup("data_source");
+    producer->WaitForDataSourceStart("data_source");
+    auto writer = producer->CreateTraceWriter("data_source");
+
+    // Each cycle writes more than one file batch (1 MiB), so a read spans
+    // several bundles, and one packet that is larger than an IPC slice.
+    std::vector<std::string> expected;
+    for (int cycle = 0; cycle < 2; cycle++) {
+      for (int n = 0; n < 24; n++) {
+        std::minstd_rand rnd(static_cast<uint32_t>(cycle * 100 + n));
+        std::string payload =
+            std::to_string(cycle) + "-" + std::to_string(n) + "-";
+        const size_t payload_size = n == 7 ? 300 * 1024 : 40 * 1024;
+        while (payload.size() < payload_size)
+          payload += static_cast<char>('a' + rnd() % 16);
+        writer->NewTracePacket()->set_for_testing()->set_str(payload);
+        expected.push_back(std::move(payload));
+      }
+      writer->Flush();
+      task_runner.RunUntilIdle();
+      AdvanceTimeAndRunUntilIdle(trace_config.file_write_period_ms());
+
+      protos::gen::Trace trace;
+      ASSERT_TRUE(ParseNotEmptyTraceFromFile(trace_file, trace));
+      EXPECT_THAT(trace.packet(), Each(PacketIsCompressed()));
+      EXPECT_THAT(GetForTestingStrings(DecompressTraceZstd(trace.packet())),
+                  ElementsAreArray(expected));
+    }
+
+    consumer->GetTraceStats();
+    const TraceStats stats = consumer->WaitForTraceStats(true);
+    const auto& buf_stats = stats.buffer_stats()[0];
+    EXPECT_GT(buf_stats.bundles_written(), 2u);
+    EXPECT_EQ(buf_stats.bytes_read(), buf_stats.bundle_bytes_uncompressed());
+    EXPECT_EQ(buf_stats.bundles_overwritten(), 0u);
+    EXPECT_EQ(buf_stats.bundles_too_large(), 0u);
+    EXPECT_EQ(buf_stats.chunks_overwritten(), 0u);
+    EXPECT_GT(stats.filter_stats().input_packets(), expected.size());
+    EXPECT_EQ(stats.filter_stats().errors(), 0u);
+
+    consumer->DisableTracing();
+    producer->WaitForDataSourceStop("data_source");
+    consumer->WaitForTracingDisabled();
+  }
+}
+
+// Scraping copies chunks that the producer has not committed, also a chunk
+// that the writer is still filling. A later scrape of the same chunk has more
+// packets. The buffer bundles after each scrape and returns each packet once.
+TEST_F(TracingServiceImplTest, TraceBufferV3Scraping) {
+  svc->SetSMBScrapingEnabled(true);
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  // The smallest buffer bundles after every 512 bytes of chunks.
+  buffer->set_size_kb(4);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V3);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  // Wait for the writer to be registered.
+  task_runner.RunUntilIdle();
+
+  writer->NewTracePacket()->set_for_testing()->set_str("payload1");
+  writer->NewTracePacket()->set_for_testing()->set_str("payload2");
+  // Flush but don't actually flush the chunk from TraceWriter.
+  auto flush_request = consumer->Flush();
+  producer->ExpectFlush(nullptr, /*reply=*/true);
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  // The scrape was one write batch and the buffer bundled at its end.
+  consumer->GetTraceStats();
+  EXPECT_EQ(
+      consumer->WaitForTraceStats(true).buffer_stats()[0].bundles_written(),
+      1u);
+  EXPECT_THAT(GetForTestingStrings(consumer->ReadBuffers()),
+              ElementsAre("payload1", "payload2"));
+
+  // The writer continues in the same chunk and the service scrapes again.
+  writer->NewTracePacket()->set_for_testing()->set_str("payload3");
+  flush_request = consumer->Flush(/*timeout=*/100);
+  producer->ExpectFlush(nullptr, /*reply=*/false);
+  ASSERT_FALSE(flush_request.WaitForReply());
+  EXPECT_THAT(GetForTestingStrings(consumer->ReadBuffers()),
+              ElementsAre("payload3"));
+
+  // The producer commits the chunk that was scraped twice.
+  writer->NewTracePacket()->set_for_testing()->set_str("payload4");
+  writer->Flush();
+  task_runner.RunUntilIdle();
+  std::vector<protos::gen::TracePacket> packets = consumer->ReadBuffers();
+  EXPECT_THAT(GetForTestingStrings(packets), ElementsAre("payload4"));
+  for (const auto& packet : packets)
+    EXPECT_FALSE(packet.previous_packet_dropped());
+
+  consumer->GetTraceStats();
+  const TraceStats stats = consumer->WaitForTraceStats(true);
+  EXPECT_EQ(stats.buffer_stats()[0].chunks_discarded(), 0u);
+  EXPECT_EQ(stats.buffer_stats()[0].abi_violations(), 0u);
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+}
+
+// The service validates packets from both implementations. Bundling alone
+// does not reject packets or increment invalid_packets.
+TEST_F(TracingServiceImplTest, TraceBufferV3InvalidPackets) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_v2");
+  producer->RegisterDataSource("ds_v3");
+
+  TraceConfig trace_config;
+  for (uint32_t i = 0; i < 2; i++) {
+    auto* buffer = trace_config.add_buffers();
+    buffer->set_size_kb(128);
+    buffer->set_experimental_mode(
+        i == 0 ? TraceConfig::BufferConfig::TRACE_BUFFER_V2
+               : TraceConfig::BufferConfig::TRACE_BUFFER_V3);
+    auto* ds_config = trace_config.add_data_sources()->mutable_config();
+    ds_config->set_name(i == 0 ? "ds_v2" : "ds_v3");
+    ds_config->set_target_buffer(i);
+  }
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_v2");
+  producer->WaitForDataSourceSetup("ds_v3");
+  producer->WaitForDataSourceStart("ds_v2");
+  producer->WaitForDataSourceStart("ds_v3");
+  std::unique_ptr<TraceWriter> writers[2];
+  for (size_t i = 0; i < 2; i++) {
+    const char* data_source = i == 0 ? "ds_v2" : "ds_v3";
+    writers[i] = producer->CreateTraceWriter(data_source);
+    // A producer must not set a trusted field. Make the packet large enough
+    // to trigger a bundling checkpoint before the consumer reads it.
+    {
+      auto packet = writers[i]->NewTracePacket();
+      packet->set_trusted_uid(1);
+      packet->set_for_testing()->set_str(std::string(20000, 'x'));
+    }
+    writers[i]->NewTracePacket()->set_for_testing()->set_str(data_source);
+    writers[i]->Flush();
+  }
+  task_runner.RunUntilIdle();
+
+  consumer->GetTraceStats();
+  const auto before_read = consumer->WaitForTraceStats(true);
+  EXPECT_GT(before_read.buffer_stats()[1].bundles_written(), 0u);
+  EXPECT_EQ(before_read.invalid_packets(), 0u);
+
+  for (int round = 0; round < 2; round++) {
+    if (round == 0) {
+      EXPECT_THAT(GetForTestingStrings(consumer->ReadBuffers()),
+                  ElementsAre("ds_v2", "ds_v3"));
+    } else {
+      EXPECT_THAT(GetForTestingStrings(consumer->ReadBuffers()), IsEmpty());
+    }
+    consumer->GetTraceStats();
+    EXPECT_EQ(consumer->WaitForTraceStats(true).invalid_packets(), 2u);
+  }
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_v2");
+  producer->WaitForDataSourceStop("ds_v3");
+  consumer->WaitForTracingDisabled();
+}
+
+// Cloning a session with two TraceBufferV3 buffers:
+// - Buffer 0 is copied. The clone and the source then read independently.
+// - Buffer 1 has transfer_on_clone and clear_before_clone. The session gets a
+//   new buffer both times, which must be a TraceBufferV3 of the same size.
+TEST_F(TracingServiceImplTest, TraceBufferV3CloneSession) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_1");
+  producer->RegisterDataSource("ds_2");
+
+  TraceConfig trace_config;
+  for (uint32_t i = 0; i < 2; i++) {
+    auto* buffer = trace_config.add_buffers();
+    buffer->set_size_kb(i == 0 ? 256 : 64);
+    buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V3);
+    if (i == 1) {
+      buffer->set_transfer_on_clone(true);
+      buffer->set_clear_before_clone(true);
+    }
+    auto* ds_config = trace_config.add_data_sources()->mutable_config();
+    ds_config->set_name(i == 0 ? "ds_1" : "ds_2");
+    ds_config->set_target_buffer(i);
+  }
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceSetup("ds_2");
+  producer->WaitForDataSourceStart("ds_1");
+  producer->WaitForDataSourceStart("ds_2");
+  std::unique_ptr<TraceWriter> writers[] = {
+      producer->CreateTraceWriter("ds_1"),
+      producer->CreateTraceWriter("ds_2"),
+  };
+
+  // Buffer 0: packets in bundles, and some that are still in its staging
+  // buffer when the clone happens. Buffer 1: a packet that the clone clears.
+  std::vector<std::string> persistent;
+  for (int n = 0; n < 200; n++) {
+    persistent.push_back("persistent_" + std::to_string(n) +
+                         std::string(500, 'p'));
+    writers[0]->NewTracePacket()->set_for_testing()->set_str(persistent.back());
+  }
+  writers[1]->NewTracePacket()->set_for_testing()->set_str("stale");
+  auto flush_request = consumer->Flush();
+  producer->ExpectFlush({writers[0].get(), writers[1].get()});
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  std::unique_ptr<MockConsumer> clone_consumer = CreateMockConsumer();
+  clone_consumer->Connect(svc.get());
+  auto clone_done = task_runner.CreateCheckpoint("clone_done");
+  EXPECT_CALL(*clone_consumer, OnSessionCloned(_)).WillOnce(clone_done);
+  clone_consumer->CloneSession(1);
+  // The clone flushes the two groups of buffers one after the other.
+  EXPECT_CALL(
+      *producer,
+      Flush(_, Pointee(producer->GetDataSourceInstanceId("ds_1")), 1, _))
+      .WillOnce([&](FlushRequestID flush_req_id, const DataSourceInstanceID*,
+                    size_t, FlushFlags) {
+        persistent.push_back("persistent_last");
+        writers[0]->NewTracePacket()->set_for_testing()->set_str(
+            persistent.back());
+        writers[0]->Flush();
+        producer->endpoint()->NotifyFlushComplete(flush_req_id);
+      });
+  EXPECT_CALL(
+      *producer,
+      Flush(_, Pointee(producer->GetDataSourceInstanceId("ds_2")), 1, _))
+      .WillOnce([&](FlushRequestID flush_req_id, const DataSourceInstanceID*,
+                    size_t, FlushFlags) {
+        writers[1]->NewTracePacket()->set_for_testing()->set_str("fresh");
+        writers[1]->Flush();
+        producer->endpoint()->NotifyFlushComplete(flush_req_id);
+      });
+  task_runner.RunUntilCheckpoint("clone_done");
+
+  // The source goes on after the clone.
+  writers[0]->NewTracePacket()->set_for_testing()->set_str("only_in_source");
+  writers[1]->NewTracePacket()->set_for_testing()->set_str("after_transfer");
+  flush_request = consumer->Flush();
+  producer->ExpectFlush({writers[0].get(), writers[1].get()});
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  std::vector<std::string> expected_in_clone = persistent;
+  expected_in_clone.push_back("fresh");
+  EXPECT_THAT(GetForTestingStrings(clone_consumer->ReadBuffers()),
+              ElementsAreArray(expected_in_clone));
+  clone_consumer->GetTraceStats();
+  TraceStats clone_stats = clone_consumer->WaitForTraceStats(true);
+  ASSERT_EQ(clone_stats.buffer_stats().size(), 2u);
+  EXPECT_GT(clone_stats.buffer_stats()[0].bundles_written(), 1u);
+  EXPECT_GT(clone_stats.buffer_stats()[1].bundles_written(), 0u);
+  EXPECT_EQ(clone_stats.buffer_stats()[0].buffer_size(), 256 * 1024u);
+  EXPECT_EQ(clone_stats.buffer_stats()[1].buffer_size(), 64 * 1024u);
+
+  std::vector<std::string> expected_in_source = persistent;
+  expected_in_source.push_back("only_in_source");
+  expected_in_source.push_back("after_transfer");
+  EXPECT_THAT(GetForTestingStrings(consumer->ReadBuffers()),
+              ElementsAreArray(expected_in_source));
+  // The buffer that replaced the transferred one has bundles of its own.
+  consumer->GetTraceStats();
+  TraceStats stats = consumer->WaitForTraceStats(true);
+  ASSERT_EQ(stats.buffer_stats().size(), 2u);
+  EXPECT_EQ(stats.buffer_stats()[1].bundles_written(), 1u);
+  EXPECT_EQ(stats.buffer_stats()[1].chunks_written(), 1u);
+  EXPECT_EQ(stats.buffer_stats()[1].buffer_size(), 64 * 1024u);
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_1");
+  producer->WaitForDataSourceStop("ds_2");
+  consumer->WaitForTracingDisabled();
+}
+
+#else   // PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+// The buffer factory reports an unavailable implementation. Session setup
+// releases any buffers it already allocated before returning that error.
+TEST_F(TracingServiceImplTest, TraceBufferV3NeedsZstd) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(128);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V3);
+  consumer->EnableTracing(trace_config);
+  consumer->WaitForTracingDisabledWithError(HasSubstr(
+      "TraceBufferV3 is not available in this build (zstd disabled)"));
+  EXPECT_THAT(consumer->QueryServiceState().tracing_sessions(), IsEmpty());
+
+  // The other buffer types still work.
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  consumer->EnableTracing(trace_config);
+  EXPECT_EQ(consumer->QueryServiceState().tracing_sessions().size(), 1u);
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+}
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 
 TEST_F(TracingServiceImplTest, TraceWriterStats) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
@@ -9972,6 +10725,78 @@ TEST_F(TracingServiceImplTest, ProtoVmWithSessionClone) {
   producer->WaitForDataSourceStop("data_source");
   consumer->WaitForTracingDisabled();
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+// With TraceBufferV3 the ProtoVM gets the packets of overwritten bundles.
+// The patches do not compress, so the 4 KiB buffer holds only some of them.
+TEST_F(TracingServiceImplTest, TraceBufferV3ProtoVm) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source", false, false, false, false,
+                               CreateProtoVmProgram());
+
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(4);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V3);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->mutable_protovm_config()->set_memory_limit_kb(
+      kProtoVmMemoryLimitKb);
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  // Wait for the writer to be registered.
+  task_runner.RunUntilIdle();
+
+  // Each patch is one write batch and becomes one bundle of about 1 KiB.
+  std::minstd_rand rnd(1);
+  for (int n = 1; n <= 6; n++) {
+    std::string patch = "patch" + std::to_string(n) + "-";
+    for (int i = 0; i < 1000; i++)
+      patch += static_cast<char>(rnd());
+    writer->NewTracePacket()
+        ->set_for_testing()
+        ->set_protovm_patch()
+        ->set_string_to_merge(patch);
+    writer->Flush();
+    task_runner.RunUntilIdle();
+  }
+
+  consumer->GetTraceStats();
+  const uint64_t num_overwritten =
+      consumer->WaitForTraceStats(true).buffer_stats()[0].bundles_overwritten();
+  ASSERT_GE(num_overwritten, 2u);
+  ASSERT_LT(num_overwritten, 6u);
+
+  // The state has the last overwritten patch. The others are in the buffer.
+  std::vector<std::string> unapplied_patches;
+  for (uint64_t n = num_overwritten + 1; n <= 6; n++)
+    unapplied_patches.push_back("patch" + std::to_string(n) + "-");
+  std::vector<protos::gen::TracePacket> packets = consumer->ReadBuffers();
+  ExpectProtoVmPackets(packets,
+                       {"patch" + std::to_string(num_overwritten) + "-"},
+                       unapplied_patches);
+  size_t num_patches = 0;
+  for (const auto& packet : packets) {
+    if (!packet.for_testing().has_protovm_patch())
+      continue;
+    // The first patch that is left reports the overwritten ones.
+    EXPECT_EQ(packet.previous_packet_dropped() != 0, num_patches == 0);
+    num_patches++;
+  }
+  EXPECT_EQ(num_patches, unapplied_patches.size());
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+}
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 
 // This test sets up a more complex scenario where the service needs to pick
 // among different ProtoVMs where the packets are routed to. It involves three

@@ -120,6 +120,96 @@ between two `file_write_period_ms` periods (default: 5s).
 For instance, if `file_write_period_ms = 5000` and the write data rate is 2 MB/s
 the central buffer needs to be at least 5 * 2 = 10 MB to avoid data losses.
 
+#### Compressed central buffers (experimental)
+
+WARNING: this mode is experimental and meant for testing. Its behavior, config
+and stats can change, or the mode can be removed, in a future version.
+
+A central buffer can keep its packets compressed with zstd. It then holds a
+longer trace in the same `size_kb`, and the tracing service spends CPU time on
+compression while it records. How much longer depends on the data: repetitive
+events, such as scheduler ftrace events and track events, compress well.
+Select it for each buffer with `experimental_mode`. It is available from
+Perfetto v59 (Android 26Q4+).
+
+```protobuf
+buffers {
+  size_kb: 32768
+  fill_policy: RING_BUFFER
+  experimental_mode: TRACE_BUFFER_V3
+}
+data_sources {
+  config {
+    name: "linux.ftrace"
+    target_buffer: 0
+    ftrace_config {
+      ftrace_events: "sched/sched_switch"
+    }
+  }
+}
+```
+
+Chunks from the producers first go into a staging buffer, as they do in an
+uncompressed buffer. Once enough new data has arrived, the service moves the
+complete packets out of staging, compresses them together into a *bundle* and
+stores the bundle. A read returns the stored bundles first, then compresses
+and returns what is still in staging. The consumer and the trace file get the
+same packets as with any other buffer.
+
+* **Size and memory**: `size_kb` is the space for compressed data. The staging
+  buffer gets the same size, so plan for twice `size_kb`. On top of that, the
+  memory accounting allows about 8.8 MiB for compression and decoding (less
+  for buffers below 8 MiB). This includes two reusable 2 MiB decode blocks
+  at the capped bundle target. This allowance includes memory allocated on
+  first use, so it is not a measurement of allocated or process memory.
+  Temporary decode allocations, larger compression scratch, an overflow
+  bundle and ProtoVM state can require more memory.
+
+  Memory is committed as it is used, so a buffer that never fills uses less.
+  As a rough estimate from these sizes, it keeps more data than an
+  uncompressed buffer of twice the size only if the data compresses better
+  than about 2:1. The trace then lasts about
+  `size_kb * compression ratio / (aggregated write rate)`. The stats show the
+  ratio you got, see [Central buffer losses](#central-buffer-losses).
+* **Bundle size**: a bundle collects about 1/8 of `size_kb` of packets before
+  compression, capped at 1 MiB. Packets are never split, so one large packet
+  can make a bundle bigger. A `RING_BUFFER` drops old data one whole bundle at
+  a time.
+* **When it does not help**:
+  * Data that does not compress, e.g. video frames or data that the producer
+    compressed already. The buffer then holds about as much as an
+    uncompressed buffer, and costs more memory and CPU.
+  * A session that reads the buffer often, e.g. `write_into_file` with a short
+    `file_write_period_ms`. The packets leave the buffer soon after they are
+    compressed. To get a smaller trace file, use
+    [`TraceConfig.compression`](/docs/concepts/config#compression) instead.
+* **fill_policy**:
+  * `RING_BUFFER`: new bundles overwrite the oldest bundles. When staging runs
+    out of space, the service first compresses the packets it can already
+    read. Packets that it can't read yet, e.g. a large packet whose fragments
+    have not all arrived, can still be overwritten in staging.
+  * `DISCARD`: the buffer stops accepting data once the bundles it stored add
+    up to `size_kb` after compression, or when staging fills with packets that
+    can't be compressed yet. As with an uncompressed buffer, reading it, e.g.
+    with `write_into_file`, does not make room for more data. Everything
+    accepted before the stop stays readable.
+* **Multi-machine tracing**: producers on other machines, which connect
+  through `traced_relay` (see
+  [Multi-machine recording](/docs/learning-more/multi-machine-tracing.md)),
+  can't write into a compressed buffer yet. `traced` logs an error and
+  doesn't start their data sources on that buffer. To trace them anyway, add
+  a second entry for the data source with `machine_name_filter` set to the
+  remote machines and `target_buffer` set to an uncompressed buffer.
+* **Builds**: the tracing service needs zstd, which `traced` has in standalone
+  and Android builds. If it doesn't, `EnableTracing` fails with an error
+  saying that TraceBufferV3 is not available in this build. The service never
+  falls back to an uncompressed buffer.
+* **Cloning**: `transfer_on_clone` and `clear_before_clone` work as for other
+  buffers.
+
+The design is described in
+[RFC 0050](https://github.com/google/perfetto/discussions/7838).
+
 #### Shared memory buffer sizing
 
 The sizing of the shared memory buffer depends on:
@@ -223,7 +313,9 @@ At the trace proto level, losses in this path are recorded:
 * In [`TraceStats.BufferStats.trace_writer_packet_loss`][BufferStats].
 * In [`TracePacket.previous_packet_dropped`][TracePacket]. This is a
   `DataLossReason` bitmask: a nonzero value means the preceding packets on the
-  sequence were dropped, and (for TraceBufferV2) the bits identify the cause.
+  sequence were dropped, and (for TraceBufferV2 and
+  [compressed buffers](#compressed-central-buffers-experimental)) the bits
+  identify the cause.
   Caveat: the very first packet emitted by every data source is also marked as
   dropped (value 1). This is because the service has no way to tell if that was
   the truly first packet or everything else before that was lost.
