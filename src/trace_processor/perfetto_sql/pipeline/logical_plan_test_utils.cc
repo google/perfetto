@@ -26,6 +26,7 @@
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/compute.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/distinct.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/graph_tree.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_fill_gaps.h"
@@ -131,8 +132,44 @@ class LogicalPlanFormatter {
   static std::string WhereString(const Where&);
   static std::string AggregateStageString(const LogicalPlan&,
                                           const AggregateStage&);
+  static std::string ExprString(const Expr&, uint32_t node);
   static std::string SubtreeString(const LogicalPlan&, PlanNodeId);
 };
+
+std::string LogicalPlanFormatter::ExprString(const Expr& e, uint32_t i) {
+  using Op = core::exec::ExprStep::Op;
+  const core::exec::ExprStep& node = e.nodes[i];
+  const char* op = nullptr;
+  switch (node.op) {
+    case Op::kColumn:
+      return "#" + std::to_string(node.a);
+    case Op::kConstant:
+      return node.type == core::exec::ExprType::kDouble
+                 ? std::to_string(node.double_value)
+                 : std::to_string(node.int_value);
+    case Op::kNull:
+      return "NULL";
+    case Op::kAdd:
+      op = "+";
+      break;
+    case Op::kSub:
+      op = "-";
+      break;
+    case Op::kMul:
+      op = "*";
+      break;
+    case Op::kDiv:
+      op = "/";
+      break;
+    case Op::kMod:
+      op = "%";
+      break;
+    case Op::kToDouble:
+      PERFETTO_FATAL("Not a logical expression");
+  }
+  return "(" + ExprString(e, node.a) + " " + op + " " + ExprString(e, node.b) +
+         ")";
+}
 
 std::string LogicalPlanFormatter::ScanString(const LogicalPlan& plan,
                                              const Scan& scan) {
@@ -340,6 +377,19 @@ std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
   if (node.Is<AggregateStage>()) {
     return SubtreeString(plan, node.children()[0]) +
            AggregateStageString(plan, node.Cast<AggregateStage>()) + "\n";
+  }
+  if (node.Is<Compute>()) {
+    std::string out = "Compute(";
+    const auto& compute = node.Cast<Compute>();
+    for (size_t i = 0; i < compute.items_.size(); ++i) {
+      out +=
+          (i ? ", " : "") +
+          ExprString(
+              compute.items_[i].expr,
+              static_cast<uint32_t>(compute.items_[i].expr.nodes.size() - 1)) +
+          " -> " + ColumnString(plan, compute.items_[i].output);
+    }
+    return SubtreeString(plan, node.children()[0]) + out + ")\n";
   }
   if (node.Is<OrderBy>()) {
     return SubtreeString(plan, node.children()[0]) +

@@ -168,6 +168,10 @@ class Lowering {
   // must be declared with the Declare methods.
   void AddOperator(core::exec::Pipeline::Step);
 
+  // Adds `step`, which does not depend on or change the order of rows or the
+  // size of batches.
+  void AddOrderIndependent(core::exec::Pipeline::Step step);
+
   // Creates a new side pipeline.
   Lowering& AddSidePipeline();
 
@@ -238,6 +242,10 @@ class Lowering {
   // Reserves the next batch column for a value with no logical column, and
   // returns its position.
   uint32_t DeclareTemporaryColumn();
+
+  // Records that an added operator gave `id` values of `type`, for a column
+  // whose type was not known when the plan was built.
+  void DeclareType(ColumnId id, core::StorageType type);
 
   // Records that rows are sorted by `keys`.
   void DeclareSorted(const std::vector<SortKey>& keys);
@@ -332,10 +340,6 @@ class Lowering {
     std::vector<Arrangement> arrangements;
     std::optional<TreeDirection> tree_walk;
   };
-
-  // Adds `step`, which does not depend on or change the order of rows or the
-  // size of batches.
-  void AddOrderIndependent(core::exec::Pipeline::Step step);
 
   // Adds `step`, which depends on the order of rows but does not change the
   // size of batches.
