@@ -499,8 +499,8 @@ class Zip(TestSuite):
   # Compressed packets are not inflated to look for a ClockSnapshot: a trace
   # holding some counts as carrying one (traced versions from before September
   # 2026 compressed their snapshots too), so it is read before a trace without
-  # any. This holds even when the compressed packet runs past the part of the
-  # file looked at, as traced compresses whole batches of packets into one.
+  # any. So does a trace whose first packet runs past the part of the file
+  # looked at, as traced compresses whole batches of packets into one.
   def test_zip_proto_with_compressed_packets_read_first(self):
     return DiffTestBlueprint(
         trace=ZipTrace({

@@ -39,8 +39,8 @@ bool IsHiddenArchivePath(const std::string& path);
 struct ArchiveEntry {
   // Returns the archive ordering priority for `type` (lower is read first):
   // manifest < proto < containers < others < symbols.
-  static int ComputePriority(TraceImporterId type,
-                             const TraceImporterRegistry& registry);
+  static int ComputeTraceTypePriority(TraceImporterId type,
+                                      const TraceImporterRegistry& registry);
 
   // File name. Used to break ties.
   std::string name;
@@ -48,13 +48,14 @@ struct ArchiveEntry {
   size_t index;
   // Trace type. Kept for the reader to cross-check the detected type.
   TraceImporterId trace_type;
-  // Archive ordering priority derived from trace_type (see ComputePriority).
-  // This is the main attribute traces are ordered by; proto is read first as it
-  // may contain clock sync data needed to correctly parse other traces.
-  int priority;
-  // Order among members of the same priority, from the member's content: the
-  // SniffResult::archive_subpriority its importer returned.
-  int subpriority = 0;
+  // Archive ordering priority derived from trace_type (see
+  // ComputeTraceTypePriority). This is the main attribute traces are ordered
+  // by; proto is read first as it may contain clock sync data needed to
+  // correctly parse other traces.
+  int trace_type_priority;
+  // Order among members of the same trace_type_priority, from the member's
+  // content: the SniffResult::content_priority its importer returned.
+  int content_priority = 0;
   // Comparator used to determine the order in which files in the ZIP will be
   // read.
   bool operator<(const ArchiveEntry& rhs) const;
