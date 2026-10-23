@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/profile_module.h"
 
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -538,6 +539,27 @@ void ProfileModule::ParseProfilePacket(
     context_->stats_tracker->IncrementIndexedStats(
         stats::heapprofd_client_spinlock_blocked, static_cast<int>(entry.pid()),
         static_cast<int64_t>(stats.client_spinlock_blocked_us()));
+
+    // Unwinding time histogram from heapprofd (global).
+    if (stats.has_unwinding_time_us()) {
+      protos::pbzero::ProfilePacket::Histogram::Decoder unwinding_time_us(
+          stats.unwinding_time_us());
+      for (auto bucket_it = unwinding_time_us.buckets(); bucket_it;
+           ++bucket_it) {
+        protos::pbzero::ProfilePacket::Histogram::Bucket::Decoder bucket(
+            *bucket_it);
+        if (bucket.count() == 0)
+          continue;
+        int bucket_limit = bucket.max_bucket()
+                               ? std::numeric_limits<int>::max()
+                               : static_cast<int>(bucket.upper_limit());
+        context_->stats_tracker->IncrementIndexedStats(
+            stats::heapprofd_unwind_time_us_histogram,
+            // Unlike other stats, the unwinding_time_us histogram data is not
+            // per-pid. kIndex is used for bucket upper bound.
+            bucket_limit, static_cast<int64_t>(bucket.count()));
+      }
+    }
 
     // orig_sampling_interval_bytes was introduced slightly after a bug with
     // self_max_count was fixed in the producer. We use this as a proxy

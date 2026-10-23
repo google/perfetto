@@ -103,6 +103,16 @@ packet {
       pid: 2
       orig_sampling_interval_bytes: 1024
       sampling_interval_bytes: 1024
+      stats {
+        total_unwinding_time_us: 150
+        heap_samples: 13
+        unwinding_time_us {
+          buckets { upper_limit: 1 count: 0 }
+          buckets { upper_limit: 2 count: 3 }
+          buckets { upper_limit: 4 count: 9 }
+          buckets { max_bucket: true count: 1 }
+        }
+      }
       samples {
         callstack_id: 1
         self_max: 1000
