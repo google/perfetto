@@ -145,10 +145,11 @@ on property:sys.boot_completed=1 && property:init.svc.perfetto_trace_on_boot=run
 on property:sys.boot_completed=1 && property:persist.traced.enable=1
     start perfetto_upload_after_reboot
 
+# User statsd because shell/nobody are not in the allowed_log_source of statsd
 service perfetto_upload_after_reboot /system/bin/perfetto --upload-after-reboot
     disabled
     oneshot
-    user nobody
+    user statsd
     group shell log system
 
 # Forcefully enable select userspace (atrace) tracing categories early into the
