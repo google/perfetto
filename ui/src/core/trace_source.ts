@@ -77,6 +77,10 @@ export interface TraceArrayBufferSource {
   readonly shareable?: boolean;
   readonly downloadable?: boolean;
 
+  // Whether the trace may be stored in the cache storage, so that reloading
+  // the page (?local_cache_key=...) reopens it. Defaults to true when unset.
+  readonly cacheable?: boolean;
+
   // Allows to pass extra arguments to plugins. This can be read by plugins
   // onTraceLoad() and can be used to trigger plugin-specific-behaviours (e.g.
   // allow dashboards like APC to pass extra data to materialize onto tracks).
