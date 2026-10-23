@@ -194,9 +194,10 @@ LEFT JOIN _android_process_state_rank AS r
 -- Intervals where each Android process capability flag was enabled.
 CREATE PERFETTO TABLE _android_process_capability_intervals AS
 WITH
-  -- Most rows only change the OOM score: drop repeated capability masks
-  -- before joining lifetimes and decoding args.
-  deduped AS MATERIALIZED (
+  -- Most rows only change the OOM score: keep the rows where the set of
+  -- enabled capabilities changed. arg_set_id identifies the set and is NULL
+  -- when it is empty, hence IS NOT.
+  set_changes AS MATERIALIZED (
     SELECT id, ts, is_initial, upid, arg_set_id
     FROM (
       SELECT
@@ -204,23 +205,20 @@ WITH
         ts,
         is_initial,
         upid,
-        coalesce(capability_flags, 0) AS capability_flags,
         arg_set_id,
-        lag(coalesce(capability_flags, 0)) OVER (
+        lag(arg_set_id) OVER (
           PARTITION BY
             upid
           ORDER BY ts, is_initial DESC, id
-        ) AS prev_flags
+        ) AS prev_arg_set_id
       FROM __intrinsic_android_process_state
     )
     WHERE
-      prev_flags IS NULL
-      OR prev_flags != capability_flags
+      prev_arg_set_id IS NOT arg_set_id
   ),
-  -- One span per mask, from ts to end_ts (NULL while open): the next mask or
-  -- the death, a synthetic mask 0 (NULL arg_set_id) sorted after any event at
-  -- the same ts.
-  mask_spans AS (
+  -- One span per set, from ts to end_ts (NULL while open): the next set or
+  -- the death, a synthetic empty set sorted after any event at the same ts.
+  set_spans AS (
     SELECT
       ts,
       lead(ts) OVER (PARTITION BY upid ORDER BY ts, is_initial DESC, id) AS end_ts,
@@ -229,7 +227,7 @@ WITH
     FROM (
       SELECT
         -- The initial row has no ts: anchor it at the process start, but not
-        -- before the trace, as the mask is only known from there.
+        -- before the trace, as the set is only known from there.
         max(
           coalesce(s.ts, fw.fw_start_ts, p.start_ts, trace_start()),
           trace_start()
@@ -238,7 +236,7 @@ WITH
         s.id,
         s.upid,
         s.arg_set_id
-      FROM deduped AS s
+      FROM set_changes AS s
       JOIN process AS p USING (upid)
       LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
       UNION ALL
@@ -248,23 +246,24 @@ WITH
         0 AS id,
         p.upid,
         NULL AS arg_set_id
-      FROM (SELECT DISTINCT upid FROM deduped)
+      FROM (SELECT DISTINCT upid FROM set_changes)
       JOIN process AS p USING (upid)
       WHERE
         p.end_ts IS NOT NULL
     )
   ),
-  -- One row per enabled bit of each non-empty span. Spans of the same bit are
-  -- walked by start time, but what each one needs from its predecessor is its
-  -- end: prev_end_ts = ts means the bit stayed enabled across the mask change.
-  capability_slices AS (
+  -- One row per capability of each non-empty span. Spans of one capability
+  -- are walked by start time, but what each needs from its predecessor is its
+  -- end: prev_end_ts = ts means the capability stayed enabled across the set
+  -- change.
+  capability_spans AS (
     SELECT
       m.ts,
       m.end_ts,
       m.upid,
       replace(a.string_value, 'PROCESS_CAPABILITY_', '') AS capability,
       lag(m.end_ts) OVER (PARTITION BY m.upid, a.string_value ORDER BY m.ts) AS prev_end_ts
-    FROM mask_spans AS m
+    FROM set_spans AS m
     JOIN args AS a USING (arg_set_id)
     WHERE
       a.flat_key = 'capability_flags'
@@ -284,7 +283,7 @@ WITH
           capability
         ORDER BY ts
       ) AS island
-    FROM capability_slices
+    FROM capability_spans
   )
 -- One interval per island, open ended (dur = -1) when its last span is.
 SELECT
