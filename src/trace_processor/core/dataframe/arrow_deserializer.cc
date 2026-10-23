@@ -69,24 +69,6 @@ class BodyReader {
 
   base::StatusOr<TraceBlobView> ReadVariableSize() { return Read(0, false); }
 
-  // Returns the buffer as the pieces it arrived in. Callers which only copy the
-  // bytes out can consume those directly, where ReadExact would first have to
-  // join them into one allocation.
-  base::StatusOr<std::vector<TraceBlobView>> ReadExactPieces(
-      uint64_t expected_size) {
-    ASSIGN_OR_RETURN(ArrowBuffer buffer, Next(expected_size, true));
-    auto size = static_cast<size_t>(buffer.length);
-    std::vector<TraceBlobView> pieces = data_.MultiSliceOff(
-        body_offset_ + static_cast<size_t>(buffer.offset), size);
-    size_t total = 0;
-    for (const TraceBlobView& piece : pieces) {
-      total += piece.size();
-    }
-    return total == size
-               ? base::StatusOr<std::vector<TraceBlobView>>(std::move(pieces))
-               : base::StatusOr<std::vector<TraceBlobView>>(InvalidFile());
-  }
-
  private:
   base::StatusOr<ArrowBuffer> Next(uint64_t expected_size, bool exact) {
     if (next_buffer_ >= buffers_.size()) {
@@ -215,18 +197,35 @@ void VisitNumericStorage(Storage* storage, Fn fn) {
 }
 
 template <typename T>
-void CopyDenseValues(const std::vector<TraceBlobView>& pieces,
-                     uint32_t rows,
-                     FlexVector<T>* output) {
-  output->resize(rows);
-  if (!rows) {
-    return;
+class ArrowBufferBacking final : public ColumnVectorBacking {
+ public:
+  explicit ArrowBufferBacking(TraceBlobView view) : view_(std::move(view)) {}
+
+  ColumnVectorBackingState state() const override {
+    return {const_cast<T*>(reinterpret_cast<const T*>(view_.data())),
+            view_.size() / sizeof(T)};
   }
-  auto* out = reinterpret_cast<uint8_t*>(output->data());
-  for (const TraceBlobView& piece : pieces) {
-    memcpy(out, piece.data(), piece.size());
-    out += piece.size();
+  ColumnVectorBackingState Resize(uint64_t, uint64_t) override {
+    PERFETTO_FATAL("Cannot resize borrowed Arrow storage");
   }
+  ColumnVectorBackingState ShrinkToFit(uint64_t) override {
+    return state();
+  }
+ private:
+  TraceBlobView view_;
+};
+
+template <typename T>
+bool TryBorrowDenseValues(TraceBlobView values,
+                          uint32_t rows,
+                          ColumnVector<T>* output) {
+  if (rows == 0 ||
+      reinterpret_cast<uintptr_t>(values.data()) % alignof(T) != 0) {
+    return false;
+  }
+  auto backing = std::make_unique<ArrowBufferBacking<T>>(std::move(values));
+  *output = ColumnVector<T>::AdoptBacking(rows, std::move(backing), false);
+  return true;
 }
 
 // Arrow has one value slot per logical row. Sparse dataframe storage keeps
@@ -236,7 +235,7 @@ void CompactSparseValues(const TraceBlobView& values,
                          uint32_t rows,
                          uint32_t stored_rows,
                          const BitVector& validity,
-                         FlexVector<T>* output) {
+                         ColumnVector<T>* output) {
   output->reserve(stored_rows);
   for (uint32_t row = 0; row < rows; ++row) {
     if (validity.is_set(row)) {
@@ -253,10 +252,22 @@ base::Status ReadNumericBuffer(BodyReader* reader,
                                Storage* storage) {
   uint64_t size = static_cast<uint64_t>(rows) * NumericSize(storage->type());
   if (!sparse) {
-    ASSIGN_OR_RETURN(std::vector<TraceBlobView> pieces,
-                     reader->ReadExactPieces(size));
-    VisitNumericStorage(
-        storage, [&](auto* output) { CopyDenseValues(pieces, rows, output); });
+    ASSIGN_OR_RETURN(TraceBlobView values, reader->ReadExact(size));
+    bool borrowed = false;
+    VisitNumericStorage(storage, [&](auto* output) {
+      borrowed = TryBorrowDenseValues(std::move(values), rows, output);
+    });
+    if (borrowed) {
+      return base::OkStatus();
+    }
+    // An unaligned buffer cannot be viewed as typed storage. Copy the view
+    // already consumed from the reader into aligned owned storage.
+    VisitNumericStorage(storage, [&](auto* output) {
+      output->resize(rows);
+      if (size) {
+        memcpy(output->data(), values.data(), static_cast<size_t>(size));
+      }
+    });
     return base::OkStatus();
   }
   ASSIGN_OR_RETURN(TraceBlobView values, reader->ReadExact(size));
@@ -583,18 +594,27 @@ base::StatusOr<Dataframe> DeserializeFromArrow(
     ASSIGN_OR_RETURN(
         BitVector validity,
         ReadValidityBuffer(&reader, batch.rows, node.null_count, nullable));
+    bool borrow_sparse_numeric =
+        sparse && !column.storage.type().Is<core::String>();
+    bool physical_sparse = sparse && !borrow_sparse_numeric;
     uint32_t stored_rows =
-        sparse ? batch.rows - static_cast<uint32_t>(node.null_count)
-               : batch.rows;
+        physical_sparse ? batch.rows - static_cast<uint32_t>(node.null_count)
+                        : batch.rows;
     if (column.storage.type().Is<core::String>()) {
       RETURN_IF_ERROR(ReadDictionaryIndices(
           &reader, batch.rows, stored_rows, nullable, sparse, validity,
           dictionaries[dictionary_index++], &column.storage));
     } else {
       RETURN_IF_ERROR(ReadNumericBuffer(&reader, batch.rows, stored_rows,
-                                        sparse, validity, &column.storage));
+                                        physical_sparse,
+                                        validity, &column.storage));
     }
-    InstallValidity(nullability, std::move(validity), &column.null_storage);
+    if (borrow_sparse_numeric) {
+      column.null_storage =
+          NullStorage{NullStorage::DenseNull{std::move(validity)}};
+    } else {
+      InstallValidity(nullability, std::move(validity), &column.null_storage);
+    }
   }
   dataframe.row_count_ = batch.rows;
   ++dataframe.non_column_mutations_;

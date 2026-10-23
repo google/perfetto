@@ -27,6 +27,26 @@
 
 namespace perfetto::trace_processor::io {
 
+enum class MappingAccess {
+  kReadOnly,
+  kReadWrite,
+};
+
+// A fixed-size contiguous view of a file. Offsets must satisfy the platform's
+// mapping alignment requirements.
+class PERFETTO_EXPORT_COMPONENT Mapping {
+ public:
+  Mapping();
+  virtual ~Mapping();
+
+  Mapping(const Mapping&) = delete;
+  Mapping& operator=(const Mapping&) = delete;
+
+  virtual void* data() = 0;
+  virtual const void* data() const = 0;
+  virtual uint64_t size() const = 0;
+};
+
 // A synchronous random-access file. Each instance is used from a single thread
 // and implementations do not need to support concurrent calls.
 class PERFETTO_EXPORT_COMPONENT File {
@@ -48,9 +68,16 @@ class PERFETTO_EXPORT_COMPONENT File {
                                const void* data,
                                size_t size) = 0;
 
-  virtual base::Status Truncate(uint64_t size) = 0;
+  // Sets the exact file size, extending with zero bytes or truncating contents
+  // as necessary.
+  virtual base::Status SetSize(uint64_t size) = 0;
   virtual base::Status GetSize(uint64_t* size) = 0;
   virtual base::Status Flush() = 0;
+  virtual base::Status CreateMapping(
+      uint64_t offset,
+      uint64_t size,
+      MappingAccess access,
+      std::unique_ptr<Mapping>* mapping);
 };
 
 enum class FileAccess {
@@ -85,6 +112,9 @@ class PERFETTO_EXPORT_COMPONENT FileSystem {
 
   virtual base::Status DeleteFile(const std::string& path) = 0;
   virtual base::Status FileExists(const std::string& path, bool* exists) = 0;
+
+  // Creates an unnamed or delete-on-close read-write file.
+  virtual base::Status CreateTemporaryFile(std::unique_ptr<File>* file);
 };
 
 }  // namespace perfetto::trace_processor::io

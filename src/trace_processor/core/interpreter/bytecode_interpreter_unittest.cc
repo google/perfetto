@@ -666,7 +666,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32Eq) {
 
   auto values =
       CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
-  AddColumn(dataframe::Column{std::move(values),
+  AddColumn(dataframe::Column{dataframe::Storage{std::move(values)},
                               dataframe::NullStorage::NonNull{}, Sorted{},
                               HasDuplicates{}});
   {
@@ -723,7 +723,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32UpperBound) {
 
   auto values =
       CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
-  AddColumn(dataframe::Column{std::move(values),
+  AddColumn(dataframe::Column{dataframe::Storage{std::move(values)},
                               dataframe::NullStorage::NonNull{}, Sorted{},
                               HasDuplicates{}});
 
@@ -776,7 +776,7 @@ TEST_F(BytecodeInterpreterTest, FilterUint32Eq) {
 
   auto values =
       CreateFlexVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
-  AddColumn(dataframe::Column{std::move(values),
+  AddColumn(dataframe::Column{dataframe::Storage{std::move(values)},
                               dataframe::NullStorage::NonNull{}, Unsorted{},
                               HasDuplicates{}});
 
@@ -830,7 +830,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterString) {
   // Sorted string data: ["apple", "banana", "banana", "cherry", "date"]
   auto values = CreateFlexVectorForTesting<StringPool::Id>(
       {apple_id, banana_id, banana_id, cherry_id, date_id});
-  AddColumn(dataframe::Column{std::move(values),
+  AddColumn(dataframe::Column{dataframe::Storage{std::move(values)},
                               dataframe::NullStorage::NonNull{}, Sorted{},
                               HasDuplicates{}});
 
@@ -890,7 +890,7 @@ TEST_F(BytecodeInterpreterTest, StringFilter) {
   // Index:    0        1      2      3        4       5        6
   auto values = CreateFlexVectorForTesting<StringPool::Id>(
       {cherry_id, apple_id, empty_id, banana_id, apple_id, date_id, durian_id});
-  AddColumn(dataframe::Column{std::move(values),
+  AddColumn(dataframe::Column{dataframe::Storage{std::move(values)},
                               dataframe::NullStorage::NonNull{}, Unsorted{},
                               HasDuplicates{}});
 
@@ -949,7 +949,7 @@ TEST_F(BytecodeInterpreterTest, StringFilterNeStringNotInPool) {
 
   auto values = CreateFlexVectorForTesting<StringPool::Id>(
       {apple_id, banana_id, apple_id, banana_id});
-  AddColumn(dataframe::Column{std::move(values),
+  AddColumn(dataframe::Column{dataframe::Storage{std::move(values)},
                               dataframe::NullStorage::NonNull{}, Unsorted{},
                               HasDuplicates{}});
 
@@ -982,7 +982,7 @@ TEST_F(BytecodeInterpreterTest, StringFilterNeInPool) {
 
   auto values = CreateFlexVectorForTesting<StringPool::Id>(
       {apple_id, banana_id, apple_id, cherry_id});
-  AddColumn(dataframe::Column{std::move(values),
+  AddColumn(dataframe::Column{dataframe::Storage{std::move(values)},
                               dataframe::NullStorage::NonNull{}, Unsorted{},
                               HasDuplicates{}});
 
@@ -1349,7 +1349,7 @@ TEST_F(BytecodeInterpreterTest, NonStringFilterInPlace) {
   // Column data: {5, 10, 5, 15, 10, 20}
   auto values = CreateFlexVectorForTesting<uint32_t>({5, 10, 5, 15, 10, 20});
   AddColumn(dataframe::Column{
-      std::move(values),
+      dataframe::Storage{std::move(values)},
       dataframe::NullStorage{dataframe::NullStorage::NonNull{}}, Unsorted{},
       HasDuplicates{}});
 
@@ -1389,7 +1389,7 @@ TEST_F(BytecodeInterpreterTest, Uint32SetIdSortedEq) {
   auto values = CreateFlexVectorForTesting<uint32_t>(
       {0u, 0u, 0u, 3u, 3u, 5u, 5u, 7u, 7u, 7u, 10u});
   AddColumn(dataframe::Column{
-      std::move(values),
+      dataframe::Storage{std::move(values)},
       dataframe::NullStorage{dataframe::NullStorage::NonNull{}}, SetIdSorted{},
       HasDuplicates{}});
 
@@ -2501,7 +2501,7 @@ TEST_F(BytecodeInterpreterTest, InUint32) {
 
   auto values =
       CreateFlexVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
-  AddColumn(dataframe::Column{std::move(values),
+  AddColumn(dataframe::Column{dataframe::Storage{std::move(values)},
                               dataframe::NullStorage::NonNull{}, Unsorted{},
                               HasDuplicates{}});
 
@@ -2563,7 +2563,7 @@ TEST_F(BytecodeInterpreterTest, InUint32BitVector) {
 
   auto values =
       CreateFlexVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
-  AddColumn(dataframe::Column{std::move(values),
+  AddColumn(dataframe::Column{dataframe::Storage{std::move(values)},
                               dataframe::NullStorage::NonNull{}, Unsorted{},
                               HasDuplicates{}});
 
@@ -2593,7 +2593,7 @@ TEST_F(BytecodeInterpreterTest, InUint32LargeList) {
   for (uint32_t i = 0; i < 100; i++) {
     values.push_back(i);
   }
-  AddColumn(dataframe::Column{std::move(values),
+  AddColumn(dataframe::Column{dataframe::Storage{std::move(values)},
                               dataframe::NullStorage::NonNull{}, Unsorted{},
                               HasDuplicates{}});
 
@@ -2689,7 +2689,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32Eq_ManyDuplicates) {
   auto values = CreateFlexVectorForTesting<uint32_t>(
       {0u, 4u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u,  5u, 5u,
        5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 6u, 10u, 10u});
-  AddColumn(dataframe::Column{std::move(values),
+  AddColumn(dataframe::Column{dataframe::Storage{std::move(values)},
                               dataframe::NullStorage::NonNull{}, Sorted{},
                               HasDuplicates{}});
 
