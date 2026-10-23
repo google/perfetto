@@ -243,8 +243,9 @@ export class VideoFramePlayer {
       error: (e) => console.warn('VideoFrames:', e),
     });
     decoder.configure(decoderConfig(setup));
-    for (let i = 0; i < range.length; i++) {
-      decoder.decode(chunkFor(setup, range[i]!, datas[i]!, i === 0));
+    for (const [i, frame] of range.entries()) {
+      // `datas` is aligned with `range` (fetched from range's ids).
+      decoder.decode(chunkFor(setup, frame, datas[i]!, i === 0));
     }
     await decoder.flush().catch(() => undefined);
     if (decoder.state !== 'closed') decoder.close();
@@ -421,12 +422,13 @@ export class VideoFramePlayer {
       const end = Math.min(base + FETCH_BATCH, this.frames.length);
       const batch = this.frames.slice(base, end);
       const datas = await this.fetchAuData(batch.map((f) => f.id));
-      for (let i = 0; i < batch.length; i++) {
+      for (const [i, frame] of batch.entries()) {
         if (!(await this.waitForDecoderCapacity(token, session.decoder))) {
           return;
         }
+        // `datas` is aligned with `batch` (fetched from batch's ids).
         session.decoder.decode(
-          chunkFor(setup, batch[i]!, datas[i]!, base + i === k),
+          chunkFor(setup, frame, datas[i]!, base + i === k),
         );
       }
     }

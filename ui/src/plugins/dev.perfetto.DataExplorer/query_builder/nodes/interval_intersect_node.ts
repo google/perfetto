@@ -196,8 +196,7 @@ export class IntervalIntersectNode implements QueryNode {
     }
 
     // For each input node, add id_N, ts_N, dur_N
-    for (let i = 0; i < inputNodes.length; i++) {
-      const node = inputNodes[i];
+    for (const [i, node] of inputNodes.entries()) {
       if (node === undefined) continue;
 
       // Find the actual column info for id to get its type

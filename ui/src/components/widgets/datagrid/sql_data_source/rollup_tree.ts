@@ -81,9 +81,8 @@ function buildPathCondition(
   }
 
   const conditions: string[] = [];
-  for (let i = 0; i < path.length; i++) {
+  for (const [i, value] of path.entries()) {
     const col = `${columnPrefix}__group_${i}`;
-    const value = path[i];
     if (value === null || value === undefined) {
       conditions.push(`${col} IS NULL`);
     } else {
