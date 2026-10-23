@@ -23,6 +23,7 @@
 #include <new>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/trace_stats.h"
@@ -73,6 +74,11 @@ class TraceBuffer {
     uid_t producer_uid_trusted() const { return client_identity_trusted.uid(); }
     pid_t producer_pid_trusted() const { return client_identity_trusted.pid(); }
   };
+
+  // Creates the requested implementation and never falls back to another type.
+  // Returns an error if allocation fails.
+  static base::StatusOr<std::unique_ptr<TraceBuffer>>
+  Create(BufType, size_t size_in_bytes, OverwritePolicy);
 
   virtual ~TraceBuffer();
 

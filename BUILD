@@ -7232,6 +7232,7 @@ perfetto_filegroup(
         "src/tracing/service/random.h",
         "src/tracing/service/service_ring_buffer_drainer.cc",
         "src/tracing/service/service_ring_buffer_drainer.h",
+        "src/tracing/service/trace_buffer.cc",
         "src/tracing/service/trace_buffer.h",
         "src/tracing/service/trace_buffer_protovms.cc",
         "src/tracing/service/trace_buffer_protovms.h",
@@ -7246,6 +7247,8 @@ perfetto_filegroup(
         "src/tracing/service/tracing_service_session.cc",
         "src/tracing/service/tracing_service_session.h",
         "src/tracing/service/tracing_service_structs.h",
+        "src/tracing/service/zstd_frame_codec.cc",
+        "src/tracing/service/zstd_frame_codec.h",
     ],
 )
 
