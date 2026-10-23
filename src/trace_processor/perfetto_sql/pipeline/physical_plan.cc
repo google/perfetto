@@ -318,6 +318,16 @@ void Lowering::DeclareSmallBatches() {
   full_batches_ = false;
 }
 
+void Lowering::DeclareTreeWalk(ColumnId node,
+                               ColumnId parent,
+                               TreeColumns columns,
+                               TreeDirection direction) {
+  tree_columns_ = columns;
+  tree_node_ = node;
+  tree_parent_ = parent;
+  tree_walk_ = direction;
+}
+
 void Lowering::DeclareRowsDropped() {
   tree_walk_.reset();
   tree_columns_.reset();

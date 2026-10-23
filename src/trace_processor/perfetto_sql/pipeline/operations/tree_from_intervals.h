@@ -14,58 +14,53 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_INTERVAL_WALK_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_INTERVAL_WALK_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_TREE_FROM_INTERVALS_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_TREE_FROM_INTERVALS_H_
 
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
 namespace perfetto::trace_processor::pipeline {
 
-class Lowering;
-class PlanNode;
-
-// `|> INTERVAL WALK WITH rel PER cols TO cols`. For each input interval on
-// `PER cols`, intersects it with `rel` on `PER cols` and transitively follows
-// `TO cols` to the target `PER cols` lane in `rel` until reaching a leaf
-// interval (where `TO cols` is null, the target lane has no covering interval,
-// or a cycle/depth limit is reached).
-//
-// The node has two children: the input, then a scan of `rel`.
-class IntervalWalk : public PlanOperation {
+// `|> TREE FROM INTERVALS ON <expr>`: connects each `child` interval to its
+// overlapping `parent` interval matching `<expr>`, cuts child intervals at
+// parent boundaries (transitively), and appends `id` and `parent_id` forming
+// a forest.
+class TreeFromIntervals : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
  private:
+  // Test-only formatting; keep payload details out of the public interface.
   friend class LogicalPlanFormatter;
 
+  // PlanOperation implementation. Dispatch goes through the base interface.
   std::unique_ptr<PlanOperation> Clone() const override;
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
-  void Lower(Lowering*, const PlanNode&) const override;
-  void Serialize(PlanCodec&) override;
-
-  static base::Status BuildPlan(Compiler*, uint32_t);
-
+  void Lower(Lowering* c, const PlanNode& node) const override;
+  void Serialize(PlanCodec& c) override;
+  static base::Status BuildPlan(Compiler* c, uint32_t stage);
   const OperationRegistration& registration() const override;
 
-  ColumnId out_ts_ = 0;
-  ColumnId out_dur_ = 0;
   ColumnId in_ts_ = 0;
   ColumnId in_dur_ = 0;
   std::vector<ColumnId> keys_;
-  std::vector<ColumnId> input_carried_;
-  ColumnId edges_ts_ = 0;
-  ColumnId edges_dur_ = 0;
-  std::vector<ColumnId> edges_keys_;
-  std::vector<ColumnId> edges_next_keys_;
-  std::vector<ColumnId> edges_carried_;
+  std::vector<ColumnId> next_keys_;
+  ColumnId out_ts_ = 0;
+  ColumnId out_dur_ = 0;
+  ColumnId out_id_ = 0;
+  ColumnId out_parent_id_ = 0;
+  // The input columns passed on to the rows out, in the input's order.
+  std::vector<ColumnId> carried_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_INTERVAL_WALK_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_TREE_FROM_INTERVALS_H_

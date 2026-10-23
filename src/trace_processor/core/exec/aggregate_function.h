@@ -30,7 +30,15 @@ namespace perfetto::trace_processor::core::exec {
 
 // One aggregate an operator computes, as its spec names it.
 struct AggregateCall {
-  enum class Function : uint8_t { kCountStar, kSum, kCount, kMin, kMax };
+  enum class Function : uint8_t {
+    kCountStar,
+    kSum,
+    kCount,
+    kMin,
+    kMax,
+    kFirst,
+    kLast,
+  };
   Function function = Function::kCountStar;
   // The column aggregated; unused by COUNT(*).
   uint32_t column = 0;

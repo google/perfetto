@@ -26,6 +26,7 @@ import {showModal} from '../../widgets/modal';
 import {
   CRITICAL_PATH_CMD,
   CRITICAL_PATH_LITE_CMD,
+  CRITICAL_PATH_LITE_OLD_CMD,
 } from '../../public/exposed_commands';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {NUM} from '../../trace_processor/query_result';
@@ -165,8 +166,55 @@ export default class implements PerfettoPlugin {
     //    clicks on the buttons in the details panel. In this case the details
     //    panel passes the utid explicitly.
     ctx.commands.registerCommand({
+      id: CRITICAL_PATH_LITE_OLD_CMD,
+      name: 'Critical path lite (old - selected thread state slice)',
+      callback: async (utidArg) => {
+        const thdInfo = await getThreadInfoForUtidOrSelection(ctx, utidArg);
+        if (thdInfo === undefined) {
+          return showModalErrorThreadStateRequired();
+        }
+        ctx.engine
+          .query(`INCLUDE PERFETTO MODULE sched.thread_executing_span;`)
+          .then(() =>
+            addDebugSliceTrack({
+              trace: ctx,
+              data: {
+                sqlSource: `
+                SELECT
+                  cr.id,
+                  cr.utid,
+                  cr.ts,
+                  cr.dur,
+                  thread.name AS thread_name,
+                  process.name AS process_name,
+                  'thread_state' AS table_name
+                FROM
+                  _critical_path_by_intervals!(
+                    (
+                      SELECT
+                        ${thdInfo.utid} AS utid,
+                        trace_bounds.start_ts AS ts,
+                        trace_bounds.end_ts - trace_bounds.start_ts AS dur
+                      FROM trace_bounds
+                    ),
+                    _wakeup_graph
+                  ) cr
+                JOIN thread USING(utid)
+                LEFT JOIN process USING(upid)
+              `,
+                columns: sliceLiteColumnNames,
+              },
+              title: `${thdInfo.name} (old)`,
+              columns: sliceLiteColumns,
+              rawColumns: sliceLiteColumnNames,
+            }),
+          );
+      },
+    });
+
+    ctx.commands.registerCommand({
       id: CRITICAL_PATH_LITE_CMD,
-      name: 'Critical path lite (selected thread state slice)',
+      name: 'Critical path lite (new - selected thread state slice)',
       callback: async (utidArg) => {
         const thdInfo = await getThreadInfoForUtidOrSelection(ctx, utidArg);
         if (thdInfo === undefined) {
@@ -198,7 +246,7 @@ export default class implements PerfettoPlugin {
               `,
                 columns: sliceLiteColumnNames,
               },
-              title: `${thdInfo.name}`,
+              title: `${thdInfo.name} (new)`,
               columns: sliceLiteColumns,
               rawColumns: sliceLiteColumnNames,
             }),
@@ -242,8 +290,57 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
+      id: 'dev.perfetto.CriticalPathLiteOld_AreaSelection',
+      name: 'Critical path lite (old - over area selection)',
+      callback: async () => {
+        const trackUtid = getFirstUtidOfSelectionOrVisibleWindow(ctx);
+        const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
+        if (trackUtid === 0) {
+          return showModalErrorAreaSelectionRequired();
+        }
+        await ctx.engine.query(
+          `INCLUDE PERFETTO MODULE sched.thread_executing_span;`,
+        );
+        await addDebugSliceTrack({
+          trace: ctx,
+          data: {
+            sqlSource: `
+                SELECT
+                  cr.id,
+                  cr.utid,
+                  cr.ts,
+                  cr.dur,
+                  thread.name AS thread_name,
+                  process.name AS process_name,
+                  'thread_state' AS table_name
+                FROM
+                  _critical_path_by_intervals!(
+                    (
+                      SELECT
+                        ${trackUtid} AS utid,
+                        ${window.start} AS ts,
+                        ${window.end} - ${window.start} AS dur
+                    ),
+                    _wakeup_graph
+                  ) cr
+                JOIN thread USING(utid)
+                LEFT JOIN process USING(upid)
+                `,
+            columns: criticalPathsliceLiteColumnNames,
+          },
+          title: `${
+            (await getThreadInfo(ctx.engine, trackUtid as Utid)).name ??
+            '<thread name>'
+          } (old)`,
+          columns: criticalPathsliceLiteColumns,
+          rawColumns: criticalPathsliceLiteColumnNames,
+        });
+      },
+    });
+
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.CriticalPathLite_AreaSelection',
-      name: 'Critical path lite (over area selection)',
+      name: 'Critical path lite (new - over area selection)',
       callback: async () => {
         const trackUtid = getFirstUtidOfSelectionOrVisibleWindow(ctx);
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
@@ -275,9 +372,10 @@ export default class implements PerfettoPlugin {
                 `,
             columns: criticalPathsliceLiteColumnNames,
           },
-          title:
+          title: `${
             (await getThreadInfo(ctx.engine, trackUtid as Utid)).name ??
-            '<thread name>',
+            '<thread name>'
+          } (new)`,
           columns: criticalPathsliceLiteColumns,
           rawColumns: criticalPathsliceLiteColumnNames,
         });

@@ -2426,7 +2426,7 @@ typedef enum SyntaqliteNodeTag {
     SYNTAQLITE_NODE_PERFETTO_PER_COLUMN_LIST = 133,
     SYNTAQLITE_NODE_PERFETTO_INTERVAL_FLATTEN = 134,
     SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS = 135,
-    SYNTAQLITE_NODE_PERFETTO_INTERVAL_WALK = 136,
+    SYNTAQLITE_NODE_PERFETTO_TREE_FROM_INTERVALS = 136,
     SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION = 137,
     SYNTAQLITE_NODE_PERFETTO_GRAPH_TREE = 138,
     SYNTAQLITE_NODE_PERFETTO_PIPELINE = 139,
@@ -3426,12 +3426,10 @@ typedef struct SyntaqlitePerfettoIntervalFillGaps {
     uint32_t per;
 } SyntaqlitePerfettoIntervalFillGaps;
 
-typedef struct SyntaqlitePerfettoIntervalWalk {
+typedef struct SyntaqlitePerfettoTreeFromIntervals {
     SyntaqliteNodeTag tag;
-    uint32_t edges;
-    uint32_t per;
-    uint32_t step;
-} SyntaqlitePerfettoIntervalWalk;
+    uint32_t on_expr;
+} SyntaqlitePerfettoTreeFromIntervals;
 
 typedef struct SyntaqlitePerfettoIntervalIntersection {
     SyntaqliteNodeTag tag;
@@ -3594,7 +3592,7 @@ typedef union SyntaqliteNode {
     SyntaqlitePerfettoPerColumnList perfetto_per_column_list;
     SyntaqlitePerfettoIntervalFlatten perfetto_interval_flatten;
     SyntaqlitePerfettoIntervalFillGaps perfetto_interval_fill_gaps;
-    SyntaqlitePerfettoIntervalWalk perfetto_interval_walk;
+    SyntaqlitePerfettoTreeFromIntervals perfetto_tree_from_intervals;
     SyntaqlitePerfettoIntervalIntersection perfetto_interval_intersection;
     SyntaqlitePerfettoGraphTree perfetto_graph_tree;
     SyntaqlitePerfettoPipeline perfetto_pipeline;
@@ -4117,9 +4115,9 @@ typedef union SyntaqlitePerfettoPipeStage {
     SyntaqlitePerfettoPipeWhere perfetto_pipe_where;
     SyntaqlitePerfettoPipeDistinct perfetto_pipe_distinct;
     SyntaqlitePerfettoTreeAccumulate perfetto_tree_accumulate;
+    SyntaqlitePerfettoTreeFromIntervals perfetto_tree_from_intervals;
     SyntaqlitePerfettoIntervalFlatten perfetto_interval_flatten;
     SyntaqlitePerfettoIntervalFillGaps perfetto_interval_fill_gaps;
-    SyntaqlitePerfettoIntervalWalk perfetto_interval_walk;
     SyntaqlitePerfettoPipeOrderBy perfetto_pipe_order_by;
     SyntaqlitePerfettoPipeAggregate perfetto_pipe_aggregate;
     SyntaqlitePerfettoPipeSelect perfetto_pipe_select;
@@ -4135,9 +4133,9 @@ static inline int syntaqlite_is_perfetto_pipe_stage(SyntaqliteNodeTag tag) {
         case SYNTAQLITE_NODE_PERFETTO_PIPE_WHERE: return 1;
         case SYNTAQLITE_NODE_PERFETTO_PIPE_DISTINCT: return 1;
         case SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE: return 1;
+        case SYNTAQLITE_NODE_PERFETTO_TREE_FROM_INTERVALS: return 1;
         case SYNTAQLITE_NODE_PERFETTO_INTERVAL_FLATTEN: return 1;
         case SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS: return 1;
-        case SYNTAQLITE_NODE_PERFETTO_INTERVAL_WALK: return 1;
         case SYNTAQLITE_NODE_PERFETTO_PIPE_ORDER_BY: return 1;
         case SYNTAQLITE_NODE_PERFETTO_PIPE_AGGREGATE: return 1;
         case SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT: return 1;
@@ -4162,16 +4160,16 @@ static inline const SyntaqlitePerfettoTreeAccumulate* syntaqlite_perfetto_pipe_s
     return node->tag == SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE ? &node->perfetto_tree_accumulate : NULL;
 }
 
+static inline const SyntaqlitePerfettoTreeFromIntervals* syntaqlite_perfetto_pipe_stage_as_perfetto_tree_from_intervals(const SyntaqlitePerfettoPipeStage* node) {
+    return node->tag == SYNTAQLITE_NODE_PERFETTO_TREE_FROM_INTERVALS ? &node->perfetto_tree_from_intervals : NULL;
+}
+
 static inline const SyntaqlitePerfettoIntervalFlatten* syntaqlite_perfetto_pipe_stage_as_perfetto_interval_flatten(const SyntaqlitePerfettoPipeStage* node) {
     return node->tag == SYNTAQLITE_NODE_PERFETTO_INTERVAL_FLATTEN ? &node->perfetto_interval_flatten : NULL;
 }
 
 static inline const SyntaqlitePerfettoIntervalFillGaps* syntaqlite_perfetto_pipe_stage_as_perfetto_interval_fill_gaps(const SyntaqlitePerfettoPipeStage* node) {
     return node->tag == SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS ? &node->perfetto_interval_fill_gaps : NULL;
-}
-
-static inline const SyntaqlitePerfettoIntervalWalk* syntaqlite_perfetto_pipe_stage_as_perfetto_interval_walk(const SyntaqlitePerfettoPipeStage* node) {
-    return node->tag == SYNTAQLITE_NODE_PERFETTO_INTERVAL_WALK ? &node->perfetto_interval_walk : NULL;
 }
 
 static inline const SyntaqlitePerfettoPipeOrderBy* syntaqlite_perfetto_pipe_stage_as_perfetto_pipe_order_by(const SyntaqlitePerfettoPipeStage* node) {
@@ -4756,9 +4754,9 @@ template <> struct NodeTag<SyntaqlitePerfettoIntervalFillGaps> {
   static constexpr bool kHasTag = true;
   static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS;
 };
-template <> struct NodeTag<SyntaqlitePerfettoIntervalWalk> {
+template <> struct NodeTag<SyntaqlitePerfettoTreeFromIntervals> {
   static constexpr bool kHasTag = true;
-  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_INTERVAL_WALK;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_TREE_FROM_INTERVALS;
 };
 template <> struct NodeTag<SyntaqlitePerfettoIntervalIntersection> {
   static constexpr bool kHasTag = true;
@@ -4982,14 +4980,14 @@ template <> struct NodeTag<SyntaqlitePerfettoPipeline> {
 #define SYNTAQLITE_TK_UP                             197
 #define SYNTAQLITE_TK_DOWN                           198
 #define SYNTAQLITE_TK_INTERVAL                       199
-#define SYNTAQLITE_TK_INTERSECTION                   200
-#define SYNTAQLITE_TK_PER                            201
-#define SYNTAQLITE_TK_EXTEND                         202
-#define SYNTAQLITE_TK_FLATTEN                        203
-#define SYNTAQLITE_TK_AGGREGATE                      204
-#define SYNTAQLITE_TK_FILL                           205
-#define SYNTAQLITE_TK_GAPS                           206
-#define SYNTAQLITE_TK_WALK                           207
+#define SYNTAQLITE_TK_INTERVALS                      200
+#define SYNTAQLITE_TK_INTERSECTION                   201
+#define SYNTAQLITE_TK_PER                            202
+#define SYNTAQLITE_TK_EXTEND                         203
+#define SYNTAQLITE_TK_FLATTEN                        204
+#define SYNTAQLITE_TK_AGGREGATE                      205
+#define SYNTAQLITE_TK_FILL                           206
+#define SYNTAQLITE_TK_GAPS                           207
 #define SYNTAQLITE_TK_GRAPH                          208
 #define SYNTAQLITE_TK_BFS                            209
 #define SYNTAQLITE_TK_DFS                            210

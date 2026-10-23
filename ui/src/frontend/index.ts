@@ -486,8 +486,9 @@ function onCssLoaded(app: AppImpl) {
 // images) have been loaded.
 function onWindowLoaded() {
   // These two functions cause large network fetches and are not load bearing.
-  AppImpl.instance.serviceWorkerController.install();
-  warmupWasmWorker();
+  AppImpl.instance.serviceWorkerController.install().finally(() => {
+    warmupWasmWorker();
+  });
 }
 
 // If the URL is /#!?rpc_port=1234, change the default RPC port.

@@ -28,8 +28,6 @@ source_set("operations") {
     "interval_flatten.h",
     "interval_intersect.cc",
     "interval_intersect.h",
-    "interval_walk.cc",
-    "interval_walk.h",
     "order_by.cc",
     "order_by.h",
     "projection.cc",
@@ -38,6 +36,8 @@ source_set("operations") {
     "scan.h",
     "tree_accumulate.cc",
     "tree_accumulate.h",
+    "tree_from_intervals.cc",
+    "tree_from_intervals.h",
     "where.cc",
     "where.h",
   ]

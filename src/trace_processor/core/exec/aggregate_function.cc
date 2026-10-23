@@ -410,6 +410,91 @@ class Extreme final : public AggregateFunction {
   const uint64_t mask_;
 };
 
+// FIRST or LAST along an ordered path in TREE ACCUMULATE DOWN:
+// FIRST takes the earliest non-null value on root->node; LAST takes the
+// latest non-null value on root->node.
+class PathEndpoint final : public AggregateFunction {
+ public:
+  explicit PathEndpoint(bool first) : first_(first) {}
+  uint32_t state_words() const override { return 1; }
+  bool reads_input() const override { return true; }
+  bool tracks_seen() const override { return true; }
+  void Update(const AggregateInput& in,
+              const uint32_t* groups,
+              GroupStates states,
+              bool*) const override {
+    for (uint32_t row = 0; row < in.rows; ++row) {
+      bool valid = !in.valid || ((in.valid[row / 64] >> (row % 64)) & 1);
+      uint32_t group = groups[row];
+      if (valid) {
+        states.words[group * states.stride] = in.values[row];
+        if (states.seen) {
+          states.seen[group] = 1;
+        }
+      }
+    }
+  }
+  void UpdateGroup(const AggregateInput& in,
+                   uint32_t group,
+                   GroupStates states,
+                   bool* overflow) const override {
+    for (uint32_t row = 0; row < in.rows; ++row) {
+      bool valid = !in.valid || ((in.valid[row / 64] >> (row % 64)) & 1);
+      if (valid && (!first_ || !states.seen || !states.seen[group])) {
+        states.words[group * states.stride] = in.values[row];
+        if (states.seen) {
+          states.seen[group] = 1;
+        }
+      }
+    }
+    (void)overflow;
+  }
+  void Combine(const GroupMerge* merges,
+               uint32_t count,
+               GroupStates states,
+               bool*) const override {
+    if (!states.seen) {
+      if (first_) {
+        for (uint32_t i = 0; i < count; ++i) {
+          states.words[merges[i].into * states.stride] =
+              states.words[merges[i].from * states.stride];
+        }
+      }
+      return;
+    }
+    for (uint32_t i = 0; i < count; ++i) {
+      uint32_t into = merges[i].into;
+      uint32_t from = merges[i].from;
+      bool take_from = first_
+                           ? states.seen[from] != 0
+                           : (states.seen[into] == 0 && states.seen[from] != 0);
+      if (take_from) {
+        states.words[into * states.stride] = states.words[from * states.stride];
+        states.seen[into] = 1;
+      }
+    }
+  }
+  void Finalize(GroupStates states,
+                const uint32_t* groups,
+                uint32_t count,
+                int64_t* values,
+                BitVector* valid) const override {
+    for (uint32_t i = 0; i < count; ++i) {
+      values[i] = states.words[groups[i] * states.stride];
+    }
+    if (!states.seen) {
+      valid->FillBits(0, count, true);
+      return;
+    }
+    for (uint32_t i = 0; i < count; ++i) {
+      valid->change(i, states.seen[groups[i]]);
+    }
+  }
+
+ private:
+  const bool first_;
+};
+
 }  // namespace
 
 std::unique_ptr<AggregateFunction> MakeAggregateFunction(
@@ -427,6 +512,10 @@ std::unique_ptr<AggregateFunction> MakeAggregateFunction(
     case AggregateCall::Function::kMax:
       // Flips the sign: words order as the values do, the least being zero.
       return std::make_unique<Extreme>(uint64_t{1} << 63);
+    case AggregateCall::Function::kFirst:
+      return std::make_unique<PathEndpoint>(/*first=*/true);
+    case AggregateCall::Function::kLast:
+      return std::make_unique<PathEndpoint>(/*first=*/false);
   }
   return nullptr;
 }

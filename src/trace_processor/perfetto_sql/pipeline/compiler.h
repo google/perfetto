@@ -172,7 +172,8 @@ class Compiler {
 
   // Resolves an aggregate call, e.g. `SUM(column)`, to the shared function
   // and the column it reads.
-  base::StatusOr<Aggregate> ResolveAggregate(uint32_t expr);
+  base::StatusOr<Aggregate> ResolveAggregate(uint32_t expr,
+                                             bool allow_ordered = false);
   // Resolves an expression which must be a column reference; any other
   // expression is unsupported.
   base::StatusOr<ColumnId> ResolveColumnExpr(uint32_t expr);

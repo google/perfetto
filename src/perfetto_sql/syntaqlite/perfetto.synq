@@ -499,9 +499,9 @@ abstract PerfettoPipeStage {
   PerfettoPipeWhere
   PerfettoPipeDistinct
   PerfettoTreeAccumulate
+  PerfettoTreeFromIntervals
   PerfettoIntervalFlatten
   PerfettoIntervalFillGaps
-  PerfettoIntervalWalk
   PerfettoPipeOrderBy
   PerfettoPipeAggregate
   PerfettoPipeSelect
@@ -564,18 +564,16 @@ node PerfettoIntervalFillGaps {
   }
 }
 
-// `INTERVAL WALK WITH rel PER cols TO cols`: transitively follows intervals
-// from each PER key to the TO key in `rel` until reaching a leaf.
-node PerfettoIntervalWalk {
-  edges: index PerfettoPipeSource
-  per: index PerfettoPerColumnList
-  step: index PerfettoPerColumnList
+// `TREE FROM INTERVALS ON expr`: connects each `child` interval to the
+// overlapping `parent` interval satisfying `expr` (splitting `child` where its
+// parent chain transitions) and appends `id` and `parent_id` forming a tree.
+node PerfettoTreeFromIntervals {
+  on_expr: index Expr
 
   fmt {
     group {
-      "INTERVAL" "WALK" "WITH" space child(edges)
-      space "PER" space child(per)
-      space "TO" space child(step)
+      "TREE" "FROM" "INTERVALS" "ON"
+      nest { line child(on_expr) }
     }
   }
 }

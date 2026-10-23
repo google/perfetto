@@ -195,11 +195,14 @@ have `parent_id IS NULL`:
 - Callstacks from CPU profiling, perf and native heap profiles.
 - Java heap graph shortest-path trees.
 
-`TREE ACCUMULATE` sums over such a tree in one stage. It keeps every column and
-adds the totals at the end:
+`TREE ACCUMULATE` aggregates over such a tree in one stage. It keeps every
+column and adds the aggregates at the end:
 
-- **`UP`** sums each node with all its descendants.
-- **`DOWN`** sums each node with all its ancestors.
+- **`UP`** aggregates each node with all its descendants (`COUNT(*)`, `SUM`,
+  `MIN`, `MAX`).
+- **`DOWN`** aggregates each node with all its ancestors along the root-to-node
+  path (`COUNT(*)`, `SUM`, `MIN`, `MAX`, plus the ordered path endpoints `FIRST`
+  and `LAST`).
 
 ```sql
 PERFETTO PRAGMA pipelines = 1;
@@ -212,19 +215,55 @@ UNION ALL SELECT 3, 1, 'c', 40;
 
 FROM tree
 |> TREE ACCUMULATE UP SUM(self) AS subtree_total
-|> TREE ACCUMULATE DOWN SUM(self) AS path_total
+|> TREE ACCUMULATE DOWN SUM(self) AS path_total, FIRST(self) AS root_self
 |> ORDER BY id
-|> SELECT name, self, subtree_total, path_total;
+|> SELECT name, self, subtree_total, path_total, root_self;
 ```
 
 For the tree `root (10) -> a (20) -> c (40)` and `root (10) -> b (30)`:
 
-| `name` | `self` | `subtree_total` | `path_total` |
-| :--- | ---: | ---: | ---: |
-| `root` | 10 | 100 | 10 |
-| `a` | 20 | 60 | 30 |
-| `b` | 30 | 30 | 40 |
-| `c` | 40 | 40 | 70 |
+| `name` | `self` | `subtree_total` | `path_total` | `root_self` |
+| :--- | ---: | ---: | ---: | ---: |
+| `root` | 10 | 100 | 10 | 10 |
+| `a` | 20 | 60 | 30 | 10 |
+| `b` | 30 | 30 | 40 | 10 |
+| `c` | 40 | 40 | 70 | 10 |
+
+---
+
+## Turning Intervals Into a Slice Tree: `TREE FROM INTERVALS`
+
+Sometimes intervals form a hierarchy whose parent-child edges change over time:
+for example, thread `1` sleeps during `[0, 30)` waiting on thread `2`, while
+thread `2` runs during `[0, 10)` and then sleeps during `[10, 30)` waiting on
+thread `3`.
+
+`TREE FROM INTERVALS ON <condition>` connects each `child` interval to the
+overlapping `parent` interval matching `<condition>`, minimally cuts each
+interval at the boundaries where its parent chain transitions, and adds dense
+`id` and `parent_id` columns so `TREE ACCUMULATE` can follow directly:
+
+```sql
+PERFETTO PRAGMA pipelines = 1;
+
+CREATE PERFETTO TABLE wait_edges AS
+SELECT 0 AS ts, 30 AS dur, 1 AS utid, 2 AS target_utid
+UNION ALL SELECT 0, 10, 2, NULL
+UNION ALL SELECT 10, 20, 2, 3
+UNION ALL SELECT 10, 20, 3, NULL;
+
+FROM wait_edges
+|> TREE FROM INTERVALS ON child.target_utid = parent.utid
+|> TREE ACCUMULATE DOWN FIRST(utid) AS active_utid
+|> WHERE utid = 1
+|> ORDER BY ts
+|> SELECT ts, dur, utid, active_utid;
+```
+
+| `ts` | `dur` | `utid` | `active_utid` |
+| ---: | ---: | ---: | ---: |
+| 0 | 10 | 1 | 2 |
+| 10 | 20 | 1 | 3 |
 
 ---
 

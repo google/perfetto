@@ -214,6 +214,32 @@ Fillers never have zero duration, and output rows are in no particular order.
 
 ---
 
+## `TREE FROM INTERVALS`
+
+Code: `operations/tree_from_intervals.cc`,
+`/src/trace_processor/core/exec/tree_from_intervals.cc`
+
+`TREE FROM INTERVALS ON <condition>` parses `child.<col> = parent.<col>`
+equalities joined by `AND` from `<condition>`, reads all input rows, groups them
+by the parent key columns, sorts each lane by `ts`, and resolves the interval
+hierarchy into a parent-first slice tree:
+
+1. **Lane indexing:** Each distinct parent key tuple is hashed into a
+   `GroupTable` mapping to its sorted array of input intervals.
+2. **Minimal memoized cutting:** An iterative post-order DFS resolves each input
+   interval `(row, [ts, ts + dur))` against its target lane's overlapping
+   intervals using binary search (`std::partition_point`). An interval is cut
+   *only* at boundaries where its resolved parent chain transitions, caching the
+   resolved sub-slices per input row (`slice_begin..slice_end`) so shared parent
+   chains are never re-walked.
+3. **Zero-copy tree handoff:** Rows go out parents first, gathering each
+   slice's row with its `ts`, `dur`, `id`, `parent_id`, and the two `Uint32`
+   columns `TreeNumberNodes` would add. The lowering records these as a `DOWN`
+   walk of `id` and `parent_id`, so a `TREE ACCUMULATE DOWN` after it needs no
+   other operator, and an `UP` one only reverses the rows.
+
+---
+
 ## `TREE ACCUMULATE`
 
 Code:

@@ -321,7 +321,8 @@ base::StatusOr<ColumnId> Compiler::ResolveColumnExpr(uint32_t expr) {
 
 // Resolves an aggregate call like `SUM(column)` to one of the executor's
 // shared functions and the column it reads. Its output is left to the stage.
-base::StatusOr<Aggregate> Compiler::ResolveAggregate(uint32_t expr) {
+base::StatusOr<Aggregate> Compiler::ResolveAggregate(uint32_t expr,
+                                                     bool allow_ordered) {
   const auto* node = Node<SyntaqliteNode>(p_, expr);
   if (node->tag != SYNTAQLITE_NODE_FUNCTION_CALL) {
     return Expected(expr, "an aggregate like SUM(column)");
@@ -348,6 +349,10 @@ base::StatusOr<Aggregate> Compiler::ResolveAggregate(uint32_t expr) {
     aggregate.function = Aggregate::Function::kMin;
   } else if (function == "MAX") {
     aggregate.function = Aggregate::Function::kMax;
+  } else if (allow_ordered && function == "FIRST") {
+    aggregate.function = Aggregate::Function::kFirst;
+  } else if (allow_ordered && function == "LAST") {
+    aggregate.function = Aggregate::Function::kLast;
   } else {
     return Unsupported(expr, "aggregate " + function);
   }

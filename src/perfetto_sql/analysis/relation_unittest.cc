@@ -293,10 +293,6 @@ TEST_F(RelationAnalyzerTest, ReadsWithinPipeStages) {
   EXPECT_EQ(ReadAt("FROM slice |> INTERVAL FILL GAPS WITH (SELECT 1 AS here)",
                    kHere, ""),
             from);
-  EXPECT_EQ(
-      ReadAt("FROM slice |> INTERVAL WALK WITH (SELECT 1 AS here) PER id TO id",
-             kHere, ""),
-      from);
 }
 
 // What is read at a node of a statement sees the CTEs in scope there, and only

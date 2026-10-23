@@ -475,6 +475,9 @@ export default defineConfig(({command}) => {
 
   return {
     root: SRC,
+    server: {
+      allowedHosts: true,
+    },
     // Vite is used purely as a TS transpiler + bundler in build mode, and as
     // a module-serving dev server in serve mode. build.mjs owns HTML in both
     // modes (in dev it calls server.transformIndexHtml() and serves at /).

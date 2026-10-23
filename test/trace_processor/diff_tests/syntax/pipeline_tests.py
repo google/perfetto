@@ -1338,3 +1338,70 @@ class PerfettoPipeline(TestSuite):
         |> EXTEND a + 1 AS b;
         """,
         out=ExpectedError('a computed column is not supported yet'))
+
+  def test_tree_from_intervals_and_tree_accumulate_down_first_last(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE edges AS
+        SELECT 0 AS ts, 30 AS dur, 1 AS utid, 2 AS target_utid, 100 AS node_id
+        UNION ALL SELECT 0, 10, 2, NULL, 200
+        UNION ALL SELECT 10, 20, 2, 3, 201
+        UNION ALL SELECT 10, 20, 3, NULL, 300;
+
+        FROM edges
+        |> TREE FROM INTERVALS ON child.target_utid = parent.utid
+        |> TREE ACCUMULATE DOWN
+             FIRST(utid) AS root_utid,
+             FIRST(node_id) AS root_node_id,
+             LAST(node_id) AS leaf_node_id,
+             COUNT(*) AS depth
+        |> WHERE utid = 1
+        |> ORDER BY ts
+        |> SELECT ts, dur, utid, root_utid, root_node_id, leaf_node_id, depth;
+        """,
+        out=Csv("""
+        "ts","dur","utid","root_utid","root_node_id","leaf_node_id","depth"
+        0,10,1,2,200,100,2
+        10,20,1,3,300,100,3
+        """))
+
+  def test_tree_from_intervals_multi_column_on(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE spans AS
+        SELECT 0 AS ts, 100 AS dur, 1 AS track_id, 0 AS depth, 10 AS val
+        UNION ALL SELECT 10, 30, 1, 1, 20
+        UNION ALL SELECT 20, 10, 1, 2, 30
+        UNION ALL SELECT 50, 40, 1, 1, 40;
+
+        FROM (
+          SELECT *, iif(depth > 0, depth - 1, NULL) AS parent_depth
+          FROM spans
+        )
+        |> TREE FROM INTERVALS ON child.track_id = parent.track_id
+             AND child.parent_depth = parent.depth
+        |> TREE ACCUMULATE UP SUM(dur) AS subtree_dur
+        |> WHERE depth = 1
+        |> ORDER BY ts
+        |> SELECT ts, dur, val, subtree_dur;
+        """,
+        out=Csv("""
+        "ts","dur","val","subtree_dur"
+        10,30,20,40
+        50,40,40,40
+        """))
+
+  def test_first_and_last_are_rejected_in_tree_accumulate_up(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 0 AS id, NULL AS parent_id, 10 AS v)
+        |> TREE ACCUMULATE UP FIRST(v) AS f;
+        """,
+        out=ExpectedError(
+            'TREE ACCUMULATE: aggregate FIRST is not supported yet'))

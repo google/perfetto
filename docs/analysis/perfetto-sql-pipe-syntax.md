@@ -51,9 +51,9 @@ Diagram(
 ```
 
 - `|>` must be written with no space between `|` and `>`.
-- `TREE`, `ACCUMULATE`, `UP`, `DOWN`, `INTERVAL`, `INTERSECTION`, `FLATTEN`,
-  `FILL`, `GAPS`, `AGGREGATE`, `PER` and `EXTEND` are not reserved, so they can
-  still be used as names in SQL.
+- `TREE`, `ACCUMULATE`, `UP`, `DOWN`, `INTERVAL`, `INTERVALS`, `INTERSECTION`,
+  `FLATTEN`, `FILL`, `GAPS`, `AGGREGATE`, `PER`, `TO` and `EXTEND` are not
+  reserved, so they can still be used as names in SQL.
 - An alias always needs `AS`: `FROM slice AS s`, not `FROM slice s`.
 
 A `<source-clause>` is [`FROM`](#from) or
@@ -66,6 +66,7 @@ Diagram(Choice(0,
   Link(Terminal('ORDER BY'), '#order-by'),
   Link(Terminal('INTERVAL FLATTEN'), '#interval-flatten'),
   Link(Terminal('INTERVAL FILL GAPS'), '#interval-fill-gaps'),
+  Link(Terminal('TREE FROM INTERVALS'), '#tree-from-intervals'),
   Link(Terminal('TREE ACCUMULATE'), '#tree-accumulate'),
   Link(Terminal('AGGREGATE'), '#aggregate'),
   Link(Terminal('SELECT'), '#select'),
@@ -203,7 +204,8 @@ Diagram(OneOrMore(
 Diagram(Choice(0,
   Sequence(Terminal('COUNT'), Terminal('('), Terminal('*'), Terminal(')')),
   Sequence(
-    Choice(0, Terminal('SUM'), Terminal('MIN'), Terminal('MAX')),
+    Choice(0, Terminal('SUM'), Terminal('MIN'), Terminal('MAX'),
+              Terminal('FIRST'), Terminal('LAST')),
     Terminal('('), NonTerminal('column'), Terminal(')'))))
 ```
 
@@ -213,6 +215,10 @@ Diagram(Choice(0,
 - **`SUM`, `MIN` and `MAX`** take an integer column. They skip `NULL`s and
   return `NULL` if every value is `NULL`. A column from a SQL source whose type
   is not known in advance is checked when the query runs.
+- **`FIRST` and `LAST`** take an integer column and are only allowed in
+  `TREE ACCUMULATE DOWN`. Along each node's ordered root-to-node path, `FIRST`
+  returns the earliest non-`NULL` value (the root's, if present) and `LAST`
+  returns the nearest non-`NULL` value.
 - **Results** are `LONG` columns. Overflow is an error.
 - **Scope:** Every aggregate reads the row from before the stage, so one
   aggregate cannot read another.
@@ -358,6 +364,45 @@ Interval rules:
 
 For an example, see
 [Filling Gaps](/docs/analysis/perfetto-sql-pipe-getting-started.md#filling-gaps-interval-fill-gaps).
+
+### `TREE FROM INTERVALS` {#tree-from-intervals}
+
+Connects each `child` interval to its overlapping `parent` interval matching an
+`ON` condition, cuts child intervals at parent transitions (transitively), and
+outputs a slice tree with both interval bounds (`ts`, `dur`) and tree edges
+(`id`, `parent_id`):
+
+```railroad
+Diagram(
+  Terminal('TREE'), Terminal('FROM'), Terminal('INTERVALS'),
+  Terminal('ON'), NonTerminal('condition'))
+```
+
+- **Intervals:** Bare `ts` and `dur`, which must be integer columns.
+- **Condition (`ON`):** One or more `child.<col> = parent.<col>` equalities
+  joined by `AND` (e.g. `ON child.target_utid = parent.utid`, or multi-column
+  keys `ON child.upid = parent.upid AND child.waiting_lock = parent.held_lock`).
+- **Roots and cutting:**
+  - If any `child` key column is `NULL`, or no `parent` interval with matching
+    key values overlaps a sub-interval, that sub-interval is a root
+    (`parent_id IS NULL`).
+  - Where one or more `parent` intervals overlap `[ts, ts + dur)` with matching
+    keys, the row is split only at the parent transitions (transitively).
+  - Cycles across intervals terminate at the cycle edge (`parent_id IS NULL`).
+- **Output:** The sub-interval's `ts` and `dur`, every other input column
+  (replacing any existing `id` or `parent_id`), and dense `id` and `parent_id`
+  columns emitted in parent-first order so `TREE ACCUMULATE` can follow
+  directly.
+
+For example, resolving transitive thread wait chains (critical path):
+
+```sql
+FROM _wait_edge
+|> TREE FROM INTERVALS ON child.target_utid = parent.utid
+|> TREE ACCUMULATE DOWN
+     FIRST(utid) AS cp_utid,
+     FIRST(node_id) AS cp_id
+```
 
 ### `TREE ACCUMULATE` {#tree-accumulate}
 

@@ -60,7 +60,9 @@ base::Status TreeAccumulate::BuildPlan(Compiler* c, uint32_t stage) {
   for (uint32_t i = 0; i < count; i++) {
     uint32_t agg_id = syntaqlite_list_child_id(list, i);
     const auto* agg = Node<SyntaqlitePerfettoAggregate>(c->parser(), agg_id);
-    ASSIGN_OR_RETURN(Aggregate aggregate, c->ResolveAggregate(agg->expr));
+    ASSIGN_OR_RETURN(
+        Aggregate aggregate,
+        c->ResolveAggregate(agg->expr, acc.direction_ == TreeDirection::kDown));
     NameId name = c->Name(agg->name);
     aggregate.output = c->AddColumn(name, core::Int64{});
     acc.aggregates_.push_back(aggregate);

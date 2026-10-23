@@ -374,7 +374,7 @@ TEST_F(PhysicalPlanTest, FillGapsOrdersBothSides) {
             "background: #0, #1, keys: #2, groups: #3)");
 }
 
-TEST_F(PhysicalPlanTest, IntervalWalkTransitivelyResolvesLeafIntervals) {
+TEST_F(PhysicalPlanTest, TreeFromIntervalsComposesWithTreeAccumulateDown) {
   Exec(
       "CREATE TABLE edges(ts INTEGER, dur INTEGER, utid INTEGER, "
       "target_utid INTEGER, node_id INTEGER)");
@@ -385,9 +385,12 @@ TEST_F(PhysicalPlanTest, IntervalWalkTransitivelyResolvesLeafIntervals) {
       "(10, 20, 2, 3, 201), "
       "(10, 20, 3, NULL, 300)");
   auto plan = Plan(
-      "FROM (SELECT * FROM edges WHERE utid = 1) AS root "
-      "|> INTERVAL WALK WITH edges PER utid TO target_utid "
-      "|> SELECT ts, dur, root.utid AS root_utid, utid, node_id");
+      "FROM edges "
+      "|> TREE FROM INTERVALS ON child.target_utid = parent.utid "
+      "|> TREE ACCUMULATE DOWN FIRST(utid) AS cp_utid, FIRST(node_id) AS cp_id "
+      "|> WHERE utid = 1 "
+      "|> SELECT ts, dur, utid AS root_utid, cp_utid AS utid, cp_id AS "
+      "node_id");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
 
   RowCursor cursor((*plan)->source());
@@ -541,6 +544,36 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 10), Pair(1, 20), Pair(2, 30), Pair(3, 40)));
+}
+
+// Rows come out of TREE FROM INTERVALS numbered and parent first, so a fold
+// down needs nothing more and a fold up only reverses them.
+TEST_F(PhysicalPlanTest, FoldsAfterATreeFromIntervalsReuseItsNumbering) {
+  Exec(
+      "CREATE TABLE edges(ts INTEGER, dur INTEGER, lane INTEGER, next_lane "
+      "INTEGER, val INTEGER)");
+  Exec(
+      "INSERT INTO edges VALUES (0, 20, 1, 2, 10), (0, 10, 2, NULL, 20), "
+      "(10, 10, 2, NULL, 30)");
+  auto plan = Plan(
+      "FROM edges |> TREE FROM INTERVALS ON child.next_lane = parent.lane "
+      "|> TREE ACCUMULATE DOWN FIRST(val) AS root_val "
+      "|> TREE ACCUMULATE UP SUM(dur) AS subtree_dur");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "main: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2) | "
+            "TreeFromIntervals(#0, #1, keys: #2, groups: #5; to: #3) | "
+            "AssertType(#6 to Int64) | TreeAccumulateDown(#7, #8; FIRST(#6)) "
+            "| TreeChildFirst(#7, #8) | TreeAccumulateUp(#7, #8; SUM(#1))");
+  auto root_val = Run(**plan, "root_val");
+  ASSERT_TRUE(root_val.ok()) << root_val.status().message();
+  EXPECT_THAT(*root_val,
+              ElementsAre(Pair(0, 20), Pair(1, 30), Pair(2, 20), Pair(3, 30)));
+  auto subtree_dur = Run(**plan, "subtree_dur");
+  ASSERT_TRUE(subtree_dur.ok()) << subtree_dur.status().message();
+  EXPECT_THAT(*subtree_dur,
+              ElementsAre(Pair(0, 20), Pair(1, 20), Pair(2, 10), Pair(3, 10)));
 }
 
 }  // namespace

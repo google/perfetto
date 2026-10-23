@@ -63,6 +63,11 @@ export class ServiceWorkerController {
     this._bypassed = bypass;
     if (bypass) {
       await BypassCache.setBypass(true); // Create the entry.
+      try {
+        await caches.delete('ui-perfetto-dev');
+      } catch {
+        // Ignore cache deletion errors.
+      }
       for (const reg of await navigator.serviceWorker.getRegistrations()) {
         await reg.unregister();
       }
@@ -108,7 +113,9 @@ export class ServiceWorkerController {
     // If this is localhost disable the service worker by default, unless the
     // user manually re-enabled it (in which case bypassDisabled = '1').
     const hostname = location.hostname;
-    const isLocalhost = ['127.0.0.1', '::1', 'localhost'].includes(hostname);
+    const isLocalhost =
+      ['127.0.0.1', '::1', 'localhost'].includes(hostname) ||
+      hostname.endsWith('.googlers.com');
     const bypassDisabled =
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       window.localStorage &&

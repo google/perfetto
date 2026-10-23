@@ -318,6 +318,34 @@ TEST(TreeAccumulateTest, NullsFirstMetInALaterBatchKeepEarlierValues) {
   EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 3), ElementsAre(7));
 }
 
+TEST(TreeAccumulateTest, FirstAndLastGoingDown) {
+  // Tree:
+  //   0 (val = NULL)
+  //   ├── 1 (val = 10)
+  //   │   └── 2 (val = 20)
+  //   │       └── 3 (val = NULL)
+  //   └── 4 (val = NULL)
+  AggregateCall first{AggregateCall::Function::kFirst, 2};
+  AggregateCall last{AggregateCall::Function::kLast, 2};
+  std::vector<uint32_t> nodes = {0, 1, 2, 3, 4};
+  std::vector<uint32_t> parents = {kNoNode, 0, 1, 2, 0};
+  std::vector<int64_t> values = {0, 10, 20, 0, 0};
+  BitVector valid = BitVector::CreateWithSize(5);
+  valid.set(1);
+  valid.set(2);
+  TreeAccumulateDown down({0, 1, {first, last}});
+  std::unique_ptr<OperatorState> state = down.MakeState(test::TestContext());
+  RowBatch out;
+  RowBatch in = Batch(nodes, parents, values, &valid);
+  ASSERT_TRUE(test::ProcessCopy(down, in, out, *state));
+  // FIRST along root->node path picks the earliest non-null value (or null).
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 3),
+              ElementsAre(std::nullopt, 10, 10, 10, std::nullopt));
+  // LAST along root->node path picks the nearest non-null value (or null).
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 4),
+              ElementsAre(std::nullopt, 10, 20, 20, std::nullopt));
+}
+
 std::vector<int64_t> RandomParents(std::mt19937& rng, uint32_t rows) {
   std::vector<int64_t> parent(rows, -1);
   for (uint32_t i = 1; i < rows; ++i) {

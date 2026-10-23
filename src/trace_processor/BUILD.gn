@@ -238,6 +238,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/create_function",
       "plugins/create_intervals",
       "plugins/create_view_function",
+      "plugins/critical_path",
       "plugins/descendant",
       "plugins/developer_functions",
       "plugins/dfs_weight_bounded",

@@ -85,8 +85,9 @@ Pipelines do not do everything SQL does yet. Split the work like this:
 | Intersecting intervals across two or more tables | `INTERVAL INTERSECTION OF (...) [PER ...]` |
 | Counting or summing concurrent activity in one set of intervals | `\|> INTERVAL FLATTEN [PER ...] AGGREGATE ...`; see the [example](/docs/analysis/perfetto-sql-pipe-getting-started.md#flattening-overlapping-intervals-interval-flatten). |
 | Filling the gaps between intervals | `\|> INTERVAL FILL GAPS WITH <background> [PER ...]` |
+| Turning intervals into a slice tree by an overlap predicate | `\|> TREE FROM INTERVALS ON <condition>` |
 | Aggregating up or down a tree | `\|> TREE ACCUMULATE UP \| DOWN ...` |
-| `COUNT(*)`, and `SUM`, `MIN` and `MAX` of integer columns, per group | `\|> AGGREGATE ... [GROUP BY ...]` |
+| `COUNT(*)`, and `SUM`, `MIN` and `MAX` of integer columns, per group (`FIRST` and `LAST` in `TREE ACCUMULATE DOWN`) | `\|> AGGREGATE ... [GROUP BY ...]` |
 | Any other aggregate | In SQL. |
 | Removing repeated rows | `\|> DISTINCT` |
 | Picking, dropping, renaming or swapping columns | `\|> SELECT`, `EXTEND`, `DROP`, `RENAME`, `SET` and `AS` |
