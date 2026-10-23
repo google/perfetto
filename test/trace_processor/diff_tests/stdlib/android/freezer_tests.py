@@ -51,3 +51,29 @@ class Freezer(TestSuite):
         7000,-1,300,"FROZEN"
         9000,-1,500,"FROZEN"
         """))
+
+  def test_android_freezer_concurrency(self):
+    return DiffTestBlueprint(
+        trace=Path('freezer_intervals.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.freezer;
+        SELECT ts, dur, state, concurrency
+        FROM _android_freezer_concurrency
+        ORDER BY state, ts;
+        """,
+        out=Csv("""
+        "ts","dur","state","concurrency"
+        500,2500,"FROZEN",0
+        3000,2000,"FROZEN",1
+        5000,1000,"FROZEN",0
+        6000,1000,"FROZEN",1
+        7000,1000,"FROZEN",2
+        8000,1000,"FROZEN",1
+        9000,1000,"FROZEN",2
+        500,500,"UNFROZEN",2
+        1000,2000,"UNFROZEN",3
+        3000,2000,"UNFROZEN",2
+        5000,1000,"UNFROZEN",3
+        6000,3000,"UNFROZEN",2
+        9000,1000,"UNFROZEN",1
+        """))

@@ -226,11 +226,12 @@ FROM app_freeze_changes;
 CREATE PERFETTO TABLE _android_freezer_intervals AS
 WITH
   -- A frozen process that gets killed emits no unfreeze, so spans stop at its
-  -- death. death is NULL while the process lives on at trace end.
+  -- death. death is NULL while the process lives on at trace end. The birth is
+  -- clamped to the trace start, as process.start_ts can predate the trace.
   lifetimes AS (
     SELECT
       p.upid,
-      coalesce(fw.fw_start_ts, p.start_ts, trace_start()) AS birth,
+      max(coalesce(fw.fw_start_ts, p.start_ts, trace_start()), trace_start()) AS birth,
       p.end_ts AS death
     FROM process AS p
     LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
@@ -299,3 +300,20 @@ LEFT JOIN android_process_metadata AS m USING (upid)
 WHERE
   s.dur > 0
   OR s.dur = -1;
+
+-- A pipeline cannot number its rows, hence the intermediate table.
+CREATE PERFETTO TABLE _android_freezer_flattened AS
+FROM (
+  SELECT ts, iif(dur < 0, trace_end() - ts, dur) AS dur, state
+  FROM _android_freezer_intervals
+)
+|> INTERVAL FLATTEN PER state AGGREGATE COUNT(*) AS concurrency
+|> INTERVAL FILL GAPS WITH (
+  SELECT trace_start() AS ts, trace_dur() AS dur, 0 AS concurrency
+) PER state;
+
+-- Number of processes concurrently frozen and unfrozen over time, 0 where no
+-- process is in a state.
+CREATE PERFETTO TABLE _android_freezer_concurrency AS
+SELECT row_number() OVER (ORDER BY state, ts) AS id, ts, dur, state, concurrency
+FROM _android_freezer_flattened;
