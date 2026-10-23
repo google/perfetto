@@ -51,6 +51,8 @@ source_set("exec") {
     "grouped_sort.h",
     "hash_aggregate.cc",
     "hash_aggregate.h",
+    "index_scan.cc",
+    "index_scan.h",
     "interval_fill_gaps.cc",
     "interval_fill_gaps.h",
     "interval_flatten.cc",
