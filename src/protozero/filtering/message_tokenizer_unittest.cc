@@ -61,10 +61,10 @@ TEST(MessageTokenizerTest, FlatMessage) {
   msg->AppendString(/*field_id*/ 4, "foo");
   msg->AppendFixed(/*field_id*/ 5, 0xFFAAFFFFu);
   msg->AppendString(/*field_id*/ 4, "foobar");
-  msg->AppendFixed(/*field_id*/ 6, uint64_t(1ull << 63));
+  msg->AppendFixed(/*field_id*/ 6, 1ull << 63);
   msg->AppendVarInt(/*field_id*/ 1000, 1001ull);
   msg->AppendVarInt(/*field_id*/ 1000000, 1000001ull);
-  msg->AppendVarInt(/*field_id*/ 1 << 28, uint64_t(1ull << 63));
+  msg->AppendVarInt(/*field_id*/ 1 << 28, 1ull << 63);
 
   // Treat all len-delimited fields as strings/bytes and just eat their payload.
   MessageTokenizer tokenizer;
@@ -116,7 +116,7 @@ TEST(MessageTokenizerTest, NestedMessage) {
     nested->AppendFixed(/*field_id*/ 8, 0x42420000u);
     nested->Finalize();
   }
-  msg->AppendFixed(/*field_id*/ 9, uint64_t(1ull << 63));
+  msg->AppendFixed(/*field_id*/ 9, 1ull << 63);
 
   // Tokenize the message. This treat all len delimited fields as submessage
   // and test the recursion logic.

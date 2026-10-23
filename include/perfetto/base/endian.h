@@ -27,6 +27,14 @@
 namespace perfetto {
 namespace base {
 
+static_assert(sizeof(short) == 2, "Unsupported short size");
+static_assert(sizeof(int) == 4, "Unsupported int size");
+static_assert(sizeof(long) == sizeof(int) || sizeof(long) == sizeof(long long),
+              "Unsupported long size");
+static_assert(sizeof(long long) == 8, "Unsupported long long size");
+static_assert(sizeof(float) == 4, "Unsupported float size");
+static_assert(sizeof(double) == 8, "Unsupported double size");
+
 #if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
 inline uint16_t ByteSwap16(uint16_t x) {
   return _byteswap_ushort(x);
@@ -50,197 +58,272 @@ inline uint64_t ByteSwap64(uint64_t x) {
 #endif
 
 #if PERFETTO_IS_LITTLE_ENDIAN()
-inline uint16_t HostToLE16(uint16_t x) {
+inline unsigned short HostToLE(unsigned short x) {
   return x;
 }
-inline uint32_t HostToLE32(uint32_t x) {
+inline unsigned int HostToLE(unsigned int x) {
   return x;
 }
-inline uint64_t HostToLE64(uint64_t x) {
+inline unsigned long long HostToLE(unsigned long long x) {
   return x;
 }
-inline uint16_t LE16ToHost(uint16_t x) {
+inline unsigned short LEToHost(unsigned short x) {
   return x;
 }
-inline uint32_t LE32ToHost(uint32_t x) {
+inline unsigned int LEToHost(unsigned int x) {
   return x;
 }
-inline uint64_t LE64ToHost(uint64_t x) {
+inline unsigned long long LEToHost(unsigned long long x) {
   return x;
 }
-inline uint16_t HostToBE16(uint16_t x) {
+inline unsigned short HostToBE(unsigned short x) {
   return ByteSwap16(x);
 }
-inline uint32_t HostToBE32(uint32_t x) {
+inline unsigned int HostToBE(unsigned int x) {
   return ByteSwap32(x);
 }
-inline uint64_t HostToBE64(uint64_t x) {
+inline unsigned long long HostToBE(unsigned long long x) {
   return ByteSwap64(x);
 }
-inline uint16_t BE16ToHost(uint16_t x) {
+inline unsigned short BEToHost(unsigned short x) {
   return ByteSwap16(x);
 }
-inline uint32_t BE32ToHost(uint32_t x) {
+inline unsigned int BEToHost(unsigned int x) {
   return ByteSwap32(x);
 }
-inline uint64_t BE64ToHost(uint64_t x) {
+inline unsigned long long BEToHost(unsigned long long x) {
   return ByteSwap64(x);
-}
-inline float HostToLEFloat(float x) {
-  return x;
-}
-inline double HostToLEDouble(double x) {
-  return x;
-}
-inline float LEFloatToHost(float x) {
-  return x;
-}
-inline double LEDoubleToHost(double x) {
-  return x;
-}
-inline float HostToBEFloat(float x) {
-  uint32_t u;
-  memcpy(&u, &x, sizeof(u));
-  u = ByteSwap32(u);
-  memcpy(&x, &u, sizeof(u));
-  return x;
-}
-inline double HostToBEDouble(double x) {
-  uint64_t u;
-  memcpy(&u, &x, sizeof(u));
-  u = ByteSwap64(u);
-  memcpy(&x, &u, sizeof(u));
-  return x;
-}
-inline float BEFloatToHost(float x) {
-  uint32_t u;
-  memcpy(&u, &x, sizeof(u));
-  u = ByteSwap32(u);
-  memcpy(&x, &u, sizeof(u));
-  return x;
-}
-inline double BEDoubleToHost(double x) {
-  uint64_t u;
-  memcpy(&u, &x, sizeof(u));
-  u = ByteSwap64(u);
-  memcpy(&x, &u, sizeof(u));
-  return x;
 }
 #else
-inline uint16_t HostToLE16(uint16_t x) {
+inline unsigned short HostToLE(unsigned short x) {
   return ByteSwap16(x);
 }
-inline uint32_t HostToLE32(uint32_t x) {
+inline unsigned int HostToLE(unsigned int x) {
   return ByteSwap32(x);
 }
-inline uint64_t HostToLE64(uint64_t x) {
+inline unsigned long long HostToLE(unsigned long long x) {
   return ByteSwap64(x);
 }
-inline uint16_t LE16ToHost(uint16_t x) {
+inline unsigned short LEToHost(unsigned short x) {
   return ByteSwap16(x);
 }
-inline uint32_t LE32ToHost(uint32_t x) {
+inline unsigned int LEToHost(unsigned int x) {
   return ByteSwap32(x);
 }
-inline uint64_t LE64ToHost(uint64_t x) {
+inline unsigned long long LEToHost(unsigned long long x) {
   return ByteSwap64(x);
 }
-inline uint16_t HostToBE16(uint16_t x) {
+inline unsigned short HostToBE(unsigned short x) {
   return x;
 }
-inline uint32_t HostToBE32(uint32_t x) {
+inline unsigned int HostToBE(unsigned int x) {
   return x;
 }
-inline uint64_t HostToBE64(uint64_t x) {
+inline unsigned long long HostToBE(unsigned long long x) {
   return x;
 }
-inline uint16_t BE16ToHost(uint16_t x) {
+inline unsigned short BEToHost(unsigned short x) {
   return x;
 }
-inline uint32_t BE32ToHost(uint32_t x) {
+inline unsigned int BEToHost(unsigned int x) {
   return x;
 }
-inline uint64_t BE64ToHost(uint64_t x) {
-  return x;
-}
-inline float HostToLEFloat(float x) {
-  uint32_t u;
-  memcpy(&u, &x, sizeof(u));
-  u = ByteSwap32(u);
-  memcpy(&x, &u, sizeof(u));
-  return x;
-}
-inline double HostToLEDouble(double x) {
-  uint64_t u;
-  memcpy(&u, &x, sizeof(u));
-  u = ByteSwap64(u);
-  memcpy(&x, &u, sizeof(u));
-  return x;
-}
-inline float LEFloatToHost(float x) {
-  uint32_t u;
-  memcpy(&u, &x, sizeof(u));
-  u = ByteSwap32(u);
-  memcpy(&x, &u, sizeof(u));
-  return x;
-}
-inline double LEDoubleToHost(double x) {
-  uint64_t u;
-  memcpy(&u, &x, sizeof(u));
-  u = ByteSwap64(u);
-  memcpy(&x, &u, sizeof(u));
-  return x;
-}
-inline float HostToBEFloat(float x) {
-  return x;
-}
-inline double HostToBEDouble(double x) {
-  return x;
-}
-inline float BEFloatToHost(float x) {
-  return x;
-}
-inline double BEDoubleToHost(double x) {
+inline unsigned long long BEToHost(unsigned long long x) {
   return x;
 }
 #endif
 
-inline uint32_t HostToLE(uint32_t x) {
-  return HostToLE32(x);
+inline bool HostToLE(bool x) {
+  return x;
 }
-inline int32_t HostToLE(int32_t x) {
-  return static_cast<int32_t>(HostToLE32(static_cast<uint32_t>(x)));
+inline char HostToLE(char x) {
+  return x;
 }
-inline uint64_t HostToLE(uint64_t x) {
-  return HostToLE64(x);
+inline signed char HostToLE(signed char x) {
+  return x;
 }
-inline int64_t HostToLE(int64_t x) {
-  return static_cast<int64_t>(HostToLE64(static_cast<uint64_t>(x)));
+inline unsigned char HostToLE(unsigned char x) {
+  return x;
+}
+inline short HostToLE(short x) {
+  return static_cast<short>(HostToLE(static_cast<unsigned short>(x)));
+}
+inline int HostToLE(int x) {
+  return static_cast<int>(HostToLE(static_cast<unsigned int>(x)));
+}
+inline long long HostToLE(long long x) {
+  return static_cast<long long>(HostToLE(static_cast<unsigned long long>(x)));
+}
+inline unsigned long HostToLE(unsigned long x) {
+  if (sizeof(long) == sizeof(int))
+    return HostToLE(static_cast<unsigned int>(x));
+  return static_cast<unsigned long>(
+      HostToLE(static_cast<unsigned long long>(x)));
+}
+inline long HostToLE(long x) {
+  return static_cast<long>(HostToLE(static_cast<unsigned long>(x)));
 }
 inline float HostToLE(float x) {
-  return HostToLEFloat(x);
+  uint32_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = HostToLE(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
 }
 inline double HostToLE(double x) {
-  return HostToLEDouble(x);
+  uint64_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = HostToLE(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
 }
 
-inline uint32_t LEToHost(uint32_t x) {
-  return LE32ToHost(x);
+inline bool LEToHost(bool x) {
+  return x;
 }
-inline int32_t LEToHost(int32_t x) {
-  return static_cast<int32_t>(LE32ToHost(static_cast<uint32_t>(x)));
+inline char LEToHost(char x) {
+  return x;
 }
-inline uint64_t LEToHost(uint64_t x) {
-  return LE64ToHost(x);
+inline signed char LEToHost(signed char x) {
+  return x;
 }
-inline int64_t LEToHost(int64_t x) {
-  return static_cast<int64_t>(LE64ToHost(static_cast<uint64_t>(x)));
+inline unsigned char LEToHost(unsigned char x) {
+  return x;
+}
+inline short LEToHost(short x) {
+  return static_cast<short>(LEToHost(static_cast<unsigned short>(x)));
+}
+inline int LEToHost(int x) {
+  return static_cast<int>(LEToHost(static_cast<unsigned int>(x)));
+}
+inline long long LEToHost(long long x) {
+  return static_cast<long long>(LEToHost(static_cast<unsigned long long>(x)));
+}
+inline unsigned long LEToHost(unsigned long x) {
+  if (sizeof(long) == sizeof(int))
+    return LEToHost(static_cast<unsigned int>(x));
+  return static_cast<unsigned long>(
+      LEToHost(static_cast<unsigned long long>(x)));
+}
+inline long LEToHost(long x) {
+  return static_cast<long>(LEToHost(static_cast<unsigned long>(x)));
 }
 inline float LEToHost(float x) {
-  return LEFloatToHost(x);
+  uint32_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = LEToHost(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
 }
 inline double LEToHost(double x) {
-  return LEDoubleToHost(x);
+  uint64_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = LEToHost(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
+}
+
+inline bool HostToBE(bool x) {
+  return x;
+}
+inline char HostToBE(char x) {
+  return x;
+}
+inline signed char HostToBE(signed char x) {
+  return x;
+}
+inline unsigned char HostToBE(unsigned char x) {
+  return x;
+}
+inline short HostToBE(short x) {
+  return static_cast<short>(HostToBE(static_cast<unsigned short>(x)));
+}
+inline int HostToBE(int x) {
+  return static_cast<int>(HostToBE(static_cast<unsigned int>(x)));
+}
+inline long long HostToBE(long long x) {
+  return static_cast<long long>(HostToBE(static_cast<unsigned long long>(x)));
+}
+inline unsigned long HostToBE(unsigned long x) {
+  if (sizeof(long) == sizeof(int))
+    return HostToBE(static_cast<unsigned int>(x));
+  return static_cast<unsigned long>(
+      HostToBE(static_cast<unsigned long long>(x)));
+}
+inline long HostToBE(long x) {
+  return static_cast<long>(HostToBE(static_cast<unsigned long>(x)));
+}
+inline float HostToBE(float x) {
+  uint32_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = HostToBE(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
+}
+inline double HostToBE(double x) {
+  uint64_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = HostToBE(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
+}
+
+inline bool BEToHost(bool x) {
+  return x;
+}
+inline char BEToHost(char x) {
+  return x;
+}
+inline signed char BEToHost(signed char x) {
+  return x;
+}
+inline unsigned char BEToHost(unsigned char x) {
+  return x;
+}
+inline short BEToHost(short x) {
+  return static_cast<short>(BEToHost(static_cast<unsigned short>(x)));
+}
+inline int BEToHost(int x) {
+  return static_cast<int>(BEToHost(static_cast<unsigned int>(x)));
+}
+inline long long BEToHost(long long x) {
+  return static_cast<long long>(BEToHost(static_cast<unsigned long long>(x)));
+}
+inline unsigned long BEToHost(unsigned long x) {
+  if (sizeof(long) == sizeof(int))
+    return BEToHost(static_cast<unsigned int>(x));
+  return static_cast<unsigned long>(
+      BEToHost(static_cast<unsigned long long>(x)));
+}
+inline long BEToHost(long x) {
+  return static_cast<long>(BEToHost(static_cast<unsigned long>(x)));
+}
+inline float BEToHost(float x) {
+  uint32_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = BEToHost(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
+}
+inline double BEToHost(double x) {
+  uint64_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = BEToHost(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
+}
+
+template <typename T>
+inline T LoadLE(const void* p) {
+  T v;
+  memcpy(&v, p, sizeof(v));
+  return LEToHost(v);
+}
+
+template <typename T>
+inline void StoreLE(void* p, T v) {
+  v = HostToLE(v);
+  memcpy(p, &v, sizeof(v));
 }
 
 }  // namespace base

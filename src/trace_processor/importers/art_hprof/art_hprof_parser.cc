@@ -160,7 +160,7 @@ bool ArtHprofParser::TraceBlobViewIterator::ReadU2(uint16_t& value) {
     return false;
   uint16_t raw;
   std::memcpy(&raw, d, sizeof(raw));
-  value = base::BE16ToHost(raw);
+  value = base::BEToHost(raw);
   current_offset_ += 2;
   return true;
 }
@@ -171,7 +171,7 @@ bool ArtHprofParser::TraceBlobViewIterator::ReadU4(uint32_t& value) {
     return false;
   uint32_t raw;
   std::memcpy(&raw, d, sizeof(raw));
-  value = base::BE32ToHost(raw);
+  value = base::BEToHost(raw);
   current_offset_ += 4;
   return true;
 }
@@ -188,11 +188,11 @@ bool ArtHprofParser::TraceBlobViewIterator::ReadId(uint64_t& value,
   if (id_size == 4) {
     uint32_t raw;
     std::memcpy(&raw, d, sizeof(raw));
-    value = base::BE32ToHost(raw);
+    value = base::BEToHost(raw);
   } else {
     uint64_t raw;
     std::memcpy(&raw, d, sizeof(raw));
-    value = base::BE64ToHost(raw);
+    value = base::BEToHost(raw);
   }
   current_offset_ += id_size;
   return true;

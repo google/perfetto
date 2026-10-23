@@ -646,12 +646,12 @@ namespace {
 
 // HPROF stores array elements big endian; convert to native endianness in
 // place so the buffer can be handed to the storage as-is.
-template <typename T, typename Conv>
-void ConvertElements(uint8_t* data, size_t element_count, Conv conv) {
+template <typename T>
+void ConvertElements(uint8_t* data, size_t element_count) {
   for (size_t i = 0; i < element_count; ++i) {
     T value;
     memcpy(&value, data + i * sizeof(T), sizeof(T));
-    value = conv(value);
+    value = base::BEToHost(value);
     memcpy(data + i * sizeof(T), &value, sizeof(T));
   }
 }
@@ -659,13 +659,13 @@ void ConvertElements(uint8_t* data, size_t element_count, Conv conv) {
 void ToNativeEndian(uint8_t* data, size_t element_count, size_t element_size) {
   switch (element_size) {
     case 2:
-      ConvertElements<uint16_t>(data, element_count, base::BE16ToHost);
+      ConvertElements<uint16_t>(data, element_count);
       break;
     case 4:
-      ConvertElements<uint32_t>(data, element_count, base::BE32ToHost);
+      ConvertElements<uint32_t>(data, element_count);
       break;
     case 8:
-      ConvertElements<uint64_t>(data, element_count, base::BE64ToHost);
+      ConvertElements<uint64_t>(data, element_count);
       break;
     default:
       break;
