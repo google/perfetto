@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
@@ -85,8 +86,7 @@ const uint16_t kDeflate = 8;
 
 template <typename T>
 T ReadAndAdvance(const uint8_t** ptr) {
-  T res{};
-  memcpy(base::AssumeLittleEndian(&res), *ptr, sizeof(T));
+  T res = base::LoadLE<T>(*ptr);
   *ptr += sizeof(T);
   return res;
 }

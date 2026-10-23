@@ -23,6 +23,7 @@
 #include <cstring>
 #include <string_view>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 
 namespace perfetto::trace_processor {
@@ -75,14 +76,12 @@ class SqlBundle {
       cur_ = next_;
       if (cur_ >= end_)
         return;
-      uint32_t path_size;
-      std::memcpy(&path_size, next_, sizeof(path_size));
+      uint32_t path_size = base::LoadLE<uint32_t>(next_);
       next_ += sizeof(path_size);
       entry_.path = reinterpret_cast<const char*>(next_);
       next_ += path_size + 1;  // +1 for the NUL terminator.
 
-      uint32_t sql_size;
-      std::memcpy(&sql_size, next_, sizeof(sql_size));
+      uint32_t sql_size = base::LoadLE<uint32_t>(next_);
       next_ += sizeof(sql_size);
       entry_.sql =
           std::string_view(reinterpret_cast<const char*>(next_), sql_size);
