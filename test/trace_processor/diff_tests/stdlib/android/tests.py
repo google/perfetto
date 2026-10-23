@@ -3517,7 +3517,6 @@ class AndroidStdlib(TestSuite):
         "count",1000,0,200,"",2
         "count",2000,0,200,"",1
         "count",3000,0,200,"",2
-        "count",5000,0,200,"",0
         "count",4000,0,300,"",1
         """))
 

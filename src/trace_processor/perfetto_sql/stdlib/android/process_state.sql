@@ -305,14 +305,13 @@ GROUP BY
 
 -- Number of enabled capabilities for each process over time. The weight 0
 -- background row per process makes INTERVAL FLATTEN also emit the gaps with
--- no capability. It runs to one ns past the trace so that a capability ending
--- exactly at trace_end() still gets its zero, while open ones never do.
+-- no capability.
 CREATE PERFETTO TABLE _android_process_capability_count AS
 FROM (
-  SELECT ts, iif(dur < 0, trace_end() + 1 - ts, dur) AS dur, upid, 1 AS n
+  SELECT ts, iif(dur < 0, trace_end() - ts, dur) AS dur, upid, 1 AS n
   FROM _android_process_capability_intervals
   UNION ALL
-  SELECT min(ts) AS ts, trace_end() + 1 - min(ts) AS dur, upid, 0 AS n
+  SELECT min(ts) AS ts, trace_end() - min(ts) AS dur, upid, 0 AS n
   FROM _android_process_capability_intervals
   GROUP BY
     upid
