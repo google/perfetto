@@ -4,6 +4,8 @@ Shows slices and counters streamed by a live server as a trace that grows while
 you watch, e.g. the tasks, steps and errors of a running job. Any server that
 implements the protocol below works.
 
+Try it without a server: [demo/README.md](demo/README.md).
+
 The server serves this UI and opens it as
 
 ```
