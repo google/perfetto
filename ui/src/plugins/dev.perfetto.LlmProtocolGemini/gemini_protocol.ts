@@ -140,7 +140,14 @@ function classifyError(status: number, body: string): StreamEvent {
 // Response of GET /models (only the fields we consume). Unknown keys are
 // dropped by zod, so this tolerates the many other fields Gemini returns.
 const LIST_MODELS_RESPONSE = z.object({
-  models: z.array(z.object({name: z.string().optional()})).optional(),
+  models: z
+    .array(
+      z.object({
+        name: z.string().optional(),
+        inputTokenLimit: z.number().optional(),
+      }),
+    )
+    .optional(),
 });
 
 const CAPABILITIES: ProtocolCapabilities = {
@@ -187,9 +194,11 @@ export class GeminiProtocol implements Protocol {
     }
     const json = LIST_MODELS_RESPONSE.parse(await resp.json());
     return (json.models ?? [])
-      .map((m) => m.name ?? '')
-      .filter((name) => name !== '')
-      .map((name) => ({name: name.replace(/^models\//, '')}));
+      .filter((m) => m.name !== undefined && m.name !== '')
+      .map((m) => ({
+        name: (m.name ?? '').replace(/^models\//, ''),
+        contextWindow: m.inputTokenLimit,
+      }));
   }
 
   async *createStream(
