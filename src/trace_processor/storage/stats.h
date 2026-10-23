@@ -57,6 +57,19 @@ namespace perfetto::trace_processor::stats {
   F(android_video_parse_size_cap_hit,     kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "android.display.video stream exceeded the parse-time size cap; frames " \
       "dropped. See the trace_import_logs table for the affected display."),   \
+  F(android_video_vsync_composite_unmatched,                                   \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "android.surfaceflinger.virtualdisplay VirtualDisplayComposite packets " \
+      "whose present_time_us matched no android.display.video frame pts_us, "  \
+      "so their vsync id is not linked to a video frame. Expected for "        \
+      "virtual displays that are not being captured, and for frames the "      \
+      "encoder dropped or re-timed."),                                         \
+  F(android_video_vsync_present_time_ambiguous,                                \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "present_time_us values that VirtualDisplayComposite packets map to "    \
+      "different vsync ids, and that match an android.display.video frame "    \
+      "pts_us. Such frames get no frame_timeline_vsync_id, as the composite "  \
+      "that produced them is ambiguous."),                                     \
   F(deobfuscate_location_parse_error,     kSingle,  kError,    kAnalysis, Scope::kGlobal,          ""), \
   F(energy_breakdown_missing_values,      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(energy_descriptor_invalid,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \

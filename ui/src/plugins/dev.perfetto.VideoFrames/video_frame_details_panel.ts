@@ -14,9 +14,16 @@
 
 import './video_frames.scss';
 import m from 'mithril';
+import {
+  AsyncMemo,
+  type CancellationSignal,
+  TASK_CANCELLED,
+} from '../../base/async_memo';
 import {ensureIsInstance} from '../../base/assert';
 import {Time} from '../../base/time';
 import {Timestamp} from '../../components/widgets/timestamp';
+import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
+import {Anchor} from '../../widgets/anchor';
 import type {TrackEventDetailsPanel} from '../../public/details_panel';
 import type {TrackEventSelection} from '../../public/selection';
 import {Button, ButtonBar} from '../../widgets/button';
@@ -31,8 +38,27 @@ import type {VideoFramePlayer} from './video_frame_player';
 // Playback speed options, in real-time multiples.
 const PLAYBACK_RATES = [0.1, 0.2, 0.5, 1, 1.5, 2];
 
+// One app (SurfaceFrame) that was composited into this frame's DisplayFrame.
+interface AppFrame {
+  readonly sliceId: number; // actual_frame_timeline_slice.id, to jump to
+  readonly token: bigint; // surface_frame_token: this app's own vsync id
+  readonly process: string; // process name (falls back to layer name)
+}
+
+// The frame-timeline slices with a given DisplayFrame token.
+interface DisplayFrame {
+  // SurfaceFlinger's DisplayFrame slice, unless the trace lacks it.
+  readonly sliceId?: number;
+  // The app frames (SurfaceFrames) composited into it.
+  readonly appFrames: ReadonlyArray<AppFrame>;
+}
+
 export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
   private readonly player: VideoFramePlayer;
+
+  // The DisplayFrame the current frame was composited in, keyed by its vsync
+  // id so it's queried at most once as long as the selection stays put.
+  private readonly displayFrameMemo = new AsyncMemo<DisplayFrame>();
 
   constructor(player: VideoFramePlayer) {
     this.player = player;
@@ -64,6 +90,37 @@ export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
         right: m(Timestamp, {trace: p.trace, ts: Time.fromRaw(frame.ts)}),
       }),
     ];
+    if (frame.vsyncId !== undefined) {
+      const vsyncId = frame.vsyncId;
+      // The DisplayFrame this frame was composited in, with the app frames
+      // composited into it nested below, so you can jump straight to an app's
+      // frame timeline without the SurfaceFlinger round trip.
+      const displayFrame = this.displayFrameMemo.use({
+        key: {vsyncId},
+        compute: (signal) => this.loadDisplayFrame(vsyncId, signal),
+      }).data;
+      const sliceId = displayFrame?.sliceId;
+      detailRows.push(
+        m(
+          TreeNode,
+          {
+            left: 'Frame timeline vsync id',
+            // Once the SurfaceFlinger DisplayFrame (frame-timeline slice) this
+            // frame was composited in is found, the id links to it,
+            // highlighted like the Timestamp.
+            right:
+              sliceId === undefined
+                ? `${vsyncId}`
+                : m(
+                    Anchor,
+                    {onclick: () => this.selectSlice(sliceId)},
+                    `${vsyncId}`,
+                  ),
+          },
+          this.renderAppFrameNodes(displayFrame),
+        ),
+      );
+    }
     for (const err of p.errors) {
       detailRows.push(m(TreeNode, {left: 'Stream error', right: err}));
     }
@@ -95,6 +152,84 @@ export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
               ),
         ),
       ),
+    );
+  }
+
+  // Selects and scrolls to a frame-timeline slice.
+  private selectSlice(sliceId: number) {
+    this.player.trace.selection.selectSqlEvent('slice', sliceId, {
+      scrollToSelection: true,
+    });
+  }
+
+  // Loads the frame-timeline slices with this DisplayFrame token: the
+  // SurfaceFlinger DisplayFrame itself, and the app frames (SurfaceFrames)
+  // composited into it. A SurfaceFrame carries the display_frame_token of the
+  // DisplayFrame it was presented in, so this needs no round trip through
+  // SurfaceFlinger.
+  private async loadDisplayFrame(
+    vsyncId: bigint,
+    signal: CancellationSignal,
+  ): Promise<DisplayFrame | typeof TASK_CANCELLED> {
+    const engine = this.player.trace.engine;
+    const displayFrameRes = await engine.query(`
+      SELECT id
+      FROM actual_frame_timeline_slice
+      WHERE display_frame_token = ${vsyncId} AND surface_frame_token IS NULL
+      ORDER BY ts
+      LIMIT 1
+    `);
+    // A newer frame superseded this one while the query was in flight.
+    if (signal.isCancelled) return TASK_CANCELLED;
+    const appFramesRes = await engine.query(`
+      SELECT
+        s.id AS sliceId,
+        s.surface_frame_token AS token,
+        COALESCE(p.name, s.layer_name) AS process
+      FROM actual_frame_timeline_slice s
+      LEFT JOIN process p USING (upid)
+      WHERE s.display_frame_token = ${vsyncId}
+        AND s.surface_frame_token IS NOT NULL
+      ORDER BY process, token
+    `);
+    const appFrames: AppFrame[] = [];
+    const it = appFramesRes.iter({
+      sliceId: NUM,
+      token: LONG,
+      process: STR_NULL,
+    });
+    for (; it.valid(); it.next()) {
+      appFrames.push({
+        sliceId: it.sliceId,
+        token: it.token,
+        process: it.process ?? '<unknown>',
+      });
+    }
+    return {
+      sliceId: displayFrameRes.maybeFirstRow({id: NUM})?.id,
+      appFrames,
+    };
+  }
+
+  // The app-frame rows shown nested under the SF vsync id: process name on the
+  // left, the app's own vsync id (surface_frame_token) as a clickable link on
+  // the right that jumps straight to that app's frame timeline slice.
+  private renderAppFrameNodes(displayFrame?: DisplayFrame): m.Children {
+    if (displayFrame === undefined) {
+      return m(TreeNode, {left: 'Loading app frames…'});
+    }
+    if (displayFrame.appFrames.length === 0) {
+      return m(TreeNode, {left: 'No app frames'});
+    }
+    return displayFrame.appFrames.map((af) =>
+      m(TreeNode, {
+        left: af.process,
+        right: m(
+          Anchor,
+          {onclick: () => this.selectSlice(af.sliceId)},
+          `${af.token}`,
+        ),
+      }),
     );
   }
 

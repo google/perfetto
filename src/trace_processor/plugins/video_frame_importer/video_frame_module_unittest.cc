@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -36,6 +37,7 @@
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.pbzero.h"
 
 #include "test/gtest_and_gmock.h"
 
@@ -43,7 +45,9 @@ namespace perfetto::trace_processor {
 namespace {
 
 using ::com::android::internal::pbzero::FrameworksBaseTracePacket;
+using ::com::android::internal::pbzero::FrameworksNativeTracePacket;
 using ::com::android::internal::pbzero::VideoFrame;
+using ::com::android::internal::pbzero::VirtualDisplayComposite;
 using ::perfetto::protos::pbzero::TracePacket;
 
 class VideoFrameModuleTest : public testing::Test {
@@ -77,9 +81,13 @@ class VideoFrameModuleTest : public testing::Test {
   void PushAccessUnit(VideoFrameModule& module,
                       uint32_t display_id,
                       size_t au_size,
-                      int64_t ts) {
+                      int64_t ts,
+                      std::optional<uint64_t> pts_us = std::nullopt) {
     protozero::HeapBuffered<VideoFrame> vf;
     vf->set_display_id(display_id);
+    if (pts_us.has_value()) {
+      vf->set_pts_us(*pts_us);
+    }
     std::vector<uint8_t> au(au_size, 0xAB);
     vf->set_au_data(au.data(), au.size());
     std::vector<uint8_t> vf_bytes = vf.SerializeAsArray();
@@ -98,13 +106,52 @@ class VideoFrameModuleTest : public testing::Test {
     module.ParseField({decoder, ts, tpd, field});
   }
 
+  // Feeds one VirtualDisplayComposite, written as the frameworks_native
+  // TracePacket extension (field 1100), to the module.
+  void PushVirtualDisplayComposite(VideoFrameModule& module,
+                                   int64_t present_time_us,
+                                   int64_t vsync_id) {
+    protozero::HeapBuffered<VirtualDisplayComposite> vdc;
+    vdc->set_present_time_us(present_time_us);
+    vdc->set_vsync_id(vsync_id);
+    std::vector<uint8_t> vdc_bytes = vdc.SerializeAsArray();
+
+    protozero::HeapBuffered<TracePacket> packet;
+    packet->AppendBytes(
+        FrameworksNativeTracePacket::kVirtualDisplayCompositeFieldNumber,
+        vdc_bytes.data(), vdc_bytes.size());
+    std::vector<uint8_t> bytes = packet.SerializeAsArray();
+
+    TraceBlobView tbv(TraceBlob::CopyFrom(bytes.data(), bytes.size()));
+    TracePacketData tpd{tbv.copy(), {}};
+    SelectiveTracePacketDecoder decoder(tbv.data(), tbv.length());
+    TracePacketField field = decoder.FindUnknownField(
+        FrameworksNativeTracePacket::kVirtualDisplayCompositeFieldNumber);
+    ASSERT_TRUE(field.valid());
+    module.ParseField({decoder, /*ts=*/0, tpd, field});
+  }
+
   uint32_t FrameRowCount() { return table_->row_count(); }
+
+  std::optional<int64_t> VsyncId(uint32_t row) {
+    return (*table_)[row].frame_timeline_vsync_id();
+  }
 
   // Number of streams that hit the parse-time cap (the stat is a single
   // counter; the affected display is recorded as an import-log arg).
   int64_t SizeCapHits() {
     return context_.stats_tracker->GetStats(
         stats::android_video_parse_size_cap_hit);
+  }
+
+  int64_t UnmatchedComposites() {
+    return context_.stats_tracker->GetStats(
+        stats::android_video_vsync_composite_unmatched);
+  }
+
+  int64_t AmbiguousPresentTimes() {
+    return context_.stats_tracker->GetStats(
+        stats::android_video_vsync_present_time_ambiguous);
   }
 
   // A 100-byte cap exercises the drop path without 256 MB of data.
@@ -161,6 +208,104 @@ TEST_F(VideoFrameModuleTest, CapIsPerStream) {
   // overflow, and exactly one stream hit the cap.
   EXPECT_EQ(FrameRowCount(), 5u);
   EXPECT_EQ(SizeCapHits(), 1);
+}
+
+TEST_F(VideoFrameModuleTest, LinksFrameTimelineVsyncId) {
+  auto module = MakeModule();
+  PushVirtualDisplayComposite(*module, /*present_time_us=*/500000,
+                              /*vsync_id=*/42);
+  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/30, /*ts=*/1000,
+                 /*pts_us=*/500000);
+  module->OnEventsFullyExtracted();
+
+  ASSERT_EQ(FrameRowCount(), 1u);
+  EXPECT_EQ(VsyncId(0), 42);
+  EXPECT_EQ(UnmatchedComposites(), 0);
+  EXPECT_EQ(AmbiguousPresentTimes(), 0);
+}
+
+TEST_F(VideoFrameModuleTest, LeavesFrameUnlinkedWithoutMatchingComposite) {
+  auto module = MakeModule();
+  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/30, /*ts=*/1000,
+                 /*pts_us=*/500000);
+  // A composite whose present time matches no frame, e.g. one queued to a
+  // virtual display that isn't being captured.
+  PushVirtualDisplayComposite(*module, /*present_time_us=*/600000,
+                              /*vsync_id=*/42);
+  module->OnEventsFullyExtracted();
+
+  ASSERT_EQ(FrameRowCount(), 1u);
+  EXPECT_EQ(VsyncId(0), std::nullopt);
+  EXPECT_EQ(UnmatchedComposites(), 1);
+  EXPECT_EQ(AmbiguousPresentTimes(), 0);
+}
+
+TEST_F(VideoFrameModuleTest, LinksFrameParsedBeforeComposite) {
+  auto module = MakeModule();
+  // The backfill runs once all packets are parsed, so a composite that comes
+  // after its frame still links.
+  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/30, /*ts=*/1000,
+                 /*pts_us=*/500000);
+  PushVirtualDisplayComposite(*module, /*present_time_us=*/500000,
+                              /*vsync_id=*/42);
+  module->OnEventsFullyExtracted();
+
+  ASSERT_EQ(FrameRowCount(), 1u);
+  EXPECT_EQ(VsyncId(0), 42);
+  EXPECT_EQ(UnmatchedComposites(), 0);
+  EXPECT_EQ(AmbiguousPresentTimes(), 0);
+}
+
+TEST_F(VideoFrameModuleTest, LeavesFrameUnlinkedOnConflictingVsyncIds) {
+  auto module = MakeModule();
+  // Two composites share a present time but disagree on the vsync id, so
+  // either could have produced the frame.
+  PushVirtualDisplayComposite(*module, /*present_time_us=*/500000,
+                              /*vsync_id=*/42);
+  PushVirtualDisplayComposite(*module, /*present_time_us=*/500000,
+                              /*vsync_id=*/43);
+  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/30, /*ts=*/1000,
+                 /*pts_us=*/500000);
+  module->OnEventsFullyExtracted();
+
+  ASSERT_EQ(FrameRowCount(), 1u);
+  EXPECT_EQ(VsyncId(0), std::nullopt);
+  EXPECT_EQ(UnmatchedComposites(), 0);
+  EXPECT_EQ(AmbiguousPresentTimes(), 1);
+}
+
+TEST_F(VideoFrameModuleTest, LinksRepeatedPresentTimeWithSameVsyncId) {
+  auto module = MakeModule();
+  // Two virtual displays composited in the same frame share its vsync id, so
+  // a repeated present time with the same vsync id is not ambiguous.
+  PushVirtualDisplayComposite(*module, /*present_time_us=*/500000,
+                              /*vsync_id=*/42);
+  PushVirtualDisplayComposite(*module, /*present_time_us=*/500000,
+                              /*vsync_id=*/42);
+  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/30, /*ts=*/1000,
+                 /*pts_us=*/500000);
+  module->OnEventsFullyExtracted();
+
+  ASSERT_EQ(FrameRowCount(), 1u);
+  EXPECT_EQ(VsyncId(0), 42);
+  EXPECT_EQ(UnmatchedComposites(), 0);
+  EXPECT_EQ(AmbiguousPresentTimes(), 0);
+}
+
+TEST_F(VideoFrameModuleTest, IgnoresCompositeWithInvalidVsyncId) {
+  auto module = MakeModule();
+  // SurfaceFlinger's INVALID_VSYNC_ID (-1) has no frame timeline to link to,
+  // so the composite neither links the frame nor counts as unmatched.
+  PushVirtualDisplayComposite(*module, /*present_time_us=*/500000,
+                              /*vsync_id=*/-1);
+  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/30, /*ts=*/1000,
+                 /*pts_us=*/500000);
+  module->OnEventsFullyExtracted();
+
+  ASSERT_EQ(FrameRowCount(), 1u);
+  EXPECT_EQ(VsyncId(0), std::nullopt);
+  EXPECT_EQ(UnmatchedComposites(), 0);
+  EXPECT_EQ(AmbiguousPresentTimes(), 0);
 }
 
 }  // namespace
