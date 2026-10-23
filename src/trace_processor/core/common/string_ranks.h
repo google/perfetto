@@ -39,7 +39,7 @@ class StringRanks {
   void Clear() { ranks_.Clear(); }
 
  private:
-  base::FlatHashMap<StringPool::Id, uint32_t> ranks_;
+  base::FlatHashMapV2<StringPool::Id, uint32_t> ranks_;
 };
 
 }  // namespace perfetto::trace_processor::core

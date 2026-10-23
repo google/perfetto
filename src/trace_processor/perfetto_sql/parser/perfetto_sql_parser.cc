@@ -129,7 +129,7 @@ class RewriteTree {
   RewriteTree(SyntaqliteParser* p,
               const SqlSource& stmt,
               uint32_t stmt_doc_offset,
-              const base::FlatHashMap<std::string, Macro>& macros)
+              const base::FlatHashMapV2<std::string, Macro>& macros)
       : p_(p), stmt_(stmt), stmt_doc_offset_(stmt_doc_offset), macros_(macros) {
     uint32_t total = syntaqlite_result_rewrite_count(p_);
     no_macros_ = (total == 0);
@@ -318,7 +318,7 @@ class RewriteTree {
   SyntaqliteParser* p_;
   const SqlSource& stmt_;
   uint32_t stmt_doc_offset_;
-  const base::FlatHashMap<std::string, Macro>& macros_;
+  const base::FlatHashMapV2<std::string, Macro>& macros_;
   // Zero macros in the whole parse — lets NodeSource fast-path.
   bool no_macros_ = true;
   // children_[parent_idx] = rewrite indices whose `parent_idx` equals that.
@@ -639,7 +639,7 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
 // (preprocessor-compat shims) and the engine-owned user macro registry.
 
 struct PerfettoSqlParser::Impl {
-  Impl(const base::FlatHashMap<std::string, Macro>& m,
+  Impl(const base::FlatHashMapV2<std::string, Macro>& m,
        const pipeline::Catalog& c,
        bool allowed)
       : source(SqlSource::FromTraceProcessorImplementation("")),
@@ -721,7 +721,7 @@ struct PerfettoSqlParser::Impl {
 
   SyntaqliteParser* synq;
   SqlSource source;
-  const base::FlatHashMap<std::string, Macro>& macros;
+  const base::FlatHashMapV2<std::string, Macro>& macros;
   const pipeline::Catalog* catalog;
   // Whether the SQL being read may use a pipeline. Set per source, so one
   // parser serves both the standard library and user SQL.
@@ -788,7 +788,7 @@ bool PerfettoSqlParser::Impl::Next(
 }
 
 PerfettoSqlParser::PerfettoSqlParser(
-    const base::FlatHashMap<std::string, Macro>& macros,
+    const base::FlatHashMapV2<std::string, Macro>& macros,
     const pipeline::Catalog& catalog,
     bool pipelines_allowed)
     : impl_(std::make_unique<Impl>(macros, catalog, pipelines_allowed)) {}

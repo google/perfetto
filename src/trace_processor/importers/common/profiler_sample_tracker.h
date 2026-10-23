@@ -88,13 +88,13 @@ class ProfilerSampleTracker {
 
   TraceProcessorContext* const context_;
   int64_t last_ts_ = std::numeric_limits<int64_t>::min();
-  base::FlatHashMap<TaskContextKey,
-                    tables::ProfilerTaskContextTable::Id,
-                    base::MurmurHash<TaskContextKey>>
+  base::FlatHashMapV2<TaskContextKey,
+                      tables::ProfilerTaskContextTable::Id,
+                      base::MurmurHash<TaskContextKey>>
       task_contexts_;
-  base::FlatHashMap<ExecutionContextKey,
-                    tables::ProfilerExecutionContextTable::Id,
-                    base::MurmurHash<ExecutionContextKey>>
+  base::FlatHashMapV2<ExecutionContextKey,
+                      tables::ProfilerExecutionContextTable::Id,
+                      base::MurmurHash<ExecutionContextKey>>
       execution_contexts_;
 };
 

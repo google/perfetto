@@ -71,7 +71,7 @@ class PerfTracker {
 
   TraceProcessorContext* const context_;
 
-  base::FlatHashMap<uint32_t, AuxDataTokenizerFactory> factories_;
+  base::FlatHashMapV2<uint32_t, AuxDataTokenizerFactory> factories_;
 };
 
 }  // namespace perfetto::trace_processor::perf_importer

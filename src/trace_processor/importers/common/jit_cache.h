@@ -123,7 +123,7 @@ class JitCache {
    private:
     const tables::JitCodeTable::Id jit_code_id_;
     const std::optional<uint32_t> symbol_set_id_;
-    base::FlatHashMap<FrameKey, FrameId, base::MurmurHash<FrameKey>>
+    base::FlatHashMapV2<FrameKey, FrameId, base::MurmurHash<FrameKey>>
         interned_frames_;
   };
 
@@ -134,7 +134,7 @@ class JitCache {
   const UniquePid upid_;
   const AddressRange range_;
   AddressRangeMap<JittedFunction> functions_;
-  base::FlatHashMap<FrameKey, FrameId, base::MurmurHash<FrameKey>>
+  base::FlatHashMapV2<FrameKey, FrameId, base::MurmurHash<FrameKey>>
       unknown_frames_;
 };
 

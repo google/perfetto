@@ -42,7 +42,7 @@ TEST(DeobfuscationMappingTable, TranslateClassSingleInsert) {
 
   DeobfuscationMappingTable table;
   table.AddClassTranslation(PackageId{"app", 123}, xyz_id, class_x_id,
-                            base::FlatHashMap<StringId, StringId>{});
+                            base::FlatHashMapV2<StringId, StringId>{});
   EXPECT_EQ(table.TranslateClass(xyz_id), class_x_id);
   EXPECT_EQ(table.TranslateClass(PackageId{"app", 123}, xyz_id), class_x_id);
   EXPECT_EQ(table.TranslateClass(PackageId{"app", 124}, xyz_id), std::nullopt);
@@ -59,11 +59,11 @@ TEST(DeobfuscationMappingTable, TranslateClassMultipleInsert) {
 
   DeobfuscationMappingTable table;
   table.AddClassTranslation(PackageId{"app1", 123}, xyz_id, class_x_id,
-                            base::FlatHashMap<StringId, StringId>{});
+                            base::FlatHashMapV2<StringId, StringId>{});
   table.AddClassTranslation(PackageId{"app2", 123}, xyz_id, class_y_id,
-                            base::FlatHashMap<StringId, StringId>{});
+                            base::FlatHashMapV2<StringId, StringId>{});
   table.AddClassTranslation(PackageId{"app3", 123}, abc_id, class_a_id,
-                            base::FlatHashMap<StringId, StringId>{});
+                            base::FlatHashMapV2<StringId, StringId>{});
   EXPECT_EQ(table.TranslateClass(xyz_id), class_x_id);
   EXPECT_EQ(table.TranslateClass(abc_id), std::nullopt);
   EXPECT_EQ(table.TranslateClass(PackageId{"app1", 123}, xyz_id), class_x_id);
@@ -84,7 +84,7 @@ TEST(DeobfuscationMappingTable, TranslateMember) {
   StringId member_2_id = storage.InternString("member_2");
   StringId member_3_id = storage.InternString("member_3");
 
-  base::FlatHashMap<StringId, StringId> members;
+  base::FlatHashMapV2<StringId, StringId> members;
   members[mmm_1_id] = member_1_id;
   members[mmm_2_id] = member_2_id;
   members[mmm_3_id] = member_3_id;

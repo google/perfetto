@@ -102,7 +102,7 @@ struct EventDescription {
 
 struct SimpleperfMetaInfo {
   static base::Status Parse(const TraceBlobView&, SimpleperfMetaInfo& out);
-  base::FlatHashMap<std::string, std::string> entries;
+  base::FlatHashMapV2<std::string, std::string> entries;
   struct EventTypeAndConfig {
     uint32_t type;
     uint64_t config;
@@ -118,9 +118,9 @@ struct SimpleperfMetaInfo {
     }
   };
   using EventName = std::string;
-  base::FlatHashMap<EventTypeAndConfig,
-                    EventName,
-                    base::MurmurHash<EventTypeAndConfig>>
+  base::FlatHashMapV2<EventTypeAndConfig,
+                      EventName,
+                      base::MurmurHash<EventTypeAndConfig>>
       event_type_info;
 };
 

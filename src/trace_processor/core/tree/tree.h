@@ -63,7 +63,7 @@ struct Tree {
     std::vector<uint32_t> dense;  // dense uint32 ids -> row, kNullParent absent
     // Arbitrary ids -> row. Optional because FlatHashMap's constructor is
     // explicit, which would break aggregate initialization of Tree.
-    std::optional<base::FlatHashMap<int64_t, uint32_t>> hash;
+    std::optional<base::FlatHashMapV2<int64_t, uint32_t>> hash;
 
     // Resolves an id to a row index within a table of |num_rows| rows, or
     // kNullParent if absent (returned as a sentinel rather than wrapped in

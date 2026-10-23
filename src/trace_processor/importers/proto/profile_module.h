@@ -102,7 +102,7 @@ class ProfileModule : public ProtoImporterModule {
   // heap_profile rows already emitted, so the per-dump row is written once per
   // heap despite the dump header repeating across continued ProfilePackets.
   // Used as a set: the value is unused.
-  base::FlatHashMap<SeenHeapProfile, std::nullptr_t> seen_heap_profiles_;
+  base::FlatHashMapV2<SeenHeapProfile, std::nullptr_t> seen_heap_profiles_;
 };
 
 }  // namespace perfetto::trace_processor

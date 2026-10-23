@@ -76,7 +76,7 @@ void GatherNullableRows(Span<const T> source,
 
 // Estimates the number of distinct values using a bounded strided sample.
 template <typename T>
-uint32_t EstimateDistinctCount(base::FlatHashMap<int64_t, uint32_t>* counts,
+uint32_t EstimateDistinctCount(base::FlatHashMapV2<int64_t, uint32_t>* counts,
                                Span<const T> values);
 
 // Removes duplicate fixed-width rows and compacts |indices| in place. Rows in
@@ -92,7 +92,7 @@ void SortRowLayout(Span<const uint8_t> row_layout,
 
 #define PERFETTO_DECLARE_DISTINCT(type)                 \
   extern template uint32_t EstimateDistinctCount<type>( \
-      base::FlatHashMap<int64_t, uint32_t>*, Span<const type>);
+      base::FlatHashMapV2<int64_t, uint32_t>*, Span<const type>);
 PERFETTO_DECLARE_DISTINCT(uint32_t)
 PERFETTO_DECLARE_DISTINCT(int32_t)
 PERFETTO_DECLARE_DISTINCT(int64_t)

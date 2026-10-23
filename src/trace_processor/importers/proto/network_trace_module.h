@@ -71,7 +71,7 @@ class NetworkTraceModule : public ProtoImporterModule {
   TraceProcessorContext* context_;
 
   bool loaded_package_names_ = false;
-  base::FlatHashMap<int64_t, StringId> package_names_;
+  base::FlatHashMapV2<int64_t, StringId> package_names_;
 
   const StringId net_arg_length_;
   const StringId net_arg_ip_proto_;

@@ -197,6 +197,9 @@ class SliceTracker {
     uint32_t legacy_unnestable_begin_count = 0;
     int64_t legacy_unnestable_last_begin_ts = 0;
   };
+  // On FlatHashMapV1: this map is looked up on every slice event and
+  // FlatHashMapV2, which stores the (large) TrackInfo next to each key,
+  // measured slower for it.
   using StackMap = base::FlatHashMap<TrackId, TrackInfo>;
 
   // Args pending translation.

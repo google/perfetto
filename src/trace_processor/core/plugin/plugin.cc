@@ -43,7 +43,7 @@ PluginSet BuildPluginSet() {
   }
 
   // Build a map from plugin_id -> index in |regs|.
-  base::FlatHashMap<const void*, size_t> id_to_idx;
+  base::FlatHashMapV2<const void*, size_t> id_to_idx;
   for (size_t i = 0; i < regs.size(); ++i) {
     id_to_idx[regs[i]->plugin_id] = i;
   }
@@ -90,7 +90,7 @@ PluginSet BuildPluginSet() {
 
   // Build a map from original reg index -> position in sorted output,
   // so we can resolve dep indices into the final array.
-  base::FlatHashMap<const void*, size_t> id_to_sorted_idx;
+  base::FlatHashMapV2<const void*, size_t> id_to_sorted_idx;
   for (size_t i = 0; i < sorted_order.size(); ++i) {
     id_to_sorted_idx[regs[sorted_order[i]]->plugin_id] = i;
   }

@@ -156,7 +156,7 @@ class PerfettoSqlParser {
   // the SQL read may use one at all; it is asked for separately because it
   // varies between sources sharing one parser, not between catalogs.
   explicit PerfettoSqlParser(
-      const base::FlatHashMap<std::string, Macro>& macros,
+      const base::FlatHashMapV2<std::string, Macro>& macros,
       const pipeline::Catalog& catalog,
       bool pipelines_allowed);
 

@@ -52,7 +52,7 @@ TargetMemory::TargetMemory(TraceProcessorContext* context)
               {},
           }})) {
   auto kernel = VirtualAddressSpace::Builder(context);
-  base::FlatHashMap<UniquePid, VirtualAddressSpace::Builder> user;
+  base::FlatHashMapV2<UniquePid, VirtualAddressSpace::Builder> user;
 
   const auto& table = context->storage->mmap_record_table();
   for (auto mmap = table.IterateRows(); mmap; ++mmap) {

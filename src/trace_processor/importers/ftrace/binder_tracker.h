@@ -119,7 +119,7 @@ class BinderTracker : public Destructible {
     std::optional<TxnInfo> txn_info;
   };
   // Each thread can have a stack of multiple transactions.
-  base::FlatHashMap<UniqueTid, std::stack<TxnFrame>> utid_stacks_;
+  base::FlatHashMapV2<UniqueTid, std::stack<TxnFrame>> utid_stacks_;
 
   // Returns the current state of this thread or nullptr, if the thread doesn't
   // have a binder state.
@@ -132,8 +132,8 @@ class BinderTracker : public Destructible {
   // returned TxnFrame*.
   void PopTidFrame(uint32_t tid);
 
-  base::FlatHashMap<uint32_t, int64_t> attempt_lock_;
-  base::FlatHashMap<uint32_t, int64_t> lock_acquired_;
+  base::FlatHashMapV2<uint32_t, int64_t> attempt_lock_;
+  base::FlatHashMapV2<uint32_t, int64_t> lock_acquired_;
 
   const StringId binder_category_id_;
   const StringId lock_waiting_id_;

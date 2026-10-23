@@ -99,12 +99,13 @@ class DetokenizedString {
 
 class PigweedDetokenizer {
  public:
-  explicit PigweedDetokenizer(base::FlatHashMap<uint32_t, FormatString> tokens);
+  explicit PigweedDetokenizer(
+      base::FlatHashMapV2<uint32_t, FormatString> tokens);
   base::StatusOr<DetokenizedString> Detokenize(
       const protozero::ConstBytes& bytes) const;
 
  private:
-  base::FlatHashMap<uint32_t, FormatString> tokens_;
+  base::FlatHashMapV2<uint32_t, FormatString> tokens_;
 };
 
 PigweedDetokenizer CreateNullDetokenizer();

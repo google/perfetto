@@ -184,7 +184,7 @@ class GlobalStatsTracker {
   std::array<StringId, stats::kNumSeverities> severity_ids_;
   std::array<StringId, stats::kNumSources> source_ids_;
 
-  base::FlatHashMap<StatsEntry, tables::StatsTable::Id> id_by_entry_;
+  base::FlatHashMapV2<StatsEntry, tables::StatsTable::Id> id_by_entry_;
 };
 
 }  // namespace perfetto::trace_processor

@@ -432,8 +432,8 @@ class TrackCompressor {
     return *it;
   }
 
-  base::FlatHashMap<uint64_t, TrackSet, base::AlreadyHashed<uint64_t>> sets_;
-  base::FlatHashMap<uint64_t, StringId, base::AlreadyHashed<uint64_t>>
+  base::FlatHashMapV2<uint64_t, TrackSet, base::AlreadyHashed<uint64_t>> sets_;
+  base::FlatHashMapV2<uint64_t, StringId, base::AlreadyHashed<uint64_t>>
       async_tracks_to_root_string_id_;
 
   TraceProcessorContext* const context_;
