@@ -111,8 +111,8 @@ const char* const kPipelines[] = {
     "FROM df |> WHERE self > 0 AND id < 10",
     "FROM spans |> AGGREGATE COUNT(*) AS n, SUM(dur) AS d GROUP BY cpu AS c",
     "FROM spans |> AGGREGATE MAX(dur) AS m |> SELECT m",
-    "GRAPH DOMINATOR TREE NODES df EDGES (SELECT parent_id AS src, id AS dst "
-    "FROM df) FROM (SELECT 0 AS id) |> TREE ACCUMULATE UP SUM(self) AS t",
+    R"(GRAPH DOMINATOR TREE NODES df EDGES (SELECT parent_id AS src, id AS dst
+      FROM df) FROM (SELECT 0 AS id) |> TREE ACCUMULATE UP SUM(self) AS t)",
     // Pruning removes the fold, whose node is left behind unread.
     "FROM df |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id",
 };
