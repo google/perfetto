@@ -80,6 +80,16 @@ export class Agent {
     this.history = [];
   }
 
+  /** The full conversation history, e.g. for persisting the conversation. */
+  getHistory(): readonly Message[] {
+    return this.history;
+  }
+
+  /** Replace the conversation history, e.g. when restoring a conversation. */
+  setHistory(history: readonly Message[]): void {
+    this.history = [...history];
+  }
+
   /**
    * Run one user turn to completion, yielding events as they stream.
    *
