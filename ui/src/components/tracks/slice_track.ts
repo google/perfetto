@@ -823,9 +823,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
     // 1. Create the mipmap tables which only depend on the sql query source.
     // sqlSource is constant for most tracks with a static dataset, but there
-    // are cases (e.g. raw ftrace tracks, live data) where it can change. Keep
-    // using the previous tables while new ones build, rather than flashing an
-    // empty track.
+    // are cases (e.g. raw ftrace tracks) where it can change. Keep using the
+    // previous tables while new ones build, rather than flashing an empty
+    // track.
     const {data: tables} = this.tablesSlot.use({
       key: {sqlSource},
       compute: () => this.createTables(dataset),
