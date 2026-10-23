@@ -1,0 +1,17 @@
+[package]
+edition = "2024"
+name = "perfetto-trace-processor-sys"
+version = "0.1.0"
+build = "build.rs"
+description = "Low-level FFI bindings for the Perfetto Trace Processor C API"
+license = "Apache-2.0"
+homepage = "https://www.perfetto.dev"
+repository = "https://github.com/google/perfetto"
+links = "trace_processor_c"
+publish = false
+
+[features]
+bindgen = ["dep:bindgen"]
+
+[build-dependencies]
+bindgen = { version = "0.72", optional = true }
