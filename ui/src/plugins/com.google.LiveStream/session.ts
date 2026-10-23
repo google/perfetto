@@ -223,7 +223,7 @@ export class LiveSession implements Disposable {
     // trace span, which would leave the minimap without our rows for good.
     const {start, end} = this.trace.traceInfo;
     if (end <= start) {
-      this.trace.extendTraceEnd(Time.fromRaw(start + TRACE_END_STEP_NS));
+      growTraceEnd(this.trace, Time.fromRaw(start + TRACE_END_STEP_NS));
     }
 
     this.useTraceTimeZone();
@@ -783,7 +783,7 @@ export class LiveSession implements Disposable {
 
   private extendTraceEnd(ts: time) {
     if (ts <= this.trace.traceInfo.end) return;
-    this.trace.extendTraceEnd(Time.fromRaw(ts + TRACE_END_STEP_NS));
+    growTraceEnd(this.trace, Time.fromRaw(ts + TRACE_END_STEP_NS));
   }
 
   // Updates the minimap for the trace bounds, which the core loads once. On
@@ -970,4 +970,14 @@ function coverSpans(spans: readonly Span[]): Span {
     if (span.end > end) end = span.end;
   }
   return {start, end};
+}
+
+// Grows the trace bounds. The core has no API for this: it treats traces as
+// immutable. TraceInfo.end is readonly in type only, and the core reads it on
+// each use, so a write and a full redraw suffice.
+function growTraceEnd(trace: Trace, end: time) {
+  const info = trace.traceInfo as {end: time};
+  if (end <= info.end) return;
+  info.end = end;
+  trace.raf.scheduleFullRedraw();
 }

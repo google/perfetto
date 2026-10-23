@@ -15,7 +15,7 @@
 import {HighPrecisionTime} from '../../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
 import {errResult, okResult, type Result} from '../../base/result';
-import {Time, type time} from '../../base/time';
+import {Time} from '../../base/time';
 import type {MinimapContentProvider} from '../../public/minimap';
 import type {Selection} from '../../public/selection';
 import type {Trace} from '../../public/trace';
@@ -238,9 +238,6 @@ function fakeTrace() {
     defaultWorkspace: new Workspace(),
     timeline,
     traceInfo,
-    extendTraceEnd: (end: time) => {
-      traceInfo.end = end;
-    },
   } as unknown as Trace;
 
   return {
@@ -530,7 +527,9 @@ test('redraws the page on changes only for a selected slice', async () => {
     {...data(3), completed_slices: [slice('b')]},
     data(4),
   );
-  const {raf, selection} = await start();
+  const {raf, selection, traceInfo} = await start();
+  // Growing the trace end redraws the page too: keep it ahead.
+  traceInfo.end = Time.fromSeconds(100);
   await vi.advanceTimersByTimeAsync(100);
   raf.scheduleFullRedraw.mockClear();
   raf.scheduleCanvasRedraw.mockClear();
@@ -636,8 +635,9 @@ test('refreshes the minimap rows as the trace grows', async () => {
 
 test('gives an empty trace span a second, for the core to load the minimap', async () => {
   // The span of a seed without history.
-  const {traceInfo} = await start();
+  const {traceInfo, raf} = await start();
   expect(traceInfo.end).toBe(Time.fromSeconds(1));
+  expect(raf.scheduleFullRedraw).toHaveBeenCalled();
 });
 
 test('a new area selection stops following', async () => {
