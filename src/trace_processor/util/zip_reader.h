@@ -185,6 +185,9 @@ class ZipReader {
     // Used to track the number of bytes fed into the decompressor when we don't
     // know the compressed size upfront.
     size_t decompressor_bytes_fed = 0;
+    // Used to track how far we have scanned for the data descriptor of a
+    // stored file when we don't know its size upfront.
+    size_t unsized_scan_offset = 0;
     // Held by unique_ptr, not value, as Decompressor isn't movable but
     // FileParseState needs to be in order to reset to a fresh instance for the
     // next file.
@@ -201,6 +204,7 @@ class ZipReader {
   base::Status TrySkipBytes();
   base::Status TryParseCompressedData();
   base::StatusOr<std::optional<TraceBlobView>> TryParseUnsizedCompressedData();
+  base::StatusOr<std::optional<TraceBlobView>> TryParseUnsizedStoredData();
 
   FileParseState cur_;
   std::vector<ZipFile> files_;

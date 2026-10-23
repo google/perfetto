@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
@@ -90,6 +91,13 @@ T ReadAndAdvance(const uint8_t** ptr) {
   *ptr += sizeof(T);
   return res;
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+uint32_t ComputeCrc32(const uint8_t* data, size_t len) {
+  return static_cast<uint32_t>(::crc32(
+      0u, reinterpret_cast<const ::Bytef*>(data), static_cast<::uInt>(len)));
+}
+#endif
 
 }  // namespace
 
@@ -201,12 +209,6 @@ base::Status ZipReader::TryParseHeader() {
         "deflate and no compression are supported.",
         reader_.start_offset(), cur_.hdr.compression);
   }
-  if (cur_.hdr.flags & kDataDescriptor && cur_.hdr.compression != kDeflate) {
-    return base::ErrStatus(
-        "Unsupported compression type at offset 0x%zx. type=%x. Only "
-        "deflate supported for ZIPs compressed in a streaming fashion.",
-        reader_.start_offset(), cur_.hdr.compression);
-  }
   cur_.parse_state = FileParseState::kFilename;
   return base::OkStatus();
 }
@@ -307,7 +309,9 @@ base::Status ZipReader::TryParseCompressedData() {
   // Build up the compressed payload
   if (cur_.hdr.flags & kDataDescriptor) {
     if (!cur_.compressed) {
-      ASSIGN_OR_RETURN(auto compressed, TryParseUnsizedCompressedData());
+      ASSIGN_OR_RETURN(auto compressed, cur_.hdr.compression == kDeflate
+                                            ? TryParseUnsizedCompressedData()
+                                            : TryParseUnsizedStoredData());
       if (!compressed) {
         return base::OkStatus();
       }
@@ -402,6 +406,79 @@ ZipReader::TryParseUnsizedCompressedData() {
   return {std::move(raw_compressed)};
 }
 
+base::StatusOr<std::optional<TraceBlobView>>
+ZipReader::TryParseUnsizedStoredData() {
+  PERFETTO_CHECK(cur_.hdr.compression == kNoCompression);
+
+  // Unlike deflate, a stored payload has no end marker of its own. The only
+  // way to find its end is to look for the data descriptor that follows it.
+  // The payload is arbitrary data and can contain the descriptor signature, so
+  // a candidate is accepted only if:
+  // 1. Its sizes match the number of bytes preceding it (for stored entries,
+  //    compressed == uncompressed size).
+  // 2. It is followed by the next file header or the central directory, as
+  //    is the case in any valid zip.
+  // 3. Its CRC32 matches the payload (only if zlib is available).
+  uint32_t desc_size =
+      cur_.is_zip64 ? kZip64DataDescriptorSize : kDataDescriptorSize;
+  // The descriptor plus the signature of whatever follows it.
+  uint32_t lookahead = desc_size + sizeof(uint32_t);
+  size_t scan_start = reader_.start_offset() + cur_.unsized_scan_offset;
+  size_t avail = reader_.end_offset() - scan_start;
+  if (avail < lookahead) {
+    return {std::nullopt};
+  }
+  auto slice = reader_.SliceOff(scan_start, avail);
+  PERFETTO_CHECK(slice);
+
+  const uint8_t* data = slice->data();
+  size_t last = avail - lookahead;
+  for (size_t i = 0; i <= last; ++i) {
+    const void* p = memchr(data + i, kDataDescriptorSig & 0xff, last - i + 1);
+    if (!p) {
+      break;
+    }
+    i = static_cast<size_t>(static_cast<const uint8_t*>(p) - data);
+    const uint8_t* desc_it = data + i;
+    if (ReadAndAdvance<uint32_t>(&desc_it) != kDataDescriptorSig) {
+      continue;
+    }
+    auto crc = ReadAndAdvance<uint32_t>(&desc_it);
+    uint64_t csize;
+    uint64_t usize;
+    if (cur_.is_zip64) {
+      csize = ReadAndAdvance<uint64_t>(&desc_it);
+      usize = ReadAndAdvance<uint64_t>(&desc_it);
+    } else {
+      csize = ReadAndAdvance<uint32_t>(&desc_it);
+      usize = ReadAndAdvance<uint32_t>(&desc_it);
+    }
+    size_t payload_size = cur_.unsized_scan_offset + i;
+    if (csize != payload_size || usize != payload_size) {
+      continue;
+    }
+    auto next_sig = ReadAndAdvance<uint32_t>(&desc_it);
+    if (next_sig != kFileHeaderSig && next_sig != kCentralDirectorySig) {
+      continue;
+    }
+    auto raw = reader_.SliceOff(reader_.start_offset(), payload_size);
+    PERFETTO_CHECK(raw);
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+    if (ComputeCrc32(raw->data(), raw->size()) != crc) {
+      continue;
+    }
+#else
+    base::ignore_result(crc);
+#endif
+    PERFETTO_CHECK(reader_.PopFrontBytes(payload_size));
+    return {std::move(raw)};
+  }
+  // No descriptor in the bytes seen so far. Keep the last |lookahead - 1|
+  // bytes around for the next round as a descriptor might straddle them.
+  cur_.unsized_scan_offset += last + 1;
+  return {std::nullopt};
+}
+
 ZipFile* ZipReader::Find(const std::string& path) {
   for (ZipFile& zf : files_) {
     if (zf.name() == path)
@@ -444,9 +521,7 @@ base::Status ZipFile::Decompress(std::vector<uint8_t>* out_data) const {
   out_data->resize(dec_res.bytes_written);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-  const auto* crc_data = reinterpret_cast<const ::Bytef*>(out_data->data());
-  auto crc_len = static_cast<::uInt>(out_data->size());
-  auto actual_crc32 = static_cast<uint32_t>(::crc32(0u, crc_data, crc_len));
+  uint32_t actual_crc32 = ComputeCrc32(out_data->data(), out_data->size());
   if (actual_crc32 != hdr_.checksum) {
     return base::ErrStatus(
         "Zip CRC32 failure on %s (actual: %x, expected: %x) (ERR:tp-corrupt)",
