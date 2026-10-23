@@ -26,6 +26,7 @@
 #include <string_view>
 #include <vector>
 
+#include "perfetto/ext/traced/memcg_field_defs.h"
 #include "protos/perfetto/config/linux/cgroup_config.pbzero.h"
 
 namespace perfetto {
@@ -37,35 +38,6 @@ class MemcgStats_Cgroup;
 // This header and the cc file handle mapping of MemcgConfig.MemcgField enums
 // onto bitmasks representing files and fields, which are later used to parse
 // and serialise the cgroup values.
-
-// The files in a memcg directory that we know how to read, as
-// X(enum name, file name, nested message field number).
-// clang-format off
-#define PERFETTO_MEMCG_FILES(X)                                                                         \
-  X(kCurrent,      "memory.current",       0),                                                          \
-  X(kPeak,         "memory.peak",          0),                                                          \
-  X(kMin,          "memory.min",           0),                                                          \
-  X(kLow,          "memory.low",           0),                                                          \
-  X(kHigh,         "memory.high",          0),                                                          \
-  X(kMax,          "memory.max",           0),                                                          \
-  X(kSwapCurrent,  "memory.swap.current",  0),                                                          \
-  X(kSwapPeak,     "memory.swap.peak",     0),                                                          \
-  X(kSwapHigh,     "memory.swap.high",     0),                                                          \
-  X(kSwapMax,      "memory.swap.max",      0),                                                          \
-  X(kZswapCurrent, "memory.zswap.current", 0),                                                          \
-  X(kZswapMax,     "memory.zswap.max",     0),                                                          \
-  X(kEvents,       "memory.events",        protos::pbzero::MemcgStats_Cgroup::kEventsFieldNumber),      \
-  X(kEventsLocal,  "memory.events.local",  protos::pbzero::MemcgStats_Cgroup::kEventsLocalFieldNumber), \
-  X(kSwapEvents,   "memory.swap.events",   protos::pbzero::MemcgStats_Cgroup::kSwapEventsFieldNumber),  \
-  X(kStat,         "memory.stat",          protos::pbzero::MemcgStats_Cgroup::kStatFieldNumber)
-// clang-format on
-
-#define PERFETTO_MEMCG_FILE_ENUM(file, ...) file
-enum class MemcgFile : uint8_t {
-  PERFETTO_MEMCG_FILES(PERFETTO_MEMCG_FILE_ENUM),
-  kNumFiles,
-};
-#undef PERFETTO_MEMCG_FILE_ENUM
 
 inline constexpr size_t kMemcgFileCount =
     static_cast<size_t>(MemcgFile::kNumFiles);

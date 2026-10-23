@@ -572,6 +572,7 @@ cc_library_shared {
         ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_protozero_protozero",
+        ":perfetto_include_perfetto_ext_traced_memcg_field_defs",
         ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
         ":perfetto_include_perfetto_ext_traced_traced",
         ":perfetto_include_perfetto_ext_tracing_core_core",
@@ -1946,6 +1947,7 @@ cc_library_static {
         ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_protozero_protozero",
+        ":perfetto_include_perfetto_ext_traced_memcg_field_defs",
         ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
         ":perfetto_include_perfetto_ext_traced_traced",
         ":perfetto_include_perfetto_ext_tracing_core_core",
@@ -2346,6 +2348,7 @@ cc_library_static {
         ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_protozero_protozero",
+        ":perfetto_include_perfetto_ext_traced_memcg_field_defs",
         ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
         ":perfetto_include_perfetto_ext_traced_traced",
         ":perfetto_include_perfetto_ext_tracing_core_core",
@@ -2842,6 +2845,11 @@ filegroup {
     name: "perfetto_include_perfetto_ext_traceconv_traceconv",
 }
 
+// GN: //include/perfetto/ext/traced:memcg_field_defs
+filegroup {
+    name: "perfetto_include_perfetto_ext_traced_memcg_field_defs",
+}
+
 // GN: //include/perfetto/ext/traced:sys_stats_counters
 filegroup {
     name: "perfetto_include_perfetto_ext_traced_sys_stats_counters",
@@ -2967,6 +2975,7 @@ cc_test {
         ":perfetto_include_perfetto_ext_trace_processor_demangle",
         ":perfetto_include_perfetto_ext_trace_processor_export_json",
         ":perfetto_include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
+        ":perfetto_include_perfetto_ext_traced_memcg_field_defs",
         ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
         ":perfetto_include_perfetto_ext_traced_traced",
         ":perfetto_include_perfetto_ext_tracing_core_core",
@@ -24471,6 +24480,7 @@ cc_test {
         ":perfetto_include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
         ":perfetto_include_perfetto_ext_trace_processor_rpc_query_result_serializer",
         ":perfetto_include_perfetto_ext_trace_processor_trace_processor_shell",
+        ":perfetto_include_perfetto_ext_traced_memcg_field_defs",
         ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
         ":perfetto_include_perfetto_ext_traced_traced",
         ":perfetto_include_perfetto_ext_tracing_core_core",
@@ -25382,6 +25392,7 @@ cc_library_static {
         ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_protozero_protozero",
+        ":perfetto_include_perfetto_ext_traced_memcg_field_defs",
         ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
         ":perfetto_include_perfetto_ext_traced_traced",
         ":perfetto_include_perfetto_ext_tracing_core_core",

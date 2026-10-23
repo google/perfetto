@@ -15,7 +15,10 @@
 import("../../../../gn/test.gni")
 
 source_set("memcg_fields") {
-  public_deps = [ "../../../../protos/perfetto/config/linux:zero" ]
+  public_deps = [
+    "../../../../include/perfetto/ext/traced:memcg_field_defs",
+    "../../../../protos/perfetto/config/linux:zero",
+  ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../protos/perfetto/trace/linux:zero",

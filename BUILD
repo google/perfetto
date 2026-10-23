@@ -1321,6 +1321,7 @@ perfetto_cc_library(
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_ipc_ipc",
         ":include_perfetto_ext_protozero_protozero",
+        ":include_perfetto_ext_traced_memcg_field_defs",
         ":include_perfetto_ext_traced_sys_stats_counters",
         ":include_perfetto_ext_traced_traced",
         ":include_perfetto_ext_tracing_core_core",
@@ -1606,6 +1607,14 @@ perfetto_filegroup(
     name = "include_perfetto_ext_traceconv_traceconv",
     srcs = [
         "include/perfetto/ext/traceconv/traceconv.h",
+    ],
+)
+
+# GN target: //include/perfetto/ext/traced:memcg_field_defs
+perfetto_filegroup(
+    name = "include_perfetto_ext_traced_memcg_field_defs",
+    srcs = [
+        "include/perfetto/ext/traced/memcg_field_defs.h",
     ],
 )
 
