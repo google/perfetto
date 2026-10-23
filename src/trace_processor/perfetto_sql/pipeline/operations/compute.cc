@@ -36,7 +36,7 @@ namespace ex = core::exec;
 
 const OperationRegistration Compute::kRegistration{
     std::numeric_limits<uint32_t>::max(), &BuildPlan,
-    OperationRegistration::Encoding{9, &MakeOperation<Compute>}};
+    OperationRegistration::Encoding{10, &MakeOperation<Compute>}};
 
 base::Status Compute::BuildPlan(Compiler*, uint32_t) {
   PERFETTO_FATAL("Compute has no syntax");

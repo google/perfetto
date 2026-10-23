@@ -30,6 +30,7 @@
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
@@ -181,6 +182,13 @@ TEST_F(PlanSerializationTest, PlansWithTooManyOutputsAreNotWritten) {
   LogicalPlan over_limit = plan;
   over_limit.output().assign(kMaxPipelineColumns + 1, plan.output()[0]);
   EXPECT_FALSE(SelectPipelineSql(over_limit, key_).ok());
+}
+
+// A lookup checks no two operations share the tag it finds.
+TEST(PlanSerializationTagTest, TagsAreUnique) {
+  for (uint32_t tag = 0; tag < 256; ++tag) {
+    FindOperationByTag(static_cast<uint8_t>(tag));
+  }
 }
 
 }  // namespace
