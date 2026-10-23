@@ -217,12 +217,13 @@ WITH
       prev_flags IS NULL
       OR prev_flags != capability_flags
   ),
-  -- One span per mask, closed by the next mask or by the death, a synthetic
-  -- mask 0 (NULL arg_set_id) sorted after any event at the same ts.
+  -- One span per mask, from ts to end_ts (NULL while open): the next mask or
+  -- the death, a synthetic mask 0 (NULL arg_set_id) sorted after any event at
+  -- the same ts.
   mask_spans AS (
     SELECT
       ts,
-      lead(ts) OVER (PARTITION BY upid ORDER BY ts, is_initial DESC, id) AS next_ts,
+      lead(ts) OVER (PARTITION BY upid ORDER BY ts, is_initial DESC, id) AS end_ts,
       upid,
       arg_set_id
     FROM (
@@ -253,30 +254,31 @@ WITH
         p.end_ts IS NOT NULL
     )
   ),
-  -- One row per enabled bit of each non-empty span, with the end of the
-  -- previous span that had the same bit.
+  -- One row per enabled bit of each non-empty span. Spans of the same bit are
+  -- walked by start time, but what each one needs from its predecessor is its
+  -- end: prev_end_ts = ts means the bit stayed enabled across the mask change.
   capability_slices AS (
     SELECT
       m.ts,
-      m.next_ts,
+      m.end_ts,
       m.upid,
       replace(a.string_value, 'PROCESS_CAPABILITY_', '') AS capability,
-      lag(m.next_ts) OVER (PARTITION BY m.upid, a.string_value ORDER BY m.ts) AS prev_next_ts
+      lag(m.end_ts) OVER (PARTITION BY m.upid, a.string_value ORDER BY m.ts) AS prev_end_ts
     FROM mask_spans AS m
     JOIN args AS a USING (arg_set_id)
     WHERE
       a.flat_key = 'capability_flags'
-      AND (m.next_ts IS NULL OR m.next_ts > m.ts)
+      AND (m.end_ts IS NULL OR m.end_ts > m.ts)
   ),
-  -- Gaps and islands: a bit kept across mask changes stays in its island, a
-  -- gap starts a new one.
+  -- Gaps and islands: a span continues the island when the previous one ended
+  -- where it starts, otherwise it opens a new one.
   capability_islands AS (
     SELECT
       ts,
-      next_ts,
+      end_ts,
       upid,
       capability,
-      sum(iif(prev_next_ts = ts, 0, 1)) OVER (
+      sum(iif(prev_end_ts = ts, 0, 1)) OVER (
         PARTITION BY
           upid,
           capability
@@ -288,7 +290,7 @@ WITH
 SELECT
   row_number() OVER (ORDER BY min(i.ts), i.upid, i.capability) AS id,
   min(i.ts) AS ts,
-  iif(count() > count(i.next_ts), -1, max(i.next_ts) - min(i.ts)) AS dur,
+  iif(count() > count(i.end_ts), -1, max(i.end_ts) - min(i.ts)) AS dur,
   i.upid,
   p.pid,
   m.process_name,
