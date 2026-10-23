@@ -190,3 +190,131 @@ FROM intervals_overlap_count_by_group!(
 ) AS c
 LEFT JOIN _android_process_state_rank AS r
   ON r.state = c.group_name;
+
+-- Intervals where each Android process capability flag was enabled.
+CREATE PERFETTO TABLE _android_process_capability_intervals AS
+WITH
+  -- Most rows only change the OOM score: keep the rows where the set of
+  -- enabled capabilities changed. arg_set_id identifies the set and is NULL
+  -- when it is empty, hence IS NOT.
+  set_changes AS MATERIALIZED (
+    SELECT id, ts, is_initial, upid, arg_set_id
+    FROM (
+      SELECT
+        id,
+        ts,
+        is_initial,
+        upid,
+        arg_set_id,
+        lag(arg_set_id) OVER (
+          PARTITION BY
+            upid
+          ORDER BY ts, is_initial DESC, id
+        ) AS prev_arg_set_id
+      FROM __intrinsic_android_process_state
+    )
+    WHERE
+      prev_arg_set_id IS NOT arg_set_id
+  ),
+  -- One span per set, from ts to end_ts (NULL while open): the next set or
+  -- the death, a synthetic empty set sorted after any event at the same ts.
+  set_spans AS (
+    SELECT
+      ts,
+      lead(ts) OVER (PARTITION BY upid ORDER BY ts, is_initial DESC, id) AS end_ts,
+      upid,
+      arg_set_id
+    FROM (
+      SELECT
+        -- The initial row has no ts: anchor it at the process start, but not
+        -- before the trace, as the set is only known from there.
+        max(
+          coalesce(s.ts, fw.fw_start_ts, p.start_ts, trace_start()),
+          trace_start()
+        ) AS ts,
+        s.is_initial,
+        s.id,
+        s.upid,
+        s.arg_set_id
+      FROM set_changes AS s
+      JOIN process AS p USING (upid)
+      LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
+      UNION ALL
+      SELECT
+        p.end_ts AS ts,
+        -1 AS is_initial,
+        0 AS id,
+        p.upid,
+        NULL AS arg_set_id
+      FROM (SELECT DISTINCT upid FROM set_changes)
+      JOIN process AS p USING (upid)
+      WHERE
+        p.end_ts IS NOT NULL
+    )
+  ),
+  -- One row per capability of each non-empty span. Spans of one capability
+  -- are walked by start time, but what each needs from its predecessor is its
+  -- end: prev_end_ts = ts means the capability stayed enabled across the set
+  -- change.
+  capability_spans AS (
+    SELECT
+      m.ts,
+      m.end_ts,
+      m.upid,
+      replace(a.string_value, 'PROCESS_CAPABILITY_', '') AS capability,
+      lag(m.end_ts) OVER (PARTITION BY m.upid, a.string_value ORDER BY m.ts) AS prev_end_ts
+    FROM set_spans AS m
+    JOIN args AS a USING (arg_set_id)
+    WHERE
+      a.flat_key = 'capability_flags'
+      AND (m.end_ts IS NULL OR m.end_ts > m.ts)
+  ),
+  -- Gaps and islands: a span continues the island when the previous one ended
+  -- where it starts, otherwise it opens a new one.
+  capability_islands AS (
+    SELECT
+      ts,
+      end_ts,
+      upid,
+      capability,
+      sum(iif(prev_end_ts = ts, 0, 1)) OVER (
+        PARTITION BY
+          upid,
+          capability
+        ORDER BY ts
+      ) AS island
+    FROM capability_spans
+  )
+-- One interval per island, open ended (dur = -1) when its last span is.
+SELECT
+  row_number() OVER (ORDER BY min(i.ts), i.upid, i.capability) AS id,
+  min(i.ts) AS ts,
+  iif(count() > count(i.end_ts), -1, max(i.end_ts) - min(i.ts)) AS dur,
+  i.upid,
+  p.pid,
+  m.process_name,
+  i.capability
+FROM capability_islands AS i
+JOIN process AS p USING (upid)
+LEFT JOIN android_process_metadata AS m USING (upid)
+GROUP BY
+  i.upid,
+  i.capability,
+  i.island;
+
+-- Number of enabled capabilities for each process over time. The weight 0
+-- background row per process makes INTERVAL FLATTEN also emit the gaps with
+-- no capability.
+CREATE PERFETTO TABLE _android_process_capability_count AS
+FROM (
+  SELECT ts, iif(dur < 0, trace_end() - ts, dur) AS dur, upid, 1 AS n
+  FROM _android_process_capability_intervals
+  UNION ALL
+  SELECT min(ts) AS ts, trace_end() - min(ts) AS dur, upid, 0 AS n
+  FROM _android_process_capability_intervals
+  GROUP BY
+    upid
+)
+|> INTERVAL FLATTEN PER upid AGGREGATE SUM(n) AS count
+|> SELECT ts, upid, count
+|> ORDER BY ts;

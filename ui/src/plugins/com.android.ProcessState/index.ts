@@ -13,12 +13,14 @@
 // limitations under the License.
 
 import {HSLColor} from '../../base/color';
+import {getOrCreate} from '../../base/utils';
 import {createAggregationTab} from '../../components/aggregation_adapter';
 import {
   getColorForSlice,
   GRAY,
   makeColorScheme,
 } from '../../components/colorizer';
+import {CounterTrack} from '../../components/tracks/counter_track';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
@@ -89,6 +91,16 @@ const FREEZER_SCHEMA = {
   state: STR,
 } as const;
 
+const CAPABILITY_SCHEMA = {
+  id: NUM,
+  ts: LONG,
+  dur: LONG,
+  upid: NUM,
+  pid: NUM,
+  process_name: STR_NULL,
+  capability: STR,
+} as const;
+
 const SLATE = makeColorScheme(new HSLColor([210, 18, 48]));
 
 // The per-process tracks come in their hundreds, so keep them compact.
@@ -97,9 +109,10 @@ const COMPACT_SLICES = {sliceHeight: 12, titleSizePx: 10};
 // Below every other process-scoped track (-50..30) so it appears first.
 const PROCESS_GROUP_SORT_ORDER = -100;
 
-// Keeps the freezer lanes out of the aggregators, which scope by the state
-// track's tag.
+// Keeps the freezer and capability lanes out of the aggregators, which scope
+// by the state track's tag.
 const TAG_FREEZER_TRACK = 'android_freezer';
+const TAG_CAPABILITY_TRACK = 'android_process_capability';
 
 /**
  * Visualizes Android framework process states over the lifetime of a trace.
@@ -113,7 +126,7 @@ export default class ProcessState implements PerfettoPlugin {
   static readonly id = 'com.android.ProcessState';
   static readonly description =
     'Visualizes Android framework process states: per-state concurrency ' +
-    'counters, and per-process state and freezer timelines.';
+    'counters, and per-process state, freezer, and capability timelines.';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -193,8 +206,8 @@ export default class ProcessState implements PerfettoPlugin {
     return summary;
   }
 
-  // One timeline per process, with its freezer timeline as a child when the
-  // trace has freezer data for it. Ordered by uid so that the successive
+  // One timeline per process, with its freezer and capability timelines as
+  // children when present. Ordered by uid so that the successive
   // processes of a respawning app sit next to each other - that adjacency is
   // the only thing tying an app's lifetimes together, since each restart gets
   // its own upid.
@@ -216,6 +229,21 @@ export default class ProcessState implements PerfettoPlugin {
         min(ts),
         pid
     `);
+
+    const capabilitiesByUpid = new Map<number, string[]>();
+    const capabilities = await ctx.engine.query(`
+      SELECT upid, capability
+      FROM _android_process_capability_intervals
+      GROUP BY upid, capability
+      ORDER BY upid, capability
+    `);
+    for (
+      const it = capabilities.iter({upid: NUM, capability: STR});
+      it.valid();
+      it.next()
+    ) {
+      getOrCreate(capabilitiesByUpid, it.upid, () => []).push(it.capability);
+    }
 
     for (
       const it = processes.iter({
@@ -319,6 +347,90 @@ export default class ProcessState implements PerfettoPlugin {
         groupNode.addChildLast(
           new TrackNode({uri: freezerUri, name: 'Freezer'}),
         );
+      }
+
+      const processCapabilities = capabilitiesByUpid.get(upid);
+      if (processCapabilities !== undefined) {
+        const capabilitiesUri = `${uri}.capabilities`;
+        const overviewCapabilitiesUri = this.registerProcessTrack(
+          ctx,
+          processGroup,
+          {
+            uri: capabilitiesUri,
+            tag: TAG_CAPABILITY_TRACK,
+            upid,
+            description: `Number of enabled capabilities of ${name} (${pid}) over time.`,
+            create: (trackUri) =>
+              CounterTrack.create({
+                trace: ctx,
+                uri: trackUri,
+                sqlSource: `
+                  SELECT ts, count AS value
+                  FROM _android_process_capability_count
+                  WHERE upid = ${upid}
+                `,
+              }),
+          },
+        );
+        const overviewCapabilitiesNode = new TrackNode({
+          uri: overviewCapabilitiesUri,
+          name: 'Capabilities',
+        });
+        const groupCapabilitiesNode = new TrackNode({
+          uri: capabilitiesUri,
+          name: 'Capabilities',
+        });
+
+        for (const capability of processCapabilities) {
+          const capabilityUri = `${uri}.capability.${capability}`;
+          const overviewCapabilityUri = this.registerProcessTrack(
+            ctx,
+            processGroup,
+            {
+              uri: capabilityUri,
+              tag: TAG_CAPABILITY_TRACK,
+              upid,
+              description: `Intervals where ${capability} is enabled for ${name} (${pid}).`,
+              create: (trackUri, ownerUri) =>
+                SliceTrack.create({
+                  trace: ctx,
+                  uri: trackUri,
+                  dataset: new SourceDataset({
+                    schema: CAPABILITY_SCHEMA,
+                    src: `
+                      SELECT *
+                      FROM _android_process_capability_intervals
+                      WHERE upid = ${upid}
+                    `,
+                    filter: {col: 'capability', eq: capability},
+                  }),
+                  sliceLayout: COMPACT_SLICES,
+                  sliceName: (row) => row.capability,
+                  colorizer: (row) => getColorForSlice(row.capability),
+                  detailsPanel: (row) =>
+                    new ProcessStateDetailsPanel(
+                      ctx,
+                      CAPABILITY_SCHEMA,
+                      row,
+                      ownerUri,
+                    ),
+                  rootTableName:
+                    ownerUri === undefined
+                      ? '_android_process_capability_intervals'
+                      : undefined,
+                }),
+            },
+          );
+          overviewCapabilitiesNode.addChildLast(
+            new TrackNode({uri: overviewCapabilityUri, name: capability}),
+          );
+          groupCapabilitiesNode.addChildLast(
+            new TrackNode({uri: capabilityUri, name: capability}),
+          );
+        }
+
+        overviewNode.addChildLast(overviewCapabilitiesNode);
+        groupNode.addChildLast(groupCapabilitiesNode);
       }
 
       byProcess.addChildLast(overviewNode);
