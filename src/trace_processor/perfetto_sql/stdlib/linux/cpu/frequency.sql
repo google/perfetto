@@ -35,22 +35,27 @@ CREATE PERFETTO TABLE cpu_frequency_counters(
   cpu LONG
 )
 AS
+WITH
+  tracks AS MATERIALIZED (
+    SELECT cct.id AS track_id, cct.cpu, cpu.ucpu
+    FROM cpu_counter_track AS cct
+    JOIN cpu
+      ON cct.machine_id IS cpu.machine_id
+      AND cct.cpu = cpu.cpu
+    WHERE
+      cct.name = 'cpufreq'
+  )
 SELECT
   count_w_dur.id,
   count_w_dur.track_id,
   count_w_dur.ts,
   count_w_dur.dur,
   cast_int!(count_w_dur.value) AS freq,
-  cpu.ucpu,
-  cct.cpu
+  t.ucpu,
+  t.cpu
 FROM counter_leading_intervals!((
-  SELECT c.*
+  SELECT c.id, c.ts, c.track_id, c.value
   FROM counter c
-  JOIN cpu_counter_track cct
-  ON cct.id = c.track_id AND cct.name = 'cpufreq'
+  WHERE c.track_id IN (SELECT track_id FROM tracks)
 )) AS count_w_dur
-JOIN cpu_counter_track AS cct
-  ON track_id = cct.id
-JOIN cpu
-  ON cct.machine_id IS cpu.machine_id
-  AND cct.cpu = cpu.cpu;
+JOIN tracks AS t USING (track_id);
