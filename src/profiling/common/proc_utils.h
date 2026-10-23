@@ -61,6 +61,32 @@ std::optional<uint32_t> GetRssAnonAndSwap(const std::string&);
 // entries satisfying the minimum size criteria for anonymous memory.
 void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids);
 
+// Given the contents of /proc/pid/cgroup, returns the path of the process'
+// cgroup within the cgroup v2 hierarchy (the "0::" entry), e.g.
+// "/apps/uid_10123/pid_4567". The path is relative to the hierarchy's mount
+// point. Returns nullopt if there is no such entry, or if the cgroup has been
+// removed.
+std::optional<std::string> GetCgroupV2Path(const std::string& proc_pid_cgroup);
+
+// Returns true if freezing is set for the cgroup v2 at |cgroup_dir| (an
+// absolute path), i.e. its "cgroup.freeze" is 1. This takes effect as soon as
+// the freeze is requested, before the tasks have necessarily stopped. Freezing
+// inherited from an ancestor cgroup is not considered.
+// Returns false if the state cannot be determined.
+bool IsCgroupV2Frozen(const std::string& cgroup_dir);
+
+// Returns true if the process is known to be frozen by the cgroup v2 freezer,
+// which is how Android freezes cached apps. Specifically, checks whether
+// "cgroup.freeze" is set for the process' own cgroup (see IsCgroupV2Frozen), so
+// freezing inherited from an ancestor cgroup (e.g. a per-uid freeze) is not
+// detected.
+// Returns false if the state cannot be determined.
+bool IsProcessFrozen(pid_t pid);
+
+// Filters the list of pids (in-place), removing the processes that are frozen
+// (see IsProcessFrozen).
+void RemoveFrozenProcesses(std::set<pid_t>* pids);
+
 std::optional<Uids> GetUids(const std::string&);
 
 // Returns the effective process UID from stat(/proc/pid).

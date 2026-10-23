@@ -527,6 +527,8 @@ void HeapprofdProducer::SignalRunningProcesses(DataSource* data_source) {
 
   if (heapprofd_config.min_anonymous_memory_kb() > 0)
     RemoveUnderAnonThreshold(heapprofd_config.min_anonymous_memory_kb(), &pids);
+  if (heapprofd_config.skip_frozen_processes())
+    RemoveFrozenProcesses(&pids);
 
   for (auto pid_it = pids.cbegin(); pid_it != pids.cend();) {
     pid_t pid = *pid_it;

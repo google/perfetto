@@ -65,6 +65,7 @@ JavaHprofProducer::DataSource::DataSource(
       target_cmdlines_(std::move(target_cmdlines)) {}
 
 void JavaHprofProducer::DataSource::SendSignal() const {
+  size_t num_frozen = 0;
   for (pid_t pid : pids_) {
     auto opt_status = ReadStatus(pid);
     if (!opt_status) {
@@ -85,6 +86,13 @@ void JavaHprofProducer::DataSource::SendSignal() const {
                     uids->effective);
       continue;
     }
+    // Checked here rather than when collecting the pids, as the freezer state
+    // can change between successive continuous dumps.
+    if (config_.skip_frozen_processes() && IsProcessFrozen(pid)) {
+      PERFETTO_DLOG("%d is frozen. Not signalling.", pid);
+      num_frozen++;
+      continue;
+    }
     PERFETTO_DLOG("Sending %d to %d", kJavaHeapprofdSignal, pid);
     union sigval signal_value;
     signal_value.sival_int = static_cast<int32_t>(
@@ -93,6 +101,8 @@ void JavaHprofProducer::DataSource::SendSignal() const {
       PERFETTO_DPLOG("sigqueue");
     }
   }
+  if (num_frozen > 0)
+    PERFETTO_LOG("Skipped signalling %zu frozen processes.", num_frozen);
 }
 
 void JavaHprofProducer::DataSource::CollectPids() {

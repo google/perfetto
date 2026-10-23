@@ -23,12 +23,19 @@
 #include <optional>
 
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/profiling/common/proc_cmdline.h"
 
 namespace perfetto {
 namespace profiling {
 namespace {
+
+// Mount point of the cgroup v2 hierarchy on Android (see cgroups.json in
+// libprocessgroup). This is also the default on Linux distributions that use
+// the unified hierarchy.
+constexpr char kCgroupV2MountPoint[] = "/sys/fs/cgroup";
 
 std::optional<uint32_t> ParseProcStatusSize(const std::string& status,
                                             const std::string& key) {
@@ -84,6 +91,65 @@ void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids) {
       ++it;
     }
   }
+}
+
+std::optional<std::string> GetCgroupV2Path(const std::string& proc_pid_cgroup) {
+  // Each line has the format "hierarchy-ID:controller-list:cgroup-path". The
+  // cgroup v2 entry has the hierarchy ID 0 and an empty controller list.
+  for (base::StringSplitter lines(proc_pid_cgroup, '\n'); lines.Next();) {
+    base::StringView line(lines.cur_token(), lines.cur_token_size());
+    if (!line.StartsWith("0::"))
+      continue;
+    base::StringView path = line.substr(3);
+    if (path.empty() || path.at(0) != '/')
+      return std::nullopt;
+    // The kernel marks cgroups that have been removed (e.g. if the process is
+    // a zombie) with this suffix.
+    if (path.EndsWith(" (deleted)"))
+      return std::nullopt;
+    return path.ToStdString();
+  }
+  return std::nullopt;
+}
+
+bool IsCgroupV2Frozen(const std::string& cgroup_dir) {
+  std::string freeze_file = cgroup_dir + "/cgroup.freeze";
+  std::string freeze_state;
+  if (!base::ReadFile(freeze_file, &freeze_state)) {
+    PERFETTO_DPLOG("Failed to read %s", freeze_file.c_str());
+    return false;
+  }
+  return base::TrimWhitespace(freeze_state) == "1";
+}
+
+bool IsProcessFrozen(pid_t pid) {
+  base::StackString<64> cgroup_file("/proc/%d/cgroup", static_cast<int>(pid));
+  std::string proc_pid_cgroup;
+  if (!base::ReadFile(cgroup_file.ToStdString(), &proc_pid_cgroup)) {
+    PERFETTO_DPLOG("Failed to read %s", cgroup_file.c_str());
+    return false;
+  }
+  std::optional<std::string> cgroup_path = GetCgroupV2Path(proc_pid_cgroup);
+  // The root cgroup cannot be frozen (and has no cgroup.freeze file).
+  if (!cgroup_path.has_value() || *cgroup_path == "/")
+    return false;
+  return IsCgroupV2Frozen(kCgroupV2MountPoint + *cgroup_path);
+}
+
+void RemoveFrozenProcesses(std::set<pid_t>* pids) {
+  size_t num_removed = 0;
+  for (auto it = pids->begin(); it != pids->end();) {
+    const pid_t pid = *it;
+    if (IsProcessFrozen(pid)) {
+      PERFETTO_DLOG("Removing pid %d from profiled set (frozen)", pid);
+      it = pids->erase(it);
+      num_removed++;
+    } else {
+      ++it;
+    }
+  }
+  if (num_removed > 0)
+    PERFETTO_LOG("Removed %zu frozen processes from profiled set", num_removed);
 }
 
 std::optional<Uids> GetUids(const std::string& status) {

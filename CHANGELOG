@@ -24,6 +24,11 @@ Unreleased:
      shared memory buffer instead of crashing.
    * Fixed heapprofd unwinding failures on x86_64 when the stack below the
      interceptor's frame address was not captured.
+   * Allocation profiling (heapprofd) and Java heap dumps: added the
+     `skip_frozen_processes` option to HeapprofdConfig and JavaHprofConfig.
+     If set, processes that are frozen by the cgroup v2 freezer (such as
+     cached apps on Android) are not signalled to start profiling or to dump
+     the heap, as they would not respond until unfrozen.
   Trace Processor:
    * SQL errors are now laid out like rustc diagnostics: a
      `--> source:line:col` location naming where the SQL came from (query,
