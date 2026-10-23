@@ -22,6 +22,8 @@ source_set("operations") {
     "aggregate_stage.h",
     "distinct.cc",
     "distinct.h",
+    "graph_tree.cc",
+    "graph_tree.h",
     "interval_fill_gaps.cc",
     "interval_fill_gaps.h",
     "interval_flatten.cc",

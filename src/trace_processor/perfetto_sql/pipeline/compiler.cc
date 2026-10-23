@@ -371,22 +371,10 @@ base::StatusOr<Aggregate> Compiler::ResolveAggregate(uint32_t expr) {
 
 base::Status Compiler::CompilePipeline(uint32_t pipeline) {
   const auto& n = Node<SyntaqliteNode>(p_, pipeline)->perfetto_pipeline;
-  if (syntaqlite_node_is_present(n.graph)) {
-    switch (Node<SyntaqlitePerfettoGraphTree>(p_, n.graph)->kind) {
-      case SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_BFS:
-        SetOperation("GRAPH BFS TREE");
-        break;
-      case SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_DFS:
-        SetOperation("GRAPH DFS TREE");
-        break;
-      case SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_DOMINATOR:
-        SetOperation("GRAPH DOMINATOR TREE");
-        break;
-    }
-    return Unsupported(n.graph, "this operator");
-  }
   if (syntaqlite_node_is_present(n.intersection)) {
     RETURN_IF_ERROR(BuildOperation(n.intersection));
+  } else if (syntaqlite_node_is_present(n.graph)) {
+    RETURN_IF_ERROR(BuildOperation(n.graph));
   } else {
     RETURN_IF_ERROR(BuildOperation(n.from));
   }

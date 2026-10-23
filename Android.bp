@@ -19228,6 +19228,7 @@ filegroup {
     srcs: [
         "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/distinct.cc",
+        "src/trace_processor/perfetto_sql/pipeline/operations/graph_tree.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_fill_gaps.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.cc",

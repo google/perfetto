@@ -3958,6 +3958,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/distinct.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/distinct.h",
+        "src/trace_processor/perfetto_sql/pipeline/operations/graph_tree.cc",
+        "src/trace_processor/perfetto_sql/pipeline/operations/graph_tree.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_fill_gaps.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_fill_gaps.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.cc",

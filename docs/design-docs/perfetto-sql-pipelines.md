@@ -303,6 +303,33 @@ and `AGGREGATE` do:
 
 ---
 
+## `GRAPH ... TREE`
+
+Code:
+- `/src/trace_processor/core/exec/graph_tree.cc`
+- `/src/trace_processor/util/graph.cc`
+
+`NODES`, `EDGES` and `FROM` are each a side pipeline, with their ids converted
+to `Int64`. `GraphTree` reads all three before it outputs anything:
+
+- Node rows are kept in a `RowStore`, and each node is numbered by its row.
+  Ids close to dense are found through an array, and any others through a
+  `FlatHashMap`.
+- Edges are grouped by source, keeping the order they arrived in.
+- The search or dominator tree runs over these numbers, from the seeds in the
+  order they arrived. A dominator tree grows from one extra node with an edge
+  to every seed, which is dropped from the output.
+
+The order of the seeds and edges picks between equally good parents, so the
+lowering adds nothing which reorders those inputs.
+
+Rows go out parents first, gathering each node's row, with its parent's `id`
+and the two `Uint32` columns `TreeNumberNodes` would add. The lowering records
+these as a `DOWN` walk of `id` and `parent_id`, so a `TREE ACCUMULATE DOWN`
+after it needs no other operator, and an `UP` one only reverses the rows.
+
+---
+
 ## `AGGREGATE`
 
 Code: `/src/trace_processor/core/exec/hash_aggregate.cc`
