@@ -1,0 +1,748 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// The HUD: a full-width row (--row) or a side panel tab (--panel), see hud.ts.
+// The base class styles the row; --panel overrides what differs.
+//
+// Embedding pages may restyle it without !important: each color reads
+// --pf-live-stream-hud-<name>, falling back to the theme's --pf-color-<name>,
+// and the left padding reads --pf-live-stream-hud-padding-left. The plugin
+// never sets these variables. See README.md#embedding.
+
+// The HUD's color `$name`: the embedder's, else the theme's.
+@function hud-color($name) {
+  @return var(--pf-live-stream-hud-#{$name}, var(--pf-color-#{$name}));
+}
+
+// The HUD's color `$name` at `$percent` opacity.
+@function hud-tint($name, $percent) {
+  @return color-mix(in srgb, hud-color($name) $percent, transparent);
+}
+
+$shadow: var(--pf-color-box-shadow);
+
+.pf-live-stream-hud {
+  min-height: 42px;
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  padding: 6px 14px 6px var(--pf-live-stream-hud-padding-left, 14px);
+  box-sizing: border-box;
+  background: hud-color(background-secondary);
+  border-bottom: 1px solid hud-tint(accent, 35%);
+  box-shadow: 0 2px 10px $shadow;
+  color: hud-color(text);
+  font-family: var(--pf-font);
+  font-size: var(--pf-font-size-s);
+  overflow: visible;
+  white-space: nowrap;
+
+  &__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    min-width: 0;
+
+    &--left {
+      flex: 1 1 220px;
+    }
+
+    &--right {
+      flex: 0 1 auto;
+      margin-left: auto;
+    }
+  }
+
+  &__status-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  &__badge {
+    display: inline-flex;
+    align-items: center;
+    height: 26px;
+    box-sizing: border-box;
+    gap: 6px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+
+    &--live {
+      background: hud-tint(success, 22%);
+      color: hud-color(success);
+      border: 1px solid hud-tint(success, 50%);
+    }
+
+    &--buffering {
+      background: hud-tint(warning, 18%);
+      color: hud-color(warning);
+      border: 1px solid hud-tint(warning, 50%);
+    }
+
+    &--paused {
+      background: hud-tint(text, 12%);
+      color: hud-color(text-muted);
+      border: 1px solid hud-tint(text, 25%);
+    }
+
+    &--error {
+      background: hud-tint(danger, 35%);
+      color: hud-color(danger);
+      border: 1px solid hud-color(danger);
+    }
+  }
+
+  &__popout {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 1;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 220px;
+    max-width: min(400px, calc(100vw - 96px));
+    padding: 8px 10px 8px 12px;
+    border-radius: 6px;
+    background: hud-color(background);
+    color: hud-color(text);
+    font-size: var(--pf-font-size-s);
+    line-height: 1.35;
+    white-space: normal;
+    word-break: break-word;
+    box-shadow: 0 6px 18px $shadow;
+
+    &--buffering {
+      border: 1px solid hud-tint(warning, 55%);
+      border-left: 4px solid hud-color(warning);
+    }
+
+    &--error {
+      border: 1px solid hud-tint(danger, 65%);
+      border-left: 4px solid hud-color(danger);
+    }
+  }
+
+  // Points at the badge.
+  &__popout-arrow {
+    position: absolute;
+    top: -6px;
+    left: 18px;
+    width: 10px;
+    height: 10px;
+    background: hud-color(background);
+    transform: rotate(45deg);
+
+    .pf-live-stream-hud__popout--buffering > & {
+      border-top: 1px solid hud-tint(warning, 55%);
+      border-left: 1px solid hud-tint(warning, 55%);
+    }
+
+    .pf-live-stream-hud__popout--error > & {
+      border-top: 1px solid hud-tint(danger, 65%);
+      border-left: 1px solid hud-tint(danger, 65%);
+    }
+  }
+
+  &__popout-body {
+    flex: 1 1 auto;
+  }
+
+  &__popout-title {
+    font-weight: 700;
+    margin-bottom: 2px;
+
+    &--buffering {
+      color: hud-color(warning);
+    }
+
+    &--error {
+      color: hud-color(danger);
+    }
+  }
+
+  &__popout-msg {
+    color: hud-color(text);
+  }
+
+  &__popout-close {
+    flex-shrink: 0;
+    background: transparent;
+    border: none;
+    color: hud-color(text-muted);
+    font-size: var(--pf-font-size-l);
+    line-height: 1;
+    padding: 0 2px;
+    cursor: pointer;
+
+    &:hover {
+      color: hud-color(text);
+    }
+  }
+
+  &__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+
+    &--pulse {
+      animation: pf-live-stream-pulse 1.2s infinite ease-in-out;
+    }
+  }
+
+  &__target-dropdown {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  &__target-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: 26px;
+    box-sizing: border-box;
+    background: hud-tint(text, 8%);
+    border: 1px solid hud-tint(text, 20%);
+    border-radius: 4px;
+    color: hud-color(text);
+    padding: 0 10px;
+    font-size: var(--pf-font-size-s);
+    line-height: 1;
+    font-family: var(--pf-font-monospace);
+    cursor: pointer;
+
+    &:hover {
+      background: hud-tint(text, 14%);
+      border-color: hud-tint(accent, 55%);
+    }
+
+    &:focus {
+      outline: none;
+      border-color: hud-color(accent);
+    }
+  }
+
+  &__target-trigger-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 240px;
+  }
+
+  &__target-trigger-caret {
+    font-size: var(--pf-font-size-xs);
+    color: hud-color(text-muted);
+  }
+
+  &__target-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    width: max-content;
+    min-width: 380px;
+    max-width: min(960px, calc(100vw - 210px));
+    max-height: 400px;
+    overflow: hidden;
+    background: hud-color(background);
+    border: 1px solid hud-tint(accent, 45%);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px $shadow;
+    padding: 4px;
+  }
+
+  &__target-search-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px;
+    border-bottom: 1px solid hud-tint(text, 12%);
+    margin-bottom: 4px;
+    flex-shrink: 0;
+  }
+
+  // A field darker than the menu.
+  &__target-search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 28px;
+    box-sizing: border-box;
+    padding: 0 8px;
+    background: hud-color(background-secondary);
+    border: 1px solid hud-tint(text, 22%);
+    border-radius: 4px;
+    color: hud-color(accent);
+    font-family: var(--pf-font-monospace);
+    font-size: var(--pf-font-size-s);
+
+    &::placeholder {
+      color: hud-color(text-muted);
+    }
+
+    &:focus {
+      outline: none;
+      border-color: hud-color(accent);
+    }
+  }
+
+  &__target-search-go {
+    height: 28px;
+    padding: 0 10px;
+    flex-shrink: 0;
+    background: hud-tint(accent, 16%);
+    border: 1px solid hud-tint(accent, 50%);
+    border-radius: 4px;
+    color: hud-color(accent);
+    font-family: var(--pf-font-monospace);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: hud-tint(accent, 28%);
+      border-color: hud-color(accent);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
+  &__target-list {
+    position: relative;
+    overflow-y: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  &__target-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+
+    // Also the row picked with the arrow keys.
+    &:hover,
+    &--highlighted {
+      background: hud-tint(text, 8%);
+    }
+
+    &--selected {
+      background: hud-tint(accent, 14%);
+    }
+
+    &--custom {
+      border: 1px dashed hud-tint(accent, 45%);
+      margin-bottom: 4px;
+    }
+  }
+
+  $target-link-size: 26px;
+
+  // As tall as a link, so that rows without one are as tall.
+  &__target-item-main {
+    display: flex;
+    flex-flow: column nowrap;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    min-height: $target-link-size;
+    flex: 1 1 auto;
+  }
+
+  &__target-item-short {
+    font-family: var(--pf-font-monospace);
+    font-size: var(--pf-font-size-s);
+    font-weight: 700;
+    color: hud-color(accent);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // Ellipsized at the start, so that the end of e.g. a path shows.
+  &__target-item-desc {
+    font-family: var(--pf-font-monospace);
+    font-size: 11px;
+    color: hud-color(text-muted);
+    direction: rtl;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__target-item-count {
+    font-family: var(--pf-font-monospace);
+    font-size: 11px;
+    color: hud-color(text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__target-item-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: $target-link-size;
+    height: $target-link-size;
+    flex-shrink: 0;
+    border-radius: 4px;
+    color: hud-color(text);
+    text-decoration: none;
+    background: hud-tint(text, 6%);
+    border: 1px solid hud-tint(text, 15%);
+
+    .pf-icon {
+      font-size: 15px;
+    }
+
+    &:hover {
+      background: hud-tint(accent, 22%);
+      border-color: hud-tint(accent, 65%);
+      color: hud-color(accent);
+    }
+  }
+
+  &__select {
+    height: 26px;
+    box-sizing: border-box;
+    background: hud-tint(text, 8%);
+    border: 1px solid hud-tint(text, 20%);
+    border-radius: 4px;
+    color: hud-color(text);
+    padding: 0 8px;
+    font-size: var(--pf-font-size-s);
+    line-height: 1;
+    font-family: var(--pf-font-monospace);
+    text-overflow: ellipsis;
+
+    &--interval {
+      width: 74px;
+      flex-shrink: 0;
+    }
+
+    &:focus {
+      outline: none;
+      border-color: hud-color(accent);
+    }
+  }
+
+  &__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 26px;
+    box-sizing: border-box;
+    background: hud-tint(accent, 14%);
+    border: 1px solid hud-tint(accent, 45%);
+    border-radius: 4px;
+    color: hud-color(accent);
+    padding: 0 10px;
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: hud-tint(accent, 26%);
+    }
+
+    &--active {
+      background: hud-color(accent);
+      border-color: hud-color(accent);
+      color: hud-color(text-on-accent);
+    }
+  }
+
+  &__more-dropdown {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  &__more-trigger {
+    padding: 0 8px;
+    font-size: 15px;
+    letter-spacing: 1px;
+  }
+
+  &__more-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 2;
+    min-width: 190px;
+    background: hud-color(background);
+    border: 1px solid hud-tint(accent, 45%);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px $shadow;
+    padding: 4px;
+    display: flex;
+    flex-flow: column nowrap;
+    gap: 2px;
+  }
+
+  &__more-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 10px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: hud-color(text);
+    font-family: var(--pf-font);
+    font-size: var(--pf-font-size-s);
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background: hud-tint(text, 8%);
+      color: hud-color(accent);
+    }
+  }
+
+  &__more-item-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    font-size: 13px;
+    color: hud-color(accent);
+  }
+
+  &__more-divider {
+    height: 1px;
+    margin: 3px 4px;
+    background: hud-tint(text, 12%);
+  }
+
+  &__more-interval-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 5px 10px;
+  }
+
+  &__more-interval-label {
+    color: hud-color(text-muted);
+    font-size: 11px;
+    font-weight: 500;
+  }
+}
+
+// The top row's root, see mountTopRow() in controller.ts. Over the app, so
+// that the HUD's menus open over it, and under the app's popups and tooltips
+// (z-index 10 and up).
+.pf-live-stream-hud-root {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+}
+
+// The side panel: sections in a column, as wide as the panel and at least as
+// tall, so that the HUD's background fills it. Viewport media queries don't
+// apply: the panel's width is the user's.
+.pf-live-stream-hud--panel {
+  flex-flow: column nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0;
+  min-height: 100%;
+  padding: 12px;
+  background: hud-color(background);
+  border-bottom: none;
+  box-shadow: none;
+  white-space: normal;
+
+  .pf-live-stream-hud__section {
+    display: flex;
+    flex-flow: column nowrap;
+    gap: 8px;
+    padding: 12px 0;
+
+    &:first-child {
+      padding-top: 0;
+    }
+
+    & + .pf-live-stream-hud__section {
+      border-top: 1px solid hud-tint(text, 12%);
+    }
+  }
+
+  .pf-live-stream-hud__section-title {
+    color: hud-color(text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  // The badge, then the target as wide as the rest. The target menu drops
+  // below both, as wide as the panel.
+  .pf-live-stream-hud__status-line {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pf-live-stream-hud__badge {
+    flex-shrink: 0;
+  }
+
+  .pf-live-stream-hud__target-dropdown {
+    position: static;
+    flex: 1 1 140px;
+  }
+
+  .pf-live-stream-hud__target-trigger {
+    width: 100%;
+  }
+
+  .pf-live-stream-hud__target-trigger-label {
+    max-width: none;
+  }
+
+  .pf-live-stream-hud__target-menu {
+    right: 0;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+
+  // In line, under the status line.
+  .pf-live-stream-hud__popout {
+    position: relative;
+    top: auto;
+    min-width: 0;
+    max-width: none;
+  }
+
+  // Follow on its own line, the others share the next.
+  .pf-live-stream-hud__actions {
+    flex-flow: row wrap;
+    gap: 6px;
+
+    .pf-live-stream-hud__btn {
+      flex: 1 1 auto;
+      gap: 6px;
+    }
+
+    .pf-live-stream-hud__btn--follow {
+      flex-basis: 100%;
+      height: 30px;
+    }
+  }
+
+  .pf-live-stream-hud__btn-icon {
+    font-size: 13px;
+  }
+
+  .pf-live-stream-hud__more-interval-row {
+    padding: 0;
+  }
+
+  .pf-live-stream-hud__note {
+    color: hud-color(text-muted);
+  }
+}
+
+// Narrow windows: two full-width rows, and a full-width target menu below
+// both, so that it covers none of the row's controls.
+@media (max-width: 820px) {
+  .pf-live-stream-hud--row {
+    // The target menu's containing block.
+    position: relative;
+    padding: 6px 10px 6px var(--pf-live-stream-hud-padding-left, 10px);
+
+    .pf-live-stream-hud__row--left {
+      width: 100%;
+    }
+
+    .pf-live-stream-hud__row--right {
+      width: 100%;
+      margin-left: 0;
+    }
+
+    .pf-live-stream-hud__target-dropdown {
+      position: static;
+      flex: 1 1 120px;
+    }
+
+    .pf-live-stream-hud__target-trigger {
+      width: 100%;
+    }
+
+    .pf-live-stream-hud__target-trigger-label {
+      max-width: none;
+    }
+
+    // Just below the row's bottom border.
+    .pf-live-stream-hud__target-menu {
+      top: calc(100% + 1px);
+      left: 8px;
+      right: 8px;
+      width: auto;
+      min-width: 0;
+      max-width: none;
+    }
+
+    .pf-live-stream-hud__btn {
+      padding: 0 8px;
+    }
+  }
+}
+
+@keyframes pf-live-stream-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
