@@ -19,7 +19,7 @@ import type {
   LineChartSeries,
 } from '../../../components/widgets/charts/line_chart';
 import type {App} from '../../../public/app';
-import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
+import {Button, ButtonVariant} from '../../../widgets/button';
 import {Chip} from '../../../widgets/chip';
 import {Intent} from '../../../widgets/common';
 import {MenuDivider, MenuItem, PopupMenu} from '../../../widgets/menu';
@@ -38,6 +38,7 @@ import {renderPageCacheTab} from './tabs/page_cache';
 import {renderPressureSwapTab} from './tabs/pressure_swap';
 import {ProcessesTab} from './tabs/processes';
 import {renderSystemTab} from './tabs/system';
+import {Stack} from '../../../widgets/stack';
 
 type Tab = 'processes' | 'system' | 'file_cache' | 'pressure_swap';
 
@@ -183,52 +184,43 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       // Device identity sits to the left of the button group.
       m(
         '.pf-memscope-session-pill__device',
-        m('.pf-memscope-status-bar__dot', {
-          class: session.isPaused ? 'pf-memscope-status-bar__dot--paused' : '',
-        }),
         m('span', session.deviceName),
         session.data?.isUserDebug &&
           m(Chip, {label: 'userdebug', intent: Intent.Warning}),
       ),
       m(
-        ButtonGroup,
-        // Pause / Resume.
+        Stack,
+        {
+          orientation: 'horizontal',
+        },
         m(Button, {
           variant: ButtonVariant.Filled,
-          label: session.isPaused ? 'Resume' : 'Pause',
-          icon: session.isPaused ? 'play_arrow' : 'pause',
-          onclick: () => {
-            session.togglePause();
-            m.redraw();
-          },
+          label: 'Disconnect',
+          icon: 'usb_off',
+          intent: Intent.Danger,
+          onclick: () => attrs.onStopped(),
         }),
         // Overflow menu for session actions.
         m(
           PopupMenu,
           {
             trigger: m(Button, {
-              variant: ButtonVariant.Filled,
               icon: 'more_vert',
             }),
             position: PopupPosition.BottomEnd,
           },
 
           m(MenuItem, {
-            label: 'Stop & Open Trace',
+            label: 'Stop & open trace',
             icon: 'open_in_new',
             disabled: session.lastTraceBuffer === undefined,
             onclick: () => this.stopAndOpenTrace(attrs),
-          }),
-          m(MenuItem, {
-            label: 'Disconnect',
-            icon: 'usb_off',
-            onclick: () => attrs.onStopped(),
           }),
           m(MenuDivider),
           m(
             MenuItem,
             {
-              label: 'Snapshot stats',
+              label: 'Stats for nerds',
               icon: 'photo_camera',
             },
             this.renderSnapshotStats(session),
@@ -378,11 +370,11 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     });
   }
 
-  private async stopAndOpenTrace(attrs: DashboardAttrs) {
+  private stopAndOpenTrace(attrs: DashboardAttrs) {
     const buffer = attrs.session.lastTraceBuffer;
     if (buffer === undefined) return;
     const fileName = `live-memory-${Date.now()}.perfetto-trace`;
-    await attrs.session.dispose();
+    attrs.onStopped();
     attrs.app.openTraceFromBuffer({buffer, title: fileName, fileName});
   }
 }
