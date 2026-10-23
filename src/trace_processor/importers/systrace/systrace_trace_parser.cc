@@ -286,19 +286,19 @@ class SystraceImporter : public TraceImporter<SystraceImporter> {
   SystraceImporter() : TraceImporter(MakeDescriptor()) {}
   ~SystraceImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     std::string start(reinterpret_cast<const char*>(data),
                       std::min<size_t>(size, kGuessTraceMaxLookahead));
     if (base::Contains(start, "# tracer")) {
-      return true;
+      return {true};
     }
     std::string lower = base::ToLower(start);
     if (base::StartsWith(lower, "<!doctype html>") ||
         base::StartsWith(lower, "<html>")) {
-      return true;
+      return {true};
     }
-    return base::Contains(start, "TRACE:\n") ||
-           base::StartsWith(start, "cpus=") || base::StartsWith(start, " ");
+    return {base::Contains(start, "TRACE:\n") ||
+            base::StartsWith(start, "cpus=") || base::StartsWith(start, " ")};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

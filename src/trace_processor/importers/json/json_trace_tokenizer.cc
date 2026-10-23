@@ -1143,12 +1143,12 @@ class JsonImporter : public TraceImporter<JsonImporter> {
   JsonImporter() : TraceImporter(MakeDescriptor()) {}
   ~JsonImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     std::string start(reinterpret_cast<const char*>(data),
                       std::min<size_t>(size, kGuessTraceMaxLookahead));
     start.erase(std::remove_if(start.begin(), start.end(), base::IsSpace),
                 start.end());
-    return base::StartsWith(start, "{\"") || base::StartsWith(start, "[{\"");
+    return {base::StartsWith(start, "{\"") || base::StartsWith(start, "[{\"")};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

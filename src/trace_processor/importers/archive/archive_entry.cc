@@ -50,10 +50,10 @@ int ArchiveEntry::ComputePriority(TraceImporterId type,
 }
 
 bool ArchiveEntry::operator<(const ArchiveEntry& rhs) const {
-  // Compare first by archive priority, then by name, and finally by index to
-  // ensure strict ordering.
-  return std::tie(priority, name, index) <
-         std::tie(rhs.priority, rhs.name, rhs.index);
+  // Compare first by archive priority, then by subpriority, then by name, and
+  // finally by index to ensure strict ordering.
+  return std::tie(priority, subpriority, name, index) <
+         std::tie(rhs.priority, rhs.subpriority, rhs.name, rhs.index);
 }
 
 }  // namespace perfetto::trace_processor

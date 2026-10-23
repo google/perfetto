@@ -52,6 +52,9 @@ struct ArchiveEntry {
   // This is the main attribute traces are ordered by; proto is read first as it
   // may contain clock sync data needed to correctly parse other traces.
   int priority;
+  // Order among members of the same priority, from the member's content: the
+  // SniffResult::archive_subpriority its importer returned.
+  int subpriority = 0;
   // Comparator used to determine the order in which files in the ZIP will be
   // read.
   bool operator<(const ArchiveEntry& rhs) const;

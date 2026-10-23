@@ -13,12 +13,68 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import zlib
+
 from python.generators.diff_tests.testing import Csv, Path, DataPath
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 from python.generators.diff_tests.testing import TextProto
 from python.generators.diff_tests.testing import Tar
 from python.generators.diff_tests.testing import Zip as ZipTrace
+
+# An in-process SDK trace: MONOTONIC (clock id 3) packets and no ClockSnapshot,
+# so its timestamps can only be converted through a sibling trace's snapshots.
+_SDK_NO_SNAPSHOT = TextProto('''
+  packet {
+    trusted_packet_sequence_id: 1
+    timestamp: 900
+    timestamp_clock_id: 3
+    track_descriptor { uuid: 1 name: "sdk_track" }
+  }
+  packet {
+    trusted_packet_sequence_id: 1
+    timestamp: 1000
+    timestamp_clock_id: 3
+    track_event { track_uuid: 1 type: TYPE_INSTANT name: "sdk" }
+  }
+''')
+
+# A system trace's ClockSnapshot: MONOTONIC 500 is BOOTTIME 5000.
+_SYSTEM_SNAPSHOT = '''
+  packet {
+    timestamp: 5000
+    clock_snapshot {
+      clocks { clock_id: 6 timestamp: 5000 }
+      clocks { clock_id: 3 timestamp: 500 }
+    }
+  }
+'''
+
+# A system trace's own events (BOOTTIME).
+_SYSTEM_EVENTS = '''
+  packet {
+    trusted_packet_sequence_id: 2
+    timestamp: 5900
+    track_descriptor { uuid: 2 name: "sys_track" }
+  }
+  packet {
+    trusted_packet_sequence_id: 2
+    timestamp: 6000
+    track_event { track_uuid: 2 type: TYPE_INSTANT name: "sys" }
+  }
+'''
+
+_SYSTEM_WITH_SNAPSHOT = TextProto(_SYSTEM_SNAPSHOT + _SYSTEM_EVENTS)
+
+# Packets which carry nothing, to move what follows a few hundred bytes in.
+_PADDING = 'packet { trusted_packet_sequence_id: 3 }\n' * 200
+
+
+# A packet holding `trace` (serialized packets) as deflated compressed_packets.
+# Level 0 stores `trace` as is, which keeps the packet as big as `trace`.
+def _compressed_packets(trace, level=-1):
+  escaped = ''.join('\\%03o' % b for b in zlib.compress(trace, level))
+  return 'packet { compressed_packets: "%s" }' % escaped
 
 
 class Zip(TestSuite):
@@ -249,4 +305,88 @@ class Zip(TestSuite):
         "ts"
         1276407306585477
         1276408471040116
+        '''))
+
+  # a_sdk.pb sorts first by name, but b_system.pb carries the ClockSnapshot, so
+  # it is read first and the sdk slice is converted through it: it lands at
+  # BOOTTIME 5000 + (1000 - 500). Read in name order, it would be dropped.
+  def test_zip_proto_with_clock_snapshot_read_first(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'a_sdk.pb': _SDK_NO_SNAPSHOT,
+            'b_system.pb': _SYSTEM_WITH_SNAPSHOT,
+        }),
+        query='''
+          SELECT name, ts FROM slice ORDER BY ts;
+        ''',
+        out=Csv('''
+        "name","ts"
+        "sdk",5500
+        "sys",6000
+        '''))
+
+  # Same in a tar archive. The ClockSnapshot comes a few hundred bytes in, so
+  # tar must hand over more than the first bytes of each member to be sniffed.
+  def test_tar_proto_with_clock_snapshot_read_first(self):
+    return DiffTestBlueprint(
+        trace=Tar({
+            'a_sdk.pb':
+                _SDK_NO_SNAPSHOT,
+            'b_system.pb':
+                TextProto(_PADDING + _SYSTEM_SNAPSHOT + _SYSTEM_EVENTS),
+        }),
+        query='''
+          SELECT name, ts FROM slice ORDER BY ts;
+        ''',
+        out=Csv('''
+        "name","ts"
+        "sdk",5500
+        "sys",6000
+        '''))
+
+  # The ClockSnapshot need not be in the first packet.
+  def test_zip_proto_with_late_clock_snapshot_read_first(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'a_sdk.pb': _SDK_NO_SNAPSHOT,
+            'b_system.pb': TextProto(_SYSTEM_EVENTS + _SYSTEM_SNAPSHOT),
+        }),
+        query='''
+          SELECT name, processing_order
+          FROM __intrinsic_trace_file
+          WHERE name IS NOT NULL
+          ORDER BY processing_order;
+        ''',
+        out=Csv('''
+        "name","processing_order"
+        "b_system.pb",1
+        "a_sdk.pb",2
+        '''))
+
+  # Compressed packets are not inflated to look for a ClockSnapshot: a trace
+  # holding some counts as carrying one (traced versions from before September
+  # 2026 compressed their snapshots too), so it is read before a trace without
+  # any. This holds even when the compressed packet runs past the part of the
+  # file looked at, as traced compresses whole batches of packets into one.
+  def test_zip_proto_with_compressed_packets_read_first(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'a_plain.pb':
+                TextProto('packet { trusted_packet_sequence_id: 1 }'),
+            # Holds 20000 x packet { trusted_packet_sequence_id: 2 }, stored
+            # as is: a single packet of about 80 KB.
+            'b_compressed.pb':
+                TextProto(
+                    _compressed_packets(b'\x0a\x02\x50\x02' * 20000, level=0)),
+        }),
+        query='''
+          SELECT name, processing_order
+          FROM __intrinsic_trace_file
+          WHERE name IS NOT NULL
+          ORDER BY processing_order;
+        ''',
+        out=Csv('''
+        "name","processing_order"
+        "b_compressed.pb",1
+        "a_plain.pb",2
         '''))

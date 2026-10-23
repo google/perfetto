@@ -666,9 +666,10 @@ class PerfDataImporter : public TraceImporter<PerfDataImporter> {
   PerfDataImporter() : TraceImporter(MakeDescriptor()) {}
   ~PerfDataImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     static constexpr char kMagic[] = {'P', 'E', 'R', 'F', 'I', 'L', 'E', '2'};
-    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+    return {size >= sizeof(kMagic) &&
+            memcmp(data, kMagic, sizeof(kMagic)) == 0};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
