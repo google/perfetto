@@ -21,6 +21,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 
@@ -32,6 +34,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
@@ -119,6 +122,40 @@ class TrackTracker {
     return InternTrack(kBlueprint, tracks::Dimensions(utid));
   }
 
+  // While alive, marks the data being parsed by |context| as machine-wide
+  // data of |kind| (see MachineDataClaimTracker): the machine-wide tracks
+  // (i.e. without a thread or process dimension) it interns are shared by all
+  // traces on the machine instead of being per-trace.
+  //
+  // This is safe because MachineDataClaimTracker guarantees that the data of
+  // one kind from different traces on a machine never overlaps in time.
+  class ScopedMachineData {
+   public:
+    ScopedMachineData(TraceProcessorContext* context,
+                      MachineDataClaimTracker::Kind kind)
+        : tracker_(context->machine_data_claim_tracker
+                       ? context->track_tracker.get()
+                       : nullptr) {
+      if (tracker_) {
+        prev_ = tracker_->machine_data_kind_;
+        tracker_->machine_data_kind_ = kind;
+      }
+    }
+    ~ScopedMachineData() {
+      if (tracker_) {
+        tracker_->machine_data_kind_ = prev_;
+      }
+    }
+
+    ScopedMachineData(const ScopedMachineData&) = delete;
+    ScopedMachineData& operator=(const ScopedMachineData&) = delete;
+
+   private:
+    // Null if |context| has no MachineDataClaimTracker (e.g. in unit tests).
+    TrackTracker* const tracker_;
+    std::optional<MachineDataClaimTracker::Kind> prev_;
+  };
+
   // Creates a track with the given blueprint and dimensions, bypassing the
   // interning logic.
   // This method should only be used when the caller is managing the interning
@@ -205,11 +242,66 @@ class TrackTracker {
       const SetArgsCallback& args = {},
       const typename BlueprintT::unit_t& unit = tracks::BlueprintUnit()) {
     uint64_t hash = tracks::HashFromBlueprintAndDimensions(bp, dims);
+    if (PERFETTO_UNLIKELY(machine_data_kind_.has_value()) &&
+        IsMachineWide(bp)) {
+      return InternSharedTrack(bp, dims, name, args, unit, hash);
+    }
+    auto [it, inserted] = tracks_.Insert(hash, {});
+    if (inserted) {
+      const TrackId* shared = FindSharedTrack(hash);
+      *it = shared ? *shared : CreateTrack(bp, dims, name, args, unit);
+    }
+    return *it;
+  }
+
+  // Interns a machine-wide track of machine-wide data (see
+  // ScopedMachineData): such tracks are shared by all traces on the machine.
+  template <typename BlueprintT>
+  TrackId InternSharedTrack(const BlueprintT& bp,
+                            const typename BlueprintT::dimensions_t& dims,
+                            const typename BlueprintT::name_t& name,
+                            const SetArgsCallback& args,
+                            const typename BlueprintT::unit_t& unit,
+                            uint64_t hash) {
+    auto& shared = context_->machine_data_claim_tracker->shared_tracks();
+    if (const TrackId* id = shared.Find(hash); PERFETTO_LIKELY(id)) {
+      return *id;
+    }
+    // Not shared yet: reuse this trace's track, if it created one outside a
+    // ScopedMachineData, so that a single trace interns exactly the tracks it
+    // would without sharing.
     auto [it, inserted] = tracks_.Insert(hash, {});
     if (inserted) {
       *it = CreateTrack(bp, dims, name, args, unit);
     }
+    shared.Insert(hash, *it);
+    context_->machine_data_claim_tracker->OnTrackShared(*it,
+                                                        *machine_data_kind_);
     return *it;
+  }
+
+  const TrackId* FindSharedTrack(uint64_t hash) {
+    return context_->machine_data_claim_tracker
+               ? context_->machine_data_claim_tracker->shared_tracks().Find(
+                     hash)
+               : nullptr;
+  }
+
+  // Whether a track is about the machine as a whole rather than about a
+  // thread or process. Threads and processes can be the subject of both
+  // machine-wide data and of other data (e.g. track events), from several
+  // traces at the same time, so their tracks are never shared.
+  template <typename BlueprintT>
+  static bool IsMachineWide(const BlueprintT& bp) {
+    constexpr size_t kDimensionCount =
+        std::tuple_size_v<typename BlueprintT::dimensions_t>;
+    for (size_t i = 0; i < kDimensionCount; ++i) {
+      std::string_view dim = bp.dimension_blueprints[i].name;
+      if (dim == "utid" || dim == "upid") {
+        return false;
+      }
+    }
+    return true;
   }
 
   template <size_t i, typename TupleDimensions>
@@ -238,6 +330,9 @@ class TrackTracker {
   }
 
   base::FlatHashMap<uint64_t, TrackId, base::AlreadyHashed<uint64_t>> tracks_;
+
+  // Set while parsing machine-wide data: see ScopedMachineData.
+  std::optional<MachineDataClaimTracker::Kind> machine_data_kind_;
 
   TraceProcessorContext* const context_;
   ArgsTracker args_tracker_;
