@@ -295,6 +295,51 @@ class Zip(TestSuite):
         6000,"ev"
         '''))
 
+  # As above, but the first trace makes MONOTONIC the trace time clock. The
+  # second trace's MONOTONIC reaches it directly, so it is bridged rather
+  # than BOOTTIME.
+  def test_zip_primary_clock_related_to_boottime_trace_time_monotonic(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'a.pb':
+                TextProto('''
+              packet {
+                clock_snapshot {
+                  primary_trace_clock: 3  # BUILTIN_CLOCK_MONOTONIC
+                  clocks { clock_id: 3 timestamp: 10000 }  # MONOTONIC
+                }
+              }
+            '''),
+            'b.pb':
+                TextProto('''
+              packet {
+                clock_snapshot {
+                  primary_trace_clock: 3  # BUILTIN_CLOCK_MONOTONIC
+                  clocks { clock_id: 3 timestamp: 1000 }  # MONOTONIC
+                  clocks { clock_id: 6 timestamp: 5000 }  # BOOTTIME
+                }
+              }
+              packet {
+                trusted_packet_sequence_id: 1
+                timestamp: 2000
+                incremental_state_cleared: true
+                track_descriptor { uuid: 1 name: "t" }
+              }
+              packet {
+                trusted_packet_sequence_id: 1
+                timestamp: 2000
+                track_event { type: TYPE_INSTANT track_uuid: 1 name: "ev" }
+              }
+            '''),
+        }),
+        query='''
+          SELECT ts, name FROM slice;
+        ''',
+        out=Csv('''
+        "ts","name"
+        2000,"ev"
+        '''))
+
   # A system trace relates MONOTONIC to BOOTTIME; the second trace's
   # snapshot only has its primary_trace_clock (MONOTONIC). The second trace
   # must reach trace time through the system trace's MONOTONIC.

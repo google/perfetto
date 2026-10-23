@@ -152,7 +152,8 @@ class ClockTracker {
   // time: the trace default clock if one is set by then, otherwise |fallback|.
   // |fallback| is still bridged if this file's own snapshots relate the
   // default clock to it, as another file may have set up trace time through
-  // it. If that clock cannot already reach trace time through the graph, a
+  // it, unless only the default clock already reaches trace time. If the
+  // bridged clock cannot already reach trace time through the graph, a
   // zero-offset edge is injected (bridged via this file's machine-canonical
   // node so isolated files still resolve).
   void AddDeferredClockSync(ClockId fallback);

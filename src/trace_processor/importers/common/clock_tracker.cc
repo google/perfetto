@@ -241,10 +241,18 @@ void ClockTracker::FlushDeferredClockSync() {
 
   // If this file's own snapshots relate the default clock to the fallback,
   // bridge the fallback: another file may have set up trace time through it.
+  // Unless only the default clock already reaches trace time.
+  ClockId trace_time = context_->trace_time_state->clock_id;
+  auto reaches_trace_time = [&](ClockId id) {
+    ClockId canonical = ClockId::Qualify(id, machine_id_, 0);
+    return canonical == trace_time || sync_->Convert(canonical, 0, trace_time);
+  };
   ClockId qualified = ClockId::Qualify(from, machine_id_, current_file_tag_);
-  if (from != fallback && sync_->Convert(qualified, 0,
-                                         ClockId::Qualify(fallback, machine_id_,
-                                                          current_file_tag_))) {
+  if (from != fallback &&
+      sync_->Convert(
+          qualified, 0,
+          ClockId::Qualify(fallback, machine_id_, current_file_tag_)) &&
+      (reaches_trace_time(fallback) || !reaches_trace_time(from))) {
     from = fallback;
     qualified = ClockId::Qualify(from, machine_id_, current_file_tag_);
   }
@@ -255,7 +263,7 @@ void ClockTracker::FlushDeferredClockSync() {
   if (qualified != canonical && !sync_->Convert(qualified, 0, canonical)) {
     AddSnapshotInternal({{qualified, 0}, {canonical, 0}});
   }
-  BridgeToTraceTime(canonical, context_->trace_time_state->clock_id);
+  BridgeToTraceTime(canonical, trace_time);
 }
 
 void ClockTracker::BridgeToTraceTime(ClockId clock_id, ClockId trace_time) {
