@@ -35,6 +35,8 @@ PERFETTO_TE_CATEGORIES_DEFINE(EXAMPLE_CATEGORIES)
 
 static struct PerfettoTeRegisteredTrack mytrack;
 static struct PerfettoTeRegisteredTrack mycounter;
+static struct PerfettoTePersistentStateTrack mystate;
+static const char* mystate_value = "idle";
 
 static void EnabledCb(struct PerfettoTeCategoryImpl* c,
                       PerfettoDsInstanceIndex inst_id,
@@ -47,6 +49,12 @@ static void EnabledCb(struct PerfettoTeCategoryImpl* c,
          PERFETTO_STATIC_CAST(int, global_state_changed), user_arg);
   if (enabled) {
     PERFETTO_TE(physics, PERFETTO_TE_INSTANT("callback"), PERFETTO_TE_FLUSH());
+  }
+  if (enabled && global_state_changed) {
+    // Provide the current state of the persistent state track, so that it's
+    // visible even if it never changes during the trace.
+    PERFETTO_TE(physics, PERFETTO_TE_STATE(mystate_value),
+                PERFETTO_TE_PERSISTENT_STATE_TRACK_INIT(&mystate));
   }
 }
 
@@ -61,6 +69,8 @@ int main(void) {
                                PerfettoTeProcessTrackUuid(), true);
   PerfettoTeCounterTrackRegister(&mycounter, "mycounter",
                                  PerfettoTeProcessTrackUuid(), true);
+  PerfettoTePersistentStateTrackRegister(&mystate, &physics, "mystate",
+                                         PerfettoTeProcessTrackUuid(), true);
   PerfettoTeCategorySetCallback(&physics, EnabledCb, PERFETTO_NULL);
   for (;;) {
     PERFETTO_TE(rendering, PERFETTO_TE_INSTANT("name1"));
@@ -137,6 +147,12 @@ int main(void) {
                 PERFETTO_TE_CORRELATION_ID(flow_counter));
     PERFETTO_TE(physics, PERFETTO_TE_INSTANT("frame_label"),
                 PERFETTO_TE_CORRELATION_ID_STR("frame"));
+    // Persistent state: re-emitted on flush and when it changes, so it's
+    // visible for the whole trace, even after ring buffer wraparound.
+    mystate_value = (flow_counter % 10 == 0) ? "busy" : "idle";
+    PERFETTO_TE(physics, PERFETTO_TE_STATE(mystate_value),
+                PERFETTO_TE_PERSISTENT_STATE_TRACK(&mystate),
+                PERFETTO_TE_ARG_UINT64("iteration", flow_counter));
     sleep(1);
   }
 }

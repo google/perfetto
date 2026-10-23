@@ -113,9 +113,15 @@ struct TrackEventDataSourceTraits : public perfetto::DefaultDataSourceTraits {
 class TrackEvent
     : public perfetto::DataSource<TrackEvent, TrackEventDataSourceTraits> {
  public:
+  // Category callbacks are invoked from OnStart(): they shouldn't run under the
+  // data source lock, which is also taken by the first trace point on every
+  // thread.
+  static constexpr bool kRequiresCallbacksUnderLock = false;
+
   ~TrackEvent() override;
   void OnSetup(const DataSourceBase::SetupArgs& args) override;
   void OnStart(const DataSourceBase::StartArgs&) override;
+  void OnFlush(const DataSourceBase::FlushArgs&) override;
   void OnStop(const DataSourceBase::StopArgs&) override;
 
   const perfetto::protos::gen::TrackEventConfig& GetConfig() const {
@@ -151,6 +157,10 @@ class TrackEvent
 
  private:
   uint32_t inst_id_;
+  // Whether all the persistent states have been emitted at least once (and
+  // after the stop flush).
+  bool persistent_state_emitted_ = false;
+  bool persistent_state_emitted_on_stop_ = false;
   perfetto::protos::gen::TrackEventConfig config_;
 };
 

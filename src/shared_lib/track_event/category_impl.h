@@ -24,6 +24,9 @@
 struct PerfettoTeCategoryImpl {
   std::atomic<bool> flag{false};
   std::atomic<uint8_t> instances{0};
+  // Incremented every time the category goes from disabled on all instances to
+  // enabled on at least one, before `instances` becomes non zero.
+  std::atomic<uint32_t> epoch{0};
   PerfettoTeCategoryDescriptor* desc = nullptr;
   uint64_t cat_iid = 0;
   PerfettoTeCategoryImplCallback cb = nullptr;

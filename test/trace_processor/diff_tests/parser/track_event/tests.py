@@ -1251,6 +1251,147 @@ class TrackEvent(TestSuite):
         1,3000,1000,"state_cat","state_idle","MyStateTrack"
         """))
 
+  # Persistent state tracks re-emit states with their original start timestamp
+  # (when they end and on flushes), possibly on different sequences.
+  def test_track_event_state_reemission_dedup(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 10
+            name: "MyStateTrack"
+            state {}
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            track_uuid: 10
+            type: 5
+            name: "A"
+            debug_annotations { name: "arg" int_value: 1 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 1000
+          incremental_state_cleared: true
+          track_event {
+            track_uuid: 10
+            type: 5
+            name: "A"
+            debug_annotations { name: "arg" int_value: 1 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 3000
+          track_event {
+            track_uuid: 10
+            type: 5
+            name: "B"
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          track_event {
+            track_uuid: 10
+            type: 5
+            name: "B"
+          }
+        }
+        """),
+        query="""
+        SELECT ts, dur, value, EXTRACT_ARG(arg_set_id, 'debug.arg') AS arg
+        FROM state
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","value","arg"
+        1000,2000,"A",1
+        3000,-1,"B","[NULL]"
+        """))
+
+  # A state re-emitted after the sorter has already extracted later events is
+  # dropped silently (with an info stat) rather than as an out of order event.
+  def test_track_event_state_stale_reemission_dropped(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 10
+            name: "MyStateTrack"
+            state {}
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event { track_uuid: 10 type: 5 name: "A" }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          track_event { track_uuid: 10 type: 5 name: "B" }
+        }
+        packet {
+          trusted_packet_sequence_id: 3
+          service_event { all_data_sources_flushed: true }
+        }
+        packet {
+          trusted_packet_sequence_id: 3
+          service_event { all_data_sources_flushed: true }
+        }
+        packet {
+          trusted_packet_sequence_id: 3
+          service_event { read_tracing_buffers_completed: true }
+        }
+        packet {
+          trusted_packet_sequence_id: 3
+          service_event { all_data_sources_flushed: true }
+        }
+        packet {
+          trusted_packet_sequence_id: 3
+          service_event { all_data_sources_flushed: true }
+        }
+        packet {
+          trusted_packet_sequence_id: 3
+          service_event { read_tracing_buffers_completed: true }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 1000
+          incremental_state_cleared: true
+          track_event { track_uuid: 10 type: 5 name: "A" }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 5000
+          track_event { track_uuid: 10 type: 5 name: "C" }
+        }
+        """),
+        query="""
+        SELECT
+          (SELECT GROUP_CONCAT(value || '@' || ts || '+' || dur, ' ')
+           FROM (SELECT * FROM state ORDER BY ts)) AS states,
+          (SELECT value FROM stats
+           WHERE name = 'track_event_state_stale_dropped') AS stale_dropped,
+          (SELECT value FROM stats
+           WHERE name = 'sorter_push_event_out_of_order') AS out_of_order;
+        """,
+        out=Csv("""
+        "states","stale_dropped","out_of_order"
+        "A@1000+2000 B@3000+2000 C@5000+-1",1,0
+        """))
+
   def test_state_track_legacy_fallback_error(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""

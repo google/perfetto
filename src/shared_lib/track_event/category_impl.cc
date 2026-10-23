@@ -21,9 +21,13 @@
 
 void PerfettoTeCategoryImpl::EnableInstance(uint32_t instance_index) {
   PERFETTO_DCHECK(instance_index < perfetto::internal::kMaxDataSourceInstances);
+  // Enable/disable calls are serialized by the caller.
+  if (instances.load(std::memory_order_relaxed) == 0) {
+    epoch.fetch_add(1, std::memory_order_seq_cst);
+  }
   // Matches the acquire_load in DataSource::Trace().
   uint8_t old = instances.fetch_or(static_cast<uint8_t>(1u << instance_index),
-                                   std::memory_order_release);
+                                   std::memory_order_seq_cst);
   bool global_state_changed = old == 0;
   if (global_state_changed) {
     flag.store(true, std::memory_order_relaxed);
@@ -36,9 +40,10 @@ void PerfettoTeCategoryImpl::EnableInstance(uint32_t instance_index) {
 
 void PerfettoTeCategoryImpl::DisableInstance(uint32_t instance_index) {
   PERFETTO_DCHECK(instance_index < perfetto::internal::kMaxDataSourceInstances);
-  // Matches the acquire_load in DataSource::Trace().
+  // Matches the acquire_load in DataSource::Trace(). seq_cst pairs with
+  // persistent state track updates (see persistent_state.cc).
   uint8_t old = instances.fetch_and(
-      static_cast<uint8_t>(~(1u << instance_index)), std::memory_order_release);
+      static_cast<uint8_t>(~(1u << instance_index)), std::memory_order_seq_cst);
   if (!(old & static_cast<uint8_t>(1u << instance_index))) {
     return;
   }

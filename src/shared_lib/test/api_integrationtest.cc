@@ -83,8 +83,10 @@ using ::perfetto::shlib::test_utils::WaitableEvent;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::DoAll;
+using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::InSequence;
+using ::testing::IsEmpty;
 using ::testing::IsNull;
 using ::testing::MockFunction;
 using ::testing::NiceMock;
@@ -2410,6 +2412,230 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlRegisteredState) {
                       AllFieldsWithId(
                           perfetto_protos_TrackEvent_track_uuid_field_number,
                           ElementsAre(VarIntField(kExpectedUuid))))))))));
+}
+
+// A state event, as parsed from the trace.
+struct StateEvent {
+  std::string value;
+  uint64_t ts;
+  bool operator==(const StateEvent& o) const {
+    return value == o.value && ts == o.ts;
+  }
+  friend std::ostream& operator<<(std::ostream& os, const StateEvent& e) {
+    return os << "{" << e.value << ", " << e.ts << "}";
+  }
+};
+
+// Returns all the state events on the track `track_uuid` in `data`.
+std::vector<StateEvent> ParseStateEvents(const std::vector<uint8_t>& data,
+                                         uint64_t track_uuid) {
+  std::vector<StateEvent> events;
+  for (struct PerfettoPbDecoderField packet : FieldView(data)) {
+    IdFieldView track_event(
+        packet, perfetto_protos_TracePacket_track_event_field_number);
+    if (track_event.size() != 1) {
+      continue;
+    }
+    IdFieldView type(track_event.front(),
+                     perfetto_protos_TrackEvent_type_field_number);
+    IdFieldView uuid(track_event.front(),
+                     perfetto_protos_TrackEvent_track_uuid_field_number);
+    if (type.size() != 1 ||
+        type.front().value.integer64 != perfetto_protos_TrackEvent_TYPE_STATE ||
+        uuid.size() != 1 || uuid.front().value.integer64 != track_uuid) {
+      continue;
+    }
+    StateEvent event{};
+    IdFieldView name(track_event.front(),
+                     perfetto_protos_TrackEvent_name_field_number);
+    if (name.size() == 1) {
+      event.value = std::string(
+          reinterpret_cast<const char*>(name.front().value.delimited.start),
+          name.front().value.delimited.len);
+    }
+    IdFieldView ts(packet, perfetto_protos_TracePacket_timestamp_field_number);
+    if (ts.size() == 1) {
+      event.ts = ts.front().value.integer64;
+    }
+    events.push_back(event);
+  }
+  return events;
+}
+
+class SharedLibPersistentStateTrackTest : public SharedLibTrackEventTest {
+ public:
+  void InitState(const char* value, uint64_t ts) {
+    PERFETTO_TE(cat1, PERFETTO_TE_STATE(value),
+                PERFETTO_TE_PERSISTENT_STATE_TRACK_INIT(&track_),
+                PERFETTO_TE_TIMESTAMP(Ts(ts)));
+  }
+
+ protected:
+  void SetUp() override {
+    SharedLibTrackEventTest::SetUp();
+    PerfettoTePersistentStateTrackRegister(&track_, &cat1, "MyState",
+                                           PerfettoTeProcessTrackUuid(), true);
+    uuid_ = PerfettoTeStateTrackUuid("MyState", PerfettoTeProcessTrackUuid());
+  }
+
+  void TearDown() override {
+    PerfettoTeCategorySetCallback(&cat1, nullptr, nullptr);
+    PerfettoTePersistentStateTrackUnregister(&track_);
+    SharedLibTrackEventTest::TearDown();
+  }
+
+  static PerfettoTeTimestamp Ts(uint64_t value) {
+    return {PERFETTO_TE_TIMESTAMP_TYPE_BOOT, value};
+  }
+
+  void SetState(const char* value, uint64_t ts) {
+    PERFETTO_TE(cat1, PERFETTO_TE_STATE(value),
+                PERFETTO_TE_PERSISTENT_STATE_TRACK(&track_),
+                PERFETTO_TE_TIMESTAMP(Ts(ts)));
+  }
+
+  static TracingSession StartSession() {
+    return TracingSession::Builder()
+        .set_data_source_name("track_event")
+        .add_enabled_category("*")
+        .Build();
+  }
+
+  std::vector<StateEvent> StopAndParse(TracingSession& session) {
+    session.StopBlocking();
+    return ParseStateEvents(session.ReadBlocking(), uuid_);
+  }
+
+  PerfettoTePersistentStateTrack track_;
+  uint64_t uuid_;
+};
+
+TEST_F(SharedLibPersistentStateTrackTest, NothingWithoutState) {
+  SetState("IGNORED", 50);  // Category disabled.
+  TracingSession session = StartSession();
+  EXPECT_THAT(StopAndParse(session), IsEmpty());
+}
+
+TEST_F(SharedLibPersistentStateTrackTest, UnchangedInitialState) {
+  PerfettoTeCategorySetCallback(
+      &cat1,
+      [](struct PerfettoTeCategoryImpl*, PerfettoDsInstanceIndex, bool created,
+         bool global_state_changed, void* user_arg) {
+        if (created && global_state_changed) {
+          static_cast<SharedLibPersistentStateTrackTest*>(user_arg)->InitState(
+              "IDLE", 100);
+        }
+      },
+      this);
+  TracingSession session = StartSession();
+  EXPECT_THAT(StopAndParse(session), ElementsAre(StateEvent{"IDLE", 100}));
+}
+
+TEST_F(SharedLibPersistentStateTrackTest, InitIgnoredIfAlreadySet) {
+  TracingSession session = StartSession();
+  SetState("RUNNING", 100);
+  InitState("IDLE", 50);
+  EXPECT_THAT(StopAndParse(session), ElementsAre(StateEvent{"RUNNING", 100}));
+}
+
+TEST_F(SharedLibPersistentStateTrackTest, ChangeEmitsPreviousState) {
+  TracingSession session = StartSession();
+  PERFETTO_TE(cat1, PERFETTO_TE_STATE("A"),
+              PERFETTO_TE_PERSISTENT_STATE_TRACK(&track_),
+              PERFETTO_TE_TIMESTAMP(Ts(100)), PERFETTO_TE_ARG_INT64("arg", 42));
+  SetState("B", 200);
+  session.StopBlocking();
+  std::vector<uint8_t> data = session.ReadBlocking();
+
+  // "A" is emitted when "B" is set, "B" when the session stops.
+  EXPECT_THAT(ParseStateEvents(data, uuid_),
+              ElementsAre(StateEvent{"A", 100}, StateEvent{"B", 200}));
+  // Extra args are persisted with the state.
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          AllFieldsWithId(
+              perfetto_protos_TracePacket_track_event_field_number,
+              ElementsAre(AllOf(
+                  AllFieldsWithId(perfetto_protos_TrackEvent_name_field_number,
+                                  ElementsAre(StringField("A"))),
+                  AllFieldsWithId(
+                      perfetto_protos_TrackEvent_debug_annotations_field_number,
+                      ElementsAre(MsgField(UnorderedElementsAre(
+                          PbField(
+                              perfetto_protos_DebugAnnotation_name_field_number,
+                              StringField("arg")),
+                          PbField(
+                              perfetto_protos_DebugAnnotation_int_value_field_number,
+                              VarIntField(42))))))))))));
+}
+
+TEST_F(SharedLibPersistentStateTrackTest, FlushEmitsOnlyChangedStates) {
+  TracingSession session = StartSession();
+  SetState("A", 100);
+  session.FlushBlocking(/*timeout_ms=*/10000);  // First flush: all states.
+  session.FlushBlocking(/*timeout_ms=*/10000);  // Nothing changed.
+  SetState("B", 200);                           // Emits "A".
+  session.FlushBlocking(/*timeout_ms=*/10000);  // "B" changed.
+  EXPECT_THAT(StopAndParse(session),            // Stop: all states.
+              UnorderedElementsAre(StateEvent{"A", 100}, StateEvent{"A", 100},
+                                   StateEvent{"B", 200}, StateEvent{"B", 200}));
+}
+
+TEST_F(SharedLibPersistentStateTrackTest, OverlappingSessions) {
+  TracingSession session1 = StartSession();
+  SetState("A", 100);
+  TracingSession session2 = StartSession();
+  SetState("B", 200);
+  EXPECT_THAT(StopAndParse(session2),
+              ElementsAre(StateEvent{"A", 100}, StateEvent{"B", 200}));
+  SetState("C", 300);
+  EXPECT_THAT(StopAndParse(session1),
+              ElementsAre(StateEvent{"A", 100}, StateEvent{"B", 200},
+                          StateEvent{"C", 300}));
+}
+
+TEST_F(SharedLibPersistentStateTrackTest, StateDoesNotOutliveSessions) {
+  {
+    TracingSession session = StartSession();
+    SetState("A", 100);
+    EXPECT_THAT(StopAndParse(session), ElementsAre(StateEvent{"A", 100}));
+  }
+  {
+    TracingSession session = StartSession();
+    EXPECT_THAT(StopAndParse(session), IsEmpty());
+  }
+  {
+    TracingSession session = StartSession();
+    InitState("B", 200);
+    EXPECT_THAT(StopAndParse(session), ElementsAre(StateEvent{"B", 200}));
+  }
+}
+
+// Exercises updates racing with flushes and with sessions starting and
+// stopping (mostly useful under sanitizers).
+TEST_F(SharedLibPersistentStateTrackTest, ConcurrentUpdatesAndSessions) {
+  std::atomic<bool> done{false};
+  auto writer = [&](const char* value) {
+    for (uint64_t ts = 1; !done.load(); ts++) {
+      SetState(value, ts);
+      InitState(value, ts);
+    }
+  };
+  std::thread writer1(writer, "A");
+  std::thread writer2(writer, "B");
+  for (int i = 0; i < 20; i++) {
+    TracingSession session = StartSession();
+    session.FlushBlocking(/*timeout_ms=*/10000);
+    session.StopBlocking();
+    EXPECT_THAT(
+        ParseStateEvents(session.ReadBlocking(), uuid_),
+        Each(testing::Field(&StateEvent::value, testing::AnyOf("A", "B"))));
+  }
+  done.store(true);
+  writer1.join();
+  writer2.join();
 }
 
 TEST_F(SharedLibTrackEventTest, Scoped) {

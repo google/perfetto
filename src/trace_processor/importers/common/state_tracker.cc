@@ -36,6 +36,11 @@ std::optional<tables::StateTable::Id> StateTracker::UpdateState(
   if (active) {
     auto ref = active->row.ToRowReference(states);
     if (active->value == value_id) {
+      // The same state re-emitted with the same start (e.g. by persistent
+      // state tracks): nothing to update.
+      if (ref.ts() == timestamp) {
+        return ref.id();
+      }
       // Reuse the inserter so args from repeated updates merge into one set.
       if (args_callback) {
         if (!active->args_inserter) {

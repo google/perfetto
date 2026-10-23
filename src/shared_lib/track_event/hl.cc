@@ -16,8 +16,11 @@
 
 #include "perfetto/public/abi/track_event_hl_abi.h"
 
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "src/shared_lib/track_event/ds.h"
+#include "src/shared_lib/track_event/hl.h"
+#include "src/shared_lib/track_event/persistent_state.h"
 #include "src/shared_lib/track_event/serialization.h"
 
 namespace perfetto::shlib {
@@ -61,7 +64,10 @@ void AppendHlProtoFields(TrackEventIncrementalState* incr,
       case PERFETTO_TE_HL_PROTO_TYPE_CSTR_INTERNED: {
         auto field = reinterpret_cast<PerfettoTeHlProtoFieldCstrInterned*>(*p);
         PERFETTO_DCHECK(field->interned_type_id != 0);
-        if (field->interned_type_id) {
+        // Interning requires incremental state (unavailable when serializing
+        // persistent state, where interned fields are not supported).
+        PERFETTO_DCHECK(incr);
+        if (field->interned_type_id && incr) {
           const char* str = field->str;
           size_t len = strlen(field->str);
           auto res = incr->iids.FindOrAssign(
@@ -132,7 +138,8 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
     event->set_type(type);
   }
 
-  if (!dynamic_cat && type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
+  if (cat && !dynamic_cat &&
+      type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
       type != protos::pbzero::TrackEvent::TYPE_COUNTER) {
     uint64_t iid = cat->cat_iid;
     auto res = incr->iids.FindOrAssign(
@@ -236,7 +243,9 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
         arg_name = arg.name;
       }
 
-      if (arg_name != nullptr) {
+      if (arg_name != nullptr && !incr) {
+        dbg->set_name(arg_name);
+      } else if (arg_name != nullptr) {
         const void* str = arg_name;
         size_t len = strlen(arg_name);
         auto res = incr->iids.FindOrAssign(
@@ -290,6 +299,9 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
           reinterpret_cast<const struct PerfettoTeHlExtraProtoFields&>(extra)
               .fields;
       AppendHlProtoFields(incr, event, fields);
+    } else if (extra.type == kTeHlExtraTypeRawFields) {
+      const auto& raw = reinterpret_cast<const TeHlExtraRawFields&>(extra);
+      event->AppendRawProtoBytes(raw.data, raw.size);
     }
   }
 }
@@ -579,13 +591,28 @@ void InstanceOp(internal::DataSourceType* ds,
   }
 }
 
+const PerfettoTeHlExtraPersistentStateTrack* FindPersistentStateTrack(
+    struct PerfettoTeHlExtra* const* extra_data) {
+  for (const auto* it = extra_data; *it != nullptr; it++) {
+    if ((*it)->type == PERFETTO_TE_HL_EXTRA_TYPE_PERSISTENT_STATE_TRACK) {
+      return reinterpret_cast<const PerfettoTeHlExtraPersistentStateTrack*>(
+          *it);
+    }
+  }
+  return nullptr;
+}
+
+}  // namespace
+
 void TeHlEmit(struct PerfettoTeCategoryImpl* cat,
               int32_t type,
               const char* name,
-              struct PerfettoTeHlExtra* const* extra_data) {
+              struct PerfettoTeHlExtra* const* extra_data,
+              uint32_t instance_mask) {
   uint32_t cached_instances =
       perfetto::shlib::TracePointTraits::GetActiveInstances({cat})->load(
-          std::memory_order_relaxed);
+          std::memory_order_relaxed) &
+      instance_mask;
   if (!cached_instances) {
     return;
   }
@@ -615,12 +642,30 @@ void TeHlEmit(struct PerfettoTeCategoryImpl* cat,
   ds->TraceEpilogue(tls_state);
 }
 
-}  // namespace
+std::vector<uint8_t> SerializeTeHlEventFields(
+    const char* name,
+    struct PerfettoTeHlExtra* const* extra_data) {
+  protozero::HeapBuffered<protos::pbzero::TrackEvent> event;
+  WriteTrackEvent(/*incr=*/nullptr, event.get(), /*cat=*/nullptr,
+                  protos::pbzero::TrackEvent::TYPE_UNSPECIFIED, name,
+                  extra_data, /*track_uuid=*/std::nullopt,
+                  /*dynamic_cat=*/nullptr, /*use_interning=*/false);
+  return event.SerializeAsArray();
+}
+
 }  // namespace perfetto::shlib
 
 void PerfettoTeHlEmitImpl(struct PerfettoTeCategoryImpl* cat,
                           int32_t type,
                           const char* name,
                           struct PerfettoTeHlExtra* const* extra_data) {
-  perfetto::shlib::TeHlEmit(cat, type, name, extra_data);
+  if (PERFETTO_UNLIKELY(type == PERFETTO_TE_TYPE_STATE)) {
+    if (const auto* persistent =
+            perfetto::shlib::FindPersistentStateTrack(extra_data)) {
+      perfetto::shlib::PersistentStateTrackUpdate(cat, *persistent, name,
+                                                  extra_data);
+      return;
+    }
+  }
+  perfetto::shlib::TeHlEmit(cat, type, name, extra_data, ~0u);
 }

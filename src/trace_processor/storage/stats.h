@@ -941,6 +941,10 @@ namespace perfetto::trace_processor::stats {
       "A TrackEvent with TYPE_STATE was received without a track_uuid. "       \
       "State events require a track_uuid to identify which state track to "     \
       "use. The event is dropped. This is a bug in the trace producer."),       \
+  F(track_event_state_stale_dropped,          kSingle,  kInfo,   kAnalysis, Scope::kMachineAndTrace, \
+      "A TrackEvent with TYPE_STATE started before events that were already " \
+      "sorted and parsed, so it was dropped. This is expected when a "         \
+      "persistent state is re-emitted after it was already parsed."),          \
   F(track_event_extra_counter_track_uuid_mismatch, kSingle, kError, kAnalysis, Scope::kMachineAndTrace, \
       "A TrackEvent provided more extra counter values than "                  \
       "extra_counter_track_uuids. Arrays must have matching lengths. The "     \

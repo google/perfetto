@@ -155,6 +155,10 @@ class TraceSorter {
 
   int64_t max_timestamp() const { return append_max_ts_; }
 
+  // Timestamp of the latest event extracted from the sorter. Events pushed
+  // with an earlier timestamp will be dropped as out of order.
+  int64_t latest_pushed_event_ts() const { return latest_pushed_event_ts_; }
+
  private:
   class UntypedSink;
 

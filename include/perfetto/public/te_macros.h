@@ -391,6 +391,22 @@ struct PerfettoTeHlMacroNameAndType {
           perfetto_protos_TrackDescriptor_state_field_number, PERFETTO_NULL, \
           0))
 
+// Specifies that this event sets the state of the persistent state track
+// `struct PerfettoTePersistentStateTrack* T` (see track_event.h). Use with
+// events of type PERFETTO_TE_STATE() and a registered (non dynamic) category.
+#define PERFETTO_TE_PERSISTENT_STATE_TRACK(T) \
+  PERFETTO_I_TE_EXTRA(                        \
+      PerfettoTeHlExtraPersistentStateTrack,  \
+      {{PERFETTO_TE_HL_EXTRA_TYPE_PERSISTENT_STATE_TRACK}, (T)->impl, false})
+
+// Like PERFETTO_TE_PERSISTENT_STATE_TRACK(), but only provides the initial
+// state of `T`, typically when its category becomes enabled. It's ignored if
+// the track already has a state and it doesn't emit anything immediately.
+#define PERFETTO_TE_PERSISTENT_STATE_TRACK_INIT(T) \
+  PERFETTO_I_TE_EXTRA(                             \
+      PerfettoTeHlExtraPersistentStateTrack,       \
+      {{PERFETTO_TE_HL_EXTRA_TYPE_PERSISTENT_STATE_TRACK}, (T)->impl, true})
+
 // Specifies that the current event should be emitted onto a hierarchy of nested
 // tracks. The arguments should use the PERFETTO_TE_NESTED_TRACK_* macros (NOT
 // the PERFETTO_TE_TRACK_* macros).
@@ -550,6 +566,7 @@ struct PerfettoTeHlMacroNameAndType {
 //   * PERFETTO_TE_SLICE_END()
 //   * PERFETTO_TE_INSTANT()
 //   * PERFETTO_TE_COUNTER()
+//   * PERFETTO_TE_STATE(value)
 // * `...`: One or more macro parameters from the above list that specify the
 //   data to be traced.
 //

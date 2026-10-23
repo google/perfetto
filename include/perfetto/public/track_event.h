@@ -307,6 +307,53 @@ static inline void PerfettoTeRegisteredTrackUnregister(
   track->impl.descriptor_size = 0;
 }
 
+// A state track whose state persists across the whole duration of tracing
+// sessions: its current state is also emitted when a session is flushed, so it
+// is visible even if it never changes or if the event that set it was lost
+// (e.g. overwritten in a ring buffer). Must be registered before it can be used
+// in trace events.
+//
+// Usage:
+// * Set the state with PERFETTO_TE_STATE() and
+//   PERFETTO_TE_PERSISTENT_STATE_TRACK(). Extra args (debug args and
+//   non-interned proto fields) are allowed and are persisted with the state.
+// * When the category becomes enabled (see PerfettoTeCategorySetCallback()),
+//   provide the current state with PERFETTO_TE_STATE() and
+//   PERFETTO_TE_PERSISTENT_STATE_TRACK_INIT() (synchronously or later, from any
+//   thread).
+//
+// Writes to the same track from different threads are safe. For full fidelity
+// in ring buffer traces they should be serialized (e.g. under the same lock
+// that protects the state they mirror).
+struct PerfettoTePersistentStateTrack {
+  struct PerfettoTePersistentStateTrackImpl* impl;
+};
+
+// Registers a persistent state track named `name`, child of the track with
+// `parent_track_uuid`, for events of category `cat` (which must be registered
+// and must stay registered until the track is unregistered).
+static inline void PerfettoTePersistentStateTrackRegister(
+    struct PerfettoTePersistentStateTrack* track,
+    struct PerfettoTeCategory* cat,
+    const char* name,
+    uint64_t parent_track_uuid,
+    bool is_name_static) {
+  struct PerfettoTeRegisteredTrack state_track;
+  PerfettoTeStateTrackRegister(&state_track, name, parent_track_uuid,
+                               is_name_static);
+  track->impl =
+      PerfettoTePersistentStateTrackImplCreate(cat->impl, &state_track.impl);
+  PerfettoTeRegisteredTrackUnregister(&state_track);
+}
+
+// Unregisters the previously registered persistent state track `track`. It must
+// not be used concurrently with or after this call.
+static inline void PerfettoTePersistentStateTrackUnregister(
+    struct PerfettoTePersistentStateTrack* track) {
+  PerfettoTePersistentStateTrackImplDestroy(track->impl);
+  track->impl = PERFETTO_NULL;
+}
+
 // Identifies a flow: a link between two events.
 struct PerfettoTeFlow {
   uint64_t id;

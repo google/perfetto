@@ -616,6 +616,15 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
                             &data.trace_packet_data.packet);
       return ModuleResult::Handled();
     }
+    // Persistent state tracks re-emit states (with their start timestamp) when
+    // they end and on flushes. A state older than the events already extracted
+    // by the sorter has already been parsed: drop it here rather than letting
+    // the sorter report it as out of order.
+    if (timestamp < context_->sorter->latest_pushed_event_ts()) {
+      context_->stats_tracker->IncrementStats(
+          stats::track_event_state_stale_dropped);
+      return ModuleResult::Handled();
+    }
   }
 
   size_t index = 0;

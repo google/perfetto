@@ -16,7 +16,9 @@
 
 #include "src/shared_lib/track_event/ds.h"
 
+#include "perfetto/tracing/core/flush_flags.h"
 #include "src/shared_lib/track_event/category_utils.h"
+#include "src/shared_lib/track_event/persistent_state.h"
 
 namespace perfetto::shlib {
 
@@ -35,8 +37,25 @@ void TrackEvent::OnStart(const DataSourceBase::StartArgs&) {
   GlobalState::Instance().OnStart(config_, inst_id_);
 }
 
+void TrackEvent::OnFlush(const DataSourceBase::FlushArgs& args) {
+  using Reason = FlushFlags::Reason;
+  Reason reason = args.flush_flags.reason();
+  // The first flush emits all the states for write-into-file traces, clone and
+  // stop flushes for ring buffer traces. The others only emit the changed
+  // states, so that they are seen within the trace processor sorting window.
+  bool all = !persistent_state_emitted_ || reason == Reason::kTraceClone ||
+             reason == Reason::kTraceStop;
+  PersistentStateTracksFlush(inst_id_, all);
+  persistent_state_emitted_ = true;
+  persistent_state_emitted_on_stop_ |= reason == Reason::kTraceStop;
+}
+
 void TrackEvent::OnStop(const DataSourceBase::StopArgs&) {
+  if (!persistent_state_emitted_on_stop_) {
+    PersistentStateTracksFlush(inst_id_, /*all=*/true);
+  }
   GlobalState::Instance().OnStop(inst_id_);
+  PersistentStateTracksOnStop();
 }
 
 bool TrackEvent::IsDynamicCategoryEnabled(
