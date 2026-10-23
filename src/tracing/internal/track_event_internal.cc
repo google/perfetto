@@ -406,21 +406,6 @@ bool TrackEventInternal::IsCategoryEnabled(
 }
 
 // static
-uint64_t TrackEventInternal::GetTimeNs() {
-  if (GetClockId() == protos::pbzero::BUILTIN_CLOCK_BOOTTIME)
-    return static_cast<uint64_t>(perfetto::base::GetBootTimeNs().count());
-  else if (GetClockId() == protos::pbzero::BUILTIN_CLOCK_MONOTONIC)
-    return static_cast<uint64_t>(perfetto::base::GetWallTimeNs().count());
-  PERFETTO_DCHECK(GetClockId() == protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
-  return static_cast<uint64_t>(perfetto::base::GetWallTimeRawNs().count());
-}
-
-// static
-TraceTimestamp TrackEventInternal::GetTraceTime() {
-  return {kClockIdIncremental, GetTimeNs()};
-}
-
-// static
 int TrackEventInternal::GetSessionCount() {
   return session_count_.load();
 }
