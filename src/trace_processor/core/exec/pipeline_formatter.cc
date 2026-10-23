@@ -30,6 +30,7 @@
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/distinct.h"
 #include "src/trace_processor/core/exec/filter.h"
+#include "src/trace_processor/core/exec/graph_tree.h"
 #include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/hash_aggregate.h"
 #include "src/trace_processor/core/exec/interval_fill_gaps.h"
@@ -165,6 +166,18 @@ std::string PipelineFormatter::Format(const Pipeline& pipeline) {
 std::string PipelineFormatter::SourceString(const Source& source) {
   if (source.Is<DataframeScan>()) {
     return "DataframeScan";
+  }
+  if (source.Is<GraphTree>()) {
+    const GraphTreeSpec& spec = static_cast<const GraphTree&>(source).spec_;
+    const char* kind = spec.kind == GraphTreeSpec::Kind::kBfs   ? "BFS"
+                       : spec.kind == GraphTreeSpec::Kind::kDfs ? "DFS"
+                                                                : "DOMINATOR";
+    return std::string("GraphTree(") + kind +
+           "; nodes: " + Column(spec.node_column) + " keeping " +
+           Columns(spec.retained_columns) +
+           "; edges: " + Column(spec.source_column) + " -> " +
+           Column(spec.target_column) + "; seeds: " + Column(spec.seed_column) +
+           ")";
   }
   if (source.Is<IntervalIntersect>()) {
     const auto& isect = static_cast<const IntervalIntersect&>(source);

@@ -2651,6 +2651,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/filter.cc",
         "src/trace_processor/core/exec/filter.h",
         "src/trace_processor/core/exec/filter_value.h",
+        "src/trace_processor/core/exec/graph_tree.cc",
+        "src/trace_processor/core/exec/graph_tree.h",
         "src/trace_processor/core/exec/group_table.cc",
         "src/trace_processor/core/exec/group_table.h",
         "src/trace_processor/core/exec/grouped_sort.cc",
