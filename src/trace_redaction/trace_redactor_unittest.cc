@@ -25,6 +25,8 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/oom.gen.h"
+#include "protos/perfetto/trace/ftrace/oom.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.gen.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.gen.h"
@@ -1322,6 +1324,142 @@ TEST(
 
   EXPECT_TRUE(found_user10_rename);
   EXPECT_TRUE(found_user11_rename);
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#define MAYBE_RedactsOomScoreAdjUpdateEvents \
+  DISABLED_RedactsOomScoreAdjUpdateEvents
+#else
+#define MAYBE_RedactsOomScoreAdjUpdateEvents RedactsOomScoreAdjUpdateEvents
+#endif
+TEST(TraceRedactorTest, MAYBE_RedactsOomScoreAdjUpdateEvents) {
+  constexpr int32_t kSystemServerPid = 1000;
+  constexpr uint32_t kSystemServerUid = 1000;
+  constexpr int32_t kTargetAppPid = 7120;
+  constexpr uint64_t kTargetAppUid = 10256;
+  constexpr int32_t kOtherAppPid = 8200;
+  constexpr uint64_t kOtherAppUid = 10257;
+
+  protos::gen::Trace trace;
+
+  // Packet 1: PackagesList
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(10);
+    packet->set_trusted_uid(9999);
+    auto* packages = packet->mutable_packages_list();
+
+    auto* target_pkg = packages->add_packages();
+    target_pkg->set_name("com.example.target");
+    target_pkg->set_uid(kTargetAppUid);
+
+    auto* other_pkg = packages->add_packages();
+    other_pkg->set_name("com.example.other");
+    other_pkg->set_uid(kOtherAppUid);
+  }
+
+  // Packet 2: ProcessTree (system_server, target app, non-target app)
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(20);
+    auto* pt = packet->mutable_process_tree();
+
+    auto* sys_proc = pt->add_processes();
+    sys_proc->set_pid(kSystemServerPid);
+    sys_proc->set_ppid(1);
+    sys_proc->set_uid(kSystemServerUid);
+
+    auto* target_proc = pt->add_processes();
+    target_proc->set_pid(kTargetAppPid);
+    target_proc->set_ppid(1);
+    target_proc->set_uid(static_cast<uint32_t>(kTargetAppUid));
+
+    auto* other_proc = pt->add_processes();
+    other_proc->set_pid(kOtherAppPid);
+    other_proc->set_ppid(1);
+    other_proc->set_uid(static_cast<uint32_t>(kOtherAppUid));
+  }
+
+  // Packet 3: FtraceEventBundle with oom_score_adj_update emitted by
+  // system_server (outer pid = 1000) for both target and non-target processes.
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(30);
+    auto* bundle = packet->mutable_ftrace_events();
+    bundle->set_cpu(0);
+
+    auto* e1 = bundle->add_event();
+    e1->set_timestamp(30);
+    e1->set_pid(kSystemServerPid);
+    auto* oom1 = e1->mutable_oom_score_adj_update();
+    oom1->set_pid(kTargetAppPid);
+    oom1->set_comm("pkg.target");
+    oom1->set_oom_score_adj(0);
+
+    auto* e2 = bundle->add_event();
+    e2->set_timestamp(31);
+    e2->set_pid(kSystemServerPid);
+    auto* oom2 = e2->mutable_oom_score_adj_update();
+    oom2->set_pid(kOtherAppPid);
+    oom2->set_comm("pkg.other");
+    oom2->set_oom_score_adj(700);
+  }
+
+  std::string serialized = trace.SerializeAsString();
+
+  for (bool use_explicit_uid : {false, true}) {
+    auto input_file = base::TempFile::Create().ValueOrDie();
+    auto output_file = base::TempFile::Create().ValueOrDie();
+    ASSERT_EQ(
+        base::WriteAll(input_file.fd(), serialized.data(), serialized.size()),
+        static_cast<ssize_t>(serialized.size()));
+
+    TraceRedactor::Config config;
+    config.verify = false;
+    auto redactor = TraceRedactor::CreateInstance(config);
+
+    Context context;
+    context.package_name = "com.example.target";
+    if (use_explicit_uid) {
+      context.package_uid = kTargetAppUid;
+      context.normalize_uid = false;
+    }
+
+    ASSERT_OK(
+        redactor->Redact(input_file.path(), output_file.path(), &context));
+
+    std::string output_content;
+    ASSERT_TRUE(base::ReadFile(output_file.path(), &output_content));
+
+    protos::pbzero::Trace::Decoder output_trace(output_content);
+    std::vector<std::string> ftrace_events_bytes;
+    for (auto it = output_trace.packet(); it; ++it) {
+      protos::pbzero::TracePacket::Decoder p(it->as_bytes());
+      if (p.has_ftrace_events()) {
+        protos::pbzero::FtraceEventBundle::Decoder bundle(p.ftrace_events());
+        for (auto e_it = bundle.event(); e_it; ++e_it) {
+          ftrace_events_bytes.emplace_back(e_it->as_std_string());
+        }
+      }
+    }
+
+    // Only the target app's oom_score_adj_update FtraceEvent should remain; the
+    // stripped non-target FtraceEvent was removed by DropEmptyFtraceEvents.
+    ASSERT_EQ(ftrace_events_bytes.size(), 1u);
+
+    protos::pbzero::FtraceEvent::Decoder surviving_event(
+        ftrace_events_bytes.front());
+    // Outer writer PID (system_server = 1000) was merged to the synthetic
+    // per-CPU thread PID, while inner oom_score_adj_update.pid is preserved.
+    EXPECT_NE(surviving_event.pid(), static_cast<uint32_t>(kSystemServerPid));
+    ASSERT_TRUE(surviving_event.has_oom_score_adj_update());
+
+    protos::pbzero::OomScoreAdjUpdateFtraceEvent::Decoder oom(
+        surviving_event.oom_score_adj_update());
+    EXPECT_EQ(oom.pid(), kTargetAppPid);
+    EXPECT_EQ(oom.comm().ToStdString(), "pkg.target");
+    EXPECT_EQ(oom.oom_score_adj(), 0);
+  }
 }
 
 }  // namespace perfetto::trace_redaction

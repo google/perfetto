@@ -87,6 +87,7 @@ base::Status PopulateAllowlists::Build(Context* context) const {
   ftrace_masks.set(protos::pbzero::FtraceEvent::kCommonFlagsFieldNumber);
   ftrace_masks.set(protos::pbzero::FtraceEvent::kCpuFrequencyFieldNumber);
   ftrace_masks.set(protos::pbzero::FtraceEvent::kCpuIdleFieldNumber);
+  ftrace_masks.set(protos::pbzero::FtraceEvent::kOomScoreAdjUpdateFieldNumber);
   ftrace_masks.set(protos::pbzero::FtraceEvent::kPidFieldNumber);
   ftrace_masks.set(protos::pbzero::FtraceEvent::kPrintFieldNumber);
   ftrace_masks.set(protos::pbzero::FtraceEvent::kRssStatFieldNumber);
