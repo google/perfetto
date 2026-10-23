@@ -19,7 +19,6 @@ export interface TraceInfo {
   readonly traceUrl: string; // URL of the Trace.
 
   readonly start: time;
-  // May grow after load, see Trace.extendTraceEnd().
   readonly end: time;
 
   // This is the ts value at the time of the Unix epoch.
