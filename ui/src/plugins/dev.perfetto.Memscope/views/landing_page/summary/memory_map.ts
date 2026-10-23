@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The "Where did all the memory go?" panel: a complete breakdown of resident
+// The "Memory Breakdown" panel: a complete breakdown of resident
 // memory for one process, from smaps, rendered as a nested flame-chart. The
 // Native and Java blocks are optionally split a third level using cross-source
 // figures (heapprofd unreleased / heap-graph reachable). Self-contained: owns
@@ -65,7 +65,7 @@ const MEMMAP_LIGHTEN: Record<string, string> = {
 const MEMMAP_BLOCK_INFO: Record<string, string> = {
   'File-backed':
     'Memory backed by files on disk: code (.so/.oat), fonts and resources. ' +
-    'Mostly clean — the kernel can drop and re-read it under pressure.',
+    'Mostly clean - the kernel can drop and re-read it under pressure.',
   'Anonymous':
     'Memory not backed by any file: heaps and runtime allocations. This is ' +
     'what your process truly costs; it can only be reclaimed by swapping.',
@@ -79,14 +79,14 @@ const MEMMAP_BLOCK_INFO: Record<string, string> = {
     'Native allocator arenas (scudo / jemalloc / libc malloc / GWP-ASan) ' +
     'and the legacy [heap]. What malloc() costs you in resident memory.',
   'Java':
-    'Dalvik/ART managed heap and runtime spaces — everything the Java ' +
+    'Dalvik/ART managed heap and runtime spaces - everything the Java ' +
     'garbage collector manages.',
   'Thread stacks': 'Stack memory for every live thread in the process.',
   'Other anon':
     'Anonymous memory not attributable to a specific allocator: plain ' +
     'mmap() regions, untagged buffers, IPC shared memory.',
   'Native libs (.so)':
-    'Shared libraries (.so) mapped into the process — code and read-only ' +
+    'Shared libraries (.so) mapped into the process - code and read-only ' +
     'data, mostly clean and shared between processes.',
   'Java code (.jar/.oat)':
     'Compiled and bytecode Java artifacts (.jar/.oat/.odex/.vdex/.art) ' +
@@ -101,7 +101,7 @@ const MEMMAP_BLOCK_INFO: Record<string, string> = {
     'Native resident memory the profiler could not attribute: allocator ' +
     'metadata, fragmentation and allocations that predate the trace.',
   'Reachable':
-    'Java heap still reachable from GC roots at the nearest heap dump — live ' +
+    'Java heap still reachable from GC roots at the nearest heap dump - live ' +
     'objects the collector cannot free.',
   'Unreachable / other':
     'Managed heap not accounted for as reachable at the nearest dump: ' +
@@ -123,7 +123,7 @@ interface MemSnapshot {
   readonly total: number;
   readonly byCategory: ReadonlyMap<string, CategoryBytes>;
   readonly fileByBucket: ReadonlyMap<string, number>;
-  // MIN(profiler_smaps.id) for this snapshot — the Smaps track event id used to
+  // MIN(profiler_smaps.id) for this snapshot - the Smaps track event id used to
   // select it on the timeline (mirrors dev.perfetto.Smaps' _smaps_snapshots).
   readonly eventId: number;
 }
@@ -136,7 +136,7 @@ interface MemExtras {
 
 // The flame-tree for the selected snapshot, built in a slot keyed by the
 // selection so it's constructed once per snapshot change rather than on every
-// redraw — the chart's hover tooltip drives frequent redraws, and rebuilding
+// redraw - the chart's hover tooltip drives frequent redraws, and rebuilding
 // the whole tree (and its baseline diff) on each one is wasted work. In compare
 // mode each block carries its Δ vs the baseline snapshot's tree.
 interface MemTreeResult {
@@ -147,7 +147,7 @@ interface MemoryMapData {
   readonly snapshots: MemSnapshot[];
 }
 
-const TITLE = 'Where did all the memory go?';
+const TITLE = 'Memory Breakdown';
 
 export interface MemoryMapAttrs {
   readonly trace: Trace;
@@ -171,22 +171,18 @@ export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
 
   view({attrs}: m.Vnode<MemoryMapAttrs>): m.Children {
     const {trace, upid, selTs, baseTs} = attrs;
-    const subtitle =
-      'A complete breakdown of resident memory, from smaps, for the ' +
-      'selected snapshot.';
     const data = this.slot.use({
       key: {traceId: trace.traceInfo.uuid, upid},
       compute: () => loadMemoryMapData(trace, upid),
     }).data;
     if (data === undefined) {
-      return loadingPanel({title: TITLE, subtitle}); // Still loading.
+      return loadingPanel({title: TITLE}); // Still loading.
     }
 
     const snaps = data.snapshots;
     if (snaps.length === 0) {
       return emptyPanel({
         title: TITLE,
-        subtitle,
         message: 'No smaps data in this trace for this process.',
       });
     }
@@ -276,7 +272,6 @@ export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
       Panel,
       m(Panel.Header, {
         title: TITLE,
-        subtitle,
         controls: showInTimelineLink(trace, smapsTrackNode?.uri, snap.eventId),
       }),
       m(
@@ -294,13 +289,13 @@ export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
               },
               comparing && baseIdx !== undefined
                 ? `Diffing snapshot #${baseIdx + 1} → #${selIdx + 1}`
-                : `Snapshot #${selIdx + 1} — t=${snap.x.toFixed(0)}s`,
+                : `Snapshot #${selIdx + 1} - t=${snap.x.toFixed(0)}s`,
             ),
             m(
               'span.pf-memscope-memmap__section-hint',
               comparing
-                ? 'block widths from the later snapshot · hover for Δ vs baseline'
-                : 'absolute resident memory · hover a block for details',
+                ? 'block widths from the later snapshot - hover for Δ vs baseline'
+                : 'absolute resident memory - hover a block for details',
             ),
           ]),
           tree !== undefined
@@ -378,7 +373,7 @@ async function loadMemoryMapData(
     byBucket.set(it.bucket, (byBucket.get(it.bucket) ?? 0) + it.bytes);
   }
 
-  // MIN(object id) per snapshot — the Smaps track event id for that ts
+  // MIN(object id) per snapshot - the Smaps track event id for that ts
   // (mirrors how dev.perfetto.Smaps builds its _smaps_snapshots events).
   const eventIdByTs = new Map<bigint, number>();
   const eventRes = await trace.engine.query(`
@@ -417,7 +412,7 @@ async function loadMemoryMapData(
 // Cross-source figures for the snapshot at `ts`. nativeSeen is the cumulative
 // heapprofd unreleased footprint up to ts (summed across heaps); javaReachable
 // is the reachable Java heap of the heap-graph dump nearest ts. Both are
-// best-effort — absent data yields 0 and the third-level split is skipped.
+// best-effort - absent data yields 0 and the third-level split is skipped.
 async function loadExtras(
   trace: Trace,
   upid: number,
@@ -451,7 +446,7 @@ async function loadExtras(
     const javaIt = javaRes.iter({reachable: NUM});
     if (javaIt.valid()) javaReachable = Math.max(0, javaIt.reachable);
   } catch {
-    // No heap graph — leave javaReachable at 0.
+    // No heap graph - leave javaReachable at 0.
   }
 
   return {nativeSeen, javaReachable};
@@ -510,7 +505,7 @@ function buildMemTree(
     const share = total > 0 ? ((bytes / total) * 100).toFixed(1) : '0';
     const tip: m.Children = [
       m('.pf-flamechart-tooltip__name', label),
-      m('.pf-flamechart-tooltip__value', `${formatBytes(bytes)} · ${share}%`),
+      m('.pf-flamechart-tooltip__value', `${formatBytes(bytes)} - ${share}%`),
     ];
     const baseBytes = baseByLabel?.get(label);
     if (baseBytes !== undefined) {

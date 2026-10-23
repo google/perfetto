@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// "How much native memory did you use, and where did it go?" — heapprofd
-// coverage vs the smaps native total, plus the top unreleased call-stacks over
-// the whole trace, for one process. Self-contained: owns its query slot and
-// loading logic.
+// "Native Memory" - heapprofd coverage vs the smaps native total, plus the top
+// unreleased call-stacks over the whole trace, for one process. Self-contained:
+// owns its query slot and loading logic.
 
 import m from 'mithril';
 import {AsyncMemo} from '../../../../../base/async_memo';
@@ -39,10 +38,7 @@ import {SMAPS_CATEGORY_CASE_SQL} from '../smaps_categories';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
 
-const TITLE = 'How much native memory did you use, and where did it go?';
-const SUBTITLE =
-  "Aggregated by allocation callstack — the clearest signal when it's " +
-  'available.';
+const TITLE = 'Native Memory';
 
 // One top-unreleased heapprofd callsite with its app-only frame chain
 // (leaf → root).
@@ -344,13 +340,12 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
       retainOn: ['sel', 'base'],
     }).data;
     if (data === undefined) {
-      return loadingPanel({title: TITLE, subtitle: SUBTITLE}); // Still loading.
+      return loadingPanel({title: TITLE}); // Still loading.
     }
 
     if (!data.hasProfile) {
       return emptyPanel({
         title: TITLE,
-        subtitle: SUBTITLE,
         message:
           'No native heap profile (heapprofd) data in this trace for this ' +
           'process.',
@@ -380,7 +375,6 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
       Panel,
       m(Panel.Header, {
         title: TITLE,
-        subtitle: SUBTITLE,
         controls: showAreaInTimelineLink(
           trace,
           findProcessTrack(trace, upid, (k) => k.startsWith('heap_profile:'))
@@ -397,7 +391,7 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
             {intent: Intent.Warning},
             'The native profiler only sees allocations made ',
             m('b', 'after'),
-            " tracing started — it can't explain the past. Leaks present " +
+            " tracing started - it can't explain the past. Leaks present " +
               'before t=0 are invisible here; trust the composition totals ' +
               'above for the full resident picture.',
           ),
@@ -459,12 +453,6 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
           stackRows.length > 0
             ? topTable({
                 title: 'Top allocation call-stacks',
-                subtitle: comparing
-                  ? 'unreleased between baseline and selected snapshot · ' +
-                    'app frames only'
-                  : selTs !== undefined
-                    ? 'unreleased up to the selected snapshot · app frames only'
-                    : 'unreleased over the whole trace · app frames only',
                 cols: [
                   {label: 'Call-stack snippet'},
                   {label: comparing ? 'Δ unreleased' : 'Unreleased', num: true},
