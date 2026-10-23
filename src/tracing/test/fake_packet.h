@@ -63,6 +63,10 @@ class FakeChunk {
   // Appends a packet with the given raw content (including varint header).
   FakeChunk& AddPacket(std::initializer_list<uint8_t>);
 
+  // Appends a fragment with the given payload and adds its varint header.
+  // Use it for a payload that must be a valid proto, or a part of one.
+  FakeChunk& AddFragment(const std::string& payload, uint8_t packet_flag = 0);
+
   // Increments the number of packets in the chunk without adding new data.
   FakeChunk& IncrementNumPackets();
 

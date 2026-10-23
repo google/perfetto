@@ -16,6 +16,7 @@
 
 #include "src/tracing/service/trace_buffer.h"
 
+#include "perfetto/base/build_config.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -25,6 +26,9 @@ TEST(TraceBufferFactoryTest, CreatesRequestedImplementation) {
   const TraceBuffer::BufType types[] = {
       TraceBuffer::kV1,
       TraceBuffer::kV2,
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+      TraceBuffer::kV3,
+#endif
   };
   for (auto type : types) {
     for (auto policy : {TraceBuffer::kOverwrite, TraceBuffer::kDiscard}) {
@@ -38,6 +42,18 @@ TEST(TraceBufferFactoryTest, CreatesRequestedImplementation) {
     }
   }
 }
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+TEST(TraceBufferFactoryTest, ReportsUnavailableImplementation) {
+  for (auto policy : {TraceBuffer::kOverwrite, TraceBuffer::kDiscard}) {
+    auto buffer = TraceBuffer::Create(TraceBuffer::kV3, 128 * 1024, policy);
+    ASSERT_FALSE(buffer.ok());
+    EXPECT_THAT(
+        buffer.status().message(),
+        testing::HasSubstr("TraceBufferV3 is not available in this build"));
+  }
+}
+#endif
 
 }  // namespace
 }  // namespace perfetto
