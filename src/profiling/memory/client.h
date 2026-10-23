@@ -117,8 +117,8 @@ class Client {
   bool IsConnected();
 
  private:
-  ssize_t GetStackRegister(CpuArch arch);
-  uintptr_t GetStackAddress(char* reg_data, CpuArch arch);
+  ssize_t GetStackRegisterIndex(CpuArch arch);
+  uintptr_t GetStackAddress(const char* reg_data, CpuArch arch);
   const char* GetStackEnd(const char* stacktop);
   bool SendControlSocketByte() PERFETTO_WARN_UNUSED_RESULT;
   int64_t SendWireMessageWithRetriesIfBlocking(const WireMessage&)

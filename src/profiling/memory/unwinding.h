@@ -23,19 +23,20 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
-#include "src/profiling/common/unwind_support.h"
-#include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/unwound_messages.h"
 #include "src/profiling/memory/wire_protocol.h"
 #include "src/profiling/unwind/cpu_registers.h"
+#include "src/profiling/unwind/unwind_context.h"
 
 namespace perfetto {
 namespace profiling {
 
 std::optional<CpuRegisters> CreateRegsFromRawData(CpuArch arch,
                                                   const void* raw_data);
-
-bool DoUnwind(WireMessage*, UnwindingMetadata* metadata, AllocRecord* out);
+bool DoUnwind(WireMessage*,
+              UnwindContext* unwind_context,
+              AllocRecord* out,
+              base::TimeMillis* last_maps_reparse_time = nullptr);
 
 // AllocRecords are expensive to construct and destruct. We have seen up to
 // 10 % of total CPU of heapprofd being used to destruct them. That is why
@@ -112,12 +113,14 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
   struct ClientData {
     DataSourceInstanceID data_source_instance_id;
     std::unique_ptr<base::UnixSocket> sock;
-    UnwindingMetadata metadata;
+    std::unique_ptr<UnwindContext> unwind_context;
     SharedRingBuffer shmem;
     ClientConfiguration client_config;
     bool stream_allocations = false;
     size_t drain_bytes = 0;
     std::vector<FreeRecord> free_records;
+    uint64_t reparses = 0;
+    base::TimeMillis last_maps_reparse_time{0};
   };
 
   // public for testing/fuzzing

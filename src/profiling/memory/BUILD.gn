@@ -276,10 +276,9 @@ source_set("daemon") {
     "../common:proc_utils",
     "../common:producer_support",
     "../common:profiler_guardrails",
-    "../common:unwind_support",
+    "../unwind/libunwindstack",
   ]
   public_deps = [
-    "../../../gn:libunwindstack",
     "../../../protos/perfetto/config/profiling:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/interned_data:zero",
@@ -332,13 +331,12 @@ perfetto_unittest_source_set("unittests") {
     ":wire_protocol",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
-    "../../../gn:libunwindstack",
     "../../base",
     "../../base:test_support",
     "../../tracing/core",
     "../../tracing/test:test_support",
     "../common:proc_utils",
-    "../common:unwind_support",
+    "../unwind:unwind_core",
   ]
   sources = [
     "bookkeeping_unittest.cc",
@@ -368,7 +366,6 @@ if (enable_perfetto_integration_tests) {
       ":wire_protocol",
       "../../../gn:default_deps",
       "../../../gn:gtest_and_gmock",
-      "../../../gn:libunwindstack",
       "../../../protos/perfetto/config/profiling:cpp",
       "../../../protos/perfetto/trace/interned_data:cpp",
       "../../../protos/perfetto/trace/profiling:cpp",
@@ -402,7 +399,7 @@ perfetto_fuzzer_test("unwinding_fuzzer") {
     "../../../gn:default_deps",
     "../../base",
     "../../tracing/core",
-    "../common:unwind_support",
+    "../unwind:unwind_core",
   ]
 }
 

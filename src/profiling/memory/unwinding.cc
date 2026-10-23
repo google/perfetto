@@ -21,23 +21,17 @@
 
 #include <condition_variable>
 #include <mutex>
-
-#include <unwindstack/Maps.h>
-#include <unwindstack/Memory.h>
-#include <unwindstack/Unwinder.h>
-
-#include <procinfo/process_map.h>
+#include <optional>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/task_runner.h"
-#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 
 #include "src/profiling/memory/unwound_messages.h"
 #include "src/profiling/memory/wire_protocol.h"
 #include "src/profiling/unwind/cpu_registers.h"
+#include "src/profiling/unwind/unwind_context.h"
+#include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
@@ -96,12 +90,16 @@ std::optional<CpuRegisters> CreateRegsFromRawData(CpuArch arch,
   return std::nullopt;
 }
 
-bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
+bool DoUnwind(WireMessage* msg,
+              UnwindContext* unwind_context,
+              AllocRecord* out,
+              base::TimeMillis* last_maps_reparse_time) {
   AllocMetadata* alloc_metadata = msg->alloc_header;
   std::optional<CpuRegisters> cpu_regs = CreateRegsFromRawData(
       alloc_metadata->arch, alloc_metadata->register_data);
   if (!cpu_regs) {
-    unwindstack::FrameData frame_data{};
+    PERFETTO_DLOG("Unable to construct CpuRegisters");
+    FrameData frame_data{};
     frame_data.function_name = "ERROR READING REGISTERS";
 
     out->frames.clear();
@@ -111,61 +109,58 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     out->error = true;
     return false;
   }
-  std::unique_ptr<unwindstack::Regs> regs = ToLibUnwindstackRegs(*cpu_regs);
-  uint8_t* stack = reinterpret_cast<uint8_t*>(msg->payload);
-  std::shared_ptr<unwindstack::Memory> mems =
-      std::make_shared<StackOverlayMemory>(metadata->fd_mem,
-                                           alloc_metadata->stack_pointer, stack,
-                                           msg->payload_size);
 
-  unwindstack::Unwinder unwinder(kMaxFrames, &metadata->fd_maps, regs.get(),
-                                 mems);
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  unwinder.SetJitDebug(metadata->GetJitDebug(regs->Arch()));
-  unwinder.SetDexFiles(metadata->GetDexFiles(regs->Arch()));
-#endif
+  // Overriding sp intentionally since where payload may be truncated up to fp
+  cpu_regs->set_sp(alloc_metadata->stack_pointer);
+
+  UnwindInputSample sample;
+  sample.regs = &(*cpu_regs);
+  sample.stack_data = reinterpret_cast<const uint8_t*>(msg->payload);
+  sample.stack_size = msg->payload_size;
+
+  UnwindOptions options;
+  options.max_frames = kMaxFrames;
+  options.resolve_names = true;
+  options.skip_initial_maps = kSkipMaps;
+
   // Suppress incorrect "variable may be uninitialized" error for if condition
-  // after this loop. error_code = LastErrorCode gets run at least once.
-  unwindstack::ErrorCode error_code = unwindstack::ERROR_NONE;
+  // after this loop. result = Unwind gets run at least once.
+  UnwindResult result;
   for (int attempt = 0; attempt < 2; ++attempt) {
     if (attempt > 0) {
-      if (metadata->last_maps_reparse_time + kMapsReparseInterval >
-          base::GetWallTimeMs()) {
+      if (last_maps_reparse_time &&
+          *last_maps_reparse_time + kMapsReparseInterval >
+              base::GetWallTimeMs()) {
         PERFETTO_DLOG("Skipping reparse due to rate limit.");
         break;
       }
       PERFETTO_DLOG("Reparsing maps");
-      metadata->ReparseMaps();
-      metadata->last_maps_reparse_time = base::GetWallTimeMs();
-      // Regs got invalidated by libuwindstack's speculative jump.
-      // Reset.
-      regs = ToLibUnwindstackRegs(*cpu_regs);
-      unwinder.SetRegs(regs.get());
+      unwind_context->ReparseMaps();
+      if (last_maps_reparse_time)
+        *last_maps_reparse_time = base::GetWallTimeMs();
       out->reparsed_map = true;
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-      unwinder.SetJitDebug(metadata->GetJitDebug(regs->Arch()));
-      unwinder.SetDexFiles(metadata->GetDexFiles(regs->Arch()));
-#endif
     }
-    out->frames.swap(unwinder.frames());  // Provide the unwinder buffer to use.
-    unwinder.Unwind(&kSkipMaps, /*map_suffixes_to_ignore=*/nullptr);
-    out->frames.swap(unwinder.frames());  // Take the buffer back.
-    error_code = unwinder.LastErrorCode();
-    if (error_code != unwindstack::ERROR_INVALID_MAP &&
-        (unwinder.warnings() & unwindstack::WARNING_DEX_PC_NOT_IN_MAP) == 0) {
+    result = unwind_context->Unwind(sample, options);
+    if (result.error_code != UnwindErrorCode::kInvalidMap &&
+        result.error_code != UnwindErrorCode::kDexPcNotInMap) {
       break;
     }
   }
+
+  out->frames.swap(result.frames);
   out->build_ids.resize(out->frames.size());
   for (size_t i = 0; i < out->frames.size(); ++i) {
-    out->build_ids[i] = metadata->GetBuildId(out->frames[i]);
+    out->build_ids[i] = out->frames[i].map_info != nullptr
+                            ? out->frames[i].map_info->build_id()
+                            : "";
   }
 
-  if (error_code != unwindstack::ERROR_NONE) {
-    PERFETTO_DLOG("Unwinding error %" PRIu8, error_code);
-    unwindstack::FrameData frame_data{};
-    frame_data.function_name =
-        "ERROR " + StringifyLibUnwindstackError(error_code);
+  if (result.error_code != UnwindErrorCode::kNone &&
+      result.error_code != UnwindErrorCode::kDexPcNotInMap) {
+    PERFETTO_DLOG("Unwinding error %" PRIu8,
+                  static_cast<uint8_t>(result.error_code));
+    FrameData frame_data{};
+    frame_data.function_name = "ERROR " + ToString(result.error_code);
 
     out->frames.emplace_back(std::move(frame_data));
     out->build_ids.emplace_back("");
@@ -266,7 +261,7 @@ UnwindingWorker::ReadAndUnwindBatchResult UnwindingWorker::ReadAndUnwindBatch(
 
   size_t i;
   for (i = 0; i < kUnwindBatchSize; ++i) {
-    uint64_t reparses_before = client_data->metadata.reparses;
+    uint64_t reparses_before = client_data->reparses;
     buf = shmem.BeginRead();
     if (!buf)
       break;
@@ -275,7 +270,7 @@ UnwindingWorker::ReadAndUnwindBatchResult UnwindingWorker::ReadAndUnwindBatch(
     res.bytes_read += shmem.EndRead(std::move(buf));
     // Reparsing takes time, so process the rest in a new batch to avoid timing
     // out.
-    if (reparses_before < client_data->metadata.reparses) {
+    if (reparses_before < client_data->reparses) {
       res.status = ReadAndUnwindBatchResult::Status::kHasMore;
       return res;
     }
@@ -371,7 +366,7 @@ void UnwindingWorker::HandleBuffer(UnwindingWorker* self,
                                    ClientData* client_data,
                                    pid_t peer_pid,
                                    Delegate* delegate) {
-  UnwindingMetadata* unwinding_metadata = &client_data->metadata;
+  UnwindContext* unwind_context = client_data->unwind_context.get();
   DataSourceInstanceID data_source_instance_id =
       client_data->data_source_instance_id;
   WireMessage msg;
@@ -389,8 +384,12 @@ void UnwindingWorker::HandleBuffer(UnwindingWorker* self,
     rec->pid = peer_pid;
     rec->data_source_instance_id = data_source_instance_id;
     auto start_time_us = base::GetWallTimeNs() / 1000;
-    if (!client_data->stream_allocations)
-      DoUnwind(&msg, unwinding_metadata, rec.get());
+    if (!client_data->stream_allocations) {
+      DoUnwind(&msg, unwind_context, rec.get(),
+               &client_data->last_maps_reparse_time);
+      if (rec->reparsed_map)
+        client_data->reparses++;
+    }
     rec->unwinding_time_us = static_cast<uint64_t>(
         ((base::GetWallTimeNs() / 1000) - start_time_us).count());
     delegate->PostAllocRecord(self, std::move(rec));
@@ -437,12 +436,12 @@ void UnwindingWorker::HandleHandoffSocket(HandoffData handoff_data) {
       base::SockFamily::kUnix, base::SockType::kStream);
   pid_t peer_pid = sock->peer_pid_linux();
 
-  UnwindingMetadata metadata(std::move(handoff_data.maps_fd),
-                             std::move(handoff_data.mem_fd));
+  auto unwind_context = UnwindContext::Create(std::move(handoff_data.maps_fd),
+                                              std::move(handoff_data.mem_fd));
   ClientData client_data{
       handoff_data.data_source_instance_id,
       std::move(sock),
-      std::move(metadata),
+      std::move(unwind_context),
       std::move(handoff_data.shmem),
       std::move(handoff_data.client_config),
       handoff_data.stream_allocations,

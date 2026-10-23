@@ -50,6 +50,9 @@ action("gen_buildflags") {
   perfetto_force_dcheck_on = perfetto_force_dcheck == "on"
   perfetto_force_dcheck_off = perfetto_force_dcheck == "off"
 
+  perfetto_unwinder_libunwindstack =
+      perfetto_unwinder_backend == "libunwindstack"
+
   # We can't just use (is_linux || is_android) in perfetto.gni because that
   # doesn't work in Android Mac host builds. We lose the GN notion of OS once
   # we run the tools/gen_xxx generators.
@@ -105,6 +108,7 @@ action("gen_buildflags") {
     "PERFETTO_ZSTD=$enable_perfetto_zstd",
     "PERFETTO_TRACED_PERF=$enable_perfetto_traced_perf",
     "PERFETTO_HEAPPROFD=$enable_perfetto_heapprofd",
+    "PERFETTO_UNWINDER_LIBUNWINDSTACK=$perfetto_unwinder_libunwindstack",
     "PERFETTO_STDERR_CRASH_DUMP=$enable_perfetto_stderr_crash_dump",
     "PERFETTO_X64_CPU_OPT=$enable_perfetto_x64_cpu_opt",
     "PERFETTO_LLVM_DEMANGLE=$enable_perfetto_llvm_demangle",
