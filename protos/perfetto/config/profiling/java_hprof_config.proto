@@ -81,6 +81,18 @@ message JavaHprofConfig {
   // Do not profile processes whose Java heap size < given value.
   optional uint32 min_java_heap_size_kb = 9;
 
+  // If true, do not dump processes that are frozen (e.g. cached apps frozen
+  // by the Android app freezer). A frozen process cannot react to the dump
+  // request until it is unfrozen, which could be long after the end of the
+  // trace. The state is checked right before requesting each dump.
+  //
+  // Implementation note: this inspects the cgroup v2 freezer state of the
+  // process' own cgroup ("cgroup.freeze"), so freezing inherited from an
+  // ancestor cgroup is not detected.
+  //
+  // Added in perfetto v59.
+  optional bool skip_frozen_processes = 11;
+
   // Include the process' /proc/self/smaps.
   // This only shows maps that:
   // * start with /system

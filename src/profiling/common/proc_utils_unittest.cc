@@ -19,6 +19,7 @@
 #include <optional>
 
 #include "perfetto/ext/base/utils.h"
+#include "src/base/test/tmp_dir_tree.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -203,6 +204,64 @@ TEST(ProcUtilsTest, GetUidsInvalidTooFew) {
       "Uid: 1 2 3\n";
   auto uids = GetUids(status);
   EXPECT_EQ(uids, std::nullopt);
+}
+
+TEST(ProcUtilsTest, GetCgroupV2Path) {
+  // Android: cgroup v1 controllers alongside the v2 hierarchy.
+  EXPECT_EQ(GetCgroupV2Path("3:cpuset:/top-app\n"
+                            "2:cpu:/top-app\n"
+                            "1:blkio:/\n"
+                            "0::/apps/uid_10123/pid_4567\n"),
+            "/apps/uid_10123/pid_4567");
+  // Without the apps/system split, and without a trailing newline.
+  EXPECT_EQ(GetCgroupV2Path("0::/uid_1000/pid_123"), "/uid_1000/pid_123");
+  // Root cgroup.
+  EXPECT_EQ(GetCgroupV2Path("0::/\n"), "/");
+  // Colons are valid within cgroup names.
+  EXPECT_EQ(GetCgroupV2Path("0::/foo:bar/baz\n"), "/foo:bar/baz");
+}
+
+TEST(ProcUtilsTest, GetCgroupV2PathInvalidInput) {
+  EXPECT_EQ(GetCgroupV2Path(""), std::nullopt);
+  // Only cgroup v1 hierarchies.
+  EXPECT_EQ(GetCgroupV2Path("2:cpu:/foreground\n1:cpuset:/foreground\n"),
+            std::nullopt);
+  EXPECT_EQ(GetCgroupV2Path("0::\n"), std::nullopt);
+  EXPECT_EQ(GetCgroupV2Path("0::not_absolute\n"), std::nullopt);
+  // The cgroup has been removed (e.g. the process is a zombie).
+  EXPECT_EQ(GetCgroupV2Path("0::/apps/uid_10123/pid_4567 (deleted)\n"),
+            std::nullopt);
+}
+
+TEST(ProcUtilsTest, IsCgroupV2Frozen) {
+  base::TmpDirTree cgroups;
+  cgroups.AddDir("frozen");
+  cgroups.AddFile("frozen/cgroup.freeze", "1\n");
+  cgroups.AddDir("thawed");
+  cgroups.AddFile("thawed/cgroup.freeze", "0\n");
+  cgroups.AddDir("empty");
+  cgroups.AddFile("empty/cgroup.freeze", "");
+  cgroups.AddDir("no_freezer");
+
+  EXPECT_TRUE(IsCgroupV2Frozen(cgroups.AbsolutePath("frozen")));
+  EXPECT_FALSE(IsCgroupV2Frozen(cgroups.AbsolutePath("thawed")));
+  EXPECT_FALSE(IsCgroupV2Frozen(cgroups.AbsolutePath("empty")));
+  // No cgroup.freeze file (e.g. the root cgroup, or no freezer support).
+  EXPECT_FALSE(IsCgroupV2Frozen(cgroups.AbsolutePath("no_freezer")));
+  EXPECT_FALSE(IsCgroupV2Frozen(cgroups.AbsolutePath("does_not_exist")));
+}
+
+TEST(ProcUtilsTest, IsProcessFrozen) {
+  // The test itself is evidently not frozen.
+  EXPECT_FALSE(IsProcessFrozen(getpid()));
+  // Not a valid process.
+  EXPECT_FALSE(IsProcessFrozen(-1));
+}
+
+TEST(ProcUtilsTest, RemoveFrozenProcesses) {
+  std::set<pid_t> pids = {getpid()};
+  RemoveFrozenProcesses(&pids);
+  EXPECT_THAT(pids, ElementsAre(getpid()));
 }
 
 }  // namespace
