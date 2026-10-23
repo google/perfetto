@@ -37,8 +37,7 @@ namespace perfetto::trace_processor::core::exec {
 //
 // A column storing one value per row is lent where it lies, so moving the
 // window costs nothing. A column which does not is expanded a window at a
-// time into a buffer from the run's Context. Windows go forward only: each
-// starts where the one before ended, until Rewind().
+// time into a buffer from the run's Context. A window may start at any row.
 class DataframeWindows {
  public:
   DataframeWindows();
@@ -53,9 +52,6 @@ class DataframeWindows {
 
   // Points `out` at rows [from, from + count), all kept.
   void Fill(uint32_t from, uint32_t count, RowBatch& out);
-
-  // Allows windows to start from the first row again.
-  void Rewind();
 
   // Fills one window of a column which does not store one value per row.
   // Defined in the .cc: an implementation detail with no callers outside it.
@@ -87,7 +83,6 @@ class RangeReader {
 
   // Reads `range` from its first row.
   void Start(Range range) {
-    windows_.Rewind();
     range_ = range;
     next_ = range.b;
   }
