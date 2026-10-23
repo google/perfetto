@@ -2093,6 +2093,272 @@ message InterceptorConfig {
 
 // End of protos/perfetto/config/interceptor_config.proto
 
+// Begin of protos/perfetto/config/linux/cgroup_config.proto
+
+// Config for the "linux.cgroup" data source, which records values reported by
+// cgroup v2 controllers. Only the memory controller (memcg) on android is
+// supported at the moment.
+//
+// Example:
+//
+// data_sources {
+//   config {
+//     name: "linux.cgroup"
+//     cgroup_config {
+//       memcg_config {
+//         field: MEMCG_CURRENT
+//         field: MEMCG_HIGH
+//         field: MEMCG_STAT_ALL
+//         field: MEMCG_EVENTS_LOCAL_HIGH
+//
+//         poll_period_ms: 1000
+//
+//         android_scope {
+//           level: LEVEL_UID
+//         }
+//         android_scope {
+//           target_cmdline: "surfaceflinger"
+//           level: LEVEL_PID
+//         }
+//       }
+//     }
+//   }
+// }
+message CgroupConfig {
+  // Memory controller (memcg).
+  optional MemcgConfig memcg_config = 1;
+}
+
+// Config for recording memory controller (memcg) values for a set of cgroups.
+message MemcgConfig {
+  // What values to record, the enum covers both single-valued files
+  // (e.g. memory.current) and files with multiple values (e.g. memory.stat).
+  // If unset, defaults to {MEMCG_CURRENT, MEMCG_STAT_ANON, MEMCG_STAT_FILE}.
+  repeated MemcgField field = 1;
+
+  // Android: Which cgroups to record. Can be specified multiple times. If
+  // scopes overlap, a given cgroup will be recorded at most once.
+  // If unset, defaults to uid-level for all uids.
+  repeated AndroidScope android_scope = 2;
+
+  // How often to poll the selected cgroups.
+  // If zero or unset, records values once.
+  // The implementation enforces a minimum on the period (100 ms at the time of
+  // writing).
+  optional uint32 poll_period_ms = 3;
+
+  // TODO(rsavitski): event-driven recording (inotify on memory.events*), either
+  // instead of or together with |poll_period_ms|:
+  // repeated MemcgEvent on_memcg_event = 4;
+
+  // Filters cgroups in the hierarchy created by android's libprocessgroup.
+  //
+  // Each scope maps onto a set of cgroup paths
+  // ({apps,system}/uid_<uid>/pid_<pid>) using the filters below, and |level|
+  // picks at which levels of the hierarchy the values are recorded. E.g. for
+  // an app "com.example.app" with uid 10123, and surfaceflinger running as pid
+  // 597 with uid 1000:
+  // * {package_name: "com.example.app", level: LEVEL_UID}
+  //     -> apps/uid_10123
+  // * {package_name: "com.example.app", level: LEVEL_PID}
+  //     -> apps/uid_10123/pid_* (all of the app's processes)
+  // * {target_cmdline: "surfaceflinger", level: LEVEL_PID}
+  //     -> system/uid_1000/pid_597
+  // * {target_cmdline: "surfaceflinger", level: LEVEL_UID}
+  //     -> system/uid_1000 (all of uid 1000, not just surfaceflinger)
+  // * {level: LEVEL_UID}
+  //     -> {apps,system}/uid_*
+  message AndroidScope {
+    enum Level {
+      LEVEL_UNSPECIFIED = 0;
+      // apps/, system/
+      LEVEL_TOP = 1;
+      // apps/uid_*, system/uid_*
+      LEVEL_UID = 2;
+      // apps/uid_*/pid_*, system/uid_*/pid_*
+      LEVEL_PID = 3;
+    }
+    // If empty, the implementation chooses a level corresponding to the
+    // narrowest scope filter below (e.g. target_cmdline -> LEVEL_PID).
+    repeated Level level = 1;
+
+    // Target filters. Multiple values of a given field are OR'd, and the
+    // filters in a scope are AND'd. If no filters are set, all cgroups are
+    // matched.
+
+    enum Group {
+      GROUP_UNSPECIFIED = 0;
+      // apps/
+      GROUP_APPS = 1;
+      // system/
+      GROUP_SYSTEM = 2;
+    }
+    // Matches the top-level groups.
+    repeated Group group = 2;
+
+    // Matches the uid cgroups of the given packages, resolved when the data
+    // source starts (packages installed later aren't matched). Note: a package
+    // matches in all users/profiles, e.g. both uid_10123 and uid_1010123 for a
+    // package with uid 10123.
+    repeated string package_name = 3;
+
+    // Matches the pid cgroups of processes whose /proc/<pid>/cmdline matches
+    // any of the patterns. The patterns follow the same rules as the
+    // |target_cmdline| of the profilers:
+    // * a pattern can contain a single wildcard (*).
+    // * if the pattern starts with a '/', it's matched against the first
+    //   segment of the cmdline (argv0). E.g. "/system/bin/surface*".
+    // * otherwise, it's matched against the binary name part of argv0. E.g.
+    //   "top" or "com.example.app:*".
+    repeated string target_cmdline = 4;
+
+    // Exact uid, without matching across users/profiles.
+    repeated uint32 uid = 5;
+
+    // Exact pid.
+    repeated uint32 pid = 6;
+  }
+
+  // Values to record, covering both single-valued files (such as
+  // memory.current) and keys within multi-valued files (such as memory.stat).
+  enum MemcgField {
+    MEMCG_UNSPECIFIED = 0;
+
+    // Single-valued files.
+    // memory.current
+    MEMCG_CURRENT = 1;
+    // memory.peak
+    MEMCG_PEAK = 2;
+    // memory.min
+    MEMCG_MIN = 3;
+    // memory.low
+    MEMCG_LOW = 4;
+    // memory.high
+    MEMCG_HIGH = 5;
+    // memory.max
+    MEMCG_MAX = 6;
+    // memory.swap.current
+    MEMCG_SWAP_CURRENT = 7;
+    // memory.swap.peak
+    MEMCG_SWAP_PEAK = 8;
+    // memory.swap.high
+    MEMCG_SWAP_HIGH = 9;
+    // memory.swap.max
+    MEMCG_SWAP_MAX = 10;
+    // memory.zswap.current
+    MEMCG_ZSWAP_CURRENT = 11;
+    // memory.zswap.max
+    MEMCG_ZSWAP_MAX = 12;
+
+    // memory.events (includes events of descendant cgroups).
+    // MEMCG_EVENTS_ALL is the same as listing all fields for the file.
+    MEMCG_EVENTS_ALL = 13;
+    MEMCG_EVENTS_LOW = 14;
+    MEMCG_EVENTS_HIGH = 15;
+    MEMCG_EVENTS_MAX = 16;
+    MEMCG_EVENTS_OOM = 17;
+    MEMCG_EVENTS_OOM_KILL = 18;
+    MEMCG_EVENTS_OOM_GROUP_KILL = 19;
+    MEMCG_EVENTS_SOCK_THROTTLED = 20;
+
+    // memory.events.local (this cgroup only).
+    // MEMCG_EVENTS_LOCAL_ALL is the same as listing all fields for the file.
+    MEMCG_EVENTS_LOCAL_ALL = 21;
+    MEMCG_EVENTS_LOCAL_LOW = 22;
+    MEMCG_EVENTS_LOCAL_HIGH = 23;
+    MEMCG_EVENTS_LOCAL_MAX = 24;
+    MEMCG_EVENTS_LOCAL_OOM = 25;
+    MEMCG_EVENTS_LOCAL_OOM_KILL = 26;
+    MEMCG_EVENTS_LOCAL_OOM_GROUP_KILL = 27;
+    MEMCG_EVENTS_LOCAL_SOCK_THROTTLED = 28;
+
+    // memory.swap.events
+    // MEMCG_SWAP_EVENTS_ALL is the same as listing all fields for the file.
+    MEMCG_SWAP_EVENTS_ALL = 29;
+    MEMCG_SWAP_EVENTS_HIGH = 30;
+    MEMCG_SWAP_EVENTS_MAX = 31;
+    MEMCG_SWAP_EVENTS_FAIL = 32;
+
+    // memory.stat (as of linux v7.3).
+    // MEMCG_STAT_ALL is the same as listing all fields for the file.
+    MEMCG_STAT_ALL = 33;
+    MEMCG_STAT_ANON = 34;
+    MEMCG_STAT_FILE = 35;
+    MEMCG_STAT_KERNEL = 36;
+    MEMCG_STAT_KERNEL_STACK = 37;
+    MEMCG_STAT_PAGETABLES = 38;
+    MEMCG_STAT_SEC_PAGETABLES = 39;
+    MEMCG_STAT_PERCPU = 40;
+    MEMCG_STAT_SOCK = 41;
+    MEMCG_STAT_VMALLOC = 42;
+    MEMCG_STAT_SHMEM = 43;
+    MEMCG_STAT_ZSWAP = 44;
+    MEMCG_STAT_ZSWAPPED = 45;
+    MEMCG_STAT_ZSWAP_INCOMP = 46;
+    MEMCG_STAT_FILE_MAPPED = 47;
+    MEMCG_STAT_FILE_DIRTY = 48;
+    MEMCG_STAT_FILE_WRITEBACK = 49;
+    MEMCG_STAT_SWAPCACHED = 50;
+    MEMCG_STAT_ANON_THP = 51;
+    MEMCG_STAT_FILE_THP = 52;
+    MEMCG_STAT_SHMEM_THP = 53;
+    MEMCG_STAT_INACTIVE_ANON = 54;
+    MEMCG_STAT_ACTIVE_ANON = 55;
+    MEMCG_STAT_INACTIVE_FILE = 56;
+    MEMCG_STAT_ACTIVE_FILE = 57;
+    MEMCG_STAT_UNEVICTABLE = 58;
+    MEMCG_STAT_SLAB_RECLAIMABLE = 59;
+    MEMCG_STAT_SLAB_UNRECLAIMABLE = 60;
+    MEMCG_STAT_SLAB = 61;
+    MEMCG_STAT_HUGETLB = 62;
+    MEMCG_STAT_WORKINGSET_REFAULT_ANON = 63;
+    MEMCG_STAT_WORKINGSET_REFAULT_FILE = 64;
+    MEMCG_STAT_WORKINGSET_ACTIVATE_ANON = 65;
+    MEMCG_STAT_WORKINGSET_ACTIVATE_FILE = 66;
+    MEMCG_STAT_WORKINGSET_RESTORE_ANON = 67;
+    MEMCG_STAT_WORKINGSET_RESTORE_FILE = 68;
+    MEMCG_STAT_WORKINGSET_NODERECLAIM = 69;
+    MEMCG_STAT_PGDEMOTE_KSWAPD = 70;
+    MEMCG_STAT_PGDEMOTE_DIRECT = 71;
+    MEMCG_STAT_PGDEMOTE_KHUGEPAGED = 72;
+    MEMCG_STAT_PGDEMOTE_PROACTIVE = 73;
+    MEMCG_STAT_PGSTEAL_KSWAPD = 74;
+    MEMCG_STAT_PGSTEAL_DIRECT = 75;
+    MEMCG_STAT_PGSTEAL_KHUGEPAGED = 76;
+    MEMCG_STAT_PGSTEAL_PROACTIVE = 77;
+    MEMCG_STAT_PGSCAN_KSWAPD = 78;
+    MEMCG_STAT_PGSCAN_DIRECT = 79;
+    MEMCG_STAT_PGSCAN_KHUGEPAGED = 80;
+    MEMCG_STAT_PGSCAN_PROACTIVE = 81;
+    MEMCG_STAT_PGREFILL = 82;
+    MEMCG_STAT_PGPROMOTE_SUCCESS = 83;
+    MEMCG_STAT_PGSCAN = 84;
+    MEMCG_STAT_PGSTEAL = 85;
+    MEMCG_STAT_PSWPIN = 86;
+    MEMCG_STAT_PSWPOUT = 87;
+    MEMCG_STAT_PGFAULT = 88;
+    MEMCG_STAT_PGMAJFAULT = 89;
+    MEMCG_STAT_PGACTIVATE = 90;
+    MEMCG_STAT_PGDEACTIVATE = 91;
+    MEMCG_STAT_PGLAZYFREE = 92;
+    MEMCG_STAT_PGLAZYFREED = 93;
+    MEMCG_STAT_SWPIN_ZERO = 94;
+    MEMCG_STAT_SWPOUT_ZERO = 95;
+    MEMCG_STAT_ZSWPIN = 96;
+    MEMCG_STAT_ZSWPOUT = 97;
+    MEMCG_STAT_ZSWPWB = 98;
+    MEMCG_STAT_THP_FAULT_ALLOC = 99;
+    MEMCG_STAT_THP_COLLAPSE_ALLOC = 100;
+    MEMCG_STAT_THP_SWPOUT = 101;
+    MEMCG_STAT_THP_SWPOUT_FALLBACK = 102;
+    MEMCG_STAT_NUMA_PAGES_MIGRATED = 103;
+    MEMCG_STAT_NUMA_PTE_UPDATES = 104;
+    MEMCG_STAT_NUMA_HINT_FAULTS = 105;
+  }
+}
+
+// End of protos/perfetto/config/linux/cgroup_config.proto
+
 // Begin of protos/perfetto/config/linux/journald_config.proto
 
 // Configuration for the "linux.systemd_journald" data source.
@@ -4923,7 +5189,7 @@ message TrackEventConfig {
 // cpp classes and polluting tracing/core with data-source-specific classes.
 // Instead they are treated as opaque strings containing raw proto bytes.
 //
-// Next id: 149
+// Next id: 152
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -5239,6 +5505,9 @@ message DataSourceConfig {
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
+
+  // Data source name: linux.cgroup
+  optional CgroupConfig cgroup_config = 151 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
