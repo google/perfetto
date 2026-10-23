@@ -16,11 +16,20 @@
 
 #include "src/trace_processor/plugins/android_process_state/android_process_state_tracker.h"
 
+#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
 #include <string>
+#include <string_view>
+#include <vector>
 
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_common.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
@@ -49,7 +58,9 @@ AndroidProcessStateTracker::AndroidProcessStateTracker(
     tables::AndroidFreezerStateTable* freezer_state_table)
     : context_(context),
       process_state_table_(process_state_table),
-      freezer_state_table_(freezer_state_table) {}
+      freezer_state_table_(freezer_state_table),
+      capability_flags_id_(context->storage->InternString("capability_flags")) {
+}
 
 // The track-event stream only emits delta transitions (prev -> cur). To
 // reconstruct each process's state at the start of the trace, we record the
@@ -125,7 +136,10 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   if (p.has_seq_id()) {
     row.seq_id = p.seq_id();
   }
-  process_state_table_->Insert(row);
+  auto id = process_state_table_->Insert(row).id;
+  if (row.capability_flags.has_value()) {
+    AddCapabilityFlagsArgs(id, *row.capability_flags);
+  }
 }
 
 void AndroidProcessStateTracker::ParseProcessStateDump(
@@ -292,7 +306,39 @@ void AndroidProcessStateTracker::EmitInitialProcessStateRow(
         InternEnum(context_, process_group_cache_,
                    ".com.android.internal.ProcessGroup", *v.process_group);
   }
-  process_state_table_->Insert(row);
+  auto id = process_state_table_->Insert(row).id;
+  if (row.capability_flags.has_value()) {
+    AddCapabilityFlagsArgs(id, *row.capability_flags);
+  }
+}
+
+void AndroidProcessStateTracker::AddCapabilityFlagsArgs(
+    tables::AndroidProcessStateTable::Id id,
+    int32_t mask) {
+  if (mask == 0) {
+    return;
+  }
+  flag_views_.clear();
+  int64_t unmatched = context_->descriptor_pool_->FlagSetToViews(
+      capability_flags_cache_, ".com.android.internal.ProcessCapabilityEnum",
+      static_cast<int64_t>(static_cast<uint32_t>(mask)), &flag_views_);
+
+  ArgsTracker args_tracker(context_);
+  auto inserter = args_tracker.AddArgsTo(process_state_table_, id);
+  auto emit = [&](size_t i, base::StringView flag) {
+    base::StackString<64> key("capability_flags[%zu]", i);
+    StringId key_id = context_->storage->InternString(key.string_view());
+    inserter.AddArg(capability_flags_id_, key_id,
+                    Variadic::String(context_->storage->InternString(flag)));
+  };
+  size_t i = 0;
+  for (; i < flag_views_.size(); ++i) {
+    emit(i, base::StringView(flag_views_[i].data(), flag_views_[i].size()));
+  }
+  if (unmatched != 0) {
+    base::StackString<20> hex("0x%" PRIx64, static_cast<uint64_t>(unmatched));
+    emit(i, hex.string_view());
+  }
 }
 
 void AndroidProcessStateTracker::EmitInitialFreezerRow(

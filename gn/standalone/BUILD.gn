@@ -21,7 +21,10 @@ import("//gn/standalone/wasm.gni")
 
 # These warnings have been introduced with the newest version of clang (only in
 # the hermetic build) and are enabled just with -Werror.
-hermetic_clang_suppressions = [ "-Wno-c99-designator" ]
+hermetic_clang_suppressions = [
+  "-Wno-c99-designator",
+  "-Wno-gcc-install-dir-libstdcxx",
+]
 
 # We deal with three toolchains here:
 # 1. Clang, used in most cases.

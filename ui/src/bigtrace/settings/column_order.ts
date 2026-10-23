@@ -26,8 +26,9 @@ export function linkColumnFirst<T>(
   nameOf: (item: T) => string,
 ): T[] {
   const i = items.findIndex((it) => nameOf(it) === LINK_COLUMN);
-  if (i <= 0) return [...items];
-  return [items[i], ...items.slice(0, i), ...items.slice(i + 1)];
+  const link = items[i];
+  if (i <= 0 || link === undefined) return [...items];
+  return [link, ...items.slice(0, i), ...items.slice(i + 1)];
 }
 
 export function linkNameFirst(names: readonly string[]): string[] {

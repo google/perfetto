@@ -25,6 +25,8 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/core/exec/filter_value.h"
+#include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
@@ -64,6 +66,13 @@ class PhysicalPlan {
     return side_pipelines_;
   }
 
+  // The values a Filter compares columns with, known when the plan was
+  // built, e.g. a WHERE literal. Passed to Context::SetFilterValues (see
+  // core::exec::RowCursor::Open) before each run.
+  const std::vector<core::exec::FilterValue>& filter_values() const {
+    return filter_values_;
+  }
+
  private:
   friend class Lowering;
   friend class PlanLowering;
@@ -75,16 +84,32 @@ class PhysicalPlan {
   std::unique_ptr<core::exec::Source> input_;
   std::unique_ptr<core::exec::Pipeline> pipeline_;
   std::vector<Column> columns_;
+  std::vector<core::exec::FilterValue> filter_values_;
+};
+
+// What lowering needs from whoever runs the plan. Everything here must outlive
+// every run of the plan.
+struct LoweringContext {
+  // Holds the strings of the columns a Filter reads.
+  const StringPool* pool = nullptr;
 };
 
 // Builds executor nodes from a logical plan. Establishes tree numbering, row
 // ordering, and column types as needed, reusing them across consecutive folds.
 // Every dataframe the plan reads must already be resolved.
-base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan&);
+base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan&,
+                                                    const LoweringContext&);
 
 // -----------------------------------------------------------------------------
 // Lowering
 // -----------------------------------------------------------------------------
+
+// Returns the type that both `a` and `b` convert to without loss. Returns
+// nullopt if one is a string and the other a number.
+//
+// A column of unknown type is checked at runtime to hold the other side's
+// type. For integers the check uses Int64, so it accepts any integer.
+std::optional<PlanType> CommonType(const PlanType& a, const PlanType& b);
 
 class PlanLowering;
 
@@ -150,6 +175,13 @@ class Lowering {
   // from. Nothing can be added to the pipeline afterwards.
   const core::exec::Source* FinishSide();
 
+  // Adds a filter value known when the plan was built, e.g. a WHERE literal,
+  // and returns its index into the run's filter values (see
+  // PhysicalPlan::filter_values).
+  uint32_t AddFilterValue(core::exec::FilterValue value);
+
+  const LoweringContext& context() const;
+
   // ---------------------------------------------------------------------------
   // Requirements: add operators only if needed
   // ---------------------------------------------------------------------------
@@ -179,12 +211,21 @@ class Lowering {
   // row's group number.
   uint32_t RequireGroupNumbers(const std::vector<ColumnId>& keys);
 
+  // Prepares the rows as an interval input: Int64 `ts` and `dur`, grouped by
+  // `keys` with group numbers, and sorted by `ts` within each group. Returns
+  // where the operator finds them.
+  core::exec::IntervalLaneSpec RequireIntervalLanes(
+      ColumnId ts,
+      ColumnId dur,
+      const std::vector<ColumnId>& keys);
+
   // Use before an operator that works best on full batches. Adds a
   // CombineBatches only if an earlier step may have made small batches.
   void RequireFullBatches();
 
   // Orders rows as a tree walk in `direction`, and returns the positions of
-  // the node number columns. The numbering is reused until ResetLayout.
+  // the node number columns. The numbering is reused while `node` and
+  // `parent` are the columns it was made from, until ResetLayout.
   TreeColumns RequireTreeWalk(ColumnId node, ColumnId parent, TreeDirection);
 
   // ---------------------------------------------------------------------------
@@ -213,6 +254,10 @@ class Lowering {
   // because it drops rows. Batches are assumed to be full otherwise.
   void DeclareSmallBatches();
 
+  // Records that an added operator drops rows. A tree numbered before may
+  // now name parents which are gone, so the next tree walk numbers it again.
+  void DeclareRowsDropped();
+
   // Records that the column at `position` holds group numbers for `keys`.
   void DeclareGroupNumbers(const std::vector<ColumnId>& keys,
                            uint32_t position);
@@ -227,6 +272,9 @@ class Lowering {
 
   // The batch position of a column declared with DeclareColumn.
   uint32_t QueryPosition(ColumnId id) const;
+
+  // The type of a column, after any conversion added so far.
+  PlanType QueryType(ColumnId id) const;
 
   // The longest prefix of the known sort order that uses only `columns`.
   std::vector<SortKey> QuerySortedBy(
@@ -339,8 +387,12 @@ class Lowering {
   bool full_batches_ = true;
 
   // The tree node number columns, if the tree is numbered. They stay valid
-  // when rows are reordered, until ResetLayout.
+  // when rows are reordered, until ResetLayout, DeclareRowsDropped or a walk
+  // of another tree.
   std::optional<TreeColumns> tree_columns_;
+  // The id and parent columns `tree_columns_` were numbered from.
+  ColumnId tree_node_ = 0;
+  ColumnId tree_parent_ = 0;
 
   // The group number columns. They stay valid when rows are reordered, until
   // ResetLayout.
@@ -360,7 +412,7 @@ class Lowering {
 // State shared by all pipelines while lowering a plan.
 class PlanLowering {
  public:
-  explicit PlanLowering(const LogicalPlan& plan);
+  PlanLowering(const LogicalPlan& plan, const LoweringContext& context);
   PlanLowering(const PlanLowering&) = delete;
   PlanLowering& operator=(const PlanLowering&) = delete;
   ~PlanLowering();
@@ -385,6 +437,7 @@ class PlanLowering {
 
   // Borrowed for the duration of lowering.
   const LogicalPlan& plan_;
+  LoweringContext context_;
 
   // For each logical column, the type it was converted to, if any. Kept here
   // because column ids are unique across pipelines.

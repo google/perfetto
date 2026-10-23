@@ -308,7 +308,7 @@ function isAppMapping(mapping?: string): boolean {
 function stackSnippet(frames: string[]): string[] {
   if (frames.length === 0) return ['(no app frames)'];
   if (frames.length <= 7) return frames;
-  const leaf = frames[0];
+  const leaf = frames[0]!;
   const middle = frames.slice(1, -2).slice(0, 4);
   const root = frames.slice(-2);
   return [leaf, ...middle, '…', ...root];

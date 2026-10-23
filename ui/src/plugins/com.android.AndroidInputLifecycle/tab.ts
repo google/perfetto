@@ -27,9 +27,6 @@ import {DurationWidget} from '../../components/widgets/duration';
 import type {Trace} from '../../public/trace';
 import {Anchor} from '../../widgets/anchor';
 import {Checkbox} from '../../widgets/checkbox';
-import {EmptyState} from '../../widgets/empty_state';
-import {DetailsShell} from '../../widgets/details_shell';
-import {Spinner} from '../../widgets/spinner';
 
 import {
   AndroidInputEventSource,
@@ -38,44 +35,17 @@ import {
 import type {InputLifecycleExtension, NavTarget} from './extensions/interface';
 
 export interface AndroidInputLifecycleTabAttrs {
-  trace: Trace;
-  rows: InputChainRow[];
-  visibleRowIds: Set<string>;
-  loading: boolean;
-  pinningManager: TrackPinningManager;
-  onToggleVisibility: (rowId: string) => void;
-  onToggleAllVisibility: () => void;
-  activeExtensions: InputLifecycleExtension[];
+  readonly trace: Trace;
+  readonly rows: ReadonlyArray<InputChainRow>;
+  readonly visibleRowIds: ReadonlySet<string>;
+  readonly pinningManager: TrackPinningManager;
+  readonly onToggleVisibility: (rowId: string) => void;
+  readonly onToggleAllVisibility: () => void;
+  readonly activeExtensions: ReadonlyArray<InputLifecycleExtension>;
 }
 
 export class AndroidInputLifecycleTab implements m.ClassComponent<AndroidInputLifecycleTabAttrs> {
   view({attrs}: m.Vnode<AndroidInputLifecycleTabAttrs>): m.Children {
-    if (attrs.loading) {
-      return m(
-        DetailsShell,
-        {title: 'Android Input Lifecycle'},
-        m(
-          'div',
-          {
-            style: {
-              display: 'flex',
-              justifyContent: 'center',
-              padding: '20px',
-            },
-          },
-          m(Spinner, {}),
-        ),
-      );
-    }
-
-    return m(
-      DetailsShell,
-      {title: 'Android Input Lifecycle'},
-      this.renderGrid(attrs),
-    );
-  }
-
-  private renderGrid(attrs: AndroidInputLifecycleTabAttrs): m.Children {
     const {rows, visibleRowIds, trace, pinningManager} = attrs;
     const allVisible =
       rows.length > 0 && rows.every((r) => visibleRowIds.has(r.uiRowId));
@@ -152,11 +122,6 @@ export class AndroidInputLifecycleTab implements m.ClassComponent<AndroidInputLi
         });
 
         return [...fixedCells, ...stageCells];
-      }),
-      emptyState: m(EmptyState, {
-        title: 'No input event selected',
-        description: 'Select an input event to see latency breakdown.',
-        icon: Icons.Android,
       }),
     });
   }

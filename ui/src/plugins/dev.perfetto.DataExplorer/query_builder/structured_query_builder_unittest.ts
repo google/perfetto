@@ -90,8 +90,8 @@ describe('StructuredQueryBuilder', () => {
       StructuredQueryBuilder.applyNodeColumnSelection(sq, node);
 
       expect(sq.selectColumns.length).toBe(2);
-      expect(sq.selectColumns[0].columnName).toBe('id');
-      expect(sq.selectColumns[1].columnName).toBe('age');
+      expect(sq.selectColumns[0]!.columnName).toBe('id');
+      expect(sq.selectColumns[1]!.columnName).toBe('age');
     });
 
     it('should include aliases when present', () => {
@@ -114,8 +114,8 @@ describe('StructuredQueryBuilder', () => {
       StructuredQueryBuilder.applyNodeColumnSelection(sq, node);
 
       expect(sq.selectColumns.length).toBe(1);
-      expect(sq.selectColumns[0].columnName).toBe('id');
-      expect(sq.selectColumns[0].alias).toBe('identifier');
+      expect(sq.selectColumns[0]!.columnName).toBe('id');
+      expect(sq.selectColumns[0]!.alias).toBe('identifier');
     });
 
     it('should handle empty column list', () => {

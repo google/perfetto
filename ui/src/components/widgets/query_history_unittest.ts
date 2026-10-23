@@ -26,8 +26,8 @@ describe('HistoryStorage', () => {
     it('should add new query at the front of history', () => {
       queryHistoryStorage.saveQuery('SELECT 1');
       expect(queryHistoryStorage.data.length).toBe(1);
-      expect(queryHistoryStorage.data[0].query).toBe('SELECT 1');
-      expect(queryHistoryStorage.data[0].starred).toBe(false);
+      expect(queryHistoryStorage.data[0]!.query).toBe('SELECT 1');
+      expect(queryHistoryStorage.data[0]!.starred).toBe(false);
     });
 
     it('should add multiple different queries with most recent first', () => {
@@ -36,9 +36,9 @@ describe('HistoryStorage', () => {
       queryHistoryStorage.saveQuery('SELECT 3');
 
       expect(queryHistoryStorage.data.length).toBe(3);
-      expect(queryHistoryStorage.data[0].query).toBe('SELECT 3');
-      expect(queryHistoryStorage.data[1].query).toBe('SELECT 2');
-      expect(queryHistoryStorage.data[2].query).toBe('SELECT 1');
+      expect(queryHistoryStorage.data[0]!.query).toBe('SELECT 3');
+      expect(queryHistoryStorage.data[1]!.query).toBe('SELECT 2');
+      expect(queryHistoryStorage.data[2]!.query).toBe('SELECT 1');
     });
 
     it('should move existing unstarred query to the front when rerun', () => {
@@ -51,9 +51,9 @@ describe('HistoryStorage', () => {
       queryHistoryStorage.saveQuery('SELECT 1');
 
       expect(queryHistoryStorage.data.length).toBe(3);
-      expect(queryHistoryStorage.data[0].query).toBe('SELECT 1');
-      expect(queryHistoryStorage.data[1].query).toBe('SELECT 3');
-      expect(queryHistoryStorage.data[2].query).toBe('SELECT 2');
+      expect(queryHistoryStorage.data[0]!.query).toBe('SELECT 1');
+      expect(queryHistoryStorage.data[1]!.query).toBe('SELECT 3');
+      expect(queryHistoryStorage.data[2]!.query).toBe('SELECT 2');
     });
 
     it('should move existing starred query to the front and preserve starred status', () => {
@@ -64,16 +64,16 @@ describe('HistoryStorage', () => {
       // Array is now: [SELECT 3, SELECT 2, SELECT 1]
       // Star SELECT 3 (at index 0)
       queryHistoryStorage.setStarred(0, true);
-      expect(queryHistoryStorage.data[0].starred).toBe(true);
+      expect(queryHistoryStorage.data[0]!.starred).toBe(true);
 
       // Rerun the starred query
       queryHistoryStorage.saveQuery('SELECT 3');
 
       expect(queryHistoryStorage.data.length).toBe(3);
-      expect(queryHistoryStorage.data[0].query).toBe('SELECT 3');
-      expect(queryHistoryStorage.data[0].starred).toBe(true);
-      expect(queryHistoryStorage.data[1].query).toBe('SELECT 2');
-      expect(queryHistoryStorage.data[2].query).toBe('SELECT 1');
+      expect(queryHistoryStorage.data[0]!.query).toBe('SELECT 3');
+      expect(queryHistoryStorage.data[0]!.starred).toBe(true);
+      expect(queryHistoryStorage.data[1]!.query).toBe('SELECT 2');
+      expect(queryHistoryStorage.data[2]!.query).toBe('SELECT 1');
     });
 
     it('should move query from middle of history to front', () => {
@@ -87,10 +87,10 @@ describe('HistoryStorage', () => {
       queryHistoryStorage.saveQuery('SELECT 2');
 
       expect(queryHistoryStorage.data.length).toBe(4);
-      expect(queryHistoryStorage.data[0].query).toBe('SELECT 2');
-      expect(queryHistoryStorage.data[1].query).toBe('SELECT 4');
-      expect(queryHistoryStorage.data[2].query).toBe('SELECT 3');
-      expect(queryHistoryStorage.data[3].query).toBe('SELECT 1');
+      expect(queryHistoryStorage.data[0]!.query).toBe('SELECT 2');
+      expect(queryHistoryStorage.data[1]!.query).toBe('SELECT 4');
+      expect(queryHistoryStorage.data[2]!.query).toBe('SELECT 3');
+      expect(queryHistoryStorage.data[3]!.query).toBe('SELECT 1');
     });
 
     it('should handle rerunning the most recent query', () => {
@@ -102,8 +102,8 @@ describe('HistoryStorage', () => {
       queryHistoryStorage.saveQuery('SELECT 2');
 
       expect(queryHistoryStorage.data.length).toBe(2);
-      expect(queryHistoryStorage.data[0].query).toBe('SELECT 2');
-      expect(queryHistoryStorage.data[1].query).toBe('SELECT 1');
+      expect(queryHistoryStorage.data[0]!.query).toBe('SELECT 2');
+      expect(queryHistoryStorage.data[1]!.query).toBe('SELECT 1');
     });
 
     it('should enforce maxItems limit for unstarred queries', () => {
@@ -118,9 +118,9 @@ describe('HistoryStorage', () => {
       queryHistoryStorage.saveQuery('SELECT 4'); // Should remove SELECT 1 (oldest)
 
       expect(queryHistoryStorage.data.length).toBe(3);
-      expect(queryHistoryStorage.data[0].query).toBe('SELECT 4');
-      expect(queryHistoryStorage.data[1].query).toBe('SELECT 3');
-      expect(queryHistoryStorage.data[2].query).toBe('SELECT 2');
+      expect(queryHistoryStorage.data[0]!.query).toBe('SELECT 4');
+      expect(queryHistoryStorage.data[1]!.query).toBe('SELECT 3');
+      expect(queryHistoryStorage.data[2]!.query).toBe('SELECT 2');
 
       // Restore original maxItems
       queryHistoryStorage.maxItems = originalMaxItems;
@@ -148,11 +148,11 @@ describe('HistoryStorage', () => {
 
       // Should have 4 total: 1 starred + 3 unstarred
       expect(queryHistoryStorage.data.length).toBe(4);
-      expect(queryHistoryStorage.data[0].query).toBe('SELECT 5');
-      expect(queryHistoryStorage.data[1].query).toBe('SELECT 4');
-      expect(queryHistoryStorage.data[2].query).toBe('SELECT 3');
-      expect(queryHistoryStorage.data[2].starred).toBe(true);
-      expect(queryHistoryStorage.data[3].query).toBe('SELECT 2');
+      expect(queryHistoryStorage.data[0]!.query).toBe('SELECT 5');
+      expect(queryHistoryStorage.data[1]!.query).toBe('SELECT 4');
+      expect(queryHistoryStorage.data[2]!.query).toBe('SELECT 3');
+      expect(queryHistoryStorage.data[2]!.starred).toBe(true);
+      expect(queryHistoryStorage.data[3]!.query).toBe('SELECT 2');
 
       queryHistoryStorage.maxItems = originalMaxItems;
     });
@@ -169,16 +169,16 @@ describe('HistoryStorage', () => {
 
       // Star SELECT 4 (at index 0)
       queryHistoryStorage.setStarred(0, true);
-      expect(queryHistoryStorage.data[0].query).toBe('SELECT 4');
+      expect(queryHistoryStorage.data[0]!.query).toBe('SELECT 4');
 
       // Rerun the starred query - it should stay at index 0
       queryHistoryStorage.saveQuery('SELECT 4');
 
       expect(queryHistoryStorage.data.length).toBe(3);
-      expect(queryHistoryStorage.data[0].query).toBe('SELECT 4');
-      expect(queryHistoryStorage.data[0].starred).toBe(true);
-      expect(queryHistoryStorage.data[1].query).toBe('SELECT 3');
-      expect(queryHistoryStorage.data[2].query).toBe('SELECT 2');
+      expect(queryHistoryStorage.data[0]!.query).toBe('SELECT 4');
+      expect(queryHistoryStorage.data[0]!.starred).toBe(true);
+      expect(queryHistoryStorage.data[1]!.query).toBe('SELECT 3');
+      expect(queryHistoryStorage.data[2]!.query).toBe('SELECT 2');
 
       queryHistoryStorage.maxItems = originalMaxItems;
     });
@@ -189,7 +189,7 @@ describe('HistoryStorage', () => {
       queryHistoryStorage.saveQuery('SELECT 1');
       queryHistoryStorage.setStarred(0, true);
 
-      expect(queryHistoryStorage.data[0].starred).toBe(true);
+      expect(queryHistoryStorage.data[0]!.starred).toBe(true);
     });
 
     it('should unstar a query', () => {
@@ -197,7 +197,7 @@ describe('HistoryStorage', () => {
       queryHistoryStorage.setStarred(0, true);
       queryHistoryStorage.setStarred(0, false);
 
-      expect(queryHistoryStorage.data[0].starred).toBe(false);
+      expect(queryHistoryStorage.data[0]!.starred).toBe(false);
     });
   });
 
@@ -211,8 +211,8 @@ describe('HistoryStorage', () => {
       queryHistoryStorage.remove(1); // Remove SELECT 2
 
       expect(queryHistoryStorage.data.length).toBe(2);
-      expect(queryHistoryStorage.data[0].query).toBe('SELECT 3');
-      expect(queryHistoryStorage.data[1].query).toBe('SELECT 1');
+      expect(queryHistoryStorage.data[0]!.query).toBe('SELECT 3');
+      expect(queryHistoryStorage.data[1]!.query).toBe('SELECT 1');
     });
 
     it('should remove first query', () => {
@@ -223,7 +223,7 @@ describe('HistoryStorage', () => {
       queryHistoryStorage.remove(0); // Remove SELECT 2
 
       expect(queryHistoryStorage.data.length).toBe(1);
-      expect(queryHistoryStorage.data[0].query).toBe('SELECT 1');
+      expect(queryHistoryStorage.data[0]!.query).toBe('SELECT 1');
     });
 
     it('should remove last query', () => {
@@ -234,7 +234,7 @@ describe('HistoryStorage', () => {
       queryHistoryStorage.remove(1); // Remove SELECT 1
 
       expect(queryHistoryStorage.data.length).toBe(1);
-      expect(queryHistoryStorage.data[0].query).toBe('SELECT 2');
+      expect(queryHistoryStorage.data[0]!.query).toBe('SELECT 2');
     });
   });
 

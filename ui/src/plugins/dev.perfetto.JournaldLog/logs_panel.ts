@@ -221,10 +221,10 @@ export class JournaldLogPanel implements m.ClassComponent<JournaldLogPanelAttrs>
     const trace = this.trace;
     const rows: GridRow[] = [];
     for (let i = 0; i < entries.timestamps.length; i++) {
-      const priority = entries.priorities[i];
+      const priority = entries.priorities[i]!;
       const priorityName = JOURNALD_PRIORITIES[priority] ?? '?';
-      const ts = entries.timestamps[i];
-      const eventId = entries.ids[i];
+      const ts = entries.timestamps[i]!;
+      const eventId = entries.ids[i]!;
       const priorityClass = classForPriority(priority);
       const isHighlighted = entries.isHighlighted[i];
       const className = classNames(
@@ -281,7 +281,7 @@ export class JournaldLogPanel implements m.ClassComponent<JournaldLogPanelAttrs>
                 Anchor,
                 {
                   onclick: () => {
-                    const uri = `${getThreadUriPrefix(entries.upids[i], entries.utids[i]!)}_state`;
+                    const uri = `${getThreadUriPrefix(entries.upids[i]!, entries.utids[i]!)}_state`;
                     trace.scrollTo({track: {uri, expandGroup: true}});
                   },
                 },

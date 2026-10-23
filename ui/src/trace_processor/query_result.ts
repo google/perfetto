@@ -51,7 +51,12 @@
 import '../base/static_initializers';
 import protobuf from 'protobufjs/minimal';
 import {defer, type Deferred} from '../base/deferred';
-import {ensureExists, assertFalse, assertTrue} from '../base/assert';
+import {
+  ensureDefined,
+  ensureExists,
+  assertFalse,
+  assertTrue,
+} from '../base/assert';
 import {utf8Decode} from '../base/string_utils';
 import {Duration, type duration, Time, type time} from '../base/time';
 
@@ -215,19 +220,19 @@ function readVarIntAsNumber(buf: Uint8Array, cursor: {pos: number}): number {
   let b = 0;
   let i = 0;
   for (; i < 4; ++i) {
-    b = buf[pos++];
+    b = buf[pos++]!;
     lo = (lo | ((b & 127) << (i * 7))) >>> 0;
     if (b < 128) {
       cursor.pos = pos;
       return lo;
     }
   }
-  b = buf[pos++];
+  b = buf[pos++]!;
   lo = (lo | ((b & 127) << 28)) >>> 0;
   hi = (hi | ((b & 127) >> 4)) >>> 0;
   if (b >= 128) {
     for (i = 0; i < 5; ++i) {
-      b = buf[pos++];
+      b = buf[pos++]!;
       hi = (hi | ((b & 127) << (i * 7 + 3))) >>> 0;
       if (b < 128) break;
     }
@@ -264,7 +269,7 @@ function readVarIntIntoInt32s(
   let b = 0;
   let i = 0;
   for (; i < 4; ++i) {
-    b = buf[pos++];
+    b = buf[pos++]!;
     lo = (lo | ((b & 127) << (i * 7))) >>> 0;
     if (b < 128) {
       cursor.pos = pos;
@@ -273,12 +278,12 @@ function readVarIntIntoInt32s(
       return;
     }
   }
-  b = buf[pos++];
+  b = buf[pos++]!;
   lo = (lo | ((b & 127) << 28)) >>> 0;
   hi = (hi | ((b & 127) >> 4)) >>> 0;
   if (b >= 128) {
     for (i = 0; i < 5; ++i) {
-      b = buf[pos++];
+      b = buf[pos++]!;
       hi = (hi | ((b & 127) << (i * 7 + 3))) >>> 0;
       if (b < 128) break;
     }
@@ -310,16 +315,16 @@ export function decodeInt64Varint(
     // fast route (lo)
     for (; i < 4; ++i) {
       // 1st..4th
-      lo = (lo | ((buf[pos] & 127) << (i * 7))) >>> 0;
-      if (buf[pos++] < 128) {
+      lo = (lo | ((buf[pos]! & 127) << (i * 7))) >>> 0;
+      if (buf[pos++]! < 128) {
         cursor.pos = pos;
         return BigInt(lo);
       }
     }
     // 5th
-    lo = (lo | ((buf[pos] & 127) << 28)) >>> 0;
-    hi = (hi | ((buf[pos] & 127) >> 4)) >>> 0;
-    if (buf[pos++] < 128) {
+    lo = (lo | ((buf[pos]! & 127) << 28)) >>> 0;
+    hi = (hi | ((buf[pos]! & 127) >> 4)) >>> 0;
+    if (buf[pos++]! < 128) {
       cursor.pos = pos;
       return (BigInt(hi) << SHIFT_32BITS) | BigInt(lo);
     }
@@ -330,14 +335,14 @@ export function decodeInt64Varint(
         throw Error('Index out of range');
       }
       // 1st..3rd
-      lo = (lo | ((buf[pos] & 127) << (i * 7))) >>> 0;
-      if (buf[pos++] < 128) {
+      lo = (lo | ((buf[pos]! & 127) << (i * 7))) >>> 0;
+      if (buf[pos++]! < 128) {
         cursor.pos = pos;
         return BigInt(lo);
       }
     }
     // 4th
-    lo = (lo | ((buf[pos++] & 127) << (i * 7))) >>> 0;
+    lo = (lo | ((buf[pos++]! & 127) << (i * 7))) >>> 0;
     cursor.pos = pos;
     return (BigInt(hi) << SHIFT_32BITS) | BigInt(lo);
   }
@@ -345,8 +350,8 @@ export function decodeInt64Varint(
     // fast route (hi)
     for (; i < 5; ++i) {
       // 6th..10th
-      hi = (hi | ((buf[pos] & 127) << (i * 7 + 3))) >>> 0;
-      if (buf[pos++] < 128) {
+      hi = (hi | ((buf[pos]! & 127) << (i * 7 + 3))) >>> 0;
+      if (buf[pos++]! < 128) {
         cursor.pos = pos;
         const big = (BigInt(hi) << SHIFT_32BITS) | BigInt(lo);
         return BigInt.asIntN(64, big);
@@ -358,8 +363,8 @@ export function decodeInt64Varint(
         throw Error('Index out of range');
       }
       // 6th..10th
-      hi = (hi | ((buf[pos] & 127) << (i * 7 + 3))) >>> 0;
-      if (buf[pos++] < 128) {
+      hi = (hi | ((buf[pos]! & 127) << (i * 7 + 3))) >>> 0;
+      if (buf[pos++]! < 128) {
         cursor.pos = pos;
         const big = (BigInt(hi) << SHIFT_32BITS) | BigInt(lo);
         return BigInt.asIntN(64, big);
@@ -517,8 +522,8 @@ function scanCellTypeMasks(
   let maxType = 0;
   let col = 0;
   for (let i = start; i < end; i++) {
-    const t = bytes[i];
-    seen[col] |= 1 << t;
+    const t = bytes[i]!;
+    seen[col]! |= 1 << t;
     if (t > maxType) maxType = t;
     if (++col === numColumns) col = 0;
   }
@@ -857,9 +862,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     }
 
     let row = 0;
-    const batches = this.batches;
-    for (let b = 0; b < batches.length; b++) {
-      const batch = batches[b];
+    for (const batch of this.batches) {
       if (batch.numCells === 0) continue;
       const bytes = batch.batchBytes;
       const f64 = batch.float64Cells;
@@ -888,7 +891,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
       for (let c = 0; c < numColumns; c++) {
         const expType = specValues[c];
         if (expType === undefined) continue;
-        if (trustMasks && isMaskCompatible(seen[c], expType)) continue;
+        if (trustMasks && isMaskCompatible(seen[c]!, expType)) continue;
         // Slow path: throws, naming the first offending row and column.
         throwOnIncompatibleCell(
           bytes,
@@ -897,7 +900,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
           numColumns,
           c,
           expType,
-          colNames[c],
+          colNames[c]!,
           row, // Rows already decoded from earlier batches.
           this._errorInfo,
         );
@@ -934,14 +937,14 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
               }
               break;
             case CellType.CELL_FLOAT64: {
-              const v = f64[fIdx++];
+              const v = f64[fIdx++]!;
               if (dests[c] !== undefined) {
                 (dests[c] as Array<number | null>)[row] = v;
               }
               break;
             }
             case CellType.CELL_STRING: {
-              const v = strs[sIdx++];
+              const v = strs[sIdx++]!;
               if (kind === Kind.Str) {
                 (dests[c] as Array<string | null>)[row] = v;
               }
@@ -963,7 +966,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
               }
               break;
             case CellType.CELL_BLOB: {
-              const v = blobs[bIdx++];
+              const v = blobs[bIdx++]!;
               if (kind === Kind.Blob) {
                 (dests[c] as Array<SqlValue>)[row] = new Uint8Array(v);
               }
@@ -1365,7 +1368,7 @@ class RowIteratorImpl implements RowIteratorBase {
     // Read the current row.
     for (let i = 0; i < numColumns; i++) {
       const cellType = batchBytes[this.nextCellTypeOff++];
-      const colName = this.columnNames[i];
+      const colName = this.columnNames[i]!;
       const expType = colTypes[i];
 
       switch (cellType) {
@@ -1383,15 +1386,15 @@ class RowIteratorImpl implements RowIteratorBase {
           break;
 
         case CellType.CELL_FLOAT64:
-          rowData[colName] = this.float64Cells[this.nextFloat64Cell++];
+          rowData[colName] = this.float64Cells[this.nextFloat64Cell++]!;
           break;
 
         case CellType.CELL_STRING:
-          rowData[colName] = this.stringCells[this.nextStringCell++];
+          rowData[colName] = this.stringCells[this.nextStringCell++]!;
           break;
 
         case CellType.CELL_BLOB:
-          const blob = this.blobCells[this.nextBlobCell++];
+          const blob = this.blobCells[this.nextBlobCell++]!;
           rowData[colName] = blob;
           break;
 
@@ -1472,7 +1475,7 @@ class RowIteratorImpl implements RowIteratorBase {
       // If undefined, the caller doesn't want to read this column at all, so
       // it can be whatever.
       if (expType === undefined) continue;
-      if (trustMasks && isMaskCompatible(seen[c], expType)) continue;
+      if (trustMasks && isMaskCompatible(seen[c]!, expType)) continue;
       this.checkColumnCellTypes(c, expType, numColumns);
     }
     return true;
@@ -1493,7 +1496,7 @@ class RowIteratorImpl implements RowIteratorBase {
       numColumns,
       col,
       expType,
-      this.columnNames[col],
+      ensureDefined(this.columnNames[col]),
       0,
       this.resultObj.errorInfo,
     );

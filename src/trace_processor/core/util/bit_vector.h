@@ -349,6 +349,18 @@ struct BitVector {
     }
   }
 
+  // ORs the low `n` bits of `word`, whose other bits are clear, into bits
+  // [at, at + n).
+  PERFETTO_ALWAYS_INLINE void OrBits(uint64_t at, uint64_t word, uint64_t n) {
+    PERFETTO_DCHECK(n <= 64 && at + n <= size_);
+    PERFETTO_DCHECK(n == 64 || (word >> n) == 0);
+    uint64_t shift = at % 64;
+    words_[at / 64] |= word << shift;
+    if (shift && shift + n > 64) {
+      words_[at / 64 + 1] |= word >> (64 - shift);
+    }
+  }
+
   // Clears all bits in the vector, resetting it to an empty state.
   void clear() {
     words_.clear();

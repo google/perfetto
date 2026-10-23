@@ -29,6 +29,6 @@ source_set("counter_mipmap_operator") {
     "../../core/plugin",
     "../../perfetto_sql/engine",
     "../../sqlite",
-    "../../util:galloping_search",
+    "../../util:sorted_search",
   ]
 }

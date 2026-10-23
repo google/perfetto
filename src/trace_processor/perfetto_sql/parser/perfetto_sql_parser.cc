@@ -348,6 +348,49 @@ uint32_t CurrentStatementDocOffset(SyntaqliteParser* p) {
   return doc_offset;
 }
 
+bool IsPipeline(SyntaqliteParser* p, uint32_t id) {
+  if (!syntaqlite_node_is_present(id)) {
+    return false;
+  }
+  const auto* node =
+      static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(p, id));
+  return node->tag == SYNTAQLITE_NODE_PERFETTO_PIPELINE;
+}
+
+// The grammar accepts a pipeline wherever SQLite accepts a select, so that
+// one rule serves every position. A pipeline is only supported as a whole
+// statement, the body of CREATE PERFETTO TABLE, or the source of another
+// pipeline, so reject it anywhere else.
+base::Status CheckPipelinePositions(SyntaqliteParser* p,
+                                    const RewriteTree& rb,
+                                    uint32_t root,
+                                    const SyntaqliteNode* node) {
+  std::vector<uint32_t> allowed = {root};
+  if (node->tag == SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT) {
+    allowed[0] = node->create_perfetto_table_stmt.select;
+  }
+  uint32_t count = syntaqlite_parser_node_count(p);
+  for (uint32_t id = 0; id < count; ++id) {
+    const auto* n =
+        static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(p, id));
+    if (n->tag == SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE &&
+        IsPipeline(p, n->perfetto_pipe_source.select)) {
+      allowed.push_back(n->perfetto_pipe_source.select);
+    }
+  }
+  for (uint32_t id = 0; id < count; ++id) {
+    if (IsPipeline(p, id) &&
+        std::find(allowed.begin(), allowed.end(), id) == allowed.end()) {
+      return NodeSource(rb, id).AddTraceback(
+          0, base::ErrStatus(
+                 "A pipeline can only be a whole statement, the body of "
+                 "CREATE PERFETTO TABLE or the source of another pipeline: "
+                 "it cannot be used inside SQL"));
+    }
+  }
+  return base::OkStatus();
+}
+
 base::StatusOr<pipeline::LogicalPlan> CompilePipeline(
     SyntaqliteParser* p,
     const RewriteTree& rb,
@@ -369,10 +412,10 @@ base::StatusOr<PerfettoSqlParser::CreateTable::Body> ParseCreateTableBody(
     const pipeline::Catalog* catalog,
     const SyntaqliteCreatePerfettoTableStmt& n) {
   using Body = PerfettoSqlParser::CreateTable::Body;
-  if (!syntaqlite_node_is_present(n.pipeline)) {
+  if (!IsPipeline(p, n.select)) {
     return Body(NodeSource(rb, n.select));
   }
-  ASSIGN_OR_RETURN(auto plan, CompilePipeline(p, rb, catalog, n.pipeline));
+  ASSIGN_OR_RETURN(auto plan, CompilePipeline(p, rb, catalog, n.select));
   return Body(std::move(plan));
 }
 
@@ -548,6 +591,7 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
   // Cast to int to suppress -Wswitch-enum: we intentionally handle only
   // Perfetto-dialect node types; all SQLite statement types fall through to
   // the default case and are returned as SqliteSql{}.
+  RETURN_IF_ERROR(CheckPipelinePositions(p, rb, root, node));
   switch (static_cast<int>(node->tag)) {
     case SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT:
       return ParseCreateTable(p, rb, catalog, node->create_perfetto_table_stmt);

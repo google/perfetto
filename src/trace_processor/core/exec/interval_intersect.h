@@ -22,28 +22,11 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
 namespace perfetto::trace_processor::core::exec {
-
-// One operand of an intersection: where its rows come from and which of its
-// columns carry the interval and the key.
-struct IntervalIntersectOperand {
-  // Read in full before any region is found.
-  const Source* source = nullptr;
-  // Flat Int64 columns of `source`'s batches.
-  uint32_t ts_column = 0;
-  uint32_t dur_column = 0;
-  // Compared pairwise across the operands, in this order.
-  std::vector<uint32_t> key_columns;
-  // The column holding each row's group number. Only used if there are keys.
-  // A group's rows arrive together, sorted by ts.
-  uint32_t group_column = 0;
-  // The columns kept for output, in this order. Any others are read only to
-  // find the regions and are never buffered.
-  std::vector<uint32_t> retained_columns;
-};
 
 // Emits a row over each region every operand covers.
 //
@@ -65,9 +48,10 @@ class IntervalIntersect : public Source {
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
 
-  // Every operand's source must outlive this. Two are the fewest which can
-  // have a region in common.
-  explicit IntervalIntersect(std::vector<IntervalIntersectOperand>);
+  // Each operand is read in full before any region is found, and their keys
+  // are compared pairwise, in order. Every operand's source must outlive
+  // this. Two are the fewest which can have a region in common.
+  explicit IntervalIntersect(std::vector<CollectedInputSpec>);
   ~IntervalIntersect() override;
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
@@ -78,7 +62,7 @@ class IntervalIntersect : public Source {
  private:
   friend class PipelineFormatter;
 
-  std::vector<IntervalIntersectOperand> operands_;
+  std::vector<CollectedInputSpec> operands_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

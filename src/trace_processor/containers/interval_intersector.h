@@ -25,6 +25,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "src/trace_processor/containers/interval_tree.h"
@@ -61,13 +62,18 @@ class IntervalIntersector {
   // copies the vector of intervals.
   explicit IntervalIntersector(const std::vector<Interval>& sorted_intervals,
                                Mode mode)
-      : intervals_(sorted_intervals), mode_(mode) {
-    if (sorted_intervals.empty()) {
+      : IntervalIntersector(sorted_intervals.data(),
+                            sorted_intervals.size(),
+                            mode) {}
+
+  IntervalIntersector(const Interval* sorted_intervals, size_t size, Mode mode)
+      : begin_(sorted_intervals), end_(sorted_intervals + size), mode_(mode) {
+    if (size == 0) {
       mode_ = kBinarySearch;
       return;
     }
     if (mode_ == kIntervalTree) {
-      tree = std::make_unique<IntervalTree>(intervals_);
+      tree = std::make_unique<IntervalTree>(sorted_intervals, size);
     }
   }
 
@@ -107,12 +113,12 @@ class IntervalIntersector {
 
     if (mode_ == kBinarySearch) {
       // Find the first interval that ends at or after |s|.
-      auto it = std::lower_bound(intervals_.begin(), intervals_.end(), s,
+      auto it = std::lower_bound(begin_, end_, s,
                                  [](const Interval& interval, uint64_t start) {
                                    return interval.end < start;
                                  });
       // The previous interval could also overlap.
-      if (it != intervals_.begin()) {
+      if (it != begin_) {
         --it;
       }
 
@@ -120,7 +126,7 @@ class IntervalIntersector {
         // For instant queries, we are interested in intervals that contain
         // |s|, so we can stop once we are past |s|. For range queries, we can
         // stop once the interval starts after the end of the query.
-        for (; it != intervals_.end(); ++it) {
+        for (; it != end_; ++it) {
           if (it->start > s) {
             break;
           }
@@ -129,7 +135,7 @@ class IntervalIntersector {
         return;
       }
 
-      for (; it != intervals_.end(); ++it) {
+      for (; it != end_; ++it) {
         if (it->start >= e) {
           break;
         }
@@ -139,8 +145,8 @@ class IntervalIntersector {
     }
 
     PERFETTO_CHECK(mode_ == kLinearScan);
-    for (const auto& interval : intervals_) {
-      handle_overlap(interval);
+    for (const Interval* it = begin_; it != end_; ++it) {
+      handle_overlap(*it);
     }
   }
 
@@ -184,6 +190,8 @@ class IntervalIntersector {
       Ts max_start = 0;
       Ts min_end = std::numeric_limits<Ts>::max();
       Ts min_inclusive_end = std::numeric_limits<Ts>::max();
+      // Over a few tables, which vector instructions do not speed up.
+      PERFETTO_NO_VECTORIZE_LOOP
       for (size_t i = 0; i < tables_count; ++i) {
         max_start = std::max(max_start, cur[i]->start);
         min_end = std::min(min_end, cur[i]->end);
@@ -192,6 +200,7 @@ class IntervalIntersector {
 
       // All current intervals overlap, so emit their overlap
       if (max_start <= min_inclusive_end) {
+        PERFETTO_NO_VECTORIZE_LOOP
         for (size_t i = 0; i < tables_count; ++i) {
           ids[i] = cur[i]->id;
         }
@@ -225,7 +234,8 @@ class IntervalIntersector {
   }
 
  private:
-  const std::vector<Interval>& intervals_;
+  const Interval* begin_;
+  const Interval* end_;
   Mode mode_;
 
   // If |use_interval_tree_|.

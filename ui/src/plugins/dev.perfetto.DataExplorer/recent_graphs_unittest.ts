@@ -45,7 +45,7 @@ describe('RecentGraphsStorage', () => {
     test('should allow setting data directly', () => {
       recentGraphsStorage.data = [createEntry(3)];
       expect(recentGraphsStorage.data.length).toBe(1);
-      expect(recentGraphsStorage.data[0].nodeCount).toBe(3);
+      expect(recentGraphsStorage.data[0]!.nodeCount).toBe(3);
     });
   });
 
@@ -70,8 +70,8 @@ describe('RecentGraphsStorage', () => {
 
       // Should now have 2 entries: new working slot at 0, finalized graph at 1
       expect(recentGraphsStorage.data.length).toBe(2);
-      expect(recentGraphsStorage.data[0].nodeCount).toBe(0); // New empty working slot
-      expect(recentGraphsStorage.data[1].nodeCount).toBe(3); // Finalized graph
+      expect(recentGraphsStorage.data[0]!.nodeCount).toBe(0); // New empty working slot
+      expect(recentGraphsStorage.data[1]!.nodeCount).toBe(3); // Finalized graph
     });
 
     test('should enforce maxItems limit for unstarred graphs', () => {
@@ -165,14 +165,14 @@ describe('RecentGraphsStorage', () => {
       recentGraphsStorage.data = [createEntry(2)];
       recentGraphsStorage.setStarred(0, true);
 
-      expect(recentGraphsStorage.data[0].starred).toBe(true);
+      expect(recentGraphsStorage.data[0]!.starred).toBe(true);
     });
 
     test('should unstar a graph', () => {
       recentGraphsStorage.data = [createEntry(2, {starred: true})];
       recentGraphsStorage.setStarred(0, false);
 
-      expect(recentGraphsStorage.data[0].starred).toBe(false);
+      expect(recentGraphsStorage.data[0]!.starred).toBe(false);
     });
   });
 
@@ -181,21 +181,21 @@ describe('RecentGraphsStorage', () => {
       recentGraphsStorage.data = [createEntry(2)];
       recentGraphsStorage.rename(0, 'My Custom Name');
 
-      expect(recentGraphsStorage.data[0].name).toBe('My Custom Name');
+      expect(recentGraphsStorage.data[0]!.name).toBe('My Custom Name');
     });
 
     test('should trim whitespace from name', () => {
       recentGraphsStorage.data = [createEntry(2)];
       recentGraphsStorage.rename(0, '  Trimmed Name  ');
 
-      expect(recentGraphsStorage.data[0].name).toBe('Trimmed Name');
+      expect(recentGraphsStorage.data[0]!.name).toBe('Trimmed Name');
     });
 
     test('should keep original name if new name is empty', () => {
       recentGraphsStorage.data = [createEntry(2, {name: 'Original'})];
       recentGraphsStorage.rename(0, '   ');
 
-      expect(recentGraphsStorage.data[0].name).toBe('Original');
+      expect(recentGraphsStorage.data[0]!.name).toBe('Original');
     });
   });
 
@@ -227,7 +227,7 @@ describe('RecentGraphsStorage', () => {
       recentGraphsStorage.remove(2); // Remove middle entry
 
       expect(recentGraphsStorage.data.length).toBe(initialLength - 1);
-      expect(recentGraphsStorage.data[2].nodeCount).toBe(1); // Last entry moved up
+      expect(recentGraphsStorage.data[2]!.nodeCount).toBe(1); // Last entry moved up
     });
 
     test('should remove first entry', () => {
@@ -235,7 +235,7 @@ describe('RecentGraphsStorage', () => {
       recentGraphsStorage.remove(0);
 
       expect(recentGraphsStorage.data.length).toBe(1);
-      expect(recentGraphsStorage.data[0].nodeCount).toBe(2);
+      expect(recentGraphsStorage.data[0]!.nodeCount).toBe(2);
     });
 
     test('should remove last entry', () => {
@@ -243,7 +243,7 @@ describe('RecentGraphsStorage', () => {
       recentGraphsStorage.remove(1);
 
       expect(recentGraphsStorage.data.length).toBe(1);
-      expect(recentGraphsStorage.data[0].nodeCount).toBe(1);
+      expect(recentGraphsStorage.data[0]!.nodeCount).toBe(1);
     });
   });
 
@@ -323,7 +323,7 @@ describe('RecentGraphsStorage', () => {
       );
 
       expect(starred.length).toBe(1);
-      expect(starred[0].nodeCount).toBe(2);
+      expect(starred[0]!.nodeCount).toBe(2);
       expect(unstarred.length).toBe(2);
     });
   });

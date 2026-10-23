@@ -250,7 +250,9 @@ export function checkHotkey(
 
 // Return true if |key| matches the event's key.
 function compareKeys(e: KeyboardEventLike, key: Key): boolean {
-  return e.key.toLowerCase() === key.toLowerCase();
+  // The space bar reports ' ' rather than its name.
+  const eventKey = e.key === ' ' ? 'Space' : e.key;
+  return eventKey.toLowerCase() === key.toLowerCase();
 }
 
 // Return true if modifiers specified in |mods| match those in the event.
