@@ -68,64 +68,65 @@ namespace perfetto::trace_processor {
 namespace {
 
 const char* MapToFriendlyPowerRailName(base::StringView raw) {
-  if (raw.EndsWith("M_VDD_CPUCL0")) {
+  if (base::EndsWith(raw, "M_VDD_CPUCL0")) {
     return "cpu.little";
-  } else if (raw.EndsWith("M_VDD_CPUCL0_M")) {
+  } else if (base::EndsWith(raw, "M_VDD_CPUCL0_M")) {
     return "cpu.little.mem";
-  } else if (raw.EndsWith("M_VDD_CPUCL1")) {
+  } else if (base::EndsWith(raw, "M_VDD_CPUCL1")) {
     return "cpu.mid";
-  } else if (raw.EndsWith("M_VDD_CPUCL1_M")) {
+  } else if (base::EndsWith(raw, "M_VDD_CPUCL1_M")) {
     return "cpu.mid.mem";
-  } else if (raw.EndsWith("M_VDD_CPUCL2")) {
+  } else if (base::EndsWith(raw, "M_VDD_CPUCL2")) {
     return "cpu.big";
-  } else if (raw.EndsWith("M_VDD_INT")) {
+  } else if (base::EndsWith(raw, "M_VDD_INT")) {
     return "system.fabric";
-  } else if (raw.EndsWith("M_VDD_TPU")) {
+  } else if (base::EndsWith(raw, "M_VDD_TPU")) {
     return "tpu";
-  } else if (raw.EndsWith("VSYS_PWR_DISP") ||
-             raw.EndsWith("VSYS_PWR_DISPLAY")) {
+  } else if (base::EndsWith(raw, "VSYS_PWR_DISP") ||
+             base::EndsWith(raw, "VSYS_PWR_DISPLAY")) {
     return "display";
-  } else if (raw.EndsWith("M_DISP")) {
+  } else if (base::EndsWith(raw, "M_DISP")) {
     return "ldo.main.a.display";
-  } else if (raw.EndsWith("VSYS_PWR_MODEM")) {
+  } else if (base::EndsWith(raw, "VSYS_PWR_MODEM")) {
     return "modem";
-  } else if (raw.EndsWith("M_VDD_MIF")) {
+  } else if (base::EndsWith(raw, "M_VDD_MIF")) {
     return "memory.interface";
-  } else if (raw.EndsWith("VSYS_PWR_WLAN_BT")) {
+  } else if (base::EndsWith(raw, "VSYS_PWR_WLAN_BT")) {
     return "wifi.bt";
-  } else if (raw.EndsWith("VSYS_PWR_MMWAVE")) {
+  } else if (base::EndsWith(raw, "VSYS_PWR_MMWAVE")) {
     return "mmwave";
-  } else if (raw.EndsWith("S_VDD_AOC_RET")) {
+  } else if (base::EndsWith(raw, "S_VDD_AOC_RET")) {
     return "aoc.memory";
-  } else if (raw.EndsWith("S_VDD_AOC")) {
+  } else if (base::EndsWith(raw, "S_VDD_AOC")) {
     return "aoc.logic";
-  } else if (raw.EndsWith("S_VDDQ_MEM")) {
+  } else if (base::EndsWith(raw, "S_VDDQ_MEM")) {
     return "ddr.a";
-  } else if (raw.EndsWith("S_VDD2L") || raw.EndsWith("S_VDD2L_MEM")) {
+  } else if (base::EndsWith(raw, "S_VDD2L") ||
+             base::EndsWith(raw, "S_VDD2L_MEM")) {
     return "ddr.b";
-  } else if (raw.EndsWith("S_VDD2H_MEM")) {
+  } else if (base::EndsWith(raw, "S_VDD2H_MEM")) {
     return "ddr.c";
-  } else if (raw.EndsWith("S_VDD_G3D")) {
+  } else if (base::EndsWith(raw, "S_VDD_G3D")) {
     return "gpu";
-  } else if (raw.EndsWith("S_VDD_G3D_L2")) {
+  } else if (base::EndsWith(raw, "S_VDD_G3D_L2")) {
     return "gpu.l2";
-  } else if (raw.EndsWith("S_GNSS_CORE")) {
+  } else if (base::EndsWith(raw, "S_GNSS_CORE")) {
     return "gps";
-  } else if (raw.EndsWith("VSYS_PWR_RFFE")) {
+  } else if (base::EndsWith(raw, "VSYS_PWR_RFFE")) {
     return "radio.frontend";
-  } else if (raw.EndsWith("VSYS_PWR_CAMERA")) {
+  } else if (base::EndsWith(raw, "VSYS_PWR_CAMERA")) {
     return "camera";
-  } else if (raw.EndsWith("S_VDD_CAM")) {
+  } else if (base::EndsWith(raw, "S_VDD_CAM")) {
     return "multimedia";
-  } else if (raw.EndsWith("S_UDFPS")) {
+  } else if (base::EndsWith(raw, "S_UDFPS")) {
     return "udfps";
-  } else if (raw.EndsWith("S_PLL_MIPI_UFS")) {
+  } else if (base::EndsWith(raw, "S_PLL_MIPI_UFS")) {
     return "ufs";
-  } else if (raw.EndsWith("M_LLDO1")) {
+  } else if (base::EndsWith(raw, "M_LLDO1")) {
     return "ldo.main.a";
-  } else if (raw.EndsWith("M_LLDO2")) {
+  } else if (base::EndsWith(raw, "M_LLDO2")) {
     return "ldo.main.b";
-  } else if (raw.EndsWith("S_LLDO1")) {
+  } else if (base::EndsWith(raw, "S_LLDO1")) {
     return "ldo.sub";
   }
   return nullptr;
@@ -644,7 +645,7 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
             tracks::StringDimensionBlueprint("sysprop_name")),
         tracks::DynamicNameBlueprint());
 
-    if (name.StartsWith("debug.tracing.battery_stats.")) {
+    if (base::StartsWith(name, "debug.tracing.battery_stats.")) {
       // Track name and definition should be kept in sync with
       // systrace_parser.cc
       TrackId track = context_->track_tracker->InternTrack(

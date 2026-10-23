@@ -43,23 +43,23 @@ bool IsValidColumnName(base::StringView str) {
 }
 
 std::optional<Type> ParseType(base::StringView str) {
-  if (str.CaseInsensitiveEq("bool")) {
+  if (base::CaseInsensitiveEqual(str, "bool")) {
     return Type::kBool;
   }
-  if (str.CaseInsensitiveOneOf({"long", "timestamp", "duration", "id", "joinid",
-                                "argsetid", "int", "uint"})) {
+  if (base::CaseInsensitiveOneOf(str, {"long", "timestamp", "duration", "id",
+                                       "joinid", "argsetid", "int", "uint"})) {
     return Type::kLong;
   }
-  if (str.CaseInsensitiveOneOf({"double", "float"})) {
+  if (base::CaseInsensitiveOneOf(str, {"double", "float"})) {
     return Type::kDouble;
   }
-  if (str.CaseInsensitiveEq("string")) {
+  if (base::CaseInsensitiveEqual(str, "string")) {
     return Type::kString;
   }
-  if (str.CaseInsensitiveOneOf({"bytes", "proto"})) {
+  if (base::CaseInsensitiveOneOf(str, {"bytes", "proto"})) {
     return Type::kBytes;
   }
-  if (str.CaseInsensitiveEq("any")) {
+  if (base::CaseInsensitiveEqual(str, "any")) {
     return Type::kAny;
   }
   return std::nullopt;

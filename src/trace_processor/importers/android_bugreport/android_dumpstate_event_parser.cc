@@ -268,7 +268,7 @@ base::Status AndroidDumpstateEventParser::ProcessBatteryStatsHistoryItem(
 base::StatusOr<bool>
 AndroidDumpstateEventParser::ProcessBatteryStatsHistoryEvent(
     const TokenizedBatteryStatsHistoryItem& item) {
-  if (!item.key.StartsWith("E")) {
+  if (!base::StartsWith(item.key, "E")) {
     return false;
   }
   // Process a history event
@@ -351,7 +351,8 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryState(
 base::StatusOr<bool>
 AndroidDumpstateEventParser::ProcessBatteryStatsHistoryBatteryCounter(
     const TokenizedBatteryStatsHistoryItem& item) {
-  if (!item.prefix.empty() || item.value.empty() || !item.key.StartsWith("B")) {
+  if (!item.prefix.empty() || item.value.empty() ||
+      !base::StartsWith(item.key, "B")) {
     return false;
   }
   // AndroidProbesParser will use the empty string for the battery name if no

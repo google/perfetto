@@ -334,7 +334,7 @@ void SystraceParser::ParseSystracePoint(
       } else if (point.name == "PlugType") {
         promoted = context_->track_tracker->InternTrack(
             tracks::kAndroidPlugTypeBlueprint);
-      } else if (point.name.StartsWith("battery_stats.")) {
+      } else if (base::StartsWith(point.name, "battery_stats.")) {
         // Promote battery_stats conters to global tracks.
         // Track name and definition should be kept in sync with
         // android_probes_parser.cc
@@ -372,7 +372,7 @@ void SystraceParser::ParseSystracePoint(
 
 void SystraceParser::PostProcessSpecialSliceBegin(int64_t ts,
                                                   base::StringView name) {
-  if (name.StartsWith("lmk,")) {
+  if (base::StartsWith(name, "lmk,")) {
     // LMK events introduced with http://aosp/1782391 are treated specially
     // to parse the killed process oom_score_adj out of them.
     // Format is 'lmk,pid,reason,oom adj,...'

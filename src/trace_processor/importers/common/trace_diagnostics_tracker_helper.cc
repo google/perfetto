@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -104,14 +105,14 @@ bool TraceDiagnosticsHelper::HasFtraceCpuDataLoss() const {
 bool TraceDiagnosticsHelper::HasTracedDataLoss() const {
   return AnyPositiveStat(context_, [](size_t key) {
     return stats::kSeverities[key] == stats::kDataLoss &&
-           base::StringView(stats::kNames[key]).StartsWith("traced_");
+           base::StartsWith(base::StringView(stats::kNames[key]), "traced_");
   });
 }
 
 bool TraceDiagnosticsHelper::HasHeapprofdErrorStats() const {
   return AnyPositiveStat(context_, [](size_t key) {
     return stats::kSeverities[key] == stats::kError &&
-           base::StringView(stats::kNames[key]).StartsWith("heapprofd");
+           base::StartsWith(base::StringView(stats::kNames[key]), "heapprofd");
   });
 }
 
@@ -141,7 +142,8 @@ bool TraceDiagnosticsHelper::HasVideoErrorStats() const {
   return AnyPositiveStat(context_, [](size_t key) {
     return (stats::kSeverities[key] == stats::kError ||
             stats::kSeverities[key] == stats::kDataLoss) &&
-           base::StringView(stats::kNames[key]).StartsWith("android_video_");
+           base::StartsWith(base::StringView(stats::kNames[key]),
+                            "android_video_");
   });
 }
 

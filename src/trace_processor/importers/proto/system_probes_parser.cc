@@ -254,7 +254,7 @@ const char* GetSmapsKey(uint32_t field_id) {
 }
 
 base::StringView MaybeTruncateKworkerName(base::StringView comm) {
-  if (comm.StartsWith("kworker/")) {
+  if (base::StartsWith(comm, "kworker/")) {
     size_t delim_loc = std::min(comm.find('+', 8), comm.find('-', 8));
     if (delim_loc != base::StringView::npos) {
       return comm.substr(0, delim_loc);
