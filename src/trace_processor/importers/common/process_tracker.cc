@@ -64,6 +64,7 @@ ProcessTracker::ProcessTracker(TraceProcessorContext* context)
 
   swapper_upid_ = upid;
   swapper_utid_ = utid;
+  process_threads_[swapper_upid_].push_back(swapper_utid_);
 
   // An element to match the reserved tid = 0.
   thread_name_priorities_.push_back(ThreadNamePriority::kOther);
@@ -81,7 +82,6 @@ UniqueTid ProcessTracker::StartNewThread(std::optional<int64_t> timestamp,
   auto* thread_table = context_->storage->mutable_thread_table();
   UniqueTid new_utid = thread_table->Insert(row).row;
   tids_[tid].emplace_back(new_utid);
-  live_tid_[tid] = new_utid;
 
   if (PERFETTO_UNLIKELY(thread_name_priorities_.size() <= new_utid)) {
     // This condition can happen in a multi-machine tracing session:
@@ -117,10 +117,7 @@ void ProcessTracker::EndThread(int64_t timestamp, int64_t tid) {
 
   // Remove the thread from the list of threads being tracked as any event after
   // this one should be ignored.
-  auto& vector = tids_[tid];
-  vector.erase(std::remove(vector.begin(), vector.end(), utid), vector.end());
-
-  RefreshLiveTid(tid);
+  EraseFromTids(tid, utid);
 
   auto opt_upid = td.upid();
   if (!opt_upid) {
@@ -145,7 +142,13 @@ void ProcessTracker::EndThread(int64_t timestamp, int64_t tid) {
 }
 
 std::optional<UniqueTid> ProcessTracker::GetThreadOrNull(int64_t tid) {
-  return GetThreadOrNull(tid, std::nullopt);
+  auto* vec = tids_.Find(tid);
+  if (!vec) {
+    return std::nullopt;
+  }
+  PERFETTO_DCHECK(!vec->empty());
+  PERFETTO_DCHECK(IsThreadAlive(vec->back()));
+  return vec->back();
 }
 
 UniqueTid ProcessTracker::GetOrCreateThread(int64_t tid) {
@@ -159,23 +162,34 @@ UniqueTid ProcessTracker::GetOrCreateThreadWithParentInternal(
     bool is_main_thread,
     bool associate_main_threads) {
   auto& thread_table = *context_->storage->mutable_thread_table();
-  auto& process_table = *context_->storage->mutable_process_table();
 
-  auto ps = process_table[upid];
+  // Iterate backwards through the live incarnations of |tid| so ones seen more
+  // recently are preferred.
+  std::optional<UniqueTid> opt_utid;
+  if (auto* vec = tids_.Find(tid); vec) {
+    for (size_t i = vec->size(); i > 0; --i) {
+      UniqueTid current_utid = (*vec)[i - 1];
+      auto rr = thread_table[current_utid];
+      PERFETTO_DCHECK(rr.tid() == tid);
+      PERFETTO_DCHECK(rr.machine_id() == context_->machine_id());
+      PERFETTO_DCHECK(IsThreadAlive(current_utid));
 
-  auto opt_utid = GetThreadOrNull(tid, ps.pid());
-  UniqueTid utid = opt_utid ? *opt_utid : StartNewThread(std::nullopt, tid);
-
-  // When an existing thread is reaffirmed with its parent process, update
-  // the live_tid_ cache and move it to the back of tids_ so subsequent
-  // bare lookups and RefreshLiveTid() calls resolve to this active thread.
-  if (opt_utid.has_value()) {
-    live_tid_[tid] = utid;
-    if (auto* vec = tids_.Find(tid); vec && vec->back() != utid) {
-      vec->erase(std::remove(vec->begin(), vec->end(), utid), vec->end());
-      vec->push_back(utid);
+      // If the thread has no parent process yet, or already belongs to |upid|,
+      // select it and move it to the back of |tids_| so subsequent bare lookups
+      // resolve to this active thread.
+      auto opt_current_upid = rr.upid();
+      if (!opt_current_upid || *opt_current_upid == upid) {
+        opt_utid = current_utid;
+        if (i != vec->size()) {
+          std::rotate(vec->begin() + static_cast<ptrdiff_t>(i - 1),
+                      vec->begin() + static_cast<ptrdiff_t>(i), vec->end());
+        }
+        break;
+      }
     }
   }
+
+  UniqueTid utid = opt_utid ? *opt_utid : StartNewThread(std::nullopt, tid);
 
   auto td = thread_table[utid];
   PERFETTO_DCHECK(td.tid() == tid);
@@ -184,8 +198,8 @@ UniqueTid ProcessTracker::GetOrCreateThreadWithParentInternal(
 
   if (!td.upid().has_value()) {
     AssociateThreadToProcessInternal(utid, upid, is_main_thread);
+    ResolvePendingAssociations(utid, upid, associate_main_threads);
   }
-  ResolvePendingAssociations(utid, *td.upid(), associate_main_threads);
 
   return utid;
 }
@@ -244,65 +258,18 @@ bool ProcessTracker::IsThreadAlive(UniqueTid utid) {
   return !pid_it || *pid_it == current_upid;
 }
 
-std::optional<UniqueTid> ProcessTracker::GetThreadOrNull(
-    int64_t tid,
-    std::optional<int64_t> pid) {
-  // Hot path: bare lookups are a single cache probe.
-  if (!pid) {
-    auto* live = live_tid_.Find(tid);
-    return live ? std::make_optional(*live) : std::nullopt;
+void ProcessTracker::EraseFromTids(int64_t tid, UniqueTid utid) {
+  auto* vec = tids_.Find(tid);
+  if (!vec) {
+    return;
   }
-
-  auto& threads = *context_->storage->mutable_thread_table();
-  auto& processes = *context_->storage->mutable_process_table();
-
-  auto* vector_it = tids_.Find(tid);
-  if (!vector_it)
-    return std::nullopt;
-
-  // Iterate backwards through the threads so ones later in the trace are more
-  // likely to be picked.
-  const auto& vector = *vector_it;
-  for (auto it = vector.rbegin(); it != vector.rend(); it++) {
-    UniqueTid current_utid = *it;
-    auto rr = threads[current_utid];
-
-    // Ensure that the tid matches the tid we were looking for.
-    PERFETTO_DCHECK(rr.tid() == tid);
-    // Ensure that the thread's machine ID matches the context's machine ID.
-    PERFETTO_DCHECK(rr.machine_id() == context_->machine_id());
-    // If we finished this thread, we should have removed it from the vector
-    // entirely.
-    PERFETTO_DCHECK(!rr.end_ts().has_value());
-
-    // If the thread is dead, ignore it.
-    if (!IsThreadAlive(current_utid))
-      continue;
-
-    // If we don't know the parent process, we have to choose this thread.
-    auto opt_current_upid = rr.upid();
-    if (!opt_current_upid)
-      return current_utid;
-
-    // We found a thread that matches both the tid and its parent pid.
-    auto prr = processes[*opt_current_upid];
-    int64_t current_pid = prr.pid();
-    if (!pid || current_pid == *pid)
-      return current_utid;
+  auto* it = std::remove(vec->begin(), vec->end(), utid);
+  if (it != vec->end()) {
+    vec->pop_back();
   }
-  return std::nullopt;
-}
-
-void ProcessTracker::RefreshLiveTid(int64_t tid) {
-  if (auto* vec = tids_.Find(tid); vec) {
-    for (auto it = vec->rbegin(); it != vec->rend(); ++it) {
-      if (IsThreadAlive(*it)) {
-        live_tid_[tid] = *it;
-        return;
-      }
-    }
+  if (vec->empty()) {
+    tids_.Erase(tid);
   }
-  live_tid_.Erase(tid);
 }
 
 void ProcessTracker::InvalidateProcessThreads(UniquePid upid) {
@@ -311,8 +278,9 @@ void ProcessTracker::InvalidateProcessThreads(UniquePid upid) {
     return;
   auto& thread_table = *context_->storage->mutable_thread_table();
   for (UniqueTid utid : *threads) {
-    RefreshLiveTid(thread_table[utid].tid());
+    EraseFromTids(thread_table[utid].tid(), utid);
   }
+  process_threads_.Erase(upid);
 }
 
 UniqueTid ProcessTracker::UpdateThread(int64_t tid, int64_t pid) {
@@ -370,18 +338,16 @@ UniquePid ProcessTracker::StartNewProcessInternal(
     StringId process_name,
     ThreadNamePriority priority,
     bool associate_main_thread) {
-  // Any process previously mapped to |pid| is superseded; invalidate its
-  // threads once the new mapping is in place (end of function).
-  std::optional<UniquePid> recycled_upid;
+  // Any process previously mapped to |pid| is superseded; remove its threads
+  // from |tids_| and |process_threads_|.
   if (auto* prev = pids_.Find(pid); prev) {
-    recycled_upid = *prev;
+    InvalidateProcessThreads(*prev);
+    pids_.Erase(pid);
   }
-  pids_.Erase(pid);
 
   // Same pid is never used concurrently by multiple processes, therefore remove
-  // the tid completely
+  // the tid completely.
   tids_.Erase(pid);
-  live_tid_.Erase(pid);
 
   // Note that we erased the pid above so this should always return a new
   // process.
@@ -409,9 +375,6 @@ UniquePid ProcessTracker::StartNewProcessInternal(
     prr.set_parent_upid(*parent_upid);
   }
 
-  if (recycled_upid) {
-    InvalidateProcessThreads(*recycled_upid);
-  }
   return upid;
 }
 
@@ -740,8 +703,10 @@ void ProcessTracker::SetIdleThread(UniqueTid utid, bool is_idle) {
 
 void ProcessTracker::SetPidZeroIsUpidZeroIdleProcess() {
   // Create a mapping from (t|p)id 0 -> u(t|p)id for the idle process.
-  tids_.Insert(0, std::vector<UniqueTid>{swapper_utid_});
-  live_tid_[0] = swapper_utid_;
+  auto [it, inserted] = tids_.Insert(0, base::SmallVector<UniqueTid, 1>());
+  if (inserted) {
+    it->emplace_back(swapper_utid_);
+  }
   pids_.Insert(0, swapper_upid_);
 
   auto swapper_id = context_->storage->InternString("swapper");
@@ -783,7 +748,6 @@ void ProcessTracker::OnEventsFullyExtracted() {
   thread_args_.Clear();
 
   tids_.Clear();
-  live_tid_.Clear();
   process_threads_.Clear();
   pids_.Clear();
   pending_assocs_.clear();

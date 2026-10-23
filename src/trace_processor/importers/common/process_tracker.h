@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -76,7 +77,7 @@ class ProcessTracker {
   ProcessTracker& operator=(const ProcessTracker&) = delete;
   virtual ~ProcessTracker();
 
-  using UniqueThreadIterator = std::vector<UniqueTid>::const_iterator;
+  using UniqueThreadIterator = const UniqueTid*;
   using UniqueThreadBounds =
       std::pair<UniqueThreadIterator, UniqueThreadIterator>;
 
@@ -229,8 +230,11 @@ class ProcessTracker {
   // Returns the bounds of a range that includes all UniqueTids that have the
   // requested tid.
   UniqueThreadBounds UtidsForTidForTesting(int64_t tid) {
-    const auto& deque = tids_[tid];
-    return std::make_pair(deque.begin(), deque.end());
+    auto* vec = tids_.Find(tid);
+    if (!vec) {
+      return std::make_pair(nullptr, nullptr);
+    }
+    return std::make_pair(vec->begin(), vec->end());
   }
 
   // Marks the two threads as belonging to the same process, even if we don't
@@ -273,17 +277,11 @@ class ProcessTracker {
   UniqueTid swapper_utid() const { return swapper_utid_; }
 
  private:
-  // Returns the utid of a thread having |tid| and |pid| as the parent process.
-  // pid == std::nullopt matches all processes.
-  // Returns std::nullopt if such a thread doesn't exist.
-  std::optional<uint32_t> GetThreadOrNull(int64_t tid,
-                                          std::optional<int64_t> pid);
+  // Removes |utid| from |tids_[tid]|, erasing the |tid| entry if no live
+  // incarnations remain.
+  void EraseFromTids(int64_t tid, UniqueTid utid);
 
-  // Repoints live_tid_[tid] at the newest alive incarnation in |tids_| (or
-  // erases it). Cold path: lifecycle transitions only.
-  void RefreshLiveTid(int64_t tid);
-
-  // Refreshes live_tid_ for every thread of |upid|, when it ends or is
+  // Removes every thread of |upid| from |tids_| when |upid| ends or is
   // recycled.
   void InvalidateProcessThreads(UniquePid upid);
 
@@ -329,20 +327,13 @@ class ProcessTracker {
   base::FlatHashMap<UniquePid, ArgsTracker::BoundInserter> process_args_;
   base::FlatHashMap<UniqueTid, ArgsTracker::BoundInserter> thread_args_;
 
-  // Mapping for tid to the vector of possible UniqueTids.
-  // TODO(lalitm): this is a one-many mapping because this code was written
-  // before global sorting was a thing so multiple threads could be "active"
-  // simultaneously. This is no longer the case so this should be removed
-  // (though it seems like there are subtle things which break in Chrome if this
-  // changes).
-  base::FlatHashMap<int64_t /* tid */, std::vector<UniqueTid>> tids_;
+  // Mapping for tid to the live UniqueTids currently associated with it.
+  // All entries in each vector are guaranteed alive, with .back() holding the
+  // most recently active incarnation.
+  base::FlatHashMap<int64_t /* tid */, base::SmallVector<UniqueTid, 1>> tids_;
 
-  // Cache of the newest alive incarnation of each tid: the answer to a bare
-  // (no parent pid) lookup. Kept in sync via tids_ on lifecycle transitions.
-  base::FlatHashMap<int64_t /* tid */, UniqueTid> live_tid_;
-
-  // upid -> its utids, used to refresh live_tid_ when a process ends or its pid
-  // is recycled.
+  // upid -> its utids, used to remove dead threads from tids_ when a process
+  // ends or its pid is recycled.
   base::FlatHashMap<UniquePid, std::vector<UniqueTid>> process_threads_;
 
   // Mapping of the most recently seen pid to the associated upid.
