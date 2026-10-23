@@ -430,7 +430,7 @@ class Evaluator {
 
 struct ComputeState : OperatorState {
   ~ComputeState() override;
-  std::vector<std::unique_ptr<Evaluator>> evaluators;
+  std::vector<Evaluator> evaluators;
   base::Status status = base::OkStatus();
 };
 ComputeState::~ComputeState() = default;
@@ -443,8 +443,9 @@ Compute::~Compute() = default;
 
 std::unique_ptr<OperatorState> Compute::MakeState(Context& context) const {
   auto state = std::make_unique<ComputeState>();
+  state->evaluators.reserve(programs_.size());
   for (const ExprProgram& program : programs_) {
-    state->evaluators.push_back(std::make_unique<Evaluator>(program, context));
+    state->evaluators.emplace_back(program, context);
   }
   return state;
 }
@@ -452,15 +453,15 @@ std::unique_ptr<OperatorState> Compute::MakeState(Context& context) const {
 bool Compute::Process(RowBatch& batch, OperatorState& state) const {
   auto& s = state.Cast<ComputeState>();
   for (auto& evaluator : s.evaluators) {
-    if (!evaluator->Run(batch, &s.status)) {
+    if (!evaluator.Run(batch, &s.status)) {
       return false;
     }
   }
   // Added only once all have run: each reads the batch as it came.
   for (auto& evaluator : s.evaluators) {
-    const Register& result = evaluator->result();
+    const Register& result = evaluator.result();
     batch.AddColumn(
-        ColumnView::Reference(StorageFor(evaluator->result_type()), result.data,
+        ColumnView::Reference(StorageFor(evaluator.result_type()), result.data,
                               result.validity, result.start),
         result.buffer);
   }
