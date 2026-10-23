@@ -33,9 +33,17 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "src/profiling/unwind/cpu_registers.h"
 
 namespace perfetto {
 namespace profiling {
+
+inline unwindstack::ArchEnum ToLibUnwindstackArch(CpuArch arch) {
+  return static_cast<unwindstack::ArchEnum>(arch);
+}
+
+std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
+    const CpuRegisters& cpu_regs);
 
 // Read /proc/[pid]/maps from an open file descriptor.
 class FDMaps : public unwindstack::Maps {

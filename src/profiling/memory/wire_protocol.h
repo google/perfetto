@@ -21,18 +21,13 @@
 #define SRC_PROFILING_MEMORY_WIRE_PROTOCOL_H_
 
 #include <algorithm>
-#include <cinttypes>
-
-#include <unwindstack/Elf.h>
-#include <unwindstack/MachineArm.h>
-#include <unwindstack/MachineArm64.h>
-#include <unwindstack/MachineRiscv64.h>
-#include <unwindstack/MachineX86.h>
-#include <unwindstack/MachineX86_64.h>
+#include <cstddef>
+#include <cstdint>
 
 #include "perfetto/heap_profile.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
 #include "src/profiling/memory/util.h"
+#include "src/profiling/unwind/cpu_registers.h"
 
 namespace perfetto {
 
@@ -43,11 +38,9 @@ class UnixSocketRaw;
 namespace profiling {
 
 constexpr size_t kMaxRegisterDataSize =
-    std::max({sizeof(uint32_t) * unwindstack::ARM_REG_LAST,
-              sizeof(uint64_t) * unwindstack::ARM64_REG_LAST,
-              sizeof(uint32_t) * unwindstack::X86_REG_LAST,
-              sizeof(uint64_t) * unwindstack::X86_64_REG_LAST,
-              sizeof(uint64_t) * unwindstack::RISCV64_REG_COUNT});
+    std::max({sizeof(uint32_t) * ARM_REG_MAX, sizeof(uint64_t) * ARM64_REG_MAX,
+              sizeof(uint32_t) * X86_REG_MAX, sizeof(uint64_t) * X86_64_REG_MAX,
+              sizeof(uint64_t) * RISCV64_REG_MAX});
 
 // Types needed for the wire format used for communication between the client
 // and heapprofd. The basic format of a record sent by the client is
@@ -103,11 +96,11 @@ struct alignas(8) AllocMetadata {
   // Current value of the stack pointer.
   PERFETTO_CROSS_ABI_ALIGNED(uint64_t) stack_pointer;
   PERFETTO_CROSS_ABI_ALIGNED(uint64_t) clock_monotonic_coarse_timestamp;
-  // unwindstack::AsmGetRegs assumes this is aligned.
+  // GetAsmRegs assumes this is aligned.
   alignas(8) char register_data[kMaxRegisterDataSize];
   PERFETTO_CROSS_ABI_ALIGNED(uint32_t) heap_id;
   // CPU architecture of the client.
-  PERFETTO_CROSS_ABI_ALIGNED(unwindstack::ArchEnum) arch;
+  PERFETTO_CROSS_ABI_ALIGNED(CpuArch) arch;
 };
 
 struct FreeEntry {
