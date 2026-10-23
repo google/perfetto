@@ -32,6 +32,8 @@ import {
   convertTraceToJson,
   convertTraceToSystrace,
   downloadTrace,
+  downloadTraceAndUiState,
+  downloadUiState,
   toggleMetatrace,
 } from '../trace_actions';
 import {shareTrace} from '../trace_share_utils';
@@ -217,6 +219,25 @@ function getCurrentTraceItems(trace: TraceImpl): SidebarMenuItemInternal[] {
     action: async () => await downloadTrace(trace),
     icon: 'file_download',
     disabled: downloadDisabled,
+  });
+
+  items.push({
+    id: 'perfetto.DownloadTraceAndUiState',
+    section: 'current_trace',
+    sortOrder: 52,
+    text: 'Download with UI state',
+    action: async () => await downloadTraceAndUiState(trace),
+    icon: 'file_download',
+    disabled: downloadDisabled,
+  });
+
+  items.push({
+    id: 'perfetto.DownloadUiState',
+    section: 'current_trace',
+    sortOrder: 53,
+    text: 'Download UI state (.json)',
+    action: () => downloadUiState(trace),
+    icon: 'file_download',
   });
 
   return items;
