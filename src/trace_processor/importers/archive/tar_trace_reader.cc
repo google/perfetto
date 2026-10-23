@@ -356,7 +356,7 @@ base::StatusOr<TarTraceReader::ParseResult> TarTraceReader::ParseContent() {
     AddFile(*metadata_,
             *buffer_.SliceOff(
                 buffer_.start_offset(),
-                std::min(static_cast<uint64_t>(kArchiveSubpriorityLookahead),
+                std::min(static_cast<uint64_t>(kContentPriorityLookahead),
                          metadata_->size)),
             buffer_.MultiSliceOff(buffer_.start_offset(), metadata_->size));
   }
@@ -378,8 +378,8 @@ void TarTraceReader::AddFile(const Metadata& metadata,
       importers.Guess(header.data(), header.size());
   ordered_files_.emplace(
       ArchiveEntry{metadata.name, ordered_files_.size(), guess.id,
-                   ArchiveEntry::ComputePriority(guess.id, importers),
-                   guess.archive_subpriority},
+                   ArchiveEntry::ComputeTraceTypePriority(guess.id, importers),
+                   guess.content_priority},
       File{file_id, std::move(data)});
 }
 

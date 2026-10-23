@@ -44,16 +44,18 @@ bool IsHiddenArchivePath(const std::string& path) {
   return false;
 }
 
-int ArchiveEntry::ComputePriority(TraceImporterId type,
-                                  const TraceImporterRegistry& registry) {
+int ArchiveEntry::ComputeTraceTypePriority(
+    TraceImporterId type,
+    const TraceImporterRegistry& registry) {
   return registry.Find(type)->archive_priority;
 }
 
 bool ArchiveEntry::operator<(const ArchiveEntry& rhs) const {
-  // Compare first by archive priority, then by subpriority, then by name, and
-  // finally by index to ensure strict ordering.
-  return std::tie(priority, subpriority, name, index) <
-         std::tie(rhs.priority, rhs.subpriority, rhs.name, rhs.index);
+  // Compare first by trace type priority, then by content priority, then by
+  // name, and finally by index to ensure strict ordering.
+  return std::tie(trace_type_priority, content_priority, name, index) <
+         std::tie(rhs.trace_type_priority, rhs.content_priority, rhs.name,
+                  rhs.index);
 }
 
 }  // namespace perfetto::trace_processor

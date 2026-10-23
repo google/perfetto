@@ -89,7 +89,7 @@ TraceImporterRegistry::GuessResult TraceImporterRegistry::Guess(
   for (const Entry& e : entries) {
     SniffResult res = e.importer->Sniff(data, size);
     if (res.matches) {
-      return {e.id, res.archive_subpriority};
+      return {e.id, res.content_priority};
     }
   }
   return {};

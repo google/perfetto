@@ -1343,86 +1343,31 @@ bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
   return tag == kModuleSymbolsTag;
 }
 
-// Returns whether the TracePacket bytes [pos, end), possibly cut off at `end`,
-// have a field carrying a ClockSnapshot, or compressed packets which may hide
-// one. Only field headers are read: payloads are skipped.
-bool PacketMayHaveClockSnapshot(const uint8_t* pos, const uint8_t* end) {
-  using protos::pbzero::TracePacket;
-  using protozero::proto_utils::ParseVarInt;
-  using protozero::proto_utils::ProtoWireType;
-  while (pos < end) {
-    uint64_t tag;
-    const uint8_t* next = ParseVarInt(pos, end, &tag);
-    if (next == pos) {
-      return false;
-    }
-    auto id = static_cast<uint32_t>(protozero::proto_utils::GetTagFieldId(tag));
-    if (id == TracePacket::kClockSnapshotFieldNumber ||
-        id == TracePacket::kCompressedPacketsFieldNumber ||
-        id == TracePacket::kZstdCompressedPacketsFieldNumber) {
-      return true;
-    }
-    pos = next;
-    uint64_t payload_size = 0;
-    auto type =
-        static_cast<uint8_t>(protozero::proto_utils::GetTagFieldType(tag));
-    if (type == static_cast<uint8_t>(ProtoWireType::kVarInt) ||
-        type == static_cast<uint8_t>(ProtoWireType::kLengthDelimited)) {
-      uint64_t value;
-      next = ParseVarInt(pos, end, &value);
-      if (next == pos) {
-        return false;
-      }
-      if (type == static_cast<uint8_t>(ProtoWireType::kLengthDelimited)) {
-        payload_size = value;
-      }
-    } else if (type == static_cast<uint8_t>(ProtoWireType::kFixed64)) {
-      payload_size = sizeof(uint64_t);
-    } else if (type == static_cast<uint8_t>(ProtoWireType::kFixed32)) {
-      payload_size = sizeof(uint32_t);
-    } else {
-      return false;
-    }
-    if (payload_size > static_cast<uint64_t>(end - next)) {
-      return false;
-    }
-    pos = next + payload_size;
-  }
-  return false;
-}
-
 // Returns whether a packet of the proto trace starting with [data, data + size)
-// carries a ClockSnapshot, or compressed packets which may hide one. Only field
-// headers are read, so a packet cut off at `size` still counts: traced
+// carries a ClockSnapshot, or compressed packets which may hide one (they are
+// not inflated). If not even the first packet fits in `size`, it may: traced
 // compresses whole batches of packets into one, often bigger than `size`, and
-// older versions put the first ClockSnapshot in there too. Malformed input
-// counts as carrying none: reading the file reports the error.
+// older versions put the first ClockSnapshot in there too. Malformed input is
+// not an error here: reading the file reports it.
 bool TraceMayHaveClockSnapshot(const uint8_t* data, size_t size) {
-  using protozero::proto_utils::ParseVarInt;
-  const uint8_t* const end = data + size;
-  for (const uint8_t* pos = data; pos < end;) {
-    uint64_t tag;
-    const uint8_t* next = ParseVarInt(pos, end, &tag);
-    if (next == pos || tag != kTracePacketTag) {
+  using protos::pbzero::TracePacket;
+  protozero::ProtoDecoder trace(data, size);
+  for (auto p = trace.ReadField(); p.valid(); p = trace.ReadField()) {
+    if (p.id() != protos::pbzero::Trace::kPacketFieldNumber ||
+        p.type() != protozero::proto_utils::ProtoWireType::kLengthDelimited) {
       return false;
     }
-    pos = next;
-    uint64_t packet_size;
-    next = ParseVarInt(pos, end, &packet_size);
-    if (next == pos) {
-      return false;
+    protozero::ProtoDecoder packet(p.as_bytes());
+    for (auto f = packet.ReadField(); f.valid(); f = packet.ReadField()) {
+      if (f.id() == TracePacket::kClockSnapshotFieldNumber ||
+          f.id() == TracePacket::kCompressedPacketsFieldNumber ||
+          f.id() == TracePacket::kZstdCompressedPacketsFieldNumber) {
+        return true;
+      }
     }
-    pos = next;
-    auto avail = static_cast<uint64_t>(end - pos);
-    if (PacketMayHaveClockSnapshot(pos, pos + std::min(packet_size, avail))) {
-      return true;
-    }
-    if (packet_size > avail) {
-      return false;
-    }
-    pos += packet_size;
   }
-  return false;
+  // ProtoDecoder stops at a packet cut off at `size`: was it the first one?
+  return trace.read_offset() == 0;
 }
 
 // Perfetto proto trace.
@@ -1440,7 +1385,7 @@ class ProtoImporter : public TraceImporter<ProtoImporter> {
     // trace, and traces without a ClockSnapshot of their own (e.g. in-process
     // SDK traces) are converted through its clocks. Only the start is looked
     // at, as traced writes its first ClockSnapshot there.
-    size_t lookahead = std::min(size, kArchiveSubpriorityLookahead);
+    size_t lookahead = std::min(size, kContentPriorityLookahead);
     return {true, TraceMayHaveClockSnapshot(data, lookahead) ? 0 : 1};
   }
 
