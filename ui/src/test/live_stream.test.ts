@@ -19,6 +19,7 @@
 
 import {expect, test, type Page, type Route} from '@playwright/test';
 import type {time} from '../base/time';
+import type {MinimapManagerImpl} from '../core/minimap_manager';
 import {
   DemoBackend,
   uiPath,
@@ -155,6 +156,16 @@ async function visibleEnd(): Promise<number> {
   return (await traceState()).visibleEnd;
 }
 
+// The end of the last minimap cell. The core keeps the rows the plugin
+// returned, and the plugin grows them in place.
+function minimapEnd(): Promise<number> {
+  return page.evaluate(() => {
+    const minimap = window.app.trace?.minimap as MinimapManagerImpl | undefined;
+    const cells = minimap?.getLoad()?.flat() ?? [];
+    return Math.max(0, ...cells.map((c) => Number(c.ts + c.dur)));
+  });
+}
+
 // Waits until the trace grew by over a second.
 async function waitForGrowth() {
   const end = await traceEnd();
@@ -229,6 +240,11 @@ test('follows the growing end until told not to', async () => {
 
   await controls.toggleFollow();
   await expect.poll(visibleEnd).toBeGreaterThan(stopped + SEC);
+});
+
+test('grows the minimap with the trace', async () => {
+  const end = await minimapEnd();
+  await expect.poll(minimapEnd, {timeout: 15_000}).toBeGreaterThan(end);
 });
 
 test('stops requesting while paused', async () => {
