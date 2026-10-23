@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/compute.h"
@@ -61,12 +62,15 @@ std::unique_ptr<PlanOperation> OperationRegistration::Encoding::Make() const {
 }
 
 const OperationRegistration* FindOperationByTag(uint8_t tag) {
+  const OperationRegistration* found = nullptr;
   for (const auto* registration : kOperations) {
     if (registration->encoding() && registration->encoding()->tag() == tag) {
-      return registration;
+      // Operations sharing a tag would read each other's payloads.
+      PERFETTO_CHECK(!found);
+      found = registration;
     }
   }
-  return nullptr;
+  return found;
 }
 
 const OperationRegistration* FindOperationBySyntax(uint32_t syntax) {
