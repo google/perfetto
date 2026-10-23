@@ -227,50 +227,43 @@ void ClockTracker::SetTraceDefaultClock(ClockId clock_id) {
   trace_default_clock_ = clock_id;
 }
 
-void ClockTracker::AddDeferredClockSync(ClockId from,
-                                        int64_t from_ts,
-                                        std::optional<ClockId> to,
-                                        int64_t to_ts) {
-  PERFETTO_DCHECK(from_ts >= 0 && to_ts >= 0);
-  deferred_clock_sync_ = {from, from_ts, to, to_ts};
+void ClockTracker::AddDeferredClockSync(ClockId fallback) {
+  deferred_clock_sync_ = fallback;
 }
 
 void ClockTracker::FlushDeferredClockSync() {
-  DeferredSync sync = *deferred_clock_sync_;
+  // Bridge the clock this file's timestamps are actually in. That is the
+  // default clock, which may have been set after the sync was registered (e.g.
+  // by a proto ClockSnapshot's primary_trace_clock), else the fallback.
+  ClockId fallback = *deferred_clock_sync_;
+  ClockId from = trace_default_clock_.value_or(fallback);
   deferred_clock_sync_.reset();
-  auto* state = context_->trace_time_state.get();
-  ClockId g = state->clock_id;
 
-  // The plain identity case (no offset, default target): bridge this file's
-  // source clock to trace time via its machine-canonical node, so an isolated
-  // file's other clocks stay isolated yet it can still reach trace time.
-  if (sync.from_ts == 0 && !sync.to && sync.to_ts == 0) {
-    ClockId qualified =
-        ClockId::Qualify(sync.from, machine_id_, current_file_tag_);
-    ClockId canonical = ClockId::Qualify(sync.from, machine_id_, 0);
-    if (qualified != canonical && !sync_->Convert(qualified, 0, canonical)) {
-      AddSnapshotInternal({{qualified, 0}, {canonical, 0}});
-    }
-    BridgeToTraceTime(canonical, g);
-    return;
+  // If this file's own snapshots relate the default clock to the fallback,
+  // bridge the fallback: another file may have set up trace time through it.
+  // Unless only the default clock already reaches trace time.
+  ClockId trace_time = context_->trace_time_state->clock_id;
+  auto reaches_trace_time = [&](ClockId id) {
+    ClockId canonical = ClockId::Qualify(id, machine_id_, 0);
+    return canonical == trace_time || sync_->Convert(canonical, 0, trace_time);
+  };
+  ClockId qualified = ClockId::Qualify(from, machine_id_, current_file_tag_);
+  if (from != fallback &&
+      sync_->Convert(
+          qualified, 0,
+          ClockId::Qualify(fallback, machine_id_, current_file_tag_)) &&
+      (reaches_trace_time(fallback) || !reaches_trace_time(from))) {
+    from = fallback;
+    qualified = ClockId::Qualify(from, machine_id_, current_file_tag_);
   }
 
-  // The perfetto_manifest clock-pin case: inject the offset edge directly from
-  // this file's (qualified) private clock to the requested reference clock (its
-  // machine-canonical node, so it joins the shared graph). An omitted target is
-  // trace time itself. Real edges (e.g. a proto spine) win, so inject only if
-  // |from| cannot already reach |to|.
-  ClockId from = ClockId::Qualify(sync.from, machine_id_, current_file_tag_);
-  ClockId to = sync.to ? ClockId::Qualify(*sync.to, machine_id_, 0) : g;
-  if (from != to && !sync_->Convert(from, sync.from_ts, to)) {
-    AddSnapshotInternal({{from, sync.from_ts}, {to, sync.to_ts}});
+  // Bridge via the machine-canonical node, so an isolated file's other clocks
+  // stay isolated yet it can still reach trace time.
+  ClockId canonical = ClockId::Qualify(from, machine_id_, 0);
+  if (qualified != canonical && !sync_->Convert(qualified, 0, canonical)) {
+    AddSnapshotInternal({{qualified, 0}, {canonical, 0}});
   }
-  // Then bridge the reference clock to trace time the same way every clock
-  // reaches it. A machine override can put |to| on a non-host machine with no
-  // path to G (its other clocks live in a different machine's domain); this is
-  // what lets independent single-machine captures pinned onto a shared clock
-  // (e.g. REALTIME) line up on one axis without a remote_clock_sync.
-  BridgeToTraceTime(to, g);
+  BridgeToTraceTime(canonical, trace_time);
 }
 
 void ClockTracker::BridgeToTraceTime(ClockId clock_id, ClockId trace_time) {
