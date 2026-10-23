@@ -64,11 +64,23 @@
   gap: 6px;
 }
 
-.pf-memscope-search-row {
+// Question-mark trigger for help tooltips (section headers, billboards).
+.pf-memscope-help {
+  display: inline-flex;
+  color: var(--pf-color-text-muted);
+  cursor: help;
+
+  .material-icons {
+    font-size: 14px;
+  }
+}
+
+// More specific than .pf-memscope-panel__header so the tighter padding wins.
+.pf-memscope-panel__header.pf-memscope-search-row {
   display: flex;
   align-items: stretch;
   gap: 8px;
-  padding: 8px;
+  padding: 6px;
 
   .pf-text-input {
     flex: 1;

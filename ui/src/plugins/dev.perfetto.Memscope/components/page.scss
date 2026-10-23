@@ -13,19 +13,19 @@
 // limitations under the License.
 
 .pf-memscope-page {
-  --pf-border-width: 0.5px;
+  --pf-border-width: 1px;
   // Light-mode page chrome: a slightly cool-grey page so the white panels
   // read as raised cards. Dark mode keeps the theme defaults (left unset).
   --pf-col-base: #f6f6f6;
   --pf-col-surface: #ffffff;
   --pf-col-inset: #f1f1f1;
-  --pf-col-border: #e0e0e0;
+  --pf-col-border: #cfcfcf;
 
   .pf-theme-provider--dark & {
     --pf-col-base: lch(4.52 0.3 272);
     --pf-col-surface: lch(7.67 0.75 272);
     --pf-col-inset: #242424;
-    --pf-col-border: #242424;
+    --pf-col-border: #3a3a3a;
   }
 
   background: var(--pf-col-base);
@@ -90,11 +90,11 @@
 // order via nth-child.
 .pf-memscope-page__content > *,
 .pf-memscope-subpage > * {
-  animation: pf-memscope-enter 0.35s ease-out both;
+  animation: pf-memscope-enter 0.15s ease-out both;
 
   @for $i from 1 through 8 {
     &:nth-child(#{$i}) {
-      animation-delay: #{($i - 1) * 60}ms;
+      animation-delay: #{($i - 1) * 25}ms;
     }
   }
 }

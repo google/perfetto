@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@use "../common" as c;
 .pf-memscope-table {
   border: solid 1px var(--pf-col-border);
-  border-radius: 8px;
+  border-radius: c.$memscope-section-radius;
   overflow-x: auto;
 
   table {
