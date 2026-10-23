@@ -44,7 +44,13 @@ import {
 } from '../../process_categories';
 import {Billboard, BillboardStrip} from '../../components/billboard';
 import {ColorChip, chipColor} from '../../components/color_chip';
-import {billboardBytes, maxSeriesKb, niceKbInterval} from '../../utils';
+import {
+  billboardBytes,
+  chartXWindow,
+  formatRelativeXValue,
+  maxSeriesKb,
+  niceKbInterval,
+} from '../../utils';
 import {formatBytesIec} from '../../../../base/bytes_format';
 import {
   type ProcessGrouping,
@@ -443,7 +449,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
         ? OOM_SCORE_BUCKETS[this.selectedOomBucket]
         : undefined;
 
-    const chartData = isDrilledDown
+    const chartData: LineChartData | undefined = isDrilledDown
       ? this.selectedCategory !== undefined
         ? buildCategoryDrilldown(data, this.selectedCategory, t0, counters)
         : this.selectedOomBucket !== undefined
@@ -453,18 +459,11 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
         ? buildCategoryTimeSeries(data, t0, counters)
         : buildOomScoreTimeSeries(data, t0, counters);
 
-    // Pin x-axis to the exact data range so the plot edges line up with the
-    // first and last sample.
-    let chartXMin: number | undefined;
-    let chartXMax: number | undefined;
-    if (chartData !== undefined) {
-      for (const s of chartData.series) {
-        for (const p of s.points) {
-          if (chartXMin === undefined || p.x < chartXMin) chartXMin = p.x;
-          if (chartXMax === undefined || p.x > chartXMax) chartXMax = p.x;
-        }
-      }
-    }
+    // Pin the x-axis to a fixed-width window ending at the latest sample.
+    // All samples are passed to the chart; the x-axis is manually limited to
+    // the window and the chart clips anything outside the plot area.
+    const xWindow = chartXWindow(data.xMax);
+    const formatX = formatRelativeXValue(data.xMax);
 
     const latestProcesses = buildLatestProcessMemory(data);
 
@@ -603,9 +602,11 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
                 showPoints: false,
                 stacked: true,
                 gridLines: 'both',
-                xAxisMin: chartXMin,
-                xAxisMax: chartXMax,
-                formatXValue: (v: number) => `${v.toFixed(0)}s`,
+                xAxisMin: xWindow.min,
+                xAxisMax: xWindow.max,
+                // Show time relative to the latest sample: 0s on the right,
+                // -60s on the left.
+                formatXValue: formatX,
                 formatYValue: (v: number) => formatBytesIec(v * 1024),
                 yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
                 onSeriesClick: isDrilledDown
