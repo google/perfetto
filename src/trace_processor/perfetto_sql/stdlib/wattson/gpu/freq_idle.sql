@@ -49,8 +49,7 @@ FROM (
     dur,
     gpu_freq AS freq,
     prev_gpu_freq AS prev_freq,
-    next_gpu_freq AS next_freq,
-    gpu_id
+    next_gpu_freq AS next_freq
   FROM android_gpu_frequency
   WHERE
     gpu_id
