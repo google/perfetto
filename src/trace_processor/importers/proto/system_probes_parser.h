@@ -20,6 +20,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "perfetto/ext/base/cpu_info_features_allowlist.h"
@@ -27,6 +28,10 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/storage/trace_storage.h"
+
+namespace perfetto {
+enum class MemcgFieldKind : uint8_t;
+}  // namespace perfetto
 
 namespace perfetto::trace_processor {
 
@@ -41,6 +46,7 @@ class SystemProbesParser {
 
   void ParseProcessTree(int64_t ts, ConstBytes);
   void ParseProcessStats(int64_t ts, ConstBytes);
+  void ParseMemcgStats(int64_t ts, ConstBytes);
   void ParseSysStats(int64_t ts, ConstBytes);
   void ParseSystemInfo(ConstBytes);
   void ParseCpuInfo(ConstBytes);
@@ -76,6 +82,16 @@ class SystemProbesParser {
 
   const StringId pages_per_slab_id_;
   const StringId num_slabs_id_;
+
+  // Unit of the memcg values that are sizes or limits.
+  const StringId bytes_id_;
+  // The track key of each memcg value, and what the value is, by
+  // MemcgValueId().
+  struct MemcgKey {
+    std::string name;
+    MemcgFieldKind kind;
+  };
+  base::FlatHashMap<uint64_t, MemcgKey> memcg_keys_;
 
   std::vector<const char*> meminfo_strs_;
   std::vector<const char*> vmstat_strs_;
