@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {DisposableStack} from '../base/disposable_stack';
-import type {time} from '../base/time';
 import {TimelineImpl} from './timeline';
 import type {Command} from '../public/commands';
 import type {Storage, StorageDescriptor, Trace} from '../public/trace';
@@ -230,12 +229,6 @@ export class TraceImpl implements Trace, Disposable {
 
   scrollTo(where: ScrollToArgs): void {
     this.scrollHelper.scrollTo(where);
-  }
-
-  extendTraceEnd(end: time): void {
-    if (end <= this.traceInfo.end) return;
-    this.traceInfo.end = end;
-    this.raf.scheduleFullRedraw();
   }
 
   async getTraceFile(): Promise<Blob> {

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import type {z} from 'zod';
-import type {time} from '../base/time';
 import type {TraceInfo} from './trace_info';
 import type {Engine} from '../trace_processor/engine';
 import type {App} from './app';
@@ -90,12 +89,6 @@ export interface Trace extends App {
   // Scrolls to the given track and/or time. Does NOT change the current
   // selection.
   scrollTo(args: ScrollToArgs): void;
-
-  // Moves the end of the trace bounds (traceInfo.end) forward, e.g. for live
-  // traces whose content keeps growing after the trace has been loaded. The
-  // bounds never shrink. Does not affect trace_end() in SQL, nor reload the
-  // minimap (see MinimapContentProvider).
-  extendTraceEnd(end: time): void;
 
   /**
    * Register a persistent storage container backed by the trace's permalink state.
