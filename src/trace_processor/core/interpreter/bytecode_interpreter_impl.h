@@ -59,24 +59,6 @@ namespace perfetto::trace_processor::core::interpreter {
 
 namespace ops {
 
-// Outlined implementation of glob filtering for strings.
-// Returns pointer past last written output index.
-uint32_t* StringFilterGlobImpl(const StringPool* string_pool,
-                               const StringPool::Id* data,
-                               const char* pattern,
-                               const uint32_t* begin,
-                               const uint32_t* end,
-                               uint32_t* output);
-
-// Outlined implementation of regex filtering for strings.
-// Returns pointer past last written output index.
-uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
-                                const StringPool::Id* data,
-                                const char* pattern,
-                                const uint32_t* begin,
-                                const uint32_t* end,
-                                uint32_t* output);
-
 // Handles invalid cast filter value results for filtering operations.
 // If the cast result is invalid, updates the range or span accordingly.
 //
@@ -252,7 +234,8 @@ inline PERFETTO_ALWAYS_INLINE void NonStringFilter(
       StorageType::VariantTypeAtIndex<T, filter::CastFilterValueResult::Value>;
   if constexpr (std::is_same_v<T, Id>) {
     update.e = filter::IdentityFilter(
-        source.b, source.e, update.b, base::unchecked_get<M>(value.value).value,
+        0, source.b, source.e, update.b,
+        base::unchecked_get<M>(value.value).value,
         filter::comparators::IntegerOrDoubleComparator<uint32_t, Op>());
   } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
     const auto* data = state.ReadStorageFromRegister<T>(
@@ -262,24 +245,6 @@ inline PERFETTO_ALWAYS_INLINE void NonStringFilter(
         filter::comparators::IntegerOrDoubleComparator<M, Op>());
   } else {
     static_assert(std::is_same_v<T, Id>, "Unsupported type");
-  }
-}
-
-template <typename Op>
-inline PERFETTO_ALWAYS_INLINE uint32_t* FilterStringOp(
-    const StringPool* string_pool,
-    const StringPool::Id* data,
-    const uint32_t* begin,
-    const uint32_t* end,
-    uint32_t* output,
-    const char* val) {
-  if constexpr (std::is_same_v<Op, Glob>) {
-    return StringFilterGlobImpl(string_pool, data, val, begin, end, output);
-  } else if constexpr (std::is_same_v<Op, Regex>) {
-    return StringFilterRegexImpl(string_pool, data, val, begin, end, output);
-  } else {
-    return filter::FilterStringCompare<Op>(string_pool, data, begin, end,
-                                           output, val);
   }
 }
 
@@ -296,8 +261,8 @@ inline PERFETTO_ALWAYS_INLINE void StringFilter(InterpreterState& state,
   const auto& source = state.ReadFromRegister(sf.arg<B::source_register>());
   const StringPool::Id* ptr =
       state.ReadStorageFromRegister<String>(sf.arg<B::storage_register>());
-  update.e = FilterStringOp<Op>(state.string_pool, ptr, source.b, source.e,
-                                update.b, val);
+  update.e = filter::FilterStringCompare<Op>(state.string_pool, ptr, source.b,
+                                             source.e, update.b, val);
 }
 
 // The comparison a search by R answers, writing `bound` of the range.
@@ -566,7 +531,7 @@ inline PERFETTO_ALWAYS_INLINE void FilterIn(InterpreterState& state,
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
   const Span<uint32_t>& source =
       state.ReadFromRegister(bytecode.arg<B::source_register>());
-  filter::NonIndexedFilterInScan<T>(cast_result, data, source, dest);
+  filter::NonIndexedFilterInScan<T>(cast_result, data, 0, source, dest);
 }
 
 // ============================================================================
