@@ -28,7 +28,7 @@ import type {TrackEventDetailsPanelSection} from '../../components/details/threa
 // there's no matching frame, so it self-hides on traces without video.
 export class VideoFrameLinkSection implements TrackEventDetailsPanelSection {
   private readonly trace: Trace;
-  private videoFrame?: {readonly id: number; readonly displayId: number};
+  private videoFrame?: {readonly trackUri: string; readonly eventId: number};
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -36,33 +36,30 @@ export class VideoFrameLinkSection implements TrackEventDetailsPanelSection {
 
   async load(selection: TrackEventSelection): Promise<void> {
     this.videoFrame = undefined;
-    // Only frames the video track shows (see createVideoFramesTrack): no
-    // codec_config rows, and nothing before the display's first key frame.
     const res = await this.trace.engine.query(`
-      SELECT vf.id AS id, vf.display_id AS displayId
+      SELECT vf.id AS id
       FROM actual_frame_timeline_slice s
       JOIN __intrinsic_video_frames vf
         ON vf.frame_timeline_vsync_id = s.display_frame_token
       WHERE s.id = ${selection.eventId}
-        AND COALESCE(vf.is_config, 0) = 0
-        AND vf.ts >= (
-          SELECT MIN(ts) FROM __intrinsic_video_frames
-          WHERE display_id = vf.display_id AND is_key_frame = 1
-        )
       ORDER BY vf.id
       LIMIT 1
     `);
-    const row = res.maybeFirstRow({id: NUM, displayId: NUM});
+    const row = res.maybeFirstRow({id: NUM});
     if (row === undefined) return;
-    this.videoFrame = {id: row.id, displayId: row.displayId};
+    // Resolve through the VideoFrames track's dataset so its visibility rules
+    // (no codec_config rows, nothing before the first key frame) and track URI
+    // live in one place, and the link hides when the plugin is disabled.
+    const matches = await this.trace.selection.resolveSqlEvents(
+      '__intrinsic_video_frames',
+      [row.id],
+    );
+    this.videoFrame = matches[0];
   }
 
   render(): m.Children {
     const vf = this.videoFrame;
     if (vf === undefined) return undefined;
-    const trackUri = `/video_frames/${vf.displayId}`;
-    // The track is registered by the VideoFrames plugin, which may be off.
-    if (this.trace.tracks.getTrack(trackUri) === undefined) return undefined;
     return m(
       Section,
       {title: 'Display video'},
@@ -71,7 +68,7 @@ export class VideoFrameLinkSection implements TrackEventDetailsPanelSection {
         {
           icon: 'movie',
           onclick: () =>
-            this.trace.selection.selectTrackEvent(trackUri, vf.id, {
+            this.trace.selection.selectTrackEvent(vf.trackUri, vf.eventId, {
               scrollToSelection: true,
             }),
         },

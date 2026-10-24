@@ -24,24 +24,19 @@ import {VideoFrameLinkSection} from './video_frame_link';
 
 const CELL_TYPE = protos.QueryResult.CellsBatch.CellType;
 
-interface VideoFrameRow {
-  readonly id: number;
-  readonly displayId: number;
-}
-
-// Builds the (id, displayId) query result the section expects, with every cell
-// encoded as a varint.
-function queryResult(rows: ReadonlyArray<VideoFrameRow>): QueryResult {
+// Builds the (id) query result the section expects, with every cell encoded as
+// a varint.
+function queryResult(ids: ReadonlyArray<number>): QueryResult {
   const batch = protos.QueryResult.CellsBatch.create({
-    cells: rows.flatMap(() => [CELL_TYPE.CELL_VARINT, CELL_TYPE.CELL_VARINT]),
-    varintCells: rows.flatMap((row) => [row.id, row.displayId]),
+    cells: ids.map(() => CELL_TYPE.CELL_VARINT),
+    varintCells: [...ids],
     isLastBatch: true,
   });
   const result = createQueryResult({query: 'fake'});
   result.appendResultBatch(
     protos.QueryResult.encode(
       protos.QueryResult.create({
-        columnNames: ['id', 'displayId'],
+        columnNames: ['id'],
         batch: [batch],
       }),
     ).finish(),
@@ -49,32 +44,38 @@ function queryResult(rows: ReadonlyArray<VideoFrameRow>): QueryResult {
   return result;
 }
 
-interface SelectedEvent {
+interface ResolvedEvent {
   readonly trackUri: string;
   readonly eventId: number;
+}
+
+interface SelectedEvent extends ResolvedEvent {
   readonly opts?: SelectionOpts;
 }
 
-// A trace whose engine answers any query with `rows`, recording the queries it
-// runs and the track events it selects. Only the tracks in `trackUris` are
-// registered.
-function fakeTrace(
-  rows: ReadonlyArray<VideoFrameRow>,
-  trackUris: ReadonlyArray<string> = [],
-) {
+// A trace whose engine answers any query with `ids`, recording the queries it
+// runs, the SQL events it resolves, and the track events it selects.
+function fakeTrace(ids: ReadonlyArray<number>, resolved?: ResolvedEvent) {
   const queries: string[] = [];
+  const resolvedArgs: Array<{
+    readonly table: string;
+    readonly ids: ReadonlyArray<number>;
+  }> = [];
   const selected: SelectedEvent[] = [];
   const trace = {
     engine: {
       query: async (sql: string) => {
         queries.push(sql);
-        return queryResult(rows);
+        return queryResult(ids);
       },
     },
-    tracks: {
-      getTrack: (uri: string) => (trackUris.includes(uri) ? {uri} : undefined),
-    },
     selection: {
+      resolveSqlEvents: async (table: string, ids: ReadonlyArray<number>) => {
+        resolvedArgs.push({table, ids});
+        return resolved !== undefined && ids.includes(resolved.eventId)
+          ? [resolved]
+          : [];
+      },
       selectTrackEvent: async (
         trackUri: string,
         eventId: number,
@@ -84,7 +85,7 @@ function fakeTrace(
       },
     },
   } as unknown as Trace;
-  return {trace, queries, selected};
+  return {trace, queries, resolvedArgs, selected};
 }
 
 // A selected actual frame-timeline slice.
@@ -110,39 +111,45 @@ describe('VideoFrameLinkSection', () => {
     expect(queries[0]).toContain(
       'vf.frame_timeline_vsync_id = s.display_frame_token',
     );
-    // Only frames the video track shows: no codec_config rows, and nothing
-    // before the display's first key frame.
-    expect(queries[0]).toContain('COALESCE(vf.is_config, 0) = 0');
-    expect(queries[0]).toContain(
-      'WHERE display_id = vf.display_id AND is_key_frame = 1',
-    );
     expect(queries[0]).toContain('ORDER BY vf.id');
   });
 
   test('renders nothing when no video frame matches', async () => {
-    const {trace} = fakeTrace([], ['/video_frames/3']);
+    const {trace, resolvedArgs} = fakeTrace([], {
+      trackUri: '/video_frames/3',
+      eventId: 7,
+    });
     const section = new VideoFrameLinkSection(trace);
     await section.load(sliceSelection(42));
 
+    expect(resolvedArgs).toEqual([]);
     expect(section.render()).toBeUndefined();
   });
 
-  test('renders nothing when the video track is not registered', async () => {
-    // E.g. the VideoFrames plugin is disabled.
-    const {trace} = fakeTrace([{id: 7, displayId: 3}]);
+  test('renders nothing when the video frame does not resolve to a track', async () => {
+    // E.g. the VideoFrames plugin is disabled, or the frame precedes the
+    // display's first key frame and is excluded by the track's dataset.
+    const {trace, resolvedArgs} = fakeTrace([7]);
     const section = new VideoFrameLinkSection(trace);
     await section.load(sliceSelection(42));
 
+    expect(resolvedArgs).toEqual([
+      {table: '__intrinsic_video_frames', ids: [7]},
+    ]);
     expect(section.render()).toBeUndefined();
   });
 
   test('links to the matching video frame on its display track', async () => {
-    const {trace, selected} = fakeTrace(
-      [{id: 7, displayId: 3}],
-      ['/video_frames/3'],
-    );
+    const {trace, resolvedArgs, selected} = fakeTrace([7], {
+      trackUri: '/video_frames/3',
+      eventId: 7,
+    });
     const section = new VideoFrameLinkSection(trace);
     await section.load(sliceSelection(42));
+
+    expect(resolvedArgs).toEqual([
+      {table: '__intrinsic_video_frames', ids: [7]},
+    ]);
 
     const root = document.createElement('div');
     document.body.appendChild(root);

@@ -94,12 +94,15 @@ export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
       const vsyncId = frame.vsyncId;
       // The DisplayFrame this frame was composited in, with the app frames
       // composited into it nested below, so you can jump straight to an app's
-      // frame timeline without the SurfaceFlinger round trip.
+      // frame timeline without the SurfaceFlinger round trip. Skip during
+      // playback so advancing frames doesn't fire queries or flicker the tree;
+      // it loads once when playback pauses.
       const displayFrame = this.displayFrameMemo.use({
         key: {vsyncId},
+        enabled: !p.playing,
         compute: (signal) => this.loadDisplayFrame(vsyncId, signal),
       }).data;
-      const sliceId = displayFrame?.sliceId;
+      const sliceId = p.playing ? undefined : displayFrame?.sliceId;
       detailRows.push(
         m(
           TreeNode,
@@ -117,7 +120,7 @@ export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
                     `${vsyncId}`,
                   ),
           },
-          this.renderAppFrameNodes(displayFrame),
+          p.playing ? undefined : this.renderAppFrameNodes(displayFrame),
         ),
       );
     }

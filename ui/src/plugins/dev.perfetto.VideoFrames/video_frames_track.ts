@@ -67,6 +67,7 @@ export function createVideoFramesTrack(
   return SliceTrack.create({
     trace,
     uri,
+    rootTableName: '__intrinsic_video_frames',
     dataset: new SourceDataset({
       schema: {id: NUM, ts: LONG, dur: LONG, name: STR, depth: NUM},
       src,
