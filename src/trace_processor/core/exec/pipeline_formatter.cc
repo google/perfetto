@@ -30,6 +30,7 @@
 #include "src/trace_processor/core/exec/combine_batches.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/distinct.h"
+#include "src/trace_processor/core/exec/empty_source.h"
 #include "src/trace_processor/core/exec/expression.h"
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/graph_tree.h"
@@ -207,6 +208,9 @@ std::string PipelineFormatter::Format(const Pipeline& pipeline) {
 std::string PipelineFormatter::SourceString(const Source& source) {
   if (source.Is<DataframeScan>()) {
     return "DataframeScan";
+  }
+  if (source.Is<EmptySource>()) {
+    return "EmptySource";
   }
   if (source.Is<GraphTree>()) {
     const GraphTreeSpec& spec = static_cast<const GraphTree&>(source).spec_;

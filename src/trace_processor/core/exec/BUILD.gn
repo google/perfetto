@@ -38,6 +38,8 @@ source_set("exec") {
     "dataframe_windows.h",
     "distinct.cc",
     "distinct.h",
+    "empty_source.cc",
+    "empty_source.h",
     "expression.cc",
     "expression.h",
     "filter.cc",
