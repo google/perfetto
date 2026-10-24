@@ -385,6 +385,11 @@ class PerfettoPipeline(TestSuite):
         |> ORDER BY depth DESC, parent_id, dur DESC, id
         |> SELECT id;
 
+        CREATE PERFETTO TABLE by_name AS
+        FROM slice
+        |> ORDER BY name DESC, id
+        |> SELECT id;
+
         SELECT
           (SELECT count(*) FROM by_many) AS rows,
           (
@@ -403,6 +408,14 @@ class PerfettoPipeline(TestSuite):
                   ORDER BY depth DESC, parent_id, dur DESC, id
                 ) AS n,
                 id
+              FROM slice
+            ) AS s USING (n)
+            WHERE p.id != s.id
+          ) + (
+            SELECT count(*)
+            FROM (SELECT row_number() OVER () AS n, id FROM by_name) AS p
+            JOIN (
+              SELECT row_number() OVER (ORDER BY name DESC, id) AS n, id
               FROM slice
             ) AS s USING (n)
             WHERE p.id != s.id

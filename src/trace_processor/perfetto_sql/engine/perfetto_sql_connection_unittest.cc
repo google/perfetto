@@ -938,12 +938,14 @@ TEST_F(PerfettoSqlConnectionPipelineTest, OrderBy) {
   EXPECT_THAT(*rows, testing::ElementsAre("3,40,40", "2,30,30", "1,60,100",
                                           "0,100,230"));
 
-  // A string key is refused where its type is known, and fails the run
-  // where it is not.
-  EXPECT_THAT(
-      Rows("FROM typed |> ORDER BY name").status().message(),
-      testing::HasSubstr("ordering by a string column is not supported yet"));
-  EXPECT_FALSE(Rows("FROM points |> ORDER BY name").ok());
+  // A string key sorts by its contents, whether its type is known when the
+  // pipeline compiles or only once it runs.
+  auto typed = Rows("FROM typed |> ORDER BY name DESC |> SELECT name", true);
+  ASSERT_TRUE(typed.ok()) << typed.status().message();
+  EXPECT_THAT(*typed, testing::ElementsAre("z", "y", "x", "w", "v"));
+  auto untyped = Rows("FROM points |> ORDER BY name |> SELECT name", true);
+  ASSERT_TRUE(untyped.ok()) << untyped.status().message();
+  EXPECT_THAT(*untyped, testing::ElementsAre("v", "w", "x", "y", "z"));
 
   // A key parses as an expression, but only a column is supported.
   for (const char* key : {"(a | b) DESC", "abs(a)"}) {

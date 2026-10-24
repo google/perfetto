@@ -329,7 +329,7 @@ Diagram(
 - The first key decides the order and each later key breaks ties. Each defaults
   to `ASC`.
 - A key is a column, which can be qualified. Expressions are not supported yet.
-- Keys must hold numbers. Sorting by a string column is not supported yet.
+- Strings sort by their bytes, as SQLite's default `BINARY` collation does.
 - `NULL`s come first when ascending and last when descending, as in SQLite.
 - Rows equal on every key keep their order.
 - Keeps all columns and aliases.

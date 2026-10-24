@@ -386,9 +386,10 @@ Code: `/src/trace_processor/core/exec/sort.cc`
 one fixed-width record that compares as bytes, sorts the row indices by those
 records, then copies the rows out in that order.
 
-Keys must be numbers: `Uint32`, `Int32`, `Int64` or `Double`. A string column
-is rejected when the pipeline compiles. A key from SQLite whose type is not
-known is converted to integers.
+A string key is encoded as its rank among the strings of the rows, so it is
+compared by contents, not by its id in the string pool. Ranks are only known
+once every row is in, so string keys are encoded just before sorting. A key
+from SQLite whose type is not known is converted to integers.
 
 Lowering tracks the order rows are in. A single ascending key that a table
 already keeps sorted, such as `ts` on `slice`, needs no `Sort`. A `Sort` that
