@@ -351,7 +351,7 @@ class TrackEventEventImporter {
           upid_ = resolved->upid();
           // TODO: b/175152326 - Should pid namespace translation also be done
           // here?
-          if (thread.valid()) {
+          if (legacy_event_.has_phase() && thread.valid()) {
             auto pid = static_cast<uint32_t>(thread.pid());
             auto tid = static_cast<uint32_t>(thread.tid());
             UniqueTid utid_candidate = procs->UpdateThread(tid, pid);
@@ -363,7 +363,7 @@ class TrackEventEventImporter {
         case TrackEventTracker::ResolvedDescriptorTrack::Scope::kGlobal:
           // TODO: b/175152326 - Should pid namespace translation also be done
           // here?
-          if (thread.valid()) {
+          if (legacy_event_.has_phase() && thread.valid()) {
             auto pid = static_cast<uint32_t>(thread.pid());
             auto tid = static_cast<uint32_t>(thread.tid());
             legacy_passthrough_utid_ = procs->UpdateThread(tid, pid);
