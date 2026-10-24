@@ -3150,6 +3150,7 @@ cc_test {
         ":perfetto_src_shared_lib_test_utils",
         ":perfetto_src_shared_lib_track_event_intern_map",
         ":perfetto_src_shared_lib_track_event_track_event",
+        ":perfetto_src_trace_processor_connection_pool",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_core_common_common",
         ":perfetto_src_trace_processor_core_dataframe_dataframe",
@@ -3204,6 +3205,7 @@ cc_test {
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
+        ":perfetto_src_trace_processor_parallel_query_config",
         ":perfetto_src_trace_processor_perfetto_sql_engine_engine",
         ":perfetto_src_trace_processor_perfetto_sql_generator_generator",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
@@ -17868,6 +17870,22 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor:connection_pool
+filegroup {
+    name: "perfetto_src_trace_processor_connection_pool",
+    srcs: [
+        "src/trace_processor/connection_pool.cc",
+    ],
+}
+
+// GN: //src/trace_processor:connection_pool_unittests
+filegroup {
+    name: "perfetto_src_trace_processor_connection_pool_unittests",
+    srcs: [
+        "src/trace_processor/connection_pool_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/containers:containers
 filegroup {
     name: "perfetto_src_trace_processor_containers_containers",
@@ -19139,6 +19157,11 @@ filegroup {
     srcs: [
         "src/trace_processor/metrics/metrics_unittest.cc",
     ],
+}
+
+// GN: //src/trace_processor:parallel_query_config
+filegroup {
+    name: "perfetto_src_trace_processor_parallel_query_config",
 }
 
 // GN: //src/trace_processor/perfetto_sql/engine:engine
@@ -21428,6 +21451,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/storage:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_storage_unittests",
+    srcs: [
+        "src/trace_processor/storage/trace_storage_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/tables:tables
 filegroup {
     name: "perfetto_src_trace_processor_tables_tables",
@@ -21533,6 +21564,7 @@ filegroup {
     srcs: [
         "src/trace_processor/forwarding_trace_parser_unittest.cc",
         "src/trace_processor/local_file_system_unittest.cc",
+        "src/trace_processor/parallel_query_config_unittest.cc",
         "src/trace_processor/ref_counted_unittest.cc",
         "src/trace_processor/trace_blob_unittest.cc",
     ],
@@ -21650,6 +21682,7 @@ cc_library_static {
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_protozero_text_to_proto_text_to_proto",
+        ":perfetto_src_trace_processor_connection_pool",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_core_common_common",
         ":perfetto_src_trace_processor_core_dataframe_dataframe",
@@ -21705,6 +21738,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_local_file_system",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
+        ":perfetto_src_trace_processor_parallel_query_config",
         ":perfetto_src_trace_processor_perfetto_sql_engine_engine",
         ":perfetto_src_trace_processor_perfetto_sql_generator_generator",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
@@ -24750,6 +24784,8 @@ cc_test {
         ":perfetto_src_shared_lib_track_event_unittests",
         ":perfetto_src_tools_tracing_proto_extensions_lib",
         ":perfetto_src_tools_tracing_proto_extensions_unittests",
+        ":perfetto_src_trace_processor_connection_pool",
+        ":perfetto_src_trace_processor_connection_pool_unittests",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_containers_unittests",
         ":perfetto_src_trace_processor_core_common_common",
@@ -24825,6 +24861,7 @@ cc_test {
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
         ":perfetto_src_trace_processor_metrics_unittests",
+        ":perfetto_src_trace_processor_parallel_query_config",
         ":perfetto_src_trace_processor_perfetto_sql_engine_engine",
         ":perfetto_src_trace_processor_perfetto_sql_engine_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_generator_generator",
@@ -24942,6 +24979,7 @@ cc_test {
         ":perfetto_src_trace_processor_sqlite_unittests",
         ":perfetto_src_trace_processor_storage_minimal",
         ":perfetto_src_trace_processor_storage_storage",
+        ":perfetto_src_trace_processor_storage_unittests",
         ":perfetto_src_trace_processor_tables_tables",
         ":perfetto_src_trace_processor_top_level_unittests",
         ":perfetto_src_trace_processor_trace_summary_trace_summary",
@@ -25954,6 +25992,7 @@ cc_library_static {
         ":perfetto_src_protovm_protovm",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_protozero_text_to_proto_text_to_proto",
+        ":perfetto_src_trace_processor_connection_pool",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_core_common_common",
         ":perfetto_src_trace_processor_core_dataframe_dataframe",
@@ -26008,6 +26047,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
+        ":perfetto_src_trace_processor_parallel_query_config",
         ":perfetto_src_trace_processor_perfetto_sql_engine_engine",
         ":perfetto_src_trace_processor_perfetto_sql_generator_generator",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
@@ -26678,6 +26718,7 @@ cc_binary_host {
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_protozero_text_to_proto_text_to_proto",
+        ":perfetto_src_trace_processor_connection_pool",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_core_common_common",
         ":perfetto_src_trace_processor_core_dataframe_dataframe",
@@ -26732,6 +26773,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
+        ":perfetto_src_trace_processor_parallel_query_config",
         ":perfetto_src_trace_processor_perfetto_sql_engine_engine",
         ":perfetto_src_trace_processor_perfetto_sql_generator_generator",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",

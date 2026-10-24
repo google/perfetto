@@ -410,6 +410,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     ]
     sources = [ "minimal_shell.cc" ]
   }
+
   perfetto_unittest_source_set("connection_pool_unittests") {
     testonly = true
     sources = [ "connection_pool_unittest.cc" ]

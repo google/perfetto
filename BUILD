@@ -420,6 +420,7 @@ perfetto_cc_library(
         ":src_perfetto_sql_syntaqlite_syntaqlite",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
+        ":src_trace_processor_connection_pool",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_exec_exec",
@@ -473,6 +474,7 @@ perfetto_cc_library(
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
+        ":src_trace_processor_parallel_query_config",
         ":src_trace_processor_perfetto_sql_engine_engine",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
@@ -750,6 +752,7 @@ perfetto_cc_library(
         ":src_perfetto_sql_syntaqlite_syntaqlite",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
+        ":src_trace_processor_connection_pool",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_exec_exec",
@@ -804,6 +807,7 @@ perfetto_cc_library(
         ":src_trace_processor_local_file_system",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
+        ":src_trace_processor_parallel_query_config",
         ":src_trace_processor_perfetto_sql_engine_engine",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
@@ -6614,6 +6618,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor:connection_pool
+perfetto_filegroup(
+    name = "src_trace_processor_connection_pool",
+    srcs = [
+        "src/trace_processor/connection_pool.cc",
+        "src/trace_processor/connection_pool.h",
+    ],
+)
+
 # GN target: //src/trace_processor:demangle
 perfetto_cc_library(
     name = "src_trace_processor_demangle",
@@ -6681,6 +6694,14 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/tp_metatrace.cc",
         "src/trace_processor/tp_metatrace.h",
+    ],
+)
+
+# GN target: //src/trace_processor:parallel_query_config
+perfetto_filegroup(
+    name = "src_trace_processor_parallel_query_config",
+    srcs = [
+        "src/trace_processor/parallel_query_config.h",
     ],
 )
 
@@ -12063,6 +12084,7 @@ perfetto_cc_library(
         ":src_perfetto_sql_intrinsic_macro_expansion",
         ":src_perfetto_sql_syntaqlite_syntaqlite",
         ":src_protozero_text_to_proto_text_to_proto",
+        ":src_trace_processor_connection_pool",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_exec_exec",
@@ -12116,6 +12138,7 @@ perfetto_cc_library(
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
+        ":src_trace_processor_parallel_query_config",
         ":src_trace_processor_perfetto_sql_engine_engine",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
@@ -12428,6 +12451,7 @@ perfetto_cc_binary(
         ":src_perfetto_sql_syntaqlite_syntaqlite",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
+        ":src_trace_processor_connection_pool",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_exec_exec",
@@ -12481,6 +12505,7 @@ perfetto_cc_binary(
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
+        ":src_trace_processor_parallel_query_config",
         ":src_trace_processor_perfetto_sql_engine_engine",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
