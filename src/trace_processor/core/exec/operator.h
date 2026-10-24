@@ -152,6 +152,9 @@ enum class OpResult : uint8_t {
   // `out` holds part of the output for this input. Call Execute() again with
   // the same input for the rest.
   kHaveMoreOutput,
+  // `out` holds the last of the operator's output. It takes no more input,
+  // Finish() is not called, and the steps before it are not pulled again.
+  kFinished,
   // The operator failed; status() says why.
   kError,
 };
