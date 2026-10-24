@@ -39,6 +39,7 @@
 #include "src/trace_processor/core/exec/interval_flatten.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
+#include "src/trace_processor/core/exec/limit.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/sort.h"
@@ -317,6 +318,15 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
     std::string out = "IntervalFlatten(" + Lanes(spec.lanes);
     if (!spec.aggregates.empty()) {
       out += "; " + Aggregates(spec.aggregates);
+    }
+    return out + ")";
+  }
+  if (op.Is<Limit>()) {
+    const auto& limit = static_cast<const Limit&>(op);
+    std::string out = "Limit(";
+    out += limit.limit_ ? std::to_string(*limit.limit_) : "none";
+    if (limit.offset_) {
+      out += " offset " + std::to_string(limit.offset_);
     }
     return out + ")";
   }
