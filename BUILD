@@ -2670,6 +2670,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/interval_lanes.cc",
         "src/trace_processor/core/exec/interval_lanes.h",
         "src/trace_processor/core/exec/layout_column.h",
+        "src/trace_processor/core/exec/limit.cc",
+        "src/trace_processor/core/exec/limit.h",
         "src/trace_processor/core/exec/operator.cc",
         "src/trace_processor/core/exec/operator.h",
         "src/trace_processor/core/exec/pipeline.cc",
