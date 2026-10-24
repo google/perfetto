@@ -137,11 +137,12 @@ class FilterValueCaster {
 };
 
 // The caster for a column of storage type `type` compared by `op`, one of =,
-// !=, <, <=, >, >=.
+// !=, <, <=, >, >= or, for a string column, GLOB.
 template <typename Fetcher>
 FilterValueCaster<Fetcher> GetFilterValueCaster(StorageType type,
                                                 const Op& op) {
-  PERFETTO_CHECK(op.IsAnyOf<RangeOp>() || op.Is<Eq>() || op.Is<Ne>());
+  PERFETTO_CHECK(op.IsAnyOf<RangeOp>() || op.Is<Eq>() || op.Is<Ne>() ||
+                 (op.Is<Glob>() && type.Is<String>()));
   NonNullOp non_null = *op.TryDowncast<NonNullOp>();
   switch (type.index()) {
     case StorageType::GetTypeIndex<Id>():

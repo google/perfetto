@@ -203,6 +203,8 @@ TEST_F(FilterTest, KeepsTheRowsEveryConditionHoldsFor) {
   EXPECT_THAT(Kept({{1, Eq{}}}, a), ElementsAre(20, 40));
   EXPECT_THAT(Kept({{1, Ne{}}}, a), ElementsAre(10, 0, 50));
   EXPECT_THAT(Kept({{1, Gt{}}}, {"b"}), ElementsAre(0, 50));
+  EXPECT_THAT(Kept({{1, Glob{}}}, {"[ab]"}), ElementsAre(10, 20, 40));
+  EXPECT_THAT(Kept({{1, Glob{}}}, {"a"}), ElementsAre(20, 40));
 
   // Every condition must hold, each with its own value.
   EXPECT_THAT(Kept({{1, Eq{}, 0}, {0, Gt{}, 1}}, {"a", int64_t{20}}),
