@@ -64,6 +64,49 @@ struct Values : ValueFetcher {
   std::vector<Value> v;
 };
 
+// Hands one IN list to the casters, as SQLite iterates the values of an IN.
+struct List : ValueFetcher {
+  using Type = size_t;
+  static constexpr Type kNull = Values::kNull;
+  static constexpr Type kInt64 = Values::kInt64;
+  static constexpr Type kDouble = Values::kDouble;
+  static constexpr Type kString = Values::kString;
+
+  int64_t GetInt64Value(uint32_t) const { return std::get<int64_t>(v[at]); }
+  double GetDoubleValue(uint32_t) const { return std::get<double>(v[at]); }
+  const char* GetStringValue(uint32_t) const {
+    return std::get<const char*>(v[at]);
+  }
+  Type GetValueType(uint32_t) const { return v[at].index(); }
+  bool IteratorInit(uint32_t) {
+    at = 0;
+    return !v.empty();
+  }
+  bool IteratorNext(uint32_t) { return ++at < v.size(); }
+
+  std::vector<Value> v;
+  size_t at = 0;
+};
+
+// The values of column 1 in the rows of `batch` whose column 0 is in `list`.
+std::vector<int64_t> KeptIn(const RowBatch& batch,
+                            StorageType type,
+                            std::vector<Value> list,
+                            const StringPool& pool) {
+  Filter filter({{0, In{}, 0}}, &pool);
+  Context context;
+  std::unique_ptr<OperatorState> state = filter.MakeState(context);
+  List fetcher;
+  fetcher.v = std::move(list);
+  FilterValue cast[1];
+  GetFilterValueListCaster<List>(type)(fetcher, 0, pool, &cast[0]);
+  context.SetFilterValues(Span<const FilterValue>(cast));
+  RowBatch out;
+  out.CopyFrom(batch);
+  EXPECT_TRUE(filter.Process(out, *state));
+  return test::ReadColumn<int64_t>(out, 1);
+}
+
 // Most of Filter's meaning is the interpreter's casts and kernels, checked end
 // to end by diff tests. These cover what those can't easily reach: batches
 // whose rows are already narrowed or windowed, and a plan run again with new
@@ -224,6 +267,52 @@ TEST(FilterIdTest, ComparesIdsByWhereTheyAre) {
   batch.SetRowCount(4);
   ASSERT_TRUE(filter.Process(batch, *state));
   EXPECT_THAT(test::ReadColumn<uint32_t>(batch, 0), ElementsAre(12u, 13u));
+}
+
+// IN keeps the rows whose value is listed, and never a null. Ids are read from
+// where the window starts, whether the list is dense or not.
+TEST(FilterInTest, KeepsTheRowsWhoseValueIsListed) {
+  StringPool pool;
+  int64_t numbers[] = {10, 20, 0, 40, 50};
+  auto validity = BitVector::CreateWithSize(5);
+  std::vector<StringPool::Id> strings;
+  for (uint32_t i = 0; i < 5; ++i) {
+    if (i != 2) {
+      validity.set(i);
+    }
+  }
+  for (const char* s : {"b", "a", "c", "a", "d"}) {
+    strings.push_back(pool.InternString(s));
+  }
+  auto batch = [&](ColumnView first) {
+    RowBatch b;
+    b.AddBorrowedColumn(first);
+    b.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Int64{}}, numbers, &validity));
+    b.SetRowCount(5);
+    return b;
+  };
+
+  RowBatch by_number =
+      batch(ColumnView::Reference(StorageType{Int64{}}, numbers, &validity));
+  EXPECT_THAT(KeptIn(by_number, StorageType{Int64{}},
+                     {int64_t{40}, nullptr, int64_t{0}, 20.0}, pool),
+              ElementsAre(20, 40));
+
+  RowBatch by_string = batch(
+      ColumnView::Reference(StorageType{String{}}, strings.data(), nullptr));
+  EXPECT_THAT(KeptIn(by_string, StorageType{String{}}, {"a", "zz"}, pool),
+              ElementsAre(20, 40));
+
+  RowBatch dense =
+      batch(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, 2));
+  EXPECT_THAT(KeptIn(dense, StorageType{Id{}}, {int64_t{3}, int64_t{5}}, pool),
+              ElementsAre(20, 40));
+  RowBatch sparse =
+      batch(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, 1000));
+  EXPECT_THAT(KeptIn(sparse, StorageType{Id{}},
+                     {int64_t{1001}, int64_t{1003}, int64_t{7}}, pool),
+              ElementsAre(20, 40));
 }
 
 }  // namespace
