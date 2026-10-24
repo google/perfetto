@@ -23,9 +23,9 @@
 #include <memory>
 #include <tuple>
 #include <type_traits>
-#include <unordered_map>
 #include <utility>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -34,10 +34,22 @@
 
 namespace perfetto::trace_processor {
 
-using InternedMessageMap =
-    std::unordered_map<uint64_t /*iid*/, InternedMessageView>;
-using InternedFieldMap =
-    std::unordered_map<uint32_t /*field_id*/, InternedMessageMap>;
+// The interned messages of a sequence, by InternedData field and iid.
+struct InternedDataKey {
+  uint32_t field_id;
+  uint64_t iid;
+
+  bool operator==(const InternedDataKey& other) const {
+    return field_id == other.field_id && iid == other.iid;
+  }
+
+  template <typename H>
+  friend H PerfettoHashValue(H h, const InternedDataKey& key) {
+    return H::Combine(std::move(h), key.field_id, key.iid);
+  }
+};
+using InternedDataMap =
+    base::FlatHashMapV2<InternedDataKey, InternedMessageView>;
 
 class TraceProcessorContext;
 class IncrementalState;
@@ -143,7 +155,14 @@ class IncrementalState : public RefCounted {
       return nullptr;
     return view->template GetOrCreateDecoder<MessageType>();
   }
-  InternedMessageView* GetInternedMessageView(uint32_t field_id, uint64_t iid);
+  PERFETTO_ALWAYS_INLINE InternedMessageView* GetInternedMessageView(
+      uint32_t field_id,
+      uint64_t iid) {
+    if (InternedMessageView* view = interned_data_.Find({field_id, iid}))
+      return view;
+    OnInternedMessageMissing();
+    return nullptr;
+  }
 
   // Lazy-creates the requested CustomState if absent; returns the cached
   // instance otherwise.
@@ -183,8 +202,10 @@ class IncrementalState : public RefCounted {
   // `PacketSequenceStateBuilder` (via `PacketSequenceStateGeneration`).
   void InternMessage(uint32_t field_id, TraceBlobView message);
 
+  void OnInternedMessageMissing();
+
   TraceProcessorContext* const context_;
-  InternedFieldMap interned_data_;
+  InternedDataMap interned_data_;
   TrackEventThreadDescriptor thread_descriptor_;
   CustomStateArray custom_state_;
 };
