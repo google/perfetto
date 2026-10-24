@@ -36,7 +36,9 @@ source_set("common") {
   deps = [
     "../../../../gn:default_deps",
     "../../../base",
+    "../../../base/regex",
     "../../containers",
+    "../../util:glob",
     "../../util:sorted_search",
     "../util",
   ]

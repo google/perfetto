@@ -85,7 +85,7 @@ void Compare(const ColumnView& column,
     uint32_t start = column.start();
     auto cmp = filter::comparators::IntegerOrDoubleComparator<uint32_t, O>();
     kept = filter::IdentityFilter(
-        begin, end, begin,
+        0, begin, end, begin,
         base::unchecked_get<CastFilterValueResult::Id>(cast.value.value).value,
         [start, cmp](uint32_t row, uint32_t v) { return cmp(start + row, v); });
   } else if constexpr (std::is_same_v<T, String>) {
