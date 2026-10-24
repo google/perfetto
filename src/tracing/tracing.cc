@@ -26,6 +26,7 @@
 #include "perfetto/tracing/internal/track_event_data_source.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "src/tracing/internal/tracing_muxer_impl.h"
+#include "src/tracing/internal/tracing_muxer_noop.h"
 
 namespace perfetto {
 namespace {
@@ -42,6 +43,19 @@ std::mutex& InitializedMutex() {
 void Tracing::InitializeInternal(const TracingInitArgs& args) {
   base::InitializeTime();
   std::unique_lock<std::mutex> lock(InitializedMutex());
+  const bool noop = (args.backends & kNoOpBackend) != 0;
+  if (noop && args.backends != kNoOpBackend)
+    PERFETTO_FATAL("kNoOpBackend cannot be combined with other backends");
+  if (internal::TracingMuxerNoOp::IsInstalled()) {
+    if (noop)
+      return;
+    PERFETTO_FATAL(
+        "Tracing was initialized with kNoOpBackend and cannot be initialized "
+        "with another backend");
+  }
+  if (noop && g_was_initialized)
+    PERFETTO_FATAL("kNoOpBackend used after Tracing was already initialized");
+
   // If it's the first time Initialize is called, set some global params.
   if (!g_was_initialized) {
     // Make sure the headers and implementation files agree on the build config.
@@ -67,7 +81,11 @@ void Tracing::InitializeInternal(const TracingInitArgs& args) {
         args.track_event_buffer_exhausted_policy);
   }
 
-  internal::TracingMuxerImpl::InitializeInstance(args);
+  if (noop) {
+    internal::TracingMuxerNoOp::InitializeInstance(args.platform);
+  } else {
+    internal::TracingMuxerImpl::InitializeInstance(args);
+  }
   internal::TrackRegistry::InitializeInstance(args.process_uuid);
   g_was_initialized = true;
 }
@@ -83,7 +101,11 @@ void Tracing::Shutdown() {
   std::unique_lock<std::mutex> lock(InitializedMutex());
   if (!g_was_initialized)
     return;
-  internal::TracingMuxerImpl::Shutdown();
+  if (internal::TracingMuxerNoOp::IsInstalled()) {
+    internal::TracingMuxerNoOp::ResetInstance();
+  } else {
+    internal::TracingMuxerImpl::Shutdown();
+  }
   g_was_initialized = false;
 }
 
@@ -93,7 +115,11 @@ void Tracing::ResetForTesting() {
   if (!g_was_initialized)
     return;
   base::SetLogMessageCallback(nullptr);
-  internal::TracingMuxerImpl::ResetForTesting();
+  if (internal::TracingMuxerNoOp::IsInstalled()) {
+    internal::TracingMuxerNoOp::ResetInstance();
+  } else {
+    internal::TracingMuxerImpl::ResetForTesting();
+  }
   internal::TrackRegistry::ResetForTesting();
   internal::TrackEventDataSource::ResetForTesting();
   g_was_initialized = false;
@@ -103,6 +129,8 @@ void Tracing::ResetForTesting() {
 std::unique_ptr<TracingSession> Tracing::NewTraceInternal(
     BackendType backend,
     TracingConsumerBackend* (*system_backend_factory)()) {
+  if (internal::TracingMuxerNoOp::IsInstalled())
+    PERFETTO_FATAL("NewTrace() is not supported with kNoOpBackend");
   return static_cast<internal::TracingMuxerImpl*>(internal::TracingMuxer::Get())
       ->CreateTracingSession(backend, system_backend_factory);
 }
@@ -111,6 +139,8 @@ std::unique_ptr<TracingSession> Tracing::NewTraceInternal(
 std::unique_ptr<StartupTracingSession> Tracing::SetupStartupTracing(
     const TraceConfig& config,
     Tracing::SetupStartupTracingOpts opts) {
+  if (internal::TracingMuxerNoOp::IsInstalled())
+    PERFETTO_FATAL("Startup tracing is not supported with kNoOpBackend");
   return static_cast<internal::TracingMuxerImpl*>(internal::TracingMuxer::Get())
       ->CreateStartupTracingSession(config, std::move(opts));
 }
@@ -119,6 +149,8 @@ std::unique_ptr<StartupTracingSession> Tracing::SetupStartupTracing(
 std::unique_ptr<StartupTracingSession> Tracing::SetupStartupTracingBlocking(
     const TraceConfig& config,
     Tracing::SetupStartupTracingOpts opts) {
+  if (internal::TracingMuxerNoOp::IsInstalled())
+    PERFETTO_FATAL("Startup tracing is not supported with kNoOpBackend");
   return static_cast<internal::TracingMuxerImpl*>(internal::TracingMuxer::Get())
       ->CreateStartupTracingSessionBlocking(config, std::move(opts));
 }
