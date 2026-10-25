@@ -133,14 +133,13 @@ class TrackEventEventImporter {
         args_translation_table_(context_->args_translation_table.get()),
         ts_(ts),
         event_data_(event_data),
-        sequence_state_(event_data->trace_packet_data.sequence_state.get()),
+        sequence_state_(event_data->sequence_state.get()),
         blob_(blob),
         event_(blob_),
         legacy_event_(event_.has_legacy_event()
                           ? legacy_event_storage_.emplace(event_.legacy_event())
                           : EmptyLegacyEvent()),
-        defaults_(event_data->trace_packet_data.sequence_state
-                      ->GetTrackEventDefaults()),
+        defaults_(event_data->sequence_state->GetTrackEventDefaults()),
         thread_timestamp_(event_data->thread_timestamp),
         thread_instruction_count_(event_data->thread_instruction_count),
         packet_sequence_id_(packet_sequence_id) {
@@ -161,8 +160,9 @@ class TrackEventEventImporter {
       PacketAnalyzer::SampleAnnotation annotation;
       annotation.emplace_back(parser_->event_category_key_id_, category_id_);
       annotation.emplace_back(parser_->event_name_key_id_, name_id_);
-      PacketAnalyzer::Get(context_)->ProcessPacket(
-          event_data_->trace_packet_data.packet, annotation);
+      PERFETTO_DCHECK(event_data_->packet);
+      PacketAnalyzer::Get(context_)->ProcessPacket(*event_data_->packet,
+                                                   annotation);
     }
 
     RETURN_IF_ERROR(ParseInitialTrackAssociation());

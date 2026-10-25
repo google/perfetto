@@ -160,16 +160,17 @@ class ProtoTraceReader : public ChunkedTraceReader {
   static base::FlatHashMap<ClockTracker::ClockId, int64_t /*Offset*/>
   CalculateClockOffsets(std::vector<SyncClockSnapshots>&);
 
-  PacketSequenceStateBuilder* GetIncrementalState(SequenceScopedState* seq) {
+  PacketSequenceStateBuilder* GetIncrementalState(SequenceScopedState* seq,
+                                                  uint32_t sequence_id) {
     auto& builder = seq->sequence_state_builder;
     if (PERFETTO_UNLIKELY(!builder)) {
-      builder = PacketSequenceStateBuilder(context_);
+      builder = PacketSequenceStateBuilder(context_, sequence_id);
     }
     return &*builder;
   }
   PacketSequenceStateBuilder* GetIncrementalStateForPacketSequence(
       uint32_t sequence_id) {
-    return GetIncrementalState(sequence_state_.Find(sequence_id));
+    return GetIncrementalState(sequence_state_.Find(sequence_id), sequence_id);
   }
 
   TraceProcessorContext* context_;
