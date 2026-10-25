@@ -151,16 +151,16 @@ void MetadataModule::ParseTrigger(int64_t ts,
   StringId name_id = context_->storage->InternString(trigger.trigger_name());
   context_->slice_tracker->Scoped(
       ts, track_id, cat_id, name_id,
-      /* duration = */ 0, [&trigger, this](ArgsInserter* args_table) {
+      /* duration = */ 0, [&trigger, this](ArgsInserter& args_table) {
         StringId producer_name =
             context_->storage->InternString(trigger.producer_name());
         if (!producer_name.is_null()) {
-          args_table->AddArg(producer_name_key_id_,
-                             Variadic::String(producer_name));
+          args_table.AddArg(producer_name_key_id_,
+                            Variadic::String(producer_name));
         }
         if (trigger.has_trusted_producer_uid()) {
-          args_table->AddArg(trusted_producer_uid_key_id_,
-                             Variadic::Integer(trigger.trusted_producer_uid()));
+          args_table.AddArg(trusted_producer_uid_key_id_,
+                            Variadic::Integer(trigger.trusted_producer_uid()));
         }
       });
 
@@ -193,12 +193,11 @@ void MetadataModule::ParseChromeTrigger(int64_t ts, ConstBytes blob) {
   }
   auto slice_id = context_->slice_tracker->Scoped(
       ts, track_id, cat_id, name_id,
-      /* duration = */ 0, [&](ArgsInserter* inserter) {
-        inserter->AddArg(
-            chrome_trigger_hash_id_,
-            Variadic::UnsignedInteger(trigger.trigger_name_hash()));
+      /* duration = */ 0, [&](ArgsInserter& inserter) {
+        inserter.AddArg(chrome_trigger_hash_id_,
+                        Variadic::UnsignedInteger(trigger.trigger_name_hash()));
         if (trigger.has_trigger_name()) {
-          inserter->AddArg(chrome_trigger_name_id_, Variadic::String(name_id));
+          inserter.AddArg(chrome_trigger_name_id_, Variadic::String(name_id));
         }
       });
   if (slice_id && trigger.has_flow_id() &&

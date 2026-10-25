@@ -170,10 +170,10 @@ void PkvmHypervisorCpuTracker::ParseHostHcall(uint32_t cpu,
   TrackId track_id = context_->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
   context_->slice_tracker->AddArgs(
-      track_id, category_, slice_name_, [&, this](ArgsInserter* inserter) {
-        inserter->AddArg(hyp_enter_reason_, Variadic::String(host_hcall_));
-        inserter->AddArg(id_, Variadic::UnsignedInteger(evt.id()));
-        inserter->AddArg(invalid_, Variadic::UnsignedInteger(evt.invalid()));
+      track_id, category_, slice_name_, [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(hyp_enter_reason_, Variadic::String(host_hcall_));
+        inserter.AddArg(id_, Variadic::UnsignedInteger(evt.id()));
+        inserter.AddArg(invalid_, Variadic::UnsignedInteger(evt.invalid()));
       });
 }
 
@@ -183,11 +183,10 @@ void PkvmHypervisorCpuTracker::ParseHostSmc(uint32_t cpu,
   TrackId track_id = context_->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
   context_->slice_tracker->AddArgs(
-      track_id, category_, slice_name_, [&, this](ArgsInserter* inserter) {
-        inserter->AddArg(hyp_enter_reason_, Variadic::String(host_smc_));
-        inserter->AddArg(id_, Variadic::UnsignedInteger(evt.id()));
-        inserter->AddArg(forwarded_,
-                         Variadic::UnsignedInteger(evt.forwarded()));
+      track_id, category_, slice_name_, [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(hyp_enter_reason_, Variadic::String(host_smc_));
+        inserter.AddArg(id_, Variadic::UnsignedInteger(evt.id()));
+        inserter.AddArg(forwarded_, Variadic::UnsignedInteger(evt.forwarded()));
       });
 }
 
@@ -197,10 +196,10 @@ void PkvmHypervisorCpuTracker::ParseHostMemAbort(uint32_t cpu,
   TrackId track_id = context_->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
   context_->slice_tracker->AddArgs(
-      track_id, category_, slice_name_, [&, this](ArgsInserter* inserter) {
-        inserter->AddArg(hyp_enter_reason_, Variadic::String(host_mem_abort_));
-        inserter->AddArg(esr_, Variadic::UnsignedInteger(evt.esr()));
-        inserter->AddArg(addr_, Variadic::UnsignedInteger(evt.addr()));
+      track_id, category_, slice_name_, [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(hyp_enter_reason_, Variadic::String(host_mem_abort_));
+        inserter.AddArg(esr_, Variadic::UnsignedInteger(evt.esr()));
+        inserter.AddArg(addr_, Variadic::UnsignedInteger(evt.addr()));
       });
 }
 
@@ -210,11 +209,11 @@ void PkvmHypervisorCpuTracker::ParseHostFfaCall(uint32_t cpu,
   TrackId track_id = context_->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
   context_->slice_tracker->AddArgs(
-      track_id, category_, slice_name_, [&, this](ArgsInserter* inserter) {
-        inserter->AddArg(hyp_enter_reason_, Variadic::String(host_ffa_call_));
-        inserter->AddArg(func_id_, Variadic::UnsignedInteger(evt.func_id()));
-        inserter->AddArg(handled_, Variadic::Integer(evt.handled()));
-        inserter->AddArg(err_, Variadic::Integer(evt.err()));
+      track_id, category_, slice_name_, [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(hyp_enter_reason_, Variadic::String(host_ffa_call_));
+        inserter.AddArg(func_id_, Variadic::UnsignedInteger(evt.func_id()));
+        inserter.AddArg(handled_, Variadic::Integer(evt.handled()));
+        inserter.AddArg(err_, Variadic::Integer(evt.err()));
       });
 }
 
@@ -224,11 +223,11 @@ void PkvmHypervisorCpuTracker::ParseIommuIdmap(uint32_t cpu,
   TrackId track_id = context_->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
   context_->slice_tracker->AddArgs(
-      track_id, category_, slice_name_, [&, this](ArgsInserter* inserter) {
-        inserter->AddArg(hyp_enter_reason_, Variadic::String(iommu_idmap_));
-        inserter->AddArg(from_, Variadic::UnsignedInteger(evt.from()));
-        inserter->AddArg(to_, Variadic::UnsignedInteger(evt.to()));
-        inserter->AddArg(prot_, Variadic::Integer(evt.prot()));
+      track_id, category_, slice_name_, [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(hyp_enter_reason_, Variadic::String(iommu_idmap_));
+        inserter.AddArg(from_, Variadic::UnsignedInteger(evt.from()));
+        inserter.AddArg(to_, Variadic::UnsignedInteger(evt.to()));
+        inserter.AddArg(prot_, Variadic::Integer(evt.prot()));
       });
 }
 
@@ -238,11 +237,10 @@ void PkvmHypervisorCpuTracker::ParsePsciMemProtect(uint32_t cpu,
   TrackId track_id = context_->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
   context_->slice_tracker->AddArgs(
-      track_id, category_, slice_name_, [&, this](ArgsInserter* inserter) {
-        inserter->AddArg(hyp_enter_reason_,
-                         Variadic::String(psci_mem_protect_));
-        inserter->AddArg(count_, Variadic::UnsignedInteger(evt.count()));
-        inserter->AddArg(was_, Variadic::UnsignedInteger(evt.was()));
+      track_id, category_, slice_name_, [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(hyp_enter_reason_, Variadic::String(psci_mem_protect_));
+        inserter.AddArg(count_, Variadic::UnsignedInteger(evt.count()));
+        inserter.AddArg(was_, Variadic::UnsignedInteger(evt.was()));
       });
 }
 
@@ -253,10 +251,10 @@ void PkvmHypervisorCpuTracker::ParseIommuIdmapComplete(
   TrackId track_id = context_->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
   context_->slice_tracker->AddArgs(
-      track_id, category_, slice_name_, [&, this](ArgsInserter* inserter) {
-        inserter->AddArg(hyp_enter_reason_,
-                         Variadic::String(iommu_idmap_complete_));
-        inserter->AddArg(map_, Variadic::Boolean(evt.map()));
+      track_id, category_, slice_name_, [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(hyp_enter_reason_,
+                        Variadic::String(iommu_idmap_complete_));
+        inserter.AddArg(map_, Variadic::Boolean(evt.map()));
       });
 }
 
@@ -266,10 +264,10 @@ void PkvmHypervisorCpuTracker::ParseVcuIllegalTrap(uint32_t cpu,
   TrackId track_id = context_->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
   context_->slice_tracker->AddArgs(
-      track_id, category_, slice_name_, [&, this](ArgsInserter* inserter) {
-        inserter->AddArg(hyp_enter_reason_,
-                         Variadic::String(vcpu_illegal_trap_));
-        inserter->AddArg(esr_, Variadic::UnsignedInteger(evt.esr()));
+      track_id, category_, slice_name_, [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(hyp_enter_reason_,
+                        Variadic::String(vcpu_illegal_trap_));
+        inserter.AddArg(esr_, Variadic::UnsignedInteger(evt.esr()));
       });
 }
 

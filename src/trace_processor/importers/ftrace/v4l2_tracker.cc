@@ -287,7 +287,7 @@ std::optional<SliceId> V4l2Tracker::AddSlice(StringId buf_name_id,
 
   std::optional<SliceId> slice_id = context_->slice_tracker->Scoped(
       timestamp, track_id, buf_event_ids_.v4l2, buf_name_id, 0,
-      [this, &evt](ArgsInserter* inserter) { this->AddArgs(evt, inserter); });
+      [this, &evt](ArgsInserter& inserter) { this->AddArgs(evt, &inserter); });
 
   return slice_id;
 }

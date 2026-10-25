@@ -41,8 +41,8 @@ void EventTracker::PushProcessCounterForThread(ProcessCounterForThread pcounter,
                                                UniqueTid utid) {
   const auto& counter = context_->storage->counter_table();
   auto opt_id = PushCounter(
-      timestamp, value, kInvalidTrackId, [this, utid](ArgsInserter* inserter) {
-        inserter->AddArg(thread_arg_key_, Variadic::UnsignedInteger(utid));
+      timestamp, value, kInvalidTrackId, [this, utid](ArgsInserter& inserter) {
+        inserter.AddArg(thread_arg_key_, Variadic::UnsignedInteger(utid));
       });
   if (opt_id) {
     PendingUpidResolutionCounter pending;
@@ -69,7 +69,7 @@ std::optional<CounterId> EventTracker::PushCounter(
   if (maybe_counter_id) {
     ArgsTracker args_tracker(context_);
     auto inserter = args_tracker.AddArgsTo(*maybe_counter_id);
-    args_callback(&inserter);
+    args_callback(inserter);
   }
   return maybe_counter_id;
 }

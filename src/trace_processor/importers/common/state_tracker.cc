@@ -41,7 +41,7 @@ std::optional<tables::StateTable::Id> StateTracker::UpdateState(
         if (!active->args_inserter) {
           active->args_inserter = ArgsTracker(context_).AddArgsTo(ref.id());
         }
-        args_callback(&*active->args_inserter);
+        args_callback(*active->args_inserter);
       }
       return ref.id();
     }
@@ -68,7 +68,7 @@ std::optional<tables::StateTable::Id> StateTracker::UpdateState(
 
     if (args_callback) {
       active_state.args_inserter = ArgsTracker(context_).AddArgsTo(ref.id());
-      args_callback(&*active_state.args_inserter);
+      args_callback(*active_state.args_inserter);
     }
 
     active_states_.Insert(track_id, std::move(active_state));

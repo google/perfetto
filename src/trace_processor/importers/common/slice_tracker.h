@@ -46,7 +46,7 @@ class SliceTracker {
 
   // Sentinel default args callback; WantsArgs() compiles arg handling away.
   struct NoArgsCallback {
-    void operator()(ArgsInserter*) const {}
+    void operator()(ArgsInserter&) const {}
   };
 
   // Describes a partial overlap detected while adding a scoped slice: the
@@ -279,7 +279,7 @@ class SliceTracker {
     if constexpr (std::is_same_v<ArgsCb, NoArgsCallback>) {
       base::ignore_result(inserter, args);
     } else if (inserter) {
-      args(inserter);
+      args(*inserter);
     }
   }
 

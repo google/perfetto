@@ -276,9 +276,9 @@ void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(int64_t timestamp,
   TrackId track_id = context_->track_compressor->InternBegin(
       kExpectedBlueprint, tracks::Dimensions(upid), cookie);
   context_->slice_tracker->Begin(timestamp, track_id, kNullStringId, name_id,
-                                 [this, token](ArgsInserter* inserter) {
-                                   inserter->AddArg(display_frame_token_id_,
-                                                    Variadic::Integer(token));
+                                 [this, token](ArgsInserter& inserter) {
+                                   inserter.AddArg(display_frame_token_id_,
+                                                   Variadic::Integer(token));
                                  });
 }
 
@@ -379,37 +379,36 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
       CalculateDisplayFrameJankTag(event.jank_type_experimental());
 
   std::optional<SliceId> opt_slice_id = context_->slice_tracker->Begin(
-      timestamp, track_id, kNullStringId, name_id, [&](ArgsInserter* inserter) {
-        inserter->AddArg(display_frame_token_id_, Variadic::Integer(token));
-        inserter->AddArg(present_delay_millis_id_,
-                         Variadic::Real(present_delay_millis));
-        inserter->AddArg(present_type_id_, Variadic::String(present_type));
-        inserter->AddArg(present_type_experimental_id_,
-                         Variadic::String(present_type_experimental));
-        inserter->AddArg(on_time_finish_id_,
-                         Variadic::Integer(event.on_time_finish()));
-        inserter->AddArg(gpu_composition_id_,
-                         Variadic::Integer(event.gpu_composition()));
-        inserter->AddArg(jank_type_id_, Variadic::String(jank_type));
-        inserter->AddArg(jank_type_experimental_id_,
-                         Variadic::String(jank_type_experimental));
-        inserter->AddArg(jank_severity_type_id_,
-                         Variadic::String(jank_severity_type));
-        inserter->AddArg(jank_severity_score_id_,
-                         Variadic::Real(jank_severity_score));
-        inserter->AddArg(prediction_type_id_,
-                         Variadic::String(prediction_type));
-        inserter->AddArg(jank_tag_id_, Variadic::String(jank_tag));
-        inserter->AddArg(jank_tag_experimental_id_,
-                         Variadic::String(jank_tag_experimental));
-        inserter->AddArg(jank_debug_metadata_id_,
-                         Variadic::Real(jank_debug_metadata));
+      timestamp, track_id, kNullStringId, name_id, [&](ArgsInserter& inserter) {
+        inserter.AddArg(display_frame_token_id_, Variadic::Integer(token));
+        inserter.AddArg(present_delay_millis_id_,
+                        Variadic::Real(present_delay_millis));
+        inserter.AddArg(present_type_id_, Variadic::String(present_type));
+        inserter.AddArg(present_type_experimental_id_,
+                        Variadic::String(present_type_experimental));
+        inserter.AddArg(on_time_finish_id_,
+                        Variadic::Integer(event.on_time_finish()));
+        inserter.AddArg(gpu_composition_id_,
+                        Variadic::Integer(event.gpu_composition()));
+        inserter.AddArg(jank_type_id_, Variadic::String(jank_type));
+        inserter.AddArg(jank_type_experimental_id_,
+                        Variadic::String(jank_type_experimental));
+        inserter.AddArg(jank_severity_type_id_,
+                        Variadic::String(jank_severity_type));
+        inserter.AddArg(jank_severity_score_id_,
+                        Variadic::Real(jank_severity_score));
+        inserter.AddArg(prediction_type_id_, Variadic::String(prediction_type));
+        inserter.AddArg(jank_tag_id_, Variadic::String(jank_tag));
+        inserter.AddArg(jank_tag_experimental_id_,
+                        Variadic::String(jank_tag_experimental));
+        inserter.AddArg(jank_debug_metadata_id_,
+                        Variadic::Real(jank_debug_metadata));
         if (event.has_latched_unsignaled_count()) {
-          inserter->AddArg(latched_unsignaled_count_id_,
-                           Variadic::Integer(event.latched_unsignaled_count()));
+          inserter.AddArg(latched_unsignaled_count_id_,
+                          Variadic::Integer(event.latched_unsignaled_count()));
         }
         if (event.has_addressable_unsignaled_latch_count()) {
-          inserter->AddArg(
+          inserter.AddArg(
               addressable_unsignaled_latch_count_id_,
               Variadic::Integer(event.addressable_unsignaled_latch_count()));
         }
@@ -473,11 +472,11 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(int64_t timestamp,
   TrackId track_id = context_->track_compressor->InternBegin(
       kExpectedBlueprint, tracks::Dimensions(upid), cookie);
   context_->slice_tracker->Begin(
-      timestamp, track_id, kNullStringId, name_id, [&](ArgsInserter* inserter) {
-        inserter->AddArg(surface_frame_token_id_, Variadic::Integer(token));
-        inserter->AddArg(display_frame_token_id_,
-                         Variadic::Integer(display_frame_token));
-        inserter->AddArg(layer_name_id_, Variadic::String(layer_name_id));
+      timestamp, track_id, kNullStringId, name_id, [&](ArgsInserter& inserter) {
+        inserter.AddArg(surface_frame_token_id_, Variadic::Integer(token));
+        inserter.AddArg(display_frame_token_id_,
+                        Variadic::Integer(display_frame_token));
+        inserter.AddArg(layer_name_id_, Variadic::String(layer_name_id));
       });
 }
 
@@ -614,43 +613,42 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
   }
 
   std::optional<SliceId> opt_slice_id = context_->slice_tracker->Begin(
-      timestamp, track_id, kNullStringId, name_id, [&](ArgsInserter* inserter) {
-        inserter->AddArg(surface_frame_token_id_, Variadic::Integer(token));
-        inserter->AddArg(display_frame_token_id_,
-                         Variadic::Integer(display_frame_token));
+      timestamp, track_id, kNullStringId, name_id, [&](ArgsInserter& inserter) {
+        inserter.AddArg(surface_frame_token_id_, Variadic::Integer(token));
+        inserter.AddArg(display_frame_token_id_,
+                        Variadic::Integer(display_frame_token));
         if (event.has_animation_time_millis()) {
-          inserter->AddArg(animation_time_millis_id_,
-                           Variadic::Real(animation_time_millis));
+          inserter.AddArg(animation_time_millis_id_,
+                          Variadic::Real(animation_time_millis));
         }
-        inserter->AddArg(present_delay_millis_id_,
-                         Variadic::Real(present_delay_millis));
-        inserter->AddArg(vsync_resynced_jitter_millis_id_,
-                         Variadic::Real(vsync_resynced_jitter_millis));
-        inserter->AddArg(layer_name_id_, Variadic::String(layer_name_id));
-        inserter->AddArg(present_type_id_, Variadic::String(present_type));
-        inserter->AddArg(present_type_experimental_id_,
-                         Variadic::String(present_type_experimental));
-        inserter->AddArg(on_time_finish_id_,
-                         Variadic::Integer(event.on_time_finish()));
-        inserter->AddArg(gpu_composition_id_,
-                         Variadic::Integer(event.gpu_composition()));
-        inserter->AddArg(jank_type_id_, Variadic::String(jank_type));
-        inserter->AddArg(jank_type_experimental_id_,
-                         Variadic::String(jank_type_experimental));
-        inserter->AddArg(jank_severity_type_id_,
-                         Variadic::String(jank_severity_type));
-        inserter->AddArg(jank_severity_score_id_,
-                         Variadic::Real(jank_severity_score));
-        inserter->AddArg(prediction_type_id_,
-                         Variadic::String(prediction_type));
-        inserter->AddArg(jank_tag_id_, Variadic::String(jank_tag));
-        inserter->AddArg(jank_tag_experimental_id_,
-                         Variadic::String(jank_tag_experimental));
-        inserter->AddArg(is_buffer_id_, Variadic::String(is_buffer));
-        inserter->AddArg(jank_debug_metadata_id_,
-                         Variadic::Real(jank_debug_metadata));
+        inserter.AddArg(present_delay_millis_id_,
+                        Variadic::Real(present_delay_millis));
+        inserter.AddArg(vsync_resynced_jitter_millis_id_,
+                        Variadic::Real(vsync_resynced_jitter_millis));
+        inserter.AddArg(layer_name_id_, Variadic::String(layer_name_id));
+        inserter.AddArg(present_type_id_, Variadic::String(present_type));
+        inserter.AddArg(present_type_experimental_id_,
+                        Variadic::String(present_type_experimental));
+        inserter.AddArg(on_time_finish_id_,
+                        Variadic::Integer(event.on_time_finish()));
+        inserter.AddArg(gpu_composition_id_,
+                        Variadic::Integer(event.gpu_composition()));
+        inserter.AddArg(jank_type_id_, Variadic::String(jank_type));
+        inserter.AddArg(jank_type_experimental_id_,
+                        Variadic::String(jank_type_experimental));
+        inserter.AddArg(jank_severity_type_id_,
+                        Variadic::String(jank_severity_type));
+        inserter.AddArg(jank_severity_score_id_,
+                        Variadic::Real(jank_severity_score));
+        inserter.AddArg(prediction_type_id_, Variadic::String(prediction_type));
+        inserter.AddArg(jank_tag_id_, Variadic::String(jank_tag));
+        inserter.AddArg(jank_tag_experimental_id_,
+                        Variadic::String(jank_tag_experimental));
+        inserter.AddArg(is_buffer_id_, Variadic::String(is_buffer));
+        inserter.AddArg(jank_debug_metadata_id_,
+                        Variadic::Real(jank_debug_metadata));
         if (event.has_latched_fence_state()) {
-          inserter->AddArg(
+          inserter.AddArg(
               latched_fence_state_id_,
               Variadic::String(latched_fence_state_ids_[static_cast<size_t>(
                   event.latched_fence_state())]));

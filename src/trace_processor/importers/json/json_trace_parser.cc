@@ -140,12 +140,12 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
   // Only used for 'B', 'E', and 'X' events so wrap in lambda so it gets
   // ignored in other cases. This lambda is only safe to call within the
   // scope of this function due to the capture by reference.
-  auto args_inserter = [&](ArgsInserter* inserter) {
+  auto args_inserter = [&](ArgsInserter& inserter) {
     if (event.args_size > 0) {
       json::AddJsonValueToArgs(
           it_, event.args.get(), event.args.get() + event.args_size,
           /* flat_key = */ "args",
-          /* key = */ "args", context_->storage.get(), inserter);
+          /* key = */ "args", context_->storage.get(), &inserter);
     }
   };
 

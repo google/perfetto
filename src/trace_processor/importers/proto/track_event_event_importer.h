@@ -669,7 +669,7 @@ class TrackEventEventImporter {
 
     context_->event_tracker->PushCounter(
         ts_, static_cast<double>(event_data_->counter_value), track_id,
-        [this](ArgsInserter* inserter) { ParseCounterArgs(inserter); });
+        [this](ArgsInserter& inserter) { ParseCounterArgs(&inserter); });
     return base::OkStatus();
   }
 
@@ -697,7 +697,7 @@ class TrackEventEventImporter {
     } else {
       context_->state_tracker->UpdateState(
           ts_, track_id, state_id, category_id_,
-          [this](ArgsInserter* inserter) { ParseStateArgs(inserter); });
+          [this](ArgsInserter& inserter) { ParseStateArgs(&inserter); });
     }
 
     return base::OkStatus();
@@ -820,7 +820,7 @@ class TrackEventEventImporter {
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationBegin());
     auto opt_slice_id = context_->slice_tracker->Begin(
         ts_, track_id, category_id_, name_id_,
-        [this](ArgsInserter* inserter) { ParseSliceArgs(inserter); });
+        [this](ArgsInserter& inserter) { ParseSliceArgs(&inserter); });
     if (opt_slice_id.has_value()) {
       auto rr = (*context_->storage->mutable_slice_table())[*opt_slice_id];
       if (thread_timestamp_) {
@@ -843,7 +843,7 @@ class TrackEventEventImporter {
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationEnd());
     auto opt_slice_id = context_->slice_tracker->End(
         ts_, track_id, category_id_, name_id_,
-        [this](ArgsInserter* inserter) { ParseSliceArgs(inserter); });
+        [this](ArgsInserter& inserter) { ParseSliceArgs(&inserter); });
     if (!opt_slice_id)
       return base::OkStatus();
 
@@ -880,7 +880,7 @@ class TrackEventEventImporter {
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationForLegacy());
     auto opt_slice_id = context_->slice_tracker->Scoped(
         ts_, track_id, category_id_, name_id_, duration_ns,
-        [this](ArgsInserter* inserter) { ParseSliceArgs(inserter); });
+        [this](ArgsInserter& inserter) { ParseSliceArgs(&inserter); });
     if (opt_slice_id.has_value()) {
       auto rr = (*context_->storage->mutable_slice_table())[*opt_slice_id];
       if (thread_timestamp_) {
@@ -1012,14 +1012,14 @@ class TrackEventEventImporter {
     int64_t duration_ns = 0;
     int64_t tidelta = 0;
     std::optional<tables::SliceTable::Id> opt_slice_id;
-    auto args_inserter = [this, phase](ArgsInserter* inserter) {
-      ParseSliceArgs(inserter);
+    auto args_inserter = [this, phase](ArgsInserter& inserter) {
+      ParseSliceArgs(&inserter);
       // For legacy MARK event, add phase for JSON exporter.
       if (phase == 'R') {
         std::string phase_string(1, static_cast<char>(phase));
         StringId phase_id = storage_->InternString(phase_string.c_str());
-        inserter->AddArg(parser_->legacy_event_phase_key_id_,
-                         Variadic::String(phase_id));
+        inserter.AddArg(parser_->legacy_event_phase_key_id_,
+                        Variadic::String(phase_id));
       }
     };
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationInstant());
@@ -1046,8 +1046,8 @@ class TrackEventEventImporter {
   }
 
   base::Status ParseAsyncBeginEvent(char phase) {
-    auto args_inserter = [this, phase](ArgsInserter* inserter) {
-      ParseSliceArgs(inserter);
+    auto args_inserter = [this, phase](ArgsInserter& inserter) {
+      ParseSliceArgs(&inserter);
 
       if (phase == 'b')
         return;
@@ -1055,8 +1055,8 @@ class TrackEventEventImporter {
       // For legacy ASYNC_BEGIN, add phase for JSON exporter.
       std::string phase_string(1, static_cast<char>(phase));
       StringId phase_id = storage_->InternString(phase_string.c_str());
-      inserter->AddArg(parser_->legacy_event_phase_key_id_,
-                       Variadic::String(phase_id));
+      inserter.AddArg(parser_->legacy_event_phase_key_id_,
+                      Variadic::String(phase_id));
     };
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationBegin());
     auto opt_slice_id = context_->slice_tracker->Begin(
@@ -1085,7 +1085,7 @@ class TrackEventEventImporter {
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationEnd());
     auto opt_slice_id = context_->slice_tracker->End(
         ts_, track_id, category_id_, name_id_,
-        [this](ArgsInserter* inserter) { ParseSliceArgs(inserter); });
+        [this](ArgsInserter& inserter) { ParseSliceArgs(&inserter); });
     if (!opt_slice_id)
       return base::OkStatus();
 
@@ -1108,14 +1108,14 @@ class TrackEventEventImporter {
     int64_t duration_ns = 0;
     auto opt_slice_id = context_->slice_tracker->Scoped(
         ts_, track_id, category_id_, name_id_, duration_ns,
-        [this, phase](ArgsInserter* inserter) {
-          ParseSliceArgs(inserter);
+        [this, phase](ArgsInserter& inserter) {
+          ParseSliceArgs(&inserter);
 
           PERFETTO_DCHECK(phase == 'T' || phase == 'p');
           std::string phase_string(1, static_cast<char>(phase));
           StringId phase_id = storage_->InternString(phase_string.c_str());
-          inserter->AddArg(parser_->legacy_event_phase_key_id_,
-                           Variadic::String(phase_id));
+          inserter.AddArg(parser_->legacy_event_phase_key_id_,
+                          Variadic::String(phase_id));
         });
     if (opt_slice_id) {
       MaybeInsertTrackEventCallstack(*opt_slice_id, track_id);
@@ -1133,7 +1133,7 @@ class TrackEventEventImporter {
     int64_t tidelta = 0;
     auto opt_slice_id = context_->slice_tracker->Scoped(
         ts_, track_id, category_id_, name_id_, duration_ns,
-        [this](ArgsInserter* inserter) { ParseSliceArgs(inserter); });
+        [this](ArgsInserter& inserter) { ParseSliceArgs(&inserter); });
     if (!opt_slice_id.has_value()) {
       return base::OkStatus();
     }

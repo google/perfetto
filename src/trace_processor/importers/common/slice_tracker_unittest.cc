@@ -159,16 +159,16 @@ TEST_F(SliceTrackerTest, OneSliceWithArgs) {
 
   constexpr TrackId track{22u};
   tracker.Begin(2 /*ts*/, track, kNullStringId /*cat*/,
-                StringId::Raw(1) /*name*/, [](ArgsInserter* inserter) {
-                  inserter->AddArg(/*flat_key=*/StringId::Raw(1),
-                                   /*key=*/StringId::Raw(2),
-                                   /*v=*/Variadic::Integer(10));
+                StringId::Raw(1) /*name*/, [](ArgsInserter& inserter) {
+                  inserter.AddArg(/*flat_key=*/StringId::Raw(1),
+                                  /*key=*/StringId::Raw(2),
+                                  /*v=*/Variadic::Integer(10));
                 });
   tracker.End(10 /*ts*/, track, kNullStringId /*cat*/,
-              StringId::Raw(1) /*name*/, [](ArgsInserter* inserter) {
-                inserter->AddArg(/*flat_key=*/StringId::Raw(3),
-                                 /*key=*/StringId::Raw(4),
-                                 /*v=*/Variadic::Integer(20));
+              StringId::Raw(1) /*name*/, [](ArgsInserter& inserter) {
+                inserter.AddArg(/*flat_key=*/StringId::Raw(3),
+                                /*key=*/StringId::Raw(4),
+                                /*v=*/Variadic::Integer(20));
               });
 
   const auto& slices = context_.storage->slice_table();
@@ -206,16 +206,16 @@ TEST_F(SliceTrackerTest, OneSliceWithArgsWithTranslatedName) {
 
   constexpr TrackId track{22u};
   tracker.Begin(2 /*ts*/, track, kNullStringId /*cat*/, raw_name /*name*/,
-                [](ArgsInserter* inserter) {
-                  inserter->AddArg(/*flat_key=*/StringId::Raw(1),
-                                   /*key=*/StringId::Raw(2),
-                                   /*v=*/Variadic::Integer(10));
+                [](ArgsInserter& inserter) {
+                  inserter.AddArg(/*flat_key=*/StringId::Raw(1),
+                                  /*key=*/StringId::Raw(2),
+                                  /*v=*/Variadic::Integer(10));
                 });
   tracker.End(10 /*ts*/, track, kNullStringId /*cat*/, raw_name /*name*/,
-              [](ArgsInserter* inserter) {
-                inserter->AddArg(/*flat_key=*/StringId::Raw(3),
-                                 /*key=*/StringId::Raw(4),
-                                 /*v=*/Variadic::Integer(20));
+              [](ArgsInserter& inserter) {
+                inserter.AddArg(/*flat_key=*/StringId::Raw(3),
+                                /*key=*/StringId::Raw(4),
+                                /*v=*/Variadic::Integer(20));
               });
 
   const auto& slices = context_.storage->slice_table();

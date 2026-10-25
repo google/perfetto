@@ -88,14 +88,14 @@ TEST_F(StateTrackerTest, MergeArgs) {
 
   // 1. Start state1 with arg1
   tracker->UpdateState(2 /*ts*/, track, state1, cat1,
-                       [&](ArgsInserter* inserter) {
-                         inserter->AddArg(key1, Variadic::Integer(10));
+                       [&](ArgsInserter& inserter) {
+                         inserter.AddArg(key1, Variadic::Integer(10));
                        });
 
   // 2. Update with same state and arg2
   tracker->UpdateState(5 /*ts*/, track, state1, cat1,
-                       [&](ArgsInserter* inserter) {
-                         inserter->AddArg(key2, Variadic::Integer(20));
+                       [&](ArgsInserter& inserter) {
+                         inserter.AddArg(key2, Variadic::Integer(20));
                        });
 
   // 3. End state

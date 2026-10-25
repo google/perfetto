@@ -310,11 +310,10 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
         return;
       }
 
-      auto insert_args = [this, args = *maybe_args](ArgsInserter* inserter) {
+      auto insert_args = [this, args = *maybe_args](ArgsInserter& inserter) {
         for (const Arg& arg : args) {
-          inserter->AddArg(
-              arg.name, arg.name,
-              arg.value.ToStorageVariadic(context_->storage.get()));
+          inserter.AddArg(arg.name, arg.name,
+                          arg.value.ToStorageVariadic(context_->storage.get()));
         }
       };
 

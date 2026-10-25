@@ -266,7 +266,7 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
   // This function inserts the args from the proto into the args table.
   // Args inserted with the same key multiple times are treated as an array:
   // this function correctly creates the key and flat key for each arg array.
-  auto args_fn = [this, &event](ArgsInserter* inserter) {
+  auto args_fn = [this, &event](ArgsInserter& inserter) {
     using Arg = std::pair<StringId, StringId>;
 
     // First, get a list of all the args so we can group them by key.
@@ -303,7 +303,7 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
       StringId next_key = next == interned.end() ? kNullStringId : next->first;
 
       if (key != next_key && current_idx == 0) {
-        inserter->AddArg(key, Variadic::String(it->second));
+        inserter.AddArg(key, Variadic::String(it->second));
       } else {
         constexpr size_t kMaxIndexSize = 20;
         NullTermStringView key_str = context_->storage->GetString(key);
@@ -316,7 +316,7 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
                                           current_idx);
         StringId new_key =
             context_->storage->InternString(array_key.string_view());
-        inserter->AddArg(key, new_key, Variadic::String(it->second));
+        inserter.AddArg(key, new_key, Variadic::String(it->second));
 
         current_idx = key == next_key ? current_idx + 1 : 0;
       }
@@ -376,7 +376,7 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
     if (opt_id) {
       ArgsTracker args_tracker(context_);
       auto inserter = args_tracker.AddArgsTo(*opt_id);
-      args_fn(&inserter);
+      args_fn(inserter);
     }
   }
 

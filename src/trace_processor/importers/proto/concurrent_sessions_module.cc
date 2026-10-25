@@ -121,11 +121,10 @@ void ConcurrentSessionsModule::ParseConcurrentSessionEvent(
 
   context_->state_tracker->UpdateState(
       ts, track_id, state_name, kNullStringId,
-      [this, &event](ArgsInserter* args) {
-        args->AddArg(arg_consumer_uid_,
-                     Variadic::Integer(event.consumer_uid()));
-        args->AddArg(arg_num_data_sources_,
-                     Variadic::Integer(event.num_data_sources()));
+      [this, &event](ArgsInserter& args) {
+        args.AddArg(arg_consumer_uid_, Variadic::Integer(event.consumer_uid()));
+        args.AddArg(arg_num_data_sources_,
+                    Variadic::Integer(event.num_data_sources()));
       });
 
   // DISABLED is terminal: close it at the same timestamp, so it renders as a
