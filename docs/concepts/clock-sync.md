@@ -248,7 +248,6 @@ whatever their origin, are recorded in the `clock_snapshot` table. See
 [Trace merging](/docs/concepts/merging-traces.md) for the full
 model.
 
-[6756fb05]: https://android-review.googlesource.com/c/platform/external/perfetto/+/1101915/
-[clock_snapshot]: https://android.googlesource.com/platform/external/perfetto/+/refs/heads/main/protos/perfetto/trace/clock_snapshot.proto
-[timestamp_clock_id]: https://android.googlesource.com/platform/external/perfetto/+/3e7ca4f5893f7d762ec24a2eac9a47343b226c6c/protos/perfetto/trace/trace_packet.proto#68
-[builtin_clocks]: https://android.googlesource.com/platform/external/perfetto/+/3e7ca4f5893f7d762ec24a2eac9a47343b226c6c/protos/perfetto/trace/clock_snapshot.proto#25
+[6756fb05]: https://github.com/google/perfetto/commit/6756fb0548df5e0abb743644879fd34c9e72b0e8
+[clock_snapshot]: https://github.com/google/perfetto/blob/main/protos/perfetto/trace/clock_snapshot.proto
+[builtin_clocks]: https://github.com/google/perfetto/blob/a39834aa20faca91179990afaff9c8551f6305a3/protos/perfetto/trace/clock_snapshot.proto#L27
