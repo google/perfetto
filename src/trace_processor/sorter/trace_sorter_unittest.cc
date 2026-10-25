@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/sorter/trace_sorter.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -322,6 +323,35 @@ TEST_F(TraceSorterTest, MultiQueueSorting) {
 
   context_.sorter->ExtractEventsForced();
   EXPECT_TRUE(expectations.empty());
+}
+
+// Enough out of order events to be radix sorted, with many equal timestamps.
+TEST_F(TraceSorterTest, ManyOutOfOrderEventsKeepArrivalOrderOnTies) {
+  std::minstd_rand0 rnd_engine(0);
+  auto sink = std::make_unique<MockSink<FtraceEventData>>();
+  auto* sink_ptr = sink.get();
+  auto stream = context_.sorter->CreateStream(std::move(sink));
+
+  std::vector<std::pair<int64_t, uint32_t>> parsed;
+  EXPECT_CALL(*sink_ptr, MockParse(_, _))
+      .WillRepeatedly([&parsed](int64_t ts, FtraceEventData data) {
+        parsed.emplace_back(ts, data.cpu);
+      });
+
+  constexpr uint32_t kEvents = 10000;
+  std::vector<std::pair<int64_t, uint32_t>> expected;
+  TraceBlobView tbv(TraceBlob::Allocate(kEvents));
+  for (uint32_t i = 0; i < kEvents; ++i) {
+    auto ts = static_cast<int64_t>(rnd_engine() % 100);
+    expected.emplace_back(ts, i);
+    stream->Push(ts, {tbv.slice_off(i, 1), i});
+  }
+  context_.sorter->ExtractEventsForced();
+
+  std::stable_sort(
+      expected.begin(), expected.end(),
+      [](const auto& a, const auto& b) { return a.first < b.first; });
+  EXPECT_EQ(parsed, expected);
 }
 
 TEST_F(TraceSorterTest, SetSortingMode) {

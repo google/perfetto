@@ -29,6 +29,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/bump_allocator.h"
+#include "src/trace_processor/util/sort.h"
 
 namespace perfetto::trace_processor {
 
@@ -95,7 +96,13 @@ void TraceSorter::Queue::Sort(TraceTokenBuffer& buffer, bool use_slow_sorting) {
     std::sort(sort_begin, events_.end(),
               TimestampedEvent::SlowOperatorLess{buffer});
   } else {
-    std::sort(sort_begin, events_.end());
+    // Within a queue, arrival order is alloc id order, so a stable sort by
+    // timestamp matches operator<.
+    auto runs = events_.GetContiguousRuns(
+        static_cast<size_t>(sort_begin - events_.begin()));
+    StableSortElementsByKey(runs.first, runs.first + runs.first_size,
+                            runs.second, runs.second + runs.second_size,
+                            [](const TimestampedEvent& e) { return e.ts; });
   }
   sort_start_idx_ = 0;
   sort_min_ts_ = 0;

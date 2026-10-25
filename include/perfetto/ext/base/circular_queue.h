@@ -322,6 +322,22 @@ class CircularQueue {
 
   size_t capacity() const { return capacity_; }
 
+  // The entries [begin() + from, end()) as at most two contiguous runs, in
+  // order. The second is empty unless they wrap around the end of the storage.
+  struct ContiguousRuns {
+    T* first;
+    size_t first_size;
+    T* second;
+    size_t second_size;
+  };
+  ContiguousRuns GetContiguousRuns(size_t from) {
+    PERFETTO_DCHECK(from <= size());
+    size_t n = size() - from;
+    auto index = static_cast<size_t>((begin_ + from) & (capacity_ - 1));
+    size_t first_size = std::min(n, capacity_ - index);
+    return {&entries_[index], first_size, &entries_[0], n - first_size};
+  }
+
 #if PERFETTO_DCHECK_IS_ON()
   uint32_t generation() const { return generation_; }
   void increment_generation() { ++generation_; }

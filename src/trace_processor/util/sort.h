@@ -399,6 +399,77 @@ void StableSortByKeyDescending(It begin, It end, Key key) {
   });
 }
 
+// Stably sorts the elements of [first_begin, first_end) followed by those of
+// [second_begin, second_end), as one range, by the integer `key(element)`:
+// a range a ring buffer splits in two, or one range when the second is empty.
+// Many elements are radix sorted on just the bits in which their keys differ,
+// and the rest compared. Unlike StableSortByKey(), it moves the elements
+// themselves rather than their indices and is compiled for each element type
+// and key: for hot paths sorting many small elements which carry their key.
+template <typename T, typename Key>
+void StableSortElementsByKey(T* first_begin,
+                             T* first_end,
+                             T* second_begin,
+                             T* second_end,
+                             Key key) {
+  static_assert(std::is_trivially_copyable_v<T>,
+                "T must be trivially copyable to be sorted in place.");
+  auto first_size = static_cast<size_t>(first_end - first_begin);
+  auto second_size = static_cast<size_t>(second_end - second_begin);
+  size_t size = first_size + second_size;
+  if (size < 2) {
+    return;
+  }
+  auto ordered = [&key](const T& e) {
+    return sort_internal::ToOrderedKey(key(e));
+  };
+  uint64_t base = ordered(*(first_size ? first_begin : second_begin));
+  uint64_t differing = 0;
+  for (const T* it = first_begin; it != first_end; ++it) {
+    differing |= ordered(*it) ^ base;
+  }
+  for (const T* it = second_begin; it != second_end; ++it) {
+    differing |= ordered(*it) ^ base;
+  }
+  uint32_t key_bits = 64 - base::CountLeadZeros64(differing);
+  bool radix = sort_internal::RadixSortIsCheaper(size, key_bits);
+  auto less = [&key](const T& a, const T& b) { return key(a) < key(b); };
+  if (!radix && second_size == 0) {
+    std::stable_sort(first_begin, first_end, less);
+    return;
+  }
+  // A range in two runs is gathered into one to be sorted, and put back.
+  std::unique_ptr<T[]> gathered;
+  T* data = first_begin;
+  if (second_size) {
+    gathered.reset(new T[size]);
+    data = gathered.get();
+    memcpy(data, first_begin, first_size * sizeof(T));
+    memcpy(data + first_size, second_begin, second_size * sizeof(T));
+  }
+  T* sorted = data;
+  std::unique_ptr<T[]> scratch;
+  if (radix) {
+    scratch.reset(new T[size]);
+    std::unique_ptr<uint32_t[]> counts(
+        new uint32_t[RadixSortCountsSize(key_bits, size)]);
+    sorted = RadixSort(data, data + size, scratch.get(), counts.get(), key_bits,
+                       ordered);
+  } else {
+    std::stable_sort(data, data + size, less);
+  }
+  if (sorted != first_begin) {
+    memcpy(first_begin, sorted, first_size * sizeof(T));
+    memcpy(second_begin, sorted + first_size, second_size * sizeof(T));
+  }
+}
+
+// As above, for one range.
+template <typename T, typename Key>
+void StableSortElementsByKey(T* begin, T* end, Key key) {
+  StableSortElementsByKey(begin, end, end, end, std::move(key));
+}
+
 }  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_UTIL_SORT_H_

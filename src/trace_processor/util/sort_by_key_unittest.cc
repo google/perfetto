@@ -43,8 +43,47 @@ TEST(SortByKeyTest, MatchesStdStableSort) {
         expected.begin(), expected.end(),
         [](const auto& a, const auto& b) { return a.first < b.first; });
     StableSortByKey(data.begin(), data.end(),
-                        [](const auto& x) { return x.first; });
+                    [](const auto& x) { return x.first; });
     ASSERT_EQ(data, expected);
+  }
+}
+
+// One range or two runs, of few or many elements with narrow or wide keys, so
+// both comparing and radix sorting, against std::stable_sort of the whole.
+TEST(SortByKeyTest, StableSortElementsByKeyMatchesStdStableSort) {
+  struct Element {
+    int64_t key;
+    uint32_t index;
+    bool operator==(const Element& o) const {
+      return key == o.key && index == o.index;
+    }
+  };
+  std::mt19937_64 rnd(0);
+  for (uint32_t size : {0u, 1u, 10u, 3000u, 100000u}) {
+    for (bool wide : {false, true}) {
+      std::vector<Element> data;
+      for (uint32_t i = 0; i < size; ++i) {
+        int64_t key = wide ? static_cast<int64_t>(rnd())
+                           : static_cast<int64_t>(rnd() % 1000) - 500;
+        data.push_back({key, i});
+      }
+      auto expected = data;
+      std::stable_sort(
+          expected.begin(), expected.end(),
+          [](const Element& a, const Element& b) { return a.key < b.key; });
+      for (uint32_t split : {size, size / 3}) {
+        // The first `split` elements are the second run, as a wrapped ring
+        // stores them.
+        std::vector<Element> storage(data.begin() + split, data.end());
+        storage.insert(storage.end(), data.begin(), data.begin() + split);
+        Element* second = storage.data() + (size - split);
+        StableSortElementsByKey(second, second + split, storage.data(), second,
+                                [](const Element& e) { return e.key; });
+        std::vector<Element> sorted(second, second + split);
+        sorted.insert(sorted.end(), storage.data(), second);
+        ASSERT_EQ(sorted, expected) << size << " " << wide << " " << split;
+      }
+    }
   }
 }
 
@@ -78,7 +117,7 @@ TEST(SortByKeyTest, LargeInputsMatchStdStableSort) {
             expected.begin(), expected.end(),
             [](const auto& a, const auto& b) { return a.first < b.first; });
         StableSortByKey(input.begin(), input.end(),
-                            [](const auto& x) { return x.first; });
+                        [](const auto& x) { return x.first; });
         ASSERT_EQ(input, expected) << size << " " << range << " " << order;
       }
     }
@@ -102,7 +141,7 @@ TEST(SortByKeyTest, Descending) {
       {std::numeric_limits<int64_t>::min(), 3},
       {7, 4}};
   StableSortByKeyDescending(data.begin(), data.end(),
-                                [](const auto& x) { return x.first; });
+                            [](const auto& x) { return x.first; });
   ASSERT_EQ(data, (std::vector<std::pair<int64_t, int>>{
                       {7, 4},
                       {2, 0},
@@ -117,7 +156,7 @@ TEST(SortByKeyTest, MoveOnly) {
     data.push_back(std::make_unique<int>(v));
   }
   SortByKey(data.begin(), data.end(),
-                [](const std::unique_ptr<int>& p) { return *p; });
+            [](const std::unique_ptr<int>& p) { return *p; });
   ASSERT_EQ(*data[0], 1);
   ASSERT_EQ(*data[1], 2);
   ASSERT_EQ(*data[2], 3);

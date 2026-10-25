@@ -176,6 +176,30 @@ TEST(CircularQueueTest, Iterators) {
   }
 }
 
+TEST(CircularQueueTest, ContiguousRuns) {
+  CircularQueue<int> queue(8);
+  for (int i = 0; i < 6; i++)
+    queue.emplace_back(i);
+  auto runs = queue.GetContiguousRuns(2);
+  ASSERT_EQ(runs.first_size, 4u);
+  ASSERT_EQ(runs.second_size, 0u);
+  ASSERT_EQ(runs.first[0], 2);
+
+  // 2..7 fill the end of the storage and 8 wraps to its start.
+  queue.erase_front(2);
+  for (int i = 6; i < 9; i++)
+    queue.emplace_back(i);
+  runs = queue.GetContiguousRuns(1);
+  ASSERT_EQ(runs.first_size, 5u);
+  ASSERT_EQ(runs.second_size, 1u);
+  ASSERT_EQ(runs.first[0], 3);
+  ASSERT_EQ(runs.first[4], 7);
+  ASSERT_EQ(runs.second[0], 8);
+
+  runs = queue.GetContiguousRuns(queue.size());
+  ASSERT_EQ(runs.first_size + runs.second_size, 0u);
+}
+
 TEST(CircularQueueTest, ReverseIterators) {
   CircularQueue<int> queue;
   ASSERT_EQ(queue.rbegin(), queue.rend());
