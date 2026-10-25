@@ -72,7 +72,8 @@ class HeapProfileTrackerDupTest : public ::testing::Test {
         new MachineTracker(&context, kDefaultMachineId));
     context.mapping_tracker.reset(new MappingTracker(&context));
     context.stack_profile_tracker.reset(new StackProfileTracker(&context));
-    sequence_state = PacketSequenceStateGeneration::CreateFirst(&context);
+    sequence_state = PacketSequenceStateGeneration::CreateFirst(
+        &context, /*trusted_packet_sequence_id=*/1);
 
     mapping_name = context.storage->InternString("[mapping]");
     fully_qualified_mapping_name = context.storage->InternString("/[mapping]");
@@ -209,7 +210,8 @@ TEST(HeapProfileTrackerTest, SourceMappingPath) {
       new MachineTracker(&context, kDefaultMachineId));
   context.mapping_tracker.reset(new MappingTracker(&context));
   context.stack_profile_tracker.reset(new StackProfileTracker(&context));
-  auto state = PacketSequenceStateGeneration::CreateFirst(&context);
+  auto state = PacketSequenceStateGeneration::CreateFirst(
+      &context, /*trusted_packet_sequence_id=*/1);
   ProfilePacketSequenceState& ppss =
       *state->GetCustomState<ProfilePacketSequenceState>();
 
@@ -246,7 +248,8 @@ TEST(HeapProfileTrackerTest, Functional) {
   context.mapping_tracker.reset(new MappingTracker(&context));
   context.stack_profile_tracker.reset(new StackProfileTracker(&context));
 
-  auto state = PacketSequenceStateGeneration::CreateFirst(&context);
+  auto state = PacketSequenceStateGeneration::CreateFirst(
+      &context, /*trusted_packet_sequence_id=*/1);
   ProfilePacketSequenceState& ppss =
       *state->GetCustomState<ProfilePacketSequenceState>();
 

@@ -352,7 +352,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     return ParseRemoteClockSync(decoder.remote_clock_sync());
   }
 
-  auto* state = GetIncrementalState(scoped_state);
+  auto* state = GetIncrementalState(scoped_state, seq_id);
   if (sequence_flags &
       protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE) {
     if (!seq_id) {

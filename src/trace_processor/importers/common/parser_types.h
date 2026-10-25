@@ -162,12 +162,12 @@ struct alignas(8) FtraceData {
 static_assert(sizeof(FtraceData) % 8 == 0);
 
 struct alignas(8) TrackEventData {
-  TrackEventData(TraceBlobView pv,
-                 RefPtr<PacketSequenceStateGeneration> generation)
-      : trace_packet_data{std::move(pv), std::move(generation)} {}
-
-  explicit TrackEventData(TracePacketData tpd)
-      : trace_packet_data(std::move(tpd)) {}
+  TrackEventData(TraceBlobView e,
+                 RefPtr<PacketSequenceStateGeneration> generation,
+                 std::optional<TraceBlobView> p)
+      : event(std::move(e)),
+        sequence_state(std::move(generation)),
+        packet(std::move(p)) {}
 
   static constexpr uint8_t kMaxNumExtraCounters = 8;
 
@@ -179,7 +179,12 @@ struct alignas(8) TrackEventData {
     return TrackEventData::kMaxNumExtraCounters;
   }
 
-  TracePacketData trace_packet_data;
+  // The TrackEvent field of the packet.
+  TraceBlobView event;
+  RefPtr<PacketSequenceStateGeneration> sequence_state;
+  // The whole TracePacket. Only kept when the content analyzer is enabled, as
+  // it is the only consumer of the rest of the packet.
+  std::optional<TraceBlobView> packet;
   std::optional<int64_t> thread_timestamp;
   std::optional<int64_t> thread_instruction_count;
   double counter_value = 0;
