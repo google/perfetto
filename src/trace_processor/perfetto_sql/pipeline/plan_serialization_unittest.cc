@@ -114,6 +114,14 @@ const char* const kPipelines[] = {
     "FROM spans |> AGGREGATE MAX(dur) AS m |> SELECT m",
     R"(GRAPH DOMINATOR TREE NODES df EDGES (SELECT parent_id AS src, id AS dst
       FROM df) FROM (SELECT 0 AS id) |> TREE ACCUMULATE UP SUM(self) AS t)",
+    R"(GRAPH CRITICAL PATH NODES (SELECT cpu AS id, ts, dur, cpu FROM spans)
+      EDGES (SELECT cpu AS src, cpu AS dst, ts, dur FROM spans)
+      FROM (SELECT cpu AS id, ts, dur FROM spans) PER cpu
+      |> SELECT root_id, id, ts, dur, depth)",
+    R"(GRAPH CRITICAL PATH NODES (SELECT cpu AS id, ts, dur FROM spans)
+      EDGES (SELECT cpu AS src, cpu AS dst, ts, dur FROM spans)
+      FROM (SELECT cpu AS id FROM spans)
+      |> SELECT root_id, id, ts, dur)",
     // Pruning removes the fold, whose node is left behind unread.
     "FROM df |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id",
 };

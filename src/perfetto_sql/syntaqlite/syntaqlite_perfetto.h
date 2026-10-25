@@ -2240,7 +2240,8 @@ typedef enum SyntaqlitePerfettoTreeDirection {
 typedef enum SyntaqlitePerfettoGraphTreeKind {
     SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_BFS = 0,
     SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_DFS = 1,
-    SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_DOMINATOR = 2
+    SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_DOMINATOR = 2,
+    SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_CRITICAL_PATH = 3
 } SyntaqlitePerfettoGraphTreeKind;
 
 // ============ Flags Types ============
@@ -3437,6 +3438,7 @@ typedef struct SyntaqlitePerfettoGraphTree {
     uint32_t nodes;
     uint32_t edges;
     uint32_t seeds;
+    uint32_t per;
 } SyntaqlitePerfettoGraphTree;
 
 typedef struct SyntaqlitePerfettoPipeline {
@@ -4976,7 +4978,9 @@ template <> struct NodeTag<SyntaqlitePerfettoPipeline> {
 #define SYNTAQLITE_TK_DOMINATOR                      210
 #define SYNTAQLITE_TK_NODES                          211
 #define SYNTAQLITE_TK_EDGES                          212
-#define SYNTAQLITE_TK_PIPE                           213
+#define SYNTAQLITE_TK_CRITICAL                       213
+#define SYNTAQLITE_TK_PATH                           214
+#define SYNTAQLITE_TK_PIPE                           215
 
 /* syntaqlite extension: expected terminals for current parser state. */
 uint32_t SynqPerfettoParseExpectedTokens(void* parser, uint32_t* out_tokens, uint32_t out_cap);

@@ -205,7 +205,9 @@ std::string PipelineFormatter::SourceString(const Source& source) {
     const GraphTreeSpec& spec = static_cast<const GraphTree&>(source).spec_;
     const char* kind = spec.kind == GraphTreeSpec::Kind::kBfs   ? "BFS"
                        : spec.kind == GraphTreeSpec::Kind::kDfs ? "DFS"
-                                                                : "DOMINATOR";
+                       : spec.kind == GraphTreeSpec::Kind::kDominator
+                           ? "DOMINATOR"
+                           : "CRITICAL PATH";
     return std::string("GraphTree(") + kind +
            "; nodes: " + Column(spec.node_column) + " keeping " +
            Columns(spec.retained_columns) +

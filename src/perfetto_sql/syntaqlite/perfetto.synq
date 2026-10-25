@@ -580,25 +580,35 @@ node PerfettoIntervalIntersection {
   }
 }
 
-enum PerfettoGraphTreeKind { BFS DFS DOMINATOR }
+enum PerfettoGraphTreeKind { BFS DFS DOMINATOR CRITICAL_PATH }
 
 // `GRAPH BFS | DFS | DOMINATOR TREE NODES rel EDGES rel FROM rel`: reduces the
 // graph to a tree over the nodes reachable from the seeds in FROM.
+// `GRAPH CRITICAL PATH NODES rel EDGES rel FROM rel [PER col]`: explains each
+// seed's window by following its timed "waits on" edges, as time slices with
+// the depth they were reached at. PER names the NODES column whose value is the
+// lane (e.g. the thread) a node is on.
 node PerfettoGraphTree {
   kind: inline PerfettoGraphTreeKind
   nodes: index PerfettoPipeSource
   edges: index PerfettoPipeSource
   seeds: index PerfettoPipeSource
+  per: index PerfettoPerColumnList
 
   fmt {
     group {
       "GRAPH" space
-      enum_display(kind, { BFS="BFS" DFS="DFS" DOMINATOR="DOMINATOR" })
-      space "TREE"
+      switch(kind) {
+        BFS { "BFS" space "TREE" }
+        DFS { "DFS" space "TREE" }
+        DOMINATOR { "DOMINATOR" space "TREE" }
+        CRITICAL_PATH { "CRITICAL" space "PATH" }
+      }
       nest {
         line "NODES" space child(nodes)
         line "EDGES" space child(edges)
         line "FROM" space child(seeds)
+        if_set(per) { line "PER" space child(per) }
       }
     }
   }

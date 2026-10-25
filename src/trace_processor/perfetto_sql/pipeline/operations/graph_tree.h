@@ -52,11 +52,24 @@ class GraphTree : public PlanOperation {
 
   core::exec::GraphTreeSpec::Kind kind_ = core::exec::GraphTreeSpec::Kind::kBfs;
   ColumnId node_ = 0;
+  ColumnId node_ts_ = 0;
+  ColumnId node_dur_ = 0;
+  ColumnId node_lane_ = 0;
   // The node columns passed on to the rows out, in the nodes' order.
   std::vector<ColumnId> carried_;
   ColumnId source_ = 0;
   ColumnId target_ = 0;
+  ColumnId edge_ts_ = 0;
+  ColumnId edge_dur_ = 0;
   ColumnId seed_ = 0;
+  std::optional<ColumnId> seed_ts_;
+  std::optional<ColumnId> seed_dur_;
+  // The seed columns passed on to the rows out, in the seeds' order.
+  std::vector<ColumnId> seed_carried_;
+  ColumnId out_ts_ = 0;
+  ColumnId out_dur_ = 0;
+  ColumnId root_id_ = 0;
+  ColumnId depth_ = 0;
   // The parent's id, which no input owns.
   ColumnId parent_ = 0;
 };

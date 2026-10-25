@@ -23,7 +23,8 @@
 // Allow extension keywords to be used as regular identifiers.
 %fallback ID PERFETTO FUNCTION MODULE RETURNS MACRO DELEGATES INCLUDE
           TREE ACCUMULATE UP DOWN INTERVAL INTERSECTION PER EXTEND FLATTEN
-          AGGREGATE FILL GAPS GRAPH BFS DFS DOMINATOR NODES EDGES.
+          AGGREGATE FILL GAPS GRAPH BFS DFS DOMINATOR NODES EDGES CRITICAL
+          PATH.
 
 // ---------- Helper nonterminals ----------
 
@@ -502,7 +503,15 @@ perfetto_keyword_pipeline(A) ::= GRAPH perfetto_graph_tree_kind(K) TREE
     NODES perfetto_pipe_source(N) EDGES perfetto_pipe_source(E)
     FROM perfetto_pipe_source(F) perfetto_pipe_stage_list(S). {
     uint32_t src = synq_parse_perfetto_graph_tree(pCtx,
-        (SyntaqlitePerfettoGraphTreeKind)K, N, E, F);
+        (SyntaqlitePerfettoGraphTreeKind)K, N, E, F, SYNTAQLITE_NULL_NODE);
+    A = synq_parse_perfetto_pipeline(pCtx, SYNTAQLITE_NULL_NODE,
+        SYNTAQLITE_NULL_NODE, src, S);
+}
+perfetto_keyword_pipeline(A) ::= GRAPH CRITICAL PATH
+    NODES perfetto_pipe_source(N) EDGES perfetto_pipe_source(E)
+    FROM perfetto_pipe_source(F) perfetto_per(P) perfetto_pipe_stage_list(S). {
+    uint32_t src = synq_parse_perfetto_graph_tree(pCtx,
+        SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_CRITICAL_PATH, N, E, F, P);
     A = synq_parse_perfetto_pipeline(pCtx, SYNTAQLITE_NULL_NODE,
         SYNTAQLITE_NULL_NODE, src, S);
 }

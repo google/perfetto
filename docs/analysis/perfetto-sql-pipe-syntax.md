@@ -53,13 +53,14 @@ Diagram(
 - `|>` must be written with no space between `|` and `>`.
 - `TREE`, `ACCUMULATE`, `UP`, `DOWN`, `INTERVAL`, `INTERSECTION`, `FLATTEN`,
   `FILL`, `GAPS`, `AGGREGATE`, `PER`, `EXTEND`, `GRAPH`, `BFS`, `DFS`,
-  `DOMINATOR`, `NODES` and `EDGES` are not reserved, so they can still be used
+  `DOMINATOR`, `NODES`, `EDGES`, `CRITICAL` and `PATH` are not reserved, so they can still be used
   as names in SQL.
 - An alias always needs `AS`: `FROM slice AS s`, not `FROM slice s`.
 
 A `<source-clause>` is [`FROM`](#from),
 [`INTERVAL INTERSECTION OF`](#interval-intersection-of) or
-[`GRAPH ... TREE`](#graph-tree). A `<stage>` is one of:
+[`GRAPH ... TREE`](#graph-tree) or [`GRAPH CRITICAL PATH`](#graph-critical-path).
+A `<stage>` is one of:
 
 ```railroad stage
 Diagram(Choice(0,
@@ -239,6 +240,91 @@ columns.
   is ignored. `NODES` can be a subset of the graph `EDGES` describes.
 - **Dominators:** A node's dominators are the nodes every path to it from the
   seeds passes through, as though one more node had an edge to every seed.
+
+### `GRAPH CRITICAL PATH` {#graph-critical-path}
+
+Explains a window of time by following who was waiting on whom. Where
+`GRAPH BFS | DFS | DOMINATOR TREE` asks "which nodes can I reach?",
+`GRAPH CRITICAL PATH` asks "at each instant of this window, who was I waiting
+on, and who were they waiting on?". The edges form a wait-for graph: thread
+wakeups, binder transactions, lock hand-offs. The critical path of a thread is
+the canonical use:
+
+```railroad
+Diagram(
+  Terminal('GRAPH'), Terminal('CRITICAL'), Terminal('PATH'),
+  Terminal('NODES'), NonTerminal('source'),
+  Terminal('EDGES'), NonTerminal('source'),
+  Terminal('FROM'), NonTerminal('source'),
+  Optional(Sequence(Terminal('PER'), NonTerminal('column'))))
+```
+
+```sql
+GRAPH CRITICAL PATH
+  NODES _wakeup_graph
+  EDGES (
+    SELECT id AS src, waker_id AS dst, ts - idle_dur AS ts, idle_dur AS dur
+    FROM _wakeup_graph
+  )
+  FROM (
+    SELECT
+      id,
+      ts - idle_dur AS ts,
+      dur + idle_dur AS dur,
+      utid AS root_utid
+    FROM _wakeup_graph
+  )
+  PER utid
+|> EXTEND depth * 4294967296 + utid AS key
+|> INTERVAL FLATTEN PER root_id, root_utid AGGREGATE MAX(key) AS key
+|> SELECT ts, dur, key % 4294967296 AS utid, root_utid
+```
+
+The example leaves out `NULL` handling; `sched/thread_executing_span_with_slice.sql`
+in the standard library has the exact form.
+
+#### Requirements
+
+- `NODES` has `id`, `ts` and `dur` columns: each node is the interval
+  `[ts, ts + dur)`.
+- `EDGES` has `src`, `dst`, `ts` and `dur` columns: over `[ts, ts + dur)`,
+  `src` waits on `dst`.
+- `FROM` has an `id` column, and optionally both `ts` and `dur`: the window
+  each seed is walked over. Without them, the seed node's own interval.
+- `PER` names at most one `NODES` column: the lane (for example the thread) a
+  node is on. Without it, every node is on a lane of its own.
+- All of these hold integers. No two nodes have the same `id`.
+
+#### Output
+
+One row per time slice, with every `NODES` column, then `root_id` (the seed),
+`depth`, `parent_id` (the node whose edge led here, `NULL` at depth 0), and
+any extra columns from `FROM` whose names do not collide with `NODES` or
+`root_id`, `depth` or `parent_id`. `ts` and `dur` are the slice, not the
+node's own interval. `NODES` columns named `root_id`, `depth` or `parent_id`
+are not carried. Each seed's rows are sorted by `ts`, then `depth`, so a
+following `INTERVAL FLATTEN PER root_id` (along with any carried `FROM`
+columns) needs no sort. A node appears once per slice it explains, so unlike
+the `GRAPH ... TREE` output this is not a tree for `TREE ACCUMULATE`.
+
+#### Critical path rules
+
+- **Walk:** A window over a lane is clipped to every node and edge on that
+  lane. A node yields a row for the slice it covers. An edge walks the clipped
+  slice over its `dst`'s lane at `depth + 1`.
+- **Clipping:** An edge never outlives its `dst`: it ends at
+  `min(ts + dur, dst.ts + dst.dur)`.
+- **Self edges:** An edge with `src = dst` makes the node stand for its own
+  wait: it yields a row for `src` over the edge's slice at the same depth.
+- **Internal gaps:** Any uncovered sub-interval inside a seed's active extent
+  `[min(ts), max(ts + dur))` is filled with the seed node itself at `depth = 0`
+  (`parent_id = NULL`).
+- **Causality:** Waiting only reaches back in time. An edge is ignored unless
+  `dst` started before `src`, and when an edge leads to `dst`, only the nodes
+  on `dst`'s lane which started no later than `dst` are looked at. So every
+  walk ends, even if `EDGES` has cycles.
+- **Skipped rows:** Edges with a `NULL` column or `dur <= 0`, edges and seeds
+  naming no node, and seeds with an empty window are ignored.
 
 ---
 

@@ -574,5 +574,34 @@ TEST_F(PhysicalPlanTest, FoldsAfterAGraphTreeReuseItsNumbering) {
               ElementsAre(Pair(1, 100), Pair(2, 20), Pair(3, 30), Pair(4, 40)));
 }
 
+TEST_F(PhysicalPlanTest, CriticalPathStreamsIntoIntervalFlattenWithoutSorting) {
+  Exec("CREATE TABLE nodes(id INTEGER, ts INTEGER, dur INTEGER, utid INTEGER)");
+  Exec("INSERT INTO nodes VALUES (1, 100, 50, 10), (2, 60, 50, 20)");
+  Exec("CREATE TABLE edges(src INTEGER, dst INTEGER, ts INTEGER, dur INTEGER)");
+  Exec("INSERT INTO edges VALUES (1, 2, 60, 40)");
+  auto plan = Plan(
+      "GRAPH CRITICAL PATH NODES nodes EDGES edges "
+      "FROM (SELECT 1 AS id, 60 AS ts, 90 AS dur, 10 AS root_utid) PER utid "
+      "|> INTERVAL FLATTEN PER root_id, root_utid AGGREGATE MAX(id) AS id "
+      "|> SELECT id, dur");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(
+      PhysicalPlanToString(**plan),
+      "side: DataframeScan | AssertType(#0 to Int64) | "
+      "AssertType(#1 to Int64) | AssertType(#2 to Int64) | "
+      "AssertType(#3 to Int64)\n"
+      "side: DataframeScan | AssertType(#0 to Int64) | "
+      "AssertType(#1 to Int64) | AssertType(#2 to Int64) | "
+      "AssertType(#3 to Int64)\n"
+      "side: DataframeScan | AssertType(#0 to Int64) | "
+      "AssertType(#1 to Int64) | AssertType(#2 to Int64)\n"
+      "main: GraphTree(CRITICAL PATH; nodes: #0 keeping ; edges: #0 -> #1; "
+      "seeds: #0) | IntervalFlatten(#2, #3, keys: #4, #0, "
+      "groups: #7; MAX(#1))");
+  auto rows = Run(**plan, "dur");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(1, 50), Pair(2, 40)));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::pipeline

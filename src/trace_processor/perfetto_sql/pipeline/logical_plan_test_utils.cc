@@ -260,7 +260,9 @@ std::string LogicalPlanFormatter::GraphTreeString(const LogicalPlan& plan,
   const char* kind = tree.kind_ == core::exec::GraphTreeSpec::Kind::kBfs ? "BFS"
                      : tree.kind_ == core::exec::GraphTreeSpec::Kind::kDfs
                          ? "DFS"
-                         : "DOMINATOR";
+                     : tree.kind_ == core::exec::GraphTreeSpec::Kind::kDominator
+                         ? "DOMINATOR"
+                         : "CRITICAL PATH";
   std::string out = std::string("GraphTree(") + kind + ", id=#" +
                     std::to_string(tree.node_) + ", carries=[";
   for (uint32_t c = 0; c < tree.carried_.size(); c++) {
