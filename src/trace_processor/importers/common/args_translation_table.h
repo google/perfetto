@@ -25,7 +25,6 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/deobfuscation_mapping_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 template <>
 struct std::hash<std::pair<perfetto::trace_processor::MappingId, uint64_t>> {
@@ -43,7 +42,6 @@ namespace trace_processor {
 // to map for example hashes to their names.
 class ArgsTranslationTable {
  public:
-  using Key = util::ProtoToArgsParser::Key;
   using NativeSymbolKey = std::pair<MappingId, uint64_t>;
   struct SourceLocation {
     std::string file_name;

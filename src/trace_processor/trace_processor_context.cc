@@ -63,6 +63,7 @@
 #include "src/trace_processor/types/trace_manifest_state.h"
 #include "src/trace_processor/types/trace_processor_context_ptr.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto::trace_processor {
 namespace {

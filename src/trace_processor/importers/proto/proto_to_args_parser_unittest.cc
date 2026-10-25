@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/util/proto_to_args_parser.h"
+#include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 
 #include <array>
 #include <cstddef>

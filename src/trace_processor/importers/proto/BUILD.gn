@@ -84,7 +84,10 @@ source_set("minimal") {
     "user_tracker.cc",
     "user_tracker.h",
   ]
-  public_deps = [ ":proto_importer_module" ]
+  public_deps = [
+    ":proto_importer_module",
+    ":proto_to_args_parser",
+  ]
   deps = [
     ":gen_cc_chrome_track_event_descriptor",
     ":gen_cc_gpu_track_event_descriptor",
@@ -220,6 +223,7 @@ source_set("full") {
     ":gen_cc_trace_descriptor",
     ":minimal",
     ":packet_sequence_state_generation_hdr",
+    ":proto_to_args_parser",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced:sys_stats_counters",
     "../../../../protos/perfetto/common:zero",
@@ -256,7 +260,6 @@ source_set("full") {
     "../../util:descriptors",
     "../../util:profiler_util",
     "../../util:proto_profiler",
-    "../../util:proto_to_args_parser",
     "../common",
     "../common:parser_types",
     "../etw:full",
@@ -265,6 +268,29 @@ source_set("full") {
     "../ftrace:minimal",
     "../generic_kernel:full",
     "../syscalls:full",
+  ]
+}
+
+source_set("proto_to_args_parser") {
+  sources = [
+    "proto_to_args_parser.cc",
+    "proto_to_args_parser.h",
+  ]
+  deps = [
+    ":gen_cc_track_event_descriptor",
+    "../../../../gn:default_deps",
+    "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/trace/interned_data:zero",
+    "../../../../protos/perfetto/trace/profiling:zero",
+    "../../../../protos/perfetto/trace/track_event:zero",
+    "../../../../protos/perfetto/trace_processor:zero",
+    "../../../protozero",
+  ]
+  public_deps = [
+    "../../../base",
+    "../../containers",
+    "../../util:descriptors",
+    "../../util:interned_message_view",
   ]
 }
 
@@ -360,6 +386,7 @@ perfetto_unittest_source_set("unittests") {
     "perf_sample_tracker_unittest.cc",
     "pigweed_detokenizer_unittest.cc",
     "profile_packet_sequence_state_unittest.cc",
+    "proto_to_args_parser_unittest.cc",
     "proto_trace_parser_impl_unittest.cc",
     "proto_trace_reader_unittest.cc",
     "proto_trace_tokenizer_unittest.cc",
@@ -370,6 +397,8 @@ perfetto_unittest_source_set("unittests") {
     ":gen_cc_trace_descriptor",
     ":minimal",
     ":packet_sequence_state_generation_hdr",
+    ":proto_to_args_parser",
+    "../..:gen_cc_test_messages_descriptor",
     "../..:storage_minimal",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
@@ -393,6 +422,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../../protos/third_party/chromium:zero",
     "../../../base:test_support",
     "../../../protozero",
+    "../../../protozero:testing_messages_zero",
     "../../containers",
     "../../core/dataframe",
     "../../sorter",
@@ -406,4 +436,22 @@ perfetto_unittest_source_set("unittests") {
     "../common",
     "../ftrace:full",
   ]
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    sources = [ "proto_to_args_parser_benchmark.cc" ]
+    deps = [
+      ":proto_to_args_parser",
+      "../..:gen_cc_test_messages_descriptor",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+      "../../../base",
+      "../../../protozero",
+      "../../../protozero:testing_messages_zero",
+      "../../containers",
+      "../../util:descriptors",
+    ]
+  }
 }
