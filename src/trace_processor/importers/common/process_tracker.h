@@ -320,7 +320,6 @@ class ProcessTracker {
   TraceProcessorContext* const context_;
 
   // Factory used to bind the inserters below to process/thread rows.
-  ArgsTracker args_tracker_;
 
   // One inserter per process/thread that received args, so args from all
   // callers merge into one set; committed in OnEventsFullyExtracted. The

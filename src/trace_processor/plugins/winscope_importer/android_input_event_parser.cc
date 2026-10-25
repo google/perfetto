@@ -108,8 +108,7 @@ void AndroidInputEventParser::ParseMotionEvent(
   auto event_row_id = context_.storage->mutable_android_motion_events_table()
                           ->Insert(event_row)
                           .id;
-  ArgsTracker args_tracker(&context_);
-  auto inserter = args_tracker.AddArgsTo(event_row_id);
+  auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
   ArgsParser writer{packet_ts, inserter, *context_.storage,
                     *context_.process_tracker};
 
@@ -148,8 +147,7 @@ void AndroidInputEventParser::ParseKeyEvent(
   auto event_row_id = context_.storage->mutable_android_key_events_table()
                           ->Insert(event_row)
                           .id;
-  ArgsTracker args_tracker(&context_);
-  auto inserter = args_tracker.AddArgsTo(event_row_id);
+  auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
   ArgsParser writer{packet_ts, inserter, *context_.storage,
                     *context_.process_tracker};
 
@@ -186,8 +184,7 @@ void AndroidInputEventParser::ParseWindowDispatchEvent(
           ->Insert(event_row)
           .id;
 
-  ArgsTracker args_tracker(&context_);
-  auto inserter = args_tracker.AddArgsTo(event_row_id);
+  auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
   ArgsParser writer{packet_ts, inserter, *context_.storage,
                     *context_.process_tracker};
 

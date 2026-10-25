@@ -2888,8 +2888,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/event_tracker.h",
         "src/trace_processor/importers/common/flow_tracker.cc",
         "src/trace_processor/importers/common/flow_tracker.h",
-        "src/trace_processor/importers/common/global_args_tracker.cc",
-        "src/trace_processor/importers/common/global_args_tracker.h",
         "src/trace_processor/importers/common/global_metadata_tracker.cc",
         "src/trace_processor/importers/common/global_metadata_tracker.h",
         "src/trace_processor/importers/common/gpu_tracker.cc",

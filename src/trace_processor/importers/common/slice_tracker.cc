@@ -247,7 +247,7 @@ ArgsInserter* SliceTracker::GetArgsInserter(SliceInfo& slice_info, SliceId id) {
   // Lazily bind the slice's inserter; reused so all its args merge into one
   // set.
   if (!slice_info.args) {
-    slice_info.args = ArgsTracker(context_).AddArgsTo(id);
+    slice_info.args = context_->args_tracker->AddArgsTo(id);
   }
   return &*slice_info.args;
 }
@@ -324,8 +324,8 @@ void SliceTracker::FlushPendingSlices() {
 
   // Translate and flush all pending args.
   for (const auto& translatable_arg : translatable_args_) {
-    ArgsTracker args_tracker(context_);
-    auto inserter = args_tracker.AddArgsTo(translatable_arg.slice_id);
+    auto inserter =
+        context_->args_tracker->AddArgsTo(translatable_arg.slice_id);
     context_->args_translation_table->TranslateArgs(
         translatable_arg.compact_arg_set, inserter);
   }

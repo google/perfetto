@@ -1150,6 +1150,20 @@ class TraceStorage {
   bool has_android_video_frames() const { return has_android_video_frames_; }
   void set_has_android_video_frames() { has_android_video_frames_ = true; }
 
+  // Returns the table of type |T|, which must be in tables::AllTables.
+  template <typename T>
+  T* mutable_table() {
+    constexpr size_t idx = base::variant_index<tables::AllTables, T>();
+    return reinterpret_cast<T*>(
+        &tables_storage_[idx * sizeof(dataframe::Dataframe)]);
+  }
+  template <typename T>
+  const T& table() const {
+    constexpr size_t idx = base::variant_index<tables::AllTables, T>();
+    return *reinterpret_cast<const T*>(
+        &tables_storage_[idx * sizeof(dataframe::Dataframe)]);
+  }
+
  private:
   using StringHash = uint64_t;
 
@@ -1166,20 +1180,6 @@ class TraceStorage {
   Destructible* etm_target_memory() { return etm_target_memory_.get(); }
   void set_etm_target_memory(std::unique_ptr<Destructible> target_memory) {
     etm_target_memory_ = std::move(target_memory);
-  }
-
-  // Helper to get a table by type.
-  template <typename T>
-  T* mutable_table() {
-    constexpr size_t idx = base::variant_index<tables::AllTables, T>();
-    return reinterpret_cast<T*>(
-        &tables_storage_[idx * sizeof(dataframe::Dataframe)]);
-  }
-  template <typename T>
-  const T& table() const {
-    constexpr size_t idx = base::variant_index<tables::AllTables, T>();
-    return *reinterpret_cast<const T*>(
-        &tables_storage_[idx * sizeof(dataframe::Dataframe)]);
   }
 
   // One entry for each unique string in the trace.

@@ -671,8 +671,7 @@ void SystemProbesParser::ParseSlabInfo(int64_t ts, ConstBytes blob) {
 
   auto id = context_->event_tracker->PushCounter(ts, size_bytes, track);
   if (id) {
-    ArgsTracker tracker(context_);
-    tracker.AddArgsTo(*id)
+    context_->args_tracker->AddArgsTo(*id)
         .AddArg(pages_per_slab_id_,
                 Variadic::UnsignedInteger(slab.pages_per_slab()))
         .AddArg(num_slabs_id_, Variadic::UnsignedInteger(slab.num_slabs()));
@@ -1240,8 +1239,7 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
       context_->storage->mutable_cpu_freq_table()->Insert(cpu_freq_row);
     }
 
-    ArgsTracker args_tracker(context_);
-    auto inserter = args_tracker.AddArgsTo(ucpu);
+    auto inserter = context_->args_tracker->AddArgsTo(ucpu);
     if (auto* id = std::get_if<ArmCpuIdentifier>(&cpu_info.identifier)) {
       inserter
           .AddArg(arm_cpu_implementer,
@@ -1290,8 +1288,7 @@ void SystemProbesParser::ParseGpuInfo(ConstBytes blob) {
         std::string_view(uuid_hex), gpu.pci_bdf().ToStdStringView());
 
     // Store vendor-specific extra_info as args.
-    ArgsTracker args_tracker(context_);
-    auto inserter = args_tracker.AddArgsTo(ugpu);
+    auto inserter = context_->args_tracker->AddArgsTo(ugpu);
     for (auto kv_it = gpu.extra_info(); kv_it; ++kv_it) {
       protos::pbzero::GpuInfo::Gpu::KeyValue::Decoder kv(*kv_it);
       if (kv.has_key() && kv.has_value()) {

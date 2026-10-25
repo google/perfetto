@@ -537,8 +537,7 @@ void GpuEventParser::InsertTrackForUninternedRenderStage(
   rr.set_name(name);
 
   PERFETTO_DCHECK(!rr.source_arg_set_id());
-  ArgsTracker args_tracker(context_);
-  auto inserter = args_tracker.AddArgsTo(track_id);
+  auto inserter = context_->args_tracker->AddArgsTo(track_id);
   inserter.AddArg(description_id_, Variadic::String(description));
 }
 
@@ -1113,8 +1112,7 @@ void GpuEventParser::ParseVulkanMemoryEvent(
   VulkanAllocId id = allocs->Insert(vulkan_memory_event_row).id;
 
   if (vulkan_memory_event.has_annotations()) {
-    ArgsTracker args_tracker(context_);
-    auto inserter = args_tracker.AddArgsTo(id);
+    auto inserter = context_->args_tracker->AddArgsTo(id);
 
     for (auto it = vulkan_memory_event.annotations(); it; ++it) {
       protos::pbzero::VulkanMemoryEventAnnotation::Decoder annotation(*it);

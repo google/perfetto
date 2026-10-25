@@ -17,7 +17,6 @@
 #include "src/trace_processor/importers/common/state_tracker.h"
 
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
@@ -29,8 +28,7 @@ class StateTrackerTest : public ::testing::Test {
  protected:
   StateTrackerTest() {
     context_.storage.reset(new TraceStorage());
-    context_.global_args_tracker.reset(
-        new GlobalArgsTracker(context_.storage.get()));
+    context_.args_tracker.reset(new ArgsTracker(context_.storage.get()));
     context_.state_tracker =
         TraceProcessorContextPtr<StateTracker>::MakeRoot(&context_);
   }

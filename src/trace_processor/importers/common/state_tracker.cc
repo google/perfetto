@@ -39,7 +39,7 @@ std::optional<tables::StateTable::Id> StateTracker::UpdateState(
       // Reuse the inserter so args from repeated updates merge into one set.
       if (args_callback) {
         if (!active->args_inserter) {
-          active->args_inserter = ArgsTracker(context_).AddArgsTo(ref.id());
+          active->args_inserter = context_->args_tracker->AddArgsTo(ref.id());
         }
         args_callback(*active->args_inserter);
       }
@@ -67,7 +67,7 @@ std::optional<tables::StateTable::Id> StateTracker::UpdateState(
                              value_id);
 
     if (args_callback) {
-      active_state.args_inserter = ArgsTracker(context_).AddArgsTo(ref.id());
+      active_state.args_inserter = context_->args_tracker->AddArgsTo(ref.id());
       args_callback(*active_state.args_inserter);
     }
 

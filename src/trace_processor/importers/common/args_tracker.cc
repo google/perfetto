@@ -29,7 +29,6 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
@@ -64,26 +63,55 @@ void WriteArgSetId(dataframe::Dataframe* df,
 
 }  // namespace
 
-ArgsInserter::ArgsInserter(GlobalArgsTracker* global,
+ArgsTracker::ArgsTracker(TraceStorage* storage) : storage_(storage) {}
+
+ArgsInserter ArgsTracker::AddArgsTo(MetadataId id) {
+  auto* table = storage_->mutable_metadata_table();
+  uint32_t row = (*table)[id].ToRowNumber().row_number();
+  return Bind(&table->dataframe(),
+              tables::MetadataTable::ColumnIndex::int_value, row, id.value);
+}
+
+ArgsInserter ArgsTracker::AddArgsTo(TrackId id) {
+  auto* table = storage_->mutable_track_table();
+  uint32_t row = (*table)[id].ToRowNumber().row_number();
+  return Bind(&table->dataframe(),
+              tables::TrackTable::ColumnIndex::source_arg_set_id, row,
+              id.value);
+}
+
+ArgsInserter ArgsTracker::AddArgsToProcess(UniquePid id) {
+  auto* table = storage_->mutable_process_table();
+  return Bind(&table->dataframe(),
+              tables::ProcessTable::ColumnIndex::arg_set_id, id, id);
+}
+
+ArgsInserter ArgsTracker::AddArgsToThread(UniqueTid id) {
+  auto* table = storage_->mutable_thread_table();
+  return Bind(&table->dataframe(), tables::ThreadTable::ColumnIndex::arg_set_id,
+              id, id);
+}
+
+ArgsInserter::ArgsInserter(ArgsTracker* tracker,
                            dataframe::Dataframe* df,
                            uint32_t col,
                            uint32_t row,
                            uint32_t id)
-    : global_(global),
-      buffer_(global->AcquireArgsBuffer()),
+    : tracker_(tracker),
+      buffer_(tracker->AcquireArgsBuffer()),
       df_(df),
       col_(col),
       row_(row),
       id_(id) {}
 
 ArgsInserter::ArgsInserter(ArgsInserter&& other) noexcept
-    : global_(other.global_),
+    : tracker_(other.tracker_),
       buffer_(other.buffer_),
       df_(other.df_),
       col_(other.col_),
       row_(other.row_),
       id_(other.id_) {
-  other.global_ = nullptr;
+  other.tracker_ = nullptr;
   other.buffer_ = nullptr;
 }
 
@@ -98,10 +126,10 @@ ArgsInserter& ArgsInserter::operator=(ArgsInserter&& other) noexcept {
 }
 
 ArgsInserter::~ArgsInserter() {
-  if (!global_)  // Empty, moved-from, or a test mock: nothing to commit.
+  if (!tracker_)  // Empty, moved-from, or a test mock: nothing to commit.
     return;
   Commit();
-  global_->ReleaseArgsBuffer(buffer_);
+  tracker_->ReleaseArgsBuffer(buffer_);
 }
 
 ArgsInserter& ArgsInserter::AddArg(StringId flat_key,
@@ -179,7 +207,7 @@ void ArgsInserter::Commit() {
     return;
   }
   ArgSetId set_id =
-      global_->AddArgSet(args.data(), static_cast<uint32_t>(args.size()));
+      tracker_->AddArgSet(args.data(), static_cast<uint32_t>(args.size()));
   WriteArgSetId(df_, col_, row_, set_id);
 }
 

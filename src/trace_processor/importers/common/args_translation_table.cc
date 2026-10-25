@@ -300,7 +300,7 @@ void ArgsTranslationTable::EmitMojoMethodLocation(
                     // If the trace already has interface tag as a raw string
                     // (older Chromium versions, local traces, and so on), use
                     // the raw string.
-                    GlobalArgsTracker::UpdatePolicy::kSkipIfExists);
+                    ArgsTracker::UpdatePolicy::kSkipIfExists);
   } else {
     // Could not find the corresponding source location. Let's emit raw arg
     // values so that the data doesn't silently go missing.
