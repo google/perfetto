@@ -19,26 +19,26 @@
 
 #include <string_view>
 
-#include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
 #include "src/trace_processor/util/json_parser.h"
 
 namespace perfetto::trace_processor::json {
 
 // Flattens the given serialized json value (with bounds `start` and `end`)
-// using `it` and adds each leaf node to the bound args inserter.
+// using `it` and adds each leaf node to `sink`.
 //
 // Note:
 //  * |flat_key| and |key| should be non-empty and will be used to prefix the
 //    keys of all leaf nodes in the JSON.
-//  * |storage| is used to intern all strings (e.g. keys and values).
+//  * |pool| is used to intern all strings (e.g. keys and values).
 bool AddJsonValueToArgs(Iterator& it,
                         const char* start,
                         const char* end,
                         std::string_view flat_key,
                         std::string_view key,
-                        TraceStorage* storage,
-                        ArgsInserter* inserter);
+                        StringPool* pool,
+                        ArgSink* sink);
 
 }  // namespace perfetto::trace_processor::json
 

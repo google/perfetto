@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
@@ -142,10 +143,11 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
   // scope of this function due to the capture by reference.
   auto args_inserter = [&](ArgsInserter& inserter) {
     if (event.args_size > 0) {
+      ArgsInserterSink sink(inserter);
       json::AddJsonValueToArgs(
           it_, event.args.get(), event.args.get() + event.args_size,
           /* flat_key = */ "args",
-          /* key = */ "args", context_->storage.get(), &inserter);
+          /* key = */ "args", context_->storage->mutable_string_pool(), &sink);
     }
   };
 

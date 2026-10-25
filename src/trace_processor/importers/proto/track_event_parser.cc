@@ -69,8 +69,8 @@ using protozero::ConstBytes;
 std::optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
     const std::string& prefix,
     const protozero::Field& field,
-    util::ProtoToArgsParser::Delegate& delegate) {
-  auto* decoder = delegate.GetInternedMessage(
+    util::ProtoToArgsParser::OverrideContext& ctx) {
+  auto* decoder = ctx.env().GetInternedMessage(
       protos::pbzero::InternedData::kUnsymbolizedSourceLocations,
       field.as_uint64());
   if (!decoder) {
@@ -80,27 +80,24 @@ std::optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
   }
   // Interned mapping_id loses it's meaning when the sequence ends. So we need
   // to get an id from stack_profile_mapping table.
-  auto* mapping =
-      delegate.seq_state()
-          ->GetCustomState<StackProfileSequenceState>()
-          ->FindOrInsertMapping(delegate.seq_state(), decoder->mapping_id());
+  PacketSequenceStateGeneration* seq_state = ctx.env().seq_state;
+  auto* mapping = seq_state->GetCustomState<StackProfileSequenceState>()
+                      ->FindOrInsertMapping(seq_state, decoder->mapping_id());
   if (!mapping) {
     return std::nullopt;
   }
-  auto mapping_key =
-      delegate.InternString(base::StringView(prefix + ".mapping_id"));
-  delegate.AddUnsignedInteger(mapping_key, mapping_key,
-                              mapping->mapping_id().value);
-  auto rel_pc_key = delegate.InternString(base::StringView(prefix + ".rel_pc"));
-  delegate.AddUnsignedInteger(rel_pc_key, rel_pc_key, decoder->rel_pc());
+  ctx.Add(base::StringView(prefix + ".mapping_id"),
+          Variadic::UnsignedInteger(mapping->mapping_id().value));
+  ctx.Add(base::StringView(prefix + ".rel_pc"),
+          Variadic::UnsignedInteger(decoder->rel_pc()));
   return base::OkStatus();
 }
 
 std::optional<base::Status> MaybeParseSourceLocation(
     const std::string& prefix,
     const protozero::Field& field,
-    util::ProtoToArgsParser::Delegate& delegate) {
-  auto* decoder = delegate.GetInternedMessage(
+    util::ProtoToArgsParser::OverrideContext& ctx) {
+  auto* decoder = ctx.env().GetInternedMessage(
       protos::pbzero::InternedData::kSourceLocations, field.as_uint64());
   if (!decoder) {
     // Lookup failed fall back on default behaviour which will just put
@@ -108,19 +105,14 @@ std::optional<base::Status> MaybeParseSourceLocation(
     return std::nullopt;
   }
 
-  auto file_name_key =
-      delegate.InternString(base::StringView(prefix + ".file_name"));
-  delegate.AddString(file_name_key, file_name_key,
-                     NormalizePathSeparators(decoder->file_name()));
-  auto function_name_key =
-      delegate.InternString(base::StringView(prefix + ".function_name"));
-  delegate.AddString(function_name_key, function_name_key,
-                     decoder->function_name());
+  ctx.Add(base::StringView(prefix + ".file_name"),
+          Variadic::String(ctx.InternString(base::StringView(
+              NormalizePathSeparators(decoder->file_name())))));
+  ctx.Add(base::StringView(prefix + ".function_name"),
+          Variadic::String(ctx.InternString(decoder->function_name())));
   if (decoder->has_line_number()) {
-    auto line_number_key =
-        delegate.InternString(base::StringView(prefix + ".line_number"));
-    delegate.AddInteger(line_number_key, line_number_key,
-                        decoder->line_number());
+    ctx.Add(base::StringView(prefix + ".line_number"),
+            Variadic::Integer(decoder->line_number()));
   }
   return base::OkStatus();
 }
@@ -130,18 +122,16 @@ std::optional<base::Status> MaybeParseSourceLocation(
 std::optional<base::Status> MaybeParseAndroidJobName(
     StringId job_name_key,
     const protozero::Field& field,
-    util::ProtoToArgsParser::Delegate& delegate) {
+    util::ProtoToArgsParser::OverrideContext& ctx) {
   std::optional<base::StringView> name =
-      delegate.seq_state()->InternedStringView(
+      ctx.env().seq_state->InternedStringView(
           com::android::internal::pbzero::FrameworksBaseInternedData::
               kAndroidJobNameFieldNumber,
           field.as_uint64());
   if (!name) {
     return std::nullopt;
   }
-
-  delegate.AddString(job_name_key, job_name_key,
-                     protozero::ConstChars{name->data(), name->size()});
+  ctx.Add(job_name_key, Variadic::String(ctx.InternString(*name)));
   return base::OkStatus();
 }
 
@@ -235,40 +225,39 @@ TrackEventParser::TrackEventParser(
   args_parser_.AddParsingOverrideForField(
       "chrome_mojo_event_info.mojo_interface_method_iid",
       [](const protozero::Field& field,
-         util::ProtoToArgsParser::Delegate& delegate) {
+         util::ProtoToArgsParser::OverrideContext& ctx) {
         return MaybeParseUnsymbolizedSourceLocation(
             "chrome_mojo_event_info.mojo_interface_method.native_symbol", field,
-            delegate);
+            ctx);
       });
   // Switch |source_location_iid| into its interned data variant.
   args_parser_.AddParsingOverrideForField(
       "begin_impl_frame_args.current_args.source_location_iid",
       [](const protozero::Field& field,
-         util::ProtoToArgsParser::Delegate& delegate) {
+         util::ProtoToArgsParser::OverrideContext& ctx) {
         return MaybeParseSourceLocation("begin_impl_frame_args.current_args",
-                                        field, delegate);
+                                        field, ctx);
       });
   args_parser_.AddParsingOverrideForField(
       "begin_impl_frame_args.last_args.source_location_iid",
       [](const protozero::Field& field,
-         util::ProtoToArgsParser::Delegate& delegate) {
+         util::ProtoToArgsParser::OverrideContext& ctx) {
         return MaybeParseSourceLocation("begin_impl_frame_args.last_args",
-                                        field, delegate);
+                                        field, ctx);
       });
   args_parser_.AddParsingOverrideForField(
       "begin_frame_observer_state.last_begin_frame_args.source_location_iid",
       [](const protozero::Field& field,
-         util::ProtoToArgsParser::Delegate& delegate) {
+         util::ProtoToArgsParser::OverrideContext& ctx) {
         return MaybeParseSourceLocation(
-            "begin_frame_observer_state.last_begin_frame_args", field,
-            delegate);
+            "begin_frame_observer_state.last_begin_frame_args", field, ctx);
       });
   args_parser_.AddParsingOverrideForField(
       "chrome_memory_pressure_notification.creation_location_iid",
       [](const protozero::Field& field,
-         util::ProtoToArgsParser::Delegate& delegate) {
+         util::ProtoToArgsParser::OverrideContext& ctx) {
         return MaybeParseSourceLocation("chrome_memory_pressure_notification",
-                                        field, delegate);
+                                        field, ctx);
       });
 
   // TODO(sanathku): Remove this override once legacy JobScheduler queries are
@@ -276,15 +265,16 @@ TrackEventParser::TrackEventParser(
   args_parser_.AddParsingOverrideForField(
       "job_scheduler_job.job_name_iid",
       [this](const protozero::Field& field,
-             util::ProtoToArgsParser::Delegate& delegate) {
+             util::ProtoToArgsParser::OverrideContext& ctx) {
         return MaybeParseAndroidJobName(job_scheduler_job_name_args_key_id_,
-                                        field, delegate);
+                                        field, ctx);
       });
 
   args_parser_.AddParsingOverrideForField(
-      "active_processes.pid", [&](const protozero::Field& field,
-                                  util::ProtoToArgsParser::Delegate& delegate) {
-        AddActiveProcess(delegate.packet_timestamp(), field.as_int32());
+      "active_processes.pid",
+      [&](const protozero::Field& field,
+          util::ProtoToArgsParser::OverrideContext& ctx) {
+        AddActiveProcess(ctx.env().packet_timestamp, field.as_int32());
         // Fallthrough so that the parser adds pid as a regular arg.
         return std::nullopt;
       });

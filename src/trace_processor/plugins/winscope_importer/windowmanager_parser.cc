@@ -81,13 +81,15 @@ tables::WindowManagerTable::Id WindowManagerParser::InsertSnapshotRow(
                     .id;
 
   auto inserter = trace_processor_context->args_tracker->AddArgsTo(row_id);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage,
-                    *trace_processor_context->process_tracker);
+  util::ProtoArgsEnv env;
+  env.packet_timestamp = timestamp;
+  env.process_tracker = trace_processor_context->process_tracker.get();
+  ArgsInserterSink writer(inserter);
   base::Status status =
       args_parser_.ParseMessage(pruned_proto_bytes,
                                 *util::winscope_proto_mapping::GetProtoName(
                                     tables::WindowManagerTable::Name()),
-                                nullptr /* parse all fields */, writer);
+                                nullptr /* parse all fields */, env, writer);
   if (!status.ok()) {
     trace_processor_context->stats_tracker->IncrementStats(
         stats::winscope_windowmanager_parse_errors);
@@ -196,12 +198,14 @@ void WindowManagerParser::InsertWindowContainerArgs(
 
   auto inserter =
       context_->trace_processor_context_->args_tracker->AddArgsTo(row_id);
-  ArgsParser writer(timestamp, inserter,
-                    *context_->trace_processor_context_->storage,
-                    *context_->trace_processor_context_->process_tracker);
+  util::ProtoArgsEnv env;
+  env.packet_timestamp = timestamp;
+  env.process_tracker =
+      context_->trace_processor_context_->process_tracker.get();
+  ArgsInserterSink writer(inserter);
 
   base::Status status = args_parser_.ParseMessage(
-      bytes, proto_name, nullptr /* parse all fields */, writer);
+      bytes, proto_name, nullptr /* parse all fields */, env, writer);
   if (!status.ok()) {
     context_->trace_processor_context_->stats_tracker->IncrementStats(
         stats::winscope_windowmanager_parse_errors);

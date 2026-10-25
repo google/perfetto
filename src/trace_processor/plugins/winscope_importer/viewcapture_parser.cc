@@ -19,8 +19,10 @@
 
 #include "perfetto/ext/base/base64.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/winscope/viewcapture.pbzero.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/plugins/winscope_importer/deinterning_arg_sink.h"
 #include "src/trace_processor/plugins/winscope_importer/viewcapture_rect_computation.h"
 #include "src/trace_processor/plugins/winscope_importer/viewcapture_views_extractor.h"
 #include "src/trace_processor/plugins/winscope_importer/viewcapture_visibility_computation.h"
@@ -53,17 +55,27 @@ void ViewCaptureParser::Parse(int64_t timestamp,
 
   auto inserter =
       context_->trace_processor_context_->args_tracker->AddArgsTo(snapshot_id);
-  ViewCaptureArgsParser writer(timestamp, inserter,
-                               *context_->trace_processor_context_, seq_state,
-                               /*snapshot_row=*/&row_ref, /*view_row=*/nullptr);
+  ViewCaptureDeinterner deinterner(*context_->trace_processor_context_,
+                                   seq_state, /*snapshot_row=*/&row_ref,
+                                   /*view_row=*/nullptr);
+  ArgsInserterSink inserter_sink(inserter);
+  DeinterningArgSink writer(inserter_sink, *storage->mutable_string_pool(),
+                            [&deinterner](ArgKey key, uint64_t iid) {
+                              return deinterner.Lookup(key, iid);
+                            });
+  util::ProtoArgsEnv env;
+  env.seq_state = seq_state;
+  env.packet_timestamp = timestamp;
+  env.process_tracker =
+      context_->trace_processor_context_->process_tracker.get();
   const auto table_name = tables::ViewCaptureTable::Name();
   auto allowed_fields =
       util::winscope_proto_mapping::GetAllowedFields(table_name);
   base::Status status = args_parser_.ParseMessage(
       blob, *util::winscope_proto_mapping::GetProtoName(table_name),
-      &allowed_fields.value(), writer);
+      &allowed_fields.value(), env, writer);
 
-  AddDeinternedData(writer, row.base64_proto_id.value());
+  AddDeinternedData(deinterner, row.base64_proto_id.value());
   if (!status.ok()) {
     context_->trace_processor_context_->stats_tracker->IncrementStats(
         stats::winscope_viewcapture_parse_errors);
@@ -115,29 +127,40 @@ void ViewCaptureParser::ParseView(
 
   auto inserter =
       context_->trace_processor_context_->args_tracker->AddArgsTo(row_id);
-  ViewCaptureArgsParser writer(timestamp, inserter,
-                               *context_->trace_processor_context_, seq_state,
-                               /*snapshot_row=*/nullptr, /*view_row=*/&row_ref);
+  ViewCaptureDeinterner deinterner(*context_->trace_processor_context_,
+                                   seq_state, /*snapshot_row=*/nullptr,
+                                   /*view_row=*/&row_ref);
+  ArgsInserterSink inserter_sink(inserter);
+  DeinterningArgSink writer(inserter_sink, *storage->mutable_string_pool(),
+                            [&deinterner](ArgKey key, uint64_t iid) {
+                              return deinterner.Lookup(key, iid);
+                            });
+  util::ProtoArgsEnv env;
+  env.seq_state = seq_state;
+  env.packet_timestamp = timestamp;
+  env.process_tracker =
+      context_->trace_processor_context_->process_tracker.get();
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(
                                     tables::ViewCaptureViewTable::Name()),
-                                nullptr /* parse all fields */, writer);
+                                nullptr /* parse all fields */, env, writer);
 
-  AddDeinternedData(writer, view.base64_proto_id.value());
+  AddDeinternedData(deinterner, view.base64_proto_id.value());
   if (!status.ok()) {
     context_->trace_processor_context_->stats_tracker->IncrementStats(
         stats::winscope_viewcapture_parse_errors);
   }
 }
 
-void ViewCaptureParser::AddDeinternedData(const ViewCaptureArgsParser& writer,
-                                          uint32_t base64_proto_id) {
+void ViewCaptureParser::AddDeinternedData(
+    const ViewCaptureDeinterner& deinterner,
+    uint32_t base64_proto_id) {
   auto* deinterned_data_table = context_->trace_processor_context_->storage
                                     ->mutable_viewcapture_interned_data_table();
-  for (auto i = writer.flat_key_to_iid_args.GetIterator(); i; ++i) {
+  for (auto i = deinterner.flat_key_to_iid_args.GetIterator(); i; ++i) {
     const auto& flat_key = i.key();
-    ViewCaptureArgsParser::IidToStringMap& iids_to_add = i.value();
+    const ViewCaptureDeinterner::IidToStringMap& iids_to_add = i.value();
 
     for (auto j = iids_to_add.GetIterator(); j; ++j) {
       const auto iid = j.key();

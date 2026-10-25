@@ -40,12 +40,18 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/base/test//status_matchers.h"
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_builder.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/test_messages.descriptor.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/interned_message_view.h"
 #include "test/gtest_and_gmock.h"
@@ -61,18 +67,79 @@ namespace {
 
 constexpr size_t kChunkSize = 42;
 
-class ProtoToArgsParserTest : public ::testing::Test,
-                              public ProtoToArgsParser::Delegate {
- protected:
-  ProtoToArgsParserTest() {}
+// Records each arg as "<flat_key> <key> <value>".
+class ArgsRecorder : public ArgSink {
+ public:
+  ArgsRecorder() {
+    context_.storage.reset(new TraceStorage());
+    context_.machine_tracker.reset(
+        new MachineTracker(&context_, kDefaultMachineId));
+  }
 
   const std::vector<std::string>& args() const { return args_; }
 
-  void AddInternedSourceLocation(uint64_t iid, TraceBlobView data) {
-    interned_source_locations_[iid] = std::unique_ptr<InternedMessageView>(
-        new InternedMessageView(std::move(data)));
+  void InternMessage(uint32_t field_id, TraceBlobView message) {
+    state_builder_.InternMessage(field_id, std::move(message));
   }
 
+  const ProtoArgsEnv& env() {
+    env_.seq_state = state_builder_.current_generation().get();
+    return env_;
+  }
+
+  void Add(ArgKey key, Variadic value) override {
+    std::stringstream ss;
+    ss << K(key.flat_key) << " " << K(key.key) << " ";
+    switch (value.type) {
+      case Variadic::kInt:
+        ss << value.int_value;
+        break;
+      case Variadic::kUint:
+        ss << value.uint_value;
+        break;
+      case Variadic::kString:
+        ss << K(value.string_value);
+        break;
+      case Variadic::kReal:
+        ss << value.real_value;
+        break;
+      case Variadic::kPointer:
+        ss << std::hex << value.pointer_value << std::dec;
+        break;
+      case Variadic::kBool:
+        ss << (value.bool_value ? "true" : "false");
+        break;
+      case Variadic::kJson:
+        ss << K(value.json_value);
+        break;
+      case Variadic::kNull:
+        ss << "[NULL]";
+        break;
+    }
+    args_.push_back(ss.str());
+  }
+
+  size_t ArrayIndex(StringId key) override { return array_indices_[key]; }
+
+  size_t IncrementArrayIndex(StringId key) override {
+    return ++array_indices_[key];
+  }
+
+ protected:
+  StringPool string_pool_;
+  ProtoArgsEnv env_;
+  TraceProcessorContext context_;
+
+ private:
+  std::string K(StringPool::Id id) { return string_pool_.Get(id).ToStdString(); }
+
+  std::vector<std::string> args_;
+  std::map<StringPool::Id, size_t> array_indices_;
+  PacketSequenceStateBuilder state_builder_{&context_};
+};
+
+class ProtoToArgsParserTest : public ::testing::Test, public ArgsRecorder {
+ protected:
   template <typename T, typename... Ts>
   void CreatedPackedVarint(protozero::PackedVarInt& var, T p, Ts... ps) {
     var.Reset();
@@ -81,111 +148,6 @@ class ProtoToArgsParserTest : public ::testing::Test,
       var.Append(v);
     }
   }
-
- protected:
-  StringPool string_pool_;
-
- private:
-  using Key = ProtoToArgsParser::Key;
-  using Id = StringPool::Id;
-
-  // Resolves an interned key id back to its string for the assertion args.
-  std::string K(Id id) { return string_pool_.Get(id).ToStdString(); }
-
-  Id InternString(base::StringView s) override {
-    return string_pool_.InternString(s);
-  }
-
-  void AddInteger(Id fk, Id k, int64_t value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " " << value;
-    args_.push_back(ss.str());
-  }
-
-  void AddUnsignedInteger(Id fk, Id k, uint64_t value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " " << value;
-    args_.push_back(ss.str());
-  }
-
-  void AddString(Id fk, Id k, const protozero::ConstChars& value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " " << value.ToStdString();
-    args_.push_back(ss.str());
-  }
-
-  void AddString(Id fk, Id k, const std::string& value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " " << value;
-    args_.push_back(ss.str());
-  }
-
-  void AddBytes(Id fk, Id k, const protozero::ConstBytes& value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " <bytes size=" << value.size << ">";
-    args_.push_back(ss.str());
-  }
-
-  void AddDouble(Id fk, Id k, double value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " " << value;
-    args_.push_back(ss.str());
-  }
-
-  void AddPointer(Id fk, Id k, uint64_t value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " " << std::hex << value << std::dec;
-    args_.push_back(ss.str());
-  }
-
-  void AddBoolean(Id fk, Id k, bool value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " " << (value ? "true" : "false");
-    args_.push_back(ss.str());
-  }
-
-  void AddUpid(Id fk, Id k, int64_t pid) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " upid_of(" << pid << ")";
-    args_.push_back(ss.str());
-  }
-
-  void AddUtid(Id fk, Id k, int64_t tid) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " utid_of(" << tid << ")";
-    args_.push_back(ss.str());
-  }
-
-  bool AddJson(Id fk, Id k, const protozero::ConstChars& value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " " << std::hex << value.ToStdString()
-       << std::dec;
-    args_.push_back(ss.str());
-    return true;
-  }
-
-  void AddNull(Id fk, Id k) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " [NULL]";
-    args_.push_back(ss.str());
-  }
-
-  size_t GetArrayEntryIndex(const std::string&) final { return 0; }
-
-  size_t IncrementArrayEntryIndex(const std::string&) final { return 0; }
-
-  InternedMessageView* GetInternedMessageView(uint32_t field_id,
-                                              uint64_t iid) override {
-    if (field_id != protos::pbzero::InternedData::kSourceLocationsFieldNumber)
-      return nullptr;
-    return interned_source_locations_.at(iid).get();
-  }
-
-  PacketSequenceStateGeneration* seq_state() final { return nullptr; }
-
-  std::vector<std::string> args_;
-  std::map<uint64_t, std::unique_ptr<InternedMessageView>>
-      interned_source_locations_;
 };
 
 TEST_F(ProtoToArgsParserTest, FlatMessageFallbackPreservesValues) {
@@ -202,7 +164,7 @@ TEST_F(ProtoToArgsParserTest, FlatMessageFallbackPreservesValues) {
     auto binary_proto = msg.SerializeAsArray();
     ASSERT_OK(parser.ParseMessage(
         protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-        ".protozero.test.protos.EveryField", nullptr, *this));
+        ".protozero.test.protos.EveryField", nullptr, env(), *this));
   }
   EXPECT_THAT(
       args(),
@@ -223,7 +185,7 @@ TEST_F(ProtoToArgsParserTest, FlatMessageFallbackHandlesDifferentFields) {
   auto parse = [&](const std::vector<uint8_t>& binary_proto) {
     ASSERT_OK(parser.ParseMessage(
         protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-        ".protozero.test.protos.EveryField", nullptr, *this));
+        ".protozero.test.protos.EveryField", nullptr, env(), *this));
   };
   for (int i = 1; i <= 2; i++) {
     protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
@@ -275,7 +237,7 @@ TEST_F(ProtoToArgsParserTest, FlatMessagesRespectAllowlistAndNesting) {
     auto binary_proto = msg.SerializeAsArray();
     ASSERT_OK(parser.ParseMessage(
         protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-        ".protozero.test.protos.EveryField", &allowed, *this));
+        ".protozero.test.protos.EveryField", &allowed, env(), *this));
   }
   std::vector<uint32_t> nested_allowed = {NestedA::kSuperNestedFieldNumber};
   for (int i = 1; i <= 2; i++) {
@@ -284,7 +246,7 @@ TEST_F(ProtoToArgsParserTest, FlatMessagesRespectAllowlistAndNesting) {
     auto binary_proto = msg.SerializeAsArray();
     ASSERT_OK(parser.ParseMessage(
         protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-        ".protozero.test.protos.NestedA", &nested_allowed, *this));
+        ".protozero.test.protos.NestedA", &nested_allowed, env(), *this));
   }
   EXPECT_THAT(args(),
               testing::ElementsAre(
@@ -340,7 +302,7 @@ TEST_F(ProtoToArgsParserTest, BasicSingleLayerProto) {
 
   status = parser.ParseMessage(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.EveryField", nullptr, *this);
+      ".protozero.test.protos.EveryField", nullptr, env(), *this);
 
   EXPECT_TRUE(status.ok())
       << "InternProtoFieldsIntoArgsTable failed with error: "
@@ -365,7 +327,7 @@ TEST_F(ProtoToArgsParserTest, BasicSingleLayerProto) {
           "repeated_int32 repeated_int32[1] -1",
           "repeated_int32 repeated_int32[2] 100",
           "repeated_int32 repeated_int32[3] 2000000",
-          "field_bytes field_bytes <bytes size=3>"));
+          "field_bytes field_bytes AAEC"));
 }
 
 TEST_F(ProtoToArgsParserTest, PackedEncodingWithoutDescriptorPackedFlag) {
@@ -385,7 +347,7 @@ TEST_F(ProtoToArgsParserTest, PackedEncodingWithoutDescriptorPackedFlag) {
   ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_OK(parser.ParseMessage(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.EveryField", nullptr, *this));
+      ".protozero.test.protos.EveryField", nullptr, env(), *this));
   EXPECT_THAT(args(),
               testing::ElementsAre("repeated_int32 repeated_int32[0] 10",
                                    "repeated_int32 repeated_int32[1] 20"));
@@ -412,7 +374,7 @@ TEST_F(ProtoToArgsParserTest, ParseMessageField) {
     protozero::Field field = decoder.ReadField();
     ASSERT_EQ(field.id(),
               static_cast<uint32_t>(NestedA::kSuperNestedFieldNumber));
-    ASSERT_OK(parser.ParseMessageField(nested_a, field, *this, &unknown));
+    ASSERT_OK(parser.ParseMessageField(nested_a, field, env(), *this, &unknown));
   }
   protozero::HeapBuffered<EveryField> scalar{kChunkSize, kChunkSize};
   scalar->set_field_string("s");
@@ -420,14 +382,14 @@ TEST_F(ProtoToArgsParserTest, ParseMessageField) {
   protozero::ProtoDecoder scalar_decoder(scalar_proto.data(),
                                          scalar_proto.size());
   ASSERT_OK(parser.ParseMessageField(every_field, scalar_decoder.ReadField(),
-                                     *this, &unknown));
+                                     env(), *this, &unknown));
   protozero::Field unknown_field;
   unknown_field.initialize(
       9999,
       static_cast<uint8_t>(protozero::proto_utils::ProtoWireType::kVarInt), 1,
       0);
   ASSERT_OK(
-      parser.ParseMessageField(every_field, unknown_field, *this, &unknown));
+      parser.ParseMessageField(every_field, unknown_field, env(), *this, &unknown));
   EXPECT_EQ(unknown, 1);
   // Occurrences of a repeated field are numbered across calls that share
   // an index.
@@ -441,7 +403,7 @@ TEST_F(ProtoToArgsParserTest, ParseMessageField) {
   for (protozero::Field f = repeated_decoder.ReadField(); f.valid();
        f = repeated_decoder.ReadField()) {
     ASSERT_OK(
-        parser.ParseMessageField(every_field, f, *this, &unknown, &index));
+        parser.ParseMessageField(every_field, f, env(), *this, &unknown, &index));
   }
   EXPECT_THAT(args(), testing::ElementsAre(
                           "super_nested.value_c super_nested.value_c 1",
@@ -467,7 +429,7 @@ TEST_F(ProtoToArgsParserTest, NestedProto) {
 
   status = parser.ParseMessage(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.NestedA", nullptr, *this);
+      ".protozero.test.protos.NestedA", nullptr, env(), *this);
   EXPECT_TRUE(status.ok())
       << "InternProtoFieldsIntoArgsTable failed with error: "
       << status.message();
@@ -493,7 +455,7 @@ TEST_F(ProtoToArgsParserTest, CamelCaseFieldsProto) {
 
   status = parser.ParseMessage(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.CamelCaseFields", nullptr, *this);
+      ".protozero.test.protos.CamelCaseFields", nullptr, env(), *this);
   EXPECT_TRUE(status.ok())
       << "InternProtoFieldsIntoArgsTable failed with error: "
       << status.message();
@@ -518,18 +480,18 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideHandled) {
 
   parser.AddParsingOverrideForField(
       "super_nested.value_c",
-      [](const protozero::Field& field, ProtoToArgsParser::Delegate& writer) {
+      [](const protozero::Field& field,
+         ProtoToArgsParser::OverrideContext& ctx) {
         EXPECT_EQ(field.type(), protozero::proto_utils::ProtoWireType::kVarInt);
-        std::string key = "super_nested.value_b.replaced";
-        auto id = writer.InternString(base::StringView(key));
-        writer.AddInteger(id, id, field.as_int32());
+        ctx.Add(base::StringView("super_nested.value_b.replaced"),
+                Variadic::Integer(field.as_int32()));
         // We've handled this field by adding the desired args.
         return base::OkStatus();
       });
 
   status = parser.ParseMessage(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.NestedA", nullptr, *this);
+      ".protozero.test.protos.NestedA", nullptr, env(), *this);
   EXPECT_TRUE(status.ok())
       << "InternProtoFieldsIntoArgsTable failed with error: "
       << status.message();
@@ -556,7 +518,7 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideSkipped) {
   int nested_val = 0;
   parser.AddParsingOverrideForField(
       "super_nested.value_c", [&nested_val](const protozero::Field& field,
-                                            ProtoToArgsParser::Delegate&) {
+                                            ProtoToArgsParser::OverrideContext&) {
         ++nested_val;
         EXPECT_EQ(1, nested_val);
         EXPECT_EQ(field.type(), protozero::proto_utils::ProtoWireType::kVarInt);
@@ -565,7 +527,7 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideSkipped) {
 
   status = parser.ParseMessage(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.NestedA", nullptr, *this);
+      ".protozero.test.protos.NestedA", nullptr, env(), *this);
   EXPECT_TRUE(status.ok())
       << "InternProtoFieldsIntoArgsTable failed with error: "
       << status.message();
@@ -594,7 +556,8 @@ TEST_F(ProtoToArgsParserTest, LookingUpInternedStateParsingOverride) {
   }
   TraceBlob blob =
       TraceBlob::TakeOwnership(std::move(buffer), binary_data.size());
-  AddInternedSourceLocation(kIid, TraceBlobView(std::move(blob)));
+  InternMessage(protos::pbzero::InternedData::kSourceLocationsFieldNumber,
+                TraceBlobView(std::move(blob)));
 
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
@@ -608,23 +571,23 @@ TEST_F(ProtoToArgsParserTest, LookingUpInternedStateParsingOverride) {
   parser.AddParsingOverrideForField(
       "super_nested.value_c",
       [](const protozero::Field& field,
-         ProtoToArgsParser::Delegate& delegate) -> std::optional<base::Status> {
-        auto* decoder = delegate.GetInternedMessage(
+         ProtoToArgsParser::OverrideContext& ctx)
+          -> std::optional<base::Status> {
+        auto* decoder = ctx.env().GetInternedMessage(
             protos::pbzero::InternedData::kSourceLocations, field.as_uint64());
         if (!decoder) {
           // Lookup failed fall back on default behaviour.
           return std::nullopt;
         }
-        auto fn = delegate.InternString(base::StringView("file_name"));
-        delegate.AddString(fn, fn, protozero::ConstChars{"file", 4});
-        auto ln = delegate.InternString(base::StringView("line_number"));
-        delegate.AddInteger(ln, ln, 2);
+        ctx.Add(base::StringView("file_name"),
+                Variadic::String(ctx.InternString("file")));
+        ctx.Add(base::StringView("line_number"), Variadic::Integer(2));
         return base::OkStatus();
       });
 
   status = parser.ParseMessage(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.NestedA", nullptr, *this);
+      ".protozero.test.protos.NestedA", nullptr, env(), *this);
   EXPECT_TRUE(status.ok())
       << "InternProtoFieldsIntoArgsTable failed with error: "
       << status.message();
@@ -648,7 +611,7 @@ TEST_F(ProtoToArgsParserTest, EmptyMessage) {
   ProtoToArgsParser parser(pool, string_pool_);
   status = parser.ParseMessage(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.NestedA", nullptr, *this);
+      ".protozero.test.protos.NestedA", nullptr, env(), *this);
   EXPECT_TRUE(status.ok())
       << "InternProtoFieldsIntoArgsTable failed with error: "
       << status.message();
@@ -686,7 +649,7 @@ TEST_F(ProtoToArgsParserTest, WidthAndSignednessOfScalars) {
 
   status = parser.ParseMessage(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.EveryField", nullptr, *this);
+      ".protozero.test.protos.EveryField", nullptr, env(), *this);
 
   EXPECT_TRUE(status.ok())
       << "InternProtoFieldsIntoArgsTable failed with error: "
@@ -778,7 +741,7 @@ TEST_F(ProtoToArgsParserTest, PackedFields) {
 
   status = parser.ParseMessage(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.PackedRepeatedFields", nullptr, *this);
+      ".protozero.test.protos.PackedRepeatedFields", nullptr, env(), *this);
 
   EXPECT_TRUE(status.ok()) << "ParseMessage failed with error: "
                            << status.message();
@@ -837,7 +800,7 @@ TEST_F(ProtoToArgsParserTest, AllowedFieldsOnlyTopLevel) {
   };
   status = parser.ParseMessage(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.NestedA", &allowed_fields, *this);
+      ".protozero.test.protos.NestedA", &allowed_fields, env(), *this);
 
   EXPECT_TRUE(status.ok())
       << "InternProtoFieldsIntoArgsTable failed with error: "
@@ -863,7 +826,7 @@ TEST_F(ProtoToArgsParserTest, AddsDefaultsNested) {
 
   status = parser.ParseMessage(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.NestedA", nullptr, *this, nullptr,
+      ".protozero.test.protos.NestedA", nullptr, env(), *this, nullptr,
       /* add_defaults= */ true);
 
   EXPECT_TRUE(status.ok())
@@ -895,7 +858,7 @@ TEST_F(ProtoToArgsParserTest, AddsDefaults) {
 
   status = parser.ParseMessage(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.EveryField", nullptr, *this, nullptr, true);
+      ".protozero.test.protos.EveryField", nullptr, env(), *this, nullptr, true);
 
   EXPECT_TRUE(status.ok()) << "AddsDefaults failed with error: "
                            << status.message();
@@ -908,7 +871,7 @@ TEST_F(ProtoToArgsParserTest, AddsDefaults) {
           "repeated_sfixed32 repeated_sfixed32[0] 1",
           "repeated_fixed64 repeated_fixed64[0] 1",
           "nested_enum nested_enum PONG",
-          "field_bytes field_bytes <bytes size=0>",
+          "field_bytes field_bytes ",
           "field_string field_string [NULL]",  // null if no string default
           "field_nested field_nested [NULL]",  // no defaults for inner fields
           "field_bool field_bool false",
@@ -932,132 +895,15 @@ TEST_F(ProtoToArgsParserTest, AddsDefaults) {
 base::Status ParseDebugAnnotation(
     ProtoToArgsParser& parser,
     protozero::HeapBuffered<protos::pbzero::DebugAnnotation>& msg,
-    ProtoToArgsParser::Delegate& delegate) {
+    const ProtoArgsEnv& env,
+    ArgSink& sink) {
   std::vector<uint8_t> data = msg.SerializeAsArray();
   return parser.ParseDebugAnnotation(
-      protozero::ConstBytes{data.data(), data.size()}, delegate);
+      protozero::ConstBytes{data.data(), data.size()}, env, sink);
 }
 
 class DebugAnnotationParserTest : public ::testing::Test,
-                                  public ProtoToArgsParser::Delegate {
- protected:
-  DebugAnnotationParserTest() {
-    context_.storage.reset(new TraceStorage());
-    context_.machine_tracker.reset(
-        new MachineTracker(&context_, kDefaultMachineId));
-  }
-
-  const std::vector<std::string>& args() const { return args_; }
-
-  void InternMessage(uint32_t field_id, TraceBlobView message) {
-    state_builder_.InternMessage(field_id, std::move(message));
-  }
-
- protected:
-  StringPool string_pool_;
-
- private:
-  using Key = ProtoToArgsParser::Key;
-  using Id = StringPool::Id;
-
-  std::string K(Id id) { return string_pool_.Get(id).ToStdString(); }
-
-  Id InternString(base::StringView s) override {
-    return string_pool_.InternString(s);
-  }
-
-  void AddInteger(Id fk, Id k, int64_t value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " " << value;
-    args_.push_back(ss.str());
-  }
-
-  void AddUnsignedInteger(Id fk, Id k, uint64_t value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " " << value;
-    args_.push_back(ss.str());
-  }
-
-  void AddString(Id fk, Id k, const protozero::ConstChars& value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " " << value.ToStdString();
-    args_.push_back(ss.str());
-  }
-
-  void AddString(Id fk, Id k, const std::string& value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " " << value;
-    args_.push_back(ss.str());
-  }
-
-  void AddDouble(Id fk, Id k, double value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " " << value;
-    args_.push_back(ss.str());
-  }
-
-  void AddPointer(Id fk, Id k, uint64_t value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " " << std::hex << value << std::dec;
-    args_.push_back(ss.str());
-  }
-
-  void AddBoolean(Id fk, Id k, bool value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " " << (value ? "true" : "false");
-    args_.push_back(ss.str());
-  }
-
-  void AddUpid(Id fk, Id k, int64_t pid) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " upid_of(" << pid << ")";
-    args_.push_back(ss.str());
-  }
-
-  void AddUtid(Id fk, Id k, int64_t tid) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " utid_of(" << tid << ")";
-    args_.push_back(ss.str());
-  }
-
-  bool AddJson(Id fk, Id k, const protozero::ConstChars& value) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " " << std::hex << value.ToStdString()
-       << std::dec;
-    args_.push_back(ss.str());
-    return true;
-  }
-
-  void AddNull(Id fk, Id k) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " [NULL]";
-    args_.push_back(ss.str());
-  }
-
-  size_t GetArrayEntryIndex(const std::string& array_key) final {
-    return array_indices_[array_key];
-  }
-
-  size_t IncrementArrayEntryIndex(const std::string& array_key) final {
-    return ++array_indices_[array_key];
-  }
-
-  InternedMessageView* GetInternedMessageView(uint32_t field_id,
-                                              uint64_t iid) override {
-    return state_builder_.current_generation()->GetInternedMessageView(field_id,
-                                                                       iid);
-  }
-
-  PacketSequenceStateGeneration* seq_state() final {
-    return state_builder_.current_generation().get();
-  }
-
-  std::vector<std::string> args_;
-  std::map<std::string, size_t> array_indices_;
-
-  TraceProcessorContext context_;
-  PacketSequenceStateBuilder state_builder_{&context_};
-};
+                                  public ArgsRecorder {};
 
 // This test checks that in when an array is nested inside a dict which is
 // nested inside an array which is nested inside a dict, flat keys and non-flat
@@ -1082,7 +928,7 @@ TEST_F(DebugAnnotationParserTest, DeeplyNestedDictsAndArrays) {
 
   ProtoToArgsParser args_parser(pool, string_pool_);
 
-  status = ParseDebugAnnotation(args_parser, msg, *this);
+  status = ParseDebugAnnotation(args_parser, msg, env(), *this);
   EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
                            << status.message();
 
@@ -1104,11 +950,11 @@ TEST_F(DebugAnnotationParserTest, MergeArrays) {
   DescriptorPool pool;
   ProtoToArgsParser args_parser(pool, string_pool_);
 
-  base::Status status = ParseDebugAnnotation(args_parser, msg1, *this);
+  base::Status status = ParseDebugAnnotation(args_parser, msg1, env(), *this);
   EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
                            << status.message();
 
-  status = ParseDebugAnnotation(args_parser, msg2, *this);
+  status = ParseDebugAnnotation(args_parser, msg2, env(), *this);
   EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
                            << status.message();
 
@@ -1140,7 +986,7 @@ TEST_F(DebugAnnotationParserTest, EmptyArrayIndexIsSkipped) {
   DescriptorPool pool;
   ProtoToArgsParser args_parser(pool, string_pool_);
 
-  base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
+  base::Status status = ParseDebugAnnotation(args_parser, msg, env(), *this);
   EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
                            << status.message();
 
@@ -1162,7 +1008,7 @@ TEST_F(DebugAnnotationParserTest, NestedArrays) {
   DescriptorPool pool;
   ProtoToArgsParser args_parser(pool, string_pool_);
 
-  base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
+  base::Status status = ParseDebugAnnotation(args_parser, msg, env(), *this);
   EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
                            << status.message();
 
@@ -1189,7 +1035,7 @@ TEST_F(DebugAnnotationParserTest, TypedMessageInsideUntyped) {
 
   ProtoToArgsParser args_parser(pool, string_pool_);
 
-  status = ParseDebugAnnotation(args_parser, msg, *this);
+  status = ParseDebugAnnotation(args_parser, msg, env(), *this);
   EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
                            << status.message();
 
@@ -1219,7 +1065,7 @@ TEST_F(DebugAnnotationParserTest, DoesNotReuseStaleUnknownExtensionsPointer) {
       static_cast<uint8_t>(protozero::proto_utils::ProtoWireType::kVarInt), 1,
       0);
   ASSERT_TRUE(
-      args_parser.ParseMessageField(every_field, unknown_field, *this, &unknown)
+      args_parser.ParseMessageField(every_field, unknown_field, env(), *this, &unknown)
           .ok());
   ASSERT_EQ(unknown, 1);
 
@@ -1234,7 +1080,7 @@ TEST_F(DebugAnnotationParserTest, DoesNotReuseStaleUnknownExtensionsPointer) {
   msg->set_proto_type_name(".protozero.test.protos.EveryField");
   msg->set_proto_value(inner_bytes.data(), inner_bytes.size());
 
-  base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
+  base::Status status = ParseDebugAnnotation(args_parser, msg, env(), *this);
   EXPECT_TRUE(status.ok()) << status.message();
   EXPECT_EQ(unknown, 1);
 }
@@ -1279,7 +1125,7 @@ TEST_F(DebugAnnotationParserTest, DeeplyNestedProtoValueCycle) {
 
   const std::vector<uint8_t>& outermost = serialized.back();
   status = args_parser.ParseDebugAnnotation(
-      protozero::ConstBytes{outermost.data(), outermost.size()}, *this);
+      protozero::ConstBytes{outermost.data(), outermost.size()}, env(), *this);
   EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error: "
                            << status.message();
 }
@@ -1298,7 +1144,7 @@ TEST_F(DebugAnnotationParserTest, NestedValueDictMismatchedKeysAndValues) {
   DescriptorPool pool;
   ProtoToArgsParser args_parser(pool, string_pool_);
 
-  base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
+  base::Status status = ParseDebugAnnotation(args_parser, msg, env(), *this);
   EXPECT_FALSE(status.ok());
 }
 
@@ -1316,7 +1162,7 @@ TEST_F(DebugAnnotationParserTest, NestedValueDictMoreValuesThanKeys) {
   DescriptorPool pool;
   ProtoToArgsParser args_parser(pool, string_pool_);
 
-  base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
+  base::Status status = ParseDebugAnnotation(args_parser, msg, env(), *this);
   EXPECT_FALSE(status.ok());
 }
 
@@ -1335,7 +1181,7 @@ TEST_F(DebugAnnotationParserTest, NestedValueDictMatchedKeysAndValues) {
   DescriptorPool pool;
   ProtoToArgsParser args_parser(pool, string_pool_);
 
-  base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
+  base::Status status = ParseDebugAnnotation(args_parser, msg, env(), *this);
   EXPECT_TRUE(status.ok()) << status.message();
   EXPECT_THAT(args(),
               testing::ElementsAre("root.k1 root.k1 1", "root.k2 root.k2 2"));
@@ -1356,14 +1202,14 @@ TEST_F(DebugAnnotationParserTest, ErrorClearsPersistentWorkState) {
   DescriptorPool pool;
   ProtoToArgsParser args_parser(pool, string_pool_);
 
-  base::Status status = ParseDebugAnnotation(args_parser, bad_msg, *this);
+  base::Status status = ParseDebugAnnotation(args_parser, bad_msg, env(), *this);
   EXPECT_FALSE(status.ok());
 
   protozero::HeapBuffered<protos::pbzero::DebugAnnotation> good_msg;
   good_msg->set_name("good_root");
   good_msg->set_int_value(42);
 
-  status = ParseDebugAnnotation(args_parser, good_msg, *this);
+  status = ParseDebugAnnotation(args_parser, good_msg, env(), *this);
   EXPECT_TRUE(status.ok()) << status.message();
   EXPECT_THAT(args(), testing::ElementsAre("good_root good_root 42"));
 }
@@ -1387,7 +1233,7 @@ TEST_F(DebugAnnotationParserTest, InternedString) {
   DescriptorPool pool;
   ProtoToArgsParser args_parser(pool, string_pool_);
 
-  auto status = ParseDebugAnnotation(args_parser, msg, *this);
+  auto status = ParseDebugAnnotation(args_parser, msg, env(), *this);
   EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
                            << status.message();
 
@@ -1452,7 +1298,7 @@ TEST_F(ProtoToArgsParserTest, FlagsFieldExpandsToArgs) {
   ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_OK(
       parser.ParseMessage(protozero::ConstBytes{binary.data(), binary.size()},
-                          ".test.Msg", nullptr, *this));
+                          ".test.Msg", nullptr, env(), *this));
 
   EXPECT_THAT(args(),
               testing::ElementsAre("caps caps[0] CAP_A", "caps caps[1] CAP_C"));
@@ -1471,7 +1317,7 @@ TEST_F(ProtoToArgsParserTest, FlagsFieldSurfacesUnknownBits) {
   ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_OK(
       parser.ParseMessage(protozero::ConstBytes{binary.data(), binary.size()},
-                          ".test.Msg", nullptr, *this));
+                          ".test.Msg", nullptr, env(), *this));
 
   EXPECT_THAT(args(),
               testing::ElementsAre("caps caps[0] CAP_A", "caps caps[1] 0x8"));
@@ -1532,19 +1378,50 @@ TEST_F(ProtoToArgsParserTest, PidTidFieldsEmitCompanionArgs) {
   msg_proto->AppendVarInt(3, 7);
   auto binary = msg_proto.SerializeAsArray();
 
+  context_.global_stats_tracker =
+      std::make_unique<GlobalStatsTracker>(context_.storage.get());
+  context_.args_tracker = std::make_unique<ArgsTracker>(context_.storage.get());
+  context_.trace_state =
+      TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+          TraceProcessorContext::TraceState{TraceId{0}});
+  context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
+  context_.process_tracker = std::make_unique<ProcessTracker>(&context_);
+  UniquePid caller_upid = context_.process_tracker->GetOrCreateProcess(4321);
+  UniqueTid caller_utid = context_.process_tracker->UpdateThread(99, 4321);
+  UniquePid owner_upid = context_.process_tracker->GetOrCreateProcess(7);
+  env_.process_tracker = context_.process_tracker.get();
+
   ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_OK(
       parser.ParseMessage(protozero::ConstBytes{binary.data(), binary.size()},
-                          ".test.Msg", nullptr, *this));
+                          ".test.Msg", nullptr, env(), *this));
 
   // Each id field emits its raw value plus a companion upid/utid, keyed by
   // replacing (or appending) the trailing "pid"/"tid".
-  EXPECT_THAT(
-      args(),
-      testing::ElementsAre(
-          "caller_pid caller_pid 4321", "caller_upid caller_upid upid_of(4321)",
-          "caller_tid caller_tid 99", "caller_utid caller_utid utid_of(99)",
-          "owner owner 7", "owner_upid owner_upid upid_of(7)"));
+  EXPECT_THAT(args(),
+              testing::ElementsAre(
+                  "caller_pid caller_pid 4321",
+                  "caller_upid caller_upid " + std::to_string(caller_upid),
+                  "caller_tid caller_tid 99",
+                  "caller_utid caller_utid " + std::to_string(caller_utid),
+                  "owner owner 7",
+                  "owner_upid owner_upid " + std::to_string(owner_upid)));
+}
+
+TEST_F(ProtoToArgsParserTest, PidTidFieldsWithoutProcessTrackerAreDropped) {
+  auto fds_bytes = BuildPidTidDescriptorSet();
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size()));
+
+  protozero::HeapBuffered<protozero::Message> msg_proto{kChunkSize, kChunkSize};
+  msg_proto->AppendVarInt(1, 4321);
+  auto binary = msg_proto.SerializeAsArray();
+
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_OK(
+      parser.ParseMessage(protozero::ConstBytes{binary.data(), binary.size()},
+                          ".test.Msg", nullptr, env(), *this));
+  EXPECT_THAT(args(), testing::ElementsAre("caller_pid caller_pid 4321"));
 }
 
 }  // namespace

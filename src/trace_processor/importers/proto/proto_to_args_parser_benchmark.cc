@@ -23,9 +23,10 @@
 #include <unordered_map>
 #include <vector>
 
-#include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
+#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
 
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
@@ -36,65 +37,25 @@ namespace {
 
 using ::protozero::test::protos::pbzero::EveryField;
 
-// A Delegate that mirrors the cost ArgsParser pays on the proto hot path: it
-// receives already-interned key ids (the parser owns key interning + its memo)
-// and folds them, plus the value, into a checksum so the work is not optimized
+// A sink that folds each arg into a checksum so the work is not optimized
 // away. The args are not materialized into a table: this isolates the proto
-// reflection + key-handling cost that proto-key memoization targets.
-class BenchmarkDelegate : public ProtoToArgsParser::Delegate {
+// reflection, key handling and value interning done by the parser.
+class BenchmarkSink : public ArgSink {
  public:
-  explicit BenchmarkDelegate(StringPool* pool) : pool_(pool) {}
-
-  Id InternString(base::StringView s) override {
-    return pool_->InternString(s);
+  void Add(ArgKey key, Variadic value) override {
+    sink_ += key.flat_key.raw_id() + key.key.raw_id() +
+             static_cast<uint64_t>(value.type);
   }
-  void AddInteger(Id fk, Id k, int64_t value) override {
-    Sink(fk, k, static_cast<uint64_t>(value));
+  size_t ArrayIndex(StringPool::Id key) override {
+    return array_indexes_[key];
   }
-  void AddUnsignedInteger(Id fk, Id k, uint64_t value) override {
-    Sink(fk, k, value);
+  size_t IncrementArrayIndex(StringPool::Id key) override {
+    return ++array_indexes_[key];
   }
-  void AddString(Id fk, Id k, const protozero::ConstChars& value) override {
-    Sink(fk, k, value.size);
-  }
-  void AddString(Id fk, Id k, const std::string& value) override {
-    Sink(fk, k, value.size());
-  }
-  void AddDouble(Id fk, Id k, double value) override {
-    Sink(fk, k, static_cast<uint64_t>(value));
-  }
-  void AddPointer(Id fk, Id k, uint64_t value) override { Sink(fk, k, value); }
-  void AddBoolean(Id fk, Id k, bool value) override {
-    Sink(fk, k, value ? 1u : 0u);
-  }
-  bool AddJson(Id fk, Id k, const protozero::ConstChars& value) override {
-    Sink(fk, k, value.size);
-    return true;
-  }
-  void AddNull(Id fk, Id k) override { Sink(fk, k, 0); }
-
-  size_t GetArrayEntryIndex(const std::string& array_key) override {
-    return array_indexes_[pool_->InternString(base::StringView(array_key))];
-  }
-  size_t IncrementArrayEntryIndex(const std::string& array_key) override {
-    return ++array_indexes_[pool_->InternString(base::StringView(array_key))];
-  }
-
-  PacketSequenceStateGeneration* seq_state() override { return nullptr; }
 
   uint64_t sink() const { return sink_; }
 
- protected:
-  InternedMessageView* GetInternedMessageView(uint32_t, uint64_t) override {
-    return nullptr;
-  }
-
  private:
-  void Sink(Id fk, Id k, uint64_t value) {
-    sink_ += fk.raw_id() + k.raw_id() + value;
-  }
-
-  StringPool* pool_;
   std::unordered_map<StringPool::Id, size_t> array_indexes_;
   uint64_t sink_ = 0;
 };
@@ -143,18 +104,19 @@ void BM_ProtoToArgsParser(benchmark::State& state) {
   protozero::ConstBytes cb{reinterpret_cast<const uint8_t*>(bytes.data()),
                            bytes.size()};
 
-  // One parser + one delegate reused across iterations: this is the production
+  // One parser + one sink reused across iterations: this is the production
   // steady state, where the same message type is parsed once per packet and
   // any per-field key memoization has already warmed up.
   StringPool string_pool;
   ProtoToArgsParser parser(pool, string_pool);
-  BenchmarkDelegate delegate(&string_pool);
+  BenchmarkSink sink;
+  ProtoArgsEnv env;
   for (auto _ : state) {
     auto s = parser.ParseMessage(cb, ".protozero.test.protos.EveryField",
-                                 nullptr, delegate);
+                                 nullptr, env, sink);
     benchmark::DoNotOptimize(s);
   }
-  benchmark::DoNotOptimize(delegate.sink());
+  benchmark::DoNotOptimize(sink.sink());
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()));
 }
 
