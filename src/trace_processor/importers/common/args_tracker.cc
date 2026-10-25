@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <new>
@@ -28,7 +27,6 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
@@ -179,14 +177,6 @@ ArgsInserter& ArgsInserter::AddArg(StringId flat_key,
     }
   }
   return *this;
-}
-
-bool ArgsInserter::NeedsTranslation(const ArgsTranslationTable& table) const {
-  return std::any_of(buffer_->args.begin(), buffer_->args.end(),
-                     [&table](const CompactArg& arg) {
-                       return table.NeedsTranslation(arg.flat_key, arg.key,
-                                                     arg.value.type);
-                     });
 }
 
 ArgsInserter::CompactArgSet ArgsInserter::ToCompactArgSet() && {

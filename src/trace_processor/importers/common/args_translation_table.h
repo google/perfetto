@@ -56,6 +56,9 @@ class ArgsTranslationTable {
                         StringId key_id,
                         Variadic::Type type) const;
 
+  // Returns true if any arg in |inserter| requires translation.
+  bool NeedsTranslation(const ArgsInserter& inserter) const;
+
   void TranslateArgs(const ArgsTracker::CompactArgSet& arg_set,
                      ArgsInserter& inserter) const;
 
