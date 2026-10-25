@@ -18,39 +18,42 @@ INCLUDE PERFETTO MODULE slices.flat_slices;
 
 INCLUDE PERFETTO MODULE sched.thread_executing_span;
 
--- Every critical-path frame: one per root, chain depth and on-CPU
--- blocker. `key` orders frames by depth, then blocker id, so the max key
--- among the frames covering an instant is the deepest blocker.
-CREATE PERFETTO TABLE _critical_path_frames AS
-SELECT root_id, ts, dur, (depth << 32) | id AS key
-FROM _critical_path_with_depth_by_roots!(
-  (SELECT id AS root_node_id FROM _wakeup_graph),
-  _wakeup_graph
-);
-
--- The frames of each root flattened to the deepest blocker at every
--- instant. Stretches of the root's extent which no frame covers are filled
--- with a NULL `key`, i.e. the root itself.
-CREATE PERFETTO TABLE _critical_path_flat AS
-FROM (SELECT root_id, ts, dur, key FROM _critical_path_frames WHERE dur > 0)
-|> INTERVAL FLATTEN PER root_id AGGREGATE MAX(key) AS key
-|> INTERVAL FILL GAPS WITH (
-  SELECT root_id, min(ts) AS ts, max(ts + dur) - min(ts) AS dur
-  FROM _critical_path_frames
-  GROUP BY
-    root_id
-) AS root_extent PER root_id;
-
--- Critical path rooted at every entry of `_wakeup_graph`, with the
--- on-CPU blocker thread (`utid`) and the root's thread (`root_utid`)
--- joined in.
+-- Critical path rooted at every entry of `_wakeup_graph`, flattened to the
+-- deepest on-CPU blocker thread (`utid`) at every instant, along with the
+-- root's thread (`root_utid`).
+--
+-- Each thread is a lane (PER utid) of running intervals. A woken span waits
+-- on its waker over its idle time; with no waker, a span which is not the
+-- thread's first stands for its own idle time (it is in the kernel). Time
+-- before a span's idle time is covered by the thread's earlier spans on the
+-- same lane. `key` packs `(depth << 32) | utid`, so `MAX(key)` picks the
+-- deepest blocker's `utid` directly without a post-flatten join.
 CREATE PERFETTO TABLE _critical_path_all AS
-SELECT cr.ts, cr.dur, id_graph.utid, root_id_graph.utid AS root_utid
-FROM _critical_path_flat AS cr
-JOIN _wakeup_graph AS id_graph
-  ON coalesce(cr.key & 4294967295, cr.root_id) = id_graph.id
-JOIN _wakeup_graph AS root_id_graph
-  ON cr.root_id = root_id_graph.id;
+GRAPH CRITICAL PATH
+  NODES _wakeup_graph
+  EDGES (
+    SELECT
+      id AS src,
+      coalesce(waker_id, id) AS dst,
+      coalesce(ts - idle_dur, 0) AS ts,
+      CASE
+        WHEN waker_id IS NOT NULL THEN coalesce(idle_dur, ts)
+        WHEN prev_id IS NOT NULL THEN idle_dur
+      END AS dur
+    FROM _wakeup_graph
+  )
+  FROM (
+    SELECT
+      id,
+      ts - coalesce(idle_dur, 0) AS ts,
+      dur + coalesce(idle_dur, 0) AS dur,
+      utid AS root_utid
+    FROM _wakeup_graph
+  )
+  PER utid
+|> EXTEND depth * 4294967296 + utid AS key
+|> INTERVAL FLATTEN PER root_id, root_utid AGGREGATE MAX(key) AS key
+|> SELECT ts, dur, key % 4294967296 AS utid, root_utid;
 
 -- Flattened slices of every thread, with the stretches of the trace no
 -- slice covers filled with a NULL `slice_id`.
