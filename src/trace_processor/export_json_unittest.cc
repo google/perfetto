@@ -864,7 +864,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
   // Global legacy track.
   TrackId track = context_.track_tracker->InternTrack(
       tracks::kLegacyGlobalInstantsBlueprint, tracks::Dimensions(),
-      tracks::BlueprintName(), [this](ArgsTracker::BoundInserter& inserter) {
+      tracks::BlueprintName(), [this](ArgsInserter& inserter) {
         inserter.AddArg(
             context_.storage->InternString("source"),
             Variadic::String(context_.storage->InternString("chrome")));
@@ -1679,7 +1679,7 @@ TEST_F(ExportJsonTest, ArgumentFilter) {
   auto* slices = context_.storage->mutable_slice_table();
   {
     ArgsTracker args_tracker(&context_);
-    std::vector<ArgsTracker::BoundInserter> slice_inserters;
+    std::vector<ArgsInserter> slice_inserters;
     for (auto& name_id : name_ids) {
       auto id = slices->Insert({0, 0, track, cat_id, name_id, 0}).id;
       slice_inserters.emplace_back(args_tracker.AddArgsTo(id));

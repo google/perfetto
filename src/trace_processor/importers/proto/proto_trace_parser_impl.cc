@@ -266,7 +266,7 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
   // This function inserts the args from the proto into the args table.
   // Args inserted with the same key multiple times are treated as an array:
   // this function correctly creates the key and flat key for each arg array.
-  auto args_fn = [this, &event](ArgsTracker::BoundInserter* inserter) {
+  auto args_fn = [this, &event](ArgsInserter* inserter) {
     using Arg = std::pair<StringId, StringId>;
 
     // First, get a list of all the args so we can group them by key.

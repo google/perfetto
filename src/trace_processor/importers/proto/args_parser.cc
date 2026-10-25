@@ -35,10 +35,8 @@
 
 namespace perfetto::trace_processor {
 
-using BoundInserter = ArgsTracker::BoundInserter;
-
 ArgsParser::ArgsParser(int64_t packet_timestamp,
-                       BoundInserter& inserter,
+                       ArgsInserter& inserter,
                        TraceStorage& storage,
                        ProcessTracker& process_tracker,
                        PacketSequenceStateGeneration* sequence_state,

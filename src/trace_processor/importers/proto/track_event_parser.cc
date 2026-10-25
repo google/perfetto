@@ -62,7 +62,6 @@
 namespace perfetto::trace_processor {
 
 namespace {
-using BoundInserter = ArgsTracker::BoundInserter;
 using protos::pbzero::TrackEvent;
 using LegacyEvent = TrackEvent::LegacyEvent;
 using protozero::ConstBytes;
@@ -388,7 +387,7 @@ void TrackEventParser::ParseChromeProcessDescriptor(
           : ProcessNamePriority::kChromeProcessLabel;
   context_->process_tracker->UpdateProcessName(upid, name_id, priority);
 
-  ArgsTracker::BoundInserter& process_args =
+  ArgsInserter& process_args =
       context_->process_tracker->AddArgsToProcess(upid);
   // For identifying Chrome processes in system traces.
   process_args.AddArg(chrome_process_type_id_, Variadic::String(name_id));

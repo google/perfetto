@@ -59,11 +59,10 @@ class JsonTraceParser {
   // Records a parser error against |event| at |timestamp|, attaching the event
   // name and phase as args to make the import log queryable and actionable. If
   // |extra_args| is set, it is invoked to attach further context-specific args.
-  void RecordEventError(
-      int64_t timestamp,
-      const JsonEvent& event,
-      size_t stat_key,
-      std::function<void(ArgsTracker::BoundInserter&)> extra_args = {});
+  void RecordEventError(int64_t timestamp,
+                        const JsonEvent& event,
+                        size_t stat_key,
+                        std::function<void(ArgsInserter&)> extra_args = {});
 };
 
 }  // namespace perfetto::trace_processor

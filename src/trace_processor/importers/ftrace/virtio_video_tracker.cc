@@ -137,11 +137,10 @@ void VirtioVideoTracker::ParseVirtioVideoEvent(uint64_t fld_id,
           kQueueEventBlueprint,
           tracks::Dimensions(pb_evt.stream_id(), pb_evt.queue_type()),
           static_cast<int64_t>(pb_evt.resource_id()));
-      context_->slice_tracker->End(
-          timestamp, end_id, {}, {},
-          [this, &pb_evt](ArgsTracker::BoundInserter* args) {
-            this->AddCommandSliceArgs(&pb_evt, args);
-          });
+      context_->slice_tracker->End(timestamp, end_id, {}, {},
+                                   [this, &pb_evt](ArgsInserter* args) {
+                                     this->AddCommandSliceArgs(&pb_evt, args);
+                                   });
       break;
     }
     case FtraceEvent::kVirtioVideoCmdFieldNumber: {
@@ -185,7 +184,7 @@ void VirtioVideoTracker::AddCommandSlice(int64_t timestamp,
 
 void VirtioVideoTracker::AddCommandSliceArgs(
     protos::pbzero::VirtioVideoResourceQueueDoneFtraceEvent::Decoder* pb_evt,
-    ArgsTracker::BoundInserter* args) {
+    ArgsInserter* args) {
   StringId queue_type_id;
   switch (pb_evt->queue_type()) {
     case kVirtioVideoQueueTypeInput: {

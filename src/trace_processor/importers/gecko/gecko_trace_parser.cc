@@ -98,7 +98,7 @@ void GeckoTraceParser::ParseMarker(int64_t ts,
   // e.g. `{"type": "DOMEvent", "eventType": "mousedown"}` becomes
   // `data.type=DOMEvent` and `data.eventType=mousedown`.
   json::Iterator data_iterator;
-  auto args_inserter = [&](ArgsTracker::BoundInserter* inserter) {
+  auto args_inserter = [&](ArgsInserter* inserter) {
     if (marker.data_json_size == 0) {
       return;
     }

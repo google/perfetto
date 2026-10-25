@@ -45,7 +45,7 @@ namespace perfetto::trace_processor {
 // Tracks and stores tracks based on track types, ids and scopes.
 class TrackTracker {
  public:
-  using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter&)>;
+  using SetArgsCallback = std::function<void(ArgsInserter&)>;
 
   explicit TrackTracker(TraceProcessorContext*);
 

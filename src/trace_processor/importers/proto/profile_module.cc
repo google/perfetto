@@ -237,8 +237,7 @@ void ProfileModule::ParseStreamingProfileSample(
       sequence_state, upid, event.callstack_iid);
   if (!opt_cs_id) {
     context_->import_logs_tracker->RecordParserLog(
-        stats::stackprofile_parser_error, ts,
-        [&](ArgsTracker::BoundInserter& inserter) {
+        stats::stackprofile_parser_error, ts, [&](ArgsInserter& inserter) {
           inserter.AddArg(context_->storage->InternString("callstack_iid"),
                           Variadic::UnsignedInteger(event.callstack_iid));
         });

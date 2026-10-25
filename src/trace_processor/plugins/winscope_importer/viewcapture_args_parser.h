@@ -33,7 +33,7 @@ class ViewCaptureArgsParser : public ArgsParser {
   using IidToStringMap = base::FlatHashMap<uint64_t, StringId>;
 
   ViewCaptureArgsParser(int64_t packet_timestamp,
-                        ArgsTracker::BoundInserter& inserter,
+                        ArgsInserter& inserter,
                         TraceProcessorContext& context,
                         PacketSequenceStateGeneration* sequence_state,
                         tables::ViewCaptureTable::RowReference* snapshot_row,

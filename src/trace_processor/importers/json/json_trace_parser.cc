@@ -140,7 +140,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
   // Only used for 'B', 'E', and 'X' events so wrap in lambda so it gets
   // ignored in other cases. This lambda is only safe to call within the
   // scope of this function due to the capture by reference.
-  auto args_inserter = [&](ArgsTracker::BoundInserter* inserter) {
+  auto args_inserter = [&](ArgsInserter* inserter) {
     if (event.args_size > 0) {
       json::AddJsonValueToArgs(
           it_, event.args.get(), event.args.get() + event.args_size,
@@ -245,7 +245,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         // knows. See https://github.com/google/perfetto/issues/4280.
         RecordEventError(timestamp, event,
                          stats::slice_spill_overlapping_complete_event,
-                         [&](ArgsTracker::BoundInserter& inserter) {
+                         [&](ArgsInserter& inserter) {
                            slice_tracker->AddOverlapArgs(*overlap, inserter);
                          });
         track_id = context_->track_compressor->InternLegacyOverlappingScoped(
@@ -335,8 +335,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       if (event.scope == JsonEvent::Scope::kGlobal) {
         track_id = context_->track_tracker->InternTrack(
             tracks::kLegacyGlobalInstantsBlueprint, tracks::Dimensions(),
-            tracks::BlueprintName(),
-            [this](ArgsTracker::BoundInserter& inserter) {
+            tracks::BlueprintName(), [this](ArgsInserter& inserter) {
               inserter.AddArg(
                   context_->storage->InternString("source"),
                   Variadic::String(context_->storage->InternString("chrome")));
@@ -350,8 +349,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
             context_->process_tracker->GetOrCreateProcess(event.pid);
         track_id = context_->track_tracker->InternTrack(
             tracks::kChromeProcessInstantBlueprint, tracks::Dimensions(upid),
-            tracks::BlueprintName(),
-            [this](ArgsTracker::BoundInserter& inserter) {
+            tracks::BlueprintName(), [this](ArgsInserter& inserter) {
               inserter.AddArg(
                   context_->storage->InternString("source"),
                   Variadic::String(context_->storage->InternString("chrome")));
@@ -583,7 +581,7 @@ void JsonTraceParser::RecordEventError(
     int64_t timestamp,
     const JsonEvent& event,
     size_t stat_key,
-    std::function<void(ArgsTracker::BoundInserter&)> extra_args) {
+    std::function<void(ArgsInserter&)> extra_args) {
   StringId name_key = context_->storage->InternString("event_name");
   StringId phase_key = context_->storage->InternString("event_phase");
   StringId name_id = event.name;
@@ -592,8 +590,7 @@ void JsonTraceParser::RecordEventError(
   context_->import_logs_tracker->RecordParserLog(
       stat_key, timestamp,
       [name_key, name_id, phase_key, phase_id,
-       extra_args =
-           std::move(extra_args)](ArgsTracker::BoundInserter& inserter) {
+       extra_args = std::move(extra_args)](ArgsInserter& inserter) {
         inserter.AddArg(name_key, Variadic::String(name_id));
         inserter.AddArg(phase_key, Variadic::String(phase_id));
         if (extra_args) {

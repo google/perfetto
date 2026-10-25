@@ -144,8 +144,7 @@ void AppWakelockModule::ParseWakelockBundle(int64_t ts, ConstBytes blob) {
       kBlueprint, tracks::Dimensions(), static_cast<int64_t>(cookie));
   StringId name_id = context_->storage->InternString(info.tag());
   context_->slice_tracker->Begin(
-      ts, track_id, kNullStringId, name_id,
-      [this, &info](ArgsTracker::BoundInserter* args) {
+      ts, track_id, kNullStringId, name_id, [this, &info](ArgsInserter* args) {
         args->AddArg(arg_flags_, Variadic::Integer(info.flags()));
         if (info.has_owner_pid()) {
           args->AddArg(arg_owner_pid_, Variadic::Integer(info.owner_pid()));

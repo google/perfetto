@@ -35,7 +35,7 @@ namespace perfetto::trace_processor::json {
 namespace {
 
 void InsertLeaf(TraceStorage* storage,
-                ArgsTracker::BoundInserter* inserter,
+                ArgsInserter* inserter,
                 const JsonValue& value,
                 std::string_view flat_key,
                 std::string_view key) {
@@ -72,7 +72,7 @@ bool AddJsonValueToArgs(Iterator& it,
                         std::string_view flat_key,
                         std::string_view key,
                         TraceStorage* storage,
-                        ArgsTracker::BoundInserter* inserter) {
+                        ArgsInserter* inserter) {
   it.Reset(start, end);
   if (!it.ParseStart()) {
     JsonValue value;

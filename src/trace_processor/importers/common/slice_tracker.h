@@ -46,7 +46,7 @@ class SliceTracker {
 
   // Sentinel default args callback; WantsArgs() compiles arg handling away.
   struct NoArgsCallback {
-    void operator()(ArgsTracker::BoundInserter*) const {}
+    void operator()(ArgsInserter*) const {}
   };
 
   // Describes a partial overlap detected while adding a scoped slice: the
@@ -71,13 +71,13 @@ class SliceTracker {
   // in the constructor. Shared by the two overlap-logging paths (the "drop"
   // path here and the JSON "spill onto an overflow track" path) so both surface
   // the same queryable context in the TraceImportLogsTable.
-  void AddOverlapArgs(const OverlapInfo&, ArgsTracker::BoundInserter&) const;
+  void AddOverlapArgs(const OverlapInfo&, ArgsInserter&) const;
 
   // Writes args describing parent and current slice names when max depth is
   // exceeded onto |inserter|.
   void AddMaxDepthArgs(StringId parent_name,
                        StringId current_name,
-                       ArgsTracker::BoundInserter&) const;
+                       ArgsInserter&) const;
 
   explicit SliceTracker(TraceProcessorContext*);
   ~SliceTracker();
@@ -227,7 +227,7 @@ class SliceTracker {
   };
 
   // Single out-of-line body for Begin/Scoped: translate, insert and push the
-  // slice, and (if want_args) acquire its BoundInserter. The only thing the
+  // slice, and (if want_args) acquire its ArgsInserter. The only thing the
   // templated callers inline is the args callback on the returned inserter.
   StartedSlice StartSlice(int64_t timestamp,
                           int64_t duration,

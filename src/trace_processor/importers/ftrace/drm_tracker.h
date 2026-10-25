@@ -166,8 +166,7 @@ class DrmTracker {
   };
 
   SchedRing& GetSchedRingByName(base::StringView name);
-  void InsertSchedJobArgs(ArgsTracker::BoundInserter* inserter,
-                          SchedJob job) const;
+  void InsertSchedJobArgs(ArgsInserter* inserter, SchedJob job) const;
   void BeginSchedRingSlice(int64_t timestamp, SchedRing& ring);
 
   void DrmSchedJobQueue(int64_t timestamp,

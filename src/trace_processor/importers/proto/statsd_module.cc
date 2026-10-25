@@ -186,7 +186,7 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
   StringId atom_name = GetAtomName(nested_field_id);
   context_->slice_tracker->Scoped(
       ts, InternTrackId(), kNullStringId, atom_name, 0,
-      [&](ArgsTracker::BoundInserter* inserter) {
+      [&](ArgsInserter* inserter) {
         ArgsParser delegate(ts, *inserter, *context_->storage,
                             *context_->process_tracker);
 

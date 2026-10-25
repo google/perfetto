@@ -90,7 +90,7 @@ bool ArgsTranslationTable::NeedsTranslation(StringId flat_key_id,
 
 void ArgsTranslationTable::TranslateArgs(
     const ArgsTracker::CompactArgSet& arg_set,
-    ArgsTracker::BoundInserter& inserter) const {
+    ArgsInserter& inserter) const {
   std::optional<uint64_t> mapping_id;
   std::optional<uint64_t> rel_pc;
 
@@ -284,7 +284,7 @@ std::optional<StringId> ArgsTranslationTable::TranslateClassName(
 void ArgsTranslationTable::EmitMojoMethodLocation(
     std::optional<uint64_t> mapping_id,
     std::optional<uint64_t> rel_pc,
-    ArgsTracker::BoundInserter& inserter) const {
+    ArgsInserter& inserter) const {
   if (!mapping_id || !rel_pc) {
     return;
   }

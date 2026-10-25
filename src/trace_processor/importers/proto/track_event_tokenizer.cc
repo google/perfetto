@@ -285,8 +285,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       default:
         context_->import_logs_tracker->RecordTokenizationLog(
             stats::track_descriptor_invalid_child_ordering,
-            args.packet->offset(),
-            [this, &track](ArgsTracker::BoundInserter& inserter) {
+            args.packet->offset(), [this, &track](ArgsInserter& inserter) {
               inserter.AddArg(track_uuid_key_id_,
                               Variadic::UnsignedInteger(track.uuid()));
               inserter.AddArg(child_order_key_id_,
@@ -393,7 +392,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     if (!thread.has_pid() || !thread.has_tid()) {
       context_->import_logs_tracker->RecordTokenizationLog(
           stats::track_descriptor_thread_missing_pid_tid, args.packet->offset(),
-          [&](ArgsTracker::BoundInserter& inserter) {
+          [&](ArgsInserter& inserter) {
             inserter.AddArg(track_uuid_key_id_,
                             Variadic::UnsignedInteger(track.uuid()));
           });
@@ -431,7 +430,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     if (!process.has_pid()) {
       context_->import_logs_tracker->RecordTokenizationLog(
           stats::track_descriptor_process_missing_pid, args.packet->offset(),
-          [&](ArgsTracker::BoundInserter& inserter) {
+          [&](ArgsInserter& inserter) {
             inserter.AddArg(track_uuid_key_id_,
                             Variadic::UnsignedInteger(track.uuid()));
           });
@@ -899,8 +898,7 @@ void TrackEventTokenizer::RecordTokenizationErrorWithTrackUuid(
     uint64_t track_uuid,
     TraceBlobView* packet) {
   context_->import_logs_tracker->RecordTokenizationLog(
-      stat_key, packet->offset(),
-      [this, track_uuid](ArgsTracker::BoundInserter& inserter) {
+      stat_key, packet->offset(), [this, track_uuid](ArgsInserter& inserter) {
         inserter.AddArg(track_uuid_key_id_,
                         Variadic::UnsignedInteger(track_uuid));
       });
@@ -912,7 +910,7 @@ void TrackEventTokenizer::RecordTokenizationErrorWithSeqId(
     TraceBlobView* packet) {
   context_->import_logs_tracker->RecordTokenizationLog(
       stat_key, packet->offset(),
-      [this, packet_sequence_id](ArgsTracker::BoundInserter& inserter) {
+      [this, packet_sequence_id](ArgsInserter& inserter) {
         inserter.AddArg(packet_sequence_id_key_id_,
                         Variadic::UnsignedInteger(packet_sequence_id));
       });
