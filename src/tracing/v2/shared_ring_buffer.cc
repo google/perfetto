@@ -36,17 +36,20 @@ static_assert(kMaxFragmentSizeVarIntBytes ==
               "Ring buffer fragment sizes must use the same varint byte limit "
               "as Protozero message lengths");
 
-// The buffer stores read_pos in the low 32 bits of rw_positions. Pass its
-// address to the futex API, but keep all C++ accesses on the containing
+// The buffer stores read_pos in the low 32 bits of rw_positions: its first
+// four bytes on little-endian hosts and its last four on big-endian ones. Pass
+// its address to the futex API, but keep all C++ accesses on the containing
 // atomic<uint64_t>.
 //
 // The supported CPU/ABI set provides atomic observation of that 32-bit half
 // during the 64-bit CAS.
 const uint32_t* ReadPosFutexAddress(const std::atomic<uint64_t>* rw_positions) {
-  static_assert(PERFETTO_IS_LITTLE_ENDIAN(),
-                "The low-word futex requires read_pos to be the first four "
-                "bytes of rw_positions");
-  return reinterpret_cast<const uint32_t*>(rw_positions);
+  const uint32_t* halves = reinterpret_cast<const uint32_t*>(rw_positions);
+#if PERFETTO_IS_LITTLE_ENDIAN()
+  return halves;
+#else
+  return halves + 1;
+#endif
 }
 
 // Callers validate untrusted layouts with NumChunksForRingBufferLayout()

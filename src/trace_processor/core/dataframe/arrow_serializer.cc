@@ -623,6 +623,7 @@ base::Status ArrowSerializer::BuildFileFraming(const BodyPlan& plan) {
 base::StatusOr<size_t> ArrowSerializer::Prepare(const Dataframe& dataframe,
                                                 const StringPool& pool) {
   Reset();
+#if PERFETTO_IS_LITTLE_ENDIAN()
   if (!dataframe.finalized()) {
     return base::ErrStatus(
         "Arrow serialization requires a finalized dataframe");
@@ -654,6 +655,10 @@ base::StatusOr<size_t> ArrowSerializer::Prepare(const Dataframe& dataframe,
   prepared_string_pool_ = &pool;
   prepared_mutations_ = dataframe.mutations();
   return static_cast<size_t>(total);
+#else // PERFETTO_IS_LITTLE_ENDIAN()
+  return base::ErrStatus(
+      "Arrow serialization is not supported on big-endian hosts");
+#endif // PERFETTO_IS_LITTLE_ENDIAN()
 }
 
 base::Status ArrowSerializer::WriteDictionary(const DictionaryPlan& dictionary,

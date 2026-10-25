@@ -25,7 +25,7 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
@@ -46,21 +46,18 @@ using core::dataframe::ColumnSpec;
 using core::dataframe::Dataframe;
 using core::dataframe::DataframeSpec;
 
-static_assert(PERFETTO_IS_LITTLE_ENDIAN(),
-              "wattson curve blobs are little-endian and require a "
-              "little-endian host");
-
 class WattsonCurvesBlobReader {
  public:
   explicit WattsonCurvesBlobReader(const uint8_t* data, size_t size)
       : data_(data), size_(size) {}
 
+  // Curve blobs are little-endian.
   template <typename T>
   T Read() {
-    static_assert(std::is_trivially_copyable_v<T>);
+    static_assert(std::is_arithmetic_v<T>);
     T value;
     ReadInto(&value, sizeof(T));
-    return value;
+    return base::LEToHost(value);
   }
 
   base::StringView ReadStringView(uint16_t size) {

@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
@@ -91,13 +92,10 @@ const uint8_t* DecodeSignedLeb128(const uint8_t* data,
 
 // Reads a simple little-endian integer from the byte stream.
 uint64_t ReadNumber(const uint8_t* ptr, size_t num_bytes) {
-  static_assert(PERFETTO_IS_LITTLE_ENDIAN(),
-                "ART Method traces are little-endian. Perfetto requires a "
-                "little-endian host to parse these effectively.");
   PERFETTO_DCHECK(num_bytes <= sizeof(uint64_t));
   uint64_t number = 0;
   memcpy(&number, ptr, num_bytes);
-  return number;
+  return base::LEToHost(number);
 }
 
 std::string ConstructPathname(base::StringView class_name,

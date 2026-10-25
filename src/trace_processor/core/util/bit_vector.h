@@ -87,16 +87,22 @@ struct BitVector {
   // ceil(size / 8) bytes holding bit i at byte i / 8, bit i % 8. This is the
   // layout of the words below, so the bitmap is taken verbatim.
   static BitVector CreateFromBitmap(const uint8_t* bitmap, uint64_t size) {
-    static_assert(PERFETTO_IS_LITTLE_ENDIAN());
     if (size == 0) {
       return {};
     }
     auto words = FlexVector<uint64_t>::CreateWithSize((size + 63u) / 64u);
     size_t bitmap_bytes = static_cast<size_t>((size + 7u) / 8u);
     size_t word_bytes = words.size() * sizeof(uint64_t);
+#if PERFETTO_IS_LITTLE_ENDIAN()
     memcpy(words.data(), bitmap, bitmap_bytes);
     memset(reinterpret_cast<uint8_t*>(words.data()) + bitmap_bytes, 0,
            word_bytes - bitmap_bytes);
+#else
+    memset(words.data(), 0, word_bytes);
+    for (size_t i = 0; i < bitmap_bytes; ++i) {
+      words[i / 8u] |= static_cast<uint64_t>(bitmap[i]) << (8u * (i % 8u));
+    }
+#endif
     // Bits past `size` are unspecified in the source bitmap.
     if (size % 64u != 0u) {
       words.back() &= (1ull << (size % 64u)) - 1ull;
