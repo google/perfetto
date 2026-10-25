@@ -128,6 +128,11 @@ class ExportJsonTest : public ::testing::Test {
     return writer.TakeStr();
   }
 
+  ArgSetId AddArgSet(const std::vector<GlobalArgsTracker::CompactArg>& args) {
+    return context_.global_args_tracker->AddArgSet(
+        args.data(), static_cast<uint32_t>(args.size()));
+  }
+
   static Dom ToJsonValue(const std::string& json) {
     base::StatusOr<Dom> result = Parse(json);
     EXPECT_TRUE(result.ok()) << json;
@@ -544,11 +549,11 @@ TEST_F(ExportJsonTest, StorageWithArgs) {
       base::StringView("task.posted_from.file_name"));
   StringId arg_value_id =
       context_.storage->InternString(base::StringView(kSrc));
-  GlobalArgsTracker::Arg arg;
+  GlobalArgsTracker::CompactArg arg;
   arg.flat_key = arg_key_id;
   arg.key = arg_key_id;
   arg.value = Variadic::String(arg_value_id);
-  ArgSetId args = context_.global_args_tracker->AddArgSet({arg}, 0, 1);
+  ArgSetId args = AddArgSet({arg});
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 
@@ -639,15 +644,15 @@ TEST_F(ExportJsonTest, StorageWithListArgs) {
       base::StringView("debug.draw_duration_ms[0]"));
   StringId arg_key1_id = context_.storage->InternString(
       base::StringView("debug.draw_duration_ms[1]"));
-  GlobalArgsTracker::Arg arg0;
+  GlobalArgsTracker::CompactArg arg0;
   arg0.flat_key = arg_flat_key_id;
   arg0.key = arg_key0_id;
   arg0.value = Variadic::Real(kValues[0]);
-  GlobalArgsTracker::Arg arg1;
+  GlobalArgsTracker::CompactArg arg1;
   arg1.flat_key = arg_flat_key_id;
   arg1.key = arg_key1_id;
   arg1.value = Variadic::Real(kValues[1]);
-  ArgSetId args = context_.global_args_tracker->AddArgSet({arg0, arg1}, 0, 2);
+  ArgSetId args = AddArgSet({arg0, arg1});
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 
@@ -686,15 +691,15 @@ TEST_F(ExportJsonTest, StorageWithMultiplePointerArgs) {
       context_.storage->InternString(base::StringView("arg0"));
   StringId arg_key1_id =
       context_.storage->InternString(base::StringView("arg1"));
-  GlobalArgsTracker::Arg arg0;
+  GlobalArgsTracker::CompactArg arg0;
   arg0.flat_key = arg_key0_id;
   arg0.key = arg_key0_id;
   arg0.value = Variadic::Pointer(kValue0);
-  GlobalArgsTracker::Arg arg1;
+  GlobalArgsTracker::CompactArg arg1;
   arg1.flat_key = arg_key1_id;
   arg1.key = arg_key1_id;
   arg1.value = Variadic::Pointer(kValue1);
-  ArgSetId args = context_.global_args_tracker->AddArgSet({arg0, arg1}, 0, 2);
+  ArgSetId args = AddArgSet({arg0, arg1});
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 
@@ -733,15 +738,15 @@ TEST_F(ExportJsonTest, StorageWithObjectListArgs) {
       context_.storage->InternString(base::StringView("a[0].b"));
   StringId arg_key1_id =
       context_.storage->InternString(base::StringView("a[1].b"));
-  GlobalArgsTracker::Arg arg0;
+  GlobalArgsTracker::CompactArg arg0;
   arg0.flat_key = arg_flat_key_id;
   arg0.key = arg_key0_id;
   arg0.value = Variadic::Integer(kValues[0]);
-  GlobalArgsTracker::Arg arg1;
+  GlobalArgsTracker::CompactArg arg1;
   arg1.flat_key = arg_flat_key_id;
   arg1.key = arg_key1_id;
   arg1.value = Variadic::Integer(kValues[1]);
-  ArgSetId args = context_.global_args_tracker->AddArgSet({arg0, arg1}, 0, 2);
+  ArgSetId args = AddArgSet({arg0, arg1});
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 
@@ -781,15 +786,15 @@ TEST_F(ExportJsonTest, StorageWithNestedListArgs) {
       context_.storage->InternString(base::StringView("a[0][0]"));
   StringId arg_key1_id =
       context_.storage->InternString(base::StringView("a[0][1]"));
-  GlobalArgsTracker::Arg arg0;
+  GlobalArgsTracker::CompactArg arg0;
   arg0.flat_key = arg_flat_key_id;
   arg0.key = arg_key0_id;
   arg0.value = Variadic::Integer(kValues[0]);
-  GlobalArgsTracker::Arg arg1;
+  GlobalArgsTracker::CompactArg arg1;
   arg1.flat_key = arg_flat_key_id;
   arg1.key = arg_key1_id;
   arg1.value = Variadic::Integer(kValues[1]);
-  ArgSetId args = context_.global_args_tracker->AddArgSet({arg0, arg1}, 0, 2);
+  ArgSetId args = AddArgSet({arg0, arg1});
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 
@@ -826,11 +831,11 @@ TEST_F(ExportJsonTest, StorageWithLegacyJsonArgs) {
   StringId arg_key_id = context_.storage->InternString(base::StringView("a"));
   StringId arg_value_id =
       context_.storage->InternString(base::StringView("{\"b\":123}"));
-  GlobalArgsTracker::Arg arg;
+  GlobalArgsTracker::CompactArg arg;
   arg.flat_key = arg_key_id;
   arg.key = arg_key_id;
   arg.value = Variadic::Json(arg_value_id);
-  ArgSetId args = context_.global_args_tracker->AddArgSet({arg}, 0, 1);
+  ArgSetId args = AddArgSet({arg});
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 
@@ -1089,34 +1094,31 @@ TEST_F(ExportJsonTest, AsyncEvents) {
       {kTimestamp, kDuration, track, cat_id, name_id, 0});
   StringId arg_key_id =
       context_.storage->InternString(base::StringView(kArgName));
-  GlobalArgsTracker::Arg arg;
+  GlobalArgsTracker::CompactArg arg;
   arg.flat_key = arg_key_id;
   arg.key = arg_key_id;
   arg.value = Variadic::Integer(kArgValue);
   StringId legacy_source_id_key =
       context_.storage->InternString("legacy_trace_source_id");
-  GlobalArgsTracker::Arg source_id_arg;
+  GlobalArgsTracker::CompactArg source_id_arg;
   source_id_arg.flat_key = legacy_source_id_key;
   source_id_arg.key = legacy_source_id_key;
   source_id_arg.value = Variadic::Integer(kSourceId);
-  ArgSetId args =
-      context_.global_args_tracker->AddArgSet({arg, source_id_arg}, 0, 2);
+  ArgSetId args = AddArgSet({arg, source_id_arg});
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 
   // Child event with same timestamps as first one.
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp, kDuration, track, cat_id, name2_id, 0});
-  ArgSetId args2 =
-      context_.global_args_tracker->AddArgSet({source_id_arg}, 0, 1);
+  ArgSetId args2 = AddArgSet({source_id_arg});
   slice[1].set_arg_set_id(args2);
 
   // Another overlapping async event on a different track.
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp3, kDuration3, track2, cat_id, name3_id, 0});
   source_id_arg.value = Variadic::Integer(kSourceId2);
-  ArgSetId args3 =
-      context_.global_args_tracker->AddArgSet({source_id_arg}, 0, 1);
+  ArgSetId args3 = AddArgSet({source_id_arg});
   slice[2].set_arg_set_id(args3);
 
   base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
@@ -1204,7 +1206,7 @@ TEST_F(ExportJsonTest, AsyncEvents) {
 }
 
 TEST_F(ExportJsonTest, LegacyAsyncEvents) {
-  using Arg = GlobalArgsTracker::Arg;
+  using Arg = GlobalArgsTracker::CompactArg;
   const int64_t kTimestamp = 10000000;
   const int64_t kDuration = 100000;
   const int64_t kTimestamp2 = 10001000;
@@ -1252,12 +1254,12 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
   arg_inserter("legacy_event.phase", "S", args1);
   StringId legacy_source_id_key =
       context_.storage->InternString("legacy_trace_source_id");
-  GlobalArgsTracker::Arg source_id_arg;
+  GlobalArgsTracker::CompactArg source_id_arg;
   source_id_arg.flat_key = legacy_source_id_key;
   source_id_arg.key = legacy_source_id_key;
   source_id_arg.value = Variadic::Integer(kSourceId);
   args1.push_back(source_id_arg);
-  ArgSetId arg_id1 = context_.global_args_tracker->AddArgSet(args1, 0, 3);
+  ArgSetId arg_id1 = AddArgSet(args1);
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(arg_id1);
 
@@ -1269,7 +1271,7 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
   arg_inserter("legacy_event.phase", "T", step_args);
   arg_inserter("debug.step", "Step1", step_args);
   step_args.push_back(source_id_arg);
-  ArgSetId arg_id2 = context_.global_args_tracker->AddArgSet(step_args, 0, 4);
+  ArgSetId arg_id2 = AddArgSet(step_args);
   slice[1].set_arg_set_id(arg_id2);
 
   // Another overlapping async event on a different track.
@@ -1279,7 +1281,7 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
   arg_inserter("legacy_event.phase", "S", args3);
   source_id_arg.value = Variadic::Integer(kSourceId2);
   args3.push_back(source_id_arg);
-  ArgSetId arg_id3 = context_.global_args_tracker->AddArgSet(args3, 0, 2);
+  ArgSetId arg_id3 = AddArgSet(args3);
   slice[2].set_arg_set_id(arg_id3);
 
   base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
@@ -1378,12 +1380,11 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
       slices->Insert({kTimestamp, kDuration, track, cat_id, name_id, 0});
   StringId legacy_source_id_key =
       context_.storage->InternString("legacy_trace_source_id");
-  GlobalArgsTracker::Arg source_id_arg;
+  GlobalArgsTracker::CompactArg source_id_arg;
   source_id_arg.flat_key = legacy_source_id_key;
   source_id_arg.key = legacy_source_id_key;
   source_id_arg.value = Variadic::Integer(kSourceId);
-  ArgSetId args =
-      context_.global_args_tracker->AddArgSet({source_id_arg}, 0, 1);
+  ArgSetId args = AddArgSet({source_id_arg});
   id_and_row.row_reference.set_arg_set_id(args);
   context_.storage->mutable_virtual_track_slices()->AddVirtualTrackSlice(
       id_and_row.id, kThreadTimestamp, kThreadDuration, 0, 0);
@@ -1441,12 +1442,11 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
       {kTimestamp, kDuration, track, cat_id, name_id, 0});
   StringId legacy_source_id_key =
       context_.storage->InternString("legacy_trace_source_id");
-  GlobalArgsTracker::Arg source_id_arg;
+  GlobalArgsTracker::CompactArg source_id_arg;
   source_id_arg.flat_key = legacy_source_id_key;
   source_id_arg.key = legacy_source_id_key;
   source_id_arg.value = Variadic::Integer(kSourceId);
-  ArgSetId args =
-      context_.global_args_tracker->AddArgSet({source_id_arg}, 0, 1);
+  ArgSetId args = AddArgSet({source_id_arg});
   slice_id_and_row.row_reference.set_arg_set_id(args);
   context_.storage->mutable_virtual_track_slices()->AddVirtualTrackSlice(
       slice_id_and_row.id, kThreadTimestamp, kThreadDuration, 0, 0);
@@ -1493,18 +1493,17 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
       {kTimestamp, 0, track, cat_id, name_id, 0});
   StringId arg_key_id =
       context_.storage->InternString(base::StringView("arg_name"));
-  GlobalArgsTracker::Arg arg;
+  GlobalArgsTracker::CompactArg arg;
   arg.flat_key = arg_key_id;
   arg.key = arg_key_id;
   arg.value = Variadic::Integer(kArgValue);
   StringId legacy_source_id_key =
       context_.storage->InternString("legacy_trace_source_id");
-  GlobalArgsTracker::Arg source_id_arg;
+  GlobalArgsTracker::CompactArg source_id_arg;
   source_id_arg.flat_key = legacy_source_id_key;
   source_id_arg.key = legacy_source_id_key;
   source_id_arg.value = Variadic::Integer(kSourceId);
-  ArgSetId args =
-      context_.global_args_tracker->AddArgSet({arg, source_id_arg}, 0, 2);
+  ArgSetId args = AddArgSet({arg, source_id_arg});
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 

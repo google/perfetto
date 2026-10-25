@@ -22,11 +22,9 @@
 #include <type_traits>
 #include <vector>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/murmur_hash.h"
-#include "perfetto/ext/base/small_vector.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
@@ -56,94 +54,14 @@ class GlobalArgsTracker {
   static_assert(std::is_trivially_destructible<CompactArg>::value,
                 "Args must be trivially destructible");
 
-  struct Arg : public CompactArg {
-    void* ptr;
-    uint32_t col;
-    uint32_t row;
-
-    // Object slices this Arg to become a CompactArg.
-    CompactArg ToCompactArg() const { return CompactArg(*this); }
-  };
-  static_assert(std::is_trivially_destructible<Arg>::value,
-                "Args must be trivially destructible");
-
   explicit GlobalArgsTracker(TraceStorage* storage);
 
-  ArgSetId AddArgSet(const std::vector<Arg>& args,
-                     uint32_t begin,
-                     uint32_t end) {
-    return AddArgSet(args.data() + begin, args.data() + end, sizeof(Arg));
-  }
-  ArgSetId AddArgSet(Arg* args, uint32_t begin, uint32_t end) {
-    return AddArgSet(args + begin, args + end, sizeof(Arg));
-  }
-  ArgSetId AddArgSet(CompactArg* args, uint32_t begin, uint32_t end) {
-    return AddArgSet(args + begin, args + end, sizeof(CompactArg));
-  }
-
-  // Reusable accumulation buffer for one ArgsInserter, recycled via the pool
-  // below so short-lived inserters don't churn allocations.
-  struct ArgsBuffer {
-    std::vector<CompactArg> args;
-    // key -> index in `args`; empty below a threshold, where a linear scan over
-    // `args` is cheaper than a hash lookup.
-    base::FlatHashMap<StringId, uint32_t> key_index;
-    base::FlatHashMap<StringId, size_t> array_indexes;
-
-    void Reset() {
-      args.clear();
-      key_index.Clear();
-      array_indexes.Clear();
-    }
-  };
-
- private:
-  friend class ArgsInserter;
-
-  using ArgSetHash = uint64_t;
-
-  // Buffers keep stable addresses while checked out (unique_ptr storage).
-  ArgsBuffer* AcquireArgsBuffer() {
-    if (!free_buffers_.empty()) {
-      ArgsBuffer* buffer = free_buffers_.back();
-      free_buffers_.pop_back();
-      return buffer;
-    }
-    buffer_storage_.push_back(std::make_unique<ArgsBuffer>());
-    return buffer_storage_.back().get();
-  }
-
-  void ReleaseArgsBuffer(ArgsBuffer* buffer) {
-    buffer->Reset();
-    free_buffers_.push_back(buffer);
-  }
-
-  // Assumes that the interval [begin, end) of |args| has args with the same key
-  // grouped together.
-  ArgSetId AddArgSet(const void* start, const void* end, uint32_t stride) {
-    base::SmallVector<const CompactArg*, 64> valid;
-
-    // TODO(eseckler): Also detect "invalid" key combinations in args sets (e.g.
-    // "foo" and "foo.bar" in the same arg set)?
-    for (const void* ptr = start; ptr != end;
-         ptr = reinterpret_cast<const uint8_t*>(ptr) + stride) {
-      const auto& arg = *reinterpret_cast<const CompactArg*>(ptr);
-      if (!valid.empty() && valid.back()->key == arg.key) {
-        // Last arg had the same key as this one. In case of kSkipIfExists, skip
-        // this arg. In case of kAddOrUpdate, remove the last arg and add this
-        // arg instead.
-        if (arg.update_policy == UpdatePolicy::kSkipIfExists) {
-          continue;
-        }
-        PERFETTO_DCHECK(arg.update_policy == UpdatePolicy::kAddOrUpdate);
-        valid.pop_back();
-      }
-      valid.emplace_back(&arg);
-    }
-
+  // Interns the arg set formed by |args| and returns its id. Keys in |args|
+  // must be unique.
+  ArgSetId AddArgSet(const CompactArg* args, uint32_t count) {
     base::MurmurHashCombiner combiner;
-    for (const auto* it : valid) {
-      const auto& arg = *it;
+    for (uint32_t i = 0; i < count; ++i) {
+      const CompactArg& arg = args[i];
       combiner.Combine(arg.key);
       combiner.Combine(arg.value.type);
       // We don't hash arg.flat_key because it's a subsequence of arg.key.
@@ -185,8 +103,8 @@ class GlobalArgsTracker {
       return *it;
     }
 
-    for (const CompactArg* ptr : valid) {
-      const auto& arg = *ptr;
+    for (uint32_t i = 0; i < count; ++i) {
+      const CompactArg& arg = args[i];
       tables::ArgTable::Row row;
       row.arg_set_id = arg_set_id;
       row.flat_key = arg.flat_key;
@@ -220,6 +138,43 @@ class GlobalArgsTracker {
       arg_table.Insert(row);
     }
     return arg_set_id;
+  }
+
+  // Reusable accumulation buffer for one ArgsInserter, recycled via the pool
+  // below so short-lived inserters don't churn allocations.
+  struct ArgsBuffer {
+    std::vector<CompactArg> args;
+    // key -> index in `args`; empty below a threshold, where a linear scan over
+    // `args` is cheaper than a hash lookup.
+    base::FlatHashMap<StringId, uint32_t> key_index;
+    base::FlatHashMap<StringId, size_t> array_indexes;
+
+    void Reset() {
+      args.clear();
+      key_index.Clear();
+      array_indexes.Clear();
+    }
+  };
+
+ private:
+  friend class ArgsInserter;
+
+  using ArgSetHash = uint64_t;
+
+  // Buffers keep stable addresses while checked out (unique_ptr storage).
+  ArgsBuffer* AcquireArgsBuffer() {
+    if (!free_buffers_.empty()) {
+      ArgsBuffer* buffer = free_buffers_.back();
+      free_buffers_.pop_back();
+      return buffer;
+    }
+    buffer_storage_.push_back(std::make_unique<ArgsBuffer>());
+    return buffer_storage_.back().get();
+  }
+
+  void ReleaseArgsBuffer(ArgsBuffer* buffer) {
+    buffer->Reset();
+    free_buffers_.push_back(buffer);
   }
 
   base::FlatHashMap<ArgSetHash, uint32_t, base::AlreadyHashed<ArgSetHash>>
