@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_PARSER_H_
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "perfetto/protozero/field.h"
@@ -54,7 +55,9 @@ class TrackEventParser {
                             uint32_t packet_sequence_id);
   UniquePid ParseProcessDescriptor(int64_t packet_timestamp,
                                    protozero::ConstBytes);
-  UniqueTid ParseThreadDescriptor(protozero::ConstBytes, bool);
+  UniqueTid ParseThreadDescriptor(protozero::ConstBytes,
+                                  bool,
+                                  std::optional<UniqueTid> resolved);
 
   void ParseTrackEvent(int64_t ts,
                        const TrackEventData* event_data,
