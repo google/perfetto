@@ -81,7 +81,7 @@ class RecordParser : public TraceSorter::Sink<Record, RecordParser> {
   PerfTracker* const perf_tracker_;
   MappingTracker* const mapping_tracker_;
   const StringPool::Id linux_perf_source_id_;
-  base::FlatHashMap<UniquePid, DummyMemoryMapping*> dummy_mappings_;
+  base::FlatHashMapV2<UniquePid, DummyMemoryMapping*> dummy_mappings_;
 };
 
 }  // namespace perf_importer

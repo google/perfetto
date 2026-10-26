@@ -87,7 +87,7 @@ class ClockConverter {
 
   TraceProcessorContext* context_;
   bool is_initialized = false;
-  base::FlatHashMap<ClockId, Timeline> timelines_;
+  base::FlatHashMapV2<ClockId, Timeline> timelines_;
 };
 
 }  // namespace trace_processor

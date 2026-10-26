@@ -123,7 +123,7 @@ class GlobalMetadataTracker {
   std::array<StringId, kNumKeys> key_ids_;
   std::array<StringId, kNumKeyTypes> key_type_ids_;
 
-  base::FlatHashMap<MetadataEntry, MetadataId> id_by_entry_;
+  base::FlatHashMapV2<MetadataEntry, MetadataId> id_by_entry_;
   TraceStorage* const storage_;
 };
 

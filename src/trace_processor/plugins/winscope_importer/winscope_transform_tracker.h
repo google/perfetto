@@ -37,9 +37,9 @@ class WinscopeTransformTracker {
       geometry::TransformMatrix& matrix);
 
  private:
-  base::FlatHashMap<geometry::TransformMatrix,
-                    tables::WinscopeTransformTable::Id,
-                    base::MurmurHash<geometry::TransformMatrix>>
+  base::FlatHashMapV2<geometry::TransformMatrix,
+                      tables::WinscopeTransformTable::Id,
+                      base::MurmurHash<geometry::TransformMatrix>>
       rows_;
 };
 

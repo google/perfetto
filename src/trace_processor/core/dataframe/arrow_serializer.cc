@@ -49,7 +49,7 @@ struct ArrowSerializer::BodyPlan {
 
 struct ArrowSerializer::DictionaryPlan {
   std::vector<StringPool::Id> values;
-  base::FlatHashMap<uint32_t, uint32_t> index_by_id;
+  base::FlatHashMapV2<uint32_t, uint32_t> index_by_id;
   uint32_t data_length = 0;
   uint64_t body_size = 0;
   std::vector<arrow_internal::ArrowBuffer> buffers;

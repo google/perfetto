@@ -49,12 +49,12 @@ constexpr std::string_view kModemName = "Pixel Modem Events";
 
 // Modem inputs in particular have this key-value encoding. It's not a Pigweed
 // thing.
-base::FlatHashMap<std::string, std::string> SplitUpModemString(
+base::FlatHashMapV2<std::string, std::string> SplitUpModemString(
     const std::string& input) {
   auto delimStart = std::string(kKeyDelimiterStart);
   auto delimEnd = std::string(kKeyDelimiterEnd);
 
-  base::FlatHashMap<std::string, std::string> result;
+  base::FlatHashMapV2<std::string, std::string> result;
   std::vector<std::string> pairs = base::SplitString(input, delimStart);
   for (auto& it : pairs) {
     std::vector<std::string> pair = base::SplitString(it, delimEnd);
@@ -90,7 +90,7 @@ base::Status PixelModemParser::ParseEvent(int64_t ts,
 
   std::string event = detokenized_str.Format();
 
-  base::FlatHashMap<std::string, std::string> map = SplitUpModemString(event);
+  base::FlatHashMapV2<std::string, std::string> map = SplitUpModemString(event);
   std::string* domain = map.Find(std::string(kKeyDomain));
   std::string* format = map.Find(std::string(kKeyFormat));
 

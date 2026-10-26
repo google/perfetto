@@ -34,7 +34,7 @@ namespace perfetto::trace_processor::etm {
 class Configuration;
 
 using PerCpuConfiguration =
-    base::FlatHashMap<uint32_t, std::unique_ptr<Configuration>>;
+    base::FlatHashMapV2<uint32_t, std::unique_ptr<Configuration>>;
 
 class EtmTracker : public Destructible {
  public:

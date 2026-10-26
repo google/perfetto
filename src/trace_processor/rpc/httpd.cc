@@ -101,7 +101,8 @@ class Httpd : public base::HttpRequestHandler {
   static void ServeHelpPage(const base::HttpRequest&);
 
   Rpc& global_trace_processor_rpc_;
-  base::FlatHashMap<base::HttpServerConnection*, ConnState, ConnHasher> conns_;
+  base::FlatHashMapV2<base::HttpServerConnection*, ConnState, ConnHasher>
+      conns_;
   base::MaybeLockFreeTaskRunner task_runner_;
   base::HttpServer http_srv_;
   std::unique_ptr<IdleReaper> reaper_;

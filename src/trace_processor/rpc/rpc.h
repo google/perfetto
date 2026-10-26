@@ -249,7 +249,7 @@ class Rpc {
   size_t bytes_parsed_ = 0;
 
   // Manages Summarizer instances keyed by caller-provided ID.
-  base::FlatHashMap<std::string, std::unique_ptr<Summarizer>> summarizers_;
+  base::FlatHashMapV2<std::string, std::unique_ptr<Summarizer>> summarizers_;
 };
 
 }  // namespace trace_processor

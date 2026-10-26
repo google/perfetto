@@ -135,20 +135,20 @@ class ProfilePacketSequenceState final
 
   TraceProcessorContext* const context_;
 
-  base::FlatHashMap<SourceStringId, std::string> strings_;
-  base::FlatHashMap<SourceMappingId, VirtualMemoryMapping*> mappings_;
-  base::FlatHashMap<SourceFrameId, FrameId> frames_;
-  base::FlatHashMap<SourceCallstackId, CallsiteId> callstacks_;
+  base::FlatHashMapV2<SourceStringId, std::string> strings_;
+  base::FlatHashMapV2<SourceMappingId, VirtualMemoryMapping*> mappings_;
+  base::FlatHashMapV2<SourceFrameId, FrameId> frames_;
+  base::FlatHashMapV2<SourceCallstackId, CallsiteId> callstacks_;
 
   std::vector<SourceAllocation> pending_allocs_;
 
-  base::FlatHashMap<std::pair<UniquePid, CallsiteId>,
-                    tables::HeapProfileAllocationTable::Row,
-                    base::MurmurHash<std::pair<UniquePid, CallsiteId>>>
+  base::FlatHashMapV2<std::pair<UniquePid, CallsiteId>,
+                      tables::HeapProfileAllocationTable::Row,
+                      base::MurmurHash<std::pair<UniquePid, CallsiteId>>>
       prev_alloc_;
-  base::FlatHashMap<std::pair<UniquePid, CallsiteId>,
-                    tables::HeapProfileAllocationTable::Row,
-                    base::MurmurHash<std::pair<UniquePid, CallsiteId>>>
+  base::FlatHashMapV2<std::pair<UniquePid, CallsiteId>,
+                      tables::HeapProfileAllocationTable::Row,
+                      base::MurmurHash<std::pair<UniquePid, CallsiteId>>>
       prev_free_;
 
   // For continuous dumps, we only store the delta in the data-base. To do
@@ -161,13 +161,15 @@ class ProfilePacketSequenceState final
   // one, and then handle it as normal. If it is the first time we see a
   // SourceCallstackId for a CallsiteId, we put the previous value into
   // the correction maps below.
-  base::FlatHashMap<SourceAllocationIndex,
-                    base::FlatSet<CallsiteId>,
-                    base::MurmurHash<SourceAllocationIndex>>
+  base::FlatHashMapV2<SourceAllocationIndex,
+                      base::FlatSet<CallsiteId>,
+                      base::MurmurHash<SourceAllocationIndex>>
       seen_callstacks_;
-  base::FlatHashMap<SourceCallstackId, tables::HeapProfileAllocationTable::Row>
+  base::FlatHashMapV2<SourceCallstackId,
+                      tables::HeapProfileAllocationTable::Row>
       alloc_correction_;
-  base::FlatHashMap<SourceCallstackId, tables::HeapProfileAllocationTable::Row>
+  base::FlatHashMapV2<SourceCallstackId,
+                      tables::HeapProfileAllocationTable::Row>
       free_correction_;
 
   std::optional<uint64_t> prev_index;

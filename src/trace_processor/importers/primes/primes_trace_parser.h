@@ -38,7 +38,7 @@ class PrimesTraceParser
 
  private:
   TraceProcessorContext* const context_;
-  base::FlatHashMap<int64_t, int64_t> edge_to_executor_map_;
+  base::FlatHashMapV2<int64_t, int64_t> edge_to_executor_map_;
 
   void HandleSliceBegin(int64_t ts, primespb::TraceEdge::Decoder& edge_decoder);
   void HandleSliceEnd(int64_t ts, primespb::TraceEdge::Decoder& edge_decoder);

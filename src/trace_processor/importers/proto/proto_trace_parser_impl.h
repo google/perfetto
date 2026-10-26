@@ -70,7 +70,7 @@ class ProtoTraceParserImpl {
   const StringId raw_chrome_legacy_user_trace_event_id_;
   const StringId missing_metatrace_interned_string_id_;
 
-  base::FlatHashMap<uint64_t, StringId> metatrace_interned_strings_;
+  base::FlatHashMapV2<uint64_t, StringId> metatrace_interned_strings_;
 };
 
 }  // namespace trace_processor

@@ -71,7 +71,7 @@ class ErrorLogger : public ITraceErrorLog {
 
   std::vector<std::string> components_;
   std::optional<ocsdError> last_error_;
-  base::FlatHashMap<uint8_t, ocsdError> last_error_by_channel_id_;
+  base::FlatHashMapV2<uint8_t, ocsdError> last_error_by_channel_id_;
 };
 }  // namespace perfetto::trace_processor::etm
 

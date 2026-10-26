@@ -72,7 +72,7 @@ struct RowLayoutKey {
 }  // namespace
 
 template <typename T>
-uint32_t EstimateDistinctCount(base::FlatHashMap<int64_t, uint32_t>* counts,
+uint32_t EstimateDistinctCount(base::FlatHashMapV2<int64_t, uint32_t>* counts,
                                Span<const T> values) {
   const uint64_t total = values.size();
   if (total == 0) {
@@ -169,7 +169,7 @@ void SortRowLayout(Span<const uint8_t> row_layout,
 
 #define PERFETTO_INSTANTIATE_DISTINCT(type)      \
   template uint32_t EstimateDistinctCount<type>( \
-      base::FlatHashMap<int64_t, uint32_t>*, Span<const type>);
+      base::FlatHashMapV2<int64_t, uint32_t>*, Span<const type>);
 PERFETTO_INSTANTIATE_DISTINCT(uint32_t)
 PERFETTO_INSTANTIATE_DISTINCT(int32_t)
 PERFETTO_INSTANTIATE_DISTINCT(int64_t)

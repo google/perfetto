@@ -43,8 +43,8 @@ struct AndroidKernelWakelockState : PacketSequenceStateGeneration::CustomState {
   explicit AndroidKernelWakelockState(TraceProcessorContext*);
   ~AndroidKernelWakelockState() override;
 
-  base::FlatHashMap<uint32_t, Metadata> wakelocks;
-  base::FlatHashMap<std::string, LastValue> wakelock_last_values;
+  base::FlatHashMapV2<uint32_t, Metadata> wakelocks;
+  base::FlatHashMapV2<std::string, LastValue> wakelock_last_values;
 };
 
 }  // namespace perfetto::trace_processor

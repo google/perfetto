@@ -105,10 +105,11 @@ class AndroidTrackEventProcessTableHolder {
 
  private:
   AndroidTrackEventProcessTable table_;
-  base::FlatHashMap<UniquePid, AndroidTrackEventProcessTable::Id> upid_to_row_;
+  base::FlatHashMapV2<UniquePid, AndroidTrackEventProcessTable::Id>
+      upid_to_row_;
   // start_seq_id is unique per process start, so unlike the pid it still
   // identifies the process after it has died and its pid has been reused.
-  base::FlatHashMap<int64_t, AndroidTrackEventProcessTable::Id>
+  base::FlatHashMapV2<int64_t, AndroidTrackEventProcessTable::Id>
       start_seq_id_to_row_;
 };
 

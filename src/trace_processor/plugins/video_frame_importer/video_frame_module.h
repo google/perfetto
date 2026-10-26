@@ -77,7 +77,7 @@ class VideoFrameModule : public ProtoImporterModule {
   tables::AndroidVideoFramesTable* const table_;
   std::vector<TraceBlobView>* const au_data_;
   int64_t max_stream_size_bytes_ = kDefaultMaxStreamSizeBytes;
-  base::FlatHashMap<uint32_t, StreamInfo> stream_info_by_id_;
+  base::FlatHashMapV2<uint32_t, StreamInfo> stream_info_by_id_;
 };
 
 }  // namespace perfetto::trace_processor

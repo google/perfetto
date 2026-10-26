@@ -72,7 +72,7 @@ TEST(OpsTest, GatherNullableRowsInPlace) {
 }
 
 TEST(OpsTest, EstimateDistinctCount) {
-  base::FlatHashMap<int64_t, uint32_t> counts;
+  base::FlatHashMapV2<int64_t, uint32_t> counts;
   const int32_t values[] = {1, 2, 1, 3};
   EXPECT_EQ(EstimateDistinctCount(&counts, MakeSpan(values)), 3u);
 

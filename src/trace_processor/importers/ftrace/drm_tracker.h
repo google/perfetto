@@ -162,7 +162,7 @@ class DrmTracker {
     std::deque<SchedJob> running_jobs;
 
     // Map queued jobs to their slice ids on the thread track.
-    base::FlatHashMap<SchedJob, SliceId, SchedJob::LocalHash> out_slice_ids;
+    base::FlatHashMapV2<SchedJob, SliceId, SchedJob::LocalHash> out_slice_ids;
   };
 
   SchedRing& GetSchedRingByName(base::StringView name);
@@ -223,13 +223,15 @@ class DrmTracker {
   const StringId fence_arg_seqno_id_;
 
   // Map scheduler ring names to SchedRings.
-  base::FlatHashMap<base::StringView, std::unique_ptr<SchedRing>> sched_rings_;
+  base::FlatHashMapV2<base::StringView, std::unique_ptr<SchedRing>>
+      sched_rings_;
   // Map running jobs to SchedRings.
-  base::FlatHashMap<SchedJob, SchedRing*, SchedJob::GlobalHash>
+  base::FlatHashMapV2<SchedJob, SchedRing*, SchedJob::GlobalHash>
       sched_busy_rings_;
 
   // Map dma-fence contexts to FenceTimelines.
-  base::FlatHashMap<uint32_t, std::unique_ptr<FenceTimeline>> fence_timelines_;
+  base::FlatHashMapV2<uint32_t, std::unique_ptr<FenceTimeline>>
+      fence_timelines_;
 };
 
 }  // namespace perfetto::trace_processor

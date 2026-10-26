@@ -65,7 +65,7 @@ class I2cTracker : public Destructible {
   // In-flight I2C operation counts per I2C adapter per Unique TID. This is
   // used to match an i2c_result message against the i2c_read and i2c_write
   // messages that precede it in the transaction.
-  base::FlatHashMap<UniqueTid, std::vector<I2cAdapterMessageCount>>
+  base::FlatHashMapV2<UniqueTid, std::vector<I2cAdapterMessageCount>>
       inflight_i2c_ops_;
 };
 

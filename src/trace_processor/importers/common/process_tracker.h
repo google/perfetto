@@ -326,8 +326,8 @@ class ProcessTracker {
   // callers merge into one set; committed in OnEventsFullyExtracted. The
   // reference returned by AddArgsTo{Process,Thread} is only valid until the
   // next such call (the map may rehash); every caller uses it before then.
-  base::FlatHashMap<UniquePid, ArgsTracker::BoundInserter> process_args_;
-  base::FlatHashMap<UniqueTid, ArgsTracker::BoundInserter> thread_args_;
+  base::FlatHashMapV2<UniquePid, ArgsTracker::BoundInserter> process_args_;
+  base::FlatHashMapV2<UniqueTid, ArgsTracker::BoundInserter> thread_args_;
 
   // Mapping for tid to the vector of possible UniqueTids.
   // TODO(lalitm): this is a one-many mapping because this code was written
@@ -335,6 +335,9 @@ class ProcessTracker {
   // simultaneously. This is no longer the case so this should be removed
   // (though it seems like there are subtle things which break in Chrome if this
   // changes).
+  //
+  // On FlatHashMapV1, as is |live_tid_|: thread lookups hit these on every
+  // event and FlatHashMapV2 measured slower for them.
   base::FlatHashMap<int64_t /* tid */, std::vector<UniqueTid>> tids_;
 
   // Cache of the newest alive incarnation of each tid: the answer to a bare
@@ -343,10 +346,10 @@ class ProcessTracker {
 
   // upid -> its utids, used to refresh live_tid_ when a process ends or its pid
   // is recycled.
-  base::FlatHashMap<UniquePid, std::vector<UniqueTid>> process_threads_;
+  base::FlatHashMapV2<UniquePid, std::vector<UniqueTid>> process_threads_;
 
   // Mapping of the most recently seen pid to the associated upid.
-  base::FlatHashMap<int64_t /* pid (aka tgid) */, UniquePid> pids_;
+  base::FlatHashMapV2<int64_t /* pid (aka tgid) */, UniquePid> pids_;
 
   // Pending thread associations. The meaning of a pair<ThreadA, ThreadB> in
   // this vector is: we know that A and B belong to the same process, but we
@@ -392,8 +395,8 @@ class ProcessTracker {
     int32_t value;
     SortIndexPriority priority;
   };
-  base::FlatHashMap<UniquePid, SortIndex> process_sort_indexes_;
-  base::FlatHashMap<UniqueTid, SortIndex> thread_sort_indexes_;
+  base::FlatHashMapV2<UniquePid, SortIndex> process_sort_indexes_;
+  base::FlatHashMapV2<UniqueTid, SortIndex> thread_sort_indexes_;
 };
 
 }  // namespace perfetto::trace_processor

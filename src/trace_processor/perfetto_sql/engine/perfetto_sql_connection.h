@@ -611,7 +611,7 @@ class PerfettoSqlConnection {
     void* ctx;
     bool deterministic;
   };
-  base::FlatHashMap<std::string, IntrinsicFunctionInfo>
+  base::FlatHashMapV2<std::string, IntrinsicFunctionInfo>
       intrinsic_function_registry_;
 
   // Tracks every scalar function registered with |connection_| via
@@ -634,9 +634,9 @@ class PerfettoSqlConnection {
     void* ctx;
     bool is_intrinsic;
   };
-  base::FlatHashMap<std::pair<std::string, int>,
-                    FunctionEntry,
-                    base::MurmurHash<std::pair<std::string, int>>>
+  base::FlatHashMapV2<std::pair<std::string, int>,
+                      FunctionEntry,
+                      base::MurmurHash<std::pair<std::string, int>>>
       fn_registry_;
 
   std::unique_ptr<SqliteConnection> connection_;

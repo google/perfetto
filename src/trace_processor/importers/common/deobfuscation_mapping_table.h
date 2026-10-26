@@ -47,11 +47,11 @@ class DeobfuscationMappingTable {
   // Returns `true` if the translation for the given class
   // was inserted, `false` if there is already a translation for the given
   // class.
-  bool AddClassTranslation(
-      const PackageId& package,
-      StringId obfuscated_class_name,
-      StringId deobfuscated_class_name,
-      base::FlatHashMap<StringId, StringId> obfuscated_to_deobfuscated_members);
+  bool AddClassTranslation(const PackageId& package,
+                           StringId obfuscated_class_name,
+                           StringId deobfuscated_class_name,
+                           base::FlatHashMapV2<StringId, StringId>
+                               obfuscated_to_deobfuscated_members);
 
   // These functions return the deobfuscated class/member name from an
   // obfuscated class/member name.
@@ -75,15 +75,16 @@ class DeobfuscationMappingTable {
     }
   };
 
-  using ObfuscatedToDeobfuscatedMembers = base::FlatHashMap<StringId, StringId>;
+  using ObfuscatedToDeobfuscatedMembers =
+      base::FlatHashMapV2<StringId, StringId>;
   struct ClassTranslation {
     StringId deobfuscated_class_name;
     ObfuscatedToDeobfuscatedMembers members;
   };
 
   using ObfuscatedClassesToMembers =
-      base::FlatHashMap<StringId, ClassTranslation>;
-  base::FlatHashMap<PackageId, ObfuscatedClassesToMembers, PackageIdHash>
+      base::FlatHashMapV2<StringId, ClassTranslation>;
+  base::FlatHashMapV2<PackageId, ObfuscatedClassesToMembers, PackageIdHash>
       class_per_package_translation_;
 
   // To translate entities which don't have a package id, we will use
