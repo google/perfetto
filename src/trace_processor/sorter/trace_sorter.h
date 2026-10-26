@@ -399,18 +399,46 @@ class TraceSorter::Stream {
           sorter_->use_slow_sorting_ || data.phase == 'X';
     }
     PERFETTO_DCHECK(!sorter_->extracting_);
-    TraceTokenBuffer::Id id = sorter_->token_buffer_.Append(std::move(data));
-    Queue& queue = sorter_->queues_[queue_idx_];
-    queue.Append(ts, id, std::is_same_v<T, JsonEvent>,
-                 sorter_->use_slow_sorting_);
-    sorter_->append_max_ts_ = std::max(sorter_->append_max_ts_, queue.max_ts_);
+    AppendToQueue(ts, sorter_->token_buffer_.Append(std::move(data)));
   }
+
+  // Pushes a track event record written in place, instead of a
+  // TrackEventData: BeginRecord returns where to write up to |max_size| bytes,
+  // or null if the event at |ts| is to be pushed as a TrackEventData instead,
+  // either because the record cannot be written in place or because Push()
+  // drops the event. Exactly one of CommitRecord and AbortRecord must follow a
+  // non-null BeginRecord, with nothing pushed in between.
+  uint8_t* BeginRecord(int64_t ts, size_t max_size) {
+    static_assert(std::is_same_v<T, TrackEventData>);
+    PERFETTO_DCHECK(!sorter_->extracting_);
+    if (PERFETTO_UNLIKELY(ts < 0 ||
+                          sorter_->event_handling_ == EventHandling::kDrop)) {
+      return nullptr;
+    }
+    return sorter_->token_buffer_.BeginTrackEventRecord(max_size);
+  }
+  void CommitRecord(int64_t ts,
+                    size_t size,
+                    PacketSequenceStateGeneration* sequence_state) {
+    PERFETTO_DCHECK(ts >= 0 &&
+                    sorter_->event_handling_ != EventHandling::kDrop);
+    AppendToQueue(ts, sorter_->token_buffer_.CommitTrackEventRecord(
+                          size, sequence_state));
+  }
+  void AbortRecord() { sorter_->token_buffer_.AbortTrackEventRecord(); }
 
  private:
   // Only the TraceSorter can create streams.
   friend class TraceSorter;
   Stream(TraceSorter* sorter, size_t queue_idx)
       : sorter_(sorter), queue_idx_(queue_idx) {}
+
+  void AppendToQueue(int64_t ts, TraceTokenBuffer::Id id) {
+    Queue& queue = sorter_->queues_[queue_idx_];
+    queue.Append(ts, id, std::is_same_v<T, JsonEvent>,
+                 sorter_->use_slow_sorting_);
+    sorter_->append_max_ts_ = std::max(sorter_->append_max_ts_, queue.max_ts_);
+  }
 
   TraceSorter* sorter_;
   size_t queue_idx_;

@@ -315,6 +315,68 @@ TEST_F(TraceTokenBufferUnittest, GenericExtractDrainsChunk) {
   ASSERT_TRUE(state->HasOneRef());
 }
 
+TEST_F(TraceTokenBufferUnittest, TrackEventRecordBeginCommitAbort) {
+  // A record too big for a chunk is refused and needs neither Commit nor
+  // Abort.
+  EXPECT_EQ(store.BeginTrackEventRecord(BumpAllocator::kChunkSize), nullptr);
+
+  // Fills the first chunk but for 16 bytes, so the reservation below opens a
+  // second chunk.
+  TraceBlobView filler(PatternBlob(BumpAllocator::kChunkSize - 32));
+  TraceTokenBuffer::Id filler_id =
+      store.Append(TracePacketData{filler.copy(), state.get()});
+  ASSERT_NE(store.BeginTrackEventRecord(1000), nullptr);
+  store.AbortTrackEventRecord();
+
+  // The aborted reservation left the second chunk empty, so the record lands
+  // at its start.
+  RefPtr<PacketSequenceStateGeneration> other =
+      PacketSequenceStateGeneration::CreateFirst(
+          &context, /*trusted_packet_sequence_id=*/2);
+  TraceBlob pattern = PatternBlob(100);
+  uint8_t* out = store.BeginTrackEventRecord(1000);
+  ASSERT_NE(out, nullptr);
+  memcpy(out, pattern.data(), pattern.size());
+  TraceTokenBuffer::Id id = store.CommitTrackEventRecord(100, other.get());
+  EXPECT_EQ(id.alloc_id.chunk_index, filler_id.alloc_id.chunk_index + 1);
+  EXPECT_EQ(id.alloc_id.chunk_offset, 0u);
+
+  // The reservation beyond the record is given back.
+  TraceBlobView tbv(PatternBlob(64));
+  TraceTokenBuffer::Id next =
+      store.Append(TrackEventData(tbv.copy(), other.get(), std::nullopt));
+  EXPECT_EQ(next.alloc_id.chunk_index, id.alloc_id.chunk_index);
+  EXPECT_EQ(next.alloc_id.chunk_offset, id.alloc_id.chunk_offset + 16u + 104u);
+
+  TracePacketData filler_out = store.Extract<TracePacketData>(filler_id);
+  EXPECT_TRUE(SameBytes(filler_out.packet, filler));
+
+  TrackEventData record = store.Extract<TrackEventData>(id);
+  EXPECT_TRUE(record.is_record);
+  ASSERT_EQ(record.event.size(), 100u);
+  EXPECT_EQ(memcmp(record.event.data(), pattern.data(), 100), 0);
+  EXPECT_EQ(record.sequence_state, other.get());
+  EXPECT_EQ(record.packet, std::nullopt);
+  EXPECT_EQ(record.thread_timestamp, std::nullopt);
+  EXPECT_EQ(record.thread_instruction_count, std::nullopt);
+  EXPECT_DOUBLE_EQ(record.counter_value, 0.0);
+
+  TrackEventData event = store.Extract<TrackEventData>(next);
+  EXPECT_FALSE(event.is_record);
+  EXPECT_TRUE(SameBytes(event.event, tbv));
+
+  store.FreeMemory();
+  EXPECT_TRUE(state->HasOneRef());
+  EXPECT_TRUE(other->HasOneRef());
+
+  // The buffer keeps working after its chunks are freed.
+  ASSERT_NE(store.BeginTrackEventRecord(64), nullptr);
+  TraceTokenBuffer::Id last = store.CommitTrackEventRecord(8, state.get());
+  TrackEventData last_record = store.Extract<TrackEventData>(last);
+  EXPECT_TRUE(last_record.is_record);
+  EXPECT_EQ(last_record.sequence_state, state.get());
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto

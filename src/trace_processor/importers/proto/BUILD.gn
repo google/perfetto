@@ -76,6 +76,8 @@ source_set("minimal") {
     "track_event_module.h",
     "track_event_parser.cc",
     "track_event_parser.h",
+    "track_event_record.cc",
+    "track_event_record.h",
     "track_event_sequence_state.cc",
     "track_event_tokenizer.cc",
     "track_event_tokenizer.h",
@@ -364,6 +366,7 @@ perfetto_unittest_source_set("unittests") {
     "proto_trace_reader_unittest.cc",
     "proto_trace_tokenizer_unittest.cc",
     "string_encoding_utils_unittests.cc",
+    "track_event_record_unittest.cc",
   ]
   deps = [
     ":full",

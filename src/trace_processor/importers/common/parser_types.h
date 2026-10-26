@@ -180,7 +180,8 @@ struct alignas(8) TrackEventData {
     return TrackEventData::kMaxNumExtraCounters;
   }
 
-  // The TrackEvent field of the packet.
+  // The TrackEvent field of the packet or, when |is_record|, the event as a
+  // track event record (see TrackEventRecordView).
   TraceBlobView event;
   PacketSequenceStateGeneration* sequence_state = nullptr;
   // The whole TracePacket. Only kept when the content analyzer is enabled, as
@@ -190,6 +191,7 @@ struct alignas(8) TrackEventData {
   std::optional<int64_t> thread_instruction_count;
   double counter_value = 0;
   std::array<double, kMaxNumExtraCounters> extra_counter_values = {};
+  bool is_record = false;
 };
 static_assert(sizeof(TracePacketData) % 8 == 0);
 

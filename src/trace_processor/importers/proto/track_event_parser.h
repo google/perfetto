@@ -40,7 +40,8 @@ namespace perfetto::trace_processor {
 class PacketSequenceStateGeneration;
 class TraceProcessorContext;
 class TrackEventTracker;
-class TrackEventEventImporter;
+template <typename Event>
+class TrackEventEventImporterT;
 class DummyMemoryMapping;
 
 class TrackEventParser {
@@ -64,7 +65,8 @@ class TrackEventParser {
   void OnEventsFullyExtracted();
 
  private:
-  friend class TrackEventEventImporter;
+  template <typename Event>
+  friend class TrackEventEventImporterT;
 
   // Consecutive events tend to carry the same fields, so the field looked
   // up last is remembered, including a field without a parser. Parsers are

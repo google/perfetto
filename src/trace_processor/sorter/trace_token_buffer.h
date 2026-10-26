@@ -83,6 +83,16 @@ class TraceTokenBuffer {
     return Id{id};
   }
   PERFETTO_WARN_UNUSED_RESULT Id Append(TrackEventData&&);
+
+  // Writes a track event record in place, extracted as a TrackEventData with
+  // |is_record| set: BeginTrackEventRecord returns where to write up to
+  // |max_size| bytes, or null if that cannot be written in place. Exactly one
+  // of CommitTrackEventRecord, with the record's size, and
+  // AbortTrackEventRecord must follow, with nothing appended in between.
+  uint8_t* BeginTrackEventRecord(size_t max_size);
+  PERFETTO_WARN_UNUSED_RESULT Id
+  CommitTrackEventRecord(size_t size, PacketSequenceStateGeneration*);
+  void AbortTrackEventRecord();
   PERFETTO_WARN_UNUSED_RESULT Id Append(FtraceData);
   PERFETTO_WARN_UNUSED_RESULT Id Append(TracePacketData);
 
@@ -192,6 +202,10 @@ class TraceTokenBuffer {
   base::CircularQueue<Blobs> interned_blobs_;
   base::CircularQueue<SequenceStates> interned_seqs_;
   CurrentChunk current_chunk_;
+  // The record between BeginTrackEventRecord and its Commit or Abort.
+  BumpAllocator::AllocId pending_record_{};
+  uint8_t* pending_record_ptr_ = nullptr;
+  uint32_t pending_record_size_ = 0;
   // Chunks whose last allocation was freed since the last FreeMemory().
   std::vector<uint64_t> drained_chunks_;
 };

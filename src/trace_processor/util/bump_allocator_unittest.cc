@@ -119,6 +119,41 @@ TEST_F(BumpAllocatorUnittest, Clear) {
   allocator_.Clear();
 }
 
+TEST_F(BumpAllocatorUnittest, ShrinkAndUndoLast) {
+  // Shrinking gives back the tail; shrinking to the full size is a no-op.
+  BumpAllocator::AllocId shrunk = allocator_.Alloc(1024);
+  allocator_.ShrinkLast(shrunk, 64);
+  BumpAllocator::AllocId kept = allocator_.Alloc(64);
+  EXPECT_EQ(kept.chunk_index, shrunk.chunk_index);
+  EXPECT_EQ(kept.chunk_offset, shrunk.chunk_offset + 64u);
+  allocator_.ShrinkLast(kept, 64);
+
+  // Undoing gives back the whole allocation.
+  BumpAllocator::AllocId undone = allocator_.Alloc(1024);
+  EXPECT_EQ(undone.chunk_offset, kept.chunk_offset + 64u);
+  allocator_.UndoLast(undone);
+  BumpAllocator::AllocId fill =
+      allocator_.Alloc(BumpAllocator::kChunkSize - undone.chunk_offset);
+  EXPECT_EQ(fill.chunk_index, undone.chunk_index);
+  EXPECT_EQ(fill.chunk_offset, undone.chunk_offset);
+
+  // Undoing an allocation which opened a new chunk leaves it empty, and the
+  // next allocation starts it.
+  BumpAllocator::AllocId undone_new = allocator_.Alloc(64);
+  ASSERT_EQ(undone_new.chunk_index, fill.chunk_index + 1);
+  allocator_.UndoLast(undone_new);
+  BumpAllocator::AllocId next = allocator_.Alloc(8);
+  EXPECT_EQ(next.chunk_index, undone_new.chunk_index);
+  EXPECT_EQ(next.chunk_offset, 0u);
+
+  // Undone allocations need no Free for their chunks to be erased.
+  allocator_.Free(shrunk);
+  allocator_.Free(kept);
+  allocator_.Free(fill);
+  allocator_.Free(next);
+  EXPECT_EQ(allocator_.EraseFrontFreeChunks(), 2u);
+}
+
 TEST_F(BumpAllocatorUnittest, StressTest) {
   std::minstd_rand0 rnd_engine;
   for (int i = 0; i < 1000; i++) {

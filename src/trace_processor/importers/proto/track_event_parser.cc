@@ -456,9 +456,13 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
         stats::track_event_dropped_packets_outside_of_range_of_interest);
     return;
   }
-  base::Status status =
-      TrackEventEventImporter(this, ts, event_data, blob, packet_sequence_id)
-          .Import();
+  base::Status status = event_data->is_record
+                            ? TrackEventRecordImporter(this, ts, event_data,
+                                                       blob, packet_sequence_id)
+                                  .Import()
+                            : TrackEventEventImporter(this, ts, event_data,
+                                                      blob, packet_sequence_id)
+                                  .Import();
   if (!status.ok()) {
     context_->stats_tracker->IncrementStats(stats::track_event_parser_errors);
     PERFETTO_DLOG("ParseTrackEvent error: %s", status.c_message());

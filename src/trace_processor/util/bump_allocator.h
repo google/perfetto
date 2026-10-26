@@ -144,6 +144,25 @@ class BumpAllocator {
     return Alloc(size, &ptr);
   }
 
+  // Shrinks |id|, which must be the most recent allocation, to |size| bytes
+  // (a multiple of 8), giving the rest back to later allocations.
+  void ShrinkLast(AllocId id, uint32_t size) {
+    PERFETTO_DCHECK(size % 8 == 0);
+    PERFETTO_DCHECK(id.chunk_index == LastChunkIndex());
+    Chunk& chunk = chunks_.back();
+    uint32_t end = static_cast<uint32_t>(id.chunk_offset) + size;
+    PERFETTO_DCHECK(end <= chunk.bump_offset);
+    PERFETTO_ASAN_POISON(chunk.data + end, chunk.bump_offset - end);
+    chunk.bump_offset = end;
+  }
+
+  // Undoes |id|, which must be the most recent allocation.
+  void UndoLast(AllocId id) {
+    ShrinkLast(id, 0);
+    PERFETTO_DCHECK(chunks_.back().unfreed_allocations > 0);
+    chunks_.back().unfreed_allocations--;
+  }
+
   // Frees an allocation previously allocated by |Alloc|. This function is *not*
   // idempotent.
   //

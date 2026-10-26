@@ -49,6 +49,7 @@
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
+#include "src/trace_processor/importers/proto/track_event_record.h"
 #include "src/trace_processor/importers/proto/track_event_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -594,6 +595,21 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
 
   protozero::ConstBytes event_bytes =
       args.field.Cast<protos::pbzero::TracePacket::kTrackEvent>();
+  // Most events need nothing at tokenization beyond their timestamp: those
+  // are decoded once, into a record, and never looked at again.
+  if (!keep_track_event_packets_ && args.decoder.has_timestamp()) {
+    auto* stream = module_context_->track_event_stream.get();
+    size_t capacity = MaxTrackEventRecordSize(event_bytes.size);
+    if (uint8_t* out = stream->BeginRecord(args.ts, capacity)) {
+      size_t size = BuildTrackEventRecord(event_bytes, context_->storage.get(),
+                                          args.state.get(), out, capacity);
+      if (size) {
+        stream->CommitRecord(args.ts, size, args.state.get());
+        return ModuleResult::Handled();
+      }
+      stream->AbortRecord();
+    }
+  }
   protos::pbzero::TrackEvent::Decoder event(event_bytes);
   const bool legacy = event.HasAnyField(kLegacyTrackEventFields.data(), 1);
   const bool needs_processing = legacy || event.has_extra_counter_values() ||

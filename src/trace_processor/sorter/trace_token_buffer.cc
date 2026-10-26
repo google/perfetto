@@ -38,10 +38,6 @@ namespace perfetto::trace_processor {
 namespace {
 
 struct alignas(8) TrackEventDataDescriptor {
-  static constexpr uint8_t kMaxOffsetFromInternedBlobBits = 24;
-  static constexpr uint32_t kMaxOffsetFromInternedBlob =
-      (1Ul << kMaxOffsetFromInternedBlobBits) - 1;
-
   static constexpr uint8_t kMaxExtraCountersBits = 4;
   static constexpr uint8_t kMaxExtraCounters = (1 << kMaxExtraCountersBits) - 1;
   static_assert(TrackEventData::kMaxNumExtraCounters <= kMaxExtraCounters,
@@ -49,8 +45,9 @@ struct alignas(8) TrackEventDataDescriptor {
 
   uint16_t intern_blob_index;
   uint16_t intern_seq_index;
-  uint32_t intern_blob_offset : kMaxOffsetFromInternedBlobBits;
   uint32_t is_inline : 1;
+  // The stored bytes are a track event record rather than the TrackEvent.
+  uint32_t is_record : 1;
   uint32_t has_thread_timestamp : 1;
   uint32_t has_thread_instruction_count : 1;
   uint32_t has_counter_value : 1;
@@ -62,13 +59,8 @@ static_assert(alignof(TrackEventDataDescriptor) == 8,
               "CompressedTracePacketData must be 8-aligned");
 
 struct alignas(8) TracePacketDataDescriptor {
-  static constexpr uint8_t kMaxOffsetFromInternedBlobBits = 24;
-  static constexpr uint32_t kMaxOffsetFromInternedBlob =
-      (1Ul << kMaxOffsetFromInternedBlobBits) - 1;
-
   uint16_t intern_blob_index;
   uint16_t intern_seq_index;
-  uint32_t intern_blob_offset : kMaxOffsetFromInternedBlobBits;
   uint32_t is_inline : 1;
 };
 static_assert(sizeof(TracePacketDataDescriptor) == 8,
@@ -77,13 +69,8 @@ static_assert(alignof(TracePacketDataDescriptor) == 8,
               "TracePacketDataDescriptor must be 8-aligned");
 
 struct alignas(8) FtraceDataDescriptor {
-  static constexpr uint8_t kMaxOffsetFromInternedBlobBits = 24;
-  static constexpr uint32_t kMaxOffsetFromInternedBlob =
-      (1Ul << kMaxOffsetFromInternedBlobBits) - 1;
-
   uint16_t intern_blob_index;
   uint16_t intern_seq_index;
-  uint32_t intern_blob_offset : kMaxOffsetFromInternedBlobBits;
   uint32_t is_inline : 1;
   uint32_t has_raw_ts : 1;
   uint32_t insert_ftrace_event : 1;
@@ -93,12 +80,6 @@ static_assert(sizeof(FtraceDataDescriptor) == 8,
               "FtraceDataDescriptor must be small");
 static_assert(alignof(FtraceDataDescriptor) == 8,
               "FtraceDataDescriptor must be 8-aligned");
-static_assert(FtraceDataDescriptor::kMaxOffsetFromInternedBlob ==
-                  TrackEventDataDescriptor::kMaxOffsetFromInternedBlob,
-              "Descriptors must agree on max blob offset");
-static_assert(TracePacketDataDescriptor::kMaxOffsetFromInternedBlob ==
-                  TrackEventDataDescriptor::kMaxOffsetFromInternedBlob,
-              "Descriptors must agree on max blob offset");
 
 template <typename T>
 T ExtractFromPtr(uint8_t** ptr) {
@@ -140,6 +121,11 @@ uint32_t PaddedSize(size_t size) {
   return static_cast<uint32_t>((size + 7) & ~size_t(7));
 }
 
+// The descriptor and size in front of a track event record: records carry
+// none of the optional TrackEventData fields.
+constexpr uint32_t kRecordPrefixSize =
+    sizeof(TrackEventDataDescriptor) + sizeof(uint64_t);
+
 }  // namespace
 
 template <typename Desc>
@@ -161,7 +147,6 @@ std::pair<BumpAllocator::AllocId, uint8_t*> TraceTokenBuffer::AppendCommon(
   CurrentChunk& chunk = ChunkFor(alloc_id.chunk_index);
 
   desc.is_inline = is_inline;
-  desc.intern_blob_offset = 0;
   if (is_inline) {
     desc.intern_blob_index = 0;
   } else {
@@ -233,6 +218,7 @@ TraceTokenBuffer::Id TraceTokenBuffer::Append(TrackEventData&& ted) {
   desc.has_thread_timestamp = ted.thread_timestamp.has_value();
   desc.has_counter_value = std::not_equal_to<double>()(ted.counter_value, 0);
   desc.extra_counter_count = ted.CountExtraCounterValues();
+  desc.is_record = false;
 
   // The TrackEvent is stored as a slice of the packet when the packet is kept,
   // so it does not need its own blob.
@@ -263,6 +249,46 @@ TraceTokenBuffer::Id TraceTokenBuffer::Append(TrackEventData&& ted) {
     ptr = AppendToPtr(ptr, ted.extra_counter_values[i]);
   }
   return Id{alloc_id};
+}
+
+uint8_t* TraceTokenBuffer::BeginTrackEventRecord(size_t max_size) {
+  PERFETTO_DCHECK(!keep_track_event_packets_);
+  PERFETTO_DCHECK(!pending_record_ptr_);
+  if (max_size > BumpAllocator::kChunkSize - kRecordPrefixSize) {
+    return nullptr;
+  }
+  pending_record_size_ = kRecordPrefixSize + PaddedSize(max_size);
+  void* raw;
+  pending_record_ = allocator_.Alloc(pending_record_size_, &raw);
+  ChunkFor(pending_record_.chunk_index);
+  pending_record_ptr_ = static_cast<uint8_t*>(raw);
+  return pending_record_ptr_ + kRecordPrefixSize;
+}
+
+TraceTokenBuffer::Id TraceTokenBuffer::CommitTrackEventRecord(
+    size_t size,
+    PacketSequenceStateGeneration* sequence_state) {
+  PERFETTO_DCHECK(pending_record_ptr_);
+  uint32_t alloc_size = kRecordPrefixSize + PaddedSize(size);
+  PERFETTO_DCHECK(alloc_size <= pending_record_size_);
+  TrackEventDataDescriptor desc{};
+  desc.is_inline = true;
+  desc.is_record = true;
+  desc.intern_seq_index = InternSeqState(
+      ChunkFor(pending_record_.chunk_index).seqs, sequence_state);
+  uint8_t* ptr = AppendToPtr(pending_record_ptr_, desc);
+  AppendToPtr(ptr, static_cast<uint64_t>(size));
+  allocator_.ShrinkLast(pending_record_, alloc_size);
+  pending_record_ptr_ = nullptr;
+  return Id{pending_record_};
+}
+
+void TraceTokenBuffer::AbortTrackEventRecord() {
+  PERFETTO_DCHECK(pending_record_ptr_);
+  // If the reservation opened a chunk, that chunk is left empty: the next
+  // allocation lands in it, or FreeMemory() erases it like any drained chunk.
+  allocator_.UndoLast(pending_record_);
+  pending_record_ptr_ = nullptr;
 }
 
 TraceTokenBuffer::Id TraceTokenBuffer::Append(TracePacketData data) {
@@ -328,6 +354,7 @@ TrackEventData TraceTokenBuffer::Extract<TrackEventData>(Id id) {
     event = std::move(tpd.packet);
   }
   TrackEventData ted{std::move(event), tpd.sequence_state, std::move(packet)};
+  ted.is_record = desc.is_record;
   if (desc.has_thread_instruction_count) {
     ted.thread_instruction_count = ExtractFromPtr<int64_t>(&ptr);
   }

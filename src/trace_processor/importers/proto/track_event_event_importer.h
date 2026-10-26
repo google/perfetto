@@ -22,14 +22,15 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/dynamic_string_writer.h"
 #include "perfetto/ext/base/no_destructor.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -63,6 +64,7 @@
 #include "src/trace_processor/importers/proto/selective_track_event_decoder.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_parser.h"
+#include "src/trace_processor/importers/proto/track_event_record.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -120,13 +122,16 @@ inline TrackCompressor::AsyncSliceType AsyncSliceTypeForPhase(int32_t phase) {
   PERFETTO_FATAL("For GCC");
 }
 
-class TrackEventEventImporter {
+// Imports one TrackEvent, read through |Event|: the TrackEvent decoder, or
+// TrackEventRecordView for events the tokenizer turned into records.
+template <typename Event>
+class TrackEventEventImporterT {
  public:
-  TrackEventEventImporter(TrackEventParser* parser,
-                          int64_t ts,
-                          const TrackEventData* event_data,
-                          protozero::ConstBytes blob,
-                          uint32_t packet_sequence_id)
+  TrackEventEventImporterT(TrackEventParser* parser,
+                           int64_t ts,
+                           const TrackEventData* event_data,
+                           protozero::ConstBytes blob,
+                           uint32_t packet_sequence_id)
       : context_(parser->context_),
         track_event_tracker_(parser->track_event_tracker_),
         storage_(context_->storage.get()),
@@ -227,92 +232,53 @@ class TrackEventEventImporter {
 
  private:
   StringId ParseTrackEventCategory() {
-    // The common event has no inline categories and at most one interned
-    // one; both are settled before the counts below.
-    if (PERFETTO_LIKELY(!event_.has_categories())) {
-      if (!event_.has_category_iids()) {
-        return kNullStringId;
+    if constexpr (std::is_same_v<Event, TrackEventRecordView>) {
+      return event_.category_id();
+    } else {
+      // The common event has no inline categories and at most one interned
+      // one.
+      if (PERFETTO_LIKELY(!event_.has_categories())) {
+        if (!event_.has_category_iids()) {
+          return kNullStringId;
+        }
+        auto it = event_.category_iids();
+        uint64_t iid = *it;
+        if (PERFETTO_LIKELY(!++it)) {
+          return InternTrackEventCategory(storage_, sequence_state_, &iid, 1,
+                                          nullptr, 0);
+        }
       }
-      auto it = event_.category_iids();
-      uint64_t iid = *it;
-      if (PERFETTO_LIKELY(!++it)) {
-        return ParseSingleInternedCategory(iid);
-      }
+      return ParseTrackEventCategoriesSlow();
     }
-    return ParseTrackEventCategoriesSlow();
   }
 
   PERFETTO_NO_INLINE StringId ParseTrackEventCategoriesSlow() {
-    StringId category_id = kNullStringId;
-
-    auto category_iids = event_.category_iids();
-    auto category_strings = event_.categories();
-    auto has_multiple = [](auto it) { return it && ++it; };
-    bool has_multiple_categories = (category_iids && category_strings) ||
-                                   has_multiple(category_iids) ||
-                                   has_multiple(category_strings);
-
-    // If there's a single category, we can avoid building a concatenated
-    // string.
-    if (!has_multiple_categories && category_strings) {
-      category_id = storage_->InternString(*category_strings);
-    } else if (has_multiple_categories) {
-      // We concatenate the category strings together since we currently only
-      // support a single "cat" column.
-      // TODO(eseckler): Support multi-category events in the table schema.
-      std::string categories;
-      for (auto it = category_iids; it; ++it) {
-        auto name = sequence_state_->InternedStringView(
-            protos::pbzero::InternedData::kEventCategoriesFieldNumber, *it);
-        if (!name)
-          continue;
-        if (!categories.empty())
-          categories.append(",");
-        categories.append(name->data(), name->size());
-      }
-      for (auto it = category_strings; it; ++it) {
-        protozero::ConstChars cat = *it;
-        if (!categories.empty())
-          categories.append(",");
-        categories.append(cat.data, cat.size);
-      }
-      if (!categories.empty())
-        category_id = storage_->InternString(base::StringView(categories));
+    base::SmallVector<uint64_t, 4> iids;
+    for (auto it = event_.category_iids(); it; ++it) {
+      iids.emplace_back(*it);
     }
-
-    return category_id;
-  }
-
-  StringId ParseSingleInternedCategory(uint64_t iid) {
-    if (auto id = sequence_state_->InternedStringId(
-            protos::pbzero::InternedData::kEventCategoriesFieldNumber, iid)) {
-      return *id;
+    base::SmallVector<protozero::ConstChars, 4> strings;
+    for (auto it = event_.categories(); it; ++it) {
+      strings.emplace_back(*it);
     }
-    return InternUnknownCategory(iid);
-  }
-
-  PERFETTO_NO_INLINE StringId InternUnknownCategory(uint64_t iid) {
-    base::DynamicStringWriter writer;
-    writer.AppendLiteral("unknown(");
-    writer.AppendUnsignedInt(iid);
-    writer.AppendChar(')');
-    return storage_->InternString(writer.GetStringView());
+    return InternTrackEventCategory(storage_, sequence_state_, iids.data(),
+                                    iids.size(), strings.data(),
+                                    strings.size());
   }
 
   StringId ParseTrackEventName() {
-    uint64_t name_iid = event_.name_iid();
-    if (!name_iid)
-      name_iid = legacy_event_.name_iid();
-
-    if (PERFETTO_LIKELY(name_iid)) {
-      if (auto id = sequence_state_->InternedStringId(
-              protos::pbzero::InternedData::kEventNamesFieldNumber, name_iid))
-        return *id;
-    } else if (event_.has_name()) {
-      return storage_->InternString(event_.name());
+    if constexpr (std::is_same_v<Event, TrackEventRecordView>) {
+      return event_.name_id();
+    } else {
+      uint64_t name_iid = event_.name_iid();
+      if (!name_iid)
+        name_iid = legacy_event_.name_iid();
+      std::optional<protozero::ConstChars> name;
+      if (event_.has_name()) {
+        name = event_.name();
+      }
+      return InternTrackEventName(storage_, sequence_state_, name_iid, name);
     }
-
-    return kNullStringId;
   }
 
   base::Status ParseInitialTrackAssociation() {
@@ -678,17 +644,12 @@ class TrackEventEventImporter {
   base::Status ParseStateEvent() {
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationState());
 
-    StringId state_id = kNullStringId;
-
-    if (event_.has_name_iid()) {
-      if (auto id = sequence_state_->InternedStringId(
-              protos::pbzero::InternedData::kEventNamesFieldNumber,
-              event_.name_iid())) {
-        state_id = *id;
-      }
-    } else if (event_.has_name()) {
-      state_id = storage_->InternString(event_.name());
+    std::optional<protozero::ConstChars> name;
+    if (event_.has_name()) {
+      name = event_.name();
     }
+    StringId state_id = InternTrackEventName(storage_, sequence_state_,
+                                             event_.name_iid(), name);
 
     if (state_id == kNullStringId) {
       auto opt_state_id =
@@ -945,9 +906,7 @@ class TrackEventEventImporter {
   }
 
   PERFETTO_NO_INLINE void ParseTrackEventFlows(SliceId slice_id) {
-    if (event_.has_flow_ids_old() || event_.has_flow_ids()) {
-      auto it =
-          event_.has_flow_ids() ? event_.flow_ids() : event_.flow_ids_old();
+    auto begin_or_step = [&](auto it) {
       for (; it; ++it) {
         FlowId flow_id = *it;
         if (!context_->flow_tracker->IsActive(flow_id)) {
@@ -956,12 +915,13 @@ class TrackEventEventImporter {
         }
         context_->flow_tracker->Step(slice_id, flow_id);
       }
+    };
+    if (event_.has_flow_ids()) {
+      begin_or_step(event_.flow_ids());
+    } else if (event_.has_flow_ids_old()) {
+      begin_or_step(event_.flow_ids_old());
     }
-    if (event_.has_terminating_flow_ids_old() ||
-        event_.has_terminating_flow_ids()) {
-      auto it = event_.has_terminating_flow_ids()
-                    ? event_.terminating_flow_ids()
-                    : event_.terminating_flow_ids_old();
+    auto terminate = [&](auto it) {
       for (; it; ++it) {
         FlowId flow_id = *it;
         if (!context_->flow_tracker->IsActive(flow_id)) {
@@ -972,6 +932,11 @@ class TrackEventEventImporter {
         context_->flow_tracker->End(slice_id, flow_id,
                                     /* close_flow = */ true);
       }
+    };
+    if (event_.has_terminating_flow_ids()) {
+      terminate(event_.terminating_flow_ids());
+    } else if (event_.has_terminating_flow_ids_old()) {
+      terminate(event_.terminating_flow_ids_old());
     }
   }
 
@@ -1509,7 +1474,7 @@ class TrackEventEventImporter {
   const TrackEventData* event_data_;
   PacketSequenceStateGeneration* sequence_state_;
   ConstBytes blob_;
-  SelectiveTrackEventDecoder event_;
+  Event event_;
   // Most events have no legacy part; those share one empty decoder instead
   // of constructing one per event.
   std::optional<LegacyEvent::Decoder> legacy_event_storage_;
@@ -1538,6 +1503,10 @@ class TrackEventEventImporter {
 
   uint32_t packet_sequence_id_;
 };
+
+using TrackEventEventImporter =
+    TrackEventEventImporterT<SelectiveTrackEventDecoder>;
+using TrackEventRecordImporter = TrackEventEventImporterT<TrackEventRecordView>;
 
 }  // namespace perfetto::trace_processor
 
