@@ -142,7 +142,7 @@ message AndroidJobSchedulerJob {
     STOP_REASON_SYSTEM_PROCESSING = 14;
     STOP_REASON_ESTIMATED_APP_LAUNCH_TIME_CHANGED = 15;
     STOP_REASON_TIMEOUT_ABANDONED = 16;
-    STOP_REASON_DEVICE_STATE_THERMAL = 17;
+    STOP_REASON_DEVICE_STATE_THERMAL_THROTTLED = 17;
     STOP_REASON_DEVICE_STATE_BATTERY_SAVER = 18;
     STOP_REASON_CONSTRAINT_CONNECTIVITY_NETWORK_UNAVAILABLE = 19;
     STOP_REASON_CONSTRAINT_CONNECTIVITY_METERED_RESTRICTED = 20;
@@ -195,7 +195,7 @@ message AndroidJobSchedulerJob {
     PENDING_JOB_REASON_QUOTA = 14;
     PENDING_JOB_REASON_USER = 15;
     PENDING_JOB_REASON_CONSTRAINT_DEADLINE = 16;
-    PENDING_JOB_REASON_DEVICE_STATE_THERMAL = 17;
+    PENDING_JOB_REASON_DEVICE_STATE_THERMAL_THROTTLED = 17;
     PENDING_JOB_REASON_DEVICE_STATE_BATTERY_SAVER = 18;
     PENDING_JOB_REASON_CONSTRAINT_CONNECTIVITY_NETWORK_UNAVAILABLE = 19;
     PENDING_JOB_REASON_CONSTRAINT_CONNECTIVITY_METERED_RESTRICTED = 20;
@@ -454,9 +454,7 @@ enum CapabilityUpdateFlag {
 // Bitmask representing various process state flags.
 // See com.android.server.am.psc.ProcStateController.Tracer.TraceFlags for
 // definition. It is used at the flags field of the AndroidProcStateUpdateEvent
-// message.
-//
-// LINT.IfChange(ProcStateControllerTraceFlags)
+// message. LINT.IfChange(ProcStateControllerTraceFlags)
 enum ProcStateControllerTraceFlags {
   PROC_STATE_CONTROLLER_TRACE_FLAG_NONE = 0;
   PROC_STATE_CONTROLLER_TRACE_FLAG_IS_RUNNING = 0x1;                 // 1 << 0
@@ -509,10 +507,25 @@ enum ProcStateControllerInconsistentBehavior {
       0x40;  // 1 << 6
   PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_PROPAGATED_DISCREPANCY =
       0x80;  // 1 << 7
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_SKIPPED_HIGH_PRIORITY_CONNECTION =
+      0x100;  // 1 << 8
 }
 // LINT.ThenChange(
 //     /services/core/java/com/android/server/am/psc/ProcStateController.java:InconsistentBehavior)
 
+// Represents the edge type in the process graph.
+// See com.android.server.am.psc.ProcessGraph.EdgeType for definition.
+// LINT.IfChange(ProcessGraphEdgeType)
+enum ProcessGraphEdgeType {
+  PROCESS_GRAPH_EDGE_TYPE_UNSPECIFIED = 0;
+  PROCESS_GRAPH_EDGE_TYPE_PROCESS = 1;
+  PROCESS_GRAPH_EDGE_TYPE_SERVICE_BINDING = 2;
+  PROCESS_GRAPH_EDGE_TYPE_PROVIDER_BINDING = 3;
+}
+// LINT.ThenChange(
+//     /services/core/java/com/android/server/am/psc/ProcessGraph.java:EdgeType)
+
+// LINT.IfChange(AppExitReasonCode)
 enum AppExitReasonCode {
   APP_EXIT_REASON_UNKNOWN = 0;
   APP_EXIT_REASON_EXIT_SELF = 1;
@@ -532,7 +545,9 @@ enum AppExitReasonCode {
   APP_EXIT_REASON_PACKAGE_STATE_CHANGE = 15;
   APP_EXIT_REASON_PACKAGE_UPDATED = 16;
   APP_EXIT_REASON_MEMORY_LIMITER = 17;
+  APP_EXIT_REASON_EXIT_WHEN_CACHED_REQUESTED = 19;
 }
+// LINT.ThenChange(/core/java/android/app/ApplicationExitInfo.java:ReasonCodes)
 
 enum AppExitSubReasonCode {
   APP_EXIT_SUBREASON_UNKNOWN = 0;
@@ -860,14 +875,24 @@ message AndroidFreezerEvent {
   // The pid of the process being frozen or unfrozen.
   optional int32 pid = 2 [(perfetto.protos.is_pid) = true];
 
-  // Time since last unfrozen.
+  // Time in milliseconds since last unfrozen (CLOCK_MONOTONIC / uptime,
+  // excludes suspend).
   optional int64 unfrozen_dur_ms = 3;
 
-  // Time since last frozen.
+  // Time in milliseconds since last frozen (CLOCK_MONOTONIC / uptime, excludes
+  // suspend).
   optional int64 frozen_dur_ms = 4;
 
   // Unfreeze reason.
   optional UnfreezeReason unfreeze_reason = 5;
+
+  // On freeze: timestamp (CLOCK_BOOTTIME, nanoseconds) at which the process
+  // was last unfrozen, or started if it was never frozen.
+  optional int64 unfrozen_start_ns = 6;
+
+  // On unfreeze: timestamp (CLOCK_BOOTTIME, nanoseconds) at which the process
+  // was frozen.
+  optional int64 frozen_start_ns = 7;
 }
 
 message AndroidProcessStartEvent {
@@ -1014,11 +1039,48 @@ message AndroidProcessStateChangedEvent {
       [(perfetto.protos.flags_enum) =
            ".com.android.internal.FreezerPolicyFlag"];
 
-  // Current kernel process group (android.os.Process.THREAD_GROUP_*).
+  // Current OomAdjuster process group (android.os.Process.THREAD_GROUP_*),
+  // derived from its scheduling group.
   optional ProcessGroup cur_process_group = 14;
 
-  // Previous kernel process group (android.os.Process.THREAD_GROUP_*).
+  // Previous OomAdjuster process group (android.os.Process.THREAD_GROUP_*),
+  // derived from its scheduling group.
   optional ProcessGroup prev_process_group = 15;
+
+  // Timestamp (CLOCK_BOOTTIME, nanoseconds) at which the process entered
+  // prev_proc_state. Lets trace processors bound the initial proc_state when
+  // the event that entered it was lost (e.g. ring buffer wrap).
+  optional int64 prev_proc_state_start_ns = 16;
+}
+
+// Emitted on the proc_state track before a dying process's record is cleaned
+// up, recording its last set runtime state so ring-buffer traces can recover
+// the state of processes that die before the end-of-trace snapshot.
+message AndroidProcessStateDiedEvent {
+  // Uid of the package of the dying process.
+  optional int32 uid = 1;
+
+  // Pid of the dying process.
+  optional int32 pid = 2 [(perfetto.protos.is_pid) = true];
+
+  // Previous proc state before the process died.
+  optional ProcessStateEnum prev_proc_state = 3;
+
+  // Previous oom score before the process died.
+  optional int32 prev_oom_score = 4;
+
+  // Previous capability flags before the process died.
+  optional int32 prev_capability_flags = 5
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.ProcessCapabilityEnum"];
+
+  // Previous OomAdjuster process group (android.os.Process.THREAD_GROUP_*),
+  // derived from its scheduling group, before the process died.
+  optional ProcessGroup prev_process_group = 6;
+
+  // Timestamp (CLOCK_BOOTTIME, nanoseconds) at which the process entered
+  // prev_proc_state.
+  optional int64 prev_proc_state_start_ns = 7;
 }
 
 message AndroidProcessGroupChangedEvent {
@@ -1189,6 +1251,21 @@ message AndroidProcStateUpdateEvent {
   optional int32 known_inconsistent_behavior = 8
       [(perfetto.protos.flags_enum) =
            ".com.android.internal.ProcStateControllerInconsistentBehavior"];
+
+  // The type of the winning edge.
+  // See com.android.server.am.psc.ProcessGraph.EdgeType for definition.
+  // Also see the ProcessGraphEdgeType enum proto.
+  optional ProcessGraphEdgeType winning_edge_type = 9;
+
+  // The computed procState of the winning edge's source. Only set when
+  // winning_edge_type is a binding edge, i.e.
+  // PROCESS_GRAPH_EDGE_TYPE_SERVICE_BINDING or
+  // PROCESS_GRAPH_EDGE_TYPE_PROVIDER_BINDING.
+  optional ProcessStateEnum winning_source_proc_state = 10;
+
+  // Binding flags on the connection (Context.BIND_*). Only valid when
+  // winning_edge_type is PROCESS_GRAPH_EDGE_TYPE_SERVICE_BINDING.
+  optional int64 winning_edge_binding_flags = 11;
 }
 
 message AndroidSelfBroadcastEvent {
@@ -1226,7 +1303,7 @@ message AndroidSelfBroadcastEvent {
 
 message FrameworksBaseTrackEvent {
   // Usable range: [2004, 2006], [2008, 2099]
-  // Next id: 2023
+  // Next id: 2024
   extend perfetto.protos.TrackEvent {
     optional AndroidMessageQueue message_queue = 2004;
     optional AndroidBitmap bitmap = 2005;
@@ -1248,5 +1325,6 @@ message FrameworksBaseTrackEvent {
     optional AndroidProcStateUpdateEvent proc_state_update_event = 2020;
     optional AndroidSelfBroadcastEvent self_broadcast_event = 2021;
     optional AndroidProcessGroupChangedEvent process_group_changed_event = 2022;
+    optional AndroidProcessStateDiedEvent process_state_died_event = 2023;
   }
 }
