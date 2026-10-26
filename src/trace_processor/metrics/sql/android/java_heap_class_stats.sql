@@ -29,6 +29,9 @@ heap_class_stats_count_protos AS (
     RepeatedField(JavaHeapClassStats_TypeCount(
       'type_name', type_name,
       'is_libcore_or_array', is_libcore_or_array,
+      'is_language_runtime', is_language_runtime,
+      'is_container', is_container,
+      'is_static_class', is_static_class,
       'obj_count', obj_count,
       'size_bytes', size_bytes,
       'native_size_bytes', native_size_bytes,
