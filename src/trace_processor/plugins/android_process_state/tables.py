@@ -62,7 +62,10 @@ ANDROID_PROCESS_STATE_TABLE = Table(
             'capability_flags':
                 'Capability flags.',
             'process_group':
-                'Process group enum name or value.',
+                'Process group enum name or value, as seen by OomAdjuster '
+                '(the scheduling group it computed for the process). See '
+                '__intrinsic_android_process_group_request for the groups '
+                'requested through Process.setProcessGroup.',
             'reason':
                 'Reason for state change (if from track event).',
             'seq_id':
@@ -115,7 +118,42 @@ ANDROID_FREEZER_STATE_TABLE = Table(
     ),
 )
 
+ANDROID_PROCESS_GROUP_REQUEST_TABLE = Table(
+    python_module=__file__,
+    class_name='AndroidProcessGroupRequestTable',
+    sql_name='__intrinsic_android_process_group_request',
+    columns=[
+        C('ts', CppInt64(), cpp_access=CppAccess.READ),
+        C('upid', CppTableId(PROCESS_TABLE), cpp_access=CppAccess.READ),
+        C('process_group', CppOptional(CppString()), cpp_access=CppAccess.READ),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Process groups requested through Process.setProcessGroup, one row
+          per call, from AndroidProcessGroupChangedEvent track events.
+          The calling process emits the event (on its own track) before the
+          native call, which can fail (e.g. when the target process is gone),
+          and also when the group does not change, so rows are requests
+          rather than deduplicated changes of the process's actual group.
+          Unlike __intrinsic_android_process_state.process_group (OomAdjuster's
+          view), this reflects every caller of Process.setProcessGroup. There
+          are no initial rows: the event carries no previous group, so the
+          group before a process's first event is unknown.
+        ''',
+        group='Android',
+        columns={
+            'ts': 'Timestamp of the Process.setProcessGroup call.',
+            'upid': 'Unique process ID.',
+            'process_group':
+                'Requested process group enum name (e.g. '
+                'PROCESS_GROUP_TOP_APP), or its value if unknown; NULL if the '
+                'event has no group.',
+        },
+    ),
+)
+
 ALL_TABLES = [
     ANDROID_PROCESS_STATE_TABLE,
     ANDROID_FREEZER_STATE_TABLE,
+    ANDROID_PROCESS_GROUP_REQUEST_TABLE,
 ]

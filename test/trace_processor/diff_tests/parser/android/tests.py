@@ -518,6 +518,176 @@ class AndroidParser(TestSuite):
           "[NULL]",800,"[NULL]","[NULL]","[NULL]",1
         """))
 
+  def test_android_process_group_request(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.process_group
+        FROM __intrinsic_android_process_group_request t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","process_group"
+          3500,200,"PROCESS_GROUP_DEFAULT"
+        """))
+
+  def test_android_process_group_request_events(self):
+    # pid 100: several calls, including a repeated group (not deduplicated).
+    # pid 200: a call without cur_process_group (defensive: producers always
+    # write it).
+    # pid 300: in the trace-stop dump but without calls, so no rows.
+    # pid 400: calls but not in the trace-stop dump.
+    # pid 0 (meaning the calling process) is ignored; unknown pid 998 is
+    # dropped.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 500
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+            processes { pid: 200 ppid: 1 cmdline: "proc200" }
+            processes { pid: 300 ppid: 1 cmdline: "proc300" }
+            processes { pid: 400 ppid: 1 cmdline: "proc400" }
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "set_process_group"
+            [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+              pid: 100
+              uid: 10001
+              cur_process_group: PROCESS_GROUP_TOP_APP
+            }
+          }
+        }
+        packet {
+          timestamp: 1500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "set_process_group"
+            [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+              pid: 200
+              uid: 10002
+            }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "set_process_group"
+            [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+              pid: 100
+              uid: 10001
+              cur_process_group: PROCESS_GROUP_BACKGROUND
+            }
+          }
+        }
+        packet {
+          timestamp: 2200
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "set_process_group"
+            [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+              pid: 400
+              uid: 10004
+              cur_process_group: PROCESS_GROUP_FOREGROUND
+            }
+          }
+        }
+        packet {
+          timestamp: 2500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "set_process_group"
+            [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+              pid: 0
+              uid: 1000
+              cur_process_group: PROCESS_GROUP_SYSTEM
+            }
+          }
+        }
+        packet {
+          timestamp: 2600
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "set_process_group"
+            [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+              pid: 998
+              uid: 10998
+              cur_process_group: PROCESS_GROUP_DEFAULT
+            }
+          }
+        }
+        packet {
+          timestamp: 3000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "set_process_group"
+            [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+              pid: 100
+              uid: 10001
+              cur_process_group: PROCESS_GROUP_BACKGROUND
+            }
+          }
+        }
+        packet {
+          timestamp: 10000
+          [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+            record { pid: 100 uid: 10001 proc_state: 1015 process_group: 2 }
+            record { pid: 300 uid: 10003 proc_state: 1002 process_group: 7 }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.process_group
+        FROM __intrinsic_android_process_group_request t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","process_group"
+          1000,100,"PROCESS_GROUP_TOP_APP"
+          2000,100,"PROCESS_GROUP_BACKGROUND"
+          3000,100,"PROCESS_GROUP_BACKGROUND"
+          1500,200,"[NULL]"
+          2200,400,"PROCESS_GROUP_FOREGROUND"
+        """))
+
+  def test_android_process_group_request_unknown_pid(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state.textproto'),
+        query="""
+        SELECT
+          ts,
+          name,
+          extract_arg(arg_set_id, 'source') AS source,
+          extract_arg(arg_set_id, 'pid') AS pid
+        FROM _trace_import_logs
+        WHERE name = 'android_track_event_process_unknown'
+        ORDER BY ts, pid;
+        """,
+        out=Csv("""
+          "ts","name","source","pid"
+          2400,"android_track_event_process_unknown","process_group_changed",999
+        """))
+
   def test_android_process_state_metadata(self):
     return DiffTestBlueprint(
         trace=Path('android_process_state_metadata.textproto'),
@@ -559,6 +729,20 @@ class AndroidParser(TestSuite):
           "ts","pid","unfreeze_reason","is_initial"
           "[NULL]",200,"UFR_PING",1
           2500000000,400,"UFR_BINDER_TXNS",0
+        """))
+
+  def test_android_process_state_metadata_process_group(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_metadata.textproto'),
+        query="""
+        SELECT t.ts, p.pid, t.process_group
+        FROM __intrinsic_android_process_group_request t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","process_group"
+          2600000000,400,"PROCESS_GROUP_DEFAULT"
         """))
 
   def test_android_process_state_metadata_state(self):

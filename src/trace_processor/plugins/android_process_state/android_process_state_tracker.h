@@ -43,13 +43,15 @@ StringId InternEnum(TraceProcessorContext* context,
 
 // Tracks process states and freezer states from incremental track events and
 // trace-stop dump snapshots, and synthesizes per-process initial-state rows
-// (is_initial = 1, ts = NULL) at finalization.
+// (is_initial = 1, ts = NULL) at finalization. Also records the process groups
+// requested through Process.setProcessGroup.
 class AndroidProcessStateTracker {
  public:
   AndroidProcessStateTracker(
       TraceProcessorContext* context,
       tables::AndroidProcessStateTable* process_state_table,
-      tables::AndroidFreezerStateTable* freezer_state_table);
+      tables::AndroidFreezerStateTable* freezer_state_table,
+      tables::AndroidProcessGroupRequestTable* process_group_request_table);
 
   // A process_state_changed_event TrackEvent extension at |ts|.
   void ParseProcessStateChange(int64_t ts, protozero::ConstBytes bytes);
@@ -60,6 +62,14 @@ class AndroidProcessStateTracker {
   void ParseFreezerEvent(int64_t ts, protozero::ConstBytes bytes);
   // An AndroidFreezerState dump TracePacket at |ts|.
   void ParseFreezerDump(int64_t ts, protozero::ConstBytes bytes);
+
+  // An AndroidProcessGroupChangedEvent TrackEvent extension at |ts|. Inserts
+  // one row per event. Unlike the other tables, no initial rows are
+  // synthesized: the event carries no previous group, and the snapshot's
+  // process_group is OomAdjuster's view, not the group last requested through
+  // Process.setProcessGroup, so the group before a process's first event is
+  // unknown.
+  void ParseProcessGroupChange(int64_t ts, protozero::ConstBytes bytes);
 
   // Synthesizes the per-process initial-state rows.
   void Finalize();
@@ -112,6 +122,7 @@ class AndroidProcessStateTracker {
   TraceProcessorContext* const context_;
   tables::AndroidProcessStateTable* const process_state_table_;
   tables::AndroidFreezerStateTable* const freezer_state_table_;
+  tables::AndroidProcessGroupRequestTable* const process_group_request_table_;
   const StringId capability_flags_id_;
   UnknownProcessLogger unknown_process_logger_;
 
