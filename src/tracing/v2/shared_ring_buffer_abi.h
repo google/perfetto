@@ -49,7 +49,7 @@ namespace perfetto::tracing_v2 {
 // - Each chunk starts with an atomic state word. It records ownership and the
 //   number of published fragments while the chunk belongs to a writer.
 //
-// Producer and service processes share a host, so the ABI uses its byte order.
+// The ABI assumes little-endian producer and service processes.
 
 // Sharing over IPC
 // ----------------
@@ -118,15 +118,15 @@ constexpr size_t kDefaultChunkBudgetBytes = 128 * 1024;
 //   +--------------+--------------+--------------+--------------+
 //   |<---------- three atomic<uint64_t> -------->|
 //
-// Writers check capacity by loading rw_positions once. Its low 32 bits hold
-// read_pos and its high 32 bits write_pos; the byte offsets above are for
-// little-endian hosts and swap on big-endian ones.
+// Writers check capacity by loading rw_positions once. In memory:
+// - The first four bytes hold read_pos.
+// - The next four bytes hold write_pos.
 // Keeping both in one atomic avoids combining counters read at different times.
 //
 // The reader is the only one that moves read_pos. It publishes a new value once
 // per drain pass and then wakes any writer parked on a full ring buffer.
-// The four bytes of rw_positions holding read_pos are also the address the
-// futex waits on.
+// read_pos is also the first four bytes of rw_positions, which is the address
+// the futex waits on.
 //
 // num_writers_waiting lets the reader skip a futex wake when nobody is waiting
 // for space. It is only an optimization and never decides whether the ring
@@ -475,7 +475,7 @@ enum class ChunkState : uint32_t {
 };
 
 enum class ChunkFormat : uint32_t {
-  // Bytes 4..5 contain a host-endian target BufferID. Payload starts at 6.
+  // Bytes 4..5 contain a little-endian target BufferID. Payload starts at 6.
   kTargetBuffer = 0,
 
   // Reserved for a format carrying per-packet routing information.

@@ -54,7 +54,7 @@ class WattsonCurvesBlobReader {
   // Curve blobs are little-endian.
   template <typename T>
   T Read() {
-    static_assert(std::is_arithmetic_v<T>);
+    static_assert(std::is_trivially_copyable_v<T>);
     T value;
     ReadInto(&value, sizeof(T));
     return base::LEToHost(value);
