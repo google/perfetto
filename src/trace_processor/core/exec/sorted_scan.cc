@@ -43,12 +43,6 @@ namespace {
 
 using filter::CastFilterValueResult;
 
-// Null for an Id column.
-const void* StorageOf(const dataframe::Column& column) {
-  return std::visit([](auto* p) { return static_cast<const void*>(p); },
-                    column.storage.data());
-}
-
 }  // namespace
 
 SortedScan::SortedScan(
@@ -66,7 +60,7 @@ SortedScan::SortedScan(
     PERFETTO_CHECK(s.column->null_storage.nullability().Is<NonNull>());
     PERFETTO_CHECK(s.kind == Search::Kind::kBinarySearch || s.op.Is<Eq>());
     StorageType type = s.column->storage.type();
-    sorted_.push_back({{type, StorageOf(*s.column), pool_},
+    sorted_.push_back({{type, s.column->storage.untyped_data(), pool_},
                        *op,
                        type.Is<String>() && op->Is<Eq>()});
   }

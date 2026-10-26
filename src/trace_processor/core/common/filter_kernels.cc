@@ -174,9 +174,10 @@ Range SearchSortedOf(const SortedColumn& column,
 }
 
 template <typename T, typename N>
-Span<uint32_t> SearchIndexEqualOf(const IndexColumn& column,
-                                  const CastFilterValueResult::Value& value,
-                                  Span<uint32_t> entries) {
+Span<const uint32_t> SearchIndexEqualOf(
+    const IndexColumn& column,
+    const CastFilterValueResult::Value& value,
+    Span<const uint32_t> entries) {
   using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
   auto [b, e] = IndexEqualRange<T, N>(
       entries.b, entries.e, base::unchecked_get<M>(value),
@@ -186,9 +187,10 @@ Span<uint32_t> SearchIndexEqualOf(const IndexColumn& column,
 }
 
 template <typename T>
-Span<uint32_t> SearchIndexEqualOf(const IndexColumn& column,
-                                  const CastFilterValueResult::Value& value,
-                                  Span<uint32_t> entries) {
+Span<const uint32_t> SearchIndexEqualOf(
+    const IndexColumn& column,
+    const CastFilterValueResult::Value& value,
+    Span<const uint32_t> entries) {
   switch (column.nullability.index()) {
     case Nullability::GetTypeIndex<NonNull>():
       return SearchIndexEqualOf<T, NonNull>(column, value, entries);
@@ -229,9 +231,9 @@ Range SearchSorted(const SortedColumn& column,
   }
 }
 
-Span<uint32_t> SearchIndexEqual(const IndexColumn& column,
-                                const CastFilterValueResult::Value& value,
-                                Span<uint32_t> entries) {
+Span<const uint32_t> SearchIndexEqual(const IndexColumn& column,
+                                      const CastFilterValueResult::Value& value,
+                                      Span<const uint32_t> entries) {
   switch (column.type.index()) {
     case StorageType::GetTypeIndex<Uint32>():
       return SearchIndexEqualOf<Uint32>(column, value, entries);

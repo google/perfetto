@@ -18,17 +18,20 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_DATAFRAME_WINDOWS_H_
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <vector>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/range.h"
+#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -52,6 +55,10 @@ class DataframeWindows {
 
   // Points `out` at rows [from, from + count), all kept.
   void Fill(uint32_t from, uint32_t count, RowBatch& out);
+
+  // Points `out` at the rows `offsets` from `from`, which increase from 0.
+  // Only those rows are expanded.
+  void FillKept(uint32_t from, Span<const uint32_t> offsets, RowBatch& out);
 
   // Fills one window of a column which does not store one value per row.
   // Defined in the .cc: an implementation detail with no callers outside it.
@@ -102,6 +109,53 @@ class RangeReader {
   DataframeWindows windows_;
   Range range_{0, 0};
   uint32_t next_ = 0;
+};
+
+// Reads a list of a dataframe's rows, in list order, a batch at a time. Each
+// batch is a window over a strictly increasing run of the rows, with a
+// selection keeping them, so nothing is copied.
+class RowListReader {
+ public:
+  void Init(
+      const std::vector<std::shared_ptr<const dataframe::Column>>& columns,
+      Context& context) {
+    windows_.Init(columns, context);
+  }
+
+  // `rows` must outlive the read.
+  void Start(Span<const uint32_t> rows) {
+    next_ = rows.b;
+    end_ = rows.e;
+  }
+
+  // False once all rows are read.
+  bool Read(RowBatch& out) {
+    if (next_ == end_) {
+      return false;
+    }
+    uint32_t first = *next_++;
+    offsets_[0] = 0;
+    uint32_t count = 1;
+    for (; next_ != end_; ++next_) {
+      uint32_t offset = *next_ - first;
+      if (*next_ < first || offset >= kMaxBatchRows ||
+          offset <= offsets_[count - 1]) {
+        break;
+      }
+      offsets_[count++] = offset;
+    }
+    windows_.FillKept(
+        first, Span<const uint32_t>(offsets_.data(), offsets_.data() + count),
+        out);
+    return true;
+  }
+
+ private:
+  DataframeWindows windows_;
+  const uint32_t* next_ = nullptr;
+  const uint32_t* end_ = nullptr;
+  // The current batch's rows, as offsets from its first.
+  std::array<uint32_t, kMaxBatchRows> offsets_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec
