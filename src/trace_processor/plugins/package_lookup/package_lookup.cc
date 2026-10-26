@@ -179,9 +179,9 @@ void PackageLookup::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
       NullTermStringView package = storage->GetString(cursor.package_name());
 
       // Prefer the real GMS package, de-prefer providers.
-      int ranking = package.StartsWith("com.android.providers.") ? 0
-                    : package == "com.google.android.gms"        ? 2
-                                                                 : 1;
+      int ranking = base::StartsWith(package, "com.android.providers.") ? 0
+                    : package == "com.google.android.gms"               ? 2
+                                                                        : 1;
 
       if (ranking > best_ranking) {
         best_ranking = ranking;

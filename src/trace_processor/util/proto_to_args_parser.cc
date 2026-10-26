@@ -984,7 +984,7 @@ std::pair<StringPool::Id, StringPool::Id> ProtoToArgsParser::InternSuffixedKeys(
     std::string_view from,
     std::string_view to) {
   auto intern = [&](const std::string& key) {
-    const bool matched = base::StringView(key).EndsWith(from);
+    const bool matched = base::EndsWith(base::StringView(key), from);
     suffixed_key_scratch_.assign(
         key, 0, matched ? key.size() - from.size() : key.size());
     if (!matched)

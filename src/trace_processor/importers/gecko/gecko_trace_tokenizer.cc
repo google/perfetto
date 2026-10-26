@@ -508,7 +508,7 @@ std::optional<size_t> GetLibIndexForUnsymbolizedFrame(
     const std::vector<GeckoLib>& libs,
     base::StringView name) {
   // Unsymbolicated frames are named by their address.
-  if (!name.StartsWith(base::StringView("0x"))) {
+  if (!base::StartsWith(name, base::StringView("0x"))) {
     return std::nullopt;
   }
   if (frame_idx >= t.frame_addresses.size() ||
