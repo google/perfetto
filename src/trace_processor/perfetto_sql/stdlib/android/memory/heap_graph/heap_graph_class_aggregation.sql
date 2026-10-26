@@ -23,85 +23,6 @@ RETURNS LONG
 AS
 SELECT id + 1 FROM heap_graph_object ORDER BY id DESC LIMIT 1;
 
-CREATE PERFETTO FUNCTION _is_static_class(obj_name STRING)
-RETURNS BOOL
-AS
-SELECT $obj_name GLOB 'java.lang.Class<*>';
-
--- Unwraps java.lang.Class<*> and normalizes the 'j$.' desugared prefix to 'java.'.
-CREATE PERFETTO FUNCTION _normalize_java_class_name(obj_name STRING)
-RETURNS STRING
-AS
-SELECT
-  replace(
-    coalesce(rtrim(str_split($obj_name, 'java.lang.Class<', 1), '>'), $obj_name),
-    'j$.',
-    'java.'
-  );
-
-CREATE PERFETTO FUNCTION _is_language_runtime_normalized(cls_name STRING)
-RETURNS BOOL
-AS
-SELECT
-  $cls_name GLOB 'java.*'
-  OR $cls_name GLOB 'kotlin.*'
-  OR $cls_name GLOB 'kotlinx.*';
-
-CREATE PERFETTO FUNCTION _is_container_normalized(cls_name STRING)
-RETURNS BOOL
-AS
-SELECT
-  $cls_name GLOB '*[[]]'
-  OR $cls_name GLOB 'android.util.*Array*'
-  OR $cls_name GLOB 'android.util.MapCollections*'
-  OR $cls_name GLOB 'android.util.LruCache*'
-  OR $cls_name GLOB 'kotlin.collections.*'
-  OR $cls_name GLOB 'androidx.collection.*'
-  OR $cls_name = 'java.util.Arrays$ArrayList'
-  OR $cls_name GLOB 'java.util.Arrays$ArrayList$*'
-  OR CASE str_split($cls_name, '$', 0)
-    -- java.util concrete collection and map classes
-    WHEN 'java.util.ArrayDeque' THEN 1
-    WHEN 'java.util.ArrayList' THEN 1
-    WHEN 'java.util.BitSet' THEN 1
-    WHEN 'java.util.Collections' THEN 1
-    WHEN 'java.util.EnumMap' THEN 1
-    WHEN 'java.util.HashMap' THEN 1
-    WHEN 'java.util.HashSet' THEN 1
-    WHEN 'java.util.Hashtable' THEN 1
-    WHEN 'java.util.IdentityHashMap' THEN 1
-    WHEN 'java.util.ImmutableCollections' THEN 1
-    WHEN 'java.util.JumboEnumSet' THEN 1
-    WHEN 'java.util.LinkedHashMap' THEN 1
-    WHEN 'java.util.LinkedHashSet' THEN 1
-    WHEN 'java.util.LinkedList' THEN 1
-    WHEN 'java.util.PriorityQueue' THEN 1
-    WHEN 'java.util.Properties' THEN 1
-    WHEN 'java.util.RegularEnumSet' THEN 1
-    WHEN 'java.util.Stack' THEN 1
-    WHEN 'java.util.TreeMap' THEN 1
-    WHEN 'java.util.TreeSet' THEN 1
-    WHEN 'java.util.Vector' THEN 1
-    WHEN 'java.util.WeakHashMap' THEN 1
-    -- java.util.concurrent concrete collection and map classes
-    WHEN 'java.util.concurrent.ArrayBlockingQueue' THEN 1
-    WHEN 'java.util.concurrent.ConcurrentHashMap' THEN 1
-    WHEN 'java.util.concurrent.ConcurrentLinkedDeque' THEN 1
-    WHEN 'java.util.concurrent.ConcurrentLinkedQueue' THEN 1
-    WHEN 'java.util.concurrent.ConcurrentSkipListMap' THEN 1
-    WHEN 'java.util.concurrent.ConcurrentSkipListSet' THEN 1
-    WHEN 'java.util.concurrent.CopyOnWriteArrayList' THEN 1
-    WHEN 'java.util.concurrent.CopyOnWriteArraySet' THEN 1
-    WHEN 'java.util.concurrent.DelayQueue' THEN 1
-    WHEN 'java.util.concurrent.LinkedBlockingDeque' THEN 1
-    WHEN 'java.util.concurrent.LinkedBlockingQueue' THEN 1
-    WHEN 'java.util.concurrent.LinkedTransferQueue' THEN 1
-    WHEN 'java.util.concurrent.PriorityBlockingQueue' THEN 1
-    WHEN 'java.util.concurrent.SynchronousQueue' THEN 1
-    ELSE 0
-  END
-  = 1;
-
 -- Dominator tree nodes with no ancestor of the same class. Summing the
 -- dominated stats of these nodes per class counts every dominated object once.
 CREATE PERFETTO TABLE _heap_graph_class_dominated_roots AS
@@ -216,7 +137,21 @@ WITH
       a.graph_sample_ts,
       a.type_id,
       coalesce(cls.deobfuscated_name, cls.name) AS type_name,
-      _normalize_java_class_name(coalesce(cls.deobfuscated_name, cls.name)) AS normalized_name,
+      replace(
+        coalesce(
+          rtrim(
+            str_split(
+              coalesce(cls.deobfuscated_name, cls.name),
+              'java.lang.Class<',
+              1
+            ),
+            '>'
+          ),
+          coalesce(cls.deobfuscated_name, cls.name)
+        ),
+        'j$.',
+        'java.'
+      ) AS normalized_name,
       a.obj_count,
       a.size_bytes,
       a.native_size_bytes,
@@ -235,8 +170,55 @@ WITH
   classified AS MATERIALIZED (
     SELECT
       *,
-      _is_language_runtime_normalized(normalized_name) AS is_language_runtime,
-      _is_container_normalized(normalized_name) AS is_container
+      (normalized_name GLOB 'java.*'
+      OR normalized_name GLOB 'kotlin.*'
+      OR normalized_name GLOB 'kotlinx.*') AS is_language_runtime,
+      (normalized_name GLOB '*[[]]'
+      OR normalized_name GLOB 'android.util.*Array*'
+      OR normalized_name GLOB 'kotlin.collections.*'
+      OR normalized_name GLOB 'androidx.collection.*'
+      OR CASE str_split(normalized_name, '$', 0)
+        -- java.util concrete collection and map classes
+        WHEN 'java.util.ArrayDeque' THEN 1
+        WHEN 'java.util.ArrayList' THEN 1
+        WHEN 'java.util.BitSet' THEN 1
+        WHEN 'java.util.Collections' THEN 1
+        WHEN 'java.util.EnumMap' THEN 1
+        WHEN 'java.util.HashMap' THEN 1
+        WHEN 'java.util.HashSet' THEN 1
+        WHEN 'java.util.Hashtable' THEN 1
+        WHEN 'java.util.IdentityHashMap' THEN 1
+        WHEN 'java.util.ImmutableCollections' THEN 1
+        WHEN 'java.util.LinkedHashMap' THEN 1
+        WHEN 'java.util.LinkedHashSet' THEN 1
+        WHEN 'java.util.LinkedList' THEN 1
+        WHEN 'java.util.PriorityQueue' THEN 1
+        WHEN 'java.util.Properties' THEN 1
+        WHEN 'java.util.RegularEnumSet' THEN 1
+        WHEN 'java.util.Stack' THEN 1
+        WHEN 'java.util.TreeMap' THEN 1
+        WHEN 'java.util.TreeSet' THEN 1
+        WHEN 'java.util.Vector' THEN 1
+        WHEN 'java.util.WeakHashMap' THEN 1
+        -- java.util.concurrent concrete collection and map classes
+        WHEN 'java.util.concurrent.ArrayBlockingQueue' THEN 1
+        WHEN 'java.util.concurrent.ConcurrentHashMap' THEN 1
+        WHEN 'java.util.concurrent.ConcurrentLinkedDeque' THEN 1
+        WHEN 'java.util.concurrent.ConcurrentLinkedQueue' THEN 1
+        WHEN 'java.util.concurrent.ConcurrentSkipListMap' THEN 1
+        WHEN 'java.util.concurrent.ConcurrentSkipListSet' THEN 1
+        WHEN 'java.util.concurrent.CopyOnWriteArrayList' THEN 1
+        WHEN 'java.util.concurrent.CopyOnWriteArraySet' THEN 1
+        WHEN 'java.util.concurrent.DelayQueue' THEN 1
+        WHEN 'java.util.concurrent.LinkedBlockingDeque' THEN 1
+        WHEN 'java.util.concurrent.LinkedBlockingQueue' THEN 1
+        WHEN 'java.util.concurrent.LinkedTransferQueue' THEN 1
+        WHEN 'java.util.concurrent.PriorityBlockingQueue' THEN 1
+        WHEN 'java.util.concurrent.SynchronousQueue' THEN 1
+        ELSE 0
+      END
+      = 1) AS is_container,
+      type_name GLOB 'java.lang.Class<*>' AS is_static_class
     FROM base
   )
 SELECT
@@ -250,7 +232,7 @@ SELECT
   OR is_container AS is_libcore_or_array,
   is_language_runtime,
   is_container,
-  _is_static_class(type_name) AS is_static_class,
+  is_static_class,
   -- metrics
   obj_count,
   size_bytes,

@@ -176,7 +176,7 @@ class HeapGraph(TestSuite):
           "java.util.Locale",1,1,0,0
           "java.util.HashMap",1,1,1,0
           "java.util.HashMap$Node",1,1,1,0
-          "java.util.Arrays$ArrayList",1,1,1,0
+          "java.util.Arrays$ArrayList",1,1,0,0
           "j$.util.concurrent.ConcurrentHashMap$Node",1,1,1,0
           "android.util.ArrayMap",1,0,1,0
           "kotlin.collections.ArrayList",1,1,1,0
