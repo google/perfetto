@@ -1176,13 +1176,15 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     uint32_t data_loss_overwrite = 0;
     uint32_t data_loss_writer_abort = 0;
     uint32_t data_loss_smb_full = 0;
+    uint32_t protocol_v1_writers = 0;
+    uint32_t protocol_v2_writers = 0;
   };
   base::FlatHashMap<int32_t, BufStats> stats_per_buffer;
   for (auto it = evt.writer_stats(); it; ++it) {
     protos::pbzero::TraceStats::WriterStats::Decoder w(*it);
+    auto& stats = stats_per_buffer[static_cast<int32_t>(w.buffer())];
     auto seq_id = static_cast<uint32_t>(w.sequence_id());
     if (auto* s = sequence_state_.Find(seq_id)) {
-      auto& stats = stats_per_buffer[static_cast<int32_t>(w.buffer())];
       stats.packet_loss += s->previous_packet_dropped_count;
       stats.incremental_sequences_dropped +=
           s->needs_incremental_state_skipped > 0 &&
@@ -1199,6 +1201,9 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
       stats.data_loss_writer_abort += s->data_loss_writer_abort_count;
       stats.data_loss_smb_full += s->data_loss_smb_full_count;
     }
+    const uint32_t protocols = w.protocol_abi_versions();
+    stats.protocol_v1_writers += (protocols & (1u << 0)) != 0;
+    stats.protocol_v2_writers += (protocols & (1u << 1)) != 0;
   }
 
   for (auto it = stats_per_buffer.GetIterator(); it; ++it) {
@@ -1230,6 +1235,10 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
         v.data_loss_writer_abort);
     context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_data_loss_smb_full, buf, v.data_loss_smb_full);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_protocol_v1_writers, buf, v.protocol_v1_writers);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_protocol_v2_writers, buf, v.protocol_v2_writers);
   }
 }
 
