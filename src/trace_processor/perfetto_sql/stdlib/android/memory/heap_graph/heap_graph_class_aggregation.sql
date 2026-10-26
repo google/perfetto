@@ -33,17 +33,11 @@ CREATE PERFETTO FUNCTION _normalize_java_class_name(obj_name STRING)
 RETURNS STRING
 AS
 SELECT
-  CASE
-    WHEN $obj_name GLOB 'java.lang.Class<j$.*>' THEN 'java.'
-    || substr($obj_name, 20, length($obj_name) - 20)
-    WHEN _is_static_class($obj_name) THEN substr(
-      $obj_name,
-      17,
-      length($obj_name) - 17
-    )
-    WHEN $obj_name GLOB 'j$.*' THEN 'java.' || substr($obj_name, 4)
-    ELSE $obj_name
-  END;
+  replace(
+    coalesce(rtrim(str_split($obj_name, 'java.lang.Class<', 1), '>'), $obj_name),
+    'j$.',
+    'java.'
+  );
 
 CREATE PERFETTO FUNCTION _is_language_runtime_normalized(cls_name STRING)
 RETURNS BOOL
