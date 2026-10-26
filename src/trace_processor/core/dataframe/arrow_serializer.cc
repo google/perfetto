@@ -655,10 +655,10 @@ base::StatusOr<size_t> ArrowSerializer::Prepare(const Dataframe& dataframe,
   prepared_string_pool_ = &pool;
   prepared_mutations_ = dataframe.mutations();
   return static_cast<size_t>(total);
-#else // PERFETTO_IS_LITTLE_ENDIAN()
+#else   // PERFETTO_IS_LITTLE_ENDIAN()
   return base::ErrStatus(
       "Arrow serialization is not supported on big-endian hosts");
-#endif // PERFETTO_IS_LITTLE_ENDIAN()
+#endif  // PERFETTO_IS_LITTLE_ENDIAN()
 }
 
 base::Status ArrowSerializer::WriteDictionary(const DictionaryPlan& dictionary,

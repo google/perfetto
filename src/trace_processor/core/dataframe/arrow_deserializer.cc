@@ -601,10 +601,10 @@ base::StatusOr<Dataframe> DeserializeFromArrow(
   ++dataframe.non_column_mutations_;
   dataframe.Finalize();
   return dataframe;
-#else // PERFETTO_IS_LITTLE_ENDIAN()
+#else   // PERFETTO_IS_LITTLE_ENDIAN()
   return base::ErrStatus(
       "Arrow deserialization is not supported on big-endian hosts");
-#endif // PERFETTO_IS_LITTLE_ENDIAN()
+#endif  // PERFETTO_IS_LITTLE_ENDIAN()
 }
 
 }  // namespace perfetto::trace_processor::core::dataframe
