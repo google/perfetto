@@ -628,6 +628,7 @@ PYTHON_VENV_BIN_DIR = os.path.join(
 PYTHON_STATUS_FILE = os.path.join(PYTHON_VENV_DIR, '.last_install')
 PYTHON_REQUIREMENTS = os.path.join(ROOT_DIR, 'python', 'requirements.txt')
 TEST_DATA_SCRIPT = os.path.join(TOOLS_DIR, 'test_data')
+NO_TEST_DATA_STAMP = os.path.join(ROOT_DIR, 'test', 'data', '.no_test_data')
 RUST_TOOLCHAIN = os.environ.get("RUST_TOOLCHAIN", "nightly-2025-01-03")
 RUSTUP_HOME = os.path.join(ROOT_DIR, 'buildtools/rustup')
 RUSTUP_INIT_FILE = os.path.join(RUSTUP_HOME, 'rustup-init.sh')
@@ -998,6 +999,10 @@ def Main():
       help='Some tools are required exclusively when changing the source code (they are not required when just building it, e.g. in CI). Do not install those tools',
       action='store_true')
   parser.add_argument(
+      '--no-test-data',
+      help='Do not download //test/data, which is only needed to run tests. Sticky: later --check-only runs skip it too, until a run without this flag',
+      action='store_true')
+  parser.add_argument(
       '--build-os',
       default=system().lower(),
       choices=['windows', 'darwin', 'linux'],
@@ -1176,8 +1181,19 @@ def Main():
         tools_hook_path = os.path.join(ROOT_DIR, 'tools', 'run_presubmit')
         os.symlink(tools_hook_path, git_hook_path)
 
+  # --no-test-data is sticky: its stamp makes the --check-only runs from GN and
+  # ui/build, which don't pass the flag, skip //test/data too. A run without
+  # the flag removes the stamp.
+  if not args.check_only:
+    if args.no_test_data:
+      os.makedirs(os.path.dirname(NO_TEST_DATA_STAMP), exist_ok=True)
+      open(NO_TEST_DATA_STAMP, 'w').close()
+    elif os.path.exists(NO_TEST_DATA_STAMP):
+      os.remove(NO_TEST_DATA_STAMP)
+  skip_test_data = args.no_test_data or os.path.exists(NO_TEST_DATA_STAMP)
+
   cur_python_interpreter = sys.executable
-  test_data_synced = 0 == subprocess.call([
+  test_data_synced = skip_test_data or 0 == subprocess.call([
       cur_python_interpreter, TEST_DATA_SCRIPT, 'status', '--quiet',
       '--ignore-new'
   ])
