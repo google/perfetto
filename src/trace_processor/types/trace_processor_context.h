@@ -48,6 +48,7 @@ class GlobalArgsTracker;
 class GlobalMetadataTracker;
 class GlobalStatsTracker;
 class ImportLogsTracker;
+class MachineDataClaimTracker;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
@@ -256,6 +257,7 @@ class TraceProcessorContext {
   PerMachinePtr<CpuTracker> cpu_tracker;
   PerMachinePtr<GpuTracker> gpu_tracker;
   PerMachinePtr<UserTracker> user_tracker;
+  PerMachinePtr<MachineDataClaimTracker> machine_data_claim_tracker;
 
   // Per-Machine, Per-Trace State
   // ==========================
