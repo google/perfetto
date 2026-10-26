@@ -17,6 +17,7 @@ from python.generators.diff_tests.testing import Path
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
+from python.generators.diff_tests.testing import TextProto
 
 
 class HeapGraph(TestSuite):
@@ -84,6 +85,109 @@ class HeapGraph(TestSuite):
           10,2,"A",0,0,0,0,2,200,4,11200
           10,2,"B",0,0,0,0,1,1000,1,1000
           10,2,"java.lang.String",1,1,0,0,2,10666,2,10666
+        """))
+
+  def test_heap_graph_aggregation_class_types(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+          packet {
+            process_tree {
+              processes {
+                pid: 2
+                ppid: 1
+                cmdline: "system_server"
+                uid: 1000
+              }
+            }
+          }
+          packet {
+            trusted_packet_sequence_id: 999
+            timestamp: 10
+            [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+              pid: 2
+              roots {
+                root_type: ROOT_JNI_GLOBAL
+                object_ids: 1
+              }
+              objects { id: 1 type_id: 1 self_size: 10 }
+              objects { id: 2 type_id: 2 self_size: 10 }
+              objects { id: 3 type_id: 3 self_size: 10 }
+              objects { id: 4 type_id: 4 self_size: 10 }
+              objects { id: 5 type_id: 5 self_size: 10 }
+              objects { id: 6 type_id: 6 self_size: 10 }
+              objects { id: 7 type_id: 7 self_size: 10 }
+              objects { id: 8 type_id: 8 self_size: 10 }
+              objects { id: 9 type_id: 9 self_size: 10 }
+              objects { id: 10 type_id: 10 self_size: 10 }
+              objects { id: 11 type_id: 11 self_size: 10 }
+              objects { id: 12 type_id: 12 self_size: 10 }
+              objects { id: 13 type_id: 13 self_size: 10 }
+              objects { id: 14 type_id: 14 self_size: 10 }
+              objects { id: 15 type_id: 15 self_size: 10 }
+              objects { id: 16 type_id: 16 self_size: 10 }
+              objects { id: 17 type_id: 17 self_size: 10 }
+              objects { id: 18 type_id: 18 self_size: 10 }
+              objects { id: 19 type_id: 19 self_size: 10 }
+              objects { id: 20 type_id: 20 self_size: 10 }
+              types { id: 1 class_name: "com.example.RegularClass" }
+              types { id: 2 class_name: "java.lang.String" }
+              types { id: 3 class_name: "j$.time.Instant" }
+              types { id: 4 class_name: "kotlin.Pair" }
+              types { id: 5 class_name: "kotlinx.coroutines.JobImpl" }
+              types { id: 6 class_name: "java.util.Locale" }
+              types { id: 7 class_name: "java.util.HashMap" }
+              types { id: 8 class_name: "java.util.HashMap$Node" }
+              types { id: 9 class_name: "java.util.Arrays$ArrayList" }
+              types { id: 10 class_name: "j$.util.concurrent.ConcurrentHashMap$Node" }
+              types { id: 11 class_name: "android.util.ArrayMap" }
+              types { id: 12 class_name: "kotlin.collections.ArrayList" }
+              types { id: 13 class_name: "androidx.collection.ArraySet" }
+              types { id: 14 class_name: "com.example.RegularClass[]" }
+              types { id: 15 class_name: "java.lang.Class<com.example.RegularClass>" }
+              types { id: 16 class_name: "java.lang.Class<java.lang.String>" }
+              types { id: 17 class_name: "java.lang.Class<j$.time.Instant>" }
+              types { id: 18 class_name: "java.lang.Class<java.util.HashMap>" }
+              types { id: 19 class_name: "java.lang.Class<j$.util.concurrent.ConcurrentHashMap>" }
+              types { id: 20 class_name: "java.lang.Class<com.example.RegularClass[]>" }
+              continued: false
+              index: 0
+            }
+          }
+        """),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_class_aggregation;
+
+          SELECT
+            type_name,
+            is_libcore_or_array,
+            is_language_runtime,
+            is_container,
+            is_static_class
+          FROM android_heap_graph_class_aggregation
+          ORDER BY type_id;
+        """,
+        out=Csv("""
+          "type_name","is_libcore_or_array","is_language_runtime","is_container","is_static_class"
+          "com.example.RegularClass",0,0,0,0
+          "java.lang.String",1,1,0,0
+          "j$.time.Instant",1,1,0,0
+          "kotlin.Pair",1,1,0,0
+          "kotlinx.coroutines.JobImpl",1,1,0,0
+          "java.util.Locale",1,1,0,0
+          "java.util.HashMap",1,1,1,0
+          "java.util.HashMap$Node",1,1,1,0
+          "java.util.Arrays$ArrayList",1,1,1,0
+          "j$.util.concurrent.ConcurrentHashMap$Node",1,1,1,0
+          "android.util.ArrayMap",1,0,1,0
+          "kotlin.collections.ArrayList",1,1,1,0
+          "androidx.collection.ArraySet",1,0,1,0
+          "com.example.RegularClass[]",1,0,1,0
+          "java.lang.Class<com.example.RegularClass>",0,0,0,1
+          "java.lang.Class<java.lang.String>",1,1,0,1
+          "java.lang.Class<j$.time.Instant>",1,1,0,1
+          "java.lang.Class<java.util.HashMap>",1,1,1,1
+          "java.lang.Class<j$.util.concurrent.ConcurrentHashMap>",1,1,1,1
+          "java.lang.Class<com.example.RegularClass[]>",1,0,1,1
         """))
 
   def test_heap_graph_class_summary_tree(self):
