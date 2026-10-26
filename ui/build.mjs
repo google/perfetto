@@ -373,7 +373,14 @@ Env-var overrides:
     // Check that deps are current before starting.
     const installBuildDeps = pjoin(ROOT_DIR, 'tools/install-build-deps');
     const checkDepsPath = pjoin(cfg.outDir, '.check_deps');
-    let args = [installBuildDeps, `--check-only=${checkDepsPath}`, '--ui'];
+    // Skip dev tools (the python venv): building doesn't need them. Same as
+    // GN's check_build_deps.
+    let args = [
+      installBuildDeps,
+      `--check-only=${checkDepsPath}`,
+      '--ui',
+      '--no-dev-tools',
+    ];
 
     if (process.platform === 'darwin') {
       const result = childProcess.spawnSync('arch', ['-arm64', 'true']);
