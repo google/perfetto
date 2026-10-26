@@ -1688,6 +1688,34 @@ class JsonParser(TestSuite):
           "NoTid",1,"T1",1
         """))
 
+  def test_json_tid_zero_process_events(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {"name":"process_name","ph":"M","pid":1,"tid":0,"args":{"name":"P1"}},
+            {"name":"Async","cat":"c","ph":"b","id":"1","pid":1,"tid":0,"ts":10},
+            {"name":"Async","cat":"c","ph":"e","id":"1","pid":1,"tid":0,"ts":20},
+            {"name":"Ctr","ph":"C","pid":1,"tid":0,"ts":30,"args":{"value":5}}
+          ]
+        '''),
+        query='''
+          SELECT
+            (SELECT count(*)
+             FROM thread t
+             JOIN process p USING (upid)
+             WHERE t.tid = 0 AND p.pid = 1) AS tid_zero_threads,
+            (SELECT name FROM process WHERE pid = 1) AS process_name,
+            (SELECT count(*) FROM slice WHERE name = 'Async') AS async_slices,
+            (SELECT t.name
+             FROM process_counter_track t
+             JOIN process p USING (upid)
+             WHERE p.pid = 1) AS counter_track
+        ''',
+        out=Csv("""
+          "tid_zero_threads","process_name","async_slices","counter_track"
+          0,"P1",1,"Ctr value"
+        """))
+
   def test_json_thread_state(self):
     return DiffTestBlueprint(
         trace=Json('''

@@ -323,8 +323,18 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         std::string counter_name = counter_name_prefix;
         counter_name += it_.key();
         StringId nid = context_->storage->InternString(counter_name);
-        context_->event_tracker->PushProcessCounterForThread(
-            EventTracker::JsonCounter{nid}, timestamp, counter, utid());
+        if (!event.pid_exists) {
+          context_->event_tracker->PushProcessCounterForThread(
+              EventTracker::JsonCounter{nid}, timestamp, counter, utid());
+          continue;
+        }
+        // Skip the thread: a placeholder tid would otherwise create one.
+        TrackId track_id = context_->track_tracker->InternTrack(
+            tracks::kJsonCounterBlueprint,
+            tracks::Dimensions(procs->GetOrCreateProcess(event.pid),
+                               context_->storage->GetString(nid)),
+            tracks::DynamicName(nid));
+        context_->event_tracker->PushCounter(timestamp, counter, track_id);
       }
       break;
     }
