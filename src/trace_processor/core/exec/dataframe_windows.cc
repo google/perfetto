@@ -76,9 +76,7 @@ class ExpanderImpl final : public DataframeWindows::Expander {
       LendOne(from, view, buffer);
       return;
     }
-    if (from != next_) {
-      Skip(from);
-    }
+    Skip(from);
     *buffer = context.TakeBuffer();
     ColumnChunk& chunk = buffer->chunk();
     uint8_t* values = chunk.Values<uint8_t>();
@@ -121,6 +119,9 @@ class ExpanderImpl final : public DataframeWindows::Expander {
 
   // O(1) once the prefix popcount is built.
   void Skip(uint32_t row) {
+    if (row == next_) {
+      return;
+    }
     if (PERFETTO_UNLIKELY(!popcount_.size())) {
       popcount_ = bits_->PrefixPopcount();
     }
