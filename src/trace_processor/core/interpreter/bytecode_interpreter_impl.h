@@ -430,7 +430,11 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
 
   auto [bv, popcount] = NullsFor(nbv);
   filter::IndexColumn column{T{}, N{}, data, bv, popcount, state.string_pool};
-  dest = filter::SearchIndexEqual(column, filter_value.value, dest);
+  // The search only narrows the range, so the entries are still ours to write.
+  Span<const uint32_t> found = filter::SearchIndexEqual(
+      column, filter_value.value, Span<const uint32_t>(dest.b, dest.e));
+  dest = Span<uint32_t>(const_cast<uint32_t*>(found.b),
+                        const_cast<uint32_t*>(found.e));
   state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
 }
 

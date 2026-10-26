@@ -50,11 +50,6 @@ bool StoresNoValueForNulls(const dataframe::Column& column) {
          n.Is<SparseNullWithPopcountUntilFinalization>();
 }
 
-const void* StorageOf(const dataframe::Column& column) {
-  return std::visit([](auto* p) { return static_cast<const void*>(p); },
-                    column.storage.data());
-}
-
 }  // namespace
 
 IndexScan::IndexScan(
@@ -83,12 +78,14 @@ std::unique_ptr<OperatorState> IndexScan::MakeState(Context& context) const {
   for (uint32_t i = 0; i < equalities_.size(); ++i) {
     const dataframe::Column& column = *equalities_[i].column;
     const BitVector* nulls = column.null_storage.MaybeGetNullBitVector();
+    // Built here rather than lazily in Find(), which runs far more often.
     if (StoresNoValueForNulls(column)) {
       state->popcounts[i] = nulls->PrefixPopcount();
     }
-    state->columns.push_back(
-        {column.storage.type(), column.null_storage.nullability(),
-         StorageOf(column), nulls, state->popcounts[i].data(), pool_});
+    state->columns.push_back({column.storage.type(),
+                              column.null_storage.nullability(),
+                              column.storage.untyped_data(), nulls,
+                              state->popcounts[i].data(), pool_});
   }
   return state;
 }
@@ -98,9 +95,8 @@ void IndexScan::Rewind(OperatorState& state) const {
 }
 
 Span<const uint32_t> IndexScan::Find(const State& s) const {
-  // The searches only read the index.
-  auto* b = const_cast<uint32_t*>(permutation_->data());
-  Span<uint32_t> entries(b, b + permutation_->size());
+  Span<const uint32_t> entries(permutation_->data(),
+                               permutation_->data() + permutation_->size());
   const FilterValue* values = s.context->filter_values().b;
   for (uint32_t i = 0; i < equalities_.size() && !entries.empty(); ++i) {
     const Equality& eq = equalities_[i];

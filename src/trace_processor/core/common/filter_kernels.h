@@ -480,14 +480,14 @@ IndexToStorageIndex(uint32_t index,
 // pre-resolved string_pool->Get result) or the raw value for other types.
 // This avoids repeated string_pool->Get calls inside the comparators.
 template <typename T, typename N, typename Resolved>
-inline PERFETTO_ALWAYS_INLINE std::pair<uint32_t*, uint32_t*> IndexEqualRange(
-    uint32_t* begin,
-    uint32_t* end,
-    const Resolved& target,
-    const typename T::cpp_type* data,
-    const BitVector* bv,
-    const uint32_t* popcount,
-    const StringPool* string_pool) {
+inline PERFETTO_ALWAYS_INLINE std::pair<const uint32_t*, const uint32_t*>
+IndexEqualRange(const uint32_t* begin,
+                const uint32_t* end,
+                const Resolved& target,
+                const typename T::cpp_type* data,
+                const BitVector* bv,
+                const uint32_t* popcount,
+                const StringPool* string_pool) {
   auto* lb = LowerBound<kCheapCompare<T>>(
       begin, end, target, [&](uint32_t idx, const Resolved&) {
         uint32_t si = IndexToStorageIndex<N>(idx, bv, popcount);
@@ -532,9 +532,9 @@ struct IndexColumn {
 // The part of `entries`, of an index sorted by `column`, whose rows equal
 // `value` in it: valid, and cast for the column (see filter_value_cast.h).
 // Compiled once, in filter_kernels.cc, as SearchSorted is.
-Span<uint32_t> SearchIndexEqual(const IndexColumn& column,
-                                const CastFilterValueResult::Value& value,
-                                Span<uint32_t> entries);
+Span<const uint32_t> SearchIndexEqual(const IndexColumn& column,
+                                      const CastFilterValueResult::Value& value,
+                                      Span<const uint32_t> entries);
 
 // The rows of an IN found by binary-searching a sorted index for each of its
 // values, written to `dest` in increasing order. Returns false, writing
@@ -561,7 +561,7 @@ template <typename T, typename N>
   for (const auto& cmp_val : vl) {
     // For String columns, resolve StringPool::Id to NullTermStringView
     // once per value to avoid repeated lookups in the comparators.
-    std::pair<uint32_t*, uint32_t*> range;
+    std::pair<const uint32_t*, const uint32_t*> range;
     if constexpr (std::is_same_v<T, String>) {
       auto target = string_pool->Get(cmp_val);
       range = IndexEqualRange<T, N>(index.b, index.e, target, data, bv,

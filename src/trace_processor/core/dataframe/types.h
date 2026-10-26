@@ -133,6 +133,12 @@ class Storage {
     }
   }
 
+  // As data(), untyped: nullptr for Id.
+  const void* untyped_data() const {
+    return std::visit([](auto* p) { return static_cast<const void*>(p); },
+                      data());
+  }
+
   template <typename T>
   static auto* CastDataPtr(const DataPointer& ptr) {
     using U = StorageType::VariantTypeAtIndex<T, DataPointer>;
