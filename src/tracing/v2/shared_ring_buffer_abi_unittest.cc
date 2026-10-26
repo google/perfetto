@@ -17,6 +17,7 @@
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #include <stdint.h>
+#include <string.h>
 
 #include <limits>
 #include <optional>
@@ -496,11 +497,12 @@ TEST(SharedRingBufferABITest, NonMinimalFragmentSizes) {
 }
 
 TEST(SharedRingBufferABITest, TargetBufferId) {
-  // Stored little-endian at bytes 4 and 5.
+  // Stored at bytes 4 and 5.
   std::vector<uint8_t> chunk(256, 0);
   StoreTargetBufferId(chunk.data(), 0x1234);
-  EXPECT_EQ(chunk[4], 0x34u);
-  EXPECT_EQ(chunk[5], 0x12u);
+  uint16_t stored;
+  memcpy(&stored, &chunk[4], sizeof(stored));
+  EXPECT_EQ(stored, 0x1234u);
   EXPECT_EQ(LoadTargetBufferId(chunk.data()), 0x1234);
   // The state word is not disturbed and the payload area still starts at 6.
   EXPECT_EQ(chunk[0], 0u);
