@@ -48,7 +48,8 @@ class AndroidProcessStateTracker {
   AndroidProcessStateTracker(
       TraceProcessorContext* context,
       tables::AndroidProcessStateTable* process_state_table,
-      tables::AndroidFreezerStateTable* freezer_state_table);
+      tables::AndroidFreezerStateTable* freezer_state_table,
+      tables::AndroidProcessGroupStateTable* process_group_state_table);
 
   // A process_state_changed_event TrackEvent extension at |ts|.
   void ParseProcessStateChange(int64_t ts, protozero::ConstBytes bytes);
@@ -59,6 +60,9 @@ class AndroidProcessStateTracker {
   void ParseFreezerEvent(int64_t ts, protozero::ConstBytes bytes);
   // An AndroidFreezerState dump TracePacket.
   void ParseFreezerDump(protozero::ConstBytes bytes);
+
+  // An AndroidProcessGroupChangedEvent TrackEvent extension at |ts|.
+  void ParseProcessGroupChange(int64_t ts, protozero::ConstBytes bytes);
 
   // Synthesizes the per-process initial-state rows.
   void Finalize();
@@ -104,6 +108,10 @@ class AndroidProcessStateTracker {
   // the AndroidFreezerState table.
   void EmitInitialFreezerRow(const FreezerStateValues& v);
 
+  // Emits a synthesized initial baseline row (is_initial = 1, ts = NULL,
+  // process_group = NULL) into the AndroidProcessGroupState table.
+  void EmitInitialProcessGroupRow(UniquePid upid);
+
   // Populates capability_flags[i] args on the given AndroidProcessState row.
   void AddCapabilityFlagsArgs(tables::AndroidProcessStateTable::Id id,
                               int32_t mask);
@@ -111,6 +119,7 @@ class AndroidProcessStateTracker {
   TraceProcessorContext* const context_;
   tables::AndroidProcessStateTable* const process_state_table_;
   tables::AndroidFreezerStateTable* const freezer_state_table_;
+  tables::AndroidProcessGroupStateTable* const process_group_state_table_;
   const StringId capability_flags_id_;
 
   DescriptorPool::CachedDescriptor proc_state_cache_;
