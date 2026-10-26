@@ -26,102 +26,14 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/ops.h"
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/span.h"
-#include "src/trace_processor/util/glob.h"
 
 namespace perfetto::trace_processor::core::interpreter::ops {
-
-namespace {
-
-struct GlobComparator {
-  bool operator()(StringPool::Id lhs, const util::GlobMatcher& m) const {
-    return m.Matches(pool->Get(lhs));
-  }
-  const StringPool* pool;
-};
-
-struct BitVectorComparator {
-  bool operator()(StringPool::Id lhs, const BitVector& m) const {
-    return m.is_set(lhs.raw_id());
-  }
-};
-
-struct RegexComparator {
-  bool operator()(StringPool::Id lhs, const base::Regex& r) const {
-    return r.PartialMatch(pool->Get(lhs).c_str());
-  }
-  const StringPool* pool;
-};
-
-}  // namespace
-
-uint32_t* StringFilterGlobImpl(const StringPool* string_pool,
-                               const StringPool::Id* data,
-                               const char* pattern,
-                               const uint32_t* begin,
-                               const uint32_t* end,
-                               uint32_t* output) {
-  auto matcher = util::GlobMatcher::FromPattern(pattern);
-
-  // If glob pattern doesn't involve any special characters, use equality.
-  if (matcher.IsEquality()) {
-    std::optional<StringPool::Id> id =
-        string_pool->GetId(base::StringView(pattern));
-    if (!id) {
-      return output;
-    }
-    const uint32_t* o_read = output;
-    uint32_t* o_write = output;
-    uint32_t id_raw = id->raw_id();
-    for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
-      if (data[*it].raw_id() == id_raw) {
-        *o_write++ = *o_read;
-      }
-    }
-    return o_write;
-  }
-
-  // For very big string pools (or small ranges) or pools with large
-  // strings run a standard glob function.
-  if (size_t(end - begin) < string_pool->size() ||
-      string_pool->HasLargeString()) {
-    return filter::Filter(data, begin, end, output, matcher,
-                          GlobComparator{string_pool});
-  }
-
-  // Pre-compute matches for all strings in the pool.
-  auto matches =
-      BitVector::CreateWithSize(string_pool->MaxSmallStringId().raw_id());
-  PERFETTO_DCHECK(!string_pool->HasLargeString());
-  for (auto it = string_pool->CreateSmallStringIterator(); it; ++it) {
-    auto id = it.StringId();
-    matches.change_assume_unset(id.raw_id(),
-                                matcher.Matches(string_pool->Get(id)));
-  }
-
-  return filter::Filter(data, begin, end, output, matches,
-                        BitVectorComparator{});
-}
-
-uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
-                                const StringPool::Id* data,
-                                const char* pattern,
-                                const uint32_t* begin,
-                                const uint32_t* end,
-                                uint32_t* output) {
-  auto regex = base::Regex::Create(pattern);
-  if (!regex.ok()) {
-    return output;
-  }
-  return filter::Filter(data, begin, end, output, regex.value(),
-                        RegexComparator{string_pool});
-}
 
 void LimitOffsetIndices(InterpreterState& state,
                         const struct LimitOffsetIndices& bytecode) {

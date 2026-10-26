@@ -82,12 +82,10 @@ void Compare(const ColumnView& column,
   uint32_t* kept;
   if constexpr (std::is_same_v<T, Id>) {
     // An Id's value is where it would be stored.
-    uint32_t start = column.start();
-    auto cmp = filter::comparators::IntegerOrDoubleComparator<uint32_t, O>();
     kept = filter::IdentityFilter(
-        begin, end, begin,
+        column.start(), begin, end, begin,
         base::unchecked_get<CastFilterValueResult::Id>(cast.value.value).value,
-        [start, cmp](uint32_t row, uint32_t v) { return cmp(start + row, v); });
+        filter::comparators::IntegerOrDoubleComparator<uint32_t, O>());
   } else if constexpr (std::is_same_v<T, String>) {
     const auto* data =
         static_cast<const StringPool::Id*>(column.data()) + column.start();

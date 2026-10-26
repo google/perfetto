@@ -24,6 +24,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/variant.h"
@@ -32,8 +33,10 @@
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/span.h"
+#include "src/trace_processor/util/glob.h"
 #include "src/trace_processor/util/sorted_search.h"
 
 namespace perfetto::trace_processor::core::filter {
@@ -248,6 +251,91 @@ Span<const uint32_t> SearchIndexEqual(const IndexColumn& column,
     default:
       PERFETTO_FATAL("Unsupported storage type");
   }
+}
+
+namespace {
+
+struct GlobComparator {
+  bool operator()(StringPool::Id lhs, const util::GlobMatcher& m) const {
+    return m.Matches(pool->Get(lhs));
+  }
+  const StringPool* pool;
+};
+
+struct BitVectorComparator {
+  bool operator()(StringPool::Id lhs, const BitVector& m) const {
+    return m.is_set(lhs.raw_id());
+  }
+};
+
+struct RegexComparator {
+  bool operator()(StringPool::Id lhs, const base::Regex& r) const {
+    return r.PartialMatch(pool->Get(lhs).c_str());
+  }
+  const StringPool* pool;
+};
+
+}  // namespace
+
+uint32_t* StringFilterGlob(const StringPool* string_pool,
+                           const StringPool::Id* data,
+                           const char* pattern,
+                           const uint32_t* begin,
+                           const uint32_t* end,
+                           uint32_t* output) {
+  auto matcher = util::GlobMatcher::FromPattern(pattern);
+
+  // If glob pattern doesn't involve any special characters, use equality.
+  if (matcher.IsEquality()) {
+    std::optional<StringPool::Id> id =
+        string_pool->GetId(base::StringView(pattern));
+    if (!id) {
+      return output;
+    }
+    const uint32_t* o_read = output;
+    uint32_t* o_write = output;
+    uint32_t id_raw = id->raw_id();
+    for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
+      if (data[*it].raw_id() == id_raw) {
+        *o_write++ = *o_read;
+      }
+    }
+    return o_write;
+  }
+
+  // For very big string pools (or small ranges) or pools with large
+  // strings run a standard glob function.
+  if (size_t(end - begin) < string_pool->size() ||
+      string_pool->HasLargeString()) {
+    return Filter(data, begin, end, output, matcher,
+                  GlobComparator{string_pool});
+  }
+
+  // Pre-compute matches for all strings in the pool.
+  auto matches =
+      BitVector::CreateWithSize(string_pool->MaxSmallStringId().raw_id());
+  PERFETTO_DCHECK(!string_pool->HasLargeString());
+  for (auto it = string_pool->CreateSmallStringIterator(); it; ++it) {
+    auto id = it.StringId();
+    matches.change_assume_unset(id.raw_id(),
+                                matcher.Matches(string_pool->Get(id)));
+  }
+
+  return Filter(data, begin, end, output, matches, BitVectorComparator{});
+}
+
+uint32_t* StringFilterRegex(const StringPool* string_pool,
+                            const StringPool::Id* data,
+                            const char* pattern,
+                            const uint32_t* begin,
+                            const uint32_t* end,
+                            uint32_t* output) {
+  auto regex = base::Regex::Create(pattern);
+  if (!regex.ok()) {
+    return output;
+  }
+  return Filter(data, begin, end, output, regex.value(),
+                RegexComparator{string_pool});
 }
 
 }  // namespace perfetto::trace_processor::core::filter
