@@ -28,35 +28,93 @@ RETURNS BOOL
 AS
 SELECT $obj_name GLOB 'java.lang.Class<*>';
 
-CREATE PERFETTO FUNCTION _is_language_runtime(obj_name STRING)
+-- Unwraps java.lang.Class<*> and normalizes the 'j$.' desugared prefix to 'java.'.
+CREATE PERFETTO FUNCTION _normalize_java_class_name(obj_name STRING)
+RETURNS STRING
+AS
+SELECT
+  CASE
+    WHEN $obj_name GLOB 'java.lang.Class<j$.*>' THEN 'java.'
+    || substr($obj_name, 20, length($obj_name) - 20)
+    WHEN _is_static_class($obj_name) THEN substr(
+      $obj_name,
+      17,
+      length($obj_name) - 17
+    )
+    WHEN $obj_name GLOB 'j$.*' THEN 'java.' || substr($obj_name, 4)
+    ELSE $obj_name
+  END;
+
+CREATE PERFETTO FUNCTION _is_language_runtime_normalized(cls_name STRING)
 RETURNS BOOL
 AS
 SELECT
-  ($obj_name GLOB 'java.*' AND NOT _is_static_class($obj_name))
-  OR $obj_name GLOB 'java.lang.Class<java.*>'
-  OR $obj_name GLOB 'j$.*'
-  OR $obj_name GLOB 'java.lang.Class<j$.*>'
-  OR $obj_name GLOB 'kotlin.*'
-  OR $obj_name GLOB 'java.lang.Class<kotlin.*>'
-  OR $obj_name GLOB 'kotlinx.*'
-  OR $obj_name GLOB 'java.lang.Class<kotlinx.*>';
+  $cls_name GLOB 'java.*'
+  OR $cls_name GLOB 'kotlin.*'
+  OR $cls_name GLOB 'kotlinx.*';
+
+CREATE PERFETTO FUNCTION _is_language_runtime(obj_name STRING)
+RETURNS BOOL
+AS
+SELECT _is_language_runtime_normalized(_normalize_java_class_name($obj_name));
+
+CREATE PERFETTO FUNCTION _is_container_normalized(cls_name STRING)
+RETURNS BOOL
+AS
+SELECT
+  $cls_name GLOB '*[[]]'
+  OR $cls_name GLOB 'android.util.*Array*'
+  OR $cls_name GLOB 'android.util.MapCollections*'
+  OR $cls_name GLOB 'android.util.LruCache*'
+  OR $cls_name GLOB 'kotlin.collections.*'
+  OR $cls_name GLOB 'androidx.collection.*'
+  OR $cls_name = 'java.util.Arrays$ArrayList'
+  OR $cls_name GLOB 'java.util.Arrays$ArrayList$*'
+  OR str_split($cls_name, '$', 0) IN (
+    -- java.util concrete collection and map classes
+    'java.util.ArrayDeque',
+    'java.util.ArrayList',
+    'java.util.BitSet',
+    'java.util.Collections',
+    'java.util.EnumMap',
+    'java.util.HashMap',
+    'java.util.HashSet',
+    'java.util.Hashtable',
+    'java.util.IdentityHashMap',
+    'java.util.ImmutableCollections',
+    'java.util.JumboEnumSet',
+    'java.util.LinkedHashMap',
+    'java.util.LinkedHashSet',
+    'java.util.LinkedList',
+    'java.util.PriorityQueue',
+    'java.util.Properties',
+    'java.util.RegularEnumSet',
+    'java.util.Stack',
+    'java.util.TreeMap',
+    'java.util.TreeSet',
+    'java.util.Vector',
+    'java.util.WeakHashMap',
+    -- java.util.concurrent concrete collection and map classes
+    'java.util.concurrent.ArrayBlockingQueue',
+    'java.util.concurrent.ConcurrentHashMap',
+    'java.util.concurrent.ConcurrentLinkedDeque',
+    'java.util.concurrent.ConcurrentLinkedQueue',
+    'java.util.concurrent.ConcurrentSkipListMap',
+    'java.util.concurrent.ConcurrentSkipListSet',
+    'java.util.concurrent.CopyOnWriteArrayList',
+    'java.util.concurrent.CopyOnWriteArraySet',
+    'java.util.concurrent.DelayQueue',
+    'java.util.concurrent.LinkedBlockingDeque',
+    'java.util.concurrent.LinkedBlockingQueue',
+    'java.util.concurrent.LinkedTransferQueue',
+    'java.util.concurrent.PriorityBlockingQueue',
+    'java.util.concurrent.SynchronousQueue'
+  );
 
 CREATE PERFETTO FUNCTION _is_container(obj_name STRING)
 RETURNS BOOL
 AS
-SELECT
-  $obj_name GLOB '*[[]]'
-  OR $obj_name GLOB 'java.lang.Class<*[[]]>'
-  OR $obj_name GLOB 'android.util.*Array*'
-  OR $obj_name GLOB 'java.lang.Class<android.util.*Array*>'
-  OR $obj_name GLOB 'java.util.*'
-  OR $obj_name GLOB 'java.lang.Class<java.util.*>'
-  OR $obj_name GLOB 'j$.util.*'
-  OR $obj_name GLOB 'java.lang.Class<j$.util.*>'
-  OR $obj_name GLOB 'kotlin.collections.*'
-  OR $obj_name GLOB 'java.lang.Class<kotlin.collections.*>'
-  OR $obj_name GLOB 'androidx.collection.*'
-  OR $obj_name GLOB 'java.lang.Class<androidx.collection.*>';
+SELECT _is_container_normalized(_normalize_java_class_name($obj_name));
 
 CREATE PERFETTO FUNCTION _is_libcore_or_array(obj_name STRING)
 RETURNS BOOL
