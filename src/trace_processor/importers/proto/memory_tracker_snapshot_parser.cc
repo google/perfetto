@@ -302,8 +302,7 @@ MemoryTrackerSnapshotParser::EmitNode(
 
   auto* node_table = context_->storage->mutable_memory_snapshot_node_table();
   auto rr = (*node_table)[node_row_id];
-  ArgsTracker args_tracker(context_);
-  ArgsInserter args = args_tracker.AddArgsTo(node_row_id);
+  ArgsInserter args = context_->args_tracker->AddArgsTo(node_row_id);
 
   for (const auto& entry : node.const_entries()) {
     switch (entry.second.type) {

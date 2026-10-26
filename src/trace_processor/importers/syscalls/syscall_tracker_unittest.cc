@@ -16,8 +16,8 @@
 
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
@@ -44,8 +44,7 @@ class SyscallTrackerTest : public ::testing::Test {
         TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
             TraceProcessorContext::TraceState{TraceId{0}});
     context.stats_tracker = std::make_unique<StatsTracker>(&context);
-    context.global_args_tracker.reset(
-        new GlobalArgsTracker(context.storage.get()));
+    context.args_tracker.reset(new ArgsTracker(context.storage.get()));
     context.args_translation_table =
         std::make_unique<ArgsTranslationTable>(context.storage.get());
     context.slice_translation_table =

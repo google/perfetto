@@ -136,8 +136,8 @@ const SnapshotId SurfaceFlingerLayersParser::ParseSnapshot(
           ->Insert(snapshot)
           .id;
 
-  ArgsTracker args_tracker(context_->trace_processor_context_);
-  auto inserter = args_tracker.AddArgsTo(snapshot_id);
+  auto inserter =
+      context_->trace_processor_context_->args_tracker->AddArgsTo(snapshot_id);
   ArgsParser writer(timestamp, inserter, *storage,
                     *context_->trace_processor_context_->process_tracker);
   const auto table_name = tables::SurfaceFlingerLayersSnapshotTable::Name();
@@ -162,10 +162,10 @@ void SurfaceFlingerLayersParser::ParseLayer(
     const std::unordered_map<int32_t, LayerDecoder>& layers_by_id,
     const surfaceflinger_layers::SurfaceFlingerRects& rects) {
   auto* storage = context_->trace_processor_context_->storage.get();
-  ArgsTracker tracker(context_->trace_processor_context_);
   auto row_id =
       InsertLayerRow(blob, snapshot_id, visibility, layers_by_id, rects);
-  auto inserter = tracker.AddArgsTo(row_id);
+  auto inserter =
+      context_->trace_processor_context_->args_tracker->AddArgsTo(row_id);
   ArgsParser writer(timestamp, inserter, *storage,
                     *context_->trace_processor_context_->process_tracker);
   base::Status status =

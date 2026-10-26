@@ -51,8 +51,8 @@ void ViewCaptureParser::Parse(int64_t timestamp,
   auto snapshot_id = id_and_row.id;
   auto row_ref = id_and_row.row_reference;
 
-  ArgsTracker args_tracker(context_->trace_processor_context_);
-  auto inserter = args_tracker.AddArgsTo(snapshot_id);
+  auto inserter =
+      context_->trace_processor_context_->args_tracker->AddArgsTo(snapshot_id);
   ViewCaptureArgsParser writer(timestamp, inserter,
                                *context_->trace_processor_context_, seq_state,
                                /*snapshot_row=*/&row_ref, /*view_row=*/nullptr);
@@ -113,8 +113,8 @@ void ViewCaptureParser::ParseView(
   auto row_id = id_and_row.id;
   auto row_ref = id_and_row.row_reference;
 
-  ArgsTracker tracker(context_->trace_processor_context_);
-  auto inserter = tracker.AddArgsTo(row_id);
+  auto inserter =
+      context_->trace_processor_context_->args_tracker->AddArgsTo(row_id);
   ViewCaptureArgsParser writer(timestamp, inserter,
                                *context_->trace_processor_context_, seq_state,
                                /*snapshot_row=*/nullptr, /*view_row=*/&row_ref);

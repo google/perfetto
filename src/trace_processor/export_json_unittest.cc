@@ -101,8 +101,7 @@ class ExportJsonTest : public ::testing::Test {
         TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
             TraceProcessorContext::TraceState{TraceId(0)});
     context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
-    context_.global_args_tracker.reset(
-        new GlobalArgsTracker(context_.storage.get()));
+    context_.args_tracker.reset(new ArgsTracker(context_.storage.get()));
     context_.event_tracker.reset(new EventTracker(&context_));
     context_.track_tracker.reset(new TrackTracker(&context_));
     context_.cpu_tracker.reset(new CpuTracker(&context_));
@@ -128,9 +127,9 @@ class ExportJsonTest : public ::testing::Test {
     return writer.TakeStr();
   }
 
-  ArgSetId AddArgSet(const std::vector<GlobalArgsTracker::CompactArg>& args) {
-    return context_.global_args_tracker->AddArgSet(
-        args.data(), static_cast<uint32_t>(args.size()));
+  ArgSetId AddArgSet(const std::vector<ArgsTracker::CompactArg>& args) {
+    return context_.args_tracker->AddArgSet(args.data(),
+                                            static_cast<uint32_t>(args.size()));
   }
 
   static Dom ToJsonValue(const std::string& json) {
@@ -512,8 +511,7 @@ TEST_F(ExportJsonTest, StorageWithChromeMetadata) {
   StringId value1_id = storage->InternString(base::StringView(kValue1));
 
   {
-    ArgsTracker args_tracker(&context_);
-    args_tracker.AddArgsTo(id)
+    context_.args_tracker->AddArgsTo(id)
         .AddArg(name1_id, Variadic::String(value1_id))
         .AddArg(name2_id, Variadic::Integer(kValue2));
   }
@@ -549,7 +547,7 @@ TEST_F(ExportJsonTest, StorageWithArgs) {
       base::StringView("task.posted_from.file_name"));
   StringId arg_value_id =
       context_.storage->InternString(base::StringView(kSrc));
-  GlobalArgsTracker::CompactArg arg;
+  ArgsTracker::CompactArg arg;
   arg.flat_key = arg_key_id;
   arg.key = arg_key_id;
   arg.value = Variadic::String(arg_value_id);
@@ -644,11 +642,11 @@ TEST_F(ExportJsonTest, StorageWithListArgs) {
       base::StringView("debug.draw_duration_ms[0]"));
   StringId arg_key1_id = context_.storage->InternString(
       base::StringView("debug.draw_duration_ms[1]"));
-  GlobalArgsTracker::CompactArg arg0;
+  ArgsTracker::CompactArg arg0;
   arg0.flat_key = arg_flat_key_id;
   arg0.key = arg_key0_id;
   arg0.value = Variadic::Real(kValues[0]);
-  GlobalArgsTracker::CompactArg arg1;
+  ArgsTracker::CompactArg arg1;
   arg1.flat_key = arg_flat_key_id;
   arg1.key = arg_key1_id;
   arg1.value = Variadic::Real(kValues[1]);
@@ -691,11 +689,11 @@ TEST_F(ExportJsonTest, StorageWithMultiplePointerArgs) {
       context_.storage->InternString(base::StringView("arg0"));
   StringId arg_key1_id =
       context_.storage->InternString(base::StringView("arg1"));
-  GlobalArgsTracker::CompactArg arg0;
+  ArgsTracker::CompactArg arg0;
   arg0.flat_key = arg_key0_id;
   arg0.key = arg_key0_id;
   arg0.value = Variadic::Pointer(kValue0);
-  GlobalArgsTracker::CompactArg arg1;
+  ArgsTracker::CompactArg arg1;
   arg1.flat_key = arg_key1_id;
   arg1.key = arg_key1_id;
   arg1.value = Variadic::Pointer(kValue1);
@@ -738,11 +736,11 @@ TEST_F(ExportJsonTest, StorageWithObjectListArgs) {
       context_.storage->InternString(base::StringView("a[0].b"));
   StringId arg_key1_id =
       context_.storage->InternString(base::StringView("a[1].b"));
-  GlobalArgsTracker::CompactArg arg0;
+  ArgsTracker::CompactArg arg0;
   arg0.flat_key = arg_flat_key_id;
   arg0.key = arg_key0_id;
   arg0.value = Variadic::Integer(kValues[0]);
-  GlobalArgsTracker::CompactArg arg1;
+  ArgsTracker::CompactArg arg1;
   arg1.flat_key = arg_flat_key_id;
   arg1.key = arg_key1_id;
   arg1.value = Variadic::Integer(kValues[1]);
@@ -786,11 +784,11 @@ TEST_F(ExportJsonTest, StorageWithNestedListArgs) {
       context_.storage->InternString(base::StringView("a[0][0]"));
   StringId arg_key1_id =
       context_.storage->InternString(base::StringView("a[0][1]"));
-  GlobalArgsTracker::CompactArg arg0;
+  ArgsTracker::CompactArg arg0;
   arg0.flat_key = arg_flat_key_id;
   arg0.key = arg_key0_id;
   arg0.value = Variadic::Integer(kValues[0]);
-  GlobalArgsTracker::CompactArg arg1;
+  ArgsTracker::CompactArg arg1;
   arg1.flat_key = arg_flat_key_id;
   arg1.key = arg_key1_id;
   arg1.value = Variadic::Integer(kValues[1]);
@@ -831,7 +829,7 @@ TEST_F(ExportJsonTest, StorageWithLegacyJsonArgs) {
   StringId arg_key_id = context_.storage->InternString(base::StringView("a"));
   StringId arg_value_id =
       context_.storage->InternString(base::StringView("{\"b\":123}"));
-  GlobalArgsTracker::CompactArg arg;
+  ArgsTracker::CompactArg arg;
   arg.flat_key = arg_key_id;
   arg.key = arg_key_id;
   arg.value = Variadic::Json(arg_value_id);
@@ -1094,13 +1092,13 @@ TEST_F(ExportJsonTest, AsyncEvents) {
       {kTimestamp, kDuration, track, cat_id, name_id, 0});
   StringId arg_key_id =
       context_.storage->InternString(base::StringView(kArgName));
-  GlobalArgsTracker::CompactArg arg;
+  ArgsTracker::CompactArg arg;
   arg.flat_key = arg_key_id;
   arg.key = arg_key_id;
   arg.value = Variadic::Integer(kArgValue);
   StringId legacy_source_id_key =
       context_.storage->InternString("legacy_trace_source_id");
-  GlobalArgsTracker::CompactArg source_id_arg;
+  ArgsTracker::CompactArg source_id_arg;
   source_id_arg.flat_key = legacy_source_id_key;
   source_id_arg.key = legacy_source_id_key;
   source_id_arg.value = Variadic::Integer(kSourceId);
@@ -1206,7 +1204,7 @@ TEST_F(ExportJsonTest, AsyncEvents) {
 }
 
 TEST_F(ExportJsonTest, LegacyAsyncEvents) {
-  using Arg = GlobalArgsTracker::CompactArg;
+  using Arg = ArgsTracker::CompactArg;
   const int64_t kTimestamp = 10000000;
   const int64_t kDuration = 100000;
   const int64_t kTimestamp2 = 10001000;
@@ -1254,7 +1252,7 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
   arg_inserter("legacy_event.phase", "S", args1);
   StringId legacy_source_id_key =
       context_.storage->InternString("legacy_trace_source_id");
-  GlobalArgsTracker::CompactArg source_id_arg;
+  ArgsTracker::CompactArg source_id_arg;
   source_id_arg.flat_key = legacy_source_id_key;
   source_id_arg.key = legacy_source_id_key;
   source_id_arg.value = Variadic::Integer(kSourceId);
@@ -1380,7 +1378,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
       slices->Insert({kTimestamp, kDuration, track, cat_id, name_id, 0});
   StringId legacy_source_id_key =
       context_.storage->InternString("legacy_trace_source_id");
-  GlobalArgsTracker::CompactArg source_id_arg;
+  ArgsTracker::CompactArg source_id_arg;
   source_id_arg.flat_key = legacy_source_id_key;
   source_id_arg.key = legacy_source_id_key;
   source_id_arg.value = Variadic::Integer(kSourceId);
@@ -1442,7 +1440,7 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
       {kTimestamp, kDuration, track, cat_id, name_id, 0});
   StringId legacy_source_id_key =
       context_.storage->InternString("legacy_trace_source_id");
-  GlobalArgsTracker::CompactArg source_id_arg;
+  ArgsTracker::CompactArg source_id_arg;
   source_id_arg.flat_key = legacy_source_id_key;
   source_id_arg.key = legacy_source_id_key;
   source_id_arg.value = Variadic::Integer(kSourceId);
@@ -1493,13 +1491,13 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
       {kTimestamp, 0, track, cat_id, name_id, 0});
   StringId arg_key_id =
       context_.storage->InternString(base::StringView("arg_name"));
-  GlobalArgsTracker::CompactArg arg;
+  ArgsTracker::CompactArg arg;
   arg.flat_key = arg_key_id;
   arg.key = arg_key_id;
   arg.value = Variadic::Integer(kArgValue);
   StringId legacy_source_id_key =
       context_.storage->InternString("legacy_trace_source_id");
-  GlobalArgsTracker::CompactArg source_id_arg;
+  ArgsTracker::CompactArg source_id_arg;
   source_id_arg.flat_key = legacy_source_id_key;
   source_id_arg.key = legacy_source_id_key;
   source_id_arg.value = Variadic::Integer(kSourceId);
@@ -1556,8 +1554,7 @@ TEST_F(ExportJsonTest, RawEvent) {
   auto id_and_row = storage->mutable_chrome_raw_table()->Insert(
       {kTimestamp, storage->InternString("track_event.legacy_event"), utid, 0});
   {
-    ArgsTracker args_tracker(&context_);
-    auto inserter = args_tracker.AddArgsTo(id_and_row.id);
+    auto inserter = context_.args_tracker->AddArgsTo(id_and_row.id);
 
     auto add_arg = [&](const char* key, Variadic value) {
       StringId key_id = storage->InternString(key);
@@ -1627,10 +1624,9 @@ TEST_F(ExportJsonTest, LegacyRawEvents) {
   auto* raw = storage->mutable_chrome_raw_table();
 
   {
-    ArgsTracker args_tracker(&context_);
     auto id_and_row = raw->Insert(
         {0, storage->InternString("chrome_event.legacy_system_trace"), 0, 0});
-    auto inserter = args_tracker.AddArgsTo(id_and_row.id);
+    auto inserter = context_.args_tracker->AddArgsTo(id_and_row.id);
 
     StringId data_id = storage->InternString("data");
     StringId ftrace_data_id = storage->InternString(kLegacyFtraceData);
@@ -1638,13 +1634,13 @@ TEST_F(ExportJsonTest, LegacyRawEvents) {
 
     id_and_row = raw->Insert(
         {0, storage->InternString("chrome_event.legacy_user_trace"), 0, 0});
-    inserter = args_tracker.AddArgsTo(id_and_row.id);
+    inserter = context_.args_tracker->AddArgsTo(id_and_row.id);
     StringId json_data1_id = storage->InternString(kLegacyJsonData1);
     inserter.AddArg(data_id, Variadic::String(json_data1_id));
 
     id_and_row = raw->Insert(
         {0, storage->InternString("chrome_event.legacy_user_trace"), 0, 0});
-    inserter = args_tracker.AddArgsTo(id_and_row.id);
+    inserter = context_.args_tracker->AddArgsTo(id_and_row.id);
     StringId json_data2_id = storage->InternString(kLegacyJsonData2);
     inserter.AddArg(data_id, Variadic::String(json_data2_id));
   }
@@ -1678,11 +1674,10 @@ TEST_F(ExportJsonTest, ArgumentFilter) {
 
   auto* slices = context_.storage->mutable_slice_table();
   {
-    ArgsTracker args_tracker(&context_);
     std::vector<ArgsInserter> slice_inserters;
     for (auto& name_id : name_ids) {
       auto id = slices->Insert({0, 0, track, cat_id, name_id, 0}).id;
-      slice_inserters.emplace_back(args_tracker.AddArgsTo(id));
+      slice_inserters.emplace_back(context_.args_tracker->AddArgsTo(id));
     }
 
     for (auto& inserter : slice_inserters) {
@@ -1750,8 +1745,7 @@ TEST_F(ExportJsonTest, MetadataFilter) {
   StringId value1_id = storage->InternString(base::StringView(kValue1));
 
   {
-    ArgsTracker args_tracker(&context_);
-    args_tracker.AddArgsTo(id)
+    context_.args_tracker->AddArgsTo(id)
         .AddArg(name1_id, Variadic::String(value1_id))
         .AddArg(name2_id, Variadic::Integer(kValue2));
   }
@@ -1861,8 +1855,7 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
   StringId is_peak_rss_resettable_id =
       context_.storage->InternString("is_peak_rss_resettable");
   {
-    ArgsTracker args_tracker(&context_);
-    args_tracker.AddArgsToProcess(upid).AddArg(
+    context_.args_tracker->AddArgsToProcess(upid).AddArg(
         is_peak_rss_resettable_id, Variadic::Boolean(kIsPeakRssResettable));
   }
 
@@ -2007,8 +2000,7 @@ TEST_F(ExportJsonTest, MemorySnapshotChromeDumpEvent) {
           .id;
 
   {
-    ArgsTracker args_tracker(&context_);
-    auto inserter = args_tracker.AddArgsTo(node1_id);
+    auto inserter = context_.args_tracker->AddArgsTo(node1_id);
     inserter.AddArg(context_.storage->InternString(
                         base::StringView(kScalarAttrName + ".value")),
                     Variadic::Integer(kScalarAttrValue));

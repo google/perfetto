@@ -21,7 +21,6 @@
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
@@ -38,8 +37,8 @@ namespace {
 struct Fixture {
   explicit Fixture(TraceProcessorContext* context) {
     context->storage = std::make_unique<TraceStorage>();
-    context->global_args_tracker =
-        std::make_unique<GlobalArgsTracker>(context->storage.get());
+    context->args_tracker =
+        std::make_unique<ArgsTracker>(context->storage.get());
     context->global_stats_tracker =
         std::make_unique<GlobalStatsTracker>(context->storage.get());
     context->machine_tracker =

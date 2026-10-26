@@ -167,13 +167,12 @@ void ProtoTraceParserImpl::ParseInlineSchedWaking(uint32_t cpu,
 void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   TraceStorage* storage = context_->storage.get();
   protos::pbzero::ChromeEventBundle::Decoder bundle(blob);
-  ArgsTracker args(context_);
   if (bundle.has_metadata()) {
     tables::ChromeRawTable::Id id =
         storage->mutable_chrome_raw_table()
             ->Insert({ts, raw_chrome_metadata_event_id_, 0, 0})
             .id;
-    auto inserter = args.AddArgsTo(id);
+    auto inserter = context_->args_tracker->AddArgsTo(id);
 
     uint32_t bundle_index =
         context_->metadata_tracker->IncrementChromeMetadataBundleCount();
@@ -229,7 +228,7 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
     }
     Variadic value =
         Variadic::String(storage->InternString(base::StringView(data)));
-    args.AddArgsTo(id).AddArg(data_name_id_, value);
+    context_->args_tracker->AddArgsTo(id).AddArg(data_name_id_, value);
   }
 
   if (bundle.has_legacy_json_trace()) {
@@ -245,7 +244,7 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
               .id;
       Variadic value =
           Variadic::String(storage->InternString(legacy_trace.data()));
-      args.AddArgsTo(id).AddArg(data_name_id_, value);
+      context_->args_tracker->AddArgsTo(id).AddArg(data_name_id_, value);
     }
   }
 }
@@ -374,8 +373,7 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
     auto opt_id =
         context_->event_tracker->PushCounter(ts, event.counter_value(), track);
     if (opt_id) {
-      ArgsTracker args_tracker(context_);
-      auto inserter = args_tracker.AddArgsTo(*opt_id);
+      auto inserter = context_->args_tracker->AddArgsTo(*opt_id);
       args_fn(inserter);
     }
   }

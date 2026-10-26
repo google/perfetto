@@ -18,7 +18,7 @@
 
 #include <memory>
 
-#include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
@@ -55,8 +55,8 @@ class TrackCompressorUnittest : public testing::Test {
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
-    context_.global_args_tracker =
-        std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.args_tracker =
+        std::make_unique<ArgsTracker>(context_.storage.get());
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.track_compressor = std::make_unique<TrackCompressor>(&context_);
     context_.process_track_translation_table =

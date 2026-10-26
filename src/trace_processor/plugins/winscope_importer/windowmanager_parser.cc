@@ -80,8 +80,7 @@ tables::WindowManagerTable::Id WindowManagerParser::InsertSnapshotRow(
                     ->Insert(row)
                     .id;
 
-  ArgsTracker tracker(trace_processor_context);
-  auto inserter = tracker.AddArgsTo(row_id);
+  auto inserter = trace_processor_context->args_tracker->AddArgsTo(row_id);
   ArgsParser writer(timestamp, inserter, *trace_processor_context->storage,
                     *trace_processor_context->process_tracker);
   base::Status status =
@@ -194,9 +193,9 @@ void WindowManagerParser::InsertWindowContainerArgs(
               : ".com.android.internal.WindowContainerChildProto";
   protozero::ConstBytes bytes{window_container.pruned_proto.data(),
                               window_container.pruned_proto.size()};
-  ArgsTracker tracker(context_->trace_processor_context_);
 
-  auto inserter = tracker.AddArgsTo(row_id);
+  auto inserter =
+      context_->trace_processor_context_->args_tracker->AddArgsTo(row_id);
   ArgsParser writer(timestamp, inserter,
                     *context_->trace_processor_context_->storage,
                     *context_->trace_processor_context_->process_tracker);

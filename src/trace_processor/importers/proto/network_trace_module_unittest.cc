@@ -29,9 +29,9 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/third_party/android/connectivity/network_trace.pbzero.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
@@ -93,8 +93,7 @@ class NetworkTraceModuleTest : public testing::Test {
         &context_, primary_sync_.get(), /*is_primary=*/true);
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
-    context_.global_args_tracker =
-        std::make_unique<GlobalArgsTracker>(storage_);
+    context_.args_tracker = std::make_unique<ArgsTracker>(storage_);
     context_.slice_translation_table =
         std::make_unique<SliceTranslationTable>(storage_);
     context_.process_track_translation_table =

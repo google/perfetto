@@ -198,8 +198,7 @@ void WinscopeModule::ParseInputMethodClientsData(int64_t timestamp,
           ->Insert(row)
           .id;
 
-  ArgsTracker tracker(trace_processor_context);
-  auto inserter = tracker.AddArgsTo(rowId);
+  auto inserter = trace_processor_context->args_tracker->AddArgsTo(rowId);
   ArgsParser writer(timestamp, inserter, *trace_processor_context->storage,
                     *trace_processor_context->process_tracker);
   base::Status status =
@@ -228,8 +227,7 @@ void WinscopeModule::ParseInputMethodManagerServiceData(
                    ->Insert(row)
                    .id;
 
-  ArgsTracker tracker(trace_processor_context);
-  auto inserter = tracker.AddArgsTo(rowId);
+  auto inserter = trace_processor_context->args_tracker->AddArgsTo(rowId);
   ArgsParser writer(timestamp, inserter, *trace_processor_context->storage,
                     *trace_processor_context->process_tracker);
   base::Status status = args_parser_.ParseMessage(
@@ -257,8 +255,7 @@ void WinscopeModule::ParseInputMethodServiceData(int64_t timestamp,
           ->Insert(row)
           .id;
 
-  ArgsTracker tracker(trace_processor_context);
-  auto inserter = tracker.AddArgsTo(rowId);
+  auto inserter = trace_processor_context->args_tracker->AddArgsTo(rowId);
   ArgsParser writer(timestamp, inserter, *trace_processor_context->storage,
                     *trace_processor_context->process_tracker);
   base::Status status =

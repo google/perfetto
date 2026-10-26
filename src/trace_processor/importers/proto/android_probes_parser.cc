@@ -138,7 +138,6 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context,
                                          AndroidProbesTracker* tracker)
     : context_(context),
       tracker_(tracker),
-      power_rails_args_tracker_(std::make_unique<ArgsTracker>(context)),
       energy_consumer_id_(
           context_->storage->InternString("energy_consumer_id")),
       consumer_type_id_(context_->storage->InternString("consumer_type")),
@@ -305,7 +304,7 @@ void AndroidProbesParser::ParsePowerRails(int64_t ts,
     auto maybe_counter_id = context_->event_tracker->PushCounter(
         ts, static_cast<double>(desc.energy()), *opt_track);
     if (maybe_counter_id) {
-      power_rails_args_tracker_->AddArgsTo(*maybe_counter_id)
+      context_->args_tracker->AddArgsTo(*maybe_counter_id)
           .AddArg(rail_packet_timestamp_id_,
                   Variadic::UnsignedInteger(trace_packet_ts));
     }

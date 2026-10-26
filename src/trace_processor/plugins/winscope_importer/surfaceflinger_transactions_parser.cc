@@ -55,8 +55,7 @@ void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
           ->Insert(row)
           .id;
 
-  ArgsTracker args_tracker(context_);
-  auto inserter = args_tracker.AddArgsTo(snapshot_id);
+  auto inserter = context_->args_tracker->AddArgsTo(snapshot_id);
   ArgsParser writer(timestamp, inserter, *context_->storage,
                     *context_->process_tracker);
   base::Status status = args_parser_.ParseMessage(
@@ -398,8 +397,7 @@ void SurfaceFlingerTransactionsParser::AddArgs(
     tables::SurfaceFlingerTransactionTable::Id row_id,
     std::string message_type,
     std::optional<protozero::ConstBytes> transaction) {
-  ArgsTracker tracker(context_);
-  auto inserter = tracker.AddArgsTo(row_id);
+  auto inserter = context_->args_tracker->AddArgsTo(row_id);
   ArgsParser writer(timestamp, inserter, *context_->storage,
                     *context_->process_tracker);
   base::Status status = args_parser_.ParseMessage(

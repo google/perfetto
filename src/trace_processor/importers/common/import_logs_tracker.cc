@@ -50,8 +50,7 @@ void ImportLogsTracker::RecordImportLog(
       context_->storage->mutable_trace_import_logs_table()->Insert(row).id;
 
   if (args_callback) {
-    ArgsTracker args_tracker(context_);
-    auto inserter = args_tracker.AddArgsTo(id);
+    auto inserter = context_->args_tracker->AddArgsTo(id);
     args_callback(inserter);
   }
 }
