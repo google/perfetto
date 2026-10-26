@@ -8046,6 +8046,43 @@ TEST(PerfettoApiInitTest, NonInitializedTraceEventMacro) {
   TRACE_EVENT("cat", "Foo");
 }
 
+TEST(PerfettoApiInitTest, NoOpBackend) {
+  ASSERT_FALSE(perfetto::Tracing::IsInitialized());
+
+  TracingInitArgs args;
+  args.backends = perfetto::kNoOpBackend;
+  perfetto::Tracing::Initialize(args);
+  EXPECT_TRUE(perfetto::Tracing::IsInitialized());
+  // Initializing again with kNoOpBackend has no effect.
+  perfetto::Tracing::Initialize(args);
+
+  perfetto::TrackEvent::Register();
+  EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("test"));
+  EXPECT_NE(perfetto::ProcessTrack::Current().uuid, 0u);
+
+  int object = 0;
+  auto track = perfetto::Track::FromPointer(&object);
+  auto desc = track.Serialize();
+  desc.set_name("NoOpTrack");
+  perfetto::TrackEvent::SetTrackDescriptor(track, std::move(desc));
+  TRACE_EVENT_BEGIN("test", "Event", track);
+  TRACE_EVENT_END("test", track);
+  TRACE_EVENT("test", "Scoped");
+  perfetto::TrackEvent::EraseTrackDescriptor(track);
+  perfetto::Tracing::ActivateTriggers({"trigger"}, 1000);
+
+  perfetto::Tracing::ResetForTesting();
+}
+
+TEST(PerfettoApiInitTest, NoOpBackendCannotBeCombined) {
+  ASSERT_FALSE(perfetto::Tracing::IsInitialized());
+
+  TracingInitArgs args;
+  args.backends = perfetto::kNoOpBackend | perfetto::kInProcessBackend;
+  EXPECT_DEATH_IF_SUPPORTED(perfetto::Tracing::Initialize(args),
+                            "kNoOpBackend");
+}
+
 TEST(PerfettoApiInitTest, DisableSystemConsumer) {
   g_test_tracing_policy->should_allow_consumer_connection = true;
 
@@ -8401,6 +8438,8 @@ struct BackendTypeAsString {
         return "System";
       case perfetto::kCustomBackend:
         return "Custom";
+      case perfetto::kNoOpBackend:
+        return "NoOp";
       case perfetto::kUnspecifiedBackend:
         return "Unspec";
     }

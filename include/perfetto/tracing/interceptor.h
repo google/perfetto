@@ -175,6 +175,7 @@ class InterceptorTraceWriterTest;
 class TracingMuxer;
 class TracingMuxerFake;
 class TracingMuxerImpl;
+class TracingMuxerNoOp;
 }  // namespace internal
 
 // A virtual base class for interceptors. Users should derive from the templated
@@ -218,6 +219,7 @@ class PERFETTO_EXPORT_COMPONENT InterceptorBase {
   friend class internal::TracingMuxer;
   friend class internal::TracingMuxerFake;
   friend class internal::TracingMuxerImpl;
+  friend class internal::TracingMuxerNoOp;
   friend MockTracingMuxer;
   template <class T>
   friend class Interceptor;

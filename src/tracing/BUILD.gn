@@ -95,6 +95,8 @@ source_set("client_api_without_backends") {
     "internal/tracing_muxer_fake.h",
     "internal/tracing_muxer_impl.cc",
     "internal/tracing_muxer_impl.h",
+    "internal/tracing_muxer_noop.cc",
+    "internal/tracing_muxer_noop.h",
     "internal/track_event_internal.cc",
     "internal/track_event_interned_fields.cc",
     "platform.cc",
