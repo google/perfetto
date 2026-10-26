@@ -22,6 +22,7 @@
 #include <map>
 #include <memory>
 #include <random>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -54,7 +55,7 @@ class MockTraceStorage : public TraceStorage {
  public:
   MockTraceStorage() = default;
 
-  MOCK_METHOD(StringId, InternString, (base::StringView view), (override));
+  MOCK_METHOD(StringId, InternString, (std::string_view view), (override));
 };
 
 template <typename T>
