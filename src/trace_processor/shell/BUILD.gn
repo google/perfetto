@@ -82,6 +82,7 @@ source_set("shell") {
     "../rpc:stdiod",
     "../trace_summary",
     "../trace_summary:gen_cc_trace_summary_descriptor",
+    "../util:io_mode",
     "../util:json_value",
     "../util:simple_json_serializer",
     "../util:stdlib",

@@ -19,15 +19,18 @@
 
 #include <cstdint>
 #include <limits>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/circular_queue.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/util/bump_allocator.h"
+#include "src/trace_processor/util/chunk_memory.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -47,8 +50,13 @@ class TraceTokenBuffer {
   // |keep_track_event_packets| selects whether TrackEventData carries its whole
   // TracePacket in addition to the TrackEvent; it must match what the
   // tokenizer produces for the whole trace.
+  TraceTokenBuffer(bool keep_track_event_packets, RefPtr<ChunkMemory> memory)
+      : keep_track_event_packets_(keep_track_event_packets),
+        allocator_(std::move(memory)) {}
+  // Keeps every chunk on the heap.
   explicit TraceTokenBuffer(bool keep_track_event_packets)
-      : keep_track_event_packets_(keep_track_event_packets) {}
+      : TraceTokenBuffer(keep_track_event_packets,
+                         ChunkMemory::Heap(BumpAllocator::kChunkSize)) {}
 
   // Identifier returned when appending items to this buffer. This id can
   // later by passed to |Extract| to retrieve the event.
@@ -67,6 +75,11 @@ class TraceTokenBuffer {
     BumpAllocator::AllocId id = allocator_.Alloc(sizeof(T), &ptr);
     ChunkFor(id.chunk_index);
     new (ptr) T(std::move(object));
+    // Paging moves the bytes of an object to a new address, which only types
+    // without pointers into themselves survive.
+    if constexpr (!std::is_trivially_copyable_v<T>) {
+      allocator_.PinLastChunk();
+    }
     return Id{id};
   }
   PERFETTO_WARN_UNUSED_RESULT Id Append(TrackEventData&&);
@@ -86,10 +99,12 @@ class TraceTokenBuffer {
   // Mismatching types will caused undefined behaviour.
   template <typename T>
   PERFETTO_WARN_UNUSED_RESULT T Extract(Id id) {
-    T* typed_ptr = static_cast<T*>(allocator_.GetPointer(id.alloc_id));
+    BumpAllocator::Allocation allocation =
+        allocator_.GetAllocation(id.alloc_id);
+    T* typed_ptr = static_cast<T*>(allocation.data());
     T object(std::move(*typed_ptr));
     typed_ptr->~T();
-    allocator_.Free(id.alloc_id);
+    FreeAllocation(id, allocation);
     return object;
   }
 
@@ -106,29 +121,30 @@ class TraceTokenBuffer {
   // allocator. The amount of memory free is implementation defined.
   void FreeMemory();
 
- private:
-  struct BlobWithOffset {
-    TraceBlob* blob;
-    size_t offset_in_blob;
-  };
-  using InternedIndex = size_t;
-  using BlobWithOffsets = std::vector<BlobWithOffset>;
-  using SequenceStates = std::vector<PacketSequenceStateGeneration*>;
+  // Whether an allocation freed since the last FreeMemory() drained its
+  // chunk, so FreeMemory() has memory to give back.
+  bool has_drained_chunks() const { return !drained_chunks_.empty(); }
 
-  // Functions to intern TraceBlob and PacketSequenceStateGeneration: as these
-  // are often shared between packets, we can significantly reduce memory use
-  // by only storing them once.
-  uint32_t InternTraceBlob(BlobWithOffsets&, const TraceBlobView&);
-  uint16_t InternSeqState(SequenceStates&,
-                          RefPtr<PacketSequenceStateGeneration>);
-  uint32_t AddTraceBlob(BlobWithOffsets&, RefPtr<TraceBlob>, size_t offset);
+ private:
+  using InternedIndex = size_t;
+  // The heap copies of the packets in a chunk which are too big to inline.
+  using Blobs = std::vector<RefPtr<TraceBlob>>;
+  using SequenceStates = std::vector<RefPtr<PacketSequenceStateGeneration>>;
+
+  // Adds |blob| to |blobs| and returns its index.
+  uint16_t AddTraceBlob(Blobs* blobs, RefPtr<TraceBlob> blob);
+  // Interns PacketSequenceStateGeneration: as these are shared between most
+  // packets of a sequence, storing them once per chunk significantly reduces
+  // memory use.
+  uint16_t InternSeqState(SequenceStates* states,
+                          PacketSequenceStateGeneration* ptr);
 
   // Nearly every append lands in the chunk of the previous one, so keep that
   // chunk's intern vectors at hand instead of walking the queues each time.
   // Cleared whenever the queues change shape.
   struct CurrentChunk {
     uint64_t chunk_index = std::numeric_limits<uint64_t>::max();
-    BlobWithOffsets* blobs = nullptr;
+    Blobs* blobs = nullptr;
     SequenceStates* seqs = nullptr;
   };
   // Returns the intern vectors of the allocator chunk |chunk_index|, adding
@@ -151,7 +167,7 @@ class TraceTokenBuffer {
   std::pair<BumpAllocator::AllocId, uint8_t*> AppendCommon(
       Desc& desc,
       const TraceBlobView& packet,
-      RefPtr<PacketSequenceStateGeneration> sequence_state,
+      PacketSequenceStateGeneration* sequence_state,
       uint32_t extra_size = 0);
 
   // Common prologue shared between Extract<TrackEventData|TracePacketData|
@@ -161,17 +177,23 @@ class TraceTokenBuffer {
   // (where any per-type optional fields live). The caller is responsible for
   // freeing the allocation.
   template <typename Desc>
-  std::pair<TracePacketData, uint8_t*> ExtractCommon(Id id,
-                                                     Desc* out_desc,
-                                                     uint8_t* ptr);
+  std::pair<TracePacketData, uint8_t*> ExtractCommon(
+      Id id,
+      const BumpAllocator::Allocation& allocation,
+      Desc* out_desc);
+
+  // Frees |a|, noting its chunk for FreeMemory() if that drained it.
+  void FreeAllocation(Id id, const BumpAllocator::Allocation& a);
 
   InternedIndex GetInternedIndex(BumpAllocator::AllocId);
 
   const bool keep_track_event_packets_;
   BumpAllocator allocator_;
-  base::CircularQueue<BlobWithOffsets> interned_blobs_;
+  base::CircularQueue<Blobs> interned_blobs_;
   base::CircularQueue<SequenceStates> interned_seqs_;
   CurrentChunk current_chunk_;
+  // Chunks whose last allocation was freed since the last FreeMemory().
+  std::vector<uint64_t> drained_chunks_;
 };
 
 // GCC7 does not like us declaring these inside the class so define these

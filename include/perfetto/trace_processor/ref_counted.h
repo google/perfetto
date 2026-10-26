@@ -47,6 +47,9 @@ class RefCounted {
   RefCounted(const RefCounted&) = delete;
   RefCounted& operator=(const RefCounted&) = delete;
 
+  // Whether exactly one RefPtr holds this object.
+  bool HasOneRef() const { return refcount_ == 1; }
+
  private:
   template <typename T>
   friend class RefPtr;

@@ -230,12 +230,12 @@ void GraphicsEventModule::ParseField(const ParseFieldArgs& args) {
           args.field.Cast<FrameworksNativeTracePacket::kFrameTimelineEvent>());
       return;
     case TracePacket::kGpuCounterEventFieldNumber:
-      ParseGpuCounterEvent(args.ts, args.data.sequence_state.get(),
+      ParseGpuCounterEvent(args.ts, args.data.sequence_state,
                            args.field.Cast<TracePacket::kGpuCounterEvent>());
       return;
     case TracePacket::kGpuRenderStageEventFieldNumber:
       parser_.ParseGpuRenderStageEvent(
-          args.ts, args.data.sequence_state.get(),
+          args.ts, args.data.sequence_state,
           args.field.Cast<TracePacket::kGpuRenderStageEvent>());
       return;
     case TracePacket::kGpuLogFieldNumber:
@@ -247,7 +247,7 @@ void GraphicsEventModule::ParseField(const ParseFieldArgs& args) {
       return;
     case TracePacket::kVulkanMemoryEventFieldNumber:
       parser_.ParseVulkanMemoryEvent(
-          args.data.sequence_state.get(),
+          args.data.sequence_state,
           args.field.Cast<TracePacket::kVulkanMemoryEvent>());
       return;
     case TracePacket::kVulkanApiEventFieldNumber:

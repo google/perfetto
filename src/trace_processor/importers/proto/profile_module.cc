@@ -140,11 +140,11 @@ ModuleResult ProfileModule::TokenizePacket(const TokenizePacketArgs& args) {
 void ProfileModule::ParseField(const ParseFieldArgs& args) {
   switch (args.field.id()) {
     case TracePacket::kPerfSampleFieldNumber:
-      ParsePerfSample(args.ts, args.data.sequence_state.get(), args.decoder,
+      ParsePerfSample(args.ts, args.data.sequence_state, args.decoder,
                       args.field);
       return;
     case TracePacket::kProfilePacketFieldNumber:
-      ParseProfilePacket(args.ts, args.data.sequence_state.get(),
+      ParseProfilePacket(args.ts, args.data.sequence_state,
                          args.field.Cast<TracePacket::kProfilePacket>());
       return;
     case TracePacket::kModuleSymbolsFieldNumber:

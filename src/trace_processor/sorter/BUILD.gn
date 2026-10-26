@@ -37,6 +37,7 @@ source_set("sorter") {
     "../storage",
     "../types",
     "../util:bump_allocator",
+    "../util:io_mode",
     "../util:trace_type",
   ]
 }
@@ -60,5 +61,6 @@ perfetto_unittest_source_set("unittests") {
     "../importers/proto:packet_sequence_state_generation_hdr",
     "../storage",
     "../types",
+    "../util:bump_allocator",
   ]
 }

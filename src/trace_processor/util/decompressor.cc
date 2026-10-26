@@ -74,15 +74,18 @@ std::unique_ptr<Decompressor> CreateDecompressor(CompressionType type) {
   return nullptr;
 }
 
-std::optional<DecompressedBuffer> DecompressToBuffer(Decompressor& decompressor,
+std::optional<DecompressedBuffer> DecompressToBuffer(CompressionType type,
                                                      const uint8_t* data,
-                                                     size_t len,
-                                                     FrameMode frame_mode) {
+                                                     size_t len) {
   using ResultCode = Decompressor::ResultCode;
+  std::unique_ptr<Decompressor> decompressor = CreateDecompressor(type);
+  if (!decompressor) {
+    return std::nullopt;
+  }
   // Decompress into one owned buffer sized at 4x the input (the usual ratio) to
   // avoid a regrow, doubling it if that's not enough. Guard the *4 against
   // size_t overflow on 32-bit/Wasm; the grow loop covers any under-estimate.
-  decompressor.Feed(data, len);
+  decompressor->Feed(data, len);
   size_t capacity = std::max<size_t>(len > SIZE_MAX / 4 ? len : len * 4, 4096);
   std::unique_ptr<uint8_t[]> buffer(new uint8_t[capacity]);
   size_t size = 0;
@@ -94,36 +97,26 @@ std::optional<DecompressedBuffer> DecompressToBuffer(Decompressor& decompressor,
       buffer = std::move(grown);
     }
     Decompressor::Result r =
-        decompressor.ExtractOutput(buffer.get() + size, capacity - size);
+        decompressor->ExtractOutput(buffer.get() + size, capacity - size);
     if (r.ret != ResultCode::kError) {
       size += r.bytes_written;
     }
     if (r.ret == ResultCode::kOk) {
       continue;
     }
-    if (r.ret == ResultCode::kEof && decompressor.AvailIn() == 0) {
+    if (r.ret == ResultCode::kEof && decompressor->AvailIn() == 0) {
       break;  // Clean end of the last frame.
     }
     // kEof with input left is a concatenated same-codec frame (pzstd,
-    // multi-member gzip); decode it too in kAllFrames mode. Anything else (a
-    // different codec, corrupt, or truncated input) yields no usable data.
-    if (frame_mode == FrameMode::kAllFrames && r.ret == ResultCode::kEof) {
-      decompressor.Reset();
+    // multi-member gzip); decode it too. Anything else (a different codec,
+    // corrupt, or truncated input) yields no usable data.
+    if (r.ret == ResultCode::kEof) {
+      decompressor->Reset();
       continue;
     }
     return std::nullopt;
   }
   return DecompressedBuffer{std::move(buffer), size};
-}
-
-std::optional<DecompressedBuffer> DecompressToBuffer(CompressionType type,
-                                                     const uint8_t* data,
-                                                     size_t len) {
-  std::unique_ptr<Decompressor> decompressor = CreateDecompressor(type);
-  if (!decompressor) {
-    return std::nullopt;
-  }
-  return DecompressToBuffer(*decompressor, data, len, FrameMode::kAllFrames);
 }
 
 }  // namespace perfetto::trace_processor::util

@@ -16,6 +16,10 @@
 
 #include "src/trace_processor/sorter/trace_token_buffer.h"
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <optional>
 
 #include "perfetto/base/compiler.h"
@@ -29,11 +33,28 @@
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/bump_allocator.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace {
+
+// A blob whose bytes differ at every offset, so a copy which lands on the
+// wrong bytes is caught.
+TraceBlob PatternBlob(size_t size) {
+  TraceBlob blob = TraceBlob::Allocate(size);
+  for (size_t i = 0; i < size; ++i) {
+    blob.mutable_data()[i] = static_cast<uint8_t>(i * 7 + i / 251);
+  }
+  return blob;
+}
+
+// Packets are copied into the buffer, so they come back with the same bytes
+// but not as the same view.
+bool SameBytes(const TraceBlobView& a, const TraceBlobView& b) {
+  return a.size() == b.size() && memcmp(a.data(), b.data(), a.size()) == 0;
+}
 
 class TraceTokenBufferUnittest : public testing::Test {
  public:
@@ -58,110 +79,117 @@ class TraceTokenBufferUnittest : public testing::Test {
 };
 
 TEST_F(TraceTokenBufferUnittest, TracePacketDataInOut) {
-  TraceBlobView tbv(TraceBlob::Allocate(1024));
-  TracePacketData tpd{tbv.copy(), state};
+  TraceBlobView tbv(PatternBlob(1024));
+  TracePacketData tpd{tbv.copy(), state.get()};
 
   TraceTokenBuffer::Id id = store.Append(std::move(tpd));
   TracePacketData extracted = store.Extract<TracePacketData>(id);
-  ASSERT_EQ(extracted.packet, tbv);
-  ASSERT_EQ(extracted.sequence_state, state);
+  ASSERT_TRUE(SameBytes(extracted.packet, tbv));
+  ASSERT_EQ(extracted.sequence_state, state.get());
 }
 
 TEST_F(TraceTokenBufferUnittest, PacketAppendMultipleBlobs) {
-  TraceBlobView tbv_1(TraceBlob::Allocate(1024));
-  TraceBlobView tbv_2(TraceBlob::Allocate(2048));
-  TraceBlobView tbv_3(TraceBlob::Allocate(4096));
+  TraceBlobView tbv_1(PatternBlob(1024));
+  TraceBlobView tbv_2(PatternBlob(2048));
+  TraceBlobView tbv_3(PatternBlob(4096));
 
   TraceTokenBuffer::Id id_1 =
-      store.Append(TracePacketData{tbv_1.copy(), state});
+      store.Append(TracePacketData{tbv_1.copy(), state.get()});
   TraceTokenBuffer::Id id_2 =
-      store.Append(TracePacketData{tbv_2.copy(), state});
-  ASSERT_EQ(store.Extract<TracePacketData>(id_1).packet, tbv_1);
-  ASSERT_EQ(store.Extract<TracePacketData>(id_2).packet, tbv_2);
+      store.Append(TracePacketData{tbv_2.copy(), state.get()});
+  ASSERT_TRUE(SameBytes(store.Extract<TracePacketData>(id_1).packet, tbv_1));
+  ASSERT_TRUE(SameBytes(store.Extract<TracePacketData>(id_2).packet, tbv_2));
 
   TraceTokenBuffer::Id id_3 =
-      store.Append(TracePacketData{tbv_3.copy(), state});
-  ASSERT_EQ(store.Extract<TracePacketData>(id_3).packet, tbv_3);
+      store.Append(TracePacketData{tbv_3.copy(), state.get()});
+  ASSERT_TRUE(SameBytes(store.Extract<TracePacketData>(id_3).packet, tbv_3));
 }
 
 TEST_F(TraceTokenBufferUnittest, BlobSharing) {
-  TraceBlobView root(TraceBlob::Allocate(2048));
+  TraceBlobView root(PatternBlob(2048));
   TraceBlobView tbv_1 = root.slice_off(0, 1024);
   TraceBlobView tbv_2 = root.slice_off(1024, 512);
   TraceBlobView tbv_3 = root.slice_off(1536, 512);
 
   TraceTokenBuffer::Id id_1 =
-      store.Append(TracePacketData{tbv_1.copy(), state});
+      store.Append(TracePacketData{tbv_1.copy(), state.get()});
   TraceTokenBuffer::Id id_2 =
-      store.Append(TracePacketData{tbv_2.copy(), state});
-  ASSERT_EQ(store.Extract<TracePacketData>(id_1).packet, tbv_1);
-  ASSERT_EQ(store.Extract<TracePacketData>(id_2).packet, tbv_2);
+      store.Append(TracePacketData{tbv_2.copy(), state.get()});
+  ASSERT_TRUE(SameBytes(store.Extract<TracePacketData>(id_1).packet, tbv_1));
+  ASSERT_TRUE(SameBytes(store.Extract<TracePacketData>(id_2).packet, tbv_2));
 
   TraceTokenBuffer::Id id_3 =
-      store.Append(TracePacketData{tbv_3.copy(), state});
-  ASSERT_EQ(store.Extract<TracePacketData>(id_3).packet, tbv_3);
+      store.Append(TracePacketData{tbv_3.copy(), state.get()});
+  ASSERT_TRUE(SameBytes(store.Extract<TracePacketData>(id_3).packet, tbv_3));
 }
 
 TEST_F(TraceTokenBufferUnittest, SequenceStateSharing) {
-  TraceBlobView root(TraceBlob::Allocate(2048));
+  TraceBlobView root(PatternBlob(2048));
   TraceBlobView tbv_1 = root.slice_off(0, 1024);
   TraceBlobView tbv_2 = root.slice_off(1024, 512);
 
   TraceTokenBuffer::Id id_1 =
-      store.Append(TracePacketData{tbv_1.copy(), state});
+      store.Append(TracePacketData{tbv_1.copy(), state.get()});
   TraceTokenBuffer::Id id_2 =
-      store.Append(TracePacketData{tbv_2.copy(), state});
-  ASSERT_EQ(store.Extract<TracePacketData>(id_1).sequence_state, state);
-  ASSERT_EQ(store.Extract<TracePacketData>(id_2).sequence_state, state);
+      store.Append(TracePacketData{tbv_2.copy(), state.get()});
+  ASSERT_EQ(store.Extract<TracePacketData>(id_1).sequence_state, state.get());
+  ASSERT_EQ(store.Extract<TracePacketData>(id_2).sequence_state, state.get());
 }
 
 TEST_F(TraceTokenBufferUnittest, ManySequenceState) {
-  TraceBlobView root(TraceBlob::Allocate(1024));
+  TraceBlobView root(PatternBlob(1024));
 
   std::array<TraceTokenBuffer::Id, 1024> ids;
   std::array<PacketSequenceStateGeneration*, 1024> refs;
   for (uint32_t i = 0; i < 1024; ++i) {
     refs[i] = state.get();
-    ids[i] = store.Append(TracePacketData{root.slice_off(i, 1), state});
+    ids[i] = store.Append(TracePacketData{root.slice_off(i, 1), state.get()});
     state = state->OnNewTracePacketDefaults(TraceBlobView());
   }
 
   for (uint32_t i = 0; i < 1024; ++i) {
-    ASSERT_EQ(refs[i],
-              store.Extract<TracePacketData>(ids[i]).sequence_state.get());
+    ASSERT_EQ(refs[i], store.Extract<TracePacketData>(ids[i]).sequence_state);
   }
 }
 
 TEST_F(TraceTokenBufferUnittest, PacketLargeOffset) {
-  TraceBlobView tbv(TraceBlob::Allocate(256ul * 1024));
+  TraceBlobView tbv(PatternBlob(256ul * 1024));
 
   TraceBlobView slice_1 = tbv.slice_off(0, 1024ul);
   TraceTokenBuffer::Id id_1 =
-      store.Append(TracePacketData{slice_1.copy(), state});
+      store.Append(TracePacketData{slice_1.copy(), state.get()});
   TracePacketData out_1 = store.Extract<TracePacketData>(id_1);
-  ASSERT_EQ(out_1.packet, slice_1);
-  ASSERT_EQ(out_1.sequence_state, state);
+  ASSERT_TRUE(SameBytes(out_1.packet, slice_1));
+  ASSERT_EQ(out_1.sequence_state, state.get());
 
   TraceBlobView slice_2 = tbv.slice_off(128ul * 1024, 1024ul);
   TraceTokenBuffer::Id id_2 =
-      store.Append(TracePacketData{slice_2.copy(), state});
+      store.Append(TracePacketData{slice_2.copy(), state.get()});
   TracePacketData out_2 = store.Extract<TracePacketData>(id_2);
-  ASSERT_EQ(out_2.packet, slice_2);
-  ASSERT_EQ(out_2.sequence_state, state);
+  ASSERT_TRUE(SameBytes(out_2.packet, slice_2));
+  ASSERT_EQ(out_2.sequence_state, state.get());
+
+  // A packet larger than a chunk gets a heap copy of its own.
+  TraceBlobView slice_3 = tbv.slice_off(1024ul, BumpAllocator::kChunkSize + 1);
+  TraceTokenBuffer::Id id_3 =
+      store.Append(TracePacketData{slice_3.copy(), state.get()});
+  TracePacketData out_3 = store.Extract<TracePacketData>(id_3);
+  ASSERT_TRUE(SameBytes(out_3.packet, slice_3));
+  ASSERT_EQ(out_3.sequence_state, state.get());
 }
 
 TEST_F(TraceTokenBufferUnittest, TrackEventDataInOut) {
-  TraceBlobView tbv(TraceBlob::Allocate(1234));
-  TrackEventData ted(tbv.copy(), state, std::nullopt);
+  TraceBlobView tbv(PatternBlob(1234));
+  TrackEventData ted(tbv.copy(), state.get(), std::nullopt);
   ted.thread_instruction_count = 123;
   ted.extra_counter_values = {10, 2, 0, 0, 0, 0, 0, 0};
   auto counter_array = ted.extra_counter_values;
 
   TraceTokenBuffer::Id id = store.Append(std::move(ted));
   TrackEventData extracted = store.Extract<TrackEventData>(id);
-  ASSERT_EQ(extracted.event, tbv);
+  ASSERT_TRUE(SameBytes(extracted.event, tbv));
   ASSERT_EQ(extracted.packet, std::nullopt);
-  ASSERT_EQ(extracted.sequence_state, state);
+  ASSERT_EQ(extracted.sequence_state, state.get());
   ASSERT_EQ(extracted.thread_instruction_count, 123);
   ASSERT_EQ(extracted.thread_timestamp, std::nullopt);
   ASSERT_DOUBLE_EQ(extracted.counter_value, 0.0);
@@ -170,46 +198,47 @@ TEST_F(TraceTokenBufferUnittest, TrackEventDataInOut) {
 
 TEST_F(TraceTokenBufferUnittest, TrackEventDataWithPacketInOut) {
   TraceTokenBuffer keeping_store{/*keep_track_event_packets=*/true};
-  TraceBlobView packet(TraceBlob::Allocate(1234));
+  TraceBlobView packet(PatternBlob(1234));
   TraceBlobView event = packet.slice_off(100, 200);
-  TrackEventData ted(event.copy(), state, packet.copy());
+  TrackEventData ted(event.copy(), state.get(), packet.copy());
   ted.thread_timestamp = 456;
 
   TraceTokenBuffer::Id id = keeping_store.Append(std::move(ted));
   TrackEventData extracted = keeping_store.Extract<TrackEventData>(id);
-  ASSERT_EQ(extracted.event, event);
-  ASSERT_EQ(extracted.packet, packet);
-  ASSERT_EQ(extracted.sequence_state, state);
+  ASSERT_TRUE(SameBytes(extracted.event, event));
+  ASSERT_TRUE(extracted.packet);
+  ASSERT_TRUE(SameBytes(*extracted.packet, packet));
+  ASSERT_EQ(extracted.sequence_state, state.get());
   ASSERT_EQ(extracted.thread_timestamp, 456);
 }
 
 TEST_F(TraceTokenBufferUnittest, FtraceDataInOutWithoutRawTs) {
-  TraceBlobView tbv(TraceBlob::Allocate(1024));
-  FtraceData data{tbv.copy(), state, FtraceData::kRawTsUnset};
+  TraceBlobView tbv(PatternBlob(1024));
+  FtraceData data{tbv.copy(), state.get(), FtraceData::kRawTsUnset};
 
   TraceTokenBuffer::Id id = store.Append(std::move(data));
   FtraceData extracted = store.Extract<FtraceData>(id);
-  ASSERT_EQ(extracted.packet, tbv);
-  ASSERT_EQ(extracted.sequence_state, state);
+  ASSERT_TRUE(SameBytes(extracted.packet, tbv));
+  ASSERT_EQ(extracted.sequence_state, state.get());
   ASSERT_EQ(extracted.raw_ts, FtraceData::kRawTsUnset);
 }
 
 TEST_F(TraceTokenBufferUnittest, FtraceDataInOutWithRawTs) {
-  TraceBlobView tbv(TraceBlob::Allocate(1024));
+  TraceBlobView tbv(PatternBlob(1024));
   constexpr int64_t kRawTs = 1234567890123;
-  FtraceData data{tbv.copy(), state, kRawTs};
+  FtraceData data{tbv.copy(), state.get(), kRawTs};
 
   TraceTokenBuffer::Id id = store.Append(std::move(data));
   FtraceData extracted = store.Extract<FtraceData>(id);
-  ASSERT_EQ(extracted.packet, tbv);
-  ASSERT_EQ(extracted.sequence_state, state);
+  ASSERT_TRUE(SameBytes(extracted.packet, tbv));
+  ASSERT_EQ(extracted.sequence_state, state.get());
   ASSERT_EQ(extracted.raw_ts, kRawTs);
 }
 
 TEST_F(TraceTokenBufferUnittest, FtraceDataMixedRawTsPresence) {
   // Interleave entries with and without raw_ts to ensure the variable-length
   // encoding doesn't desync between adjacent allocations.
-  TraceBlobView root(TraceBlob::Allocate(2048));
+  TraceBlobView root(PatternBlob(2048));
   TraceBlobView tbv_1 = root.slice_off(0, 512);
   TraceBlobView tbv_2 = root.slice_off(512, 512);
   TraceBlobView tbv_3 = root.slice_off(1024, 512);
@@ -217,36 +246,73 @@ TEST_F(TraceTokenBufferUnittest, FtraceDataMixedRawTsPresence) {
   constexpr int64_t kRawTs3 = 300;
 
   TraceTokenBuffer::Id id_1 =
-      store.Append(FtraceData{tbv_1.copy(), state, kRawTs1});
-  TraceTokenBuffer::Id id_2 =
-      store.Append(FtraceData{tbv_2.copy(), state, FtraceData::kRawTsUnset});
+      store.Append(FtraceData{tbv_1.copy(), state.get(), kRawTs1});
+  TraceTokenBuffer::Id id_2 = store.Append(
+      FtraceData{tbv_2.copy(), state.get(), FtraceData::kRawTsUnset});
   TraceTokenBuffer::Id id_3 =
-      store.Append(FtraceData{tbv_3.copy(), state, kRawTs3});
+      store.Append(FtraceData{tbv_3.copy(), state.get(), kRawTs3});
 
   FtraceData out_1 = store.Extract<FtraceData>(id_1);
-  ASSERT_EQ(out_1.packet, tbv_1);
+  ASSERT_TRUE(SameBytes(out_1.packet, tbv_1));
   ASSERT_EQ(out_1.raw_ts, kRawTs1);
 
   FtraceData out_2 = store.Extract<FtraceData>(id_2);
-  ASSERT_EQ(out_2.packet, tbv_2);
+  ASSERT_TRUE(SameBytes(out_2.packet, tbv_2));
   ASSERT_EQ(out_2.raw_ts, FtraceData::kRawTsUnset);
 
   FtraceData out_3 = store.Extract<FtraceData>(id_3);
-  ASSERT_EQ(out_3.packet, tbv_3);
+  ASSERT_TRUE(SameBytes(out_3.packet, tbv_3));
   ASSERT_EQ(out_3.raw_ts, kRawTs3);
 }
 
 TEST_F(TraceTokenBufferUnittest, ExtractOrAppendAfterFreeMemory) {
   auto unused_res = store.Extract<TraceBlobView>(
-      store.Append(TraceBlobView(TraceBlob::Allocate(1234))));
+      store.Append(TraceBlobView(PatternBlob(1234))));
   base::ignore_result(unused_res);
 
   store.FreeMemory();
 
-  TraceTokenBuffer::Id id =
-      store.Append(TraceBlobView(TraceBlob::Allocate(4567)));
+  TraceTokenBuffer::Id id = store.Append(TraceBlobView(PatternBlob(4567)));
   TraceBlobView tbv = store.Extract<TraceBlobView>(id);
   ASSERT_EQ(tbv.size(), 4567u);
+}
+
+TEST_F(TraceTokenBufferUnittest, GenericExtractDrainsChunk) {
+  struct alignas(8) Payload {
+    int64_t value;
+  };
+  RefPtr<PacketSequenceStateGeneration> other =
+      PacketSequenceStateGeneration::CreateFirst(
+          &context, /*trusted_packet_sequence_id=*/2);
+
+  // A straggler which fills the first chunk keeps it, and every chunk after
+  // it, from being erased.
+  TraceBlobView straggler(PatternBlob(BumpAllocator::kChunkSize - 16));
+  TraceTokenBuffer::Id straggler_id =
+      store.Append(TracePacketData{straggler.copy(), state.get()});
+
+  // The second chunk is drained by a generic extract.
+  TraceBlobView tbv(PatternBlob(128));
+  TraceTokenBuffer::Id packet_id =
+      store.Append(TracePacketData{tbv.copy(), other.get()});
+  TraceTokenBuffer::Id payload_id = store.Append(Payload{42});
+  ASSERT_NE(packet_id.alloc_id.chunk_index, straggler_id.alloc_id.chunk_index);
+  ASSERT_EQ(payload_id.alloc_id.chunk_index, packet_id.alloc_id.chunk_index);
+
+  TracePacketData out = store.Extract<TracePacketData>(packet_id);
+  ASSERT_TRUE(SameBytes(out.packet, tbv));
+  ASSERT_EQ(store.Extract<Payload>(payload_id).value, 42);
+  ASSERT_FALSE(other->HasOneRef());
+
+  // The drained chunk drops its generation even though it cannot be erased.
+  store.FreeMemory();
+  EXPECT_TRUE(other->HasOneRef());
+
+  TracePacketData straggler_out = store.Extract<TracePacketData>(straggler_id);
+  ASSERT_TRUE(SameBytes(straggler_out.packet, straggler));
+  ASSERT_EQ(straggler_out.sequence_state, state.get());
+  store.FreeMemory();
+  ASSERT_TRUE(state->HasOneRef());
 }
 
 }  // namespace

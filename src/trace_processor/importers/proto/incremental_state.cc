@@ -18,10 +18,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
@@ -35,10 +37,10 @@ CustomState::~CustomState() = default;
 
 // static
 RefPtr<IncrementalState> IncrementalState::CreateSuccessor(
-    TraceProcessorContext* context,
-    TrackEventThreadDescriptor thread_descriptor) {
-  auto incr = RefPtr<IncrementalState>(new IncrementalState(context));
-  incr->thread_descriptor_ = std::move(thread_descriptor);
+    const IncrementalState& prev) {
+  auto incr = RefPtr<IncrementalState>(new IncrementalState(prev.context_));
+  incr->thread_descriptor_ = prev.thread_descriptor_;
+  incr->copies_ = prev.copies_;
   return incr;
 }
 
@@ -49,6 +51,7 @@ RefPtr<IncrementalState> IncrementalState::CreateAfterPacketLoss(
   for (auto it = prev.interned_data_.GetIterator(); it; ++it)
     incr->interned_data_.Insert(it.key(), it.value());
   incr->thread_descriptor_ = prev.thread_descriptor_;
+  incr->copies_ = prev.copies_;
   // Share non-opt-in CustomStates with |prev| (RefPtr copy). Opt-in slots
   // (ClearOnPacketLoss() == true) start empty in the new IS and will be
   // lazy-recreated; the original stays in |prev| for buffered pre-loss
@@ -83,18 +86,46 @@ void IncrementalState::InternMessage(uint32_t field_id, TraceBlobView message) {
   }
   iid = field.as_uint64();
 
-  auto res = interned_data_.Insert({field_id, iid},
-                                   InternedMessageView(std::move(message)));
+  // Re-emitted messages must be identical (the InternedData proto forbids
+  // changing them), so only the first copy is kept.
+  if (auto* existing = interned_data_.Find({field_id, iid}); existing) {
+    PERFETTO_DCHECK(
+        existing->message().length() == message_size &&
+        memcmp(existing->message().data(), message_start, message_size) == 0);
+    return;
+  }
+  interned_data_.Insert({field_id, iid}, InternedMessageView(copies_->Copy(
+                                             {field_id, iid}, message)));
+}
 
-  // If a message with this ID is already interned in the same generation,
-  // its data should not have changed (this is forbidden by the InternedData
-  // proto).
-  // TODO(eseckler): This DCHECK assumes that the message is encoded the
-  // same way if it is re-emitted.
-  PERFETTO_DCHECK(
-      res.second ||
-      (res.first->message().length() == message_size &&
-       memcmp(res.first->message().data(), message_start, message_size) == 0));
+TraceBlobView InternedCopies::Copy(InternedDataKey key,
+                                   const TraceBlobView& message) {
+  static constexpr size_t kArenaChunkSize = 64 * 1024;
+  static constexpr size_t kMaxInChunk = kArenaChunkSize / 4;
+  size_t size = message.size();
+  TraceBlobView* latest = latest_.Find(key);
+  if (latest && latest->size() == size &&
+      memcmp(latest->data(), message.data(), size) == 0) {
+    return latest->copy();
+  }
+  TraceBlobView view;
+  if (size > kMaxInChunk) {
+    view = TraceBlobView(TraceBlob::CopyFrom(message.data(), size));
+  } else {
+    if (!arena_chunk_ || arena_used_ + size > kArenaChunkSize) {
+      arena_chunk_.reset(new TraceBlob(TraceBlob::Allocate(kArenaChunkSize)));
+      arena_used_ = 0;
+    }
+    memcpy(arena_chunk_->mutable_data() + arena_used_, message.data(), size);
+    view = TraceBlobView(arena_chunk_, arena_used_, size);
+    arena_used_ += size;
+  }
+  if (latest) {
+    *latest = view.copy();
+  } else {
+    latest_.Insert(key, view.copy());
+  }
+  return view;
 }
 
 }  // namespace perfetto::trace_processor

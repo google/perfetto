@@ -108,8 +108,8 @@ base::Status EtwTokenizer::TokenizeEtwEvent(
   if (!timestamp.ok()) {
     return timestamp.status();
   }
-  module_context_->PushEtwEvent(
-      cpu, *timestamp, TracePacketData{std::move(event), std::move(state)});
+  module_context_->PushEtwEvent(cpu, *timestamp,
+                                TracePacketData{std::move(event), state.get()});
 
   return base::OkStatus();
 }

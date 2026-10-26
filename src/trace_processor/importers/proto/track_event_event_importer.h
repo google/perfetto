@@ -134,7 +134,7 @@ class TrackEventEventImporter {
         args_translation_table_(context_->args_translation_table.get()),
         ts_(ts),
         event_data_(event_data),
-        sequence_state_(event_data->sequence_state.get()),
+        sequence_state_(event_data->sequence_state),
         blob_(blob),
         event_(blob_),
         legacy_event_(event_.has_legacy_event()

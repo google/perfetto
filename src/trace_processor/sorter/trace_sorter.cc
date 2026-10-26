@@ -33,6 +33,8 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/bump_allocator.h"
+#include "src/trace_processor/util/chunk_memory.h"
+#include "src/trace_processor/util/io_mode.h"
 
 namespace perfetto::trace_processor {
 
@@ -42,7 +44,9 @@ TraceSorter::TraceSorter(TraceProcessorContext* context,
     : sorting_mode_(sorting_mode),
       storage_(context->storage.get()),
       global_stats_tracker_(context->global_stats_tracker.get()),
-      token_buffer_(context->config.analyze_trace_proto_content),
+      token_buffer_(context->config.analyze_trace_proto_content,
+                    ChunkMemory::Create(GetIoMode(context->config),
+                                        BumpAllocator::kChunkSize)),
       event_handling_(event_handling) {}
 
 TraceSorter::~TraceSorter() {
@@ -187,19 +191,24 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
         global_stats_tracker_->IncrementGlobalStats(
             stats::sorter_push_event_out_of_order);
         queue.sink->OnDiscardedEvent(this, GetTokenBufferId(event));
-        continue;
-      }
-      latest_pushed_event_ts_ = event.ts;
-
-      if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kSortAndDrop)) {
+      } else if (PERFETTO_UNLIKELY(event_handling_ ==
+                                   EventHandling::kSortAndDrop)) {
         // Parse* would extract this event and push it to the next stage. Since
         // we are skipping that, just extract and discard it.
+        latest_pushed_event_ts_ = event.ts;
         queue.sink->OnDiscardedEvent(this, GetTokenBufferId(event));
-        continue;
+      } else {
+        PERFETTO_DCHECK(event_handling_ == EventHandling::kSortAndPush);
+        latest_pushed_event_ts_ = event.ts;
+        queue.sink->OnSortedEvent(this, event.ts, GetTokenBufferId(event));
       }
-      PERFETTO_DCHECK(event_handling_ == EventHandling::kSortAndPush);
 
-      queue.sink->OnSortedEvent(this, event.ts, GetTokenBufferId(event));
+      // Extracting the event freed its token buffer allocation. If that
+      // drained its chunk, the chunk's memory is given back straight away, so
+      // the memory held stays bounded however large the events are.
+      if (PERFETTO_UNLIKELY(token_buffer_.has_drained_chunks())) {
+        token_buffer_.FreeMemory();
+      }
     }  // for (event: events)
     extracting_ = false;
 
@@ -212,10 +221,6 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
     // and global time bounds.
     events.erase_front(num_extracted);
     events.shrink_to_fit();
-
-    // Since we likely just removed a bunch of items try to reduce the memory
-    // usage of the token buffer.
-    token_buffer_.FreeMemory();
 
     // Update the queue timestamps to reflect the bounds after extraction.
     if (events.empty()) {

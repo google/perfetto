@@ -592,6 +592,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_graph",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_io_mode",
         ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
@@ -932,6 +933,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_graph",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_io_mode",
         ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
@@ -6310,6 +6312,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/util/bump_allocator.cc",
         "src/trace_processor/util/bump_allocator.h",
+        "src/trace_processor/util/chunk_memory.cc",
+        "src/trace_processor/util/chunk_memory.h",
     ],
 )
 
@@ -6413,6 +6417,14 @@ perfetto_filegroup(
     name = "src_trace_processor_util_interned_message_view",
     srcs = [
         "src/trace_processor/util/interned_message_view.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:io_mode
+perfetto_filegroup(
+    name = "src_trace_processor_util_io_mode",
+    srcs = [
+        "src/trace_processor/util/io_mode.h",
     ],
 )
 
@@ -12240,6 +12252,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_graph",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_io_mode",
         ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
@@ -12605,6 +12618,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_graph",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_io_mode",
         ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",

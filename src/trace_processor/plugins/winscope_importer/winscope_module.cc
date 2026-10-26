@@ -121,7 +121,7 @@ void WinscopeModule::ParseField(const ParseFieldArgs& args) {
       return;
     case FrameworksNativeWinscopeTracePacket::kProtologMessageFieldNumber:
       protolog_parser_.ParseProtoLogMessage(
-          args.data.sequence_state.get(),
+          args.data.sequence_state,
           args.field
               .Cast<FrameworksNativeWinscopeTracePacket::kProtologMessage>(),
           args.ts);
@@ -167,7 +167,7 @@ void WinscopeModule::ParseWinscopeExtensionsData(protozero::ConstBytes blob,
         viewcapture_parser_.Parse(
             timestamp,
             field.Cast<FrameworksBaseWinscopeExtensions::kViewcapture>(),
-            data.sequence_state.get());
+            data.sequence_state);
         return;
       case FrameworksNativeWinscopeExtensions::kAndroidInputEventFieldNumber:
         android_input_event_parser_.ParseAndroidInputEvent(

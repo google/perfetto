@@ -65,15 +65,6 @@ struct DecompressedBuffer {
   size_t size = 0;
 };
 
-// Whether DecompressToBuffer decodes one frame or a whole concatenated stream.
-enum class FrameMode {
-  // Decode exactly one frame; any input past it is treated as corrupt.
-  kSingleFrame,
-  // Decode every concatenated same-codec frame to the end (pzstd,
-  // multi-member gzip).
-  kAllFrames,
-};
-
 // Codec-agnostic streaming decompressor. Concrete codecs (gzip, zstd, ...)
 // subclass this; obtain one via CreateDecompressor() so call sites never branch
 // on the codec.
@@ -147,14 +138,6 @@ CompressionCodecInfo GetCompressionCodecInfo(CompressionType type);
 std::optional<DecompressedBuffer> DecompressToBuffer(CompressionType type,
                                                      const uint8_t* data,
                                                      size_t len);
-
-// As above, but drives an existing `decompressor` (which must be freshly
-// created or Reset()) so a caller can reuse one across calls. See FrameMode for
-// how input past the first frame is handled.
-std::optional<DecompressedBuffer> DecompressToBuffer(Decompressor& decompressor,
-                                                     const uint8_t* data,
-                                                     size_t len,
-                                                     FrameMode frame_mode);
 
 }  // namespace perfetto::trace_processor::util
 

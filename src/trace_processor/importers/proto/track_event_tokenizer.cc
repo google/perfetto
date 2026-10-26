@@ -215,7 +215,7 @@ TrackEventData NewTrackEventData(
     bool keep_packet) {
   TraceBlobView event_view = packet.slice(event.data, event.size);
   return TrackEventData(
-      std::move(event_view), state,
+      std::move(event_view), state.get(),
       keep_packet ? std::make_optional(std::move(packet)) : std::nullopt);
 }
 

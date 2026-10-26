@@ -29,6 +29,8 @@
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/public/compiler.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/util/decompressor.h"
 
@@ -207,43 +209,101 @@ class ProtoTraceTokenizer {
   // Expands a compressed_packets / zstd_compressed_packets bundle and hands
   // each packet in it to |callback|. The caller decodes the enclosing packet,
   // so the bundle is not decoded twice.
+  //
+  // The bundle is decompressed piece by piece into a window which is reused
+  // for the next piece once its packets have been handed out, so decompressed
+  // data stays in cache and no memory is allocated per bundle. The window
+  // doubles whenever one incomplete packet fills it. |callback| should copy
+  // what outlives the call rather than keep views of the packets it gets: a
+  // kept view leaves the window to the view, and the next piece goes into a
+  // newly allocated one.
   template <typename Callback = base::Status(TraceBlobView)>
   base::Status TokenizeCompressedPackets(util::CompressionType codec,
                                          TraceBlobView compressed_packets,
                                          Callback callback) {
-    TraceBlobView packets;
-    RETURN_IF_ERROR(Decompress(codec, std::move(compressed_packets), &packets));
-
-    const uint8_t* start = packets.data();
-    const uint8_t* end = packets.data() + packets.length();
-    const uint8_t* ptr = start;
-    while ((end - ptr) > 2) {
-      const uint8_t* packet_outer = ptr;
-      if (PERFETTO_UNLIKELY(*ptr != kTracePacketTag)) {
-        return base::ErrStatus("Expected TracePacket tag (ERR:tp-corrupt)");
+    RETURN_IF_ERROR(StartDecompression(codec, compressed_packets));
+    size_t fill = 0;
+    for (;;) {
+      if (fill == window_capacity_) {
+        GrowWindow(fill);
       }
-      uint64_t packet_size = 0;
-      ptr = protozero::proto_utils::ParseVarInt(++ptr, end, &packet_size);
-      const uint8_t* packet_start = ptr;
-      ptr += packet_size;
-      if (PERFETTO_UNLIKELY((ptr - packet_outer) < 2 || ptr > end)) {
-        return base::ErrStatus("Invalid packet size (ERR:tp-corrupt)");
+      util::Decompressor::Result r = decompressor_->ExtractOutput(
+          window_->mutable_data() + fill, window_capacity_ - fill);
+      if (r.ret == util::Decompressor::ResultCode::kError) {
+        return base::ErrStatus(
+            "Failed to decompress compressed_packets (ERR:tp-corrupt)");
       }
-      TraceBlobView sliced =
-          packets.slice(packet_start, static_cast<size_t>(packet_size));
-      RETURN_IF_ERROR(callback(std::move(sliced)));
+      fill += r.bytes_written;
+      size_t consumed = 0;
+      RETURN_IF_ERROR(EmitWindowPackets(fill, &consumed, callback));
+      CompactWindow(consumed, &fill);
+      if (r.ret == util::Decompressor::ResultCode::kEof) {
+        // A bundle holds exactly one compressed frame.
+        if (decompressor_->AvailIn() != 0) {
+          return base::ErrStatus(
+              "Failed to decompress compressed_packets (ERR:tp-corrupt)");
+        }
+        break;
+      }
+      if (r.ret == util::Decompressor::ResultCode::kNeedsMoreInput) {
+        return base::ErrStatus(
+            "Failed to decompress compressed_packets (ERR:tp-corrupt)");
+      }
+    }
+    if (fill > 2) {
+      return base::ErrStatus("Invalid packet size (ERR:tp-corrupt)");
     }
     return base::OkStatus();
   }
 
  private:
+  // Hands each complete packet in window_[*consumed, fill) to |callback| and
+  // advances *consumed past them. Stops at the first incomplete packet.
+  template <typename Callback>
+  base::Status EmitWindowPackets(size_t fill,
+                                 size_t* consumed,
+                                 Callback& callback) {
+    const uint8_t* start = window_->data();
+    const uint8_t* end = start + fill;
+    const uint8_t* ptr = start;
+    while ((end - ptr) > 2) {
+      if (PERFETTO_UNLIKELY(*ptr != kTracePacketTag)) {
+        return base::ErrStatus("Expected TracePacket tag (ERR:tp-corrupt)");
+      }
+      uint64_t packet_size = 0;
+      const uint8_t* packet_start =
+          protozero::proto_utils::ParseVarInt(ptr + 1, end, &packet_size);
+      if (packet_start == ptr + 1) {
+        break;  // The size varint continues into the next piece.
+      }
+      if (PERFETTO_UNLIKELY(packet_size > static_cast<uint64_t>(
+                                              PTRDIFF_MAX - (end - start)))) {
+        return base::ErrStatus("Invalid packet size (ERR:tp-corrupt)");
+      }
+      if (static_cast<uint64_t>(end - packet_start) < packet_size) {
+        break;  // The packet continues into the next piece.
+      }
+      RETURN_IF_ERROR(callback(
+          TraceBlobView(window_, static_cast<size_t>(packet_start - start),
+                        static_cast<size_t>(packet_size))));
+      ptr = packet_start + packet_size;
+    }
+    *consumed = static_cast<size_t>(ptr - start);
+    return base::OkStatus();
+  }
+
+  base::Status StartDecompression(util::CompressionType type,
+                                  const TraceBlobView& input);
+  // Moves window_[consumed, *fill) to the start of the window, first
+  // replacing the window if anything still holds a view of it.
+  void CompactWindow(size_t consumed, size_t* fill);
+  // Replaces the window with one twice as large, keeping its first |fill|
+  // bytes.
+  void GrowWindow(size_t fill);
+
   static constexpr uint8_t kTracePacketTag =
       protozero::proto_utils::MakeTagLengthDelimited(
           protos::pbzero::Trace::kPacketFieldNumber);
-
-  base::Status Decompress(util::CompressionType type,
-                          TraceBlobView input,
-                          TraceBlobView* output);
 
   // Used to glue together trace packets that span across two (or more)
   // Parse() boundaries.
@@ -253,6 +313,11 @@ class ProtoTraceTokenizer {
   // across packets; `decompressor_type_` is the codec it was built for.
   std::unique_ptr<util::Decompressor> decompressor_;
   util::CompressionType decompressor_type_ = util::CompressionType::kNone;
+
+  // The window bundles are decompressed into. It only ever grows, so after a
+  // big packet it stays as large as that packet needed.
+  RefPtr<TraceBlob> window_;
+  size_t window_capacity_ = 0;
 };
 
 }  // namespace perfetto::trace_processor

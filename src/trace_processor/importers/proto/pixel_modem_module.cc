@@ -96,7 +96,7 @@ ModuleResult PixelModemModule::TokenizePacket(const TokenizePacketArgs& args) {
           data_packet->set_pixel_modem_events()->add_events(event_bytes);
         });
     module_context_->trace_packet_stream->Push(
-        ts, TracePacketData{std::move(tbv), args.state});
+        ts, TracePacketData{std::move(tbv), args.state.get()});
   }
 
   return ModuleResult::Handled();

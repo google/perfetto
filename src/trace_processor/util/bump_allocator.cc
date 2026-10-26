@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/util/bump_allocator.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -28,30 +29,42 @@
 namespace perfetto::trace_processor {
 namespace {
 
-// TODO(b/266983484): consider using base::PagedMemory unless a) we are on a
-// platform where that doesn't make sense (WASM) b) we are trying to do heap
-// profiling.
-base::AlignedUniquePtr<uint8_t[]> Allocate(uint32_t size) {
-  uint8_t* ptr = static_cast<uint8_t*>(base::AlignedAlloc(8, size));
+RefPtr<TraceBlob> Allocate(const ChunkMemory* memory) {
+  RefPtr<TraceBlob> blob(new TraceBlob(memory->AllocateChunk()));
   // Poison the region to try and catch out of bound accesses.
-  PERFETTO_ASAN_POISON(ptr, size);
-  return base::AlignedUniquePtr<uint8_t[]>(ptr);
+  PERFETTO_ASAN_POISON(blob->mutable_data(), blob->size());
+  return blob;
 }
 
 }  // namespace
 
-BumpAllocator::BumpAllocator() = default;
+BumpAllocator::BumpAllocator() : BumpAllocator(ChunkMemory::Heap(kChunkSize)) {}
+
+BumpAllocator::BumpAllocator(RefPtr<ChunkMemory> memory)
+    : memory_(std::move(memory)) {
+  PERFETTO_CHECK(memory_->chunk_size() == kChunkSize);
+  size_t budget = memory_->resident_budget();
+  budget_chunks_ = budget == ChunkMemory::kNoBudget
+                       ? std::numeric_limits<size_t>::max()
+                       : std::max<size_t>(budget / kChunkSize, 2);
+}
 
 BumpAllocator::~BumpAllocator() {
-  for (const auto& chunk : chunks_) {
+  for (auto& chunk : chunks_) {
     PERFETTO_CHECK(chunk.unfreed_allocations == 0);
+    Drop(chunk);
   }
 }
 
 void BumpAllocator::AddChunk() {
+  if (resident_chunks_ >= budget_chunks_) {
+    MaybePageOutLast();
+  }
   Chunk chunk;
-  chunk.allocation = Allocate(kChunkSize);
+  chunk.blob = Allocate(memory_.get());
+  chunk.data = chunk.blob->mutable_data();
   chunks_.emplace_back(std::move(chunk));
+  resident_chunks_++;
 
   // Ensure that we haven't exceeded the maximum number of chunks.
   PERFETTO_CHECK(LastChunkIndex() < kMaxChunkCount);
@@ -66,18 +79,62 @@ void BumpAllocator::Free(AllocId id) {
 }
 
 void* BumpAllocator::GetPointer(AllocId id) {
-  uint64_t queue_index = ChunkIndexToQueueIndex(id.chunk_index);
-  PERFETTO_CHECK(queue_index <= std::numeric_limits<size_t>::max());
-  return chunks_.at(static_cast<size_t>(queue_index)).allocation.get() +
-         id.chunk_offset;
+  return ResidentChunk(id.chunk_index).data + id.chunk_offset;
 }
 
 BumpAllocator::Allocation BumpAllocator::GetAllocation(AllocId id) {
-  uint64_t queue_index = ChunkIndexToQueueIndex(id.chunk_index);
-  PERFETTO_CHECK(queue_index <= std::numeric_limits<size_t>::max());
+  Chunk& chunk = ResidentChunk(id.chunk_index);
+  return Allocation(chunk.data + id.chunk_offset, &chunk.unfreed_allocations,
+                    &chunk.blob);
+}
+
+void BumpAllocator::MaybePageOutLast() {
+  if (chunks_.empty()) {
+    return;
+  }
+  Chunk& chunk = chunks_.back();
+  if (!chunk.data || chunk.pinned || chunk.unfreed_allocations == 0 ||
+      !chunk.blob->HasOneRef()) {
+    return;
+  }
+  // Only the allocated prefix is written: the rest is poisoned on ASAN builds.
+  chunk.page_slot = memory_->PageOut(chunk.data, chunk.bump_offset);
+  chunk.blob.reset();
+  chunk.data = nullptr;
+  resident_chunks_--;
+}
+
+void BumpAllocator::PageIn(Chunk& chunk) {
+  PERFETTO_DCHECK(!chunk.released);
+  chunk.blob = Allocate(memory_.get());
+  chunk.data = chunk.blob->mutable_data();
+  PERFETTO_ASAN_UNPOISON(chunk.data, chunk.bump_offset);
+  memory_->PageIn(chunk.page_slot, chunk.data, chunk.bump_offset);
+  resident_chunks_++;
+}
+
+void BumpAllocator::ReleaseIfDrained(uint64_t chunk_index) {
+  uint64_t queue_index = ChunkIndexToQueueIndex(chunk_index);
+  if (queue_index + 1 >= chunks_.size()) {
+    // The last chunk is still allocated from.
+    return;
+  }
   Chunk& chunk = chunks_.at(static_cast<size_t>(queue_index));
-  return Allocation(chunk.allocation.get() + id.chunk_offset,
-                    &chunk.unfreed_allocations);
+  if (chunk.unfreed_allocations > 0 || chunk.released) {
+    return;
+  }
+  Drop(chunk);
+  chunk.released = true;
+}
+
+void BumpAllocator::Drop(Chunk& chunk) {
+  if (chunk.data) {
+    resident_chunks_--;
+  } else if (!chunk.released) {
+    memory_->FreePage(chunk.page_slot);
+  }
+  chunk.blob.reset();
+  chunk.data = nullptr;
 }
 
 void BumpAllocator::Clear() {
@@ -85,13 +142,25 @@ void BumpAllocator::Clear() {
     return;
   }
   size_t dropped = chunks_.size() - 1;
+  for (size_t i = 0; i < dropped; ++i) {
+    Drop(chunks_.at(i));
+  }
   chunks_.erase_front(dropped);
   // The kept chunk takes the next index, so ids keep growing.
   erased_front_chunks_count_ += dropped + 1;
   Chunk& chunk = chunks_.front();
   chunk.bump_offset = 0;
   chunk.unfreed_allocations = 0;
-  PERFETTO_ASAN_POISON(chunk.allocation.get(), kChunkSize);
+  chunk.pinned = false;
+  // Views of the old contents may still be alive: only reuse the memory if
+  // nothing else holds it.
+  if (!chunk.data || !chunk.blob->HasOneRef()) {
+    Drop(chunk);
+    chunk.blob = Allocate(memory_.get());
+    chunk.data = chunk.blob->mutable_data();
+    resident_chunks_++;
+  }
+  PERFETTO_ASAN_POISON(chunk.data, kChunkSize);
 }
 
 uint64_t BumpAllocator::EraseFrontFreeChunks() {
@@ -101,6 +170,9 @@ uint64_t BumpAllocator::EraseFrontFreeChunks() {
     if (chunks_.at(to_erase_chunks).unfreed_allocations > 0) {
       break;
     }
+  }
+  for (size_t i = 0; i < to_erase_chunks; ++i) {
+    Drop(chunks_.at(i));
   }
   chunks_.erase_front(to_erase_chunks);
   erased_front_chunks_count_ += to_erase_chunks;

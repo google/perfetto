@@ -21,6 +21,7 @@
 
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "src/trace_processor/importers/proto/incremental_state.h"
 #include "src/trace_processor/importers/proto/track_event_thread_descriptor.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -99,9 +100,7 @@ PacketSequenceStateGeneration::OnIncrementalStateCleared() {
   return RefPtr<PacketSequenceStateGeneration>(
       new PacketSequenceStateGeneration(
           trusted_packet_sequence_id_,
-          IncrementalState::CreateSuccessor(
-              incremental_state_->context_,
-              incremental_state_->thread_descriptor()),
+          IncrementalState::CreateSuccessor(*incremental_state_),
           /* trace_packet_defaults */ std::nullopt,
           /* is_incremental_state_valid */ true));
 }
@@ -114,7 +113,10 @@ PacketSequenceStateGeneration::OnNewTracePacketDefaults(
   return RefPtr<PacketSequenceStateGeneration>(
       new PacketSequenceStateGeneration(
           trusted_packet_sequence_id_, incremental_state_,
-          InternedMessageView(std::move(trace_packet_defaults)),
+          // Copied so the defaults don't keep the packet they arrived in
+          // alive (or point into a reused decompression window).
+          InternedMessageView(TraceBlobView(TraceBlob::CopyFrom(
+              trace_packet_defaults.data(), trace_packet_defaults.size()))),
           is_incremental_state_valid_));
 }
 

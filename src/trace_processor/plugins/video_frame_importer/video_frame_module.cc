@@ -84,8 +84,7 @@ ModuleResult VideoFrameModule::TokenizePacket(const TokenizePacketArgs& args) {
     return ModuleResult::Ignored();
   }
   module_context_->trace_packet_stream->Push(
-      *present,
-      TracePacketData{std::move(*args.packet), std::move(args.state)});
+      *present, TracePacketData{std::move(*args.packet), args.state.get()});
   return ModuleResult::Handled();
 }
 

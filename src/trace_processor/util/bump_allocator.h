@@ -19,11 +19,15 @@
 
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <tuple>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "src/trace_processor/util/chunk_memory.h"
 
 namespace perfetto::trace_processor {
 
@@ -57,7 +61,8 @@ class BumpAllocator {
 
   // The size of the "large chunk" requested from the system allocator.
   // The size of this value trades-off between unused memory use vs CPU cost
-  // of going to the system allocator. 64KB feels a good trade-off there.
+  // of going to the system allocator (and of paging chunks out, as each chunk
+  // is paged in one read or write).
   static constexpr uint64_t kChunkSize = 64ull * 1024;  // 64KB
 
   // The maximum number of chunks which this allocator can have.
@@ -98,7 +103,10 @@ class BumpAllocator {
       kChunkSize == (1 << kChunkOffsetAllocIdBits),
       "Chunk size must match the number of bits used for offset within chunk");
 
+  // Takes chunks from the heap.
   BumpAllocator();
+  // |memory|'s chunk size must be kChunkSize.
+  explicit BumpAllocator(RefPtr<ChunkMemory> memory);
 
   // Verifies that all calls to |Alloc| were paired with matching calls to
   // |Free|.
@@ -127,8 +135,8 @@ class BumpAllocator {
     chunk.bump_offset = offset + size;
     chunk.unfreed_allocations++;
     // Unpoison the allocation range to allow access to it on ASAN builds.
-    PERFETTO_ASAN_UNPOISON(chunk.allocation.get() + offset, size);
-    *ptr = chunk.allocation.get() + offset;
+    PERFETTO_ASAN_UNPOISON(chunk.data + offset, size);
+    *ptr = chunk.data + offset;
     return AllocId{LastChunkIndex(), offset};
   }
   AllocId Alloc(uint32_t size) {
@@ -144,7 +152,8 @@ class BumpAllocator {
   // will cause undefined behaviour.
   void Free(AllocId id);
 
-  // Given an AllocId, returns a pointer which can be read from/written to.
+  // Given an AllocId, returns a pointer which can be read from/written to,
+  // paging its chunk back in if it was paged out.
   //
   // The caller is only allowed to access up to |size| bytes, where |size| ==
   // the |size| argument to Alloc.
@@ -155,21 +164,35 @@ class BumpAllocator {
   class Allocation {
    public:
     void* data() const { return data_; }
+    // The blob owning the allocation's chunk. Views of it keep the chunk's
+    // memory alive after the allocator drops the chunk.
+    const RefPtr<TraceBlob>& chunk_blob() const { return *chunk_blob_; }
 
    private:
     friend class BumpAllocator;
-    Allocation(void* data, uint32_t* unfreed_allocations)
-        : data_(data), unfreed_allocations_(unfreed_allocations) {}
+    Allocation(void* data,
+               uint32_t* unfreed_allocations,
+               const RefPtr<TraceBlob>* chunk_blob)
+        : data_(data),
+          unfreed_allocations_(unfreed_allocations),
+          chunk_blob_(chunk_blob) {}
 
     void* data_;
     uint32_t* unfreed_allocations_;
+    const RefPtr<TraceBlob>* chunk_blob_;
   };
 
+  // Like GetPointer, the allocation's chunk is paged in if needed.
   Allocation GetAllocation(AllocId);
 
-  void Free(const Allocation& allocation) {
+  // Keeps the chunk of the last allocation resident: it holds an object which
+  // cannot be moved by copying its bytes.
+  void PinLastChunk() { chunks_.back().pinned = true; }
+
+  // Returns true if this freed the last allocation in its chunk.
+  bool Free(const Allocation& allocation) {
     PERFETTO_DCHECK(*allocation.unfreed_allocations_ > 0);
-    --*allocation.unfreed_allocations_;
+    return --*allocation.unfreed_allocations_ == 0;
   }
 
   // Frees every allocation, keeping the last chunk for reuse.
@@ -185,6 +208,19 @@ class BumpAllocator {
   // greater than all previously returned AllocIds.
   AllocId PastTheEndId();
 
+  // Gives back the memory of the chunk |chunk_index|, which must not be
+  // erased, if all its allocations are freed and it is not the one being
+  // allocated from. Its metadata stays until EraseFrontFreeChunks reaches it,
+  // so a drained chunk behind an undrained one costs no memory.
+  void ReleaseIfDrained(uint64_t chunk_index);
+
+  // Whether the chunk |chunk_index|, which must not be erased, still has
+  // unfreed allocations.
+  bool HasUnfreed(uint64_t chunk_index) {
+    return chunks_.at(static_cast<size_t>(ChunkIndexToQueueIndex(chunk_index)))
+               .unfreed_allocations > 0;
+  }
+
   // Returns the number of erased chunks from the start of this allocator.
   //
   // This value may change any time |EraseFrontFreeChunks| is called but is
@@ -195,21 +231,53 @@ class BumpAllocator {
 
  private:
   struct Chunk {
-    // The allocation from the system for this chunk. Because all allocations
-    // need to be 8 byte aligned, the chunk also needs to be 8-byte aligned.
-    // base::AlignedUniquePtr ensures this is the case.
-    base::AlignedUniquePtr<uint8_t[]> allocation;
+    // The chunk's memory. It is a TraceBlob so views of what is stored in it
+    // can outlive the chunk in this allocator. Heap blobs are at least 16-byte
+    // aligned, which covers the 8-byte alignment all allocations need.
+    RefPtr<TraceBlob> blob;
+    uint8_t* data = nullptr;
 
-    // The bump offset relative to |allocation.data|. Incremented to service
+    // The bump offset relative to |data|. Incremented to service
     // Alloc requests.
     uint32_t bump_offset = 0;
 
     // The number of unfreed allocations in this chunk.
     uint32_t unfreed_allocations = 0;
+
+    // While paged out, |blob| and |data| are null and |page_slot| holds the
+    // contents.
+    uint32_t page_slot = 0;
+
+    // Whether the chunk must never be paged out.
+    bool pinned = false;
+
+    // Whether the chunk drained and gave its memory back: |blob| and |data|
+    // are null and there is no page slot.
+    bool released = false;
   };
 
   // Appends a chunk for the allocations the last one cannot fit.
   void AddChunk();
+
+  // When over the resident budget, pages out the last chunk, which has just
+  // filled up: the sorter reads chunks back roughly in the order they were
+  // written, so it is the one needed last. A pinned chunk, or one with views of
+  // its memory alive, stays resident.
+  void MaybePageOutLast();
+  void PageIn(Chunk&);
+  // Frees the memory or page slot |chunk| holds, if any.
+  void Drop(Chunk&);
+
+  Chunk& ResidentChunk(uint64_t chunk_index) {
+    uint64_t queue_index = ChunkIndexToQueueIndex(chunk_index);
+    PERFETTO_CHECK(queue_index <= std::numeric_limits<size_t>::max());
+    Chunk& chunk = chunks_.at(static_cast<size_t>(queue_index));
+    PERFETTO_DCHECK(!chunk.released);
+    if (PERFETTO_UNLIKELY(!chunk.data)) {
+      PageIn(chunk);
+    }
+    return chunk;
+  }
 
   uint64_t ChunkIndexToQueueIndex(uint64_t chunk_index) const {
     return chunk_index - erased_front_chunks_count_;
@@ -222,8 +290,11 @@ class BumpAllocator {
     return QueueIndexToChunkIndex(static_cast<uint64_t>(chunks_.size() - 1));
   }
 
+  RefPtr<ChunkMemory> memory_;
   base::CircularQueue<Chunk> chunks_;
   uint64_t erased_front_chunks_count_ = 0;
+  size_t resident_chunks_ = 0;
+  size_t budget_chunks_ = 0;
 };
 
 }  // namespace perfetto::trace_processor

@@ -561,7 +561,7 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
   // later to get the exact type of the packet.
   module_context_.trace_packet_stream->Push(
       timestamp,
-      TracePacketData{std::move(packet), state->current_generation()});
+      TracePacketData{std::move(packet), state->current_generation().get()});
 
   return base::OkStatus();
 }

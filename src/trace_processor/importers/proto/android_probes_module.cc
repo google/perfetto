@@ -160,7 +160,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
                 static_cast<uint64_t>(actual_ts / 1000000));
           });
       module_context_->trace_packet_stream->Push(
-          actual_ts, TracePacketData{std::move(tbv), args.state});
+          actual_ts, TracePacketData{std::move(tbv), args.state.get()});
     }
     return ModuleResult::Handled();
   }
@@ -213,7 +213,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
             }
           });
       module_context_->trace_packet_stream->Push(
-          actual_ts, TracePacketData{std::move(tbv), args.state});
+          actual_ts, TracePacketData{std::move(tbv), args.state.get()});
     }
     if (pkt.has_stats()) {
       parser_.ParseAndroidLogStats(pkt.stats());

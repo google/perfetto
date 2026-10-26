@@ -870,7 +870,7 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
   }
   using protos::pbzero::FtraceEvent;
   const TraceBlobView& event = data.packet;
-  PacketSequenceStateGeneration* seq_state = data.sequence_state.get();
+  PacketSequenceStateGeneration* seq_state = data.sequence_state;
   ProtoDecoder decoder(event.data(), event.length());
   uint64_t raw_pid = 0;
   bool no_pid = false;

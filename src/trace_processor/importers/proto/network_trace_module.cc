@@ -133,7 +133,7 @@ ModuleResult NetworkTraceModule::TokenizePacket(
           event->set_total_packets(evt.total_packets());
           event->set_total_duration(evt.total_duration());
         });
-    PushPacketBufferForSort(args.ts, std::move(tbv), args.state);
+    PushPacketBufferForSort(args.ts, std::move(tbv), args.state.get());
   } else {
     // Push a NetworkPacketEvent for each packet in the packed arrays.
     bool parse_error = false;
@@ -155,7 +155,7 @@ ModuleResult NetworkTraceModule::TokenizePacket(
             event->AppendRawProtoBytes(context.data, context.size);
             event->set_length(*length_iter);
           });
-      PushPacketBufferForSort(real_ts, std::move(tbv), args.state);
+      PushPacketBufferForSort(real_ts, std::move(tbv), args.state.get());
     }
   }
 
@@ -341,9 +341,9 @@ void NetworkTraceModule::ParseNetworkPacketBundle(int64_t ts, ConstBytes blob) {
 void NetworkTraceModule::PushPacketBufferForSort(
     int64_t timestamp,
     TraceBlobView tbv,
-    RefPtr<PacketSequenceStateGeneration> state) {
+    PacketSequenceStateGeneration* state) {
   module_context_->trace_packet_stream->Push(
-      timestamp, TracePacketData{std::move(tbv), std::move(state)});
+      timestamp, TracePacketData{std::move(tbv), state});
 }
 
 }  // namespace perfetto::trace_processor

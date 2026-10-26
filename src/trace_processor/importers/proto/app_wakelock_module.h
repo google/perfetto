@@ -49,7 +49,7 @@ class AppWakelockModule : public ProtoImporterModule {
   // Pushes a serialized TracePacket to the sorter.
   void PushPacketBufferForSort(int64_t timestamp,
                                TraceBlobView tbv,
-                               RefPtr<PacketSequenceStateGeneration> state);
+                               PacketSequenceStateGeneration* state);
 
   TraceProcessorContext* context_;
 

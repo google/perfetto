@@ -152,8 +152,8 @@ void V8Module::ParseV8JsCode(protozero::ConstBytes bytes,
 
   V8JsCode::Decoder code(bytes);
 
-  auto v8_isolate_id = state.GetOrInsertIsolate(data.sequence_state.get(),
-                                                code.v8_isolate_iid());
+  auto v8_isolate_id =
+      state.GetOrInsertIsolate(data.sequence_state, code.v8_isolate_iid());
   if (!v8_isolate_id) {
     return;
   }
@@ -165,7 +165,7 @@ void V8Module::ParseV8JsCode(protozero::ConstBytes bytes,
   }
 
   auto v8_function_id = state.GetOrInsertJsFunction(
-      data.sequence_state.get(), code.v8_js_function_iid(), *v8_isolate_id);
+      data.sequence_state, code.v8_js_function_iid(), *v8_isolate_id);
   if (!v8_function_id) {
     return;
   }
@@ -181,8 +181,8 @@ void V8Module::ParseV8InternalCode(protozero::ConstBytes bytes,
 
   V8InternalCode::Decoder code(bytes);
 
-  auto v8_isolate_id = state.GetOrInsertIsolate(data.sequence_state.get(),
-                                                code.v8_isolate_iid());
+  auto v8_isolate_id =
+      state.GetOrInsertIsolate(data.sequence_state, code.v8_isolate_iid());
   if (!v8_isolate_id) {
     return;
   }
@@ -204,14 +204,14 @@ void V8Module::ParseV8WasmCode(protozero::ConstBytes bytes,
 
   V8WasmCode::Decoder code(bytes);
 
-  auto v8_isolate_id = state.GetOrInsertIsolate(data.sequence_state.get(),
-                                                code.v8_isolate_iid());
+  auto v8_isolate_id =
+      state.GetOrInsertIsolate(data.sequence_state, code.v8_isolate_iid());
   if (!v8_isolate_id) {
     return;
   }
 
   auto v8_wasm_script_id = state.GetOrInsertWasmScript(
-      data.sequence_state.get(), code.v8_wasm_script_iid(), *v8_isolate_id);
+      data.sequence_state, code.v8_wasm_script_iid(), *v8_isolate_id);
   if (!v8_wasm_script_id) {
     return;
   }
@@ -233,8 +233,8 @@ void V8Module::ParseV8RegExpCode(protozero::ConstBytes bytes,
 
   V8RegExpCode::Decoder code(bytes);
 
-  auto v8_isolate_id = state.GetOrInsertIsolate(data.sequence_state.get(),
-                                                code.v8_isolate_iid());
+  auto v8_isolate_id =
+      state.GetOrInsertIsolate(data.sequence_state, code.v8_isolate_iid());
   if (!v8_isolate_id) {
     return;
   }
@@ -255,8 +255,8 @@ void V8Module::ParseV8CodeMove(protozero::ConstBytes bytes,
       *data.sequence_state->GetCustomState<V8SequenceState>(v8_tracker_.get());
   protos::pbzero::V8CodeMove::Decoder v8_code_move(bytes);
 
-  std::optional<IsolateId> isolate_id = state.GetOrInsertIsolate(
-      data.sequence_state.get(), v8_code_move.isolate_iid());
+  std::optional<IsolateId> isolate_id =
+      state.GetOrInsertIsolate(data.sequence_state, v8_code_move.isolate_iid());
   if (!isolate_id) {
     return;
   }

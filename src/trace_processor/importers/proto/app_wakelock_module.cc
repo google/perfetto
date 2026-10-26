@@ -102,7 +102,7 @@ ModuleResult AppWakelockModule::TokenizePacket(const TokenizePacketArgs& args) {
           event->set_info()->AppendRawProtoBytes(interned->begin(), length);
           event->set_acquired(acquired);
         });
-    PushPacketBufferForSort(real_ts, std::move(tbv), args.state);
+    PushPacketBufferForSort(real_ts, std::move(tbv), args.state.get());
   }
 
   return ModuleResult::Handled();
@@ -162,9 +162,9 @@ void AppWakelockModule::ParseWakelockBundle(int64_t ts, ConstBytes blob) {
 void AppWakelockModule::PushPacketBufferForSort(
     int64_t timestamp,
     TraceBlobView tbv,
-    RefPtr<PacketSequenceStateGeneration> state) {
+    PacketSequenceStateGeneration* state) {
   module_context_->trace_packet_stream->Push(
-      timestamp, TracePacketData{std::move(tbv), std::move(state)});
+      timestamp, TracePacketData{std::move(tbv), state});
 }
 
 }  // namespace perfetto::trace_processor

@@ -131,7 +131,7 @@ StackSampleModule::StackSampleModule(ProtoImporterModuleContext* module_context,
 void StackSampleModule::ParseField(const ParseFieldArgs& args) {
   if (args.field.id() == TracePacket::kStackSampleFieldNumber) {
     ParseStackSample(args.ts, args.decoder.trusted_packet_sequence_id(),
-                     args.data.sequence_state.get(),
+                     args.data.sequence_state,
                      args.field.Cast<TracePacket::kStackSample>());
   }
 }

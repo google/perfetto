@@ -338,8 +338,8 @@ void FtraceTokenizer::TokenizeFtraceEvent(
 
   // Generic path: queue ts equals raw_ts, so leave FtraceData::raw_ts as the
   // kRawTsUnset sentinel (compressed away in the token buffer).
-  module_context_->PushFtraceEvent(
-      cpu, raw_ts, FtraceData{std::move(event), std::move(state)});
+  module_context_->PushFtraceEvent(cpu, raw_ts,
+                                   FtraceData{std::move(event), state.get()});
 }
 
 PERFETTO_ALWAYS_INLINE
@@ -557,11 +557,11 @@ void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(
   }
   module_context_->PushFtraceEvent(
       cpu, raw_ts,
-      FtraceData{event.copy(), state, FtraceData::kRawTsUnset,
+      FtraceData{event.copy(), state.get(), FtraceData::kRawTsUnset,
                  /*insert_ftrace_event=*/true, /*parse_event=*/false});
   module_context_->PushFtraceEvent(
       cpu, *timestamp,
-      FtraceData{std::move(event), std::move(state), raw_ts,
+      FtraceData{std::move(event), state.get(), raw_ts,
                  /*insert_ftrace_event=*/false, /*parse_event=*/true});
 }
 
@@ -589,11 +589,11 @@ void FtraceTokenizer::TokenizeFtraceThermalExynosAcpmBulk(
       static_cast<int64_t>(thermal_exynos_acpm_bulk_event.timestamp());
   module_context_->PushFtraceEvent(
       cpu, raw_ts,
-      FtraceData{event.copy(), state, FtraceData::kRawTsUnset,
+      FtraceData{event.copy(), state.get(), FtraceData::kRawTsUnset,
                  /*insert_ftrace_event=*/true, /*parse_event=*/false});
   module_context_->PushFtraceEvent(
       cpu, timestamp,
-      FtraceData{std::move(event), std::move(state), raw_ts,
+      FtraceData{std::move(event), state.get(), raw_ts,
                  /*insert_ftrace_event=*/false, /*parse_event=*/true});
 }
 
@@ -620,11 +620,11 @@ void FtraceTokenizer::TokenizeFtraceParamSetValueCpm(
   int64_t timestamp = param_set_value_cpm_event.timestamp();
   module_context_->PushFtraceEvent(
       cpu, raw_ts,
-      FtraceData{event.copy(), state, FtraceData::kRawTsUnset,
+      FtraceData{event.copy(), state.get(), FtraceData::kRawTsUnset,
                  /*insert_ftrace_event=*/true, /*parse_event=*/false});
   module_context_->PushFtraceEvent(
       cpu, timestamp,
-      FtraceData{std::move(event), std::move(state), raw_ts,
+      FtraceData{std::move(event), state.get(), raw_ts,
                  /*insert_ftrace_event=*/false, /*parse_event=*/true});
 }
 
@@ -652,11 +652,11 @@ void FtraceTokenizer::TokenizeFtraceFwtpPerfettoCounter(
       static_cast<int64_t>(fwtp_perfetto_counter_event.timestamp());
   module_context_->PushFtraceEvent(
       cpu, raw_ts,
-      FtraceData{event.copy(), state, FtraceData::kRawTsUnset,
+      FtraceData{event.copy(), state.get(), FtraceData::kRawTsUnset,
                  /*insert_ftrace_event=*/true, /*parse_event=*/false});
   module_context_->PushFtraceEvent(
       cpu, timestamp,
-      FtraceData{std::move(event), std::move(state), raw_ts,
+      FtraceData{std::move(event), state.get(), raw_ts,
                  /*insert_ftrace_event=*/false, /*parse_event=*/true});
 }
 
@@ -684,11 +684,11 @@ void FtraceTokenizer::TokenizeFtraceFwtpPerfettoSlice(
       static_cast<int64_t>(fwtp_perfetto_slice_event.timestamp());
   module_context_->PushFtraceEvent(
       cpu, raw_ts,
-      FtraceData{event.copy(), state, FtraceData::kRawTsUnset,
+      FtraceData{event.copy(), state.get(), FtraceData::kRawTsUnset,
                  /*insert_ftrace_event=*/true, /*parse_event=*/false});
   module_context_->PushFtraceEvent(
       cpu, timestamp,
-      FtraceData{std::move(event), std::move(state), raw_ts,
+      FtraceData{std::move(event), state.get(), raw_ts,
                  /*insert_ftrace_event=*/false, /*parse_event=*/true});
 }
 
@@ -715,20 +715,20 @@ void FtraceTokenizer::TokenizeFtraceAdrenoCmdbatchSync(
                             1000000000 / kAdrenoXoFreqHz;
     module_context_->PushFtraceEvent(
         pending->cpu, pending->raw_ts,
-        FtraceData{pending->event.copy(), pending->state,
+        FtraceData{pending->event.copy(), pending->state.get(),
                    FtraceData::kRawTsUnset,
                    /*insert_ftrace_event=*/true, /*parse_event=*/false});
     module_context_->PushFtraceEvent(
         pending->cpu, gpu_start_ts,
-        FtraceData{std::move(pending->event), std::move(pending->state),
+        FtraceData{std::move(pending->event), pending->state.get(),
                    pending->raw_ts,
                    /*insert_ftrace_event=*/false, /*parse_event=*/true});
     pending_adreno_cmdbatch_retired_.Erase(evt.timestamp());
     adreno_cmdbatch_sync_points_.Erase(evt.timestamp());
   }
 
-  module_context_->PushFtraceEvent(
-      cpu, raw_ts, FtraceData{std::move(event), std::move(state)});
+  module_context_->PushFtraceEvent(cpu, raw_ts,
+                                   FtraceData{std::move(event), state.get()});
 }
 
 void FtraceTokenizer::TokenizeFtraceAdrenoCmdbatchRetired(
@@ -753,11 +753,11 @@ void FtraceTokenizer::TokenizeFtraceAdrenoCmdbatchRetired(
     adreno_cmdbatch_sync_points_.Erase(evt.timestamp());
     module_context_->PushFtraceEvent(
         cpu, raw_ts,
-        FtraceData{event.copy(), state, FtraceData::kRawTsUnset,
+        FtraceData{event.copy(), state.get(), FtraceData::kRawTsUnset,
                    /*insert_ftrace_event=*/true, /*parse_event=*/false});
     module_context_->PushFtraceEvent(
         cpu, gpu_start_ts,
-        FtraceData{std::move(event), std::move(state), raw_ts,
+        FtraceData{std::move(event), state.get(), raw_ts,
                    /*insert_ftrace_event=*/false, /*parse_event=*/true});
     return;
   }
@@ -766,7 +766,7 @@ void FtraceTokenizer::TokenizeFtraceAdrenoCmdbatchRetired(
   // buffer the event for the parsing push when sync arrives.
   module_context_->PushFtraceEvent(
       cpu, raw_ts,
-      FtraceData{event.copy(), state, FtraceData::kRawTsUnset,
+      FtraceData{event.copy(), state.get(), FtraceData::kRawTsUnset,
                  /*insert_ftrace_event=*/true, /*parse_event=*/false});
   pending_adreno_cmdbatch_retired_.Insert(
       evt.timestamp(),

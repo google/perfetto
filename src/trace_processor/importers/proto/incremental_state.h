@@ -51,6 +51,22 @@ struct InternedDataKey {
 using InternedDataMap =
     base::FlatHashMapV2<InternedDataKey, InternedMessageView>;
 
+// A sequence's copies of its interned messages, shared by its successive
+// IncrementalStates: producers re-emit the same interned data after each
+// SEQ_INCREMENTAL_STATE_CLEARED, and every state still referenced by pending
+// events would otherwise hold its own copy. Keeps the latest copy per key; a
+// message is only reused if its bytes are identical, since a key can be
+// reused for different content after a clear.
+class InternedCopies : public RefCounted {
+ public:
+  TraceBlobView Copy(InternedDataKey key, const TraceBlobView& message);
+
+ private:
+  base::FlatHashMapV2<InternedDataKey, TraceBlobView> latest_;
+  RefPtr<TraceBlob> arena_chunk_;
+  size_t arena_used_ = 0;
+};
+
 class TraceProcessorContext;
 class IncrementalState;
 
@@ -120,13 +136,11 @@ class CustomState : public RefCounted {
 class IncrementalState : public RefCounted {
  public:
   explicit IncrementalState(TraceProcessorContext* context)
-      : context_(context) {}
+      : context_(context), copies_(new InternedCopies()) {}
 
   // Helper for `OnIncrementalStateCleared`: construct a successor that
   // inherits the persistent thread descriptor from the previous interval.
-  static RefPtr<IncrementalState> CreateSuccessor(
-      TraceProcessorContext* context,
-      TrackEventThreadDescriptor thread_descriptor);
+  static RefPtr<IncrementalState> CreateSuccessor(const IncrementalState& prev);
 
   // Helper for `OnPacketLoss`: construct a successor IncrementalState that
   // (a) copies the previous interval's interned data and persistent thread
@@ -206,6 +220,9 @@ class IncrementalState : public RefCounted {
 
   TraceProcessorContext* const context_;
   InternedDataMap interned_data_;
+  // Where interned messages are copied, so they neither keep the packet they
+  // arrived in alive nor point into a reused window.
+  RefPtr<InternedCopies> copies_;
   TrackEventThreadDescriptor thread_descriptor_;
   CustomStateArray custom_state_;
 };

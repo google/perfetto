@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "perfetto/trace_processor/trace_blob.h"
 
+#include <cstring>
 #include <optional>
 
 #include "perfetto/ext/base/utils.h"
@@ -27,9 +28,19 @@ namespace trace_processor {
 
 ProtoTraceTokenizer::ProtoTraceTokenizer() = default;
 
-base::Status ProtoTraceTokenizer::Decompress(util::CompressionType type,
-                                             TraceBlobView input,
-                                             TraceBlobView* output) {
+namespace {
+
+constexpr size_t kInitialWindowSize = 256 * 1024;
+
+RefPtr<TraceBlob> NewWindow(size_t capacity) {
+  return RefPtr<TraceBlob>(new TraceBlob(TraceBlob::Allocate(capacity)));
+}
+
+}  // namespace
+
+base::Status ProtoTraceTokenizer::StartDecompression(
+    util::CompressionType type,
+    const TraceBlobView& input) {
   if (!decompressor_) {
     decompressor_ = util::CreateDecompressor(type);
     decompressor_type_ = type;
@@ -48,20 +59,32 @@ base::Status ProtoTraceTokenizer::Decompress(util::CompressionType type,
   } else {
     decompressor_->Reset();
   }
-
-  // A bundle holds exactly one compressed frame, so any trailing input is
-  // malformed. Hand the owned buffer straight to the TraceBlobView so the
-  // packets sliced out of it cost no second copy.
-  std::optional<util::DecompressedBuffer> buffer =
-      util::DecompressToBuffer(*decompressor_, input.data(), input.length(),
-                               util::FrameMode::kSingleFrame);
-  if (!buffer) {
-    return base::ErrStatus(
-        "Failed to decompress compressed_packets (ERR:tp-corrupt)");
+  if (!window_) {
+    window_capacity_ = kInitialWindowSize;
+    window_ = NewWindow(window_capacity_);
   }
-  *output = TraceBlobView(
-      TraceBlob::TakeOwnership(std::move(buffer->data), buffer->size));
+  decompressor_->Feed(input.data(), input.length());
   return base::OkStatus();
+}
+
+void ProtoTraceTokenizer::CompactWindow(size_t consumed, size_t* fill) {
+  size_t rest = *fill - consumed;
+  if (PERFETTO_UNLIKELY(!window_->HasOneRef())) {
+    // Something kept a view of a packet: leave this window to it.
+    RefPtr<TraceBlob> fresh = NewWindow(window_capacity_);
+    memcpy(fresh->mutable_data(), window_->data() + consumed, rest);
+    window_ = std::move(fresh);
+  } else if (consumed > 0 && rest > 0) {
+    memmove(window_->mutable_data(), window_->data() + consumed, rest);
+  }
+  *fill = rest;
+}
+
+void ProtoTraceTokenizer::GrowWindow(size_t fill) {
+  window_capacity_ *= 2;
+  RefPtr<TraceBlob> bigger = NewWindow(window_capacity_);
+  memcpy(bigger->mutable_data(), window_->data(), fill);
+  window_ = std::move(bigger);
 }
 
 }  // namespace trace_processor

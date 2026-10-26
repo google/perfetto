@@ -149,7 +149,7 @@ ModuleResult StatsdModule::TokenizePacket(const TokenizePacketArgs& args) {
                               (*it).size);
         });
     module_context_->trace_packet_stream->Push(
-        atom_timestamp, TracePacketData{std::move(tbv), args.state});
+        atom_timestamp, TracePacketData{std::move(tbv), args.state.get()});
   }
 
   return ModuleResult::Handled();

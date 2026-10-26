@@ -132,9 +132,12 @@ struct alignas(8) JsonEvent {
 };
 static_assert(sizeof(JsonEvent) % 8 == 0);
 
+// The sorter's payloads borrow their generation: the token buffer keeps it
+// alive while the event waits and is parsed. Anything holding one past that
+// must take its own RefPtr.
 struct alignas(8) TracePacketData {
   TraceBlobView packet;
-  RefPtr<PacketSequenceStateGeneration> sequence_state;
+  PacketSequenceStateGeneration* sequence_state = nullptr;
 };
 static_assert(sizeof(TracePacketData) % 8 == 0);
 
@@ -151,7 +154,7 @@ struct alignas(8) FtraceData {
   static constexpr int64_t kRawTsUnset = std::numeric_limits<int64_t>::max();
 
   TraceBlobView packet;
-  RefPtr<PacketSequenceStateGeneration> sequence_state;
+  PacketSequenceStateGeneration* sequence_state = nullptr;
   int64_t raw_ts = kRawTsUnset;
   // Custom tokenizers that forge a different sorter timestamp push each
   // event twice: once at raw_ts for the ftrace_event table, and once at
@@ -163,11 +166,9 @@ static_assert(sizeof(FtraceData) % 8 == 0);
 
 struct alignas(8) TrackEventData {
   TrackEventData(TraceBlobView e,
-                 RefPtr<PacketSequenceStateGeneration> generation,
+                 PacketSequenceStateGeneration* generation,
                  std::optional<TraceBlobView> p)
-      : event(std::move(e)),
-        sequence_state(std::move(generation)),
-        packet(std::move(p)) {}
+      : event(std::move(e)), sequence_state(generation), packet(std::move(p)) {}
 
   static constexpr uint8_t kMaxNumExtraCounters = 8;
 
@@ -181,7 +182,7 @@ struct alignas(8) TrackEventData {
 
   // The TrackEvent field of the packet.
   TraceBlobView event;
-  RefPtr<PacketSequenceStateGeneration> sequence_state;
+  PacketSequenceStateGeneration* sequence_state = nullptr;
   // The whole TracePacket. Only kept when the content analyzer is enabled, as
   // it is the only consumer of the rest of the packet.
   std::optional<TraceBlobView> packet;
