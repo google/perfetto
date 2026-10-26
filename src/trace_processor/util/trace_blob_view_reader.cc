@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
+#include <limits>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -40,8 +41,7 @@ void TraceBlobViewReader::PushBack(TraceBlobView data) {
   end_offset_ += size;
 }
 
-bool TraceBlobViewReader::PopFrontUntil(const size_t target_offset) {
-  PERFETTO_CHECK(start_offset() <= target_offset);
+bool TraceBlobViewReader::PopFrontUntilSlow(const size_t target_offset) {
   while (!data_.empty()) {
     Entry& entry = data_.front();
     if (target_offset == entry.start_offset) {
@@ -50,7 +50,8 @@ bool TraceBlobViewReader::PopFrontUntil(const size_t target_offset) {
     const size_t bytes_to_pop = target_offset - entry.start_offset;
     if (entry.data.size() > bytes_to_pop) {
       entry.data =
-          entry.data.slice_off(bytes_to_pop, entry.data.size() - bytes_to_pop);
+          std::move(entry.data)
+              .slice_off(bytes_to_pop, entry.data.size() - bytes_to_pop);
       entry.start_offset += bytes_to_pop;
       return true;
     }
@@ -67,6 +68,12 @@ auto TraceBlobViewReader::SliceOffImpl(const size_t offset,
   if (PERFETTO_UNLIKELY(length == 0)) {
     return visitor.OneSlice(TraceBlobView());
   }
+
+  // `offset + length` is computed in size_t arithmetic below, so an overflowing
+  // (offset, length) pair would wrap and produce an out-of-bounds slice.
+  // Callers that read untrusted section bounds (e.g. the perf.data tokenizer)
+  // reject such traces before slicing, so we should never reach here with one.
+  PERFETTO_CHECK(offset <= std::numeric_limits<size_t>::max() - length);
 
   PERFETTO_DCHECK(offset >= start_offset());
 
@@ -123,7 +130,7 @@ auto TraceBlobViewReader::SliceOffImpl(const size_t offset,
   return visitor.Finalize(std::move(res));
 }
 
-std::optional<TraceBlobView> TraceBlobViewReader::SliceOff(
+std::optional<TraceBlobView> TraceBlobViewReader::SliceOffSlow(
     size_t offset,
     size_t length) const {
   struct Visitor {
@@ -138,7 +145,7 @@ std::optional<TraceBlobView> TraceBlobViewReader::SliceOff(
     }
 
     static void AddSlice(TraceBlob& blob, size_t offset, TraceBlobView tbv) {
-      memcpy(blob.data() + offset, tbv.data(), tbv.size());
+      memcpy(blob.mutable_data() + offset, tbv.data(), tbv.size());
     }
 
     static std::optional<TraceBlobView> Finalize(TraceBlob blob) {

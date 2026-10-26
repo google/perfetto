@@ -177,7 +177,7 @@ export default class implements PerfettoPlugin {
       const selectedClients = new Array<ClientId>();
       const sel = ensureExists(clientsSelect).selectedOptions;
       for (let i = 0; i < sel.length; i++) {
-        const clientId = parseInt(sel[i].value);
+        const clientId = parseInt(sel[i]!.value);
         if (!isNaN(clientId)) selectedClients.push(clientId);
       }
       selectedClients.push(this._clientId); // Always add ourselves.
@@ -478,10 +478,7 @@ interface MsgSessionStop {
 
 // In case of new messages, they should be "or-ed" here.
 type SyncMessages =
-  | MsgSetViewport
-  | MsgAdvertise
-  | MsgSessionStart
-  | MsgSessionStop;
+  MsgSetViewport | MsgAdvertise | MsgSessionStart | MsgSessionStop;
 
 interface SyncMessage {
   perfettoSync: SyncMessages;

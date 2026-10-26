@@ -402,7 +402,10 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
 
       const rows = this.relevantThreadTracks.map((track, i) => {
         let description = '';
-        if (i == 0 || track.thread != this.relevantThreadTracks[i - 1].thread) {
+        if (
+          i == 0 ||
+          track.thread != this.relevantThreadTracks[i - 1]!.thread
+        ) {
           description = track.causeDescription;
         }
         return [
@@ -429,7 +432,7 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
 
     return m(
       Section,
-      {title: this.isJankStage ? `Jank Cause: ${name}` : name ?? '[null]'},
+      {title: this.isJankStage ? `Jank Cause: ${name}` : (name ?? '[null]')},
       childWidgets,
     );
   }

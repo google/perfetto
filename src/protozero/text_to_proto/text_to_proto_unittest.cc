@@ -58,6 +58,15 @@ TEST(TextToProtoTest, RegularField) {
   EXPECT_EQ(dec.base_string().ToStdString(), "hello");
 }
 
+TEST(TextToProtoTest, AdjacentStringsAreConcatenated) {
+  auto result = Parse(".protozero.test.protos.EveryField",
+                      R"(field_string: "hello, "
+                                           "world")");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  pbtest::EveryField::Decoder dec(result.value().data(), result.value().size());
+  EXPECT_EQ(dec.field_string().ToStdString(), "hello, world");
+}
+
 TEST(TextToProtoTest, ExtensionWrapperScoped) {
   auto result = Parse(".protozero.test.protos.RealFakeEvent",
                       R"(base_int: 7

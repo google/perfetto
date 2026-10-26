@@ -1,4 +1,4 @@
-# Merging traces in the Perfetto UI
+# Merging traces in the UI
 
 The Perfetto UI can open several trace files at once and merge them onto a
 single shared timeline: traces from two devices, an app trace next to a
@@ -8,9 +8,9 @@ each belongs to, and warns before opening if any events would not fit on the
 shared timeline.
 
 For merging in scripts or CI, see
-[Merging traces with Trace Processor](/docs/analysis/merging-traces.md).
+[Merging traces from the command line](/docs/analysis/merging-traces.md).
 For the underlying model, see
-[How trace merging works](/docs/concepts/merging-traces.md).
+[Trace merging](/docs/concepts/merging-traces.md).
 
 ## When to use it
 
@@ -146,9 +146,9 @@ The dialog's footer helps bootstrap exactly that:
 
 ## Next steps
 
-- [Merging traces with Trace Processor](/docs/analysis/merging-traces.md):
+- [Merging traces from the command line](/docs/analysis/merging-traces.md):
   the same merges from the command line, scripts and CI.
 - [Trace manifest format](/docs/reference/perfetto-manifest.md): what
   "Copy manifest" produces, field by field.
-- [How trace merging works](/docs/concepts/merging-traces.md): clocks,
+- [Trace merging](/docs/concepts/merging-traces.md): clocks,
   machines and the placement rules behind the dialog.

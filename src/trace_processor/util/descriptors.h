@@ -54,6 +54,8 @@ class FieldDescriptor {
   std::optional<uint32_t> flags_enum_descriptor_idx() const {
     return flags_enum_descriptor_idx_;
   }
+  bool is_pid() const { return is_pid_; }
+  bool is_tid() const { return is_tid_; }
   bool is_repeated() const { return is_repeated_; }
   bool is_packed() const { return is_packed_; }
   bool is_extension() const { return is_extension_; }
@@ -75,6 +77,9 @@ class FieldDescriptor {
     flags_enum_descriptor_idx_ = idx;
   }
 
+  void set_is_pid(bool is_pid) { is_pid_ = is_pid; }
+  void set_is_tid(bool is_tid) { is_tid_ = is_tid; }
+
   void set_extension_full_name(const std::string& extension_full_name) {
     extension_full_name_ = extension_full_name;
   }
@@ -86,6 +91,8 @@ class FieldDescriptor {
   std::string raw_type_name_;
   std::string resolved_type_name_;
   std::optional<uint32_t> flags_enum_descriptor_idx_;
+  bool is_pid_ = false;
+  bool is_tid_ = false;
   std::vector<uint8_t> options_;
   std::optional<std::string> default_value_;
   bool is_repeated_;
@@ -106,7 +113,7 @@ class ProtoDescriptor {
 
   void AddField(FieldDescriptor descriptor) {
     PERFETTO_DCHECK(type_ == Type::kMessage);
-    fields_.emplace(descriptor.number(), std::move(descriptor));
+    fields_.insert_or_assign(descriptor.number(), std::move(descriptor));
   }
 
   void AddEnumValue(int32_t integer_representation,
@@ -202,7 +209,7 @@ struct ExtensionInfo {
 struct ExtensionTypeCheck {
   std::string extendee_full_name;
   std::string field_name;
-  std::string existing_raw_type;
+  FieldDescriptor existing_field;
   std::string new_raw_type;
 };
 
@@ -239,7 +246,12 @@ class DescriptorPool {
 
   std::vector<uint8_t> SerializeAsDescriptorSet() const;
 
+  // Bumped whenever a descriptor is added or changed, so that state derived
+  // from the pool can tell it is stale.
+  uint32_t generation() const { return generation_; }
+
   void AddProtoDescriptorForTesting(ProtoDescriptor descriptor) {
+    generation_++;
     AddProtoDescriptor(std::move(descriptor));
   }
 
@@ -247,7 +259,8 @@ class DescriptorPool {
     return descriptors_;
   }
 
-  // Opaque memo of a resolved descriptor, reused across FindEnumString calls.
+  // Opaque memo of a resolved descriptor, reused across FindEnumString and
+  // FlagSetToViews calls.
   class CachedDescriptor {
    public:
     CachedDescriptor() = default;
@@ -271,7 +284,16 @@ class DescriptorPool {
                          int64_t mask,
                          std::vector<std::string_view>* out) const;
 
+  // Same as above, resolving |enum_name| via |cache| so later calls skip the
+  // by-name lookup.
+  int64_t FlagSetToViews(CachedDescriptor& cache,
+                         std::string_view enum_name,
+                         int64_t mask,
+                         std::vector<std::string_view>* out) const;
+
  private:
+  std::optional<uint32_t> FindDescriptorIdx(CachedDescriptor& cache,
+                                            std::string_view full_name) const;
   base::Status AddNestedProtoDescriptors(
       const std::string& file_name,
       const std::string& package_name,
@@ -303,9 +325,22 @@ class DescriptorPool {
                               uint32_t option_number,
                               FieldDescriptor* field);
 
+  // The field numbers of Perfetto's custom field options, looked up once.
+  struct CustomOptionNumbers {
+    std::optional<uint32_t> flags_enum;
+    std::optional<uint32_t> pid;
+    std::optional<uint32_t> tid;
+  };
+  CustomOptionNumbers FindCustomOptionNumbers() const;
+  void ResolveCustomFieldOptions(const ProtoDescriptor& descriptor,
+                                 const CustomOptionNumbers& numbers,
+                                 FieldDescriptor* field);
+
   // Adds a new descriptor to the pool and returns its index. There must not be
   // already a descriptor with the same full_name in the pool.
   uint32_t AddProtoDescriptor(ProtoDescriptor descriptor);
+
+  uint32_t generation_ = 0;
 
   bool DescriptorsStructurallyEqual(
       uint32_t root_existing_idx,

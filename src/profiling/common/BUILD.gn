@@ -15,31 +15,6 @@
 import("../../../gn/perfetto.gni")
 import("../../../gn/test.gni")
 
-source_set("unwind_support") {
-  public_deps = [ "../../../gn:libunwindstack" ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../../src/base",
-  ]
-  sources = [
-    "unwind_support.cc",
-    "unwind_support.h",
-  ]
-}
-
-source_set("callstack_trie") {
-  public_deps = [ ":unwind_support" ]
-  deps = [
-    ":interner",
-    "../../../gn:default_deps",
-    "../../../src/base",
-  ]
-  sources = [
-    "callstack_trie.cc",
-    "callstack_trie.h",
-  ]
-}
-
 source_set("interner") {
   deps = [
     "../../../gn:default_deps",
@@ -48,20 +23,49 @@ source_set("interner") {
   sources = [ "interner.h" ]
 }
 
-source_set("interning_output") {
-  deps = [
-    ":callstack_trie",
-    ":interner",
-    "../../../gn:default_deps",
-    "../../../include/perfetto/ext/tracing/core",
-    "../../../protos/perfetto/trace:zero",
-    "../../../protos/perfetto/trace/interned_data:zero",
-    "../../../protos/perfetto/trace/profiling:zero",
-  ]
-  sources = [
-    "interning_output.cc",
-    "interning_output.h",
-  ]
+# Evaluate libunwindstack dependency only when building profilers. Otherwise
+# other targets in this file cannot be used outside of profiler builds.
+if (enable_perfetto_heapprofd || enable_perfetto_traced_perf) {
+  source_set("unwind_support") {
+    public_deps = [ "../../../gn:libunwindstack" ]
+    deps = [
+      "../../../gn:default_deps",
+      "../../../src/base",
+    ]
+    sources = [
+      "unwind_support.cc",
+      "unwind_support.h",
+    ]
+  }
+
+  source_set("callstack_trie") {
+    public_deps = [ ":unwind_support" ]
+    deps = [
+      ":interner",
+      "../../../gn:default_deps",
+      "../../../src/base",
+    ]
+    sources = [
+      "callstack_trie.cc",
+      "callstack_trie.h",
+    ]
+  }
+
+  source_set("interning_output") {
+    deps = [
+      ":callstack_trie",
+      ":interner",
+      "../../../gn:default_deps",
+      "../../../include/perfetto/ext/tracing/core",
+      "../../../protos/perfetto/trace:zero",
+      "../../../protos/perfetto/trace/interned_data:zero",
+      "../../../protos/perfetto/trace/profiling:zero",
+    ]
+    sources = [
+      "interning_output.cc",
+      "interning_output.h",
+    ]
+  }
 }
 
 source_set("proc_utils") {

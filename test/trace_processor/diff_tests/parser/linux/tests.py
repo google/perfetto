@@ -61,3 +61,26 @@ class Linux(TestSuite):
         "ts","prio","tag","msg","uid","comm","systemd_unit","hostname","transport"
         1000000000,6,"myapp","hello world",1000,"myapp","myapp.service","myhost","journal"
         """))
+
+  def test_journald_stats_not_log(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000000000
+          journald_event {
+            num_total: 42
+            num_failed: 0
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE linux.systemd_journald;
+        SELECT
+          (SELECT count(*) FROM linux_systemd_journald_logs) AS log_count,
+          (SELECT value FROM stats WHERE name = 'systemd_journal_num_total') AS num_total,
+          (SELECT value FROM stats WHERE name = 'systemd_journal_num_failed') AS num_failed;
+        """,
+        out=Csv("""
+        "log_count","num_total","num_failed"
+        0,42,0
+        """))

@@ -1,9 +1,10 @@
 # Recording Perfetto Traces on Android (Helper Scripts)
 
 > [!IMPORTANT] **Scope:** This guide is **strictly for recording traces on
-> Android devices**. For other platforms (such as Linux, macOS, or Chrome),
-> please refer to the platform-specific documentation on
-> [perfetto.dev/docs](https://perfetto.dev/docs/).
+> Android devices**. For Linux, read
+> [recording_linux_traces.md]($SKILL_ROOT/infra-references/recording_linux_traces.md);
+> for other platforms (macOS, Chrome), please refer to the platform-specific
+> documentation on [perfetto.dev/docs](https://perfetto.dev/docs/).
 
 Rather than running raw `adb` commands, you should use the official Perfetto
 helper scripts. They automatically handle pushing configurations, starting the
@@ -123,14 +124,18 @@ System).
 
 --------------------------------------------------------------------------------
 
-## 4. Fallback: "Choose Your Own Adventure" (Custom Configs)
+## 4. Custom Configs (Mix & Match Data Sources)
 
 If you need a custom mixture of data sources (e.g., combining Java heap dumps
-with ftrace) that is not covered by the specialized scripts:
+with ftrace), or control the command-line flags don't offer (ring buffers,
+long traces, per-counter polling), synthesize a config:
 
-1.  **Synthesize the Config:** Draft a custom Perfetto protobuf text
-    configuration (`config.pftxt`) based on the data source schemas and examples
-    from the official
+1.  **Read the config reference:**
+    [trace_config_reference.md]($SKILL_ROOT/infra-references/trace_config_reference.md)
+    explains the config shape and every common data source, and points to
+    ready-made exemplar configs in
+    `$SKILL_ROOT/infra-references/example-configs/` that you can start from
+    and merge. For exotic data sources not covered there, draft from the
     [Perfetto Data Sources Documentation](https://perfetto.dev/docs/data-sources/).
 2.  **Save the Config:** Write the synthesized text configuration to a local
     file (e.g., `config.pftxt`).
@@ -141,3 +146,6 @@ with ftrace) that is not covered by the specialized scripts:
     ```bash
     ./record_android_trace -c config.pftxt -o ./my_trace.perfetto-trace
     ```
+
+    If the config has a typo, this fails fast with a parse error naming the
+    bad field — fix the config and retry.

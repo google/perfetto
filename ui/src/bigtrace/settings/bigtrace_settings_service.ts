@@ -42,19 +42,19 @@ function toSettingDescriptor(
   const {id = '', name = '', description = '', disabled, category} = option;
 
   let type:
-    | 'string'
-    | 'number'
-    | 'boolean'
-    | 'enum'
-    | 'multi-select'
-    | 'string-array' = 'string';
+    'string' | 'number' | 'boolean' | 'enum' | 'multi-select' | 'string-array' =
+    'string';
   let schema: z.ZodType<unknown> = z.any();
   let defaultValue: unknown = undefined;
   let optionsList: {value: string; label: string}[] | undefined = undefined;
+  let min: number | undefined = undefined;
+  let max: number | undefined = undefined;
 
   if (option.number) {
     type = 'number';
     schema = z.number();
+    min = option.number.min;
+    max = option.number.max;
     if (option.number.min !== undefined && option.number.min !== 0) {
       schema = (schema as z.ZodNumber).min(option.number.min);
     }
@@ -106,6 +106,8 @@ function toSettingDescriptor(
     schema,
     defaultValue,
     category,
+    min,
+    max,
     options: optionsList,
     disabled: disabled ?? false,
   };

@@ -25,6 +25,9 @@ This guide covers:
 - [Viewing display video](#viewing-display-video): the timeline track,
   hovering to preview a frame, and playing the capture back with the
   timeline kept in sync.
+- [Linking frames to the frame timeline](#linking-frames-to-the-frame-timeline):
+  matching each captured frame to the SurfaceFlinger vsync that produced
+  it.
 
 ## How it works, and what it costs
 
@@ -48,7 +51,7 @@ There are three ways to turn on display-video capture, from the simplest
 to the most control. On `user` builds there is also a one-time-per-boot
 property to set first — see the prerequisite below.
 
-### Prerequisite on `user` builds
+### Prerequisite on `user` builds {#prerequisite-on-user-builds}
 
 On `userdebug` (debuggable) devices, display-video capture works out of
 the box, and you can skip this step. On `user` (production) builds it is
@@ -107,6 +110,7 @@ data_sources {
       scale: 0.5
       format: FORMAT_H264
       key_frame_interval_secs: 2
+      bitrate_bps: 8000000  # 8 Mbps
       max_stream_size_bytes: 67108864  # 64 MiB per display
     }
   }
@@ -118,6 +122,7 @@ data_sources {
 | `scale` | Factor applied to each display's resolution before capture, e.g. `0.5` for half size or `0.25` for quarter. Lower scale means less encoder load and a smaller trace, at the cost of detail. |
 | `format` | `FORMAT_H264` (the default) or `FORMAT_HEVC`. HEVC produces a smaller stream at the same quality, but the device must support HEVC encoding to capture it and the browser must support HEVC decoding to preview it. |
 | `key_frame_interval_secs` | How often a keyframe is emitted. Smaller values make seeking snappier but grow the trace; larger values are more compact but slower to scrub. |
+| `bitrate_bps` | Target encoder bitrate, in bits per second. Trace size is roughly bitrate × duration, so this trades quality against size at a fixed resolution (unlike `scale`, which lowers the resolution). Left unset, the device picks a default. |
 | `max_stream_size_bytes` | A per-display cap on emitted bytes. When a display hits it, its stream is torn down (a size-cap error) rather than growing without bound. Left unset, the device applies a default cap of 256 MiB per display. |
 
 ## Size limits
@@ -145,7 +150,11 @@ A trace that contains display video shows a **Video Frames** group with
 one track per display (for a phone, typically a single **Built-in
 Screen**). Each slice on the track is one captured frame, labelled with a
 frame number. That number is just a sequential counter of captured frames
-— it has nothing to do with the vsync ids in the frame timeline.
+— it has nothing to do with the vsync ids in the frame timeline. A frame
+that is linked to the SurfaceFlinger composite that produced it is
+labelled with that composite's vsync id instead (e.g. `vsync 123456`);
+see [Linking frames to the frame
+timeline](#linking-frames-to-the-frame-timeline).
 
 ![The Perfetto timeline with the "Video Frames" group's "Built-in Screen" track pinned to the top — a row of coloured slices labelled Frame 30, Frame 57, and so on — above the CPU scheduling tracks.](../images/video_frames/03-track.png)
 
@@ -170,3 +179,104 @@ the speed selector to play back slower (down to 0.1×) or faster (up to
 2×).
 
 ![Playing a display-video capture back with the video-frames track pinned at the top: in the details panel the decoded preview advances from the settings screen to the launcher while the frame number and timestamp update.](../images/video_frames/05-playback.gif)
+
+### Exporting to an .mp4 from the command line
+
+`python/tools/trace_video_conv.py` pulls the captured video out of a trace
+into an `.mp4` using ffmpeg's libav (the encoded frames are copied as-is, not
+re-encoded). It needs the PyAV package (`pip install av`), plus `ffmpeg` on the
+`PATH` for `--compare` and for clips with frameless gaps that need padding;
+`trace_processor` is downloaded
+automatically, or pass `--trace-processor` to use a local build.
+
+```bash
+# List the video streams in a trace.
+python3 python/tools/trace_video_conv.py TRACE.perfetto-trace --list
+
+# Convert the whole video to an .mp4.
+python3 python/tools/trace_video_conv.py TRACE.perfetto-trace -o out.mp4
+
+# Clip to a time range (trace ts, ns), or to whatever a query selects
+# (the query returns a `ts` column, and optionally `dur`).
+python3 python/tools/trace_video_conv.py TRACE.perfetto-trace -o clip.mp4 --start <ts> --end <ts>
+python3 python/tools/trace_video_conv.py TRACE.perfetto-trace -o clip.mp4 \
+    --query "SELECT ts, dur FROM slice WHERE name = 'my_cuj'"
+
+# Slow motion (0.5x) or 2x faster.
+python3 python/tools/trace_video_conv.py TRACE.perfetto-trace -o out.mp4 --speed 0.5
+
+# Two traces side by side, each captioned (defaults to the file names).
+python3 python/tools/trace_video_conv.py before.perfetto-trace --compare after.perfetto-trace \
+    -o compare.mp4 --title Before --title2 After
+```
+
+| Option | Description |
+| --- | --- |
+| `-o, --output` | Output `.mp4` path. |
+| `--list` | List the trace's video streams and exit. |
+| `--display-id` | Which stream to use, for a trace with more than one display. |
+| `--start`, `--end` | Clip to a time range, in trace `ts` nanoseconds. |
+| `--query` | Clip to the region a SQL query selects (returns `ts`, optionally `dur`). |
+| `--speed` | Playback speed of the output: `2` = twice as fast, `0.5` = slow motion. |
+| `--compare` | A second trace, placed to the right for a side-by-side comparison. |
+| `--display-id2` | Which stream to use from the `--compare` trace. |
+| `--start2`, `--end2` | Clip the `--compare` trace to a time range. |
+| `--query2` | Clip the `--compare` trace to a SQL-selected region. |
+| `--title`, `--title2` | Captions for the first and second videos (default: the file names). |
+| `--trace-processor` | Path to a local `trace_processor` build (otherwise one is downloaded). |
+
+## Linking frames to the frame timeline
+
+Each captured frame can be linked to the SurfaceFlinger composite that
+produced it, and through it to that vsync's
+[frame timeline](/docs/data-sources/frametimeline.md). The link comes from
+SurfaceFlinger's **android.surfaceflinger.virtualdisplay** data source,
+which emits one packet per composite queued to a virtual display, with the
+composite's vsync id and the present time stamped on the queued buffer.
+The encoder normally carries that present time through as the frame's
+presentation time, so trace_processor matches the two and stores the vsync
+id in the `frame_timeline_vsync_id` column of `__intrinsic_video_frames`.
+
+Enable it next to the capture, together with the frame timeline that the
+links point to:
+
+```
+data_sources {
+  config {
+    name: "android.display.video"
+  }
+}
+data_sources {
+  config {
+    name: "android.surfaceflinger.virtualdisplay"
+  }
+}
+data_sources {
+  config {
+    name: "android.surfaceflinger.frametimeline"
+  }
+}
+```
+
+The virtual display data source is only available on devices whose
+SurfaceFlinger has the
+`com.android.graphics.surfaceflinger.flags.virtual_display_composite_tracing`
+flag enabled. Without it, frames are captured as usual but stay unlinked.
+
+In the UI, linked frames are labelled with their vsync id on the video
+track. The video frame's details show the **Frame timeline vsync id**,
+which links to the SurfaceFlinger DisplayFrame on the frame timeline, and
+list the app frames composited into it, each linking to that app's frame.
+In the other direction, selecting a slice on an **Actual Timeline** track
+shows a **Display video** section with a **Jump to video frame** link when
+that vsync produced a captured frame.
+
+A frame stays unlinked when no composite has its presentation time, for
+example because the encoder adjusted the timestamps, or when composites
+with different vsync ids share it. The
+`android_video_vsync_composite_unmatched` stat counts composites with no
+matching video frame, and `android_video_vsync_present_time_ambiguous`
+counts present times that map to conflicting vsync ids and matched a
+frame. The display id in the composite packets is SurfaceFlinger's id for
+the virtual display, which is unrelated to the video stream's display id,
+so the present time is the only key the match can use.

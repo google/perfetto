@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -33,6 +34,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 
 // Analogous to ASSIGN_OR_RETURN macro. Returns an sqlite error.
 #define SQLITE_RETURN_IF_ERROR(vtab, expr)                                  \
@@ -77,6 +79,37 @@ struct MovePointer {
   T value_;
   bool taken_ = false;
 };
+
+// Extracts a movable pointer value created by MovePointerResult.
+template <typename T>
+MovePointer<T>* MovePointerValue(sqlite3_value* value, const char* type) {
+  return sqlite::value::Pointer<MovePointer<T>>(value, type);
+}
+
+// Extracts and consumes a movable pointer value, returning an error if the
+// SQLite value has the wrong pointer type or was already consumed.
+template <typename T>
+base::StatusOr<T> TakeMovePointerValue(sqlite3_value* value,
+                                       const char* type,
+                                       const char* context) {
+  MovePointer<T>* ptr = MovePointerValue<T>(value, type);
+  if (!ptr) {
+    return base::ErrStatus("%s: expected pointer of type %s", context, type);
+  }
+  if (ptr->taken()) {
+    return base::ErrStatus("%s: pointer of type %s has already been consumed",
+                           context, type);
+  }
+  return ptr->Take();
+}
+
+// Returns a value through SQLite's pointer API while allowing the receiver to
+// take ownership with MovePointer::Take.
+template <typename T>
+void MovePointerResult(sqlite3_context* ctx, T value, const char* type) {
+  sqlite::result::UniquePointer(
+      ctx, std::make_unique<MovePointer<T>>(std::move(value)), type);
+}
 
 const auto kSqliteStatic = reinterpret_cast<sqlite3_destructor_type>(0);
 const auto kSqliteTransient = reinterpret_cast<sqlite3_destructor_type>(-1);
@@ -244,11 +277,15 @@ inline std::string SqlValueTypeToSqliteTypeName(SqlValue::Type type) {
   PERFETTO_FATAL("Not reached");  // For gcc
 }
 
-// Returns the column names for the table named by |raw_table_name|.
-base::Status GetColumnsForTable(
-    sqlite3* db,
-    const std::string& raw_table_name,
-    std::vector<std::pair<SqlValue::Type, std::string>>& columns);
+struct SqliteColumn {
+  std::string name;
+  // As declared, which SQLite does not enforce.
+  std::string type;
+  bool hidden = false;
+};
+
+// The columns of the table, view or table function SQLite knows as `name`.
+std::vector<SqliteColumn> GetColumns(sqlite3* db, const std::string& name);
 
 // Given an SqlValue::Type, converts it to a human-readable string.
 // This should really only be used for debugging messages.

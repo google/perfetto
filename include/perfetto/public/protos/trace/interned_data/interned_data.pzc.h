@@ -44,6 +44,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_InternedV8WasmScript);
 PERFETTO_PB_MSG_DECL(perfetto_protos_LogMessageBody);
 PERFETTO_PB_MSG_DECL(perfetto_protos_Mapping);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SourceLocation);
+PERFETTO_PB_MSG_DECL(perfetto_protos_StackSample_AsyncContextDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StackSample_CounterDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StackSample_ExecutionContext);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StackSample_TaskContext);
@@ -80,6 +81,11 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   perfetto_protos_InternedString,
                   correlation_id_str,
                   43);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_InternedString,
+                  track_dimension_strings,
+                  52);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
                   perfetto_protos_InternedString,
@@ -130,6 +136,11 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   perfetto_protos_StackSample_CounterDescriptor,
                   stack_sample_counter_descriptors,
                   50);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_StackSample_AsyncContextDescriptor,
+                  stack_sample_async_context_descriptors,
+                  51);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
                   perfetto_protos_SourceLocation,

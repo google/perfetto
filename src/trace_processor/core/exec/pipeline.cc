@@ -1,0 +1,318 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "src/trace_processor/core/exec/pipeline.h"
+
+#include <cstdint>
+#include <memory>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/variant.h"
+#include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/selection.h"
+
+namespace perfetto::trace_processor::core::exec {
+namespace {
+
+constexpr size_t kTransformStep =
+    base::variant_index<Pipeline::Step, std::unique_ptr<Transform>>();
+
+}  // namespace
+
+Pipeline::Pipeline(const Source& source, std::vector<Step> steps)
+    : source_(source), steps_(std::move(steps)) {
+  segments_.push_back({-1, nullptr, 0, 0});
+  for (uint32_t i = 0; i < steps_.size(); ++i) {
+    if (steps_[i].index() == kTransformStep) {
+      segments_.back().end = i + 1;
+      continue;
+    }
+    const Operator* op =
+        base::unchecked_get<std::unique_ptr<Operator>>(steps_[i]).get();
+    segments_.push_back({static_cast<int32_t>(i), op, i + 1, i + 1});
+  }
+  last_segment_ = static_cast<uint32_t>(segments_.size() - 1);
+  if (segments_.size() > 1) {
+    plan_flags_ |= State::kSegmented;
+  }
+}
+Pipeline::~Pipeline() = default;
+Pipeline::State::~State() = default;
+
+std::unique_ptr<OperatorState> Pipeline::MakeState(Context& context) const {
+  auto state = std::make_unique<State>();
+  state->context = &context;
+  state->owned_source_state = source_.MakeState(context);
+  state->source = &source_;
+  state->source_state = state->owned_source_state.get();
+  state->operators.reserve(steps_.size());
+  for (const Step& step : steps_) {
+    const auto* transform = std::get_if<std::unique_ptr<Transform>>(&step);
+    state->operators.push_back(
+        transform
+            ? (*transform)->MakeState(context)
+            : base::unchecked_get<std::unique_ptr<Operator>>(step)->MakeState(
+                  context));
+  }
+  // Built at its size, the vector needs no code to grow.
+  state->starts = std::vector<State::Start>(segments_.size());
+  for (size_t seg = 0; seg < segments_.size(); ++seg) {
+    const Segment& segment = segments_[seg];
+    auto& links = seg == 0 ? state->source_links : state->starts[seg].links;
+    for (uint32_t t = segment.first; t < segment.end; ++t) {
+      links.push_back(
+          {base::unchecked_get<std::unique_ptr<Transform>>(steps_[t]).get(),
+           state->operators[t].get()});
+    }
+  }
+  for (auto& op_state : state->operators) {
+    if (op_state->reset_each_run()) {
+      state->reset_each_run.push_back(op_state.get());
+    }
+  }
+  state->output_links = last_segment_ == 0
+                            ? &state->source_links
+                            : &state->starts[last_segment_].links;
+  state->flags = plan_flags_;
+  return state;
+}
+
+void Pipeline::Rewind(OperatorState& state) const {
+  auto& s = state.Cast<State>();
+  ++s.run;
+  if (s.flags & State::kFailed) {
+    s.status = base::OkStatus();
+  }
+  s.flags = plan_flags_;
+  source_.Rewind(*s.source_state);
+  for (OperatorState* op_state : s.reset_each_run) {
+    op_state->Reset();
+  }
+}
+
+// A batch is one pull, from the source or the operator starting the last
+// segment, and that segment's transforms. Limits, combining, cancellation and
+// failure are NextSlow()'s.
+// Out of line, so GetData calls it rather than holding a copy.
+PERFETTO_NO_INLINE RowBatch* Pipeline::Next(RowBatch&,
+                                            OperatorState& state) const {
+  auto& s = state.Cast<State>();
+  uint8_t flags = s.flags;
+  if (PERFETTO_UNLIKELY(flags & State::kNextSlow)) {
+    return NextSlow(s);
+  }
+  RowBatch* batch;
+  if (!(flags & State::kSegmented)) {
+    // Holding nothing, the run ends with its source: nothing to stop, and its
+    // status is read only when asked for.
+    if (PERFETTO_UNLIKELY(flags & State::kSourceDone)) {
+      return nullptr;
+    }
+    batch = s.source->Next(s.output, *s.source_state);
+    if (PERFETTO_UNLIKELY(!batch)) {
+      s.flags |= State::kSourceDone;
+      return nullptr;
+    }
+  } else {
+    batch = StartNext(last_segment_, s);
+    if (PERFETTO_UNLIKELY(!batch)) {
+      Stop(s);
+      return nullptr;
+    }
+  }
+  for (const State::Link& link : *s.output_links) {
+    if (PERFETTO_UNLIKELY(!link.op->Process(*batch, *link.state))) {
+      TransformFailed(link, s);
+      return nullptr;
+    }
+  }
+  return PERFETTO_LIKELY(batch->size()) ? batch : NextSlow(s);
+}
+
+PERFETTO_NO_INLINE RowBatch* Pipeline::NextSlow(State& s) const {
+  auto last = static_cast<uint32_t>(segments_.size() - 1);
+  RowBatch* batch = SegmentNext(last, s.output, s);
+  if (!batch) {
+    Stop(s);
+  }
+  return batch;
+}
+
+PERFETTO_ALWAYS_INLINE RowBatch* Pipeline::SegmentNext(uint32_t segment,
+                                                       RowBatch& scratch,
+                                                       State& s) const {
+  const std::vector<State::Link>& links =
+      segment == 0 ? s.source_links : s.starts[segment].links;
+  for (;;) {
+    RowBatch* batch;
+    if (PERFETTO_LIKELY(segment == 0 && !(s.flags & State::kAttention))) {
+      batch = source_.Next(scratch, *s.source_state);
+      if (PERFETTO_UNLIKELY(!batch)) {
+        s.flags |= State::kSourceDone;
+        if (s.flags & State::kHolds) {
+          SourceStatus(s);
+        }
+        return nullptr;
+      }
+    } else {
+      batch = PullSlow(segment, scratch, s);
+      if (!batch) {
+        return nullptr;
+      }
+    }
+    for (const State::Link& link : links) {
+      if (PERFETTO_UNLIKELY(!link.op->Process(*batch, *link.state))) {
+        TransformFailed(link, s);
+        return nullptr;
+      }
+    }
+    if (PERFETTO_LIKELY(batch->size())) {
+      return batch;
+    }
+  }
+}
+
+PERFETTO_NO_INLINE RowBatch* Pipeline::PullSlow(uint32_t segment,
+                                                RowBatch& scratch,
+                                                State& s) const {
+  if (!CanContinue(s)) {
+    return nullptr;
+  }
+  if (segment != 0) {
+    return StartNext(segment, s);
+  }
+  if (s.flags & State::kSourceDone) {
+    return nullptr;
+  }
+  RowBatch* batch = source_.Next(scratch, *s.source_state);
+  if (!batch) {
+    s.flags |= State::kSourceDone;
+    if (s.flags & State::kHolds) {
+      SourceStatus(s);
+    }
+  }
+  return batch;
+}
+
+RowBatch* Pipeline::StartNext(uint32_t segment, State& s) const {
+  auto& start = s.starts[segment];
+  if (start.run != s.run) {
+    start.current = nullptr;
+    start.continuation = false;
+    start.input_done = false;
+    start.finished = false;
+    start.run = s.run;
+  }
+  auto index = static_cast<uint32_t>(segments_[segment].start);
+  const Operator& op = *segments_[segment].start_op;
+  OperatorState& op_state = *s.operators[index];
+  for (;;) {
+    if (!CanContinue(s) || start.finished) {
+      return nullptr;
+    }
+    bool has_input = start.continuation;
+    if (!has_input && !start.input_done) {
+      start.current = SegmentNext(segment - 1, start.input, s);
+      if (start.current) {
+        has_input = true;
+      } else if (s.flags & (State::kStopped | State::kFailed)) {
+        return nullptr;
+      } else {
+        start.input_done = true;
+      }
+    }
+    start.out.Reset();
+    OpResult result = has_input
+                          ? op.Execute(*start.current, start.out, op_state)
+                          : op.Finish(start.out, op_state);
+    if (result == OpResult::kError) {
+      StepFailed(op.status(op_state), s);
+      return nullptr;
+    }
+    start.continuation = has_input && result == OpResult::kHaveMoreOutput;
+    if (!has_input && result != OpResult::kHaveMoreOutput)
+      start.finished = true;
+    if (start.out.size()) {
+      return &start.out;
+    }
+    if (start.finished) {
+      return nullptr;
+    }
+  }
+}
+
+bool Pipeline::GetData(RowBatch& out, OperatorState& state) const {
+  // Releases the caller's last batch first, so its storage can be reused.
+  out.Reset();
+  RowBatch* batch = Next(out, state);
+  if (!batch) {
+    out.Reset();
+    return false;
+  }
+  if (batch != &out) {
+    out.CopyFrom(*batch);
+  }
+  return true;
+}
+
+base::Status Pipeline::status(const OperatorState& state) const {
+  const auto& s = state.Cast<const State>();
+  if (!(s.flags & (State::kHolds | State::kFailed)) &&
+      (s.flags & State::kSourceDone)) {
+    return source_.status(*s.source_state);
+  }
+  return s.status;
+}
+
+PERFETTO_ALWAYS_INLINE bool Pipeline::CanContinue(State& state) const {
+  return PERFETTO_LIKELY(!(state.flags & (State::kStopped | State::kFailed)));
+}
+
+PERFETTO_NO_INLINE void Pipeline::Stop(State& state) const {
+  for (auto& start : state.starts) {
+    start.current = nullptr;
+  }
+  state.flags |= State::kStopped;
+}
+
+PERFETTO_NO_INLINE void Pipeline::SourceStatus(State& s) const {
+  Fail(s, source_.status(*s.source_state));
+}
+
+void Pipeline::Fail(State& state, base::Status status) {
+  if (!status.ok()) {
+    state.status = std::move(status);
+    state.flags |= State::kFailed;
+  }
+}
+
+void Pipeline::StepFailed(base::Status status, State& state) {
+  Fail(state, status.ok() ? base::ErrStatus("operator failed without status")
+                          : std::move(status));
+}
+
+PERFETTO_NO_INLINE void Pipeline::TransformFailed(const State::Link& link,
+                                                  State& state) {
+  StepFailed(link.op->status(*link.state), state);
+}
+
+}  // namespace perfetto::trace_processor::core::exec

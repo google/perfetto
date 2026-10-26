@@ -118,7 +118,7 @@ SELECT
   android_frame_times.ts_end - launches.ts AS ts_total
 FROM android_frame_times
 JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.ts > (SELECT ts + dur FROM animators WHERE animator_name = "animator:translationZ" AND process_name GLOB "*id.deskclock" ORDER BY (ts + dur) DESC LIMIT 1) AND android_frame_times.name GLOB "*id.deskclock" AND android_frame_times.startup_id = launches.startup_id
+WHERE android_frame_times.ts > (SELECT ts + dur FROM animators WHERE animator_name GLOB "animator*translationZ" AND process_name GLOB "*id.deskclock" ORDER BY (ts + dur) DESC LIMIT 1) AND android_frame_times.name GLOB "*id.deskclock" AND android_frame_times.startup_id = launches.startup_id
 ORDER BY ts_total LIMIT 1)
 UNION ALL
 -- Contacts
@@ -139,7 +139,7 @@ SELECT
   android_frame_times.ts_end - launches.ts AS ts_total
 FROM android_frame_times
 JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.ts > (SELECT ts + dur FROM animators WHERE process_name GLOB "*id.dialer" AND animator_name GLOB "*animator*" ORDER BY (ts + dur) DESC LIMIT 1) AND android_frame_times.name GLOB "*id.dialer" AND android_frame_times.startup_id = launches.startup_id LIMIT 1)
+WHERE android_frame_times.ts > (SELECT ts + dur FROM animators WHERE process_name GLOB "*id.dialer" AND animator_name GLOB "animator:*" ORDER BY (ts + dur) DESC LIMIT 1) AND android_frame_times.name GLOB "*id.dialer" AND android_frame_times.startup_id = launches.startup_id LIMIT 1)
 UNION ALL
 -- Facebook
 SELECT * FROM (
@@ -171,7 +171,7 @@ SELECT
   android_frame_times.ts_end - launches.ts AS ts_total
 FROM android_frame_times
 JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.ts > (SELECT ts + dur FROM animators WHERE animator_name = "animator:elevation" AND process_name GLOB "*android.gm" ORDER BY (ts + dur) DESC LIMIT 1) AND android_frame_times.name GLOB "*android.gm" AND android_frame_times.startup_id = launches.startup_id
+WHERE android_frame_times.ts > (SELECT ts + dur FROM animators WHERE animator_name GLOB "animator*elevation" AND process_name GLOB "*android.gm" ORDER BY (ts + dur) DESC LIMIT 1) AND android_frame_times.name GLOB "*android.gm" AND android_frame_times.startup_id = launches.startup_id
 ORDER BY ts_total LIMIT 1)
 UNION ALL
 -- Instagram
@@ -204,7 +204,7 @@ SELECT
   android_frame_times.ts_end - launches.ts AS ts_total
 FROM android_frame_times
 JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.ts_end > (SELECT ts + dur FROM animators WHERE animator_name = "animator:translationZ" AND process_name GLOB "*apps.messaging*" ORDER BY (ts + dur) DESC LIMIT 1) AND android_frame_times.name GLOB "*apps.messaging*" AND android_frame_times.startup_id = launches.startup_id
+WHERE android_frame_times.ts_end > (SELECT ts + dur FROM animators WHERE animator_name GLOB "animator*translationZ" AND process_name GLOB "*apps.messaging*" ORDER BY (ts + dur) DESC LIMIT 1) AND android_frame_times.name GLOB "*apps.messaging*" AND android_frame_times.startup_id = launches.startup_id
 ORDER BY ts_total LIMIT 1)
 UNION ALL
 -- Netflix
@@ -215,7 +215,7 @@ SELECT
   android_frame_times.ts_end - launches.ts AS ts_total
 FROM android_frame_times
 JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.ts < (SELECT ts FROM animators WHERE animator_name GLOB "animator*" AND process_name GLOB "*lix.mediaclient" ORDER BY ts LIMIT 1) AND android_frame_times.name GLOB "*lix.mediaclient*" AND android_frame_times.startup_id = launches.startup_id
+WHERE android_frame_times.ts < (SELECT ts FROM animators WHERE animator_name GLOB "animator:*" AND process_name GLOB "*lix.mediaclient" ORDER BY ts LIMIT 1) AND android_frame_times.name GLOB "*lix.mediaclient*" AND android_frame_times.startup_id = launches.startup_id
 ORDER BY ts_total DESC LIMIT 1)
 UNION ALL
 -- Photos
@@ -227,7 +227,7 @@ SELECT
   android_frame_times.ts_end - launches.ts AS ts_total
 FROM android_frame_times
 JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.ts > (SELECT ts + dur FROM animators WHERE process_name GLOB "*apps.photos" AND animator_name GLOB "animator:translationZ" ORDER BY (ts + dur) DESC LIMIT 1) AND android_frame_times.name GLOB "*apps.photos*" AND android_frame_times.startup_id = launches.startup_id LIMIT 1)
+WHERE android_frame_times.ts > (SELECT ts + dur FROM animators WHERE process_name GLOB "*apps.photos" AND animator_name GLOB "animator*translationZ" ORDER BY (ts + dur) DESC LIMIT 1) AND android_frame_times.name GLOB "*apps.photos*" AND android_frame_times.startup_id = launches.startup_id LIMIT 1)
 UNION ALL
 -- Settings was deprecated in favor of reportFullyDrawn b/169694037.
 -- Snapchat
@@ -247,7 +247,7 @@ SELECT
   android_frame_times.ts_end - launches.ts AS ts_total
 FROM android_frame_times
 JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.ts_end > (SELECT ts FROM animators WHERE animator_name = "animator" AND process_name GLOB "*tter.android" ORDER BY ts LIMIT 1) AND android_frame_times.name GLOB "*tter.android" AND android_frame_times.startup_id = launches.startup_id
+WHERE android_frame_times.ts_end > (SELECT ts FROM animators WHERE animator_name GLOB "animator*" AND process_name GLOB "*tter.android" ORDER BY ts LIMIT 1) AND android_frame_times.name GLOB "*tter.android" AND android_frame_times.startup_id = launches.startup_id
 ORDER BY ts_total LIMIT 1)
 UNION ALL
 -- WhatsApp

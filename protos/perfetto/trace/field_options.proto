@@ -26,4 +26,12 @@ extend google.protobuf.FieldOptions {
   // Fully-qualified flags enum for a bitmask int field; trace_processor expands
   // the mask into one string arg per set flag.
   optional string flags_enum = 73921;
+
+  // Marks an int field as a process id; trace_processor emits a companion
+  // "<...>upid" arg (a trailing "pid" replaced with "upid").
+  optional bool is_pid = 73922;
+
+  // Marks an int field as a thread id; trace_processor emits a companion
+  // "<...>utid" arg (a trailing "tid" replaced with "utid").
+  optional bool is_tid = 73923;
 }

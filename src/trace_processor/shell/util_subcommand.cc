@@ -35,6 +35,7 @@
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/convert_helpers.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/util/json_value.h"
@@ -83,7 +84,9 @@ base::Status CheckManifestPaths(const std::string& manifest,
 // Dry-runs the written archive through a tokenize-only Trace Processor pass
 // and reports whether any events would be dropped when it is opened. This is
 // the same check the UI's merge dialog runs.
-base::Status ValidateMergedArchive(const std::string& path, bool strict) {
+base::Status ValidateMergedArchive(const std::string& path,
+                                   bool strict,
+                                   bool quiet) {
   Config config;
   config.parsing_mode = ParsingMode::kTokenizeOnly;
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
@@ -103,7 +106,8 @@ base::Status ValidateMergedArchive(const std::string& path, bool strict) {
   }
   int64_t dropped = it.Get(0).long_value;
   if (dropped == 0) {
-    printf("Validation: all traces line up on the shared timeline.\n");
+    if (!quiet)
+      printf("Validation: all traces line up on the shared timeline.\n");
     return base::OkStatus();
   }
   if (strict) {
@@ -197,8 +201,11 @@ base::Status UtilSubcommand::Run(const SubcommandContext& ctx) {
   }
   const std::string& util = ctx.positional_args[0];
   if (util == "merge") {
+    // merge accepts any number of input traces, so skip the positional count
+    // check (the other utilities take at most [input] [output]).
     return RunMerge(ctx);
   }
+  RETURN_IF_ERROR(RejectExtraPositionals(ctx, "util", 3));
   const std::string input_path =
       ctx.positional_args.size() > 1 ? ctx.positional_args[1] : "";
   const std::string output_path =
@@ -222,18 +229,17 @@ base::Status UtilSubcommand::Run(const SubcommandContext& ctx) {
   RETURN_IF_ERROR(OpenConversionOutput(output_path, /*binary_output=*/true,
                                        &output_file, &output));
 
-  int ret;
   if (util == "symbolize") {
-    ret = trace_to_text::SymbolizeProfile(input, output, verbose_);
+    RETURN_IF_ERROR(trace_to_text::SymbolizeProfile(
+        input, output, verbose_, ctx.global && ctx.global->quiet,
+        ctx.global->debuginfod));
   } else if (util == "deobfuscate") {
-    ret = trace_to_text::DeobfuscateProfile(input, output);
+    RETURN_IF_ERROR(trace_to_text::DeobfuscateProfile(input, output));
   } else if (util == "decompress_packets") {
-    ret = trace_to_text::UnpackCompressedPackets(input, output) ? 0 : 1;
+    RETURN_IF_ERROR(trace_to_text::UnpackCompressedPackets(input, output));
   } else {  // text_to_binary
-    ret = TextToTrace(input, output);
+    RETURN_IF_ERROR(TextToTrace(input, output));
   }
-  if (ret != 0)
-    return base::ErrStatus("util: '%s' failed.", util.c_str());
   return base::OkStatus();
 }
 
@@ -280,15 +286,17 @@ base::Status UtilSubcommand::RunMerge(const SubcommandContext& ctx) {
       RETURN_IF_ERROR(tar.AddFileFromPath(members[i], inputs[i]));
     }
   }
-  printf("Wrote %s (%zu trace%s%s).\n", merge_output_.c_str(), inputs.size(),
-         inputs.size() == 1 ? "" : "s",
-         manifest.empty() ? "" : " plus manifest");
+  if (!(ctx.global && ctx.global->quiet))
+    printf("Wrote %s (%zu trace%s%s).\n", merge_output_.c_str(), inputs.size(),
+           inputs.size() == 1 ? "" : "s",
+           manifest.empty() ? "" : " plus manifest");
   fflush(stdout);
 
   if (merge_no_validate_) {
     return base::OkStatus();
   }
-  return ValidateMergedArchive(merge_output_, merge_strict_);
+  return ValidateMergedArchive(merge_output_, merge_strict_,
+                               ctx.global && ctx.global->quiet);
 }
 
 }  // namespace perfetto::trace_processor::shell

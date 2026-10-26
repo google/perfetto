@@ -13,9 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Samples from the traced_perf profiler.
+-- Samples from the traced_perf profiler and perf.data files. One row per perf
+-- sample, including counter-only samples which have no callstack.
 CREATE PERFETTO VIEW perf_sample(
-  -- Unique identifier for this perf sample.
+  -- Unique identifier for this perf sample. Joinable with stack_sample.id.
   id ID,
   -- Timestamp of the sample.
   ts TIMESTAMP,
@@ -36,5 +37,22 @@ CREATE PERFETTO VIEW perf_sample(
   perf_session_id JOINID(perf_session.id)
 )
 AS
-SELECT id, ts, utid, cpu, cpu_mode, callsite_id, unwind_error, perf_session_id
-FROM __intrinsic_perf_sample;
+SELECT
+  ps.id,
+  ps.ts,
+  tc.utid,
+  c.cpu AS cpu,
+  -- Preserve perf_sample's legacy representation for an unknown CPU mode.
+  COALESCE(ec.cpu_mode, 'unknown') AS cpu_mode,
+  ps.callsite_id,
+  ps.unwind_error,
+  ps.session_id AS perf_session_id
+FROM __intrinsic_profiler_sample AS ps
+LEFT JOIN __intrinsic_profiler_task_context AS tc
+  ON tc.id = ps.task_context_id
+LEFT JOIN __intrinsic_profiler_execution_context AS ec
+  ON ec.id = ps.execution_context_id
+LEFT JOIN __intrinsic_cpu AS c
+  ON c.id = ec.ucpu
+WHERE
+  ps.source = 'linux.perf';

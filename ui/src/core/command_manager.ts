@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {z} from 'zod';
 import {Registry} from '../base/registry';
 import {CommandError} from '../public/commands';
@@ -21,6 +22,14 @@ import type {OmniboxManagerImpl} from './omnibox_manager';
 import {STARTUP_COMMAND_ALLOWLIST_SET} from './startup_command_allowlist';
 import {DisposableStack} from '../base/disposable_stack';
 import type {Hotkey} from '../base/hotkeys';
+import {closeModal, showModal} from '../widgets/modal';
+import {Callout} from '../widgets/callout';
+import {CodeSnippet} from '../widgets/code_snippet';
+import {Anchor} from '../widgets/anchor';
+import {Icons} from '../base/semantic_icons';
+import {Intent} from '../widgets/common';
+import {Router} from './router';
+import {getErrorMessage} from '../base/errors';
 
 // A map of command id -> hotkey.
 export type HotkeyOverlay = Record<string, Hotkey>;
@@ -204,7 +213,15 @@ export class CommandManagerImpl implements CommandManager {
           // so we disable prompts during their execution.
           using _ = this.omnibox.disablePrompts();
           for (const command of run) {
-            await this.runCommand(command.id, ...command.args);
+            try {
+              await this.runCommand(command.id, ...command.args);
+            } catch (err) {
+              if (this.isExecutingStartupCommands) {
+                throw err;
+              }
+              showMacroErrorDialog(name, id, command.id, err);
+              return;
+            }
           }
         },
       }),
@@ -229,4 +246,71 @@ export class CommandManagerImpl implements CommandManager {
 
     return false;
   }
+}
+
+function showMacroErrorDialog(
+  macroName: string,
+  macroId: string,
+  failedCommandId: string,
+  error: unknown,
+) {
+  const errorMessage =
+    error instanceof Error ? error.toString() : getErrorMessage(error);
+  showModal({
+    title: `Macro failed: ${macroName}`,
+    content: () =>
+      m(
+        '.pf-error-dialog',
+        m(
+          Callout,
+          {
+            icon: Icons.Warning,
+            intent: Intent.Danger,
+          },
+          `Failed while executing command "${failedCommandId}" in macro "${macroName}" (${macroId}).`,
+        ),
+        m(CodeSnippet, {
+          text: errorMessage,
+          language: 'Error details',
+          class: 'pf-error-dialog__code',
+        }),
+        m(
+          'p.pf-error-dialog__note',
+          'Please check your macro configuration in ',
+          m(
+            Anchor,
+            {
+              href: `#!/settings/${encodeURIComponent('perfetto.CoreCommands#Macros')}`,
+              onclick: () => closeModal(),
+            },
+            'Settings > Macros',
+          ),
+          '. See the ',
+          m(
+            Anchor,
+            {
+              href: 'https://perfetto.dev/docs/visualization/commands-automation-reference',
+              target: '_blank',
+              icon: Icons.ExternalLink,
+            },
+            'Commands Automation Reference',
+          ),
+          ' for valid command IDs and arguments.',
+        ),
+      ),
+    buttons: [
+      {
+        text: 'Open Settings',
+        action: () => {
+          Router.navigate(
+            `#!/settings/${encodeURIComponent('perfetto.CoreCommands#Macros')}`,
+          );
+        },
+      },
+      {
+        text: 'Dismiss',
+        primary: true,
+      },
+    ],
+  });
 }

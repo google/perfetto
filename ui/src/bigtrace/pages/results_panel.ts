@@ -21,8 +21,11 @@ import type {BigTraceEditorTab, QueryTabsState} from './query_tabs_state';
 import {renderStatusBox, formatDurationS} from './status_box';
 import {renderResultsGrid} from './results_grid';
 
-// Owns its own setInterval since sync queries don't drive periodic redraws.
-class RunningQuerySpinner implements m.ClassComponent<{startMs: number}> {
+// Owns a 1s setInterval so the elapsed timer ticks smoothly while loading.
+class RunningQuerySpinner implements m.ClassComponent<{
+  startMs: number;
+  showDuration: boolean;
+}> {
   private timer: number | null = null;
 
   oncreate(): void {
@@ -36,18 +39,16 @@ class RunningQuerySpinner implements m.ClassComponent<{startMs: number}> {
     }
   }
 
-  view({attrs: {startMs}}: m.Vnode<{startMs: number}>): m.Children {
-    const elapsedMs = Math.max(0, Date.now() - startMs);
-    const durationStr = formatDurationS(elapsedMs);
-    return m(
-      EmptyState,
-      {
-        title: `Running query… ${durationStr}`,
-        icon: 'hourglass_empty',
-        fillHeight: true,
-      },
-      m(Spinner),
-    );
+  view({
+    attrs: {startMs, showDuration},
+  }: m.Vnode<{startMs: number; showDuration: boolean}>): m.Children {
+    const title = showDuration
+      ? `Running query… ${formatDurationS(Math.max(0, Date.now() - startMs))}`
+      : 'Running query…';
+    return m('.pf-empty-state.pf-empty-state--fill-height', [
+      m('.pf-empty-state__title', title),
+      m('.pf-empty-state__content', m(Spinner)),
+    ]);
   }
 }
 
@@ -56,13 +57,18 @@ export function renderResultsPanel(
   tabsState: QueryTabsState,
 ): m.Children {
   const status = renderStatusBox(tab);
+  const renderSpinner = () =>
+    m(RunningQuerySpinner, {
+      startMs: tab.clientStartTime ?? Date.now(),
+      showDuration: !tab.materialize,
+    });
 
   if (!tab.dataSource || !tab.queryResult) {
     return m(
       '.pf-bt-results-panel',
       status,
       tab.isLoading
-        ? m(RunningQuerySpinner, {startMs: tab.clientStartTime ?? Date.now()})
+        ? renderSpinner()
         : m(EmptyState, {
             title: 'Run a query to see results',
             icon: 'search',
@@ -114,7 +120,7 @@ export function renderResultsPanel(
   } else if (hasRowsToShow) {
     tableContent = renderResultsGrid(tab, tabsState);
   } else if (tab.isLoading) {
-    tableContent = m('div');
+    tableContent = renderSpinner();
   } else {
     tableContent = m(EmptyState, {
       title: 'Query returned no rows',

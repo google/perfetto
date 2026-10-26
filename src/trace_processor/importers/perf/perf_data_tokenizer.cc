@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -67,6 +68,7 @@
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/cold_sort.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -104,6 +106,10 @@ bool ReadTime(const Record& record, std::optional<uint64_t>& time) {
   if (record.header.type != PERF_RECORD_SAMPLE) {
     std::optional<size_t> offset = record.attr->time_offset_from_end();
     if (!offset.has_value()) {
+      if (record.header.type == PERF_RECORD_FORK ||
+          record.header.type == PERF_RECORD_EXIT) {
+        return reader.Skip(4 * sizeof(uint32_t)) && reader.ReadOptional(time);
+      }
       time = std::nullopt;
       return true;
     }
@@ -215,8 +221,22 @@ PerfDataTokenizer::ParseHeader() {
   return ParsingResult::kSuccess;
 }
 
+// Rejects a section whose attacker-controlled `offset + size` overflows. Such a
+// range can never be satisfied by more data, so it must reject the trace rather
+// than be treated as "more data needed" (an empty/absent slice).
+static base::Status CheckSectionInBounds(const PerfFile::Section& section,
+                                         const char* name) {
+  if (section.size > std::numeric_limits<uint64_t>::max() - section.offset) {
+    return base::ErrStatus("Invalid %s section: offset (%" PRIu64
+                           ") + size (%" PRIu64 ") exceeds uint64 max",
+                           name, section.offset, section.size);
+  }
+  return base::OkStatus();
+}
+
 base::StatusOr<PerfDataTokenizer::ParsingResult>
 PerfDataTokenizer::ParseAttrs() {
+  RETURN_IF_ERROR(CheckSectionInBounds(header_.attrs, "attrs"));
   std::optional<TraceBlobView> tbv =
       buffer_.SliceOff(header_.attrs.offset, header_.attrs.size);
   if (!tbv) {
@@ -235,6 +255,7 @@ PerfDataTokenizer::ParseAttrs() {
       return base::ErrStatus("Invalid id section size: %" PRIu64,
                              entry.ids.size);
     }
+    RETURN_IF_ERROR(CheckSectionInBounds(entry.ids, "id"));
 
     tbv = buffer_.SliceOff(entry.ids.offset, entry.ids.size);
     if (!tbv) {
@@ -299,6 +320,9 @@ base::Status PerfDataTokenizer::ProcessRecord(Record record) {
 
     case PERF_RECORD_AUXTRACE_INFO:
       return ProcessAuxtraceInfoRecord(std::move(record));
+
+    case PERF_RECORD_ID_INDEX:
+      return ProcessIdIndexRecord(std::move(record));
 
     case PERF_RECORD_AUX:
       return ProcessAuxRecord(std::move(record));
@@ -398,6 +422,8 @@ void PerfDataTokenizer::MaybePushRecord(Record record) {
 base::StatusOr<PerfDataTokenizer::ParsingResult>
 PerfDataTokenizer::ParseFeatureSections() {
   PERFETTO_CHECK(buffer_.start_offset() == header_.data.end());
+  RETURN_IF_ERROR(
+      CheckSectionInBounds(feature_headers_section_, "feature headers"));
   auto tbv = buffer_.SliceOff(feature_headers_section_.offset,
                               feature_headers_section_.size);
   if (!tbv) {
@@ -412,17 +438,19 @@ PerfDataTokenizer::ParseFeatureSections() {
     PERFETTO_CHECK(reader.Read(feature_sections_.back().second));
   }
 
-  std::sort(feature_sections_.begin(), feature_sections_.end(),
-            [](const std::pair<uint8_t, PerfFile::Section>& lhs,
-               const std::pair<uint8_t, PerfFile::Section>& rhs) {
-              if (lhs.second.offset == rhs.second.offset) {
-                // Some sections have 0 length and thus there can be offset
-                // collisions. To make sure we parse sections by increasing
-                // offset parse empty sections first.
-                return lhs.second.size > rhs.second.size;
-              }
-              return lhs.second.offset > rhs.second.offset;
-            });
+  // Sorts by offset, then size, both descending: a stable sort by size, then
+  // by offset. Some sections have 0 length and thus there can be offset
+  // collisions. To make sure we parse sections by increasing offset parse
+  // empty sections first.
+  ColdSortByKeyDescending(feature_sections_.begin(), feature_sections_.end(),
+                          [](const std::pair<uint8_t, PerfFile::Section>& s) {
+                            return s.second.size;
+                          });
+  ColdStableSortByKeyDescending(
+      feature_sections_.begin(), feature_sections_.end(),
+      [](const std::pair<uint8_t, PerfFile::Section>& s) {
+        return s.second.offset;
+      });
 
   buffer_.PopFrontUntil(feature_headers_section_.end());
   parsing_state_ = feature_sections_.empty() ? ParsingState::kDone
@@ -435,6 +463,7 @@ PerfDataTokenizer::ParseFeatures() {
   while (!feature_sections_.empty()) {
     const auto feature_id = feature_sections_.back().first;
     const auto& section = feature_sections_.back().second;
+    RETURN_IF_ERROR(CheckSectionInBounds(section, "feature"));
     auto tbv = buffer_.SliceOff(section.offset, section.size);
     if (!tbv) {
       return ParsingResult::kMoreDataNeeded;
@@ -498,6 +527,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
       perf_invocation_->SetIsSimpleperf();
       feature::SimpleperfMetaInfo meta_info;
       RETURN_IF_ERROR(feature::SimpleperfMetaInfo::Parse(data, meta_info));
+      perf_invocation_->SetSimpleperfCounterScope(meta_info.entries);
       for (auto it = meta_info.event_type_info.GetIterator(); it; ++it) {
         perf_invocation_->SetEventName(it.key().type, it.key().config,
                                        it.value());
@@ -520,6 +550,28 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
           stats::perf_features_skipped, feature_id);
   }
 
+  return base::OkStatus();
+}
+
+base::Status PerfDataTokenizer::ProcessIdIndexRecord(Record record) {
+  struct IdIndexEntry {
+    uint64_t id;
+    uint64_t idx;
+    int64_t cpu;
+    int64_t tid;
+  };
+  Reader reader(std::move(record.payload));
+  uint64_t nr = 0;
+  if (!reader.Read(nr)) {
+    return base::ErrStatus("Failed to parse PERF_RECORD_ID_INDEX");
+  }
+  for (uint64_t i = 0; i < nr; ++i) {
+    IdIndexEntry entry;
+    if (!reader.Read(entry)) {
+      return base::ErrStatus("Failed to parse PERF_RECORD_ID_INDEX entry");
+    }
+    perf_invocation_->SetEventIdBinding(entry.id, entry.cpu, entry.tid);
+  }
   return base::OkStatus();
 }
 

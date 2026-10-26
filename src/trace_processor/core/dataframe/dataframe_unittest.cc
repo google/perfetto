@@ -35,6 +35,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe_test_utils.h"
+#include "src/trace_processor/core/dataframe/logical_plan.h"
 #include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
@@ -1585,6 +1586,131 @@ TEST(DataframeTest, TypedCursor) {
   }
 }
 
+TEST(DataframeTest, TypedCursorCreatedBeforeDataframeReplacement) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"value"}, CreateTypedColumnSpec(Int64(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  TypedCursor cursor(&df, {FilterSpec{0, 0, Eq{}, {}}}, {});
+
+  Dataframe replacement = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  replacement.InsertUnchecked(kSpec, int64_t{7});
+  replacement.Finalize();
+  df = std::move(replacement);
+
+  cursor.SetFilterValueUnchecked(0, int64_t{7});
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  EXPECT_EQ(cursor.GetCellUnchecked<0>(kSpec), int64_t{7});
+  cursor.Next();
+  EXPECT_TRUE(cursor.Eof());
+}
+
+TEST(DataframeTest, TypedCursorReplansAfterDataframeReplacement) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"value"}, CreateTypedColumnSpec(Int64(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, int64_t{10});
+  df.InsertUnchecked(kSpec, int64_t{20});
+  df.Finalize();
+  TypedCursor filtered(&df, {FilterSpec{0, 0, Eq{}, {}}}, {});
+  TypedCursor sorted(&df, {}, {{0, SortDirection::kAscending}});
+  filtered.SetFilterValueUnchecked(0, int64_t{10});
+  filtered.ExecuteUnchecked();
+  ASSERT_FALSE(filtered.Eof());
+  EXPECT_EQ(filtered.GetCellUnchecked<0>(kSpec), int64_t{10});
+  sorted.ExecuteUnchecked();
+  ASSERT_FALSE(sorted.Eof());
+  EXPECT_EQ(sorted.GetCellUnchecked<0>(kSpec), int64_t{10});
+
+  // Same row count and mutation history, but different values and sort order.
+  Dataframe replacement = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  replacement.InsertUnchecked(kSpec, int64_t{40});
+  replacement.InsertUnchecked(kSpec, int64_t{30});
+  replacement.Finalize();
+  df = std::move(replacement);
+
+  filtered.SetFilterValueUnchecked(0, int64_t{30});
+  filtered.ExecuteUnchecked();
+  ASSERT_FALSE(filtered.Eof());
+  EXPECT_EQ(filtered.GetCellUnchecked<0>(kSpec), int64_t{30});
+  filtered.Next();
+  EXPECT_TRUE(filtered.Eof());
+  sorted.ExecuteUnchecked();
+  ASSERT_FALSE(sorted.Eof());
+  EXPECT_EQ(sorted.GetCellUnchecked<0>(kSpec), int64_t{30});
+  sorted.Next();
+  ASSERT_FALSE(sorted.Eof());
+  EXPECT_EQ(sorted.GetCellUnchecked<0>(kSpec), int64_t{40});
+  sorted.Next();
+  EXPECT_TRUE(sorted.Eof());
+}
+
+TEST(DataframeTest, TypedCursorReplacementWithRepeatedFilterColumn) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"value"}, CreateTypedColumnSpec(Int64(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, int64_t{10});
+  df.SetCellUnchecked<0>(kSpec, 0, int64_t{20});
+  ASSERT_EQ(df.mutations(), uint64_t{2});
+  TypedCursor cursor(
+      &df, {FilterSpec{0, 0, Eq{}, {}}, FilterSpec{0, 1, Eq{}, {}}}, {});
+  cursor.SetFilterValueUnchecked(0, int64_t{20});
+  cursor.SetFilterValueUnchecked(1, int64_t{20});
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+
+  Dataframe replacement = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  replacement.InsertUnchecked(kSpec, int64_t{30});
+  ASSERT_EQ(replacement.mutations(), uint64_t{1});
+  df = std::move(replacement);
+  // Both watched sums are 3: the independent generation must force a replan.
+  ASSERT_EQ(df.mutations(), uint64_t{3});
+  cursor.SetFilterValueUnchecked(0, int64_t{30});
+  cursor.SetFilterValueUnchecked(1, int64_t{30});
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  EXPECT_EQ(cursor.GetCellUnchecked<0>(kSpec), int64_t{30});
+}
+
+TEST(DataframeTest, TypedCursorFilterListAndResetAfterDataframeReplacement) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"value"}, CreateTypedColumnSpec(Int64(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, int64_t{10});
+  df.Finalize();
+  TypedCursor cursor(&df, {FilterSpec{0, 0, In{}, {}}}, {});
+  TypedCursor::FilterValue value = int64_t{10};
+  cursor.SetFilterValueListUnchecked(0, &value, 1);
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  EXPECT_EQ(cursor.GetCellUnchecked<0>(kSpec), int64_t{10});
+
+  Dataframe replacement = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  replacement.InsertUnchecked(kSpec, int64_t{30});
+  replacement.Finalize();
+  df = std::move(replacement);
+  value = int64_t{30};
+  cursor.SetFilterValueListUnchecked(0, &value, 1);
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  EXPECT_EQ(cursor.GetCellUnchecked<0>(kSpec), int64_t{30});
+
+  Dataframe next = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  next.InsertUnchecked(kSpec, int64_t{50});
+  next.Finalize();
+  df = std::move(next);
+  cursor.Reset();
+  value = int64_t{50};
+  cursor.SetFilterValueListUnchecked(0, &value, 1);
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  EXPECT_EQ(cursor.GetCellUnchecked<0>(kSpec), int64_t{50});
+}
+
 TEST(DataframeTest, TypedCursorSetMultipleTimes) {
   static constexpr auto kSpec = CreateTypedDataframeSpec(
       {"id", "col2", "col3", "col4"},
@@ -1885,87 +2011,196 @@ TEST(DataframeTest, SortedFilterWithDuplicatesAndRowCountOfZero) {
   EXPECT_EQ(plan.GetImplForTesting().params.estimated_row_count, 0u);
 }
 
-TEST(DataframeTest, HorizontalConcat) {
+TEST(DataframeTest, SortOnNullableStringDoesNotShrinkRowEstimate) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"str_a", "str_b"},
+      CreateTypedColumnSpec(String(), SparseNull(), Unsorted()),
+      CreateTypedColumnSpec(String(), SparseNull(), Unsorted()));
+
   StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  for (uint32_t i = 0; i < 64; ++i) {
+    df.InsertUnchecked(kSpec, std::make_optional(pool.InternString("a")),
+                       std::make_optional(pool.InternString("b")));
+  }
+  df.Finalize();
 
-  AdhocDataframeBuilder left_builder({"col_a"}, &pool);
-  left_builder.PushNonNull(0, int64_t{1});
-  left_builder.PushNonNull(0, int64_t{2});
-  auto left_or = std::move(left_builder).Build();
-  ASSERT_OK(left_or.status());
-  Dataframe left = std::move(left_or.value());
-
-  AdhocDataframeBuilder right_builder({"col_b"}, &pool);
-  right_builder.PushNonNull(0, int64_t{10});
-  right_builder.PushNonNull(0, int64_t{20});
-  auto right_or = std::move(right_builder).Build();
-  ASSERT_OK(right_or.status());
-  Dataframe right = std::move(right_or.value());
-
-  auto result_or =
-      Dataframe::HorizontalConcat(std::move(left), std::move(right));
-  ASSERT_OK(result_or.status());
-  Dataframe result = std::move(result_or.value());
-
-  EXPECT_EQ(result.row_count(), 2u);
-  EXPECT_THAT(result.column_names(),
-              testing::ElementsAre("col_a", "col_b", "_auto_id"));
+  // Sorting collects string ranks through a scratch copy which has its nulls
+  // pruned. That prunes no result rows, so the estimate must not move.
+  std::vector<FilterSpec> filters;
+  std::vector<SortSpec> sorts = {{0, SortDirection::kAscending},
+                                 {1, SortDirection::kAscending}};
+  ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
+                       df.PlanQuery(filters, {}, sorts, {}, 0b11));
+  EXPECT_EQ(plan.GetImplForTesting().params.estimated_row_count, 64u);
+  EXPECT_EQ(plan.GetImplForTesting().params.max_row_count, 64u);
 }
 
-TEST(DataframeTest, HorizontalConcat_RowCountMismatch) {
+TEST(DataframeTest, ScanInFilterUsesInSelectivity) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"unsorted_col"},
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted(), HasDuplicates{}));
+
   StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  for (uint32_t i = 0; i < 1024; ++i) {
+    df.InsertUnchecked(kSpec, i % 128);
+  }
+  df.Finalize();
 
-  AdhocDataframeBuilder left_builder({"col_a"}, &pool);
-  left_builder.PushNonNull(0, int64_t{1});
-  left_builder.PushNonNull(0, int64_t{2});
-  auto left_or = std::move(left_builder).Build();
-  ASSERT_OK(left_or.status());
-
-  AdhocDataframeBuilder right_builder({"col_b"}, &pool);
-  right_builder.PushNonNull(0, int64_t{10});
-  auto right_or = std::move(right_builder).Build();
-  ASSERT_OK(right_or.status());
-
-  auto result = Dataframe::HorizontalConcat(std::move(left_or.value()),
-                                            std::move(right_or.value()));
-  EXPECT_FALSE(result.ok());
+  // An IN is a union of equalities over the list values, so with 128 distinct
+  // values it keeps 25 assumed values x 8 rows each. Without that model it
+  // would get the plain halving a generic inequality gets, i.e. 512.
+  std::vector<FilterSpec> filters = {{0, 0, In{}, std::nullopt}};
+  ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
+                       df.PlanQuery(filters, {}, {}, {}, 1u));
+  EXPECT_EQ(plan.GetImplForTesting().params.estimated_row_count, 200u);
 }
 
-TEST(DataframeTest, HorizontalConcat_DuplicateColumnName) {
-  StringPool pool;
+// Diff-based tests for the logical plan: what the planner decided, before any
+// of it is turned into bytecode.
+class LogicalPlanTest : public ::testing::Test {
+ protected:
+  void RunLogicalPlanTest(Dataframe& df,
+                          std::vector<FilterSpec>& filters,
+                          const std::vector<DistinctSpec>& distinct_specs,
+                          const std::vector<SortSpec>& sort_specs,
+                          LimitSpec limit_spec,
+                          const std::string& expected,
+                          uint64_t cols_used = 0xFFFFFFFF) {
+    ASSERT_OK_AND_ASSIGN(
+        LogicalPlan plan,
+        df.PlanQueryLogicalForTesting(filters, distinct_specs, sort_specs,
+                                      limit_spec, cols_used));
+    EXPECT_THAT(plan.ToString(), EqualsIgnoringWhitespace(expected));
+  }
 
-  AdhocDataframeBuilder left_builder({"col_a"}, &pool);
-  left_builder.PushNonNull(0, int64_t{1});
-  auto left_or = std::move(left_builder).Build();
-  ASSERT_OK(left_or.status());
+  StringPool string_pool_;
+};
 
-  AdhocDataframeBuilder right_builder({"col_a"}, &pool);
-  right_builder.PushNonNull(0, int64_t{10});
-  auto right_or = std::move(right_builder).Build();
-  ASSERT_OK(right_or.status());
+TEST_F(LogicalPlanTest, SortedColumnUsesBinarySearch) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"sorted"},
+      CreateTypedColumnSpec(Int64(), NonNull(), Sorted{}, HasDuplicates{}));
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &string_pool_);
+  for (uint32_t i = 0; i < 1024; ++i) {
+    df.InsertUnchecked(kSpec, int64_t{i});
+  }
+  df.Finalize();
 
-  auto result = Dataframe::HorizontalConcat(std::move(left_or.value()),
-                                            std::move(right_or.value()));
-  EXPECT_FALSE(result.ok());
+  std::vector<FilterSpec> filters = {{0, 0, Ge{}, std::nullopt}};
+  RunLogicalPlanTest(df, filters, {}, {}, {}, R"(
+    Scan[rows=1024/1024]
+    Filter[col=0 op=Ge value=0 storage=Int64 null=NonNull strategy=BinarySearch rows=1024/1024->512/1024]
+    Output[cols_used=0xffffffff]
+  )");
 }
 
-TEST(DataframeTest, SelectRows) {
-  StringPool pool;
+TEST_F(LogicalPlanTest, NullableColumnScanRecordsNullPrune) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"maybe_str"}, CreateTypedColumnSpec(String(), SparseNull(), Unsorted()));
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &string_pool_);
+  for (uint32_t i = 0; i < 64; ++i) {
+    df.InsertUnchecked(kSpec,
+                       std::make_optional(string_pool_.InternString("a")));
+  }
+  df.Finalize();
 
-  AdhocDataframeBuilder builder({"col_a"}, &pool);
-  builder.PushNonNull(0, int64_t{10});
-  builder.PushNonNull(0, int64_t{20});
-  builder.PushNonNull(0, int64_t{30});
-  builder.PushNonNull(0, int64_t{40});
-  auto df_or = std::move(builder).Build();
-  ASSERT_OK(df_or.status());
+  // A Glob cannot be answered by anything but a scan, and the column is
+  // nullable, so the nulls come out before the pattern is applied.
+  std::vector<FilterSpec> filters = {{0, 0, Glob{}, std::nullopt}};
+  RunLogicalPlanTest(df, filters, {}, {}, {}, R"(
+    Scan[rows=64/64]
+    Filter[col=0 op=Glob value=0 storage=String null=SparseNull strategy=IndexListScan rows=64/64->16/64 after_null_prune=32]
+    Output[cols_used=0xffffffff]
+  )");
+}
 
-  std::vector<uint32_t> indices = {1, 3};
-  Dataframe result =
-      std::move(df_or.value())
-          .SelectRows(indices.data(), static_cast<uint32_t>(indices.size()));
+TEST_F(LogicalPlanTest, SortOnAlreadySortedColumnIsNotPlanned) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"sorted"},
+      CreateTypedColumnSpec(Int64(), NonNull(), Sorted{}, HasDuplicates{}));
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &string_pool_);
+  df.InsertUnchecked(kSpec, int64_t{1});
+  df.InsertUnchecked(kSpec, int64_t{2});
+  df.Finalize();
 
-  EXPECT_EQ(result.row_count(), 2u);
+  std::vector<FilterSpec> filters;
+  std::vector<SortSpec> sorts = {{0, SortDirection::kAscending}};
+  RunLogicalPlanTest(df, filters, {}, sorts, {}, R"(
+    Scan[rows=2/2]
+    Output[cols_used=0xffffffff]
+  )");
+
+  // The opposite direction only needs the rows turned round.
+  std::vector<SortSpec> desc = {{0, SortDirection::kDescending}};
+  RunLogicalPlanTest(df, filters, {}, desc, {}, R"(
+    Scan[rows=2/2]
+    Reverse[]
+    Output[cols_used=0xffffffff]
+  )");
+}
+
+TEST_F(LogicalPlanTest, OrderByWithLimitOfOneBecomesMinMax) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"vals"},
+      CreateTypedColumnSpec(Int64(), NonNull(), Unsorted(), HasDuplicates{}));
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &string_pool_);
+  for (uint32_t i = 0; i < 100; ++i) {
+    df.InsertUnchecked(kSpec, int64_t{i});
+  }
+  df.Finalize();
+
+  std::vector<FilterSpec> filters;
+  std::vector<SortSpec> sorts = {{0, SortDirection::kDescending}};
+  RunLogicalPlanTest(df, filters, {}, sorts, LimitSpec{1, std::nullopt}, R"(
+    Scan[rows=100/100]
+    MinMax[col=0 dir=desc rows=100/100->1/1]
+    Output[cols_used=0xffffffff]
+  )");
+}
+
+TEST_F(LogicalPlanTest, ImpossibleFilterPlansNoWork) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"nums"},
+      CreateTypedColumnSpec(Int64(), NonNull(), Unsorted(), HasDuplicates{}));
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &string_pool_);
+  df.InsertUnchecked(kSpec, int64_t{1});
+  df.Finalize();
+
+  // Glob cannot apply to an integer column, so nothing can match. No filter
+  // value slot is claimed: the caller keeps responsibility for the constraint.
+  std::vector<FilterSpec> filters = {{0, 0, Glob{}, std::nullopt}};
+  RunLogicalPlanTest(df, filters, {}, {}, {}, R"(
+    Scan[rows=1/1]
+    Empty[]
+    Output[cols_used=0xffffffff]
+  )");
+  EXPECT_EQ(filters[0].value_index, std::nullopt);
+}
+
+TEST_F(LogicalPlanTest, IndexServesEqualityFilters) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"a", "b"},
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted(), HasDuplicates{}),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted(), HasDuplicates{}));
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &string_pool_);
+  for (uint32_t i = 0; i < 128; ++i) {
+    df.InsertUnchecked(kSpec, i % 8, i % 4);
+  }
+  df.Finalize();
+  std::vector<uint32_t> perm(128);
+  std::iota(perm.begin(), perm.end(), 0);
+  df = df.AddIndex(
+      Index({0}, std::make_shared<std::vector<uint32_t>>(std::move(perm))));
+
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
+  RunLogicalPlanTest(df, filters, {}, {}, {}, R"(
+    Scan[rows=128/128]
+    IndexFilter[index=0 (col=0 op=Eq value=0 storage=Uint32 null=NonNull rows=128/128->16/128)]
+    Output[cols_used=0x3]
+  )",
+                     /*cols_used=*/0b11);
 }
 
 }  // namespace perfetto::trace_processor::core::dataframe

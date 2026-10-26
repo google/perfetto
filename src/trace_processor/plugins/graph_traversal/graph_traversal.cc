@@ -19,15 +19,17 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/circular_queue.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -43,15 +45,92 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/graph.h"
 
 namespace perfetto::trace_processor {
 
 namespace {
 
-struct State {
-  uint32_t id;
-  std::optional<uint32_t> parent_id;
-};
+using SearchFn = util::GraphTree (*)(const util::Digraph&,
+                                     const std::vector<uint32_t>&);
+
+// Searches `graph` from `start_ids`, either of which may be null. A start id
+// outside the graph is a node without edges.
+void Search(sqlite3_context* ctx,
+            sqlite3_value** argv,
+            const char* name,
+            SearchFn search,
+            bool reverse_start_ids,
+            StringPool* pool) {
+  auto* graph = sqlite::value::Pointer<perfetto_sql::Graph>(argv[0], "GRAPH");
+  auto table = std::make_unique<tables::TreeTable>(pool);
+  // A null graph means there were no edges: still traverse it (as an empty
+  // graph) so that the start nodes themselves are returned.
+
+  // If the array is empty, be forgiving and return an empty array. We could
+  // return an error here but in 99% of cases, the caller will simply want
+  // an empty table instead.
+  auto* start_ids =
+      sqlite::value::Pointer<perfetto_sql::IntArray>(argv[1], "ARRAY<LONG>");
+  if (!start_ids) {
+    return sqlite::result::UniquePointer(
+        ctx,
+        std::make_unique<dataframe::Dataframe>(std::move(table->dataframe())),
+        "TABLE");
+  }
+  PERFETTO_DCHECK(!start_ids->empty());
+
+  uint32_t graph_size = graph ? static_cast<uint32_t>(graph->size()) : 0;
+  std::vector<uint32_t> seeds;
+  std::vector<uint32_t> ids_outside_graph;
+  base::FlatHashMap<uint32_t, uint32_t> node_outside_graph;
+  for (int64_t x : *start_ids) {
+    if (x < 0 || x > std::numeric_limits<int32_t>::max()) {
+      return sqlite::result::Error(
+          ctx, (std::string(name) +
+                ": node ids must be non-negative 32-bit integers")
+                   .c_str());
+    }
+    auto id = static_cast<uint32_t>(x);
+    if (id >= graph_size) {
+      auto [it, inserted] = node_outside_graph.Insert(
+          id, graph_size + static_cast<uint32_t>(ids_outside_graph.size()));
+      if (inserted) {
+        ids_outside_graph.push_back(id);
+      }
+      id = *it;
+    }
+    seeds.push_back(id);
+  }
+  if (reverse_start_ids) {
+    std::reverse(seeds.begin(), seeds.end());
+  }
+
+  util::Digraph digraph;
+  digraph.offsets.reserve(graph_size + ids_outside_graph.size() + 1);
+  for (uint32_t n = 0; n < graph_size; ++n) {
+    const auto& edges = (*graph)[n].outgoing_edges;
+    digraph.targets.insert(digraph.targets.end(), edges.begin(), edges.end());
+    digraph.offsets.push_back(static_cast<uint32_t>(digraph.targets.size()));
+  }
+  digraph.offsets.resize(digraph.offsets.size() + ids_outside_graph.size(),
+                         static_cast<uint32_t>(digraph.targets.size()));
+
+  util::GraphTree tree = search(digraph, seeds);
+  auto id_of = [&](uint32_t node) {
+    return node < graph_size ? node : ids_outside_graph[node - graph_size];
+  };
+  for (uint32_t node : tree.order) {
+    uint32_t parent = tree.parent[node];
+    table->Insert({id_of(node), parent == util::GraphTree::kNoParent
+                                    ? std::nullopt
+                                    : std::make_optional(id_of(parent))});
+  }
+  return sqlite::result::UniquePointer(
+      ctx,
+      std::make_unique<dataframe::Dataframe>(std::move(table->dataframe())),
+      "TABLE");
+}
 
 // An SQL aggregate-function which performs a DFS from a given start node in a
 // graph and returns all the nodes which are reachable from the start node.
@@ -66,62 +145,9 @@ struct Dfs : public sqlite::AggregateFunction<Dfs> {
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     PERFETTO_DCHECK(argc == kArgCount);
-
-    auto* graph = sqlite::value::Pointer<perfetto_sql::Graph>(argv[0], "GRAPH");
-    auto table = std::make_unique<tables::TreeTable>(GetUserData(ctx));
-    if (!graph) {
-      return sqlite::result::UniquePointer(
-          ctx,
-          std::make_unique<dataframe::Dataframe>(std::move(table->dataframe())),
-          "TABLE");
-    }
-    PERFETTO_DCHECK(!graph->empty());
-
-    // If the array is empty, be forgiving and return an empty array. We could
-    // return an error here but in 99% of cases, the caller will simply want
-    // an empty table instead.
-    auto* start_ids =
-        sqlite::value::Pointer<perfetto_sql::IntArray>(argv[1], "ARRAY<LONG>");
-    if (!start_ids) {
-      return sqlite::result::UniquePointer(
-          ctx,
-          std::make_unique<dataframe::Dataframe>(std::move(table->dataframe())),
-          "TABLE");
-    }
-    PERFETTO_DCHECK(!start_ids->empty());
-
-    uint32_t graph_size = static_cast<uint32_t>(graph->size());
-    uint32_t max_id = graph_size;
-    for (int64_t x : *start_ids) {
-      max_id = std::max(max_id, static_cast<uint32_t>(x) + 1);
-    }
-    std::vector<bool> visited(max_id);
-    std::vector<State> stack;
-    for (int64_t x : *start_ids) {
-      stack.emplace_back(State{static_cast<uint32_t>(x), std::nullopt});
-    }
-    while (!stack.empty()) {
-      State state = stack.back();
-      stack.pop_back();
-
-      if (visited[state.id]) {
-        continue;
-      }
-      table->Insert({state.id, state.parent_id});
-      visited[state.id] = true;
-
-      if (state.id >= graph_size) {
-        continue;
-      }
-      const auto& children = (*graph)[state.id].outgoing_edges;
-      for (auto it = children.rbegin(); it != children.rend(); ++it) {
-        stack.emplace_back(State{*it, state.id});
-      }
-    }
-    return sqlite::result::UniquePointer(
-        ctx,
-        std::make_unique<dataframe::Dataframe>(std::move(table->dataframe())),
-        "TABLE");
+    // The last start id has always been searched from first.
+    Search(ctx, argv, "DFS", &util::DepthFirstSearch,
+           /*reverse_start_ids=*/true, GetUserData(ctx));
   }
 };
 
@@ -138,66 +164,8 @@ struct Bfs : public sqlite::AggregateFunction<Bfs> {
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     PERFETTO_DCHECK(argc == kArgCount);
-
-    auto* graph = sqlite::value::Pointer<perfetto_sql::Graph>(argv[0], "GRAPH");
-    tables::TreeTable data(GetUserData(ctx));
-    if (!graph) {
-      return sqlite::result::UniquePointer(
-          ctx,
-          std::make_unique<dataframe::Dataframe>(std::move(data.dataframe())),
-          "TABLE");
-    }
-    PERFETTO_DCHECK(!graph->empty());
-
-    // If the array is empty, be forgiving and return an empty array. We could
-    // return an error here but in 99% of cases, the caller will simply want
-    // an empty table instead.
-    auto* start_ids =
-        sqlite::value::Pointer<perfetto_sql::IntArray>(argv[1], "ARRAY<LONG>");
-    if (!start_ids) {
-      return sqlite::result::UniquePointer(
-          ctx,
-          std::make_unique<dataframe::Dataframe>(std::move(data.dataframe())),
-          "TABLE");
-    }
-    PERFETTO_DCHECK(!start_ids->empty());
-
-    uint32_t graph_size = static_cast<uint32_t>(graph->size());
-    uint32_t max_id = graph_size;
-    for (int64_t raw_id : *start_ids) {
-      max_id = std::max(max_id, static_cast<uint32_t>(raw_id) + 1);
-    }
-    std::vector<bool> visited(max_id);
-    base::CircularQueue<State> queue;
-    for (int64_t raw_id : *start_ids) {
-      auto id = static_cast<uint32_t>(raw_id);
-      if (visited[id]) {
-        continue;
-      }
-      visited[id] = true;
-      queue.emplace_back(State{id, std::nullopt});
-    }
-    while (!queue.empty()) {
-      State state = queue.front();
-      queue.pop_front();
-      data.Insert({state.id, state.parent_id});
-
-      if (state.id >= graph_size) {
-        continue;
-      }
-      auto& node = (*graph)[state.id];
-      for (uint32_t n : node.outgoing_edges) {
-        if (visited[n]) {
-          continue;
-        }
-        visited[n] = true;
-        queue.emplace_back(State{n, state.id});
-      }
-    }
-    return sqlite::result::UniquePointer(
-        ctx,
-        std::make_unique<dataframe::Dataframe>(std::move(data.dataframe())),
-        "TABLE");
+    Search(ctx, argv, "BFS", &util::BreadthFirstSearch,
+           /*reverse_start_ids=*/false, GetUserData(ctx));
   }
 };
 

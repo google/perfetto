@@ -44,6 +44,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_CpuPerUidData);
 PERFETTO_PB_MSG_DECL(perfetto_protos_DeobfuscationMapping);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EntityStateResidency);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EtwTraceEventBundle);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ExperimentalTracingV2ProducerStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ExtensionDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceEventBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceStats);
@@ -63,6 +64,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_InodeFileMap);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InternedData);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InterruptInfo);
 PERFETTO_PB_MSG_DECL(perfetto_protos_KernelWakelockData);
+PERFETTO_PB_MSG_DECL(perfetto_protos_MemcgStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_MemoryTrackerSnapshot);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ModuleSymbols);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PackagesList);
@@ -75,6 +77,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessTree);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProfilePacket);
+PERFETTO_PB_MSG_DECL(perfetto_protos_RecoveredTraceInfo);
 PERFETTO_PB_MSG_DECL(perfetto_protos_RemoteClockSync);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SmapsPacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StackSample);
@@ -241,6 +244,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_TraceStats,
                   trace_stats,
                   35);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_ExperimentalTracingV2ProducerStats,
+                  experimental_tracing_v2_producer_stats,
+                  139);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_ProfilePacket,
@@ -571,6 +579,16 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_SystemdJournaldEvent,
                   journald_event,
                   132);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_RecoveredTraceInfo,
+                  recovered_trace_info,
+                  138);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_MemcgStats,
+                  memcg_stats,
+                  140);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_TestEvent,

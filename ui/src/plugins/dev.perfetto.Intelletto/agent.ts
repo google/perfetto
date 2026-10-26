@@ -84,6 +84,8 @@ export class Agent {
    * Run one user turn to completion, yielding events as they stream.
    *
    * @param userText - The user's message for this turn.
+   * @param model - Optional model path. When omitted, picks the first
+   *     configured model advertising the 'agentic' role.
    * @param signal - Optional cancellation signal. An aborted turn stops
    *     cleanly and what completed stays in the history (the transcript stays
    *     truthful).
@@ -96,30 +98,11 @@ export class Agent {
    */
   async *sendMessage(
     userText: string,
+    model: ModelPath,
     signal?: AbortSignal,
     dequeueFollowUp?: () => string | undefined,
   ): AsyncGenerator<AgentEvent, void, void> {
     this.history.push({role: 'user', text: userText});
-
-    // The model driving this turn: the first configured model advertising the
-    // 'agentic' role. Looked up per turn so adding/removing a provider between
-    // turns routes the next turn accordingly (history carries over).
-    const modelDetails = this.gateway
-      .listModels()
-      .find((m) => m.model.roles.includes('agentic'));
-    if (modelDetails === undefined) {
-      yield {
-        type: 'error',
-        message:
-          'No agentic model configured. Add a provider and a model with the ' +
-          'agentic role in the LLM settings.',
-      };
-      return;
-    }
-    const modelPath: ModelPath = {
-      providerId: modelDetails.provider.id,
-      modelId: modelDetails.model.id,
-    };
 
     // createStream requires a signal; use a never-aborting fallback when the
     // caller didn't supply one.
@@ -147,7 +130,7 @@ export class Agent {
       let backendError: string | undefined;
 
       for await (const evt of this.gateway.createStream(
-        modelPath,
+        model,
         {
           systemPrompt: this.systemPrompt,
           messages: this.history,

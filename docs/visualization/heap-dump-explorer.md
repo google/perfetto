@@ -173,10 +173,10 @@ There are two entry points:
 
    ![Perfetto UI with a heap dump loaded; the sidebar shows "Heapdump Explorer" under "Current Trace".](../images/heap_docs/01-sidebar.png)
 
-2. **From a heap graph flamegraph.** Click a diamond in a
-   _"Heap Profile"_ track to open the heap graph flamegraph, click a
-   node to select it, then click the menu icon in the node's details
-   popup and pick _"Open in Heapdump Explorer"_. This is covered in
+2. **From a heap graph flamegraph.** Click a diamond in an
+   _"ART heap dump"_ track to open the heap graph flamegraph, click a
+   node to select it, then open the _Drill down_ menu in the node's
+   details popup and pick _"Open in Heapdump Explorer"_. This is covered in
    detail under [Jumping from a flamegraph](#jumping-from-a-flamegraph).
 
    ![Heap graph flamegraph with the `java.lang.String` node selected; the details popup lists its Cumulative size, Root Type and Self Count, and its overflow menu is open with "Open in Heapdump Explorer" visible.](../images/heap_docs/02-flamegraph-menu.png)
@@ -201,17 +201,28 @@ NOTE: The duplicate sections _require HPROF_.
 
 The Overview is the default landing page and summarizes the dump:
 
-- **General information.** Reachable instance count and the list of
-  heaps in the dump (typically `app`, `zygote`, `image`).
-- **Bytes retained by heap.** Java, native and total sizes per heap,
-  with a total row at the top. Use this to see whether the problem
-  is on the Java heap, in native memory, or both.
+- **General information.** The process, class count and reachable and
+  unreachable instance counts.
+- **Bytes retained by heap.** Java, native and total sizes per heap
+  (typically `app`, `zygote`, `image`), with a total row at the top.
+  Use this to see whether the problem is on the Java heap, in native
+  memory, or both.
+- **Out of Memory Error** _(OOM dumps only)_. For dumps triggered by an
+  `OutOfMemoryError`, a breakdown of the failed allocation — allocation
+  size, the free headroom until the heap's growth limit, and the raw
+  error message. The allocation stack itself is on the
+  [Callstack](#callstack) tab.
 - **Duplicate bitmaps / strings / primitive arrays.** Duplicated
   content grouped by content hash. Each row shows the copy count
   and the wasted bytes; clicking _Copies_ opens the relevant tab
   filtered to that group.
 
 ![Overview tab: General Information (437,681 reachable instances across app/image/zygote heaps), Bytes Retained by Heap (24.4 MiB total, 1.5 MiB on the app heap), and a Duplicate Bitmaps group wasting 785.8 KiB across 12 copies of the same 128×128 image.](../images/heap_docs/04-overview.png)
+
+For a dump captured on `OutOfMemoryError`, the Out of Memory Error card
+sits below Bytes Retained by Heap:
+
+![Overview tab for an OOM dump. Below Bytes Retained by Heap, the Out of Memory Error card reports Allocation size 10.00 MB, Free until OOM 8.91 MB, and the raw ART error message.](../images/heap_docs/18-overview-oom.png)
 
 ## Flamegraph
 
@@ -223,7 +234,7 @@ it. It is usually the fastest way to spot that one subtree of the
 heap is disproportionately large.
 
 The same flamegraph appears in the timeline when you click a heap
-dump diamond in a _"Heap Profile"_ track — every feature below works
+dump diamond in an _"ART heap dump"_ track — every feature below works
 identically there. A few extras that only exist in the timeline
 variant are covered at the end under
 [the timeline flamegraph](#the-timeline-flamegraph).
@@ -249,7 +260,7 @@ Reading top-down: the synthetic `root` row at the top spans the whole
 dump; each row below it is one more reference hop away from the GC
 roots. The width of a node is proportional to the selected metric
 (bytes or object count) in that node's entire subtree. Objects with
-no known class name show as `[Unknown]`.
+no known class name show as `unknown`.
 
 One caveat that trips people up: in this shortest-path tree, a node's
 subtree is **not** the same as its retained size. An object referenced
@@ -353,16 +364,17 @@ The filter bar reshapes the tree. Type into it directly, or press the
 double-click a chip to edit it, click its `x` to remove it, or use
 the bin button to clear everything.
 
-Patterns are regular expressions matched case-sensitively against
-the class name; bare text is a substring match (`String` matches
-`java.lang.String`), and `^`/`$` anchor it exactly. Patterns also
+Patterns are matched against the class name; bare text is a literal,
+case-insensitive substring match (`String` matches `java.lang.String`),
+while `/.../` is a case-sensitive regular expression (`^`/`$` anchor
+it exactly) and `/.../i` a case-insensitive one. Patterns also
 match against a node's Root Type and Heap Type values, so
 `SS: ROOT_JNI_GLOBAL` or `SS: zygote` work too.
 
 There are four filter types plus [Pivot](#pivot). In the filter bar,
 prefix the pattern with the short or full name; with no prefix the
 text becomes a _Show Stack_ filter. Multiple filters can be typed in
-one go, separated by spaces: `SS: main HF: alloc.*`.
+one go, separated by spaces: `SS: main HF: /alloc.*/`.
 
 - **Show Stack** (`SS:`) — keep only paths that contain a matching
   node; everything else is removed. The `root` row shows how much of
@@ -377,7 +389,7 @@ one go, separated by spaces: `SS: main HF: alloc.*`.
   Called "Focus on subtree" elsewhere.
 - **Hide Frame** (`HF:`) — delete matching nodes themselves and
   splice their children onto their parent. This is the tool for
-  collapsing noise rows: `HF: java.lang.Object\[\]` merges array
+  collapsing noise rows: `HF: java.lang.Object[]` merges array
   containers away so container contents attach directly to whatever
   owns the container. Called "Merge function" elsewhere.
 
@@ -387,7 +399,7 @@ filter set as text so it can be shared or pasted back.
 
 ### Pivot
 
-Pivoting (`P:` in the filter bar, or _Pivot on matching frames_ from
+Pivoting (`P:` in the filter bar, or _Pivot on this frame_ from
 a node's popup) re-roots the flamegraph at every node matching the
 pattern:
 
@@ -399,8 +411,9 @@ This is the "show me everything about this class in one picture"
 view: its total footprint, what it is made of, and who is holding it,
 without walking objects one at a time. A pivot shows as a
 `Pivot: ...` chip; only one can be active at a time (setting a new
-one replaces it), the Top Down / Bottom Up switch is disabled while
-pivoted, and removing the chip returns to Top Down.
+one replaces it), neither Top Down nor Bottom Up is selected while
+pivoted (picking one clears the pivot), and removing the chip returns
+to Top Down.
 
 The object tab integrates with pivot directly: the
 _Shortest Path from GC Root_ and _Dominator Tree Path_ sections each
@@ -414,9 +427,8 @@ _Dominated Object Size_ metric respectively.
 Clicking a node opens its details popup with four menus, grouping
 everything you can do from a node:
 
-- **Focus** — reframe without removing data: _Zoom in_, _Focus on
-  matching subtrees_ (Show From Frame) and _Pivot on matching
-  frames_.
+- **Focus** — reframe without removing data: _Zoom in_, _Show from
+  this frame_ (Show From Frame) and _Pivot on this frame_.
 - **Filter** — reshape the tree: _Keep stacks matching name_ (Show
   Stack), _Hide stacks matching name_ (Hide Stack) and _Merge
   matching frames into caller_ (Hide Frame).
@@ -438,8 +450,8 @@ accidentally match `java.lang.StringBuilder`.
 
 ### The timeline flamegraph
 
-The flamegraph in the timeline's _"Heap Profile"_ details panel has
-three extras:
+The flamegraph in the timeline's _"ART heap dump"_ details panel has
+two extras:
 
 - Each node's _Drill down_ menu has _Open in Heapdump Explorer_,
   which jumps into the explorer with a _Flamegraph objects_ tab open
@@ -450,9 +462,10 @@ three extras:
   class and path with the number of paths, object count, total size
   and total native size. It is the tabular twin of the flamegraph —
   the same data, but sortable and exportable.
-- If the heap graph in the trace is incomplete (the dump was cut
-  short), a warning modal offers to show the import errors; the
-  flamegraph still renders with whatever data arrived.
+
+In both flamegraphs, if the heap graph in the trace is incomplete (the
+dump was cut short), a warning modal offers to show the import errors;
+the flamegraph still renders with whatever data arrived.
 
 ## Classes
 
@@ -470,6 +483,10 @@ descending:
 Use this tab when you have a suspect class, or want a top-down view
 of which classes own the most memory. Clicking a class name opens
 Objects filtered to that class.
+
+A warning icon after a class name means the class may include other
+classes merged into it during app optimization; see
+[Merged classes](#merged-classes).
 
 ## Objects
 
@@ -502,8 +519,7 @@ Multiple object tabs can be open at once.
 
 The object tab contains everything known about the instance:
 
-- **Header** with the object id, plus an _Open in Classes_ shortcut
-  when the object is itself a `Class`.
+- **Header** with the object id.
 - **Bitmap preview** for bitmap instances, with a download button.
 - **Shortest Path from GC Root** — the shortest chain of references
   from a GC root to this object.
@@ -568,7 +584,7 @@ were stored.
 
 The path dropdown above the gallery picks which reference path to
 overlay on each card: _Shortest path_ (fewest edges from a GC root),
-_Dominator path_ (the chain of dominators), or _No path_. Showing a
+_Dominator path_ (the chain of dominators), or _None_. Showing a
 path is the fastest way to spot an `Activity`, `Fragment` or
 `Handler` holding leaked bitmaps.
 
@@ -610,6 +626,30 @@ Two common uses: finding a large duplicated `byte[]` that backs an
 image or serialized buffer, and jumping from a container object to
 the primitive array holding its data.
 
+## Callstack
+
+The Callstack tab only has data for dumps captured on `OutOfMemoryError`
+on recent Android versions; on any other dump it is empty. It shows the
+Java allocation stack of the thread that triggered the OOM — the path
+that requested the allocation the heap could not satisfy — in the
+[flamegraph](#flamegraph) widget, with a breakdown of the failed
+allocation above it.
+
+![Callstack tab for an OOM dump. The Out of Memory Error grid reports Allocation size 10.00 MB, Free until OOM 8.91 MB and the raw ART error message; below it the allocation stack runs java.lang.Thread.run down to MainActivity.triggerOOM.](../images/heap_docs/17-callstack.png)
+
+The grid breaks down the failure:
+
+- **Allocation size** — the allocation that could not be satisfied.
+- **Free until OOM** — bytes still available before the heap's growth
+  limit; the headroom at the moment of failure.
+- **Error message** — the raw `OutOfMemoryError` string from ART.
+
+The stack tells you _what allocated_ at the point of failure; the other
+tabs tell you _what was already retaining_ the heap. A large allocation
+against ample headroom is an allocation-site problem; a modest
+allocation against almost no headroom is a retention problem — chase it
+from [Dominators](#dominators) or the [Flamegraph](#flamegraph).
+
 ## Jumping from a flamegraph
 
 The timeline heap graph flamegraph (a full feature reference is in
@@ -618,12 +658,12 @@ Explorer_ action that opens the explorer on the list of objects
 matching a selected reference path. Use it to inspect a flamegraph
 node object-by-object:
 
-1. Click a diamond in a _"Heap Profile"_ track to open the flamegraph.
+1. Click a diamond in an _"ART heap dump"_ track to open the flamegraph.
 
    ![Timeline on top, heap graph flamegraph in the bottom panel after clicking the heap dump diamond on the process track.](../images/heap_docs/14-flamegraph-bottom-panel.png)
 
-2. Click a node to select it, then click the menu icon in the node's
-   details popup. Pick _"Open in Heapdump Explorer"_.
+2. Click a node to select it, then open the _Drill down_ menu in the
+   node's details popup. Pick _"Open in Heapdump Explorer"_.
 
    ![Flamegraph with `java.lang.String` selected. Its details popup lists Cumulative size (2.48 MiB, 10.48%), Root Type (`ROOT_INTERNED_STRING`), Heap Type and Self Count (53,546). The popup's overflow menu is open and "Open in Heapdump Explorer" is visible below "Copy Stack" and "Copy Stack With Details".](../images/heap_docs/02-flamegraph-menu.png)
 
@@ -640,6 +680,28 @@ node object-by-object:
 
 Multiple flamegraph selections can be open at once, each as its own
 tab — useful for comparing two call stacks side by side.
+
+## Merged classes
+
+When an app is optimized and obfuscated (for example, by R8), several
+source classes can be merged into one: a class merged into its only
+subclass, or similar sibling classes combined. In a heap dump, all
+instances of those classes appear under the target class's name, so its
+count, shallow size, and retained size represent the combined total.
+
+When the trace includes a deobfuscation mapping for the app (see
+[Symbolization and deobfuscation](/docs/learning-more/symbolization.md#merged-classes)),
+the explorer and heap graph flamegraphs mark classes that may include
+merged classes with a warning icon. Hover over the icon (or the
+flamegraph node) for details.
+
+![Classes tab with a warning icon after `com.example.sampleapp.MainActivityJava`; its tooltip reads "Possibly merged class".](../images/heap_docs/19-merged-class-classes.png)
+
+Treat a flagged class's numbers as an upper bound for the class shown:
+part of the memory may belong to classes that were merged into it. To
+see which classes were merged, look up the class in the deobfuscation
+mapping. If the mapping doesn't record merged classes (for example, R8
+mapping files older than format 2.3), every renamed class is flagged.
 
 ## Case studies
 
@@ -706,7 +768,7 @@ Clicking the class name opens **Objects** filtered to
 ![Objects tab filtered to com.heapleak.ProfileActivity: five instances, each retaining ~116.6 KiB and 1,566 reachable objects.](../images/heap_docs/12a-objects-profile-activity.png)
 
 **Reading the reference path.** Click the top row to open its object
-tab. The _Sample Path from GC Root_ is the chain of field references
+tab. The _Shortest Path from GC Root_ is the chain of field references
 keeping this instance alive:
 
 ![Object tab for a leaked ProfileActivity. Sample Path from GC Root: Class<ProfileActivity> → com.heapleak.ProfileActivity.history → ArrayList.elementData → Object[0] → ProfileActivity. Retained 117.6 KiB, ~1,600 reachable objects.](../images/heap_docs/12-object-tab-top.png)

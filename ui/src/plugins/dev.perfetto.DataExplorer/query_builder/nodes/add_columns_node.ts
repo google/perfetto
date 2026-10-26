@@ -236,7 +236,7 @@ export class AddColumnsNode implements QueryNode {
     // Check against other computed columns
     for (let i = 0; i < (this.attrs.computedColumns?.length ?? 0); i++) {
       if (i === excludeIndex) continue; // Skip the column being edited
-      const col = this.attrs.computedColumns![i];
+      const col = this.attrs.computedColumns![i]!;
       if (col.name.trim() === trimmedName) {
         return `Column "${trimmedName}" already exists in computed columns`;
       }
@@ -1212,7 +1212,7 @@ export class AddColumnsNode implements QueryNode {
       if (!this.attrs.computedColumns) return;
       const newComputedColumns = [...this.attrs.computedColumns];
       newComputedColumns[index] = {
-        ...newComputedColumns[index],
+        ...newComputedColumns[index]!,
         sqlType: newType,
       };
       this.attrs.computedColumns = newComputedColumns;
@@ -1279,7 +1279,7 @@ export class AddColumnsNode implements QueryNode {
     const suggestions = this.getJoinSuggestions();
     const selectedTable = this.attrs.selectedSuggestionTable;
     const selectedColumns = selectedTable
-      ? this.attrs.suggestionSelections?.[selectedTable] ?? []
+      ? (this.attrs.suggestionSelections?.[selectedTable] ?? [])
       : [];
 
     return m(AddColumnsSuggestionModal, {

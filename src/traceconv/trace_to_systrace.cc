@@ -28,6 +28,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/dynamic_string_writer.h"
+#include "perfetto/ext/base/progress_reporter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/traceconv/utils.h"
@@ -124,13 +125,15 @@ class QueryWriter {
       callback(&iterator, &line_writer);
 
       if (global_writer_.pos() + line_writer.pos() >= kFlushThreshold) {
-        fprintf(stderr, "Writing row %" PRIu32 "%c", rows, kProgressChar);
+        base::StackString<128> msg("Writing row %" PRIu32, rows);
+        base::ProgressReporter::GetInstance().Update(msg.ToStdStringView());
         auto str = global_writer_.GetStringView();
         trace_writer_->Write(str.data(), str.size());
         global_writer_.Clear();
       }
       global_writer_.AppendStringView(line_writer.GetStringView());
     }
+    base::ProgressReporter::GetInstance().Clear();
 
     // Check if we have an error in the iterator and print if so.
     auto status = iterator.Status();
@@ -177,8 +180,7 @@ int ExtractRawEvents(TraceWriter* trace_writer,
     return 0;
   }
 
-  fprintf(stderr, "Converting ftrace events%c", kProgressChar);
-  fflush(stderr);
+  base::ProgressReporter::GetInstance().Update("Converting ftrace events");
 
   auto raw_callback = [wrapped_in_json](Iterator* it,
                                         base::DynamicStringWriter* writer) {
@@ -263,11 +265,11 @@ int ExtractRawEvents(TraceWriter* trace_writer,
 
 }  // namespace
 
-int TraceToSystrace(std::istream* input,
-                    std::ostream* output,
-                    bool ctrace,
-                    Keep truncate_keep,
-                    bool full_sort) {
+base::Status TraceToSystrace(std::istream* input,
+                             std::ostream* output,
+                             bool ctrace,
+                             Keep truncate_keep,
+                             bool full_sort) {
   std::unique_ptr<TraceWriter> trace_writer(
       ctrace ? new DeflateTraceWriter(output) : new TraceWriter(output));
 
@@ -279,16 +281,20 @@ int TraceToSystrace(std::istream* input,
       trace_processor::TraceProcessor::CreateInstance(config);
 
   if (!ReadTraceUnfinalized(tp.get(), input))
-    return 1;
+    return base::ErrStatus("failed to read trace");
   if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
-    return 1;
+    return base::ErrStatus("failed to finalize trace: %s", status.c_message());
   }
 
   if (ctrace)
     *output << "TRACE:\n";
 
-  return ExtractSystrace(tp.get(), trace_writer.get(),
-                         /*wrapped_in_json=*/false, truncate_keep);
+  int ret = ExtractSystrace(tp.get(), trace_writer.get(),
+                            /*wrapped_in_json=*/false, truncate_keep);
+  if (ret) {
+    return base::ErrStatus("failed to convert ftrace events");
+  }
+  return base::OkStatus();
 }
 
 int ExtractSystrace(trace_processor::TraceProcessor* tp,

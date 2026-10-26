@@ -1,0 +1,842 @@
+android_startup {
+startup {
+startup_id: 0
+startup_type: "warm"
+cpu_count: 0
+package_name: "com.google.android.deskclock"
+process_name: "com.google.android.deskclock"
+process {
+name: "com.google.android.deskclock"
+uid: 10010
+android_user_id: 0
+pid: 10
+is_kernel_task: false
+}
+zygote_new_process: false
+activity_hosting_process_count: 1
+event_timestamps {
+intent_received: 1000
+first_frame: 1065
+}
+to_first_frame {
+dur_ns: 65
+dur_ms: 0.000065
+main_thread_by_task_state {
+running_dur_ns: 0
+runnable_dur_ns: 0
+uninterruptible_sleep_dur_ns: 0
+interruptible_sleep_dur_ns: 0
+uninterruptible_io_sleep_dur_ns: 0
+uninterruptible_non_io_sleep_dur_ns: 0
+}
+time_activity_manager {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_activity_start {
+dur_ns: 5
+dur_ms: 0.000005
+}
+time_activity_resume {
+dur_ns: 3
+dur_ms: 0.000003
+}
+time_choreographer {
+dur_ns: 10
+dur_ms: 0.000010
+}
+other_processes_spawned_count: 0
+}
+system_state {
+dex2oat_running: false
+installd_running: false
+broadcast_dispatched_count: 0
+broadcast_received_count: 0
+installd_dur_ns: 0
+dex2oat_dur_ns: 0
+}
+}
+startup {
+startup_id: 1
+startup_type: "warm"
+cpu_count: 0
+package_name: "com.google.android.deskclock"
+process_name: "com.google.android.deskclock"
+process {
+name: "com.google.android.deskclock"
+uid: 10011
+android_user_id: 0
+pid: 11
+is_kernel_task: false
+}
+zygote_new_process: false
+activity_hosting_process_count: 1
+event_timestamps {
+intent_received: 2000
+first_frame: 2065
+}
+to_first_frame {
+dur_ns: 65
+dur_ms: 0.000065
+main_thread_by_task_state {
+running_dur_ns: 0
+runnable_dur_ns: 0
+uninterruptible_sleep_dur_ns: 0
+interruptible_sleep_dur_ns: 0
+uninterruptible_io_sleep_dur_ns: 0
+uninterruptible_non_io_sleep_dur_ns: 0
+}
+time_activity_manager {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_activity_start {
+dur_ns: 5
+dur_ms: 0.000005
+}
+time_activity_resume {
+dur_ns: 3
+dur_ms: 0.000003
+}
+time_choreographer {
+dur_ns: 10
+dur_ms: 0.000010
+}
+other_processes_spawned_count: 0
+}
+hsc {
+full_startup {
+dur_ns: 60
+dur_ms: 0.000060
+}
+}
+system_state {
+dex2oat_running: false
+installd_running: false
+broadcast_dispatched_count: 0
+broadcast_received_count: 0
+installd_dur_ns: 0
+dex2oat_dur_ns: 0
+}
+}
+startup {
+startup_id: 2
+startup_type: "warm"
+cpu_count: 0
+package_name: "com.google.android.dialer"
+process_name: "com.google.android.dialer"
+process {
+name: "com.google.android.dialer"
+uid: 10012
+android_user_id: 0
+pid: 12
+is_kernel_task: false
+}
+zygote_new_process: false
+activity_hosting_process_count: 1
+event_timestamps {
+intent_received: 3000
+first_frame: 3065
+}
+to_first_frame {
+dur_ns: 65
+dur_ms: 0.000065
+main_thread_by_task_state {
+running_dur_ns: 0
+runnable_dur_ns: 0
+uninterruptible_sleep_dur_ns: 0
+interruptible_sleep_dur_ns: 0
+uninterruptible_io_sleep_dur_ns: 0
+uninterruptible_non_io_sleep_dur_ns: 0
+}
+time_activity_manager {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_activity_start {
+dur_ns: 5
+dur_ms: 0.000005
+}
+time_activity_resume {
+dur_ns: 3
+dur_ms: 0.000003
+}
+time_choreographer {
+dur_ns: 10
+dur_ms: 0.000010
+}
+other_processes_spawned_count: 0
+}
+hsc {
+full_startup {
+dur_ns: 1060
+dur_ms: 0.001060
+}
+}
+system_state {
+dex2oat_running: false
+installd_running: false
+broadcast_dispatched_count: 0
+broadcast_received_count: 0
+installd_dur_ns: 0
+dex2oat_dur_ns: 0
+}
+}
+startup {
+startup_id: 3
+startup_type: "warm"
+cpu_count: 0
+package_name: "com.google.android.dialer"
+process_name: "com.google.android.dialer"
+process {
+name: "com.google.android.dialer"
+uid: 10013
+android_user_id: 0
+pid: 13
+is_kernel_task: false
+}
+zygote_new_process: false
+activity_hosting_process_count: 1
+event_timestamps {
+intent_received: 4000
+first_frame: 4065
+}
+to_first_frame {
+dur_ns: 65
+dur_ms: 0.000065
+main_thread_by_task_state {
+running_dur_ns: 0
+runnable_dur_ns: 0
+uninterruptible_sleep_dur_ns: 0
+interruptible_sleep_dur_ns: 0
+uninterruptible_io_sleep_dur_ns: 0
+uninterruptible_non_io_sleep_dur_ns: 0
+}
+time_activity_manager {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_activity_start {
+dur_ns: 5
+dur_ms: 0.000005
+}
+time_activity_resume {
+dur_ns: 3
+dur_ms: 0.000003
+}
+time_choreographer {
+dur_ns: 10
+dur_ms: 0.000010
+}
+other_processes_spawned_count: 0
+}
+system_state {
+dex2oat_running: false
+installd_running: false
+broadcast_dispatched_count: 0
+broadcast_received_count: 0
+installd_dur_ns: 0
+dex2oat_dur_ns: 0
+}
+}
+startup {
+startup_id: 4
+startup_type: "warm"
+cpu_count: 0
+package_name: "com.google.android.gm"
+process_name: "com.google.android.gm"
+process {
+name: "com.google.android.gm"
+uid: 10014
+android_user_id: 0
+pid: 14
+is_kernel_task: false
+}
+zygote_new_process: false
+activity_hosting_process_count: 1
+event_timestamps {
+intent_received: 5000
+first_frame: 5065
+}
+to_first_frame {
+dur_ns: 65
+dur_ms: 0.000065
+main_thread_by_task_state {
+running_dur_ns: 0
+runnable_dur_ns: 0
+uninterruptible_sleep_dur_ns: 0
+interruptible_sleep_dur_ns: 0
+uninterruptible_io_sleep_dur_ns: 0
+uninterruptible_non_io_sleep_dur_ns: 0
+}
+time_activity_manager {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_activity_start {
+dur_ns: 5
+dur_ms: 0.000005
+}
+time_activity_resume {
+dur_ns: 3
+dur_ms: 0.000003
+}
+time_choreographer {
+dur_ns: 10
+dur_ms: 0.000010
+}
+other_processes_spawned_count: 0
+}
+system_state {
+dex2oat_running: false
+installd_running: false
+broadcast_dispatched_count: 0
+broadcast_received_count: 0
+installd_dur_ns: 0
+dex2oat_dur_ns: 0
+}
+}
+startup {
+startup_id: 5
+startup_type: "warm"
+cpu_count: 0
+package_name: "com.google.android.gm"
+process_name: "com.google.android.gm"
+process {
+name: "com.google.android.gm"
+uid: 10015
+android_user_id: 0
+pid: 15
+is_kernel_task: false
+}
+zygote_new_process: false
+activity_hosting_process_count: 1
+event_timestamps {
+intent_received: 6000
+first_frame: 6065
+}
+to_first_frame {
+dur_ns: 65
+dur_ms: 0.000065
+main_thread_by_task_state {
+running_dur_ns: 0
+runnable_dur_ns: 0
+uninterruptible_sleep_dur_ns: 0
+interruptible_sleep_dur_ns: 0
+uninterruptible_io_sleep_dur_ns: 0
+uninterruptible_non_io_sleep_dur_ns: 0
+}
+time_activity_manager {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_activity_start {
+dur_ns: 5
+dur_ms: 0.000005
+}
+time_activity_resume {
+dur_ns: 3
+dur_ms: 0.000003
+}
+time_choreographer {
+dur_ns: 10
+dur_ms: 0.000010
+}
+other_processes_spawned_count: 0
+}
+hsc {
+full_startup {
+dur_ns: 60
+dur_ms: 0.000060
+}
+}
+system_state {
+dex2oat_running: false
+installd_running: false
+broadcast_dispatched_count: 0
+broadcast_received_count: 0
+installd_dur_ns: 0
+dex2oat_dur_ns: 0
+}
+}
+startup {
+startup_id: 6
+startup_type: "warm"
+cpu_count: 0
+package_name: "com.google.android.apps.messaging"
+process_name: "com.google.android.apps.messaging"
+process {
+name: "com.google.android.apps.messaging"
+uid: 10016
+android_user_id: 0
+pid: 16
+is_kernel_task: false
+}
+zygote_new_process: false
+activity_hosting_process_count: 1
+event_timestamps {
+intent_received: 7000
+first_frame: 7050
+}
+to_first_frame {
+dur_ns: 50
+dur_ms: 0.000050
+main_thread_by_task_state {
+running_dur_ns: 0
+runnable_dur_ns: 0
+uninterruptible_sleep_dur_ns: 0
+interruptible_sleep_dur_ns: 0
+uninterruptible_io_sleep_dur_ns: 0
+uninterruptible_non_io_sleep_dur_ns: 0
+}
+time_activity_manager {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_activity_start {
+dur_ns: 5
+dur_ms: 0.000005
+}
+time_activity_resume {
+dur_ns: 3
+dur_ms: 0.000003
+}
+time_choreographer {
+dur_ns: 10
+dur_ms: 0.000010
+}
+other_processes_spawned_count: 0
+}
+system_state {
+dex2oat_running: false
+installd_running: false
+broadcast_dispatched_count: 0
+broadcast_received_count: 0
+installd_dur_ns: 0
+dex2oat_dur_ns: 0
+}
+}
+startup {
+startup_id: 7
+startup_type: "warm"
+cpu_count: 0
+package_name: "com.google.android.apps.messaging"
+process_name: "com.google.android.apps.messaging"
+process {
+name: "com.google.android.apps.messaging"
+uid: 10017
+android_user_id: 0
+pid: 17
+is_kernel_task: false
+}
+zygote_new_process: false
+activity_hosting_process_count: 1
+event_timestamps {
+intent_received: 8000
+first_frame: 8050
+}
+to_first_frame {
+dur_ns: 50
+dur_ms: 0.000050
+main_thread_by_task_state {
+running_dur_ns: 0
+runnable_dur_ns: 0
+uninterruptible_sleep_dur_ns: 0
+interruptible_sleep_dur_ns: 0
+uninterruptible_io_sleep_dur_ns: 0
+uninterruptible_non_io_sleep_dur_ns: 0
+}
+time_activity_manager {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_activity_start {
+dur_ns: 5
+dur_ms: 0.000005
+}
+time_activity_resume {
+dur_ns: 3
+dur_ms: 0.000003
+}
+time_choreographer {
+dur_ns: 10
+dur_ms: 0.000010
+}
+other_processes_spawned_count: 0
+}
+hsc {
+full_startup {
+dur_ns: 45
+dur_ms: 0.000045
+}
+}
+system_state {
+dex2oat_running: false
+installd_running: false
+broadcast_dispatched_count: 0
+broadcast_received_count: 0
+installd_dur_ns: 0
+dex2oat_dur_ns: 0
+}
+}
+startup {
+startup_id: 8
+startup_type: "warm"
+cpu_count: 0
+package_name: "com.netflix.mediaclient"
+process_name: "com.netflix.mediaclient"
+process {
+name: "com.netflix.mediaclient"
+uid: 10018
+android_user_id: 0
+pid: 18
+is_kernel_task: false
+}
+zygote_new_process: false
+activity_hosting_process_count: 1
+event_timestamps {
+intent_received: 9000
+first_frame: 9045
+}
+to_first_frame {
+dur_ns: 45
+dur_ms: 0.000045
+main_thread_by_task_state {
+running_dur_ns: 0
+runnable_dur_ns: 0
+uninterruptible_sleep_dur_ns: 0
+interruptible_sleep_dur_ns: 0
+uninterruptible_io_sleep_dur_ns: 0
+uninterruptible_non_io_sleep_dur_ns: 0
+}
+time_activity_manager {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_activity_start {
+dur_ns: 5
+dur_ms: 0.000005
+}
+time_activity_resume {
+dur_ns: 0
+dur_ms: 0.000000
+}
+time_choreographer {
+dur_ns: 13
+dur_ms: 0.000013
+}
+other_processes_spawned_count: 0
+}
+hsc {
+full_startup {
+dur_ns: 28
+dur_ms: 0.000028
+}
+}
+system_state {
+dex2oat_running: false
+installd_running: false
+broadcast_dispatched_count: 0
+broadcast_received_count: 0
+installd_dur_ns: 0
+dex2oat_dur_ns: 0
+}
+}
+startup {
+startup_id: 9
+startup_type: "warm"
+cpu_count: 0
+package_name: "com.netflix.mediaclient"
+process_name: "com.netflix.mediaclient"
+process {
+name: "com.netflix.mediaclient"
+uid: 10019
+android_user_id: 0
+pid: 19
+is_kernel_task: false
+}
+zygote_new_process: false
+activity_hosting_process_count: 1
+event_timestamps {
+intent_received: 10000
+first_frame: 10045
+}
+to_first_frame {
+dur_ns: 45
+dur_ms: 0.000045
+main_thread_by_task_state {
+running_dur_ns: 0
+runnable_dur_ns: 0
+uninterruptible_sleep_dur_ns: 0
+interruptible_sleep_dur_ns: 0
+uninterruptible_io_sleep_dur_ns: 0
+uninterruptible_non_io_sleep_dur_ns: 0
+}
+time_activity_manager {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_activity_start {
+dur_ns: 5
+dur_ms: 0.000005
+}
+time_activity_resume {
+dur_ns: 0
+dur_ms: 0.000000
+}
+time_choreographer {
+dur_ns: 13
+dur_ms: 0.000013
+}
+other_processes_spawned_count: 0
+}
+system_state {
+dex2oat_running: false
+installd_running: false
+broadcast_dispatched_count: 0
+broadcast_received_count: 0
+installd_dur_ns: 0
+dex2oat_dur_ns: 0
+}
+}
+startup {
+startup_id: 10
+startup_type: "warm"
+cpu_count: 0
+package_name: "com.google.android.apps.photos"
+process_name: "com.google.android.apps.photos"
+process {
+name: "com.google.android.apps.photos"
+uid: 10020
+android_user_id: 0
+pid: 20
+is_kernel_task: false
+}
+zygote_new_process: false
+activity_hosting_process_count: 1
+event_timestamps {
+intent_received: 11000
+first_frame: 11065
+}
+to_first_frame {
+dur_ns: 65
+dur_ms: 0.000065
+main_thread_by_task_state {
+running_dur_ns: 0
+runnable_dur_ns: 0
+uninterruptible_sleep_dur_ns: 0
+interruptible_sleep_dur_ns: 0
+uninterruptible_io_sleep_dur_ns: 0
+uninterruptible_non_io_sleep_dur_ns: 0
+}
+time_activity_manager {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_activity_start {
+dur_ns: 5
+dur_ms: 0.000005
+}
+time_activity_resume {
+dur_ns: 3
+dur_ms: 0.000003
+}
+time_choreographer {
+dur_ns: 10
+dur_ms: 0.000010
+}
+other_processes_spawned_count: 0
+}
+hsc {
+full_startup {
+dur_ns: 1060
+dur_ms: 0.001060
+}
+}
+system_state {
+dex2oat_running: false
+installd_running: false
+broadcast_dispatched_count: 0
+broadcast_received_count: 0
+installd_dur_ns: 0
+dex2oat_dur_ns: 0
+}
+}
+startup {
+startup_id: 11
+startup_type: "warm"
+cpu_count: 0
+package_name: "com.google.android.apps.photos"
+process_name: "com.google.android.apps.photos"
+process {
+name: "com.google.android.apps.photos"
+uid: 10021
+android_user_id: 0
+pid: 21
+is_kernel_task: false
+}
+zygote_new_process: false
+activity_hosting_process_count: 1
+event_timestamps {
+intent_received: 12000
+first_frame: 12065
+}
+to_first_frame {
+dur_ns: 65
+dur_ms: 0.000065
+main_thread_by_task_state {
+running_dur_ns: 0
+runnable_dur_ns: 0
+uninterruptible_sleep_dur_ns: 0
+interruptible_sleep_dur_ns: 0
+uninterruptible_io_sleep_dur_ns: 0
+uninterruptible_non_io_sleep_dur_ns: 0
+}
+time_activity_manager {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_activity_start {
+dur_ns: 5
+dur_ms: 0.000005
+}
+time_activity_resume {
+dur_ns: 3
+dur_ms: 0.000003
+}
+time_choreographer {
+dur_ns: 10
+dur_ms: 0.000010
+}
+other_processes_spawned_count: 0
+}
+system_state {
+dex2oat_running: false
+installd_running: false
+broadcast_dispatched_count: 0
+broadcast_received_count: 0
+installd_dur_ns: 0
+dex2oat_dur_ns: 0
+}
+}
+startup {
+startup_id: 12
+startup_type: "warm"
+cpu_count: 0
+package_name: "com.twitter.android"
+process_name: "com.twitter.android"
+process {
+name: "com.twitter.android"
+uid: 10022
+android_user_id: 0
+pid: 22
+is_kernel_task: false
+}
+zygote_new_process: false
+activity_hosting_process_count: 1
+event_timestamps {
+intent_received: 13000
+first_frame: 13045
+}
+to_first_frame {
+dur_ns: 45
+dur_ms: 0.000045
+main_thread_by_task_state {
+running_dur_ns: 0
+runnable_dur_ns: 0
+uninterruptible_sleep_dur_ns: 0
+interruptible_sleep_dur_ns: 0
+uninterruptible_io_sleep_dur_ns: 0
+uninterruptible_non_io_sleep_dur_ns: 0
+}
+time_activity_manager {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_activity_start {
+dur_ns: 5
+dur_ms: 0.000005
+}
+time_activity_resume {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_choreographer {
+dur_ns: 3
+dur_ms: 0.000003
+}
+other_processes_spawned_count: 0
+}
+system_state {
+dex2oat_running: false
+installd_running: false
+broadcast_dispatched_count: 0
+broadcast_received_count: 0
+installd_dur_ns: 0
+dex2oat_dur_ns: 0
+}
+}
+startup {
+startup_id: 13
+startup_type: "warm"
+cpu_count: 0
+package_name: "com.twitter.android"
+process_name: "com.twitter.android"
+process {
+name: "com.twitter.android"
+uid: 10023
+android_user_id: 0
+pid: 23
+is_kernel_task: false
+}
+zygote_new_process: false
+activity_hosting_process_count: 1
+event_timestamps {
+intent_received: 14000
+first_frame: 14045
+}
+to_first_frame {
+dur_ns: 45
+dur_ms: 0.000045
+main_thread_by_task_state {
+running_dur_ns: 0
+runnable_dur_ns: 0
+uninterruptible_sleep_dur_ns: 0
+interruptible_sleep_dur_ns: 0
+uninterruptible_io_sleep_dur_ns: 0
+uninterruptible_non_io_sleep_dur_ns: 0
+}
+time_activity_manager {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_activity_start {
+dur_ns: 5
+dur_ms: 0.000005
+}
+time_activity_resume {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_choreographer {
+dur_ns: 3
+dur_ms: 0.000003
+}
+other_processes_spawned_count: 0
+}
+hsc {
+full_startup {
+dur_ns: 28
+dur_ms: 0.000028
+}
+}
+system_state {
+dex2oat_running: false
+installd_running: false
+broadcast_dispatched_count: 0
+broadcast_received_count: 0
+installd_dur_ns: 0
+dex2oat_dur_ns: 0
+}
+}
+}

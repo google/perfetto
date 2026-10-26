@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "./query_builder/builder.scss";
-@import "./query_builder/results_panel.scss";
-@import "./dashboard/dashboard.scss";
+@use "./query_builder/builder.scss" as *;
+@use "./query_builder/results_panel.scss" as *;
+@use "./dashboard/dashboard.scss" as *;
 
 .pf-data-explorer {
   height: 100%;

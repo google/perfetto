@@ -25,18 +25,16 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/base/test/status_matchers.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::sqlite::utils {
 
 namespace {
-using base::gtest_matchers::IsError;
 
-class GetColumnsForTableTest : public ::testing::Test {
+class GetColumnsTest : public ::testing::Test {
  public:
-  GetColumnsForTableTest() {
+  GetColumnsTest() {
     sqlite3* db = nullptr;
     PERFETTO_CHECK(sqlite3_initialize() == SQLITE_OK);
     PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
@@ -61,26 +59,17 @@ class GetColumnsForTableTest : public ::testing::Test {
   ScopedStmt stmt_;
 };
 
-TEST_F(GetColumnsForTableTest, ValidInput) {
-  RunStatement("CREATE TABLE foo (name STRING, ts INT, dur INT);");
-  std::vector<std::pair<SqlValue::Type, std::string>> columns;
-  ASSERT_OK(sqlite::utils::GetColumnsForTable(*db_, "foo", columns));
+TEST_F(GetColumnsTest, Columns) {
+  RunStatement("CREATE TABLE foo (name STRING, ts INT, dur);");
+  std::vector<SqliteColumn> columns = GetColumns(*db_, "foo");
+  ASSERT_EQ(columns.size(), 3u);
+  EXPECT_EQ(columns[0].name, "name");
+  EXPECT_EQ(columns[0].type, "STRING");
+  EXPECT_EQ(columns[2].type, "");
 }
 
-TEST_F(GetColumnsForTableTest, UnknownType) {
-  // Currently GetColumnsForTable does not work with tables containing types it
-  // doesn't recognise. This just ensures that the query fails rather than
-  // crashing.
-  RunStatement("CREATE TABLE foo (name NUM, ts INT, dur INT);");
-  std::vector<std::pair<SqlValue::Type, std::string>> columns;
-  ASSERT_THAT(sqlite::utils::GetColumnsForTable(*db_, "foo", columns),
-              IsError());
-}
-
-TEST_F(GetColumnsForTableTest, UnknownTableName) {
-  std::vector<std::pair<SqlValue::Type, std::string>> columns;
-  ASSERT_THAT(sqlite::utils::GetColumnsForTable(*db_, "unknowntable", columns),
-              IsError());
+TEST_F(GetColumnsTest, UnknownTableName) {
+  EXPECT_TRUE(GetColumns(*db_, "unknowntable").empty());
 }
 
 }  // namespace

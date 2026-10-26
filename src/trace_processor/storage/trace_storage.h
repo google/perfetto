@@ -244,6 +244,13 @@ class TraceStorage {
     return mutable_table<tables::TrackTable>();
   }
 
+  const tables::TrackDimensionTable& track_dimension_table() const {
+    return table<tables::TrackDimensionTable>();
+  }
+  tables::TrackDimensionTable* mutable_track_dimension_table() {
+    return mutable_table<tables::TrackDimensionTable>();
+  }
+
   const tables::GpuContextTable& gpu_context_table() const {
     return table<tables::GpuContextTable>();
   }
@@ -392,6 +399,24 @@ class TraceStorage {
     return mutable_table<tables::AndroidInputEventDispatchTable>();
   }
 
+  const tables::AndroidJobSchedulerPendingReasonsTrackEventTable&
+  android_job_scheduler_pending_reasons_track_event_table() const {
+    return table<tables::AndroidJobSchedulerPendingReasonsTrackEventTable>();
+  }
+  tables::AndroidJobSchedulerPendingReasonsTrackEventTable*
+  mutable_android_job_scheduler_pending_reasons_track_event_table() {
+    return mutable_table<
+        tables::AndroidJobSchedulerPendingReasonsTrackEventTable>();
+  }
+
+  const tables::AndroidJobSchedulerTrackEventTable&
+  android_job_scheduler_track_event_table() const {
+    return table<tables::AndroidJobSchedulerTrackEventTable>();
+  }
+  tables::AndroidJobSchedulerTrackEventTable*
+  mutable_android_job_scheduler_track_event_table() {
+    return mutable_table<tables::AndroidJobSchedulerTrackEventTable>();
+  }
   const tables::MetadataTable& metadata_table() const {
     return table<tables::MetadataTable>();
   }
@@ -585,40 +610,58 @@ class TraceStorage {
     return mutable_table<tables::TraceFileTable>();
   }
 
-  const tables::CpuProfileStackSampleTable& cpu_profile_stack_sample_table()
+  const tables::ChromeStackSampleExtrasTable& chrome_stack_sample_extras_table()
       const {
-    return table<tables::CpuProfileStackSampleTable>();
+    return table<tables::ChromeStackSampleExtrasTable>();
   }
-  tables::CpuProfileStackSampleTable* mutable_cpu_profile_stack_sample_table() {
-    return mutable_table<tables::CpuProfileStackSampleTable>();
-  }
-
-  const tables::PerfSessionTable& perf_session_table() const {
-    return table<tables::PerfSessionTable>();
-  }
-  tables::PerfSessionTable* mutable_perf_session_table() {
-    return mutable_table<tables::PerfSessionTable>();
+  tables::ChromeStackSampleExtrasTable*
+  mutable_chrome_stack_sample_extras_table() {
+    return mutable_table<tables::ChromeStackSampleExtrasTable>();
   }
 
-  const tables::PerfSampleTable& perf_sample_table() const {
-    return table<tables::PerfSampleTable>();
+  const tables::ProfilerAsyncContextTable& profiler_async_context_table()
+      const {
+    return table<tables::ProfilerAsyncContextTable>();
   }
-  tables::PerfSampleTable* mutable_perf_sample_table() {
-    return mutable_table<tables::PerfSampleTable>();
-  }
-
-  const tables::PerfCounterSetTable& perf_counter_set_table() const {
-    return table<tables::PerfCounterSetTable>();
-  }
-  tables::PerfCounterSetTable* mutable_perf_counter_set_table() {
-    return mutable_table<tables::PerfCounterSetTable>();
+  tables::ProfilerAsyncContextTable* mutable_profiler_async_context_table() {
+    return mutable_table<tables::ProfilerAsyncContextTable>();
   }
 
-  const tables::InstrumentsSampleTable& instruments_sample_table() const {
-    return table<tables::InstrumentsSampleTable>();
+  const tables::ProfilerTaskContextTable& profiler_task_context_table() const {
+    return table<tables::ProfilerTaskContextTable>();
   }
-  tables::InstrumentsSampleTable* mutable_instruments_sample_table() {
-    return mutable_table<tables::InstrumentsSampleTable>();
+  tables::ProfilerTaskContextTable* mutable_profiler_task_context_table() {
+    return mutable_table<tables::ProfilerTaskContextTable>();
+  }
+
+  const tables::ProfilerExecutionContextTable&
+  profiler_execution_context_table() const {
+    return table<tables::ProfilerExecutionContextTable>();
+  }
+  tables::ProfilerExecutionContextTable*
+  mutable_profiler_execution_context_table() {
+    return mutable_table<tables::ProfilerExecutionContextTable>();
+  }
+
+  const tables::ProfilerSessionTable& profiler_session_table() const {
+    return table<tables::ProfilerSessionTable>();
+  }
+  tables::ProfilerSessionTable* mutable_profiler_session_table() {
+    return mutable_table<tables::ProfilerSessionTable>();
+  }
+
+  const tables::ProfilerSampleTable& profiler_sample_table() const {
+    return table<tables::ProfilerSampleTable>();
+  }
+  tables::ProfilerSampleTable* mutable_profiler_sample_table() {
+    return mutable_table<tables::ProfilerSampleTable>();
+  }
+
+  const tables::ProfilerCounterSetTable& profiler_counter_set_table() const {
+    return table<tables::ProfilerCounterSetTable>();
+  }
+  tables::ProfilerCounterSetTable* mutable_profiler_counter_set_table() {
+    return mutable_table<tables::ProfilerCounterSetTable>();
   }
 
   const tables::SymbolTable& symbol_table() const {
@@ -682,6 +725,14 @@ class TraceStorage {
 
   tables::AggregateSampleTable* mutable_aggregate_sample_table() {
     return mutable_table<tables::AggregateSampleTable>();
+  }
+
+  const tables::VulkanDebugNamesTable& vulkan_debug_names_table() const {
+    return table<tables::VulkanDebugNamesTable>();
+  }
+
+  tables::VulkanDebugNamesTable* mutable_vulkan_debug_names_table() {
+    return mutable_table<tables::VulkanDebugNamesTable>();
   }
 
   const tables::VulkanMemoryAllocationsTable& vulkan_memory_allocations_table()

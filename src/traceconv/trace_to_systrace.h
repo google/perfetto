@@ -19,6 +19,8 @@
 
 #include <iostream>
 
+#include "perfetto/base/status.h"
+
 namespace perfetto {
 
 namespace trace_processor {
@@ -31,11 +33,11 @@ class TraceWriter;
 
 enum class Keep { kStart = 0, kEnd, kAll };
 
-int TraceToSystrace(std::istream* input,
-                    std::ostream* output,
-                    bool ctrace,
-                    Keep truncate_keep,
-                    bool full_sort);
+base::Status TraceToSystrace(std::istream* input,
+                             std::ostream* output,
+                             bool ctrace,
+                             Keep truncate_keep,
+                             bool full_sort);
 
 int ExtractSystrace(trace_processor::TraceProcessor*,
                     TraceWriter*,

@@ -43,12 +43,7 @@ export function withDirection<T>(
 }
 
 export type SortableValue =
-  | string
-  | number
-  | bigint
-  | null
-  | Uint8Array
-  | undefined;
+  string | number | bigint | null | Uint8Array | undefined;
 
 function columnTypeKind(a: SortableValue): number {
   if (a === undefined) {
@@ -83,10 +78,10 @@ export function compareUniversal(a: SortableValue, b: SortableValue): number {
   if (a instanceof Uint8Array && b instanceof Uint8Array) {
     // Do the lexicographical comparison
     for (let i = 0; i < a.length && i < b.length; i++) {
-      if (a[i] < b[i]) {
+      if (a[i]! < b[i]!) {
         return -1;
       }
-      if (a[i] > b[i]) {
+      if (a[i]! > b[i]!) {
         return 1;
       }
     }

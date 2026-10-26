@@ -14,12 +14,13 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
-import {Duration} from '../../base/time';
+import {Duration, Time} from '../../base/time';
 import type {BarChartData} from '../../components/aggregation';
 import {
   type Aggregation,
   type Aggregator,
-  type AggregatorGridConfig,
+  type AggregatorGridPreset,
+  createAggregationData,
   createIITable,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
@@ -48,6 +49,8 @@ import {
   formatDurationValue,
   formatPercentValue,
 } from '../../components/aggregation_panel';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
+import {Timestamp} from '../../components/widgets/timestamp';
 
 const THREAD_STATE_SPEC = {
   id: NUM,
@@ -62,8 +65,6 @@ export class ThreadStateSelectionAggregator implements Aggregator {
   readonly id = 'thread_state_aggregation';
 
   private readonly trace: Trace;
-  private trackDatasetMap?: Map<Dataset, Track>;
-  private unionDataset?: UnionDatasetWithLineage<DatasetSchema>;
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -83,29 +84,33 @@ export class ThreadStateSelectionAggregator implements Aggregator {
 
     if (threadStateTracks.length === 0) return undefined;
 
+    // Build track-to-dataset mapping synchronously
+    const trackDatasetMap = new Map<Dataset, Track>();
+    const datasets: Dataset[] = [];
+    for (const track of threadStateTracks) {
+      const dataset = track.renderer.getDataset?.();
+      if (dataset) {
+        datasets.push(dataset);
+        trackDatasetMap.set(dataset, track);
+      }
+    }
+
+    // Create union dataset with lineage tracking
+    const unionDataset = UnionDatasetWithLineage.create(datasets);
+
     return {
+      getGridConfig: () =>
+        this.getGridConfig((groupId, partition) =>
+          this.resolveTrack(groupId, partition, trackDatasetMap, unionDataset),
+        ),
       prepareData: async (engine: Engine) => {
-        // Build track-to-dataset mapping
-        this.trackDatasetMap = new Map();
-        const datasets: Dataset[] = [];
-        for (const track of threadStateTracks) {
-          const dataset = track.renderer.getDataset?.();
-          if (dataset) {
-            datasets.push(dataset);
-            this.trackDatasetMap.set(dataset, track);
-          }
-        }
-
-        // Create union dataset with lineage tracking
-        this.unionDataset = UnionDatasetWithLineage.create(datasets);
-
         // Query with needed columns for II table
         const iiQuerySchema = {
           ...THREAD_STATE_SPEC,
           __groupid: NUM,
           __partition: UNKNOWN,
         };
-        const sql = this.unionDataset.query(iiQuerySchema);
+        const sql = unionDataset.query(iiQuerySchema);
 
         // Create interval-intersect table for time filtering
         await using iiTable = await createIITable(
@@ -115,27 +120,30 @@ export class ThreadStateSelectionAggregator implements Aggregator {
           area.end,
         );
 
-        await engine.query(`
-          include perfetto module android.cpu.cluster_type;
+        await engine.query('include perfetto module android.cpu.cluster_type');
 
-          create or replace perfetto table ${this.id} as
-          select
-            json_object('id', tstate.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
-            process.name as process_name,
-            process.pid as pid,
-            thread.name as thread_name,
-            thread.tid as tid,
-            tstate.state as state,
-            utid,
-            ucpu,
-            dur,
-            dur * 1.0 / sum(dur) OVER () as fraction_of_total,
-            android_cpu_cluster_mapping.cluster_type as cluster_type
-          from ${iiTable.name} tstate
-          join thread using (utid)
-          left join process using (upid)
-          left join android_cpu_cluster_mapping using(ucpu)
-        `);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            select
+              json_object('id', tstate.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
+              process.name as process_name,
+              process.pid as pid,
+              thread.name as thread_name,
+              thread.tid as tid,
+              tstate.state as state,
+              utid,
+              ucpu,
+              tstate.ts,
+              dur,
+              dur * 1.0 / sum(dur) OVER () as fraction_of_total,
+              android_cpu_cluster_mapping.cluster_type as cluster_type
+            from ${iiTable.name} tstate
+            join thread using (utid)
+            left join process using (upid)
+            left join android_cpu_cluster_mapping using(ucpu)
+          `,
+        });
 
         const query = `
           select
@@ -162,94 +170,146 @@ export class ThreadStateSelectionAggregator implements Aggregator {
           });
         }
 
-        return {
-          tableName: this.id,
-          barChartData: states,
-        };
+        return createAggregationData(table, states);
       },
     };
   }
 
-  getGridConfig(): AggregatorGridConfig {
-    return {
-      schema: {
-        id_with_lineage: {
-          title: 'ID',
-          columnType: 'identifier',
-          cellRenderer: (value: unknown) => {
-            // Value is a JSON object {id, groupid, partition}
-            if (typeof value !== 'string') {
-              return String(value);
-            }
+  private getGridConfig(
+    resolveTrack: (groupId: number, partition: SqlValue) => Track | undefined,
+  ): ReadonlyArray<AggregatorGridPreset> {
+    const schema = {
+      id_with_lineage: {
+        title: 'ID',
+        columnType: 'identifier' as const,
+        cellRenderer: (value: unknown) => {
+          // Value is a JSON object {id, groupid, partition}
+          if (typeof value !== 'string') {
+            return String(value);
+          }
 
-            const parsed = JSON.parse(value) as {
-              id: number;
-              groupid: number;
-              partition: SqlValue;
-            };
-            const {id, groupid, partition} = parsed;
+          const parsed = JSON.parse(value) as {
+            id: number;
+            groupid: number;
+            partition: SqlValue;
+          };
+          const {id, groupid, partition} = parsed;
 
-            // Resolve track from lineage
-            const track = this.resolveTrack(groupid, partition);
-            if (!track) {
-              return String(id);
-            }
+          // Resolve track from lineage
+          const track = resolveTrack(groupid, partition);
+          if (!track) {
+            return String(id);
+          }
 
-            return m(
-              Anchor,
-              {
-                title: 'Go to thread state',
-                icon: Icons.UpdateSelection,
-                onclick: () => {
-                  this.trace.selection.selectTrackEvent(track.uri, id, {
-                    scrollToSelection: true,
-                  });
-                },
+          return m(
+            Anchor,
+            {
+              title: 'Go to thread state',
+              icon: Icons.UpdateSelection,
+              onclick: () => {
+                this.trace.selection.selectTrackEvent(track.uri, id, {
+                  scrollToSelection: true,
+                  switchToCurrentSelectionTab: false,
+                });
               },
-              String(id),
-            );
-          },
-        },
-        cluster_type: {title: 'Cluster Type', columnType: 'text'},
-        process_name: {title: 'Process', columnType: 'text'},
-        pid: {title: 'PID', columnType: 'identifier'},
-        thread_name: {title: 'Thread', columnType: 'text'},
-        tid: {title: 'TID', columnType: 'identifier'},
-        ucpu: {title: 'CPU', columnType: 'quantitative'},
-        utid: {title: 'UTID', columnType: 'identifier'},
-        state: {title: 'State', columnType: 'text'},
-        dur: {
-          title: 'Wall duration',
-          columnType: 'quantitative',
-          cellRenderer: formatDurationValue,
-        },
-        fraction_of_total: {
-          title: 'Wall duration %',
-          columnType: 'quantitative',
-          cellRenderer: formatPercentValue,
+            },
+            String(id),
+          );
         },
       },
-      initialPivot: {
-        groupBy: [
-          {id: 'thread_name', field: 'thread_name'},
-          {id: 'state', field: 'state'},
-        ],
-        aggregates: [
-          {id: 'count', function: 'COUNT'},
-          {id: 'process_name_any', field: 'process_name', function: 'ANY'},
-          {id: 'pid_any', field: 'pid', function: 'ANY'},
-          {id: 'thread_name_any', field: 'thread_name', function: 'ANY'},
-          {id: 'tid_any', field: 'tid', function: 'ANY'},
-          {id: 'dur_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
-          {
-            id: 'fraction_of_total_sum',
-            field: 'fraction_of_total',
-            function: 'SUM',
-          },
-          {id: 'dur_avg', field: 'dur', function: 'AVG'},
-        ],
+      cluster_type: {title: 'Cluster Type', columnType: 'text' as const},
+      process_name: {title: 'Process', columnType: 'text' as const},
+      pid: {title: 'PID', columnType: 'identifier' as const},
+      thread_name: {title: 'Thread', columnType: 'text' as const},
+      tid: {title: 'TID', columnType: 'identifier' as const},
+      ucpu: {title: 'CPU', columnType: 'quantitative' as const},
+      utid: {title: 'UTID', columnType: 'identifier' as const},
+      state: {title: 'State', columnType: 'text' as const},
+      ts: {
+        title: 'Timestamp',
+        columnType: 'quantitative' as const,
+        cellRenderer: (value: unknown) => {
+          if (typeof value === 'bigint') {
+            return m(Timestamp, {trace: this.trace, ts: Time.fromRaw(value)});
+          }
+          return String(value ?? '');
+        },
+      },
+      dur: {
+        title: 'Wall duration',
+        columnType: 'quantitative' as const,
+        cellRenderer: formatDurationValue,
+      },
+      fraction_of_total: {
+        title: 'Wall duration %',
+        columnType: 'quantitative' as const,
+        cellRenderer: formatPercentValue,
       },
     };
+
+    const aggregates = [
+      {id: 'count', function: 'COUNT' as const},
+      {id: 'process_name_any', field: 'process_name', function: 'ANY' as const},
+      {id: 'pid_any', field: 'pid', function: 'ANY' as const},
+      {id: 'thread_name_any', field: 'thread_name', function: 'ANY' as const},
+      {id: 'tid_any', field: 'tid', function: 'ANY' as const},
+      {
+        id: 'dur_sum',
+        field: 'dur',
+        function: 'SUM' as const,
+        sort: 'DESC' as const,
+      },
+      {
+        id: 'fraction_of_total_sum',
+        field: 'fraction_of_total',
+        function: 'SUM' as const,
+      },
+      {id: 'dur_avg', field: 'dur', function: 'AVG' as const},
+    ];
+
+    const initialColumns = [
+      {id: 'id_with_lineage', field: 'id_with_lineage'},
+      {id: 'process_name', field: 'process_name'},
+      {id: 'pid', field: 'pid'},
+      {id: 'thread_name', field: 'thread_name'},
+      {id: 'tid', field: 'tid'},
+      {id: 'state', field: 'state'},
+      {id: 'ts', field: 'ts'},
+      {id: 'dur', field: 'dur'},
+      {id: 'ucpu', field: 'ucpu'},
+    ];
+
+    return [
+      {
+        displayName: 'By Thread',
+        config: {
+          schema,
+          initialColumns,
+          initialPivot: {
+            groupBy: [
+              {id: 'thread_name', field: 'thread_name'},
+              {id: 'state', field: 'state'},
+            ],
+            aggregates,
+          },
+        },
+      },
+      {
+        displayName: 'By CPU',
+        config: {
+          schema,
+          initialColumns,
+          initialPivot: {
+            groupBy: [
+              {id: 'thread_name', field: 'thread_name'},
+              {id: 'state', field: 'state'},
+              {id: 'ucpu', field: 'ucpu'},
+            ],
+            aggregates,
+          },
+        },
+      },
+    ];
   }
 
   getTabName() {
@@ -262,8 +322,10 @@ export class ThreadStateSelectionAggregator implements Aggregator {
   private resolveTrack(
     groupId: number,
     partition: SqlValue,
+    trackDatasetMap: Map<Dataset, Track>,
+    unionDataset?: UnionDatasetWithLineage<DatasetSchema>,
   ): Track | undefined {
-    if (!this.trackDatasetMap || !this.unionDataset) return undefined;
+    if (!unionDataset) return undefined;
 
     // Ensure partition is a valid SqlValue
     const partitionValue =
@@ -275,13 +337,13 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         ? partition
         : null;
 
-    const datasets = this.unionDataset.resolveLineage({
+    const datasets = unionDataset.resolveLineage({
       __groupid: groupId,
       __partition: partitionValue,
     });
 
     for (const dataset of datasets) {
-      const track = this.trackDatasetMap.get(dataset);
+      const track = trackDatasetMap.get(dataset);
       if (track) return track;
     }
 

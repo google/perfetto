@@ -1,5 +1,4 @@
---
--- Copyright 2024 The Android Open Source Project
+-- Copyright 2026 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -13,6 +12,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
+
+INCLUDE PERFETTO MODULE android.process_metadata;
 
 CREATE PERFETTO FUNCTION _extract_freezer_pid(name STRING)
 RETURNS LONG
@@ -156,3 +157,145 @@ FROM starts
 WHERE
   starts.type = 'freeze'
   AND upid IS NOT NULL;
+
+-- Provides unified access to Android App Freeze events from StatsD.
+--
+-- Suggested minimal config:
+--
+-- data_sources: {
+--     config: {
+--         name: "android.statsd"
+--         statsd_config: {
+--             push_atom_id: ATOM_APP_FREEZE_CHANGED
+--         }
+--     }
+-- }
+
+-- View to get app freezer state intervals from StatsD
+CREATE PERFETTO VIEW android_freezer_state_statsd(
+  -- Timestamp of app freeze state change.
+  ts TIMESTAMP,
+  -- Duration of app freeze state.
+  dur DURATION,
+  -- PID of process.
+  pid LONG,
+  -- Process name.
+  process_name STRING,
+  -- Freezer state.
+  freezer_state STRING,
+  -- Time unfrozen in millis.
+  time_unfrozen_millis LONG,
+  -- Reason for unfreezing.
+  unfreeze_reason STRING
+)
+AS
+WITH
+  app_freeze_changes AS (
+    SELECT
+      s.ts,
+      extract_arg(s.arg_set_id, 'app_freeze_changed.pid') AS pid,
+      extract_arg(s.arg_set_id, 'app_freeze_changed.action') AS action,
+      extract_arg(s.arg_set_id, 'app_freeze_changed.process_name') AS process_name,
+      extract_arg(s.arg_set_id, 'app_freeze_changed.time_unfrozen_millis') AS time_unfrozen_millis,
+      extract_arg(s.arg_set_id, 'app_freeze_changed.unfreeze_reason_v2') AS unfreeze_reason
+    FROM slice AS s
+    JOIN track AS t
+      ON s.track_id = t.id
+    WHERE
+      t.name = 'Statsd Atoms'
+      AND s.name = 'app_freeze_changed'
+  )
+SELECT
+  ts,
+  lead(ts, 1, (SELECT end_ts FROM trace_bounds)) OVER (
+    PARTITION BY
+      pid
+    ORDER BY ts
+  )
+  - ts AS dur,
+  pid,
+  process_name,
+  action AS freezer_state,
+  time_unfrozen_millis,
+  unfreeze_reason
+FROM app_freeze_changes;
+
+-- FROZEN/UNFROZEN spans of each process over its lifetime. Freezer events and
+-- the trace-stop snapshot rows carry an unfreeze_reason only when the process
+-- is unfrozen, which is what tells the two states apart.
+CREATE PERFETTO TABLE _android_freezer_intervals AS
+WITH
+  -- A frozen process that gets killed emits no unfreeze, so spans stop at its
+  -- death. death is NULL while the process lives on at trace end.
+  lifetimes AS (
+    SELECT
+      p.upid,
+      coalesce(fw.fw_start_ts, p.start_ts, trace_start()) AS birth,
+      p.end_ts AS death
+    FROM process AS p
+    LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
+  ),
+  events AS (
+    SELECT
+      upid,
+      ts,
+      iif(unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state,
+      lag(ts) OVER (PARTITION BY upid ORDER BY ts) AS prev_ts,
+      lead(ts) OVER (PARTITION BY upid ORDER BY ts) AS next_ts
+    FROM __intrinsic_android_freezer_state
+    WHERE
+      is_initial = 0
+  ),
+  -- Spans still open at trace end have dur = -1, like unfinished slices.
+  spans AS (
+    SELECT
+      e.upid,
+      e.ts,
+      iif(
+        e.next_ts IS NULL
+        AND l.death IS NULL,
+        -1,
+        min(coalesce(e.next_ts, trace_end()), coalesce(l.death, trace_end()))
+        - e.ts
+      ) AS dur,
+      e.state
+    FROM events AS e
+    JOIN lifetimes AS l USING (upid)
+    UNION ALL
+    -- Before its first event a process was in the opposite state.
+    SELECT
+      e.upid,
+      l.birth AS ts,
+      e.ts - l.birth AS dur,
+      iif(e.state = 'FROZEN', 'UNFROZEN', 'FROZEN') AS state
+    FROM events AS e
+    JOIN lifetimes AS l USING (upid)
+    WHERE
+      e.prev_ts IS NULL
+    UNION ALL
+    -- Processes without events kept their trace-stop state throughout.
+    SELECT
+      s.upid,
+      l.birth AS ts,
+      iif(l.death IS NULL, -1, l.death - l.birth) AS dur,
+      iif(s.unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state
+    FROM __intrinsic_android_freezer_state AS s
+    JOIN lifetimes AS l USING (upid)
+    WHERE
+      s.is_initial = 1
+      AND NOT EXISTS (SELECT 1 FROM events AS e WHERE e.upid = s.upid)
+  )
+SELECT
+  row_number() OVER (ORDER BY s.ts, s.upid) AS id,
+  s.ts,
+  s.dur,
+  s.upid,
+  p.pid,
+  m.process_name,
+  s.state
+FROM spans AS s
+JOIN process AS p USING (upid)
+LEFT JOIN android_process_metadata AS m USING (upid)
+WHERE
+  s.dur > 0
+  OR s.dur = -1;

@@ -163,7 +163,7 @@ class ClockTracker {
                             int64_t to_ts = 0);
 
   // Returns the trace default clock, if one has been set.
-  std::optional<ClockId> trace_default_clock() const {
+  const std::optional<ClockId>& trace_default_clock() const {
     return trace_default_clock_;
   }
 

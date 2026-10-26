@@ -207,7 +207,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       persistedState &&
       editorTabs.some((t) => t.id === persistedState.activeTabId)
         ? persistedState.activeTabId
-        : editorTabs[0].id;
+        : editorTabs[0]!.id;
 
     // Helper to find the active tab
     function getActiveTab(): QueryEditorTab | undefined {
@@ -256,7 +256,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       // If we closed the active tab, switch to an adjacent one
       if (activeTabId === tabId) {
         const newIndex = Math.min(index, editorTabs.length - 1);
-        activeTabId = editorTabs[newIndex].id;
+        activeTabId = editorTabs[newIndex]!.id;
       }
 
       debouncedSave();
@@ -298,14 +298,14 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       // Find where to insert it
       if (beforeTabId === undefined) {
         // Insert at the end
-        editorTabs.push(draggedTab);
+        editorTabs.push(draggedTab!);
       } else {
         const beforeIndex = editorTabs.findIndex((t) => t.id === beforeTabId);
         if (beforeIndex === -1) {
           // beforeTabId not found, insert at end
-          editorTabs.push(draggedTab);
+          editorTabs.push(draggedTab!);
         } else {
-          editorTabs.splice(beforeIndex, 0, draggedTab);
+          editorTabs.splice(beforeIndex, 0, draggedTab!);
         }
       }
 

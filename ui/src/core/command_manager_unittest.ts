@@ -33,7 +33,7 @@ describe('remapHotkeys', () => {
     };
     const remapped = remapHotkeys([cmd], [overlay]);
 
-    expect(remapped[0].defaultHotkey).toBe('X');
+    expect(remapped[0]!.defaultHotkey).toBe('X');
   });
 
   test('double layer', () => {
@@ -51,7 +51,7 @@ describe('remapHotkeys', () => {
     };
     const remapped = remapHotkeys([cmd], [overlay1, overlay2]);
 
-    expect(remapped[0].defaultHotkey).toBe('Z');
+    expect(remapped[0]!.defaultHotkey).toBe('Z');
   });
 
   test('not defined in layer', () => {
@@ -66,7 +66,7 @@ describe('remapHotkeys', () => {
     };
     const remapped = remapHotkeys([cmd], [overlay1]);
 
-    expect(remapped[0].defaultHotkey).toBe('P');
+    expect(remapped[0]!.defaultHotkey).toBe('P');
   });
 
   test('no overlays', () => {
@@ -78,7 +78,7 @@ describe('remapHotkeys', () => {
     };
     const remapped = remapHotkeys([cmd], []);
 
-    expect(remapped[0].defaultHotkey).toBe('P');
+    expect(remapped[0]!.defaultHotkey).toBe('P');
   });
 
   test('cmd without default hotkey gets remapped', () => {
@@ -92,7 +92,7 @@ describe('remapHotkeys', () => {
     };
     const remapped = remapHotkeys([cmd], [overlay]);
 
-    expect(remapped[0].defaultHotkey).toBe('X');
+    expect(remapped[0]!.defaultHotkey).toBe('X');
   });
 });
 
@@ -170,5 +170,79 @@ describe('CommandManagerImpl error wrapping', () => {
       expect(parentErr.toString()).toContain('Caused by: Error: Root error');
     }
     expect(threw).toBe(true);
+  });
+});
+
+describe('CommandManagerImpl macro execution', () => {
+  let commandManager: CommandManagerImpl;
+
+  beforeEach(() => {
+    const omnibox = new OmniboxManagerImpl();
+    commandManager = new CommandManagerImpl(omnibox);
+  });
+
+  test('runs commands in sequence successfully', async () => {
+    const calls: string[] = [];
+    commandManager.registerCommand({
+      id: 'cmd.step1',
+      name: 'Step 1',
+      callback: (arg: unknown) => {
+        calls.push(`step1:${arg}`);
+      },
+    });
+    commandManager.registerCommand({
+      id: 'cmd.step2',
+      name: 'Step 2',
+      callback: (arg: unknown) => {
+        calls.push(`step2:${arg}`);
+      },
+    });
+
+    commandManager.registerMacro({
+      id: 'user.macro.test',
+      name: 'Test Macro',
+      run: [
+        {id: 'cmd.step1', args: ['foo']},
+        {id: 'cmd.step2', args: ['bar']},
+      ],
+    });
+
+    await commandManager.runCommand('user.macro.test');
+    expect(calls).toEqual(['step1:foo', 'step2:bar']);
+  });
+
+  test('handles unregistered command in macro gracefully by showing modal', async () => {
+    commandManager.registerMacro({
+      id: 'user.macro.broken',
+      name: 'Broken Macro',
+      run: [{id: 'dev.perfetto.NonExistentCommand', args: []}],
+    });
+
+    await expect(
+      commandManager.runCommand('user.macro.broken'),
+    ).resolves.toBeUndefined();
+  });
+
+  test('rethrows error when executing startup commands', async () => {
+    commandManager.setExecutingStartupCommands(true);
+    commandManager.registerMacro({
+      id: 'user.macro.blocked',
+      name: 'Blocked Macro',
+      run: [{id: 'dev.perfetto.NonExistentCommand', args: []}],
+    });
+
+    let caughtError: unknown;
+    try {
+      await commandManager.runCommand('user.macro.blocked');
+    } catch (e) {
+      caughtError = e;
+    }
+
+    expect(caughtError).toBeInstanceOf(CommandError);
+    const cmdErr = caughtError as CommandError;
+    expect(cmdErr.commandId).toBe('user.macro.blocked');
+    expect(cmdErr.cause.message).toContain(
+      'Startup command "dev.perfetto.NonExistentCommand" is not on the allowlist and was blocked',
+    );
   });
 });

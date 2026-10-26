@@ -19,7 +19,7 @@
 // Spans the whole trace, independent of the page's snapshot selection.
 
 import m from 'mithril';
-import {QuerySlot} from '../../../../../base/query_slot';
+import {AsyncMemo} from '../../../../../base/async_memo';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
 import {
@@ -157,9 +157,9 @@ export interface TraceOverviewAttrs {
 
 export class TraceOverview implements m.ClassComponent<TraceOverviewAttrs> {
   // One slot per query, so the three load and redraw independently.
-  private readonly statsSlot = new QuerySlot<StatsData>();
-  private readonly counterSlot = new QuerySlot<CounterData>();
-  private readonly smapsSlot = new QuerySlot<AnonSwapSeries>();
+  private readonly statsSlot = new AsyncMemo<StatsData>();
+  private readonly counterSlot = new AsyncMemo<CounterData>();
+  private readonly smapsSlot = new AsyncMemo<AnonSwapSeries>();
 
   onremove() {
     this.statsSlot.dispose();
@@ -172,15 +172,15 @@ export class TraceOverview implements m.ClassComponent<TraceOverviewAttrs> {
     const key = {traceId: trace.traceInfo.uuid, upid};
     const stats = this.statsSlot.use({
       key,
-      queryFn: () => loadStats(trace, upid),
+      compute: () => loadStats(trace, upid),
     }).data;
     const counters = this.counterSlot.use({
       key,
-      queryFn: () => loadCounters(trace, upid),
+      compute: () => loadCounters(trace, upid),
     }).data;
     const snaps = this.smapsSlot.use({
       key,
-      queryFn: () => loadAnonSwap(trace, upid),
+      compute: () => loadAnonSwap(trace, upid),
     }).data;
 
     const statsLoading = stats === undefined;

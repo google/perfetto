@@ -24,12 +24,16 @@ import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {sqlNameSafe} from '../../base/string_utils';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import {uuidv4} from '../../base/uuid';
+import RecordTraceV2Plugin, {
+  registerRecordSubpageProvider,
+} from '../dev.perfetto.RecordTraceV2';
 import {CpuPage} from './cpu_page';
 import {ARM_TELEMETRY_CPU_SPEC_SCHEMA} from './arm_telemetry_spec';
 import type {ArmTelemetryCpuSpec} from './arm_telemetry_spec';
 import {z} from 'zod';
 import type {ArmTelemetrySpecManager} from './arm_telemetry_spec_manager';
 import {ArmTelemetrySpecManagerImpl} from './arm_telemetry_spec_manager_impl';
+import {pmuRecordSection} from './pmu';
 
 type ApplicableMetricDesc = {
   name: string;
@@ -57,7 +61,7 @@ export default class ArmTelemetryPlugin implements PerfettoPlugin {
     used to create per-CPU metric tracks.
     Use the Arm CPU page to load and manage CPU specification files.
   `;
-  static readonly dependencies = [StandardGroupsPlugin];
+  static readonly dependencies = [StandardGroupsPlugin, RecordTraceV2Plugin];
   private static specManager: ArmTelemetrySpecManager;
 
   static onActivate(app: App): void {
@@ -88,6 +92,9 @@ export default class ArmTelemetryPlugin implements PerfettoPlugin {
       href: '#!/arm_cpu',
       icon: 'memory',
     });
+    registerRecordSubpageProvider((recMgr) =>
+      pmuRecordSection(recMgr, app, ArmTelemetryPlugin.specManager),
+    );
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
@@ -361,7 +368,7 @@ export default class ArmTelemetryPlugin implements PerfettoPlugin {
         });
 
         if (exists(found)) {
-          const cpu = m.cpus[0];
+          const cpu = m.cpus[0]!;
           if (!found.cpus.includes(cpu)) {
             found.cpus.push(cpu);
           }
@@ -439,11 +446,11 @@ export default class ArmTelemetryPlugin implements PerfettoPlugin {
       // Optimize query if it is applicable to all the CPUS
       if (
         metrics.length == 1 &&
-        metrics[0].cpus.length == applicableCpus.length &&
-        metrics[0].cpus.every((c) => applicableCpus.includes(c))
+        metrics[0]!.cpus.length == applicableCpus.length &&
+        metrics[0]!.cpus.every((c) => applicableCpus.includes(c))
       ) {
-        const metric = metrics[0];
-        const firstTable = eventTableName(metric.events[0]);
+        const metric = metrics[0]!;
+        const firstTable = eventTableName(metric.events[0]!);
         const fromClause = metric.events.slice(1).reduce((acc, counter) => {
           const counterTable = eventTableName(counter);
           return (
@@ -471,7 +478,7 @@ export default class ArmTelemetryPlugin implements PerfettoPlugin {
           DROP TABLE IF EXISTS ${tableName};
           CREATE TABLE ${tableName} AS
           ${metrics.reduce<string>((acc, metric) => {
-            const firstTable = eventTableName(metric.events[0]);
+            const firstTable = eventTableName(metric.events[0]!);
             const fromClause = metric.events.slice(1).reduce((acc, counter) => {
               const counterTable = eventTableName(counter);
               return (

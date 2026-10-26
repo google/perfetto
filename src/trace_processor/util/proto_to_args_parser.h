@@ -121,6 +121,8 @@ class ProtoToArgsParser {
     virtual void AddDouble(Id flat_key, Id key, double value) = 0;
     virtual void AddPointer(Id flat_key, Id key, uint64_t value) = 0;
     virtual void AddBoolean(Id flat_key, Id key, bool value) = 0;
+    virtual void AddUpid(Id, Id, int64_t) {}
+    virtual void AddUtid(Id, Id, int64_t) {}
     virtual void AddBytes(Id flat_key,
                           Id key,
                           const protozero::ConstBytes& value) {
@@ -241,6 +243,25 @@ class ProtoToArgsParser {
                             int* unknown_extensions = nullptr,
                             bool add_defaults = false);
 
+  // Occurrence counts of the repeated fields met so far in one message,
+  // which number their keys ("field[i]").
+  using RepeatedFieldIndex = std::vector<std::pair<uint32_t, int>>;
+
+  // Parses a single already-decoded |field| of the message type at
+  // |descriptor_idx| in the pool, as if it were the only field of that
+  // message, and emits args via the delegate. For a caller that has decoded
+  // the message itself this skips the walk over the fields it does not want
+  // reflected. A field with no descriptor counts towards
+  // |unknown_extensions|. A caller parsing several fields of one message
+  // passes the same |repeated_field_index| to each call so that the
+  // occurrences of a repeated field are numbered across them.
+  base::Status ParseMessageField(
+      uint32_t descriptor_idx,
+      const protozero::Field& field,
+      Delegate& delegate,
+      int* unknown_extensions = nullptr,
+      RepeatedFieldIndex* repeated_field_index = nullptr);
+
   // These methods can be called from parsing overrides to enter nested
   // contexts. The contexts are left when the returned scope is destroyed or
   // RemoveFieldSuffix() is called.
@@ -285,6 +306,11 @@ class ProtoToArgsParser {
 
   base::Status RunWorkLoop(Delegate& delegate);
   base::Status StepProtoMessage(WorkItem& item, Delegate& delegate, bool& done);
+  // Handles one field read from |item|'s message: emits a leaf or pushes
+  // the work item for a submessage.
+  base::Status HandleField(WorkItem& item,
+                           const protozero::Field& field,
+                           Delegate& delegate);
   // Emits default-valued args for fields absent from |item|. Outlined; the
   // caller only reaches it (under UNLIKELY) when add_defaults is set.
   PERFETTO_NO_INLINE base::Status AddMessageDefaults(WorkItem& item,
@@ -314,16 +340,14 @@ class ProtoToArgsParser {
                                   bool added_entry,
                                   Delegate& delegate);
 
-  base::Status ParsePackedField(
-      const FieldDescriptor& field_descriptor,
-      std::unordered_map<size_t, int>& repeated_field_index,
-      protozero::Field field,
-      uint32_t parent_path,
-      Delegate& delegate);
+  base::Status ParsePackedField(const FieldDescriptor& field_descriptor,
+                                RepeatedFieldIndex& repeated_field_index,
+                                protozero::Field field,
+                                uint32_t parent_path,
+                                Delegate& delegate);
 
-  std::optional<base::Status> MaybeApplyOverrideForField(
-      const protozero::Field&,
-      Delegate& delegate);
+  // The override registered for the current key_prefix_.flat_key, if any.
+  ParsingOverrideForField* FindOverrideForKey();
 
   base::Status ParseSimpleField(const FieldDescriptor& descriptor,
                                 const protozero::Field& field,
@@ -344,6 +368,22 @@ class ProtoToArgsParser {
                         int64_t value,
                         Delegate& delegate);
 
+  // Emit companion args for (pid)/(tid) fields.
+  void AddPid(int64_t pid, Delegate& delegate);
+  void AddTid(int64_t tid, Delegate& delegate);
+
+  // Interns the current flat_key/key with a trailing |from| replaced by |to|.
+  std::pair<StringPool::Id, StringPool::Id> InternSuffixedKeys(
+      Delegate& delegate,
+      std::string_view from,
+      std::string_view to);
+
+  struct FlatField {
+    const FieldDescriptor* descriptor;
+    uint32_t node;
+    StringPool::Id key;
+  };
+
   // A node in the traversal tree, a flattened trie over the descriptor path.
   // Nodes live in the |path_nodes_| arena and reference each other by index, so
   // the arena can grow without invalidating handles. Each field is a pure
@@ -361,7 +401,22 @@ class ProtoToArgsParser {
     // True if this node or an ancestor is repeated, so |key| (with "[i]")
     // differs from |flat_key| and is interned per occurrence.
     bool has_array = false;
+
+    uint32_t flat_generation = 0;
+    bool flat_eligible = false;
+    base::FlatHashMap<uint32_t, FlatField> flat_fields;
+    // The override registered for this node's flat key, if any. Looked up
+    // once when the node is created, so overrides must be registered before
+    // the first parse.
+    ParsingOverrideForField* override = nullptr;
   };
+
+  bool TryRunFlatMessage(uint32_t node,
+                         uint32_t descriptor_idx,
+                         protozero::ConstBytes bytes,
+                         Delegate& delegate);
+  PERFETTO_NO_INLINE void PrepareFlatMessage(uint32_t node,
+                                             uint32_t descriptor_idx);
 
   // Sentinel |path_nodes_| index: no descriptor path to cache.
   static constexpr uint32_t kNoPath = std::numeric_limits<uint32_t>::max();
@@ -406,13 +461,17 @@ class ProtoToArgsParser {
   std::vector<PathNode> path_nodes_;
   // Reused scratch buffer for AddFlags (flag-name views), to avoid per-call
   // allocation.
+  // Reused buffer for InternSuffixedKeys, to avoid a per-field allocation.
+  std::string suffixed_key_scratch_;
   std::vector<std::string_view> flag_views_;
   // Edge -> child node index in |path_nodes_| (see |PathEdgeKey|). Roots are
   // keyed by pool descriptor index under the kNoPath parent.
   base::FlatHashMap<uint64_t, uint32_t> path_index_;
   Key key_prefix_;
-  // Parameters to ParseMessage that apply uniformly to every ProtoMessage
-  // WorkItem on the stack. Set by ParseMessage; read by StepProtoMessage.
+  // Parameters to ParseMessage/ParseMessageField that apply uniformly to
+  // every ProtoMessage WorkItem on the stack, read by StepProtoMessage /
+  // HandleField. Both setters reset these to their defaults on every exit
+  // path, so no other entry point ever sees a stale value.
   const std::vector<uint32_t>* allowed_fields_ = nullptr;
   int* unknown_extensions_ = nullptr;
   bool add_defaults_ = false;

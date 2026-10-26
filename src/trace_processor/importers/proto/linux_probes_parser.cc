@@ -44,6 +44,19 @@ void LinuxProbesParser::ParseSystemdJournaldEvent(int64_t ts,
                                                   protozero::ConstBytes blob) {
   protos::pbzero::SystemdJournaldEvent::Decoder evt(blob);
 
+  // Flushes emit statistics in a dedicated journald event packet.
+  const bool is_stats = evt.has_num_failed() || evt.has_num_total();
+  if (evt.has_num_failed()) {
+    context_->stats_tracker->SetStats(stats::systemd_journal_num_failed,
+                                      static_cast<int64_t>(evt.num_failed()));
+  }
+  if (evt.has_num_total()) {
+    context_->stats_tracker->SetStats(stats::systemd_journal_num_total,
+                                      static_cast<int64_t>(evt.num_total()));
+  }
+  if (is_stats)
+    return;
+
   auto pid = evt.has_pid() ? static_cast<uint32_t>(evt.pid()) : 0u;
   auto tid = evt.has_tid() ? static_cast<uint32_t>(evt.tid()) : pid;
 
@@ -119,16 +132,6 @@ void LinuxProbesParser::ParseSystemdJournaldEvent(int64_t ts,
     if (transport_id) {
       inserter.AddArg(transport_key_id_, Variadic::String(*transport_id));
     }
-  }
-
-  if (evt.has_num_failed()) {
-    context_->stats_tracker->SetStats(stats::systemd_journal_num_failed,
-                                      static_cast<int64_t>(evt.num_failed()));
-  }
-
-  if (evt.has_num_total()) {
-    context_->stats_tracker->SetStats(stats::systemd_journal_num_total,
-                                      static_cast<int64_t>(evt.num_total()));
   }
 }
 

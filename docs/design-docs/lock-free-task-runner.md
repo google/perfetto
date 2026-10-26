@@ -328,7 +328,7 @@ In practice we end up dividing the probability of deferring a Slab deletion
 by 32x.
 
 This is the logic that underpins the `LockFreeTaskRunner.refcounts_` array of
-atomic integers, and the `ScopedRefCount` class used by the writers.
+atomic integers, and the `ScopedRefcount` class used by the writers.
 
 
 ### Delayed Task Handling

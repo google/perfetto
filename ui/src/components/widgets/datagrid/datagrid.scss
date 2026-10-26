@@ -64,6 +64,19 @@
     color: var(--pf-color-text-muted);
   }
 
+  // Must come after __groupby-column so it wins on group-by cells.
+  &__cell--quick-filter-match {
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-accent) 15%,
+      transparent
+    );
+  }
+
+  &__quick-filter {
+    width: 200px;
+  }
+
   &__table {
     flex: 1;
     overflow: auto;
@@ -208,4 +221,23 @@
   * {
     flex-grow: 1;
   }
+}
+
+.pf-datagrid-cell--missing {
+  $missing-cell-stripe: color-mix(
+    in srgb,
+    var(--pf-color-danger) 10%,
+    transparent
+  );
+
+  // Patterned background to indicate missing data, similar to how Excel does it.
+  background-image: repeating-linear-gradient(
+    45deg,
+    $missing-cell-stripe,
+    $missing-cell-stripe 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  color: var(--pf-color-danger);
+  font-style: italic;
 }

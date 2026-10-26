@@ -201,7 +201,7 @@ void Subprocess::StdoutErrThread(MovableState* s) {
     if (!res) {
       auto err = GetLastError();
       if (err != ERROR_BROKEN_PIPE)
-        PERFETTO_PLOG("Subprocess ReadFile(stdouterr) failed %ld", err);
+        PERFETTO_PLOG("Subprocess ReadFile(stdouterr) failed %lx", err);
     }
 
     if (rsize > 0) {

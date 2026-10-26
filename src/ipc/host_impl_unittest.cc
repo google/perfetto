@@ -47,7 +47,6 @@ using ::perfetto::ipc::Frame;
 using ::perfetto::ipc::gen::ReplyProto;
 using ::perfetto::ipc::gen::RequestProto;
 using ::testing::_;
-using ::testing::InvokeWithoutArgs;
 using ::testing::Return;
 
 ipc::TestSocket kTestSocket{"host_impl_unittest"};
@@ -272,7 +271,7 @@ TEST_F(HostImplTest, InvokeNonExistingMethod) {
   ASSERT_TRUE(host_->ExposeService(std::unique_ptr<Service>(fake_service)));
   auto on_bind = task_runner_->CreateCheckpoint("on_bind");
   cli_->BindService("FakeService");
-  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(InvokeWithoutArgs(on_bind));
+  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(on_bind);
   task_runner_->RunUntilCheckpoint("on_bind");
 
   auto on_invoke_failure = task_runner_->CreateCheckpoint("on_invoke_failure");
@@ -291,7 +290,7 @@ TEST_F(HostImplTest, InvokeMethod) {
   ASSERT_TRUE(host_->ExposeService(std::unique_ptr<Service>(fake_service)));
   auto on_bind = task_runner_->CreateCheckpoint("on_bind");
   cli_->BindService("FakeService");
-  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(InvokeWithoutArgs(on_bind));
+  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(on_bind);
   task_runner_->RunUntilCheckpoint("on_bind");
 
   RequestProto req_args;
@@ -327,7 +326,7 @@ TEST_F(HostImplTest, InvokeMethodDropReply) {
   ASSERT_TRUE(host_->ExposeService(std::unique_ptr<Service>(fake_service)));
   auto on_bind = task_runner_->CreateCheckpoint("on_bind");
   cli_->BindService("FakeService");
-  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(InvokeWithoutArgs(on_bind));
+  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(on_bind);
   task_runner_->RunUntilCheckpoint("on_bind");
 
   // OnFakeMethod1 will:
@@ -372,14 +371,15 @@ TEST_F(HostImplTest, SendFileDescriptor) {
   ASSERT_TRUE(host_->ExposeService(std::unique_ptr<Service>(fake_service)));
   auto on_bind = task_runner_->CreateCheckpoint("on_bind");
   cli_->BindService("FakeService");
-  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(InvokeWithoutArgs(on_bind));
+  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(on_bind);
   task_runner_->RunUntilCheckpoint("on_bind");
 
   static constexpr char kFileContent[] = "shared file";
   RequestProto req_args;
   cli_->InvokeMethod(cli_->last_bound_service_id_, 1, req_args);
   auto on_reply_sent = task_runner_->CreateCheckpoint("on_reply_sent");
-  base::TempFile tx_file = base::TempFile::CreateUnlinked();
+  base::TempFile tx_file =
+      base::TempFile::Create(base::TempFile::LinkMode::kUnlinked).ValueOrDie();
   ASSERT_EQ(static_cast<size_t>(base::WriteAll(tx_file.fd(), kFileContent,
                                                sizeof(kFileContent))),
             sizeof(kFileContent));
@@ -416,12 +416,13 @@ TEST_F(HostImplTest, ReceiveFileDescriptor) {
   ASSERT_TRUE(host_->ExposeService(std::unique_ptr<Service>(fake_service)));
   auto on_bind = task_runner_->CreateCheckpoint("on_bind");
   cli_->BindService("FakeService");
-  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(InvokeWithoutArgs(on_bind));
+  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(on_bind);
   task_runner_->RunUntilCheckpoint("on_bind");
 
   static constexpr char kFileContent[] = "shared file";
   RequestProto req_args;
-  base::TempFile tx_file = base::TempFile::CreateUnlinked();
+  base::TempFile tx_file =
+      base::TempFile::Create(base::TempFile::LinkMode::kUnlinked).ValueOrDie();
   ASSERT_EQ(static_cast<size_t>(base::WriteAll(tx_file.fd(), kFileContent,
                                                sizeof(kFileContent))),
             sizeof(kFileContent));
@@ -453,7 +454,7 @@ TEST_F(HostImplTest, OnClientDisconnect) {
   ASSERT_TRUE(host_->ExposeService(std::unique_ptr<Service>(fake_service)));
   auto on_bind = task_runner_->CreateCheckpoint("on_bind");
   cli_->BindService("FakeService");
-  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(InvokeWithoutArgs(on_bind));
+  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(on_bind);
   task_runner_->RunUntilCheckpoint("on_bind");
 
   RequestProto req_args;
@@ -477,7 +478,7 @@ TEST_F(HostImplTest, MoveReplyObjectAndReplyAsynchronously) {
   ASSERT_TRUE(host_->ExposeService(std::unique_ptr<Service>(fake_service)));
   auto on_bind = task_runner_->CreateCheckpoint("on_bind");
   cli_->BindService("FakeService");
-  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(InvokeWithoutArgs(on_bind));
+  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(on_bind);
   task_runner_->RunUntilCheckpoint("on_bind");
 
   // Invokes the remote method and waits that the FakeService sees it. The reply
@@ -528,7 +529,7 @@ TEST_F(HostImplTest, ServiceClientInfo) {
   ASSERT_TRUE(host_->ExposeService(std::unique_ptr<Service>(fake_service)));
   auto on_bind = task_runner_->CreateCheckpoint("on_bind");
   cli_->BindService("FakeService");
-  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(InvokeWithoutArgs(on_bind));
+  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(on_bind);
   task_runner_->RunUntilCheckpoint("on_bind");
 
   RequestProto req_args;
@@ -560,7 +561,7 @@ TEST_F(HostImplTest, SetPeerIdentityUnixSocket) {
 
   auto on_bind = task_runner_->CreateCheckpoint("on_bind");
   cli_->BindService("FakeService");
-  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(InvokeWithoutArgs(on_bind));
+  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(on_bind);
   task_runner_->RunUntilCheckpoint("on_bind");
 
   RequestProto req_args;
@@ -615,7 +616,7 @@ TEST(HostImpl, SetPeerIdentityTcpSocket) {
 
   auto on_bind = task_runner->CreateCheckpoint("on_bind");
   cli->BindService("FakeService");
-  EXPECT_CALL(*cli, OnServiceBound(_)).WillOnce(InvokeWithoutArgs(on_bind));
+  EXPECT_CALL(*cli, OnServiceBound(_)).WillOnce(on_bind);
   task_runner->RunUntilCheckpoint("on_bind");
 
   RequestProto req_args;

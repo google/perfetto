@@ -42,9 +42,7 @@ export interface AddColumnsConfigurationModalAttrs {
   readonly onColumnAlias: (columnName: string, alias: string) => void;
 }
 
-export class AddColumnsConfigurationModal
-  implements m.ClassComponent<AddColumnsConfigurationModalAttrs>
-{
+export class AddColumnsConfigurationModal implements m.ClassComponent<AddColumnsConfigurationModalAttrs> {
   view({attrs}: m.Vnode<AddColumnsConfigurationModalAttrs>) {
     const {
       sourceCols,
@@ -138,11 +136,11 @@ export class AddColumnsConfigurationModal
           onRightColumnChange(columnName);
         },
         onColumnToggle: (index: number, checked: boolean) => {
-          const colName = rightCols[index].name;
+          const colName = rightCols[index]!.name;
           onColumnToggle(colName, checked);
         },
         onColumnAlias: (index: number, alias: string) => {
-          const colName = rightCols[index].name;
+          const colName = rightCols[index]!.name;
           onColumnAlias(colName, alias);
         },
       }),

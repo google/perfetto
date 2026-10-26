@@ -29,7 +29,7 @@ This section is the mandatory first-pass triage for analyzing a Java allocation 
 1.  Run the trace query using the provided compiled script to extract the top allocation path. For triage, we look at the top allocator by default (unreleased, but the script can be adapted or we assume it's the primary signal).
 
     ```bash
-    trace_processor query --query-file $SKILL_ROOT/workflows/android_memory/scripts/triage_java_allocation.sql TRACE_FILE
+    trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/android_memory/scripts/triage_java_allocation.sql
     ```
 
 2.  Parse the returned string CSV to identify the columns and extract the values for `process_name`, `path` (callstack), `class_name` (leaf method), and `self_size` (allocated bytes). If the response is empty or contains only a header, inform the user that the query returned no matching data for this trace.
@@ -42,7 +42,7 @@ This section is the mandatory first-pass triage for analyzing a Java allocation 
     >
     > This allocation path is a primary candidate for memory churn. To find where the allocation is happening, search for the class and method names in the codebase. Use the source code to identify if these allocations are temporary and if they can be avoided (e.g., by reusing objects, avoiding allocations in loops, or using primitive types). Reference specific locations in the code and create an implementation plan for optimizing it.
 
-4.  Present this generated string as a system prompt asking the underlying LLM to generate the final analysis response for the user. Provide the model's analysis cleanly.
+4.  Treat the generated string as the brief for your own analysis and write the final response for the user from it.
 
 ---
 

@@ -21,9 +21,36 @@
 #include <unordered_set>
 #include <vector>
 
+#include "perfetto/ext/base/string_utils.h"
+
 namespace perfetto::trace_processor::shell {
 
 Subcommand::~Subcommand() = default;
+
+base::Status RejectExtraPositionals(const SubcommandContext& ctx,
+                                    const char* subcommand,
+                                    size_t max_positionals,
+                                    const char* hint) {
+  if (ctx.positional_args.size() <= max_positionals)
+    return base::OkStatus();
+
+  std::string extra;
+  for (size_t i = max_positionals; i < ctx.positional_args.size(); ++i) {
+    if (!extra.empty())
+      extra += " ";
+    extra += "'" + ctx.positional_args[i] + "'";
+  }
+  base::Status status = base::ErrStatus(
+      "%s: expected at most %zu positional argument(s), got %zu: %s. Extra "
+      "arguments are rejected to catch mistakes, e.g. passing each path "
+      "intended for a value-taking flag as a separate argument; use a "
+      "comma-separated list for those instead.",
+      subcommand, max_positionals, ctx.positional_args.size(), extra.c_str());
+  if (hint) {
+    status = base::ErrStatus("%s %s", status.c_message(), hint);
+  }
+  return status;
+}
 
 FindSubcommandResult FindSubcommandInArgs(
     int argc,

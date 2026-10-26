@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -59,6 +60,8 @@ class RemoteTraceProcessor : public TraceProcessor {
 
   // TraceProcessor:
   Iterator ExecuteQuery(const std::string& sql) override;
+  std::optional<Iterator> ExecuteNextStatement(const std::string& sql,
+                                               uint32_t* offset) override;
   base::Status RegisterSqlPackage(SqlPackage) override;
   base::Status Summarize(const TraceSummaryComputationSpec& computation,
                          const std::vector<TraceSummarySpecBytes>& specs,
@@ -86,6 +89,7 @@ class RemoteTraceProcessor : public TraceProcessor {
                                  MetricResultFormat format,
                                  std::string* metrics_string) override;
   std::vector<uint8_t> GetMetricDescriptors() override;
+  base::Status Export(ExportFormat format, ExportOutput* output) override;
   base::Status CreateSummarizer(std::unique_ptr<Summarizer>* out) override;
 
  private:

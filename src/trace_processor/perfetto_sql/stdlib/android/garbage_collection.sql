@@ -16,8 +16,6 @@
 
 INCLUDE PERFETTO MODULE android.startup.startups;
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 INCLUDE PERFETTO MODULE slices.with_context;
 
 -- Collect all GC slices. There's typically one enclosing slice but sometimes the
@@ -92,7 +90,7 @@ WHERE
 -- final heap size after GC. The algorithm is like so:
 -- 1. Merge end_ts of the GC events with the start_ts of the heap counters.
 -- 2. Find the heap counter value right after each GC event.
-CREATE PERFETTO VIEW _gc_slice_with_final_heap AS
+CREATE PERFETTO TABLE _gc_slice_with_final_heap AS
 WITH
   slice_and_heap AS (
     SELECT upid, gc_id, gc_ts + gc_dur AS ts, NULL AS value FROM _gc_slice
@@ -108,8 +106,13 @@ SELECT _gc_slice.*, last_value
 FROM _gc_slice
 LEFT JOIN slice_with_last_heap USING (gc_id);
 
--- Span join with all the other heap counters to find the overall min and max heap size.
-CREATE VIRTUAL TABLE _gc_slice_heap_sp USING SPAN_JOIN(_gc_slice_with_final_heap PARTITIONED upid, _gc_heap_counter PARTITIONED upid);
+-- The min and max of the heap counters overlapping each GC event.
+CREATE PERFETTO TABLE _gc_slice_heap_min_max AS
+INTERVAL INTERSECTION OF (
+  (SELECT gc_id, ts, dur, upid FROM _gc_slice_with_final_heap WHERE dur > 0) AS gc,
+  (SELECT ts, dur, upid, value FROM _gc_heap_counter WHERE dur > 0) AS heap
+) PER upid
+|> AGGREGATE MIN(value) AS min_value, MAX(value) AS max_value GROUP BY gc.gc_id;
 
 -- Aggregate the min and max heap across the GC event, taking into account the last heap size
 -- derived earlier.
@@ -128,7 +131,6 @@ SELECT
   thread_name,
   process_name,
   last_value,
-  value,
   CASE
     WHEN gc_name GLOB '*NativeAlloc*' THEN 'native_alloc'
     WHEN gc_name GLOB '*Alloc*' THEN 'alloc'
@@ -138,14 +140,24 @@ SELECT
     ELSE 'full'
   END AS gc_type,
   iif(gc_name GLOB '*mark compact*', 1, 0) AS is_mark_compact,
-  max(max(value, last_value)) / 1e3 AS max_heap_mb,
-  min(min(value, last_value)) / 1e3 AS min_heap_mb
-FROM _gc_slice_heap_sp
-GROUP BY
-  gc_id;
+  max(m.max_value, last_value) / 1e3 AS max_heap_mb,
+  min(m.min_value, last_value) / 1e3 AS min_heap_mb
+FROM _gc_slice_with_final_heap
+JOIN _gc_slice_heap_min_max AS m USING (gc_id);
 
--- Span join GC events with thread states to breakdown the time spent.
-CREATE VIRTUAL TABLE _gc_slice_heap_thread_state_sp USING SPAN_LEFT_JOIN(_gc_slice_heap PARTITIONED utid, thread_state PARTITIONED utid);
+-- Time spent by each GC event in each thread state.
+CREATE PERFETTO TABLE _gc_slice_thread_state_dur AS
+INTERVAL INTERSECTION OF (
+  _gc_slice_heap AS gc,
+  (
+    -- Thread states still open at the end of the trace have dur = -1.
+    SELECT ts, iif(dur = -1, trace_end() - ts, dur) AS dur, utid, state, io_wait
+    FROM thread_state
+    WHERE
+      utid IN (SELECT utid FROM _gc_slice_heap)
+  ) AS t
+) PER utid
+|> AGGREGATE SUM(dur) AS dur GROUP BY gc.gc_id, t.state, t.io_wait;
 
 -- All Garbage collection events with a breakdown of the time spent and heap reclaimed.
 CREATE PERFETTO TABLE android_garbage_collection_events(
@@ -189,55 +201,30 @@ CREATE PERFETTO TABLE android_garbage_collection_events(
   gc_int_dur LONG
 )
 AS
-WITH
-  agg_events AS (
-    SELECT
-      tid,
-      pid,
-      utid,
-      upid,
-      thread_name,
-      process_name,
-      gc_type,
-      is_mark_compact,
-      gc_id,
-      gc_ts,
-      gc_dur,
-      sum(dur) AS dur,
-      max_heap_mb - min_heap_mb AS reclaimed_mb,
-      min_heap_mb,
-      max_heap_mb,
-      state,
-      io_wait
-    FROM _gc_slice_heap_thread_state_sp
-    GROUP BY
-      gc_id,
-      state,
-      io_wait
-  )
 SELECT
-  tid,
-  pid,
-  utid,
-  upid,
-  thread_name,
-  process_name,
-  gc_type,
-  is_mark_compact,
-  reclaimed_mb,
-  min_heap_mb,
-  max_heap_mb,
-  gc_id,
-  gc_ts,
-  gc_dur,
-  sum(iif(state = 'Running', dur, 0)) AS gc_running_dur,
-  sum(iif(state = 'R' OR state = 'R+', dur, 0)) AS gc_runnable_dur,
-  sum(iif(state = 'D' AND io_wait = 1, dur, 0)) AS gc_unint_io_dur,
-  sum(iif(state = 'D' AND io_wait != 1, dur, 0)) AS gc_unint_non_io_dur,
-  sum(iif(state = 'S', dur, 0)) AS gc_int_dur
-FROM agg_events
+  gc.tid,
+  gc.pid,
+  gc.utid,
+  gc.upid,
+  gc.thread_name,
+  gc.process_name,
+  gc.gc_type,
+  gc.is_mark_compact,
+  gc.max_heap_mb - gc.min_heap_mb AS reclaimed_mb,
+  gc.min_heap_mb,
+  gc.max_heap_mb,
+  gc.gc_id,
+  gc.gc_ts,
+  gc.gc_dur,
+  sum(iif(t.state = 'Running', t.dur, 0)) AS gc_running_dur,
+  sum(iif(t.state = 'R' OR t.state = 'R+', t.dur, 0)) AS gc_runnable_dur,
+  sum(iif(t.state = 'D' AND t.io_wait = 1, t.dur, 0)) AS gc_unint_io_dur,
+  sum(iif(t.state = 'D' AND t.io_wait != 1, t.dur, 0)) AS gc_unint_non_io_dur,
+  sum(iif(t.state = 'S', t.dur, 0)) AS gc_int_dur
+FROM _gc_slice_heap AS gc
+LEFT JOIN _gc_slice_thread_state_dur AS t USING (gc_id)
 GROUP BY
-  gc_id;
+  gc.gc_id;
 
 -- A window of the trace to use for GC stats.
 -- We can't reliably use trace_dur(), because often it spans far outside the
@@ -276,20 +263,17 @@ WHERE
 -- Intersection of startup events and gcs, for understanding what GCs are
 -- happining during app startup.
 CREATE PERFETTO TABLE _gc_during_android_startup AS
-WITH
-  startups_for_intersect AS (
-    SELECT ts, dur, startup_id AS id
+INTERVAL INTERSECTION OF (
+  (
+    SELECT ts, dur, startup_id
     FROM android_startups
     -- b/384732321
     WHERE
       dur > 0
-  ),
-  gcs_for_intersect AS (
-    SELECT gc_ts AS ts, gc_dur AS dur, gc_id AS id
-    FROM android_garbage_collection_events
-  )
-SELECT ts, dur, id_0 AS startup_id, id_1 AS gc_id
-FROM _interval_intersect!((startups_for_intersect, gcs_for_intersect), ());
+  ) AS startup,
+  _gc_slice_heap AS gc
+)
+|> SELECT ts, dur, startup_id, gc_id;
 
 -- Estimate heap utilization across the trace.
 -- We weight the utilization by gc_period, which is meant to represent the time

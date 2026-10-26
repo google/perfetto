@@ -25,7 +25,13 @@ import type {
   ColumnSchema,
   CellRenderResult,
 } from '../../../components/widgets/datagrid/datagrid_schema';
-import type {InstanceRow, InstanceDetail, HeapInfo, PrimOrRef} from '../types';
+import type {
+  ArrayElem,
+  Field,
+  InstanceRow,
+  InstanceDetail,
+  HeapDump,
+} from '../types';
 import {fmtSize, fmtHex} from '../format';
 import {downloadBlob} from '../download';
 import {
@@ -39,9 +45,13 @@ import {
   BitmapImage,
   COL_INFO,
   colHeader,
+  classNameCellRenderer,
 } from '../components';
+import {ClassNameWithWarning} from '../../../components/merged_class_warning';
 import * as queries from '../queries';
-import type {HeapDump} from '../queries';
+import {Anchor} from '../../../widgets/anchor';
+import {DetailsShell} from '../../../widgets/details_shell';
+import {AsyncMemo} from '../../../base/async_memo';
 
 export interface ObjectParams {
   readonly id: number;
@@ -58,10 +68,10 @@ export type OpenFlamegraphPivotedAt = (
 interface ObjectViewAttrs {
   readonly engine: Engine;
   readonly activeDump: HeapDump;
-  readonly heaps: ReadonlyArray<HeapInfo>;
   readonly navigate: NavFn;
   readonly openFlamegraphPivotedAt: OpenFlamegraphPivotedAt;
   readonly params: ObjectParams;
+  readonly potentiallyMergedClasses: ReadonlySet<string>;
 }
 
 const JAVA_PRIM_SIZE: Record<string, number> = {
@@ -98,9 +108,7 @@ function instanceRowToRow(r: InstanceRow): Row {
   };
 }
 
-type FieldRow = {name: string; typeName: string; value: PrimOrRef};
-
-function fieldRowToRow(f: FieldRow): Row {
+function fieldRowToRow(f: Field): Row {
   const v = f.value;
   if (v.kind === 'ref') {
     return {
@@ -136,9 +144,7 @@ function fieldRowToRow(f: FieldRow): Row {
   };
 }
 
-type ArrayElemRow = {idx: number; value: PrimOrRef};
-
-function arrayElemToRow(e: ArrayElemRow, elemTypeName: string): Row {
+function arrayElemToRow(e: ArrayElem, elemTypeName: string): Row {
   const v = e.value;
   if (v.kind === 'ref') {
     return {
@@ -175,12 +181,12 @@ function arrayElemToRow(e: ArrayElemRow, elemTypeName: string): Row {
 function nullableSizeRenderer(value: SqlValue): CellRenderResult {
   if (value === null) {
     return {
-      content: m('span', {class: 'pf-hde-mono pf-hde-opacity-60'}, '\u2026'),
+      content: m('span.pf-hde-mono.pf-hde-opacity-60', '\u2026'),
       align: 'right',
     };
   }
   return {
-    content: m('span', {class: 'pf-hde-mono'}, fmtSize(Number(value ?? 0))),
+    content: m('span.pf-hde-mono', fmtSize(Number(value ?? 0))),
     align: 'right',
   };
 }
@@ -223,27 +229,22 @@ const SIZE_SCHEMA: ColumnSchema = {
     cellRenderer: (value: SqlValue): CellRenderResult => {
       if (value === null) {
         return {
-          content: m(
-            'span',
-            {class: 'pf-hde-mono pf-hde-opacity-60'},
-            '\u2026',
-          ),
+          content: m('span.pf-hde-mono.pf-hde-opacity-60', '\u2026'),
           align: 'right',
         };
       }
       return {
-        content: m(
-          'span',
-          {class: 'pf-hde-mono'},
-          Number(value).toLocaleString(),
-        ),
+        content: m('span.pf-hde-mono', Number(value).toLocaleString()),
         align: 'right',
       };
     },
   },
 };
 
-function makeInstanceSchema(navigate: NavFn): ColumnSchema {
+function makeInstanceSchema(
+  navigate: NavFn,
+  potentiallyMergedClasses: ReadonlySet<string>,
+): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -255,9 +256,8 @@ function makeInstanceSchema(navigate: NavFn): ColumnSchema {
         const str = row.str != null ? String(row.str) : null;
         return m('span', [
           m(
-            'button',
+            Anchor,
             {
-              class: 'pf-hde-link',
               onclick: () =>
                 navigate('object', {id, label: str ? `"${str}"` : display}),
             },
@@ -265,8 +265,7 @@ function makeInstanceSchema(navigate: NavFn): ColumnSchema {
           ),
           str
             ? m(
-                'span',
-                {class: 'pf-hde-str-badge'},
+                'span.pf-hde-str-badge',
                 ` "${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`,
               )
             : null,
@@ -328,6 +327,7 @@ function makeInstanceSchema(navigate: NavFn): ColumnSchema {
     cls: {
       title: 'Class',
       columnType: 'text',
+      cellRenderer: classNameCellRenderer(potentiallyMergedClasses),
     },
     str: {
       title: 'String Value',
@@ -344,9 +344,8 @@ function makeFieldSchema(navigate: NavFn): ColumnSchema {
       cellRenderer: (value: SqlValue, row) => {
         if (row.value_kind === 'ref' && row.ref_id !== null) {
           return m(
-            'button',
+            Anchor,
             {
-              class: 'pf-hde-link',
               onclick: () =>
                 navigate('object', {
                   id: Number(row.ref_id),
@@ -378,7 +377,7 @@ function makeFieldSchema(navigate: NavFn): ColumnSchema {
             navigate,
           });
         }
-        return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
+        return m('span.pf-hde-mono', String(value ?? ''));
       },
     },
     shallow: {
@@ -444,7 +443,7 @@ function makeArraySchema(navigate: NavFn, elemTypeName: string): ColumnSchema {
       title: 'Index',
       columnType: 'quantitative',
       cellRenderer: (value: SqlValue): CellRenderResult => ({
-        content: m('span', {class: 'pf-hde-mono'}, String(value ?? 0)),
+        content: m('span.pf-hde-mono', String(value ?? 0)),
         align: 'right',
       }),
     },
@@ -463,7 +462,7 @@ function makeArraySchema(navigate: NavFn, elemTypeName: string): ColumnSchema {
             navigate,
           });
         }
-        return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
+        return m('span.pf-hde-mono', String(value ?? ''));
       },
     },
     shallow: {
@@ -523,80 +522,77 @@ function makeArraySchema(navigate: NavFn, elemTypeName: string): ColumnSchema {
   };
 }
 
-function ObjectView(): m.Component<ObjectViewAttrs> {
-  let detail: InstanceDetail | null | 'loading' = 'loading';
-  let prevId: number | undefined;
-  let alive = true;
-  let fetchSeq = 0;
+export function ObjectView(): m.Component<ObjectViewAttrs> {
+  const dataMemo = new AsyncMemo<InstanceDetail | undefined>();
 
-  function fetchData(attrs: ObjectViewAttrs) {
-    detail = 'loading';
-    prevId = attrs.params.id;
-    const seq = ++fetchSeq;
-    queries
-      .getInstance(attrs.engine, attrs.activeDump, attrs.params.id)
-      .then((d) => {
-        if (!alive || seq !== fetchSeq) return;
-        detail = d;
-        m.redraw();
-        if (d) {
-          // Enrich all sections with reachable sizes asynchronously.
-          const enrichTasks: Promise<void>[] = [
-            queries.enrichWithReachable(attrs.engine, [d.row]),
-            queries.enrichWithReachable(attrs.engine, d.reverseRefs),
-            queries.enrichWithReachable(attrs.engine, d.dominated),
-          ];
-          if (d.isClassObj) {
-            enrichTasks.push(
-              queries.enrichFieldsWithReachable(attrs.engine, d.staticFields),
-            );
-          }
-          if (d.isClassInstance && d.instanceFields.length > 0) {
-            enrichTasks.push(
-              queries.enrichFieldsWithReachable(attrs.engine, d.instanceFields),
-            );
-          }
-          if (d.isArrayInstance) {
-            enrichTasks.push(
-              queries.enrichArrayElemsWithReachable(attrs.engine, d.arrayElems),
-            );
-          }
-          Promise.all(enrichTasks).then(() => {
-            if (alive && seq === fetchSeq) m.redraw();
-          });
-        }
-      })
-      .catch((err) => {
-        console.error(err);
-        if (!alive || seq !== fetchSeq) return;
-        detail = null;
-        m.redraw();
-      });
+  async function enrichDetail(engine: Engine, d: InstanceDetail) {
+    // Enrich all sections with reachable sizes asynchronously.
+    const enrichTasks: Promise<void>[] = [
+      queries.enrichWithReachable(engine, [d.row]),
+      queries.enrichWithReachable(engine, d.reverseRefs),
+      queries.enrichWithReachable(engine, d.dominated),
+    ];
+    if (d.isClassObj) {
+      enrichTasks.push(
+        queries.enrichFieldsWithReachable(engine, d.staticFields),
+      );
+    }
+    if (d.isClassInstance && d.instanceFields.length > 0) {
+      enrichTasks.push(
+        queries.enrichFieldsWithReachable(engine, d.instanceFields),
+      );
+    }
+    if (d.isArrayInstance) {
+      enrichTasks.push(
+        queries.enrichArrayElemsWithReachable(engine, d.arrayElems),
+      );
+    }
+
+    await Promise.all(enrichTasks);
   }
 
   return {
-    oninit(vnode) {
-      fetchData(vnode.attrs);
-    },
-    onupdate(vnode) {
-      if (vnode.attrs.params.id !== prevId) {
-        fetchData(vnode.attrs);
-      }
-    },
     onremove() {
-      alive = false;
+      dataMemo.dispose();
     },
     view(vnode) {
-      const {navigate, params} = vnode.attrs;
+      const {navigate, params, potentiallyMergedClasses} = vnode.attrs;
 
-      if (detail === 'loading') {
-        return m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true}));
+      const {isPending, data: detail} = dataMemo.use({
+        key: params.id,
+        compute: async () => {
+          const detail = await queries.getInstance(
+            vnode.attrs.engine,
+            vnode.attrs.activeDump,
+            params.id,
+          );
+          // TODO: Show intermediate state using multiple asynmemos
+          if (detail) await enrichDetail(vnode.attrs.engine, detail);
+          return detail;
+        },
+      });
+
+      if (isPending) {
+        return m(
+          DetailsShell,
+          {
+            title: `Object ${fmtHex(params.id)}`,
+            fillHeight: true,
+            className: 'pf-hde-tab--padded',
+          },
+          m('.pf-hde-loading', m(Spinner, {easing: true})),
+        );
       }
+
       if (!detail) {
         return m(
-          'div',
-          {class: 'pf-hde-error-text'},
-          'No object with id ' + fmtHex(params.id),
+          DetailsShell,
+          {
+            title: `Object ${fmtHex(params.id)}`,
+            fillHeight: true,
+            className: 'pf-hde-tab--padded',
+          },
+          m('.pf-hde-error-text', 'No object with id ' + fmtHex(params.id)),
         );
       }
 
@@ -605,9 +601,8 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
       const flamegraphAction = (isDominator: boolean) =>
         row.className
           ? m(
-              'button',
+              Anchor,
               {
-                class: 'pf-hde-link',
                 title: isDominator
                   ? 'Open in Flamegraph pivoted on this dominator path'
                   : 'Open in Flamegraph pivoted on this shortest path',
@@ -624,335 +619,332 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
             )
           : null;
 
-      return m('div', {class: 'pf-hde-view-scroll pf-hde-view-stack'}, [
-        m('div', [
+      return m(
+        DetailsShell,
+        {
+          title: 'Object ' + fmtHex(row.id),
+          fillHeight: true,
+          className: 'pf-hde-tab--padded',
+        },
+        m('.pf-hde-view-scroll.pf-hde-view-stack', [
+          m('.pf-hde-action-row', [m(InstanceLink, {row, navigate})]),
+
+          detail.bitmap
+            ? m(Section, {title: 'Bitmap Image'}, [
+                m(BitmapImage, {
+                  width: detail.bitmap.width,
+                  height: detail.bitmap.height,
+                  format: detail.bitmap.format,
+                  data: detail.bitmap.data,
+                }),
+                m('.pf-hde-bitmap-meta.pf-hde-mt-1', [
+                  m(
+                    'span',
+                    detail.bitmap.width +
+                      ' x ' +
+                      detail.bitmap.height +
+                      ' px (' +
+                      detail.bitmap.format.toUpperCase() +
+                      ')',
+                  ),
+                  m(
+                    Anchor,
+                    {
+                      class: 'pf-hde-download-link',
+                      onclick: () => {
+                        if (detail.bitmap === null) return;
+                        const ext = detail.bitmap.format;
+                        downloadBlob(
+                          `bitmap-${fmtHex(row.id)}.${ext}`,
+                          detail.bitmap.data,
+                        );
+                      },
+                    },
+                    'Download image',
+                  ),
+                ]),
+              ])
+            : null,
+
           m(
-            'h2',
-            {class: 'pf-hde-view-heading pf-hde-view-heading--tight'},
-            'Object ' + fmtHex(row.id),
+            Section,
+            {
+              title: 'Shortest Path from GC Root',
+              actions: detail.shortestPath ? flamegraphAction(false) : null,
+            },
+            detail.shortestPath
+              ? m(
+                  '.pf-hde-view-stack--tight',
+                  detail.shortestPath.map((pe, i) =>
+                    m(
+                      '.pf-hde-path-entry',
+                      {key: i, style: {'--pf-hde-depth': String(i)}},
+                      [
+                        m('span.pf-hde-path-arrow', i === 0 ? '' : '\u2192'),
+                        m(InstanceLink, {row: pe.row, navigate}),
+                        pe.field ? m('span.pf-hde-path-field', pe.field) : null,
+                      ],
+                    ),
+                  ),
+                )
+              : m('p', {class: 'pf-hde-muted'}, 'No path to GC root.'),
           ),
-          m('div', {class: 'pf-hde-action-row'}, [
-            m(InstanceLink, {row, navigate}),
-          ]),
-        ]),
 
-        detail.bitmap
-          ? m(Section, {title: 'Bitmap Image'}, [
-              m(BitmapImage, {
-                width: detail.bitmap.width,
-                height: detail.bitmap.height,
-                format: detail.bitmap.format,
-                data: detail.bitmap.data,
-              }),
-              m('div', {class: 'pf-hde-bitmap-meta pf-hde-mt-1'}, [
-                m(
-                  'span',
-                  detail.bitmap.width +
-                    ' x ' +
-                    detail.bitmap.height +
-                    ' px (' +
-                    detail.bitmap.format.toUpperCase() +
-                    ')',
+          m(
+            Section,
+            {
+              title: 'Dominator Tree Path',
+              actions: detail.dominatorPath ? flamegraphAction(true) : null,
+            },
+            detail.dominatorPath
+              ? m(
+                  '.pf-hde-view-stack--tight',
+                  detail.dominatorPath.map((pe, i) =>
+                    m(
+                      'div',
+                      {
+                        key: i,
+                        class: `pf-hde-path-entry${pe.isDominator ? ' pf-hde-semibold' : ''}`,
+                        style: {'--pf-hde-depth': String(i)},
+                      },
+                      [
+                        m('span.pf-hde-path-arrow', i === 0 ? '' : '\u2192'),
+                        m(InstanceLink, {row: pe.row, navigate}),
+                        pe.field ? m('span.pf-hde-path-field', pe.field) : null,
+                      ],
+                    ),
+                  ),
+                )
+              : m('p', {class: 'pf-hde-muted'}, 'No path to GC root.'),
+          ),
+
+          m(Section, {title: 'Object Info'}, [
+            m('.pf-hde-info-grid', [
+              m('span.pf-hde-info-grid__label', 'Class:'),
+              m(
+                'span',
+                detail.classObjRow
+                  ? m(ClassNameWithWarning, {
+                      name: m(InstanceLink, {
+                        row: detail.classObjRow,
+                        navigate,
+                      }),
+                      potentiallyMerged: potentiallyMergedClasses.has(
+                        row.className,
+                      ),
+                    })
+                  : '???',
+              ),
+              m('span.pf-hde-info-grid__label', 'Heap:'),
+              m('span', row.heap),
+              ...(row.isRoot
+                ? [
+                    m('span.pf-hde-info-grid__label', 'Root Types:'),
+                    m('span', row.rootTypeNames?.join(', ')),
+                  ]
+                : []),
+            ]),
+          ]),
+
+          m(
+            Section,
+            {title: 'Object Size'},
+            (() => {
+              let retainedJava = 0;
+              let retainedNative = 0;
+              for (const h of row.retainedByHeap) {
+                retainedJava += h.java;
+                retainedNative += h.native_;
+              }
+              const sizeRows: Row[] = [
+                {
+                  metric: 'Shallow',
+                  java: row.shallowJava,
+                  native: row.shallowNative,
+                  count: 1,
+                },
+                {
+                  metric: 'Retained',
+                  java: retainedJava,
+                  native: retainedNative,
+                  count: row.retainedCount,
+                },
+                {
+                  metric: 'Reachable',
+                  java: row.reachableSize,
+                  native: row.reachableNative,
+                  count: row.reachableCount,
+                },
+              ];
+              return m(DataGrid, {
+                schema: SIZE_SCHEMA,
+                data: sizeRows,
+                initialColumns: [
+                  {id: 'metric', field: 'metric'},
+                  {id: 'java', field: 'java'},
+                  {id: 'native', field: 'native'},
+                  {id: 'count', field: 'count'},
+                ],
+              });
+            })(),
+          ),
+
+          detail.isClassObj
+            ? m(Section, {title: 'Class Info'}, [
+                m('.pf-hde-info-grid.pf-hde-mb-3', [
+                  m('span.pf-hde-info-grid__label', 'Instance Size:'),
+                  m('span.pf-hde-mono', String(detail.instanceSize)),
+                ]),
+              ])
+            : null,
+
+          detail.classHierarchy.length > 0
+            ? m(
+                Section,
+                {title: 'Class Hierarchy'},
+                renderClassHierarchy(
+                  detail.classHierarchy,
+                  navigate,
+                  potentiallyMergedClasses,
                 ),
-                m(
-                  'button',
-                  {
-                    class: 'pf-hde-download-link',
-                    onclick: () => {
-                      if (
-                        detail === null ||
-                        detail === 'loading' ||
-                        detail.bitmap === null
-                      ) {
-                        return;
+              )
+            : null,
+
+          detail.isClassObj
+            ? m(
+                Section,
+                {title: 'Static Fields'},
+                renderFieldsGrid(detail.staticFields, navigate),
+              )
+            : null,
+
+          detail.isClassInstance
+            ? m(
+                Section,
+                {title: 'Fields'},
+                detail.instanceFields.length > 0
+                  ? renderFieldsGrid(detail.instanceFields, navigate)
+                  : m('p', {class: 'pf-hde-muted'}, 'No instance fields.'),
+              )
+            : null,
+
+          detail.isArrayInstance
+            ? m(
+                Section,
+                {title: `Array Elements (${detail.arrayLength})`},
+                renderArrayGrid(
+                  detail.arrayElems,
+                  detail.elemTypeName ?? 'Object',
+                  navigate,
+                  detail.elemTypeName === 'byte'
+                    ? () => {
+                        queries
+                          .getRawArrayBlob(vnode.attrs.engine, params.id)
+                          .then((blob) => {
+                            if (blob !== null) {
+                              downloadBlob(
+                                `array-${fmtHex(params.id)}.bin`,
+                                blob,
+                              );
+                            }
+                          })
+                          .catch(console.error);
                       }
-                      const ext = detail.bitmap.format;
-                      downloadBlob(
-                        `bitmap-${fmtHex(row.id)}.${ext}`,
-                        detail.bitmap.data,
-                      );
-                    },
-                  },
-                  'Download image',
-                ),
-              ]),
-            ])
-          : null,
-
-        m(
-          Section,
-          {
-            title: 'Shortest Path from GC Root',
-            actions: detail.shortestPath ? flamegraphAction(false) : null,
-          },
-          detail.shortestPath
-            ? m(
-                'div',
-                {class: 'pf-hde-view-stack--tight'},
-                detail.shortestPath.map((pe, i) =>
-                  m(
-                    'div',
-                    {
-                      key: i,
-                      class: 'pf-hde-path-entry',
-                      style: {'--pf-hde-depth': String(i)},
-                    },
-                    [
-                      m(
-                        'span',
-                        {class: 'pf-hde-path-arrow'},
-                        i === 0 ? '' : '\u2192',
-                      ),
-                      m(InstanceLink, {row: pe.row, navigate}),
-                      pe.field
-                        ? m('span', {class: 'pf-hde-path-field'}, pe.field)
-                        : null,
-                    ],
-                  ),
+                    : undefined,
                 ),
               )
-            : m('p', {class: 'pf-hde-muted'}, 'No path to GC root.'),
-        ),
+            : null,
 
-        m(
-          Section,
-          {
-            title: 'Dominator Tree Path',
-            actions: detail.dominatorPath ? flamegraphAction(true) : null,
-          },
-          detail.dominatorPath
-            ? m(
-                'div',
-                {class: 'pf-hde-view-stack--tight'},
-                detail.dominatorPath.map((pe, i) =>
-                  m(
-                    'div',
-                    {
-                      key: i,
-                      class: `pf-hde-path-entry${pe.isDominator ? ' pf-hde-semibold' : ''}`,
-                      style: {'--pf-hde-depth': String(i)},
-                    },
-                    [
-                      m(
-                        'span',
-                        {class: 'pf-hde-path-arrow'},
-                        i === 0 ? '' : '\u2192',
-                      ),
-                      m(InstanceLink, {row: pe.row, navigate}),
-                      pe.field
-                        ? m('span', {class: 'pf-hde-path-field'}, pe.field)
-                        : null,
-                    ],
-                  ),
-                ),
-              )
-            : m('p', {class: 'pf-hde-muted'}, 'No path to GC root.'),
-        ),
-
-        m(Section, {title: 'Object Info'}, [
-          m('div', {class: 'pf-hde-info-grid'}, [
-            m('span', {class: 'pf-hde-info-grid__label'}, 'Class:'),
-            m(
-              'span',
-              detail.classObjRow
-                ? m(InstanceLink, {
-                    row: detail.classObjRow,
+          m(
+            Section,
+            {
+              title:
+                detail.reverseRefs.length > 0
+                  ? `Objects with References to this Object (${detail.reverseRefs.length})`
+                  : 'Objects with References to this Object',
+              defaultOpen:
+                detail.reverseRefs.length > 0 && detail.reverseRefs.length < 50,
+            },
+            detail.reverseRefs.length > 0
+              ? m(DataGrid, {
+                  schema: makeInstanceSchema(
                     navigate,
-                  })
-                : '???',
-            ),
-            m('span', {class: 'pf-hde-info-grid__label'}, 'Heap:'),
-            m('span', row.heap),
-            ...(row.isRoot
-              ? [
-                  m('span', {class: 'pf-hde-info-grid__label'}, 'Root Types:'),
-                  m('span', row.rootTypeNames?.join(', ')),
-                ]
-              : []),
-          ]),
+                    potentiallyMergedClasses,
+                  ),
+                  data: detail.reverseRefs.map(instanceRowToRow),
+                  initialColumns: [
+                    {id: 'id', field: 'id'},
+                    {id: 'cls', field: 'cls'},
+                    {id: 'str', field: 'str'},
+                    {id: 'self_size', field: 'self_size'},
+                    {id: 'native_size', field: 'native_size'},
+                    {id: 'retained', field: 'retained'},
+                    {id: 'retained_native', field: 'retained_native'},
+                    {id: 'retained_count', field: 'retained_count'},
+                    {id: 'reachable_size', field: 'reachable_size'},
+                    {id: 'reachable_native', field: 'reachable_native'},
+                    {id: 'reachable_count', field: 'reachable_count'},
+                  ],
+                  showExportButton: true,
+                })
+              : m(
+                  'p',
+                  {class: 'pf-hde-muted'},
+                  'No references to this object.',
+                ),
+          ),
+
+          m(
+            Section,
+            {
+              title:
+                detail.dominated.length > 0
+                  ? `Immediately Dominated Objects (${detail.dominated.length})`
+                  : 'Immediately Dominated Objects',
+              defaultOpen:
+                detail.dominated.length > 0 && detail.dominated.length < 50,
+            },
+            detail.dominated.length > 0
+              ? m(DataGrid, {
+                  schema: makeInstanceSchema(
+                    navigate,
+                    potentiallyMergedClasses,
+                  ),
+                  data: detail.dominated.map(instanceRowToRow),
+                  initialColumns: [
+                    {id: 'id', field: 'id'},
+                    {id: 'cls', field: 'cls'},
+                    {id: 'str', field: 'str'},
+                    {id: 'self_size', field: 'self_size'},
+                    {id: 'native_size', field: 'native_size'},
+                    {id: 'retained', field: 'retained'},
+                    {id: 'retained_native', field: 'retained_native'},
+                    {id: 'retained_count', field: 'retained_count'},
+                    {id: 'reachable_size', field: 'reachable_size'},
+                    {id: 'reachable_native', field: 'reachable_native'},
+                    {id: 'reachable_count', field: 'reachable_count'},
+                    {id: 'heap', field: 'heap'},
+                  ],
+                  showExportButton: true,
+                })
+              : m(
+                  'p',
+                  {class: 'pf-hde-muted'},
+                  'No immediately dominated objects.',
+                ),
+          ),
         ]),
-
-        m(
-          Section,
-          {title: 'Object Size'},
-          (() => {
-            let retainedJava = 0;
-            let retainedNative = 0;
-            for (const h of row.retainedByHeap) {
-              retainedJava += h.java;
-              retainedNative += h.native_;
-            }
-            const sizeRows: Row[] = [
-              {
-                metric: 'Shallow',
-                java: row.shallowJava,
-                native: row.shallowNative,
-                count: 1,
-              },
-              {
-                metric: 'Retained',
-                java: retainedJava,
-                native: retainedNative,
-                count: row.retainedCount,
-              },
-              {
-                metric: 'Reachable',
-                java: row.reachableSize,
-                native: row.reachableNative,
-                count: row.reachableCount,
-              },
-            ];
-            return m(DataGrid, {
-              schema: SIZE_SCHEMA,
-              data: sizeRows,
-              initialColumns: [
-                {id: 'metric', field: 'metric'},
-                {id: 'java', field: 'java'},
-                {id: 'native', field: 'native'},
-                {id: 'count', field: 'count'},
-              ],
-            });
-          })(),
-        ),
-
-        detail.isClassObj
-          ? m(Section, {title: 'Class Info'}, [
-              m('div', {class: 'pf-hde-info-grid pf-hde-mb-3'}, [
-                m('span', {class: 'pf-hde-info-grid__label'}, 'Instance Size:'),
-                m('span', {class: 'pf-hde-mono'}, String(detail.instanceSize)),
-              ]),
-            ])
-          : null,
-
-        detail.classHierarchy.length > 0
-          ? m(
-              Section,
-              {title: 'Class Hierarchy'},
-              renderClassHierarchy(detail.classHierarchy, navigate),
-            )
-          : null,
-
-        detail.isClassObj
-          ? m(
-              Section,
-              {title: 'Static Fields'},
-              renderFieldsGrid(detail.staticFields, navigate),
-            )
-          : null,
-
-        detail.isClassInstance
-          ? m(
-              Section,
-              {title: 'Fields'},
-              detail.instanceFields.length > 0
-                ? renderFieldsGrid(detail.instanceFields, navigate)
-                : m('p', {class: 'pf-hde-muted'}, 'No instance fields.'),
-            )
-          : null,
-
-        detail.isArrayInstance
-          ? m(
-              Section,
-              {title: `Array Elements (${detail.arrayLength})`},
-              renderArrayGrid(
-                detail.arrayElems,
-                detail.elemTypeName ?? 'Object',
-                navigate,
-                detail.elemTypeName === 'byte'
-                  ? () => {
-                      queries
-                        .getRawArrayBlob(vnode.attrs.engine, params.id)
-                        .then((blob) => {
-                          if (blob !== null) {
-                            downloadBlob(
-                              `array-${fmtHex(params.id)}.bin`,
-                              blob,
-                            );
-                          }
-                        })
-                        .catch(console.error);
-                    }
-                  : undefined,
-              ),
-            )
-          : null,
-
-        m(
-          Section,
-          {
-            title:
-              detail.reverseRefs.length > 0
-                ? `Objects with References to this Object (${detail.reverseRefs.length})`
-                : 'Objects with References to this Object',
-            defaultOpen:
-              detail.reverseRefs.length > 0 && detail.reverseRefs.length < 50,
-          },
-          detail.reverseRefs.length > 0
-            ? m(DataGrid, {
-                schema: makeInstanceSchema(navigate),
-                data: detail.reverseRefs.map(instanceRowToRow),
-                initialColumns: [
-                  {id: 'id', field: 'id'},
-                  {id: 'cls', field: 'cls'},
-                  {id: 'str', field: 'str'},
-                  {id: 'self_size', field: 'self_size'},
-                  {id: 'native_size', field: 'native_size'},
-                  {id: 'retained', field: 'retained'},
-                  {id: 'retained_native', field: 'retained_native'},
-                  {id: 'retained_count', field: 'retained_count'},
-                  {id: 'reachable_size', field: 'reachable_size'},
-                  {id: 'reachable_native', field: 'reachable_native'},
-                  {id: 'reachable_count', field: 'reachable_count'},
-                ],
-                showExportButton: true,
-              })
-            : m('p', {class: 'pf-hde-muted'}, 'No references to this object.'),
-        ),
-
-        m(
-          Section,
-          {
-            title:
-              detail.dominated.length > 0
-                ? `Immediately Dominated Objects (${detail.dominated.length})`
-                : 'Immediately Dominated Objects',
-            defaultOpen:
-              detail.dominated.length > 0 && detail.dominated.length < 50,
-          },
-          detail.dominated.length > 0
-            ? m(DataGrid, {
-                schema: makeInstanceSchema(navigate),
-                data: detail.dominated.map(instanceRowToRow),
-                initialColumns: [
-                  {id: 'id', field: 'id'},
-                  {id: 'cls', field: 'cls'},
-                  {id: 'str', field: 'str'},
-                  {id: 'self_size', field: 'self_size'},
-                  {id: 'native_size', field: 'native_size'},
-                  {id: 'retained', field: 'retained'},
-                  {id: 'retained_native', field: 'retained_native'},
-                  {id: 'retained_count', field: 'retained_count'},
-                  {id: 'reachable_size', field: 'reachable_size'},
-                  {id: 'reachable_native', field: 'reachable_native'},
-                  {id: 'reachable_count', field: 'reachable_count'},
-                  {id: 'heap', field: 'heap'},
-                ],
-                showExportButton: true,
-              })
-            : m(
-                'p',
-                {class: 'pf-hde-muted'},
-                'No immediately dominated objects.',
-              ),
-        ),
-      ]);
+      );
     },
   };
 }
 
-function renderFieldsGrid(fields: FieldRow[], navigate: NavFn): m.Children {
+function renderFieldsGrid(
+  fields: readonly Field[],
+  navigate: NavFn,
+): m.Children {
   if (fields.length === 0) {
-    return m('div', {class: 'pf-hde-info-grid__label'}, 'No fields');
+    return m('.pf-hde-info-grid__label', 'No fields');
   }
   return m(DataGrid, {
     schema: makeFieldSchema(navigate),
@@ -977,7 +969,7 @@ function renderFieldsGrid(fields: FieldRow[], navigate: NavFn): m.Children {
 }
 
 function renderArrayGrid(
-  elems: ArrayElemRow[],
+  elems: readonly ArrayElem[],
   elemTypeName: string,
   navigate: NavFn,
   onDownloadBytes?: () => void,
@@ -995,17 +987,17 @@ function renderArrayGrid(
 
   return m('div', [
     onDownloadBytes || elems.length > 0
-      ? m('div', {class: 'pf-hde-action-row pf-hde-mb-2'}, [
+      ? m('.pf-hde-action-row.pf-hde-mb-2', [
           onDownloadBytes
             ? m(
-                'button',
+                Anchor,
                 {class: 'pf-hde-download-link', onclick: onDownloadBytes},
                 'Download bytes',
               )
             : null,
           elems.length > 0
             ? m(
-                'button',
+                Anchor,
                 {class: 'pf-hde-download-link', onclick: copyTsv},
                 'Copy as TSV',
               )
@@ -1073,9 +1065,8 @@ function subclassFilterTarget(className: string): string {
 
 function classFilterLink(className: string, navigate: NavFn): m.Child {
   return m(
-    'button',
+    Anchor,
     {
-      class: 'pf-hde-link',
       title: 'Open subclasses of this class',
       onclick: () =>
         navigate('classes', {rootClass: subclassFilterTarget(className)}),
@@ -1085,13 +1076,13 @@ function classFilterLink(className: string, navigate: NavFn): m.Child {
 }
 
 function renderClassHierarchy(
-  hierarchy: string[],
+  hierarchy: readonly string[],
   navigate: NavFn,
+  potentiallyMergedClasses: ReadonlySet<string>,
 ): m.Children {
   const topDown = hierarchy.slice().reverse();
   return m(
-    'div',
-    {class: 'pf-hde-view-stack--tight'},
+    '.pf-hde-view-stack--tight',
     topDown.map((className, i) =>
       m(
         'div',
@@ -1101,12 +1092,13 @@ function renderClassHierarchy(
           style: {'--pf-hde-depth': String(i)},
         },
         [
-          m('span', {class: 'pf-hde-path-arrow'}, i === 0 ? '' : '→'),
-          classFilterLink(className, navigate),
+          m('span.pf-hde-path-arrow', i === 0 ? '' : '→'),
+          m(ClassNameWithWarning, {
+            name: classFilterLink(className, navigate),
+            potentiallyMerged: potentiallyMergedClasses.has(className),
+          }),
         ],
       ),
     ),
   );
 }
-
-export default ObjectView;

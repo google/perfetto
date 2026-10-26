@@ -66,6 +66,11 @@ packet {
     track_uuid: 1001
     type: 1  # TYPE_SLICE_BEGIN
     name: "Inline Slice 1"
+    callstack_weight: 2.5
+    debug_annotations {
+      name: "cost"
+      double_value: 3.5
+    }
     callstack {
       frames {
         function_name: "InlineMain"
@@ -98,6 +103,10 @@ packet {
     track_uuid: 1001
     type: 1  # TYPE_SLICE_BEGIN
     name: "Inline Slice 2"
+    debug_annotations {
+      name: "cost"
+      int_value: 2
+    }
     callstack {
       frames {
         function_name: "InlineMain"
@@ -142,5 +151,6 @@ packet {
     type: 2  # TYPE_SLICE_END
     name: "Interned Slice"
     callstack_iid: 1
+    callstack_weight: 4.0
   }
 }

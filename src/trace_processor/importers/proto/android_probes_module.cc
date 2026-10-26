@@ -119,7 +119,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     parser_.ParseRailDescriptor(evt);
 
     if (!evt.has_energy_data()) {
-      context_->import_logs_tracker->RecordParserError(
+      context_->import_logs_tracker->RecordParserLog(
           stats::power_rail_empty_packet, args.ts);
       return ModuleResult::Handled();
     }
@@ -322,7 +322,9 @@ ModuleResult AndroidProbesModule::ParseAndroidPackagesList(
     context_->storage->mutable_package_list_table()->Insert(
         {context_->storage->InternString(pkg.name()),
          static_cast<int64_t>(pkg.uid()), pkg.debuggable(),
-         pkg.profileable_from_shell(), pkg.version_code()});
+         pkg.profileable_from_shell(), pkg.profileable(),
+         pkg.has_version_code() ? std::make_optional(pkg.version_code())
+                                : std::nullopt});
     tracker_->InsertedPackage(std::move(pkg_name));
   }
   return ModuleResult::Handled();

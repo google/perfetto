@@ -27,10 +27,14 @@ import {
   countRenderer,
   shortClassName,
   RowCounter,
+  rowCountHeading,
   COL_INFO,
   colHeader,
 } from '../components';
-import {dumpFilterSql, type HeapDump} from '../queries';
+import {dumpFilterSql} from '../queries';
+import type {HeapDump} from '../types';
+import {Anchor} from '../../../widgets/anchor';
+import {DetailsShell} from '../../../widgets/details_shell';
 
 function buildQuery(activeDump: HeapDump): string {
   return `
@@ -61,9 +65,8 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         const cls = String(row.cls ?? '');
         const display = `${shortClassName(cls)} ${fmtHex(id)}`;
         return m(
-          'button',
+          Anchor,
           {
-            class: 'pf-hde-link',
             onclick: () => navigate('object', {id, label: display}),
           },
           display,
@@ -111,9 +114,16 @@ interface ArraysViewAttrs {
   readonly hasFieldValues?: boolean;
 }
 
-function ArraysView(): m.Component<ArraysViewAttrs> {
-  let dataSource: SQLDataSource | null = null;
+export function ArraysView({
+  attrs: {engine, activeDump},
+}: m.Vnode<ArraysViewAttrs>): m.Component<ArraysViewAttrs> {
+  const query = buildQuery(activeDump);
+  const datasource = new SQLDataSource({
+    engine,
+    tableOrSubquery: query,
+  });
   const counter = new RowCounter();
+
   let filters: Filter[] = [];
 
   function applyNavFilter(
@@ -122,41 +132,46 @@ function ArraysView(): m.Component<ArraysViewAttrs> {
   ) {
     if (!ah) return;
     filters = [{field: 'array_hash', op: '=' as const, value: ah}];
-    counter.onFiltersChanged(filters);
     clearNavParam('arrayHash');
   }
 
   return {
     oninit(vnode) {
-      const {engine, activeDump} = vnode.attrs;
-      const query = buildQuery(activeDump);
-      dataSource = new SQLDataSource({
-        engine,
-        tableOrSubquery: query,
-      });
-      counter.init(engine, query);
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
     },
-    onupdate(vnode) {
+    onbeforeupdate(vnode) {
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
+    },
+    onremove() {
+      datasource.dispose();
+      counter.dispose();
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
       if (vnode.attrs.hasFieldValues === false) {
-        return m(EmptyState, {
-          icon: 'data_array',
-          title: 'Array data requires an ART heap dump (.hprof)',
-          fillHeight: true,
-        });
+        return m(
+          DetailsShell,
+          {title: 'Arrays', fillHeight: true},
+          m(EmptyState, {
+            icon: 'data_array',
+            title: 'Array data requires an ART heap dump (.hprof)',
+            fillHeight: true,
+          }),
+        );
       }
 
-      if (!dataSource) return null;
-
-      return m('div', {class: 'pf-hde-view-content'}, [
-        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Arrays')),
+      return m(
+        DetailsShell,
+        {
+          title: rowCountHeading(
+            'Arrays',
+            counter.use({engine, query, filters}),
+          ),
+          fillHeight: true,
+        },
         m(DataGrid, {
           schema: makeUiSchema(navigate),
-          data: dataSource,
+          data: datasource,
           fillHeight: true,
           initialColumns: [
             {id: 'id', field: 'id'},
@@ -170,12 +185,9 @@ function ArraysView(): m.Component<ArraysViewAttrs> {
           showExportButton: true,
           onFiltersChanged: (f) => {
             filters = [...f];
-            counter.onFiltersChanged(f);
           },
         }),
-      ]);
+      );
     },
   };
 }
-
-export default ArraysView;

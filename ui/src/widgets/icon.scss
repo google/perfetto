@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../assets/typefaces";
-@import "../assets/theme";
+@use "../assets/theme" as *;
 
 @layer pf-widgets {
   .pf-icon {

@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_PLUGINS_VIDEO_FRAME_IMPORTER_VIDEO_FRAME_MODULE_H_
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -37,7 +38,9 @@ class TraceProcessorContext;
 // encoded payload held zero-copy in `au_data`, exposed via
 // __INTRINSIC_VIDEO_FRAME_AU_DATA), and video_frame_error into per-reason
 // kIndexed stats keyed by display_id. The table and au_data vector are owned
-// by VideoFrameImporter and passed in.
+// by VideoFrameImporter and passed in. Also parses SurfaceFlinger's
+// virtual_display_composite packets to link each frame to the frame-timeline
+// vsync id of the composite that produced it.
 class VideoFrameModule : public ProtoImporterModule {
  public:
   VideoFrameModule(ProtoImporterModuleContext* module_context,
@@ -52,9 +55,9 @@ class VideoFrameModule : public ProtoImporterModule {
 
   void ParseField(const ParseFieldArgs& args) override;
 
-  // Backfills frame_timeline_vsync_id on the video-frame rows from the
-  // VirtualDisplayComposite events collected during parsing. Runs once all
-  // packets are parsed, so it does not depend on frame/composite ordering.
+  // Backfills frame_timeline_vsync_id from the VirtualDisplayComposite packets
+  // collected during parsing. Runs once all packets are parsed, so it doesn't
+  // depend on the order of frames and composites.
   void OnEventsFullyExtracted() override;
 
   // Parse-time per-stream byte cap, a backstop against traces recorded
@@ -69,7 +72,7 @@ class VideoFrameModule : public ProtoImporterModule {
                        int64_t ts,
                        const TracePacketData& data);
   void ParseVideoFrameError(protozero::ConstBytes bytes, int64_t ts);
-  void ParseFrameTimelineEvent(protozero::ConstBytes bytes);
+  void ParseVirtualDisplayComposite(protozero::ConstBytes bytes);
 
   struct StreamInfo {
     // display_name and codec_string arrive on the codec_config packet and
@@ -79,17 +82,26 @@ class VideoFrameModule : public ProtoImporterModule {
     int64_t emitted_bytes = 0;
     bool size_cap_hit = false;
   };
+  // The VirtualDisplayComposite packets seen for one present_time_us.
+  struct CompositeInfo {
+    int64_t vsync_id = 0;
+    // Number of packets with this present time.
+    uint32_t count = 0;
+    // Set if packets with this present time carry different vsync ids, so it
+    // is ambiguous which composite produced a frame with this pts.
+    bool conflicting = false;
+    // Set by the backfill if a video frame has this present time as its pts.
+    bool matched = false;
+  };
   TraceProcessorContext* const context_;
   tables::AndroidVideoFramesTable* const table_;
   std::vector<TraceBlobView>* const au_data_;
   int64_t max_stream_size_bytes_ = kDefaultMaxStreamSizeBytes;
   base::FlatHashMap<uint32_t, StreamInfo> stream_info_by_id_;
-
-  // present_time_us -> vsync id, from VirtualDisplayComposite events. Used at
-  // end of parsing to backfill frame_timeline_vsync_id by matching pts_us.
-  base::FlatHashMap<int64_t, int64_t> vsync_id_by_present_us_;
-  // (table row, pts_us) recorded as access-unit rows are inserted, so the
-  // backfill can look up the vsync id without needing to re-read pts_us.
+  // Keyed by present_time_us, from VirtualDisplayComposite packets.
+  base::FlatHashMap<int64_t, CompositeInfo> composites_by_present_us_;
+  // (table row, pts_us) of each access unit with a pts, joined against
+  // composites_by_present_us_ once all packets are parsed.
   std::vector<std::pair<uint32_t, int64_t>> row_pts_us_;
 };
 

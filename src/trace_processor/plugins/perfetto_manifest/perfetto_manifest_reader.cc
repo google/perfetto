@@ -71,9 +71,13 @@ base::StatusOr<uint32_t> ParseClockName(const json::Dom& value) {
     return BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW;
   if (name == "BOOTTIME")
     return BuiltinClock::BUILTIN_CLOCK_BOOTTIME;
+  // The file's own private per-file timeline.
+  if (name == "TRACE_FILE")
+    return BuiltinClock::BUILTIN_CLOCK_TRACE_FILE;
   return base::ErrStatus(
       "perfetto_manifest: unknown clock name: %s. Use one of REALTIME, "
-      "REALTIME_COARSE, MONOTONIC, MONOTONIC_COARSE, MONOTONIC_RAW, BOOTTIME.",
+      "REALTIME_COARSE, MONOTONIC, MONOTONIC_COARSE, MONOTONIC_RAW, BOOTTIME, "
+      "TRACE_FILE.",
       name.c_str());
 }
 
@@ -102,7 +106,9 @@ base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
   }
   if (clocks.HasMember("clock")) {
     ASSIGN_OR_RETURN(uint32_t source_clock, ParseClockName(clocks["clock"]));
-    result.source_clock = source_clock;
+    // TRACE_FILE is the same as omitting the clock (pin the private clock).
+    if (source_clock != protos::pbzero::BUILTIN_CLOCK_TRACE_FILE)
+      result.source_clock = source_clock;
   }
 
   if (!clocks.HasMember("sync_to")) {
@@ -133,9 +139,15 @@ base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
   }
   if (sync_to.HasMember("clock")) {
     ASSIGN_OR_RETURN(uint32_t ref_clock, ParseClockName(sync_to["clock"]));
-    result.ref_clock = ref_clock;
+    if (ref_clock != protos::pbzero::BUILTIN_CLOCK_TRACE_FILE)
+      result.ref_clock = ref_clock;
   }
 
+  if (sync_to.HasMember("offset_ns")) {
+    return base::ErrStatus(
+        "perfetto_manifest: clocks: offset_ns belongs in the clocks block, "
+        "not inside sync_to.");
+  }
   if (clocks.HasMember("offset_ns")) {
     if (!clocks["offset_ns"].IsIntegral()) {
       return base::ErrStatus(
@@ -149,6 +161,43 @@ base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
     result.offset_ns = offset_ns;
   }
   return result;
+}
+
+// Parses a file's internal `__exported_table_schema` block. Only the JSON
+// shape is checked here; the trace_export plugin owns its version and schema
+// semantics.
+base::StatusOr<TraceManifestState::PerfettoExportTable>
+ParsePerfettoExportTable(const json::Dom& table) {
+  if (!table.IsObject() || !table["format"].IsIntegral() ||
+      !table["name"].IsString() || !table["row_count"].IsIntegral() ||
+      !table["columns"].IsArray()) {
+    return base::ErrStatus(
+        "perfetto_manifest: __exported_table_schema needs an integer format, "
+        "a string name, an integer row_count and a columns array");
+  }
+  TraceManifestState::PerfettoExportTable result;
+  result.format = table["format"].AsInt64();
+  result.name = table["name"].AsString();
+  int64_t row_count = table["row_count"].AsInt64();
+  if (row_count < 0 || row_count > std::numeric_limits<uint32_t>::max()) {
+    return base::ErrStatus("perfetto_manifest: table '%s': invalid row_count",
+                           result.name.c_str());
+  }
+  result.row_count = static_cast<uint32_t>(row_count);
+  for (const json::Dom& col : table["columns"]) {
+    if (!col.IsObject() || !col["name"].IsString() || !col["type"].IsString() ||
+        !col["nullability"].IsString() || !col["sort"].IsString() ||
+        !col["duplicates"].IsString()) {
+      return base::ErrStatus(
+          "perfetto_manifest: table '%s': malformed column entry",
+          result.name.c_str());
+    }
+    result.columns.push_back({col["name"].AsString(), col["type"].AsString(),
+                              col["nullability"].AsString(),
+                              col["sort"].AsString(),
+                              col["duplicates"].AsString()});
+  }
+  return std::move(result);
 }
 
 using Attribute = std::pair<std::string, std::variant<int64_t, std::string>>;
@@ -204,6 +253,19 @@ base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
   }
   FileEntry entry;
   entry.path = file["path"].AsString();
+  if (file.HasMember("__exported_table_schema")) {
+    if (file.HasMember("clocks") || file.HasMember("machine") ||
+        file.HasMember("machines")) {
+      return base::ErrStatus(
+          "perfetto_manifest: '%s': an exported table is not a trace, so "
+          "__exported_table_schema cannot be combined with "
+          "clocks/machine/machines",
+          entry.path.c_str());
+    }
+    ASSIGN_OR_RETURN(entry.exported_table_schema,
+                     ParsePerfettoExportTable(file["__exported_table_schema"]));
+    return std::move(entry);
+  }
   if (file.HasMember("clocks")) {
     if (!file["clocks"].IsObject()) {
       return base::ErrStatus("perfetto_manifest: clocks must be an object");
@@ -364,6 +426,32 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
                      ParseAttributes(meta["attributes"]));
     ApplyAttributes(context_, attrs);
   }
+
+  // Every member declared as a serialized table must be present: a missing
+  // one would otherwise silently yield an empty table. All archive members
+  // are added to the trace_file table before any is parsed, so this can be
+  // caught here, before any table is deserialized.
+  for (const FileEntry& entry : state->files) {
+    if (!entry.exported_table_schema) {
+      continue;
+    }
+    StringId name =
+        context_->storage->InternString(base::StringView(entry.path));
+    bool found = false;
+    for (auto it = context_->storage->trace_file_table().IterateRows(); it;
+         ++it) {
+      if (it.name() && *it.name() == name) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      return base::ErrStatus(
+          "perfetto_manifest: table member '%s' is declared but not present "
+          "in the archive",
+          entry.path.c_str());
+    }
+  }
   return ApplyManifest();
 }
 
@@ -378,7 +466,8 @@ base::Status PerfettoManifestReader::ApplyManifest() {
   // every `machines` entry share the namespace, so the same name is one
   // machine), pre-allocating and naming its row so clock references resolve to
   // it and ForkContextForTrace reuses it. Then set each file's base machine and
-  // its embedded-id remap.
+  // its embedded-id remap. Rows are allocated in manifest order, so machine ids
+  // follow the order files list their machines in.
   auto& machine_table = *context_->storage->mutable_machine_table();
   base::FlatHashMap<std::string, int64_t> name_to_id;
   int64_t next_id = kFirstManifestMachineId;
@@ -403,6 +492,12 @@ base::Status PerfettoManifestReader::ApplyManifest() {
         entry.machine_id = raw;
         entry.machine_name = name;
       }
+    }
+    // A trace naming no machine is on the default one, which takes its row in
+    // manifest order like any other: listing the host first makes it 0. An
+    // exported table is not a trace and is on no machine.
+    if (!entry.machine_id && !entry.exported_table_schema) {
+      EnsureMachineRow(context_, 0);
     }
   }
 
@@ -460,26 +555,6 @@ base::Status PerfettoManifestReader::ApplyManifest() {
     return *name_to_id.Find(*ref_machine);
   };
 
-  // Claim the global trace time clock directly: the manifest is the first file,
-  // so its claim wins over later traces. trace_time.file (+ .machine) pins it
-  // to that file's (pre-allocated) machine.
-  if (state->trace_time_clock) {
-    ClockId trace_time = ClockId::Machine(*state->trace_time_clock);
-    if (state->trace_time_file || state->trace_time_machine) {
-      ASSIGN_OR_RETURN(
-          int64_t raw,
-          resolve_ref("trace_time: file", "trace_time: machine",
-                      state->trace_time_file, state->trace_time_machine,
-                      /*fallback=*/0));
-      trace_time = ClockId::Machine(EnsureMachineRow(context_, raw),
-                                    *state->trace_time_clock);
-    }
-    context_->trace_time_state->TrySetClock(trace_time, file_id_);
-    context_->global_metadata_tracker->SetMetadata(
-        std::nullopt, std::nullopt, metadata::trace_time_clock_id,
-        Variadic::Integer(*state->trace_time_clock));
-  }
-
   // Resolves which machine declared by |entry| owns its source clock: the named
   // |source_machine| (which must be one this file itself declares), or - when
   // unset - the file's sole machine. A multi-machine file is several machines,
@@ -531,6 +606,35 @@ base::Status PerfettoManifestReader::ApplyManifest() {
         "the `path` of an entry in the `files` array.",
         path.c_str());
   };
+
+  // Claim the global trace time clock directly: the manifest is the first file,
+  // so its claim wins over later traces. trace_time.file (+ .machine) pins it
+  // to that file's (pre-allocated) machine.
+  if (state->trace_time_clock) {
+    ClockId trace_time = ClockId::Machine(*state->trace_time_clock);
+    if (state->trace_time_file || state->trace_time_machine) {
+      ASSIGN_OR_RETURN(
+          int64_t raw,
+          resolve_ref("trace_time: file", "trace_time: machine",
+                      state->trace_time_file, state->trace_time_machine,
+                      /*fallback=*/0));
+      trace_time = ClockId::Machine(EnsureMachineRow(context_, raw),
+                                    *state->trace_time_clock);
+    }
+    // TRACE_FILE: trace time is |file|'s private per-file clock.
+    if (*state->trace_time_clock == protos::pbzero::BUILTIN_CLOCK_TRACE_FILE) {
+      if (!state->trace_time_file) {
+        return base::ErrStatus(
+            "perfetto_manifest: trace_time: clock TRACE_FILE requires file");
+      }
+      ASSIGN_OR_RETURN(trace_time.trace_file_id,
+                       find_trace_file_id(*state->trace_time_file));
+    }
+    context_->trace_time_state->TrySetClock(trace_time, file_id_);
+    context_->global_metadata_tracker->SetMetadata(
+        std::nullopt, std::nullopt, metadata::trace_time_clock_id,
+        Variadic::Integer(*state->trace_time_clock));
+  }
 
   // Add every override's cross-machine edge to the global clock graph now,
   // before any file is parsed (a file may reference another parsed later),

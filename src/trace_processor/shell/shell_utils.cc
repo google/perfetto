@@ -17,13 +17,17 @@
 #include "src/trace_processor/shell/shell_utils.h"
 
 #include <cinttypes>
+#include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <string>
+#include <string_view>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/progress_reporter.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -32,22 +36,80 @@
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <unistd.h>
-#else
-#include <io.h>
-#define ftruncate _chsize
 #endif
 
 namespace perfetto::trace_processor {
+namespace {
+
+constexpr char kBoldGreen[] = "\x1b[1;32m";
+constexpr char kBoldCyan[] = "\x1b[1;36m";
+constexpr char kBoldRed[] = "\x1b[1;31m";
+constexpr char kBoldYellow[] = "\x1b[1;33m";
+constexpr char kDim[] = "\x1b[2m";
+constexpr char kReset[] = "\x1b[0m";
+
+class FileExportOutput : public TraceProcessor::ExportOutput {
+ public:
+  explicit FileExportOutput(std::string path) : path_(std::move(path)) {}
+
+  base::Status Write(const void* data, size_t size) override {
+    if (!file_) {
+      file_ = base::OpenFile(path_, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+      if (!file_) {
+        return base::ErrStatus("Failed to create file: %s", path_.c_str());
+      }
+    }
+    if (base::WriteAll(file_.get(), data, size) != static_cast<ssize_t>(size)) {
+      return base::ErrStatus("Failed to write export output");
+    }
+    return base::OkStatus();
+  }
+
+  std::optional<std::string> GetFilePath() const override { return path_; }
+
+ private:
+  std::string path_;
+  base::ScopedFile file_;
+};
+
+}  // namespace
 
 bool StderrSupportsColors() {
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
-  static const bool use_colors = isatty(STDERR_FILENO);
-  return use_colors;
-#else
-  return false;
-#endif
+  return base::StderrSupportsColor();
+}
+
+void PrintStatusLine(StatusLabelStyle style,
+                     std::string_view label,
+                     std::string_view message) {
+  const char* color = "";
+  switch (style) {
+    case StatusLabelStyle::kSuccess:
+      color = kBoldGreen;
+      break;
+    case StatusLabelStyle::kHint:
+      color = kBoldCyan;
+      break;
+    case StatusLabelStyle::kMuted:
+      color = kDim;
+      break;
+  }
+  const bool colors = StderrSupportsColors();
+  std::string line;
+  if (colors) {
+    line += color;
+  }
+  line += label;
+  if (colors) {
+    line += kReset;
+  }
+  if (!message.empty()) {
+    line += ": ";
+    line += message;
+  }
+  line += '\n';
+  // Don't let the line merge with a progress line which may be visible.
+  base::ProgressReporter::GetInstance().Clear();
+  fwrite(line.data(), 1, line.size(), stderr);
 }
 
 namespace {
@@ -62,7 +124,7 @@ base::Status PrintStatsSection(TraceProcessor* tp,
   while (it.Next()) {
     if (first) {
       base::StackString<256> line("  %s%s%s", colors ? color : "", header,
-                                  colors ? "\x1b[0m" : "");
+                                  colors ? kReset : "");
       fprintf(stderr, "%s\n", line.c_str());
       first = false;
     }
@@ -115,24 +177,23 @@ base::Status PrintStats(TraceProcessor* tp) {
 
   const bool colors = StderrSupportsColors();
   base::StackString<64> title("\n%sTrace health issues:%s\n",
-                              colors ? "\x1b[1;33m" : "",
-                              colors ? "\x1b[0m" : "");
+                              colors ? kBoldYellow : "", colors ? kReset : "");
   fprintf(stderr, "\n%s\n", title.c_str());
 
   RETURN_IF_ERROR(PrintStatsSection(
-      tp, "Trace errors", "\x1b[1;31m",
+      tp, "Trace errors", kBoldRed,
       "SELECT name, idx, value, description FROM stats "
       "WHERE severity = 'error' AND source = 'trace' AND value > 0 "
       "ORDER BY name, idx"));
 
   RETURN_IF_ERROR(PrintStatsSection(
-      tp, "Import errors", "\x1b[1;31m",
+      tp, "Import errors", kBoldRed,
       "SELECT name, idx, value, description FROM stats "
       "WHERE severity = 'error' AND source = 'analysis' AND value > 0 "
       "ORDER BY name, idx"));
 
   RETURN_IF_ERROR(
-      PrintStatsSection(tp, "Data losses", "\x1b[1;33m",
+      PrintStatsSection(tp, "Data losses", kBoldYellow,
                         "SELECT name, idx, value, description FROM stats "
                         "WHERE severity = 'data_loss' AND value > 0 "
                         "ORDER BY name, idx"));
@@ -140,65 +201,11 @@ base::Status PrintStats(TraceProcessor* tp) {
   return base::OkStatus();
 }
 
-base::Status ExportTraceToDatabase(TraceProcessor* trace_processor,
-                                   const std::string& output_name) {
-  PERFETTO_CHECK(output_name.find('\'') == std::string::npos);
-  {
-    base::ScopedFile fd(base::OpenFile(output_name, O_CREAT | O_RDWR, 0600));
-    if (!fd)
-      return base::ErrStatus("Failed to create file: %s", output_name.c_str());
-    int res = ftruncate(fd.get(), 0);
-    PERFETTO_CHECK(res == 0);
-  }
-
-  std::string attach_sql =
-      "ATTACH DATABASE '" + output_name + "' AS perfetto_export";
-  auto attach_it = trace_processor->ExecuteQuery(attach_sql);
-  bool attach_has_more = attach_it.Next();
-  PERFETTO_DCHECK(!attach_has_more);
-
-  RETURN_IF_ERROR(attach_it.Status());
-
-  // Export real and virtual tables.
-  auto tables_it =
-      trace_processor->ExecuteQuery("SELECT name FROM perfetto_tables");
-  while (tables_it.Next()) {
-    std::string table_name = tables_it.Get(0).string_value;
-    PERFETTO_CHECK(!base::Contains(table_name, '\''));
-    std::string export_sql = "CREATE TABLE perfetto_export." + table_name +
-                             " AS SELECT * FROM " + table_name;
-
-    auto export_it = trace_processor->ExecuteQuery(export_sql);
-    bool export_has_more = export_it.Next();
-    PERFETTO_DCHECK(!export_has_more);
-    RETURN_IF_ERROR(export_it.Status());
-  }
-  RETURN_IF_ERROR(tables_it.Status());
-
-  // Export views.
-  auto views_it = trace_processor->ExecuteQuery(
-      "SELECT sql FROM sqlite_master WHERE type='view'");
-  while (views_it.Next()) {
-    std::string sql = views_it.Get(0).string_value;
-    // View statements are of the form "CREATE VIEW name AS stmt". We need to
-    // rewrite name to point to the exported db.
-    const std::string kPrefix = "CREATE VIEW ";
-    PERFETTO_CHECK(sql.find(kPrefix) == 0);
-    sql = sql.substr(0, kPrefix.size()) + "perfetto_export." +
-          sql.substr(kPrefix.size());
-
-    auto export_it = trace_processor->ExecuteQuery(sql);
-    bool export_has_more = export_it.Next();
-    PERFETTO_DCHECK(!export_has_more);
-    RETURN_IF_ERROR(export_it.Status());
-  }
-  RETURN_IF_ERROR(views_it.Status());
-
-  auto detach_it =
-      trace_processor->ExecuteQuery("DETACH DATABASE perfetto_export");
-  bool detach_has_more = attach_it.Next();
-  PERFETTO_DCHECK(!detach_has_more);
-  return detach_it.Status();
+base::Status ExportTrace(TraceProcessor* trace_processor,
+                         TraceProcessor::ExportFormat format,
+                         const std::string& output_name) {
+  FileExportOutput output(output_name);
+  return trace_processor->Export(format, &output);
 }
 
 }  // namespace perfetto::trace_processor

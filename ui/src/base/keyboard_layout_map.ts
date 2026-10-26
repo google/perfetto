@@ -18,7 +18,13 @@ export interface KeyboardLayoutMap {
 }
 
 interface Keyboard {
-  getLayoutMap(): KeyboardLayoutMap;
+  getLayoutMap(): Promise<KeyboardLayoutMap>;
+}
+
+declare global {
+  interface Navigator {
+    readonly keyboard?: Keyboard | null;
+  }
 }
 
 export class NotSupportedError extends Error {}
@@ -27,16 +33,12 @@ export class NotSupportedError extends Error {}
 // This function is merely a wrapper around the keyboard API, which throws a
 // specific error when used in browsers that don't support it.
 export async function nativeKeyboardLayoutMap(): Promise<KeyboardLayoutMap> {
-  // Browser's that don't support the Keyboard API won't have a keyboard
-  // property in their window.navigator object.
-  // Note: it seems this is also what Chrome does when the website is accessed
-  // through an insecure connection.
-  if ('keyboard' in window.navigator) {
-    // Typescript's dom library doesn't know about this feature, so we must
-    // take some liberties when it comes to relaxing types
-    const keyboard = window.navigator.keyboard as Keyboard;
-    return await keyboard.getLayoutMap();
-  } else {
+  // Browsers that don't support the Keyboard API either omit the keyboard
+  // property from navigator or expose it with a null value. The latter can
+  // also happen when the page does not meet the API's security requirements.
+  const keyboard = window.navigator.keyboard;
+  if (!keyboard) {
     throw new NotSupportedError('Keyboard API is not supported');
   }
+  return keyboard.getLayoutMap();
 }

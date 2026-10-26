@@ -38,6 +38,8 @@
 
 namespace perfetto::trace_processor {
 
+class SqliteConnection;
+
 // Database-scoped state shared by every |PerfettoSqlConnection| attached to
 // it: the underlying |SqliteDatabase|, package/macro registries, and the
 // committed view of per-vtab state for each vtab module.
@@ -55,6 +57,12 @@ class PerfettoSqlDatabase {
   std::shared_ptr<SqliteDatabase> sqlite_database() const {
     return sqlite_database_;
   }
+
+  // Creates the tables shared by every connection to this database. The
+  // database has no SQLite handle of its own, so it reaches the backing store
+  // through |connection|. Only the first call does any work.
+  void InitializeSharedSchema(SqliteConnection* connection)
+      PERFETTO_LOCKS_EXCLUDED(shared_schema_mu_);
 
   // Registers |package| under |name|. Fails if any module key in the new
   // package has already been recorded as included or poisoned on this
@@ -176,6 +184,13 @@ class PerfettoSqlDatabase {
 
   StringPool* const pool_;
   std::shared_ptr<SqliteDatabase> sqlite_database_;
+
+  // Held while the shared schema is created so that a second connection waits
+  // for the tables to exist.
+  std::mutex shared_schema_mu_;
+  bool shared_schema_initialized_ PERFETTO_GUARDED_BY(shared_schema_mu_) =
+      false;
+
   base::FlatHashMap<std::string, sql_modules::RegisteredPackage> packages_;
   base::FlatHashMap<std::string, Macro> macros_;
 

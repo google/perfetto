@@ -73,9 +73,7 @@ export interface MultiselectInputAttrs extends HTMLAttrs {
   readonly placeholder?: string;
 }
 
-export class MultiselectInput
-  implements m.ClassComponent<MultiselectInputAttrs>
-{
+export class MultiselectInput implements m.ClassComponent<MultiselectInputAttrs> {
   private currentTextValue = '';
   private selectedItemIndex = 0;
   private popupIsOpen = false;
@@ -130,7 +128,7 @@ export class MultiselectInput
                 ev.preventDefault();
               } else if (ev.key === 'Enter') {
                 if (filteredOptions.length > 0) {
-                  const option = filteredOptions[this.selectedItemIndex];
+                  const option = filteredOptions[this.selectedItemIndex]!;
                   const alreadyAdded = selectedOptions.includes(option.key);
                   if (alreadyAdded) {
                     attrs.onOptionRemove(option.key);
@@ -162,7 +160,7 @@ export class MultiselectInput
                   selectedOptions.length > 0
                 ) {
                   attrs.onOptionRemove(
-                    selectedOptions[selectedOptions.length - 1],
+                    selectedOptions[selectedOptions.length - 1]!,
                   );
                   ev.preventDefault();
                 }

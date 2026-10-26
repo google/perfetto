@@ -15,7 +15,9 @@
 import './styles.scss';
 import m from 'mithril';
 import {z} from 'zod';
+import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
+import type {Setting} from '../../public/settings';
 import type {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
 import HeapProfilePlugin, {
@@ -23,16 +25,38 @@ import HeapProfilePlugin, {
 } from '../dev.perfetto.HeapProfile';
 import {HeapDumpPage} from './heap_dump_page';
 import {HeapDumpExplorerSession} from './session';
-import {migrateHdeState} from './persisted_state';
+import {DEFAULT_HDE_STATE, HDE_STATE_SCHEMA} from './persisted_state';
+import type {time} from '../../base/time';
 
 const PLUGIN_ID = 'com.android.HeapDumpExplorer';
 
-export default class implements PerfettoPlugin {
+export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
   static readonly id = PLUGIN_ID;
   static readonly dependencies = [HeapProfilePlugin];
+  private static defaultFlamegraphSetting: Setting<boolean>;
+  private readonly session: HeapDumpExplorerSession;
 
-  async onTraceLoad(ctx: Trace): Promise<void> {
-    const hideDefaultChangedHint = ctx.settings.register({
+  static onActivate(app: App) {
+    HeapDumpExplorerPlugin.defaultFlamegraphSetting = app.settings.register({
+      id: 'com.android.HeapDumpExplorerDefaultFlamegraph',
+      name: 'Heap Dump Explorer: Default to Flamegraph',
+      description:
+        'Make the flamegraph the first selected tab rather than the overview page in Heap Dump Explorer',
+      schema: z.boolean(),
+      defaultValue: false,
+    });
+  }
+
+  constructor(trace: Trace) {
+    // The core restores this storage (phase 1) before plugins run, so the session
+    // reads any shared-link state straight from it.
+    const storage = trace.registerStorage({
+      id: PLUGIN_ID,
+      schema: HDE_STATE_SCHEMA,
+      defaultValue: DEFAULT_HDE_STATE,
+    });
+
+    const hideDefaultChangedHint = trace.settings.register({
       id: 'com.android.HideHeapDumpExplorerDefaultChangedHint',
       name: 'Hide Heap Dump Explorer Explanation',
       description:
@@ -41,21 +65,31 @@ export default class implements PerfettoPlugin {
       defaultValue: false,
     });
 
+    const defaultFlamegraph = HeapDumpExplorerPlugin.defaultFlamegraphSetting;
+
+    this.session = new HeapDumpExplorerSession(
+      trace,
+      trace.engine,
+      hideDefaultChangedHint,
+      defaultFlamegraph,
+      storage,
+    );
+  }
+
+  // Change which heap dump we're looking at from another plugin
+  updateHeadDump(upid: number, ts: time): void {
+    const dump = this.session.dumps.find((d) => d.upid === upid && d.ts === ts);
+    if (!dump) return;
+    this.session.selectDump(dump);
+  }
+
+  async onTraceLoad(ctx: Trace): Promise<void> {
     const res = await ctx.engine.query(
-      'SELECT count(*) AS cnt FROM heap_graph_object LIMIT 1',
+      'SELECT count(*) AS cnt FROM heap_graph LIMIT 1',
     );
     if (res.iter({cnt: NUM}).cnt === 0) return;
 
-    // The core restores this store (phase 1) before plugins run, so the session
-    // reads any shared-link state straight from it.
-    const store = ctx.mountStore(PLUGIN_ID, migrateHdeState);
-
-    const session = new HeapDumpExplorerSession(
-      ctx,
-      ctx.engine,
-      hideDefaultChangedHint,
-      store,
-    );
+    const session = this.session;
     const restored = await session.loadDumps();
 
     ctx.pages.registerPage({

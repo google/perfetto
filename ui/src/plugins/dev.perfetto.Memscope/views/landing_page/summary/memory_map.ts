@@ -19,7 +19,7 @@
 // its own query slot and loading logic and shows the latest smaps snapshot.
 
 import m from 'mithril';
-import {QuerySlot} from '../../../../../base/query_slot';
+import {AsyncMemo} from '../../../../../base/async_memo';
 import {Time, type time} from '../../../../../base/time';
 import {
   FlamegraphChart,
@@ -159,10 +159,10 @@ export interface MemoryMapAttrs {
 
 export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
   // Per-snapshot tree inputs (keyed by upid; the selection doesn't reload it).
-  private readonly slot = new QuerySlot<MemoryMapData>();
+  private readonly slot = new AsyncMemo<MemoryMapData>();
   // The flame-tree for the selected/baseline snapshot, keyed by selection so it
   // is only (re)built when the snapshot changes, not on every redraw.
-  private readonly treeSlot = new QuerySlot<MemTreeResult>();
+  private readonly treeSlot = new AsyncMemo<MemTreeResult>();
 
   onremove() {
     this.slot.dispose();
@@ -176,7 +176,7 @@ export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
       'selected snapshot.';
     const data = this.slot.use({
       key: {traceId: trace.traceInfo.uuid, upid},
-      queryFn: () => loadMemoryMapData(trace, upid),
+      compute: () => loadMemoryMapData(trace, upid),
     }).data;
     if (data === undefined) {
       return loadingPanel({title: TITLE, subtitle}); // Still loading.
@@ -211,7 +211,7 @@ export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
         sel: snap.ts.toString(),
         base: base !== undefined ? base.ts.toString() : null,
       },
-      queryFn: async () => {
+      compute: async () => {
         // In compare mode, annotate each block with its Δ vs the baseline tree.
         const baseByLabel =
           base !== undefined
@@ -225,8 +225,8 @@ export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
       },
     }).data?.tree;
 
-    const first = snaps[0];
-    const last = snaps[snaps.length - 1];
+    const first = snaps[0]!;
+    const last = snaps[snaps.length - 1]!;
     // Insight: biggest slice of the latest snapshot + fastest-growing slice.
     const catVal = (s: MemSnapshot, key: string) => {
       const r = s.byCategory.get(key);
@@ -536,7 +536,7 @@ function buildMemTree(
     seg(
       b.label,
       bucketTotal > 0
-        ? (bucketBytes[i] / bucketTotal) * fileBytes
+        ? (bucketBytes[i]! / bucketTotal) * fileBytes
         : b.key === 'other_file'
           ? fileBytes
           : 0,

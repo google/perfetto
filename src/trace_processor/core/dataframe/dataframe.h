@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -38,13 +39,14 @@
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
-namespace perfetto::trace_processor::core::tree {
-class TreeTransformer;
-}  // namespace perfetto::trace_processor::core::tree
+namespace perfetto::trace_processor::util {
+class TraceBlobViewReader;
+}  // namespace perfetto::trace_processor::util
 
 namespace perfetto::trace_processor::core::dataframe {
 
 struct QueryPlanImpl;
+struct LogicalPlan;
 
 // Dataframe is a columnar data structure for efficient querying and filtering
 // of tabular data. It provides:
@@ -54,6 +56,11 @@ struct QueryPlanImpl;
 // - Efficient query execution with optimized bytecode generation
 // - Support for serializable query plans that separate planning from execution
 // - Memory-efficient storage with support for specialized column types
+//
+// A finalized Dataframe is safe for concurrent reads from multiple threads as
+// long as each thread uses its own cursor: PlanQuery, PrepareCursor and cursor
+// iteration touch no shared mutable state. Mutating operations (Insert*,
+// SetCell*, Clear, Finalize) are not thread-safe and must not race with reads.
 class Dataframe {
  public:
   // QueryPlan encapsulates an executable, serializable representation of a
@@ -112,31 +119,11 @@ class Dataframe {
                      spec.column_specs.data());
   }
 
-  // Concatenates two dataframes horizontally by combining their columns.
-  //
-  // Both dataframes must have the same row count. The resulting dataframe
-  // contains all columns from `left` followed by all columns from `right`,
-  // excluding the `_auto_id` column from both (a new `_auto_id` is created).
-  //
-  // Args:
-  //   left: The first dataframe. Ownership is taken via move.
-  //   right: The second dataframe. Ownership is taken via move.
-  //
-  // Returns:
-  //   A new dataframe containing columns from both inputs, or an error if
-  //   row counts don't match.
-  static base::StatusOr<Dataframe> HorizontalConcat(Dataframe&& left,
-                                                    Dataframe&& right);
-
-  // Selects rows at the given indices from this dataframe.
-  //
-  // Returns a new dataframe containing only the rows at the specified indices.
-  // The indices must be valid (less than row_count()).
-  Dataframe SelectRows(const uint32_t* indices, uint32_t count) &&;
-
   // Movable
   Dataframe(Dataframe&&) = default;
-  Dataframe& operator=(Dataframe&&) = default;
+  // Assignment invalidates any current cursor iteration. Typed cursors can
+  // start a new query after a replacement with the same schema.
+  Dataframe& operator=(Dataframe&&) noexcept;
 
   // Adds a new row to the dataframe with the specified values.
   //
@@ -173,6 +160,18 @@ class Dataframe {
   // Returns:
   //   A StatusOr containing the QueryPlan or an error status.
   base::StatusOr<QueryPlan> PlanQuery(
+      std::vector<FilterSpec>& filter_specs,
+      const std::vector<DistinctSpec>& distinct_specs,
+      const std::vector<SortSpec>& sort_specs,
+      const LimitSpec& limit_spec,
+      uint64_t cols_used_bitmap) const;
+
+  // The indexes added to the dataframe (see AddIndex).
+  const std::vector<Index>& indexes() const { return indexes_; }
+
+  // Returns the logical plan PlanQuery would lower, for tests which assert on
+  // the planner's choices rather than on the bytecode they produce.
+  base::StatusOr<LogicalPlan> PlanQueryLogicalForTesting(
       std::vector<FilterSpec>& filter_specs,
       const std::vector<DistinctSpec>& distinct_specs,
       const std::vector<SortSpec>& sort_specs,
@@ -270,6 +269,11 @@ class Dataframe {
   // If the dataframe is already finalized, this function does nothing.
   void Finalize();
 
+  // As Finalize, but without estimating how many distinct values each column
+  // holds, which only query planning uses. Cheaper, for a dataframe which is
+  // only ever scanned.
+  void FinalizeWithoutStatistics();
+
   // Makes a copy of the dataframe which has been finalized. Unfinalized
   // dataframes *cannot* be copied, so this function will assert if not
   // finalized.
@@ -287,6 +291,22 @@ class Dataframe {
   // Returns the column names of the dataframe.
   const std::vector<std::string>& column_names() const { return column_names_; }
 
+  // Returns `column`'s values and which rows hold one, for reading them
+  // without going through a cursor.
+  const Column& column(uint32_t column) const { return *column_ptrs_[column]; }
+
+  // Returns `column` with shared ownership, for readers that must outlive
+  // the dataframe. Only valid on a finalized dataframe as columns are
+  // immutable after that.
+  std::shared_ptr<const Column> shared_column(uint32_t column) const {
+    PERFETTO_DCHECK(finalized_);
+    return columns_[column];
+  }
+  // Returns the type of the values in `column`.
+  StorageType column_type(uint32_t column) const {
+    return column_ptrs_[column]->storage.type();
+  }
+
   // Returns the number of rows in the dataframe.
   uint32_t row_count() const { return row_count_; }
 
@@ -295,9 +315,9 @@ class Dataframe {
     return static_cast<uint32_t>(column_ptrs_.size());
   }
 
-  // Returns the total number of mutations to the dataframe. This includes
-  // both non-column mutations (e.g. adding rows, adding indexes) and
-  // column mutations (e.g. setting cell values).
+  // Returns a mutation stamp for cache invalidation. This includes structural
+  // and column changes and advances when the contents are replaced. It is not
+  // an exact operation count.
   uint64_t mutations() const {
     uint64_t total = non_column_mutations_;
     for (const auto& col : columns_) {
@@ -425,7 +445,11 @@ class Dataframe {
   friend class TypedCursor;
   friend class QueryPlanBuilder;
   friend struct QueryPlanImpl;
-  friend class tree::TreeTransformer;
+  friend class ArrowSerializer;
+  friend base::StatusOr<Dataframe> DeserializeFromArrow(
+      const util::TraceBlobViewReader&,
+      StringPool*,
+      const DataframeSpec&);
 
   // TODO(lalitm): remove this once we have a proper static builder for
   // dataframe.
@@ -436,6 +460,9 @@ class Dataframe {
             std::vector<std::shared_ptr<Column>> columns,
             uint32_t row_count,
             StringPool* string_pool);
+
+  // Finalize, estimating distinct counts only if `estimate_distinct`.
+  void FinalizeColumns(bool estimate_distinct);
 
   template <typename D, typename... Args, size_t... Is>
   PERFETTO_ALWAYS_INLINE void InsertUncheckedInternal(
@@ -706,7 +733,7 @@ class Dataframe {
 
   // Private copy constructor for special methods.
   Dataframe(const Dataframe&) = default;
-  Dataframe& operator=(const Dataframe&) = default;
+  Dataframe& operator=(const Dataframe&);
 
   // The names of all columns.
   std::vector<std::string> column_names_;
@@ -728,14 +755,14 @@ class Dataframe {
   // String pool for efficient string storage and interning.
   StringPool* string_pool_;
 
-  // A count of the number of mutations to the dataframe (e.g. adding rows,
-  // adding indexes). This does *not* include changes to values of the columns,
-  // there is a separate mutation count for that.
-  //
-  // This is used to determine if the dataframe has changed since the
-  // last time an external caller looked at it. This can allow invalidation of
-  // external caches of things inside this dataframe.
-  uint32_t non_column_mutations_ = 0;
+  // Base of the mutation stamp for structural changes. Replacement advances
+  // it past the old total, so caches cannot mistake a different dataframe
+  // payload with the same column mutation counts for an unchanged one.
+  uint64_t non_column_mutations_ = 0;
+
+  // Belongs to this dataframe object, not its columns: replacing the payload
+  // invalidates cached cursor state even if column mutation counts match.
+  uint64_t replacement_generation_ = 0;
 
   // Whether the dataframe is "finalized". See `Finalize()`.
   bool finalized_ = false;

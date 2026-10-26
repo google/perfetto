@@ -306,8 +306,7 @@ void GenericKernelParser::ParseGenericProcessTree(protozero::ConstBytes data) {
     auto pupid = process_tracker->GetOrCreateProcessWithoutMainThread(ppid);
     auto upid = process_tracker->GetOrCreateProcessWithoutMainThread(pid);
 
-    upid = process_tracker->UpdateProcessWithParent(
-        upid, pupid, /*associate_main_thread*/ false);
+    process_tracker->SetProcessParent(upid, pupid);
     process_tracker->SetProcessMetadata(upid, name, cmdline);
   }
 

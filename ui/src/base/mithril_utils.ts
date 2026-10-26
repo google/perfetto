@@ -14,6 +14,16 @@
 
 import m from 'mithril';
 import {ensureIsInstance} from './assert';
+import type {FuzzySegment} from './fuzzy';
+
+export function renderSegments(
+  text: readonly FuzzySegment[] | string,
+): m.Children {
+  if (typeof text === 'string') {
+    return text;
+  }
+  return text.map(({matching, value}) => (matching ? m('b', value) : value));
+}
 
 // Check if a mithril component vnode has children
 export function hasChildren<T>({children}: m.Vnode<T>): boolean {

@@ -14,13 +14,15 @@
 
 import m from 'mithril';
 import {exists} from '../../base/utils';
-import type {
-  Aggregator,
-  AggregatorGridConfig,
+import {
+  type Aggregator,
+  type AggregatorGridConfig,
+  createAggregationData,
 } from '../../components/aggregation_adapter';
 import type {Area, AreaSelection} from '../../public/selection';
 import type {Engine} from '../../trace_processor/engine';
 import type {SqlValue} from '../../trace_processor/query_result';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {RadioGroup} from '../../widgets/radio_group';
 import {
   CPUSS_ESTIMATE_TRACK_KIND,
@@ -47,14 +49,14 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
     if (estimateTracks.length === 0) return undefined;
 
     return {
+      getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
-        await engine.query(`drop view if exists ${this.id};`);
-        const query = this.getEstimateTracksQuery(area, estimateTracks);
-        await engine.query(query);
-
-        return {
-          tableName: this.id,
-        };
+        await engine.query(`INCLUDE PERFETTO MODULE wattson.estimates`);
+        const table = await createPerfettoTable({
+          engine,
+          as: this.getEstimateTracksQuery(area, estimateTracks),
+        });
+        return createAggregationData(table);
       },
     };
   }
@@ -65,9 +67,6 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
   ): string {
     const duration = area.end - area.start;
     let query = `
-      INCLUDE PERFETTO MODULE wattson.estimates;
-
-      CREATE PERFETTO VIEW ${this.id} AS
       WITH window_stats AS (
         SELECT * FROM _wattson_base_components_avg_mw!(
           (SELECT ${area.start} AS ts, ${duration} AS dur, 0 AS period_id)
@@ -89,8 +88,6 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
         FROM window_stats
       `;
     });
-    query += `;`;
-
     return query;
   }
 
@@ -118,7 +115,7 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
     return String(value);
   }
 
-  getGridConfig(): AggregatorGridConfig {
+  private getGridConfig(): AggregatorGridConfig {
     const powerUnits = this.scaleNumericData ? 'µW' : 'mW';
     const energyUnits = this.scaleNumericData ? 'µWs' : 'mWs';
 

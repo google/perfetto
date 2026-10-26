@@ -44,10 +44,7 @@ import type {Provider} from '../dev.perfetto.Llm/config';
 // These globals aren't in the TS DOM lib yet, so we declare the shapes we touch.
 
 type Availability =
-  | 'unavailable'
-  | 'downloadable'
-  | 'downloading'
-  | 'available';
+  'unavailable' | 'downloadable' | 'downloading' | 'available';
 
 interface LanguageModelMessage {
   readonly role: 'system' | 'user' | 'assistant';
@@ -186,7 +183,7 @@ function messagesToTranscript(messages: ReadonlyArray<Message>): string {
 function stripFences(text: string): string {
   const t = text.trim();
   const fence = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/i.exec(t);
-  return fence ? fence[1].trim() : t;
+  return fence ? fence[1]!.trim() : t;
 }
 
 // Return the first brace-balanced `{...}` substring, ignoring braces inside

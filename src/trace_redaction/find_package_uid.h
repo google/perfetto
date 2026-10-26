@@ -23,10 +23,21 @@
 
 namespace perfetto::trace_redaction {
 
-// Writes the uid for the package matching `Context.package_name`. Returns
-// `kStop` with a package is found, otherwrise `kContinue`. If a package is not
-// found, `Context.package_uid` will remain unset and a later primitive will
-// need to report the failure.
+// Resolves and sets `Context.package_uid` for the package matching
+// `Context.package_name`.
+//
+// When an explicit target UID is provided via CLI (`--uid`), FindPackageUid
+// preserves the full per-user UID, disables `Context.normalize_uid` (sets it
+// to false) to isolate processes across Android users, and skips
+// `PackagesList` lookup in `Collect()`.
+//
+// When no explicit target UID is provided, this primitive extracts the
+// package's normalized UID from the trace's `PackagesList` into
+// `Context.package_uid`, verifies that it is normalized (uid < 100,000), and
+// sets `Context.normalize_uid = true`.
+//
+// If `Context.package_name` is empty or if no matching package UID can be
+// resolved by the end of the trace, this primitive returns an error status.
 class FindPackageUid final : public CollectPrimitive {
  public:
   base::Status Begin(Context*) const override;

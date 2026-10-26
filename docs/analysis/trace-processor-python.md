@@ -109,7 +109,7 @@ tp = TraceProcessor(trace='trace.perfetto-trace', addr='localhost:9001')
 The `TraceProcessor` can be customized using the `TraceProcessorConfig` class.
 
 ```python
-from perfetto.trace_processor import TraceProcessor, TraceProcessorConfig, SqlPackage
+from perfetto.trace_processor.api import TraceProcessor, TraceProcessorConfig, SqlPackage
 
 config = TraceProcessorConfig(
     bin_path='/path/to/trace_processor', # Path to custom binary
@@ -135,7 +135,8 @@ instance. The most important are:
 - `bin_path`: Path to the `trace_processor` binary. If not given, the
   `trace_processor` version pinned to (and shipped with) the installed
   `perfetto` package is downloaded and used. This keeps results reproducible:
-  upgrading the binary means upgrading the package.
+  upgrading the binary means upgrading the package. The pinned release is
+  `perfetto.prebuilts.manifests.version.PREBUILTS_VERSION`.
 - `fetch_latest_trace_processor`: If `True` (and `bin_path` is not set), fetch
   the latest available prebuilt from `get.perfetto.dev` instead of the version
   pinned to the package. Use this to always run the newest build, at the cost of
@@ -230,6 +231,37 @@ shape: (5, 3)
 └─────────────────────┴────────┴─────────────────────────────┘
 ```
 
+Results can also be converted to an [Apache Arrow](https://arrow.apache.org/)
+table using `as_arrow_table()`. pyarrow is an optional dependency. Each column
+gets an Arrow type based on the values in it: integers become `int64`, floats
+become `float64`, strings become `string` and blobs become `binary`. A column
+which mixes integers and floats becomes `float64`. A column which mixes strings
+or blobs with other types cannot be converted and raises an error; `CAST` it to
+a single type in the query. A column with only NULLs, including every column of
+an empty result, gets the Arrow `null` type.
+
+The conversion happens in Python, after the results have been received from
+trace processor.
+
+```python
+# Requires pyarrow
+# pip install perfetto[pyarrow]
+qr_it = tp.query('SELECT ts, dur, name FROM slice')
+table = qr_it.as_arrow_table()
+```
+
+Query results also implement the
+[Arrow PyCapsule interface](https://arrow.apache.org/docs/format/CDataInterface/PyCapsuleInterface.html),
+so they can be passed directly to libraries which accept Arrow data. For
+example, a result can be queried from [DuckDB](https://duckdb.org/) by name:
+
+```python
+import duckdb
+
+slices = tp.query('SELECT ts, dur, name FROM slice')
+duckdb.sql('SELECT name, sum(dur) FROM slices GROUP BY name').show()
+```
+
 You can use Pandas DataFrames to easily create visualizations from trace data.
 
 ```python
@@ -283,6 +315,31 @@ with TraceProcessor(trace='trace.perfetto-trace') as tp:
     summary = tp.trace_summary(specs=[spec])
     print(summary)
 ```
+
+### Export
+
+The `export()` function writes the parsed trace data to a file, streaming
+directly to disk. The format is one of `arrow_tar`, `perfetto` or `sqlite`:
+
+```python
+from perfetto.trace_processor import TraceProcessor
+
+tp = TraceProcessor(trace='trace.perfetto-trace')
+
+# Version-coupled archive, loadable by the same version of trace processor.
+tp.export('archive.tar', 'perfetto')
+
+# Static tables as a tar of standard Arrow files.
+tp.export('tables.tar', 'arrow_tar')
+```
+
+`perfetto` can be loaded back by a fresh trace processor instance from the
+same version (a different version may load it, but this is not guaranteed).
+`arrow_tar` produces one standard [Apache Arrow](https://arrow.apache.org/)
+file per statically registered table, for analysis with pandas, Polars or
+pyarrow; it cannot be loaded back into trace processor. `sqlite` writes all
+SQL-visible tables and views into a standard SQLite database, like the
+[`export` shell subcommand](/docs/reference/trace-processor-cli.md#subcommand-export).
 
 ### Metatracing
 

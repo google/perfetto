@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/waitable_event.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -47,6 +48,7 @@
 #include "perfetto/tracing/tracing_backend.h"
 #include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/internal/tracing_muxer_fake.h"
+#include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
 #include "protos/perfetto/config/interceptor_config.gen.h"
 
@@ -1410,6 +1412,17 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
       }
     }
 
+    // Select v1 or v2 once, so that all writers of this instance agree.
+    // A startup instance keeps v1, also after adoption.
+    // An intercepted instance takes its writer from the interceptor.
+    internal_state->use_tracing_v2 =
+        !startup_session_id && !internal_state->interceptor_id &&
+        rds.params.supports_tracing_v2 &&
+        tracing_v2::ProducerRingBufferArbiter::ShouldUseTracingV2(cfg);
+    // Complete initialization before writer threads can observe this instance.
+    if (internal_state->use_tracing_v2)
+      backend.producer->service_->InitializeV2RingBuffer(cfg);
+
     // This must be made at the end. See matching acquire-load in
     // DataSource::Trace().
     static_state.valid_instances.fetch_or(1 << i, std::memory_order_release);
@@ -1840,6 +1853,23 @@ void TracingMuxerImpl::SyncProducersForTesting() {
     cv.wait(lock, [&done] { return done; });
   }
   PERFETTO_DCHECK(all_producers_connected);
+}
+
+void TracingMuxerImpl::DestroyAllTraceWritersForCurrentThread() {
+  // Forcefully reset all trace writers on the current thread, regardless of
+  // whether their data source instances are stopped.
+  auto* root_tls = GetOrCreateTracingTLS();
+  auto destroy_all_instances = [](DataSourceThreadLocalState& tls) {
+    for (auto& ds_tls : tls.per_instance) {
+      ds_tls.Reset();
+    }
+  };
+  for (auto& tls : root_tls->data_sources_tls)
+    destroy_all_instances(tls);
+  destroy_all_instances(root_tls->track_event_tls);
+  // Unlike DestroyStoppedTraceWritersForCurrentThread(), we deliberately don't
+  // sync |root_tls->generation|: this only runs at shutdown, after which any
+  // trace point on this thread aborts in TracingMuxerFake anyway.
 }
 
 void TracingMuxerImpl::DestroyStoppedTraceWritersForCurrentThread() {
@@ -2379,8 +2409,12 @@ std::unique_ptr<TraceWriterBase> TracingMuxerImpl::CreateTraceWriter(
     return service->MaybeSharedMemoryArbiter()->CreateStartupTraceWriter(
         startup_buffer_reservation);
   }
-  return service->CreateTraceWriter(data_source->buffer_id,
-                                    buffer_exhausted_policy);
+
+  return data_source->use_tracing_v2
+             ? service->CreateTraceWriterV2(data_source->buffer_id,
+                                            buffer_exhausted_policy)
+             : service->CreateTraceWriter(data_source->buffer_id,
+                                          buffer_exhausted_policy);
 }
 
 // This is called via the public API Tracing::NewTrace().
@@ -2536,7 +2570,7 @@ TracingMuxerImpl::CreateStartupTracingSession(
               "Setting up data source %s for startup tracing with target "
               "buffer reservation %" PRIi32,
               rds.descriptor.name().c_str(),
-              backend.producer->last_startup_target_buffer_reservation_ + 1u);
+              backend.producer->last_startup_target_buffer_reservation_ + 1);
           auto ds = SetupDataSourceImpl(
               rds, backend_id,
               backend.producer->connection_id_.load(std::memory_order_relaxed),
@@ -2793,7 +2827,10 @@ void TracingMuxerImpl::Shutdown() {
 
   // Shutting down on the muxer thread would lead to a deadlock.
   PERFETTO_CHECK(!muxer->task_runner_->RunsTasksOnCurrentThread());
-  muxer->DestroyStoppedTraceWritersForCurrentThread();
+  // Destroy this thread's trace writers, including those of still-running data
+  // sources: the SMB dies with `delete muxer` below, but this thread's TLS only
+  // at platform->Shutdown() further down. Flushing then is a UAF (b/534222391).
+  muxer->DestroyAllTraceWritersForCurrentThread();
 
   std::unique_ptr<base::TaskRunner> owned_task_runner(
       muxer->task_runner_.get());
@@ -2808,10 +2845,9 @@ void TracingMuxerImpl::Shutdown() {
         PERFETTO_CHECK(!consumer->service_);
       }
     }
-    // Make sure no trace writers are lingering around on the muxer thread. Note
-    // that we can't do this for any arbitrary thread in the process; it is the
-    // caller's responsibility to clean them up before shutting down Perfetto.
-    muxer->DestroyStoppedTraceWritersForCurrentThread();
+    // Destroy all writers before delete muxer frees the SMB; any writer left
+    // alive would UAF when the muxer thread exits (b/534222391).
+    muxer->DestroyAllTraceWritersForCurrentThread();
     // The task runner must be deleted outside the muxer thread. This is done by
     // `owned_task_runner` above.
     muxer->task_runner_.release();

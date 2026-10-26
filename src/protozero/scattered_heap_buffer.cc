@@ -75,6 +75,15 @@ ScatteredHeapBuffer::GetSlices() {
   return slices_;
 }
 
+std::vector<ScatteredHeapBuffer::Slice> ScatteredHeapBuffer::TakeSlices() {
+  AdjustUsedSizeOfCurrentSlice();
+  std::vector<Slice> slices = std::move(slices_);
+  slices_.clear();
+  if (writer_)
+    writer_->Reset(protozero::ContiguousMemoryRange{});
+  return slices;
+}
+
 std::vector<uint8_t> ScatteredHeapBuffer::StitchSlices() {
   size_t stitched_size = 0u;
   const auto& slices = GetSlices();

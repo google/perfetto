@@ -53,7 +53,7 @@ class ArgvInvoker {
 };
 
 base::TempFile WriteTempFile(const std::string& content) {
-  auto f = base::TempFile::Create();
+  auto f = base::TempFile::Create().ValueOrDie();
   PERFETTO_CHECK(base::WriteAll(f.fd(), content.data(), content.size()) ==
                  static_cast<ssize_t>(content.size()));
   return f;
@@ -93,7 +93,7 @@ class TraceconvBundleTest : public ::testing::Test {
   void SetUp() override {
     input_trace_ = base::GetTestDataPath(
         "test/data/heapprofd_standalone_client_example-trace");
-    output_path_ = temp_dir_.path() + "/bundle.tar";
+    output_path_ = output_file_.path();
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     GTEST_SKIP() << "do not run traceconv tests on Android target";
 #endif
@@ -101,8 +101,6 @@ class TraceconvBundleTest : public ::testing::Test {
     GTEST_SKIP() << "TarWriter is not supported on Windows";
 #endif
   }
-
-  void TearDown() override { remove(output_path_.c_str()); }
 
   // Collects every package_name found in a deobfuscation.pb proto stream.
   static std::set<std::string> PackageNames(const std::string& deob_bytes) {
@@ -117,7 +115,7 @@ class TraceconvBundleTest : public ::testing::Test {
     return names;
   }
 
-  base::TempDir temp_dir_ = base::TempDir::Create();
+  base::TempFile output_file_ = base::TempFile::Create().ValueOrDie();
   std::string input_trace_;
   std::string output_path_;
 };

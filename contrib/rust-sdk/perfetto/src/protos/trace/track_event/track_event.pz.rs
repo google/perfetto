@@ -97,8 +97,9 @@ pb_msg!(TrackEvent {
     correlation_id: u64, primitive, 52,
     correlation_id_str: String, primitive, 53,
     correlation_id_str_iid: u64, primitive, 54,
-    callstack: TrackEventCallstack, msg, 55,
+    callstack: TrackEventInlineCallstack, msg, 55,
     callstack_iid: u64, primitive, 56,
+    callstack_weight: f64, primitive, 57,
     debug_annotations: DebugAnnotation, msg, 4,
     task_execution: TaskExecution, msg, 5,
     log_message: LogMessage, msg, 21,
@@ -147,11 +148,11 @@ pb_msg!(TrackEventLegacyEvent {
     tid_override: i32, primitive, 19,
 });
 
-pb_msg!(TrackEventCallstack {
-    frames: TrackEventCallstackFrame, msg, 1,
+pb_msg!(TrackEventInlineCallstack {
+    frames: TrackEventInlineCallstackFrame, msg, 1,
 });
 
-pb_msg!(TrackEventCallstackFrame {
+pb_msg!(TrackEventInlineCallstackFrame {
     function_name: String, primitive, 1,
     source_file: String, primitive, 2,
     line_number: u32, primitive, 3,

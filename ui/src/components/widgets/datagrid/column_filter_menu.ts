@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {FuzzyFinder} from '../../../base/fuzzy';
+import {fuzzySearch} from '../../../base/fuzzy';
 import {isEmptyVnodes} from '../../../base/mithril_utils';
 import {Icons} from '../../../base/semantic_icons';
 import type {SqlValue} from '../../../trace_processor/query_result';
@@ -53,9 +53,7 @@ interface DistinctValuesSubmenuAttrs {
   readonly onApply: (selectedValues: Set<SqlValue>) => void;
 }
 
-export class DistinctValuesSubmenu
-  implements m.ClassComponent<DistinctValuesSubmenuAttrs>
-{
+export class DistinctValuesSubmenu implements m.ClassComponent<DistinctValuesSubmenuAttrs> {
   private selectedValues = new Set<SqlValue>();
   private searchQuery = '';
   private static readonly MAX_VISIBLE_ITEMS = 100;
@@ -64,13 +62,10 @@ export class DistinctValuesSubmenu
     const {datasource, field, excludeNull, valueFormatter, onApply} = attrs;
 
     // Fetch distinct values - only called when submenu is visible
-    const {data, isPending} = datasource.useDistinctValues(field);
-
-    if (isPending || data === undefined) {
-      return m('.pf-distinct-values-menu', [
-        m(MenuItem, {label: 'Loading...', disabled: true}),
-      ]);
-    }
+    const {data = [], isPending} = datasource.useDistinctValues(
+      field,
+      this.searchQuery,
+    );
 
     // Filter out null if requested (use "is null" filter instead)
     const distinctValues = excludeNull ? data.filter((v) => v !== null) : data;
@@ -85,10 +80,11 @@ export class DistinctValuesSubmenu
         }));
       } else {
         // Fuzzy search with highlighting
-        const finder = new FuzzyFinder(distinctValues, (v) =>
-          valueFormatter(v),
-        );
-        return finder.find(this.searchQuery).map((result) => ({
+        return fuzzySearch(
+          distinctValues,
+          (v) => valueFormatter(v),
+          this.searchQuery,
+        ).map((result) => ({
           value: result.item,
           segments: result.segments,
         }));
@@ -166,9 +162,11 @@ export class DistinctValuesSubmenu
                   disabled: true,
                 }),
             ]
-          : m(EmptyState, {
-              title: 'No matches',
-            }),
+          : isPending
+            ? m(MenuItem, {label: 'Loading...', disabled: true})
+            : m(EmptyState, {
+                title: 'No matches',
+              }),
       ),
       m('.pf-distinct-values-menu__footer', [
         m(MenuItem, {
@@ -205,9 +203,7 @@ interface TextFilterSubmenuAttrs {
   readonly onApply: (value: string | number) => void;
 }
 
-export class TextFilterSubmenu
-  implements m.ClassComponent<TextFilterSubmenuAttrs>
-{
+export class TextFilterSubmenu implements m.ClassComponent<TextFilterSubmenuAttrs> {
   private inputValue = '';
 
   view({attrs}: m.Vnode<TextFilterSubmenuAttrs>) {

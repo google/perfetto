@@ -18,7 +18,9 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdio>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -34,10 +36,13 @@
 #include "perfetto/trace_processor/summarizer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
+#include "src/trace_processor/shell/agent_mode.h"
 #include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/interactive.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/query.h"
+#include "src/trace_processor/shell/result_formatter.h"
+#include "src/trace_processor/shell/shell_utils.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/trace_summary/trace_summary.descriptor.h"
 
@@ -115,6 +120,21 @@ base::Status LoadSpecIntoSummarizer(Summarizer* summarizer,
   return base::OkStatus();
 }
 
+// Runs |sql|, printing every result set. On error, records which statement
+// failed so that it can be reported (see kFailedStatementPayload).
+base::Status RunAndPrint(TraceProcessor* tp,
+                         const std::string& sql,
+                         const ResultFormatOptions& format,
+                         const GlobalOptions& global) {
+  uint32_t statement = 0;
+  base::Status status = RunQueriesAndPrintResult(tp, sql, format, stdout,
+                                                 global.quiet, &statement);
+  if (!status.ok() && statement > 0) {
+    status.SetPayload(kFailedStatementPayload, std::to_string(statement));
+  }
+  return status;
+}
+
 }  // namespace
 
 const char* QuerySubcommand::name() const {
@@ -137,8 +157,22 @@ SQL can be provided in three ways:
   2. From a file:          tp query -f queries.sql trace.pb
   3. From stdin:           cat q.sql | tp query trace.pb
 
-Multiple semicolon-separated statements are supported. Use -i to drop into
-an interactive shell after the queries complete.
+Multiple semicolon-separated statements are supported: every statement's
+result set is printed, with consecutive result sets separated by a single
+blank line. Use -i to drop into an interactive shell after the queries
+complete.
+
+Output is CSV by default. --format markdown prints compact markdown tables:
+results over --max-rows rows (default 1000) or --max-bytes bytes (default
+10000) show only their first and last rows plus a footer with the row count,
+and cells are cut at --max-cell-width characters (default 500). CSV has no
+limits by default; if any are passed, results over them are cut to their
+first rows and a note is printed to stderr.
+
+Agent mode is on when run by a coding agent (detected from its environment,
+e.g. CLAUDECODE or AI_AGENT) with stdout not a terminal and no --format;
+--agent / --no-agent force it on or off. In agent mode, results default to
+markdown and errors are printed as JSON.
 
 Advanced (for debugging/testing structured queries):
   --structured-query-id ID --summary-spec FILE [...]
@@ -159,13 +193,102 @@ std::vector<FlagSpec> QuerySubcommand::GetFlags() {
        [this](const char* v) { structured_query_specs_.emplace_back(v); }},
       BoolFlag("interactive", 'i', "Start interactive shell after query.",
                &interactive_),
-      BoolFlag("wide", 'W', "Double column width for output.", &wide_),
+      RetiredWideFlag(),
       StringFlag("perf-file", '\0', "FILE", "Write perf timing data to FILE.",
                  &perf_file_),
+      StringFlag("format", '\0', "FMT",
+                 "Output format: csv (default) or markdown.", &format_),
+      BoolFlag("agent", '\0', "Force agent mode on (see above).", &agent_),
+      BoolFlag("no-agent", '\0', "Force agent mode off.", &no_agent_),
+      StringFlag("max-rows", '\0', "N",
+                 "Rows printed in full; larger results are cut. 0 for no "
+                 "limit.",
+                 &max_rows_),
+      StringFlag("max-bytes", '\0', "N",
+                 "Like --max-rows but for bytes of output.", &max_bytes_),
+      StringFlag("max-cell-width", '\0', "N",
+                 "Characters printed per cell. 0 for no limit.",
+                 &max_cell_width_),
   };
 }
 
+base::StatusOr<ResultFormatOptions> QuerySubcommand::ResolveFormat(
+    const AgentMode& agent_mode) {
+  ResultFormatOptions options =
+      agent_mode.enabled ? DefaultMarkdownOptions() : ResultFormatOptions();
+  if (format_ == "csv") {
+    options = ResultFormatOptions();
+  } else if (format_ == "markdown") {
+    options = DefaultMarkdownOptions();
+  } else if (!format_.empty()) {
+    return base::ErrStatus("query: unknown --format '%s' (csv or markdown)",
+                           format_.c_str());
+  }
+  struct {
+    const char* flag;
+    const std::string& value;
+    uint64_t* target;
+  } limits[] = {
+      {"--max-rows", max_rows_, &options.max_rows},
+      {"--max-bytes", max_bytes_, &options.max_bytes},
+      {"--max-cell-width", max_cell_width_, &options.max_cell_chars},
+  };
+  for (const auto& limit : limits) {
+    if (limit.value.empty()) {
+      continue;
+    }
+    std::optional<uint64_t> v = base::StringToUInt64(limit.value);
+    if (!v) {
+      return base::ErrStatus("query: %s expects a number, got '%s'", limit.flag,
+                             limit.value.c_str());
+    }
+    *limit.target = *v;
+  }
+  return options;
+}
+
 base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
+  RETURN_IF_ERROR(RejectExtraPositionals(ctx, "query", 2));
+  if (agent_ && no_agent_) {
+    return base::ErrStatus("query: --agent and --no-agent are exclusive");
+  }
+  std::optional<bool> force_agent;
+  if (agent_ || no_agent_) {
+    force_agent = agent_;
+  }
+  const bool stdout_is_tty = base::IsTty(stdout);
+  AgentMode agent_mode =
+      DecideAgentMode(force_agent, !format_.empty(), stdout_is_tty);
+  const bool quiet = ctx.global->quiet;
+  if (agent_mode.enabled && !quiet) {
+    PrintAgentModeNotice(agent_mode);
+  }
+
+  base::Status status = ExecuteAndPrint(ctx, agent_mode);
+  if (status.ok()) {
+    return status;
+  }
+  // Results printed before the error (e.g. by earlier statements) must come
+  // first when stdout and stderr go to the same place.
+  fflush(stdout);
+  if (agent_mode.enabled) {
+    fprintf(stderr, "%s\n", FormatErrorAsJson(status).c_str());
+  } else if (!force_agent && format_.empty() && !stdout_is_tty && !quiet) {
+    // Agents which don't set a known environment variable never get agent
+    // mode automatically. Their stdout is redirected, so when a query fails
+    // in that situation, point them at it.
+    fprintf(stderr, "%s\n", status.c_message());
+    PrintAgentModeHint();
+  } else {
+    return status;
+  }
+  status.SetPayload("perfetto.dev/has_printed_error", "1");
+  return status;
+}
+
+base::Status QuerySubcommand::ExecuteAndPrint(const SubcommandContext& ctx,
+                                              const AgentMode& agent_mode) {
+  ASSIGN_OR_RETURN(ResultFormatOptions format, ResolveFormat(agent_mode));
   // With --remote, the trace is already loaded server-side, so there is no
   // trace-file positional: the first positional (if any) is the SQL.
   std::string trace_file;
@@ -174,7 +297,7 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
 
   // Advanced: structured query mode.
   if (!structured_query_id_.empty()) {
-    return RunStructuredQuery(ctx, trace_file);
+    return RunStructuredQuery(ctx, trace_file, format);
   }
 
   // Determine SQL source:
@@ -202,6 +325,28 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
   base::TimeNanos t_load{};
   ASSIGN_OR_RETURN(auto tp, CreateTraceProcessor(*ctx.global, ctx.platform,
                                                  trace_file, &t_load));
+  // One-shot `query TRACE` calls re-parse the trace every time. Scripts and
+  // coding agents rarely read --help but do read stderr, so when parsing
+  // was slow enough to matter tell them, once per call, how to keep the
+  // trace loaded across queries. Measured on agents: this line alone moved
+  // warm-session use from 0% to >80% of runs; longer guides were not read.
+  constexpr double kSlowParseSeconds = 1.0;
+  double load_s = static_cast<double>(t_load.count()) / 1e9;
+  if (!ctx.global->quiet && ctx.global->remote_addr.empty() && !interactive_ &&
+      load_s >= kSlowParseSeconds) {
+    PrintStatusLine(
+        StatusLabelStyle::kHint, "Tip",
+        base::StackString<64>("parsing took %.1fs", load_s).ToStdString() +
+            " and `query TRACE` re-parses on every call. To run many "
+            "queries, load once and reuse the session:\n"
+            "  trace_processor server unix --name S --daemonize " +
+            trace_file +
+            "\n"
+            "  trace_processor query --remote S \"SELECT ...\"\n"
+            "  trace_processor server kill S\n"
+            "Scripts and AI agents: `trace_processor help agent` covers "
+            "this, schema discovery and PerfettoSQL tips.");
+  }
 
   if (!query_file_.empty()) {
     if (!base::ReadFile(query_file_, &sql)) {
@@ -217,7 +362,7 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
 #endif
 
   base::TimeNanos t_query_start = base::GetWallTimeNs();
-  auto status = RunQueries(tp.get(), sql, true);
+  auto status = RunAndPrint(tp.get(), sql, format, *ctx.global);
   if (!status.ok()) {
     MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path);
     return status;
@@ -229,10 +374,8 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
   }
 
   if (interactive_) {
-    RETURN_IF_ERROR(StartInteractiveShell(
-        tp.get(),
-        InteractiveOptions{
-            wide_ ? 40u : 20u, MetricV1OutputFormat::kNone, {}, {}, nullptr}));
+    RETURN_IF_ERROR(
+        StartInteractiveShell(tp.get(), InteractiveOptions{ctx.global->quiet}));
   }
 
   RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path));
@@ -241,7 +384,8 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
 
 base::Status QuerySubcommand::RunStructuredQuery(
     const SubcommandContext& ctx,
-    const std::string& trace_file) {
+    const std::string& trace_file,
+    const ResultFormatOptions& format) {
   if (structured_query_specs_.empty()) {
     return base::ErrStatus(
         "query: --structured-query-id requires at least one --summary-spec");
@@ -266,8 +410,9 @@ base::Status QuerySubcommand::RunStructuredQuery(
         structured_query_id_.c_str());
   }
 
-  RETURN_IF_ERROR(
-      RunQueries(tp.get(), "SELECT * FROM " + query_result.table_name, true));
+  RETURN_IF_ERROR(RunAndPrint(tp.get(),
+                              "SELECT * FROM " + query_result.table_name,
+                              format, *ctx.global));
   base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
 
   if (!perf_file_.empty()) {

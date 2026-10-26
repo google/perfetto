@@ -270,7 +270,8 @@ SELECT
   END AS display_value
 FROM __intrinsic_args;
 
--- Contains the Linux perf sessions in the trace.
+-- Contains all Linux perf sessions in the trace, including sessions which
+-- only recorded counters and did not capture any callstacks.
 CREATE PERFETTO VIEW perf_session(
   -- The id of the perf session. Prefer using `perf_session_id` instead.
   id LONG,
@@ -280,7 +281,10 @@ CREATE PERFETTO VIEW perf_session(
   cmdline STRING
 )
 AS
-SELECT *, id AS perf_session_id FROM __intrinsic_perf_session;
+SELECT id, id AS perf_session_id, cmdline
+FROM __intrinsic_profiler_session
+WHERE
+  source = 'linux.perf';
 
 -- Log entries from all sources (Android logcat, systemd_journald, etc.).
 --
@@ -526,8 +530,10 @@ CREATE PERFETTO VIEW package_list(
   uid LONG,
   -- Bool whether this app is debuggable.
   debuggable LONG,
-  -- Bool whether this app is profileable.
+  -- Bool whether this app is profileable from the shell.
   profileable_from_shell LONG,
+  -- Bool whether this app is profileable by the platform.
+  profileable LONG,
   -- versionCode from the APK.
   version_code LONG
 )
@@ -593,7 +599,7 @@ SELECT * FROM __intrinsic_stack_profile_callsite;
 
 -- Table containing stack samples from CPU profiling.
 CREATE PERFETTO VIEW cpu_profile_stack_sample(
-  -- The id of the row.
+  -- The id of the row. Joinable with stack_sample.id.
   id ID,
   -- Timestamp of the sample.
   ts TIMESTAMP,
@@ -605,11 +611,23 @@ CREATE PERFETTO VIEW cpu_profile_stack_sample(
   process_priority LONG
 )
 AS
-SELECT * FROM __intrinsic_cpu_profile_stack_sample;
+SELECT
+  ps.id,
+  ps.ts,
+  ps.callsite_id,
+  tc.utid,
+  coalesce(x.process_priority, 0) AS process_priority
+FROM __intrinsic_profiler_sample AS ps
+LEFT JOIN __intrinsic_profiler_task_context AS tc
+  ON tc.id = ps.task_context_id
+LEFT JOIN __intrinsic_chrome_stack_sample_extras AS x
+  ON x.profiler_sample_id = ps.id
+WHERE
+  ps.source IN ('chrome', 'legacy_v8', 'gecko', 'simpleperf', 'perf_text');
 
 -- Samples from MacOS Instruments.
 CREATE PERFETTO VIEW instruments_sample(
-  -- The id of the row.
+  -- The id of the row. Joinable with stack_sample.id.
   id ID,
   -- Timestamp of the sample.
   ts TIMESTAMP,
@@ -621,7 +639,16 @@ CREATE PERFETTO VIEW instruments_sample(
   cpu LONG
 )
 AS
-SELECT * FROM __intrinsic_instruments_sample;
+SELECT ps.id, ps.ts, tc.utid, ps.callsite_id, c.cpu
+FROM __intrinsic_profiler_sample AS ps
+LEFT JOIN __intrinsic_profiler_task_context AS tc
+  ON tc.id = ps.task_context_id
+LEFT JOIN __intrinsic_profiler_execution_context AS ec
+  ON ec.id = ps.execution_context_id
+LEFT JOIN __intrinsic_cpu AS c
+  ON c.id = ec.ucpu
+WHERE
+  ps.source = 'instruments';
 
 -- Symbolization data for a frame.
 CREATE PERFETTO VIEW stack_profile_symbol(

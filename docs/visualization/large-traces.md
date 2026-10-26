@@ -29,6 +29,27 @@ via a WebSocket or the built-in WebAssembly runtime that runs in the browser.
 NOTE: The classic `./trace_processor --httpd /path/to/trace.pftrace` invocation
 is still supported and behaves identically.
 
+## Re-using a parsed trace without re-parsing
+
+Parsing is the expensive part of working with a large trace. If you will load
+the same trace more than once (or hand it to another instance), export the
+parsed result once and load the archive instead:
+
+```bash
+./trace_processor export perfetto -o parsed.tar trace.pftrace
+./trace_processor query parsed.tar "SELECT count(*) FROM slice"
+```
+
+The `perfetto` format restores trace processor's static tables directly from
+the archive, skipping the packet ingestion and sorting of a full parse. It is
+version-coupled: load it with the same version of trace processor that
+produced it (a different version may work, but is not guaranteed).
+
+For repeated work on one machine, a background
+[session](/docs/getting-started/command-line-analysis.md#iterate-without-re-parsing-sessions)
+is the lighter-weight alternative; the `perfetto` archive is the portable
+one, e.g. to move a parsed trace between machines or into a batch job.
+
 ## Using more than one instance in parallel
 
 NOTE: this is a temporary workaround until getting to a better solution as

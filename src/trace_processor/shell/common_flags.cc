@@ -32,6 +32,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
+#include "perfetto/ext/base/progress_reporter.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
@@ -56,13 +57,24 @@
 #include "src/trace_processor/rpc/remote_trace_processor.h"
 #endif
 
-namespace perfetto::trace_processor::shell {
+namespace perfetto::trace_processor {
 
+// Keep the destructor in the common shell library so embedders using the
+// subcommand implementation do not need to link the legacy shell entrypoint.
+TraceProcessorShell_PlatformInterface::
+    ~TraceProcessorShell_PlatformInterface() = default;
+
+}  // namespace perfetto::trace_processor
+
+namespace perfetto::trace_processor::shell {
 namespace {
 
 void AppendFlagList(std::string* out, const std::vector<FlagSpec>& flags) {
   char buf[256];
   for (const auto& f : flags) {
+    if (!f.help) {
+      continue;
+    }
     if (f.short_name) {
       snprintf(buf, sizeof(buf), "  -%c, --%-24s %s\n", f.short_name,
                f.long_name, f.help);
@@ -114,6 +126,32 @@ std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
   flags.push_back(BoolFlag("help", 'h', "Prints this guide.", &opts->help));
   flags.push_back(
       BoolFlag("version", 'v', "Prints the version.", &opts->version));
+  flags.push_back(BoolFlag("no-progress", '\0', "Disables live progress.",
+                           &opts->no_progress));
+  flags.push_back(BoolFlag("quiet", '\0',
+                           "Suppresses progress and routine status output.",
+                           &opts->quiet));
+  flags.push_back(BoolFlag(
+      "debuginfod", '\0',
+      "Download missing native debug files by build ID (requires curl).",
+      &opts->debuginfod_options.enabled));
+  flags.push_back(
+      {"debuginfod-urls", '\0', true, "URLS",
+       "Space-separated server URLs; overrides DEBUGINFOD_URLS.",
+       [opts](const char* value) { opts->debuginfod_options.urls = value; }});
+  flags.push_back({"debuginfod-cache-path", '\0', true, "PATH",
+                   "Cache directory; overrides DEBUGINFOD_CACHE_PATH.",
+                   [opts](const char* value) {
+                     opts->debuginfod_options.cache_path = value;
+                   }});
+  flags.push_back(
+      StringFlag("debuginfod-connect-timeout", '\0', "SECONDS",
+                 "Connection timeout in positive whole seconds (default: 5).",
+                 &opts->debuginfod_options.connect_timeout));
+  flags.push_back(StringFlag(
+      "debuginfod-stall-timeout", '\0', "SECONDS",
+      "Abort transfers below 1 byte/second for this long (default: 10).",
+      &opts->debuginfod_options.stall_timeout));
   flags.push_back(BoolFlag("full-sort", '\0',
                            "Forces full sort ignoring windowing.",
                            &opts->force_full_sort));
@@ -126,6 +164,11 @@ std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
   flags.push_back(BoolFlag("crop-track-events", '\0',
                            "Ignores track events outside range of interest.",
                            &opts->crop_track_events));
+  flags.push_back(BoolFlag(
+      "allow-sql-file-access", '\0',
+      "Allows SQL functions to access files visible to the shell process. Do "
+      "not enable this for untrusted SQL.",
+      &opts->allow_sql_file_access));
   flags.push_back(
       BoolFlag("dev", '\0', "Enables local development features.", &opts->dev));
   flags.push_back({/*long_name=*/"dev-flag", /*short_name=*/'\0',
@@ -299,6 +342,11 @@ base::StatusOr<Config> BuildConfig(
     const GlobalOptions& opts,
     TraceProcessorShell_PlatformInterface* platform) {
   Config config = platform->DefaultConfig();
+  config.enable_sql_file_access = opts.allow_sql_file_access;
+  if (config.enable_sql_file_access && !platform->GetFileSystem()) {
+    return base::ErrStatus(
+        "--allow-sql-file-access is not supported by this shell platform");
+  }
   config.sorting_mode = opts.force_full_sort ? SortingMode::kForceFullSort
                                              : SortingMode::kDefaultHeuristics;
   config.ingest_ftrace_in_raw_table = !opts.no_ftrace_raw;
@@ -345,7 +393,8 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> SetupTraceProcessor(
     const GlobalOptions& opts,
     const Config& config,
     TraceProcessorShell_PlatformInterface* platform) {
-  std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
+  std::unique_ptr<TraceProcessor> tp =
+      TraceProcessor::CreateInstance(config, platform);
   auto status = platform->OnTraceProcessorCreated(tp.get());
   if (!status.ok()) {
     return base::StatusOr<std::unique_ptr<TraceProcessor>>(status);
@@ -412,17 +461,22 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> SetupTraceProcessor(
 base::StatusOr<base::TimeNanos> LoadTraceFile(
     TraceProcessor* tp,
     TraceProcessorShell_PlatformInterface* platform,
-    const std::string& trace_file) {
+    const std::string& trace_file,
+    bool quiet,
+    const profiling::DebuginfodConfig& debuginfod) {
   base::TimeNanos t_load_start = base::GetWallTimeNs();
   double size_mb = 0;
+  auto& progress = base::ProgressReporter::GetInstance();
 
-  base::Status load_status =
-      platform->LoadTrace(tp, trace_file, [&size_mb](size_t parsed_size) {
+  base::Status load_status = platform->LoadTrace(
+      tp, trace_file, [&size_mb, &progress](size_t parsed_size) {
         size_mb = static_cast<double>(parsed_size) / 1E6;
-        fprintf(stderr, "\rLoading trace: %.2f MB\r", size_mb);
+        base::StackString<128> msg("Loading trace: %.2f MB", size_mb);
+        progress.Update(msg.ToStdStringView());
       });
+  progress.Clear();
   if (!load_status.ok()) {
-    return base::ErrStatus("Could not read trace file (path: %s): %s",
+    return base::ErrStatus("failed to read trace file (path: %s): %s",
                            trace_file.c_str(), load_status.c_message());
   }
 
@@ -440,6 +494,7 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
   }
 
   profiling::SymbolizerConfig sym_config;
+  sym_config.debuginfod = debuginfod;
   const char* mode = getenv("PERFETTO_SYMBOLIZER_MODE");
   std::vector<std::string> paths = profiling::GetPerfettoBinaryPath();
   if (mode && std::string_view(mode) == "find") {
@@ -448,11 +503,11 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
     sym_config.index_symbol_paths = std::move(paths);
   }
   if (!sym_config.index_symbol_paths.empty() ||
-      !sym_config.find_symbol_paths.empty()) {
+      !sym_config.find_symbol_paths.empty() || !debuginfod.urls.empty()) {
     if (is_proto_trace) {
       tp->Flush();
-      auto sym_result =
-          profiling::SymbolizeDatabaseAndLog(tp, sym_config, /*verbose=*/false);
+      auto sym_result = profiling::SymbolizeDatabaseAndLog(
+          tp, sym_config, /*verbose=*/false, quiet);
       if (sym_result.error == profiling::SymbolizerError::kOk &&
           !sym_result.symbols.empty()) {
         std::unique_ptr<uint8_t[]> buf(new uint8_t[sym_result.symbols.size()]);
@@ -472,7 +527,7 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
   if (!maybe_map.empty()) {
     if (is_proto_trace) {
       tp->Flush();
-      profiling::ReadProguardMapsToDeobfuscationPackets(
+      auto deob_status = profiling::ReadProguardMapsToDeobfuscationPackets(
           maybe_map, [tp](const std::string& trace_proto) {
             std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
             memcpy(buf.get(), trace_proto.data(), trace_proto.size());
@@ -483,6 +538,9 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
               return;
             }
           });
+      if (!deob_status.ok()) {
+        PERFETTO_ELOG("Failed to deobfuscate: %s", deob_status.c_message());
+      }
     } else {
       PERFETTO_ELOG("Skipping deobfuscation for non-proto trace");
     }
@@ -495,8 +553,13 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
 
   base::TimeNanos t_load = base::GetWallTimeNs() - t_load_start;
   double t_load_s = static_cast<double>(t_load.count()) / 1E9;
-  PERFETTO_ILOG("Trace loaded: %.2f MB in %.2fs (%.1f MB/s)", size_mb, t_load_s,
-                size_mb / t_load_s);
+  if (!quiet) {
+    PrintStatusLine(
+        StatusLabelStyle::kSuccess, "Trace loaded",
+        base::StackString<128>("%.2f MB in %.2fs (%.1f MB/s)", size_mb,
+                               t_load_s, size_mb / t_load_s)
+            .ToStdString());
+  }
 
   auto stats_status = PrintStats(tp);
   if (!stats_status.ok()) {
@@ -535,10 +598,12 @@ static base::Status CheckRemoteFlagCompatibility(const GlobalOptions& opts) {
     bool is_set;
     const char* flag;
   } incompatible[] = {
+      {!opts.debuginfod.urls.empty(), "--debuginfod"},
       {opts.force_full_sort, "--full-sort"},
       {opts.no_ftrace_raw, "--no-ftrace-raw"},
       {opts.analyze_trace_proto_content, "--analyze-trace-proto-content"},
       {opts.crop_track_events, "--crop-track-events"},
+      {opts.allow_sql_file_access, "--allow-sql-file-access"},
       {opts.dev, "--dev"},
       {!opts.dev_flags.empty(), "--dev-flag"},
       {opts.extra_checks, "--extra-checks"},
@@ -589,7 +654,8 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> CreateTraceProcessor(
   ASSIGN_OR_RETURN(Config config, BuildConfig(opts, platform));
   ASSIGN_OR_RETURN(auto tp, SetupTraceProcessor(opts, config, platform));
   ASSIGN_OR_RETURN(base::TimeNanos t_load,
-                   LoadTraceFile(tp.get(), platform, trace_file));
+                   LoadTraceFile(tp.get(), platform, trace_file, opts.quiet,
+                                 opts.debuginfod));
   if (t_load_out)
     *t_load_out = t_load;
   return std::move(tp);

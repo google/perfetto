@@ -37,7 +37,7 @@ std::string PathIn(const base::TempDir& dir, const char* name) {
 }
 
 base::TempFile TempFileWith(const std::string& content) {
-  base::TempFile file = base::TempFile::Create();
+  base::TempFile file = base::TempFile::Create().ValueOrDie();
   PERFETTO_CHECK(base::WriteAll(file.fd(), content.data(), content.size()) ==
                  static_cast<ssize_t>(content.size()));
   return file;
@@ -67,15 +67,12 @@ TEST(ConvertHelpersTest, OpenConversionInputMissingFileFails) {
 }
 
 TEST(ConvertHelpersTest, OpenConversionOutputWritesFile) {
-  // A path rather than a TempFile: on Windows an open TempFile lacks
-  // FILE_SHARE_WRITE, so reopening it for write hits a sharing violation.
-  base::TempDir dir = base::TempDir::Create();
-  std::string path = PathIn(dir, "out.bin");
+  base::TempFile file = base::TempFile::Create().ValueOrDie();
 
   std::ofstream owned;
   std::ostream* stream = nullptr;
-  base::Status s =
-      OpenConversionOutput(path, /*binary_output=*/true, &owned, &stream);
+  base::Status s = OpenConversionOutput(file.path(), /*binary_output=*/true,
+                                        &owned, &stream);
   ASSERT_TRUE(s.ok()) << s.c_message();
   ASSERT_NE(stream, nullptr);
 
@@ -84,10 +81,8 @@ TEST(ConvertHelpersTest, OpenConversionOutputWritesFile) {
   owned.close();
 
   std::string content;
-  ASSERT_TRUE(base::ReadFile(path, &content));
+  ASSERT_TRUE(base::ReadFile(file.path(), &content));
   EXPECT_EQ(content, "payload");
-
-  base::Unlink(path.c_str());  // TempDir's destructor needs an empty dir.
 }
 
 TEST(ConvertHelpersTest, OpenConversionOutputBadPathFails) {
@@ -104,7 +99,7 @@ TEST(ConvertHelpersTest, OpenConversionOutputBadPathFails) {
 TEST(ConvertHelpersTest, TextToTraceEmptyInputSucceeds) {
   std::istringstream in("");
   std::ostringstream out;
-  EXPECT_EQ(TextToTrace(&in, &out), 0);
+  EXPECT_TRUE(TextToTrace(&in, &out).ok());
   // An empty trace serializes to zero bytes.
   EXPECT_TRUE(out.str().empty());
 }
@@ -112,14 +107,14 @@ TEST(ConvertHelpersTest, TextToTraceEmptyInputSucceeds) {
 TEST(ConvertHelpersTest, TextToTraceValidProtoSucceeds) {
   std::istringstream in("packet { timestamp: 42 }");
   std::ostringstream out;
-  EXPECT_EQ(TextToTrace(&in, &out), 0);
+  EXPECT_TRUE(TextToTrace(&in, &out).ok());
   EXPECT_FALSE(out.str().empty());
 }
 
 TEST(ConvertHelpersTest, TextToTraceInvalidProtoFails) {
   std::istringstream in("this is not a valid trace proto }}}");
   std::ostringstream out;
-  EXPECT_EQ(TextToTrace(&in, &out), 1);
+  EXPECT_FALSE(TextToTrace(&in, &out).ok());
 }
 
 }  // namespace

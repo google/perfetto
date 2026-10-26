@@ -55,13 +55,11 @@ export interface AddColumnsSuggestionModalAttrs {
   readonly onColumnAlias: (columnName: string, alias: string) => void;
 }
 
-export class AddColumnsSuggestionModal
-  implements m.ClassComponent<AddColumnsSuggestionModalAttrs>
-{
+export class AddColumnsSuggestionModal implements m.ClassComponent<AddColumnsSuggestionModalAttrs> {
   oncreate({attrs}: m.VnodeDOM<AddColumnsSuggestionModalAttrs>) {
     // Auto-select if there's only one suggestion and nothing is selected yet
     if (attrs.suggestions.length === 1 && !attrs.selectedTable) {
-      attrs.onTableSelect(attrs.suggestions[0].suggestedTable);
+      attrs.onTableSelect(attrs.suggestions[0]!.suggestedTable);
     }
   }
 
@@ -176,12 +174,12 @@ export class AddColumnsSuggestionModal
               },
               onColumnToggle: (index: number, checked: boolean) => {
                 if (!tableInfo) return;
-                const colName = tableInfo.columns[index].name;
+                const colName = tableInfo.columns[index]!.name;
                 onColumnToggle(colName, checked);
               },
               onColumnAlias: (index: number, alias: string) => {
                 if (!tableInfo) return;
-                const colName = tableInfo.columns[index].name;
+                const colName = tableInfo.columns[index]!.name;
                 onColumnAlias(colName, alias);
               },
             }),

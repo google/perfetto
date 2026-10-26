@@ -29,15 +29,12 @@ export class SettingImpl<T> implements Setting<T> {
   public readonly name: string;
   public readonly description: string;
   public readonly type:
-    | 'string'
-    | 'number'
-    | 'boolean'
-    | 'enum'
-    | 'multi-select'
-    | 'string-array';
+    'string' | 'number' | 'boolean' | 'enum' | 'multi-select' | 'string-array';
   public readonly schema: z.ZodType<T>;
   public readonly defaultValue: T;
   public readonly category?: string;
+  public readonly min?: number;
+  public readonly max?: number;
   public readonly requiresReload?: boolean;
   public readonly options?: readonly (string | EnumOption)[];
   public readonly placeholder?: string;
@@ -56,6 +53,8 @@ export class SettingImpl<T> implements Setting<T> {
     this.schema = descriptor.schema;
     this.defaultValue = descriptor.defaultValue;
     this.category = descriptor.category;
+    this.min = descriptor.min;
+    this.max = descriptor.max;
     this.requiresReload = descriptor.requiresReload;
     this.options = descriptor.options;
     this.placeholder = descriptor.placeholder;

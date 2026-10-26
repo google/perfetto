@@ -15,4 +15,4 @@
 
 set -eu
 CUR_DIR="$(cd -P ${BASH_SOURCE[0]%/*}; pwd)"
-$CUR_DIR/build --serve --watch
+$CUR_DIR/build --serve --watch "$@"

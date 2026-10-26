@@ -170,7 +170,7 @@ state, Perfetto provides powerful insights.
     system trace) can be opened together as one merged trace on a shared
     timeline.
     - **Tutorial**:
-      [Merging traces in the Perfetto UI](/docs/visualization/merging-traces.md)
+      [Merging traces in the UI](/docs/visualization/merging-traces.md)
 
 ### {#android-optimizing-performance} Optimizing Performance & Addressing Latency
 

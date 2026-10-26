@@ -68,6 +68,53 @@ class Instruments(TestSuite):
           5,180683708,2,"24915,16107,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16005"
         '''))
 
+  def test_xcode27_xml_stacks(self):
+    return DiffTestBlueprint(
+        trace=DataPath('instruments_xcode27_trace.xml'),
+        query='''
+          WITH
+            child AS (
+              SELECT
+                spc.id AS root,
+                spc.id,
+                spc.parent_id,
+                rel_pc AS path
+              FROM
+                instruments_sample s
+                JOIN stack_profile_callsite spc ON (s.callsite_id = spc.id)
+                JOIN stack_profile_frame f ON (f.id = frame_id)
+              UNION ALL
+              SELECT
+                child.root,
+                parent.id,
+                parent.parent_id,
+                COALESCE(f.rel_pc || ',', '') || child.path AS path
+              FROM
+                child
+                JOIN stack_profile_callsite parent ON (child.parent_id = parent.id)
+                LEFT JOIN stack_profile_frame f ON (f.id = frame_id)
+            )
+          SELECT
+            s.id,
+            s.ts,
+            s.utid,
+            c.path
+          FROM
+            instruments_sample s
+            JOIN child c ON s.callsite_id = c.root
+          WHERE
+            c.parent_id IS NULL
+        ''',
+        out=Csv('''
+          "id","ts","utid","path"
+          0,175685291,2,"23999,34891,37935,334037"
+          1,176684208,2,"24307,28687,265407,160467,120123,391295,336787,8955,340991,392555,136711,5707,7603,10507,207839,207495,23655,17383,23211,208391,6225"
+          2,177685166,2,"24915,16095,15891,32211,91151,26907,87887,60651,28343,29471,30159,11087,36269"
+          3,178683916,2,"24915,16107,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16021"
+          4,179687000,2,"24915,16107,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16005"
+          5,180683708,2,"24915,16107,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16047,16005"
+        '''))
+
   def test_symbolized_frames(self):
     return DiffTestBlueprint(
         trace=DataPath('instruments_trace_with_symbols.zip'),

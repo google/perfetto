@@ -67,16 +67,17 @@ AS (
   OR $slice_name GLOB 'DrawFrames*'
   OR $slice_name GLOB 'Texture upload*'
   OR (
-    NOT ($slice_name GLOB '*Choreographer*')
-    AND NOT ($slice_name GLOB '*Input*')
-    AND NOT ($slice_name GLOB '*input*')
-    AND NOT ($slice_name GLOB 'android.os.Handler: #*')
+    -- Handler pattern heuristics
+    $slice_name GLOB '*$*'
     AND (
-      -- Handler pattern heuristics
       $slice_name GLOB '*Handler: *$*'
       OR $slice_name GLOB '*.*.*: *$*'
       OR $slice_name GLOB '*.*$*: #*'
     )
+    AND NOT ($slice_name GLOB '*Choreographer*')
+    AND NOT ($slice_name GLOB '*Input*')
+    AND NOT ($slice_name GLOB '*input*')
+    AND NOT ($slice_name GLOB 'android.os.Handler: #*')
   )
 );
 
@@ -87,21 +88,89 @@ RETURNS BOOL
 AS
 SELECT _is_relevant_blocking_call_expr!($name);
 
---Extract critical blocking calls from all processes.
-CREATE PERFETTO TABLE _android_critical_blocking_calls AS
+-- Distinct slice names that match `_is_relevant_blocking_call_expr!`, along
+-- with their standardized name and flags used by downstream tables.
+-- Evaluating `android_standardize_slice_name` (which calls 3 nested Perfetto
+-- functions) once per distinct matching name rather than once per `thread_slice`
+-- row avoids redundant per-row function call overhead.
+CREATE PERFETTO TABLE _android_critical_blocking_call_names AS
 SELECT
-  android_standardize_slice_name(s.name) AS name,
+  name AS raw_name,
+  android_standardize_slice_name(name) AS standardized_name,
+  name GLOB 'DrawFrames*' AS is_draw_frames,
+  name GLOB 'drawLayer *' AS is_draw_layer
+FROM (
+  SELECT DISTINCT name FROM slice WHERE _is_relevant_blocking_call_expr!(name)
+);
+
+-- Materialized thread slices matching a relevant blocking call name.
+CREATE PERFETTO TABLE _android_critical_blocking_call_slices AS
+SELECT
+  s.id,
+  n.standardized_name,
+  n.is_draw_frames,
+  n.is_draw_layer,
   s.ts,
   s.dur,
+  s.process_name,
+  s.utid,
+  s.upid
+FROM thread_slice AS s
+JOIN _android_critical_blocking_call_names AS n
+  ON s.name = n.raw_name;
+
+CREATE PERFETTO TABLE _android_critical_blocking_calls_draw_frames AS
+SELECT utid, id, ts, dur
+FROM _android_critical_blocking_call_slices
+WHERE
+  is_draw_frames
+ORDER BY
+  ts;
+
+CREATE PERFETTO TABLE _android_critical_blocking_calls_wait_for_buffer_release
+AS
+SELECT utid, ts, dur
+FROM thread_slice
+WHERE
+  name = 'waitForBufferRelease'
+ORDER BY
+  ts;
+
+--Extract critical blocking calls from all processes.
+CREATE PERFETTO TABLE _android_critical_blocking_calls AS
+WITH
+  _wait_for_buffer_release_dur AS (
+    SELECT s.id, SUM(child.dur) AS dur
+    FROM _android_critical_blocking_calls_wait_for_buffer_release AS child
+    JOIN _android_critical_blocking_calls_draw_frames AS s
+      ON child.utid = s.utid
+      AND child.ts >= s.ts
+      AND child.ts < s.ts + s.dur
+    GROUP BY
+      s.id
+  )
+SELECT
+  s.standardized_name AS name,
+  s.ts,
+  iif(
+    wait_for_buffer_release.dur IS NULL
+    OR s.dur = -1,
+    s.dur,
+    MAX(s.dur - wait_for_buffer_release.dur, 0)
+  ) AS dur,
   s.id,
   s.process_name,
-  thread.utid,
+  s.utid,
   s.upid,
-  s.ts + s.dur AS ts_end
-FROM thread_slice AS s
-JOIN thread USING (utid)
-WHERE
-  _is_relevant_blocking_call_expr!(s.name)
+  s.ts
+  + iif(
+    wait_for_buffer_release.dur IS NULL
+    OR s.dur = -1,
+    s.dur,
+    MAX(s.dur - wait_for_buffer_release.dur, 0)
+  ) AS ts_end
+FROM _android_critical_blocking_call_slices AS s
+LEFT JOIN _wait_for_buffer_release_dur AS wait_for_buffer_release USING (id)
 UNION ALL
 -- Add a summation of all drawLayer slices without the individual layer name
 SELECT
@@ -110,13 +179,12 @@ SELECT
   s.dur,
   s.id,
   s.process_name,
-  thread.utid,
+  s.utid,
   s.upid,
   s.ts + s.dur AS ts_end
-FROM thread_slice AS s
-JOIN thread USING (utid)
+FROM _android_critical_blocking_call_slices AS s
 WHERE
-  s.name GLOB 'drawLayer *'
+  s.is_draw_layer
 UNION ALL
 -- As binder names are not included in slice table, extract these directly from the
 -- android_binder_txns table.
@@ -141,8 +209,7 @@ CREATE PERFETTO FUNCTION _is_relevant_notifications_blocking_call(
 RETURNS BOOL
 AS
 SELECT
-  $name = 'NotificationStackScrollLayout#onMeasure'
-  AND $dur > 0
+  $dur > 0
   AND ($name GLOB 'NotificationStackScrollLayout#onMeasure'
   OR $name GLOB 'NotificationToplineView#onMeasure'
   OR $name GLOB 'ExpNotRow#*'

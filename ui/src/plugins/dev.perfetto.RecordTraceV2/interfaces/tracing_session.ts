@@ -45,10 +45,7 @@ export interface TracingSession {
 }
 
 export type TracingSessionState =
-  | 'RECORDING'
-  | 'STOPPING'
-  | 'FINISHED'
-  | 'ERRORED';
+  'RECORDING' | 'STOPPING' | 'FINISHED' | 'ERRORED';
 
 export interface TracingSessionLogEntry {
   readonly timestamp: Date;

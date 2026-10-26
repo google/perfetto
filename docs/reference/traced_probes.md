@@ -227,7 +227,7 @@ data_sources: {
     `mount_point_mapping` (to remap scan roots), `scan_interval_ms`,
     `scan_delay_ms`, `scan_batch_size`, and `do_not_scan`.
 
-### `metatrace` (Perfetto Self-Tracing)
+### `perfetto.metatrace` (Perfetto Self-Tracing)
 
 *   **Description**: A self-tracing data source that records events within
     Perfetto itself, useful for debugging and performance analysis of the
@@ -236,7 +236,7 @@ data_sources: {
     ```protobuf
     data_sources: {
       config {
-        name: "metatrace"
+        name: "perfetto.metatrace"
       }
     }
     ```
@@ -254,7 +254,8 @@ data_sources: {
       }
     }
     ```
-*   **Configuration**: No specific configuration in `DataSourceConfig`.
+*   **Configuration**: `SystemInfoConfig` allows enabling `irq_names` to record
+    hardware interrupt ID-to-name mappings from `/proc/interrupts`.
 
 ## Android Data Sources
 
@@ -389,14 +390,14 @@ data_sources: {
 *   **Configuration**: `AndroidGameInterventionListConfig` allows filtering by
     `package_name_filter`.
 
-### `android.cpu.uid` (Per-UID CPU Time)
+### `android.cpu_per_uid` (Per-UID CPU Time)
 
 *   **Description**: Collects per-UID CPU time from the kernel.
 *   **Configuration Example**:
     ```protobuf
     data_sources: {
       config {
-        name: "android.cpu.uid"
+        name: "android.cpu_per_uid"
         cpu_per_uid_config {
           poll_ms: 1000
         }
@@ -450,10 +451,10 @@ data_sources: {
         name: "android.statsd"
         statsd_tracing_config {
           pull_config {
-            pull_atom_id: 10000 # Example pull atom
+            pull_atom_id: ATOM_SYSTEM_UPTIME # Example pull atom
             pull_frequency_ms: 1000
           }
-          push_atom_id: 10037 # Example push atom
+          push_atom_id: ATOM_FLASHLIGHT_STATE_CHANGED # Example push atom
         }
       }
     }

@@ -332,8 +332,7 @@ function renderSortNode(
           onchange: (e: Event) => {
             updateNode({
               sortOrder: (e.target as HTMLSelectElement).value as
-                | 'ASC'
-                | 'DESC',
+                'ASC' | 'DESC',
             });
           },
         },
@@ -544,7 +543,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
   const undo = () => {
     if (historyIndex > 0) {
       historyIndex--;
-      store = history[historyIndex];
+      store = history[historyIndex]!;
       m.redraw();
       console.log(`Undo to state ${historyIndex}`);
     }
@@ -553,7 +552,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
   const redo = () => {
     if (historyIndex < history.length - 1) {
       historyIndex++;
-      store = history[historyIndex];
+      store = history[historyIndex]!;
       m.redraw();
       console.log(`Redo to state ${historyIndex}`);
     }
@@ -588,7 +587,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
 
       // Remove any connections to/from this node
       for (let i = draft.connections.length - 1; i >= 0; i--) {
-        const c = draft.connections[i];
+        const c = draft.connections[i]!;
         if (c.fromNode === nodeId || c.toNode === nodeId) {
           draft.connections.splice(i, 1);
         }
@@ -642,7 +641,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
       for (let i = 0; i < 100; i++) {
         const id = uuidv4();
         const factory =
-          nodeFactories[Math.floor(Math.random() * nodeFactories.length)];
+          nodeFactories[Math.floor(Math.random() * nodeFactories.length)]!;
         const x = Math.random() * 2000;
         const y = Math.random() * 2000;
         const newNode = factory(id, x, y);
@@ -666,7 +665,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         if (availableParents.length === 0) break;
 
         const parentId =
-          availableParents[Math.floor(Math.random() * availableParents.length)];
+          availableParents[
+            Math.floor(Math.random() * availableParents.length)
+          ]!;
         const parent = draft.nodes.get(parentId)!;
 
         // Find a child node that can dock (has canDockTop)
@@ -681,7 +682,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         const childId =
           availableChildren[
             Math.floor(Math.random() * availableChildren.length)
-          ];
+          ]!;
 
         // Stack the child under the parent
         parent.nextId = childId;
@@ -695,8 +696,8 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
       const numConnections = 150;
       for (let i = 0; i < numConnections; i++) {
         // Pick random nodes
-        const fromNodeId = nodeIds[Math.floor(Math.random() * nodeIds.length)];
-        const toNodeId = nodeIds[Math.floor(Math.random() * nodeIds.length)];
+        const fromNodeId = nodeIds[Math.floor(Math.random() * nodeIds.length)]!;
+        const toNodeId = nodeIds[Math.floor(Math.random() * nodeIds.length)]!;
 
         if (fromNodeId === toNodeId) continue;
 
@@ -873,7 +874,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
 
         const validInputs = inputs.filter((sql) => sql);
         if (validInputs.length === 0) return '';
-        if (validInputs.length === 1) return validInputs[0];
+        if (validInputs.length === 1) return validInputs[0]!;
         return validInputs.map((sql) => `(${sql})`).join(` ${unionType} `);
       }
 
@@ -1059,7 +1060,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
             );
             if (bottomConnectionIdx > -1) {
               draft.connections[bottomConnectionIdx] = {
-                ...draft.connections[bottomConnectionIdx],
+                ...draft.connections[bottomConnectionIdx]!,
                 fromNode: id,
                 fromPort: 0,
               };
@@ -1331,7 +1332,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
 
             // If a connection already exists between these nodes, remove it
             for (let i = draft.connections.length - 1; i >= 0; i--) {
-              const conn = draft.connections[i];
+              const conn = draft.connections[i]!;
               if (
                 (conn.fromNode === targetId && conn.fromPort === 0) ||
                 (conn.toNode === child?.id && conn.toPort === 0)

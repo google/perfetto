@@ -1,4 +1,4 @@
-# Cookbook: Local Android Trace Recording
+# Cookbook: Recording Android Traces Locally
 
 This page collects **end-to-end recipes** for recording Perfetto traces on
 Android in situations that the standard interactive workflow does not cover.
@@ -210,7 +210,7 @@ adb pull /data/misc/perfetto-traces/oome.pftrace
 ### Analysing the heap dump
 
 Open `oome.pftrace` in the [Perfetto UI](https://ui.perfetto.dev) and click the
-diamond marker in the _"Heap Profile"_ track to get a flamegraph of what
+chevron marker in the _"ART heap dump"_ track to get a flamegraph of what
 retained the memory. For a guided investigation, see:
 
 - [Heap Dump Explorer](/docs/visualization/heap-dump-explorer.md), interactive

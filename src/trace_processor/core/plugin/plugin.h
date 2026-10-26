@@ -23,8 +23,8 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/ext/base/type_set.h"
 #include "src/trace_processor/core/plugin/registration.h"
-#include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor {
 
@@ -69,6 +69,12 @@ class PluginBase {
       TrackEventExtensionParserContext* context,
       TraceProcessorContext* trace_context);
   virtual void RegisterDataframes(std::vector<PluginDataframe>& tables);
+  // Called once after every plugin's RegisterDataframes has run, with the
+  // complete list. Plugins that need to look up other plugins' dataframes
+  // (e.g. the Perfetto export importer) may retain a pointer: the list
+  // outlives all plugins.
+  virtual void OnDataframesRegistered(
+      const std::vector<PluginDataframe>& dataframes);
   virtual void RegisterStaticTableFunctions(
       PerfettoSqlConnection* connection,
       std::vector<std::unique_ptr<StaticTableFunction>>& fns);
@@ -119,7 +125,7 @@ class Plugin : public PluginBase {
   template <typename T>
   T* dependency() {
     return static_cast<T*>(
-        resolved_deps_[core::TypeSet<Deps...>::template GetTypeIndex<T>()]);
+        resolved_deps_[base::TypeSet<Deps...>::template GetTypeIndex<T>()]);
   }
 };
 

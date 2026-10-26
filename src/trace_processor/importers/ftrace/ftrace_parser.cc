@@ -779,7 +779,7 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
       auto record = [&](const std::string& message) {
         any_errors = true;
         StringId message_id = storage->InternString(base::StringView(message));
-        context_->import_logs_tracker->RecordCollectionError(
+        context_->import_logs_tracker->RecordCollectionLog(
             stats::ftrace_setup_errors,
             [&](ArgsTracker::BoundInserter& inserter) {
               inserter.AddArg(message_key, Variadic::String(message_id));

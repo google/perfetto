@@ -11,9 +11,9 @@ and attach [attributes](#attributes) annotating the archive.
 
 This page is the normative reference for the format. For a task-oriented
 guide to merging see
-[Merging traces with Trace Processor](/docs/analysis/merging-traces.md); for
+[Merging traces from the command line](/docs/analysis/merging-traces.md); for
 the underlying model see
-[How trace merging works](/docs/concepts/merging-traces.md).
+[Trace merging](/docs/concepts/merging-traces.md).
 
 The format is stable: `version` 1 is the current (and only) version and will
 remain supported. New capabilities are added as new fields within version 1;
@@ -69,7 +69,7 @@ archive together with the trace files.
 ## {#detection} Detection and placement
 
 Trace Processor detects a manifest by content, not by file name: any file
-whose contents (after leading whitespace) start with `{"perfetto_manifest"`
+whose contents (ignoring whitespace) start with `{"perfetto_manifest"`
 is treated as a manifest. By convention the file is named
 `perfetto_manifest.json`, and that is the name the Perfetto UI uses when it
 generates one, but any name works.
@@ -104,7 +104,7 @@ key, containing:
 
 Files present in the archive but not listed in `files` are still imported;
 they just get no overrides and follow the default merging rules described in
-[How trace merging works](/docs/concepts/merging-traces.md).
+[Trace merging](/docs/concepts/merging-traces.md).
 
 ## {#trace-time} trace_time
 
@@ -185,6 +185,19 @@ clocks to a clock in another file. Use this when the automatic rules (shared
 clock domains, `REALTIME` rendezvous) cannot place the file, or to apply a
 known fixed offset.
 
+Relating an internally-clocked trace (e.g. Perfetto proto):
+```json
+{
+  "path": "device2.pftrace",
+  "clocks": {
+    "clock": "BOOTTIME",
+    "sync_to": {"file": "device1.pftrace", "clock": "BOOTTIME"},
+    "offset_ns": 250000000
+  }
+}
+```
+
+Pinning a clockless trace (e.g. Chrome JSON, text logs):
 ```json
 {
   "path": "app_log.json",
@@ -256,11 +269,13 @@ Setting the same key twice overwrites: the last value wins.
 Wherever a clock name is expected, one of:
 
 `REALTIME`, `REALTIME_COARSE`, `MONOTONIC`, `MONOTONIC_COARSE`,
-`MONOTONIC_RAW`, `BOOTTIME`
+`MONOTONIC_RAW`, `BOOTTIME`, `TRACE_FILE`
 
 These correspond to the builtin clocks in
 [builtin_clock.proto](/protos/perfetto/common/builtin_clock.proto) and the
-POSIX `clock_gettime` domains of the same names.
+POSIX `clock_gettime` domains of the same names. `TRACE_FILE` is the file's
+own per-file timeline (same as omitting `clock`); in `trace_time` it requires
+`file`.
 
 ## {#sql} Effects on the SQL surface
 
@@ -309,7 +324,7 @@ with an error prefixed by `perfetto_manifest:`. The conditions:
 | This file is multi-machine but `clocks.machine` missing | `file 'X' is a multi-machine trace; name which machine the clock is on` |
 | `offset_ns` not an integer / INT64_MIN | `offset_ns must be an integer` / `offset_ns is out of range` |
 | Override on a file that is itself an archive or manifest | rejected |
-| Pinning override on a file that emits clock snapshots | `clock overrides require the trace to use a single clock` |
+| Pinning override on a file that emits clock snapshots | `a clocks override without a source clock pins a clockless file...` |
 
 The authoritative definition of the format is the reader in
 [perfetto_manifest_reader.cc](/src/trace_processor/plugins/perfetto_manifest/perfetto_manifest_reader.cc)
@@ -318,9 +333,9 @@ and its test suite in
 
 ## Next steps
 
-- [Merging traces with Trace Processor](/docs/analysis/merging-traces.md):
+- [Merging traces from the command line](/docs/analysis/merging-traces.md):
   building and querying merged archives.
-- [Merging traces in the Perfetto UI](/docs/visualization/merging-traces.md):
+- [Merging traces in the UI](/docs/visualization/merging-traces.md):
   the interactive merge dialog, which generates this format for you.
-- [How trace merging works](/docs/concepts/merging-traces.md): machines,
+- [Trace merging](/docs/concepts/merging-traces.md): machines,
   the clock graph, and the automatic placement rules.

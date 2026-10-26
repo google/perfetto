@@ -47,7 +47,7 @@ export class AsyncWebsocket {
     // 2. The connection failure happens in the near future. In this case we
     //    infer a connection failure by observing on onclose().
     const readyState = sock.readyState;
-    if (readyState === WebSocket.CLOSED || readyState === WebSocket.CLOSED) {
+    if (readyState === WebSocket.CLOSING || readyState === WebSocket.CLOSED) {
       return undefined; // Case 1.
     }
     const connectPromise = defer<AsyncWebsocket | undefined>();
@@ -81,7 +81,7 @@ export class AsyncWebsocket {
     return sock;
   }
 
-  send(data: string | ArrayBufferLike) {
+  send(data: string | ArrayBuffer) {
     ensureExists(this.sock).send(data);
   }
 

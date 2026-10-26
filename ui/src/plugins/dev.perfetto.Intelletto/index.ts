@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {z} from 'zod';
 import m from 'mithril';
+import type {App} from '../../public/app';
+import type {Setting} from '../../public/settings';
 import type {ZodRawShape} from 'zod';
 import type {PerfettoPlugin, PluginStatus} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import LlmPlugin from '../dev.perfetto.Llm';
+import type {ModelPath} from '../dev.perfetto.Llm/gateway';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import DataExplorerPlugin from '../dev.perfetto.DataExplorer';
 import type {
@@ -31,6 +35,7 @@ import {ContextRegistry, registerCoreContextProviders} from './context';
 import {registerCoreTools} from './core_tools';
 import {registerTimelineTools} from './timeline_tools';
 import {ToolRegistry} from './tools';
+import {registerWebMCPTools} from './webmcp';
 
 const SIDE_PANEL_URI = 'dev.perfetto.Intelletto#Chat';
 
@@ -54,6 +59,29 @@ export default class IntellettoPlugin
     QueryPagePlugin,
     DataExplorerPlugin,
   ];
+
+  // App-scoped persisted setting: the user's last-selected model for the
+  // assistant. Headless (hidden from settings page) — changed via the sidebar
+  // dropdown. Survives page reloads and is shared across all traces.
+  private static selectedModelSetting: Setting<ModelPath | undefined>;
+
+  static onActivate(app: App): void {
+    IntellettoPlugin.selectedModelSetting = app.settings.register({
+      id: `${IntellettoPlugin.id}#SelectedModel`,
+      name: 'Selected model',
+      description:
+        'The LLM model selected for the Intelletto assistant. Persisted ' +
+        'across traces and page reloads.',
+      schema: z
+        .object({
+          providerId: z.string(),
+          modelId: z.string(),
+        })
+        .or(z.undefined()),
+      defaultValue: undefined,
+      headless: true,
+    });
+  }
 
   // The shared tool registry for this trace. Core tools plus any contributed by
   // other plugins land here; the chat panel hands it to the agent.
@@ -112,6 +140,11 @@ export default class IntellettoPlugin
           gateway,
           session: this.session,
           context: this.context,
+          selectedModelSetting: IntellettoPlugin.selectedModelSetting,
+          onNewSession: () => {
+            this.session?.cancel();
+            this.session = undefined;
+          },
         });
       },
     });
@@ -125,6 +158,12 @@ export default class IntellettoPlugin
 
     // Pull in the Data Explorer graph tools and selected-node context.
     registerDataExplorerTools(this.tools, this.context, trace);
+
+    // Register tools with Chrome's experimental WebMCP API so external agents
+    // (e.g. Chrome's built-in AI agent, MCP inspector extensions) can discover
+    // and call them. No-ops gracefully when the API is not available.
+    const webmcpController = registerWebMCPTools(this.tools);
+    trace.trash.defer(() => webmcpController?.abort());
   }
 }
 

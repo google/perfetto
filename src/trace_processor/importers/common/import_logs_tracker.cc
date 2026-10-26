@@ -56,7 +56,7 @@ void ImportLogsTracker::RecordImportLog(
   }
 }
 
-void ImportLogsTracker::RecordTokenizationError(
+void ImportLogsTracker::RecordTokenizationLog(
     size_t stat_key,
     int64_t byte_offset,
     std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
@@ -65,7 +65,7 @@ void ImportLogsTracker::RecordTokenizationError(
                   std::move(args_callback));
 }
 
-void ImportLogsTracker::RecordParserError(
+void ImportLogsTracker::RecordParserLog(
     size_t stat_key,
     int64_t timestamp,
     std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
@@ -73,7 +73,7 @@ void ImportLogsTracker::RecordParserError(
                   /*byte_offset=*/std::nullopt, std::move(args_callback));
 }
 
-void ImportLogsTracker::RecordCollectionError(
+void ImportLogsTracker::RecordCollectionLog(
     size_t stat_key,
     int64_t timestamp,
     std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
@@ -81,14 +81,14 @@ void ImportLogsTracker::RecordCollectionError(
                   /*byte_offset=*/std::nullopt, std::move(args_callback));
 }
 
-void ImportLogsTracker::RecordCollectionError(
+void ImportLogsTracker::RecordCollectionLog(
     size_t stat_key,
     std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
   RecordImportLog(stat_key, /*timestamp=*/std::nullopt,
                   /*byte_offset=*/std::nullopt, std::move(args_callback));
 }
 
-void ImportLogsTracker::RecordAnalysisError(
+void ImportLogsTracker::RecordAnalysisLog(
     size_t stat_key,
     std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
   RecordImportLog(stat_key,

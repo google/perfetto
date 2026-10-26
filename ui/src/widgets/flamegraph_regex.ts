@@ -22,14 +22,21 @@ export function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Interprets a user-typed filter as a REGEXP pattern.
+export interface UserFilterRegex {
+  readonly pattern: string;
+  readonly flags: '' | 'i';
+}
+
+// Interprets a user-typed flamegraph filter as a regular expression.
 //
-// Bare text matches literally: every metacharacter is escaped, so a pasted
-// symbol like `MyClass$Nested` or `byte[]` matches as-is. Wrapping the text in
-// `/…/` opts into a raw regex, e.g. `/alloc.*/`.
-export function userFilterToRegex(filter: string): string {
-  if (filter.length >= 2 && filter.startsWith('/') && filter.endsWith('/')) {
-    return filter.slice(1, -1);
+// Bare text is escaped and matched case-insensitively. `/…/` opts into a
+// case-sensitive raw regex, while `/…/i` opts into a case-insensitive regex.
+export function parseUserFilterRegex(filter: string): UserFilterRegex {
+  if (filter.length >= 3 && filter.startsWith('/') && filter.endsWith('/i')) {
+    return {pattern: filter.slice(1, -2), flags: 'i'};
   }
-  return escapeRegex(filter);
+  if (filter.length >= 2 && filter.startsWith('/') && filter.endsWith('/')) {
+    return {pattern: filter.slice(1, -1), flags: ''};
+  }
+  return {pattern: escapeRegex(filter), flags: 'i'};
 }

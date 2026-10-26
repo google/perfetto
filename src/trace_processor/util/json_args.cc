@@ -138,9 +138,9 @@ bool AddJsonValueToArgs(Iterator& it,
       key_str += "[" + std::to_string(array_index) + "]";
       inserter->IncrementArrayEntryIndex(key_id);
     } else if (parse_type == json::Iterator::ParseType::kObject) {
-      key_str += ".";
+      key_str += '.';
       key_str += it.key();
-      flat_key_str += ".";
+      flat_key_str += '.';
       flat_key_str += it.key();
     } else {
       PERFETTO_FATAL("Unexpected parse type %d", static_cast<int>(parse_type));

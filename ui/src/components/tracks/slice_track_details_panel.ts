@@ -24,6 +24,7 @@ import {Tree, TreeNode} from '../../widgets/tree';
 import {DurationWidget} from '../widgets/duration';
 import {Timestamp} from '../widgets/timestamp';
 import type {RowSchema} from './slice_track';
+import type {InferRowType} from '../../trace_processor/query_result';
 import {exists} from '../../base/utils';
 import {Time} from '../../base/time';
 
@@ -36,13 +37,13 @@ import {Time} from '../../base/time';
  * - Common slice fields (name, ts, dur) with appropriate formatting
  * - All other dataset columns as readable strings
  */
-export class SliceTrackDetailsPanel<T extends RowSchema>
-  implements TrackEventDetailsPanel
-{
+export class SliceTrackDetailsPanel<
+  T extends RowSchema,
+> implements TrackEventDetailsPanel {
   constructor(
     private readonly trace: Trace,
     private readonly dataset: SourceDataset<T>,
-    private readonly data: T,
+    private readonly data: InferRowType<T>,
   ) {}
 
   render() {

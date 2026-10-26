@@ -22,8 +22,14 @@ source_set("trace_processor") {
   ]
   public_deps = [
     ":basic_types",
+    ":io",
     ":storage",
   ]
+}
+
+source_set("io") {
+  sources = [ "io.h" ]
+  public_deps = [ "../base" ]
 }
 
 source_set("storage") {

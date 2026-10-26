@@ -19,13 +19,15 @@
 
 #include <iostream>
 
+#include "perfetto/base/status.h"
+
 namespace perfetto {
 namespace trace_to_text {
 
 // Exports trace as as Firefox Profile. More details here:
 // https://firefox-source-docs.mozilla.org/tools/profiler/code-overview.html
 // https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
-bool TraceToFirefoxProfile(std::istream* input, std::ostream* output);
+base::Status TraceToFirefoxProfile(std::istream* input, std::ostream* output);
 
 }  // namespace trace_to_text
 }  // namespace perfetto

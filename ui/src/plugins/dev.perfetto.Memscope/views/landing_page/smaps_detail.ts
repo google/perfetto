@@ -18,9 +18,9 @@
 // Self-contained: owns its query slots and loading.
 
 import m from 'mithril';
-import {QuerySlot} from '../../../../base/query_slot';
+import {AsyncMemo} from '../../../../base/async_memo';
 import type {Trace} from '../../../../public/trace';
-import {LONG, NUM, STR} from '../../../../trace_processor/query_result';
+import {LONG, NUM, STR_NULL} from '../../../../trace_processor/query_result';
 import {Button} from '../../../../widgets/button';
 import {Icon} from '../../../../widgets/icon';
 import {RadioGroup} from '../../../../widgets/radio_group';
@@ -194,7 +194,7 @@ async function loadSmapsPaths(
   `);
   for (
     const it = res.iter({
-      path: STR,
+      path: STR_NULL,
       rss: NUM,
       pss: NUM,
       anon: NUM,
@@ -208,7 +208,7 @@ async function loadSmapsPaths(
     it.next()
   ) {
     rows.push({
-      path: it.path,
+      path: it.path ?? '',
       rss: it.rss,
       pss: it.pss,
       anon: it.anon,
@@ -228,8 +228,8 @@ export interface SmapsDetailAttrs {
 }
 
 export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
-  private readonly slot = new QuerySlot<SmapsPathRow[]>();
-  private readonly snapshotsSlot = new QuerySlot<SmapsSnapshotInfo[]>();
+  private readonly slot = new AsyncMemo<SmapsPathRow[]>();
+  private readonly snapshotsSlot = new AsyncMemo<SmapsSnapshotInfo[]>();
   // View state.
   private smapsFlat = false;
   private smapsAllCols = false;
@@ -249,7 +249,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
     const snapshots =
       this.snapshotsSlot.use({
         key: {traceId: trace.traceInfo.uuid, upid},
-        queryFn: () => loadSmapsSnapshots(trace, upid),
+        compute: () => loadSmapsSnapshots(trace, upid),
       }).data ?? [];
     const rows = this.slot.use({
       key: {
@@ -257,7 +257,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
         upid,
         ts: this.selectedTs?.toString() ?? 'latest',
       },
-      queryFn: () => loadSmapsPaths(trace, upid, this.selectedTs),
+      compute: () => loadSmapsPaths(trace, upid, this.selectedTs),
     }).data;
     if (rows === undefined) {
       return m(
@@ -468,7 +468,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
                 {
                   // Default to the latest snapshot when nothing is picked.
                   value: (
-                    this.selectedTs ?? snapshots[snapshots.length - 1].ts
+                    this.selectedTs ?? snapshots[snapshots.length - 1]!.ts
                   ).toString(),
                   onchange: (e: Event) => {
                     const v = (e.target as HTMLSelectElement).value;

@@ -143,10 +143,7 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
 
 class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
   private traceState:
-    | 'NOT_AVAILABLE'
-    | 'NOT_UPLOADED'
-    | 'UPLOADING'
-    | 'UPLOADED';
+    'NOT_AVAILABLE' | 'NOT_UPLOADED' | 'UPLOADING' | 'UPLOADED';
   private traceType: string = 'No trace loaded';
   private traceData?: ArrayBuffer | File;
   private traceUrl?: string;
@@ -180,6 +177,9 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
       this.traceData = traceSource.file;
       // this.traceSize = this.traceData.size;
     } else if (traceSource.type === 'ARRAY_BUFFER') {
+      // Never upload traces the sender didn't allow sharing (e.g. pushed via
+      // postMessage) to GCS, not even for bug reports.
+      if (traceSource.shareable === false) return;
       this.traceData = traceSource.buffer;
       // this.traceSize = this.traceData.byteLength;
     } else {
@@ -297,7 +297,7 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
   }
 
   private fileBug(err: ErrorDetails) {
-    const errTitle = err.message.split('\n', 1)[0].substring(0, 80);
+    const errTitle = err.message.split('\n', 1)[0]!.substring(0, 80);
     let url = 'https://goto.google.com/perfetto-ui-bug';
     url += '?title=' + encodeURIComponent(`UI Error: ${errTitle}`);
     url += '&description=';
@@ -411,12 +411,17 @@ function showTraceParseError(variant: TraceParseErrorVariant, message: string) {
 }
 
 // Pull the useful part out of a trace_processor parse error. The raw message
-// looks like: "Trace parse failure (<inner> (ERR:tp-corrupt)) (ERR:tp-parse).
-// The trace file is corrupt." We surface just <inner> without the markers,
-// falling back to the full message if the pattern doesn't match.
+// looks like: "Trace parse failure: <inner> (ERR:tp-corrupt) (ERR:tp-parse)".
+// We surface just <inner> without the markers, falling back to the full
+// message (with markers stripped) if the pattern doesn't match. The legacy
+// "Trace parse failure (<inner>) (ERR:tp-parse)" format is also handled for
+// older trace_processor servers.
 function extractTraceParseDetails(message: string): string {
-  const match = /Trace parse failure \((.*)\) \(ERR:tp-parse\)/s.exec(message);
-  const inner = match ? match[1] : message;
+  let inner = message.replace(/^Trace parse failure: /, '');
+  const legacy = /^Trace parse failure \((.*)\) \(ERR:tp-parse\)/s.exec(inner);
+  if (legacy) {
+    inner = legacy[1]!;
+  }
   return inner.replace(/\s*\(ERR:tp-(?:corrupt|parse)\)/g, '').trim();
 }
 
@@ -443,9 +448,7 @@ interface TraceParseErrorAttrs {
   readonly message: string;
 }
 
-class TraceParseErrorComponent
-  implements m.ClassComponent<TraceParseErrorAttrs>
-{
+class TraceParseErrorComponent implements m.ClassComponent<TraceParseErrorAttrs> {
   view({attrs}: m.Vnode<TraceParseErrorAttrs>): m.Children {
     const {variant, message} = attrs;
     const details = extractTraceParseDetails(message);

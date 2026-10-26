@@ -131,6 +131,7 @@ enum ParseState {
   kReadingKey,
   kReadingExtensionKey,
   kWaitingForValue,
+  kWaitingForStringContinuation,
   kReadingStringValue,
   kReadingStringEscape,
   kReadingNumericValue,
@@ -406,6 +407,20 @@ class ParserDelegate {
                          {"$v", value.ToStdString()},
                      });
             return;
+        }
+      } else if (c == '"') {
+        // Textproto concatenates adjacent string literals. Skip the separator
+        // between this literal and the next one.
+        for (++i; i < value.size(); ++i) {
+          if (isspace(txt[i]))
+            continue;
+          if (txt[i] == '#') {
+            while (i < value.size() && txt[i] != '\n')
+              ++i;
+            continue;
+          }
+          PERFETTO_CHECK(txt[i] == '"');
+          break;
         }
       } else {
         s.get()[j++] = c;
@@ -683,6 +698,16 @@ void Parse(std::string_view input, ParserDelegate* delegate) {
   bool comment_till_eol = false;
   Token key{};
   Token value{};
+  size_t string_end = 0;
+
+  auto emit_string = [&] {
+    value.column++;
+    value.txt = perfetto::base::StringView(input.data() + value.offset + 1,
+                                           string_end - value.offset - 1);
+    saw_semicolon_for_this_value = false;
+    state = kWaitingForKey;
+    delegate->StringField(key, value);
+  };
 
   for (size_t i = 0; i < input.size(); i++, column++) {
     bool last_character = i + 1 == input.size();
@@ -804,6 +829,23 @@ void Parse(std::string_view input, ParserDelegate* delegate) {
         }
         break;
 
+      case kWaitingForStringContinuation:
+        if (isspace(c))
+          continue;
+        if (c == '#') {
+          comment_till_eol = true;
+          continue;
+        }
+        if (c == '"') {
+          state = kReadingStringValue;
+          continue;
+        }
+        emit_string();
+        // Reprocess this character as the start of the next field.
+        --i;
+        --column;
+        continue;
+
       case kReadingNumericValue:
         if (isspace(c) || c == ';' || last_character) {
           bool keep_last = last_character && !isspace(c) && c != ';';
@@ -823,13 +865,10 @@ void Parse(std::string_view input, ParserDelegate* delegate) {
         if (c == '\\') {
           state = kReadingStringEscape;
         } else if (c == '"') {
-          size_t size = i - value.offset - 1;
-          value.column++;
-          value.txt =
-              perfetto::base::StringView(input.data() + value.offset + 1, size);
-          saw_semicolon_for_this_value = false;
-          state = kWaitingForKey;
-          delegate->StringField(key, value);
+          string_end = i;
+          state = kWaitingForStringContinuation;
+          if (last_character)
+            emit_string();
         }
         continue;
 
@@ -861,6 +900,8 @@ void Parse(std::string_view input, ParserDelegate* delegate) {
                        });
     return;
   }  // for
+  if (state == kWaitingForStringContinuation)
+    emit_string();
   if (depth > 0)
     delegate->AddError(row, column, "Nested message not closed", {});
   if (state != kWaitingForKey)

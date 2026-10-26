@@ -38,18 +38,45 @@ using TaskNewtaskFtraceEvent = protos::pbzero::TaskNewtaskFtraceEvent;
 
 void MarkOpen(uint64_t ts,
               const ProcessTree::Process::Decoder& process,
+              bool normalize_uid,
               ProcessThreadTimeline* timeline) {
-  auto uid = static_cast<uint64_t>(process.uid());
-
-  // See "trace_redaction_framework.h" for why uid must be normalized.
-  auto e = ProcessThreadTimeline::Event::Open(ts, process.pid(), process.ppid(),
-                                              NormalizeUid(uid));
-  timeline->Append(e);
+  if (process.has_uid() && process.uid() >= 0) {
+    auto uid = static_cast<uint64_t>(process.uid());
+    // ProcessTree records full per-user Linux UIDs (e.g. 1010234 for User 10),
+    // whereas PackagesList only records normalized UIDs (e.g. 10234). When an
+    // explicit target UID is provided (--uid), store the full 64-bit UID so
+    // the timeline strictly isolates User 0 from User 10. When no target UID is
+    // provided (normalize_uid is true), normalize ProcessTree UIDs via
+    // NormalizeUid() so secondary profile processes match the normalized UID
+    // resolved from PackagesList by FindPackageUid.
+    if (normalize_uid) {
+      uid = NormalizeUid(uid);
+    }
+    auto e = ProcessThreadTimeline::Event::Open(ts, process.pid(),
+                                                process.ppid(), uid);
+    timeline->Append(e);
+  } else {
+    auto e =
+        ProcessThreadTimeline::Event::Open(ts, process.pid(), process.ppid());
+    timeline->Append(e);
+  }
 }
 
 void MarkOpen(uint64_t ts,
               const ProcessTree::Thread::Decoder& thread,
               ProcessThreadTimeline* timeline) {
+  if (thread.tid() == thread.tgid()) {
+    // This is the main thread of a process, we can ignore it given this thread
+    // can't be used to reach the root parent and the process entry which can
+    // perform that task already exists in the timeline. Furthermore, keeping
+    // this entry would cause a bug where the timeline discards every packet as
+    // threads do not link to a UID, they need to go up to an actual process for
+    // that test, so they always fail and having the same parent causes an
+    // infinite loop that kicks the built-in safeguard of 10 max parent lookup,
+    // wasting resources and causing entire processes or threads to be dropped
+    // in the final redacted trace.
+    return;
+  }
   auto e = ProcessThreadTimeline::Event::Open(ts, thread.tid(), thread.tgid());
   timeline->Append(e);
 }
@@ -75,9 +102,10 @@ void MarkOpen(const FtraceEvent::Decoder& event,
 
 void AppendEvents(uint64_t ts,
                   const ProcessTree::Decoder& tree,
+                  bool normalize_uid,
                   ProcessThreadTimeline* timeline) {
   for (auto it = tree.processes(); it; ++it) {
-    MarkOpen(ts, ProcessTree::Process::Decoder(*it), timeline);
+    MarkOpen(ts, ProcessTree::Process::Decoder(*it), normalize_uid, timeline);
   }
 
   for (auto it = tree.threads(); it; ++it) {
@@ -132,7 +160,7 @@ base::Status CollectTimelineEvents::Collect(const TracePacket::Decoder& packet,
   if (packet.has_process_tree()) {
     AppendEvents(packet.timestamp(),
                  ProcessTree::Decoder(packet.process_tree()),
-                 context->timeline.get());
+                 context->normalize_uid, context->timeline.get());
   }
 
   if (packet.has_ftrace_events()) {

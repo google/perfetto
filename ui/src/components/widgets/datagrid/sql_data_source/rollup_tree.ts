@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {
-  type QueryResult,
-  QuerySlot,
-  type SerialTaskQueue,
-} from '../../../../base/query_slot';
+  type AsyncMemoResult,
+  AsyncMemo,
+  type AtomicTaskQueue,
+} from '../../../../base/async_memo';
 import type {Engine} from '../../../../trace_processor/engine';
 import {
   NUM,
@@ -97,27 +97,27 @@ function buildPathCondition(
 
 // Rollup tree datasource - uses pure SQL with UNION ALL and window functions.
 export class SQLDataSourceRollupTree {
-  private readonly rowCountSlot: QuerySlot<number>;
-  private readonly rowsSlot: QuerySlot<{
+  private readonly rowCountSlot: AsyncMemo<number>;
+  private readonly rowsSlot: AsyncMemo<{
     readonly rows: readonly Row[];
     readonly rowOffset: number;
   }>;
-  private readonly rollupTableSlot: QuerySlot<DisposableSqlEntity>;
-  private readonly summariesSlot: QuerySlot<Row>;
+  private readonly rollupTableSlot: AsyncMemo<DisposableSqlEntity>;
+  private readonly summariesSlot: AsyncMemo<Row>;
 
   constructor(
     private readonly uuid: string,
-    queue: SerialTaskQueue,
+    queue: AtomicTaskQueue,
     private readonly engine: Engine,
     private readonly sqlSchema: SQLTableSchema,
   ) {
-    this.rowCountSlot = new QuerySlot<number>(queue);
-    this.rowsSlot = new QuerySlot<{
+    this.rowCountSlot = new AsyncMemo<number>(queue);
+    this.rowsSlot = new AsyncMemo<{
       readonly rows: readonly Row[];
       readonly rowOffset: number;
     }>(queue);
-    this.rollupTableSlot = new QuerySlot<DisposableSqlEntity>(queue);
-    this.summariesSlot = new QuerySlot<Row>(queue);
+    this.rollupTableSlot = new AsyncMemo<DisposableSqlEntity>(queue);
+    this.summariesSlot = new AsyncMemo<Row>(queue);
   }
 
   getRows(model: PivotModel): DataSourceRows {
@@ -132,7 +132,7 @@ export class SQLDataSourceRollupTree {
     } = model;
 
     const rollupTableResult = this.useRollupTable(model);
-    if (rollupTableResult.isPending || !rollupTableResult.data) {
+    if (rollupTableResult.isPending) {
       return {isPending: true};
     }
 
@@ -170,7 +170,7 @@ export class SQLDataSourceRollupTree {
         sortDirection,
       },
       retainOn: ['expandedGroups', 'collapsedGroups'],
-      queryFn: async () => {
+      compute: async () => {
         const query = buildTreeQuery(rollupTableName, {
           expandedGroups,
           collapsedGroups,
@@ -200,7 +200,7 @@ export class SQLDataSourceRollupTree {
         'sortColumn',
         'sortDirection',
       ],
-      queryFn: async () => {
+      compute: async () => {
         const query = buildTreeQuery(rollupTableName, {
           expandedGroups,
           collapsedGroups,
@@ -227,12 +227,12 @@ export class SQLDataSourceRollupTree {
     };
   }
 
-  getSummaries(model: PivotModel): QueryResult<Row> {
+  getSummaries(model: PivotModel): AsyncMemoResult<Row> {
     const {groupBy, aggregates, filters = []} = model;
 
     const rollupTableResult = this.useRollupTable(model);
-    if (rollupTableResult.isPending || !rollupTableResult.data) {
-      return {isPending: true, data: undefined, isFresh: false};
+    if (rollupTableResult.isPending) {
+      return {isPending: true};
     }
 
     const rollupTableName = rollupTableResult.data.name;
@@ -245,7 +245,7 @@ export class SQLDataSourceRollupTree {
         aggregates,
         filters: serializeFilters(filters),
       },
-      queryFn: async () => {
+      compute: async () => {
         const query = buildTreeQuery(rollupTableName, {
           maxDepth: 0,
           columnAliases,
@@ -256,22 +256,21 @@ export class SQLDataSourceRollupTree {
     });
   }
 
-  private useRollupTable(model: PivotModel): QueryResult<DisposableSqlEntity> {
-    const {groupBy, aggregates, filters = []} = model;
-
-    const sourceQuery = this.buildSourceQuery(filters);
-    const groupByColumns = groupBy.map((col) => col.field);
-    const aggregateExprs = this.buildAggregateExprs(aggregates);
+  private useRollupTable(
+    model: PivotModel,
+  ): AsyncMemoResult<DisposableSqlEntity> {
+    const {sourceTable, groupByColumns, aggregateExprs} =
+      this.buildRollupQueryParts(model);
 
     return this.rollupTableSlot.use({
       key: {
-        sourceQuery,
+        sourceTable,
         groupByColumns,
         aggregateExprs,
       },
-      queryFn: async () => {
+      compute: async () => {
         return await createRollupTable(this.engine, {
-          sourceTable: sourceQuery,
+          sourceTable,
           groupByColumns,
           aggregateExprs,
           tableName: this.rollupTableName,
@@ -289,14 +288,52 @@ export class SQLDataSourceRollupTree {
     return `rollup_${this.uuid}`;
   }
 
-  private buildAggregateExprs(aggregates: PivotModel['aggregates']): string[] {
-    return aggregates.map((agg) => {
+  private buildRollupQueryParts(model: PivotModel): {
+    sourceTable: string;
+    groupByColumns: string[];
+    aggregateExprs: string[];
+  } {
+    const {groupBy, aggregates, filters = []} = model;
+    const resolver = new SQLSchemaResolver(this.sqlSchema);
+
+    // Resolve all column paths in filters, groupBy, and aggregates to accumulate joins
+    if (filters.length > 0) {
+      for (const filter of filters) {
+        resolver.resolveColumnPath(filter.field);
+      }
+    }
+
+    const groupByColumns = groupBy.map((col) => {
+      return resolver.resolveColumnPath(col.field) ?? col.field;
+    });
+
+    const aggregateExprs = aggregates.map((agg) => {
       if (agg.function === 'COUNT') {
         return 'COUNT(*)';
       } else {
-        return sqlAggregateExpr(agg.function, agg.field);
+        const sqlExpr = resolver.resolveColumnPath(agg.field);
+        return sqlAggregateExpr(agg.function, sqlExpr ?? agg.field);
       }
     });
+
+    const baseTable = resolver.getBaseTableOrSubquery();
+    const baseAlias = resolver.getBaseAlias();
+    const joinClauses = resolver.buildJoinClauses();
+
+    let sourceTable = `(${baseTable}) AS ${baseAlias}`;
+    if (joinClauses) {
+      sourceTable += `\n${joinClauses}`;
+    }
+
+    if (filters.length > 0) {
+      const whereConditions = filters.map((filter) => {
+        const sqlExpr = resolver.resolveColumnPath(filter.field);
+        return filterToSql(filter, sqlExpr ?? filter.field);
+      });
+      sourceTable += `\nWHERE ${whereConditions.join(' AND ')}`;
+    }
+
+    return {sourceTable, groupByColumns, aggregateExprs};
   }
 
   /**
@@ -312,13 +349,13 @@ export class SQLDataSourceRollupTree {
   } {
     const columnAliases: Record<string, string> = {};
     const aliasToColumn: Record<string, string> = {};
-    for (let i = 0; i < groupBy.length; i++) {
-      columnAliases[`__group_${i}`] = quoteIdentifier(groupBy[i].alias);
-      aliasToColumn[groupBy[i].alias] = `__group_${i}`;
+    for (const [i, group] of groupBy.entries()) {
+      columnAliases[`__group_${i}`] = quoteIdentifier(group.alias);
+      aliasToColumn[group.alias] = `__group_${i}`;
     }
-    for (let i = 0; i < aggregates.length; i++) {
-      columnAliases[`__agg_${i}`] = quoteIdentifier(aggregates[i].alias);
-      aliasToColumn[aggregates[i].alias] = `__agg_${i}`;
+    for (const [i, agg] of aggregates.entries()) {
+      columnAliases[`__agg_${i}`] = quoteIdentifier(agg.alias);
+      aliasToColumn[agg.alias] = `__agg_${i}`;
     }
     return {columnAliases, aliasToColumn};
   }
@@ -351,21 +388,13 @@ export class SQLDataSourceRollupTree {
    * created.
    */
   getQuery(model: PivotModel): string {
-    const {
-      groupBy,
-      aggregates,
-      filters = [],
-      expandedGroups,
-      collapsedGroups,
-    } = model;
-
-    const sourceQuery = this.buildSourceQuery(filters);
-    const groupByColumns = groupBy.map((col) => col.field);
-    const aggregateExprs = this.buildAggregateExprs(aggregates);
+    const {expandedGroups, collapsedGroups} = model;
+    const {sourceTable, groupByColumns, aggregateExprs} =
+      this.buildRollupQueryParts(model);
     const tableName = this.rollupTableName;
     const {columnAliases, aliasToColumn} = this.buildColumnAliases(
-      groupBy,
-      aggregates,
+      model.groupBy,
+      model.aggregates,
     );
     const {sortColumn, sortDirection} = this.resolveSort(
       model.sort,
@@ -387,7 +416,7 @@ export class SQLDataSourceRollupTree {
       `-- Materialize rollup table:`,
       `CREATE PERFETTO TABLE ${tableName} AS`,
       buildRollupTableCreateQuery(
-        sourceQuery,
+        sourceTable,
         groupByColumns,
         aggregateExprs,
       ).trim(),
@@ -395,33 +424,6 @@ export class SQLDataSourceRollupTree {
       `-- Traverse rollup table:`,
       traversalQuery.trim(),
     ].join('\n');
-  }
-
-  private buildSourceQuery(filters: PivotModel['filters']): string {
-    const resolver = new SQLSchemaResolver(this.sqlSchema);
-    const baseTable = resolver.getBaseTableOrSubquery();
-    const baseAlias = resolver.getBaseAlias();
-
-    let sql = `SELECT ${baseAlias}.* FROM (${baseTable}) AS ${baseAlias}`;
-
-    if (filters && filters.length > 0) {
-      for (const filter of filters) {
-        resolver.resolveColumnPath(filter.field);
-      }
-
-      const joinClauses = resolver.buildJoinClauses();
-      if (joinClauses) {
-        sql += `\n${joinClauses}`;
-      }
-
-      const whereConditions = filters.map((filter) => {
-        const sqlExpr = resolver.resolveColumnPath(filter.field);
-        return filterToSql(filter, sqlExpr ?? filter.field);
-      });
-      sql += `\nWHERE ${whereConditions.join(' AND ')}`;
-    }
-
-    return `(${sql})`;
   }
 
   dispose(): void {
@@ -673,7 +675,7 @@ function buildTreeQuery(
 
   // Determine expansion mode
   const useDenylist = collapsedGroups !== undefined;
-  const expansionPaths = useDenylist ? collapsedGroups : expandedGroups ?? [];
+  const expansionPaths = useDenylist ? collapsedGroups : (expandedGroups ?? []);
 
   // Build expansion check expressions using actual column comparisons
   // This properly handles nulls, empty strings, and blobs
@@ -818,7 +820,7 @@ function buildSelectClause(aliases?: Record<string, string>): string {
   const groupColIndices = Object.keys(aliases)
     .map((key) => {
       const match = key.match(groupColPattern);
-      return match ? parseInt(match[1], 10) : -1;
+      return match ? parseInt(match[1]!, 10) : -1;
     })
     .filter((idx) => idx >= 0);
 

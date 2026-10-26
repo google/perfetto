@@ -29,13 +29,25 @@ namespace base {
 namespace {
 
 using testing::_;
-using testing::InvokeWithoutArgs;
 using testing::NiceMock;
 
 constexpr int kTestPort = 5127;  // Chosen with a fair dice roll.
 
 class MockHttpHandler : public HttpRequestHandler {
  public:
+  // The tests drive one connection at a time, so one buffer is enough.
+  uint8_t* OnHttpRequestBody(const HttpRequest&, size_t size) override {
+    return Alloc(size);
+  }
+  uint8_t* OnWebsocketPayload(HttpServerConnection*, size_t size) override {
+    return Alloc(size);
+  }
+  uint8_t* Alloc(size_t size) {
+    payload_.reset(new uint8_t[size]);
+    return payload_.get();
+  }
+  std::unique_ptr<uint8_t[]> payload_;
+
   MOCK_METHOD(void, OnHttpRequest, (const HttpRequest&), (override));
   MOCK_METHOD(void,
               OnHttpConnectionClosed,
@@ -297,8 +309,7 @@ TEST_F(HttpServerTest, Websocket) {
     cli.sock.Shutdown();
     auto checkpoint_name = "ws_close_" + std::to_string(rep);
     auto ws_close = task_runner_.CreateCheckpoint(checkpoint_name);
-    EXPECT_CALL(handler_, OnHttpConnectionClosed(_))
-        .WillOnce(InvokeWithoutArgs(ws_close));
+    EXPECT_CALL(handler_, OnHttpConnectionClosed(_)).WillOnce(ws_close);
     task_runner_.RunUntilCheckpoint(checkpoint_name);
   }
 }
@@ -313,8 +324,7 @@ TEST_F(HttpServerTest, Websocket_OriginNotAllowed) {
 
   HttpCli cli(&task_runner_);
   auto close_checkpoint = task_runner_.CreateCheckpoint("close");
-  EXPECT_CALL(handler_, OnHttpConnectionClosed(_))
-      .WillOnce(InvokeWithoutArgs(close_checkpoint));
+  EXPECT_CALL(handler_, OnHttpConnectionClosed(_)).WillOnce(close_checkpoint);
   EXPECT_CALL(handler_, OnHttpRequest(_)).Times(0);
 
   cli.SendHttpReq({

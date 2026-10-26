@@ -91,7 +91,7 @@ struct CastFilterValueBase : TemplatedBytecode1<StorageType> {
 
   PERFETTO_DATAFRAME_BYTECODE_IMPL_3(FilterValueHandle,
                                      fval_handle,
-                                     WriteHandle<CastFilterValueResult>,
+                                     WriteHandle<filter::CastFilterValueResult>,
                                      write_register,
                                      NonNullOp,
                                      op);
@@ -111,7 +111,7 @@ struct CastFilterValueListBase : TemplatedBytecode1<StorageType> {
   PERFETTO_DATAFRAME_BYTECODE_IMPL_3(
       FilterValueHandle,
       fval_handle,
-      WriteHandle<std::unique_ptr<CastFilterValueListResult>>,
+      WriteHandle<std::unique_ptr<filter::CastFilterValueListResult>>,
       write_register,
       NonNullOp,
       op);
@@ -135,7 +135,7 @@ struct SortedFilterBase
   }
   PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<StoragePtr>,
                                      storage_register,
-                                     ReadHandle<CastFilterValueResult>,
+                                     ReadHandle<filter::CastFilterValueResult>,
                                      val_register,
                                      RwHandle<Range>,
                                      update_register,
@@ -158,7 +158,7 @@ struct Uint32SetIdSortedEq : Bytecode {
 
   PERFETTO_DATAFRAME_BYTECODE_IMPL_3(ReadHandle<StoragePtr>,
                                      storage_register,
-                                     ReadHandle<CastFilterValueResult>,
+                                     ReadHandle<filter::CastFilterValueResult>,
                                      val_register,
                                      RwHandle<Range>,
                                      update_register);
@@ -176,7 +176,7 @@ struct SpecializedStorageSmallValueEq : Bytecode {
                                      small_value_bv_register,
                                      ReadHandle<Span<const uint32_t>>,
                                      small_value_popcount_register,
-                                     ReadHandle<CastFilterValueResult>,
+                                     ReadHandle<filter::CastFilterValueResult>,
                                      val_register,
                                      RwHandle<Range>,
                                      update_register);
@@ -190,7 +190,7 @@ struct NonStringFilterBase : TemplatedBytecode2<NonStringType, NonStringOp> {
   static constexpr Cost kCost = LinearPerRowCost{5};
   PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<StoragePtr>,
                                      storage_register,
-                                     ReadHandle<CastFilterValueResult>,
+                                     ReadHandle<filter::CastFilterValueResult>,
                                      val_register,
                                      ReadHandle<Span<uint32_t>>,
                                      source_register,
@@ -212,7 +212,7 @@ struct StringFilterBase : TemplatedBytecode1<StringOp> {
 
   PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<StoragePtr>,
                                      storage_register,
-                                     ReadHandle<CastFilterValueResult>,
+                                     ReadHandle<filter::CastFilterValueResult>,
                                      val_register,
                                      ReadHandle<Span<uint32_t>>,
                                      source_register,
@@ -460,7 +460,7 @@ struct IndexedFilterEqBase
                                      storage_register,
                                      ReadHandle<NullBitvector>,
                                      null_bv_register,
-                                     ReadHandle<CastFilterValueResult>,
+                                     ReadHandle<filter::CastFilterValueResult>,
                                      filter_value_reg,
                                      ReadHandle<Span<uint32_t>>,
                                      source_register,
@@ -556,7 +556,7 @@ struct LinearFilterEqBase : TemplatedBytecode1<NonIdStorageType> {
   static constexpr Cost kCost = LinearPerRowCost{7};
   PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<StoragePtr>,
                                      storage_register,
-                                     ReadHandle<CastFilterValueResult>,
+                                     ReadHandle<filter::CastFilterValueResult>,
                                      filter_value_reg,
                                      ReadHandle<Range>,
                                      source_register,
@@ -592,7 +592,7 @@ struct FilterInBase
       storage_register,
       ReadHandle<NullBitvector>,
       null_bv_register,
-      ReadHandle<std::unique_ptr<CastFilterValueListResult>>,
+      ReadHandle<std::unique_ptr<filter::CastFilterValueListResult>>,
       value_list_register,
       ReadHandle<Span<uint32_t>>,
       index_register,
@@ -617,40 +617,6 @@ struct Reverse : Bytecode {
   static constexpr Cost kCost = LinearPerRowCost{2};
 
   PERFETTO_DATAFRAME_BYTECODE_IMPL_1(RwHandle<Span<uint32_t>>, update_register);
-};
-
-// Reparents and compacts a tree based on pre-filtered indices.
-//
-// Takes a span of filtered indices (produced by standard filter bytecodes)
-// and uses them to determine which tree nodes survive. Filtered-out nodes
-// have their children reparented to the closest surviving ancestor.
-//
-// Compacts parent, original_rows, all registered column storage and null
-// bitvectors in the TreeState. After compaction, resets indices_register
-// to [0..new_row_count-1] for subsequent operations.
-struct FilterTreeState : Bytecode {
-  static constexpr Cost kCost = LinearPerRowCost{20};
-
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(RwHandle<std::unique_ptr<TreeState>>,
-                                     tree_state_register,
-                                     RwHandle<Span<uint32_t>>,
-                                     indices_register);
-};
-
-// Propagates values from root toward leaves using BFS. For each spec in the
-// range [spec_start, spec_start + spec_count), copies source column data to
-// the dest column, then applies the aggregate operation downward via BFS.
-//
-// Requires the P2C CSR cache to be rebuilt if stale.
-struct PropagateTreeDown : Bytecode {
-  static constexpr Cost kCost = LinearPerRowCost{20};
-
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(RwHandle<std::unique_ptr<TreeState>>,
-                                     tree_state_register,
-                                     uint32_t,
-                                     spec_start,
-                                     uint32_t,
-                                     spec_count);
 };
 
 // Bytecode ops that require FilterValueFetcher access.
@@ -814,9 +780,7 @@ struct PropagateTreeDown : Bytecode {
   X(CollectIdIntoRankMap)                              \
   X(FinalizeRanksInMap)                                \
   X(SortRowLayout)                                     \
-  X(Reverse)                                           \
-  X(FilterTreeState)                                   \
-  X(PropagateTreeDown)
+  X(Reverse)
 
 // Combined list of all bytecode instruction types.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X) \

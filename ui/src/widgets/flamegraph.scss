@@ -24,59 +24,6 @@
     height: 100%;
   }
 
-  .filter-bar {
-    margin: 6px 8px;
-    display: flex;
-    column-gap: 6px;
-    align-items: baseline;
-
-    .pf-tag-input {
-      flex-grow: 1;
-    }
-
-    .pf-select {
-      flex-shrink: 0;
-    }
-  }
-
-  .pf-tag-input {
-    flex: 1 1 0;
-    min-width: 0;
-    max-height: 60px;
-    overflow-y: auto;
-    flex-wrap: wrap;
-    gap: 6px;
-
-    // Override the inner Stack to allow wrapping and add gaps
-    .pf-stack {
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
-    .pf-chip {
-      max-width: 200px;
-      min-width: auto;
-    }
-
-    input {
-      min-width: 80px;
-    }
-  }
-
-  .pf-flamegraph-filter-bar-separator {
-    width: 1px;
-    height: 24px;
-    background: var(--pf-color-border);
-    flex-shrink: 0;
-    margin: 0 4px;
-    align-self: center;
-  }
-
-  .pf-flamegraph-filter-label {
-    font-weight: 500;
-    flex-shrink: 0;
-  }
-
   .popup-anchor {
     width: 0px;
     height: 0px;
@@ -130,60 +77,6 @@
     font-style: italic;
     color: var(--pf-color-text-muted);
     padding-bottom: 4px; // Extra gap between marker and function name
-  }
-}
-
-.pf-filter-builder {
-  &.pf-popup {
-    min-width: 300px;
-    > .pf-popup-content {
-      padding: 12px;
-    }
-  }
-  &__separator {
-    height: 1px;
-    background: var(--pf-color-border);
-    margin: 12px 0 8px 0;
-  }
-  &__tip {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: smaller;
-    color: var(--pf-color-text-muted);
-    padding-bottom: 8px;
-  }
-  &__help {
-    font-size: 13px;
-  }
-  &__help-title {
-    font-weight: 500;
-    margin-bottom: 4px;
-  }
-  &__help-row {
-    margin: 4px 0;
-  }
-  &__desc,
-  &__warn,
-  &__hint {
-    font-size: smaller;
-    margin-bottom: 8px;
-  }
-  &__desc,
-  &__hint {
-    color: var(--pf-color-text-muted);
-  }
-  &__hint {
-    margin-top: 4px;
-  }
-  code {
-    font-family: var(--pf-font-monospace, monospace);
-    background: var(--pf-color-background-secondary, rgba(0, 0, 0, 0.06));
-    border-radius: 3px;
-    padding: 0 3px;
-  }
-  &__warn {
-    color: var(--pf-color-warning);
   }
 }
 

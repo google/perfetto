@@ -65,7 +65,7 @@ jobs:
         shell: bash
         run: |
           # In postsubmit (cron) github.base_ref is ""
-          if [ -z "${{ github.base_ref }}" ] || git diff --name-only origin/${{ github.base_ref }} HEAD | egrep -qv '^(docs|infra|tools|test/data|[.]github)/'; then
+          if [ -z "${{ github.base_ref }}" ] || git diff --name-only origin/${{ github.base_ref }} HEAD | egrep -qv '^(docs|infra|tools|[.]github)/'; then
           echo "TRIVIAL_CHANGE=0" | tee -a $GITHUB_OUTPUT
           else
           echo "TRIVIAL_CHANGE=1" | tee -a $GITHUB_OUTPUT

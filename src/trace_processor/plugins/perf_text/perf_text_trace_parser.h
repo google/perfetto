@@ -19,6 +19,7 @@
 
 #include <cstdint>
 
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/plugins/perf_text/perf_text_event.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -35,6 +36,7 @@ class PerfTextTraceParser
 
  private:
   TraceProcessorContext* const context_;
+  const StringPool::Id perf_text_source_id_;
 };
 
 }  // namespace perfetto::trace_processor::perf_text_importer

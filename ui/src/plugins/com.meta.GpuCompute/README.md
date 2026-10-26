@@ -127,7 +127,7 @@ Built-in sections (in `section/`):
 | `section/speed_of_light.ts` | Compute and memory throughput overview |
 | `section/launch_statistics.ts` | Kernel launch configuration |
 | `section/occupancy.ts` | Warp occupancy and limiting factors |
-| `section/workload_analysis.ts` | Per-pipeline utilization |
+| `section/compute_workload_analysis.ts` | Per-pipeline utilization |
 
 ### Well-Known Metrics
 

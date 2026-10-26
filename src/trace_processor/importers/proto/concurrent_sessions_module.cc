@@ -96,7 +96,7 @@ void ConcurrentSessionsModule::ParseConcurrentSessionEvent(
       break;
     default:
       // STATE_UNSPECIFIED or a state added by a newer version of the proto.
-      context_->import_logs_tracker->RecordParserError(
+      context_->import_logs_tracker->RecordParserLog(
           stats::concurrent_session_event_unknown_state, ts,
           [&](ArgsTracker::BoundInserter& inserter) {
             inserter.AddArg(context_->storage->InternString("state"),

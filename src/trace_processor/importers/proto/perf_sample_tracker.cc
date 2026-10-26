@@ -95,6 +95,32 @@ const char* StringifyCounter(int32_t counter) {
   return "unknown";
 }
 
+// Unit of the quantity a timebase counter counts. Returns nullptr if the
+// unit cannot be determined (e.g. raw PMU events).
+const char* TimebaseUnit(
+    const protos::pbzero::PerfEvents::Timebase::Decoder& timebase) {
+  using protos::pbzero::PerfEvents;
+  if (timebase.has_counter()) {
+    switch (timebase.counter()) {
+      case PerfEvents::SW_CPU_CLOCK:
+      case PerfEvents::SW_TASK_CLOCK:
+        return "ns";
+      case PerfEvents::HW_CPU_CYCLES:
+      case PerfEvents::HW_BUS_CYCLES:
+      case PerfEvents::HW_REF_CPU_CYCLES:
+        return "cycles";
+      case PerfEvents::HW_INSTRUCTIONS:
+        return "instructions";
+      default:
+        return "count";
+    }
+  }
+  if (timebase.has_tracepoint()) {
+    return "count";
+  }
+  return nullptr;
+}
+
 template <typename T>
 StringId InternCounterName(const T& event, TraceProcessorContext* context) {
   using protos::pbzero::PerfEvents;
@@ -163,7 +189,7 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
     seq_it = seq_state_.emplace(seq_id, CreatePerfSession()).first;
   }
   SequenceState* seq_state = &seq_it->second;
-  tables::PerfSessionTable::Id session_id = seq_state->perf_session_id;
+  tables::ProfilerSessionTable::Id session_id = seq_state->perf_session_id;
 
   auto cpu_it = seq_state->per_cpu.find(cpu);
   if (cpu_it != seq_state->per_cpu.end())
@@ -176,14 +202,25 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
   }
 
   StringId name_id = kNullStringId;
+  std::optional<StringId> timebase_unit_id;
   if (perf_defaults.has_value()) {
     PerfEvents::Timebase::Decoder timebase(perf_defaults->timebase());
     name_id = InternCounterName(timebase, context_);
+    if (const char* unit = TimebaseUnit(timebase); unit) {
+      timebase_unit_id = context_->storage->InternString(unit);
+    }
   } else {
     // No defaults means legacy producer implementation, assume default timebase
     // of per-cpu timer. This means either an Android R or early S build.
     name_id = context_->storage->InternString(
         StringifyCounter(protos::pbzero::PerfEvents::SW_CPU_CLOCK));
+    timebase_unit_id = context_->storage->InternString("ns");
+  }
+
+  auto session_row =
+      (*context_->storage->mutable_profiler_session_table())[session_id];
+  if (timebase_unit_id && !session_row.timebase_unit().has_value()) {
+    session_row.set_timebase_unit(*timebase_unit_id);
   }
 
   base::StringView name = context_->storage->GetString(name_id);
@@ -232,8 +269,10 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
   return {session_id, timebase_track_id, std::move(follower_track_ids)};
 }
 
-tables::PerfSessionTable::Id PerfSampleTracker::CreatePerfSession() {
-  return context_->storage->mutable_perf_session_table()->Insert({}).id;
+tables::ProfilerSessionTable::Id PerfSampleTracker::CreatePerfSession() {
+  tables::ProfilerSessionTable::Row row;
+  row.source = context_->storage->InternString("linux.perf");
+  return context_->storage->mutable_profiler_session_table()->Insert(row).id;
 }
 
 }  // namespace perfetto::trace_processor

@@ -64,9 +64,10 @@ namespace {
 // in our codebase.
 base::ScopedPlatformHandle OpenLogFile(const std::string& path) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  return base::ScopedPlatformHandle(::CreateFileA(
-      path.c_str(), GENERIC_READ | GENERIC_WRITE,
-      FILE_SHARE_DELETE | FILE_SHARE_READ, nullptr, CREATE_ALWAYS, 0, nullptr));
+  return base::ScopedPlatformHandle(
+      ::CreateFileA(path.c_str(), GENERIC_READ | GENERIC_WRITE,
+                    FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
+                    nullptr, CREATE_ALWAYS, 0, nullptr));
 #else
   return base::OpenFile(path, O_RDWR | O_CREAT | O_TRUNC, 0644);
 #endif
@@ -424,7 +425,7 @@ void TestHarness::ParseTracePacket(const uint8_t* start,
   }
 }
 
-void CtrlCHandler() {
+void CtrlCHandler(int /*signal*/) {
   g_sig->aborted.store(true);
   for (auto it = g_sig->pids_to_kill.rbegin(); it != g_sig->pids_to_kill.rend();
        it++) {

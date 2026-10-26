@@ -41,7 +41,7 @@ you have over the producers:
    `PerfettoProducerBackendInitArgsSetMachineId()` in the C SDK). Merging
    the files later needs no configuration: every packet already says which
    machine it came from, and the traces align through their wall clocks.
-   See [Merging traces with Trace Processor](/docs/analysis/merging-traces.md#no-config).
+   See [Merging traces from the command line](/docs/analysis/merging-traces.md#no-config).
 
 3. **Record independently, merge afterwards.** Each machine records a
    normal trace; nothing is coordinated at recording time. Machine
@@ -247,7 +247,7 @@ machine through different dimensions.
 * [Multi-machine architecture](/docs/deployment/multi-machine-architecture.md) —
   the why: how `traced_relay`, machine identity, and cross-kernel clock
   sync fit together.
-* [Merging traces with Trace Processor](/docs/analysis/merging-traces.md) —
+* [Merging traces from the command line](/docs/analysis/merging-traces.md) —
   the post-hoc alternative: combine independently recorded traces onto one
   timeline when a live network path is not an option.
 * [PerfettoSQL: Getting Started](/docs/analysis/perfetto-sql-getting-started.md) —

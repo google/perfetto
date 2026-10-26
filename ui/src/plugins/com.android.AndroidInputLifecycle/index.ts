@@ -17,72 +17,197 @@ import m from 'mithril';
 import {RelatedEventsOverlay} from '../../components/related_events/related_events_overlay';
 import type {ArrowConnection} from '../../components/related_events/arrow_visualiser';
 import {TrackPinningManager} from '../../components/related_events/utils';
+import {showModal} from '../../widgets/modal';
+import {Select} from '../../widgets/select';
+import {Form, FormLabel} from '../../widgets/form';
+import {STR} from '../../trace_processor/query_result';
 import {Time} from '../../base/time';
+import {z} from 'zod';
+import type {App} from '../../public/app';
+import type {Setting} from '../../public/settings';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 
 import {
   AndroidInputEventSource,
   type InputChainRow,
-  type NavTarget,
 } from './android_input_event_source';
 import {AndroidInputLifecycleTab} from './tab';
-import {SLICE_TRACK_KIND} from '../../public/track_kinds';
-import type {QueryResult} from '../../base/query_slot';
+import type {AsyncMemoResult} from '../../base/async_memo';
+import type {InputLifecycleExtension, NavTarget} from './extensions/interface';
+import {PixelInputLifecycleExtension} from './extensions/pixel_extension';
+import {AndroidFramesInputLifecycleExtension} from './extensions/android_frames_extension';
+
+const EXTENSIONS: InputLifecycleExtension[] = [
+  new PixelInputLifecycleExtension(),
+  new AndroidFramesInputLifecycleExtension(),
+];
 
 export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidInputLifecycle';
   static readonly description =
     'Visualise connected input events in the lifecycle from touch to frame, ' +
-    "with latencies for the various input stages. Activate by running the command 'Android: View Input Lifecycle'.";
+    'with latencies for the various input stages. Select any slice in the ' +
+    'input pipeline to draw arrows and show the Input Lifecycle tab.';
+
+  private static extensionSettings = new Map<string, Setting<boolean>>();
+
+  static onActivate(app: App): void {
+    for (const ext of EXTENSIONS) {
+      const setting = app.settings.register({
+        id: `com.android.AndroidInputLifecycle.extension.${ext.id}`,
+        name: `Enable ${ext.name} extension`,
+        description: `Enable custom stages in the tab and overlay for ${ext.name} extension.`,
+        schema: z.boolean(),
+        defaultValue: true,
+        requiresReload: true,
+      });
+      AndroidInputLifecyclePlugin.extensionSettings.set(ext.id, setting);
+    }
+  }
+
+  static isExtensionEnabled(id: string): boolean {
+    return AndroidInputLifecyclePlugin.extensionSettings.get(id)?.get() ?? true;
+  }
 
   private visibleRowIds = new Set<string>();
   private lastAppliedEventId?: number;
+  private allEventConnections: ArrowConnection[] = [];
+  private activeExcludeSpeculative?: boolean;
+  private pinnedApp?: string;
+  private pinnedTrackUris: string[] = [];
 
   async onTraceLoad(trace: Trace): Promise<void> {
     await trace.engine.query('INCLUDE PERFETTO MODULE android.input;');
 
-    const source = new AndroidInputEventSource(trace);
+    const activeExtensions: InputLifecycleExtension[] = [];
+    for (const ext of EXTENSIONS) {
+      if (AndroidInputLifecyclePlugin.isExtensionEnabled(ext.id)) {
+        if (await ext.isEligible(trace)) {
+          if (ext.requiredModules !== undefined) {
+            for (const mod of ext.requiredModules) {
+              await trace.engine.query(`INCLUDE PERFETTO MODULE ${mod};`);
+            }
+          }
+          activeExtensions.push(ext);
+        }
+      }
+    }
+
+    const source = new AndroidInputEventSource(trace, activeExtensions);
     const pinningManager = new TrackPinningManager(trace);
 
     trace.tracks.registerOverlay(
       new RelatedEventsOverlay(trace, () => this.getConnections(trace, source)),
     );
 
-    trace.tabs.registerTab({
-      uri: 'com.android.AndroidInputLifecycleTab',
-      isEphemeral: false,
-      content: {
-        getTitle: () => 'Android Input Lifecycle',
-        render: () => {
-          const {data: rows, isPending} = this.useRowState(trace, source);
-
-          if (rows) {
-            this.applyInitialSelection(trace, rows);
-          }
-
-          return m(AndroidInputLifecycleTab, {
+    trace.selection.registerTrackEventSelectionTab({
+      id: 'android_input_lifecycle',
+      name: 'Input Lifecycle',
+      render: () => {
+        const {data: rows, isPending} = this.useRows(trace, source);
+        if (!rows || rows.length === 0) return undefined;
+        return {
+          isLoading: isPending,
+          content: m(AndroidInputLifecycleTab, {
             trace,
-            rows: rows ?? [],
+            rows,
             visibleRowIds: this.visibleRowIds,
-            loading: isPending,
             pinningManager,
             onToggleVisibility: (rowId) => this.toggleVisibility(rowId),
-            onToggleAllVisibility: () => this.toggleAllVisibility(rows ?? []),
-          });
-        },
-      },
-      onHide: () => {
-        this.visibleRowIds.clear();
-        this.lastAppliedEventId = undefined;
+            onToggleAllVisibility: () => this.toggleAllVisibility(rows),
+            activeExtensions,
+          }),
+        };
       },
     });
 
     trace.commands.registerCommand({
-      id: 'com.android.openAndroidInputLifecycleTab',
-      name: 'Android: View Input Lifecycle',
-      callback: () => {
-        trace.tabs.showTab('com.android.AndroidInputLifecycleTab');
+      id: 'com.android.AndroidInputLifecycle.drawAllArrowsWithSpeculative',
+      name: 'Android: Draw all input arrows (With speculative)',
+      callback: async () => {
+        await this.toggleDrawAllArrows(source, false);
+      },
+    });
+
+    trace.commands.registerCommand({
+      id: 'com.android.AndroidInputLifecycle.drawAllArrowsNoSpeculative',
+      name: 'Android: Draw all input arrows (No speculative)',
+      callback: async () => {
+        await this.toggleDrawAllArrows(source, true);
+      },
+    });
+
+    trace.commands.registerCommand({
+      id: 'com.android.AndroidInputLifecycle.pinTracks',
+      name: 'Android: Pin input pipeline related tracks',
+      callback: async () => {
+        const apps = await this.getUniqueInputApps(trace);
+        if (apps.length === 0) {
+          await showModal({
+            title: 'Pin input pipeline related tracks',
+            icon: 'warning',
+            content: m(
+              'p',
+              'No Android apps were found receiving input in this trace.',
+            ),
+            buttons: [{text: 'OK', primary: true}],
+          });
+          return;
+        }
+
+        let selectedApp = apps[0];
+
+        await showModal({
+          title: 'Pin input pipeline tracks for app',
+          icon: 'help',
+          content: () =>
+            m(
+              Form,
+              m(
+                FormLabel,
+                {for: 'app-select'},
+                'Select the Android app you want to check:',
+              ),
+              m(
+                Select,
+                {
+                  id: 'app-select',
+                  onchange: (e: Event) => {
+                    const target = e.target as HTMLSelectElement;
+                    selectedApp = target.value;
+                  },
+                },
+                apps.map((app) =>
+                  m('option', {value: app, selected: app === selectedApp}, app),
+                ),
+              ),
+            ),
+          buttons: [
+            {
+              text: 'Pin Tracks',
+              primary: true,
+              action: async () => {
+                this.pinnedApp = selectedApp;
+                pinningManager.unpinTracks(this.pinnedTrackUris);
+
+                const rows = await source.getRowsForApp(selectedApp);
+                this.pinnedTrackUris = source.getTrackUrisSortedByStage(rows);
+                pinningManager.pinTracks(this.pinnedTrackUris);
+
+                if (this.activeExcludeSpeculative !== undefined) {
+                  this.allEventConnections = this.extractConnectionsFromRows(
+                    source,
+                    rows,
+                  );
+                }
+              },
+            },
+            {
+              text: 'Cancel',
+            },
+          ],
+        });
       },
     });
   }
@@ -90,73 +215,101 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   // Fetch or reuse cached row data for the currently selected slice. Can call
   // this function every render cycle without performance concerns, as the
   // underlying data slot will ensure the query is only executed once per
-  // sliceId.
-  private useRowState(
+  // sliceId. On first load for a given selection, the row containing the
+  // selected slice is made visible so that its arrows are drawn.
+  private useRows(
     trace: Trace,
     source: AndroidInputEventSource,
-  ): QueryResult<InputChainRow[]> {
+  ): AsyncMemoResult<InputChainRow[]> {
     const selection = trace.selection.selection;
-
-    if (selection.kind !== 'track_event') {
-      return {data: [], isPending: false, isFresh: true};
+    if (
+      selection.kind !== 'track_event' ||
+      trace.tracks.getTrack(selection.trackUri)?.renderer.rootTableName !==
+        'slice'
+    ) {
+      this.lastAppliedEventId = undefined;
+      this.visibleRowIds.clear();
+      return {data: [], isPending: false};
     }
 
-    // Only handle slice tracks to avoid false positives.
-    const track = trace.tracks.getTrack(selection.trackUri);
-    if (!track?.tags?.kinds?.includes(SLICE_TRACK_KIND)) {
-      return {data: [], isPending: false, isFresh: true};
+    const result = source.use(selection.eventId);
+    if (!result.isPending && this.lastAppliedEventId !== selection.eventId) {
+      this.lastAppliedEventId = selection.eventId;
+      this.visibleRowIds.clear();
+      const row = result.data.find((r) =>
+        Array.from(r.stagesData.values()).some(
+          (s) => s.nav?.id === selection.eventId,
+        ),
+      );
+      if (row) this.visibleRowIds.add(row.uiRowId);
     }
-
-    return source.use(selection.eventId);
-  }
-
-  private applyInitialSelection(trace: Trace, rows: InputChainRow[]) {
-    const selection = trace.selection.selection;
-    if (selection.kind !== 'track_event') return;
-
-    const eventId = selection.eventId;
-    if (this.lastAppliedEventId === eventId) return;
-
-    this.lastAppliedEventId = eventId;
-    this.visibleRowIds.clear();
-
-    for (const row of rows) {
-      const ids = [
-        row.navReader?.id,
-        row.navDispatch?.id,
-        row.navReceive?.id,
-        row.navConsume?.id,
-        row.navFrame?.id,
-      ];
-      if (ids.includes(eventId)) {
-        this.visibleRowIds.add(row.uiRowId);
-        break;
-      }
-    }
+    return result;
   }
 
   private getConnections(
     trace: Trace,
     source: AndroidInputEventSource,
   ): ArrowConnection[] {
-    const {data: rows} = this.useRowState(trace, source);
-    if (!rows) return [];
+    const connections: ArrowConnection[] = [...this.allEventConnections];
+    const {data: rows} = this.useRows(trace, source);
+    if (!rows) return connections;
 
+    const visibleRows = rows.filter((r) => this.visibleRowIds.has(r.uiRowId));
+    connections.push(...this.extractConnectionsFromRows(source, visibleRows));
+    return connections;
+  }
+
+  private async getUniqueInputApps(trace: Trace): Promise<string[]> {
+    const query = `
+      SELECT DISTINCT process_name
+      FROM android_input_events
+      -- Filter for actual app window channels (e.g. "process/activity" containing a "/")
+      -- and exclude system channels (like "PointerEventDispatcher" or "[Gesture Monitor]").
+      WHERE process_name IS NOT NULL AND event_channel LIKE '%/%'
+      ORDER BY process_name;
+    `;
+    const result = await trace.engine.query(query);
+    const apps: string[] = [];
+    const it = result.iter({process_name: STR});
+    for (; it.valid(); it.next()) {
+      apps.push(it.process_name);
+    }
+    return apps;
+  }
+
+  private async toggleDrawAllArrows(
+    source: AndroidInputEventSource,
+    excludeSpeculative: boolean,
+  ): Promise<void> {
+    if (this.activeExcludeSpeculative === excludeSpeculative) {
+      this.allEventConnections = [];
+      this.activeExcludeSpeculative = undefined;
+      return;
+    }
+
+    const rows = await source.getRowsForApp(this.pinnedApp, excludeSpeculative);
+    this.allEventConnections = this.extractConnectionsFromRows(source, rows);
+    this.activeExcludeSpeculative = excludeSpeculative;
+  }
+
+  private extractConnectionsFromRows(
+    source: AndroidInputEventSource,
+    rows: InputChainRow[],
+  ): ArrowConnection[] {
+    const specs = source.getStageSpecs();
     const connections: ArrowConnection[] = [];
     for (const row of rows) {
-      if (!this.visibleRowIds.has(row.uiRowId)) continue;
-
-      const steps = [
-        row.navReader,
-        row.navDispatch,
-        row.navReceive,
-        row.navConsume,
-        row.navFrame,
-      ].filter((s): s is NavTarget => s !== undefined);
+      const steps: NavTarget[] = [];
+      for (const spec of specs) {
+        const stageData = row.stagesData.get(spec.key);
+        if (stageData?.nav) {
+          steps.push(stageData.nav);
+        }
+      }
 
       for (let i = 0; i < steps.length - 1; i++) {
-        const start = steps[i];
-        const end = steps[i + 1];
+        const start = steps[i]!;
+        const end = steps[i + 1]!;
         connections.push({
           start: {
             trackUri: start.trackUri,

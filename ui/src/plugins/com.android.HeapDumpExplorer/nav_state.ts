@@ -29,6 +29,14 @@ export type NavState =
   | {view: 'callstack'; params: Record<string, never>};
 
 export type NavView = NavState['view'];
+export type DefaultNavView = 'overview' | 'flamegraph';
+
+function defaultNavState(view: DefaultNavView): NavState {
+  if (view === 'flamegraph') {
+    return {view: 'flamegraph', params: {}};
+  }
+  return {view: 'overview', params: {}};
+}
 
 // A `key=value` query fragment (URI-encoded), or '' when the value is absent.
 function queryParam(key: string, value?: string): string {
@@ -47,7 +55,7 @@ function pathSegment(base: string, value?: string): string {
 function stateToParts(state: NavState): {path: string; query: string} {
   switch (state.view) {
     case 'overview':
-      return {path: '', query: ''};
+      return {path: 'overview', query: ''};
     case 'classes':
       return {
         path: 'classes',
@@ -56,7 +64,8 @@ function stateToParts(state: NavState): {path: string; query: string} {
     case 'dominators':
       return {path: 'dominators', query: ''};
     case 'objects':
-      return {path: 'objects', query: queryParam('cls', state.params.cls)};
+      // Class filter in the path, not the query: the router drops query params.
+      return {path: pathSegment('objects', state.params.cls), query: ''};
     case 'object':
       return {
         path: pathSegment('object', `0x${state.params.id.toString(16)}`),
@@ -105,27 +114,32 @@ export function stateToSubpage(state: NavState): string {
   return query ? `${path}?${query}` : path;
 }
 
-export function subpageToState(subpage: string | undefined): NavState {
-  if (!subpage) return {view: 'overview', params: {}};
+export function subpageToState(
+  subpage: string | undefined,
+  defaultView: DefaultNavView = 'overview',
+): NavState {
+  if (!subpage) return defaultNavState(defaultView);
 
   const [path, queryStr] = subpage.split('?', 2);
+  if (path === undefined) return defaultNavState(defaultView);
   const sp = new URLSearchParams(queryStr ?? '');
 
   // Parse view_param format (e.g. "object_0x123", "flamegraph_objects_1_a,b").
   // Views with underscores: "flamegraph_objects" is the only multi-word view.
   let view: string;
   let param: string;
-  if (path.startsWith('flamegraph_objects')) {
+  if (path!.startsWith('flamegraph_objects')) {
     view = 'flamegraph-objects';
-    param = path.slice('flamegraph_objects'.length + 1) || '';
+    param = path!.slice('flamegraph_objects'.length + 1) || '';
   } else {
-    const idx = path.indexOf('_');
-    view = idx === -1 ? path : path.slice(0, idx);
-    param = idx === -1 ? '' : path.slice(idx + 1);
+    const idx = path!.indexOf('_');
+    view = idx === -1 ? path! : path!.slice(0, idx);
+    param = idx === -1 ? '' : path!.slice(idx + 1);
   }
 
   switch (view) {
     case '':
+      return defaultNavState(defaultView);
     case 'overview':
       return {view: 'overview', params: {}};
     case 'classes': {
@@ -135,7 +149,7 @@ export function subpageToState(subpage: string | undefined): NavState {
     case 'dominators':
       return {view: 'dominators', params: {}};
     case 'objects': {
-      const cls = sp.get('cls') ?? undefined;
+      const cls = param ? decodeURIComponent(param) : undefined;
       return {view: 'objects', params: cls ? {cls} : {}};
     }
     case 'object': {

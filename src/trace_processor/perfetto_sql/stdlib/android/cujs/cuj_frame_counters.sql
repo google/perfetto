@@ -22,14 +22,16 @@ INCLUDE PERFETTO MODULE android.cujs.base;
 -- for an operation. For eg. a SFMissedCallback indicates that events related to surfaceflinger
 -- operations, such as vsync synchronization, transaction/presentation callbacks were not captured.
 -- This view captures all such missed callback slices.
-CREATE PERFETTO VIEW _marker_missed_callback AS
+CREATE PERFETTO TABLE _marker_missed_callback AS
 SELECT
   marker_track.name AS cuj_slice_name,
   marker.ts,
   marker.name AS marker_name
-FROM slice AS marker
+FROM (SELECT DISTINCT cuj_slice_name FROM _jank_cujs_slices) AS cuj
 JOIN track AS marker_track
-  ON marker_track.id = marker.track_id
+  ON marker_track.name = cuj.cuj_slice_name
+JOIN slice AS marker
+  ON marker.track_id = marker_track.id
 WHERE
   marker.name GLOB '*FT#Missed*';
 
@@ -57,25 +59,26 @@ ORDER BY
 LIMIT 1;
 
 -- Extract all counters for Jank CUJ tracks.
-CREATE PERFETTO VIEW _android_jank_cuj_counter AS
-WITH
-  cuj_counter_track AS (
-    SELECT DISTINCT
-      upid,
-      track.id AS track_id,
-      -- extract the CUJ name inside <>
-      str_split(str_split(track.name, '>#', 0), '<', 1) AS cuj_name,
-      -- take the name of the counter after #
-      str_split(track.name, '#', 1) AS counter_name
-    FROM process_counter_track AS track
-    JOIN android_jank_cuj USING (upid)
-    WHERE
-      track.name GLOB 'J<*>#*'
-  )
-SELECT ts, upid, cuj_name, counter_name, CAST(value AS INTEGER) AS value
+CREATE PERFETTO TABLE _android_jank_cuj_counter AS
+SELECT
+  ts,
+  upid,
+  -- extract the CUJ name inside <>
+  str_split(str_split(track.name, '>#', 0), '<', 1) AS cuj_name,
+  -- take the name of the counter after #
+  str_split(track.name, '#', 1) AS counter_name,
+  CAST(value AS INTEGER) AS value
 FROM counter
-JOIN cuj_counter_track
-  ON counter.track_id = cuj_counter_track.track_id;
+JOIN process_counter_track AS track
+  ON counter.track_id = track.id
+WHERE
+  counter.track_id IN (
+    SELECT id
+    FROM process_counter_track
+    WHERE
+      name GLOB 'J<*>#*'
+      AND upid IN (SELECT upid FROM android_jank_cuj)
+  );
 
 -- Returns the counter value for the given CUJ name and counter name.
 CREATE PERFETTO FUNCTION _android_jank_cuj_counter_value(
@@ -98,3 +101,146 @@ WHERE
 ORDER BY
   ts
 LIMIT 1;
+
+-- Counter metrics associated with each Jank CUJ, extracted from the counters
+-- logged around the end of each CUJ.
+CREATE PERFETTO TABLE _android_jank_cuj_counter_metrics(
+  -- Unique incremental ID for each CUJ.
+  cuj_id LONG,
+  -- Name of the CUJ.
+  cuj_name STRING,
+  -- Process ID of the process.
+  upid JOINID(process.id),
+  -- State of the CUJ.
+  state STRING,
+  -- Total number of frames in the CUJ.
+  total_frames LONG,
+  -- Number of missed frames.
+  missed_frames LONG,
+  -- Number of missed app frames.
+  missed_app_frames LONG,
+  -- Number of missed SF frames.
+  missed_sf_frames LONG,
+  -- Max number of successive missed frames.
+  missed_frames_max_successive LONG,
+  -- Total animation duration in milliseconds.
+  anim_duration_ms LONG,
+  -- Weighted number of missed frames.
+  weighted_missed_frames DOUBLE,
+  -- Weighted number of missed app frames.
+  weighted_missed_app_frames DOUBLE,
+  -- Weighted number of missed SF frames.
+  weighted_missed_sf_frames DOUBLE,
+  -- Max frame duration in nanoseconds.
+  frame_dur_max LONG,
+  -- Number of missed frames for the SF callback.
+  sf_callback_missed_frames LONG,
+  -- Number of missed frames for the HWUI callback.
+  hwui_callback_missed_frames LONG
+)
+AS
+-- Order CUJs to get the ts of the next CUJ with the same name.
+-- This is to avoid selecting counters logged for the next CUJ in case multiple
+-- CUJs happened in a short succession.
+WITH
+  cujs_ordered AS (
+    SELECT
+      cuj_id,
+      cuj_name,
+      cuj_slice_name,
+      upid,
+      state,
+      ts_end,
+      CASE
+        WHEN process_name GLOB 'com.android.*' THEN ts_end
+        WHEN process_name = 'com.google.android.apps.nexuslauncher' THEN ts_end
+        -- Some processes publish counters just before logging the CUJ end
+        ELSE MAX(ts, ts_end - 4000000)
+      END AS ts_earliest_allowed_counter,
+      LEAD(ts_end) OVER (PARTITION BY cuj_name ORDER BY ts_end) AS ts_end_next_cuj
+    FROM android_jank_cuj
+  )
+SELECT
+  cuj_id,
+  cuj_name,
+  upid,
+  state,
+  _android_jank_cuj_counter_value(
+    cuj_name,
+    'totalFrames',
+    ts_earliest_allowed_counter,
+    ts_end_next_cuj
+  ) AS total_frames,
+  _android_jank_cuj_counter_value(
+    cuj_name,
+    'missedFrames',
+    ts_earliest_allowed_counter,
+    ts_end_next_cuj
+  ) AS missed_frames,
+  _android_jank_cuj_counter_value(
+    cuj_name,
+    'missedAppFrames',
+    ts_earliest_allowed_counter,
+    ts_end_next_cuj
+  ) AS missed_app_frames,
+  _android_jank_cuj_counter_value(
+    cuj_name,
+    'missedSfFrames',
+    ts_earliest_allowed_counter,
+    ts_end_next_cuj
+  ) AS missed_sf_frames,
+  _android_jank_cuj_counter_value(
+    cuj_name,
+    'maxSuccessiveMissedFrames',
+    ts_earliest_allowed_counter,
+    ts_end_next_cuj
+  ) AS missed_frames_max_successive,
+  _android_jank_cuj_counter_value(
+    cuj_name,
+    'totalAnimTime',
+    ts_earliest_allowed_counter,
+    ts_end_next_cuj
+  ) AS anim_duration_ms,
+  -- weighted jank is stored in janks per ms in the counters, since the counters are ints.
+  _android_jank_cuj_counter_value(
+    cuj_name,
+    'weightedJank',
+    ts_earliest_allowed_counter,
+    ts_end_next_cuj
+  )
+  / 1000.0 AS weighted_missed_frames,
+  _android_jank_cuj_counter_value(
+    cuj_name,
+    'weightedAppJank',
+    ts_earliest_allowed_counter,
+    ts_end_next_cuj
+  )
+  / 1000.0 AS weighted_missed_app_frames,
+  _android_jank_cuj_counter_value(
+    cuj_name,
+    'weightedSfJank',
+    ts_earliest_allowed_counter,
+    ts_end_next_cuj
+  )
+  / 1000.0 AS weighted_missed_sf_frames,
+  -- convert ms to nanos to align with the unit for `dur` in the other tables
+  _android_jank_cuj_counter_value(
+    cuj_name,
+    'maxFrameTimeMillis',
+    ts_earliest_allowed_counter,
+    ts_end_next_cuj
+  )
+  * 1000000 AS frame_dur_max,
+  _android_cuj_missed_vsyncs_for_callback(
+    cuj_slice_name,
+    ts_earliest_allowed_counter,
+    ts_end_next_cuj,
+    '*SF*'
+  ) AS sf_callback_missed_frames,
+  _android_cuj_missed_vsyncs_for_callback(
+    cuj_slice_name,
+    ts_earliest_allowed_counter,
+    ts_end_next_cuj,
+    '*HWUI*'
+  ) AS hwui_callback_missed_frames
+FROM cujs_ordered AS cuj;

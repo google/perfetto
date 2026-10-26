@@ -27,7 +27,11 @@ import {
 } from './query_store';
 import {formatDate} from '../../base/time';
 import {showModal} from '../../widgets/modal';
-import {historyStore, formatCompactDate} from './history_store';
+import {
+  historyStore,
+  formatCompactDate,
+  formatCompactTime,
+} from './history_store';
 
 // Reopens an existing history entry.
 export type OpenQueryFn = (
@@ -115,16 +119,19 @@ function makeFullSqlExpander(
 export function renderHistoryItem(
   entry: QueryExecution,
   index: number,
-  isMaterialized: boolean,
   openQuery?: OpenQueryFn,
 ): m.Children {
+  // One mixed list, so the kind comes from the entry itself.
+  const isMaterialized = entry.materialized === true;
   const queryText = entry.perfettoSql || '';
   const uuid = entry.uuid;
   const startTime = entry.startTime;
   const rows = entry.processedRows;
   const link = entry.tableLink;
   const dateObj = startTime !== undefined ? new Date(startTime) : null;
-  // Compact for the narrow sidebar; hover reveals the full UTC timestamp.
+  // Compact time for the narrow sidebar (the day is on the group header);
+  // hover and the standalone delete modal reveal the full local + UTC date.
+  const timeString = dateObj ? formatCompactTime(dateObj) : 'N/A';
   const localString = dateObj ? formatCompactDate(dateObj) : 'N/A';
   const utcString =
     startTime !== undefined
@@ -218,9 +225,18 @@ export function renderHistoryItem(
             statusDisplayLabel(entry.status),
           ),
           m(
+            'span.pf-bt-history-item-kind',
+            {
+              title: isMaterialized
+                ? 'Results saved to a backend table — reopen to browse them.'
+                : 'Results were shown inline at run time and not saved.',
+            },
+            isMaterialized ? 'Persistent' : 'Ephemeral',
+          ),
+          m(
             'span.pf-bt-history-item-date',
-            {title: `UTC: ${utcString}`},
-            localString,
+            {title: `${localString} (UTC: ${utcString})`},
+            timeString,
           ),
         ]),
       ],

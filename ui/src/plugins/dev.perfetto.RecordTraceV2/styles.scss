@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/theme";
-@import "../../widgets/checkbox";
+@use "../../assets/theme" as *;
+@use "../../widgets/checkbox" as *;
 
-@import "views/import_config";
+@use "views/import_config" as *;
 
 // The whole record page.
 .pf-record-page {
@@ -643,7 +643,7 @@
       padding-bottom: calc(var(--record-section-padding) / 2);
     }
 
-    .chrome-categories-presets .pf-tabs__tabs {
+    .chrome-categories-presets .pf-tab-strip {
       font-size: var(--pf-font-size-l);
       background-color: transparent;
     }

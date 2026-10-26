@@ -1,0 +1,152 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h"
+
+#include <algorithm>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
+#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
+#include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/hash_aggregate.h"
+#include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
+
+namespace perfetto::trace_processor::pipeline {
+namespace ex = core::exec;
+
+const OperationRegistration AggregateStage::kRegistration{
+    SYNTAQLITE_NODE_PERFETTO_PIPE_AGGREGATE, &BuildPlan,
+    OperationRegistration::Encoding{5, &MakeOperation<AggregateStage>}};
+
+base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
+  c->SetOperation("AGGREGATE");
+  const auto* n = Node<SyntaqlitePerfettoPipeAggregate>(c->parser(), stage);
+
+  AggregateStage aggregate;
+  std::vector<std::pair<NamedColumn, uint32_t>> keys;
+  if (syntaqlite_node_is_present(n->group_by)) {
+    const auto* list =
+        Node<SyntaqlitePerfettoPipeColumnList>(c->parser(), n->group_by);
+    for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
+      uint32_t item_id = syntaqlite_list_child_id(list, i);
+      const auto* item =
+          Node<SyntaqlitePerfettoPipeColumn>(c->parser(), item_id);
+      std::optional<NameId> qualifier;
+      if (IsSpanPresent(item->qualifier)) {
+        qualifier = c->Name(item->qualifier);
+      }
+      NameId name = c->Name(item->name);
+      ASSIGN_OR_RETURN(ColumnId key, c->Resolve(qualifier, name, item_id));
+      if (IsSpanPresent(item->alias)) {
+        name = c->Name(item->alias);
+      }
+      // Groups once by each column, but outputs one column per item listed.
+      if (std::find(aggregate.keys_.begin(), aggregate.keys_.end(), key) ==
+          aggregate.keys_.end()) {
+        aggregate.keys_.push_back(key);
+      }
+      keys.push_back({NamedColumn{name, key}, item_id});
+    }
+  }
+
+  std::vector<std::pair<NamedColumn, uint32_t>> aggregates;
+  const auto* list =
+      Node<SyntaqlitePerfettoAggregateList>(c->parser(), n->aggregates);
+  for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
+    uint32_t agg_id = syntaqlite_list_child_id(list, i);
+    const auto* agg = Node<SyntaqlitePerfettoAggregate>(c->parser(), agg_id);
+    ASSIGN_OR_RETURN(Aggregate resolved, c->ResolveAggregate(agg->expr));
+    NameId name = c->Name(agg->name);
+    resolved.output = c->AddColumn(name, core::Int64{});
+    aggregate.aggregates_.push_back(resolved);
+    aggregates.push_back({NamedColumn{name, resolved.output}, agg_id});
+  }
+
+  // Only the keys and aggregates are visible after this stage.
+  c->ReplaceRow({});
+  c->ClearAliases();
+  for (auto& [column, node] : keys) {
+    c->Append(std::move(column), node);
+  }
+  for (auto& [column, node] : aggregates) {
+    c->Append(std::move(column), node);
+  }
+  c->AddNode(std::move(aggregate), {c->plan().root()});
+  return base::OkStatus();
+}
+
+std::optional<uint32_t> AggregateStage::Prune(std::vector<bool>* needed) {
+  PruneAggregates(&aggregates_, needed);
+  // Keys define the groups, so keep them even if nothing reads them.
+  for (ColumnId key : keys_) {
+    (*needed)[key] = true;
+  }
+  return std::nullopt;
+}
+
+void AggregateStage::Lower(Lowering* c, const PlanNode& node) const {
+  c->LowerNode(node.children()[0]);
+  ex::HashAggregateSpec spec;
+  for (ColumnId key : keys_) {
+    spec.key_columns.push_back(c->QueryPosition(key));
+  }
+  for (const Aggregate& agg : aggregates_) {
+    spec.aggregates.push_back(LowerAggregate(c, agg));
+  }
+  // Groups are output in the order first seen, so if the input is sorted by
+  // the keys, the output is too.
+  std::vector<SortKey> sorted = c->QuerySortedBy(keys_);
+  c->RequireFullBatches();
+  c->AddOperator(std::make_unique<ex::HashAggregate>(std::move(spec)));
+
+  // The output has one row per group, with a new layout.
+  c->ResetLayout();
+  for (ColumnId key : keys_) {
+    c->DeclareColumn(key);
+  }
+  for (const Aggregate& agg : aggregates_) {
+    c->DeclareColumn(agg.output);
+  }
+  if (!sorted.empty()) {
+    c->DeclareSorted(sorted);
+  }
+}
+
+const OperationRegistration& AggregateStage::registration() const {
+  return kRegistration;
+}
+
+std::unique_ptr<PlanOperation> AggregateStage::Clone() const {
+  return std::make_unique<AggregateStage>(*this);
+}
+
+// Replaces `available` with the output columns.
+void AggregateStage::Serialize(PlanCodec& c) {
+  c.Vec(&keys_);
+  SerializeAggregates(c, &aggregates_);
+}
+
+}  // namespace perfetto::trace_processor::pipeline

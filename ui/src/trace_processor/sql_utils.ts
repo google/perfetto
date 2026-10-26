@@ -78,6 +78,14 @@ export function constraintsToQuerySuffix(c: SQLConstraints): string {
   return result.join('\n');
 }
 
+// Removes trailing whitespace and semicolons from a SQL statement, so that it
+// can be embedded into a larger query (e.g. as a subquery or a CTE). Only
+// semicolons at the very end are removed, so statements ending in a string
+// literal (e.g. `select ';'`) are left alone.
+export function stripTrailingSemicolons(sql: string): string {
+  return sql.replace(/[\s;]*$/, '');
+}
+
 // Trace Processor returns number | null for NUM_NULL, while most of the UI
 // code uses number | undefined. This functions provides a short-hand
 // conversion.
@@ -175,7 +183,7 @@ type CreateTableArgs = {
 export function rowsToSelectStatement(
   rows: readonly Record<string, SqlValue>[],
 ) {
-  const firstRow = rows[0];
+  const firstRow = rows[0]!;
   const columnNames = Object.keys(firstRow);
   const queryRows: string[] = [];
   for (const row of rows) {

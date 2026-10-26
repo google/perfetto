@@ -37,6 +37,7 @@ import {
 import {Icon} from '../../../widgets/icon';
 import {LinearProgress} from '../../../widgets/linear_progress';
 import {MenuDivider, MenuItem} from '../../../widgets/menu';
+import {TextInput} from '../../../widgets/text_input';
 import {
   AggregateMenu,
   ColumnMenu,
@@ -79,11 +80,21 @@ import {
   type Column,
   DEFAULT_GROUP_DISPLAY,
   type Filter,
+  getPivotDrillDownFilters,
+  type GroupDisplay,
   type GroupPath,
   type IdBasedTree,
   type Pivot,
+  type QuickFilter,
   type SortDirection,
 } from './model';
+import {valueMatchesQuickFilter} from './quick_filter_utils';
+
+// How long to wait after the last keystroke in the quick filter box before
+// applying the filter.
+const QUICK_FILTER_DEBOUNCE_MS = 250;
+
+const QUICK_FILTER_MATCH_CLASS = 'pf-data-grid__cell--quick-filter-match';
 
 // Compare two SqlValues for equality, handling nulls, undefined, and different types.
 function sqlValuesEqual(a: SqlValue, b: SqlValue): boolean {
@@ -108,9 +119,36 @@ function sqlValuesEqual(a: SqlValue, b: SqlValue): boolean {
 function groupPathsEqual(a: GroupPath, b: GroupPath): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
-    if (!sqlValuesEqual(a[i], b[i])) return false;
+    if (!sqlValuesEqual(a[i]!, b[i]!)) return false;
   }
   return true;
+}
+
+function getPivotGroupDisplay(pivot: Pivot): GroupDisplay {
+  // A single grouping level has no hierarchy to display as a tree.
+  if (pivot.groupBy.length <= 1) return 'flat';
+  return pivot.groupDisplay ?? DEFAULT_GROUP_DISPLAY;
+}
+
+function getPivotDrillDownColumns(
+  pivot: Pivot,
+  flatColumns: readonly Column[],
+): readonly Column[] {
+  const columns: Column[] = [];
+  const fields = new Set<string>();
+
+  const addColumn = ({id, field, sort}: Column) => {
+    if (fields.has(field)) return;
+    fields.add(field);
+    columns.push({id, field, sort});
+  };
+
+  flatColumns.forEach(addColumn);
+  pivot.groupBy.forEach(addColumn);
+  for (const aggregate of pivot.aggregates) {
+    if ('field' in aggregate) addColumn(aggregate);
+  }
+  return columns;
 }
 
 export interface AggregationCellAttrs extends m.Attributes {
@@ -271,6 +309,36 @@ export interface DataGridAttrs {
   readonly disableFilterControls?: boolean;
 
   /**
+   * When true, shows a "Filter rows" text box in the toolbar. Typing in it
+   * hides every row where no visible column contains the text, and highlights
+   * the matching cells. It matches raw values, not formatted ones.
+   *
+   * The box is only shown for flat tables (including pivot drill-downs): it is
+   * always hidden in pivot mode and ID-based tree mode. Defaults to false.
+   */
+  readonly enableQuickFilter?: boolean;
+
+  /**
+   * The quick filter text - can operate in controlled or uncontrolled mode.
+   *
+   * In controlled mode: Provide this prop along with onQuickFilterChanged callback.
+   * In uncontrolled mode: Omit this prop to let the grid manage the quick
+   * filter text internally.
+   */
+  readonly quickFilter?: string;
+
+  /**
+   * Initial quick filter text to apply on first load.
+   * This is ignored in controlled mode (i.e. when `quickFilter` is provided).
+   */
+  readonly initialQuickFilter?: string;
+
+  /**
+   * Called when the quick filter text changes (after the user stops typing).
+   */
+  readonly onQuickFilterChanged?: (text: string) => void;
+
+  /**
    * Defines how data should be pivoted - can operate in controlled or
    * uncontrolled mode.
    *
@@ -417,6 +485,8 @@ interface FlatGridBuildContext {
   readonly showColumnControls: boolean;
   readonly showPivotControls: boolean;
   readonly showFilterControls: boolean;
+  // The active quick filter text, used to highlight matching cells.
+  readonly quickFilterText: string;
 }
 
 /**
@@ -440,6 +510,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private filters: readonly Filter[] = [];
   private pivot?: Pivot;
   private tree?: IdBasedTree;
+
+  // The applied quick filter text, and the text currently in the box. They
+  // differ while the user is typing, until the debounce timer fires.
+  private quickFilter = '';
+  private quickFilterInput = '';
+  private quickFilterDebounceTimer?: ReturnType<typeof setTimeout>;
 
   // Track pagination state from virtual scrolling
   private paginationOffset: number = 0;
@@ -469,6 +545,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (attrs.initialTree) {
       this.tree = attrs.initialTree;
     }
+
+    if (attrs.initialQuickFilter !== undefined) {
+      this.quickFilter = attrs.initialQuickFilter;
+      this.quickFilterInput = attrs.initialQuickFilter;
+    }
+  }
+
+  onremove() {
+    clearTimeout(this.quickFilterDebounceTimer);
   }
 
   view({attrs}: m.Vnode<DataGridAttrs>) {
@@ -480,6 +565,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       filters,
       pivot,
       tree,
+      quickFilter,
+      enableQuickFilter = false,
       schema,
       structuredQueryCompatMode = false,
       toolbarItemsLeft,
@@ -493,6 +580,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (filters) this.filters = filters;
     if (pivot) this.pivot = pivot;
     if (tree) this.tree = tree;
+    if (quickFilter !== undefined) {
+      this.quickFilter = quickFilter;
+      // Don't overwrite what the user is typing before it's been applied.
+      if (this.quickFilterDebounceTimer === undefined) {
+        this.quickFilterInput = quickFilter;
+      }
+    }
 
     // Determine if we're in tree mode (has id-based tree config)
     const isTreeMode = this.tree !== undefined;
@@ -522,9 +616,17 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       this.pivot.groupBy.length > 0 &&
       this.pivot.drillDown === undefined;
 
+    // The quick filter is only offered for flat tables:
+    // - In tree mode, removing non-matching rows would also hide their
+    //   matching descendants.
+    // - In pivot mode, most cells show a sampled value or a total rather than
+    //   a row's value, so "rows containing the text" has no clear meaning.
+    const showQuickFilter = enableQuickFilter && !isTreeMode && !isPivotMode;
+    const quickFilterText = showQuickFilter ? this.quickFilter : '';
+
     // Build the model for data source queries
     const datasource = getOrCreateDataSource(data);
-    const model = this.buildDataSourceModel();
+    const model = this.buildDataSourceModel(quickFilterText);
 
     // Fetch data using the slot-like API
     const rowsResult = datasource.useRows(model);
@@ -605,6 +707,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         showColumnControls,
         showPivotControls,
         showFilterControls,
+        quickFilterText,
       };
 
       gridColumns = this.buildFlatColumns(flatContext);
@@ -627,6 +730,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ],
         rightItems: [
           toolbarItemsRight,
+          showQuickFilter && this.renderQuickFilterBox(attrs),
           showExportButton &&
             m(ExportButton, {
               onExportData: (format) =>
@@ -691,12 +795,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             EmptyState,
             {
               title:
-                this.filters.length > 0
+                this.filters.length > 0 || quickFilterText !== ''
                   ? 'No results match your filters'
-                  : emptyStateMessage ?? 'No data available',
+                  : (emptyStateMessage ?? 'No data available'),
               fillHeight: true,
             },
-            this.filters.length > 0 &&
+            (this.filters.length > 0 || quickFilterText !== '') &&
               m(Button, {
                 variant: ButtonVariant.Filled,
                 icon: Icons.FilterOff,
@@ -712,7 +816,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    * Builds a DataSourceModel from the current state.
    * The model shape depends on whether we're in pivot, tree, or flat mode.
    */
-  private buildDataSourceModel(): DataSourceModel {
+  private buildDataSourceModel(quickFilterText: string): DataSourceModel {
     // Extract sort from columns (flat mode only)
     const sortedColumn = this.columns.find((c) => c.sort);
     const sort = sortedColumn
@@ -731,17 +835,17 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (this.pivot && this.pivot.drillDown) {
       // DrillDown mode: use FlatModel with drilldown conditions as filters
       // This shows raw rows filtered to specific group values
-      const drillDownFilters: Filter[] = this.pivot.drillDown.map((dd) => ({
-        field: dd.field,
-        op: dd.value === null ? 'is null' : '=',
-        value: dd.value === null ? undefined : dd.value,
-      })) as Filter[];
+      const drillDownFilters = getPivotDrillDownFilters(this.pivot);
 
       const flatModel: FlatModel = {
         ...baseModel,
         mode: 'flat',
         sort,
         filters: [...(this.filters ?? []), ...drillDownFilters],
+        quickFilter: buildQuickFilter(
+          quickFilterText,
+          this.columns.map((col) => col.field),
+        ),
         columns: this.columns
           .map((col) => ({
             field: col.field,
@@ -778,7 +882,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             }
           })
           .sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
-        groupDisplay: this.pivot.groupDisplay ?? DEFAULT_GROUP_DISPLAY,
+        groupDisplay: getPivotGroupDisplay(this.pivot),
         expandedGroups: this.pivot.expandedGroups,
         collapsedGroups: this.pivot.collapsedGroups,
       };
@@ -804,6 +908,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ...baseModel,
         mode: 'flat',
         sort,
+        quickFilter: buildQuickFilter(
+          quickFilterText,
+          this.columns.map((col) => col.field),
+        ),
         columns: this.columns
           .map((col) => ({
             field: col.field,
@@ -844,6 +952,41 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private clearFilters(attrs: DataGridAttrs): void {
     this.filters = [];
     attrs.onFiltersChanged?.([]);
+    if (this.quickFilter !== '' || this.quickFilterInput !== '') {
+      this.setQuickFilter('', attrs);
+    }
+  }
+
+  private renderQuickFilterBox(attrs: DataGridAttrs): m.Children {
+    return m(TextInput, {
+      className: 'pf-data-grid__quick-filter',
+      leftIcon: Icons.Search,
+      placeholder: 'Filter rows\u2026',
+      title:
+        'Shows rows where any visible column contains this text. ' +
+        'Matches raw values.',
+      value: this.quickFilterInput,
+      onInput: (text: string) => this.onQuickFilterInput(text, attrs),
+    });
+  }
+
+  // Updates the box immediately, but only applies the filter once the user has
+  // stopped typing for QUICK_FILTER_DEBOUNCE_MS.
+  private onQuickFilterInput(text: string, attrs: DataGridAttrs): void {
+    this.quickFilterInput = text;
+    clearTimeout(this.quickFilterDebounceTimer);
+    this.quickFilterDebounceTimer = setTimeout(() => {
+      this.setQuickFilter(text, attrs);
+      m.redraw();
+    }, QUICK_FILTER_DEBOUNCE_MS);
+  }
+
+  private setQuickFilter(text: string, attrs: DataGridAttrs): void {
+    clearTimeout(this.quickFilterDebounceTimer);
+    this.quickFilterDebounceTimer = undefined;
+    this.quickFilter = text;
+    this.quickFilterInput = text;
+    attrs.onQuickFilterChanged?.(text);
   }
 
   private removeFilter(index: number, attrs: DataGridAttrs): void {
@@ -885,7 +1028,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     let insertIndex = toIndex;
     if (fromIndex < toIndex) insertIndex--;
     if (position === 'after') insertIndex++;
-    newColumns.splice(insertIndex, 0, removed);
+    newColumns.splice(insertIndex, 0, removed!);
 
     this.columns = newColumns;
     attrs.onColumnsChanged?.(newColumns);
@@ -988,6 +1131,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     attrs: DataGridAttrs,
   ): void {
     if (!this.pivot) return;
+
+    // Drill-down shows raw rows, so retain the flat columns and add any fields
+    // introduced by the pivot. Multiple aggregates over the same field map to
+    // one raw column.
+    const newColumns = getPivotDrillDownColumns(this.pivot, this.columns);
+    this.columns = newColumns;
+    attrs.onColumnsChanged?.(newColumns);
 
     const newPivot: Pivot = {...this.pivot, drillDown};
     this.pivot = newPivot;
@@ -1217,7 +1367,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     let insertIndex = toIndex;
     if (fromIndex < toIndex) insertIndex--;
     if (position === 'after') insertIndex++;
-    groupBy.splice(insertIndex, 0, removed);
+    groupBy.splice(insertIndex, 0, removed!);
 
     const newPivot: Pivot = {...this.pivot, groupBy};
     this.pivot = newPivot;
@@ -1237,7 +1387,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     let insertIndex = toIndex;
     if (fromIndex < toIndex) insertIndex--;
     if (position === 'after') insertIndex++;
-    aggregates.splice(insertIndex, 0, removed);
+    aggregates.splice(insertIndex, 0, removed!);
 
     const newPivot: Pivot = {...this.pivot, aggregates};
     this.pivot = newPivot;
@@ -1315,12 +1465,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   /**
    * Renders the pivot toolbar items (expand/collapse buttons and flat/tree toggle).
-   * Only shown when in pivot mode and not drilling down.
+   * Only shown for multi-level pivots that are not drilling down.
    */
   private renderPivotToolbarItems(attrs: DataGridAttrs): m.Children {
-    if (!this.pivot || this.pivot.drillDown) return null;
+    if (!this.pivot || this.pivot.drillDown || this.pivot.groupBy.length <= 1) {
+      return null;
+    }
 
-    const mode = this.pivot.groupDisplay ?? DEFAULT_GROUP_DISPLAY;
+    const mode = getPivotGroupDisplay(this.pivot);
     const isFlat = mode === 'flat';
 
     return [
@@ -1514,7 +1666,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             canAdd: attrs.canAddColumns ?? true,
             canRemove: this.columns.length > 1,
             onRemove:
-              attrs.canRemoveColumns ?? true
+              (attrs.canRemoveColumns ?? true)
                 ? () => this.removeColumn(colId, attrs)
                 : undefined,
             schema,
@@ -1614,7 +1766,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    * Builds grid rows for flat (non-pivot) mode.
    */
   private buildFlatRows(ctx: FlatGridBuildContext): m.Children[][] {
-    const {attrs, rowsResult, columnInfoCache, tree, showFilterControls} = ctx;
+    const {
+      attrs,
+      rowsResult,
+      columnInfoCache,
+      tree,
+      showFilterControls,
+      quickFilterText,
+    } = ctx;
 
     if (rowsResult.rows === undefined) return [];
 
@@ -1641,6 +1800,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           const {field} = col;
           const alias = getColumnAlias(col);
           const value = row[alias];
+
+          if (value === undefined) {
+            return renderMissingCell();
+          }
+
           const colInfo = columnInfoCache.get(field);
           const cellRenderer =
             colInfo?.cellRenderer ?? ((v: SqlValue) => renderCell(v, field));
@@ -1675,10 +1839,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           return m(
             GridCell,
             {
+              className: classNames(
+                valueMatchesQuickFilter(value, quickFilterText) &&
+                  QUICK_FILTER_MATCH_CLASS,
+              ),
               actionButtons: colInfo?.actions?.(value, row),
-              align: isRich ? rendered.align ?? 'left' : getAligment(value),
+              align: isRich ? (rendered.align ?? 'left') : getAligment(value),
               nullish: isRich
-                ? rendered.nullish ?? value === null
+                ? (rendered.nullish ?? value === null)
                 : value === null,
               chevron,
               onChevronClick,
@@ -1796,7 +1964,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     // Build groupBy columns
     for (let i = 0; i < pivot.groupBy.length; i++) {
-      const groupByCol = pivot.groupBy[i];
+      const groupByCol = pivot.groupBy[i]!;
       const field = groupByCol.field;
       const sort = groupByCol.sort;
       const colId = groupByCol.id;
@@ -1876,7 +2044,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     // Build aggregate columns
     const aggregates = pivot.aggregates ?? [];
     for (let i = 0; i < aggregates.length; i++) {
-      const agg = aggregates[i];
+      const agg = aggregates[i]!;
       const sort = agg.sort;
       const alias = getAggregateAlias(agg);
 
@@ -1933,6 +2101,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           groupByThisMenuItem,
           m(AggregateMenu, {
             schema,
+            datasource,
             existingAggregates: pivot.aggregates,
             onAddAggregate: (func, aggField) =>
               this.addAggregateColumn(func, aggField, attrs, i),
@@ -2023,7 +2192,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const aggregates = pivot.aggregates ?? [];
     const numGroupBy = pivot.groupBy.length;
     // In flat mode, don't use multi-level UI (no chevrons, no indent)
-    const isMultiLevel = numGroupBy > 1 && pivot.groupDisplay === 'tree';
+    const isMultiLevel =
+      numGroupBy > 1 && getPivotGroupDisplay(pivot) === 'tree';
 
     return rowIndices
       .map((index) => {
@@ -2041,9 +2211,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
         // Render groupBy columns
         for (let i = 0; i < numGroupBy; i++) {
-          const groupByCol = pivot.groupBy[i];
+          const groupByCol = pivot.groupBy[i]!;
           const {id, field} = groupByCol;
-          const value = row[id];
+          const value = row[id]!;
 
           // Column is a rollup if its index is greater than the row's level
           const isRollupColumn = i > rowLevel;
@@ -2098,9 +2268,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             m(
               GridCell,
               {
-                align: isRich ? rendered.align ?? 'left' : getAligment(value),
+                align: isRich ? (rendered.align ?? 'left') : getAligment(value),
                 nullish: isRich
-                  ? rendered.nullish ?? value === null
+                  ? (rendered.nullish ?? value === null)
                   : value === null,
                 className: classNames(
                   'pf-data-grid__groupby-column',
@@ -2119,10 +2289,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                         const drillDownRow: {field: string; value: SqlValue}[] =
                           [];
                         for (let j = 0; j <= rowLevel; j++) {
-                          const col = pivot.groupBy[j];
+                          const col = pivot.groupBy[j]!;
                           drillDownRow.push({
                             field: col.field,
-                            value: row[col.id],
+                            value: row[col.id]!,
                           });
                         }
                         this.drillDown(drillDownRow, attrs);
@@ -2131,7 +2301,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     showFilterControls && m(MenuDivider),
                   ],
                   showFilterControls &&
-                    m(CellFilterMenu, {
+                    m(CellFilterMenu!, {
                       value,
                       onFilterAdd: (filter) =>
                         this.addFilter({field, ...filter}, attrs),
@@ -2159,8 +2329,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 // Build a row with only the groupBy columns up to rowLevel
                 const drillDownRow: {field: string; value: SqlValue}[] = [];
                 for (let j = 0; j <= rowLevel; j++) {
-                  const col = pivot.groupBy[j];
-                  drillDownRow.push({field: col.field, value: row[col.id]});
+                  const col = pivot.groupBy[j]!;
+                  drillDownRow.push({field: col.field, value: row[col.id]!});
                 }
                 this.drillDown(drillDownRow, attrs);
               },
@@ -2173,7 +2343,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         // Render aggregate columns
         for (const agg of aggregates) {
           const alias = getAggregateAlias(agg);
-          const value = row[alias];
+          const value = row[alias]!;
 
           // For aggregates with a field, we can use the field's cell renderer
           let cellRenderer =
@@ -2190,9 +2360,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               GridCell,
               {
                 // Default to 'right' for aggregates, but allow override
-                align: isRich ? rendered.align ?? 'left' : getAligment(value),
+                align: isRich ? (rendered.align ?? 'left') : getAligment(value),
                 nullish: isRich
-                  ? rendered.nullish ?? value === null
+                  ? (rendered.nullish ?? value === null)
                   : value === null,
               },
               isRich ? rendered.content : rendered,
@@ -2264,10 +2434,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       // Map aliases to field paths for column name lookup
       for (let i = 0; i < columns.length; i++) {
-        const alias = columns[i];
-        const field = fieldPaths[i];
+        const alias = columns[i]!;
+        const field = fieldPaths[i]!;
         if (alias !== field) {
-          columnNames[alias] = columnNames[field];
+          columnNames[alias] = columnNames[field]!;
         }
       }
     }
@@ -2329,10 +2499,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 }
 
-export function renderCell(value: SqlValue, columnName?: string) {
-  if (value === undefined) {
-    return '';
-  } else if (value instanceof Uint8Array) {
+export function renderCell(value: SqlValue, columnName?: string): m.Children {
+  if (value instanceof Uint8Array) {
     return m(
       Anchor,
       {
@@ -2348,6 +2516,24 @@ export function renderCell(value: SqlValue, columnName?: string) {
   } else {
     return String(value);
   }
+}
+
+// Renders a cell for missing data (undefined value) with a placeholder message
+// and a distinct style. This is almost certainly a developer error
+// (misconfigured schema or initial column list), so we want to make it obvious
+// in the UI. We could throw, but throwing in the render loop takes the whole UI
+// down. We should attempt to handle errors in render loops more gracefully in
+// the future but for now this is better than the alternative which is a blank
+// cell.
+function renderMissingCell(): m.Children {
+  return m(
+    GridCell,
+    {
+      className: 'pf-datagrid-cell--missing',
+      align: 'center',
+    },
+    'no data',
+  );
 }
 
 function getAligment(value: SqlValue): 'left' | 'right' | 'center' {
@@ -2413,4 +2599,15 @@ function getAggregateAlias(agg: AggregateColumn): string {
  */
 function getColumnAlias(col: Column): string {
   return col.id;
+}
+
+/**
+ * Builds the data source quick filter for the given text and fields, or
+ * undefined if there's no filter text.
+ */
+function buildQuickFilter(
+  text: string,
+  fields: readonly string[],
+): QuickFilter | undefined {
+  return text === '' ? undefined : {text, fields};
 }

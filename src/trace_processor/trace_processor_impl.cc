@@ -40,8 +40,10 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/io.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/summarizer.h"
 #include "perfetto/trace_processor/trace_blob.h"
@@ -88,6 +90,8 @@
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
 #include "src/trace_processor/plugins/ancestor/ancestor.h"
 #include "src/trace_processor/plugins/android_framework_track_event/android_framework_track_event.h"
+#include "src/trace_processor/plugins/android_job_scheduler/android_job_scheduler.h"
+#include "src/trace_processor/plugins/android_process_state/android_process_state.h"
 #include "src/trace_processor/plugins/args/args.h"
 #include "src/trace_processor/plugins/art_heap_graph_functions/art_heap_graph_functions.h"
 #include "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_importer.h"
@@ -110,6 +114,8 @@
 #include "src/trace_processor/plugins/experimental_flamegraph/experimental_flamegraph.h"
 #include "src/trace_processor/plugins/experimental_flat_slice/experimental_flat_slice.h"
 #include "src/trace_processor/plugins/experimental_slice_layout/experimental_slice_layout.h"
+#include "src/trace_processor/plugins/flamechart/flamechart_function.h"
+#include "src/trace_processor/plugins/flamegraph/flamegraph_function.h"
 #include "src/trace_processor/plugins/graph_scan/graph_scan.h"
 #include "src/trace_processor/plugins/graph_traversal/graph_traversal.h"
 #include "src/trace_processor/plugins/import/import.h"
@@ -129,6 +135,7 @@
 #include "src/trace_processor/plugins/stack_sample_importer/plugin.h"
 #include "src/trace_processor/plugins/stdlib_docs/stdlib_docs.h"
 #include "src/trace_processor/plugins/storage_tables/storage_tables.h"
+#include "src/trace_processor/plugins/strace/strace.h"
 #include "src/trace_processor/plugins/string_functions/string_functions.h"
 #include "src/trace_processor/plugins/structural_tree_partition/structural_tree_partition.h"
 #include "src/trace_processor/plugins/symbolize/symbolize.h"
@@ -136,6 +143,7 @@
 #include "src/trace_processor/plugins/table_pointer_module/table_pointer_module.h"
 #include "src/trace_processor/plugins/time_functions/time_functions.h"
 #include "src/trace_processor/plugins/to_ftrace/to_ftrace.h"
+#include "src/trace_processor/plugins/trace_export/trace_export.h"
 #include "src/trace_processor/plugins/tree_functions/tree_functions.h"
 #include "src/trace_processor/plugins/type_builder_functions/type_builder_functions.h"
 #include "src/trace_processor/plugins/utils_functions/utils_functions.h"
@@ -146,6 +154,7 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/sqlite/sqlite_export.h"
 #include "src/trace_processor/sqlite_iterator_impl.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -184,6 +193,7 @@
 #include "src/trace_processor/plugins/winscope_importer/winscope_importer.h"
 #include "src/trace_processor/plugins/winscope_proto_to_args_with_defaults/winscope_proto_to_args_with_defaults.h"
 #include "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/winscope_surfaceflinger_hierarchy_paths.h"
+#include "src/trace_processor/plugins/zstd_functions/zstd_functions.h"
 #endif
 
 namespace perfetto::trace_processor {
@@ -313,10 +323,19 @@ std::pair<int64_t, int64_t> AggregatePluginTimestampBounds(
   return {start_ns, end_ns};
 }
 
+// Normalization shared by ExecuteQuery and ExecuteNextStatement. The two must
+// never diverge: statement-cursor offsets (trace_processor.h) are defined
+// against this normalized form and are documented to match ExecuteQuery's.
+std::string NormalizeExecuteQuerySql(const std::string& sql) {
+  return base::ReplaceAll(sql, "\u00A0", " ");
+}
+
 }  // namespace
 
-TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
-    : TraceProcessorStorageImpl(cfg), config_(cfg) {
+TraceProcessorImpl::TraceProcessorImpl(
+    const Config& cfg,
+    TraceProcessor::PlatformInterface* platform)
+    : TraceProcessorStorageImpl(cfg, platform), config_(cfg) {
   // TODO(lalitm): plugins should self-register via PERFETTO_TP_REGISTER_PLUGIN
   // (a global static initializer). That's currently disabled due to build-time
   // issues, so instead each plugin exposes an explicit Register* function that
@@ -324,6 +343,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // explicit calls once the static-init based registration is restored.
   ancestor::RegisterPlugin();
   android_framework_track_event::RegisterPlugin();
+  android_job_scheduler::RegisterPlugin();
+  android_process_state::RegisterPlugin();
   args::RegisterPlugin();
   art_heap_graph_functions::RegisterPlugin();
   art_process_metadata_importer::RegisterPlugin();
@@ -346,6 +367,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   experimental_flamegraph::RegisterPlugin();
   experimental_flat_slice::RegisterPlugin();
   experimental_slice_layout::RegisterPlugin();
+  flamechart::RegisterPlugin();
+  flamegraph::RegisterPlugin();
   graph_scan::RegisterPlugin();
   graph_traversal::RegisterPlugin();
   import::RegisterPlugin();
@@ -365,7 +388,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   stack_sample_importer::RegisterPlugin();
   stdlib_docs::RegisterPlugin();
   storage_tables::RegisterPlugin();
+  strace_importer::RegisterPlugin();
   string_functions::RegisterPlugin();
+  trace_export::RegisterPlugin();
   structural_tree_partition::RegisterPlugin();
   symbolize::RegisterPlugin();
   table_info::RegisterPlugin();
@@ -382,6 +407,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   winscope_importer::RegisterPlugin();
   winscope_proto_to_args_with_defaults::RegisterPlugin();
   winscope_surfaceflinger_hierarchy_paths::RegisterPlugin();
+  zstd_functions::RegisterPlugin();
 #endif
 
   // Initialize plugins using the statically pre-computed PluginSet.
@@ -405,6 +431,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     }
     for (auto& p : plugins_) {
       p->RegisterDataframes(plugin_dataframes_);
+    }
+    for (auto& p : plugins_) {
+      p->OnDataframesRegistered(plugin_dataframes_);
     }
   }
   context()->register_additional_proto_modules =
@@ -639,7 +668,7 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
   uint32_t sql_stats_row =
       context()->storage->mutable_sql_stats()->RecordQueryBegin(
           sql, base::GetWallTimeNs().count());
-  std::string non_breaking_sql = base::ReplaceAll(sql, "\u00A0", " ");
+  std::string non_breaking_sql = NormalizeExecuteQuerySql(sql);
   base::StatusOr<PerfettoSqlConnection::ExecutionResult> result =
       engine_->ExecuteUntilLastStatement(
           SqlSource::FromExecuteQuery(std::move(non_breaking_sql)));
@@ -647,12 +676,65 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
                                                        sql_stats_row));
 }
 
+std::optional<Iterator> TraceProcessorImpl::ExecuteNextStatement(
+    const std::string& sql,
+    uint32_t* offset) {
+  PERFETTO_CHECK(offset);
+  PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "EXECUTE_NEXT_STATEMENT",
+                    [&](metatrace::Record* r) { r->AddArg("query", sql); });
+
+  // Offsets are relative to the normalized SQL: since the normalization is
+  // deterministic, an offset returned by one call stays valid when the same
+  // |sql| is passed back.
+  std::string non_breaking_sql = NormalizeExecuteQuerySql(sql);
+  auto size = static_cast<uint32_t>(non_breaking_sql.size());
+  uint32_t start = *offset;
+
+  uint32_t sql_stats_row =
+      context()->storage->mutable_sql_stats()->RecordQueryBegin(
+          non_breaking_sql.substr(std::min(start, size)),
+          base::GetWallTimeNs().count());
+  // A soft error rather than a CHECK: over the RPC protocol the offset comes
+  // from an untrusted client, which must not be able to crash the server.
+  if (start > size) {
+    return Iterator(std::make_unique<SqliteIteratorImpl>(
+        this,
+        base::ErrStatus(
+            "ExecuteNextStatement: offset %u out of range (SQL size %u)", start,
+            size),
+        sql_stats_row));
+  }
+  SqlSource source = SqlSource::FromExecuteQuery(std::move(non_breaking_sql));
+
+  uint32_t end_offset = 0;
+  base::StatusOr<std::optional<PerfettoSqlConnection::ExecutionResult>> result =
+      engine_->ExecuteNextStatement(source.Substr(start, size - start),
+                                    &end_offset);
+  if (!result.ok()) {
+    return Iterator(std::make_unique<SqliteIteratorImpl>(this, result.status(),
+                                                         sql_stats_row));
+  }
+  if (!result->has_value()) {
+    // No iterator will be created to close the sql_stats entry; do it here.
+    int64_t now = base::GetWallTimeNs().count();
+    auto* sql_stats = context()->storage->mutable_sql_stats();
+    sql_stats->RecordQueryFirstNext(sql_stats_row, now);
+    sql_stats->RecordQueryEnd(sql_stats_row, now);
+    *offset = size;
+    return std::nullopt;
+  }
+  *offset = start + end_offset;
+  return Iterator(std::make_unique<SqliteIteratorImpl>(
+      this, std::move(**result), sql_stats_row));
+}
+
 base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
   const std::string& name = sql_package.name;
 
   // Same-name gate. The engine holds both stdlib and previously-registered
   // user packages, so a single lookup covers both.
-  if (engine_->FindPackage(name) != nullptr && !sql_package.allow_override) {
+  const sql_modules::RegisteredPackage* existing = engine_->FindPackage(name);
+  if (existing != nullptr && !sql_package.allow_override) {
     return base::ErrStatus(
         "Package '%s' is already registered. Choose a different name.\n"
         "If you want to replace the existing package using trace processor "
@@ -660,11 +742,16 @@ base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
         "--override-sql-package to pass the module path.",
         name.c_str());
   }
+  // A package which stands in for one of the standard library's is still the
+  // standard library, so it may write what the standard library may write;
+  // this is how a module of it is edited without rebuilding the binary.
+  bool builtin = existing != nullptr && existing->builtin;
 
   // Validate module names. The returned string_views point into |sql_package|
   // and stay valid through the std::move below: std::vector's move ctor
   // preserves element addresses.
   ASSIGN_OR_RETURN(auto new_package, ToRegisteredPackage(sql_package));
+  new_package.builtin = builtin;
 
   auto it = std::find_if(registered_sql_packages_.begin(),
                          registered_sql_packages_.end(),
@@ -1039,7 +1126,7 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
     };
     std::string current_pkg;
     std::optional<sql_modules::RegisteredPackage> rp;
-    for (const auto& f : SqlBundle(stdlib::kStdlib)) {
+    for (const auto& f : stdlib::GetStdlibBundle()) {
       std::string include_key = sql_modules::GetIncludeKey(f.path);
       std::string pkg = sql_modules::GetPackageName(include_key);
       if (pkg != current_pkg) {
@@ -1047,6 +1134,7 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
           flush(current_pkg, *std::move(rp));
         }
         rp = sql_modules::RegisteredPackage();
+        rp->builtin = true;
         current_pkg = std::move(pkg);
       }
       rp->modules.Insert(std::move(include_key), f.sql_view());
@@ -1135,6 +1223,37 @@ base::Status TraceProcessorImpl::CreateSummarizer(
   *out = std::make_unique<summary::SummarizerImpl>(
       this, &metrics_descriptor_pool_, std::move(id));
   return base::OkStatus();
+}
+
+base::Status TraceProcessorImpl::Export(ExportFormat format,
+                                        ExportOutput* output) {
+  if (!output) {
+    return base::ErrStatus("Export output is null");
+  }
+  if (format == ExportFormat::kSqlite) {
+    std::optional<std::string> path = output->GetFilePath();
+    if (!path) {
+      return base::ErrStatus("SQLite export requires a file path");
+    }
+    // SQLite export is an explicit API call (not reachable from SQL), so it is
+    // not gated behind Config::enable_sql_file_access. Embedders without a
+    // filesystem, such as the RPC server and Wasm, fail here cleanly.
+    // The filesystem is borrowed at construction and must outlive this
+    // instance.
+    io::FileSystem* file_system = context()->file_system;
+    if (!file_system) {
+      return base::ErrStatus("SQLite export requires a file system");
+    }
+    // ATTACH-write is disabled by default; re-enable it for this local-only
+    // export.
+    SqliteConnection* conn = engine_->sqlite_connection();
+    conn->SetAttachCreateWriteEnabled(true);
+    auto reset_attach =
+        base::OnScopeExit([conn] { conn->SetAttachCreateWriteEnabled(false); });
+    return ExportSqliteDatabase(this, file_system, *path);
+  }
+  return trace_export::WriteExport(
+      plugin_dataframes_, context()->storage->string_pool(), format, output);
 }
 
 }  // namespace perfetto::trace_processor

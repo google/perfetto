@@ -14,24 +14,52 @@
 
 import './styles.scss';
 import m from 'mithril';
+import {z} from 'zod';
 import type {App} from '../../public/app';
-import type {PerfettoPlugin, PluginStatus} from '../../public/plugin';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Setting} from '../../public/settings';
 import type {Trace} from '../../public/trace';
 import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
+import HeapDumpExplorerPlugin from '../com.android.HeapDumpExplorer';
 import {ConnectionPage} from './views/connection';
 import {Dashboard} from './views/dashboard';
 import {LiveSession} from './sessions/live_session';
-import {MemoryOverviewPage} from './views/landing_page/landing_page';
+import {MemoryOverviewPage} from './views/landing_page/memory_overview_page';
 import {NUM} from '../../trace_processor/query_result';
+import {EmptyState} from '../../widgets/empty_state';
+import type {MemoryOverviewTab} from './views/landing_page/proc_mem_overview';
+import {getBestProcess} from './views/landing_page/proc_mem_stats';
 
-export default class implements PerfettoPlugin {
+export default class MemscopePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Memscope';
   static readonly description =
     'Live memory profiler for Android/Linux devices';
-  static readonly status: PluginStatus = 'experimental';
-  static readonly dependencies = [RecordPageV2];
+  static readonly dependencies = [RecordPageV2, HeapDumpExplorerPlugin];
+  private static openByDefaultSetting: Setting<boolean>;
+  private static hideDefaultChangedHintSetting: Setting<boolean>;
 
   static onActivate(app: App) {
+    MemscopePlugin.openByDefaultSetting = app.settings.register({
+      id: 'dev.perfetto.OpenMemoryOverviewByDefault',
+      name: 'Open Memory Overview by default',
+      description:
+        'Open traces containing smaps snapshots in Memory Overview instead ' +
+        'of the timeline.',
+      schema: z.boolean(),
+      defaultValue: true,
+    });
+
+    MemscopePlugin.hideDefaultChangedHintSetting = app.settings.register({
+      id: 'dev.perfetto.HideMemoryOverviewDefaultChangedHint',
+      name: 'Hide Memory Overview default-page explanation',
+      description:
+        'Do not show the explanation that Memory Overview is the default ' +
+        'page for traces containing smaps snapshots.',
+      schema: z.boolean(),
+      defaultValue: false,
+      headless: true,
+    });
+
     let session: LiveSession | undefined;
 
     app.sidebar.addMenuItem({
@@ -40,6 +68,7 @@ export default class implements PerfettoPlugin {
       href: '#!/memscope',
       icon: 'memory',
       sortOrder: 2.5,
+      badge: 'preview',
     });
 
     app.pages.registerPage({
@@ -56,6 +85,7 @@ export default class implements PerfettoPlugin {
           });
         } else {
           return m(ConnectionPage, {
+            app,
             onConnected: (result) => {
               session = new LiveSession(app, result);
               session.onSnapshot(() => m.redraw());
@@ -68,51 +98,145 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(trace: Trace): Promise<void> {
     const pageRoot = '/memoryoverview';
+    const openByDefault = MemscopePlugin.openByDefaultSetting;
+    const hideDefaultChangedHint = MemscopePlugin.hideDefaultChangedHintSetting;
+    const availability = await this.getMemoryOverviewAvailability(trace);
+    const autoNavigated = openByDefault.get() && availability.hasSmapsSnapshots;
+    const bestUpid = await getBestProcess(trace.engine);
 
     trace.pages.registerPage({
       route: pageRoot,
-      render: (subpage) =>
-        m(MemoryOverviewPage, {
-          trace,
+      render: (subpage) => {
+        const {parsed, redirect} = resolveMemoryOverviewRoute(
           subpage,
-          onSubpageChange: (subpage) => {
-            trace.navigate(`#!${pageRoot}/${subpage}`);
+          bestUpid,
+          pageRoot,
+        );
+        if (redirect !== undefined) {
+          return redirect;
+        }
+
+        return m(MemoryOverviewPage, {
+          trace,
+          upid: parsed.upid,
+          tab: parsed.tab,
+          autoNavigated,
+          hdeAvailable: availability.hasHeapDumps,
+          openByDefault,
+          hideDefaultChangedHint,
+          onUpidChange: (newUpid) => {
+            trace.navigate(
+              `#!${pageRoot}/${formatMemoryOverviewSubpage(newUpid, parsed.tab)}`,
+            );
           },
-        }),
+          onTabChange: (tab) => {
+            if (parsed.upid !== undefined) {
+              trace.navigate(
+                `#!${pageRoot}/${formatMemoryOverviewSubpage(parsed.upid, tab)}`,
+              );
+            }
+          },
+        });
+      },
     });
 
-    trace.sidebar.addMenuItem({
-      section: 'current_trace',
-      sortOrder: 25,
-      text: 'Memory Overview',
-      href: `#!${pageRoot}`,
-      icon: 'memory',
-    });
+    if (availability.hasSmapsSnapshots || availability.hasHeapDumps) {
+      trace.sidebar.addMenuItem({
+        section: 'current_trace',
+        sortOrder: 25,
+        text: 'Memory Overview',
+        href: `#!${pageRoot}`,
+        icon: 'memory',
+        badge: 'preview',
+      });
+    }
 
-    // Only suggest the page as the initial view when the trace actually has
-    // some memory data — java heap dumps, smaps snapshots, or native
-    // (heapprofd) profiles. On a trace with none of these the page has nothing
-    // to show.
-    if (await this.hasMemoryInfo(trace)) {
+    if (autoNavigated) {
       // Make this page appear before the heap dump explorer page.
       trace.initialPage.suggest(pageRoot, 500);
     }
   }
 
-  private async hasMemoryInfo(trace: Trace): Promise<boolean> {
-    const counts = await trace.engine.query(`
+  private async getMemoryOverviewAvailability(trace: Trace): Promise<{
+    readonly hasSmapsSnapshots: boolean;
+    readonly hasHeapDumps: boolean;
+  }> {
+    const result = await trace.engine.query(`
       SELECT
-        (SELECT count(DISTINCT graph_sample_ts) FROM heap_graph_object)
-          AS heapDumps,
-        (SELECT count(DISTINCT ts) FROM profiler_smaps) AS smapsSnapshots,
-        (SELECT count(DISTINCT ts) FROM heap_profile_allocation) AS nativeDumps
+        EXISTS(SELECT 1 FROM profiler_smaps) AS hasSmapsSnapshots,
+        EXISTS(SELECT 1 FROM heap_graph) AS hasHeapDumps
     `);
-    const {heapDumps, smapsSnapshots, nativeDumps} = counts.firstRow({
-      heapDumps: NUM,
-      smapsSnapshots: NUM,
-      nativeDumps: NUM,
+    const row = result.firstRow({
+      hasSmapsSnapshots: NUM,
+      hasHeapDumps: NUM,
     });
-
-    return heapDumps + smapsSnapshots + nativeDumps >= 1;
+    return {
+      hasSmapsSnapshots: row.hasSmapsSnapshots !== 0,
+      hasHeapDumps: row.hasHeapDumps !== 0,
+    };
   }
+}
+
+interface MemoryOverviewSubpage {
+  readonly upid?: number;
+  readonly tab: MemoryOverviewTab;
+}
+
+function parseMemoryOverviewSubpage(subpage?: string): MemoryOverviewSubpage {
+  if (!subpage) {
+    return {tab: 'summary'};
+  }
+  const parts = subpage.split('/').filter((x) => x !== '');
+  if (parts.length === 0) {
+    return {tab: 'summary'};
+  }
+  const upid = parseInt(parts[0]!, 10);
+  const tab = parts[1] === 'smaps' ? 'smaps' : 'summary';
+  return {
+    upid: Number.isNaN(upid) ? Number.NaN : upid,
+    tab,
+  };
+}
+
+function formatMemoryOverviewSubpage(
+  upid: number,
+  tab?: MemoryOverviewTab,
+): string {
+  if (tab === 'summary') {
+    return `${upid}`;
+  }
+
+  if (tab !== undefined) {
+    return `${upid}/${tab}`;
+  }
+  return `${upid}`;
+}
+
+function resolveMemoryOverviewRoute(
+  subpage: string | undefined,
+  bestUpid: number | undefined,
+  pageRoot: string,
+): {parsed: MemoryOverviewSubpage; redirect?: m.Children} {
+  const parsed = parseMemoryOverviewSubpage(subpage);
+
+  if (parsed.upid === undefined) {
+    if (bestUpid !== undefined) {
+      location.replace(
+        `#!${pageRoot}/${formatMemoryOverviewSubpage(bestUpid, parsed.tab)}`,
+      );
+      return {
+        parsed,
+        redirect: m(EmptyState, {
+          icon: 'hourglass',
+          title: 'Loading process...',
+        }),
+      };
+    }
+    return {
+      parsed,
+      redirect: m(EmptyState, 'No processes with memory in this trace'),
+    };
+  }
+
+  return {parsed};
 }

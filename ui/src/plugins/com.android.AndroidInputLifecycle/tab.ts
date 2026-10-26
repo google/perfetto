@@ -27,55 +27,30 @@ import {DurationWidget} from '../../components/widgets/duration';
 import type {Trace} from '../../public/trace';
 import {Anchor} from '../../widgets/anchor';
 import {Checkbox} from '../../widgets/checkbox';
-import {EmptyState} from '../../widgets/empty_state';
-import {DetailsShell} from '../../widgets/details_shell';
-import {Spinner} from '../../widgets/spinner';
 
-import type {InputChainRow, NavTarget} from './android_input_event_source';
+import {
+  AndroidInputEventSource,
+  type InputChainRow,
+} from './android_input_event_source';
+import type {InputLifecycleExtension, NavTarget} from './extensions/interface';
 
 export interface AndroidInputLifecycleTabAttrs {
-  trace: Trace;
-  rows: InputChainRow[];
-  visibleRowIds: Set<string>;
-  loading: boolean;
-  pinningManager: TrackPinningManager;
-  onToggleVisibility: (rowId: string) => void;
-  onToggleAllVisibility: () => void;
+  readonly trace: Trace;
+  readonly rows: ReadonlyArray<InputChainRow>;
+  readonly visibleRowIds: ReadonlySet<string>;
+  readonly pinningManager: TrackPinningManager;
+  readonly onToggleVisibility: (rowId: string) => void;
+  readonly onToggleAllVisibility: () => void;
+  readonly activeExtensions: ReadonlyArray<InputLifecycleExtension>;
 }
 
-export class AndroidInputLifecycleTab
-  implements m.ClassComponent<AndroidInputLifecycleTabAttrs>
-{
+export class AndroidInputLifecycleTab implements m.ClassComponent<AndroidInputLifecycleTabAttrs> {
   view({attrs}: m.Vnode<AndroidInputLifecycleTabAttrs>): m.Children {
-    if (attrs.loading) {
-      return m(
-        DetailsShell,
-        {title: 'Android Input Lifecycle'},
-        m(
-          'div',
-          {
-            style: {
-              display: 'flex',
-              justifyContent: 'center',
-              padding: '20px',
-            },
-          },
-          m(Spinner, {}),
-        ),
-      );
-    }
-
-    return m(
-      DetailsShell,
-      {title: 'Android Input Lifecycle'},
-      this.renderGrid(attrs),
-    );
-  }
-
-  private renderGrid(attrs: AndroidInputLifecycleTabAttrs): m.Children {
     const {rows, visibleRowIds, trace, pinningManager} = attrs;
     const allVisible =
       rows.length > 0 && rows.every((r) => visibleRowIds.has(r.uiRowId));
+
+    const specs = AndroidInputEventSource.getStageSpecs(attrs.activeExtensions);
 
     const columns: GridColumn[] = [
       {
@@ -95,76 +70,58 @@ export class AndroidInputLifecycleTab
         widthPx: 40,
         header: m(GridHeaderCell, {}, 'Pin'),
       },
-      {key: 'chan', header: m(GridHeaderCell, {}, 'Channel')},
+      {
+        key: 'chan',
+        header: m(GridHeaderCell, {}, 'Channel'),
+      },
       {
         key: 'total',
         minWidthPx: 100,
         header: m(GridHeaderCell, {}, 'Total Latency'),
       },
-      {
-        key: 'read',
+      ...specs.map((spec) => ({
+        key: spec.key,
         minWidthPx: 100,
-        header: m(GridHeaderCell, {}, 'InputReader'),
-      },
-      {
-        key: 'disp',
-        minWidthPx: 100,
-        header: m(GridHeaderCell, {}, 'Dispatcher'),
-      },
-      {
-        key: 'recv',
-        minWidthPx: 100,
-        header: m(GridHeaderCell, {}, 'App Receive'),
-      },
-      {
-        key: 'cons',
-        minWidthPx: 100,
-        header: m(GridHeaderCell, {}, 'App Consume'),
-      },
-      {
-        key: 'frame',
-        minWidthPx: 100,
-        header: m(GridHeaderCell, {}, 'App Frame'),
-      },
+        header: m(GridHeaderCell, {}, spec.headerName),
+      })),
     ];
 
     return m(Grid, {
       columns,
-      rowData: rows.map((row) => [
-        m(
-          GridCell,
-          {},
-          m(Checkbox, {
-            checked: visibleRowIds.has(row.uiRowId),
-            onchange: () => attrs.onToggleVisibility(row.uiRowId),
-          }),
-        ),
-        m(
-          GridCell,
-          {},
-          m(Checkbox, {
-            checked: isRowPinned(row, pinningManager),
-            onchange: () => togglePinning(row, pinningManager),
-          }),
-        ),
-        m(GridCell, {}, row.channel),
-        m(
-          GridCell,
-          {},
-          row.totalLatency !== null
-            ? m(DurationWidget, {dur: row.totalLatency, trace})
-            : '-',
-        ),
-        renderCell(row.durReader, row.navReader, trace),
-        renderCell(row.durDispatch, row.navDispatch, trace),
-        renderCell(row.durReceive, row.navReceive, trace),
-        renderCell(row.durConsume, row.navConsume, trace),
-        renderCell(row.durFrame, row.navFrame, trace),
-      ]),
-      emptyState: m(EmptyState, {
-        title: 'No input event selected',
-        description: 'Select an input event to see latency breakdown.',
-        icon: Icons.Android,
+      rowData: rows.map((row) => {
+        const fixedCells = [
+          m(
+            GridCell,
+            {},
+            m(Checkbox, {
+              checked: visibleRowIds.has(row.uiRowId),
+              onchange: () => attrs.onToggleVisibility(row.uiRowId),
+            }),
+          ),
+          m(
+            GridCell,
+            {},
+            m(Checkbox, {
+              checked: isRowPinned(row, pinningManager),
+              onchange: () => togglePinning(row, pinningManager),
+            }),
+          ),
+          m(GridCell, {}, row.channel),
+          m(
+            GridCell,
+            {},
+            row.totalLatency !== null
+              ? m(DurationWidget, {dur: row.totalLatency, trace})
+              : '-',
+          ),
+        ];
+
+        const stageCells = specs.map((spec) => {
+          const cellData = row.stagesData.get(spec.key);
+          return renderCell(cellData?.dur ?? null, cellData?.nav, trace);
+        });
+
+        return [...fixedCells, ...stageCells];
       }),
     });
   }

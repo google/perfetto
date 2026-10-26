@@ -44,5 +44,4 @@ perfetto_tp_tables("tables_python") {
     "v8_tables.py",
     "winscope_tables.py",
   ]
-  generate_docs = true
 }

@@ -424,8 +424,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
   let recenterApi: (() => void) | null = null;
   let resetZoom: (() => void) | null = null;
   let findPlacementForNodeApi:
-    | ((newNode: Omit<Node, 'x' | 'y'>) => Position)
-    | null = null;
+    ((newNode: Omit<Node, 'x' | 'y'>) => Position) | null = null;
 
   const handleMouseMove = (e: PointerEvent) => {
     m.redraw();
@@ -460,7 +459,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         const nodeId = nodeElement.dataset.node!;
         const [type, portIndexStr] = portId.split('-');
         if (type === 'input') {
-          const portIndex = parseInt(portIndexStr, 10);
+          const portIndex = parseInt(portIndexStr!, 10);
           canvasState.hoveredPort = {nodeId, portIndex, type: 'input'};
         } else {
           canvasState.hoveredPort = null;
@@ -634,7 +633,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         let currentY = node.y;
         chain.slice(1).forEach((chainNode) => {
           // For chained nodes, calculate their Y position
-          const previousNodeId = chain[chain.indexOf(chainNode) - 1].id;
+          const previousNodeId = chain[chain.indexOf(chainNode) - 1]!.id;
           currentY += getNodeDimensions(previousNodeId).height;
 
           if (nodeOverlapsRect(node.x, currentY, chainNode.id)) {
@@ -821,7 +820,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       return portType === 'input' ? 'left' : 'right';
     }
 
-    return ports[portIndex].direction;
+    return ports[portIndex]!.direction;
   }
 
   function renderConnections(
@@ -1613,7 +1612,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               (conn) => conn.toNode === id && conn.toPort === portIndex,
             );
             if (existingConnIdx !== -1) {
-              const existingConn = connections[existingConnIdx];
+              const existingConn = connections[existingConnIdx]!;
               const {onConnectionRemove} = vnode.attrs;
               if (onConnectionRemove !== undefined) {
                 onConnectionRemove(existingConnIdx);

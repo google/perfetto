@@ -63,13 +63,13 @@ std::unique_ptr<trace_processor::TraceProcessor> LoadTrace(
 
 }  // namespace
 
-bool TraceToFirefoxProfile(std::istream* input, std::ostream* output) {
+base::Status TraceToFirefoxProfile(std::istream* input, std::ostream* output) {
   auto tp = LoadTrace(input);
   if (!tp) {
-    return false;
+    return base::ErrStatus("failed to read trace");
   }
   ExportFirefoxProfile(*tp, output);
-  return true;
+  return base::OkStatus();
 }
 
 }  // namespace trace_to_text

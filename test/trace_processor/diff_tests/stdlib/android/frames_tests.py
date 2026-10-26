@@ -273,3 +273,22 @@ class Frames(TestSuite):
         160,266000000,7000000,2000000,1,"[NULL]","[NULL]","[NULL]"
         1000,480000000,250000000,100000000,1,1,1,1
         """))
+
+  def test_android_jank_cuj_slice_summary(self):
+    return DiffTestBlueprint(
+        trace=Path('../../metrics/graphics/android_jank_cuj.py'),
+        query="""
+        INCLUDE PERFETTO MODULE android.cujs.frames;
+
+        SELECT
+          name, process_name, state, total_frames, missed_app_frames,
+          missed_sf_frames, layer_name, ts, dur
+        FROM android_jank_cuj_slice_summary
+        ORDER BY name, ts;
+        """,
+        out=Csv("""
+        "name","process_name","state","total_frames","missed_app_frames","missed_sf_frames","layer_name","ts","dur"
+        "J<CANCELED>","com.android.systemui","canceled","[NULL]","[NULL]","[NULL]","[NULL]",100100000,898900000
+        "J<FIRST_CUJ>","com.android.systemui","completed",6,5,1,"TX - NotificationShade#0",0,115000000
+        "J<SHADE_ROW_EXPAND>","com.android.systemui","completed",13,7,2,"TX - NotificationShade#0",0,802000000
+        """))

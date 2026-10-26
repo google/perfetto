@@ -96,7 +96,7 @@ source_set("ftrace_descriptors") {
   ]
   deps = [
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/base:base",
+    "../../../../include/perfetto/ext/base",
     "../../../protozero",
   ]
 }

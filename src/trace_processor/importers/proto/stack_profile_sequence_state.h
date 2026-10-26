@@ -56,15 +56,14 @@ class StackProfileSequenceState final
       std::optional<UniquePid> upid,
       uint64_t iid);
 
+ private:
   // Walks a Callstack's frame_ids (interned frame iids, bottom frame first),
-  // interning each frame and building the callsite chain. Used for both the
-  // interned callstack path and inline callstacks.
+  // interning each frame and building the callsite chain.
   std::optional<CallsiteId> FindOrInsertCallstackFromFrames(
       PacketSequenceStateGeneration* state,
       std::optional<UniquePid> upid,
       const protos::pbzero::Callstack_Decoder& callstack);
 
- private:
   std::optional<base::StringView> LookupInternedBuildId(
       PacketSequenceStateGeneration* state,
       uint64_t iid);

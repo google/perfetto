@@ -35,6 +35,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class PerfettoTrace {
   private static final String TAG = "PerfettoTrace";
 
+  static {
+    PerfettoNativeLibrary.load();
+  }
+
   // Keep in sync with C++
   private static final int PERFETTO_TE_TYPE_SLICE_BEGIN = 1;
   private static final int PERFETTO_TE_TYPE_SLICE_END = 2;
@@ -330,18 +334,31 @@ public final class PerfettoTrace {
     native_activate_trigger(triggerName, ttlMs);
   }
 
-  /** Registers the process with Perfetto. */
-  public static void register(boolean isBackendInProcess) {
+  /**
+   * Registers the process with Perfetto.
+   *
+   * <p>The in-process backend is always registered. The system backend is registered only if
+   * {@link TracingPolicy} allows this process; otherwise this is a no-op and Perfetto is left
+   * uninitialized. Callers must not register categories or emit events when this returns {@code
+   * false}.
+   *
+   * @return whether the process is registered with the requested backend
+   */
+  public static boolean register(boolean isBackendInProcess) {
     if (!isBackendInProcess) {
-        sAttemptedSystemRegistration.set(true);
+      if (!TracingPolicy.allowSystemBackend()) {
+        return false;
+      }
+      sAttemptedSystemRegistration.set(true);
     }
     native_register(isBackendInProcess);
+    return true;
   }
 
-  /** Registers the process with Perfetto and enable additional debug checks on the Java side. */
-  public static void registerWithDebugChecks(boolean isBackendInProcess) {
+  /** Registers the process with Perfetto and enables additional debug checks on the Java side. */
+  public static boolean registerWithDebugChecks(boolean isBackendInProcess) {
     sIsDebug = true;
-    register(isBackendInProcess);
+    return register(isBackendInProcess);
   }
 
   /**
@@ -354,15 +371,37 @@ public final class PerfettoTrace {
     if (!category.isEnabled() || stackTrace == null || stackTrace.length == 0) {
         return PerfettoTrace.instant(category, eventName);
     }
+    return writeCallStack(PerfettoTrace.instant(category, eventName).beginProto(), stackTrace)
+        .endProto();
+  }
 
+  /**
+   * Like {@link #expensiveDebugCallStack(Category, String, StackTraceElement[])}, but also
+   * attaches {@code callstackWeight} as an additive measure on the call stack (for example the
+   * number of bytes allocated), used for weighted flamegraph aggregation. Weighted and unweighted
+   * samples are never mixed, so set the weight on every event of a track or on none of them.
+   */
+  public static PerfettoTrackEventBuilder expensiveDebugCallStack(
+      Category category, String eventName, StackTraceElement[] stackTrace, double callstackWeight) {
+    if (!category.isEnabled() || stackTrace == null || stackTrace.length == 0) {
+        return PerfettoTrace.instant(category, eventName);
+    }
+    final long FIELD_TRACK_EVENT_CALLSTACK_WEIGHT = 57L;
+    PerfettoTrackEventBuilder builder = PerfettoTrace.instant(category, eventName)
+        .beginProto().addField(FIELD_TRACK_EVENT_CALLSTACK_WEIGHT, callstackWeight);
+    return writeCallStack(builder, stackTrace).endProto();
+  }
+
+  /** Writes the call stack as a nested TrackEvent.callstack; caller owns beginProto/endProto. */
+  private static PerfettoTrackEventBuilder writeCallStack(
+      PerfettoTrackEventBuilder builder, StackTraceElement[] stackTrace) {
     final long FIELD_TRACK_EVENT_CALLSTACK = 55L;
     final long FIELD_CALLSTACK_FRAMES = 1L;
     final long FIELD_FRAME_FUNCTION_NAME = 1L;
     final long FIELD_FRAME_SOURCE_FILE = 2L;
     final long FIELD_FRAME_LINE_NUMBER = 3L;
 
-    PerfettoTrackEventBuilder builder = PerfettoTrace.instant(category, eventName)
-        .beginProto().beginNested(FIELD_TRACK_EVENT_CALLSTACK);
+    builder = builder.beginNested(FIELD_TRACK_EVENT_CALLSTACK);
 
     for (int i = stackTrace.length - 1; i >= 0; i--) {
         StackTraceElement element = stackTrace[i];
@@ -384,7 +423,7 @@ public final class PerfettoTrace {
         builder = builder.endNested();
     }
 
-    return builder.endNested().endProto();
+    return builder.endNested();
   }
 
   /**

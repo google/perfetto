@@ -117,11 +117,11 @@ build/example_custom_data_source
 ```
 
 The program generates a trace file in `example_custom_data_source.perfetto-trace`,
-which we can examine using Perfetto's `traceconv` tool to show the trace
+which we can examine using Perfetto's `trace_processor` tool to show the trace
 packet written by the custom data source:
 
 ```bash
-traceconv text example_custom_data_source.perfetto-trace
+trace_processor convert text example_custom_data_source.perfetto-trace
 ...
 packet {
   trusted_uid: 0

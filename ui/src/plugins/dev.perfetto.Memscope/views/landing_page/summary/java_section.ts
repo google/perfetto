@@ -18,12 +18,11 @@
 // loading logic.
 
 import m from 'mithril';
-import {Icons} from '../../../../../base/semantic_icons';
-import {QuerySlot} from '../../../../../base/query_slot';
+import {AsyncMemo} from '../../../../../base/async_memo';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
+import HeapDumpExplorerPlugin from '../../../../com.android.HeapDumpExplorer';
 import {LONG, NUM, STR} from '../../../../../trace_processor/query_result';
-import {Anchor} from '../../../../../widgets/anchor';
 import {Panel} from '../../../components/panel';
 import {Callout} from '../../../components/callout';
 import {Intent} from '../../../../../widgets/common';
@@ -45,7 +44,7 @@ import {
   shortClassName,
   topTable,
 } from '../section_widgets';
-import {ShareBar} from '../../../components/share_bar';
+import {ProgressBar} from '../../../components/progress_bar';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
 
@@ -82,8 +81,7 @@ interface DumpStats {
   readonly reachableHeapSize: number;
   readonly reachableNativeSize: number;
   readonly reachableObjCount: number;
-  // MIN(heap_graph_object.id) for this dump — the HeapProfile track event id
-  // used to select the dump on the timeline.
+  // heap_graph.id, used to select the dump on the HeapProfile track.
   readonly eventId: number;
 }
 
@@ -113,14 +111,11 @@ async function loadJavaData(trace: Trace, upid: number): Promise<JavaData> {
   await trace.engine.query(
     'INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_stats;',
   );
-  // MIN(object id) per dump — the HeapProfile track event id for that dump
-  // (mirrors how dev.perfetto.HeapProfile builds its timeline events).
   const eventIdByTs = new Map<bigint, number>();
   const eventRes = await trace.engine.query(`
-    SELECT graph_sample_ts AS ts, MIN(id) AS event_id
-    FROM heap_graph_object
+    SELECT ts, id AS event_id
+    FROM heap_graph
     WHERE upid = ${upid}
-    GROUP BY graph_sample_ts
   `);
   for (
     const it = eventRes.iter({ts: LONG, event_id: NUM});
@@ -196,7 +191,7 @@ async function loadJavaData(trace: Trace, upid: number): Promise<JavaData> {
     )
     SELECT
       r.graph_sample_ts AS ts,
-      r.type_name AS type_name,
+      ifnull(r.type_name, '[unknown]') AS type_name,
       r.reachable_obj_count AS reachable_obj_count,
       r.reachable_size_bytes AS reachable_size_bytes,
       r.reachable_native_size_bytes AS reachable_native_size_bytes,
@@ -271,13 +266,14 @@ async function loadRetainers(
   const retainerOf = new Map<string, ClassRetainer[]>();
   try {
     await trace.engine.query(
-      'INCLUDE PERFETTO MODULE android.memory.heap_graph.raw_dominator_tree;',
+      'INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;',
     );
+    await trace.engine.query('INCLUDE PERFETTO MODULE graphs.scan;');
     const res = await trace.engine.query(`
-      WITH RECURSIVE
+      WITH
       last_ts AS (
-        SELECT MAX(graph_sample_ts) AS ts
-        FROM heap_graph_object WHERE upid = ${upid}
+        SELECT MAX(ts) AS ts
+        FROM heap_graph WHERE upid = ${upid}
       ),
       ck AS (
         -- Classify by the *wrapped* name: a class object is named
@@ -311,40 +307,68 @@ async function loadRetainers(
         JOIN ck ON ck.id = o.type_id
         WHERE o.upid = ${upid} AND o.reachable
       ),
-      walk(seed_id, owned_class, seed_size, anc_id, depth) AS (
-        SELECT ob.id, ob.class_name, ob.size, d.idom_id, 1
-        FROM obj ob
-        JOIN _raw_heap_graph_dominator_tree d ON d.id = ob.id
-        WHERE ob.is_app = 0
-        UNION ALL
-        SELECT w.seed_id, w.owned_class, w.seed_size, d.idom_id, w.depth + 1
-        FROM walk w
-        JOIN obj cur ON cur.id = w.anc_id
-        JOIN _raw_heap_graph_dominator_tree d ON d.id = w.anc_id
-        WHERE cur.is_app = 0 AND w.depth < 24
-      ),
-      -- Each rung is a dominator-tree ancestor of the seed. A NULL anc_id is
-      -- the rung above the topmost node: the synthetic super root, i.e. the
-      -- object is retained directly by the GC root set. The search terminates
-      -- at the nearest app-side ancestor, or at that root if the whole chain
-      -- up to it is library/system.
-      classified AS (
-        SELECT w.seed_id, w.owned_class, w.seed_size, w.depth,
-          CASE
-            WHEN w.anc_id IS NULL THEN 'GC root'
-            WHEN a.class_name GLOB 'java.lang.Class<*>'
-              THEN substr(a.class_name, 17, length(a.class_name) - 17)
-            ELSE a.class_name
-          END AS retainer,
-          CASE WHEN w.anc_id IS NULL THEN 1 ELSE a.is_app END AS terminal
-        FROM walk w
-        LEFT JOIN obj a ON a.id = w.anc_id
+      -- Traverse the dominator tree once, from roots to leaves, carrying the
+      -- nearest app-side ancestor. This avoids a separate upward walk (and the
+      -- same ancestor joins) for every library object.
+      ownership AS (
+        SELECT id, nearest_app_id
+        FROM _graph_scan!(
+          (
+            SELECT d.idom_id AS source_node_id, d.id AS dest_node_id
+            FROM heap_graph_dominator_tree d
+            JOIN obj ob ON ob.id = d.id
+            WHERE d.idom_id IS NOT NULL
+          ),
+          (
+            SELECT ob.id,
+              CASE WHEN ob.is_app = 1 THEN ob.id ELSE -1 END AS nearest_app_id
+            FROM obj ob
+            JOIN heap_graph_dominator_tree d ON d.id = ob.id
+            WHERE d.idom_id IS NULL
+          ),
+          (nearest_app_id),
+          (
+            SELECT t.id,
+              CASE WHEN child_ck.is_app = 1 THEN t.id
+                ELSE t.nearest_app_id END AS nearest_app_id
+            FROM $table t
+            JOIN heap_graph_object o ON o.id = t.id
+            JOIN (
+              SELECT id,
+                CASE WHEN cname GLOB "java.*" OR cname GLOB "javax.*"
+                  OR cname GLOB "kotlin.*" OR cname GLOB "kotlinx.*"
+                  OR cname GLOB "dalvik.*" OR cname GLOB "sun.*"
+                  OR cname GLOB "libcore.*" OR cname GLOB "android.*"
+                  OR cname GLOB "androidx.*" OR cname GLOB "com.android.*"
+                  OR cname GLOB "com.google.android.*"
+                  OR cname LIKE "%[]%"
+                  OR cname NOT GLOB "*.*"
+                  THEN 0 ELSE 1 END AS is_app
+              FROM (
+                SELECT c.id,
+                  CASE WHEN c.name GLOB "java.lang.Class<*>"
+                    THEN substr(c.name, 17, length(c.name) - 17)
+                    ELSE c.name END AS cname
+                FROM heap_graph_class c
+              )
+            ) child_ck ON child_ck.id = o.type_id
+          )
+        )
       ),
       hits AS (
-        SELECT seed_id, owned_class, seed_size, retainer,
-          ROW_NUMBER() OVER (PARTITION BY seed_id ORDER BY depth) AS rn
-        FROM classified
-        WHERE terminal = 1
+        SELECT ob.class_name AS owned_class, ob.size AS seed_size,
+          CASE
+            WHEN own.nearest_app_id = -1 THEN 'GC root'
+            WHEN retainer_ck.name GLOB 'java.lang.Class<*>'
+              THEN substr(retainer_ck.name, 17, length(retainer_ck.name) - 17)
+            ELSE retainer_ck.name
+          END AS retainer
+        FROM ownership own
+        JOIN obj ob ON ob.id = own.id
+        LEFT JOIN heap_graph_object retainer
+          ON retainer.id = own.nearest_app_id
+        LEFT JOIN ck retainer_ck ON retainer_ck.id = retainer.type_id
+        WHERE ob.is_app = 0
       ),
       -- Rank the distinct retainers of each class by attributed bytes, largest
       -- first, so the UI can show the few dominant owners instead of just one.
@@ -355,10 +379,11 @@ async function loadRetainers(
             PARTITION BY owned_class
             ORDER BY SUM(seed_size) DESC, (retainer = 'GC root') ASC
           ) AS rrn
-        FROM hits WHERE rn = 1
+        FROM hits
         GROUP BY owned_class, retainer
       )
-      SELECT a.owned_class AS type_name, a.retainer AS retainer_name,
+      SELECT ifnull(a.owned_class, '[unknown]') AS type_name,
+        ifnull(a.retainer, '[unknown]') AS retainer_name,
         a.bytes AS bytes
       FROM agg a
       WHERE a.rrn <= ${RETAINER_MAX_VIAS}
@@ -379,7 +404,7 @@ async function loadRetainers(
     // Drop trailing owners that are tiny next to the class's biggest one; the
     // SQL already ordered each list largest-first.
     for (const [cls, list] of retainerOf) {
-      const cutoff = list[0].bytes * RETAINER_MIN_SHARE;
+      const cutoff = list[0]!.bytes * RETAINER_MIN_SHARE;
       retainerOf.set(
         cls,
         list.filter((r) => r.bytes >= cutoff),
@@ -423,7 +448,7 @@ export interface JavaSectionAttrs {
 }
 
 export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
-  private readonly slot = new QuerySlot<JavaData>();
+  private readonly slot = new AsyncMemo<JavaData>();
 
   onremove() {
     this.slot.dispose();
@@ -433,7 +458,7 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
     const {trace, upid, selTs, baseTs} = attrs;
     const data = this.slot.use({
       key: {traceId: trace.traceInfo.uuid, upid},
-      queryFn: () => loadJavaData(trace, upid),
+      compute: () => loadJavaData(trace, upid),
       // Emulate no data available
       // queryFn: async () => ({
       //   dumps: [],
@@ -506,11 +531,13 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
       baseTotal: number,
     ): m.Children => {
       const frac = total > 0 ? value / total : 0;
-      if (!comparing) return m(ShareBar, {frac});
+      if (!comparing) return m(ProgressBar, {pct: frac * 100});
       const baseFrac =
         baseValue !== undefined && baseTotal > 0 ? baseValue / baseTotal : 0;
-      return withDelta(m(ShareBar, {frac}), (frac - baseFrac) * 100, (n) =>
-        n === 0 ? '±0 pts' : `${n > 0 ? '+' : ''}${n.toFixed(1)} pts`,
+      return withDelta(
+        m(ProgressBar, {pct: frac * 100}),
+        (frac - baseFrac) * 100,
+        (n) => (n === 0 ? '±0 pts' : `${n > 0 ? '+' : ''}${n.toFixed(1)} pts`),
       );
     };
     const unreachableHeap = cur.totalHeapSize - cur.reachableHeapSize;
@@ -573,7 +600,11 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
           ? b.dominatedSizeBytes + b.dominatedNativeSizeBytes
           : undefined;
       return [
-        classNameCell(c.typeName, data.retainerOf.get(c.typeName)),
+        classNameCell(c.typeName, data.retainerOf.get(c.typeName), () =>
+          trace.plugins
+            .getPlugin(HeapDumpExplorerPlugin)
+            .updateHeadDump(upid, cur.ts),
+        ),
         withDelta(
           c.reachableObjCount.toLocaleString(),
           b !== undefined
@@ -654,17 +685,6 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
             trace,
             findProcessTrack(trace, upid, (k) => k === 'java_heap_graph')?.uri,
             cur.eventId,
-          ),
-          m(
-            Anchor,
-            {
-              disabled: true,
-              title:
-                'Direct linking to specific heap dumps in HDE is not yet ' +
-                'supported',
-              icon: Icons.ExternalLink,
-            },
-            'Show in Heap Dump Explorer',
           ),
         ],
       }),

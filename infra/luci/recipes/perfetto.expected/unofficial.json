@@ -223,7 +223,8 @@
       "tracebox",
       "perfetto",
       "traced",
-      "traced_probes"
+      "traced_probes",
+      "heapprofd_glibc_preload"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "luci_context": {
@@ -309,7 +310,8 @@
       "tracebox",
       "perfetto",
       "traced",
-      "traced_probes"
+      "traced_probes",
+      "heapprofd_glibc_preload"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "luci_context": {
@@ -395,7 +397,8 @@
       "tracebox",
       "perfetto",
       "traced",
-      "traced_probes"
+      "traced_probes",
+      "heapprofd_glibc_preload"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "luci_context": {

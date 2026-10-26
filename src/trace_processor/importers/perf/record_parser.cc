@@ -31,9 +31,11 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/address_range.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
@@ -51,6 +53,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/build_id.h"
 
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
@@ -97,7 +100,8 @@ RecordParser::RecordParser(TraceProcessorContext* context,
                            PerfTracker* perf_tracker)
     : context_(context),
       perf_tracker_(perf_tracker),
-      mapping_tracker_(context->mapping_tracker.get()) {}
+      mapping_tracker_(context->mapping_tracker.get()),
+      linux_perf_source_id_(context->storage->InternString("linux.perf")) {}
 
 RecordParser::~RecordParser() = default;
 
@@ -112,6 +116,12 @@ base::Status RecordParser::ParseRecord(int64_t ts, Record record) {
   switch (record.header.type) {
     case PERF_RECORD_COMM:
       return ParseComm(std::move(record));
+
+    case PERF_RECORD_FORK:
+      return ParseFork(ts, std::move(record));
+
+    case PERF_RECORD_EXIT:
+      return ParseExit(ts, std::move(record));
 
     case PERF_RECORD_SAMPLE:
       return ParseSample(ts, std::move(record));
@@ -186,26 +196,37 @@ base::Status RecordParser::InternSample(Sample sample) {
       upid, sample.callchain, sample.perf_invocation->needs_pc_adjustment());
 
   // Update counters and create counter set.
-  ASSIGN_OR_RETURN(std::vector<CounterId> counter_ids, UpdateCounters(sample));
+  ASSIGN_OR_RETURN(std::vector<CounterId> counter_ids,
+                   UpdateCounters(sample, utid));
 
-  std::optional<uint32_t> counter_set_id;
-  if (!counter_ids.empty()) {
-    auto* table = context_->storage->mutable_perf_counter_set_table();
-    counter_set_id = static_cast<uint32_t>(table->row_count());
-    for (CounterId counter_id : counter_ids) {
-      tables::PerfCounterSetTable::Row row;
-      row.perf_counter_set_id = *counter_set_id;
-      row.counter_id = counter_id;
-      table->Insert(row);
-    }
+  tables::ProfilerSampleTable::Row row;
+  row.ts = sample.trace_ts;
+  row.source = linux_perf_source_id_;
+  tables::ProfilerTaskContextTable::Row task_context;
+  task_context.utid = utid;
+  task_context.upid = upid;
+  row.task_context_id =
+      context_->profiler_sample_tracker->InternTaskContext(task_context);
+  tables::ProfilerExecutionContextTable::Row execution_context;
+  if (sample.cpu.has_value()) {
+    execution_context.ucpu =
+        context_->cpu_tracker->GetOrCreateCpu(*sample.cpu).value;
   }
-
-  auto session_id = sample.attr->perf_session_id();
-  context_->storage->mutable_perf_sample_table()->Insert(
-      {sample.trace_ts, utid, sample.cpu,
-       context_->storage->InternString(
-           ProfilePacketUtils::StringifyCpuMode(sample.cpu_mode)),
-       callsite_id, std::nullopt, session_id, counter_set_id});
+  if (sample.cpu_mode !=
+      protos::pbzero::perfetto_pbzero_enum_Profiling::MODE_UNKNOWN) {
+    execution_context.cpu_mode = context_->storage->InternString(
+        ProfilePacketUtils::StringifyCpuMode(sample.cpu_mode));
+  }
+  if (execution_context.ucpu || execution_context.cpu_mode) {
+    row.execution_context_id =
+        context_->profiler_sample_tracker->InternExecutionContext(
+            execution_context);
+  }
+  row.callsite_id = callsite_id;
+  row.session_id = sample.attr->perf_session_id();
+  row.counter_set_id =
+      context_->profiler_sample_tracker->AddCounterSet(counter_ids);
+  context_->profiler_sample_tracker->AddSample(row);
 
   return base::OkStatus();
 }
@@ -279,6 +300,46 @@ base::Status RecordParser::ParseComm(Record record) {
   return base::OkStatus();
 }
 
+base::Status RecordParser::ParseFork(int64_t, Record record) {
+  Reader reader(record.payload.copy());
+  uint32_t pid;
+  uint32_t ppid;
+  uint32_t tid;
+  uint32_t ptid;
+  if (!reader.Read(pid) || !reader.Read(ppid) || !reader.Read(tid) ||
+      !reader.Read(ptid)) {
+    return base::ErrStatus("Failed to parse PERF_RECORD_FORK");
+  }
+
+  // PERF_RECORD_FORK is emitted for both process forks and thread creation
+  // (clone with CLONE_THREAD). When spawning a thread within the same process,
+  // pid == ppid; only update process parentage when a new process is forked.
+  if (pid != ppid) {
+    UniquePid parent_upid = context_->process_tracker->GetOrCreateProcess(ppid);
+    UniquePid child_upid = context_->process_tracker->GetOrCreateProcess(pid);
+    context_->process_tracker->SetProcessParent(child_upid, parent_upid);
+  }
+
+  context_->process_tracker->UpdateThread(tid, pid);
+  return base::OkStatus();
+}
+
+base::Status RecordParser::ParseExit(int64_t ts, Record record) {
+  Reader reader(record.payload.copy());
+  uint32_t pid;
+  uint32_t ppid;
+  uint32_t tid;
+  uint32_t ptid;
+  if (!reader.Read(pid) || !reader.Read(ppid) || !reader.Read(tid) ||
+      !reader.Read(ptid)) {
+    return base::ErrStatus("Failed to parse PERF_RECORD_EXIT");
+  }
+
+  context_->process_tracker->UpdateThread(tid, pid);
+  context_->process_tracker->EndThread(ts, tid);
+  return base::OkStatus();
+}
+
 base::Status RecordParser::ParseMmap(int64_t trace_ts, Record record) {
   MmapRecord mmap;
   RETURN_IF_ERROR(mmap.Parse(record));
@@ -335,9 +396,10 @@ UniquePid RecordParser::GetUpid(const CommonMmapRecordFields& fields) const {
 }
 
 base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCounters(
-    const Sample& sample) {
+    const Sample& sample,
+    UniqueTid utid) {
   if (!sample.read_groups.empty()) {
-    return UpdateCountersInReadGroups(sample);
+    return UpdateCountersInReadGroups(sample, utid);
   }
 
   if (!sample.period.has_value() && !sample.attr->sample_period().has_value()) {
@@ -347,13 +409,14 @@ base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCounters(
   uint64_t period = sample.period.has_value() ? *sample.period
                                               : *sample.attr->sample_period();
   CounterId counter_id =
-      sample.attr->GetOrCreateCounter(sample.cpu)
+      sample.attr->GetOrCreateCounter(sample.cpu, utid)
           .AddDelta(sample.trace_ts, static_cast<double>(period));
   return std::vector<CounterId>{counter_id};
 }
 
 base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCountersInReadGroups(
-    const Sample& sample) {
+    const Sample& sample,
+    UniqueTid utid) {
   std::vector<CounterId> counter_ids;
   for (const auto& entry : sample.read_groups) {
     RefPtr<PerfEventAttr> attr =
@@ -363,7 +426,7 @@ base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCountersInReadGroups(
                              *entry.event_id);
     }
     CounterId counter_id =
-        attr->GetOrCreateCounter(sample.cpu)
+        attr->GetOrCreateCounter(sample.cpu, utid)
             .AddCount(sample.trace_ts, static_cast<double>(entry.value));
     counter_ids.push_back(counter_id);
   }

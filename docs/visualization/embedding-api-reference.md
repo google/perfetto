@@ -43,24 +43,41 @@ multiplex other traffic over the same channel.
 
 ## Opening a trace
 
-To open a trace, post an object with a single `perfetto` key:
+To open a trace, post an object with a single `perfetto` key. Pass exactly
+one of `buffer` or `stream`:
 
 ```js
 iframe.contentWindow.postMessage({perfetto: {buffer, title}}, '*');
+```
+
+A `ReadableStream` must be transferred. Backpressure propagates from trace
+parsing to the stream producer, bounding how far the producer can run ahead:
+
+```js
+iframe.contentWindow.postMessage(
+    {perfetto: {stream, title, bytesTotal}}, '*', [stream]);
 ```
 
 Fields of the `perfetto` object:
 
 | Field          | Type                                                      | Required | Default | Meaning                                                                                                                              |
 | -------------- | -------------------------------------------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `buffer`       | `ArrayBuffer`                                             | Yes      | -       | Raw trace bytes, e.g. from `fetch(...).then(r => r.arrayBuffer())`.                                                                  |
-| `title`        | `string`                                                 | Yes      | -       | Trace title shown in the UI.                                                                                                          |
+| `buffer`       | `ArrayBuffer`                                             | One of `buffer` or `stream` | - | Raw trace bytes, e.g. from `fetch(...).then(r => r.arrayBuffer())`.                                                  |
+| `stream`       | `ReadableStream<ArrayBuffer \| ArrayBufferView>`          | One of `buffer` or `stream` | - | Transferred stream of raw trace chunks.                                                                             |
+| `bytesTotal`   | `number`                                                  | No       | `0`     | Total stream size for progress reporting; `0` means unknown.                                                                          |
+| `title`        | `string`                                                  | Yes      | -       | Trace title shown in the UI.                                                                                                          |
 | `fileName`     | `string`                                                 | No       | -       | Suggested file name if the user downloads the trace.                                                                                 |
 | `url`          | `string`                                                 | No       | -       | Sharing URL. See sharing details in [Deep linking to the Perfetto UI](/docs/visualization/deep-linking-to-perfetto-ui.md).          |
 | `appStateHash` | `string`                                                 | No       | -       | 40-char hex hash; restores saved UI state from GCS. See [Deep linking to the Perfetto UI](/docs/visualization/deep-linking-to-perfetto-ui.md). |
-| `localOnly`    | `boolean`                                                | No       | `true`  | Defaults to `true` for posted traces, which disables download and share. Set `false` to enable them.                                |
+| `shareable`    | `boolean`                                                | No       | `false` | If `true`, the UI may share the trace (e.g. upload it for a permalink).                                                             |
+| `downloadable` | `boolean`                                                | No       | `false` | If `true`, the user may download the trace.                                                                                         |
+| `localOnly`    | `boolean`                                                | No       | `true`  | Legacy. `false` sets both `shareable` and `downloadable` to `true`. Explicit `shareable`/`downloadable` take precedence.            |
 | `keepApiOpen`  | `boolean`                                                | No       | `false` | If `true`, the listener stays active so the host can post more traces later. If `false`/omitted, the handler removes its own message listener after the first trace (avoids duplicate posts, b/182502595). |
 | `pluginArgs`   | `{[pluginId: string]: {[key: string]: unknown}}`         | No       | -       | Passed to plugins' `onTraceLoad()`.                                                                                                  |
+
+Streamed traces are not retained after parsing, so they cannot be downloaded,
+shared, or cached. `fileName`, `url`, `shareable`, `downloadable`, `localOnly`,
+and `pluginArgs` therefore do not apply to streams.
 
 ### Bare ArrayBuffer shorthand
 
@@ -106,14 +123,13 @@ Set these on the iframe `src`. The route is hash-based:
 | ----------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
 | `mode`            | `embedded`                     | Enables embedded mode: the sidebar is **disabled entirely** (not just hidden) and the file-drop handler is not installed. Use this when embedding. |
 | `hideSidebar`     | `true`                         | Hides the sidebar visually without fully disabling it.                                                                             |
+| `hideStatusbar`   | `true`                         | Hides the status bar at the bottom of the window.                                                                                  |
 | `url`             | `<https url>`                  | UI fetches a public trace itself (requires CORS allowing the UI origin). Alternative to `postMessage` for public traces.           |
 | `s`               | `<hash>`                       | Loads a permalink (saved state).                                                                                                   |
 | `visStart`        | `<ns>`                         | Initial viewport start, raw **nanosecond** timestamp (as in SQL tables). Pair with `visEnd`.                                       |
 | `visEnd`          | `<ns>`                         | Initial viewport end, raw **nanosecond** timestamp.                                                                               |
 | `ts`              | `<ns>`                         | Timestamp of the slice to select on load, in **nanoseconds**. Linking is by `ts`+`dur`, **not** by `id` (ids are unstable).        |
 | `dur`             | `<ns>`                         | Duration of the slice to select on load, in **nanoseconds**.                                                                       |
-| `pid`             | `<n>`                          | Process id used to disambiguate the slice selection.                                                                              |
-| `tid`             | `<n>`                          | Thread id used to disambiguate the slice selection.                                                                               |
 | `query`           | `<sql>`                        | Runs a SQL query on load (URL-encode the value).                                                                                  |
 | `startupCommands` | `<url-encoded JSON array>`     | Runs UI commands after load, e.g. `[{id:'dev.perfetto.PinTracksByRegex', args:['.*CPU [0-3].*']}]`.                                |
 | `enablePlugins`   | `<comma,list>`                 | Enables specific plugins by id.                                                                                                    |
@@ -121,8 +137,8 @@ Set these on the iframe `src`. The route is hash-based:
 NOTE: `visStart`/`visEnd` and `ts`/`dur` are raw **nanoseconds**, whereas the
 `timeStart`/`timeEnd` `postMessage` fields are **seconds**.
 
-NOTE: Slice selection is by `ts`+`dur` (plus optional `pid`/`tid`), never by
-`id`, because ids are unstable across runs.
+NOTE: Slice selection is by `ts`+`dur`, never by `id`, because ids are
+unstable across runs.
 
 ## Origin trust
 
@@ -137,7 +153,8 @@ is:
 
 If the origin is **not** trusted, the UI shows a modal:
 
-> `<origin>` is trying to open a trace file. Do you trust the origin?
+> `<origin>` is trying to open a trace file. Do you trust the origin and want to
+> proceed?
 
 with the options **No**, **Yes**, and **Always trust**. "Always trust" persists
 the origin in `localStorage`.

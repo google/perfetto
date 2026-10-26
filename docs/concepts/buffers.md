@@ -198,14 +198,14 @@ At the TraceProcessor SQL level, this data is available in the `stats` table:
 > select * from stats where name like 'ftrace_cpu_overrun_end'
 name                 idx                  severity             source value
 -------------------- -------------------- -------------------- ------ ------
-ftrace_cpu_overrun_e                    0 data_loss            trace       0
-ftrace_cpu_overrun_e                    1 data_loss            trace       0
-ftrace_cpu_overrun_e                    2 data_loss            trace       0
-ftrace_cpu_overrun_e                    3 data_loss            trace       0
-ftrace_cpu_overrun_e                    4 data_loss            trace       0
-ftrace_cpu_overrun_e                    5 data_loss            trace       0
-ftrace_cpu_overrun_e                    6 data_loss            trace       0
-ftrace_cpu_overrun_e                    7 data_loss            trace       0
+ftrace_cpu_overrun_e                    0 info                 trace       0
+ftrace_cpu_overrun_e                    1 info                 trace       0
+ftrace_cpu_overrun_e                    2 info                 trace       0
+ftrace_cpu_overrun_e                    3 info                 trace       0
+ftrace_cpu_overrun_e                    4 info                 trace       0
+ftrace_cpu_overrun_e                    5 info                 trace       0
+ftrace_cpu_overrun_e                    6 info                 trace       0
+ftrace_cpu_overrun_e                    7 info                 trace       0
 ```
 
 These losses can be mitigated either increasing
@@ -258,8 +258,24 @@ one entry per central buffer:
 name                 idx                  severity             source  value
 -------------------- -------------------- -------------------- ------- -----
 traced_buf_chunks_di                    0 info                 trace       0
-traced_buf_chunks_ov                    0 data_loss            trace       0
+traced_buf_chunks_ov                    0 info                 trace       0
 ```
+
+When using [streaming mode] an overwrite is also a data loss: the overwritten
+data is never written into the file, so the trace has a gap. This data is
+available in the `stats` table, one entry per affected central buffer, where
+`idx` is the buffer and `value` is the number of bytes it overwrote:
+
+```sql
+> select * from stats where name = 'long_trace_mode_bytes_overwritten'
+name                 idx                  severity             source  value
+-------------------- -------------------- -------------------- ------- -----
+long_trace_mode_byte                    0 data_loss            trace    2048
+```
+
+Traces with a `file_write_period_ms` of a day or more do not get this stat: a
+write that far out never really happens, so the buffer is a plain ring buffer
+again. Traceur does this because detached mode forces `write_into_file` on it.
 
 Summary: the best way to detect and debug data losses is to use Trace Processor
 and issue the query:
@@ -416,7 +432,7 @@ memory usage (the trace file will be fully buffered in memory before parsing).
 [streaming mode]: /docs/concepts/config#long-traces
 [TraceConfig]: /docs/reference/trace-config-proto.autogen#TraceConfig
 [FtraceConfig]: /docs/reference/trace-config-proto.autogen#FtraceConfig
-[IncrStateConfig]: /docs/reference/trace-config-proto.autogen#FtraceConfig.IncrementalStateConfig
+[IncrStateConfig]: /docs/reference/trace-config-proto.autogen#TraceConfig.IncrementalStateConfig
 [FtraceCpuStats]: /docs/reference/trace-packet-proto.autogen#FtraceCpuStats
 [FtraceEventBundle]: /docs/reference/trace-packet-proto.autogen#FtraceEventBundle
 [TracePacket]: /docs/reference/trace-packet-proto.autogen#TracePacket

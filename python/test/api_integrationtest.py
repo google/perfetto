@@ -15,9 +15,12 @@
 
 import io
 import os
+import sqlite3
+import subprocess
 import tempfile
 import unittest
 from typing import Optional
+from unittest import mock
 
 import pandas as pd
 
@@ -26,6 +29,7 @@ from perfetto.batch_trace_processor.api import BatchTraceProcessorConfig
 from perfetto.batch_trace_processor.api import FailureHandling
 from perfetto.batch_trace_processor.api import Metadata
 from perfetto.batch_trace_processor.api import TraceListReference
+from perfetto.common.query_result_iterator import HAS_PYARROW
 from perfetto.trace_processor.protos import ProtoFactory
 from perfetto.trace_processor.api import PLATFORM_DELEGATE
 from perfetto.trace_processor.api import TraceProcessor
@@ -146,6 +150,16 @@ class TestApi(unittest.TestCase):
         expected_regex='.*Trace Processor RPC API version:.*'):
       TraceProcessor(trace=io.BytesIO(b''), config=config)
 
+  def test_close_stops_shell(self):
+    tp = create_tp(trace=example_android_trace_path())
+    shell = tp.subprocess
+    self.assertIsNone(shell.poll())
+    tp.close()
+    # wait() raises TimeoutExpired if the shell is still running.
+    shell.wait(timeout=10)
+    # A second close() must be a no-op.
+    tp.close()
+
   def test_trace_path(self):
     # Get path to trace_processor_shell and construct TraceProcessor
     tp = create_tp(trace=example_android_trace_path())
@@ -169,6 +183,26 @@ class TestApi(unittest.TestCase):
     self.assertEqual(count, expected_count)
 
     tp.close()
+
+  @unittest.skipUnless(HAS_PYARROW, 'pyarrow not installed')
+  def test_query_as_arrow_table(self):
+    import pyarrow as pa
+    with create_tp(trace=example_android_trace_path()) as tp:
+      # Five root slices, whose parent_id is NULL, then five child slices.
+      sql = ('select * from (select id, ts, dur, name, parent_id from slice '
+             'where parent_id is null order by id limit 5) union all '
+             'select * from (select id, ts, dur, name, parent_id from slice '
+             'where parent_id is not null order by id limit 5)')
+      table = tp.query(sql).as_arrow_table()
+      self.assertEqual(table.schema.field('ts').type, pa.int64())
+      self.assertEqual(table.schema.field('name').type, pa.string())
+      # A column with some NULLs is still typed from its non-NULL values.
+      self.assertEqual(table.schema.field('parent_id').type, pa.int64())
+      expected = tp.query(sql).as_pandas_dataframe()
+      self.assertEqual(table.column('dur').to_pylist(), list(expected['dur']))
+      self.assertEqual(
+          table.column('parent_id').to_pylist(), list(expected['parent_id']))
+      self.assertEqual(pa.table(tp.query(sql)), table)
 
   def test_trace_byteio(self):
     f = io.BytesIO(
@@ -316,6 +350,55 @@ class TestApi(unittest.TestCase):
         qr_iterator = tp.query(
             'SELECT IMPORT("ext.module"); SELECT test_value FROM test_table')
         self.assertEqual(next(qr_iterator).test_value, 123)
+
+  def test_sql_file_access(self):
+    with tempfile.TemporaryDirectory() as temp_dir:
+      path = os.path.join(temp_dir, 'file_write')
+      sql_path = path.replace("'", "''")
+
+      config = TraceProcessorConfig(bin_path=os.environ["SHELL_PATH"])
+      with TraceProcessor(trace=io.BytesIO(b''), config=config) as tp:
+        with self.assertRaisesRegex(TraceProcessorException,
+                                    'File I/O is disabled'):
+          tp.query(f"SELECT __intrinsic_file_write('{sql_path}', X'000102FF')")
+
+      config = TraceProcessorConfig(
+          bin_path=os.environ["SHELL_PATH"], enable_sql_file_access=True)
+      with TraceProcessor(trace=io.BytesIO(b''), config=config) as tp:
+        row = next(
+            tp.query(
+                f"SELECT __intrinsic_file_write('{sql_path}', X'000102FF') AS size"
+            ))
+        self.assertEqual(row.size, 4)
+
+      with open(path, 'rb') as f:
+        self.assertEqual(f.read(), b'\x00\x01\x02\xff')
+
+  def test_remote_sql_file_access_must_be_enabled_by_server(self):
+    config = TraceProcessorConfig(enable_sql_file_access=True)
+    with self.assertRaisesRegex(TraceProcessorException,
+                                'server must be started with'):
+      TraceProcessor(addr='localhost:1', config=config)
+
+  def test_sqlite_export(self):
+    with tempfile.TemporaryDirectory() as temp_dir:
+      path = os.path.join(temp_dir, 'export.db')
+
+      config = TraceProcessorConfig(bin_path=os.environ["SHELL_PATH"])
+      with TraceProcessor(
+          trace=example_android_trace_path(), config=config) as tp:
+        tp.export(path, 'sqlite')
+
+      con = sqlite3.connect(path)
+      try:
+        table_count = con.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table'").fetchone(
+            )[0]
+        self.assertGreater(table_count, 0)
+        self.assertGreater(
+            con.execute('SELECT COUNT(*) FROM slice').fetchone()[0], 0)
+      finally:
+        con.close()
 
   def test_add_sql_packages(self):
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -646,3 +729,143 @@ class TestApi(unittest.TestCase):
           '_path': example_android_trace_path()
       }
       self.assertEqual(tp.metadata, expected_metadata)
+
+  def test_export_perfetto(self):
+    import json
+    import tarfile
+    with create_tp(trace=example_android_trace_path()) as tp:
+      with tempfile.NamedTemporaryFile(suffix='.tar', delete=False) as f:
+        output_path = f.name
+      try:
+        tp.export(output_path, 'perfetto')
+
+        # Verify the output is a valid tar archive.
+        self.assertTrue(tarfile.is_tarfile(output_path))
+
+        with tarfile.open(output_path) as tf:
+          names = tf.getnames()
+
+          # The manifest must be the first member of the archive.
+          self.assertEqual(names[0], 'perfetto_manifest.json')
+
+          arrow_names = [n for n in names if n.endswith('.arrow')]
+          self.assertGreater(len(arrow_names), 0)
+
+          # Verify arrow files have the ARROW1 magic bytes.
+          for name in arrow_names:
+            member = tf.extractfile(name)
+            self.assertIsNotNone(member)
+            data = member.read()
+            self.assertEqual(data[:6], b'ARROW1',
+                             f'{name} missing ARROW1 header')
+
+          # Verify the manifest contents match the archived arrow files.
+          manifest_member = tf.extractfile('perfetto_manifest.json')
+          self.assertIsNotNone(manifest_member)
+          manifest = json.loads(manifest_member.read())['perfetto_manifest']
+          self.assertEqual(manifest['version'], 1)
+
+          table_files = [
+              f for f in manifest['files'] if '__exported_table_schema' in f
+          ]
+          self.assertGreater(len(table_files), 0)
+          for f in table_files:
+            self.assertEqual(f['__exported_table_schema']['format'], 1)
+          manifest_paths = {f['path'] for f in table_files}
+          self.assertEqual(manifest_paths, set(arrow_names))
+      finally:
+        os.unlink(output_path)
+
+
+class TestApiUnixSession(unittest.TestCase):
+  """Tests TraceProcessor(remote=...) against a real `server unix` session."""
+
+  SESSION_NAME = 'test-session'
+
+  @classmethod
+  def setUpClass(cls):
+    # Point XDG_RUNTIME_DIR at a fresh temp dir so the session socket can't
+    # collide with a real session on this machine. The server inherits this
+    # environment, so both sides resolve the same socket path.
+    tmp_dir = tempfile.TemporaryDirectory()
+    cls.addClassCleanup(tmp_dir.cleanup)
+    env_patch = mock.patch.dict(os.environ, {'XDG_RUNTIME_DIR': tmp_dir.name})
+    env_patch.start()
+    cls.addClassCleanup(env_patch.stop)
+
+    stderr_file = tempfile.TemporaryFile()
+    cls.addClassCleanup(stderr_file.close)
+    cmd = [
+        os.environ['SHELL_PATH'], 'server', 'unix', '--name', cls.SESSION_NAME,
+        example_android_trace_path()
+    ]
+    server = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=stderr_file, text=True)
+    cls.addClassCleanup(cls._stop_server, server)
+
+    # The server loads the trace, binds the socket and only then prints a
+    # one-line startup record to stdout (its logs go to stderr). So any line
+    # means the session is ready; EOF means the server exited.
+    if not server.stdout.readline():
+      # The server wrote through a shared file offset, so rewind before reading.
+      stderr_file.seek(0)
+      raise RuntimeError('trace_processor server unix failed to start:\n' +
+                         stderr_file.read().decode())
+
+  @staticmethod
+  def _stop_server(server: subprocess.Popen):
+    server.terminate()
+    server.wait()
+    server.stdout.close()
+
+  def test_query(self):
+    with TraceProcessor(remote=self.SESSION_NAME) as tp:
+      qr_iterator = tp.query('select * from slice limit 10')
+      dur_result = [
+          178646, 119740, 58073, 155000, 173177, 20209377, 3589167, 90104,
+          275312, 65313
+      ]
+      self.assertEqual([row.dur for row in qr_iterator], dur_result)
+
+  def test_query_large_result(self):
+    # Big enough that the server splits the result across many messages.
+    num_rows = 100000
+    with TraceProcessor(remote=self.SESSION_NAME) as tp:
+      qr_iterator = tp.query(f'''
+          with recursive n(i) as (
+            select 0 union all select i + 1 from n where i < {num_rows - 1}
+          )
+          select i from n
+      ''')
+      self.assertEqual([row.i for row in qr_iterator], list(range(num_rows)))
+
+  def test_query_error_then_recovers(self):
+    with TraceProcessor(remote=self.SESSION_NAME) as tp:
+      with self.assertRaisesRegex(TraceProcessorException, 'no_such_table'):
+        tp.query('select * from no_such_table')
+      # The error response must be fully consumed, leaving the connection
+      # usable for the next query.
+      self.assertEqual(next(tp.query('select 1 as x')).x, 1)
+
+  def test_metric(self):
+    with TraceProcessor(remote=self.SESSION_NAME) as tp:
+      startups = tp.metric(['android_startup']).android_startup.startup
+      self.assertEqual(
+          [s.package_name for s in startups],
+          ['com.android.chrome', 'com.google.android.GoogleCamera'])
+      self.assertEqual(startups[0].startup_type, 'cold')
+      self.assertEqual(startups[0].to_first_frame.dur_ns, 373584672)
+
+  def test_metric_error_then_recovers(self):
+    with TraceProcessor(remote=self.SESSION_NAME) as tp:
+      with self.assertRaisesRegex(TraceProcessorException, 'Unknown metric'):
+        tp.metric(['no_such_metric'])
+      # The error comes back inside the single reply message, leaving the
+      # connection usable for the next request.
+      self.assertEqual(next(tp.query('select 1 as x')).x, 1)
+
+  def test_missing_session(self):
+    with self.assertRaisesRegex(TraceProcessorException,
+                                'No live trace processor session') as ctx:
+      TraceProcessor(remote='no-such-session')
+    self.assertIsInstance(ctx.exception.__cause__, FileNotFoundError)

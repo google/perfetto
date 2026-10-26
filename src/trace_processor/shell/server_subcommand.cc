@@ -186,7 +186,7 @@ base::Status TerminatePid(int pid) {
 }
 
 // Stops a running `server unix` session by name or socket path.
-base::Status KillServer(const std::string& addr) {
+base::Status KillServer(const std::string& addr, bool quiet) {
   std::string socket_path;
   switch (session::ClassifyRemoteAddr(addr)) {
     case session::RemoteAddrKind::kHttp:
@@ -219,13 +219,15 @@ base::Status KillServer(const std::string& addr) {
   // clean up here too (remove() of a gone path is harmless).
   remove(pid_path.c_str());
   remove(socket_path.c_str());
-  printf("Stopped session '%s' (pid %d)\n", addr.c_str(), *pid);
+  if (!quiet)
+    printf("Stopped session '%s' (pid %d)\n", addr.c_str(), *pid);
   return base::OkStatus();
 }
 
 }  // namespace
 
 base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
+  RETURN_IF_ERROR(RejectExtraPositionals(ctx, "server", 2));
   // First positional arg is the mode.
   if (ctx.positional_args.empty()) {
     return base::ErrStatus(
@@ -239,7 +241,7 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
       return base::ErrStatus(
           "server kill: a session name or socket path is required");
     }
-    return KillServer(ctx.positional_args[1]);
+    return KillServer(ctx.positional_args[1], ctx.global && ctx.global->quiet);
   }
 
   // Optional trace file is second positional arg.
@@ -254,16 +256,18 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
 
   if (!trace_file.empty()) {
     ASSIGN_OR_RETURN(auto t_load,
-                     LoadTraceFile(tp.get(), ctx.platform, trace_file));
+                     LoadTraceFile(tp.get(), ctx.platform, trace_file,
+                                   ctx.global->quiet, ctx.global->debuginfod));
     base::ignore_result(t_load);
   }
 
   bool has_trace = !trace_file.empty();
 
   if (mode == "stdio") {
-    Rpc rpc(std::move(tp), has_trace, config, [&ctx](TraceProcessor* new_tp) {
-      ctx.platform->OnTraceProcessorCreated(new_tp);
-    });
+    Rpc rpc(std::move(tp), has_trace, config, ctx.platform,
+            [&ctx](TraceProcessor* new_tp) {
+              ctx.platform->OnTraceProcessorCreated(new_tp);
+            });
 #if PERFETTO_HAS_SIGNAL_H()
     static Rpc* g_rpc_for_signal_handler = &rpc;
     signal(SIGINT, [](int) {
@@ -285,9 +289,10 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
     ASSIGN_OR_RETURN(IdleStart idle_start, ParseIdleStart(idle_start_str_));
     ASSIGN_OR_RETURN(uint32_t idle_timeout_ms,
                      ResolveIdleTimeout(idle_timeout_str_, /*auto=*/0));
-    Rpc rpc(std::move(tp), has_trace, config, [&ctx](TraceProcessor* new_tp) {
-      ctx.platform->OnTraceProcessorCreated(new_tp);
-    });
+    Rpc rpc(std::move(tp), has_trace, config, ctx.platform,
+            [&ctx](TraceProcessor* new_tp) {
+              ctx.platform->OnTraceProcessorCreated(new_tp);
+            });
 #if PERFETTO_HAS_SIGNAL_H()
     if (ctx.global->metatrace_path.empty()) {
       signal(SIGINT, SIG_DFL);
@@ -302,7 +307,7 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
     }
 #endif
     RunHttpRPCServer(rpc, listen_ip_, port_number_, additional_cors_origins,
-                     idle_timeout_ms, idle_start);
+                     idle_timeout_ms, idle_start, ctx.global->quiet);
     // Returns only if the idle reaper fired (idle_timeout_ms > 0).
     return base::OkStatus();
 #else
@@ -345,15 +350,17 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
     ASSIGN_OR_RETURN(uint32_t idle_timeout_ms,
                      ResolveIdleTimeout(idle_timeout_str_, kUnixDefaultIdleMs));
 
-    Rpc rpc(std::move(tp), has_trace, config, [&ctx](TraceProcessor* new_tp) {
-      ctx.platform->OnTraceProcessorCreated(new_tp);
-    });
+    Rpc rpc(std::move(tp), has_trace, config, ctx.platform,
+            [&ctx](TraceProcessor* new_tp) {
+              ctx.platform->OnTraceProcessorCreated(new_tp);
+            });
     UnixServerArgs server_args;
     server_args.socket_path = socket_path;
     server_args.session_name = session_name;
     server_args.idle_timeout_ms = idle_timeout_ms;
     server_args.idle_start = idle_start;
     server_args.daemonize = daemonize_;
+    server_args.quiet = ctx.global->quiet;
     return RunUnixRpcServer(rpc, server_args);
 #endif
   }

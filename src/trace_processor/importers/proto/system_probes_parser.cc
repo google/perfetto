@@ -60,6 +60,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/cold_sort.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/system_info.pbzero.h"
@@ -754,9 +755,7 @@ void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
     UniquePid pupid = context_->process_tracker->GetOrCreateProcess(ppid);
     UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
 
-    upid = context_->process_tracker->UpdateProcessWithParent(
-        upid, pupid, /*associate_main_thread=*/true);
-
+    context_->process_tracker->SetProcessParent(upid, pupid, ts);
     context_->process_tracker->SetProcessMetadata(upid, argv0, joined_cmdline);
 
     // perfetto v50+: additionally, if we know that the "cmdline" contents are
@@ -823,7 +822,7 @@ void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
       }
       if (!context_->process_tracker->UpdateNamespacedThread(
               tgid, tid, std::move(nstid))) {
-        context_->import_logs_tracker->RecordParserError(
+        context_->import_logs_tracker->RecordParserLog(
             stats::namespaced_thread_missing_process, ts);
       }
     }
@@ -1102,6 +1101,12 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
             context_->storage->InternString(packet.android_serial_console())));
   }
 
+  for (auto it = packet.device_tree_compatibles(); it; ++it) {
+    context_->metadata_tracker->AppendMetadata(
+        metadata::device_tree_compatible,
+        Variadic::String(context_->storage->InternString(it->as_string())));
+  }
+
   page_size_ = packet.page_size();
   if (!page_size_) {
     page_size_ = 4096;
@@ -1160,6 +1165,12 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     cpu_infos.push_back(current_cpu_info);
   }
 
+  if (cpu_infos.empty()) {
+    context_->import_logs_tracker->RecordAnalysisLog(
+        stats::cpu_info_empty, [](ArgsTracker::BoundInserter&) {});
+    return;
+  }
+
   // Calculate cluster ids
   // We look to use capacities as it is an ARM provided metric which is designed
   // to measure the heterogeneity of CPU clusters however we fallback on the
@@ -1179,8 +1190,9 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   uint32_t cluster_id = 0;
 
   if (valid_capacities) {
-    std::sort(cpu_infos.begin(), cpu_infos.end(),
-              [](auto a, auto b) { return a.capacity < b.capacity; });
+    ColdSortByKey(cpu_infos.begin(), cpu_infos.end(), [](const CpuInfo& info) {
+      return info.capacity ? uint64_t{*info.capacity} + 1 : 0;
+    });
     uint32_t previous_capacity = *cpu_infos[0].capacity;
     for (CpuInfo& cpu_info : cpu_infos) {
       uint32_t capacity = *cpu_info.capacity;
@@ -1200,8 +1212,8 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
           {info.cpu, *std::max_element(info.frequencies.begin(),
                                        info.frequencies.end())});
     }
-    std::sort(cpu_max_freqs.begin(), cpu_max_freqs.end(),
-              [](auto a, auto b) { return a.max_frequency < b.max_frequency; });
+    ColdSortByKey(cpu_max_freqs.begin(), cpu_max_freqs.end(),
+                  [](const CpuMaxFrequency& f) { return f.max_frequency; });
 
     uint32_t previous_max_freq = cpu_max_freqs[0].max_frequency;
     for (CpuMaxFrequency& cpu_max_freq : cpu_max_freqs) {
@@ -1253,8 +1265,9 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     // Bits beyond the allowlist come from a recorder newer than this
     // version of trace_processor; they stay queryable via the raw bitmap.
     if ((cpu_info.features >> base::ArraySize(base::kCpuInfoFeatures)) != 0) {
-      context_->stats_tracker->IncrementStats(
-          stats::cpu_info_unknown_cpu_features);
+      context_->import_logs_tracker->RecordAnalysisLog(
+          stats::cpu_info_unknown_cpu_features,
+          [](ArgsTracker::BoundInserter&) {});
     }
   }
 }

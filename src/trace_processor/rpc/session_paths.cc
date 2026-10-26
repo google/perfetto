@@ -65,16 +65,6 @@ constexpr const char* kAnimals[] = {
     "otter",  "falcon", "lynx",  "panda", "tapir", "heron", "ibex", "koala",
     "marten", "quokka", "raven", "shrew", "stork", "viper", "wren", "yak"};
 
-bool IsAbsolutePath(const std::string& p) {
-  if (p.empty())
-    return false;
-  if (p[0] == '/' || p[0] == '\\')
-    return true;
-  // Windows drive-letter path, e.g. "C:\foo" or "C:/foo".
-  return p.size() >= 3 && std::isalpha(static_cast<unsigned char>(p[0])) &&
-         p[1] == ':' && (p[2] == '\\' || p[2] == '/');
-}
-
 // Returns true if the substring after the last ':' is non-empty and all digits
 // (i.e. a "host:port" address).
 bool HasTrailingPort(const std::string& addr) {
@@ -168,7 +158,7 @@ base::Status ValidateAfUnixPathLength(const std::string& path) {
 }
 
 std::string MakeAbsolutePath(const std::string& path) {
-  if (path.empty() || IsAbsolutePath(path))
+  if (path.empty() || base::IsAbsolutePath(path))
     return path;
   char cwd[4096];
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -204,7 +194,7 @@ base::StatusOr<uint32_t> ParseDurationMs(const std::string& s) {
 }
 
 RemoteAddrKind ClassifyRemoteAddr(const std::string& addr) {
-  if (base::EndsWith(addr, ".sock") || IsAbsolutePath(addr))
+  if (base::EndsWith(addr, ".sock") || base::IsAbsolutePath(addr))
     return RemoteAddrKind::kUnixPath;
   if (addr.find("://") != std::string::npos || HasTrailingPort(addr))
     return RemoteAddrKind::kHttp;

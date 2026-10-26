@@ -144,6 +144,18 @@ class ProtoToArgsParserTest : public ::testing::Test,
     args_.push_back(ss.str());
   }
 
+  void AddUpid(Id fk, Id k, int64_t pid) override {
+    std::stringstream ss;
+    ss << K(fk) << " " << K(k) << " upid_of(" << pid << ")";
+    args_.push_back(ss.str());
+  }
+
+  void AddUtid(Id fk, Id k, int64_t tid) override {
+    std::stringstream ss;
+    ss << K(fk) << " " << K(k) << " utid_of(" << tid << ")";
+    args_.push_back(ss.str());
+  }
+
   bool AddJson(Id fk, Id k, const protozero::ConstChars& value) override {
     std::stringstream ss;
     ss << K(fk) << " " << K(k) << " " << std::hex << value.ToStdString()
@@ -175,6 +187,111 @@ class ProtoToArgsParserTest : public ::testing::Test,
   std::map<uint64_t, std::unique_ptr<InternedMessageView>>
       interned_source_locations_;
 };
+
+TEST_F(ProtoToArgsParserTest, FlatMessageFallbackPreservesValues) {
+  using namespace protozero::test::protos::pbzero;
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+  ProtoToArgsParser parser(pool, string_pool_);
+  for (int i = 1; i <= 3; i++) {
+    protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+    msg->set_field_int32(i);
+    msg->set_field_string(std::string(static_cast<size_t>(i), 'x'));
+    msg->set_small_enum(i % 2 ? SmallEnum::TO_BE : SmallEnum::NOT_TO_BE);
+    auto binary_proto = msg.SerializeAsArray();
+    ASSERT_OK(parser.ParseMessage(
+        protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+        ".protozero.test.protos.EveryField", nullptr, *this));
+  }
+  EXPECT_THAT(
+      args(),
+      testing::ElementsAre(
+          "field_int32 field_int32 1", "field_string field_string x",
+          "small_enum small_enum TO_BE", "field_int32 field_int32 2",
+          "field_string field_string xx", "small_enum small_enum NOT_TO_BE",
+          "field_int32 field_int32 3", "field_string field_string xxx",
+          "small_enum small_enum TO_BE"));
+}
+
+TEST_F(ProtoToArgsParserTest, FlatMessageFallbackHandlesDifferentFields) {
+  using namespace protozero::test::protos::pbzero;
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+  ProtoToArgsParser parser(pool, string_pool_);
+  auto parse = [&](const std::vector<uint8_t>& binary_proto) {
+    ASSERT_OK(parser.ParseMessage(
+        protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+        ".protozero.test.protos.EveryField", nullptr, *this));
+  };
+  for (int i = 1; i <= 2; i++) {
+    protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+    msg->set_field_int32(i);
+    msg->set_field_string("a");
+    parse(msg.SerializeAsArray());
+  }
+  // Same prefix, then an unfamiliar field.
+  {
+    protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+    msg->set_field_int32(3);
+    msg->set_field_string("b");
+    msg->set_field_bool(true);
+    parse(msg.SerializeAsArray());
+  }
+  // A different first field.
+  {
+    protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+    msg->set_field_uint32(4);
+    msg->set_field_int32(5);
+    parse(msg.SerializeAsArray());
+  }
+  // A shorter message.
+  {
+    protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+    msg->set_field_int32(6);
+    parse(msg.SerializeAsArray());
+  }
+  EXPECT_THAT(args(),
+              testing::ElementsAre(
+                  "field_int32 field_int32 1", "field_string field_string a",
+                  "field_int32 field_int32 2", "field_string field_string a",
+                  "field_int32 field_int32 3", "field_string field_string b",
+                  "field_bool field_bool true", "field_uint32 field_uint32 4",
+                  "field_int32 field_int32 5", "field_int32 field_int32 6"));
+}
+
+TEST_F(ProtoToArgsParserTest, FlatMessagesRespectAllowlistAndNesting) {
+  using namespace protozero::test::protos::pbzero;
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+  ProtoToArgsParser parser(pool, string_pool_);
+  std::vector<uint32_t> allowed = {EveryField::kFieldInt32FieldNumber};
+  for (int i = 1; i <= 2; i++) {
+    protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+    msg->set_field_int32(i);
+    msg->set_field_string("skipped");
+    auto binary_proto = msg.SerializeAsArray();
+    ASSERT_OK(parser.ParseMessage(
+        protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+        ".protozero.test.protos.EveryField", &allowed, *this));
+  }
+  std::vector<uint32_t> nested_allowed = {NestedA::kSuperNestedFieldNumber};
+  for (int i = 1; i <= 2; i++) {
+    protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+    msg->set_super_nested()->set_value_c(i);
+    auto binary_proto = msg.SerializeAsArray();
+    ASSERT_OK(parser.ParseMessage(
+        protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+        ".protozero.test.protos.NestedA", &nested_allowed, *this));
+  }
+  EXPECT_THAT(args(),
+              testing::ElementsAre(
+                  "field_int32 field_int32 1", "field_int32 field_int32 2",
+                  "super_nested.value_c super_nested.value_c 1",
+                  "super_nested.value_c super_nested.value_c 2"));
+}
 
 TEST_F(ProtoToArgsParserTest, EnsureTestMessageProtoParses) {
   DescriptorPool pool;
@@ -272,6 +389,66 @@ TEST_F(ProtoToArgsParserTest, PackedEncodingWithoutDescriptorPackedFlag) {
   EXPECT_THAT(args(),
               testing::ElementsAre("repeated_int32 repeated_int32[0] 10",
                                    "repeated_int32 repeated_int32[1] 20"));
+}
+
+// A single decoded field is parsed as if it were the whole message: keys
+// are the same, a submessage is parsed in full, and a field without a
+// descriptor counts as an unknown extension.
+TEST_F(ProtoToArgsParserTest, ParseMessageField) {
+  using namespace protozero::test::protos::pbzero;
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+  ProtoToArgsParser parser(pool, string_pool_);
+  uint32_t nested_a = *pool.FindDescriptorIdx(".protozero.test.protos.NestedA");
+  uint32_t every_field =
+      *pool.FindDescriptorIdx(".protozero.test.protos.EveryField");
+  int unknown = 0;
+  for (int i = 1; i <= 2; i++) {
+    protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+    msg->set_super_nested()->set_value_c(i);
+    auto binary_proto = msg.SerializeAsArray();
+    protozero::ProtoDecoder decoder(binary_proto.data(), binary_proto.size());
+    protozero::Field field = decoder.ReadField();
+    ASSERT_EQ(field.id(),
+              static_cast<uint32_t>(NestedA::kSuperNestedFieldNumber));
+    ASSERT_OK(parser.ParseMessageField(nested_a, field, *this, &unknown));
+  }
+  protozero::HeapBuffered<EveryField> scalar{kChunkSize, kChunkSize};
+  scalar->set_field_string("s");
+  auto scalar_proto = scalar.SerializeAsArray();
+  protozero::ProtoDecoder scalar_decoder(scalar_proto.data(),
+                                         scalar_proto.size());
+  ASSERT_OK(parser.ParseMessageField(every_field, scalar_decoder.ReadField(),
+                                     *this, &unknown));
+  protozero::Field unknown_field;
+  unknown_field.initialize(
+      9999,
+      static_cast<uint8_t>(protozero::proto_utils::ProtoWireType::kVarInt), 1,
+      0);
+  ASSERT_OK(
+      parser.ParseMessageField(every_field, unknown_field, *this, &unknown));
+  EXPECT_EQ(unknown, 1);
+  // Occurrences of a repeated field are numbered across calls that share
+  // an index.
+  protozero::HeapBuffered<EveryField> repeated{kChunkSize, kChunkSize};
+  repeated->add_repeated_int32(10);
+  repeated->add_repeated_int32(20);
+  auto repeated_proto = repeated.SerializeAsArray();
+  protozero::ProtoDecoder repeated_decoder(repeated_proto.data(),
+                                           repeated_proto.size());
+  ProtoToArgsParser::RepeatedFieldIndex index;
+  for (protozero::Field f = repeated_decoder.ReadField(); f.valid();
+       f = repeated_decoder.ReadField()) {
+    ASSERT_OK(
+        parser.ParseMessageField(every_field, f, *this, &unknown, &index));
+  }
+  EXPECT_THAT(args(), testing::ElementsAre(
+                          "super_nested.value_c super_nested.value_c 1",
+                          "super_nested.value_c super_nested.value_c 2",
+                          "field_string field_string s",
+                          "repeated_int32 repeated_int32[0] 10",
+                          "repeated_int32 repeated_int32[1] 20"));
 }
 
 TEST_F(ProtoToArgsParserTest, NestedProto) {
@@ -831,6 +1008,18 @@ class DebugAnnotationParserTest : public ::testing::Test,
     args_.push_back(ss.str());
   }
 
+  void AddUpid(Id fk, Id k, int64_t pid) override {
+    std::stringstream ss;
+    ss << K(fk) << " " << K(k) << " upid_of(" << pid << ")";
+    args_.push_back(ss.str());
+  }
+
+  void AddUtid(Id fk, Id k, int64_t tid) override {
+    std::stringstream ss;
+    ss << K(fk) << " " << K(k) << " utid_of(" << tid << ")";
+    args_.push_back(ss.str());
+  }
+
   bool AddJson(Id fk, Id k, const protozero::ConstChars& value) override {
     std::stringstream ss;
     ss << K(fk) << " " << K(k) << " " << std::hex << value.ToStdString()
@@ -1006,6 +1195,48 @@ TEST_F(DebugAnnotationParserTest, TypedMessageInsideUntyped) {
 
   EXPECT_THAT(args(), testing::ElementsAre(
                           "root.field_string root.field_string value"));
+}
+
+// ParseDebugAnnotation takes no unknown_extensions parameter of its own, so
+// it must not act on one left behind by an earlier, unrelated
+// ParseMessageField call on the same parser instance (as
+// TrackEventEventImporter::ParseTrackEventArgs makes on every event). A
+// proto_value naming a message with undeclared fields must not touch that
+// stale pointer.
+TEST_F(DebugAnnotationParserTest, DoesNotReuseStaleUnknownExtensionsPointer) {
+  DescriptorPool pool;
+  ASSERT_TRUE(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                            kTestMessagesDescriptor.size())
+                  .ok());
+  ProtoToArgsParser args_parser(pool, string_pool_);
+
+  uint32_t every_field =
+      *pool.FindDescriptorIdx(".protozero.test.protos.EveryField");
+  int unknown = 0;
+  protozero::Field unknown_field;
+  unknown_field.initialize(
+      9999,
+      static_cast<uint8_t>(protozero::proto_utils::ProtoWireType::kVarInt), 1,
+      0);
+  ASSERT_TRUE(
+      args_parser.ParseMessageField(every_field, unknown_field, *this, &unknown)
+          .ok());
+  ASSERT_EQ(unknown, 1);
+
+  protozero::HeapBuffered<protozero::Message> inner{kChunkSize, kChunkSize};
+  inner->AppendVarInt(9001, 1);
+  inner->AppendVarInt(9002, 2);
+  inner->AppendVarInt(9003, 3);
+  auto inner_bytes = inner.SerializeAsArray();
+
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
+  msg->set_name("root");
+  msg->set_proto_type_name(".protozero.test.protos.EveryField");
+  msg->set_proto_value(inner_bytes.data(), inner_bytes.size());
+
+  base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
+  EXPECT_TRUE(status.ok()) << status.message();
+  EXPECT_EQ(unknown, 1);
 }
 
 // Verifies that a DebugAnnotation whose proto_value is itself a
@@ -1244,6 +1475,76 @@ TEST_F(ProtoToArgsParserTest, FlagsFieldSurfacesUnknownBits) {
 
   EXPECT_THAT(args(),
               testing::ElementsAre("caps caps[0] CAP_A", "caps caps[1] 0x8"));
+}
+
+namespace {
+// Builds a descriptor set with a FieldOptions carrying the (pid) and (tid)
+// options and a message with a "caller_pid" field annotated (pid) and a
+// "caller_tid" field annotated (tid).
+std::vector<uint8_t> BuildPidTidDescriptorSet() {
+  using namespace protos::pbzero;
+  protozero::HeapBuffered<FileDescriptorSet> fds{kChunkSize, kChunkSize};
+
+  auto* opts_file = fds->add_file();
+  opts_file->set_name("descriptor.proto");
+  opts_file->set_package("google.protobuf");
+  auto* opts = opts_file->add_message_type();
+  opts->set_name("FieldOptions");
+  auto add_bool_opt = [&](const char* name, int32_t number) {
+    auto* o = opts->add_field();
+    o->set_name(name);
+    o->set_number(number);
+    o->set_type(FieldDescriptorProto::TYPE_BOOL);
+    o->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  };
+  add_bool_opt("is_pid", 51002);
+  add_bool_opt("is_tid", 51003);
+
+  auto* file = fds->add_file();
+  file->set_name("test.proto");
+  file->set_package("test");
+  auto* msg = file->add_message_type();
+  msg->set_name("Msg");
+  auto add_field = [&](const char* name, int32_t number, uint32_t opt_number) {
+    auto* f = msg->add_field();
+    f->set_name(name);
+    f->set_number(number);
+    f->set_type(FieldDescriptorProto::TYPE_INT32);
+    f->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+    f->set_options()->AppendVarInt(opt_number, 1);
+  };
+  add_field("caller_pid", 1, 51002);
+  add_field("caller_tid", 2, 51003);
+  // "owner" does not end in "pid": exercises the append fallback.
+  add_field("owner", 3, 51002);
+  return fds.SerializeAsArray();
+}
+}  // namespace
+
+TEST_F(ProtoToArgsParserTest, PidTidFieldsEmitCompanionArgs) {
+  auto fds_bytes = BuildPidTidDescriptorSet();
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size()));
+
+  protozero::HeapBuffered<protozero::Message> msg_proto{kChunkSize, kChunkSize};
+  msg_proto->AppendVarInt(1, 4321);
+  msg_proto->AppendVarInt(2, 99);
+  msg_proto->AppendVarInt(3, 7);
+  auto binary = msg_proto.SerializeAsArray();
+
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_OK(
+      parser.ParseMessage(protozero::ConstBytes{binary.data(), binary.size()},
+                          ".test.Msg", nullptr, *this));
+
+  // Each id field emits its raw value plus a companion upid/utid, keyed by
+  // replacing (or appending) the trailing "pid"/"tid".
+  EXPECT_THAT(
+      args(),
+      testing::ElementsAre(
+          "caller_pid caller_pid 4321", "caller_upid caller_upid upid_of(4321)",
+          "caller_tid caller_tid 99", "caller_utid caller_utid utid_of(99)",
+          "owner owner 7", "owner_upid owner_upid upid_of(7)"));
 }
 
 }  // namespace

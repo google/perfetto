@@ -22,6 +22,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -35,11 +36,12 @@
 
 namespace perfetto::trace_redaction {
 
-// Multiple packages can share the same name. This is common when a device has
-// multiple users. When this happens, each instance shares the 5 least
-// significant digits.
+// Multiple package instances across Android user profiles share the same
+// package name and normalized UID (uid % 100,000), while per-user process
+// UIDs are encoded as `user_id * 100,000 + normalized_uid`.
+constexpr uint64_t kAndroidPerUserRange = 100000;
 constexpr uint64_t NormalizeUid(uint64_t uid) {
-  return uid % 1000000;
+  return uid % kAndroidPerUserRange;
 }
 
 class SystemInfo {
@@ -182,50 +184,35 @@ class Context {
   //      pid: 18176
   //      ppid: 904
   //      cmdline: "com.google.android.gms.persistent"
-  //      uid: 10113
+  //      uid: 10113 (User 0)
   //    }
   //    processes {
   //      pid: 21388
   //      ppid: 904
   //      cmdline: "com.google.android.gms.persistent"
-  //      uid: 1010113
+  //      uid: 1010113 (User 10)
   //    }
   //
   // The logic from before still hold, however, if the traced process was pid
   // 21388, it will be merged with the other threads.
   //
-  // To avoid this problem from happening, we normalize the uids and treat
-  // both instances as a single process:
-  //
-  //    processes {
-  //      pid: 18176
-  //      ppid: 904
-  //      cmdline: "com.google.android.gms.persistent"
-  //      uid: 10113
-  //    }
-  //    processes {
-  //      pid: 21388
-  //      ppid: 904
-  //      cmdline: "com.google.android.gms.persistent"
-  // -    uid: 1010113
-  // +    uid: 10113
-  //    }
-  //
-  // It sounds like there would be a privacy concern, but because both processes
-  // are from the same app and are being collected from the same user, there
-  // are no new privacy issues by doing this.
-  //
-  // But where should the uids be normalized? The dividing line is the timeline
-  // interface, specifically, should the timeline know anything about uids
-  // (other than "it's a number").
-  //
-  // To avoid expanding the timeline's scope, the uid normalizations is done
-  // outside of the timeline. When a uid is passed into the timeline, it should
-  // be normalized (i.e. 5 != 100005). When the timeline is queried, the uid
-  // should be normalized. This increases the risk for error, but there are only
-  // two places where uids are set, writing the uid to the context and writing
-  // the uid to the timeline.
+  // Holds the full per-user UID (e.g. 1010113) when an explicit target UID is
+  // passed to trace_redactor (with `normalize_uid == false`), or the normalized
+  // UID (e.g. 10113) extracted from `PackagesList` when no target UID is passed
+  // (with `normalize_uid == true`).
   std::optional<uint64_t> package_uid;
+
+  // When true (no explicit target UID was provided), process UIDs in the
+  // timeline are normalized via `NormalizeUid` so secondary user / Work Profile
+  // processes match the normalized UID from `PackagesList`. When false (an
+  // explicit `--uid` was provided), full per-user UIDs are preserved in the
+  // timeline for strict multi-user isolation.
+  bool normalize_uid = false;
+
+  // The timestamp when tracing started, collected from TracingServiceEvent.
+  // This is used to avoid merging events across the start of tracing, which
+  // can result in events being dropped during parsing.
+  std::optional<uint64_t> tracing_started_ts;
 
   // Trace packets contain a "one of" entry called "data". This field can be
   // thought of as the message. A track packet with have other fields along
@@ -359,6 +346,32 @@ class Context {
   std::unique_ptr<SyntheticProcess> synthetic_process;
 
   RedactorClockConverter clock_converter;
+
+  struct ProcessTreeProcess {
+    std::vector<std::string> cmdline;
+    bool is_kthread = false;
+    int32_t pid = 0;
+    int32_t ppid = 0;
+    int32_t uid = 0;
+  };
+
+  struct ProcessTreeThread {
+    int32_t tid = 0;
+    int32_t tgid = 0;
+    std::string name;
+  };
+
+  struct MergedProcessTree {
+    std::unordered_map<int32_t, ProcessTreeProcess> processes_by_pid;
+    std::unordered_map<int32_t, ProcessTreeThread> threads_by_tid;
+    uint64_t timestamp = 0;
+    int32_t trusted_uid = 0;
+    bool collected_global_packet_fields = false;
+  };
+
+  // Deduplicated representation of all processes and threads in the trace.
+  // Used to produce the final process tree packets.
+  std::optional<MergedProcessTree> merged_process_tree;
 };
 
 // Extracts low-level data from the trace and writes it into the context. The
@@ -405,6 +418,29 @@ class TransformPrimitive {
   // Modifies a packet using data from the context.
   virtual base::Status Transform(const Context& context,
                                  std::string* packet) const = 0;
+};
+
+// Responsible for producing new trace packets using data from the context.
+// Augment primitives are executed after the Transform phase, and all generated
+// packets are appended to the end of the trace.
+class AugmentPrimitive {
+ public:
+  virtual ~AugmentPrimitive();
+
+  // Generates a trace packet using data from the context and writes it into
+  // `packet`. Returns base::OkStatus() on success.
+  // When no more packets are available to generate, `packet` is left empty.
+  virtual base::Status Augment(const Context& context, std::string* packet) = 0;
+};
+
+// Responsible for validating data from the context, returning an error if
+// validation fails.
+class ValidatorPrimitive {
+ public:
+  virtual ~ValidatorPrimitive();
+
+  // Checks the context and returns an error status if validation fails.
+  virtual base::Status Validate(const Context& context) const = 0;
 };
 
 }  // namespace perfetto::trace_redaction

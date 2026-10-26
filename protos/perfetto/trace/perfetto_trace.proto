@@ -405,7 +405,7 @@ message DataSourceDescriptor {
   // program to detect and disambiguate between different versions; if multiple
   // versions (from different producers) are specified for the same data source,
   // the service instantiates a dedicated ProtoVM for each.
-  optional VmProgram protovm_program = 10;
+  optional VmProgram protovm_program = 10 [lazy = true];
 
   // Optional specification about available GPU counters.
   optional GpuCounterDescriptor gpu_counter_descriptor = 5 [lazy = true];
@@ -641,7 +641,6 @@ enum SemanticType {
 // Pefetto SQL by using the following query:
 ///
 //`SELECT * FROM metadata WHERE name GLOB 'trace_attribute.*';`
-
 message TraceAttributes {
   message Attribute {
     // The key
@@ -882,6 +881,17 @@ message AndroidPolledStateConfig {
 
 // End of protos/perfetto/config/android/android_polled_state_config.proto
 
+// Begin of protos/perfetto/config/android/android_process_state_config.proto
+
+// Configuration for the "android.process_state" data source.
+message AndroidProcessStateConfig {
+  // If true, dumps process name, start seq id, and start time in the snapshot.
+  // When false (default), these fields are omitted to save trace buffer space.
+  optional bool dump_process_metadata = 1;
+}
+
+// End of protos/perfetto/config/android/android_process_state_config.proto
+
 // Begin of protos/perfetto/config/android/android_sdk_sysprop_guard_config.proto
 
 // Data source that controls the system properties used to guard initialization
@@ -1022,6 +1032,12 @@ message DisplayVideoConfig {
   // Per-display cap on emitted bytes. On reaching it the stream is torn
   // down with a VideoFrameError (SIZE_CAP_HIT).
   optional uint64 max_stream_size_bytes = 4;
+
+  // Target video encoder bitrate in bits per second. Controls quality vs
+  // trace size at a fixed resolution (unlike `scale`, which changes the
+  // resolution). Unset lets the producer pick a default from the (scaled)
+  // resolution and frame rate. Maps to MediaFormat.KEY_BIT_RATE.
+  optional uint32 bitrate_bps = 5;
 }
 
 // End of protos/perfetto/config/android/display_video_config.proto
@@ -1406,6 +1422,27 @@ message ChromiumHistogramSamplesConfig {
 
 // End of protos/perfetto/config/chrome/histogram_samples.proto
 
+// Begin of protos/perfetto/config/chrome/sampling_heap_profiler.proto
+
+message ChromiumSamplingHeapProfilerConfig {
+  // Sampling interval in bytes.
+  optional uint64 sampling_interval_bytes = 1;
+
+  // Sampling interval in milliseconds.
+  optional uint32 sampling_interval_ms = 2;
+}
+
+// End of protos/perfetto/config/chrome/sampling_heap_profiler.proto
+
+// Begin of protos/perfetto/config/chrome/stack_sampling_profiler.proto
+
+message ChromiumStackSamplingProfilerConfig {
+  // Sampling interval in milliseconds.
+  optional uint32 sampling_interval_ms = 1;
+}
+
+// End of protos/perfetto/config/chrome/stack_sampling_profiler.proto
+
 // Begin of protos/perfetto/config/chrome/system_metrics.proto
 
 message ChromiumSystemMetricsConfig {
@@ -1437,6 +1474,9 @@ message V8Config {
 // Proto definition based on the struct _EVENT_TRACE_PROPERTIES definition
 // See: https://learn.microsoft.com/en-us/windows/win32/api/evntrace/
 // ns-evntrace-event_trace_properties
+//
+// See the list of keywords for for individual providers.
+// https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
 message EtwConfig {
   // The KernelFlag represent list of kernel flags that we are intrested in.
   // To get a more extensive list run 'xperf -providers k'.
@@ -1449,9 +1489,6 @@ message EtwConfig {
   // session. These kernel flags have been built to expose the useful events
   // captured from the kernel mode only.
   repeated KernelFlag kernel_flags = 1 [deprecated = true];
-
-  // See the list of keywords for for individual providers.
-  // https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
 
   // Provides events relating to the scheduler.
   repeated string scheduler_provider_events = 2;
@@ -1466,6 +1503,17 @@ message EtwConfig {
   // Provides events relating to multiple kinds of IO including disk, cache, and
   // network.
   repeated string system_io_provider_events = 7;
+
+  // A debug ID that uniquely identifies an image (i.e., executable) for
+  // symbolization when stack sampling.
+  message DebugId {
+    // The full path to the image file.
+    optional string path = 1;
+    // The unique identifier for the image file.
+    optional string debug_id = 2;
+  }
+  // Debug IDs for images whose stack samples should be symbolized.
+  repeated DebugId stack_sampling_debug_ids = 8;
 }
 
 // End of protos/perfetto/config/etw/etw_config.proto
@@ -1837,7 +1885,7 @@ message GpuCounterConfig {
   // Selects which counters to sample. Use either counter_ids or counter_names,
   // not both. Counter IDs and names correspond to the ones described in
   // GpuCounterSpec in the data source descriptor.
-
+  //
   // List of counter IDs to be sampled.
   repeated uint32 counter_ids = 2;
 
@@ -1962,6 +2010,12 @@ message GpuRenderStagesConfig {
 
   // Trace metrics to capture for each render stage
   repeated string trace_metrics = 3;
+
+  // Enable per-draw-call slices, with real per-occurrence timestamps and metric
+  // values, on the gpu.renderstages data source. Disabled by default.
+  // When drawcall_stages is enabled, full_loadstore and low_overhead are
+  // ignored and their default values are used.
+  optional bool drawcall_stages = 4;
 }
 
 // End of protos/perfetto/config/gpu/gpu_renderstages_config.proto
@@ -2038,6 +2092,272 @@ message InterceptorConfig {
 }
 
 // End of protos/perfetto/config/interceptor_config.proto
+
+// Begin of protos/perfetto/config/linux/cgroup_config.proto
+
+// Config for the "linux.cgroup" data source, which records values reported by
+// cgroup v2 controllers. Only the memory controller (memcg) on android is
+// supported at the moment.
+//
+// Example:
+//
+// data_sources {
+//   config {
+//     name: "linux.cgroup"
+//     cgroup_config {
+//       memcg_config {
+//         field: MEMCG_CURRENT
+//         field: MEMCG_HIGH
+//         field: MEMCG_STAT_ALL
+//         field: MEMCG_EVENTS_LOCAL_HIGH
+//
+//         poll_period_ms: 1000
+//
+//         android_scope {
+//           level: LEVEL_UID
+//         }
+//         android_scope {
+//           target_cmdline: "surfaceflinger"
+//           level: LEVEL_PID
+//         }
+//       }
+//     }
+//   }
+// }
+message CgroupConfig {
+  // Memory controller (memcg).
+  optional MemcgConfig memcg_config = 1;
+}
+
+// Config for recording memory controller (memcg) values for a set of cgroups.
+message MemcgConfig {
+  // What values to record, the enum covers both single-valued files
+  // (e.g. memory.current) and files with multiple values (e.g. memory.stat).
+  // If unset, defaults to {MEMCG_CURRENT, MEMCG_STAT_ANON, MEMCG_STAT_FILE}.
+  repeated MemcgField field = 1;
+
+  // Android: Which cgroups to record. Can be specified multiple times. If
+  // scopes overlap, a given cgroup will be recorded at most once.
+  // If unset, defaults to uid-level for all uids.
+  repeated AndroidScope android_scope = 2;
+
+  // How often to poll the selected cgroups.
+  // If zero or unset, records values once.
+  // The implementation enforces a minimum on the period (100 ms at the time of
+  // writing).
+  optional uint32 poll_period_ms = 3;
+
+  // TODO(rsavitski): event-driven recording (inotify on memory.events*), either
+  // instead of or together with |poll_period_ms|:
+  // repeated MemcgEvent on_memcg_event = 4;
+
+  // Filters cgroups in the hierarchy created by android's libprocessgroup.
+  //
+  // Each scope maps onto a set of cgroup paths
+  // ({apps,system}/uid_<uid>/pid_<pid>) using the filters below, and |level|
+  // picks at which levels of the hierarchy the values are recorded. E.g. for
+  // an app "com.example.app" with uid 10123, and surfaceflinger running as pid
+  // 597 with uid 1000:
+  // * {package_name: "com.example.app", level: LEVEL_UID}
+  //     -> apps/uid_10123
+  // * {package_name: "com.example.app", level: LEVEL_PID}
+  //     -> apps/uid_10123/pid_* (all of the app's processes)
+  // * {target_cmdline: "surfaceflinger", level: LEVEL_PID}
+  //     -> system/uid_1000/pid_597
+  // * {target_cmdline: "surfaceflinger", level: LEVEL_UID}
+  //     -> system/uid_1000 (all of uid 1000, not just surfaceflinger)
+  // * {level: LEVEL_UID}
+  //     -> {apps,system}/uid_*
+  message AndroidScope {
+    enum Level {
+      LEVEL_UNSPECIFIED = 0;
+      // apps/, system/
+      LEVEL_TOP = 1;
+      // apps/uid_*, system/uid_*
+      LEVEL_UID = 2;
+      // apps/uid_*/pid_*, system/uid_*/pid_*
+      LEVEL_PID = 3;
+    }
+    // If empty, the implementation chooses a level corresponding to the
+    // narrowest scope filter below (e.g. target_cmdline -> LEVEL_PID).
+    repeated Level level = 1;
+
+    // Target filters. Multiple values of a given field are OR'd, and the
+    // filters in a scope are AND'd. If no filters are set, all cgroups are
+    // matched.
+
+    enum Group {
+      GROUP_UNSPECIFIED = 0;
+      // apps/
+      GROUP_APPS = 1;
+      // system/
+      GROUP_SYSTEM = 2;
+    }
+    // Matches the top-level groups.
+    repeated Group group = 2;
+
+    // Matches the uid cgroups of the given packages, resolved when the data
+    // source starts (packages installed later aren't matched). Note: a package
+    // matches in all users/profiles, e.g. both uid_10123 and uid_1010123 for a
+    // package with uid 10123.
+    repeated string package_name = 3;
+
+    // Matches the pid cgroups of processes whose /proc/<pid>/cmdline matches
+    // any of the patterns. The patterns follow the same rules as the
+    // |target_cmdline| of the profilers:
+    // * a pattern can contain a single wildcard (*).
+    // * if the pattern starts with a '/', it's matched against the first
+    //   segment of the cmdline (argv0). E.g. "/system/bin/surface*".
+    // * otherwise, it's matched against the binary name part of argv0. E.g.
+    //   "top" or "com.example.app:*".
+    repeated string target_cmdline = 4;
+
+    // Exact uid, without matching across users/profiles.
+    repeated uint32 uid = 5;
+
+    // Exact pid.
+    repeated uint32 pid = 6;
+  }
+
+  // Values to record, covering both single-valued files (such as
+  // memory.current) and keys within multi-valued files (such as memory.stat).
+  enum MemcgField {
+    MEMCG_UNSPECIFIED = 0;
+
+    // Single-valued files.
+    // memory.current
+    MEMCG_CURRENT = 1;
+    // memory.peak
+    MEMCG_PEAK = 2;
+    // memory.min
+    MEMCG_MIN = 3;
+    // memory.low
+    MEMCG_LOW = 4;
+    // memory.high
+    MEMCG_HIGH = 5;
+    // memory.max
+    MEMCG_MAX = 6;
+    // memory.swap.current
+    MEMCG_SWAP_CURRENT = 7;
+    // memory.swap.peak
+    MEMCG_SWAP_PEAK = 8;
+    // memory.swap.high
+    MEMCG_SWAP_HIGH = 9;
+    // memory.swap.max
+    MEMCG_SWAP_MAX = 10;
+    // memory.zswap.current
+    MEMCG_ZSWAP_CURRENT = 11;
+    // memory.zswap.max
+    MEMCG_ZSWAP_MAX = 12;
+
+    // memory.events (includes events of descendant cgroups).
+    // MEMCG_EVENTS_ALL is the same as listing all fields for the file.
+    MEMCG_EVENTS_ALL = 13;
+    MEMCG_EVENTS_LOW = 14;
+    MEMCG_EVENTS_HIGH = 15;
+    MEMCG_EVENTS_MAX = 16;
+    MEMCG_EVENTS_OOM = 17;
+    MEMCG_EVENTS_OOM_KILL = 18;
+    MEMCG_EVENTS_OOM_GROUP_KILL = 19;
+    MEMCG_EVENTS_SOCK_THROTTLED = 20;
+
+    // memory.events.local (this cgroup only).
+    // MEMCG_EVENTS_LOCAL_ALL is the same as listing all fields for the file.
+    MEMCG_EVENTS_LOCAL_ALL = 21;
+    MEMCG_EVENTS_LOCAL_LOW = 22;
+    MEMCG_EVENTS_LOCAL_HIGH = 23;
+    MEMCG_EVENTS_LOCAL_MAX = 24;
+    MEMCG_EVENTS_LOCAL_OOM = 25;
+    MEMCG_EVENTS_LOCAL_OOM_KILL = 26;
+    MEMCG_EVENTS_LOCAL_OOM_GROUP_KILL = 27;
+    MEMCG_EVENTS_LOCAL_SOCK_THROTTLED = 28;
+
+    // memory.swap.events
+    // MEMCG_SWAP_EVENTS_ALL is the same as listing all fields for the file.
+    MEMCG_SWAP_EVENTS_ALL = 29;
+    MEMCG_SWAP_EVENTS_HIGH = 30;
+    MEMCG_SWAP_EVENTS_MAX = 31;
+    MEMCG_SWAP_EVENTS_FAIL = 32;
+
+    // memory.stat (as of linux v7.3).
+    // MEMCG_STAT_ALL is the same as listing all fields for the file.
+    MEMCG_STAT_ALL = 33;
+    MEMCG_STAT_ANON = 34;
+    MEMCG_STAT_FILE = 35;
+    MEMCG_STAT_KERNEL = 36;
+    MEMCG_STAT_KERNEL_STACK = 37;
+    MEMCG_STAT_PAGETABLES = 38;
+    MEMCG_STAT_SEC_PAGETABLES = 39;
+    MEMCG_STAT_PERCPU = 40;
+    MEMCG_STAT_SOCK = 41;
+    MEMCG_STAT_VMALLOC = 42;
+    MEMCG_STAT_SHMEM = 43;
+    MEMCG_STAT_ZSWAP = 44;
+    MEMCG_STAT_ZSWAPPED = 45;
+    MEMCG_STAT_ZSWAP_INCOMP = 46;
+    MEMCG_STAT_FILE_MAPPED = 47;
+    MEMCG_STAT_FILE_DIRTY = 48;
+    MEMCG_STAT_FILE_WRITEBACK = 49;
+    MEMCG_STAT_SWAPCACHED = 50;
+    MEMCG_STAT_ANON_THP = 51;
+    MEMCG_STAT_FILE_THP = 52;
+    MEMCG_STAT_SHMEM_THP = 53;
+    MEMCG_STAT_INACTIVE_ANON = 54;
+    MEMCG_STAT_ACTIVE_ANON = 55;
+    MEMCG_STAT_INACTIVE_FILE = 56;
+    MEMCG_STAT_ACTIVE_FILE = 57;
+    MEMCG_STAT_UNEVICTABLE = 58;
+    MEMCG_STAT_SLAB_RECLAIMABLE = 59;
+    MEMCG_STAT_SLAB_UNRECLAIMABLE = 60;
+    MEMCG_STAT_SLAB = 61;
+    MEMCG_STAT_HUGETLB = 62;
+    MEMCG_STAT_WORKINGSET_REFAULT_ANON = 63;
+    MEMCG_STAT_WORKINGSET_REFAULT_FILE = 64;
+    MEMCG_STAT_WORKINGSET_ACTIVATE_ANON = 65;
+    MEMCG_STAT_WORKINGSET_ACTIVATE_FILE = 66;
+    MEMCG_STAT_WORKINGSET_RESTORE_ANON = 67;
+    MEMCG_STAT_WORKINGSET_RESTORE_FILE = 68;
+    MEMCG_STAT_WORKINGSET_NODERECLAIM = 69;
+    MEMCG_STAT_PGDEMOTE_KSWAPD = 70;
+    MEMCG_STAT_PGDEMOTE_DIRECT = 71;
+    MEMCG_STAT_PGDEMOTE_KHUGEPAGED = 72;
+    MEMCG_STAT_PGDEMOTE_PROACTIVE = 73;
+    MEMCG_STAT_PGSTEAL_KSWAPD = 74;
+    MEMCG_STAT_PGSTEAL_DIRECT = 75;
+    MEMCG_STAT_PGSTEAL_KHUGEPAGED = 76;
+    MEMCG_STAT_PGSTEAL_PROACTIVE = 77;
+    MEMCG_STAT_PGSCAN_KSWAPD = 78;
+    MEMCG_STAT_PGSCAN_DIRECT = 79;
+    MEMCG_STAT_PGSCAN_KHUGEPAGED = 80;
+    MEMCG_STAT_PGSCAN_PROACTIVE = 81;
+    MEMCG_STAT_PGREFILL = 82;
+    MEMCG_STAT_PGPROMOTE_SUCCESS = 83;
+    MEMCG_STAT_PGSCAN = 84;
+    MEMCG_STAT_PGSTEAL = 85;
+    MEMCG_STAT_PSWPIN = 86;
+    MEMCG_STAT_PSWPOUT = 87;
+    MEMCG_STAT_PGFAULT = 88;
+    MEMCG_STAT_PGMAJFAULT = 89;
+    MEMCG_STAT_PGACTIVATE = 90;
+    MEMCG_STAT_PGDEACTIVATE = 91;
+    MEMCG_STAT_PGLAZYFREE = 92;
+    MEMCG_STAT_PGLAZYFREED = 93;
+    MEMCG_STAT_SWPIN_ZERO = 94;
+    MEMCG_STAT_SWPOUT_ZERO = 95;
+    MEMCG_STAT_ZSWPIN = 96;
+    MEMCG_STAT_ZSWPOUT = 97;
+    MEMCG_STAT_ZSWPWB = 98;
+    MEMCG_STAT_THP_FAULT_ALLOC = 99;
+    MEMCG_STAT_THP_COLLAPSE_ALLOC = 100;
+    MEMCG_STAT_THP_SWPOUT = 101;
+    MEMCG_STAT_THP_SWPOUT_FALLBACK = 102;
+    MEMCG_STAT_NUMA_PAGES_MIGRATED = 103;
+    MEMCG_STAT_NUMA_PTE_UPDATES = 104;
+    MEMCG_STAT_NUMA_HINT_FAULTS = 105;
+  }
+}
+
+// End of protos/perfetto/config/linux/cgroup_config.proto
 
 // Begin of protos/perfetto/config/linux/journald_config.proto
 
@@ -2411,7 +2731,81 @@ message HeapprofdConfig {
 
 // Begin of protos/perfetto/config/profiling/smaps_config.proto
 
-// Config for collecting /proc/pid/smaps.
+// Config for the "linux.smaps" data source, describes one-shot or periodic
+// /proc/pid/smaps collection.
+//
+// A valid config must specify at least one |target_cmdline| or |target_uid|.
+// Example:
+//
+// data_sources {
+//   config {
+//     name: "linux.smaps"
+//     process_smaps_config {
+//       scope {
+//         target_cmdline: "top"
+//         target_cmdline: "tmux"
+//       }
+//     }
+//   }
+// }
+message ProcessSmapsConfig {
+  // Which fields to record per process.
+  // If unset, defaults to {size, rss, anon, swap}, aggregated by path name.
+  optional SmapsConfig smaps_config = 1;
+
+  // Which processes to record. At least one field must be set.
+  // Multiples of the same option (e.g. target_cmdline) are ORed.
+  // Different options are ANDed, skipping fields that are unset.
+  message Scope {
+    // Command line allowlist, matched against the /proc/<pid>/cmdline (not the
+    // comm string).
+    //
+    // This field can specify a single wildcard (*), and the profiler will
+    // attempt to match it in two possible ways:
+    // * if the pattern starts with a '/', then it is matched against the first
+    //   segment of the cmdline (i.e. argv0). For example "/bin/e*" would match
+    //   "/bin/echo".
+    // * otherwise the pattern is matched against the part of argv0
+    //   corresponding to the binary name (this is unrelated to /proc/pid/exe).
+    //   For example "echo" would match "/bin/echo".
+    //
+    // Implementation note: at most 511 characters of cmdline are considered.
+    repeated string target_cmdline = 1;
+
+    // Range of UIDs.
+    message UidRange {
+      // inclusive, must be set
+      optional uint32 min_uid = 1;
+      // inclusive, must be set
+      optional uint32 max_uid = 2;
+      // Android: if true, compare the UID modulo the per-user/profile offset
+      // (AID_USER_OFFSET, 100000).
+      optional bool android_match_across_profiles = 3;
+    }
+    repeated UidRange target_uid = 2;
+  }
+  optional Scope scope = 2;
+
+  // How often to recapture the smaps, including re-evaluating which processes
+  // match the |scope|. May be overridden by the implementation (at the time of
+  // writing, [1s, 24hr] range).
+  // If zero or unset, each process is captured only once at start.
+  optional uint32 read_period_ms = 3;
+
+  // Caps the number of processes handled per |read_period_ms|, or overall if
+  // the config is one-shot (period = 0). The immediate use case is to limit
+  // work if too many processes match the |scope|.
+  // Additionally, this option can be used for sampling, since the
+  // implementation inspects processes in a shuffled order (not in numeric pid
+  // order), and successive periods cover separate subsets of pids.
+  // So a config with scope=*, period=10s, and max_processes=5 would
+  // progressively scan all processes on the machine by parsing 5 processes at
+  // a time with 10s breaks in between.
+  // If zero or unset, there is no limit.
+  optional uint32 max_processes_per_period = 4;
+}
+
+// Describes what to record from /proc/pid/smaps.
 message SmapsConfig {
   enum VmaField {
     VMA_FIELD_UNKNOWN = 0;
@@ -4308,7 +4702,7 @@ message StatsdPullAtomConfig {
 
 // When editing entries here remember also to update "sys_stats_counters.h" with
 // the corresponding string definitions for the actual /proc files parser.
-
+//
 // Counter definitions for Linux's /proc/meminfo.
 enum MeminfoCounters {
   MEMINFO_UNSPECIFIED = 0;
@@ -4694,45 +5088,44 @@ message TestConfig {
 
 // Begin of protos/perfetto/config/track_event/track_event_config.proto
 
+// The following fields define the set of enabled trace categories. Each list
+// item is a glob.
+//
+// To determine if category is enabled, it is checked against the filters in
+// the following order:
+//
+//   1. Exact matches in enabled categories.
+//   2. Exact matches in enabled tags.
+//   3. Exact matches in disabled categories.
+//   4. Exact matches in disabled tags.
+//   5. Pattern matches in enabled categories.
+//   6. Pattern matches in enabled tags.
+//   7. Pattern matches in disabled categories.
+//   8. Pattern matches in disabled tags.
+//
+// If none of the steps produced a match:
+//  - In the C++ SDK (`perfetto::Category`), categories are enabled by
+//  default.
+//  - In the C SDK (`PerfettoTeCategory`), categories are disabled by default.
+//
+// Examples:
+//
+//  - To enable all non-slow/debug categories:
+//
+//       enabled_categories: "*"
+//
+//  - To enable specific categories:
+//
+//       disabled_categories: "*"
+//       enabled_categories: "my_category"
+//       enabled_categories: "my_category2"
+//
+//  - To enable only categories with a specific tag:
+//
+//       disabled_tags: "*"
+//       enabled_tags: "my_tag"
+//
 message TrackEventConfig {
-  // The following fields define the set of enabled trace categories. Each list
-  // item is a glob.
-  //
-  // To determine if category is enabled, it is checked against the filters in
-  // the following order:
-  //
-  //   1. Exact matches in enabled categories.
-  //   2. Exact matches in enabled tags.
-  //   3. Exact matches in disabled categories.
-  //   4. Exact matches in disabled tags.
-  //   5. Pattern matches in enabled categories.
-  //   6. Pattern matches in enabled tags.
-  //   7. Pattern matches in disabled categories.
-  //   8. Pattern matches in disabled tags.
-  //
-  // If none of the steps produced a match:
-  //  - In the C++ SDK (`perfetto::Category`), categories are enabled by
-  //  default.
-  //  - In the C SDK (`PerfettoTeCategory`), categories are disabled by default.
-  //
-  // Examples:
-  //
-  //  - To enable all non-slow/debug categories:
-  //
-  //       enabled_categories: "*"
-  //
-  //  - To enable specific categories:
-  //
-  //       disabled_categories: "*"
-  //       enabled_categories: "my_category"
-  //       enabled_categories: "my_category2"
-  //
-  //  - To enable only categories with a specific tag:
-  //
-  //       disabled_tags: "*"
-  //       enabled_tags: "my_tag"
-  //
-
   // Default: []
   repeated string disabled_categories = 1;
 
@@ -4787,7 +5180,16 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 143
+//
+// Keep the lower IDs (up to 99) for fields that are *not* specific to
+// data-sources and needs to be processed by the traced daemon.
+//
+// All data source config fields must be marked as [lazy=true]. This prevents
+// the proto-to-cpp generator from recursing into those when generating the
+// cpp classes and polluting tracing/core with data-source-specific classes.
+// Instead they are treated as opaque strings containing raw proto bytes.
+//
+// Next id: 152
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4884,7 +5286,7 @@ message DataSourceConfig {
   // overwritten packets (patches) using a ProtoVM instance with this config.
   // The ProtoVM program is specified at data source registration time through
   // the descriptor.
-
+  //
   // TODO(primiano): today when we enable a protovm_config, we actually accept
   // that if N producers advertise M different versions of the same program we
   // will create M instances of that program.
@@ -4894,13 +5296,65 @@ message DataSourceConfig {
   // onto that.
   optional ProtoVmConfig protovm_config = 12;
 
-  // Keep the lower IDs (up to 99) for fields that are *not* specific to
-  // data-sources and needs to be processed by the traced daemon.
+  // Set by the service to indicate that this data source can write to its
+  // target buffer through the tracing v2 ring buffer. True only if:
+  // - v2 is in the connection's common ProtocolAbiVersion mask, and
+  // - the target buffer is a TraceBufferV2.
+  // Absent means false. True permits v2 but does not select it. The producer
+  // can select v1 only if v1 is also in the common mask. If no common version
+  // is permitted by the config and target buffer, the instance cannot run.
+  // One buffer can hold both formats. Each writer sequence uses one format.
+  //
+  // Not supported: a ProtoVM data source on the same buffer.
+  // DO NOT SET in consumer as this will be overridden by the service.
+  optional bool supports_tracing_v2 = 147;
 
-  // All data source config fields must be marked as [lazy=true]. This prevents
-  // the proto-to-cpp generator from recursing into those when generating the
-  // cpp classes and polluting tracing/core with data-source-specific classes.
-  // Instead they are treated as opaque strings containing raw proto bytes.
+  // Experimental.
+  // Lets the producer write this data source through the tracing v2 ring
+  // buffer.
+  // - Selecting v2 requires a TRACE_BUFFER_V2 target buffer and support from
+  //   the producer and data source.
+  // - Instances that do not select v2 use v1 only if the connection permits it.
+  //   If neither transport is available, writers discard their data.
+  // - If the producer cannot create or attach the ring buffer, selected
+  //   instances discard their data and do not fall back to v1.
+  message ExperimentalTracingV2Config {
+    // Percent of instances that use v2, from 0 (the default) to 100.
+    // The service rejects a nonzero use_v2_probability_percent and a
+    // ProtoVM data source on the same buffer.
+    optional uint32 use_v2_probability_percent = 1;
+
+    // One chunk size that the producer can choose for the ring buffer.
+    message ChunkSizeOption {
+      // Bytes per chunk, from 256 to 65536, and a multiple of 4.
+      // The service rejects other values.
+      optional uint32 size_bytes = 1;
+      // The chance of this option, relative to the other options.
+      // Absent means 1, and 0 means never.
+      optional uint32 weight = 2;
+    }
+    // The producer chooses one option at random, by weight, when it creates
+    // the ring buffer.
+    // With no option, or with all weights 0, it uses 256 bytes.
+    //
+    // The first instance that selects v2 chooses the size for the connection,
+    // and the options of later instances have no effect.
+    repeated ChunkSizeOption chunk_size_options = 2;
+
+    // When the writers ask the service to drain the ring buffer.
+    // After each publication, a writer counts the ring buffer positions that
+    // wait for the reader, and asks for a drain when the count reaches:
+    // - 0 or absent: 25% of the positions.
+    // - 1 to 100: this percent of the positions, and at least one.
+    // - -1: one position, so it asks after every publication.
+    // Flushes and full ring buffers still ask for a drain at once.
+    // The service rejects other values.
+    //
+    // As for chunk_size_options, the first instance that selects v2 sets it
+    // for the connection, and the values of later instances have no effect.
+    optional int32 drain_occupancy_percent = 3;
+  }
+  optional ExperimentalTracingV2Config experimental_tracing_v2 = 148;
 
   // Data source name: linux.ftrace
   optional FtraceConfig ftrace_config = 100 [lazy = true];
@@ -5034,8 +5488,26 @@ message DataSourceConfig {
   // Data source name: android.display.video
   optional DisplayVideoConfig display_video_config = 142 [lazy = true];
 
+  // Data source name: org.chromium.sampler_profiler
+  optional ChromiumStackSamplingProfilerConfig
+      chromium_stack_sampling_profiler = 143 [lazy = true];
+
+  // Data source name: org.chromium.native_heap_profiler
+  optional ChromiumSamplingHeapProfilerConfig chromium_sampling_heap_profiler =
+      144 [lazy = true];
+
+  // Data source name: android.process_state
+  optional AndroidProcessStateConfig android_process_state_config = 145
+      [lazy = true];
+
+  // Data source name: linux.smaps
+  optional ProcessSmapsConfig process_smaps_config = 146 [lazy = true];
+
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
+
+  // Data source name: linux.cgroup
+  optional CgroupConfig cgroup_config = 151 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
@@ -5062,7 +5534,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 49.
+// Next id: 51.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -5128,6 +5600,10 @@ message TraceConfig {
     optional ExperimentalMode experimental_mode = 8;
   }
   repeated BufferConfig buffers = 1;
+
+  // Enables compaction after reads for this session's TraceBufferV2.
+  // Defaults to false and does not affect V1, DISCARD, or read-only buffers.
+  optional bool experimental_trace_buffer_v2_compaction = 50;
 
   message DataSource {
     // Filters and data-source specific config. It contains also the unique name
@@ -5423,11 +5899,11 @@ message TraceConfig {
       // consumer is supposed to call CloneSession() itself after the event.
       // Use use_clone_snapshot_if_available=true when targeting older versions
       // of perfetto.
-      CLONE_SNAPSHOT = 4;
-
+      //
       // NOTE: CLONE_SNAPSHOT should be used only when we targeting Android V+
       // (15+) / Perfetto v38+. A bug in older versions of the tracing service
       // might cause indefinitely long tracing sessions (see b/274931668).
+      CLONE_SNAPSHOT = 4;
     }
     optional TriggerMode trigger_mode = 1;
 
@@ -5568,12 +6044,11 @@ message TraceConfig {
   // incident. This field is read by perfetto_cmd, rather than the tracing
   // service. This field must be set when passing the --upload flag to
   // perfetto_cmd.
+  // In this message, either:
+  //  * all of |destination_package|, |destination_class| and |privacy_level|
+  //    must be set.
+  //  * |skip_incidentd| must be explicitly set to true.
   message IncidentReportConfig {
-    // In this message, either:
-    //  * all of |destination_package|, |destination_class| and |privacy_level|
-    //    must be set.
-    //  * |skip_incidentd| must be explicitly set to true.
-
     optional string destination_package = 1;
     optional string destination_class = 2;
     // Level of filtering in the requested incident. See |Destination| in
@@ -5632,6 +6107,15 @@ message TraceConfig {
   // Introduced in Android S, but it was broken (b/195065199). Reintroduced in
   // Android T with a different field number. Updated in Android U with a new
   // bytecode version which supports string filtering.
+  //
+  // The principles and terminology of string filtering is heavily inspired by
+  // iptables. A "rule" decide how strings should be filtered. Each rule
+  // contains a "policy" which indicates the algorithm to use for filtering.
+  // A "chain" is a list of rules which will be sequentially checked against
+  // each string.
+  //
+  // The first rule which applies to the string terminates filtering for that
+  // string. If no rules apply, the string is left unchanged.
   message TraceFilter {
     // =========================
     // Filter bytecode.
@@ -5647,15 +6131,6 @@ message TraceConfig {
     // =========================
     // String filtering
     // =========================
-
-    // The principles and terminology of string filtering is heavily inspired by
-    // iptables. A "rule" decide how strings should be filtered. Each rule
-    // contains a "policy" which indicates the algorithm to use for filtering.
-    // A "chain" is a list of rules which will be sequentially checked against
-    // each string.
-    //
-    // The first rule which applies to the string terminates filtering for that
-    // string. If no rules apply, the string is left unchanged.
 
     // A policy specifies which algorithm should be used for filtering the
     // string.
@@ -5806,11 +6281,10 @@ message TraceConfig {
   // Android framework. This field is read by perfetto_cmd, rather than the
   // tracing service. This field must be set when passing the --upload flag to
   // perfetto_cmd.
+  // In this message, either:
+  //  * |reporter_service_package| and |reporter_service_class| must be set.
+  //  * |skip_reporting| must be explicitly set to true.
   message AndroidReportConfig {
-    // In this message, either:
-    //  * |reporter_service_package| and |reporter_service_class| must be set.
-    //  * |skip_reporting| must be explicitly set to true.
-
     optional string reporter_service_package = 1;
     optional string reporter_service_class = 2;
 
@@ -5947,7 +6421,7 @@ message TraceConfig {
 
     // The following modes are intended for advanced usage and not recommended
     // for general use.
-
+    //
     // Do not flush buffers before periodic writes into the file.
     // Use this mode if you want to minimize the performance impact of flushes
     // and can tolerate potentially missing the most recent data in the trace
@@ -6020,6 +6494,15 @@ message TraceConfig {
   //
   // Introduced in: perfetto v58.
   optional TraceAttributes trace_attributes = 48;
+
+  // Android-only. Not for general use. If set to true, writes trace chunks to a
+  // persistent file
+  // (/data/misc/perfetto-traces/persistent/$unique_session_name.tmp) that
+  // survives device reboots (e.g. during OTA updates or battery depletion).
+  //
+  // Introduced in: perfetto v59.
+  // Supported on: Android 26Q4+.
+  optional bool persist_trace_across_reboots = 49;
 }
 
 // End of protos/perfetto/config/trace_config.proto
@@ -6033,7 +6516,7 @@ message Utsname {
   optional string machine = 4;
 }
 
-// Next id: 18
+// Next id: 19
 message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;
@@ -6046,6 +6529,12 @@ message SystemInfo {
 
   // The SoC model from which trace is collected
   optional string android_soc_model = 9;
+
+  // Device tree compatible strings for Linux devices. This field is populated
+  // from the firmware file /sys/firmware/devicetree/base/compatible on the
+  // target device. The ordering matches the ordering in the device tree.
+  // Introduced after 26Q3 in Sept 2026 and is not supported on older versions.
+  repeated string device_tree_compatibles = 18;
 
   // The guest SoC model from which trace is collected in case of VMs
   optional string android_guest_soc_model = 13;
@@ -6118,7 +6607,7 @@ message SystemInfo {
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 22.
+  // Next id: 25.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -6164,11 +6653,21 @@ message TraceStats {
     // the same chunk with additional packets appended to the end.
     optional uint64 chunks_rewritten = 10;
 
+    // TraceBufferV2 only. Num. chunks that we moved to the write cursor
+    // instead of rewriting in place. We do this for scraped chunks that have
+    // been fully read: their old position can be so close to the write cursor
+    // that the packets we just recovered would be overwritten before any read.
+    //
+    // Introduced in v59 / Android 26Q3+.
+    optional uint64 chunks_relocated = 20;
+
     // Num. chunks overwritten before they have been read (i.e. loss of data).
     optional uint64 chunks_overwritten = 3;
 
-    // Num. chunks discarded (i.e. loss of data). Can be > 0 only when a buffer
-    // is configured with FillPolicy == DISCARD.
+    // Num. chunks discarded (i.e. loss of data). For SMB chunks, this can be
+    // > 0 only when a buffer is configured with FillPolicy == DISCARD.
+    // TraceBufferV2 also counts SMB v2 batches rejected because their
+    // producer has a ProtoVM on this buffer.
     optional uint64 chunks_discarded = 18;
 
     // Num. chunks (!= packets) that were fully read from the circular buffer by
@@ -6181,6 +6680,27 @@ message TraceStats {
 
     // Num. times the ring buffer wrapped around.
     optional uint64 write_wrap_count = 4;
+
+    // Number of completed TraceBufferV2 compactions.
+    // Includes compactions that move no chunks and excludes calls that skip
+    // compaction, such as calls on DISCARD or read-only buffers.
+    //
+    // Compaction moves remaining chunks to the front and clears the unused
+    // tail.
+    // It keeps the pages that a similar write cycle can reuse, and releases
+    // the other whole pages where supported.
+    // The next writes start after the remaining chunks, which can reduce how
+    // often |write_wrap_count| and |chunks_overwritten| increase.
+    // Incomplete chunks can remain until later writes overwrite them.
+    //
+    // Introduced in v59 / Android 26Q4+.
+    optional uint64 compactions = 23;
+
+    // Number of TraceBufferV2 compactions skipped because live chunks were
+    // on both sides of the write cursor.
+    //
+    // Introduced in v59 / Android 26Q4+.
+    optional uint64 compactions_skipped = 24;
 
     // Num. out-of-band (OOB) patches that succeeded.
     optional uint64 patches_succeeded = 5;
@@ -6199,9 +6719,13 @@ message TraceStats {
     // stop at that point, for that sequence, increasing this counter.
     optional uint64 readaheads_failed = 8;
 
-    // Num. of violations of the SharedMemoryABI found while writing or reading
-    // the buffer. This is an indication of either a bug in the producer(s) or
-    // malicious producer(s).
+    // Num. of violations of the SharedMemoryABI or the shared ring buffer ABI
+    // found while writing or reading the buffer. This includes SMB v2 packets
+    // that TraceBufferV2 cannot rewrite because they are malformed or nest
+    // more than 128 groups. It also includes chunks whose writer ID already
+    // uses the other input format.
+    // This is an indication of either a bug in the producer(s) or malicious
+    // producer(s).
     optional uint64 abi_violations = 9;
 
     // The fields below have been introduced in Android R.
@@ -6216,6 +6740,12 @@ message TraceStats {
     // Was shadow_buffer_stats (ShadowBufferStats), a testing-only stat used
     // to validate TraceBufferV2 against V1.
     reserved 21;
+
+    // TraceBufferV2 only. Num. SMB v2 packets dropped at read time because
+    // they contain a nested message larger than 256 MiB, the limit of the
+    // four-byte length field. The packet can be valid. Loss is reported on the
+    // next packet of the same sequence.
+    optional uint64 oversized_packets_dropped = 22;
   }
 
   // Stats for the TraceBuffer(s) of the current trace session.
@@ -6230,6 +6760,13 @@ message TraceStats {
 
     // The buffer index (0..N, as defined in the TraceConfig).
     optional uint32 buffer = 4;
+
+    // Which protocol carried this writer's chunks to the buffer.
+    // This is a bitmask of ProtocolAbiVersion (see producer_port.proto).
+    // The value is 1 for the SMB (v1) and 2 for the tracing v2 ring buffer.
+    // Both bits are set only if a v1 and a v2 writer of the same producer used
+    // the same writer ID which should NOT be happening.
+    optional uint32 protocol_abi_versions = 5;
 
     // These two arrays have the same cardinality and match the cardinality of
     // chunk_payload_histogram_def + 1 (for the overflow bucket, see below).
@@ -6622,6 +7159,7 @@ message PackagesList {
     optional bool debuggable = 3;
     optional bool profileable_from_shell = 4;
     optional int64 version_code = 5;
+    optional bool profileable = 6;
   }
 
   repeated PackageInfo packages = 1;
@@ -6655,6 +7193,27 @@ message PixelModemTokenDatabase {
 }
 
 // End of protos/perfetto/trace/android/pixel_modem_events.proto
+
+// Begin of protos/perfetto/trace/android/recovered_trace_info.proto
+
+// Injected into TracePacket by perfetto post-reboot recovery to record
+// recovered trace metadata.
+message RecoveredTraceInfo {
+  enum Reason {
+    REASON_UNSPECIFIED = 0;
+    REASON_UNEXPECTED_REBOOT = 1;
+  }
+
+  optional Reason reason = 1;
+
+  // Raw trace file size (in bytes) on disk prior to post-reboot recovery.
+  optional uint64 original_file_size_bytes = 2;
+
+  // Amount of trailing corrupted/incomplete bytes truncated during recovery.
+  optional uint64 bytes_truncated = 3;
+}
+
+// End of protos/perfetto/trace/android/recovered_trace_info.proto
 
 // Begin of protos/perfetto/trace/android/user_list.proto
 
@@ -6958,7 +7517,7 @@ message ChromeTrigger {
 // detecting code overlaps, if a newer code creation event overlaps with older
 // code we need to asume that the old code was deleted. Code moves are logged,
 // and there is an event to track those.
-
+//
 // Strings used by V8 can have different encodings, instead of coverting to a
 // common encoding (e.g. UTF-8) on device is expensive. Instead we send the
 // "raw" string and do the convestion at trace ingestion time.
@@ -11170,6 +11729,21 @@ message SchedSwitchWithCtrsFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/perf_trace_counters.proto
 
+// Begin of protos/perfetto/trace/ftrace/pixel_metrics.proto
+
+message LongIrqFtraceEvent {
+  optional int32 irq = 1;
+  optional uint32 latency = 2;
+  optional uint32 count = 3;
+}
+message LongSoftirqFtraceEvent {
+  optional int32 vec_nr = 1;
+  optional uint32 latency = 2;
+  optional uint32 count = 3;
+}
+
+// End of protos/perfetto/trace/ftrace/pixel_metrics.proto
+
 // Begin of protos/perfetto/trace/ftrace/pixel_mm.proto
 
 message PixelMmKswapdWakeFtraceEvent {
@@ -11449,6 +12023,10 @@ message SchedWakeupTaskAttrFtraceEvent {
   optional uint64 task_util = 3;
   optional uint64 uclamp_min = 4;
   optional uint64 vruntime = 5;
+  optional uint64 sched_qos_user_defined_flag = 6;
+  optional uint32 rampup_multiplier = 7;
+  optional uint32 effect_rampup_multiplier = 8;
+  optional int32 tag_nice = 9;
 }
 message SchedGroupTrackerFtraceEvent {
   optional string comm = 1;
@@ -11524,6 +12102,21 @@ message SdeSdeEvtlogFtraceEvent {
   optional string evtlog_tag = 1;
   optional int32 pid = 2;
   optional uint32 tag_id = 3;
+  optional uint32 d00 = 4;
+  optional uint32 d01 = 5;
+  optional uint32 d02 = 6;
+  optional uint32 d03 = 7;
+  optional uint32 d04 = 8;
+  optional uint32 d05 = 9;
+  optional uint32 d06 = 10;
+  optional uint32 d07 = 11;
+  optional uint32 d08 = 12;
+  optional uint32 d09 = 13;
+  optional uint32 d10 = 14;
+  optional uint32 d11 = 15;
+  optional uint32 d12 = 16;
+  optional uint32 d13 = 17;
+  optional uint32 d14 = 18;
 }
 message SdeSdePerfCalcCrtcFtraceEvent {
   optional uint64 bw_ctl_ebi = 1;
@@ -12799,6 +13392,8 @@ message FtraceEvent {
     DpuDispDpuLineUnderrunFtraceEvent dpu_disp_dpu_line_underrun = 613;
     PsciDomainIdleExitFtraceEvent psci_domain_idle_exit = 614;
     PsciDomainIdleEnterFtraceEvent psci_domain_idle_enter = 615;
+    LongIrqFtraceEvent long_irq = 616;
+    LongSoftirqFtraceEvent long_softirq = 617;
   }
 }
 
@@ -13742,7 +14337,7 @@ message Mapping {
   // exact_offset is the offset into the library file of this mapping.
   // start_offset is the offset into the library file of the first mapping
   // for that library. For native libraries (.so files) this should be 0.
-
+  //
   // This is not set on Android 10.
   optional uint64 exact_offset = 8;
 
@@ -13835,6 +14430,38 @@ message Callstack {
 
 // End of protos/perfetto/trace/profiling/profile_common.proto
 
+// Begin of protos/perfetto/trace/profiling/inline_callstack.proto
+
+// A fully-inline, self-contained callstack: each frame carries its function
+// name and source location directly, with no interning. This is the simple
+// alternative to Callstack (whose frames are interned Frame/Mapping
+// references): use it when trace size is not a concern or callstacks are
+// unique. For binary/library information (mappings, build ids, relative pcs)
+// or efficient repetition, use interned Callstacks instead.
+//
+// Used by StackSample as the inline (non-interned) variant of its callstack
+// field.
+message InlineCallstack {
+  // A frame within an inline callstack.
+  message Frame {
+    // Function name, e.g. "malloc" or "std::vector<int>::push_back".
+    optional string function_name = 1;
+
+    // Source file path, e.g. "/src/foo.cc".
+    optional string source_file = 2;
+
+    // Line number in the source file.
+    optional uint32 line_number = 3;
+  }
+
+  // Frames of this callstack, ordered from bottom (outermost) to top
+  // (innermost). For example, if main() calls foo() which calls bar(), the
+  // frames are: [main, foo, bar].
+  repeated Frame frames = 1;
+}
+
+// End of protos/perfetto/trace/profiling/inline_callstack.proto
+
 // Begin of protos/perfetto/trace/profiling/stack_sample.proto
 
 // A single stack sample: a callstack captured for a task, measured against a
@@ -13874,8 +14501,10 @@ message StackSample {
     UNIT_COUNT = 9;
   }
 
-  // The task an observation is attributed to. At least one of pid / tid should
-  // be set.
+  // The task an observation is attributed to. At least one of pid / tid /
+  // async_id should be set. async_id identifies a stackful async context
+  // (goroutine, fiber, ...) described by an AsyncContextDescriptor whose iid
+  // equals the async_id.
   message TaskContext {
     // Interning key, used when this context is emitted via
     // InternedData.stack_sample_task_contexts and referenced by
@@ -13888,6 +14517,24 @@ message StackSample {
     // OS thread id the sample belongs to. If only tid is set, the process is
     // inferred from thread association elsewhere in the trace.
     optional uint32 tid = 3;
+    optional uint64 async_id = 4;
+  }
+
+  // Describes an async context referenced by TaskContext.async_id: a stackful
+  // unit of execution that is not an OS thread (goroutine, fiber, coroutine).
+  message AsyncContextDescriptor {
+    // Interning key, equal to the TaskContext.async_id it describes. Starts
+    // from 1, 0 is the same as "not set".
+    optional uint64 iid = 1;
+
+    // A human-readable name for this specific context, e.g. "worker-7".
+    optional string name = 2;
+
+    // The kind of async context, e.g. "goroutine", "fiber".
+    optional string kind = 3;
+
+    // iid of the structural parent AsyncContextDescriptor, if any.
+    optional uint64 parent_iid = 4;
   }
 
   // The execution state a sample was taken in. All fields are optional: an
@@ -13911,6 +14558,32 @@ message StackSample {
   // (the sampling timebase) or observed alongside (a follower). Values live on
   // the sample as weights; this only describes their meaning.
   message CounterDescriptor {
+    // The scope of a counter instance: which stream of values the per-sample
+    // weights belong to. Counter instances accumulate independently, so
+    // values from different instances must never be merged into one stream.
+    // Trace processor keeps sampling streams separate and materializes one
+    // counter track per instance within each stream: SCOPE_GLOBAL yields one
+    // track per sampling stream and SCOPE_CPU one track per
+    // (sampling stream, cpu).
+    //
+    // If your profiler needs a scope that is not listed here, please file
+    // a bug at https://github.com/google/perfetto/issues explaining what
+    // you are trying to record and which scope you would like added.
+    // Append-only: never renumber or repurpose an existing value.
+    enum Scope {
+      // Treated as SCOPE_GLOBAL.
+      SCOPE_UNSPECIFIED = 0;
+
+      // A single counter instance, not split by cpu, thread or anything
+      // else.
+      SCOPE_GLOBAL = 1;
+
+      // One counter instance per cpu. Each sample's weight belongs to the
+      // instance of the cpu in its ExecutionContext; samples without a cpu
+      // cannot be attributed and their weights for this counter are dropped.
+      SCOPE_CPU = 2;
+    }
+
     // Interning key, used when this descriptor is emitted via
     // InternedData.stack_sample_counter_descriptors and referenced by
     // StackSample.primary_descriptor_iid. Starts from 1; 0 is the same as "not
@@ -13936,6 +14609,9 @@ message StackSample {
 
     // Free-form description of what the counter measures.
     optional string description = 6;
+
+    // The scope of this counter's instances. Absent means SCOPE_GLOBAL.
+    optional Scope scope = 7;
   }
 
   // The task (thread / process / async context) this sample is attributed to.
@@ -13962,13 +14638,17 @@ message StackSample {
     uint64 execution_context_iid = 4;
   }
 
-  // The captured callstack, bottom frame first.
+  // The captured callstack, bottom frame first. Give it fully inline via
+  // `callstack` or reference an interned Callstack via `callstack_iid`.
   oneof callstack_field {
-    // Inline callstack. The only supported form for now.
-    Callstack callstack = 5;
+    // Fully-inline callstack: each frame carries its function name and source
+    // location directly, no interning. Simple but larger; prefer
+    // `callstack_iid` when callstacks repeat or frames need binary/library
+    // information (mappings, build ids, relative pcs).
+    InlineCallstack callstack = 5;
 
-    // Reserved: an interned callstack variant may be added later.
-    // uint64 callstack_iid = 6;
+    // Interned callstack, referencing InternedData.callstacks.
+    uint64 callstack_iid = 6;
   }
 
   // Set if stack unwinding was incomplete; describes the data, not producer
@@ -14000,10 +14680,17 @@ message StackSample {
   // The value attributed to this sample for the primary counter (e.g. the
   // number of cycles or nanoseconds this sample represents).
   optional uint64 primary_weight = 11;
+
+  // Additional counters read at the same sample (e.g. instructions, cache
+  // misses read alongside a cycles timebase). follower_weights is positional
+  // with whichever of follower_descriptors / follower_descriptor_iids is set.
+  repeated CounterDescriptor follower_descriptors = 12;
+  repeated uint64 follower_descriptor_iids = 13 [packed = true];
+  repeated uint64 follower_weights = 14 [packed = true];
 }
 
 // Per-sequence defaults for StackSample. Lets a producer declare the source and
-// the common timebase once instead of on every sample.
+// the common timebase / followers once instead of on every sample.
 message StackSampleDefaults {
   // Identifies the profiler that produced these samples, e.g. "linux.perf",
   // "python.wall". Recorded once per sampling stream.
@@ -14011,6 +14698,9 @@ message StackSampleDefaults {
 
   // Default primary timebase for samples that omit their own.
   optional StackSample.CounterDescriptor primary_descriptor = 2;
+
+  // Default follower counters, positional with StackSample.follower_weights.
+  repeated StackSample.CounterDescriptor follower_descriptors = 3;
 }
 
 // End of protos/perfetto/trace/profiling/stack_sample.proto
@@ -14262,7 +14952,6 @@ message ChromeApplicationStateInfo {
 // https://cs.chromium.org/chromium/src/cc/scheduler/scheduler.cc?q=Scheduler::AsPro
 //
 // All non-delta-timestamps are absolute CLOCK_MONOTONIC timestamps.
-
 enum ChromeCompositorSchedulerAction {
   CC_SCHEDULER_ACTION_UNSPECIFIED = 0;
   CC_SCHEDULER_ACTION_NONE = 1;
@@ -14841,8 +15530,6 @@ message ChromeMojoEventInfo {
 
 // Begin of protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto
 
-// Describes the state of the RendererScheduler for a given Renderer Process.
-
 // RAIL Mode is an indication of the kind of work that a Renderer is currently
 // performing which is in turn used to prioritise work accordingly.
 // A fuller description of these modes can be found https://web.dev/rail/
@@ -14854,6 +15541,7 @@ enum ChromeRAILMode {
   RAIL_MODE_LOAD = 4;
 }
 
+// Describes the state of the RendererScheduler for a given Renderer Process.
 message ChromeRendererSchedulerState {
   optional ChromeRAILMode rail_mode = 1;
 
@@ -14919,7 +15607,7 @@ message TaskExecution {
 
 // NOTE: Full TrackEvent support in the client lib and chrome is WIP, thus these
 // protos are still subject to change. Don't depend on them staying as they are.
-
+//
 // Trace events emitted by client instrumentation library (TRACE_EVENT macros),
 // which describe activity on a track, such as a thread or asynchronous event
 // track. The track is specified using separate TrackDescriptor messages and
@@ -15173,7 +15861,7 @@ message TrackEvent {
   oneof callstack_field {
     // Inline callstack data. Use this for simplicity when interning is not
     // needed (e.g., for unique callstacks or when trace size is not critical).
-    Callstack callstack = 55;
+    InlineCallstack callstack = 55;
 
     // Reference to interned Callstack (see InternedData.callstacks).
     // This is the efficient option when callstacks are repeated.
@@ -15190,7 +15878,7 @@ message TrackEvent {
   // Use this for simple callstacks with function names and source locations.
   // For binary/library information (mappings, build IDs, relative PCs), use
   // interned callstacks via callstack_iid instead.
-  message Callstack {
+  message InlineCallstack {
     // Frame within an inline callstack.
     message Frame {
       // Function name, e.g., "malloc" or "std::vector<int>::push_back"
@@ -15208,6 +15896,13 @@ message TrackEvent {
     // frames would be: [main, foo, bar]
     repeated Frame frames = 1;
   }
+
+  // An optional additive value attributed to this callstack occurrence. When
+  // present, weighted callstack aggregations only include occurrences which
+  // have this field set; they do not mix weighted and unweighted samples.
+  // Consumers can use sample count as a separate fallback measure when no
+  // weighted occurrences are available.
+  optional double callstack_weight = 57;
 
   // Debug annotations associated with this event. These are arbitrary key-value
   // pairs that can be used to attach additional information to the event.
@@ -15434,7 +16129,7 @@ message EventName {
 // When packet loss occurs, the reader will only lose interning data up to the
 // next reset.
 // -----------------------------------------------------------------------------
-
+//
 // Message that contains new entries for the interning indices of a packet
 // sequence.
 //
@@ -15442,19 +16137,19 @@ message EventName {
 // refers to them (since the last reset of interning state). They may also be
 // emitted proactively in advance of referring to them in later packets.
 //
+// Each field's message type needs to specify an |iid| field, which is the ID
+// of the entry in the field's interning index. Each field constructs its own
+// index, thus interning IDs are scoped to the tracing session and field
+// (usually as a counter for efficient var-int encoding), and optionally to
+// the incremental state generation of the packet sequence.
+//
+// Note: field IDs up to 15 should be used for frequent data only.
+//
 // Next reserved id: 8 (up to 15).
-// Next id: 51.
+// Next id: 53.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
-
-  // Each field's message type needs to specify an |iid| field, which is the ID
-  // of the entry in the field's interning index. Each field constructs its own
-  // index, thus interning IDs are scoped to the tracing session and field
-  // (usually as a counter for efficient var-int encoding), and optionally to
-  // the incremental state generation of the packet sequence.
-  //
-  // Note: field IDs up to 15 should be used for frequent data only.
 
   //
   // == STABLE PUBLIC API: TrackEvent ==
@@ -15469,6 +16164,9 @@ message InternedData {
   repeated InternedString debug_annotation_string_values = 29;
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
+  // Interned names, string values and display names of TrackDimensions (see
+  // TrackDimension.name_iid, string_value_iid and display_name_iid).
+  repeated InternedString track_dimension_strings = 52;
 
   //
   // == STABLE PUBLIC API: Callstacks and symbolization ==
@@ -15500,6 +16198,8 @@ message InternedData {
   repeated StackSample.TaskContext stack_sample_task_contexts = 48;
   repeated StackSample.ExecutionContext stack_sample_execution_contexts = 49;
   repeated StackSample.CounterDescriptor stack_sample_counter_descriptors = 50;
+  repeated StackSample.AsyncContextDescriptor
+      stack_sample_async_context_descriptors = 51;
 
   //
   // == UNSTABLE / CONTEXT-SPECIFIC FIELDS ==
@@ -15636,6 +16336,168 @@ message SystemdJournaldEvent {
 
 // End of protos/perfetto/trace/linux/journald_event.proto
 
+// Begin of protos/perfetto/trace/linux/memcg_stats.proto
+
+// Values read from the files of the cgroup v2 memory controller (memcg), as
+// recorded by the "linux.cgroup" data source.
+//
+// The values are as reported by the kernel: sizes are in bytes, and limits set
+// to "max" are UINT64_MAX. See Documentation/admin-guide/cgroup-v2.rst in the
+// kernel for their meaning.
+message MemcgStats {
+  // The top-level groups of the hierarchy created by Android's
+  // libprocessgroup.
+  enum Group {
+    GROUP_UNSPECIFIED = 0;
+    // apps/
+    GROUP_APPS = 1;
+    // system/
+    GROUP_SYSTEM = 2;
+  }
+
+  // memory.events and memory.events.local
+  message Events {
+    optional uint64 low = 1;
+    optional uint64 high = 2;
+    optional uint64 max = 3;
+    optional uint64 oom = 4;
+    optional uint64 oom_kill = 5;
+    optional uint64 oom_group_kill = 6;
+    optional uint64 sock_throttled = 7;
+  }
+
+  // memory.swap.events
+  message SwapEvents {
+    optional uint64 high = 1;
+    optional uint64 max = 2;
+    optional uint64 fail = 3;
+  }
+
+  // memory.stat (as of linux v7.3)
+  message Stat {
+    optional uint64 anon = 1;
+    optional uint64 file = 2;
+    optional uint64 kernel = 3;
+    optional uint64 kernel_stack = 4;
+    optional uint64 pagetables = 5;
+    optional uint64 sec_pagetables = 6;
+    optional uint64 percpu = 7;
+    optional uint64 sock = 8;
+    optional uint64 vmalloc = 9;
+    optional uint64 shmem = 10;
+    optional uint64 zswap = 11;
+    optional uint64 zswapped = 12;
+    optional uint64 zswap_incomp = 13;
+    optional uint64 file_mapped = 14;
+    optional uint64 file_dirty = 15;
+    optional uint64 file_writeback = 16;
+    optional uint64 swapcached = 17;
+    optional uint64 anon_thp = 18;
+    optional uint64 file_thp = 19;
+    optional uint64 shmem_thp = 20;
+    optional uint64 inactive_anon = 21;
+    optional uint64 active_anon = 22;
+    optional uint64 inactive_file = 23;
+    optional uint64 active_file = 24;
+    optional uint64 unevictable = 25;
+    optional uint64 slab_reclaimable = 26;
+    optional uint64 slab_unreclaimable = 27;
+    optional uint64 slab = 28;
+    optional uint64 hugetlb = 29;
+    optional uint64 workingset_refault_anon = 30;
+    optional uint64 workingset_refault_file = 31;
+    optional uint64 workingset_activate_anon = 32;
+    optional uint64 workingset_activate_file = 33;
+    optional uint64 workingset_restore_anon = 34;
+    optional uint64 workingset_restore_file = 35;
+    optional uint64 workingset_nodereclaim = 36;
+    optional uint64 pgdemote_kswapd = 37;
+    optional uint64 pgdemote_direct = 38;
+    optional uint64 pgdemote_khugepaged = 39;
+    optional uint64 pgdemote_proactive = 40;
+    optional uint64 pgsteal_kswapd = 41;
+    optional uint64 pgsteal_direct = 42;
+    optional uint64 pgsteal_khugepaged = 43;
+    optional uint64 pgsteal_proactive = 44;
+    optional uint64 pgscan_kswapd = 45;
+    optional uint64 pgscan_direct = 46;
+    optional uint64 pgscan_khugepaged = 47;
+    optional uint64 pgscan_proactive = 48;
+    optional uint64 pgrefill = 49;
+    optional uint64 pgpromote_success = 50;
+    optional uint64 pgscan = 51;
+    optional uint64 pgsteal = 52;
+    optional uint64 pswpin = 53;
+    optional uint64 pswpout = 54;
+    optional uint64 pgfault = 55;
+    optional uint64 pgmajfault = 56;
+    optional uint64 pgactivate = 57;
+    optional uint64 pgdeactivate = 58;
+    optional uint64 pglazyfree = 59;
+    optional uint64 pglazyfreed = 60;
+    optional uint64 swpin_zero = 61;
+    optional uint64 swpout_zero = 62;
+    optional uint64 zswpin = 63;
+    optional uint64 zswpout = 64;
+    optional uint64 zswpwb = 65;
+    optional uint64 thp_fault_alloc = 66;
+    optional uint64 thp_collapse_alloc = 67;
+    optional uint64 thp_swpout = 68;
+    optional uint64 thp_swpout_fallback = 69;
+    optional uint64 numa_pages_migrated = 70;
+    optional uint64 numa_pte_updates = 71;
+    optional uint64 numa_hint_faults = 72;
+  }
+
+  // The values of one cgroup.
+  message Cgroup {
+    // Identifies the cgroup in the hierarchy created by Android's
+    // libprocessgroup: {apps,system}/uid_<uid>/pid_<pid>.
+    optional Group android_group = 1;
+    optional uint32 uid = 2;
+    optional uint32 pid = 3;
+
+    // Single-valued files.
+    // memory.current
+    optional uint64 current = 4;
+    // memory.peak
+    optional uint64 peak = 5;
+    // memory.min (UINT64_MAX if "max")
+    optional uint64 min = 6;
+    // memory.low (UINT64_MAX if "max")
+    optional uint64 low = 7;
+    // memory.high (UINT64_MAX if "max")
+    optional uint64 high = 8;
+    // memory.max (UINT64_MAX if "max")
+    optional uint64 max = 9;
+    // memory.swap.current
+    optional uint64 swap_current = 10;
+    // memory.swap.peak
+    optional uint64 swap_peak = 11;
+    // memory.swap.high (UINT64_MAX if "max")
+    optional uint64 swap_high = 12;
+    // memory.swap.max (UINT64_MAX if "max")
+    optional uint64 swap_max = 13;
+    // memory.zswap.current
+    optional uint64 zswap_current = 14;
+    // memory.zswap.max (UINT64_MAX if "max")
+    optional uint64 zswap_max = 15;
+
+    // memory.events (including descendant cgroups).
+    optional Events events = 16;
+    // memory.events.local (only this exact cgroup).
+    optional Events events_local = 17;
+    // memory.swap.events
+    optional SwapEvents swap_events = 18;
+    // memory.stat
+    optional Stat stat = 19;
+  }
+
+  repeated Cgroup cgroup = 1;
+}
+
+// End of protos/perfetto/trace/linux/memcg_stats.proto
+
 // Begin of protos/perfetto/trace/memory_graph.proto
 
 // Message definitions for app-reported memory breakdowns. At the moment, this
@@ -15643,7 +16505,6 @@ message SystemdJournaldEvent {
 // https://chromium.googlesource.com/chromium/src/+/master/docs/memory-infra/ .
 // This is unrelated to the native or java heap profilers (those protos live
 // in //protos/perfetto/trace/profiling/).
-
 message MemoryTrackerSnapshot {
   // Memory snapshot of a process. The snapshot contains memory data that is
   // from 2 different sources, namely system stats and instrumentation stats.
@@ -15664,7 +16525,7 @@ message MemoryTrackerSnapshot {
     // nodes, edges are used to mark nodes that account for the same memory. See
     // this doc for examples of the usage:
     // https://docs.google.com/document/d/1WGQRJ1sjJrfVkNcgPVY6frm64UqPc94tsxUOXImZUZI
-
+    //
     // A single node in the memory graph.
     message MemoryNode {
       // Unique ID of the node across all processes involved in the global
@@ -15878,13 +16739,12 @@ message TracingServiceEvent {
     }
     repeated DataSource data_source = 1;
   }
+  // When each of the following booleans are set to true, they report the
+  // point in time (through TracePacket's timestamp) where the condition
+  // they describe happened.
+  // The order of the booleans below matches the timestamp ordering
+  // they would generally be expected to have.
   oneof event_type {
-    // When each of the following booleans are set to true, they report the
-    // point in time (through TracePacket's timestamp) where the condition
-    // they describe happened.
-    // The order of the booleans below matches the timestamp ordering
-    // they would generally be expected to have.
-
     // Emitted when we start tracing and specifically, this will be before any
     // producer is notified about the existence of this trace. This is always
     // emitted before the all_data_sources_started event. This event is also
@@ -15944,6 +16804,106 @@ message TracingServiceEvent {
 }
 
 // End of protos/perfetto/trace/perfetto/tracing_service_event.proto
+
+// Begin of protos/perfetto/trace/perfetto/tracing_v2_producer_stats.proto
+
+// Stats for the tracing v2 ring buffer of one producer since connection.
+// The service emits one packet for each connected producer that has a data
+// source in the session and an attached ring buffer. A producer that only uses
+// the SMB has no stats packet. A cloned session keeps the stats from the time
+// of the clone.
+//
+// These stats include producer identity, so they are separate from TraceStats
+// and pass through the session's trace filter.
+//
+// Next id: 22.
+message ExperimentalTracingV2ProducerStats {
+  // The producer that owns the ring buffer.
+  optional uint32 producer_id = 1;
+  optional int32 pid = 2;
+  optional string producer_name = 3;
+
+  // Layout of the attached ring buffer.
+  optional uint32 chunk_size_bytes = 4;
+  optional uint32 num_chunks = 5;
+
+  // The service counts the fields below while it reads the ring buffer.
+
+  // Num. chunks that the service copied out of the ring buffer.
+  optional uint64 chunks_read = 6;
+
+  // Total size of the packet fragments in |chunks_read|. It excludes the
+  // chunk headers and the fragment sizes.
+  optional uint64 bytes_read = 7;
+
+  // Num. chunks discarded because their writer marked them as lossy.
+  // A writer marks the next chunk it gets after it dropped data, e.g. when
+  // the ring buffer was full.
+  optional uint64 data_loss_chunks = 8;
+
+  // Num. chunks discarded because the sizes of their fragments are invalid.
+  // Either a size cannot be decoded, or the fragments do not fit in the
+  // chunk. A nonzero value points to a writer bug or to corrupt memory.
+  optional uint64 malformed_chunks = 9;
+
+  // Num. chunks discarded because the service does not know their format.
+  optional uint64 unsupported_format_chunks = 10;
+
+  // The next three count chunks in |chunks_read| that no trace buffer
+  // stored.
+
+  // The chunk's writer ID was zero or out of range.
+  optional uint64 invalid_writer_chunks = 11;
+
+  // The chunk's target buffer is not a TraceBuffer that the producer can
+  // write to.
+  optional uint64 invalid_destination_chunks = 12;
+
+  // The trace buffer refused the chunk. Its BufferStats say why, in
+  // |abi_violations| or |chunks_discarded|.
+  optional uint64 trace_buffer_rejected_chunks = 13;
+
+  // Num. chunks that the service read while their writer was still filling
+  // them. The writer then moves its open fragment to another chunk.
+  optional uint64 rewrite_requests = 14;
+
+  // Num. ring buffer positions that gave no chunk to the service. They are
+  // positions that no writer claimed, chunks with no published fragment and
+  // the discarded chunks above.
+  optional uint64 positions_skipped = 15;
+
+  // Num. times the service read the ring buffer. It reads it when the
+  // producer sends a DrainV2RingBuffer request, on its own (e.g. on a
+  // flush), and to retry a pass that stopped early.
+  optional uint64 drain_passes = 16;
+
+  // Time that the service spent in |drain_passes|, measured with
+  // CLOCK_MONOTONIC. It does not count time when the device was suspended.
+  optional uint64 drain_time_ns = 17;
+
+  // Time of the longest of |drain_passes|, on the same clock. The service
+  // has one main thread, so a long pass delays every other producer and
+  // request.
+  optional uint64 drain_max_time_ns = 18;
+
+  // The producer's writers count the fields below in the ring buffer header.
+  // The service reports the values as it finds them, so a buggy or hostile
+  // producer can set anything here.
+
+  // Num. packets that the writers dropped before the packets reached a
+  // chunk. This includes packets dropped before the service attached the
+  // ring buffer. A writer adds its drops when it flushes or stops dropping,
+  // so the value can lag.
+  optional uint64 writer_dropped_packets = 19;
+
+  // Num. times a writer waited for a free chunk, and the total time of those
+  // waits. This is time that the app's threads were blocked. A writer checks
+  // again after about 100 ms, so a longer stall counts several times.
+  optional uint64 writer_stalls = 20;
+  optional uint64 writer_stall_time_ms = 21;
+}
+
+// End of protos/perfetto/trace/perfetto/tracing_v2_producer_stats.proto
 
 // Begin of protos/perfetto/common/android_energy_consumer_descriptor.proto
 
@@ -16195,6 +17155,26 @@ message ObfuscatedClass {
   // fields.
   repeated ObfuscatedMember obfuscated_members = 3;
   repeated ObfuscatedMember obfuscated_methods = 4;
+
+  // Information about a single class merged by optimization into this
+  // obfuscated class.
+  message MergedClass {
+    optional string name = 1;
+    optional int32 class_id = 2;
+    optional MergedClasses merged_classes = 3;
+  }
+
+  // Set of classes merged into this obfuscated class by optimization.
+  message MergedClasses {
+    optional string class_id_field_name = 1;
+    repeated MergedClass merged_classes = 2;
+    // Set to true if other unknown classes may have been merged into this
+    // class by optimization (e.g. when using older R8 mapping versions that
+    // do not emit mergedClasses metadata).
+    optional bool unknown_merged_classes = 3;
+  }
+
+  optional MergedClasses merged_classes = 5;
 }
 
 message DeobfuscationMapping {
@@ -16239,7 +17219,6 @@ message DeobfuscationMapping {
 //   of a performance counter (which might be a timer), and optionally a
 //   callstack of the process that was scheduled at the time of the sample.
 //
-
 // The packet emitted by heapprofd for each heap snapshot. A snapshot can
 // involve more than one ProfilePacket if the snapshot is big (when |continued|
 // is true). The cardinality and grouping is as follows:
@@ -16681,6 +17660,8 @@ message ProcessStats {
     optional string path = 2;
   }
 
+  // When adding a new field remember to update kProcMemCounterSize in
+  // the trace processor.
   message Process {
     optional int32 pid = 1;
 
@@ -16695,8 +17676,6 @@ message ProcessStats {
     optional uint64 vm_swap_kb = 7;
     optional uint64 vm_locked_kb = 8;
     optional uint64 vm_hwm_kb = 9;
-    // When adding a new field remember to update kProcMemCounterSize in
-    // the trace processor.
 
     optional int64 oom_score_adj = 10;
 
@@ -16933,14 +17912,14 @@ message SysStats {
 
   // Number of interrupts, broken by IRQ number.
   // Populated only if IRQ_COUNTS in config.stat_counters.
-
+  //
   // Total num of irqs serviced since boot.
   optional uint64 num_irq_total = 5;
   repeated InterruptCount num_irq = 6;
 
   // Number of softirqs, broken by softirq number.
   // Populated only if SOFTIRQ_COUNTS in config.stat_counters.
-
+  //
   // Total num of softirqs since boot.
   optional uint64 num_softirq_total = 7;
 
@@ -16990,6 +17969,9 @@ message SysStats {
   repeated DiskStat disk_stat = 13;
 
   // Reading from /proc/pressure/*.
+  // Note that /proc/pressure/* exposes historical average utilization values
+  // (as a %), but we don't yet sample those. They could easily be added as
+  // additional fields should the total stall time readings be insufficient.
   message PsiSample {
     // Type of resource that may have exhibited pressure stalls.
     //    * _SOME indicates some resource tasks stalled.
@@ -17009,10 +17991,6 @@ message SysStats {
     // While PSI readings are in micros, we store in nanos for consistency with
     // most other time-based counters.
     optional uint64 total_ns = 2;
-
-    // Note that /proc/pressure/* exposes historical average utilization values
-    // (as a %), but we don't yet sample those. They could easily be added as
-    // additional fields should the total stall time readings be insufficient.
   }
   // One entry per PsiResource type.
   repeated PsiSample psi = 14;
@@ -17466,11 +18444,11 @@ message CounterDescriptor {
   // Built-in counters, usually with special meaning in the client library,
   // trace processor, legacy JSON format, or UI. Trace processor will infer a
   // track name from the enum value if none is provided in TrackDescriptor.
+  //
+  // Thread-scoped counters. The thread's track should be specified via
+  // |parent_uuid| in the TrackDescriptor for such a counter.
   enum BuiltinCounterType {
     COUNTER_UNSPECIFIED = 0;
-
-    // Thread-scoped counters. The thread's track should be specified via
-    // |parent_uuid| in the TrackDescriptor for such a counter.
 
     // implies UNIT_TIME_NS.
     COUNTER_THREAD_TIME_NS = 1;
@@ -17538,12 +18516,91 @@ message CounterDescriptor {
 // Begin of protos/perfetto/trace/track_event/state_descriptor.proto
 
 // Descriptor for a state track.
-message StateDescriptor {
-  // For now, this message is empty. It is used to identify a track as a state
-  // track.
-}
+// For now, this message is empty. It is used to identify a track as a state
+// track.
+message StateDescriptor {}
 
 // End of protos/perfetto/trace/track_event/state_descriptor.proto
+
+// Begin of protos/perfetto/trace/track_event/track_dimension.proto
+
+// A named, typed key/value which is part of a track's identity.
+//
+// Dimensions are the single vocabulary for identifiers which apply to a set of
+// tracks: *well-known* dimensions are synthesized by trace processor, while
+// producers can declare their own *custom* dimensions (`rank`, `shard`,
+// `stage`, ...) on a TrackDescriptor.
+//
+// Reserved names: the names of the well-known dimensions are reserved and
+// cannot be used for custom dimensions. They are:
+//  * `machine`: the machine the track belongs to.
+//  * `gpu`: the GPU the track belongs to.
+//  * `cpu`: the CPU the track belongs to.
+//  * `process`: the process the track belongs to.
+//  * `thread`: the thread the track belongs to.
+// Their values are derived by trace processor from the typed fields of the
+// TrackDescriptor (e.g. `process`, `thread`) and from import context, and mean
+// the same thing across data sources. A custom dimension using a reserved name
+// is ignored and trace processor records the
+// `track_descriptor_reserved_dimension_name` import error.
+//
+// A dimension has no scope field: it is declared on the track described by the
+// containing TrackDescriptor and applies to that track and its `parent_uuid`
+// descendants, whether it is a process, thread or any other track. In
+// particular, a dimension declared on a process track doesn't apply to the
+// threads of the process unless their tracks are `parent_uuid` descendants of
+// the process track.
+//
+// Declaring a *different* value for a dimension name which is already
+// inherited from an ancestor is invalid: trace processor records an import
+// error and keeps the inherited value.
+//
+// The dimensions declared on a TrackDescriptor (names and values; the order
+// and `display_name` don't matter) are part of the identity of that track:
+//  * they are fixed for the lifetime of the track, so every TrackDescriptor
+//    emitted for a given `uuid`, including the first one, must declare the
+//    same dimensions. A TrackDescriptor declaring different dimensions is
+//    rejected as a conflicting reservation and the first one is kept.
+//  * sibling tracks are only merged (see
+//    `TrackDescriptor.sibling_merge_behavior`) if they declare the same
+//    dimensions.
+message TrackDimension {
+  // The canonical dimension key, e.g. "rank". Must be non-empty and must not
+  // be one of the reserved names listed above.
+  oneof name_field {
+    string name = 1;
+    // Interned version of `name`: corresponds to the `track_dimension_strings`
+    // field in InternedData, looked up like `string_value_iid`.
+    uint64 name_iid = 7;
+  }
+
+  // The typed value of the dimension. This is the value used for SQL queries,
+  // track identity and (for well-known dimensions) merging, so it must be
+  // stable for the whole trace.
+  oneof value {
+    int64 int_value = 2;
+    string string_value = 3;
+    // Interned version of `string_value`: corresponds to the
+    // `track_dimension_strings` field in InternedData, looked up in the
+    // interned data of the sequence the TrackDescriptor is emitted on. The
+    // resolved string is the value, so an interned and an inline string with
+    // the same contents are the same value.
+    uint64 string_value_iid = 5;
+  }
+
+  // Optional human readable label for this *value*, e.g. "worker-east" for
+  // rank 7. Only affects presentation: the canonical typed value above is what
+  // SQL and merging use.
+  oneof display {
+    string display_name = 4;
+    // Interned version of `display_name`: corresponds to the
+    // `track_dimension_strings` field in InternedData, looked up like
+    // `string_value_iid`.
+    uint64 display_name_iid = 6;
+  }
+}
+
+// End of protos/perfetto/trace/track_event/track_dimension.proto
 
 // Begin of protos/perfetto/trace/track_event/track_descriptor.proto
 
@@ -17560,7 +18617,7 @@ message StateDescriptor {
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 21.
+// Next id: 22.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -17760,6 +18817,7 @@ message TrackDescriptor {
   //    `SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME`.
   // 3. Depending on the behavior, the corresponding key must match (e.g. `name`
   //    for `BY_TRACK_NAME`, `sibling_merge_key` for `BY_SIBLING_MERGE_KEY`).
+  // 4. All tracks must declare the same `dimensions`.
   //
   // Specifically:
   //   - in the UI, all tracks which are merged together will be
@@ -17903,6 +18961,24 @@ message TrackDescriptor {
     THREAD_ORDERING_EXPLICIT = 1;
   }
   optional ThreadOrdering thread_ordering = 20;
+
+  // Custom, producer-declared dimensions for this track. Repeated so that a
+  // track can carry more than one independent dimension (e.g. `rank` and
+  // `stage`).
+  //
+  // Dimensions declared here apply to this track and its `parent_uuid`
+  // descendants. See TrackDimension for the full resolution rules.
+  //
+  // Dimensions are part of the track's identity: every descriptor emitted for
+  // this `uuid` must declare the same dimensions, starting with the first one,
+  // and only siblings declaring the same dimensions are merged. See
+  // TrackDimension for details.
+  //
+  // Well-known dimensions (`machine`, `gpu`, `cpu`, `process`, `thread`) are
+  // synthesized by trace processor from the typed fields above and from import
+  // context: their names are reserved and producers must *not* declare them
+  // here. See TrackDimension for the full list of reserved names.
+  repeated TrackDimension dimensions = 21;
 }
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto
@@ -18035,7 +19111,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 136.
+// Next id: 141.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -18108,6 +19184,8 @@ message TracePacket {
     TraceConfig trace_config = 33;
     FtraceStats ftrace_stats = 34;
     TraceStats trace_stats = 35;
+    ExperimentalTracingV2ProducerStats experimental_tracing_v2_producer_stats =
+        139;
     ProfilePacket profile_packet = 37;
     StreamingAllocation streaming_allocation = 74;
     StreamingFree streaming_free = 75;
@@ -18213,6 +19291,14 @@ message TracePacket {
     AndroidUserList user_list = 123;
 
     SystemdJournaldEvent journald_event = 132;
+
+    // Injected into TracePacket by perfetto post-reboot recovery to record
+    // recovered trace metadata.
+    RecoveredTraceInfo recovered_trace_info = 138;
+
+    // Values of the cgroup v2 memory controller, from the "linux.cgroup" data
+    // source.
+    MemcgStats memcg_stats = 140;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
@@ -18349,9 +19435,13 @@ message TracePacket {
     // A loss was detected (set on every loss). On its own (value 1) it means
     // dropped with no specific cause, e.g. TraceBufferV1 or a producer.
     DATA_LOSS_PRESENT = 1;
-    // A read started on a non-successor ChunkID (a gap in the stream).
+    // A read started on a non-successor ChunkID (a gap in the stream), or a
+    // proto-group sequence resumed after a recorded loss.
     DATA_LOSS_READ_GAP = 2;
-    // A chunk's fragments couldn't be tokenized (malformed / out-of-bounds).
+    // A chunk's fragments couldn't be tokenized (malformed / out-of-bounds),
+    // or a proto-group packet couldn't be rewritten. The buffer stats
+    // abi_violations and oversized_packets_dropped tell the two rewrite
+    // failures apart.
     DATA_LOSS_CHUNK_CORRUPTED = 4;
     // A continuation/end fragment with no preceding begin fragment.
     DATA_LOSS_ORPHAN_CONTINUATION = 8;
@@ -18416,14 +19506,13 @@ message TracePacket {
 
 // Begin of protos/perfetto/trace/trace.proto
 
+// Do NOT add any other field here. This is just a convenience wrapper for
+// the use case of a trace being saved to a file. There are other cases
+// (streaming) where TracePacket are directly streamed without being wrapped
+// in a Trace proto. Nothing should ever rely on the full trace, all the
+// logic should be based on TracePacket(s).
 message Trace {
   repeated TracePacket packet = 1;
-
-  // Do NOT add any other field here. This is just a convenience wrapper for
-  // the use case of a trace being saved to a file. There are other cases
-  // (streaming) where TracePacket are directly streamed without being wrapped
-  // in a Trace proto. Nothing should ever rely on the full trace, all the
-  // logic should be based on TracePacket(s).
 }
 
 // End of protos/perfetto/trace/trace.proto

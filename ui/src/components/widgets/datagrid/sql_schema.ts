@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {maybeUndefined} from '../../../base/utils';
 import {splitPath} from './datagrid_schema';
 import {quoteIdentifier} from './sql_utils';
 
@@ -270,16 +269,15 @@ export class SQLSchemaResolver {
   }
 
   private resolvePath(
-    parts: string[],
+    parts: readonly string[],
     schema: SQLTableSchema,
     currentAlias: string,
   ): string | undefined {
-    if (parts.length === 0) {
+    const [first, ...rest] = parts;
+    if (first === undefined) {
       return undefined;
     }
-
-    const [first, ...rest] = parts;
-    const colDef = maybeUndefined(schema.columns?.[first]);
+    const colDef = schema.columns?.[first];
 
     if (!colDef) {
       // Column not found in schema - treat as raw column name.
@@ -318,8 +316,8 @@ export class SQLSchemaResolver {
       );
 
       if (rest.length === 0) {
-        // Path ends at a join - return the primary key of the joined table
-        return `${joinAlias}.${targetSchema.primaryKey ?? 'id'}`;
+        // Path ends at a join - this is invalid
+        return undefined;
       }
 
       // Continue resolving into the joined table
@@ -379,6 +377,51 @@ export class SQLSchemaResolver {
         return `${joinType} (${join.tableOrSubquery}) AS ${join.alias} ON ${join.alias}.${join.primaryKey} = ${join.fromAlias}.${join.foreignKey}`;
       })
       .join('\n');
+  }
+
+  /**
+   * Resolves a parameterized column by path, accumulating any necessary joins.
+   * Returns the colDef and the target table alias (e.g. 't0' or 'base').
+   */
+  resolveParameterizedColumn(
+    path: string,
+  ): {colDef: SQLExpressionDef; targetAlias: string} | undefined {
+    const parts = splitPath(path);
+    return this.resolveParamPath(parts, this.schema, this.baseAlias);
+  }
+
+  private resolveParamPath(
+    parts: readonly string[],
+    schema: SQLTableSchema,
+    currentAlias: string,
+  ): {colDef: SQLExpressionDef; targetAlias: string} | undefined {
+    const [first, ...rest] = parts;
+    if (first === undefined) {
+      return undefined;
+    }
+    const colDef = schema.columns?.[first];
+    if (!colDef) {
+      return undefined;
+    }
+
+    if ('schema' in colDef) {
+      const targetSchema = colDef.schema;
+      const joinAlias = this.getOrCreateJoin(
+        currentAlias,
+        targetSchema.tableOrSubquery,
+        colDef.foreignKey,
+        targetSchema.primaryKey ?? 'id',
+        colDef.innerJoin ?? false,
+      );
+
+      return this.resolveParamPath(rest, targetSchema, joinAlias);
+    }
+
+    if ('expression' in colDef && colDef.parameterized && rest.length === 0) {
+      return {colDef, targetAlias: currentAlias};
+    }
+
+    return undefined;
   }
 
   /**

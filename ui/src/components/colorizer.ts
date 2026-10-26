@@ -13,11 +13,13 @@
 // limitations under the License.
 
 import {hsl} from 'color-convert';
+import {ensureDefined} from '../base/assert';
 import {hash} from '../base/hash';
 import {featureFlags} from '../core/feature_flags';
 import {type Color, HSLColor, HSLuvColor} from '../base/color';
 import type {ColorScheme} from '../base/color_scheme';
 import {type RandState, pseudoRand} from '../base/rand';
+import {mapTuple} from '../base/array_utils';
 
 // 128 would provide equal weighting between dark and light text.
 // However, we want to prefer light text for stylistic reasons.
@@ -45,7 +47,7 @@ const USE_CONSISTENT_COLORS = featureFlags.register({
 
 const randColourState: RandState = {seed: 0};
 
-const MD_PALETTE_RAW: Color[] = [
+const MD_PALETTE_RAW = [
   new HSLColor({h: 4, s: 90, l: 58}),
   new HSLColor({h: 340, s: 82, l: 52}),
   new HSLColor({h: 291, s: 64, l: 42}),
@@ -64,13 +66,13 @@ const MD_PALETTE_RAW: Color[] = [
   new HSLColor({h: 16, s: 25, l: 38}),
   new HSLColor({h: 200, s: 18, l: 46}),
   new HSLColor({h: 54, s: 100, l: 62}),
-];
+] as const;
 
 export const WHITE_COLOR = new HSLColor([0, 0, 100]);
 export const BLACK_COLOR = new HSLColor([0, 0, 0]);
 export const GRAY_COLOR = new HSLColor([0, 0, 50]).setAlpha(0.5);
 
-const MD_PALETTE: ColorScheme[] = MD_PALETTE_RAW.map((color): ColorScheme => {
+const MD_PALETTE = mapTuple(MD_PALETTE_RAW, (color): ColorScheme => {
   const base = color.desaturate(20);
   const variant = base.desaturate(20).setAlpha(0.8);
 
@@ -115,7 +117,9 @@ export const UNEXPECTED_PINK = makeColorScheme(new HSLColor([330, 100, 70]));
 // based on a string seed.
 export function materialColorScheme(seed: string): ColorScheme {
   const colorIdx = hash(seed, MD_PALETTE.length);
-  return MD_PALETTE[colorIdx];
+  // Indexing a tuple by an arbitrary number still yields T | undefined despite
+  // the fact that the index is guaranteed to be within the bounds of the array.
+  return ensureDefined(MD_PALETTE[colorIdx]);
 }
 
 const proceduralColorCache = new Map<string, ColorScheme>();
@@ -162,6 +166,19 @@ export function colorForThread(thread?: {
   }
   const tid = thread.pid ?? thread.tid;
   return colorForTid(tid);
+}
+
+export function colorForPriority(priority: number): ColorScheme {
+  if (priority < 100) {
+    // Realtime scheduling priorities (0..99) -> Red
+    return MD_PALETTE[0];
+  }
+  if (priority < 120) {
+    // High priority CFS tasks (100..119) -> Yellow
+    return MD_PALETTE[17];
+  }
+  // Priority 120 onwards (nice >= 0) -> Blue
+  return MD_PALETTE[5];
 }
 
 export function colorForCpu(cpu: number): Color {

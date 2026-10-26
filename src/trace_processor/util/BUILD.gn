@@ -44,7 +44,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     deps = [
       "../../../gn:default_deps",
       "../../base",
-      "../perfetto_sql/syntaqlite",
+      "../../perfetto_sql/syntaqlite",
     ]
   }
 }
@@ -85,6 +85,23 @@ source_set("decompressor") {
   }
 }
 
+# One-shot compressors, the counterpart of ":decompressor". Kept separate so the
+# decompressor target stays decompression-only.
+source_set("compressor") {
+  sources = [
+    "zstd_compressor.cc",
+    "zstd_compressor.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
+  ]
+  if (enable_perfetto_zstd) {
+    deps += [ "../../../gn:zstd" ]
+  }
+}
+
 perfetto_component("build_id") {
   sources = [
     "build_id.cc",
@@ -92,7 +109,7 @@ perfetto_component("build_id") {
   ]
   deps = [
     "../../../gn:default_deps",
-    "../../../include/perfetto/ext/base:base",
+    "../../../include/perfetto/ext/base",
   ]
 }
 
@@ -100,7 +117,7 @@ source_set("blob") {
   sources = [ "trace_blob.cc" ]
   deps = [
     "../../../gn:default_deps",
-    "../../../include/perfetto/ext/base:base",
+    "../../../include/perfetto/ext/base",
     "../../../include/perfetto/trace_processor:basic_types",
     "../../../include/perfetto/trace_processor:util",
     "../../../protos/perfetto/common:zero",
@@ -114,7 +131,7 @@ source_set("clock") {
   ]
   deps = [
     "../../../gn:default_deps",
-    "../../../include/perfetto/ext/base:base",
+    "../../../include/perfetto/ext/base",
     "../../../protos/perfetto/common:zero",
   ]
 }
@@ -126,10 +143,10 @@ source_set("profiler_util") {
   ]
   deps = [
     "../../../gn:default_deps",
-    "../../../include/perfetto/ext/base:base",
+    "../../../include/perfetto/ext/base",
     "../../../protos/perfetto/trace/profiling:zero",
     "../importers/common:stats_tracker",
-    "../storage:storage",
+    "../storage",
   ]
 }
 
@@ -232,9 +249,46 @@ source_set("zip_reader") {
   }
 }
 
-source_set("galloping_search") {
-  sources = [ "galloping_search.h" ]
-  deps = [ "../../../gn:default_deps" ]
+source_set("graph") {
+  sources = [
+    "graph.cc",
+    "graph.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+}
+
+perfetto_component("cold_sort") {
+  sources = [
+    "cold_sort.cc",
+    "cold_sort.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
+    "../../base",
+  ]
+}
+
+source_set("sorted_search") {
+  sources = [ "sorted_search.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/public",
+  ]
+}
+
+source_set("concurrency_stress_test_util") {
+  testonly = true
+  sources = [ "concurrency_stress_test_util.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
 }
 
 source_set("glob") {
@@ -289,8 +343,8 @@ source_set("args_utils") {
   ]
 }
 
-# Header only part of the json_parser (just json_parser.h).
-# The old json_utils.cc/h files have been removed and replaced by json_args.cc/h.
+# Header only part of the json_parser (just json_parser.h). The old
+# json_utils.cc/h files have been removed and replaced by json_args.cc/h.
 source_set("json_parser") {
   sources = [ "json_parser.h" ]
   deps = [
@@ -300,8 +354,8 @@ source_set("json_parser") {
   ]
 }
 
-# Header-only JSON streaming parser. No external dependencies.
-source_set("simple_json_parser") {
+# JSON streaming parser.
+perfetto_component("simple_json_parser") {
   sources = [
     "simple_json_parser.cc",
     "simple_json_parser.h",
@@ -391,12 +445,11 @@ source_set("profile_builder") {
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/trace_processor:demangle",
-    "../../../include/perfetto/protozero:protozero",
+    "../../../include/perfetto/protozero",
     "../../../protos/perfetto/trace_processor:zero",
     "../../../protos/third_party/pprof:zero",
     "../../base",
     "../containers",
-    "../core/dataframe",
     "../core/dataframe",
     "../storage",
     "../tables",
@@ -422,6 +475,7 @@ source_set("trace_type") {
     "trace_type.h",
   ]
   deps = [
+    ":cold_sort",
     ":decompressor",
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
@@ -442,12 +496,37 @@ source_set("tar_writer") {
   ]
 }
 
+source_set("flatbuffer_writer") {
+  sources = [
+    "flatbuffer_writer.cc",
+    "flatbuffer_writer.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+}
+
+source_set("flatbuffer_reader") {
+  sources = [
+    "flatbuffer_reader.cc",
+    "flatbuffer_reader.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+}
+
 source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
+    "cold_sort_unittest.cc",
+    "concurrency_stress_test_util_unittest.cc",
     "descriptors_unittest.cc",
-    "galloping_search_unittest.cc",
+    "flatbuffer_reader_unittest.cc",
     "glob_unittest.cc",
+    "graph_unittest.cc",
     "json_parser_unittest.cc",
     "json_serializer_unittest.cc",
     "json_value_unittest.cc",
@@ -457,6 +536,7 @@ source_set("unittests") {
     "protozero_to_text_unittests.cc",
     "simple_json_parser_unittest.cc",
     "simple_json_serializer_unittest.cc",
+    "sorted_search_unittest.cc",
     "sql_argument_unittest.cc",
     "streaming_line_reader_unittest.cc",
     "tar_writer_unittest.cc",
@@ -467,10 +547,14 @@ source_set("unittests") {
   testonly = true
   deps = [
     ":bump_allocator",
+    ":cold_sort",
+    ":concurrency_stress_test_util",
     ":decompressor",
     ":descriptors",
-    ":galloping_search",
+    ":flatbuffer_reader",
+    ":flatbuffer_writer",
     ":glob",
+    ":graph",
     ":json_parser",
     ":json_serializer",
     ":json_value",
@@ -480,6 +564,7 @@ source_set("unittests") {
     ":protozero_to_text",
     ":simple_json_parser",
     ":simple_json_serializer",
+    ":sorted_search",
     ":sql_argument",
     ":tar_writer",
     ":trace_blob_view_reader",

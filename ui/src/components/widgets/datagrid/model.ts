@@ -58,6 +58,16 @@ interface NullFilter {
 
 export type FilterOpAndValue = OpFilter | InFilter | NullFilter;
 
+// A whole-table text filter. Keeps rows where at least one of `fields`
+// contains `text` (see valueMatchesQuickFilter() for the exact rules).
+//
+// Unlike column filters (Filter), which each target one column and are
+// combined with AND, a quick filter matches if ANY of its fields matches.
+export interface QuickFilter {
+  readonly text: string;
+  readonly fields: readonly string[];
+}
+
 interface AggregateField extends ColumnBase {
   readonly function: AggregateFunction;
   readonly field: string;
@@ -110,6 +120,16 @@ export interface Pivot {
   readonly expandedGroups?: readonly GroupPath[];
   // Denylist mode: all nodes expanded except these group paths
   readonly collapsedGroups?: readonly GroupPath[];
+}
+
+export function getPivotDrillDownFilters(
+  pivot: Pivot | undefined,
+): readonly Filter[] {
+  return (
+    pivot?.drillDown?.map(({field, value}): Filter => {
+      return value === null ? {field, op: 'is null'} : {field, op: '=', value};
+    }) ?? []
+  );
 }
 
 // ID-based tree configuration for displaying hierarchical data using

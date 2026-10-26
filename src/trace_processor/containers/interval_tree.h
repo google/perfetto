@@ -56,6 +56,10 @@ inline bool IsOverlapping(bool query_is_instant,
   return e > i.start && s < i.end;
 }
 
+inline bool IsOverlapping(const Interval& a, const Interval& b) {
+  return IsOverlapping(a.start == a.end, a.start, a.end, b);
+}
+
 // An implementation of a centered interval tree data structure, designed to
 // efficiently find all overlap queries on a set of intervals. Centered interval
 // tree has a build complexity of O(N*logN) and a query time of O(logN + k),
@@ -64,10 +68,13 @@ class IntervalTree {
  public:
   // Creates an interval tree from the vector of intervals if needed. Otherwise
   // copies the vector of intervals.
-  explicit IntervalTree(const std::vector<Interval>& sorted_intervals) {
-    PERFETTO_CHECK(!sorted_intervals.empty());
-    nodes_.reserve(sorted_intervals.size());
-    Node root_node(sorted_intervals.data(), sorted_intervals.size(), nodes_);
+  explicit IntervalTree(const std::vector<Interval>& sorted_intervals)
+      : IntervalTree(sorted_intervals.data(), sorted_intervals.size()) {}
+
+  IntervalTree(const Interval* sorted_intervals, size_t size) {
+    PERFETTO_CHECK(size > 0);
+    nodes_.reserve(size);
+    Node root_node(sorted_intervals, size, nodes_);
     nodes_.emplace_back(std::move(root_node));
     root_ = nodes_.size() - 1;
   }

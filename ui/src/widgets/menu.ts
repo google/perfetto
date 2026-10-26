@@ -22,28 +22,27 @@ import {Popup, type PopupAttrs, PopupPosition} from './popup';
 
 export interface MenuItemAttrs extends HTMLAttrs {
   // Text to display on the menu button.
-  label: m.Children;
+  readonly label: m.Children;
   // Optional left icon.
-  icon?: string;
+  readonly icon?: string;
   // Optional right icon.
-  rightIcon?: string;
+  readonly rightIcon?: string;
   // Make the item appear greyed out block any interaction with it. No events
   // will be fired.
   // Defaults to false.
-  disabled?: boolean;
+  readonly disabled?: boolean;
   // Always show the button as if the "active" pseudo class were applied, which
   // makes the button look permanently pressed.
   // Useful for when the button represents some toggleable state, such as
   // showing/hiding a popup menu.
   // Defaults to false.
-  active?: boolean;
+  readonly active?: boolean;
   // If this menu item is a descendant of a popup, this setting means that
   // clicking it will result in the popup being dismissed.
   // Defaults to false when menuitem has children, true otherwise.
-  closePopupOnClick?: boolean;
-
+  readonly closePopupOnClick?: boolean;
   // Callback for when the menu is opened (only when the menu item has children).
-  onChange?(isOpen: boolean): void;
+  readonly onChange?: (isOpen: boolean) => void;
 }
 
 // An interactive menu element with an icon.

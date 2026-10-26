@@ -79,14 +79,14 @@ message SysStats {
 
   // Number of interrupts, broken by IRQ number.
   // Populated only if IRQ_COUNTS in config.stat_counters.
-
+  //
   // Total num of irqs serviced since boot.
   optional uint64 num_irq_total = 5;
   repeated InterruptCount num_irq = 6;
 
   // Number of softirqs, broken by softirq number.
   // Populated only if SOFTIRQ_COUNTS in config.stat_counters.
-
+  //
   // Total num of softirqs since boot.
   optional uint64 num_softirq_total = 7;
 
@@ -136,6 +136,9 @@ message SysStats {
   repeated DiskStat disk_stat = 13;
 
   // Reading from /proc/pressure/*.
+  // Note that /proc/pressure/* exposes historical average utilization values
+  // (as a %), but we don't yet sample those. They could easily be added as
+  // additional fields should the total stall time readings be insufficient.
   message PsiSample {
     // Type of resource that may have exhibited pressure stalls.
     //    * _SOME indicates some resource tasks stalled.
@@ -155,10 +158,6 @@ message SysStats {
     // While PSI readings are in micros, we store in nanos for consistency with
     // most other time-based counters.
     optional uint64 total_ns = 2;
-
-    // Note that /proc/pressure/* exposes historical average utilization values
-    // (as a %), but we don't yet sample those. They could easily be added as
-    // additional fields should the total stall time readings be insufficient.
   }
   // One entry per PsiResource type.
   repeated PsiSample psi = 14;

@@ -68,9 +68,13 @@ ANDROID_VIDEO_FRAMES_TABLE = Table(
                          '(decoder setup), not a displayable frame.',
             'frame_timeline_vsync_id':
                 'For access units: the frame-timeline vsync id (SurfaceFlinger '
-                'DisplayFrame token) of the composite that produced this frame, '
-                'joined from VirtualDisplayComposite frame-timeline events by '
-                'matching pts_us to the composite present time.',
+                'DisplayFrame token, as in '
+                'actual_frame_timeline_slice.display_frame_token) of the '
+                'composite that produced this frame. Joined from '
+                'android.surfaceflinger.virtualdisplay VirtualDisplayComposite '
+                'packets by matching pts_us to their present_time_us. NULL if '
+                'no composite matches, or if the matching composites have '
+                'different vsync ids.',
         }))
 
 # Keep this list sorted.

@@ -14,127 +14,105 @@
 
 import m from 'mithril';
 import type {Trace} from '../../../public/trace';
-import {Time} from '../../../base/time';
-import type {QueryFlamegraphMetric} from '../../../components/query_flamegraph';
-import {FlamegraphPanel} from '../../../components/flamegraph_panel';
-import {Flamegraph, type FlamegraphState} from '../../../widgets/flamegraph';
+import {TreeExplorerFetcher} from '../../../components/tree_explorer_fetcher';
+import {Memo} from '../../../base/memo';
+import {TreeExplorerPanel} from '../../../components/tree_explorer_panel';
+import {
+  createDefaultTreeExplorerState,
+  type TreeExplorerState,
+} from '../../../widgets/tree_explorer';
 import {Stack} from '../../../widgets/stack';
 import {EmptyState} from '../../../widgets/empty_state';
+import {DetailsShell} from '../../../widgets/details_shell';
 
 import {
   buildOomeCallstackMetrics,
-  loadOomeErrorMsg,
+  renderOomeDetails,
 } from '../../dev.perfetto.HeapProfile/oome_callstack_common';
 import type {OomeData} from '../types';
-import {getOome} from '../queries';
-import type {HeapDump} from '../queries';
-
-import {AsyncLimiter} from '../../../base/async_limiter';
-import {Monitor} from '../../../base/monitor';
+import * as queries from '../queries';
+import type {HeapDump} from '../types';
+import {AsyncMemo} from '../../../base/async_memo';
 
 interface CallstackViewAttrs {
   readonly trace: Trace;
   readonly dump: HeapDump;
-  readonly state: FlamegraphState | undefined;
-  readonly onStateChange: (state: FlamegraphState) => void;
+  readonly state: TreeExplorerState | undefined;
+  readonly onStateChange: (state: TreeExplorerState) => void;
 }
 
 export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
-  private oomeData?: OomeData;
-  private oomeDataLoaded = false;
-  private cachedMetrics?: ReadonlyArray<QueryFlamegraphMetric>;
-  private cachedKey?: string;
-  private errorMsg?: string;
-  private readonly limiter = new AsyncLimiter();
-  private monitor?: Monitor;
-
-  async loadErrorMsg(trace: Trace, ts: bigint) {
-    this.errorMsg = await loadOomeErrorMsg(trace.engine, Time.fromRaw(ts));
-    m.redraw();
-  }
+  // The fetcher is created for the dump it serves and disposed by the memo when
+  // the dump changes or when this view is removed.
+  private readonly oomeDataMemo = new AsyncMemo<OomeData | undefined>();
+  private readonly fetcherMemo = new Memo<TreeExplorerFetcher>();
 
   view({attrs}: m.Vnode<CallstackViewAttrs>) {
-    this.monitor ??= new Monitor([() => attrs.dump]);
-    if (this.monitor.ifStateChanged()) {
-      this.oomeData = undefined;
-      this.oomeDataLoaded = false;
-      const dump = attrs.dump;
-      this.limiter.schedule(async () => {
-        try {
-          this.oomeData = await getOome(attrs.trace.engine, dump);
-        } catch {
-          this.oomeData = undefined;
-        } finally {
-          this.oomeDataLoaded = true;
-          m.redraw();
-        }
+    const {isPending, data: oomeData} = this.oomeDataMemo.use({
+      key: {dump: attrs.dump},
+      compute: () => queries.getOome(attrs.trace.engine, attrs.dump),
+    });
+
+    if (isPending) {
+      return m(DetailsShell, {
+        title: 'Callstack',
+        fillHeight: true,
+        className: 'pf-hde-tab--padded',
       });
     }
 
-    if (!this.oomeDataLoaded) {
+    if (!oomeData) {
       return m(
-        'div',
-        {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
-        m(FlamegraphPanel, {
-          trace: attrs.trace,
-          metrics: undefined,
-          state: attrs.state,
-          onStateChange: attrs.onStateChange,
-        }),
-      );
-    }
-
-    if (this.oomeData === undefined) {
-      return m(
-        EmptyState,
-        {
-          icon: 'data_array',
-          title: 'Data is not available in this trace',
-          fillHeight: true,
-        },
+        DetailsShell,
+        {title: 'Callstack', fillHeight: true, className: 'pf-hde-tab--padded'},
         m(
-          'div',
-          'Callstacks in heap dumps are only available in Perfetto heap dumps collected on OutOfMemoryError and in recent versions of Android',
+          EmptyState,
+          {
+            icon: 'data_array',
+            title: 'Data is not available in this trace',
+            fillHeight: true,
+          },
+          m(
+            'div',
+            'Callstacks in heap dumps are only available in Perfetto heap dumps collected on OutOfMemoryError and in recent versions of Android',
+          ),
         ),
       );
     }
 
-    const upid = this.oomeData.upid;
-    const ts = this.oomeData.ts;
-    const key = `${upid}:${ts}`;
-    if (this.cachedMetrics === undefined || key !== this.cachedKey) {
-      this.cachedMetrics = buildOomeCallstackMetrics(Time.fromRaw(ts));
-      this.cachedKey = key;
-      this.errorMsg = undefined;
-      this.loadErrorMsg(attrs.trace, ts);
-    }
-    const metrics = this.cachedMetrics;
+    const upid = oomeData.upid;
+    const ts = oomeData.ts;
+    const fetcher = this.fetcherMemo.use({
+      key: {upid, ts},
+      compute: () =>
+        new TreeExplorerFetcher(attrs.trace, buildOomeCallstackMetrics(ts)),
+    });
+    const metrics = fetcher.metrics;
 
     let state = attrs.state;
     if (state === undefined) {
-      state = Flamegraph.createDefaultState(metrics);
+      state = createDefaultTreeExplorerState(metrics);
       attrs.onStateChange(state);
     }
 
     return m(
-      'div',
-      {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
+      DetailsShell,
+      {title: 'Callstack', fillHeight: true, className: 'pf-hde-tab--padded'},
       m(
         Stack,
         {orientation: 'vertical'},
-        this.errorMsg &&
-          m(
-            'div',
-            {style: {padding: '8px', fontSize: '14px', color: '#ff4081'}},
-            this.errorMsg,
-          ),
-        m(FlamegraphPanel, {
-          trace: attrs.trace,
-          metrics,
+        renderOomeDetails(oomeData.details),
+        m(TreeExplorerPanel, {
+          fetcher,
           state,
           onStateChange: attrs.onStateChange,
         }),
       ),
     );
+  }
+
+  onremove(): void {
+    this.fetcherMemo.dispose();
+    this.oomeDataMemo.dispose();
   }
 }

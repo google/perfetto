@@ -57,6 +57,19 @@ namespace perfetto::trace_processor::stats {
   F(android_video_parse_size_cap_hit,     kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "android.display.video stream exceeded the parse-time size cap; frames " \
       "dropped. See the trace_import_logs table for the affected display."),   \
+  F(android_video_vsync_composite_unmatched,                                   \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "android.surfaceflinger.virtualdisplay VirtualDisplayComposite packets " \
+      "whose present_time_us matched no android.display.video frame pts_us, "  \
+      "so their vsync id is not linked to a video frame. Expected for "        \
+      "virtual displays that are not being captured, and for frames the "      \
+      "encoder dropped or re-timed."),                                         \
+  F(android_video_vsync_present_time_ambiguous,                                \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "present_time_us values that VirtualDisplayComposite packets map to "    \
+      "different vsync ids, and that match an android.display.video frame "    \
+      "pts_us. Such frames get no frame_timeline_vsync_id, as the composite "  \
+      "that produced them is ambiguous."),                                     \
   F(deobfuscate_location_parse_error,     kSingle,  kError,    kAnalysis, Scope::kGlobal,          ""), \
   F(energy_breakdown_missing_values,      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(energy_descriptor_invalid,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
@@ -193,6 +206,11 @@ namespace perfetto::trace_processor::stats {
   F(missing_disk_io_event_name,           kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "ETW Disk IO tracker encountered an event with an opcode for which it " \
         "didn't have a name."),                                                \
+  F(cpu_info_empty,                       kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+       "CpuInfo packet in the trace contained no CPUs. This usually happens "  \
+       "when /proc/cpuinfo is unreadable or empty in the environment (e.g. "   \
+       "sandbox or container) where tracing occurred. Metadata in the cpu "    \
+       "table will be missing."),                                              \
   F(mismatched_sched_switch_tids,         kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(mm_unknown_type,                      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(parse_trace_duration_ns,              kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
@@ -252,10 +270,26 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_chunks_discarded,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_overwritten,        kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_read,               kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(traced_buf_chunks_relocated,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+    "TraceBufferV2 only. Num. chunks that we moved to the write cursor "       \
+    "instead of rewriting in place. We do this for scraped chunks that have "  \
+    "been fully read, as their old position can be too close to the write "    \
+    "cursor to be safe."),                                                     \
   F(traced_buf_chunks_rewritten,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_written,            kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_committed_out_of_order,                                  \
                                           kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(traced_buf_compactions,               kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+    "Number of completed TraceBufferV2 compactions, including those that "     \
+    "move no chunks and excluding calls that skip compaction, such as "        \
+    "calls on DISCARD or read-only buffers."),                                 \
+  F(traced_buf_compactions_skipped,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+    "Number of TraceBufferV2 compactions skipped because live chunks were "    \
+    "on both sides of the write cursor."),                                     \
+  F(traced_buf_oversized_packets_dropped, kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "TraceBufferV2 only. Num. proto-group packets dropped at read time "     \
+      "because length-delimited protobuf cannot encode them: a nested "        \
+      "message larger than 256 MiB or a packet larger than 4 GiB."),           \
   F(traced_buf_padding_bytes_cleared,     kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_padding_bytes_written,     kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_patches_failed,            kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
@@ -397,6 +431,9 @@ namespace perfetto::trace_processor::stats {
       "has already started flushing."),                                        \
   F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
   F(process_tracker_errors,               kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(process_tracker_parent_pid_changed,     kSingle, kInfo,   kAnalysis, Scope::kMachineAndTrace,         \
+      "A process was seen with a changed parent pid and was treated as the "   \
+      "same process being reparented rather than pid reuse."),                 \
   F(namespaced_thread_missing_process,    kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
       "A namespaced thread association was received but the corresponding "    \
       "process association was not found. This can happen due to data losses " \
@@ -665,6 +702,12 @@ namespace perfetto::trace_processor::stats {
       "uses a `DISCARD` buffer. This configuration is strongly discouraged "   \
       "and can cause mysterious data loss in the trace. Please use "           \
       "`RING_BUFFER` buffers instead."),                                       \
+  F(long_trace_mode_bytes_overwritten,    kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "Number of bytes this buffer overwrote while the trace was collected "   \
+      "in streaming mode (`write_into_file` with a periodic "                  \
+      "`file_write_period_ms`). The overwritten bytes were never written "     \
+      "out, so they are missing from the trace file. Consider a larger "       \
+      "buffer or a shorter `file_write_period_ms`."),                          \
    F(hprof_string_counter,                 kSingle,  kInfo,   kAnalysis, Scope::kMachineAndTrace,       \
          "Number of strings encountered."),                                    \
    F(hprof_class_counter,                  kSingle,  kInfo,   kAnalysis, Scope::kMachineAndTrace,       \
@@ -752,6 +795,22 @@ namespace perfetto::trace_processor::stats {
       "A perf sample was encountered that has no frames. This can happen "     \
       "if the kernel is unable to unwind the stack while sampling. Check "     \
       "Linux kernel documentation for causes of this and potential fixes."),   \
+  F(strace_parse_failure,                       kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,   \
+      "A line in an strace trace could not be parsed as a syscall event "     \
+      "and was skipped. This is expected for non-syscall lines, such as "     \
+      "signal delivery or process exit banners."),                           \
+  F(strace_unsupported_timestamp_format,        kSingle,  kError,    kTrace, Scope::kMachineAndTrace,   \
+      "A line in an strace trace looked like a syscall event, but used "      \
+      "`strace -t`/`-tt` wall-clock time-of-day timestamps rather than "      \
+      "`-ttt` Unix epoch timestamps, and was skipped: `-t`/`-tt` print no "   \
+      "date, so they cannot be safely treated as an absolute point in "       \
+      "time. Re-run strace with `-ttt` to fix this."),                       \
+  F(strace_missing_pid,                         kSingle,  kError,    kTrace, Scope::kMachineAndTrace,   \
+      "A syscall line in an strace trace had no leading pid and was "         \
+      "skipped: without one there is no way to attribute the event to a "     \
+      "thread that stays meaningful when traces are merged. strace only "     \
+      "prints pids when following processes, so re-run strace with `-f` "     \
+      "to fix this."),                                                       \
   F(simpleperf_missing_file_mapping,            kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,   \
       "One or more simpleperf samples were dropped because their callchain "   \
       "entries referenced a file_id that has no corresponding File record in " \
@@ -804,6 +863,14 @@ namespace perfetto::trace_processor::stats {
       "be dropped. This indicates a bug in the trace producer or trace "       \
       "conversion tool, or data corruption. Ensure all events have valid "     \
       "timestamps."),                                                          \
+  F(track_event_invalid_timestamp,              kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackEvent packet resolved to a negative timestamp and was dropped. " \
+      "This indicates a bug in the trace producer or trace conversion tool, " \
+      "or data corruption."),                                                  \
+  F(streaming_profile_invalid_timestamp,        kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A StreamingProfilePacket resolved to a negative timestamp and was "    \
+      "dropped. This indicates a bug in the trace producer or data "           \
+      "corruption."),                                                          \
   F(thread_descriptor_missing_sequence_id,      kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "A ThreadDescriptor packet was received without a "                      \
       "trusted_packet_sequence_id field. This field is required to associate " \
@@ -867,6 +934,23 @@ namespace perfetto::trace_processor::stats {
       "A TrackEventRangeOfInterest packet was received without the required "  \
       "start_us field. The packet is ignored. This is a bug in the trace "     \
       "producer."),                                                            \
+  F(track_descriptor_invalid_dimension,         kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackDescriptor declared a dimension without a name or without a "    \
+      "value, which is ignored, or with an iid which is not in the interned "  \
+      "data of the sequence. A descriptor with an unknown name or value iid "  \
+      "is ignored entirely, so that a later re-emission with the interned "    \
+      "data can still be reserved; an unknown display_name_iid only drops "    \
+      "the display name."),                                                    \
+  F(track_descriptor_reserved_dimension_name,   kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackDescriptor declared a custom dimension using a name reserved "   \
+      "for well known dimensions (machine, gpu, cpu, process, thread). These " \
+      "are synthesized by trace processor and cannot be redefined: the "       \
+      "dimension is ignored. This is a bug in the trace producer."),           \
+  F(track_dimension_conflicting_value,          kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackDescriptor declared a dimension which it already inherits "      \
+      "from a parent_uuid ancestor, or declares twice, with a *different* "    \
+      "value. The inherited (or first declared) value is kept and the other "  \
+      "one is ignored. This is a bug in the trace producer."),                 \
   F(track_descriptor_invalid_child_ordering,    kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "A TrackDescriptor specified an invalid or unrecognized value for "      \
       "child_tracks_ordering. The descriptor is ignored. This is a bug in "    \

@@ -19,9 +19,8 @@ import {
   sqlColumnId,
 } from './sql_column';
 import {buildSqlQuery} from './query_builder';
-import {raf} from '../../../../core/raf_scheduler';
 import type {SortDirection} from '../../../../base/comparison_utils';
-import {assertTrue} from '../../../../base/assert';
+import {assertTrue, ensureDefined} from '../../../../base/assert';
 import type {SqlTableDescription} from './table_description';
 import type {Trace} from '../../../../public/trace';
 import {areFiltersEqual, type Filter, Filters} from './filters';
@@ -164,7 +163,7 @@ export class SqlTableState {
     const columns: {[key: string]: SqlColumn} = Object.fromEntries(
       this.columns.map((c) => [
         tableColumnAlias(c),
-        mode === 'data' ? c.column : c.display ?? c.column,
+        mode === 'data' ? c.column : (c.display ?? c.column),
       ]),
     );
 
@@ -271,16 +270,6 @@ export class SqlTableState {
       this.rowCount = undefined;
     }
 
-    // Schedule a full redraw to happen after a short delay (50 ms).
-    // This is done to prevent flickering / visual noise and allow the UI to fetch
-    // the initial data from the Trace Processor.
-    // There is a chance that someone else schedules a full redraw in the
-    // meantime, forcing the flicker, but in practice it works quite well and
-    // avoids a lot of complexity for the callers.
-    // 50ms is half of the responsiveness threshold (100ms):
-    // https://web.dev/rail/#response-process-events-in-under-50ms
-    setTimeout(() => raf.scheduleFullRedraw(), 50);
-
     if (!filtersMatch) {
       this.rowCount = await this.loadRowCount();
     }
@@ -290,8 +279,6 @@ export class SqlTableState {
     // If the request has changed since we started loading the data, do not update the state.
     if (this.request !== request) return;
     this.data = data;
-
-    raf.scheduleFullRedraw();
   }
 
   getTotalRowCount(): number | undefined {
@@ -327,11 +314,12 @@ export class SqlTableState {
   }
 
   isSortedBy(column: TableColumn): SortDirection | undefined {
-    if (this.orderBy.length === 0) return undefined;
-    if (tableColumnId(this.orderBy[0].column) !== tableColumnId(column)) {
+    const first = this.orderBy[0];
+    if (first === undefined) return undefined;
+    if (tableColumnId(first.column) !== tableColumnId(column)) {
       return undefined;
     }
-    return this.orderBy[0].direction;
+    return first.direction;
   }
 
   getOrderedBy(): ColumnOrderClause[] {
@@ -351,7 +339,7 @@ export class SqlTableState {
   }
 
   hideColumnAtIndex(index: number) {
-    const column = this.columns[index];
+    const column = ensureDefined(this.columns[index]);
     this.columns.splice(index, 1);
     this.willRemoveColumn(column);
     // TODO(altimin): we can avoid the fetch here if the orderBy hasn't changed.
@@ -359,7 +347,7 @@ export class SqlTableState {
   }
 
   replaceColumnAtIndex(index: number, column: TableColumn) {
-    this.willRemoveColumn(this.columns[index]);
+    this.willRemoveColumn(this.columns[index]!);
     this.columns[index] = column;
     this.reload({offset: 'keep'});
   }

@@ -62,6 +62,7 @@ class StateTracker;
 class SliceTranslationTable;
 class SparseCounterTracker;
 class StackProfileTracker;
+class ProfilerSampleTracker;
 class SymbolTracker;
 class TraceDiagnosticsTracker;
 class TraceFileTracker;
@@ -69,6 +70,11 @@ class TraceImporterRegistry;
 class TraceReaderRegistry;
 class TraceSorter;
 class TraceStorage;
+class TraceProcessor_PlatformInterface;
+
+namespace io {
+class FileSystem;
+}
 class TrackCompressor;
 class TrackTracker;
 struct ProtoImporterModuleContext;
@@ -138,8 +144,10 @@ class TraceProcessorContext {
 
   // Creates the root TraceProcessorContext. Should only be called by
   // TraceProcessor top level class.
-  static TraceProcessorContext CreateRootContext(const Config& config) {
-    return TraceProcessorContext(config);
+  static TraceProcessorContext CreateRootContext(
+      const Config& config,
+      TraceProcessor_PlatformInterface* platform = nullptr) {
+    return TraceProcessorContext(config, platform);
   }
 
   // Destroys all state related to parsing the trace, keeping only state
@@ -166,6 +174,11 @@ class TraceProcessorContext {
   // then shared between all machines.
 
   Config config;
+  TraceProcessor_PlatformInterface* platform = nullptr;
+  // The filesystem obtained from `platform` at construction. Cached so that
+  // each Trace Processor instance uses a stable snapshot of its platform's
+  // filesystem for its whole lifetime. Borrowed; must outlive this instance.
+  io::FileSystem* file_system = nullptr;
   GlobalPtr<TraceStorage> storage;
   GlobalPtr<TraceSorter> sorter;
   GlobalPtr<TraceReaderRegistry> reader_registry;
@@ -188,6 +201,7 @@ class TraceProcessorContext {
   GlobalPtr<TraceManifestState> trace_manifest_state;
   GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
   GlobalPtr<StackProfileTracker> stack_profile_tracker;
+  GlobalPtr<ProfilerSampleTracker> profiler_sample_tracker;
   GlobalPtr<Destructible> deobfuscation_tracker;  // DeobfuscationTracker
   GlobalPtr<BlobPacketWriter> blob_packet_writer;
 
@@ -296,7 +310,8 @@ class TraceProcessorContext {
   }
 
  private:
-  explicit TraceProcessorContext(const Config& config);
+  TraceProcessorContext(const Config& config,
+                        TraceProcessor_PlatformInterface* platform);
 
   TraceProcessorContext(TraceProcessorContext&&) = default;
   TraceProcessorContext& operator=(TraceProcessorContext&&) = default;

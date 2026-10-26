@@ -128,6 +128,25 @@ TEST(SlabTest, RangeBasedForLoop) {
   EXPECT_EQ(sum, 15);
 }
 
+// Allocations big enough to hold a vector register must be 64 byte aligned:
+// vectorized code and zero-copy mapping of Arrow buffers both depend on it.
+// glibc returns mmap-backed chunks at a 16 byte offset from the page, so this
+// does not come for free even on large allocations.
+TEST(SlabTest, LargeAllocationsAreAligned) {
+  constexpr size_t kAlign = Slab<uint8_t>::kAlignment;
+  for (uint64_t bytes : {64u, 256u, 4096u, 131072u, 1u << 22}) {
+    auto u8 = Slab<uint8_t>::Alloc(bytes);
+    auto u32 = Slab<uint32_t>::Alloc(bytes / sizeof(uint32_t));
+    auto i64 = Slab<int64_t>::Alloc(bytes / sizeof(int64_t));
+    EXPECT_EQ(reinterpret_cast<uintptr_t>(u8.data()) % kAlign, 0u)
+        << "uint8 slab of " << bytes << " bytes";
+    EXPECT_EQ(reinterpret_cast<uintptr_t>(u32.data()) % kAlign, 0u)
+        << "uint32 slab of " << bytes << " bytes";
+    EXPECT_EQ(reinterpret_cast<uintptr_t>(i64.data()) % kAlign, 0u)
+        << "int64 slab of " << bytes << " bytes";
+  }
+}
+
 // Test with different data types
 TEST(SlabTest, DifferentDataTypes) {
   // Test with a larger type

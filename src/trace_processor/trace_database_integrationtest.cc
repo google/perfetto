@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <random>
 #include <string>
 #include <utility>
@@ -29,6 +31,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -44,6 +47,8 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
+#include "src/trace_processor/local_file_system.h"
+#include "src/trace_processor/rpc/rpc.h"
 
 #include "src/base/test/status_matchers.h"
 #include "src/base/test/utils.h"
@@ -52,10 +57,113 @@
 namespace perfetto::trace_processor {
 namespace {
 
+using base::gtest_matchers::IsError;
 using testing::Eq;
 using testing::HasSubstr;
 
 constexpr size_t kMaxChunkSize = 4ul * 1024 * 1024;
+
+class FailingFile final : public io::File {
+ public:
+  base::Status ReadAt(uint64_t, void*, size_t, size_t*) override {
+    return base::ErrStatus("injected read failure");
+  }
+
+  base::Status WriteAt(uint64_t, const void*, size_t) override {
+    return base::ErrStatus("injected write failure");
+  }
+
+  base::Status Truncate(uint64_t) override {
+    return base::ErrStatus("injected truncate failure");
+  }
+
+  base::Status GetSize(uint64_t*) override {
+    return base::ErrStatus("injected size failure");
+  }
+
+  base::Status Flush() override {
+    return base::ErrStatus("injected flush failure");
+  }
+};
+
+class FailingWriteFileSystem final : public io::FileSystem {
+ public:
+  base::Status OpenFile(const std::string&,
+                        const io::FileOpenOptions&,
+                        std::unique_ptr<io::File>* file) override {
+    file->reset(new FailingFile());
+    return base::OkStatus();
+  }
+
+  base::Status DeleteFile(const std::string&) override {
+    return base::ErrStatus("injected delete failure");
+  }
+
+  base::Status FileExists(const std::string&, bool*) override {
+    return base::ErrStatus("injected exists failure");
+  }
+};
+
+class CountingFile final : public io::File {
+ public:
+  explicit CountingFile(size_t* write_count) : write_count_(write_count) {}
+
+  base::Status ReadAt(uint64_t, void*, size_t, size_t*) override {
+    return base::ErrStatus("not supported");
+  }
+
+  base::Status WriteAt(uint64_t, const void*, size_t) override {
+    ++*write_count_;
+    return base::OkStatus();
+  }
+
+  base::Status Truncate(uint64_t) override {
+    return base::ErrStatus("not supported");
+  }
+
+  base::Status GetSize(uint64_t*) override {
+    return base::ErrStatus("not supported");
+  }
+
+  base::Status Flush() override { return base::ErrStatus("not supported"); }
+
+ private:
+  size_t* write_count_;
+};
+
+class CountingFileSystem final : public io::FileSystem {
+ public:
+  base::Status OpenFile(const std::string&,
+                        const io::FileOpenOptions&,
+                        std::unique_ptr<io::File>* file) override {
+    file->reset(new CountingFile(&write_count_));
+    return base::OkStatus();
+  }
+
+  base::Status DeleteFile(const std::string&) override {
+    return base::ErrStatus("not supported");
+  }
+
+  base::Status FileExists(const std::string&, bool*) override {
+    return base::ErrStatus("not supported");
+  }
+
+  size_t write_count() const { return write_count_; }
+
+ private:
+  size_t write_count_ = 0;
+};
+
+class FileSystemPlatform final : public TraceProcessor::PlatformInterface {
+ public:
+  explicit FileSystemPlatform(io::FileSystem* file_system)
+      : file_system_(file_system) {}
+
+  io::FileSystem* GetFileSystem() override { return file_system_; }
+
+ private:
+  io::FileSystem* file_system_;
+};
 
 TEST(TraceProcessorCustomConfigTest, SkipInternalMetricsMatchingMountPath) {
   auto config = Config();
@@ -108,6 +216,170 @@ TEST(TraceProcessorCustomConfigTest, HandlesMalformedMountPath) {
   ASSERT_TRUE(it.Next());
   ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
   ASSERT_EQ(it.Get(0).long_value, 1);
+}
+
+TEST(TraceProcessorCustomConfigTest, ExportJsonRequiresEnabledConfig) {
+  FailingWriteFileSystem file_system;
+  FileSystemPlatform platform(&file_system);
+  auto processor = TraceProcessor::CreateInstance(Config(), &platform);
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON('file')");
+  EXPECT_FALSE(it.Next());
+  EXPECT_THAT(it.Status(), IsError());
+  EXPECT_THAT(it.Status().message(), HasSubstr("File I/O is disabled"));
+}
+
+TEST(TraceProcessorCustomConfigTest, ExportJsonRequiresPlatformFileSystem) {
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config);
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON('file')");
+  EXPECT_FALSE(it.Next());
+  EXPECT_THAT(it.Status(), IsError());
+  EXPECT_THAT(it.Status().message(), HasSubstr("File I/O is disabled"));
+}
+
+TEST(TraceProcessorCustomConfigTest, ExportJsonRejectsIntegerFileDescriptor) {
+  auto file_system = io::CreateLocalFileSystem();
+  FileSystemPlatform platform(file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON(1)");
+  EXPECT_FALSE(it.Next());
+  EXPECT_THAT(it.Status(), IsError());
+  EXPECT_THAT(it.Status().message(),
+              HasSubstr("argument must be a filename string"));
+}
+
+TEST(TraceProcessorCustomConfigTest, ExportJsonUsesConfiguredFileSystem) {
+  base::TempFile file = base::TempFile::Create().ValueOrDie();
+  const std::string& path = file.path();
+  ASSERT_EQ(path.find('\''), std::string::npos);
+
+  auto file_system = io::CreateLocalFileSystem();
+  FileSystemPlatform platform(file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON('" + path + "')");
+  ASSERT_TRUE(it.Next());
+  EXPECT_OK(it.Status());
+
+  std::string contents;
+  ASSERT_TRUE(base::ReadFile(path, &contents));
+  EXPECT_THAT(contents, HasSubstr("\"traceEvents\""));
+}
+
+TEST(TraceProcessorCustomConfigTest, ExportJsonAfterParsingTrace) {
+  base::TempFile file = base::TempFile::Create().ValueOrDie();
+  const std::string& path = file.path();
+  ASSERT_EQ(path.find('\''), std::string::npos);
+
+  auto file_system = io::CreateLocalFileSystem();
+  FileSystemPlatform platform(file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  ASSERT_OK(processor->Parse(
+      TraceBlobView(TraceBlob::CopyFrom(R"({"traceEvents":[]})", 18))));
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON('" + path + "')");
+  ASSERT_TRUE(it.Next());
+  EXPECT_OK(it.Status());
+
+  std::string contents;
+  ASSERT_TRUE(base::ReadFile(path, &contents));
+  EXPECT_THAT(contents, HasSubstr("\"traceEvents\""));
+}
+
+TEST(TraceProcessorCustomConfigTest,
+     RpcImplicitResetPreservesSqlFileAccessGrant) {
+  base::TempFile first_file = base::TempFile::Create().ValueOrDie();
+  auto file_system = io::CreateLocalFileSystem();
+  FileSystemPlatform platform(file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  Rpc rpc(std::move(processor), false, config, &platform, {});
+
+  auto write_file = [&rpc](const std::string& path) {
+    auto it = rpc.trace_processor()->ExecuteQuery(
+        "SELECT __intrinsic_file_write('" + path + "', X'00')");
+    ASSERT_TRUE(it.Next());
+    EXPECT_OK(it.Status());
+  };
+
+  write_file(first_file.path());
+
+  ASSERT_OK(rpc.NotifyEndOfFile());
+  ASSERT_OK(rpc.Parse(TraceBlobView()));
+
+  base::TempFile second_file = base::TempFile::Create().ValueOrDie();
+  write_file(second_file.path());
+}
+
+TEST(TraceProcessorCustomConfigTest, ExportJsonPropagatesWriteFailure) {
+  FailingWriteFileSystem file_system;
+  FileSystemPlatform platform(&file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON('file')");
+  EXPECT_FALSE(it.Next());
+  EXPECT_THAT(it.Status(), IsError());
+  EXPECT_THAT(it.Status().message(), HasSubstr("injected write failure"));
+}
+
+TEST(TraceProcessorCustomConfigTest, ExportJsonBuffersWrites) {
+  CountingFileSystem file_system;
+  FileSystemPlatform platform(&file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON('file')");
+  ASSERT_TRUE(it.Next());
+  EXPECT_OK(it.Status());
+  EXPECT_EQ(file_system.write_count(), 1u);
+}
+
+TEST(TraceProcessorCustomConfigTest,
+     IntrinsicFileWriteRequiresConfiguredFileSystem) {
+  auto processor = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it =
+      processor->ExecuteQuery("SELECT __intrinsic_file_write('file', X'00')");
+  EXPECT_FALSE(it.Next());
+  EXPECT_THAT(it.Status(), IsError());
+  EXPECT_THAT(it.Status().message(), HasSubstr("File I/O is disabled"));
+}
+
+TEST(TraceProcessorCustomConfigTest,
+     IntrinsicFileWriteUsesConfiguredFileSystem) {
+  base::TempFile file = base::TempFile::Create().ValueOrDie();
+  const std::string& path = file.path();
+  ASSERT_EQ(path.find('\''), std::string::npos);
+
+  auto file_system = io::CreateLocalFileSystem();
+  FileSystemPlatform platform(file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT __intrinsic_file_write('" + path +
+                                    "', X'000102FF')");
+  ASSERT_TRUE(it.Next());
+  EXPECT_EQ(it.Get(0).AsLong(), 4);
+  EXPECT_OK(it.Status());
+
+  std::string contents;
+  ASSERT_TRUE(base::ReadFile(path, &contents));
+  EXPECT_EQ(contents, std::string("\0\1\2\xff", 4));
 }
 
 namespace {
@@ -835,12 +1107,11 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageExecuteQuery) {
   ASSERT_FALSE(it.Next());
   ASSERT_FALSE(it.Status().ok());
 
-  ASSERT_THAT(it.Status().message(),
-              testing::Eq(R"(Traceback (most recent call last):
-  File "stdin" line 1 col 8
-    select t from slice
-           ^
-no such column: t)"));
+  ASSERT_THAT(it.Status().message(), testing::Eq(R"( --> query:1:8
+  |
+1 | select t from slice
+  |        ^
+error: no such column: t)"));
 }
 
 TEST_F(TraceProcessorIntegrationTest, ErrorMessageMetricFile) {
@@ -853,14 +1124,15 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageMetricFile) {
   ASSERT_FALSE(it.Status().ok());
 
   ASSERT_EQ(it.Status().message(),
-            R"(Traceback (most recent call last):
-  File "stdin" line 1 col 1
-    select RUN_METRIC('foo/bar.sql')
-    ^
-  Metric file "foo/bar.sql" line 1 col 8
-    select t from slice
-           ^
-no such column: t)");
+            R"( --> query:1:1
+  |
+1 | select RUN_METRIC('foo/bar.sql')
+  | ^
+ --> metric foo/bar.sql:1:8
+  |
+1 | select t from slice
+  |        ^
+error: no such column: t)");
 }
 
 TEST_F(TraceProcessorIntegrationTest, ErrorMessageModule) {
@@ -876,14 +1148,15 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageModule) {
   ASSERT_FALSE(it.Status().ok());
 
   ASSERT_EQ(it.Status().message(),
-            R"(Traceback (most recent call last):
-  File "stdin" line 1 col 1
-    include perfetto module foo.bar
-    ^
-  Module include "foo.bar" line 1 col 8
-    select t from slice
-           ^
-no such column: t)");
+            R"( --> query:1:1
+  |
+1 | include perfetto module foo.bar
+  | ^
+ --> module foo.bar:1:8
+  |
+1 | select t from slice
+  |        ^
+error: no such column: t)");
 }
 
 TEST_F(TraceProcessorIntegrationTest, FunctionRegistrationError) {
@@ -964,24 +1237,25 @@ TEST_F(TraceProcessorIntegrationTest, PackagePrefixClash_NewIsPrefix) {
   ASSERT_THAT(status.message(), HasSubstr("clashes"));
 }
 
-TEST_F(TraceProcessorIntegrationTest, StdlibDocsWildcardDottedPackage) {
+TEST_F(TraceProcessorIntegrationTest, StdlibDocsObjectsDottedPackage) {
   ASSERT_OK(NotifyEndOfFile());
 
-  // A package whose *name* itself contains dots, owning a module beneath it.
-  // The stdlib docs table functions must resolve the owning package via the
-  // (package, module) pairs from the registry, not by splitting the module key
-  // on the first '.' (which would yield "dev" and fail to find the package).
+  // A package whose name itself contains dots, owning a module beneath it.
+  // Package ownership must come directly from the registry rather than from
+  // splitting the module key on the first dot.
   SqlPackage pkg;
   pkg.name = "dev.perfetto.test";
   pkg.modules.push_back({"dev.perfetto.test.common", "SELECT 1"});
   ASSERT_OK(Processor()->RegisterSqlPackage(pkg));
 
-  // The wildcard enumerates every registered module, including the dotted one.
-  // Before the fix this failed with "Module not found:
-  // dev.perfetto.test.common" and aborted the whole query.
-  auto it = Query("SELECT COUNT(*) AS c FROM __intrinsic_stdlib_tables('*')");
-  ASSERT_TRUE(it.Next());
-  ASSERT_OK(it.Status());
+  auto result = Query(
+      "SELECT COUNT(*) FROM __intrinsic_stdlib_objects "
+      "WHERE package = 'dev.perfetto.test' "
+      "AND module = 'dev.perfetto.test.common' "
+      "AND object_type = 'MODULE'");
+  ASSERT_TRUE(result.Next());
+  ASSERT_EQ(result.Get(0).AsLong(), 1);
+  ASSERT_OK(result.Status());
 }
 
 TEST_F(TraceProcessorIntegrationTest, PackageSameNameOverride) {
@@ -1002,6 +1276,241 @@ TEST_F(TraceProcessorIntegrationTest, PackageSameNameOverride) {
   // Re-registering "foo" with override should succeed
   pkg2.allow_override = true;
   ASSERT_OK(Processor()->RegisterSqlPackage(pkg2));
+}
+
+class StringExportOutput : public TraceProcessor::ExportOutput {
+ public:
+  base::Status Write(const void* data, size_t size) override {
+    bytes.append(static_cast<const char*>(data), size);
+    return base::OkStatus();
+  }
+
+  std::string bytes;
+};
+
+std::string ExportToString(TraceProcessor* tp,
+                           TraceProcessor::ExportFormat format) {
+  StringExportOutput output;
+  EXPECT_OK(tp->Export(format, &output));
+  return std::move(output.bytes);
+}
+
+base::Status ParsePerfettoExport(TraceProcessor* tp, const std::string& bytes) {
+  constexpr size_t kChunk = 4096;
+  for (size_t i = 0; i < bytes.size(); i += kChunk) {
+    size_t len = std::min(kChunk, bytes.size() - i);
+    auto buf = std::make_unique<uint8_t[]>(len);
+    memcpy(buf.get(), bytes.data() + i, len);
+    auto status = tp->Parse(std::move(buf), len);
+    if (!status.ok()) {
+      return status;
+    }
+  }
+  return tp->NotifyEndOfFile();
+}
+
+int64_t QuerySingleInt(TraceProcessor* tp, const std::string& sql) {
+  auto it = tp->ExecuteQuery(sql);
+  EXPECT_TRUE(it.Next()) << sql;
+  int64_t value = it.Get(0).long_value;
+  EXPECT_FALSE(it.Next());
+  EXPECT_OK(it.Status());
+  return value;
+}
+
+std::string QuerySingleString(TraceProcessor* tp, const std::string& sql) {
+  auto it = tp->ExecuteQuery(sql);
+  EXPECT_TRUE(it.Next()) << sql;
+  std::string value = it.Get(0).string_value;
+  EXPECT_FALSE(it.Next());
+  EXPECT_OK(it.Status());
+  return value;
+}
+
+struct TarMember {
+  std::string name;
+  size_t data_offset;
+  size_t size;
+};
+
+std::vector<TarMember> ReadTarMembers(const std::string& tar) {
+  std::vector<TarMember> members;
+  for (size_t offset = 0; offset + 512 <= tar.size();) {
+    if (tar[offset] == '\0') {
+      break;
+    }
+    std::string name(tar.data() + offset, strnlen(tar.data() + offset, 100));
+    size_t size = 0;
+    for (size_t i = 0; i < 11; ++i) {
+      char c = tar[offset + 124 + i];
+      if (c < '0' || c > '7') {
+        break;
+      }
+      size = size * 8 + static_cast<size_t>(c - '0');
+    }
+    size_t data_offset = offset + 512;
+    if (data_offset + size > tar.size()) {
+      return {};
+    }
+    members.push_back({std::move(name), data_offset, size});
+    offset = data_offset + ((size + 511) / 512) * 512;
+  }
+  return members;
+}
+
+TEST_F(TraceProcessorIntegrationTest, ExportSqliteRequiresFilePath) {
+  StringExportOutput output;
+  EXPECT_THAT(
+      Processor()->Export(TraceProcessor::ExportFormat::kSqlite, &output),
+      IsError());
+}
+
+TEST_F(TraceProcessorIntegrationTest, ExportPerfetto) {
+  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
+
+  std::string tar =
+      ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
+
+  // The archive must start with the manifest entry: a tar file begins with
+  // the first entry's 100-byte name field.
+  ASSERT_GT(tar.size(), 1024u);
+  ASSERT_EQ(std::string(tar.data(), 22), "perfetto_manifest.json");
+  ASSERT_EQ(std::string(tar.data() + 257, 5), "ustar");
+
+  std::vector<TarMember> members = ReadTarMembers(tar);
+  ASSERT_GT(members.size(), 2u);
+  EXPECT_EQ(members[0].name, "perfetto_manifest.json");
+  for (size_t i = 1; i < members.size(); ++i) {
+    const TarMember& member = members[i];
+    EXPECT_TRUE(base::EndsWith(member.name, ".arrow")) << member.name;
+    ASSERT_GE(member.size, 6u);
+    EXPECT_EQ(tar.substr(member.data_offset, 6), "ARROW1") << member.name;
+  }
+}
+
+TEST_F(TraceProcessorIntegrationTest, ExportArrowTar) {
+  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
+  auto runtime_table = Processor()->ExecuteQuery(
+      "CREATE PERFETTO TABLE runtime_export_test AS "
+      "SELECT 1 AS value");
+  EXPECT_FALSE(runtime_table.Next());
+  ASSERT_OK(runtime_table.Status());
+
+  std::string tar =
+      ExportToString(Processor(), TraceProcessor::ExportFormat::kArrowTar);
+  std::vector<TarMember> members = ReadTarMembers(tar);
+  ASSERT_FALSE(members.empty());
+  for (const TarMember& member : members) {
+    EXPECT_TRUE(base::EndsWith(member.name, ".arrow")) << member.name;
+    ASSERT_GE(member.size, 6u);
+    EXPECT_EQ(tar.substr(member.data_offset, 6), "ARROW1") << member.name;
+    EXPECT_NE(member.name, "runtime_export_test.arrow");
+  }
+  EXPECT_EQ(tar.find("perfetto_manifest.json"), std::string::npos);
+
+  auto reimport = TraceProcessor::CreateInstance(Config());
+  EXPECT_THAT(ParsePerfettoExport(reimport.get(), tar), IsError());
+}
+
+TEST_F(TraceProcessorIntegrationTest, PerfettoExportRoundTrip) {
+  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
+
+  int64_t thread_count =
+      QuerySingleInt(Processor(), "SELECT count() FROM thread");
+  int64_t slice_count =
+      QuerySingleInt(Processor(), "SELECT count() FROM slice");
+  int64_t slice_dur_sum =
+      QuerySingleInt(Processor(), "SELECT sum(dur) FROM slice");
+  int64_t dimension_count =
+      QuerySingleInt(Processor(), "SELECT count() FROM track_dimension");
+  const std::string arg_lookup =
+      "SELECT extract_arg(a.arg_set_id, a.key) = a.int_value FROM args AS a "
+      "WHERE a.int_value IS NOT NULL "
+      "AND a.value_type IN ('int', 'uint', 'bool', 'pointer') "
+      "ORDER BY a.arg_set_id, a.key LIMIT 1";
+  ASSERT_EQ(QuerySingleInt(Processor(), arg_lookup), 1);
+  std::string first_thread_name = QuerySingleString(
+      Processor(),
+      "SELECT name FROM thread WHERE name IS NOT NULL ORDER BY name LIMIT 1");
+  ASSERT_GT(thread_count, 0);
+  ASSERT_GT(slice_count, 0);
+
+  std::string tar =
+      ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
+
+  auto reimport = TraceProcessor::CreateInstance(Config());
+  ASSERT_EQ(QuerySingleInt(reimport.get(),
+                           "SELECT extract_arg(0, 'missing') IS NULL"),
+            1);
+  ASSERT_EQ(QuerySingleString(reimport.get(),
+                              "SELECT __intrinsic_arg_set_to_json(0)"),
+            "{}");
+  ASSERT_OK(ParsePerfettoExport(reimport.get(), tar));
+  EXPECT_EQ(QuerySingleInt(reimport.get(), arg_lookup), 1);
+  EXPECT_EQ(
+      QuerySingleInt(reimport.get(), "SELECT count() FROM track_dimension"),
+      dimension_count);
+
+  EXPECT_EQ(QuerySingleInt(reimport.get(), "SELECT count() FROM thread"),
+            thread_count);
+  EXPECT_EQ(QuerySingleInt(reimport.get(), "SELECT count() FROM slice"),
+            slice_count);
+  EXPECT_EQ(QuerySingleInt(reimport.get(), "SELECT sum(dur) FROM slice"),
+            slice_dur_sum);
+  EXPECT_EQ(QuerySingleString(
+                reimport.get(),
+                "SELECT name FROM thread WHERE name IS NOT NULL ORDER BY name "
+                "LIMIT 1"),
+            first_thread_name);
+}
+
+TEST_F(TraceProcessorIntegrationTest, PerfettoExportSchemaMismatchRejected) {
+  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
+  std::string tar =
+      ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
+
+  // Corrupt the manifest: flip a column type. Same-length replacement keeps
+  // the tar structure intact.
+  size_t pos = tar.find("\"type\":\"int64\"");
+  ASSERT_NE(pos, std::string::npos);
+  tar.replace(pos, 14, "\"type\":\"int32\"");
+
+  auto reimport = TraceProcessor::CreateInstance(Config());
+  auto status = ParsePerfettoExport(reimport.get(), tar);
+  EXPECT_THAT(status, IsError());
+  EXPECT_NE(status.message().find("schema mismatch"), std::string::npos)
+      << status.message();
+}
+
+TEST_F(TraceProcessorIntegrationTest, PerfettoExportVersionMismatchRejected) {
+  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
+  std::string tar =
+      ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
+
+  size_t pos = tar.find("\"format\":1");
+  ASSERT_NE(pos, std::string::npos);
+  tar.replace(pos, 10, "\"format\":9");
+
+  auto reimport = TraceProcessor::CreateInstance(Config());
+  auto status = ParsePerfettoExport(reimport.get(), tar);
+  EXPECT_THAT(status, IsError());
+  EXPECT_NE(status.message().find("format"), std::string::npos)
+      << status.message();
+}
+
+TEST_F(TraceProcessorIntegrationTest, PerfettoExportRowCountMismatchRejected) {
+  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
+  std::string tar =
+      ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
+
+  size_t pos = tar.find("\"row_count\":");
+  ASSERT_NE(pos, std::string::npos);
+  char& digit = tar[pos + 12];
+  ASSERT_TRUE(digit >= '0' && digit <= '9');
+  digit = digit == '9' ? '8' : static_cast<char>(digit + 1);
+
+  auto reimport = TraceProcessor::CreateInstance(Config());
+  EXPECT_THAT(ParsePerfettoExport(reimport.get(), tar), IsError());
 }
 
 TEST_F(TraceProcessorIntegrationTest, MultiLevelPackageInclude) {

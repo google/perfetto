@@ -215,6 +215,11 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   // When provided, these descriptors allow trace processor to parse custom
   // protobuf messages that are not compiled into Perfetto
   std::vector<std::string> extra_parsing_descriptors;
+
+  // Allows SQL to access files through the filesystem supplied by the
+  // TraceProcessor platform. Disabled by default. Do not enable this when
+  // executing untrusted SQL.
+  bool enable_sql_file_access = false;
 };
 
 // Represents a dynamically typed value returned by SQL.

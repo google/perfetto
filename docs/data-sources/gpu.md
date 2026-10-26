@@ -404,7 +404,7 @@ COMPUTE`) is selected:
   duration, occupancy, and other hardware metrics. Double-click jumps to
   the details view for that kernel.
 - **Details** — per-section metric tables (Speed-of-Light, Launch
-  Statistics, Occupancy, Workload Analysis), with optional baseline
+  Statistics, Occupancy, Compute Workload Analysis), with optional baseline
   comparison between two kernels.
 - **Toolbar** — kernel selector, baseline pin, terminology switch
   (CUDA / OpenCL / vendor-supplied), and automatic unit conversion

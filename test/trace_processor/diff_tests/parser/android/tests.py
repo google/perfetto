@@ -295,13 +295,53 @@ class AndroidParser(TestSuite):
     return DiffTestBlueprint(
         trace=Path('android_framework_track_event.textproto'),
         query="""
-        SELECT p.pid, p.name, p.uid, t.fw_start_ts, t.fw_end_ts
+        SELECT
+          p.pid,
+          p.name,
+          p.uid,
+          t.start_seq_id,
+          t.package_uid,
+          t.caller_uid,
+          t.defining_uid,
+          t.fw_start_ts,
+          t.fw_end_ts
         FROM __intrinsic_android_track_event_process t
         JOIN process p USING (upid);
         """,
         out=Csv("""
-          "pid","name","uid","fw_start_ts","fw_end_ts"
-          100,"com.example.app",10001,2000,5000
+          "pid","name","uid","start_seq_id","package_uid","caller_uid","defining_uid","fw_start_ts","fw_end_ts"
+          100,"com.example.app",10001,42,10002,10003,10004,2000,5000
+        """))
+
+  def test_android_framework_track_event_process_died(self):
+    return DiffTestBlueprint(
+        trace=Path('android_framework_track_event_process_died.textproto'),
+        query="""
+        SELECT
+          p.pid,
+          t.start_seq_id,
+          t.fw_start_ts,
+          t.fw_end_ts,
+          p.end_ts,
+          t.exit_reason,
+          t.exit_sub_reason
+        FROM __intrinsic_android_track_event_process t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.upid;
+        """,
+        out=Csv("""
+          "pid","start_seq_id","fw_start_ts","fw_end_ts","end_ts","exit_reason","exit_sub_reason"
+          100,1,1000000000,2000000000,2000000000,"APP_EXIT_REASON_CRASH","APP_EXIT_SUBREASON_TOO_MANY_CACHED"
+          100,3,3000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
+          200,2,1000000000,3000000000,3000000000,"APP_EXIT_REASON_ANR","[NULL]"
+          300,4,1000000000,"[NULL]","[NULL]","APP_EXIT_REASON_ANR","[NULL]"
+          400,5,"[NULL]",2000000000,2000000000,"APP_EXIT_REASON_LOW_MEMORY","[NULL]"
+          500,6,1000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
+          600,"[NULL]","[NULL]","[NULL]","[NULL]","APP_EXIT_REASON_SIGNALED","[NULL]"
+          700,7,"[NULL]",2000000000,2000000000,"APP_EXIT_REASON_FREEZER","[NULL]"
+          800,9,1000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
+          1100,10,1000000000,4000000000,2000000000,"[NULL]","[NULL]"
+          1100,11,3000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
         """))
 
   def test_android_framework_track_event_enum(self):
@@ -356,4 +396,378 @@ class AndroidParser(TestSuite):
         out=Csv("""
           "trigger_type","hosting_type"
           "TRIGGER_TYPE_JOB","HOSTING_TYPE_SERVICE"
+        """))
+
+  def test_android_process_state(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.proc_state,
+          t.oom_score,
+          t.capability_flags,
+          t.process_group,
+          t.reason,
+          t.seq_id,
+          t.is_initial
+        FROM __intrinsic_android_process_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts, t.reason;
+        """,
+        out=Csv("""
+          "ts","pid","proc_state","oom_score","capability_flags","process_group","reason","seq_id","is_initial"
+          "[NULL]",100,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          "[NULL]",200,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          2000,200,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",10,0
+          4000,200,"PROCESS_STATE_CACHED_ACTIVITY",900,0,"PROCESS_GROUP_BACKGROUND","OOM_ADJ_REASON_BIND_SERVICE",11,0
+          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,1,"PROCESS_GROUP_SYSTEM","[NULL]","[NULL]",1
+          "[NULL]",400,"PROCESS_STATE_FOREGROUND_SERVICE",0,0,"PROCESS_GROUP_UNKNOWN","[NULL]","[NULL]",1
+          "[NULL]",500,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          2000,500,"PROCESS_STATE_IMPORTANT_FOREGROUND",300,0,"PROCESS_GROUP_BACKGROUND","OOM_ADJ_REASON_BIND_SERVICE",21,0
+          2000,500,"PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",20,0
+        """))
+
+  def test_android_freezer_state(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.unfrozen_dur_ms,
+          t.frozen_dur_ms,
+          t.unfreeze_reason,
+          t.is_initial
+        FROM __intrinsic_android_freezer_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","unfrozen_dur_ms","frozen_dur_ms","unfreeze_reason","is_initial"
+          "[NULL]",100,"[NULL]","[NULL]","UFR_ACTIVITY",1
+          3000,200,100,300,"UFR_BIND_SERVICE",0
+          "[NULL]",600,"[NULL]","[NULL]","UFR_PING",1
+          "[NULL]",700,"[NULL]","[NULL]","UFR_NONE",1
+          "[NULL]",800,"[NULL]","[NULL]","[NULL]",1
+        """))
+
+  def test_android_process_state_metadata(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_metadata.textproto'),
+        query="""
+        SELECT
+          p.pid,
+          p.name,
+          p.uid,
+          p.android_user_id,
+          t.start_seq_id,
+          t.fw_start_ts,
+          t.fw_end_ts,
+          p.end_ts
+        FROM process p
+        LEFT JOIN __intrinsic_android_track_event_process t
+          ON t.upid = p.upid
+        WHERE p.pid > 0
+        ORDER BY p.pid;
+        """,
+        out=Csv("""
+          "pid","name","uid","android_user_id","start_seq_id","fw_start_ts","fw_end_ts","end_ts"
+          100,"com.example.appa",10001,0,1,1000000000,"[NULL]","[NULL]"
+          200,"com.example.dumps_only",20001,0,10,"[NULL]","[NULL]","[NULL]"
+          300,"system_server",1000,0,"[NULL]","[NULL]","[NULL]","[NULL]"
+          400,"com.example.pre_existing",40001,0,5,"[NULL]",3000000000,3000000000
+          500,"com.example.started_late",50001,0,6,2000000000,"[NULL]","[NULL]"
+        """))
+
+  def test_android_process_state_metadata_freezer(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_metadata.textproto'),
+        query="""
+        SELECT t.ts, p.pid, t.unfreeze_reason, t.is_initial
+        FROM __intrinsic_android_freezer_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","unfreeze_reason","is_initial"
+          "[NULL]",200,"UFR_PING",1
+          2500000000,400,"UFR_BINDER_TXNS",0
+        """))
+
+  def test_android_process_state_metadata_state(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_metadata.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.proc_state,
+          t.oom_score,
+          t.capability_flags,
+          t.process_group,
+          t.reason,
+          t.seq_id,
+          t.is_initial
+        FROM __intrinsic_android_process_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","proc_state","oom_score","capability_flags","process_group","reason","seq_id","is_initial"
+          "[NULL]",100,"PROCESS_STATE_TOP",100,0,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          "[NULL]",200,"PROCESS_STATE_PERSISTENT",-1000,0,"PROCESS_GROUP_SYSTEM","[NULL]","[NULL]",1
+          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,0,"PROCESS_GROUP_UNKNOWN","[NULL]","[NULL]",1
+          "[NULL]",400,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          2000000000,400,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",7,0
+          "[NULL]",500,"PROCESS_STATE_TOP",100,0,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+        """))
+
+  def test_android_process_state_capability_flags(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 500
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+          }
+        }
+        packet {
+          timestamp: 1000
+          track_descriptor {
+            uuid: 1
+            thread { pid: 100 tid: 100 thread_name: "main" }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 100
+              uid: 10001
+              prev_proc_state: PROCESS_STATE_TOP
+              cur_proc_state: PROCESS_STATE_FOREGROUND_SERVICE
+              prev_capability_flags: 3
+              cur_capability_flags: -2147483131
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.ts,
+          t.is_initial,
+          t.capability_flags,
+          a.flat_key,
+          a.key,
+          a.string_value,
+          a.value_type
+        FROM __intrinsic_android_process_state t
+        JOIN args a USING (arg_set_id)
+        ORDER BY t.is_initial DESC, a.key;
+        """,
+        out=Csv("""
+          "ts","is_initial","capability_flags","flat_key","key","string_value","value_type"
+          "[NULL]",1,3,"capability_flags","capability_flags[0]","PROCESS_CAPABILITY_FOREGROUND_LOCATION","string"
+          "[NULL]",1,3,"capability_flags","capability_flags[1]","PROCESS_CAPABILITY_FOREGROUND_CAMERA","string"
+          2000,0,-2147483131,"capability_flags","capability_flags[0]","PROCESS_CAPABILITY_FOREGROUND_LOCATION","string"
+          2000,0,-2147483131,"capability_flags","capability_flags[1]","PROCESS_CAPABILITY_FOREGROUND_MICROPHONE","string"
+          2000,0,-2147483131,"capability_flags","capability_flags[2]","0x80000200","string"
+        """))
+
+  def test_android_service_state_changed_flags(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          track_descriptor {
+            uuid: 1
+            thread { pid: 100 tid: 100 thread_name: "main" }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            name: "fgs_start"
+            [com.android.internal.FrameworksBaseTrackEvent.fg_service_state_changed_event] {
+              pid: 100
+              uid: 10001
+              component_name: "com.example/.MyFgService"
+              foreground_service_type: -2147483639
+            }
+          }
+        }
+        packet {
+          timestamp: 3000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            name: "service_binding"
+            [com.android.internal.FrameworksBaseTrackEvent.service_state_changed_event] {
+              pid: 100
+              uid: 10001
+              component_name: "com.example/.MyBoundService"
+              bind_flags_32: -2147482559
+              bind_flags_32_to_64: 5
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          s.ts,
+          s.name,
+          a.flat_key,
+          a.key,
+          a.string_value,
+          a.value_type
+        FROM slice s
+        JOIN args a USING (arg_set_id)
+        WHERE a.flat_key GLOB '*foreground_service_type'
+           OR a.flat_key GLOB '*bind_flags*'
+        ORDER BY s.ts, a.key;
+        """,
+        out=Csv("""
+          "ts","name","flat_key","key","string_value","value_type"
+          2000,"fgs_start","fg_service_state_changed_event.foreground_service_type","fg_service_state_changed_event.foreground_service_type[0]","FOREGROUND_SERVICE_TYPE_DATA_SYNC","string"
+          2000,"fgs_start","fg_service_state_changed_event.foreground_service_type","fg_service_state_changed_event.foreground_service_type[1]","FOREGROUND_SERVICE_TYPE_LOCATION","string"
+          2000,"fgs_start","fg_service_state_changed_event.foreground_service_type","fg_service_state_changed_event.foreground_service_type[2]","0x80000000","string"
+          3000,"service_binding","service_state_changed_event.bind_flags_32","service_state_changed_event.bind_flags_32[0]","SERVICE_BIND_FLAG_AUTO_CREATE","string"
+          3000,"service_binding","service_state_changed_event.bind_flags_32","service_state_changed_event.bind_flags_32[1]","SERVICE_BIND_FLAG_IMPORTANT","string"
+          3000,"service_binding","service_state_changed_event.bind_flags_32","service_state_changed_event.bind_flags_32[2]","SERVICE_BIND_FLAG_EXTERNAL_SERVICE","string"
+          3000,"service_binding","service_state_changed_event.bind_flags_32","service_state_changed_event.bind_flags_32[3]","0x400","string"
+          3000,"service_binding","service_state_changed_event.bind_flags_32_to_64","service_state_changed_event.bind_flags_32_to_64[0]","SERVICE_BIND_FLAG_LONG_BYPASS_USER_NETWORK_RESTRICTIONS","string"
+          3000,"service_binding","service_state_changed_event.bind_flags_32_to_64","service_state_changed_event.bind_flags_32_to_64[1]","SERVICE_BIND_FLAG_LONG_ALLOW_FREEZE","string"
+        """))
+
+  # Display-video frames are linked to the SurfaceFlinger vsync id of the
+  # composite that produced them by matching VideoFrame.pts_us to
+  # VirtualDisplayComposite.present_time_us.
+  def test_android_video_frame_vsync_link(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          clock_snapshot {
+            primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+            clocks { clock_id: 6 timestamp: 1000000 }
+            clocks { clock_id: 3 timestamp: 0 }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          timestamp: 1500000
+          trusted_packet_sequence_id: 2
+          [com.android.internal.FrameworksBaseTracePacket.video_frame] {
+            display_id: 0
+            codec: CODEC_H264
+            codec_config: "\x00\x00\x00\x01\x67\x42"
+            display_name: "Built-in Screen"
+            codec_string: "avc1.42c029"
+          }
+        }
+        packet {
+          timestamp: 2500000
+          trusted_packet_sequence_id: 2
+          [com.android.internal.FrameworksBaseTracePacket.video_frame] {
+            display_id: 0
+            frame_number: 1
+            codec: CODEC_H264
+            is_key_frame: true
+            pts_us: 1000
+            au_data: "\x00\x00\x00\x01\x65\x88"
+          }
+        }
+        packet {
+          timestamp: 3500000
+          trusted_packet_sequence_id: 2
+          [com.android.internal.FrameworksBaseTracePacket.video_frame] {
+            display_id: 0
+            frame_number: 2
+            codec: CODEC_H264
+            pts_us: 2000
+            au_data: "\x00\x00\x00\x01\x41\x9a"
+          }
+        }
+        packet {
+          timestamp: 4500000
+          trusted_packet_sequence_id: 2
+          [com.android.internal.FrameworksBaseTracePacket.video_frame] {
+            display_id: 0
+            frame_number: 3
+            codec: CODEC_H264
+            pts_us: 3000
+            au_data: "\x00\x00\x00\x01\x41\x9b"
+          }
+        }
+        # Two virtual displays composited in the same vsync: the present time
+        # repeats with the same vsync id, so frame 1 still links.
+        packet {
+          timestamp: 2000500
+          trusted_packet_sequence_id: 3
+          [com.android.internal.FrameworksNativeTracePacket.virtual_display_composite] {
+            display_id: 11529215046068469761
+            vsync_id: 101
+            present_time_us: 1000
+          }
+        }
+        packet {
+          timestamp: 2000500
+          trusted_packet_sequence_id: 3
+          [com.android.internal.FrameworksNativeTracePacket.virtual_display_composite] {
+            display_id: 11529215046068469762
+            vsync_id: 101
+            present_time_us: 1000
+          }
+        }
+        # Conflicting vsync ids for one present time: frame 2 stays unlinked.
+        packet {
+          timestamp: 3000500
+          trusted_packet_sequence_id: 3
+          [com.android.internal.FrameworksNativeTracePacket.virtual_display_composite] {
+            display_id: 11529215046068469761
+            vsync_id: 102
+            present_time_us: 2000
+          }
+        }
+        packet {
+          timestamp: 3000500
+          trusted_packet_sequence_id: 3
+          [com.android.internal.FrameworksNativeTracePacket.virtual_display_composite] {
+            display_id: 11529215046068469762
+            vsync_id: 103
+            present_time_us: 2000
+          }
+        }
+        # No composite for frame 3, and no frame for this composite.
+        packet {
+          timestamp: 5000500
+          trusted_packet_sequence_id: 3
+          [com.android.internal.FrameworksNativeTracePacket.virtual_display_composite] {
+            display_id: 11529215046068469761
+            vsync_id: 104
+            present_time_us: 4000
+          }
+        }
+        """),
+        query="""
+        SELECT frame_number, pts_us, frame_timeline_vsync_id
+        FROM __intrinsic_video_frames
+        WHERE COALESCE(is_config, 0) = 0
+        ORDER BY frame_number;
+        """,
+        out=Csv("""
+          "frame_number","pts_us","frame_timeline_vsync_id"
+          1,1000,101
+          2,2000,"[NULL]"
+          3,3000,"[NULL]"
         """))

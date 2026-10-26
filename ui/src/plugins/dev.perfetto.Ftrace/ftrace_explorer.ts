@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {SerialTaskQueue, QuerySlot} from '../../base/query_slot';
+import {AtomicTaskQueue, AsyncMemo} from '../../base/async_memo';
 import {type time, Time} from '../../base/time';
 import {materialColorScheme} from '../../components/colorizer';
 import {Timestamp} from '../../components/widgets/timestamp';
@@ -141,9 +141,9 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
   };
 
   // Query slots for declarative data fetching
-  private readonly executor = new SerialTaskQueue();
-  private readonly countSlot = new QuerySlot<number>(this.executor);
-  private readonly eventsSlot = new QuerySlot<FtracePanelData>(this.executor);
+  private readonly executor = new AtomicTaskQueue();
+  private readonly countSlot = new AsyncMemo<number>(this.executor);
+  private readonly eventsSlot = new AsyncMemo<FtracePanelData>(this.executor);
 
   constructor({attrs}: m.CVnode<FtraceExplorerAttrs>) {
     this.trace = attrs.trace;
@@ -181,14 +181,14 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
     const {data: numEvents} = this.countSlot.use({
       key: {viewport: {start, end}, filters},
       retainOn: ['viewport'],
-      queryFn: () => fetchFtraceEventCount(engine, start, end, filters),
+      compute: () => fetchFtraceEventCount(engine, start, end, filters),
     });
 
     // Events query - stale on pagination for smooth scrolling
     const {data} = this.eventsSlot.use({
       key: {viewport: {start, end}, filters, pagination},
       retainOn: ['pagination', 'viewport'],
-      queryFn: () =>
+      compute: () =>
         fetchFtraceEvents(
           engine,
           pagination.offset,

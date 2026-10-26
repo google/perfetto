@@ -36,5 +36,5 @@ endpointStorage.register({
 // null/empty handling call sites would otherwise re-inline.
 export function getBigtraceEndpoint(): string {
   const setting = endpointStorage.get('bigtraceEndpoint');
-  return setting ? (setting.get() as string) ?? '' : '';
+  return setting ? ((setting.get() as string) ?? '') : '';
 }

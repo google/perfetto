@@ -129,13 +129,13 @@ unwindstack::DexFiles* UnwindingMetadata::GetDexFiles(
 }
 #endif
 
-const std::string& UnwindingMetadata::GetBuildId(
-    const unwindstack::FrameData& frame) {
-  if (frame.map_info != nullptr && !frame.map_info->name().empty()) {
+std::string UnwindingMetadata::GetBuildId(const unwindstack::FrameData& frame) {
+  if (frame.map_info != nullptr && !frame.map_info->name().empty() &&
+      !(frame.map_info->flags() & unwindstack::MAPS_FLAGS_DEVICE_MAP)) {
     return frame.map_info->GetBuildID();
   }
 
-  return empty_string_;
+  return "";
 }
 
 std::string StringifyLibUnwindstackError(unwindstack::ErrorCode e) {

@@ -16,23 +16,54 @@ import("../../../../gn/test.gni")
 
 source_set("tree") {
   sources = [
-    "propagate_spec.cc",
-    "propagate_spec.h",
-    "tree_columns.h",
-    "tree_columns_builder.cc",
-    "tree_columns_builder.h",
-    "tree_transformer.cc",
-    "tree_transformer.h",
+    "tree.h",
+    "tree_column_ops.cc",
+    "tree_column_ops.h",
+    "tree_from_dataframe.cc",
+    "tree_from_dataframe.h",
+    "tree_path_interner.cc",
+    "tree_path_interner.h",
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base",
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../../base",
     "../../containers",
-    "../../util:owned_sql_value",
     "../common",
     "../dataframe",
-    "../interpreter",
     "../util",
   ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [
+    "tree_algorithms_unittest.cc",
+    "tree_column_ops_unittest.cc",
+  ]
+  deps = [
+    ":tree",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../../include/perfetto/ext/base",
+    "../../containers",
+    "../dataframe",
+    "../util",
+  ]
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    sources = [ "tree_from_dataframe_benchmark.cc" ]
+    deps = [
+      ":tree",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+      "../../../../include/perfetto/base",
+      "../../containers",
+      "../dataframe",
+    ]
+  }
 }

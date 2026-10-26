@@ -356,7 +356,7 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
             m(
               '.pf-preset-card__title',
               hasUnsavedCustomConfig
-                ? recMgr.customConfigFileName ?? 'Imported config'
+                ? (recMgr.customConfigFileName ?? 'Imported config')
                 : 'Custom',
             ),
             m('.pf-preset-card__subtitle', 'Click to save'),
@@ -576,7 +576,7 @@ class TargetSelector implements m.ClassComponent<TargetSelectorAttrs> {
           {
             onchange: (e: Event) => {
               const idx = (e.target as HTMLSelectElement).selectedIndex;
-              recMgr.setTarget(this.targets[idx]);
+              recMgr.setTarget(this.targets[idx]!);
               m.redraw();
             },
           },

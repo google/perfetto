@@ -94,54 +94,63 @@ CREATE PERFETTO MACRO _heap_graph_path_hash_aggregate(tab TableOrSubquery)
 RETURNS TableOrSubquery
 AS (
   WITH
-    x AS (
+    -- Pre-aggregate integer columns by path_hash first. CROSS JOIN keeps $tab
+    -- as the outer table so Dataframe consumes GROUP BY path_hash in C++ and
+    -- probes heap_graph_object.id via O(1) IdSorted lookup.
+    agg_by_hash AS (
       SELECT
-        o.graph_sample_ts,
-        o.upid,
+        -- All objects sharing a path_hash have the same (upid, graph_sample_ts,
+        -- root_type, heap_type) and class display name, so MIN(id) picks a
+        -- deterministic representative object to resolve those columns below.
+        MIN(id) AS sample_id,
         path_hash,
         parent_path_hash,
-        coalesce(c.deobfuscated_name, c.name) AS name,
-        o.root_type,
-        o.heap_type,
         count() AS self_count,
-        sum(o.self_size) AS self_size,
+        -- -1 is a placeholder sentinel (see HeapGraphTracker::GetOrInsertObject
+        -- in heap_graph_tracker.cc) for forward-referenced objects in
+        -- incomplete/non-finalized heap graphs (e.g. from packet loss).
+        sum(iif(o.self_size != -1, o.self_size, 0)) AS self_size,
         sum(o.native_size > 0) AS self_native_count,
         sum(o.native_size) AS self_native_size
       FROM $tab
-      JOIN heap_graph_object AS o
+      CROSS JOIN heap_graph_object AS o
         USING (id)
-      JOIN heap_graph_class AS c
-        ON o.type_id = c.id
       GROUP BY
         path_hash
     )
   SELECT
-    graph_sample_ts,
-    upid,
-    hash(path_hash, 'native', '') AS path_hash,
-    path_hash AS parent_path_hash,
-    '[native] ' || x.name AS name,
-    root_type,
+    o.graph_sample_ts,
+    o.upid,
+    hash(a.path_hash, 'native', '') AS path_hash,
+    a.path_hash AS parent_path_hash,
+    '[native] ' || coalesce(c.deobfuscated_name, c.name, '') AS name,
+    o.root_type,
     'HEAP_TYPE_NATIVE' AS heap_type,
-    sum(x.self_native_count) AS self_count,
-    sum(x.self_native_size) AS self_size
-  FROM x
+    a.self_native_count AS self_count,
+    a.self_native_size AS self_size
+  FROM agg_by_hash AS a
+  JOIN heap_graph_object AS o
+    ON a.sample_id = o.id
+  JOIN heap_graph_class AS c
+    ON o.type_id = c.id
   WHERE
-    x.self_native_size > 0
-  GROUP BY
-    path_hash
+    a.self_native_size > 0
   UNION ALL
   SELECT
-    graph_sample_ts,
-    upid,
-    path_hash,
-    parent_path_hash,
-    name,
-    root_type,
-    heap_type,
-    self_count,
-    self_size
-  FROM x
+    o.graph_sample_ts,
+    o.upid,
+    a.path_hash,
+    a.parent_path_hash,
+    coalesce(c.deobfuscated_name, c.name, '') AS name,
+    o.root_type,
+    o.heap_type,
+    a.self_count,
+    a.self_size
+  FROM agg_by_hash AS a
+  JOIN heap_graph_object AS o
+    ON a.sample_id = o.id
+  JOIN heap_graph_class AS c
+    ON o.type_id = c.id
   ORDER BY
     path_hash
 );

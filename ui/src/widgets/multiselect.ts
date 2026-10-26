@@ -42,11 +42,11 @@ export interface MultiSelectDiff {
 }
 
 export interface MultiSelectAttrs {
-  options: MultiSelectOption[];
-  onChange?: (diffs: MultiSelectDiff[]) => void;
-  repeatCheckedItemsAtTop?: boolean;
-  showNumSelected?: boolean;
-  fixedSize?: boolean;
+  readonly options: MultiSelectOption[];
+  readonly onChange?: (diffs: MultiSelectDiff[]) => void;
+  readonly repeatCheckedItemsAtTop?: boolean;
+  readonly showNumSelected?: boolean;
+  readonly fixedSize?: boolean;
   readonly showSelectAllButton?: boolean;
 }
 
@@ -238,9 +238,7 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
 
 // The same multi-select component that functions as a drop-down instead of
 // a list.
-export class PopupMultiSelect
-  implements m.ClassComponent<PopupMultiSelectAttrs>
-{
+export class PopupMultiSelect implements m.ClassComponent<PopupMultiSelectAttrs> {
   view({attrs}: m.CVnode<PopupMultiSelectAttrs>) {
     const {
       icon,

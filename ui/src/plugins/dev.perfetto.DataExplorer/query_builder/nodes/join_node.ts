@@ -137,7 +137,7 @@ export class JoinNode implements QueryNode {
           name: col.name,
           type: col.type,
           description: col.description,
-          checked: isFirstInit ? false : oldCol?.checked ?? false,
+          checked: isFirstInit ? false : (oldCol?.checked ?? false),
           alias: oldCol?.alias,
           typeUserModified: oldCol?.typeUserModified,
         };
@@ -326,26 +326,26 @@ export class JoinNode implements QueryNode {
               },
               onLeftColumnToggle: (index: number, checked: boolean) => {
                 if (this.attrs.leftColumns) {
-                  this.attrs.leftColumns[index].checked = checked;
+                  this.attrs.leftColumns[index]!.checked = checked;
                   this.context.onchange?.();
                 }
               },
               onRightColumnToggle: (index: number, checked: boolean) => {
                 if (this.attrs.rightColumns) {
-                  this.attrs.rightColumns[index].checked = checked;
+                  this.attrs.rightColumns[index]!.checked = checked;
                   this.context.onchange?.();
                 }
               },
               onLeftColumnAlias: (index: number, alias: string) => {
                 if (this.attrs.leftColumns) {
-                  this.attrs.leftColumns[index].alias =
+                  this.attrs.leftColumns[index]!.alias =
                     alias.trim() === '' ? undefined : alias;
                   this.context.onchange?.();
                 }
               },
               onRightColumnAlias: (index: number, alias: string) => {
                 if (this.attrs.rightColumns) {
-                  this.attrs.rightColumns[index].alias =
+                  this.attrs.rightColumns[index]!.alias =
                     alias.trim() === '' ? undefined : alias;
                   this.context.onchange?.();
                 }

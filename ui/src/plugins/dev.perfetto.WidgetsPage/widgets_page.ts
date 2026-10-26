@@ -27,16 +27,19 @@ import {renderChip} from './demos/chip_demo';
 import {renderCodeSnippet} from './demos/code_snippet_demo';
 import {renderCopyableLink} from './demos/copyable_link_demo';
 import {cursorTooltip} from './demos/cursor_tooltip_demo';
-import {renderDataGrid} from './demos/datagrid_demo';
+import {renderDataGrid as renderDataGridDemo} from './demos/datagrid_demo';
+import {renderDataGrid as renderDataGridPlayground} from './demos/datagrid_playground';
 import {renderDrawerPanel} from './demos/drawer_panel_demo';
 import {renderEditor} from './demos/editor_demo';
 import {renderEmptyState} from './demos/empty_state_demo';
 import {renderForm} from './demos/form_demo';
+import {renderFuzzyDemo} from './demos/fuzzy_demo';
 import {renderGrid} from './demos/grid_demo';
 import {renderCharts} from './demos/charts_demo';
 import {renderHotkey} from './demos/hotkey_demo';
 import {renderIcon} from './demos/icon_demo';
 import {renderMenu} from './demos/menu_demo';
+import {renderMergedClassWarning} from './demos/merged_class_warning_demo';
 import {renderMiddleEllipsis} from './demos/middle_ellipsis_demo';
 import {renderModal} from './demos/modal_demo';
 import {renderMultiselect} from './demos/multiselect_demo';
@@ -52,7 +55,7 @@ import {renderSplitPanel} from './demos/split_panel_demo';
 import {renderCombobox} from './demos/combobox_demo';
 import {renderSwitch} from './demos/switch_demo';
 import {renderTabs} from './demos/tabs_demo';
-import {renderTabStrip} from './demos/tabstrip_demo';
+import {renderTabStrip} from './demos/tab_strip_demo';
 import {renderTagInput} from './demos/tag_input_demo';
 import {renderTextInput} from './demos/text_input_demo';
 import {renderTextParagraph} from './demos/text_paragraph_demo';
@@ -66,6 +69,9 @@ interface WidgetSection {
   readonly id: string;
   readonly label: string;
   readonly view: (app: App) => m.Children;
+  // If set, the content area drops its max-width and fills the screen. Useful
+  // for pages showing wide, interactive widgets (e.g. DataGrid).
+  readonly fullWidth?: boolean;
 }
 
 const WIDGET_SECTIONS: WidgetSection[] = [
@@ -83,15 +89,27 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'combobox', label: 'Combobox', view: renderCombobox},
   {id: 'copyablelink', label: 'CopyableLink', view: renderCopyableLink},
   {id: 'cursor-tooltip', label: 'CursorTooltip', view: cursorTooltip},
-  {id: 'datagrid', label: 'DataGrid', view: renderDataGrid},
+  {id: 'datagrid', label: 'DataGrid', view: renderDataGridDemo},
+  {
+    id: 'datagrid-playground',
+    label: 'DataGrid Playground',
+    view: renderDataGridPlayground,
+    fullWidth: true,
+  },
   {id: 'drawer-panel', label: 'DrawerPanel', view: renderDrawerPanel},
   {id: 'editor', label: 'Editor', view: renderEditor},
   {id: 'emptystate', label: 'EmptyState', view: renderEmptyState},
   {id: 'form', label: 'Form', view: renderForm},
+  {id: 'fuzzy-search', label: 'Fuzzy Search', view: renderFuzzyDemo},
   {id: 'grid', label: 'Grid', view: renderGrid},
   {id: 'hotkey', label: 'Hotkey', view: renderHotkey},
   {id: 'icon', label: 'Icon', view: renderIcon},
   {id: 'menu', label: 'Menu', view: renderMenu},
+  {
+    id: 'merged-class-warning',
+    label: 'MergedClassWarning',
+    view: renderMergedClassWarning,
+  },
   {id: 'middleellipsis', label: 'MiddleEllipsis', view: renderMiddleEllipsis},
   {id: 'modal', label: 'Modal', view: renderModal},
   {id: 'multiselect', label: 'Multiselect', view: renderMultiselect},
@@ -153,9 +171,21 @@ export class WidgetsPage implements m.ClassComponent<WidgetsPageAttrs> {
       // Main content area
       m(
         '.pf-widgets-page__content-container',
-        {key: currentSection ? currentSection.id : 'no-section'},
+        {
+          key: currentSection ? currentSection.id : 'no-section',
+          className: classNames(
+            currentSection?.fullWidth &&
+              'pf-widgets-page__content-container--full-width',
+          ),
+        },
         m(
           '.pf-widgets-page__content',
+          {
+            className: classNames(
+              currentSection?.fullWidth &&
+                'pf-widgets-page__content--full-width',
+            ),
+          },
           currentSection
             ? currentSection.view(attrs.app)
             : m(

@@ -1,4 +1,4 @@
-# How trace merging works
+# Trace merging
 
 Trace Processor can open several trace files together and merge them onto a
 single timeline: traces from different devices, from different processes on
@@ -8,8 +8,8 @@ comparable timestamps, and how data stays attributed to the machine it came
 from.
 
 This is an explanation of the machinery. For task-oriented guides see
-[Merging traces in the Perfetto UI](/docs/visualization/merging-traces.md)
-and [Merging traces with Trace Processor](/docs/analysis/merging-traces.md).
+[Merging traces in the UI](/docs/visualization/merging-traces.md)
+and [Merging traces from the command line](/docs/analysis/merging-traces.md).
 
 ## The problem
 
@@ -152,7 +152,7 @@ from different host machines.
 
 - [Trace manifest format](/docs/reference/perfetto-manifest.md): the
   full reference for manual merge configuration.
-- [Merging traces with Trace Processor](/docs/analysis/merging-traces.md):
+- [Merging traces from the command line](/docs/analysis/merging-traces.md):
   building merged archives and querying the result.
 - [Clock synchronization](/docs/concepts/clock-sync.md): the single-trace
   clock model this builds on.

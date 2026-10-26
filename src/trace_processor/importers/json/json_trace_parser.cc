@@ -589,7 +589,7 @@ void JsonTraceParser::RecordEventError(
   StringId name_id = event.name;
   const char phase_str[2] = {event.phase, '\0'};
   StringId phase_id = context_->storage->InternString(phase_str);
-  context_->import_logs_tracker->RecordParserError(
+  context_->import_logs_tracker->RecordParserLog(
       stat_key, timestamp,
       [name_key, name_id, phase_key, phase_id,
        extra_args =

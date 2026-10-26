@@ -250,6 +250,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_NOTIFY_FD,
     OPT_NO_CLOBBER,
     OPT_ADD_ATTRIBUTE,
+    OPT_UPLOAD_AFTER_REBOOT,
   };
   static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
@@ -287,6 +288,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"save-all-for-bugreport", no_argument, nullptr, OPT_BUGREPORT_ALL},
       {"notify-fd", required_argument, nullptr, OPT_NOTIFY_FD},
       {"no-clobber", no_argument, nullptr, OPT_NO_CLOBBER},
+      {"upload-after-reboot", no_argument, nullptr, OPT_UPLOAD_AFTER_REBOOT},
       {nullptr, 0, nullptr, 0}};
 
   std::string config_file_name;
@@ -434,6 +436,15 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       continue;
 #else
       PERFETTO_ELOG("--upload is only supported on Android");
+      return 1;
+#endif
+    }
+
+    if (option == OPT_UPLOAD_AFTER_REBOOT) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+      return UploadPersistentTracesAfterReboot();
+#else
+      PERFETTO_ELOG("--upload-after-reboot is only supported on Android");
       return 1;
 #endif
     }
@@ -869,6 +880,16 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   } else if (trace_out_path_.empty() && !upload_flag_) {
     PERFETTO_ELOG("Either --out or --upload is required");
     return 1;
+  } else if (trace_config_->persist_trace_across_reboots() && !upload_flag_) {
+    PERFETTO_ELOG(
+        "persist_trace_across_reboots is only supported with --upload");
+    return 1;
+  } else if (trace_config_->persist_trace_across_reboots() &&
+             !trace_config_->write_into_file()) {
+    PERFETTO_ELOG(
+        "TraceConfig's write_into_file must be true when using "
+        "persist_trace_across_reboots");
+    return 1;
   } else if (is_detach() && !trace_config_->write_into_file()) {
     // In detached mode we must pass the file descriptor to the service and
     // let that one write the trace. We cannot use the IPC readback code path
@@ -1227,9 +1248,15 @@ void PerfettoCmd::OnTimeout() {
 }
 
 void PerfettoCmd::CheckTraceDataTimeout() {
+  // A timeout can still run after finalization. Ignore it to avoid finalizing
+  // the trace again or posting another timeout.
+  if (tracing_succeeded_)
+    return;
+
   if (trace_data_timeout_armed_) {
     PERFETTO_ELOG("Timed out while waiting for OnTraceData, aborting");
     FinalizeTraceAndExit();
+    return;
   }
   trace_data_timeout_armed_ = true;
   task_runner_.PostDelayedTask(
@@ -1238,12 +1265,23 @@ void PerfettoCmd::CheckTraceDataTimeout() {
 }
 
 void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
+  // - If WritePackets() fails, we call FinalizeTraceAndExit(), which:
+  //   - Resets the writer.
+  //   - Calls Quit() on the task runner.
+  // - Quit() does not stop the current IPC handler. Another buffered reply can
+  //   call OnTraceData() again, after the writer is gone.
+  // - FinalizeTraceAndExit() also sets |tracing_succeeded_| to true, so we use
+  //   that to ignore these later callbacks.
+  if (tracing_succeeded_)
+    return;
+
   trace_data_timeout_armed_ = false;
 
   PERFETTO_CHECK(packet_writer_.has_value());
   if (!packet_writer_->WritePackets(packets)) {
-    PERFETTO_ELOG("Failed to write packets");
+    PERFETTO_PLOG("Failed to write packets");
     FinalizeTraceAndExit();
+    return;
   }
 
   if (!has_more)
@@ -1300,6 +1338,11 @@ void PerfettoCmd::ReadbackTraceDataAndQuit(const std::string& error) {
 }
 
 void PerfettoCmd::FinalizeTraceAndExit() {
+  // Trace data and timeout callbacks can both reach this path. Report and close
+  // the output only once.
+  if (tracing_succeeded_)
+    return;
+
   LogUploadEvent(PerfettoStatsdAtom::kFinalizeTraceAndExit);
   packet_writer_.reset();
 
@@ -1323,6 +1366,10 @@ void PerfettoCmd::FinalizeTraceAndExit() {
     }
   }
 
+  // Set this even after write errors or readback timeouts. It marks
+  // finalization complete, not whether all packets were written. Later
+  // callbacks use it to avoid accessing the destroyed writer or finalizing
+  // again.
   tracing_succeeded_ = true;
   task_runner_.Quit();
 }
@@ -1331,7 +1378,13 @@ bool PerfettoCmd::OpenOutputFile(bool no_clobber) {
   base::ScopedFile fd;
   if (trace_out_path_.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    fd = CreateUnlinkedTmpFile();
+    if (trace_config_ && trace_config_->persist_trace_across_reboots() &&
+        !is_clone()) {
+      fd = WaitForUploadCompleteAndCreatePersistentTmpFile(
+          trace_config_->unique_session_name(), &persistent_file_path_);
+    } else {
+      fd = CreateUnlinkedTmpFile();
+    }
 #endif
   } else if (trace_out_path_ == "-") {
     fd.reset(dup(fileno(stdout)));
@@ -1380,7 +1433,7 @@ void PerfettoCmd::SetupCtrlCSignalHandler() {
   if (g_perfetto_cmd != this)
     return;
   ctrl_c_handler_installed_ = true;
-  base::InstallCtrlCHandler([] {
+  base::InstallCtrlCHandler([](int /*signal*/) {
     if (PerfettoCmd* main_thread = g_perfetto_cmd.load())
       main_thread->SignalCtrlC();
   });

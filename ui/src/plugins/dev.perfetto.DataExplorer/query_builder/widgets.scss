@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "./common";
-@import "./node_styling_widgets";
+@use "./common" as *;
+@use "./node_styling_widgets" as *;
 
 // General widget styles
 

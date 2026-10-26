@@ -278,3 +278,91 @@ WITH
   )
 SELECT *, ROW_NUMBER() OVER (PARTITION BY cuj_id ORDER BY vsync) AS frame_number
 FROM android_jank_cuj_sf_frame_base;
+
+-- Per-CUJ summary used to pin jank CUJs as a track. Contains one row per CUJ
+-- slice (including canceled and unknown-state CUJs, unlike `android_jank_cuj`),
+-- with aggregated frame stats, resolved layer name and boundary-aware
+-- timestamps. This bundles everything needed to display jank CUJs so that
+-- consumers (e.g. the UI) can query it directly without additional logic.
+CREATE PERFETTO TABLE android_jank_cuj_slice_summary(
+  -- CUJ id.
+  cuj_id LONG,
+  -- Name of the CUJ slice (e.g. 'J<CUJ_NAME>').
+  name STRING,
+  -- Name of the process the CUJ belongs to.
+  process_name STRING,
+  -- State of the CUJ. One of 'completed', 'canceled' or NULL.
+  state STRING,
+  -- Total number of frames in the CUJ.
+  total_frames LONG,
+  -- Number of frames where the app missed the deadline.
+  missed_app_frames LONG,
+  -- Number of frames where SurfaceFlinger missed the deadline.
+  missed_sf_frames LONG,
+  -- Layer name of the CUJ.
+  layer_name STRING,
+  -- Start timestamp of the CUJ. The main thread boundary start if available,
+  -- otherwise the CUJ slice ts (e.g. for canceled CUJs).
+  ts TIMESTAMP,
+  -- Duration of the CUJ. The main thread boundary duration if available,
+  -- otherwise the CUJ slice dur (e.g. for canceled CUJs).
+  dur DURATION,
+  -- Track id of the CUJ slice.
+  track_id JOINID(track.id),
+  -- Slice id of the CUJ slice.
+  slice_id JOINID(slice.id)
+)
+AS
+WITH
+  frame_counts AS (
+    SELECT
+      cuj_id,
+      count(*) AS total_frames,
+      sum(app_missed) AS missed_app_frames,
+      sum(sf_missed) AS missed_sf_frames
+    FROM _android_jank_cuj_frame_timeline
+    GROUP BY
+      cuj_id
+  )
+SELECT
+  cuj.cuj_id,
+  cuj.cuj_slice_name AS name,
+  cuj.process_name,
+  CASE
+    WHEN EXISTS (
+      SELECT 1
+      FROM _cuj_state_markers AS csm
+      WHERE
+        csm.cuj_id = cuj.cuj_id
+        AND csm.marker_type = 'cancel'
+    ) THEN 'canceled'
+    WHEN EXISTS (
+      SELECT 1
+      FROM _cuj_state_markers AS csm
+      WHERE
+        csm.cuj_id = cuj.cuj_id
+        AND csm.marker_type = 'end'
+    ) THEN 'completed'
+    ELSE NULL
+  END AS state,
+  fc.total_frames,
+  fc.missed_app_frames,
+  fc.missed_sf_frames,
+  layer.layer_name,
+  coalesce(boundary.ts, cuj.ts) AS ts,
+  coalesce(boundary.dur, cuj.dur) AS dur,
+  s.track_id,
+  cuj.slice_id
+FROM _jank_cujs_slices AS cuj
+JOIN slice AS s
+  ON s.id = cuj.slice_id
+-- Gate frame stats and boundary on android_jank_cuj membership: canceled/invalid
+-- CUJs get NULL stats and fall back to raw slice ts/dur. Layer name covers all
+-- CUJs, so it joins on the raw cuj_id.
+LEFT JOIN android_jank_cuj AS ajc USING (cuj_id)
+LEFT JOIN frame_counts AS fc
+  ON fc.cuj_id = ajc.cuj_id
+LEFT JOIN android_jank_cuj_layer_name AS layer
+  ON layer.cuj_id = cuj.cuj_id
+LEFT JOIN _android_jank_cuj_main_thread_cuj_boundary AS boundary
+  ON boundary.cuj_id = ajc.cuj_id;

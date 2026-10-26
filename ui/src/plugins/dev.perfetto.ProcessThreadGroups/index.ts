@@ -99,33 +99,54 @@ export default class implements PerfettoPlugin {
     // which has pid 0 but appears as a distinct process (with its own comm) on
     // each cpu. It'd make sense to exclude its thread state track, but still
     // put process-scoped tracks in this group.
+    const numMachines = await getMachineCount(this.ctx.engine);
     const result = await this.ctx.engine.query(`
        include perfetto module viz.threads;
 
-       select utid, upid
-       from _threads_with_kernel_flag
-       where is_kernel_thread
+       select
+         k.utid,
+         k.upid,
+         thread.machine_id as machineId,
+         machine.name as machineName,
+         machine.label_index as machineLabelIndex
+       from _threads_with_kernel_flag k
+       join thread using (utid)
+       left join machine on machine.id = thread.machine_id
+       where k.is_kernel_thread
     `);
 
     const it = result.iter({
       utid: NUM,
       upid: NUM,
+      machineId: NUM,
+      machineName: STR_NULL,
+      machineLabelIndex: NUM_NULL,
     });
     if (!it.valid()) {
       return; // no kernel thread grouping
     }
 
-    const kernelThreadsGroup = new TrackNode({
-      name: 'Kernel threads',
-      uri: '/kernel',
-      sortOrder: 50,
-      isSummary: true,
-    });
-    this.ctx.defaultWorkspace.addChildInOrder(kernelThreadsGroup);
+    const groups = new Map<number, TrackNode>();
 
     // Set the group for all kernel threads (including kthreadd itself).
     for (; it.valid(); it.next()) {
-      const {utid, upid} = it;
+      const {utid, upid, machineId} = it;
+      let kernelThreadsGroup = groups.get(machineId);
+      if (kernelThreadsGroup === undefined) {
+        const machineLabel = maybeMachineLabel(
+          it.machineLabelIndex ?? undefined,
+          it.machineName,
+          numMachines,
+        );
+        kernelThreadsGroup = new TrackNode({
+          name: `Kernel threads${machineLabel}`,
+          uri: machineId === 0 ? '/kernel' : `/kernel_${machineId}`,
+          sortOrder: 50,
+          isSummary: true,
+        });
+        this.ctx.defaultWorkspace.addChildInOrder(kernelThreadsGroup);
+        groups.set(machineId, kernelThreadsGroup);
+      }
 
       const threadGroup = new TrackNode({
         uri: `thread${utid}`,
@@ -151,8 +172,7 @@ export default class implements PerfettoPlugin {
           process.name as processName,
           sum_running_dur as sumRunningDur,
           thread_slice_count + process_slice_count as sliceCount,
-          perf_sample_count as perfSampleCount,
-          instruments_sample_count as instrumentsSampleCount,
+          stack_sample_count as stackSampleCount,
           allocation_count as heapProfileAllocationCount,
           graph_object_count as heapGraphObjectCount,
           (
@@ -181,8 +201,7 @@ export default class implements PerfettoPlugin {
           thread.name as threadName,
           sum_running_dur as sumRunningDur,
           slice_count as sliceCount,
-          perf_sample_count as perfSampleCount,
-          instruments_sample_count as instrumentsSampleCount,
+          stack_sample_count as stackSampleCount,
           ifnull(extract_arg(thread.arg_set_id, 'thread_sort_index_hint'), 0) as threadSortIndexHint,
           machine_id as machine
         from _thread_available_info_summary
@@ -206,8 +225,7 @@ export default class implements PerfettoPlugin {
           chromeProcessRank desc,
           heapProfileAllocationCount desc,
           heapGraphObjectCount desc,
-          perfSampleCount desc,
-          instrumentsSampleCount desc,
+          stackSampleCount desc,
           sumRunningDur desc,
           sliceCount desc,
           processName asc,
@@ -228,8 +246,7 @@ export default class implements PerfettoPlugin {
         left join machine m on m.id = threadGroups.machine
         order by
           threadSortIndexHint asc,
-          perfSampleCount desc,
-          instrumentsSampleCount desc,
+          stackSampleCount desc,
           sumRunningDur desc,
           sliceCount desc,
           threadName asc,

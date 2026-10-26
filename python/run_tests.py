@@ -20,9 +20,11 @@ import unittest
 
 from test import api_integrationtest
 from test import bigtrace_api_integrationtest
+from test import open_trace_in_ui_unittest
 from test import query_result_iterator_unittest
 from test import resolver_unittest
 from test import stdlib_unittest
+from test import unix_unittest
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
@@ -50,10 +52,12 @@ def main():
   suite = unittest.TestSuite()
 
   # Add all relevant tests to test suite
+  suite.addTests(loader.loadTestsFromModule(open_trace_in_ui_unittest))
   suite.addTests(loader.loadTestsFromModule(query_result_iterator_unittest))
   suite.addTests(loader.loadTestsFromModule(resolver_unittest))
   suite.addTests(loader.loadTestsFromModule(api_integrationtest))
   suite.addTests(loader.loadTestsFromModule(stdlib_unittest))
+  suite.addTests(loader.loadTestsFromModule(unix_unittest))
   if os.path.exists(os.environ["WORKER_PATH"]):
     suite.addTests(loader.loadTestsFromModule(bigtrace_api_integrationtest))
 

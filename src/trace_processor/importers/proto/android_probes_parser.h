@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_PROBES_PARSER_H_
 
 #include <cstdint>
+#include <string>
 
 #include "perfetto/protozero/field.h"
 
@@ -66,8 +67,6 @@ class AndroidProbesParser {
 
   std::unique_ptr<ArgsTracker> power_rails_args_tracker_;
 
-  const StringId battery_status_id_;
-  const StringId plug_type_id_;
   const StringId energy_consumer_id_;
   const StringId consumer_type_id_;
   const StringId ordinal_id_;
@@ -94,6 +93,8 @@ class AndroidProbesParser {
   const StringId aflags_integer_id_;
   const StringId aflags_unspecified_id_;
   const StringId android_logcat_;
+  // Temp string used to store strings after removing non-UTF-8 chars.
+  std::string temp_string_utf8_;
 };
 }  // namespace perfetto::trace_processor
 

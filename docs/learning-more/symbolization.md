@@ -14,18 +14,38 @@ organised around that question. Two definitions used throughout:
   R8/ProGuard (e.g. `fsd.a`) back to the original identifiers, using the
   `mapping.txt` produced at build time.
 
+## Fetch debug files using debuginfod
+
+If you have a trace with native build IDs and access to a debuginfod server,
+you can create a symbolized bundle without supplying local binaries. Install
+`curl` and `llvm-symbolizer`, then run:
+
+```sh
+trace_processor bundle --debuginfod \
+  --debuginfod-urls "https://your-debuginfod-server.example" \
+  input.pftrace output.tar
+```
+
+If `DEBUGINFOD_URLS` is already configured, only `--debuginfod` is needed.
+Open the resulting bundle in the UI. Check the reported unresolved-frame count;
+use `--verbose` to investigate unsuccessful lookups. Downloads are cached for
+later runs. Use `--debuginfod-cache-path PATH` to choose a different cache.
+
+See the [CLI reference](/docs/reference/trace-processor-cli.md#debuginfod) for
+precedence, timeouts, cache layout, and output controls.
+
 ## Which workflow do you need? {#which-workflow}
 
 Match your trace to one of the categories below and follow the link. Picking the
 wrong workflow is the most common reason symbols "don't work". The key rule of
-thumb: **userspace** symbols are resolved offline on the host (`traceconv
+thumb: **userspace** symbols are resolved offline on the host (`trace_processor
 bundle`), while **kernel** symbols are always resolved at record time on the
 device (Perfetto never stores absolute kernel addresses, to avoid disclosing
 [KASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization)).
 
 | Your trace contains&hellip; | Examples | What you need |
 | --- | --- | --- |
-| **Callstacks** | Native heap profiler, `traced_perf` / Linux perf CPU sampling, ART heap dumps | [Symbolization & deobfuscation](#callstacks). Userspace frames are resolved offline (`traceconv bundle`); kernel frames are symbolized on-device automatically. |
+| **Callstacks** | Native heap profiler, `traced_perf` / Linux perf CPU sampling, ART heap dumps | [Symbolization & deobfuscation](#callstacks). Userspace frames are resolved offline (`trace_processor bundle`); kernel frames are symbolized on-device automatically. |
 | **Kernel ftrace events** | `function_graph` tracing, `sched_blocked_reason`, kprobes | [Record-time `symbolize_ksyms`](#ftrace). These addresses **cannot** be symbolized after the fact. |
 | **Userspace event names** | atrace slice names, ART method tracing | [Not currently supported](#userspace-event-names) for offline deobfuscation; emit readable names at instrumentation time. |
 
@@ -45,14 +65,14 @@ Callstacks can also contain **kernel** frames, which are handled differently; se
 [Kernel frames in callstacks](#callstack-kernel-frames) at the end of this
 section.
 
-### {#option-1-traceconv-bundle} Option 1: `traceconv bundle` (recommended)
+### {#option-1-traceconv-bundle} Option 1: `trace_processor bundle` (recommended)
 
-`traceconv bundle` is a one-shot command that takes a trace and produces an
+`trace_processor bundle` is a one-shot command that takes a trace and produces an
 **enriched trace**: the original trace plus all the symbol and deobfuscation
 data needed to analyse it, packaged together in a single file.
 
 ```bash
-traceconv bundle input.perfetto-trace enriched-trace
+trace_processor bundle input.perfetto-trace enriched-trace
 ```
 
 The enriched trace can be opened in the [Perfetto UI](https://ui.perfetto.dev)
@@ -94,43 +114,43 @@ configuration. It searches:
 When auto-discovery isn't enough:
 
 ```bash
-traceconv bundle \
+trace_processor bundle \
   --symbol-paths /path/to/symbols1,/path/to/symbols2 \
   --proguard-map com.example.app=/path/to/mapping.txt \
   --verbose \
   input.perfetto-trace enriched-trace
 ```
 
-The properties of the `bundle` flags are:
+Point `--symbol-paths` at directories containing the matching unstripped
+binaries or native debug files, for example your build's symbols directory.
+Bundle searches recursively and matches build IDs, so you do not need to
+recreate the device's directory layout. Pass Java/Kotlin `mapping.txt` files
+separately with `--proguard-map`.
 
-- `--symbol-paths PATH1,PATH2,...`: additional directories to search for native
-  symbols (in addition to the auto-discovered ones).
-- `--no-auto-symbol-paths`: disable auto-discovery of native symbol paths. Only
-  paths given via `--symbol-paths` are searched.
-- `--proguard-map [pkg=]PATH`: additional ProGuard/R8 `mapping.txt` to apply for
-  Java/Kotlin deobfuscation. Repeat the flag for multiple maps. The optional
-  `pkg=` prefix scopes a map to a specific Java package.
-- `--no-auto-proguard-maps`: disable auto-discovery of ProGuard/R8 mapping files
-  (e.g. the standard Android Gradle layout). Only maps given via
-  `--proguard-map` are applied.
-- `--verbose`: print every path tried and every library looked up &mdash; useful
-  when debugging "could not find" errors.
+Use `--verbose` to diagnose missing symbols. To disable automatic discovery,
+add `--no-auto-symbol-paths` and `--no-auto-proguard-maps`. Native paths from
+`PERFETTO_BINARY_PATH` still apply; unset that variable to restrict lookup to
+`--symbol-paths`.
 
-### {#option-2-legacy-traceconv-symbolize-deobfuscate} Option 2: Legacy `traceconv symbolize` / `deobfuscate`
+See the [bundle command reference](/docs/reference/trace-processor-cli.md#subcommand-bundle)
+for option semantics, color controls, output replacement, and exit status.
+
+### {#option-2-legacy-traceconv-symbolize-deobfuscate} Option 2: Legacy `trace_processor util symbolize` / `util deobfuscate`
 
 NOTE: This flow is kept for backwards compatibility with existing scripts and
 CI pipelines that already depend on it. For new usage, always prefer
 [Option 1](#option-1-traceconv-bundle) &mdash; it is simpler, has
 auto-discovery, and works on non-Perfetto trace formats.
 
-The older `traceconv symbolize` and `traceconv deobfuscate` subcommands
+The older `trace_processor util symbolize` and `trace_processor util
+deobfuscate` subcommands
 produce standalone symbol and deobfuscation files driven entirely by
 environment variables, which must then be concatenated onto the trace by
 hand.
 
 #### Native symbolization
 
-All tools (`traceconv`, `trace_processor_shell`, the `heap_profile` script)
+All tools (`trace_processor`, the `heap_profile` script)
 honour the `PERFETTO_BINARY_PATH` environment variable:
 
 ```bash
@@ -140,7 +160,7 @@ PERFETTO_BINARY_PATH=somedir tools/heap_profile android --name ${NAME}
 To produce a standalone symbol file for a trace you already collected:
 
 ```bash
-PERFETTO_BINARY_PATH=somedir traceconv symbolize raw-trace > symbols
+PERFETTO_BINARY_PATH=somedir trace_processor util symbolize raw-trace > symbols
 ```
 
 Alternatively, set `PERFETTO_SYMBOLIZER_MODE=index` and the symbolizer will
@@ -161,7 +181,7 @@ To produce a standalone deobfuscation file for an existing trace:
 
 ```bash
 PERFETTO_PROGUARD_MAP=com.example.pkg=proguard_map.txt \
-  traceconv deobfuscate ${TRACE} > deobfuscation_map
+  trace_processor util deobfuscate ${TRACE} > deobfuscation_map
 ```
 
 #### Attaching the output to a trace
@@ -188,6 +208,20 @@ when `PERFETTO_BINARY_PATH` is set.
   `trace_processor_shell`.
 - You must manage `PERFETTO_BINARY_PATH` / `PERFETTO_PROGUARD_MAP` by hand; none
   of the auto-discovery from Option 1 applies.
+
+### Merged classes {#merged-classes}
+
+Optimizing and obfuscating an app (for example, with R8) can merge several
+classes into one. When the deobfuscation mapping records which classes were
+merged, Perfetto marks the resulting classes in heap dumps as potentially
+merged (`heap_graph_class.potentially_merged`) and shows a warning next to them
+in the UI; see
+[Heap Dump Explorer](/docs/visualization/heap-dump-explorer.md#merged-classes).
+
+If the mapping doesn't record merged classes, Perfetto can't tell which classes
+were merged, so it flags every renamed class instead. For example, R8 records
+merged classes in `com.android.tools.r8.mergedClasses` comments starting with
+mapping format 2.3; older R8 mapping files don't.
 
 ### Symbol lookup order
 
@@ -227,22 +261,79 @@ gauge demand and prioritise.
 
 ### Troubleshooting
 
+`trace_processor bundle` always produces a bundle containing at least the
+original trace. When it cannot add all the enrichment it wants, it prints a
+summary of what is missing and how to fix it, then still exits successfully
+&mdash; so check the output of the command even when it succeeds. It exits
+non-zero only for genuine failures (unreadable input, unwritable output, or
+an explicitly-provided `--proguard-map` that cannot be read).
+
+Common messages and what they mean:
+
+- **`N frames from M mappings: no usable symbols in the searched paths`**,
+  followed by the mapping names: the tool searched the auto-discovered paths
+  (plus any `--symbol-paths` you gave) but found no binary with a matching
+  Build ID for those mappings, or only a stripped one. The `To fix this`
+  block below it depends on where the binaries come from. If you build them
+  yourself, point `--symbol-paths` at the unstripped build outputs. If they
+  come from your OS, install its debug symbols: `apt install <package>-dbgsym`
+  on Debian/Ubuntu (find the package with `dpkg -S <path>`), `dnf
+  debuginfo-install <package>` on Fedora (`rpm -qf <path>`), both of which
+  install to `/usr/lib/debug` where they are found automatically; on Android,
+  the `symbols` directory of the matching platform build. Re-run with
+  `--verbose` to see the Build IDs and every path that was tried.
+
+- **`N frames from M mappings: kernel frames, no vmlinux in the searched
+  paths`**: install the kernel debug package (`linux-image-$(uname -r)-dbg`
+  on Debian/Ubuntu, `dnf debuginfo-install kernel` on Fedora) or point
+  `--symbol-paths` at the `vmlinux` from your kernel build.
+
+- **`N frames from M mappings: no build ID recorded, so symbols cannot be
+  looked up`**: the trace's mappings have no Build ID, so symbols cannot be
+  matched even with the right binaries. Rebuild the binaries with Build IDs
+  (linker flag `-Wl,--build-id`) and re-record.
+
+- **`N frames from M mappings: no backing file to read symbols from (JIT,
+  anonymous or [vdso]-style mappings)`**: these frames come from memory with
+  no binary behind it. Nothing offline can name them.
+
+- **`Kernel function names: this trace contains function_graph events ...`**:
+  the trace contains kernel addresses from `function_graph` (or similar
+  ftrace events) recorded **without** `symbolize_ksyms`. These cannot be
+  symbolized offline; re-record with `symbolize_ksyms: true`. See
+  [Kernel ftrace events](#ftrace).
+
+- **`no symbol paths were searched`**: automatic discovery was disabled
+  (`--no-auto-symbol-paths`) and no explicit paths were given. Pass
+  `--symbol-paths` with the directories to search.
+
+- **`cannot create output file ...`**: the output path could not be created
+  (e.g. the parent directory does not exist or is not writable). Check the
+  path.
+
 #### Could not find library
 
-When symbolizing a profile you may see messages like:
+When symbolizing a profile with `--verbose` you may see messages like:
 
 ```text
-Could not find /data/app/invalid.app-wFgo3GRaod02wSvPZQ==/lib/arm64/somelib.so
-(Build ID: 44b7138abd5957b8d0a56ce86216d478).
+  Could not symbolize 12 frames from 1 mapping:
+    /data/app/invalid.app-wFgo3GRaod02wSvPZQ==/lib/arm64/somelib.so (12 frames)
+      build ID: 44b7138abd5957b8d0a56ce86216d478
+      no binary with a matching build ID in:
+        /path/to/symbols/somelib.so (file not found)
+
+  To fix this:
+    If you build these binaries yourself, pass --symbol-paths DIR1,DIR2,... pointing at the unstripped build outputs.
+    If they come from your OS, install its debug symbols; see https://perfetto.dev/docs/learning-more/symbolization
 ```
 
 Check that `somelib.so` exists somewhere under one of the search paths
-(`--symbol-paths`, `PERFETTO_BINARY_PATH`, or an auto-discovered location). Then
+(`--symbol-paths` or an auto-discovered location). Then
 compare the Build ID on disk to the one reported in the message using
 `readelf -n /path/to/somelib.so`. If they do not match, the copy on disk is a
 different build than the one on device and cannot be used.
 
-Re-running `traceconv bundle` with `--verbose` prints every path tried, which
+Re-running `trace_processor bundle` with `--verbose` prints every path tried, which
 usually makes it clear whether the file was missing entirely or found with the
 wrong Build ID.
 
@@ -294,7 +385,7 @@ This reads `/proc/kallsyms` on the device and embeds the (mangled) symbol map in
 the trace. It requires that either `traced_probes` runs as root or
 `kptr_restrict` has been lowered manually.
 
-WARNING: `traceconv bundle` and the offline symbolizers above **cannot** recover
+WARNING: `trace_processor bundle` and the offline symbolizers above **cannot** recover
 kernel symbols. Perfetto deliberately does not store absolute kernel addresses
 in the trace, because doing so would defeat
 [KASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) and

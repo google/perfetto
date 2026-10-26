@@ -14,16 +14,21 @@
 # limitations under the License.
 
 import http.client
+import shutil
 from typing import List, Optional, Union
 
 from perfetto.trace_processor.protos import ProtoFactory
+from perfetto.trace_processor.backend import TraceProcessorBackend
 
 
-class TraceProcessorHttp:
+class TraceProcessorHttp(TraceProcessorBackend):
 
   def __init__(self, url: str, protos: ProtoFactory):
-    self.protos = protos
+    super().__init__(protos)
     self.conn = http.client.HTTPConnection(url)
+
+  def close(self):
+    self.conn.close()
 
   def execute_query(self, query: str):
     args = self.protos.QueryArgs()
@@ -106,3 +111,18 @@ class TraceProcessorHttp:
       result = self.protos.DisableAndReadMetatraceResult()
       result.ParseFromString(f.read())
       return result
+
+  def export(self, output_file, export_format: str):
+    """Streams an export directly to an open file object."""
+    args = self.protos.ExportArgs()
+    if export_format == 'perfetto':
+      args.format = self.protos.ExportArgs.Format.PERFETTO
+    elif export_format == 'arrow_tar':
+      args.format = self.protos.ExportArgs.Format.ARROW_TAR
+    elif export_format == 'sqlite':
+      args.format = self.protos.ExportArgs.Format.SQLITE
+    else:
+      raise ValueError(f'Unknown export format: {export_format}')
+    self.conn.request('POST', '/export', body=args.SerializeToString())
+    with self.conn.getresponse() as f:
+      shutil.copyfileobj(f, output_file, 65536)

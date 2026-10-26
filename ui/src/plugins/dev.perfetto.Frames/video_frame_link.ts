@@ -28,7 +28,7 @@ import type {TrackEventDetailsPanelSection} from '../../components/details/threa
 // there's no matching frame, so it self-hides on traces without video.
 export class VideoFrameLinkSection implements TrackEventDetailsPanelSection {
   private readonly trace: Trace;
-  private videoFrame?: {id: number; displayId: number};
+  private videoFrame?: {readonly trackUri: string; readonly eventId: number};
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -36,21 +36,25 @@ export class VideoFrameLinkSection implements TrackEventDetailsPanelSection {
 
   async load(selection: TrackEventSelection): Promise<void> {
     this.videoFrame = undefined;
-    try {
-      const res = await this.trace.engine.query(`
-        SELECT vf.id AS id, vf.display_id AS displayId
-        FROM actual_frame_timeline_slice s
-        JOIN __intrinsic_video_frames vf
-          ON vf.frame_timeline_vsync_id = s.display_frame_token
-        WHERE s.id = ${selection.eventId}
-        LIMIT 1
-      `);
-      if (res.numRows() === 0) return;
-      const row = res.firstRow({id: NUM, displayId: NUM});
-      this.videoFrame = {id: row.id, displayId: row.displayId};
-    } catch {
-      // No video-frame table in this build; leave the section hidden.
-    }
+    const res = await this.trace.engine.query(`
+      SELECT vf.id AS id
+      FROM actual_frame_timeline_slice s
+      JOIN __intrinsic_video_frames vf
+        ON vf.frame_timeline_vsync_id = s.display_frame_token
+      WHERE s.id = ${selection.eventId}
+      ORDER BY vf.id
+      LIMIT 1
+    `);
+    const row = res.maybeFirstRow({id: NUM});
+    if (row === undefined) return;
+    // Resolve through the VideoFrames track's dataset so its visibility rules
+    // (no codec_config rows, nothing before the first key frame) and track URI
+    // live in one place, and the link hides when the plugin is disabled.
+    const matches = await this.trace.selection.resolveSqlEvents(
+      '__intrinsic_video_frames',
+      [row.id],
+    );
+    this.videoFrame = matches[0];
   }
 
   render(): m.Children {
@@ -64,11 +68,9 @@ export class VideoFrameLinkSection implements TrackEventDetailsPanelSection {
         {
           icon: 'movie',
           onclick: () =>
-            this.trace.selection.selectTrackEvent(
-              `/video_frames/${vf.displayId}`,
-              vf.id,
-              {scrollToSelection: true},
-            ),
+            this.trace.selection.selectTrackEvent(vf.trackUri, vf.eventId, {
+              scrollToSelection: true,
+            }),
         },
         'Jump to video frame',
       ),

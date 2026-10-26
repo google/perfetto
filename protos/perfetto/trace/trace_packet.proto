@@ -22,6 +22,7 @@ import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
 import "protos/perfetto/protovm/vm_program.proto";
 import "protos/perfetto/trace/extension_descriptor.proto";
+import "protos/perfetto/trace/android/recovered_trace_info.proto";
 import "protos/perfetto/trace/android/android_aflags.proto";
 import "protos/perfetto/trace/android/android_game_intervention_list.proto";
 import "protos/perfetto/trace/android/android_log.proto";
@@ -41,6 +42,7 @@ import "protos/perfetto/trace/chrome/chrome_trigger.proto";
 import "protos/perfetto/trace/chrome/v8.proto";
 import "protos/perfetto/trace/clock_snapshot.proto";
 import "protos/perfetto/trace/linux/journald_event.proto";
+import "protos/perfetto/trace/linux/memcg_stats.proto";
 import "protos/perfetto/trace/etw/etw_event_bundle.proto";
 import "protos/perfetto/trace/filesystem/inode_file_map.proto";
 import "protos/perfetto/trace/ftrace/ftrace_event_bundle.proto";
@@ -59,6 +61,7 @@ import "protos/perfetto/trace/perfetto/concurrent_session_event.proto";
 import "protos/perfetto/trace/perfetto/perfetto_metatrace.proto";
 import "protos/perfetto/trace/perfetto/trace_provenance.proto";
 import "protos/perfetto/trace/perfetto/tracing_service_event.proto";
+import "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.proto";
 import "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto";
 import "protos/perfetto/trace/power/android_entity_state_residency.proto";
 import "protos/perfetto/trace/power/battery_counters.proto";
@@ -111,7 +114,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 136.
+// Next id: 141.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -184,6 +187,8 @@ message TracePacket {
     TraceConfig trace_config = 33;
     FtraceStats ftrace_stats = 34;
     TraceStats trace_stats = 35;
+    ExperimentalTracingV2ProducerStats experimental_tracing_v2_producer_stats =
+        139;
     ProfilePacket profile_packet = 37;
     StreamingAllocation streaming_allocation = 74;
     StreamingFree streaming_free = 75;
@@ -289,6 +294,14 @@ message TracePacket {
     AndroidUserList user_list = 123;
 
     SystemdJournaldEvent journald_event = 132;
+
+    // Injected into TracePacket by perfetto post-reboot recovery to record
+    // recovered trace metadata.
+    RecoveredTraceInfo recovered_trace_info = 138;
+
+    // Values of the cgroup v2 memory controller, from the "linux.cgroup" data
+    // source.
+    MemcgStats memcg_stats = 140;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
@@ -425,9 +438,13 @@ message TracePacket {
     // A loss was detected (set on every loss). On its own (value 1) it means
     // dropped with no specific cause, e.g. TraceBufferV1 or a producer.
     DATA_LOSS_PRESENT = 1;
-    // A read started on a non-successor ChunkID (a gap in the stream).
+    // A read started on a non-successor ChunkID (a gap in the stream), or a
+    // proto-group sequence resumed after a recorded loss.
     DATA_LOSS_READ_GAP = 2;
-    // A chunk's fragments couldn't be tokenized (malformed / out-of-bounds).
+    // A chunk's fragments couldn't be tokenized (malformed / out-of-bounds),
+    // or a proto-group packet couldn't be rewritten. The buffer stats
+    // abi_violations and oversized_packets_dropped tell the two rewrite
+    // failures apart.
     DATA_LOSS_CHUNK_CORRUPTED = 4;
     // A continuation/end fragment with no preceding begin fragment.
     DATA_LOSS_ORPHAN_CONTINUATION = 8;

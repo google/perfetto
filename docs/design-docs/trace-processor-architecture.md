@@ -15,36 +15,36 @@ TraceSorter → TraceStorage → SQL Query Engine
 
 ## Format Detection and Delegation
 
-**ForwardingTraceParser** (`src/trace_processor/forwarding_trace_parser.cc:95-134`)
-- Detects trace format using `GuessTraceType()` from first bytes
+**ForwardingTraceParser** (`src/trace_processor/forwarding_trace_parser.cc:85-254`)
+- Detects trace format using `TraceImporterRegistry::Guess()` from first bytes
 - Creates appropriate reader via **TraceReaderRegistry** (`src/trace_processor/trace_reader_registry.h`)
 - All readers implement **ChunkedTraceReader** interface (`src/trace_processor/importers/common/chunked_trace_reader.h`)
 
-**Format Registration** (`src/trace_processor/trace_processor_impl.cc:475-519`)
+**Format Registration** (`src/trace_processor/trace_processor_impl.cc:462-485`)
 ```cpp
-context()->reader_registry->RegisterTraceReader<JsonTraceTokenizer>(kJsonTraceType);
-context()->reader_registry->RegisterTraceReader<ProtoTraceReader>(kProtoTraceType);
-context()->reader_registry->RegisterTraceReader<SystraceTraceParser>(kSystraceTraceType);
+context()->reader_registry->Register(CreateJsonImporter());
+context()->reader_registry->Register(CreateProtoImporter());
+context()->reader_registry->Register(CreateSystraceImporter());
 ```
 
 ## Format-Specific Readers (Diverse Approaches)
 
 ### 1. JSON Traces
-**JsonTraceTokenizer** (`src/trace_processor/importers/json/json_trace_tokenizer.h:73`)
+**JsonTraceTokenizer** (`src/trace_processor/importers/json/json_trace_tokenizer.h:74`)
 - **Data Flow**: Raw JSON → Tokenizer → JsonEvent objects → TraceSorter::Stream<JsonEvent>
 - **Parser**: JsonTraceParser processes sorted events → TraceStorage
 - **Architecture**: Tokenizer/Parser split with JSON-specific state machine
 
 ### 2. Proto Traces (Complex Modular System)
-**ProtoTraceReader** (`src/trace_processor/importers/proto/proto_trace_reader.h:58`)
+**ProtoTraceReader** (`src/trace_processor/importers/proto/proto_trace_reader.h:61`)
 - **Data Flow**: Proto bytes → ProtoTraceTokenizer → ProtoImporterModules → TraceSorter::Stream<TracePacketData>
-- **Modules**: Register for specific packet field IDs (`src/trace_processor/importers/proto/proto_importer_module.h:110`)
+- **Modules**: Register for specific packet field IDs (`src/trace_processor/importers/proto/proto_importer_module.h:131`)
   - Tokenization phase: Early processing before sorting
   - Parsing phase: Post-sorting detailed processing
 - **Examples**: FtraceModule, TrackEventModule, AndroidModule (many files in `src/trace_processor/importers/proto/`)
 
 ### 3. Systrace (Line-Based Processing)
-**SystraceTraceParser** (`src/trace_processor/importers/systrace/systrace_trace_parser.h:34`)
+**SystraceTraceParser** (`src/trace_processor/importers/systrace/systrace_trace_parser.h:35`)
 - **Data Flow**: Text lines → SystraceLineTokenizer → SystraceLine objects → TraceSorter::Stream<SystraceLine>
 - **Architecture**: State machine for HTML + trace data sections
 
@@ -55,7 +55,7 @@ context()->reader_registry->RegisterTraceReader<SystraceTraceParser>(kSystraceTr
 
 ## Event Sorting and Processing
 
-**TraceSorter** (`src/trace_processor/sorter/trace_sorter.h:43`)
+**TraceSorter** (`src/trace_processor/sorter/trace_sorter.h:44`)
 - **Purpose**: Multi-stream timestamp-based merge sorting
 - **Architecture**: Per-CPU queues for ftrace, windowed sorting for streaming
 - **Streams**: Each format creates typed streams (JsonEvent, TracePacketData, SystraceLine, etc.)
@@ -117,4 +117,4 @@ Each format defines its own event types and creates typed streams:
 - `src/trace_processor/importers/systrace/systrace_trace_parser.h` - Systrace processing
 
 **Registration**:
-- `src/trace_processor/trace_processor_impl.cc:475-519` - Where all readers are registered
+- `src/trace_processor/trace_processor_impl.cc:462-485` - Where all readers are registered

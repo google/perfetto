@@ -26,6 +26,8 @@ source_set("utils_functions") {
     "../..:export_json",
     "../../../../gn:default_deps",
     "../../../../gn:sqlite",
+    "../../../../include/perfetto/trace_processor",
+    "../../../../include/perfetto/trace_processor:io",
     "../../../base/regex",
     "../../core/plugin",
     "../../perfetto_sql/engine",

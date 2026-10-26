@@ -327,7 +327,7 @@ class RecordingCtl implements m.ClassComponent<RecCtlAttrs> {
         '.record-target',
         recordingInProgress
           ? `Recording${eta ? ', ETA ' + eta : ''}`
-          : target?.name ?? 'No target selected',
+          : (target?.name ?? 'No target selected'),
       ),
       recordingInProgress
         ? m(Button, {

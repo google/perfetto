@@ -353,10 +353,10 @@ when writing traces directly from an app.
 ### Reading a compressed trace outside Perfetto
 
 If you need the raw, uncompressed protobuf (e.g. for a non-Perfetto tool), use
-`traceconv` to expand the compressed packets:
+`trace_processor` to expand the compressed packets:
 
 ```bash
-./traceconv decompress_packets trace.perfetto-trace trace.decompressed
+./trace_processor util decompress_packets trace.perfetto-trace trace.decompressed
 ```
 
 ## Data-source specific config
@@ -511,7 +511,7 @@ event has happened. Passing a trace config that has `START_TRACING` trigger
 causes the tracing session to stay idle (i.e. not recording any data) until
 either the trigger is hit or the `trigger_timeout_ms` timeout is hit.
 
-`trace_duration_ms` and triggered traces can not be used at the same time.
+`duration_ms` and triggered traces can not be used at the same time.
 
 Example config:
 
@@ -550,9 +550,6 @@ detected. This is key for events where the root cause is in the recent past
 Example config:
 
 ```protobuf
-# If no trigger is hit, the trace will end after 30s.
-trigger_timeout_ms: 30000
-
 # If the "missed_frame" is hit, the trace is stopped after 1s.
 trigger_config {
   trigger_mode: STOP_TRACING
@@ -560,6 +557,8 @@ trigger_config {
     name: "missed_frame"
     stop_delay_ms: 1000
   }
+  # If no trigger is hit, the trace will end after 30s.
+  trigger_timeout_ms: 30000
 }
 
 # The rest of the config is as usual.

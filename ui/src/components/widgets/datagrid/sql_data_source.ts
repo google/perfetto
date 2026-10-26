@@ -14,11 +14,10 @@
 
 import {assertUnreachable} from '../../../base/assert';
 import {
-  type QueryResult,
-  QuerySlot,
-  SerialTaskQueue,
-} from '../../../base/query_slot';
-import {maybeUndefined} from '../../../base/utils';
+  type AsyncMemoResult,
+  AsyncMemo,
+  AtomicTaskQueue,
+} from '../../../base/async_memo';
 import {shortUuid} from '../../../base/uuid';
 import type {Engine} from '../../../trace_processor/engine';
 import {
@@ -39,7 +38,7 @@ import {SQLDataSourceTree} from './sql_data_source/tree';
 export interface DatagridEngineSQLConfig extends SQLTableSchema {
   readonly engine: Engine;
   readonly preamble?: string;
-  readonly queue?: SerialTaskQueue;
+  readonly queue?: AtomicTaskQueue;
 }
 
 /**
@@ -47,26 +46,26 @@ export interface DatagridEngineSQLConfig extends SQLTableSchema {
  *
  * Simplified version: supports flat mode and pivot mode.
  */
-export class SQLDataSource implements DataSource {
+export class SQLDataSource implements DataSource, Disposable {
   private readonly engine: Engine;
   private readonly sqlSchema: SQLTableSchema;
   private readonly preamble?: string;
   private readonly flatEngine: SQLDataSourceFlat;
   private readonly pivotEngine: SQLDataSourcePivot;
   private readonly treeEngine: SQLDataSourceTree;
-  private readonly queue: SerialTaskQueue;
-  private readonly preambleSlot: QuerySlot<void>;
-  private readonly distinctValuesSlot: QuerySlot<readonly SqlValue[]>;
-  private readonly parameterKeysSlot: QuerySlot<readonly string[]>;
+  private readonly queue: AtomicTaskQueue;
+  private readonly preambleSlot: AsyncMemo<void>;
+  private readonly distinctValuesSlot: AsyncMemo<readonly SqlValue[]>;
+  private readonly parameterKeysSlot: AsyncMemo<readonly string[]>;
 
   constructor(config: DatagridEngineSQLConfig) {
     this.engine = config.engine;
     this.sqlSchema = config;
     this.preamble = config.preamble;
-    this.queue = config.queue ?? new SerialTaskQueue();
-    this.preambleSlot = new QuerySlot<void>(this.queue);
-    this.distinctValuesSlot = new QuerySlot<readonly SqlValue[]>(this.queue);
-    this.parameterKeysSlot = new QuerySlot<readonly string[]>(this.queue);
+    this.queue = config.queue ?? new AtomicTaskQueue();
+    this.preambleSlot = new AsyncMemo<void>(this.queue);
+    this.distinctValuesSlot = new AsyncMemo<readonly SqlValue[]>(this.queue);
+    this.parameterKeysSlot = new AsyncMemo<readonly string[]>(this.queue);
     const uuid = shortUuid();
 
     this.flatEngine = new SQLDataSourceFlat(
@@ -121,7 +120,7 @@ export class SQLDataSource implements DataSource {
   /**
    * Fetch aggregate summaries (aggregates across all filtered rows).
    */
-  useAggregateSummaries(model: DataSourceModel): QueryResult<Row> {
+  useAggregateSummaries(model: DataSourceModel): AsyncMemoResult<Row> {
     const mode = model.mode;
     switch (mode) {
       case 'flat':
@@ -140,16 +139,19 @@ export class SQLDataSource implements DataSource {
    */
   useDistinctValues(
     column: string | undefined,
-  ): QueryResult<readonly SqlValue[]> {
+  ): AsyncMemoResult<readonly SqlValue[]> {
     const {isPending: preamblePending} = this.usePreamble();
 
-    if (column === undefined || preamblePending) {
-      return {data: undefined, isPending: preamblePending, isFresh: true};
+    if (column === undefined) {
+      return {data: [], isPending: false};
+    }
+    if (preamblePending) {
+      return {isPending: true};
     }
 
     return this.distinctValuesSlot.use({
       key: column,
-      queryFn: async () => {
+      compute: async () => {
         const resolver = new SQLSchemaResolver(this.sqlSchema);
         const sqlExpr = resolver.resolveColumnPath(column);
         if (sqlExpr === undefined) {
@@ -180,30 +182,49 @@ export class SQLDataSource implements DataSource {
   /**
    * Fetch parameter keys for a parameterized column prefix (e.g., 'args' -> ['foo', 'bar']).
    */
-  useParameterKeys(prefix: string | undefined): QueryResult<readonly string[]> {
+  useParameterKeys(
+    prefix: string | undefined,
+  ): AsyncMemoResult<readonly string[]> {
     const {isPending: preamblePending} = this.usePreamble();
 
-    if (prefix === undefined || preamblePending) {
-      return {data: undefined, isPending: preamblePending, isFresh: true};
+    if (prefix === undefined) {
+      return {data: [], isPending: false};
+    }
+    if (preamblePending) {
+      return {isPending: true};
     }
 
     return this.parameterKeysSlot.use({
       key: prefix,
-      queryFn: async () => {
-        const colDef = maybeUndefined(this.sqlSchema.columns?.[prefix]);
-        if (
-          !colDef ||
-          !('expression' in colDef) ||
-          !colDef.parameterKeysQuery
-        ) {
+      compute: async () => {
+        const resolver = new SQLSchemaResolver(this.sqlSchema);
+        const resolved = resolver.resolveParameterizedColumn(prefix);
+        if (!resolved) {
           return [];
         }
 
-        const baseTableOrSubquery = this.sqlSchema.tableOrSubquery;
-        const resolver = new SQLSchemaResolver(this.sqlSchema);
-        const baseAlias = resolver.getBaseAlias();
+        const {colDef, targetAlias} = resolved;
+        if (!colDef.parameterKeysQuery) {
+          return [];
+        }
 
-        const query = colDef.parameterKeysQuery(baseTableOrSubquery, baseAlias);
+        const baseTable = resolver.getBaseTableOrSubquery();
+        const baseAlias = resolver.getBaseAlias();
+        const joins = resolver.getJoins();
+
+        let tableOrSubquery: string;
+        if (joins.length === 0) {
+          tableOrSubquery = baseTable;
+        } else {
+          const joinClauses = resolver.buildJoinClauses();
+          tableOrSubquery = `
+            SELECT ${targetAlias}.*
+            FROM (${baseTable}) AS ${baseAlias}
+            ${joinClauses}
+          `;
+        }
+
+        const query = colDef.parameterKeysQuery(tableOrSubquery, baseAlias);
         const queryResult = await this.engine.query(query);
         const keys: string[] = [];
         for (let it = queryResult.iter({key: UNKNOWN}); it.valid(); it.next()) {
@@ -254,13 +275,17 @@ export class SQLDataSource implements DataSource {
     this.treeEngine.dispose();
   }
 
+  [Symbol.dispose](): void {
+    this.dispose();
+  }
+
   /**
    * Run the preamble query if configured. Returns pending status.
    */
-  private usePreamble(): QueryResult<void> {
+  private usePreamble(): AsyncMemoResult<void> {
     return this.preambleSlot.use({
       key: {preamble: this.preamble ?? ''},
-      queryFn: async () => {
+      compute: async () => {
         if (this.preamble) {
           await this.engine.query(this.preamble);
         }

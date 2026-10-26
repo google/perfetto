@@ -21,8 +21,10 @@ import type {RouteArgs} from './route_schema';
  *
  * - 'experimental': The plugin is in development and may contain unstable or
  *   incomplete features. Users will see a warning when enabling such plugins.
+ * - 'preview': The plugin is in preview and may contain unstable or
+ *   incomplete features. Users will see a warning when enabling such plugins.
  */
-export type PluginStatus = 'experimental';
+export type PluginStatus = 'experimental' | 'preview';
 
 /**
  * This interface defines the shape of the plugins's class constructor (i.e. the
@@ -38,8 +40,8 @@ export interface PerfettoPluginStatic<T extends PerfettoPlugin> {
   readonly description?: string;
   /**
    * Optional status flag indicating the maturity of this plugin.
-   * When set to 'experimental', users will see a warning that enabling
-   * this plugin may expose experimental or unstable features.
+   * When set to 'experimental' or 'preview', users will see a warning that
+   * enabling this plugin may expose experimental or preview features.
    * Defaults to stable (no warning) when not specified.
    */
   readonly status?: PluginStatus;

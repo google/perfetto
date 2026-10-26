@@ -27,6 +27,7 @@ namespace {
 
 constexpr char kHeapprofdDataSourceName[] = "android.heapprofd";
 constexpr char kTracedPerfDataSourceName[] = "linux.perf";
+constexpr char kTracedPerfSmapsDataSourceName[] = "linux.smaps";
 constexpr char kLazyHeapprofdPropertyName[] = "traced.lazy.heapprofd";
 constexpr char kLazyTracedPerfPropertyName[] = "traced.lazy.traced_perf";
 
@@ -45,7 +46,6 @@ constexpr char kSurfaceFlingerSkiaUsePerfettoPropertyName[] =
     "debug.tracing.ctl.renderengine.skia_use_perfetto_track_events";
 
 using ::testing::_;
-using ::testing::InvokeWithoutArgs;
 using ::testing::Mock;
 using ::testing::Return;
 using ::testing::StrictMock;
@@ -71,10 +71,10 @@ TEST(BuiltinProducerTest, LazyHeapprofdSimple) {
   EXPECT_CALL(p, SetAndroidProperty(kLazyHeapprofdPropertyName, "1"))
       .WillOnce(Return(true));
   EXPECT_CALL(p, SetAndroidProperty(kLazyHeapprofdPropertyName, ""))
-      .WillOnce(InvokeWithoutArgs([&done]() {
+      .WillOnce([&done]() {
         done();
         return true;
-      }));
+      });
   p.SetupDataSource(1, cfg);
   p.StopDataSource(1);
   task_runner.RunUntilCheckpoint("done");
@@ -90,10 +90,29 @@ TEST(BuiltinProducerTest, LazyTracedPerfSimple) {
   EXPECT_CALL(p, SetAndroidProperty(kLazyTracedPerfPropertyName, "1"))
       .WillOnce(Return(true));
   EXPECT_CALL(p, SetAndroidProperty(kLazyTracedPerfPropertyName, ""))
-      .WillOnce(InvokeWithoutArgs([&done]() {
+      .WillOnce([&done]() {
         done();
         return true;
-      }));
+      });
+  p.SetupDataSource(1, cfg);
+  p.StopDataSource(1);
+  task_runner.RunUntilCheckpoint("done");
+}
+
+TEST(BuiltinProducerTest, LazyTracedPerfSmaps) {
+  DataSourceConfig cfg;
+  cfg.set_name(kTracedPerfSmapsDataSourceName);
+  base::TestTaskRunner task_runner;
+  auto done = task_runner.CreateCheckpoint("done");
+  StrictMock<MockBuiltinProducer> p(&task_runner);
+  testing::InSequence s;
+  EXPECT_CALL(p, SetAndroidProperty(kLazyTracedPerfPropertyName, "1"))
+      .WillOnce(Return(true));
+  EXPECT_CALL(p, SetAndroidProperty(kLazyTracedPerfPropertyName, ""))
+      .WillOnce([&done]() {
+        done();
+        return true;
+      });
   p.SetupDataSource(1, cfg);
   p.StopDataSource(1);
   task_runner.RunUntilCheckpoint("done");
@@ -113,10 +132,10 @@ TEST(BuiltinProducerTest, LazyHeapprofdRefCount) {
   p.StopDataSource(2);
   task_runner.RunUntilIdle();
   EXPECT_CALL(p, SetAndroidProperty(kLazyHeapprofdPropertyName, ""))
-      .WillOnce(InvokeWithoutArgs([&done]() {
+      .WillOnce([&done]() {
         done();
         return true;
-      }));
+      });
   p.StopDataSource(1);
   task_runner.RunUntilCheckpoint("done");
 }
@@ -136,10 +155,10 @@ TEST(BuiltinProducerTest, LazyHeapprofdNoFlap) {
   task_runner.RunUntilIdle();
   p.StopDataSource(2);
   EXPECT_CALL(p, SetAndroidProperty(kLazyHeapprofdPropertyName, ""))
-      .WillOnce(InvokeWithoutArgs([&done]() {
+      .WillOnce([&done]() {
         done();
         return true;
-      }));
+      });
   task_runner.RunUntilCheckpoint("done");
 }
 

@@ -79,31 +79,31 @@ CLEANUP_OLD_DIRS = [
 # Dependencies required to build code on the host or when targeting desktop OS.
 BUILD_DEPS_TOOLCHAIN_HOST = [
     # GN. From https://chrome-infra-packages.appspot.com/dl/gn/gn/.
-    # git_revision:0725d7827575b239594fbc8fd5192873a1d62f44 .
+    # git_revision:127dd2a6d582528d6d61c4d838dc17385ef31abd .
     Dependency(
-        'third_party/gn/gn',
-        'https://storage.googleapis.com/perfetto/gn-mac-1968-0725d782',
-        '9ced623a664560bba38bbadb9b91158ca4186358c847e17ab7d982b351373c2e',
+        'third_party/gn.zip',
+        'https://chrome-infra-packages.appspot.com/dl/gn/gn/mac-amd64/+/git_revision:127dd2a6d582528d6d61c4d838dc17385ef31abd',
+        '5755124082a2da1cc1197fe4eaf1c784330170196b13220d7578fc79d53fe954',
         'darwin', 'x64'),
     Dependency(
-        'third_party/gn/gn',
-        'https://storage.googleapis.com/perfetto/gn-mac-arm64-1968-0725d782',
-        'd22336b5210b4dad5e36e8c28ce81187f491822cf4d8fd0a257b30d6bee3fd3f',
+        'third_party/gn.zip',
+        'https://chrome-infra-packages.appspot.com/dl/gn/gn/mac-arm64/+/git_revision:127dd2a6d582528d6d61c4d838dc17385ef31abd',
+        'abbf70538595588cb5ee222f65ecf2f9055ecfd1b54475be4d7a02b32631693a',
         'darwin', 'arm64'),
     Dependency(
-        'third_party/gn/gn',
-        'https://storage.googleapis.com/perfetto/gn-linux64-1968-0725d782',
-        'f706aaa0676e3e22f5fc9ca482295d7caee8535d1869f99efa2358177b64f5cd',
+        'third_party/gn.zip',
+        'https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/git_revision:127dd2a6d582528d6d61c4d838dc17385ef31abd',
+        '2529a6e618be13d05b761a1b5b5e2f0c8bd3e5c592d0c8bf16afed12b6314f12',
         'linux', 'x64'),
     Dependency(
-        'third_party/gn/gn',
-        'https://storage.googleapis.com/perfetto/gn-linux-arm64-1968-0725d782',
-        'c2a372cd4f911028d8bc351fbf24835c9b1194fcc92beadf6c5a2b3addae973c',
+        'third_party/gn.zip',
+        'https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-arm64/+/git_revision:127dd2a6d582528d6d61c4d838dc17385ef31abd',
+        '6f82a33452575e7376c99c55c5a5be46816fa0606cde4314d773bdeda5a3be5b',
         'linux', 'arm64'),
     Dependency(
-        'third_party/gn/gn.exe',
-        'https://storage.googleapis.com/perfetto/gn-win-1968-0725d782',
-        '001f777f023c7a6959c778fb3a6b6cfc63f6baef953410ecdeaec350fb12285b',
+        'third_party/gn.zip',
+        'https://chrome-infra-packages.appspot.com/dl/gn/gn/windows-amd64/+/git_revision:127dd2a6d582528d6d61c4d838dc17385ef31abd',
+        '0457c2f6456ed1a110f42ce841dde7c6fde53ff513f71db50c3b08e2d0d8ff47',
         'windows', 'x64'),
 
     # clang-format
@@ -166,13 +166,13 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
     # tools/clang/scripts/update.py.
     Dependency(
         'buildtools/linux64/clang.tgz',
-        'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-19-init-2941-ga0b3dbaf-22.tgz',
-        '6741cc1083f935795330b6e04617ac891a7b5d2b5647b664c5b0fccc354adb43',
+        'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-23-init-19482-g53d18800-22.tar.xz',
+        'a1f881d528ffd8f67a752cdcbad35595dafcf89c177b33931ec2c802280392e1',
         'linux', 'x64'),
     Dependency(
         'buildtools/win/clang.tgz',
-        'https://commondatastorage.googleapis.com/chromium-browser-clang/Win/clang-llvmorg-19-init-2941-ga0b3dbaf-22.tgz',
-        'f627080ed53d4c156f089323e04fa3690c8bb459110b62cd1952b0e1f0755987',
+        'https://commondatastorage.googleapis.com/chromium-browser-clang/Win/clang-llvmorg-23-init-19482-g53d18800-22.tar.xz',
+        '8d05e0bf6cd31580e457ceddbbf249f73e1d0a784e96d3101495b28a4833904e',
         'windows', 'x64'),
 ]
 
@@ -242,13 +242,13 @@ BUILD_DEPS_HOST = [
     # If updating the version, also update bazel/deps.bzl.
     Dependency(
         'buildtools/sqlite.zip',
-        'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3500300.zip',
-        '9ad6d16cbc1df7cd55c8b55127c82a9bca5e9f287818de6dc87e04e73599d754',
+        'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3530400.zip',
+        '1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d',
         'all', 'all'),
     Dependency(
         'buildtools/sqlite_src',
         'https://chromium.googlesource.com/external/github.com/sqlite/sqlite.git',
-        'a4643b451a2941f5e6965ab095d3057bc7cb2222',  # refs/tags/version-3.50.3.
+        'b09c88c14082339b66c7b7158d609a771e64ca69',  # refs/tags/version-3.53.4.
         'all',
         'all'),
 
@@ -476,23 +476,23 @@ UI_DEPS = [
         TYPEFACES_SHA256, TYPEFACES_SHA256, 'all', 'all'),
     Dependency(
         'third_party/pnpm/pnpm',
-        'https://storage.googleapis.com/perfetto/pnpm-linux-arm64-8.6.3',
-        'ac76e9ab6a770479f93c1a2bf978d72636dbcb02608554378cf30075a78a22ac',
+        'https://storage.googleapis.com/perfetto/pnpm-linux-arm64-10.34.5',
+        '22391362c31edf522fd698d0b43d38fe9228e28d5b5e32124ffd0038fb60f9f0',
         'linux', 'arm64'),
     Dependency(
         'third_party/pnpm/pnpm',
-        'https://storage.googleapis.com/perfetto/pnpm-linux-x64-8.6.3',
-        '5a58ccd78d44faac138d901976a7a8917c0f2a2f83743cfdd895fcd0bb6aa135',
+        'https://storage.googleapis.com/perfetto/pnpm-linux-x64-10.34.5',
+        '69a535476f407fb0f64427913c2b592ca2ed6bf93f92e2cb82a32349e31f36eb',
         'linux', 'x64'),
     Dependency(
         'third_party/pnpm/pnpm',
-        'https://storage.googleapis.com/perfetto/pnpm-macos-arm64-8.6.3',
-        'f527713d3183e30cfbfd7fd6403ceed730831c53649e50c979961eab3b2cf866',
+        'https://storage.googleapis.com/perfetto/pnpm-macos-arm64-10.34.5',
+        '888389e8dd5ed45279043c1d3383c0942a8248b3d29ce614b302f468191f7659',
         'darwin', 'arm64'),
     Dependency(
         'third_party/pnpm/pnpm',
-        'https://storage.googleapis.com/perfetto/pnpm-macos-x64-8.6.3',
-        '6b425f7f0342341e9ee9427a9a2be2c89936c4a04efe6125f7af667eb02b10c1',
+        'https://storage.googleapis.com/perfetto/pnpm-macos-x64-10.34.5',
+        '4deaaaf1c0246fc4230f6450959f932dbc2abfd2686f8515dabf97b0717cb9b1',
         'darwin', 'x64'),
 ]
 
@@ -510,38 +510,38 @@ BIGTRACE_DEPS = [
 
 # Syntaqlite CLI prebuilt binaries. Used by tools/format-sql-sources to format
 # `.sql` files (via `syntaqlite fmt`) and by tools/gen_syntaqlite_parser to
-# regenerate src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.{c,h}
+# regenerate src/perfetto_sql/syntaqlite/syntaqlite_perfetto.{c,h}
 # from the canonical perfetto.y + perfetto.synq grammar files.
 SYNTAQLITE_DEPS = [
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-linux-x64.tar.gz',
-        'fb5d23bb64d8a29c0dbda4fbbbfb3176cfd812107863438b4d09816952962ed1',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-linux-x64.tar.gz',
+        'b55c12f33c07ae4dc16ae66520b4d12cfa8e4383fb3edf83ede16c7fd95241ef',
         'linux', 'x64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-linux-arm64.tar.gz',
-        'a8bb7a2de8760c496d03d04e896edbbe3caf7ac3e65aa71d0fad7983dec13409',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-linux-arm64.tar.gz',
+        '49ac24b916db7eece63984d5141f9f4aa16d83f7d2f86a33d46eca647f7bba98',
         'linux', 'arm64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-macos-x64.tar.gz',
-        'c4ee5ce813985278335b42d92aba5956abe8b7563212706e746b17f72e2490c5',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-macos-x64.tar.gz',
+        '6bd729aad0f89e0eac68cc52f8f85fc074e7d90c49aef9d668ff192470fa9c1a',
         'darwin', 'x64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-macos-arm64.tar.gz',
-        'd55cd20ee94c3fec9a79f9369a5b409ace3bc463c9e1ea2fd3d7f919706698ce',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-macos-arm64.tar.gz',
+        'c3ac266b2da0e7932a74e2d1bb222202b8a83db000195f4c7a5f1191eacf1934',
         'darwin', 'arm64'),
     Dependency(
         'buildtools/syntaqlite.zip',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-windows-x64.zip',
-        'fd05298eaff8e72eff1a0104951a4747e9912b3ae4b62dc5f6077a38056b6ec8',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-windows-x64.zip',
+        '56b31b499016d8135c4cc085c4ab7dc28f4ce220768db8a5452a4d667275dfd1',
         'windows', 'x64'),
     Dependency(
         'buildtools/syntaqlite.zip',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-windows-arm64.zip',
-        '3655abd1cb66615eb985a3534cbd6b336d705fcaba8252bded677d7499078243',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-windows-arm64.zip',
+        'f48a2ef7e683d15caca586976b61d1fc257bf4cd6aa407035a56a56c3f6d1400',
         'windows', 'arm64'),
 ]
 
@@ -591,7 +591,7 @@ JAVA_SDK_DEPS = [
 
 # Sysroots required to cross-compile Linux targets (linux-arm{,64}).
 # These are taken from Chromium's build/linux/sysroot_scripts/sysroots.json.
-BUILD_DEPS_LINUX_CROSS_SYSROOTS = [
+BUILD_DEPS_LINUX_CROSS_SYSROOTS_ARM = [
     Dependency(
         'buildtools/debian_sid_arm-sysroot.tgz',
         'https://commondatastorage.googleapis.com/chrome-linux-sysroot/toolchain/11d6f690ca49e8ba01a1d8c5346cedad2cf308fd/debian_sid_arm_sysroot.tar.xz',
@@ -603,10 +603,18 @@ BUILD_DEPS_LINUX_CROSS_SYSROOTS = [
         'e4389eab2fe363f3fbdfa4d3ce9d94457d78fd2c0e62171a7534867623eadc90',
         'linux', 'all'),
 ]
+BUILD_DEPS_LINUX_CROSS_SYSROOTS_S390X = [
+    Dependency(
+        'buildtools/debian_bullseye_s390x-sysroot.tgz',
+        'https://commondatastorage.googleapis.com/chrome-linux-sysroot/46d561a32665a7ef4db334d66ba10b0db7750eea3fed1fee4896c2f5c4f87167',
+        '46d561a32665a7ef4db334d66ba10b0db7750eea3fed1fee4896c2f5c4f87167',
+        'linux', 'all'),
+]
 
 ALL_DEPS = (
     BUILD_DEPS_HOST + BUILD_DEPS_BAZEL + BUILD_DEPS_ANDROID +
-    BUILD_DEPS_LINUX_CROSS_SYSROOTS + TEST_DEPS_ANDROID +
+    BUILD_DEPS_LINUX_CROSS_SYSROOTS_ARM +
+    BUILD_DEPS_LINUX_CROSS_SYSROOTS_S390X + TEST_DEPS_ANDROID +
     EMULATOR_DEPS_ANDROID + UI_DEPS + BUILD_DEPS_RUST + SYNTAQLITE_DEPS)
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -690,7 +698,8 @@ def ExtractZipfilePreservePermissions(zf, info, path):
     os.symlink(dst, target_path)
     return
   zf.extract(info.filename, path=path)
-  min_acls = 0o755 if info.filename.endswith('/') else 0o644
+  min_acls = 0o755 if (info.filename.endswith('/') or (mode & 0o100) or
+                       info.filename.endswith('.exe')) else 0o644
   os.chmod(target_path, mode | min_acls)
 
 
@@ -758,7 +767,24 @@ def CheckoutGitRepo(path, git_url, revision, check_only):
   return True
 
 
-def InstallNodeModules(force_clean=False):
+def PrintInstallFailureHint(what, public_flag, public_url):
+  lines = [f'{what} installation failed.']
+  if shutil.which('gpkg'):
+    # Give actionable instructions to Googlers on how to go/corp-airlock.
+    lines += [
+        'This is likely due to go/corp-airlock.',
+        'Run `gcert && gpkg setup` and try again, or',
+    ]
+  else:
+    lines += ['If your environment uses a custom package registry,']
+  lines += [f're-run with {public_flag} to use {public_url}']
+  width = max(len(l) for l in lines)
+  border = '+' + '-' * (width + 2) + '+'
+  body = '\n'.join(f'| {l.ljust(width)} |' for l in lines)
+  print(f'\033[33m{border}\n{body}\n{border}\033[0m', file=sys.stderr)
+
+
+def InstallNodeModules(force_clean=False, public_npm=False):
   if force_clean:
     node_modules = os.path.join(UI_DIR, 'node_modules')
     logging.info('Clearing %s', node_modules)
@@ -773,10 +799,14 @@ def InstallNodeModules(force_clean=False):
   env = os.environ.copy()
   env['PATH'] = TOOLS_DIR + ':' + env['PATH']
 
-  subprocess.check_call(
-      [os.path.join(TOOLS_DIR, 'pnpm'), 'install', '--frozen-lockfile'],
-      cwd=UI_DIR,
-      env=env)
+  cmd = [os.path.join(TOOLS_DIR, 'pnpm'), 'install', '--frozen-lockfile']
+  if public_npm:
+    cmd += ['--registry', 'https://registry.npmjs.org/']
+  if subprocess.call(cmd, cwd=UI_DIR, env=env) != 0:
+    if not public_npm:
+      PrintInstallFailureHint('pnpm', '--public-npm',
+                              'https://registry.npmjs.org/')
+    sys.exit(1)
   # pbjs has the bad habit of installing extra packages on its first
   # run. Run it here, so we avoid fetches while building.
   pbjs = ['node_modules/.bin/pbjs', '/dev/null', '-o', '/dev/null']
@@ -885,16 +915,9 @@ def InstallPythonVenv(public_pypi=False):
   cmd += ['-r', PYTHON_REQUIREMENTS]
   logging.info(f'Updating python packages {" ".join(cmd)}')
   if subprocess.call(cmd) != 0:
-    if shutil.which("gpkg"):
-      # Give actionable instructions to Googlers on how to go/corp-airlock.
-      print(
-          '''\033[33m
-+---------------------------------------------------------+
-| venv installation failed, likely due to go/corp-airlock |
-| Run `gcert && gpkg setup` and try again                 |
-+---------------------------------------------------------+
-\033[0m''',
-          file=sys.stderr)
+    if not public_pypi:
+      PrintInstallFailureHint('venv', '--public-pypi',
+                              'https://pypi.org/simple/')
     sys.exit(1)
 
   with open(PYTHON_STATUS_FILE, 'w') as f:
@@ -947,6 +970,10 @@ def Main():
       action='store_true',
       help='Debian sysroots for target_os="linux" target_cpu="arm|arm64"')
   parser.add_argument(
+      '--linux-s390x',
+      action='store_true',
+      help='Debian sysroots for target_os="linux" target_cpu="s390x"')
+  parser.add_argument(
       '--ui',
       action='store_true',
       help='Node and NPM packages to Build the Web-based UI via ./ui/build')
@@ -956,6 +983,11 @@ def Main():
       '--public-pypi',
       action='store_true',
       help='Force pip to use the public PyPI index (https://pypi.org/simple/)')
+  parser.add_argument(
+      '--public-npm',
+      action='store_true',
+      help='Force pnpm to use the public npm registry (https://registry.npmjs.org/)'
+  )
   parser.add_argument('--check-only')
   parser.add_argument('--filter', action='append')
   parser.add_argument('--verify', help='Check all URLs', action='store_true')
@@ -1006,7 +1038,9 @@ def Main():
   if args.android:
     deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID + EMULATOR_DEPS_ANDROID
   if args.linux_arm:
-    deps += BUILD_DEPS_LINUX_CROSS_SYSROOTS
+    deps += BUILD_DEPS_LINUX_CROSS_SYSROOTS_ARM
+  if args.linux_s390x:
+    deps += BUILD_DEPS_LINUX_CROSS_SYSROOTS_S390X
   if args.ui:
     deps += UI_DEPS
   # TODO(b/360084012) Change the arg name to bigtrace
@@ -1115,7 +1149,7 @@ def Main():
     if args.check_only:
       deps_updated |= not CheckNodeModules()
     else:
-      InstallNodeModules(force_clean=nodejs_updated)
+      InstallNodeModules(force_clean=nodejs_updated, public_npm=args.public_npm)
 
   if not args.no_dev_tools:
     # Check the python venv

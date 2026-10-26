@@ -18,6 +18,7 @@
 
 #include <cerrno>
 #include <cstdlib>
+#include <cstring>
 #include <random>
 #include <string>
 #include <string_view>
@@ -26,6 +27,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/profiling/pprof_builder.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
@@ -54,11 +57,15 @@ uint64_t ToConversionFlags(bool annotate_frames) {
                                    : ConversionFlags::kNone);
 }
 
-void MaybeSymbolize(trace_processor::TraceProcessor* tp, bool verbose) {
+void MaybeSymbolize(trace_processor::TraceProcessor* tp,
+                    bool verbose,
+                    bool quiet,
+                    const profiling::DebuginfodConfig& debuginfod) {
   profiling::SymbolizerConfig sym_config;
+  sym_config.debuginfod = debuginfod;
   const char* mode = getenv("PERFETTO_SYMBOLIZER_MODE");
   std::vector<std::string> paths = profiling::GetPerfettoBinaryPath();
-  if (paths.empty()) {
+  if (paths.empty() && debuginfod.urls.empty()) {
     return;
   }
   if (mode && std::string_view(mode) == "find") {
@@ -66,7 +73,8 @@ void MaybeSymbolize(trace_processor::TraceProcessor* tp, bool verbose) {
   } else {
     sym_config.index_symbol_paths = std::move(paths);
   }
-  auto result = profiling::SymbolizeDatabaseAndLog(tp, sym_config, verbose);
+  auto result =
+      profiling::SymbolizeDatabaseAndLog(tp, sym_config, verbose, quiet);
   if (result.error == profiling::SymbolizerError::kOk &&
       !result.symbols.empty()) {
     IngestTraceOrDie(tp, result.symbols);
@@ -79,10 +87,13 @@ void MaybeDeobfuscate(trace_processor::TraceProcessor* tp) {
   if (maybe_map.empty()) {
     return;
   }
-  profiling::ReadProguardMapsToDeobfuscationPackets(
+  auto status = profiling::ReadProguardMapsToDeobfuscationPackets(
       maybe_map, [tp](const std::string& trace_proto) {
         IngestTraceOrDie(tp, trace_proto);
       });
+  if (!status.ok()) {
+    PERFETTO_ELOG("Failed to deobfuscate: %s", status.c_message());
+  }
   tp->Flush();
 }
 
@@ -99,8 +110,9 @@ std::string GetRandomString(size_t n) {
 // Creates the destination directory.
 // If |output_dir| is not empty, it is used as the destination directory.
 // Otherwise, a random temporary directory is created using
-// |fallback_dirname_prefix|.
-std::string GetDestinationDirectory(
+// |fallback_dirname_prefix|. Returns an error (instead of logging and
+// crashing) if the directory could not be created.
+base::StatusOr<std::string> GetDestinationDirectory(
     const std::string& output_dir,
     const std::string& fallback_dirname_prefix) {
   std::string dst_dir;
@@ -111,13 +123,16 @@ std::string GetDestinationDirectory(
               base::GetTimeFmt("%y%m%d%H%M%S") + GetRandomString(5);
   }
   if (!base::Mkdir(dst_dir) && errno != EEXIST) {
-    PERFETTO_FATAL("Failed to create output directory %s", dst_dir.c_str());
+    return base::ErrStatus(
+        "failed to create output directory %s (errno: %d, %s)", dst_dir.c_str(),
+        errno, strerror(errno));
   }
   return dst_dir;
 }
 
 std::optional<ConversionMode> DetectConversionMode(
-    trace_processor::TraceProcessor* tp) {
+    trace_processor::TraceProcessor* tp,
+    std::string* error_out) {
   auto it = tp->ExecuteQuery(R"(
   SELECT
     EXISTS (SELECT 1 FROM __intrinsic_heap_profile_allocation LIMIT 1),
@@ -132,11 +147,11 @@ std::optional<ConversionMode> DetectConversionMode(
 
   int64_t count = alloc_present + perf_present + graph_present;
   if (count == 0) {
-    PERFETTO_LOG("No profiles found.");
+    *error_out = "no profile found in the trace";
     return std::nullopt;
   } else if (count > 1) {
     std::string err_msg =
-        "More than one type of profile found in the trace, pass an explicit "
+        "more than one type of profile found in the trace, pass an explicit "
         "disambiguation flag:\n";
     if (alloc_present)
       err_msg += "  --alloc: allocator profile\n";
@@ -144,8 +159,7 @@ std::optional<ConversionMode> DetectConversionMode(
       err_msg += "  --perf: perf profile\n";
     if (graph_present)
       err_msg += "  --java-heap: java heap graph\n";
-
-    PERFETTO_ELOG("%s", err_msg.c_str());
+    *error_out = std::move(err_msg);
     return std::nullopt;
   }
   return alloc_present  ? ConversionMode::kHeapProfile
@@ -155,28 +169,31 @@ std::optional<ConversionMode> DetectConversionMode(
 
 }  // namespace
 
-int TraceToProfile(std::istream* input,
-                   uint64_t pid,
-                   const std::vector<uint64_t>& timestamps,
-                   bool annotate_frames,
-                   const std::string& output_dir,
-                   std::optional<ConversionMode> explicit_mode,
-                   bool verbose) {
+base::Status TraceToProfile(std::istream* input,
+                            uint64_t pid,
+                            const std::vector<uint64_t>& timestamps,
+                            bool annotate_frames,
+                            const std::string& output_dir,
+                            std::optional<ConversionMode> explicit_mode,
+                            bool verbose,
+                            bool quiet,
+                            const profiling::DebuginfodConfig& debuginfod) {
   // Pre-parse trace.
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
   if (!ReadTraceUnfinalized(tp.get(), input))
-    return -1;
+    return base::ErrStatus("failed to read trace");
   tp->Flush();
 
   // Detect type of profile.
-  std::optional<ConversionMode> mode = explicit_mode.has_value()
-                                           ? explicit_mode
-                                           : DetectConversionMode(tp.get());
+  std::string mode_error;
+  std::optional<ConversionMode> mode =
+      explicit_mode.has_value() ? explicit_mode
+                                : DetectConversionMode(tp.get(), &mode_error);
 
   if (!mode.has_value()) {
-    return -1;
+    return base::ErrStatus("convert profile: %s", mode_error.c_str());
   }
 
   int file_idx = 0;
@@ -207,33 +224,42 @@ int TraceToProfile(std::istream* input,
   }
 
   // Add symbolisation and deobfuscation packets.
-  MaybeSymbolize(tp.get(), verbose);
+  MaybeSymbolize(tp.get(), verbose, quiet, debuginfod);
   MaybeDeobfuscate(tp.get());
   if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
-    return -1;
+    return base::ErrStatus("failed to finalize trace: %s", status.c_message());
   }
 
   // Generate profiles.
   std::vector<SerializedProfile> profiles;
-  TraceToPprof(tp.get(), &profiles, *mode, ToConversionFlags(annotate_frames),
-               pid, timestamps);
+  if (!TraceToPprof(tp.get(), &profiles, *mode,
+                    ToConversionFlags(annotate_frames), pid, timestamps)) {
+    return base::ErrStatus("failed to convert the trace to pprof");
+  }
   if (profiles.empty()) {
-    return 0;
+    return base::OkStatus();
   }
 
   // Write profiles to files.
-  std::string dst_dir = GetDestinationDirectory(output_dir, dir_prefix);
+  ASSIGN_OR_RETURN(std::string dst_dir,
+                   GetDestinationDirectory(output_dir, dir_prefix));
   for (const auto& profile : profiles) {
     std::string filename = dst_dir + "/" + filename_fn(profile);
-    base::ScopedFile fd(base::OpenFile(filename, O_CREAT | O_WRONLY, 0700));
-    if (!fd)
-      PERFETTO_FATAL("Failed to open %s", filename.c_str());
-    PERFETTO_CHECK(base::WriteAll(*fd, profile.serialized.c_str(),
-                                  profile.serialized.size()) ==
-                   static_cast<ssize_t>(profile.serialized.size()));
+    base::ScopedFile fd(
+        base::OpenFile(filename, O_CREAT | O_WRONLY | O_TRUNC, 0700));
+    if (!fd) {
+      return base::ErrStatus("failed to open %s (errno: %d, %s)",
+                             filename.c_str(), errno, strerror(errno));
+    }
+    if (base::WriteAll(*fd, profile.serialized.c_str(),
+                       profile.serialized.size()) !=
+        static_cast<ssize_t>(profile.serialized.size())) {
+      return base::ErrStatus("failed to write %s", filename.c_str());
+    }
   }
-  PERFETTO_LOG("Wrote profiles to %s", dst_dir.c_str());
-  return 0;
+  if (!quiet)
+    PERFETTO_LOG("Wrote profiles to %s", dst_dir.c_str());
+  return base::OkStatus();
 }
 
 }  // namespace trace_to_text

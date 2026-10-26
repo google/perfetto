@@ -201,14 +201,23 @@ export class TrackView {
         collapsible: collapsible && node.hasChildren,
         collapsed: collapsible && node.collapsed,
         highlight: this.isHighlighted(),
+        selected: this.isSelected(),
         summary: node.isSummary,
         reorderable,
         depth: attrs.depth,
         stickyTop: attrs.stickyTop,
         pluginId: renderer?.desc.pluginId,
         lite: attrs.lite,
-        onCollapsedChanged: () => {
-          node.hasChildren && node.toggleCollapsed();
+        onCollapsedChanged: (_, shiftKey) => {
+          if (!node.hasChildren) return;
+          // If the shift key is pressed with the click, then
+          // expand or collapse this track and all descendant tracks.
+          if (shiftKey) {
+            node.collapsed ? node.expandAll() : node.collapseAll();
+          } else {
+            // Otherwise, just toggle this track.
+            node.toggleCollapsed();
+          }
         },
         onTrackContentMouseMove: (pos, bounds) => {
           const timescale = this.getTimescaleForBounds(bounds);
@@ -229,6 +238,16 @@ export class TrackView {
           raf.scheduleCanvasRedraw();
           return (
             renderer?.track.onMouseClick?.({
+              ...pos,
+              timescale,
+            }) ?? false
+          );
+        },
+        onTrackContentDoubleClick: (pos, bounds) => {
+          const timescale = this.getTimescaleForBounds(bounds);
+          raf.scheduleCanvasRedraw();
+          return (
+            renderer?.track.onMouseDoubleClick?.({
               ...pos,
               timescale,
             }) ?? false
@@ -440,7 +459,7 @@ export class TrackView {
 
     if (searchIndex !== -1 && searchResults !== undefined) {
       // using _ = autoTimer();
-      const uri = searchResults.trackUris[searchIndex];
+      const uri = searchResults.trackUris[searchIndex]!;
       // Highlight if this or any children match the search results
       if (uri === node.uri || node.getTrackByUri(uri)) {
         return true;
@@ -456,6 +475,30 @@ export class TrackView {
     }
 
     return false;
+  }
+
+  // Returns true if this track is part of the current selection, either because
+  // it's directly selected, or - for summary tracks - because one of its
+  // children is.
+  private isSelected() {
+    const {node, trace} = this;
+    const selection = trace.selection.selection;
+
+    switch (selection.kind) {
+      case 'area':
+        if (node.isSummary) {
+          return selection.trackUris.some((uri) => node.getTrackByUri(uri));
+        }
+        return node.uri !== undefined && selection.trackUris.includes(node.uri);
+      case 'track':
+      case 'track_event':
+        if (node.isSummary) {
+          return Boolean(node.getTrackByUri(selection.trackUri));
+        }
+        return node.uri === selection.trackUri;
+      default:
+        return false;
+    }
   }
 
   private renderAreaSelectionCheckbox(): m.Children {
@@ -635,6 +678,8 @@ const TrackPopupMenu = {
         renderTrackDetailsMenu(attrs.node, attrs.descriptor),
       ),
       m(MenuDivider),
+      renderExpandCollapseAllButtons(attrs.node),
+      m(MenuDivider),
       m(
         MenuItem,
         {label: 'Copy to workspace', icon: 'content_copy'},
@@ -699,6 +744,23 @@ const TrackPopupMenu = {
     ];
   },
 };
+
+// Only nodes with children can be expanded or collapsed.
+function renderExpandCollapseAllButtons(node: TrackNode): m.Children[] {
+  if (!node.hasChildren) return [];
+  return [
+    m(MenuItem, {
+      label: 'Expand all (Shift+click)',
+      icon: 'unfold_more',
+      onclick: () => node.expandAll(),
+    }),
+    m(MenuItem, {
+      label: 'Collapse all (Shift+click)',
+      icon: 'unfold_less',
+      onclick: () => node.collapseAll(),
+    }),
+  ];
+}
 
 function renderTrackSettings(descriptor?: Track): m.Children[] {
   const settings = descriptor?.renderer.settings;

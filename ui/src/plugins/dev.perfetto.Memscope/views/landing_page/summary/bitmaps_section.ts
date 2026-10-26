@@ -17,9 +17,11 @@
 // Self-contained: owns its query slot and loading logic.
 
 import m from 'mithril';
-import {QuerySlot} from '../../../../../base/query_slot';
+import {AsyncMemo} from '../../../../../base/async_memo';
+import {Icons} from '../../../../../base/semantic_icons';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
+import HeapDumpExplorerPlugin from '../../../../com.android.HeapDumpExplorer';
 import {
   LONG,
   NUM,
@@ -29,6 +31,7 @@ import {
 } from '../../../../../trace_processor/query_result';
 import {Panel} from '../../../components/panel';
 import {Callout} from '../../../components/callout';
+import {Anchor} from '../../../../../widgets/anchor';
 import {Intent} from '../../../../../widgets/common';
 import {
   deltaText,
@@ -41,11 +44,12 @@ import {nearestByTs} from '../selection';
 import {
   deltaCell,
   emptyPanel,
+  heapDumpBitmapsHref,
   loadingPanel,
   shortClassName,
   topTable,
 } from '../section_widgets';
-import {ShareBar} from '../../../components/share_bar';
+import {ProgressBar} from '../../../components/progress_bar';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
 
@@ -168,13 +172,13 @@ async function loadBitmapRetainer(
 ): Promise<string | undefined> {
   try {
     await trace.engine.query(
-      'INCLUDE PERFETTO MODULE android.memory.heap_graph.raw_dominator_tree;',
+      'INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;',
     );
     const res = await trace.engine.query(`
       WITH RECURSIVE
       last_ts AS (
-        SELECT MAX(graph_sample_ts) AS ts
-        FROM heap_graph_object WHERE upid = ${upid}
+        SELECT MAX(ts) AS ts
+        FROM heap_graph WHERE upid = ${upid}
       ),
       ck AS (
         SELECT c.id,
@@ -201,13 +205,13 @@ async function loadBitmapRetainer(
       walk(seed_size, cur_id, depth) AS (
         SELECT ob.size, d.idom_id, 1
         FROM obj ob
-        JOIN _raw_heap_graph_dominator_tree d ON d.id = ob.id
+        JOIN heap_graph_dominator_tree d ON d.id = ob.id
         WHERE ob.class_name = 'android.graphics.Bitmap' AND d.idom_id IS NOT NULL
         UNION ALL
         SELECT w.seed_size, d.idom_id, w.depth + 1
         FROM walk w
         JOIN obj cur ON cur.id = w.cur_id
-        JOIN _raw_heap_graph_dominator_tree d ON d.id = w.cur_id
+        JOIN heap_graph_dominator_tree d ON d.id = w.cur_id
         WHERE cur.is_app = 0 AND d.idom_id IS NOT NULL AND w.depth < 24
       ),
       hits AS (
@@ -267,7 +271,7 @@ export interface BitmapsSectionAttrs {
 }
 
 export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
-  private readonly slot = new QuerySlot<BitmapsData>();
+  private readonly slot = new AsyncMemo<BitmapsData>();
 
   onremove() {
     this.slot.dispose();
@@ -277,7 +281,7 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
     const {trace, upid, selTs, baseTs} = attrs;
     const data = this.slot.use({
       key: {traceId: trace.traceInfo.uuid, upid},
-      queryFn: () => loadBitmapsData(trace, upid),
+      compute: () => loadBitmapsData(trace, upid),
       // Emulate an empty response
       // queryFn: async () => ({
       //   dumps: [],
@@ -304,7 +308,9 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
       baseTs !== undefined ? nearestByTs(data.dumps, baseTs) : undefined;
     const comparing = baseDump !== undefined && baseDump.ts !== cur.ts;
     const groups = data.groupsByTs.get(cur.ts) ?? [];
-    const baseGroups = comparing ? data.groupsByTs.get(baseDump.ts) ?? [] : [];
+    const baseGroups = comparing
+      ? (data.groupsByTs.get(baseDump.ts) ?? [])
+      : [];
 
     const totalCount = groups.reduce((s, g) => s + g.count, 0);
     const totalBytes = groups.reduce((s, g) => s + bytesOf(g), 0);
@@ -323,7 +329,7 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
     const bySize = dims.slice().sort((a, b) => b.bytes - a.bytes);
     const byCount = dims.slice().sort((a, b) => b.count - a.count);
     const hasDims = dims.some((d) => d.key !== 'unknown');
-    const largest = bySize[0];
+    const largest = bySize[0]!;
 
     const javaRetained = data.javaRetainedByTs.get(cur.ts) ?? 0;
     // Bitmap heap-self + registered-native bytes (excludes the estimated ashmem
@@ -336,7 +342,7 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
     const javaRetainedPct =
       javaRetained > 0 ? (bitmapHeapNative / javaRetained) * 100 : 0;
     const baseJavaRetained = comparing
-      ? data.javaRetainedByTs.get(baseDump.ts) ?? 0
+      ? (data.javaRetainedByTs.get(baseDump.ts) ?? 0)
       : 0;
     const baseBitmapHeapNative = baseGroups.reduce(
       (s, g) => s + g.selfSize + g.nativeSize,
@@ -400,7 +406,7 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
           // Share of all bitmap bytes, with the change in share (percentage
           // points, this snapshot's total vs the baseline's) below in diff mode.
           deltaCell(
-            m(ShareBar, {frac: shareFrac}),
+            m(ProgressBar, {pct: shareFrac * 100}),
             comparing ? (shareFrac - baseShareFrac) * 100 : undefined,
             comparing,
             (n) =>
@@ -415,7 +421,22 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
 
     return m(
       Panel,
-      m(Panel.Header, {title: TITLE, subtitle: SUBTITLE}),
+      m(Panel.Header, {
+        title: TITLE,
+        subtitle: SUBTITLE,
+        controls: m(
+          Anchor,
+          {
+            href: heapDumpBitmapsHref(),
+            onclick: () =>
+              trace.plugins
+                .getPlugin(HeapDumpExplorerPlugin)
+                .updateHeadDump(upid, cur.ts),
+            icon: Icons.UpdateSelection,
+          },
+          'Open in Heap Dump Explorer',
+        ),
+      }),
       m(
         Panel.Body,
         m(Stack, {spacing: 'large'}, [

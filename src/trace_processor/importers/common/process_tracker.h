@@ -80,10 +80,6 @@ class ProcessTracker {
   using UniqueThreadBounds =
       std::pair<UniqueThreadIterator, UniqueThreadIterator>;
 
-  // TODO(b/110409911): Invalidation of process and threads is yet to be
-  // implemented. This will include passing timestamps into the below methods
-  // to ensure the correct upid/utid is found.
-
   // Called when a task_newtask is observed. This force the tracker to start
   // a new UTID for the thread, which is needed for TID-recycling resolution.
   UniqueTid StartNewThread(std::optional<int64_t> timestamp, int64_t tid);
@@ -91,8 +87,12 @@ class ProcessTracker {
   // Returns whether a thread is considered alive by the process tracker.
   bool IsThreadAlive(UniqueTid utid);
 
-  // Called when sched_process_exit is observed. This forces the tracker to
-  // end the thread lifetime for the utid associated with the given tid.
+  // Ends the thread lifetime of the utid associated with the given tid, *and*
+  // the process lifetime if it was the main thread.
+  // Called when the thread stops existing. On linux this is sched_process_free,
+  // which is emitted when the task_struct is freed. Not to be confused with
+  // sched_process_exit, which is an earlier point when the thread starts
+  // exiting (do_exit()).
   void EndThread(int64_t timestamp, int64_t tid);
 
   // Returns the thread utid or std::nullopt if it doesn't exist.
@@ -165,14 +165,13 @@ class ProcessTracker {
   void AssociateCreatedProcessToParentThread(UniquePid upid,
                                              UniqueTid parent_utid);
 
-  // Updates a process' parent. If the upid was previously associated with
-  // a different parent process, then the upid process is considered reused
-  // and a new upid for a new process is returned. If no new process is
-  // created, the same upid is returned.
+  // Sets the parent pid of a process if it is not already set.
+  // |timestamp| is used only for logging purposes.
   // Virtual for testing.
-  virtual UniquePid UpdateProcessWithParent(UniquePid upid,
-                                            UniquePid pupid,
-                                            bool associate_main_thread);
+  virtual void SetProcessParent(
+      UniquePid upid,
+      UniquePid pupid,
+      std::optional<int64_t> timestamp = std::nullopt);
 
   // Set the process metadata. Called when a process is seen in a process tree.
   // Virtual for testing.
@@ -217,10 +216,14 @@ class ProcessTracker {
   // to the pid.
   UniquePid GetOrCreateProcessWithoutMainThread(int64_t pid);
 
-  // Returns the upid for a given pid.
-  std::optional<UniquePid> UpidForPidForTesting(uint32_t pid) {
+  // Non-mutating lookup of the upid for |pid| (cf. GetThreadOrNull).
+  std::optional<UniquePid> GetProcessOrNull(int64_t pid) {
     auto* it = pids_.Find(pid);
     return it ? std::make_optional(*it) : std::nullopt;
+  }
+
+  std::optional<UniquePid> UpidForPidForTesting(uint32_t pid) {
+    return GetProcessOrNull(pid);
   }
 
   // Returns the bounds of a range that includes all UniqueTids that have the

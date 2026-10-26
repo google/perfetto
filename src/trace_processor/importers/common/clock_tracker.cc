@@ -70,15 +70,19 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
   // (proto ClockSnapshots, ftrace bundles, instruments).
   if (PERFETTO_UNLIKELY(context_->has_clock_override())) {
     return base::ErrStatus(
-        "perfetto_manifest: clock overrides require the trace to use a "
-        "single clock");
+        "perfetto_manifest: a `clocks` override without a source `clock` pins "
+        "a clockless file to a reference timeline, but this trace emits clock "
+        "snapshots. If this is an internally-clocked trace (e.g. Perfetto "
+        R"(proto), specify the source clock in the `clocks` block (e.g. )"
+        R"("clock": "BOOTTIME"). See )"
+        "https://perfetto.dev/docs/reference/perfetto-manifest#clocks");
   }
   // A non-primary trace that brings its own snapshot isolates its builtins onto
   // its own file tag so they cannot corrupt other files' conversions (e.g. an
   // in-app trace + a system trace on the same machine).
   if (PERFETTO_UNLIKELY(!is_primary_ && current_file_tag_ == 0)) {
     if (PERFETTO_UNLIKELY(num_conversions_ > 0)) {
-      context_->import_logs_tracker->RecordAnalysisError(
+      context_->import_logs_tracker->RecordAnalysisLog(
           stats::clock_sync_mixed_clock_sources,
           [&](ArgsTracker::BoundInserter& inserter) {
             StringId key = context_->storage->InternString(
@@ -322,7 +326,7 @@ void ClockTracker::BridgeToTraceTime(ClockId clock_id, ClockId trace_time) {
   // are dropped (and counted by clock_sync_failure_no_path). Record a clear
   // analysis log explaining why, rather than leaving only that generic
   // no-path error which advises emitting ClockSnapshots.
-  context_->import_logs_tracker->RecordAnalysisError(
+  context_->import_logs_tracker->RecordAnalysisLog(
       stats::clock_sync_unrelatable_clock_domains,
       [&](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(source_clock_id_key_,
@@ -381,10 +385,10 @@ void ClockTracker::RecordConversionError(const ClockSyncError& error,
                     Variadic::Integer(error.target_clock.clock_id));
   };
   if (byte_offset) {
-    context_->import_logs_tracker->RecordTokenizationError(stat_key,
-                                                           *byte_offset, args);
+    context_->import_logs_tracker->RecordTokenizationLog(stat_key, *byte_offset,
+                                                         args);
   } else {
-    context_->import_logs_tracker->RecordAnalysisError(stat_key, args);
+    context_->import_logs_tracker->RecordAnalysisLog(stat_key, args);
   }
 }
 

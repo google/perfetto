@@ -12,36 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
 import type {Engine} from '../../trace_processor/engine';
-import type {Trace} from '../../public/trace';
+import type {Storage, Trace} from '../../public/trace';
 import type {Setting} from '../../public/settings';
-import type {Store} from '../../base/store';
 import {NUM} from '../../trace_processor/query_result';
 
 import {SQL_PREAMBLE} from './components';
 import {flamegraphQuery} from './views/flamegraph_objects_view';
 import * as queries from './queries';
+import type {HeapDump} from './types';
 import {
+  type DefaultNavView,
   type NavState,
   type NavView,
   stateToPath,
   stateToSubpage,
   subpageToState,
 } from './nav_state';
-import type {OverviewData} from './types';
-import type {FlamegraphState} from '../../widgets/flamegraph';
+import type {TreeExplorerState} from '../../widgets/tree_explorer';
 import type {HdeState} from './persisted_state';
 import {
   METRIC_DOMINATED_OBJECT_SIZE,
   METRIC_OBJECT_SIZE,
 } from './views/flamegraph_view';
+import type {time} from '../../base/time';
 
 interface FlamegraphSelection {
   readonly pathHashes: string;
   readonly isDominator: boolean;
   readonly upid: number;
-  readonly ts: bigint;
+  readonly ts: time;
 }
 
 // A flamegraph drill-down tab: identity plus the title's object count (null
@@ -65,17 +65,18 @@ function countKey(pathHashes: string, isDominator: boolean): string {
   return `${isDominator ? 'd' : 'n'}:${pathHashes}`;
 }
 
-// The persistent state lives in the mountStore'd `store`, which the core
+// The persistent state lives in the registered storage `storage`, which the core
 // serializes into permalinks and restores before the plugin loads. The session
-// is a thin controller over it: mutations are store edits, views render from
-// the store, restoration is automatic. Non-serializable trace-derived data (the
-// dumps, overview, per-tab counts) is cached here instead.
+// is a thin controller over it: mutations are storage edits, views render from
+// the storage, restoration is automatic. Non-serializable trace-derived data (the
+// dumps, per-tab counts) is cached here instead.
 export class HeapDumpExplorerSession {
-  private _navigateCallback?: (subpage: string) => void;
-
-  private _dumps: ReadonlyArray<queries.HeapDump> = [];
-  private _overview: OverviewData | null = null;
+  private _dumps: ReadonlyArray<HeapDump> = [];
   private readonly _counts = new Map<string, number>();
+
+  // Whether the trace has HPROF field values (heap_graph_primitive). Loaded
+  // with the dumps.
+  hasFieldValues = false;
 
   // Set when the plugin auto-redirected to HDE on load; gates the
   // "default view changed" hint on the overview.
@@ -85,15 +86,30 @@ export class HeapDumpExplorerSession {
     readonly trace: Trace,
     readonly engine: Engine,
     readonly hideDefaultChangedHint: Setting<boolean>,
-    private readonly store: Store<HdeState>,
+    readonly defaultFlamegraph: Setting<boolean>,
+    private readonly storage: Storage<HdeState>,
   ) {}
 
-  get dumps(): ReadonlyArray<queries.HeapDump> {
+  private edit(
+    fn: (draft: {-readonly [K in keyof HdeState]: HdeState[K]}) => void,
+  ): void {
+    const next: {-readonly [K in keyof HdeState]: HdeState[K]} = {
+      ...this.storage.get(),
+    };
+    fn(next);
+    this.storage.set(next);
+  }
+
+  get defaultView(): DefaultNavView {
+    return this.defaultFlamegraph.get() ? 'flamegraph' : 'overview';
+  }
+
+  get dumps(): ReadonlyArray<HeapDump> {
     return this._dumps;
   }
 
-  get activeDump(): queries.HeapDump | null {
-    const ref = this.store.state.activeDump;
+  get activeDump(): HeapDump | null {
+    const ref = this.storage.get().activeDump;
     if (ref === undefined) return null;
     return (
       this._dumps.find((d) => d.upid === ref.upid && d.ts === BigInt(ref.ts)) ??
@@ -105,17 +121,18 @@ export class HeapDumpExplorerSession {
   // true if a valid permalink was restored, otherwise resets to the first dump.
   async loadDumps(): Promise<boolean> {
     this._dumps = await queries.loadDumpsList(this.engine);
-    const ref = this.store.state.activeDump;
+    this.hasFieldValues = await queries.hasFieldValues(this.engine);
+    const ref = this.storage.get().activeDump;
     const restored =
       ref !== undefined &&
       this._dumps.some((d) => d.upid === ref.upid && d.ts === BigInt(ref.ts));
     if (restored) {
-      for (const t of this.store.state.flamegraphTabs ?? []) {
+      for (const t of this.storage.get().flamegraphTabs ?? []) {
         this.loadCount(t.pathHashes, t.isDominator);
       }
     } else {
       const first = this._dumps.length > 0 ? this._dumps[0] : undefined;
-      this.store.edit((s) => {
+      this.edit((s) => {
         s.activeDump =
           first === undefined
             ? undefined
@@ -130,56 +147,47 @@ export class HeapDumpExplorerSession {
     return restored;
   }
 
-  selectDump(d: queries.HeapDump): void {
+  selectDump(d: HeapDump): void {
     if (this.activeDump === d) return;
     this.switchToDump(d);
     const view = this.nav.view;
     if (view === 'object' || view === 'flamegraph-objects') {
-      this.navigate('overview');
+      this.navigate(this.defaultView);
     }
-    m.redraw();
   }
 
-  private switchToDump(d: queries.HeapDump): void {
-    this._overview = null;
+  private switchToDump(d: HeapDump): void {
     this._counts.clear();
-    this.store.edit((s) => {
+    this.edit((s) => {
       s.activeDump = {upid: d.upid, ts: d.ts.toString()};
       s.flamegraphTabs = undefined;
       s.instanceTabs = undefined;
       s.flamegraphPanelState = undefined;
       s.callstackPanelState = undefined;
     });
-    void this.loadOverview();
   }
 
   get nav(): NavState {
-    return subpageToState(this.store.state.nav);
+    return subpageToState(this.storage.get().nav, this.defaultView);
   }
 
   // The current nav as a route path (no query params).
   get navPath(): string {
+    if (this.storage.get().nav === undefined) {
+      return '';
+    }
     return stateToPath(this.nav);
-  }
-
-  setNavigateCallback(cb: ((subpage: string) => void) | undefined): void {
-    this._navigateCallback = cb;
   }
 
   navigate(view: NavView, params: Record<string, unknown> = {}): void {
     const sub = stateToSubpage({view, params} as NavState);
-    this.store.edit((s) => {
+    this.edit((s) => {
       s.nav = sub;
     });
-    this._navigateCallback?.(sub);
-    m.redraw();
+    this.trace.navigate(makeHref(sub));
   }
 
-  // Arrow property: passed by reference into Mithril attrs.
-  readonly navigateWithTabs = (
-    view: NavView,
-    params?: Record<string, unknown>,
-  ): void => {
+  navigateWithTabs(view: NavView, params?: Record<string, unknown>): void {
     if (view === 'object') {
       this.openInstanceTab(
         params?.id as number,
@@ -187,18 +195,24 @@ export class HeapDumpExplorerSession {
       );
     }
     this.navigate(view, params);
-  };
+  }
 
-  readonly clearNavParam = (key: string): void => {
-    // A consumed nav param (e.g. ?cls=Foo) becomes a one-shot grid filter, so
-    // drop it from the nav. Otherwise it would re-apply on restore and clobber
-    // the user's later manual filter edits to the same grid.
-    this.store.edit((s) => {
-      const nav = subpageToState(s.nav);
-      delete (nav.params as Record<string, unknown>)[key];
-      s.nav = stateToSubpage(nav);
+  clearNavParam(key: string): void {
+    // A consumed nav param becomes a one-shot grid filter, so drop it from the
+    // nav — from both the store and the URL. Otherwise it re-applies on the next
+    // sync and clobbers the user's later manual filter edits. Query params are
+    // already gone (the router strips them), but path-encoded ones (e.g.
+    // objects_<class>) survive in the URL, so we must rewrite it here.
+    const nav = subpageToState(this.storage.get().nav, this.defaultView);
+    delete (nav.params as Record<string, unknown>)[key];
+    const sub = stateToSubpage(nav);
+    this.edit((s) => {
+      s.nav = sub;
     });
-  };
+    // Replace the current URL instead of navigating to avoid creating a new
+    // history entry and creating a navigation trap.
+    location.replace(makeHref(sub));
+  }
 
   // Mirrors URL-driven nav (back/forward, address bar) into the store, on path
   // change only. The router drops query params, so only the path round-trips.
@@ -206,14 +220,16 @@ export class HeapDumpExplorerSession {
     const sub = subpage?.startsWith('/') ? subpage.slice(1) : subpage;
     const incomingPath = (sub ?? '').split('?')[0];
     if (incomingPath !== this.navPath) {
-      this.store.edit((s) => {
-        s.nav = stateToSubpage(subpageToState(sub));
+      this.edit((s) => {
+        s.nav = sub
+          ? stateToSubpage(subpageToState(sub, this.defaultView))
+          : undefined;
       });
     }
   }
 
   get flamegraphTabs(): ReadonlyArray<FlamegraphTabView> {
-    return (this.store.state.flamegraphTabs ?? []).map((t) => ({
+    return (this.storage.get().flamegraphTabs ?? []).map((t) => ({
       pathHashes: t.pathHashes,
       isDominator: t.isDominator,
       count: this._counts.get(countKey(t.pathHashes, t.isDominator)) ?? null,
@@ -252,7 +268,7 @@ export class HeapDumpExplorerSession {
   // Adds the flamegraph tab for a selection in the active dump if not open.
   private openFlamegraphTab(pathHashes: string, isDominator: boolean): void {
     if (this.activeDump === null) return;
-    const tabs = this.store.state.flamegraphTabs ?? [];
+    const tabs = this.storage.get().flamegraphTabs ?? [];
     if (
       tabs.some(
         (t) => t.pathHashes === pathHashes && t.isDominator === isDominator,
@@ -260,7 +276,7 @@ export class HeapDumpExplorerSession {
     ) {
       return;
     }
-    this.store.edit((s) => {
+    this.edit((s) => {
       s.flamegraphTabs = [
         ...(s.flamegraphTabs ?? []),
         {pathHashes, isDominator},
@@ -271,7 +287,7 @@ export class HeapDumpExplorerSession {
 
   closeFlamegraph(pathHashes: string, isDominator: boolean): void {
     const active = this.activeFlamegraph;
-    this.store.edit((s) => {
+    this.edit((s) => {
       s.flamegraphTabs = (s.flamegraphTabs ?? []).filter(
         (t) => !(t.pathHashes === pathHashes && t.isDominator === isDominator),
       );
@@ -281,14 +297,14 @@ export class HeapDumpExplorerSession {
       active.pathHashes === pathHashes &&
       active.isDominator === isDominator
     ) {
-      this.navigate('overview');
+      this.navigate(this.defaultView);
     }
   }
 
   syncFlamegraphTabFromNav(): void {
     const active = this.activeFlamegraph;
     if (active === null) return;
-    const tabs = this.store.state.flamegraphTabs ?? [];
+    const tabs = this.storage.get().flamegraphTabs ?? [];
     if (
       !tabs.some(
         (t) =>
@@ -309,13 +325,12 @@ export class HeapDumpExplorerSession {
       .query(`${SQL_PREAMBLE}; SELECT COUNT(*) AS c FROM (${q})`)
       .then((r) => {
         this._counts.set(key, r.firstRow({c: NUM}).c);
-        m.redraw();
       })
       .catch(console.error);
   }
 
   get instanceTabs(): ReadonlyArray<{objId: number; label: string}> {
-    return this.store.state.instanceTabs ?? [];
+    return this.storage.get().instanceTabs ?? [];
   }
 
   // The active object's id, derived from the nav (not stored), or null.
@@ -325,9 +340,9 @@ export class HeapDumpExplorerSession {
   }
 
   private openInstanceTab(objId: number, label?: string): void {
-    const tabs = this.store.state.instanceTabs ?? [];
+    const tabs = this.storage.get().instanceTabs ?? [];
     if (tabs.some((t) => t.objId === objId)) return;
-    this.store.edit((s) => {
+    this.edit((s) => {
       s.instanceTabs = [
         ...(s.instanceTabs ?? []),
         {objId, label: truncateInstanceLabel(label ?? 'Instance')},
@@ -337,52 +352,54 @@ export class HeapDumpExplorerSession {
 
   closeInstanceTab(objId: number): void {
     const wasActive = this.activeInstanceObjId === objId;
-    this.store.edit((s) => {
+    this.edit((s) => {
       s.instanceTabs = (s.instanceTabs ?? []).filter((t) => t.objId !== objId);
     });
-    if (wasActive) this.navigate('overview');
+    if (wasActive) this.navigate(this.defaultView);
   }
 
   syncInstanceTabFromNav(): void {
     const nav = this.nav;
     if (nav.view !== 'object') return;
     const {id, label} = nav.params;
-    const tabs = this.store.state.instanceTabs ?? [];
+    const tabs = this.storage.get().instanceTabs ?? [];
     if (!tabs.some((t) => t.objId === id)) this.openInstanceTab(id, label);
   }
 
-  get flamegraphPanelState(): FlamegraphState | undefined {
-    return this.store.state.flamegraphPanelState;
+  get flamegraphPanelState(): TreeExplorerState | undefined {
+    return this.storage.get().flamegraphPanelState;
   }
 
-  readonly setFlamegraphPanelState = (state: FlamegraphState): void => {
-    this.store.edit((s) => {
+  setFlamegraphPanelState(state: TreeExplorerState): void {
+    this.edit((s) => {
       s.flamegraphPanelState = state;
     });
-  };
-
-  get callstackPanelState(): FlamegraphState | undefined {
-    return this.store.state.callstackPanelState;
   }
 
-  readonly setCallstackPanelState = (state: FlamegraphState): void => {
-    this.store.edit((s) => {
+  get callstackPanelState(): TreeExplorerState | undefined {
+    return this.storage.get().callstackPanelState;
+  }
+
+  setCallstackPanelState(state: TreeExplorerState): void {
+    this.edit((s) => {
       s.callstackPanelState = state;
     });
-  };
+  }
 
   // Open the flamegraph pivoted at `pathHash`. The metric matches the tree the
   // hash came from. The chip shows `<label> (this instance)` since the raw hash
   // regex is unreadable.
-  readonly openFlamegraphPivotedAt = (
+  openFlamegraphPivotedAt(
     pathHash: string,
     label: string,
     isDominator: boolean,
-  ): void => {
+  ): void {
     this.setFlamegraphPanelState({
-      selectedMetricName: isDominator
+      selectedMetricId: isDominator
         ? METRIC_DOMINATED_OBJECT_SIZE
         : METRIC_OBJECT_SIZE,
+      addedMetricIds: [],
+      displayMode: 'flamegraph',
       filters: [],
       view: {
         kind: 'PIVOT',
@@ -391,27 +408,9 @@ export class HeapDumpExplorerSession {
       },
     });
     this.navigate('flamegraph');
-  };
-
-  get cachedOverview(): OverviewData | null {
-    return this._overview;
   }
+}
 
-  // Pins the dump at fetch start; if the user switches dumps before the result
-  // arrives, the result is dropped instead of briefly showing the wrong dump.
-  async loadOverview(): Promise<void> {
-    if (this._overview !== null) return;
-    const dump = this.activeDump;
-    if (dump === null) return;
-    try {
-      const data = await queries.getOverview(this.engine, dump);
-      if (this.activeDump === dump) {
-        this._overview = data;
-      }
-    } catch (err) {
-      console.error('Failed to load overview:', err);
-    } finally {
-      m.redraw();
-    }
-  }
+function makeHref(sub: string | undefined): string {
+  return `#!/heapdump${sub ? '/' + sub : ''}`;
 }

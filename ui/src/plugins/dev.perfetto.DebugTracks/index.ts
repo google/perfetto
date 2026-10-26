@@ -19,6 +19,7 @@ import {
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {exists} from '../../base/utils';
+import {stripTrailingSemicolons} from '../../trace_processor/sql_utils';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.DebugTracks';
@@ -30,11 +31,7 @@ export default class implements PerfettoPlugin {
         // This command takes a query and creates a debug track out of it The
         // query can be passed in using the first arg, or if this is not defined
         // or is the wrong type, we prompt the user for it.
-        const query = await getStringFromArgOrPrompt(
-          ctx,
-          queryArg,
-          'Enter a query...',
-        );
+        const query = await getQueryFromArgOrPrompt(ctx, queryArg);
         if (!exists(query)) return;
 
         const title = getStringFromArgOrDefault(titleArg, 'Debug slice track');
@@ -53,11 +50,7 @@ export default class implements PerfettoPlugin {
       id: 'dev.perfetto.AddDebugCounterTrack',
       name: 'Add debug counter track',
       callback: async (queryArg: unknown, titleArg: unknown) => {
-        const query = await getStringFromArgOrPrompt(
-          ctx,
-          queryArg,
-          'Enter a query...',
-        );
+        const query = await getQueryFromArgOrPrompt(ctx, queryArg);
         if (!exists(query)) return;
 
         const title = getStringFromArgOrDefault(
@@ -83,11 +76,7 @@ export default class implements PerfettoPlugin {
         pivotArg: unknown,
         titleArg: unknown,
       ) => {
-        const query = await getStringFromArgOrPrompt(
-          ctx,
-          queryArg,
-          'Enter a query...',
-        );
+        const query = await getQueryFromArgOrPrompt(ctx, queryArg);
         if (!exists(query)) return;
 
         const pivotColumn = await getStringFromArgOrPrompt(
@@ -118,11 +107,7 @@ export default class implements PerfettoPlugin {
         pivotArg: unknown,
         titleArg: unknown,
       ) => {
-        const query = await getStringFromArgOrPrompt(
-          ctx,
-          queryArg,
-          'Enter a query...',
-        );
+        const query = await getQueryFromArgOrPrompt(ctx, queryArg);
         if (!exists(query)) return;
 
         const pivotColumn = await getStringFromArgOrPrompt(
@@ -163,6 +148,20 @@ async function getStringFromArgOrPrompt(
   } else {
     return await ctx.omnibox.prompt(promptText);
   }
+}
+
+// Same as above, but for queries. Returns undefined if the prompt was
+// cancelled or if the query is blank once trailing semicolons are removed, in
+// which case there's nothing sensible to do so we just bail out.
+async function getQueryFromArgOrPrompt(
+  ctx: Trace,
+  arg: unknown,
+): Promise<string | undefined> {
+  const query = await getStringFromArgOrPrompt(ctx, arg, 'Enter a query...');
+  if (!exists(query)) return undefined;
+  const sanitizedQuery = stripTrailingSemicolons(query);
+  if (sanitizedQuery === '') return undefined;
+  return sanitizedQuery;
 }
 
 // If arg is a string, return it, otherwise return the default value.

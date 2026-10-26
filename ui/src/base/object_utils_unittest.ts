@@ -12,70 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {getPath, setPath, shallowEquals} from './object_utils';
-
-describe('getPath', () => {
-  const nested = {quux: 'qux'};
-  const value = {
-    foo: {
-      bar: [1, 2, 3],
-    },
-    baz: nested,
-  };
-
-  test('happy path', () => {
-    expect(getPath(value, ['foo', 'bar', 1])).toBe(2);
-    expect(getPath(value, ['foo', 'bar', 2])).toBe(3);
-    expect(getPath(value, ['foo', 'bar'])).toEqual([1, 2, 3]);
-    expect(getPath(value, ['foo'])).toEqual({bar: [1, 2, 3]});
-    expect(getPath(value, [])).toBe(value);
-    expect(getPath(value, ['baz'])).toBe(nested);
-  });
-
-  it('returns undefined when path is incomplete', () => {
-    // value.quux does not exist so we expect undefined to be returned
-    expect(getPath(value, ['quux'])).toBe(undefined);
-    expect(getPath(value, ['quux', 'corge'])).toBe(undefined);
-  });
-});
-
-describe('setPath', () => {
-  const nested = {quux: 'qux'};
-  const value = {
-    foo: {
-      bar: [1, 2, 3],
-    },
-    baz: nested,
-  };
-
-  test('happy path', () => {
-    setPath(value, ['foo', 'bar', 1], 10);
-    expect(value).toEqual({
-      foo: {
-        bar: [1, 10, 3],
-      },
-      baz: nested,
-    });
-  });
-
-  it('appends node when target node is missing', () => {
-    setPath(value, ['quux'], 'abc');
-    expect((value as unknown as {quux: string})['quux']).toBe('abc');
-  });
-
-  it('throws when path node(s) are missing', () => {
-    // value.quux does not exist, so setting value.quux.corge is an error.
-    expect(() => {
-      setPath(value, ['quux', 'corge'], 'abc');
-    }).toThrowError(TypeError);
-  });
-
-  it('throws when path is empty', () => {
-    expect(() => {
-      setPath(value, [], 'abc');
-    }).toThrowError(TypeError);
-  });
-});
+import {deepFreeze, shallowEquals} from './object_utils';
 
 test('shallowEquals', () => {
   const one = 1;
@@ -93,4 +30,44 @@ test('shallowEquals', () => {
   expect(shallowEquals({one}, {one})).toBe(true);
   expect(shallowEquals({nestedFoo}, {nestedFoo})).toBe(true);
   expect(shallowEquals({nestedFoo}, {nestedFooDupe})).toBe(false);
+});
+
+describe('deepFreeze', () => {
+  test('returns primitives and null unchanged', () => {
+    expect(deepFreeze(42)).toBe(42);
+    expect(deepFreeze('hello')).toBe('hello');
+    expect(deepFreeze(true)).toBe(true);
+    expect(deepFreeze(null)).toBe(null);
+    expect(deepFreeze(undefined)).toBe(undefined);
+  });
+
+  test('recursively freezes nested objects and arrays', () => {
+    const obj = {
+      a: 1,
+      nested: {
+        b: 'two',
+        arr: [{c: 3}, 4],
+      },
+    };
+
+    const frozen = deepFreeze(obj);
+    expect(frozen).toBe(obj);
+    expect(Object.isFrozen(frozen)).toBe(true);
+    expect(Object.isFrozen(frozen.nested)).toBe(true);
+    expect(Object.isFrozen(frozen.nested.arr)).toBe(true);
+    expect(Object.isFrozen(frozen.nested.arr[0])).toBe(true);
+
+    expect(() => {
+      frozen.a = 2;
+    }).toThrow(TypeError);
+    expect(() => {
+      frozen.nested.b = 'three';
+    }).toThrow(TypeError);
+    expect(() => {
+      frozen.nested.arr.push(5);
+    }).toThrow(TypeError);
+    expect(() => {
+      (frozen.nested.arr[0] as {c: number}).c = 99;
+    }).toThrow(TypeError);
+  });
 });

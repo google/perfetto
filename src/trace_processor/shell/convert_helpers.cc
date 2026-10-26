@@ -82,7 +82,7 @@ base::Status OpenConversionOutput(const std::string& path,
   return base::OkStatus();
 }
 
-int TextToTrace(std::istream* input, std::ostream* output) {
+base::Status TextToTrace(std::istream* input, std::ostream* output) {
   std::string trace_text(std::istreambuf_iterator<char>{*input},
                          std::istreambuf_iterator<char>{});
   std::vector<uint8_t> descriptors;
@@ -96,14 +96,13 @@ int TextToTrace(std::istream* input, std::ostream* output) {
       protozero::TextToProto(descriptors.data(), descriptors.size(),
                              ".perfetto.protos.Trace", "trace", trace_text);
   if (!proto_status.ok()) {
-    PERFETTO_ELOG("Failed to parse trace: %s",
-                  proto_status.status().c_message());
-    return 1;
+    return base::ErrStatus("failed to parse trace text: %s",
+                           proto_status.status().c_message());
   }
   const std::vector<uint8_t>& trace_proto = proto_status.value();
   output->write(reinterpret_cast<const char*>(trace_proto.data()),
                 static_cast<int64_t>(trace_proto.size()));
-  return 0;
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor::shell

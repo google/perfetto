@@ -450,8 +450,7 @@ function migrateNodeState(type: NodeType, state: unknown): unknown {
     }
     case NodeType.kAddColumns: {
       const columnTypes = s.columnTypes as
-        | Record<string, PerfettoSqlType | string>
-        | undefined;
+        Record<string, PerfettoSqlType | string> | undefined;
       if (!columnTypes) return s;
       return {
         ...s,

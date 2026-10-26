@@ -28,10 +28,19 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/tree/tree.h"
+#include "src/trace_processor/core/tree/tree_from_dataframe.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
+#include "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.h"
+#include "src/trace_processor/plugins/flamegraph/flamegraph.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_column.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -266,12 +275,19 @@ BuildFlamegraphTableHeapSizeAndCount(
 
 static std::unique_ptr<tables::ExperimentalFlamegraphTable>
 BuildFlamegraphTableCallstackSizeAndCount(
-    tables::PerfSampleTable::ConstCursor& cursor,
+    const TraceStorage& storage,
+    tables::ProfilerSampleTable::ConstCursor& cursor,
     std::unique_ptr<tables::ExperimentalFlamegraphTable> tbl,
     const std::vector<uint32_t>& callsite_to_merged_callsite,
     const std::unordered_set<uint32_t>& utids) {
   for (; !cursor.Eof(); cursor.Next()) {
-    if (utids.find(cursor.utid()) == utids.end()) {
+    if (!cursor.task_context_id()) {
+      continue;
+    }
+    auto task_context =
+        storage.profiler_task_context_table()[*cursor.task_context_id()];
+    if (!task_context.utid() ||
+        utids.find(*task_context.utid()) == utids.end()) {
       continue;
     }
 
@@ -392,19 +408,19 @@ BuildNativeCallStackSamplingFlamegraph(
                      tc.op.index());
     }
     cs.emplace_back(dataframe::FilterSpec{
-        tables::PerfSampleTable::ColumnIndex::ts,
+        tables::ProfilerSampleTable::ColumnIndex::ts,
         i,
         tc.op,
         {},
     });
   }
   cs.push_back(dataframe::FilterSpec{
-      tables::PerfSampleTable::ColumnIndex::callsite_id,
+      tables::ProfilerSampleTable::ColumnIndex::callsite_id,
       static_cast<uint32_t>(time_constraints.size()),
       dataframe::IsNotNull{},
       {},
   });
-  auto cursor = storage->perf_sample_table().CreateCursor(std::move(cs));
+  auto cursor = storage->profiler_sample_table().CreateCursor(std::move(cs));
   for (uint32_t i = 0; i < time_constraints.size(); ++i) {
     cursor.SetFilterValueUnchecked(i, time_constraints[i].value);
   }
@@ -433,8 +449,181 @@ BuildNativeCallStackSamplingFlamegraph(
                                         default_timestamp,
                                         storage->InternString("perf"));
   return BuildFlamegraphTableCallstackSizeAndCount(
-      cursor, std::move(table_and_callsites.tbl),
+      *storage, cursor, std::move(table_and_callsites.tbl),
       table_and_callsites.callsite_to_merged_callsite, utids);
+}
+
+// The heap graph queries live in the
+// android.memory.heap_graph.experimental_flamegraph stdlib module; this plugin
+// only supplies the dump's (upid, ts), inlined as validated integers.
+constexpr char kExperimentalFlamegraphModule[] =
+    "INCLUDE PERFETTO MODULE "
+    "android.memory.heap_graph.experimental_flamegraph;\n";
+
+std::unique_ptr<tables::ExperimentalFlamegraphTable> BuildHeapGraphFlamegraph(
+    PerfettoSqlConnection* connection,
+    TraceStorage* storage,
+    int64_t ts,
+    UniquePid upid) {
+  // Check whether the dump has any roots (and whether it was truncated) before
+  // running the flamegraph query: flamegraph::Build needs a non-empty tree.
+  std::string roots_sql =
+      std::string(kExperimentalFlamegraphModule) +
+      "SELECT * FROM _experimental_flamegraph_heap_graph_state!(" +
+      std::to_string(upid) + ", " + std::to_string(ts) + ");";
+  base::StatusOr<PerfettoSqlConnection::ExecutionResult> roots_execution =
+      connection->ExecuteUntilLastStatement(
+          SqlSource::FromTraceProcessorImplementation(std::move(roots_sql)));
+  if (!roots_execution.ok()) {
+    PERFETTO_ELOG("%s", roots_execution.status().c_message());
+    return nullptr;
+  }
+  sqlite3_stmt* roots_stmt = roots_execution->stmt.sqlite_stmt();
+  // The statement is already positioned on its single row by
+  // ExecuteUntilLastStatement.
+  const bool has_roots = sqlite::column::Int64(roots_stmt, 0) != 0;
+  const bool truncated =
+      sqlite::column::Type(roots_stmt, 1) != sqlite::Type::kNull &&
+      sqlite::column::Int64(roots_stmt, 1) != 0;
+
+  auto tbl = std::make_unique<tables::ExperimentalFlamegraphTable>(
+      storage->mutable_string_pool());
+  StringPool* pool = storage->mutable_string_pool();
+  StringPool::Id profile_type = pool->InternString("graph");
+  if (!has_roots) {
+    if (!truncated) {
+      // We haven't seen this dump (or it was complete but root-less): the
+      // caller reports an error for an empty table.
+      return tbl;
+    }
+    // TODO(fmayer): This should not be within the flame graph but some marker
+    // in the UI.
+    tables::ExperimentalFlamegraphTable::Row alloc_row{};
+    alloc_row.ts = ts;
+    alloc_row.upid = upid;
+    alloc_row.profile_type = profile_type;
+    alloc_row.depth = 0;
+    alloc_row.name = pool->InternString(
+        "ERROR: INCOMPLETE GRAPH (try increasing buffer size)");
+    alloc_row.map_name = pool->InternString("JAVA");
+    alloc_row.count = 1;
+    alloc_row.cumulative_count = 1;
+    alloc_row.size = 1;
+    alloc_row.cumulative_size = 1;
+    alloc_row.parent_id = std::nullopt;
+    tbl->Insert(alloc_row);
+    return tbl;
+  }
+
+  std::string frames_sql =
+      std::string(kExperimentalFlamegraphModule) +
+      "SELECT * FROM _experimental_flamegraph_heap_graph_frames!(" +
+      std::to_string(upid) + ", " + std::to_string(ts) + ");";
+  base::StatusOr<PerfettoSqlConnection::ExecutionResult> execution =
+      connection->ExecuteUntilLastStatement(
+          SqlSource::FromTraceProcessorImplementation(std::move(frames_sql)));
+  if (!execution.ok()) {
+    PERFETTO_ELOG("%s", execution.status().c_message());
+    return nullptr;
+  }
+
+  // Run the frame rows through the shared flamegraph pipeline (the same
+  // computation backing __intrinsic_flamegraph) without the virtual-table
+  // layer: group by name/map_name and SUM-aggregate the value columns.
+  SqliteDataframeBuilderOptions options;
+  options.nullability = dataframe::NullabilityType::kDenseNull;
+  std::vector<std::string> column_names = {
+      "id",    "parent_id", "name",        "map_name",
+      "count", "size",      "alloc_count", "alloc_size",
+  };
+  auto builder = BuildRuntimeDataframeFromSqliteStatement(
+      pool, std::move(column_names), &execution->stmt,
+      "experimental_flamegraph", std::move(options));
+  if (!builder.ok()) {
+    PERFETTO_ELOG("%s", builder.status().c_message());
+    return nullptr;
+  }
+  auto tree_status = core::BuildTree(std::move(builder.value()));
+  if (!tree_status.ok()) {
+    PERFETTO_ELOG("%s", tree_status.status().c_message());
+    return nullptr;
+  }
+  core::Tree tree = std::move(tree_status.value());
+
+  flamegraph::Config config(*pool);
+  config.view = flamegraph::Config::View(flamegraph::Config::TopDown{});
+  config.name = *tree.Find("name");
+  config.grouping_columns = {*tree.Find("map_name")};
+  config.value_columns = {*tree.Find("count"), *tree.Find("size"),
+                          *tree.Find("alloc_count"), *tree.Find("alloc_size")};
+  auto result_status = flamegraph::Build(tree, config);
+  if (!result_status.ok()) {
+    PERFETTO_ELOG("%s", result_status.status().c_message());
+    return nullptr;
+  }
+  core::Tree result = std::move(result_status.value());
+
+  auto find = [&result](const char* name) -> const core::Tree::Column* {
+    auto column = result.Find(name);
+    return column ? *column : nullptr;
+  };
+  const core::Tree::Column* depth_col = find("depth");
+  const core::Tree::Column* name_col = find("name");
+  const core::Tree::Column* map_name_col = find("map_name");
+  const core::Tree::Column* self_count_col = find("self_count");
+  const core::Tree::Column* cumulative_count_col = find("cumulative_count");
+  const core::Tree::Column* self_size_col = find("self_size");
+  const core::Tree::Column* cumulative_size_col = find("cumulative_size");
+  const core::Tree::Column* self_alloc_count_col = find("self_alloc_count");
+  const core::Tree::Column* cumulative_alloc_count_col =
+      find("cumulative_alloc_count");
+  const core::Tree::Column* self_alloc_size_col = find("self_alloc_size");
+  const core::Tree::Column* cumulative_alloc_size_col =
+      find("cumulative_alloc_size");
+  PERFETTO_CHECK(depth_col && name_col && map_name_col && self_count_col &&
+                 cumulative_count_col && self_size_col && cumulative_size_col &&
+                 self_alloc_count_col && cumulative_alloc_count_col &&
+                 self_alloc_size_col && cumulative_alloc_size_col);
+
+  // A string column holding no values at all is typed Null and carries no
+  // payload, so its data must not be read: every row is the null string.
+  auto string_at = [](const core::Tree::Column* column,
+                      uint32_t row) -> StringPool::Id {
+    return column->type.Is<core::Null>()
+               ? StringPool::Id::Null()
+               : column->unchecked_data<StringPool::Id>()[row];
+  };
+
+  for (uint32_t row = 0; row < result.row_count; ++row) {
+    tables::ExperimentalFlamegraphTable::Row alloc_row{};
+    alloc_row.ts = ts;
+    alloc_row.upid = upid;
+    alloc_row.profile_type = profile_type;
+    const int64_t depth = depth_col->unchecked_data<int64_t>()[row];
+    PERFETTO_DCHECK(depth > 0);
+    alloc_row.depth = static_cast<uint32_t>(depth - 1);
+    alloc_row.name = string_at(name_col, row);
+    alloc_row.map_name = string_at(map_name_col, row);
+    alloc_row.count = self_count_col->unchecked_data<int64_t>()[row];
+    alloc_row.cumulative_count =
+        cumulative_count_col->unchecked_data<int64_t>()[row];
+    alloc_row.size = self_size_col->unchecked_data<int64_t>()[row];
+    alloc_row.cumulative_size =
+        cumulative_size_col->unchecked_data<int64_t>()[row];
+    alloc_row.alloc_count =
+        self_alloc_count_col->unchecked_data<int64_t>()[row];
+    alloc_row.cumulative_alloc_count =
+        cumulative_alloc_count_col->unchecked_data<int64_t>()[row];
+    alloc_row.alloc_size = self_alloc_size_col->unchecked_data<int64_t>()[row];
+    alloc_row.cumulative_alloc_size =
+        cumulative_alloc_size_col->unchecked_data<int64_t>()[row];
+    const uint32_t parent = result.parent[row];
+    if (parent != core::Tree::kNullParent) {
+      alloc_row.parent_id = tables::ExperimentalFlamegraphTable::Id{parent};
+    }
+    tbl->Insert(alloc_row);
+  }
+  return tbl;
 }
 
 }  // namespace perfetto::trace_processor

@@ -336,12 +336,7 @@ type ResolvedArray = {
 class ScalarValueSchema {
   constructor(
     public kind:
-      | 'timestamp'
-      | 'duration'
-      | 'arg_set_id'
-      | 'value'
-      | 'url'
-      | 'boolean',
+      'timestamp' | 'duration' | 'arg_set_id' | 'value' | 'url' | 'boolean',
     public sourceExpression: string,
     public params?: ScalarValueParams,
   ) {}
@@ -477,11 +472,11 @@ class DataController {
     const data: Data = {
       valueExpressions: this.expressions,
       values: [],
-      argSetExpressions: this.argSets.map((index) => this.expressions[index]),
+      argSetExpressions: this.argSets.map((index) => this.expressions[index]!),
       argSets: [],
       sqlIdRefs: this.sqlIdRefs.map((ref) => ({
         tableName: ref.tableName,
-        idExpression: this.expressions[ref.id],
+        idExpression: this.expressions[ref.id]!,
       })),
       sqlIdRefData: [],
     };
@@ -501,7 +496,7 @@ class DataController {
     `)
     ).firstRow({});
     for (let i = 0; i < this.expressions.length; ++i) {
-      data.values.push(row[label(i)]);
+      data.values.push(row[label(i)]!);
     }
 
     // Fetch the arg sets based on the fetched arg set ids.
@@ -772,8 +767,8 @@ function renderValue(
       });
     }
     case 'sql_id_ref':
-      const ref = data.sqlIdRefs[value.ref];
-      const refData = data.sqlIdRefData[value.ref];
+      const ref = data.sqlIdRefs[value.ref]!;
+      const refData = data.sqlIdRefData[value.ref]!;
       let rhs: m.Children;
       let children: m.Children;
       if (refData instanceof Err) {

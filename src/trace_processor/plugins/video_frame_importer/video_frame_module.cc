@@ -44,11 +44,11 @@
 
 namespace perfetto::trace_processor {
 
-using ::com::android::internal::pbzero::FrameTimelineEvent;
 using ::com::android::internal::pbzero::FrameworksBaseTracePacket;
 using ::com::android::internal::pbzero::FrameworksNativeTracePacket;
 using ::com::android::internal::pbzero::VideoFrame;
 using ::com::android::internal::pbzero::VideoFrameError;
+using ::com::android::internal::pbzero::VirtualDisplayComposite;
 using ::perfetto::protos::pbzero::TracePacket;
 
 VideoFrameModule::VideoFrameModule(ProtoImporterModuleContext* mc,
@@ -61,11 +61,8 @@ VideoFrameModule::VideoFrameModule(ProtoImporterModuleContext* mc,
       au_data_(au_data) {
   RegisterForField(FrameworksBaseTracePacket::kVideoFrameFieldNumber);
   RegisterForField(FrameworksBaseTracePacket::kVideoFrameErrorFieldNumber);
-  // Also observe frame-timeline events, to pick out VirtualDisplayComposite and
-  // join the exact composite token onto each video frame by present time. This
-  // field is also handled by GraphicsEventModule; multiple modules per field is
-  // supported.
-  RegisterForField(FrameworksNativeTracePacket::kFrameTimelineEventFieldNumber);
+  RegisterForField(
+      FrameworksNativeTracePacket::kVirtualDisplayCompositeFieldNumber);
 }
 
 VideoFrameModule::~VideoFrameModule() = default;
@@ -108,9 +105,10 @@ void VideoFrameModule::ParseField(const ParseFieldArgs& args) {
           args.field.Cast<FrameworksBaseTracePacket::kVideoFrameError>(),
           args.ts);
       break;
-    case FrameworksNativeTracePacket::kFrameTimelineEventFieldNumber:
-      ParseFrameTimelineEvent(
-          args.field.Cast<FrameworksNativeTracePacket::kFrameTimelineEvent>());
+    case FrameworksNativeTracePacket::kVirtualDisplayCompositeFieldNumber:
+      ParseVirtualDisplayComposite(
+          args.field
+              .Cast<FrameworksNativeTracePacket::kVirtualDisplayComposite>());
       break;
     default:
       break;
@@ -175,7 +173,7 @@ void VideoFrameModule::ParseVideoFrame(protozero::ConstBytes bytes,
       max_stream_size_bytes_) {
     if (!info.size_cap_hit) {
       info.size_cap_hit = true;
-      context_->import_logs_tracker->RecordParserError(
+      context_->import_logs_tracker->RecordParserLog(
           stats::android_video_parse_size_cap_hit, ts,
           [this, display_id](ArgsTracker::BoundInserter& inserter) {
             inserter.AddArg(context_->storage->InternString("display_id"),
@@ -192,8 +190,8 @@ void VideoFrameModule::ParseVideoFrame(protozero::ConstBytes bytes,
   context_->storage->set_has_android_video_frames();
   // au_data is parallel to the table, indexed by row id.
   PERFETTO_DCHECK(id == au_data_->size());
-  // Remember access-unit rows so their vsync id can be backfilled from
-  // VirtualDisplayComposite events once all packets are parsed.
+  // Remember access units with a pts, so OnEventsFullyExtracted can link them
+  // to the composite with the same present time.
   if (row.pts_us.has_value()) {
     row_pts_us_.emplace_back(id_and_row.row, *row.pts_us);
   }
@@ -239,38 +237,70 @@ void VideoFrameModule::ParseVideoFrameError(protozero::ConstBytes bytes,
   }
   // Producer-reported failure: record to the import logs (which also bumps the
   // reason's stat), with the affected display as a queryable arg.
-  context_->import_logs_tracker->RecordCollectionError(
+  context_->import_logs_tracker->RecordCollectionLog(
       stat, ts, [this, display_id](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(context_->storage->InternString("display_id"),
                         Variadic::UnsignedInteger(display_id));
       });
 }
 
-void VideoFrameModule::ParseFrameTimelineEvent(protozero::ConstBytes bytes) {
-  FrameTimelineEvent::Decoder event(bytes);
-  if (!event.has_virtual_display_composite()) {
+void VideoFrameModule::ParseVirtualDisplayComposite(
+    protozero::ConstBytes bytes) {
+  VirtualDisplayComposite::Decoder composite(bytes);
+  if (!composite.has_present_time_us() || !composite.has_vsync_id()) {
     return;
   }
-  FrameTimelineEvent::VirtualDisplayComposite::Decoder vdc(
-      event.virtual_display_composite());
-  if (!vdc.has_present_time_us() || !vdc.has_vsync_id()) {
+  // A negative vsync id is SurfaceFlinger's INVALID_VSYNC_ID (-1): the
+  // composite had no pacing vsync, so there's no frame timeline to link to.
+  if (composite.vsync_id() < 0) {
     return;
   }
-  // present_time_us is the composite buffer's present time in microseconds,
-  // which a surface-input encoder carries through unchanged as the frame's
-  // pts_us, so it is the exact join key.
-  vsync_id_by_present_us_[vdc.present_time_us()] = vdc.vsync_id();
+  // present_time_us is the queued buffer's timestamp, which the encoder
+  // normally carries through as the frame's pts, so it's the join key.
+  // display_id is SurfaceFlinger's id for the virtual display, which is
+  // unrelated to VideoFrame.display_id, so it can't narrow the match.
+  auto [info, inserted] = composites_by_present_us_.Insert(
+      composite.present_time_us(), CompositeInfo{composite.vsync_id()});
+  if (!inserted && info->vsync_id != composite.vsync_id()) {
+    info->conflicting = true;
+  }
+  info->count++;
 }
 
 void VideoFrameModule::OnEventsFullyExtracted() {
-  if (vsync_id_by_present_us_.size() == 0) {
+  if (composites_by_present_us_.size() == 0) {
     return;
   }
   for (const auto& [row, pts_us] : row_pts_us_) {
-    const int64_t* vsync_id = vsync_id_by_present_us_.Find(pts_us);
-    if (vsync_id) {
-      (*table_)[row].set_frame_timeline_vsync_id(*vsync_id);
+    CompositeInfo* info = composites_by_present_us_.Find(pts_us);
+    if (!info) {
+      continue;
     }
+    info->matched = true;
+    // With conflicting vsync ids there's no telling which composite produced
+    // this frame, so leave it unlinked rather than guess.
+    if (!info->conflicting) {
+      (*table_)[row].set_frame_timeline_vsync_id(info->vsync_id);
+    }
+  }
+  int64_t unmatched_composites = 0;
+  int64_t ambiguous_present_times = 0;
+  for (auto it = composites_by_present_us_.GetIterator(); it; ++it) {
+    const CompositeInfo& info = it.value();
+    if (!info.matched) {
+      unmatched_composites += info.count;
+    } else if (info.conflicting) {
+      ambiguous_present_times++;
+    }
+  }
+  if (unmatched_composites > 0) {
+    context_->stats_tracker->IncrementStats(
+        stats::android_video_vsync_composite_unmatched, unmatched_composites);
+  }
+  if (ambiguous_present_times > 0) {
+    context_->stats_tracker->IncrementStats(
+        stats::android_video_vsync_present_time_ambiguous,
+        ambiguous_present_times);
   }
 }
 

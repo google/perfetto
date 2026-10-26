@@ -116,8 +116,7 @@ export interface DataExplorerState {
 
 type StateUpdateFn = (
   update:
-    | DataExplorerState
-    | ((current: DataExplorerState) => DataExplorerState),
+    DataExplorerState | ((current: DataExplorerState) => DataExplorerState),
 ) => void;
 
 interface DataExplorerAttrs {
@@ -794,7 +793,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     if (tab.dashboards.length <= 1) return;
     const idx = tab.dashboards.findIndex((d) => d.id === dbId);
     if (idx === -1) return;
-    const itemCount = tab.dashboards[idx].items.length;
+    const itemCount = tab.dashboards[idx]!.items.length;
 
     const doRemove = () => {
       const currentIdx = tab.dashboards.findIndex((d) => d.id === dbId);
@@ -804,7 +803,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       if (tab.activeSubTab === dbId) {
         if (tab.dashboards.length > 0) {
           const newIdx = Math.min(currentIdx, tab.dashboards.length - 1);
-          tab.activeSubTab = tab.dashboards[newIdx].id;
+          tab.activeSubTab = tab.dashboards[newIdx]!.id;
         } else {
           tab.activeSubTab = 'graph';
         }

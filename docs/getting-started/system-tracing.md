@@ -76,13 +76,13 @@ TAB: Android (Perfetto UI)
        over time.
      - **CPU frequency and idle states**: See the frequency each CPU was
        running at.
-   - **Android Apps and Svcs**:
+   - **Android apps & svcs**:
      - **Atrace userspace annotations**: Get context on what systems and apps
-       are doing. Enable the "System server", "View system" and "Input"
-       categories (press Ctrl/Cmd while clicking to multi-select).
+       are doing. Enable the "System Server", "View System" and "Input"
+       categories.
      - **Event log (logcat)**: Include `logcat` messages in the trace.
 
-7. Click the green "Start Recording" button and, while the trace is recording,
+7. Click the "Start tracing" button and, while the trace is recording,
    take some action on the Android device (e.g. opening an app, unlocking the
    phone etc).
 8. After 10s, the trace will automatically stop and you will switch to the

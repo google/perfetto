@@ -245,7 +245,7 @@ distinct nodes, related by explicit edges (recording-time clock sync, a
 wall-clock rendezvous, or a
 [trace manifest](/docs/reference/perfetto-manifest.md)). All edges,
 whatever their origin, are recorded in the `clock_snapshot` table. See
-[How trace merging works](/docs/concepts/merging-traces.md) for the full
+[Trace merging](/docs/concepts/merging-traces.md) for the full
 model.
 
 [6756fb05]: https://android-review.googlesource.com/c/platform/external/perfetto/+/1101915/

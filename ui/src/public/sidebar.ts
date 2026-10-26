@@ -70,6 +70,7 @@ export type SidebarMenuItem = {
   readonly icon?: string | (() => string);
   readonly tooltip?: string | (() => string);
   readonly cssClass?: string | (() => string); // Without trailing '.'.
+  readonly badge?: string | (() => string);
 
   // If false or omitted the item works normally.
   // If true the item is striken through and the action/href will be a no-op.

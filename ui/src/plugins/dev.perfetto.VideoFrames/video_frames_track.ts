@@ -14,7 +14,7 @@
 
 import './video_frames.scss';
 import m from 'mithril';
-import {QuerySlot} from '../../base/query_slot';
+import {AsyncMemo} from '../../base/async_memo';
 import {materialColorScheme} from '../../components/colorizer';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {Trace} from '../../public/trace';
@@ -57,7 +57,7 @@ export function createVideoFramesTrack(
   `;
 
   // QuerySlot caches the decoded hover image per frame id.
-  const imageSlot = new QuerySlot<string | undefined>();
+  const imageSlot = new AsyncMemo<string | undefined>();
 
   // Singleton panel so mithril patches in place instead of remounting the
   // canvas on every selection (a remount would detach the canvas and stop
@@ -67,6 +67,7 @@ export function createVideoFramesTrack(
   return SliceTrack.create({
     trace,
     uri,
+    rootTableName: '__intrinsic_video_frames',
     dataset: new SourceDataset({
       schema: {id: NUM, ts: LONG, dur: LONG, name: STR, depth: NUM},
       src,
@@ -79,7 +80,7 @@ export function createVideoFramesTrack(
         // Keep the previous frame on screen while the next decodes, so
         // sweeping the cursor doesn't blink back to 'Loading...'.
         retainOn: ['id'],
-        queryFn: () => player.decodeFrameImage(data.id),
+        compute: () => player.decodeFrameImage(data.id),
       });
       if (image.data) {
         return [m('img.pf-video-frame-tooltip__img', {src: image.data})];

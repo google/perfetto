@@ -26,10 +26,17 @@ ORDER BY
   type_id;
 
 CREATE PERFETTO TABLE _excluded_refs AS
+WITH
+  ref_objects AS (
+    SELECT reference_set_id
+    FROM heap_graph_object
+    WHERE
+      reference_set_id IS NOT NULL
+      AND type_id IN _ref_type_ids
+  )
 SELECT ref.id
-FROM heap_graph_object AS robj
+FROM ref_objects
 CROSS JOIN heap_graph_reference AS ref USING (reference_set_id)
-CROSS JOIN _ref_type_ids USING (type_id)
 WHERE
   ref.field_name = 'java.lang.ref.Reference.referent'
 ORDER BY

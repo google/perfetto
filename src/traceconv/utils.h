@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 
+#include <cstdarg>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -26,10 +27,12 @@
 #include <vector>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/paged_memory.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 #include <zlib.h>
+#include <cstdint>
 #endif
 
 namespace perfetto {
@@ -43,14 +46,6 @@ class TracePacket;
 }
 
 namespace trace_to_text {
-
-// When running in Web Assembly, fflush() is a no-op and the stdio buffering
-// sends progress updates to JS only when a write ends with \n.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
-constexpr char kProgressChar = '\n';
-#else
-constexpr char kProgressChar = '\r';
-#endif
 
 bool ReadTraceUnfinalized(trace_processor::TraceProcessor* tp,
                           std::istream* input);

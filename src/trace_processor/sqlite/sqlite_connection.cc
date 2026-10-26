@@ -81,7 +81,8 @@ void EnsureSqliteInitialized() {
 
 void InitializeSqlite(sqlite3* db) {
   char* error = nullptr;
-  sqlite3_exec(db, "PRAGMA temp_store=2", nullptr, nullptr, &error);
+  sqlite3_exec(db, "PRAGMA temp_store=2; PRAGMA locking_mode=NORMAL", nullptr,
+               nullptr, &error);
   if (error) {
     PERFETTO_FATAL("Error setting pragma temp_store: %s", error);
   }
@@ -112,6 +113,15 @@ std::optional<uint32_t> GetErrorOffsetDb(sqlite3* db) {
 constexpr int kSqliteOpenFlags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE |
                                  SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_URI;
 
+void ApplyAttachCreateWriteConfig(sqlite3* db, bool enabled) {
+  int unused = 0;
+  int val = enabled ? 1 : 0;
+  PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_ENABLE_ATTACH_WRITE, val,
+                                   &unused) == SQLITE_OK);
+  PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_ENABLE_ATTACH_CREATE,
+                                   val, &unused) == SQLITE_OK);
+}
+
 }  // namespace
 
 std::unique_ptr<SqliteConnection>
@@ -134,12 +144,25 @@ SqliteConnection::SqliteConnection(std::shared_ptr<SqliteDatabase> database)
   // queries.
   PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_LOOKASIDE, nullptr,
                                    /*sz=*/1200, /*cnt=*/1000) == SQLITE_OK);
+  // Untrusted SQL (e.g. the RPC server) must never be able to ATTACH-write
+  // OS files.
+  ApplyAttachCreateWriteConfig(db, /*enabled=*/false);
+#ifdef SQLITE_DBCONFIG_FP_DIGITS
+  // SQLite 3.52 went from 15 to 17 significant digits when turning a double
+  // into text. Keep the 15 older versions produce.
+  PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_FP_DIGITS, 15,
+                                   nullptr) == SQLITE_OK);
+#endif
   InitializeSqlite(db);
   db_.reset(db);
 }
 
 std::unique_ptr<SqliteConnection> SqliteConnection::Fork() {
   return std::make_unique<SqliteConnection>(database_);
+}
+
+void SqliteConnection::SetAttachCreateWriteEnabled(bool enabled) {
+  ApplyAttachCreateWriteConfig(db_.get(), enabled);
 }
 
 SqliteConnection::~SqliteConnection() = default;
@@ -152,10 +175,8 @@ SqliteConnection::PreparedStatement SqliteConnection::PrepareStatement(
       sqlite3_prepare_v2(db_.get(), sql.sql().c_str(), -1, &raw_stmt, nullptr);
   PreparedStatement statement{ScopedStmt(raw_stmt), std::move(sql)};
   if (err != SQLITE_OK) {
-    const char* errmsg = sqlite3_errmsg(db_.get());
-    std::string frame =
-        statement.sql_source_.AsTracebackForSqliteOffset(GetErrorOffset());
-    base::Status status = base::ErrStatus("%s%s", frame.c_str(), errmsg);
+    base::Status status = statement.sql_source_.AddTracebackForSqliteOffset(
+        GetErrorOffset(), base::ErrStatus("%s", sqlite3_errmsg(db_.get())));
     status.SetPayload("perfetto.dev/has_traceback", "true");
 
     statement.status_ = std::move(status);
@@ -286,10 +307,8 @@ bool SqliteConnection::PreparedStatement::Step() {
     return false;
   }
   sqlite3* db = sqlite3_db_handle(stmt_.get());
-  std::string frame =
-      sql_source_.AsTracebackForSqliteOffset(GetErrorOffsetDb(db));
-  const char* errmsg = sqlite3_errmsg(db);
-  status_ = base::ErrStatus("%s%s", frame.c_str(), errmsg);
+  status_ = sql_source_.AddTracebackForSqliteOffset(
+      GetErrorOffsetDb(db), base::ErrStatus("%s", sqlite3_errmsg(db)));
   return false;
 }
 

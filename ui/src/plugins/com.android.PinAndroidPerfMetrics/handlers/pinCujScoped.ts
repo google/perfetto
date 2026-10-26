@@ -43,8 +43,8 @@ class PinCujScopedJank implements MetricHandler {
       return undefined;
     }
     return {
-      process: expandProcessName(match.groups.process),
-      cujName: match.groups.cujName,
+      process: expandProcessName(match.groups.process!),
+      cujName: match.groups.cujName!,
       jankType: match.groups.jankType as JankType,
       isWeighted: !!match.groups.jps,
     };
@@ -98,7 +98,7 @@ class PinCujScopedJank implements MetricHandler {
         f.ts AS ts,
         f.dur as dur,
         f.jank_score as jank_score
-      FROM android_jank_cuj_frame f LEFT JOIN android_jank_cuj cuj USING (cuj_id)
+      FROM _android_jank_cuj_frame f LEFT JOIN android_jank_cuj cuj USING (cuj_id)
       WHERE cuj.process_name = "${processName}"
       AND cuj_name = "${cuj}" ${jankTypeFilter}
     `;

@@ -21,6 +21,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/base/test/status_matchers.h"
+#include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/prune_package_list.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
@@ -45,6 +46,7 @@ class PrunePackageListIntegrationTest
 
     trace_redactor_.emplace_collect<FindPackageUid>();
     trace_redactor_.emplace_transform<PrunePackageList>();
+    trace_redactor_.emplace_collect<CollectTimelineEvents>();
   }
 
   std::vector<protos::gen::PackagesList::PackageInfo> GetPackageInfo(
@@ -87,9 +89,9 @@ class PrunePackageListIntegrationTest
 };
 
 // It is possible for two packages_list to appear in the trace. The
-// find_package_uid will stop after the first one is found. Package uids are
-// appear as n * 1,000,000 where n is some integer. It is also possible for two
-// packages_list to contain copies of each other - for example
+// find_package_uid will stop after the first one is found. Packages in
+// packages_list have normalized uids (uid < 100,000). It is also possible for
+// two packages_list to contain copies of each other - for example
 // "com.Unity.com.unity.multiplayer.samples.coop" appears in both packages_list.
 TEST_F(PrunePackageListIntegrationTest, FindsPackageAndFiltersPackageList) {
   auto result = Redact(trace_redactor_, &context_);
@@ -111,7 +113,7 @@ TEST_F(PrunePackageListIntegrationTest, FindsPackageAndFiltersPackageList) {
     ASSERT_EQ(package.name(), kSomePackageName);
 
     ASSERT_TRUE(package.has_uid());
-    ASSERT_EQ(NormalizeUid(package.uid()), kSomePackageUid);
+    ASSERT_EQ(package.uid(), kSomePackageUid);
   }
 }
 

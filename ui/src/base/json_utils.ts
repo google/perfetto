@@ -12,6 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// JSON-compatible types for use with stringifyJsonWithBigints and friends.
+export type JSONPrimitive =
+  string | number | boolean | null | undefined | bigint;
+export type JSONObject = {
+  [key: string]: JSONValue;
+};
+export type JSONValue = JSONPrimitive | JSONValue[] | JSONObject;
+export type NotAssignableToJson = symbol | Function;
+export type JSONCompatible<T> = unknown extends T
+  ? never
+  : {
+      [P in keyof T]: T[P] extends JSONValue
+        ? T[P]
+        : T[P] extends NotAssignableToJson
+          ? never
+          : JSONCompatible<T[P]>;
+    };
+
 // Similar to JSON.stringify() but supports bigints.
 // Bigints are simply serialized to a string, so the original object cannot be
 // recovered with JSON.parse(), as bigints will turn into strings.

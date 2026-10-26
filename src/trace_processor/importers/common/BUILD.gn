@@ -58,6 +58,8 @@ source_set("common") {
     "process_track_translation_table.h",
     "process_tracker.cc",
     "process_tracker.h",
+    "profiler_sample_tracker.cc",
+    "profiler_sample_tracker.h",
     "registered_file_tracker.cc",
     "registered_file_tracker.h",
     "sched_event_state.h",
@@ -118,9 +120,8 @@ source_set("common") {
     "../../containers",
     "../../core/dataframe",
     "../../sorter",
-    "../../sorter",
     "../../storage",
-    "../../tables:tables",
+    "../../tables",
     "../../types",
     "../../util:build_id",
     "../../util:profiler_util",
@@ -149,7 +150,7 @@ source_set("stats_tracker") {
   ]
   deps = [
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/base:base",
+    "../../../../include/perfetto/ext/base",
     "../../storage",
     "../../tables",
     "../../types",

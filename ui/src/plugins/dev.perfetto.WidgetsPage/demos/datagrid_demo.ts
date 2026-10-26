@@ -22,7 +22,7 @@ import type {
   DataSourceModel,
   DataSourceRows,
 } from '../../../components/widgets/datagrid/data_source';
-import type {QueryResult} from '../../../base/query_slot';
+import type {AsyncMemoResult} from '../../../base/async_memo';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import type {SQLTableSchema} from '../../../components/widgets/datagrid/sql_schema';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
@@ -48,20 +48,22 @@ class ErrorEmulatingDataSource implements DataSource {
     return this.inner.useRows(model);
   }
 
-  useAggregateSummaries(model: DataSourceModel): QueryResult<Row> {
+  useAggregateSummaries(model: DataSourceModel): AsyncMemoResult<Row> {
     if (this.failing) {
-      return {data: undefined, isPending: false, isFresh: true};
+      return {data: {}, isPending: false};
     }
     return this.inner.useAggregateSummaries(model);
   }
 
   useDistinctValues(
     column: string | undefined,
-  ): QueryResult<readonly SqlValue[]> {
+  ): AsyncMemoResult<readonly SqlValue[]> {
     return this.inner.useDistinctValues(column);
   }
 
-  useParameterKeys(prefix: string | undefined): QueryResult<readonly string[]> {
+  useParameterKeys(
+    prefix: string | undefined,
+  ): AsyncMemoResult<readonly string[]> {
     return this.inner.useParameterKeys(prefix);
   }
 
@@ -231,6 +233,15 @@ export function renderDataGrid(app: App): m.Children {
         '"manager.manager.name" or "department.head.name". For parameterized columns ',
         'like "skills", you can type any key name (e.g., "typescript", "python").',
       ]),
+      m('p', [
+        'Want to experiment with custom schemas? Try the ',
+        m(
+          Anchor,
+          {href: '#!/widgets/datagrid-playground'},
+          'DataGrid Playground',
+        ),
+        ' for an interactive editor where you can define and test your own DataGrid configs.',
+      ]),
     ),
 
     renderWidgetShowcase({
@@ -252,6 +263,7 @@ export function renderDataGrid(app: App): m.Children {
       initialOpts: {
         showExportButton: false,
         structuredQueryCompatMode: false,
+        enableQuickFilter: false,
         disablePivotControls: false,
         disableColumnControls: false,
         disableFilterControls: false,

@@ -15,7 +15,7 @@
 import './styles.scss';
 import m from 'mithril';
 
-import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
+import type {TreeExplorerQueryMetric} from '../../components/tree_explorer_fetcher';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {NUM, STR} from '../../trace_processor/query_result';
@@ -24,38 +24,28 @@ import {
   type AggregateProfilesPageState,
   AGGREGATE_PROFILES_PAGE_STATE_SCHEMA,
 } from './types';
-import type {Store} from '../../base/store';
-import {ensureExists} from '../../base/assert';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AggregateProfiles';
-  private store?: Store<AggregateProfilesPageState>;
-
-  private migratePageState(init: unknown): AggregateProfilesPageState {
-    const result = AGGREGATE_PROFILES_PAGE_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    this.store = trace.mountStore('dev.perfetto.AggregateProfiles', (init) =>
-      this.migratePageState(init),
-    );
+    const storage = trace.registerStorage({
+      id: 'dev.perfetto.AggregateProfiles',
+      schema: AGGREGATE_PROFILES_PAGE_STATE_SCHEMA,
+      defaultValue: {},
+    });
     const profiles = await this.getProfiles(trace);
     if (profiles.length === 0) {
       return;
     }
-    const store = ensureExists(this.store);
     trace.pages.registerPage({
       route: '/aggregateprofiles',
       render: () =>
         m(AggregateProfilesPage, {
           trace,
-          state: store.state,
+          state: storage.get(),
           onStateChange: (state: AggregateProfilesPageState) => {
-            store.edit((draft) => {
-              draft.selectedProfileId = state.selectedProfileId;
-              draft.flamegraphState = state.flamegraphState;
-            });
+            storage.set(state);
           },
           profiles,
         }),
@@ -68,7 +58,7 @@ export default class implements PerfettoPlugin {
       icon: 'analytics',
     });
     trace.onTraceReady.addListener(async () => {
-      const hasAnyTracks = trace.workspaces.all[0].flatTracks.length > 0;
+      const hasAnyTracks = trace.workspaces.all[0]!.flatTracks.length > 0;
       // TODO(lalitm): it's really bad that we're unconditionally navigating
       // to the profiles page: really we should check if the user has not already
       // set a page and then only navigate if no page is set. However:
@@ -103,7 +93,7 @@ export default class implements PerfettoPlugin {
   private async getProfileMetrics(
     trace: Trace,
     scope: string,
-  ): Promise<QueryFlamegraphMetric[]> {
+  ): Promise<TreeExplorerQueryMetric[]> {
     const result = await trace.engine.query(`
       SELECT
         id,
@@ -114,7 +104,7 @@ export default class implements PerfettoPlugin {
       WHERE scope = '${scope}'
       ORDER BY sample_type_type
     `);
-    const metrics: QueryFlamegraphMetric[] = [];
+    const metrics: TreeExplorerQueryMetric[] = [];
     for (
       const it = result.iter({
         id: NUM,

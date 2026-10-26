@@ -55,8 +55,7 @@ BufferedFrameDeserializer::BeginReceive() {
 
     // Surely we are going to use at least the first page, but we may not need
     // the rest for a bit.
-    const auto page_size = base::GetSysPageSize();
-    buf_.AdviseDontNeed(buf() + page_size, capacity_ - page_size);
+    buf_.AdviseDontNeedAfter(base::GetSysPageSize());
   }
 
   PERFETTO_CHECK(capacity_ > size_);
@@ -143,11 +142,8 @@ bool BufferedFrameDeserializer::EndReceive(size_t recv_size) {
     if (consumed_size > page_size) {
       size_t size_rounded_up = (size_ / page_size + 1) * page_size;
       if (size_rounded_up < capacity_) {
-        char* madvise_begin = buf() + size_rounded_up;
-        const size_t madvise_size = capacity_ - size_rounded_up;
-        PERFETTO_CHECK(madvise_begin > buf() + size_);
-        PERFETTO_CHECK(madvise_begin + madvise_size <= buf() + capacity_);
-        buf_.AdviseDontNeed(madvise_begin, madvise_size);
+        PERFETTO_CHECK(size_rounded_up > size_);
+        buf_.AdviseDontNeedAfter(size_rounded_up);
       }
     }
   }

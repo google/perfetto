@@ -15,6 +15,7 @@
 import m from 'mithril';
 import type {Engine} from '../../../trace_processor/engine';
 import {
+  type InferRowType,
   LONG,
   NUM_NULL,
   STR,
@@ -37,7 +38,7 @@ const packageDataSpec = {
   profileableFromShell: NUM_NULL,
 };
 
-type PackageData = typeof packageDataSpec;
+type PackageData = InferRowType<typeof packageDataSpec>;
 
 const androidGameInterventionRowSpec = {
   package_name: STR,
@@ -57,7 +58,9 @@ const androidGameInterventionRowSpec = {
   battery_mode_fps: NUM_NULL,
 };
 
-type AndroidGameInterventionRow = typeof androidGameInterventionRowSpec;
+type AndroidGameInterventionRow = InferRowType<
+  typeof androidGameInterventionRowSpec
+>;
 
 const aflagRowSpec = {
   ts: LONG,
@@ -70,7 +73,7 @@ const aflagRowSpec = {
   valuePickedFrom: STR_NULL,
 };
 
-type AflagRow = typeof aflagRowSpec;
+type AflagRow = InferRowType<typeof aflagRowSpec>;
 
 export interface AndroidData {
   packageList: PackageData[];
@@ -268,8 +271,8 @@ class PackageListSection implements m.ClassComponent<PackageListSectionAttrs> {
         ],
         rowData: packageList.map((pkg) => {
           const flags = [
-            pkg.debuggable ?? 0 ? 'debuggable' : '',
-            pkg.profileableFromShell ?? 0 ? 'profileable' : '',
+            (pkg.debuggable ?? 0) ? 'debuggable' : '',
+            (pkg.profileableFromShell ?? 0) ? 'profileable' : '',
           ]
             .filter(Boolean)
             .join(' ');
@@ -314,9 +317,7 @@ function formatCurrentMode(mode: number | null): string {
   return mode !== null ? String(mode) : 'Unknown';
 }
 
-class AndroidGameInterventionList
-  implements m.ClassComponent<AndroidGameInterventionListAttrs>
-{
+class AndroidGameInterventionList implements m.ClassComponent<AndroidGameInterventionListAttrs> {
   view({attrs}: m.CVnode<AndroidGameInterventionListAttrs>) {
     const data = attrs.data;
     if (data === undefined || data.length === 0) {
@@ -394,9 +395,7 @@ interface AndroidAflagsSectionAttrs {
   aflagErrors: string[];
 }
 
-class AndroidAflagsSection
-  implements m.ClassComponent<AndroidAflagsSectionAttrs>
-{
+class AndroidAflagsSection implements m.ClassComponent<AndroidAflagsSectionAttrs> {
   private selectedTs?: bigint;
 
   view({attrs}: m.CVnode<AndroidAflagsSectionAttrs>) {

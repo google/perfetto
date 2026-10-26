@@ -81,6 +81,7 @@ MODULE_TAGS = {
 
     # Android - CPU
     'android.cpu.cluster_type': ['android', 'cpu'],
+    'android.cpu.cluster_utilization': ['android', 'cpu'],
     'android.cpu.cpu_per_uid': ['android', 'cpu'],
     'android.dvfs': ['android', 'cpu', 'power'],
 
@@ -95,7 +96,6 @@ MODULE_TAGS = {
     'android.memory.heap_graph.helpers': ['android', 'memory'],
     'android.memory.heap_graph.excluded_refs': ['android', 'memory'],
     'android.memory.heap_graph.dominator_class_tree': ['android', 'memory'],
-    'android.memory.heap_graph.raw_dominator_tree': ['android', 'memory'],
     'android.memory.heap_graph.class_relationship': ['android', 'memory'],
     'android.memory.heap_graph.class_summary_tree': ['android', 'memory'],
     'android.memory.heap_graph.heap_graph_class_aggregation': [
@@ -162,6 +162,7 @@ MODULE_TAGS = {
     'android.process_metadata': ['android', 'metadata'],
     'android.thread': ['android', 'metadata'],
     'android.monitor_contention': ['android', 'performance'],
+    'android.lock_held': ['android', 'performance'],
     'android.oom_adjuster': ['android', 'app-lifecycle', 'memory'],
     'android.kernel_wakelocks': ['android', 'power'],
     'android.statsd': ['android', 'metadata'],
@@ -177,7 +178,6 @@ MODULE_TAGS = {
     'chrome.event_latency_description': ['chrome', 'input'],
     'chrome.input': ['chrome', 'input'],
     'chrome.android_input': ['chrome', 'input'],
-    'chrome.scroll_interactions': ['chrome', 'input'],
     'chrome.interactions': ['chrome', 'input'],
     'chrome.web_content_interactions': ['chrome', 'input'],
 
@@ -248,7 +248,6 @@ MODULE_TAGS = {
     'graphs.partition': ['utilities'],
     'graphs.dominator_tree': ['utilities'],
     'graphs.search': ['utilities'],
-    'graphs.critical_path': ['utilities', 'performance'],
 
     # Utilities
     'time.conversion': ['utilities'],
@@ -317,18 +316,6 @@ def get_tags(module_name: str):
     List of tags for the module, or empty list if no tags defined
   """
   return MODULE_TAGS.get(module_name, [])
-
-
-def get_all_unique_tags():
-  """Get all unique tags across all modules.
-
-  Returns:
-    Sorted list of all unique tags
-  """
-  all_tags = set()
-  for tags in MODULE_TAGS.values():
-    all_tags.update(tags)
-  return sorted(all_tags)
 
 
 # Validate that all tags in MODULE_TAGS are from VALID_TAGS

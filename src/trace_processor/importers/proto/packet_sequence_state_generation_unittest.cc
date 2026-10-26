@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 
+#include <limits>
+
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
@@ -88,6 +90,25 @@ TEST_F(PacketSequenceStateGenerationTest,
       g1->GetCustomState<TrackEventSequenceState>();
   EXPECT_EQ(s_via_g1, s);
   EXPECT_FALSE(s_via_g1->timestamps_valid());
+}
+
+TEST_F(PacketSequenceStateGenerationTest, TrackEventDeltasSaturate) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+  RefPtr<PacketSequenceStateGeneration> generation =
+      PacketSequenceStateGeneration::CreateFirst(&context_);
+  TrackEventSequenceState* state =
+      generation->GetCustomState<TrackEventSequenceState>();
+
+  state->SetReferenceTimestamps(kMax - 1, kMin + 1, kMax - 1);
+  EXPECT_EQ(state->IncrementAndGetTrackEventTimeNs(2), kMax);
+  EXPECT_EQ(state->IncrementAndGetTrackEventThreadTimeNs(-2), kMin);
+  EXPECT_EQ(state->IncrementAndGetTrackEventThreadInstructionCount(2), kMax);
+
+  state->SetReferenceTimestamps(kMin + 1, kMax - 1, kMin + 1);
+  EXPECT_EQ(state->IncrementAndGetTrackEventTimeNs(-2), kMin);
+  EXPECT_EQ(state->IncrementAndGetTrackEventThreadTimeNs(2), kMax);
+  EXPECT_EQ(state->IncrementAndGetTrackEventThreadInstructionCount(-2), kMin);
 }
 
 // SEQ_INCREMENTAL_STATE_CLEARED carries the persistent thread descriptor

@@ -191,9 +191,7 @@ export interface FunctionSelectStepAttrs {
 /**
  * Component for the function selection step
  */
-export class FunctionSelectStep
-  implements m.ClassComponent<FunctionSelectStepAttrs>
-{
+export class FunctionSelectStep implements m.ClassComponent<FunctionSelectStepAttrs> {
   view({attrs}: m.CVnode<FunctionSelectStepAttrs>) {
     return m(
       '.pf-exp-node-panel-help',
@@ -225,9 +223,7 @@ export interface FunctionConfigureStepAttrs {
 /**
  * Component for the function configuration step
  */
-export class FunctionConfigureStep
-  implements m.ClassComponent<FunctionConfigureStepAttrs>
-{
+export class FunctionConfigureStep implements m.ClassComponent<FunctionConfigureStepAttrs> {
   view({attrs}: m.CVnode<FunctionConfigureStepAttrs>) {
     const {
       selectedFunctionWithModule,

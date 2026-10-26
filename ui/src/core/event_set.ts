@@ -192,9 +192,9 @@ export interface Sort {
 // Together this means in the minimal case subclasses only *have* to
 // implement the single abstract method: materialise(). Everything else
 // is handled for you.
-export abstract class OptimisingEventSet<P extends KeySet>
-  implements EventSet<P>
-{
+export abstract class OptimisingEventSet<
+  P extends KeySet,
+> implements EventSet<P> {
   abstract readonly keys: P;
 
   // OptimisingEventSet provides the synchronous refinement methods.
@@ -647,8 +647,9 @@ export function optimise<T extends KeySet>(eventSet: EventSet<T>): EventSet<T> {
       return new EmptyEventSet(keys);
     }
 
-    if (newParents.length === 1) {
-      return newParents[0];
+    const firstParent = newParents[0];
+    if (newParents.length === 1 && firstParent !== undefined) {
+      return firstParent;
     }
 
     // The union of concrete EventSets is a concrete EventSets with all

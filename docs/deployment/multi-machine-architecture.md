@@ -100,8 +100,8 @@ Each remote machine has its own `CLOCK_BOOTTIME`, so timestamps written by
 its producers cannot be compared directly to host timestamps. `traced_relay`
 runs a lightweight ping protocol against the host's relay endpoint, sending
 and receiving timestamped messages to estimate the per-machine clock offset
-and round-trip time. The host periodically emits the resulting offsets as
-`ClockSnapshot` packets in the trace.
+and round-trip time. The host emits the resulting paired `ClockSnapshot`s
+for each remote machine as a `RemoteClockSync` packet in the trace.
 
 From there everything reuses the existing single-machine machinery
 described in [Clock Synchronization](/docs/concepts/clock-sync.md): Trace
@@ -157,7 +157,7 @@ namespaces, etc.).
 * [Multi-machine recording](/docs/learning-more/multi-machine-tracing.md) —
   step-by-step walk-through of recording a multi-machine trace between two
   Linux hosts.
-* [How trace merging works](/docs/concepts/merging-traces.md) — combining
+* [Trace merging](/docs/concepts/merging-traces.md) — combining
   independently recorded traces into the same multi-machine model after
   the fact.
 * [Clock Synchronization](/docs/concepts/clock-sync.md) — the single-machine

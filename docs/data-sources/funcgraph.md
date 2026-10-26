@@ -26,7 +26,7 @@ If instead you want to add your **own** tracepoints to the kernel, see
   up as a raw hexadecimal address. See
   [Symbolization: kernel symbols](/docs/learning-more/symbolization.md#ftrace)
   for why kernel symbols must be resolved at record time and cannot be added
-  afterwards with `traceconv bundle`.
+  afterwards with `trace_processor bundle`.
 - On **Android**, function graph tracing is available only on `debuggable`
   (userdebug/eng) builds, and was introduced in Android U.
 - `traced_probes` must run as root (or `kptr_restrict` lowered), both to read
@@ -103,11 +103,11 @@ can be queried like any other slice. For example, to find the kernel functions
 that accounted for the most aggregate time:
 
 ```sql
-SELECT name, COUNT(*) AS calls, SUM(dur) AS total_dur
+SELECT slice.name, COUNT(*) AS calls, SUM(dur) AS total_dur
 FROM slice
 JOIN track ON slice.track_id = track.id
 WHERE track.name = 'Funcgraph'
-GROUP BY name
+GROUP BY slice.name
 ORDER BY total_dur DESC
 LIMIT 20;
 ```

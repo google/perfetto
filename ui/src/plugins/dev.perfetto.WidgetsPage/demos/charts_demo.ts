@@ -1937,8 +1937,7 @@ function ScatterChartDemo(): m.Component<{
   legendPosition: LegendPosition;
 }> {
   let brushRange:
-    | {xMin: number; xMax: number; yMin: number; yMax: number}
-    | undefined;
+    {xMin: number; xMax: number; yMin: number; yMax: number} | undefined;
 
   return {
     view: ({attrs}) => {
@@ -2260,8 +2259,7 @@ function SQLScatterChartDemo(): m.Component<{
 }> {
   let loader: SQLScatterChartLoader | undefined;
   let brushRange:
-    | {xMin: number; xMax: number; yMin: number; yMax: number}
-    | undefined;
+    {xMin: number; xMax: number; yMin: number; yMax: number} | undefined;
 
   return {
     view: ({attrs}) => {
@@ -2548,8 +2546,8 @@ function HeatmapChartDemo(): m.Component<{
         let max = -Infinity;
         const filteredValues: Array<readonly [number, number, number]> = [];
         for (const [xIdx, yIdx, val] of data.values) {
-          const xLabel = data.xLabels[xIdx];
-          const yLabel = data.yLabels[yIdx];
+          const xLabel = data.xLabels[xIdx]!;
+          const yLabel = data.yLabels[yIdx]!;
           const newX = xIndices.get(xLabel);
           const newY = yIndices.get(yLabel);
           if (newX !== undefined && newY !== undefined) {
@@ -2831,8 +2829,8 @@ function SQLHeatmapDemo(): m.Component<{
         let max = -Infinity;
         const filteredValues: Array<readonly [number, number, number]> = [];
         for (const [xIdx, yIdx, val] of data.values) {
-          const xLabel = data.xLabels[xIdx];
-          const yLabel = data.yLabels[yIdx];
+          const xLabel = data.xLabels[xIdx]!;
+          const yLabel = data.yLabels[yIdx]!;
           const newX = xIndices.get(xLabel);
           const newY = yIndices.get(yLabel);
           if (newX !== undefined && newY !== undefined) {

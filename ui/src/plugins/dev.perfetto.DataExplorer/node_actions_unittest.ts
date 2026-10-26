@@ -55,9 +55,9 @@ describe('node_actions', () => {
       actions.onAddAndConnectTable?.('my_table', 2);
 
       expect(addAndConnectTableCalls).toHaveLength(1);
-      expect(addAndConnectTableCalls[0].tableName).toBe('my_table');
-      expect(addAndConnectTableCalls[0].node).toBe(node);
-      expect(addAndConnectTableCalls[0].portIndex).toBe(2);
+      expect(addAndConnectTableCalls[0]!.tableName).toBe('my_table');
+      expect(addAndConnectTableCalls[0]!.node).toBe(node);
+      expect(addAndConnectTableCalls[0]!.portIndex).toBe(2);
     });
 
     it('should delegate onInsertModifyColumnsNode with correct descriptor key', () => {
@@ -67,9 +67,9 @@ describe('node_actions', () => {
       actions.onInsertModifyColumnsNode?.(1);
 
       expect(insertNodeAtPortCalls).toHaveLength(1);
-      expect(insertNodeAtPortCalls[0].node).toBe(node);
-      expect(insertNodeAtPortCalls[0].portIndex).toBe(1);
-      expect(insertNodeAtPortCalls[0].descriptorKey).toBe('modify_columns');
+      expect(insertNodeAtPortCalls[0]!.node).toBe(node);
+      expect(insertNodeAtPortCalls[0]!.portIndex).toBe(1);
+      expect(insertNodeAtPortCalls[0]!.descriptorKey).toBe('modify_columns');
     });
 
     it('should delegate onInsertCounterToIntervalsNode with correct descriptor key', () => {
@@ -79,9 +79,9 @@ describe('node_actions', () => {
       actions.onInsertCounterToIntervalsNode?.(3);
 
       expect(insertNodeAtPortCalls).toHaveLength(1);
-      expect(insertNodeAtPortCalls[0].node).toBe(node);
-      expect(insertNodeAtPortCalls[0].portIndex).toBe(3);
-      expect(insertNodeAtPortCalls[0].descriptorKey).toBe(
+      expect(insertNodeAtPortCalls[0]!.node).toBe(node);
+      expect(insertNodeAtPortCalls[0]!.portIndex).toBe(3);
+      expect(insertNodeAtPortCalls[0]!.descriptorKey).toBe(
         'counter_to_intervals',
       );
     });
@@ -111,9 +111,9 @@ describe('node_actions', () => {
       actions.onAddAndConnectTable?.('table_a', 1);
 
       expect(addAndConnectTableCalls).toHaveLength(1);
-      expect(addAndConnectTableCalls[0].node).toBe(node);
-      expect(addAndConnectTableCalls[0].tableName).toBe('table_a');
-      expect(addAndConnectTableCalls[0].portIndex).toBe(1);
+      expect(addAndConnectTableCalls[0]!.node).toBe(node);
+      expect(addAndConnectTableCalls[0]!.tableName).toBe('table_a');
+      expect(addAndConnectTableCalls[0]!.portIndex).toBe(1);
     });
 
     it('should delegate onInsertModifyColumnsNode once nodeRef is set', () => {
@@ -126,8 +126,8 @@ describe('node_actions', () => {
       actions.onInsertModifyColumnsNode?.(5);
 
       expect(insertNodeAtPortCalls).toHaveLength(1);
-      expect(insertNodeAtPortCalls[0].node).toBe(node);
-      expect(insertNodeAtPortCalls[0].descriptorKey).toBe('modify_columns');
+      expect(insertNodeAtPortCalls[0]!.node).toBe(node);
+      expect(insertNodeAtPortCalls[0]!.descriptorKey).toBe('modify_columns');
     });
 
     it('should delegate onInsertCounterToIntervalsNode once nodeRef is set', () => {
@@ -140,8 +140,8 @@ describe('node_actions', () => {
       actions.onInsertCounterToIntervalsNode?.(7);
 
       expect(insertNodeAtPortCalls).toHaveLength(1);
-      expect(insertNodeAtPortCalls[0].node).toBe(node);
-      expect(insertNodeAtPortCalls[0].descriptorKey).toBe(
+      expect(insertNodeAtPortCalls[0]!.node).toBe(node);
+      expect(insertNodeAtPortCalls[0]!.descriptorKey).toBe(
         'counter_to_intervals',
       );
     });
@@ -205,8 +205,8 @@ describe('node_actions', () => {
       node.context.actions?.onAddAndConnectTable?.('test_table', 0);
 
       expect(addAndConnectTableCalls).toHaveLength(1);
-      expect(addAndConnectTableCalls[0].tableName).toBe('test_table');
-      expect(addAndConnectTableCalls[0].node).toBe(node);
+      expect(addAndConnectTableCalls[0]!.tableName).toBe('test_table');
+      expect(addAndConnectTableCalls[0]!.node).toBe(node);
     });
   });
 });

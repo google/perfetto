@@ -72,15 +72,14 @@ void PrunePackageList::OnPackageList(
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
     if (field.id() == protos::pbzero::PackagesList::kPackagesFieldNumber) {
-      // The package uid should already be normalized (see
-      // find_package_info.cc).
-      //
-      // If there are more than one package entry (see
-      // trace_redaction_framework.h for more details), we need to match all
-      // instances here because retained processes will reference them.
+      // As documented in FindPackageUid, packages.list entries store
+      // normalized UIDs (uid < 100,000), whereas context.package_uid holds a
+      // full per-user UID when passed via --uid. Normalize context.package_uid
+      // so secondary user profile traces still retain the package's metadata
+      // entry.
       protos::pbzero::PackagesList::PackageInfo::Decoder info(field.as_bytes());
 
-      if (info.has_uid() && NormalizeUid(info.uid()) == context.package_uid) {
+      if (info.has_uid() && info.uid() == NormalizeUid(*context.package_uid)) {
         proto_util::AppendField(field, message);
       }
     } else {

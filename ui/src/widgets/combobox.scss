@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../assets/theme";
+@use "../assets/theme" as *;
 
 .pf-popup.pf-combobox__popup {
   .pf-popup-content {
