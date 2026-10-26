@@ -127,6 +127,11 @@ type EvalResult =
   | {readonly ok: true; readonly attrs: DataGridAttrs}
   | {readonly ok: false; readonly error: string};
 
+// TODO(b/578017081): The interactive DataGrid editor relies on `new Function(...)` to
+// dynamically evaluate user-supplied configuration code. Under the tightened
+// Content Security Policy (`'wasm-unsafe-eval'`), JavaScript string evaluation
+// is rejected by the browser (throwing an EvalError). Restore interactive
+// functionality (e.g. via pre-compiled presets or a sandboxed execution context).
 function evalConfig(trace: Trace, code: string): EvalResult {
   try {
     const fn = new Function('engine', 'SQLDataSource', 'm', code);
