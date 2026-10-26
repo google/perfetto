@@ -1056,7 +1056,8 @@ class DebugAnnotationParserTest : public ::testing::Test,
   std::map<std::string, size_t> array_indices_;
 
   TraceProcessorContext context_;
-  PacketSequenceStateBuilder state_builder_{&context_};
+  PacketSequenceStateBuilder state_builder_{&context_,
+                                            /*trusted_packet_sequence_id=*/1};
 };
 
 // This test checks that in when an array is nested inside a dict which is

@@ -119,21 +119,9 @@ void ProtoTraceParserImpl::ParseTracePacket(int64_t ts, TracePacketData data) {
 
 void ProtoTraceParserImpl::ParseTrackEvent(int64_t ts,
                                            const TrackEventData& data) {
-  const TraceBlobView& blob = data.trace_packet_data.packet;
-  protozero::ProtoDecoder packet(blob.data(), blob.length());
-  protozero::ConstBytes event{};
-  uint32_t sequence_id = 0;
-  for (auto field = packet.ReadField(); field.valid();
-       field = packet.ReadField()) {
-    if (field.id() == protos::pbzero::TracePacket::kTrackEventFieldNumber) {
-      event = field.as_bytes();
-    } else if (field.id() == protos::pbzero::TracePacket::
-                                 kTrustedPacketSequenceIdFieldNumber) {
-      sequence_id = field.as_uint32();
-    }
-  }
-  module_context_->track_module->ParseTrackEventData(ts, data, event,
-                                                     sequence_id);
+  module_context_->track_module->ParseTrackEventData(
+      ts, data, protozero::ConstBytes{data.event.data(), data.event.size()},
+      data.sequence_state->trusted_packet_sequence_id());
 }
 
 void ProtoTraceParserImpl::ParseEtwEvent(uint32_t cpu,
