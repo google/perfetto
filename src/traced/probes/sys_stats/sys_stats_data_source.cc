@@ -413,7 +413,7 @@ std::optional<uint64_t> SysStatsDataSource::ReadAMDGpuFreq() {
   for (base::StringSplitter lines(*amd_gpu_freq, '\n'); lines.Next();) {
     base::StringView line(lines.cur_token(), lines.cur_token_size());
     // Current frequency indicated with asterisk.
-    if (line.EndsWith("*")) {
+    if (base::EndsWith(line, "*")) {
       for (base::StringSplitter words(line.ToStdString(), ' '); words.Next();) {
         if (!base::EndsWith(words.cur_token(), "Mhz"))
           continue;
@@ -531,7 +531,7 @@ void SysStatsDataSource::ReadPsi(protos::pbzero::SysStats* sys_stats) {
           psi->set_resource(resource);
         } else if (index == 4) {
           const base::StringView prefix("total=");
-          if (token.StartsWith(prefix)) {
+          if (base::StartsWith(token, prefix)) {
             token = token.substr(prefix.size());
           }
           // The raw PSI total readings are in micros, so convert accordingly.

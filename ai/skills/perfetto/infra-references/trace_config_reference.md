@@ -41,6 +41,7 @@ Merging two configs = keep one `buffers` section and concatenate their
 | `sched_cpu.pftxt` | CPU scheduling + frequency/idle. The base layer for most investigations. |
 | `app_jank.pftxt` | Slow UI / dropped frames: atrace categories, app events, frame timeline. |
 | `memory_counters.pftxt` | System + per-process memory over time, LMK activity. |
+| `android_memory.pftxt` | Everything `system_trace_memory.md` reads: RSS/swap, Java heap & GC, bitmaps, HWUI/GPU/DMA-BUF memory, binder proxies, LMK. |
 | `java_heap_dump.pftxt` | Java heap retention graph for one app. |
 | `native_heap.pftxt` | Sampled native malloc/free callstacks (heapprofd). |
 | `cpu_profile.pftxt` | Periodic CPU callstack samples (traced_perf). |

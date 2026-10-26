@@ -539,5 +539,40 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
               ElementsAre(Pair(0, 10), Pair(1, 20), Pair(2, 30), Pair(3, 40)));
 }
 
+// 1 -> 2, 1 -> 3, 2 -> 4, 3 -> 4. Each input is read from its own side
+// pipeline with its ids as Int64. The rows come out numbered and parent first,
+// so a fold down needs nothing more and a fold up only reverses them. Every
+// object's parent_id is junk which the tree's own replaces.
+TEST_F(PhysicalPlanTest, FoldsAfterAGraphTreeReuseItsNumbering) {
+  Exec("CREATE TABLE objects(id INTEGER, parent_id INTEGER, self INTEGER)");
+  Exec(
+      "INSERT INTO objects VALUES (4, 99, 40), (2, 99, 20), (3, 99, 30), "
+      "(1, 99, 10)");
+  Exec("CREATE TABLE refs(src INTEGER, dst INTEGER)");
+  Exec("INSERT INTO refs VALUES (3, 4), (1, 3), (2, 4), (1, 2)");
+  auto plan = Plan(
+      "GRAPH DOMINATOR TREE NODES objects EDGES refs FROM (SELECT 1 AS id) "
+      "|> TREE ACCUMULATE DOWN COUNT(*) AS depth "
+      "|> TREE ACCUMULATE UP SUM(self) AS retained");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "side: DataframeScan | AssertType(#0 to Int64)\n"
+            "side: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64)\n"
+            "side: DataframeScan | AssertType(#0 to Int64)\n"
+            "main: GraphTree(DOMINATOR; nodes: #0 keeping #0, #1; "
+            "edges: #0 -> #1; seeds: #0) | TreeAccumulateDown(#3, #4; "
+            "COUNT(*)) | TreeChildFirst(#3, #4) | AssertType(#1 to Int64) | "
+            "TreeAccumulateUp(#3, #4; SUM(#1))");
+  auto depth = Run(**plan, "depth");
+  ASSERT_TRUE(depth.ok()) << depth.status().message();
+  EXPECT_THAT(*depth,
+              ElementsAre(Pair(1, 1), Pair(2, 2), Pair(3, 2), Pair(4, 2)));
+  auto retained = Run(**plan, "retained");
+  ASSERT_TRUE(retained.ok()) << retained.status().message();
+  EXPECT_THAT(*retained,
+              ElementsAre(Pair(1, 100), Pair(2, 20), Pair(3, 30), Pair(4, 40)));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::pipeline

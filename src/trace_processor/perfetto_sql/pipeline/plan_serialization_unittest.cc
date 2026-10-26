@@ -30,6 +30,7 @@
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
@@ -111,6 +112,8 @@ const char* const kPipelines[] = {
     "FROM df |> WHERE self > 0 AND id < 10",
     "FROM spans |> AGGREGATE COUNT(*) AS n, SUM(dur) AS d GROUP BY cpu AS c",
     "FROM spans |> AGGREGATE MAX(dur) AS m |> SELECT m",
+    R"(GRAPH DOMINATOR TREE NODES df EDGES (SELECT parent_id AS src, id AS dst
+      FROM df) FROM (SELECT 0 AS id) |> TREE ACCUMULATE UP SUM(self) AS t)",
     // Pruning removes the fold, whose node is left behind unread.
     "FROM df |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id",
 };
@@ -179,6 +182,13 @@ TEST_F(PlanSerializationTest, PlansWithTooManyOutputsAreNotWritten) {
   LogicalPlan over_limit = plan;
   over_limit.output().assign(kMaxPipelineColumns + 1, plan.output()[0]);
   EXPECT_FALSE(SelectPipelineSql(over_limit, key_).ok());
+}
+
+// A lookup checks no two operations share the tag it finds.
+TEST(PlanSerializationTagTest, TagsAreUnique) {
+  for (uint32_t tag = 0; tag < 256; ++tag) {
+    FindOperationByTag(static_cast<uint8_t>(tag));
+  }
 }
 
 }  // namespace

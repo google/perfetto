@@ -22,6 +22,7 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/aggregate_function.h"
@@ -29,7 +30,9 @@
 #include "src/trace_processor/core/exec/combine_batches.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/distinct.h"
+#include "src/trace_processor/core/exec/expression.h"
 #include "src/trace_processor/core/exec/filter.h"
+#include "src/trace_processor/core/exec/graph_tree.h"
 #include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/hash_aggregate.h"
 #include "src/trace_processor/core/exec/interval_fill_gaps.h"
@@ -146,6 +149,38 @@ std::string TypeName(const StorageType& type) {
   return "String";
 }
 
+// Prints step `i` of `program` as an expression.
+std::string StepString(const ExprProgram& program, uint32_t i) {
+  using ExprOp = ExprStep::Op;
+  const ExprStep& step = program.steps[i];
+  auto binary = [&](const char* op) {
+    return "(" + StepString(program, step.a) + " " + op + " " +
+           StepString(program, step.b) + ")";
+  };
+  switch (step.op) {
+    case ExprOp::kColumn:
+      return "#" + std::to_string(step.a);
+    case ExprOp::kConstant:
+      return step.type == ExprType::kDouble ? std::to_string(step.double_value)
+                                            : std::to_string(step.int_value);
+    case ExprOp::kNull:
+      return "NULL";
+    case ExprOp::kToDouble:
+      return "double(" + StepString(program, step.a) + ")";
+    case ExprOp::kAdd:
+      return binary("+");
+    case ExprOp::kSub:
+      return binary("-");
+    case ExprOp::kMul:
+      return binary("*");
+    case ExprOp::kDiv:
+      return binary("/");
+    case ExprOp::kMod:
+      return binary("%");
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 }  // namespace
 
 std::string PipelineFormatter::Format(const Pipeline& pipeline) {
@@ -165,6 +200,18 @@ std::string PipelineFormatter::Format(const Pipeline& pipeline) {
 std::string PipelineFormatter::SourceString(const Source& source) {
   if (source.Is<DataframeScan>()) {
     return "DataframeScan";
+  }
+  if (source.Is<GraphTree>()) {
+    const GraphTreeSpec& spec = static_cast<const GraphTree&>(source).spec_;
+    const char* kind = spec.kind == GraphTreeSpec::Kind::kBfs   ? "BFS"
+                       : spec.kind == GraphTreeSpec::Kind::kDfs ? "DFS"
+                                                                : "DOMINATOR";
+    return std::string("GraphTree(") + kind +
+           "; nodes: " + Column(spec.node_column) + " keeping " +
+           Columns(spec.retained_columns) +
+           "; edges: " + Column(spec.source_column) + " -> " +
+           Column(spec.target_column) + "; seeds: " + Column(spec.seed_column) +
+           ")";
   }
   if (source.Is<IntervalIntersect>()) {
     const auto& isect = static_cast<const IntervalIntersect&>(source);
@@ -191,6 +238,16 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
   if (transform.Is<Distinct>()) {
     return "Distinct(" +
            Columns(static_cast<const Distinct&>(transform).columns_) + ")";
+  }
+  if (transform.Is<Compute>()) {
+    const auto& compute = static_cast<const Compute&>(transform);
+    std::string out;
+    for (const ExprProgram& program : compute.programs_) {
+      out +=
+          (out.empty() ? "" : ", ") +
+          StepString(program, static_cast<uint32_t>(program.steps.size() - 1));
+    }
+    return "Compute(" + out + ")";
   }
   if (transform.Is<Filter>()) {
     const auto& filter = static_cast<const Filter&>(transform);

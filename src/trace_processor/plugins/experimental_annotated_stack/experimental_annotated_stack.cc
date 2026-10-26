@@ -27,6 +27,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
@@ -68,30 +69,31 @@ MapType ClassifyMap(NullTermStringView map) {
   // Primary mapping where modern ART puts jitted code.
   // The Zygote's JIT region is inherited by all descendant apps, so it can
   // still appear in their callstacks.
-  if (map.StartsWith("/memfd:jit-cache") ||
-      map.StartsWith("/memfd:jit-zygote-cache")) {
+  if (base::StartsWith(map, "/memfd:jit-cache") ||
+      base::StartsWith(map, "/memfd:jit-zygote-cache")) {
     return MapType::kArtJit;
   }
 
   size_t last_slash_pos = map.rfind('/');
   if (last_slash_pos != NullTermStringView::npos) {
     base::StringView suffix = map.substr(last_slash_pos);
-    if (suffix.StartsWith("/libart.so") || suffix.StartsWith("/libartd.so"))
+    if (base::StartsWith(suffix, "/libart.so") ||
+        base::StartsWith(suffix, "/libartd.so"))
       return MapType::kNativeLibart;
   }
   size_t extension_pos = map.rfind('.');
   if (extension_pos != NullTermStringView::npos) {
     base::StringView suffix = map.substr(extension_pos);
-    if (suffix.StartsWith(".so"))
+    if (base::StartsWith(suffix, ".so"))
       return MapType::kNativeOther;
     // unqualified dex
-    if (suffix.StartsWith(".dex"))
+    if (base::StartsWith(suffix, ".dex"))
       return MapType::kArtInterp;
     // dex with verification speedup info, produced by dex2oat
-    if (suffix.StartsWith(".vdex"))
+    if (base::StartsWith(suffix, ".vdex"))
       return MapType::kArtInterp;
     // possibly uncompressed dex in a jar archive
-    if (suffix.StartsWith(".jar"))
+    if (base::StartsWith(suffix, ".jar"))
       return MapType::kArtInterp;
     // android package (zip file), this can contain uncompressed dexes or
     // native libraries that are mmap'd directly into the process. We rely on
@@ -99,13 +101,13 @@ MapType ClassifyMap(NullTermStringView map) {
     // "!lib.so" if it knows that the referenced piece of the archive is an
     // uncompressed ELF file. So an unadorned ".apk" is assumed to be a dex
     // file.
-    if (suffix.StartsWith(".apk"))
+    if (base::StartsWith(suffix, ".apk"))
       return MapType::kArtInterp;
     // ahead of time compiled ELFs
-    if (suffix.StartsWith(".oat"))
+    if (base::StartsWith(suffix, ".oat"))
       return MapType::kArtAot;
     // older/alternative name for .oat
-    if (suffix.StartsWith(".odex"))
+    if (base::StartsWith(suffix, ".odex"))
       return MapType::kArtAot;
   }
   return MapType::kOther;
@@ -286,10 +288,11 @@ bool ExperimentalAnnotatedStack::Cursor::Run(
     if (annotation_state == State::kEraseLibart &&
         map_type == MapType::kNativeLibart) {
       NullTermStringView fname = context_->storage->GetString(fname_id);
-      if (fname.StartsWith("nterp_") || fname.StartsWith("Nterp") ||
-          fname.StartsWith("ExecuteNterp") ||
-          fname.StartsWith("ExecuteSwitchImpl") ||
-          fname.StartsWith("_ZN3art11interpreter")) {
+      if (base::StartsWith(fname, "nterp_") ||
+          base::StartsWith(fname, "Nterp") ||
+          base::StartsWith(fname, "ExecuteNterp") ||
+          base::StartsWith(fname, "ExecuteSwitchImpl") ||
+          base::StartsWith(fname, "_ZN3art11interpreter")) {
         annotations_reversed.push_back(common_frame_interp);
         continue;
       }

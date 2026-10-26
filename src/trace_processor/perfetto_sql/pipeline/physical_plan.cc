@@ -182,7 +182,7 @@ void Lowering::RequireSorted(const std::vector<SortKey>& keys) {
   }
   ex::SortSpec sort;
   for (const SortKey& key : keys) {
-    if (!plan().columns()[key.column].type.storage()) {
+    if (!plan_->TypeOf(key.column).storage()) {
       RequireType(key.column, core::Int64{});
     }
     sort.keys.push_back({QueryPosition(key.column), key.descending});
@@ -300,6 +300,10 @@ uint32_t Lowering::DeclareTemporaryColumn() {
   return column_count_++;
 }
 
+void Lowering::DeclareType(ColumnId id, core::StorageType type) {
+  plan_->converted_[id] = type;
+}
+
 void Lowering::DeclareSorted(const std::vector<SortKey>& keys) {
   arrangements_.push_back({{}, keys});
 }
@@ -316,6 +320,16 @@ void Lowering::DeclareSortedWithinGroups(
 
 void Lowering::DeclareSmallBatches() {
   full_batches_ = false;
+}
+
+void Lowering::DeclareTreeWalk(ColumnId node,
+                               ColumnId parent,
+                               TreeColumns columns,
+                               TreeDirection direction) {
+  tree_columns_ = columns;
+  tree_node_ = node;
+  tree_parent_ = parent;
+  tree_walk_ = direction;
 }
 
 void Lowering::DeclareRowsDropped() {
@@ -456,7 +470,7 @@ void Lowering::GroupRows(const std::vector<ColumnId>& keys,
     spec.groups.push_back(QueryPosition(key));
   }
   for (const SortKey& key : sorted_by) {
-    if (!plan().columns()[key.column].type.storage()) {
+    if (!plan_->TypeOf(key.column).storage()) {
       RequireType(key.column, core::Int64{});
     }
     spec.keys.push_back({QueryPosition(key.column), key.descending});

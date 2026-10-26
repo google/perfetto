@@ -103,7 +103,7 @@ uint64_t ReadNumber(const uint8_t* ptr, size_t num_bytes) {
 std::string ConstructPathname(base::StringView class_name,
                               base::StringView pathname) {
   size_t index = class_name.rfind('/');
-  if (index != base::StringView::npos && pathname.EndsWith(".java")) {
+  if (index != base::StringView::npos && base::EndsWith(pathname, ".java")) {
     return class_name.substr(0, index + 1).ToStdString() +
            pathname.ToStdString();
   }
@@ -286,7 +286,7 @@ void ArtMethodV2Tokenizer::ParseMethod(uint64_t id, const std::string& str) {
     pathname = context_->storage->InternString(base::StringView(pathname_str));
     line_number = base::StringToUInt32(tokens[4].ToStdString());
   } else if (tokens.size() > 2) {
-    if (tokens[2].StartsWith("(")) {
+    if (base::StartsWith(tokens[2], "(")) {
       method_name = tokens[1];
       signature = tokens[2];
       if (tokens.size() >= 4) {
