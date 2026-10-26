@@ -557,8 +557,7 @@ void JsonTraceTokenizer::RecordEventError(size_t stat_key,
   StringId error_key = context_->storage->InternString("error");
   context_->import_logs_tracker->RecordTokenizationLog(
       stat_key, CurrentByteOffset(),
-      [raw_key, raw_id, error_key,
-       error_id](ArgsTracker::BoundInserter& inserter) {
+      [raw_key, raw_id, error_key, error_id](ArgsInserter& inserter) {
         inserter.AddArg(raw_key, Variadic::String(raw_id));
         if (error_id) {
           inserter.AddArg(error_key, Variadic::String(*error_id));

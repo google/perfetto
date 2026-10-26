@@ -219,8 +219,7 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx,
         {}, true);
     if (!status.ok()) {
       context_->import_logs_tracker->RecordAnalysisLog(
-          stats::extra_parsing_descriptors_error,
-          [&](ArgsTracker::BoundInserter& ins) {
+          stats::extra_parsing_descriptors_error, [&](ArgsInserter& ins) {
             ins.AddArg(context_->storage->InternString("message"),
                        Variadic::String(
                            context_->storage->InternString(status.message())));
@@ -375,8 +374,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
       scoped_state->needs_incremental_state_skipped++;
       context_->import_logs_tracker->RecordTokenizationLog(
           stats::packet_skipped_seq_needs_incremental_state_invalid,
-          packet.offset(),
-          [this, seq_id](ArgsTracker::BoundInserter& inserter) {
+          packet.offset(), [this, seq_id](ArgsInserter& inserter) {
             inserter.AddArg(packet_sequence_id_key_id_,
                             Variadic::UnsignedInteger(seq_id));
           });
@@ -700,8 +698,7 @@ void ProtoTraceReader::ParseInternedData(
     uint32_t seq_id = packet_decoder.trusted_packet_sequence_id();
     context_->import_logs_tracker->RecordTokenizationLog(
         stats::interned_data_skipped_incremental_state_invalid,
-        interned_data.offset(),
-        [this, seq_id](ArgsTracker::BoundInserter& inserter) {
+        interned_data.offset(), [this, seq_id](ArgsInserter& inserter) {
           inserter.AddArg(packet_sequence_id_key_id_,
                           Variadic::UnsignedInteger(seq_id));
         });

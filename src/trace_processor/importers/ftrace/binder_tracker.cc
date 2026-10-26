@@ -255,8 +255,7 @@ void BinderTracker::Transaction(int64_t ts,
   TrackId track_id = context_->track_tracker->InternThreadTrack(src_utid);
 
   auto args_inserter = [this, transaction_id, dest_node, dest_tgid, is_reply,
-                        flags, code,
-                        tid](ArgsTracker::BoundInserter* inserter) {
+                        flags, code, tid](ArgsInserter* inserter) {
     inserter->AddArg(transaction_id_, Variadic::Integer(transaction_id));
     inserter->AddArg(dest_node_, Variadic::Integer(dest_node));
     inserter->AddArg(dest_process_, Variadic::Integer(dest_tgid));
@@ -275,8 +274,8 @@ void BinderTracker::Transaction(int64_t ts,
       UniqueTid utid = context_->process_tracker->GetOrCreateThread(
           static_cast<uint32_t>(dest_tid));
       auto dest_thread_name = context_->storage->thread_table()[utid].name();
-      auto dest_args_inserter = [this, dest_tid, &dest_thread_name](
-                                    ArgsTracker::BoundInserter* inserter) {
+      auto dest_args_inserter = [this, dest_tid,
+                                 &dest_thread_name](ArgsInserter* inserter) {
         inserter->AddArg(dest_thread_, Variadic::Integer(dest_tid));
         if (dest_thread_name.has_value()) {
           inserter->AddArg(dest_name_, Variadic::String(*dest_thread_name));
@@ -366,8 +365,7 @@ void BinderTracker::TransactionReceived(int64_t ts,
         std::move(transaction.args_inserter));
   } else {
     if (transaction.send_track_id) {
-      auto args_inserter = [this, utid,
-                            pid](ArgsTracker::BoundInserter* inserter) {
+      auto args_inserter = [this, utid, pid](ArgsInserter* inserter) {
         inserter->AddArg(dest_thread_, Variadic::UnsignedInteger(pid));
         auto dest_thread_name = context_->storage->thread_table()[utid].name();
         if (dest_thread_name.has_value()) {
@@ -543,7 +541,7 @@ void BinderTracker::TransactionAllocBuf(int64_t ts,
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
 
   auto args_inserter = [this, &data_size,
-                        offsets_size](ArgsTracker::BoundInserter* inserter) {
+                        offsets_size](ArgsInserter* inserter) {
     inserter->AddArg(data_size_, Variadic::UnsignedInteger(data_size));
     inserter->AddArg(offsets_size_, Variadic::UnsignedInteger(offsets_size));
   };

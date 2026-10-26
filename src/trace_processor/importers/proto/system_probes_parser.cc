@@ -1166,8 +1166,8 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   }
 
   if (cpu_infos.empty()) {
-    context_->import_logs_tracker->RecordAnalysisLog(
-        stats::cpu_info_empty, [](ArgsTracker::BoundInserter&) {});
+    context_->import_logs_tracker->RecordAnalysisLog(stats::cpu_info_empty,
+                                                     [](ArgsInserter&) {});
     return;
   }
 
@@ -1266,8 +1266,7 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     // version of trace_processor; they stay queryable via the raw bitmap.
     if ((cpu_info.features >> base::ArraySize(base::kCpuInfoFeatures)) != 0) {
       context_->import_logs_tracker->RecordAnalysisLog(
-          stats::cpu_info_unknown_cpu_features,
-          [](ArgsTracker::BoundInserter&) {});
+          stats::cpu_info_unknown_cpu_features, [](ArgsInserter&) {});
     }
   }
 }

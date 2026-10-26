@@ -272,7 +272,7 @@ bool TrackEventTracker::ReserveDescriptorTrack(
   if (uuid == kDefaultDescriptorTrackUuid && reservation.parent_uuid) {
     context_->import_logs_tracker->RecordAnalysisLog(
         stats::track_descriptor_default_track_with_parent,
-        [&](ArgsTracker::BoundInserter& inserter) {
+        [&](ArgsInserter& inserter) {
           inserter.AddArg(parent_uuid_key_id_,
                           Variadic::UnsignedInteger(reservation.parent_uuid));
         });
@@ -509,14 +509,14 @@ TrackEventTracker::InternDescriptorTrackImpl(
   // Don't capture anything by reference in these functions as they are
   // persisted in the case of merged tracks.
   TrackTracker::SetArgsCallback args_fn_root =
-      [this, uuid, packet_sequence_id](ArgsTracker::BoundInserter& inserter) {
+      [this, uuid, packet_sequence_id](ArgsInserter& inserter) {
         State* state = descriptor_tracks_state_.Find(uuid);
         PERFETTO_CHECK(state);
         AddTrackArgs(uuid, packet_sequence_id, state->reservation,
                      true /* is_root*/, inserter);
       };
   TrackTracker::SetArgsCallback args_fn_non_root =
-      [this, uuid, packet_sequence_id](ArgsTracker::BoundInserter& inserter) {
+      [this, uuid, packet_sequence_id](ArgsInserter& inserter) {
         State* state = descriptor_tracks_state_.Find(uuid);
         PERFETTO_CHECK(state);
         AddTrackArgs(uuid, packet_sequence_id, state->reservation,
@@ -772,7 +772,7 @@ void TrackEventTracker::AddTrackArgs(
     std::optional<uint32_t> packet_sequence_id,
     const DescriptorTrackReservation& reservation,
     bool is_root_in_scope,
-    ArgsTracker::BoundInserter& args) {
+    ArgsInserter& args) {
   args.AddArg(source_key_, Variadic::String(descriptor_source_))
       .AddArg(source_id_key_, Variadic::Integer(static_cast<int64_t>(uuid)))
       .AddArg(is_root_in_scope_key_, Variadic::Boolean(is_root_in_scope));
@@ -908,7 +908,7 @@ bool TrackEventTracker::IsTrackHierarchyValid(uint64_t uuid) {
 
 void TrackEventTracker::RecordTrackError(size_t stat_key, uint64_t track_uuid) {
   context_->import_logs_tracker->RecordAnalysisLog(
-      stat_key, [this, track_uuid](ArgsTracker::BoundInserter& inserter) {
+      stat_key, [this, track_uuid](ArgsInserter& inserter) {
         inserter.AddArg(track_uuid_key_id_,
                         Variadic::UnsignedInteger(track_uuid));
       });

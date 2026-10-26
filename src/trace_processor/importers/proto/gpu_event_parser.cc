@@ -331,7 +331,7 @@ TrackId GpuEventParser::InternGpuCounterTrack(
       tracks::kGpuCounterBlueprint,
       tracks::Dimensions(ugpu.value, static_cast<uint32_t>(gpu_id), name),
       tracks::DynamicName(name_id),
-      [&, this](ArgsTracker::BoundInserter& inserter) {
+      [&, this](ArgsInserter& inserter) {
         inserter.AddArg(description_id_, Variadic::String(desc_id));
       },
       tracks::DynamicUnit(unit_id));
@@ -529,8 +529,7 @@ void GpuEventParser::InsertTrackForUninternedRenderStage(
   auto factory = context_->track_compressor->CreateTrackFactory(
       kRenderStageBlueprint,
       tracks::Dimensions(ugpu.value, gpu_id, "id", hw_queue_id, kNullStringId),
-      tracks::DynamicName(name),
-      [&, this](ArgsTracker::BoundInserter& inserter) {
+      tracks::DynamicName(name), [&, this](ArgsInserter& inserter) {
         inserter.AddArg(description_id_, Variadic::String(description));
       });
   TrackId track_id = context_->track_compressor->DefaultTrack(factory);
@@ -604,7 +603,7 @@ void GpuEventParser::InternGpuContext(
 void GpuEventParser::ParseExtraComputeArg(
     PacketSequenceStateGeneration* sequence_state,
     protozero::ConstBytes bytes,
-    ArgsTracker::BoundInserter* inserter) {
+    ArgsInserter* inserter) {
   protos::pbzero::GpuRenderStageEvent_ExtraComputeArg::Decoder arg(bytes);
 
   StringId name_id = kNullStringId;
@@ -647,7 +646,7 @@ void GpuEventParser::ParseExtraComputeArg(
 void GpuEventParser::ParseComputeKernel(
     PacketSequenceStateGeneration* sequence_state,
     uint64_t kernel_iid,
-    ArgsTracker::BoundInserter* inserter) {
+    ArgsInserter* inserter) {
   auto* kernel = sequence_state->LookupInternedMessage<
       protos::pbzero::GpuInternedData::kComputeKernelsFieldNumber,
       protos::pbzero::InternedComputeKernel>(static_cast<size_t>(kernel_iid));
@@ -677,7 +676,7 @@ void GpuEventParser::ParseComputeKernel(
 void GpuEventParser::ParseComputeKernelLaunch(
     PacketSequenceStateGeneration* sequence_state,
     protozero::ConstBytes bytes,
-    ArgsTracker::BoundInserter* inserter) {
+    ArgsInserter* inserter) {
   protos::pbzero::GpuRenderStageEvent_ComputeKernelLaunch::Decoder launch(
       bytes);
   if (launch.has_grid_size()) {
@@ -803,8 +802,7 @@ void GpuEventParser::ParseGpuRenderStageEvent(
         tracks::Dimensions(ugpu.value, gpu_id, base::StringView(source),
                            static_cast<uint32_t>(hw_queue_id), dimension_name),
         ts, static_cast<int64_t>(event.duration()),
-        tracks::DynamicName(track_name),
-        [&](ArgsTracker::BoundInserter& inserter) {
+        tracks::DynamicName(track_name), [&](ArgsInserter& inserter) {
           if (track_description != kNullStringId) {
             inserter.AddArg(description_id_,
                             Variadic::String(track_description));
@@ -827,8 +825,7 @@ void GpuEventParser::ParseGpuRenderStageEvent(
     }
     auto opt_slice_id = context_->slice_tracker->Scoped(
         ts, track_id, kNullStringId, name_id,
-        static_cast<int64_t>(event.duration()),
-        [&](ArgsTracker::BoundInserter* inserter) {
+        static_cast<int64_t>(event.duration()), [&](ArgsInserter* inserter) {
           if (event.has_stage_iid()) {
             auto stage_iid = static_cast<size_t>(event.stage_iid());
             auto* decoder = sequence_state->LookupInternedMessage<
@@ -1160,7 +1157,7 @@ void GpuEventParser::ParseGpuLog(int64_t ts, ConstBytes blob) {
           : log_severity_ids_[log_severity_ids_.size() - 1];
   context_->slice_tracker->Scoped(
       ts, track_id, kNullStringId, severity_id, 0,
-      [this, &event](ArgsTracker::BoundInserter* inserter) {
+      [this, &event](ArgsInserter* inserter) {
         if (event.has_tag()) {
           inserter->AddArg(
               tag_id_,
@@ -1195,7 +1192,7 @@ void GpuEventParser::ParseVulkanApiEvent(int64_t ts, ConstBytes blob) {
   context_->slice_tracker->Scoped(
       ts, track_id, kNullStringId, vk_queue_submit_id_,
       static_cast<int64_t>(event.duration_ns()),
-      [this, &event](ArgsTracker::BoundInserter* inserter) {
+      [this, &event](ArgsInserter* inserter) {
         inserter->AddArg(pid_id_, Variadic::Integer(event.pid()));
         inserter->AddArg(tid_id_, Variadic::Integer(event.tid()));
         if (event.has_vk_command_buffers()) {

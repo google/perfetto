@@ -83,8 +83,7 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
   if (PERFETTO_UNLIKELY(!is_primary_ && current_file_tag_ == 0)) {
     if (PERFETTO_UNLIKELY(num_conversions_ > 0)) {
       context_->import_logs_tracker->RecordAnalysisLog(
-          stats::clock_sync_mixed_clock_sources,
-          [&](ArgsTracker::BoundInserter& inserter) {
+          stats::clock_sync_mixed_clock_sources, [&](ArgsInserter& inserter) {
             StringId key = context_->storage->InternString(
                 "num_conversions_using_primary");
             inserter.AddArg(key, Variadic::UnsignedInteger(num_conversions_));
@@ -320,8 +319,7 @@ void ClockTracker::BridgeToTraceTime(ClockId clock_id, ClockId trace_time) {
   // analysis log explaining why, rather than leaving only that generic
   // no-path error which advises emitting ClockSnapshots.
   context_->import_logs_tracker->RecordAnalysisLog(
-      stats::clock_sync_unrelatable_clock_domains,
-      [&](ArgsTracker::BoundInserter& inserter) {
+      stats::clock_sync_unrelatable_clock_domains, [&](ArgsInserter& inserter) {
         inserter.AddArg(source_clock_id_key_,
                         Variadic::Integer(clock_id.clock_id));
         inserter.AddArg(target_clock_id_key_,
@@ -361,7 +359,7 @@ void ClockTracker::RecordConversionError(const ClockSyncError& error,
       stat_key = stats::clock_sync_failure_no_path;
       break;
   }
-  auto args = [&](ArgsTracker::BoundInserter& inserter) {
+  auto args = [&](ArgsInserter& inserter) {
     if (error.source_clock.seq_id != 0) {
       inserter.AddArg(source_sequence_id_key_,
                       Variadic::UnsignedInteger(error.source_clock.seq_id));

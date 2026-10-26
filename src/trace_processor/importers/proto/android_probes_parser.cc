@@ -187,7 +187,7 @@ void AndroidProbesParser::ParseRailDescriptor(
         tracks::DynamicNameBlueprint());
     const char* friendly_name = MapToFriendlyPowerRailName(desc.rail_name());
     TrackId track;
-    auto args_fn = [this, &desc](ArgsTracker::BoundInserter& inserter) {
+    auto args_fn = [this, &desc](ArgsInserter& inserter) {
       StringId raw_name = context_->storage->InternString(desc.rail_name());
       inserter.AddArg(power_rail_raw_name_id_, Variadic::String(raw_name));
 
@@ -342,8 +342,7 @@ void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
       tracks::DynamicNameBlueprint());
   TrackId energy_track = context_->track_tracker->InternTrack(
       kGlobalBlueprint, tracks::Dimensions(consumer_id),
-      tracks::DynamicName(descriptor->name),
-      [&](ArgsTracker::BoundInserter& inserter) {
+      tracks::DynamicName(descriptor->name), [&](ArgsInserter& inserter) {
         inserter.AddArg(consumer_type_id_, Variadic::String(descriptor->type));
         inserter.AddArg(ordinal_id_, Variadic::Integer(descriptor->ordinal));
       });
@@ -691,7 +690,7 @@ void AndroidProbesParser::ParseBtTraceEvent(int64_t ts, ConstBytes blob) {
 
   context_->slice_tracker->Scoped(
       ts, track_id, kNullStringId, bt_trace_event_id_, evt.duration(),
-      [&evt, this](ArgsTracker::BoundInserter* inserter) {
+      [&evt, this](ArgsInserter* inserter) {
         if (evt.has_packet_type()) {
           StringId packet_type_str = context_->storage->InternString(
               bluetooth::tracing::pbzero::BluetoothTracePacketType_Name(
@@ -791,8 +790,7 @@ void AndroidProbesParser::ParseAndroidAflags(int64_t ts, ConstBytes blob) {
   protos::pbzero::AndroidAflags::Decoder decoder(blob.data, blob.size);
   if (decoder.has_error()) {
     context_->import_logs_tracker->RecordCollectionLog(
-        stats::android_aflags_errors, ts,
-        [&](ArgsTracker::BoundInserter& inserter) {
+        stats::android_aflags_errors, ts, [&](ArgsInserter& inserter) {
           inserter.AddArg(
               context_->storage->InternString("error"),
               Variadic::String(sanitize_and_intern(decoder.error())));

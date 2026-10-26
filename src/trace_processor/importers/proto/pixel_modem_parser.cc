@@ -116,8 +116,7 @@ base::Status PixelModemParser::ParseEvent(int64_t ts,
                                             : base::StringView()));
   context_->slice_tracker->Scoped(
       ts, id, kNullStringId, slice_name_id, 0,
-      [this, &detokenized_str,
-       trace_packet_ts](ArgsTracker::BoundInserter* inserter) {
+      [this, &detokenized_str, trace_packet_ts](ArgsInserter* inserter) {
         inserter->AddArg(template_id_,
                          Variadic::String(context_->storage->InternString(
                              detokenized_str.template_str().c_str())));

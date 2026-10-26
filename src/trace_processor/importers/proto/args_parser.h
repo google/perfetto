@@ -33,7 +33,7 @@ class ArgsParser : public util::ProtoToArgsParser::Delegate {
 
   // |process_tracker| resolves (is_pid)/(is_tid) fields to upid/utid.
   ArgsParser(int64_t packet_timestamp,
-             ArgsTracker::BoundInserter& inserter,
+             ArgsInserter& inserter,
              TraceStorage& storage,
              ProcessTracker& process_tracker,
              PacketSequenceStateGeneration* sequence_state = nullptr,
@@ -65,7 +65,7 @@ class ArgsParser : public util::ProtoToArgsParser::Delegate {
   const bool support_json_;
   const int64_t packet_timestamp_;
   PacketSequenceStateGeneration* const sequence_state_;
-  ArgsTracker::BoundInserter& inserter_;
+  ArgsInserter& inserter_;
   TraceStorage& storage_;
   ProcessTracker& process_tracker_;
 };

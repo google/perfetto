@@ -38,7 +38,7 @@ bool AddJsonValueToArgs(Iterator& it,
                         std::string_view flat_key,
                         std::string_view key,
                         TraceStorage* storage,
-                        ArgsTracker::BoundInserter* inserter);
+                        ArgsInserter* inserter);
 
 }  // namespace perfetto::trace_processor::json
 

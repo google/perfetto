@@ -69,7 +69,7 @@ void PixelDisplayTracker::ParseDpuDispFrameStartTimeout(
 
   context_->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, slice_name_id, 0,
-      [&](ArgsTracker::BoundInserter* inserter) {
+      [&](ArgsInserter* inserter) {
         inserter->AddArg(display_id_arg_, Variadic::Integer(ex.display_id()));
         inserter->AddArg(output_id_arg_, Variadic::Integer(ex.output_id()));
         inserter->AddArg(frames_pending_arg_,
@@ -96,7 +96,7 @@ void PixelDisplayTracker::ParseDpuDispFrameDoneTimeout(
 
   context_->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, slice_name_id, 0,
-      [&](ArgsTracker::BoundInserter* inserter) {
+      [&](ArgsInserter* inserter) {
         inserter->AddArg(display_id_arg_, Variadic::Integer(ex.display_id()));
         inserter->AddArg(output_id_arg_, Variadic::Integer(ex.output_id()));
         inserter->AddArg(frames_pending_arg_,
@@ -125,7 +125,7 @@ void PixelDisplayTracker::ParseDpuDispFrameStartMissing(
 
   context_->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, slice_name_id, 0,
-      [&](ArgsTracker::BoundInserter* inserter) {
+      [&](ArgsInserter* inserter) {
         inserter->AddArg(display_id_arg_, Variadic::Integer(ex.display_id()));
         inserter->AddArg(output_id_arg_, Variadic::Integer(ex.output_id()));
         inserter->AddArg(frames_pending_arg_,
@@ -152,7 +152,7 @@ void PixelDisplayTracker::ParseDpuDispFrameDoneMissing(
 
   context_->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, slice_name_id, 0,
-      [&](ArgsTracker::BoundInserter* inserter) {
+      [&](ArgsInserter* inserter) {
         inserter->AddArg(display_id_arg_, Variadic::Integer(ex.display_id()));
         inserter->AddArg(output_id_arg_, Variadic::Integer(ex.output_id()));
         inserter->AddArg(frames_pending_arg_,
@@ -178,7 +178,7 @@ void PixelDisplayTracker::ParseDpuDispVblankIrqEnable(
   if (ex.enable()) {
     context_->slice_tracker->Begin(
         timestamp, track_id, kNullStringId, vblank_irq_enable_name_,
-        [&](ArgsTracker::BoundInserter* inserter) {
+        [&](ArgsInserter* inserter) {
           inserter->AddArg(display_id_arg_, Variadic::Integer(ex.id()));
           inserter->AddArg(output_id_arg_, Variadic::Integer(ex.output_id()));
         });
@@ -205,7 +205,7 @@ void PixelDisplayTracker::ParseDpuDispDpuLineUnderrun(
 
   context_->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, slice_name_id, 0,
-      [&](ArgsTracker::BoundInserter* inserter) {
+      [&](ArgsInserter* inserter) {
         inserter->AddArg(
             context_->storage->InternString(base::StringView("vsync_count")),
             Variadic::Integer(ex.vsync_count()));

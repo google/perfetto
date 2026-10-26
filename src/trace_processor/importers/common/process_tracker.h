@@ -250,10 +250,10 @@ class ProcessTracker {
   // Returns the inserter accumulating args for a process; args from all callers
   // merge into one arg set, committed in OnEventsFullyExtracted. The reference
   // is valid until the next AddArgsToProcess call.
-  ArgsTracker::BoundInserter& AddArgsToProcess(UniquePid upid);
+  ArgsInserter& AddArgsToProcess(UniquePid upid);
 
   // As AddArgsToProcess, for a thread.
-  ArgsTracker::BoundInserter& AddArgsToThread(UniqueTid utid);
+  ArgsInserter& AddArgsToThread(UniqueTid utid);
 
   // Called when the trace was fully loaded.
   void OnEventsFullyExtracted();
@@ -326,8 +326,8 @@ class ProcessTracker {
   // callers merge into one set; committed in OnEventsFullyExtracted. The
   // reference returned by AddArgsTo{Process,Thread} is only valid until the
   // next such call (the map may rehash); every caller uses it before then.
-  base::FlatHashMap<UniquePid, ArgsTracker::BoundInserter> process_args_;
-  base::FlatHashMap<UniqueTid, ArgsTracker::BoundInserter> thread_args_;
+  base::FlatHashMap<UniquePid, ArgsInserter> process_args_;
+  base::FlatHashMap<UniqueTid, ArgsInserter> thread_args_;
 
   // Mapping for tid to the vector of possible UniqueTids.
   // TODO(lalitm): this is a one-many mapping because this code was written

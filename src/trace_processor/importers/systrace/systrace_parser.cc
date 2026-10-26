@@ -221,7 +221,7 @@ void SystraceParser::ParseSystracePoint(
             tracks::DynamicName(name_id));
         row.name = name_id;
         context_->slice_tracker->BeginLegacyUnnestable(
-            row, [this, cookie](ArgsTracker::BoundInserter* inserter) {
+            row, [this, cookie](ArgsInserter* inserter) {
               inserter->AddArg(cookie_id_, Variadic::Integer(cookie));
             });
       } else {
@@ -271,7 +271,7 @@ void SystraceParser::ParseSystracePoint(
         auto utid = context_->process_tracker->GetOrCreateThread(pid);
         context_->slice_tracker->Scoped(
             ts, track_id, kNullStringId, name_id, 0,
-            [this, utid](ArgsTracker::BoundInserter* inserter) {
+            [this, utid](ArgsInserter* inserter) {
               inserter->AddArg(utid_id_, Variadic::UnsignedInteger(utid),
                                ArgsTracker::UpdatePolicy::kSkipIfExists);
             });
@@ -282,7 +282,7 @@ void SystraceParser::ParseSystracePoint(
         auto utid = context_->process_tracker->GetOrCreateThread(pid);
         context_->slice_tracker->Begin(
             ts, track_id, kNullStringId, name_id,
-            [this, utid](ArgsTracker::BoundInserter* inserter) {
+            [this, utid](ArgsInserter* inserter) {
               inserter->AddArg(utid_id_, Variadic::UnsignedInteger(utid),
                                ArgsTracker::UpdatePolicy::kSkipIfExists);
             });
@@ -292,8 +292,7 @@ void SystraceParser::ParseSystracePoint(
             point.int_value, tracks::DynamicName(track_name_id));
         auto utid = context_->process_tracker->GetOrCreateThread(pid);
         context_->slice_tracker->End(
-            ts, track_id, {}, {},
-            [this, utid](ArgsTracker::BoundInserter* inserter) {
+            ts, track_id, {}, {}, [this, utid](ArgsInserter* inserter) {
               inserter->AddArg(end_utid_id_, Variadic::UnsignedInteger(utid),
                                ArgsTracker::UpdatePolicy::kSkipIfExists);
             });
@@ -360,7 +359,7 @@ void SystraceParser::ParseSystracePoint(
           tracks::Dimensions(upid, point.name));
       context_->event_tracker->PushCounter(
           ts, static_cast<double>(point.int_value), track_id,
-          [this, opt_utid](ArgsTracker::BoundInserter* inserter) {
+          [this, opt_utid](ArgsInserter* inserter) {
             if (opt_utid) {
               inserter->AddArg(utid_id_, Variadic::UnsignedInteger(*opt_utid),
                                ArgsTracker::UpdatePolicy::kSkipIfExists);

@@ -59,7 +59,7 @@ class ArgsTranslationTable {
                         Variadic::Type type) const;
 
   void TranslateArgs(const ArgsTracker::CompactArgSet& arg_set,
-                     ArgsTracker::BoundInserter& inserter) const;
+                     ArgsInserter& inserter) const;
 
   void AddChromeHistogramTranslationRule(uint64_t hash, base::StringView name) {
     chrome_histogram_hash_to_name_.Insert(hash, name.ToStdString());
@@ -227,7 +227,7 @@ class ArgsTranslationTable {
 
   void EmitMojoMethodLocation(std::optional<uint64_t> mapping_id,
                               std::optional<uint64_t> rel_pc,
-                              ArgsTracker::BoundInserter& inserter) const;
+                              ArgsInserter& inserter) const;
 };
 
 }  // namespace trace_processor

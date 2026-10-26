@@ -270,8 +270,7 @@ void NetworkTraceModule::ParseGenericEvent(int64_t ts,
         GetTcpFlagMask(evt.tcp_flags()).string_view());
   }
   std::optional<SliceId> id = context_->slice_tracker->Scoped(
-      ts, track_id, kNullStringId, slice_name, dur,
-      [&](ArgsTracker::BoundInserter* i) {
+      ts, track_id, kNullStringId, slice_name, dur, [&](ArgsInserter* i) {
         i->AddArg(net_arg_ip_proto_,
                   Variadic::String(actual_row.packet_transport));
 

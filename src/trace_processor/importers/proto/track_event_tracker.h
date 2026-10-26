@@ -463,7 +463,7 @@ class TrackEventTracker {
                     std::optional<uint32_t> packet_sequence_id,
                     const DescriptorTrackReservation&,
                     bool,
-                    ArgsTracker::BoundInserter&);
+                    ArgsInserter&);
 
   // Writes the custom dimensions of the descriptor |uuid| (see
   // |ResolveDimensions|) to the track dimension table for |track_id|, a track

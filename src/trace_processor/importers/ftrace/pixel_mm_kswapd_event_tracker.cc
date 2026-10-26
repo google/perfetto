@@ -61,7 +61,7 @@ void PixelMmKswapdEventTracker::ParsePixelMmKswapdDone(
 
   context_->slice_tracker->End(
       timestamp, details_track, kNullStringId, kswapd_efficiency_name_,
-      [this, &decoder](ArgsTracker::BoundInserter* inserter) {
+      [this, &decoder](ArgsInserter* inserter) {
         if (decoder.has_delta_nr_scanned()) {
           inserter->AddArg(
               pages_scanned_name_,

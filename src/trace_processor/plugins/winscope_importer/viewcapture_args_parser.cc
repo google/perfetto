@@ -34,7 +34,7 @@ using ConstChars = protozero::ConstChars;
 
 ViewCaptureArgsParser::ViewCaptureArgsParser(
     int64_t packet_timestamp,
-    ArgsTracker::BoundInserter& inserter,
+    ArgsInserter& inserter,
     TraceProcessorContext& context,
     PacketSequenceStateGeneration* sequence_state,
     ViewCaptureRow* snapshot_row,

@@ -192,7 +192,7 @@ void MemoryTrackerSnapshotParser::EmitRows(int64_t ts,
   // since memory dumps are global.
   TrackId track_id = context_->track_tracker->InternTrack(
       tracks::kLegacyGlobalInstantsBlueprint, tracks::Dimensions(),
-      tracks::BlueprintName(), [this](ArgsTracker::BoundInserter& inserter) {
+      tracks::BlueprintName(), [this](ArgsInserter& inserter) {
         inserter.AddArg(
             context_->storage->InternString("source"),
             Variadic::String(context_->storage->InternString("chrome")));
@@ -303,7 +303,7 @@ MemoryTrackerSnapshotParser::EmitNode(
   auto* node_table = context_->storage->mutable_memory_snapshot_node_table();
   auto rr = (*node_table)[node_row_id];
   ArgsTracker args_tracker(context_);
-  ArgsTracker::BoundInserter args = args_tracker.AddArgsTo(node_row_id);
+  ArgsInserter args = args_tracker.AddArgsTo(node_row_id);
 
   for (const auto& entry : node.const_entries()) {
     switch (entry.second.type) {

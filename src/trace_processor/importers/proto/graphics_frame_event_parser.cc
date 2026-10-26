@@ -176,8 +176,7 @@ void GraphicsFrameEventParser::CreateBufferEvent(
   uint32_t frame_number = event.has_frame_number() ? event.frame_number() : 0;
   if (event.type() == GraphicsFrameEvent::QUEUE && prev_is_dequeue) {
     context_->slice_tracker->AddArgs(
-        track_id, kNullStringId, kNullStringId,
-        [&](ArgsTracker::BoundInserter* inserter) {
+        track_id, kNullStringId, kNullStringId, [&](ArgsInserter* inserter) {
           inserter->AddArg(frame_number_id_, Variadic::Integer(frame_number));
         });
   }
@@ -186,7 +185,7 @@ void GraphicsFrameEventParser::CreateBufferEvent(
       event.has_duration_ns() ? static_cast<int64_t>(event.duration_ns()) : 0;
   context_->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, event_name_id, duration,
-      [&](ArgsTracker::BoundInserter* inserter) {
+      [&](ArgsInserter* inserter) {
         inserter->AddArg(frame_number_id_, Variadic::Integer(frame_number));
         inserter->AddArg(layer_name_key_id_, Variadic::String(layer_name_id));
         inserter->AddArg(
@@ -220,7 +219,7 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
         rr.set_name(context_->storage->InternString("0"));
         context_->slice_tracker->AddArgs(
             rr.track_id(), kNullStringId, kNullStringId,
-            [&](ArgsTracker::BoundInserter* inserter) {
+            [&](ArgsInserter* inserter) {
               inserter->AddArg(frame_number_id_, Variadic::Integer(0));
             });
         it->most_recent_event = std::monostate();
@@ -245,7 +244,7 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
         auto slice_rr = d->slice_row.ToRowReference(slices);
         context_->slice_tracker->End(
             timestamp, slice_rr.track_id(), kNullStringId, kNullStringId,
-            [&](ArgsTracker::BoundInserter* inserter) {
+            [&](ArgsInserter* inserter) {
               inserter->AddArg(frame_number_id_,
                                Variadic::Integer(event.frame_number()));
             });
@@ -291,7 +290,7 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
         rr.set_name(context_->storage->InternString("0"));
         context_->slice_tracker->AddArgs(
             rr.track_id(), kNullStringId, kNullStringId,
-            [&](ArgsTracker::BoundInserter* inserter) {
+            [&](ArgsInserter* inserter) {
               inserter->AddArg(frame_number_id_, Variadic::Integer(0));
             });
       }
@@ -351,7 +350,7 @@ GraphicsFrameEventParser::InsertPhaseSlice(
   }
   auto slice_id = context_->slice_tracker->Begin(
       timestamp, track_id, kNullStringId, slice_name,
-      [&](ArgsTracker::BoundInserter* inserter) {
+      [&](ArgsInserter* inserter) {
         inserter->AddArg(frame_number_id_,
                          Variadic::Integer(event.frame_number()));
         inserter->AddArg(layer_name_key_id_, Variadic::String(layer_name_id));

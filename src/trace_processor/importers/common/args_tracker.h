@@ -139,9 +139,6 @@ class ArgsTracker {
   using UpdatePolicy = GlobalArgsTracker::UpdatePolicy;
   using CompactArg = GlobalArgsTracker::CompactArg;
   using CompactArgSet = ArgsInserter::CompactArgSet;
-  // The bound inserter is now a standalone ArgsInserter; this alias keeps
-  // existing references compiling.
-  using BoundInserter = ArgsInserter;
 
   explicit ArgsTracker(TraceProcessorContext* context) : context_(context) {}
 
@@ -153,115 +150,115 @@ class ArgsTracker {
 
   ~ArgsTracker() = default;
 
-  BoundInserter AddArgsTo(tables::ChromeRawTable::Id id) {
+  ArgsInserter AddArgsTo(tables::ChromeRawTable::Id id) {
     return AddArgsTo(context_->storage->mutable_chrome_raw_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::FtraceEventTable::Id id) {
+  ArgsInserter AddArgsTo(tables::FtraceEventTable::Id id) {
     return AddArgsTo(context_->storage->mutable_ftrace_event_table(), id);
   }
 
-  BoundInserter AddArgsTo(CounterId id) {
+  ArgsInserter AddArgsTo(CounterId id) {
     return AddArgsTo(context_->storage->mutable_counter_table(), id);
   }
 
-  BoundInserter AddArgsTo(SliceId id) {
+  ArgsInserter AddArgsTo(SliceId id) {
     return AddArgsTo(context_->storage->mutable_slice_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::StateTable::Id id) {
+  ArgsInserter AddArgsTo(tables::StateTable::Id id) {
     return AddArgsTo(context_->storage->mutable_state_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::FlowTable::Id id) {
+  ArgsInserter AddArgsTo(tables::FlowTable::Id id) {
     return AddArgsTo(context_->storage->mutable_flow_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::InputMethodClientsTable::Id id) {
+  ArgsInserter AddArgsTo(tables::InputMethodClientsTable::Id id) {
     return AddArgsTo(context_->storage->mutable_inputmethod_clients_table(),
                      id);
   }
 
-  BoundInserter AddArgsTo(tables::InputMethodServiceTable::Id id) {
+  ArgsInserter AddArgsTo(tables::InputMethodServiceTable::Id id) {
     return AddArgsTo(context_->storage->mutable_inputmethod_service_table(),
                      id);
   }
 
-  BoundInserter AddArgsTo(tables::InputMethodManagerServiceTable::Id id) {
+  ArgsInserter AddArgsTo(tables::InputMethodManagerServiceTable::Id id) {
     return AddArgsTo(
         context_->storage->mutable_inputmethod_manager_service_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::MemorySnapshotNodeTable::Id id) {
+  ArgsInserter AddArgsTo(tables::MemorySnapshotNodeTable::Id id) {
     return AddArgsTo(context_->storage->mutable_memory_snapshot_node_table(),
                      id);
   }
 
-  BoundInserter AddArgsTo(tables::SurfaceFlingerLayersSnapshotTable::Id id) {
+  ArgsInserter AddArgsTo(tables::SurfaceFlingerLayersSnapshotTable::Id id) {
     return AddArgsTo(
         context_->storage->mutable_surfaceflinger_layers_snapshot_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::SurfaceFlingerLayerTable::Id id) {
+  ArgsInserter AddArgsTo(tables::SurfaceFlingerLayerTable::Id id) {
     return AddArgsTo(context_->storage->mutable_surfaceflinger_layer_table(),
                      id);
   }
 
-  BoundInserter AddArgsTo(tables::SurfaceFlingerTransactionsTable::Id id) {
+  ArgsInserter AddArgsTo(tables::SurfaceFlingerTransactionsTable::Id id) {
     return AddArgsTo(
         context_->storage->mutable_surfaceflinger_transactions_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::SurfaceFlingerTransactionTable::Id id) {
+  ArgsInserter AddArgsTo(tables::SurfaceFlingerTransactionTable::Id id) {
     return AddArgsTo(
         context_->storage->mutable_surfaceflinger_transaction_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::ViewCaptureTable::Id id) {
+  ArgsInserter AddArgsTo(tables::ViewCaptureTable::Id id) {
     return AddArgsTo(context_->storage->mutable_viewcapture_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::ViewCaptureViewTable::Id id) {
+  ArgsInserter AddArgsTo(tables::ViewCaptureViewTable::Id id) {
     return AddArgsTo(context_->storage->mutable_viewcapture_view_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::WindowManagerTable::Id id) {
+  ArgsInserter AddArgsTo(tables::WindowManagerTable::Id id) {
     return AddArgsTo(context_->storage->mutable_windowmanager_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::WindowManagerWindowContainerTable::Id id) {
+  ArgsInserter AddArgsTo(tables::WindowManagerWindowContainerTable::Id id) {
     return AddArgsTo(
         context_->storage->mutable_windowmanager_windowcontainer_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::WindowManagerShellTransitionsTable::Id id) {
+  ArgsInserter AddArgsTo(tables::WindowManagerShellTransitionsTable::Id id) {
     return AddArgsTo(
         context_->storage->mutable_window_manager_shell_transitions_table(),
         id);
   }
 
-  BoundInserter AddArgsTo(tables::AndroidKeyEventsTable::Id id) {
+  ArgsInserter AddArgsTo(tables::AndroidKeyEventsTable::Id id) {
     return AddArgsTo(context_->storage->mutable_android_key_events_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::AndroidMotionEventsTable::Id id) {
+  ArgsInserter AddArgsTo(tables::AndroidMotionEventsTable::Id id) {
     return AddArgsTo(context_->storage->mutable_android_motion_events_table(),
                      id);
   }
 
-  BoundInserter AddArgsTo(tables::AndroidInputEventDispatchTable::Id id) {
+  ArgsInserter AddArgsTo(tables::AndroidInputEventDispatchTable::Id id) {
     return AddArgsTo(
         context_->storage->mutable_android_input_event_dispatch_table(), id);
   }
 
-  BoundInserter AddArgsTo(MetadataId id) {
+  ArgsInserter AddArgsTo(MetadataId id) {
     auto* table = context_->storage->mutable_metadata_table();
     uint32_t row = (*table)[id].ToRowNumber().row_number();
     return Bind(&table->dataframe(),
                 tables::MetadataTable::ColumnIndex::int_value, row, id.value);
   }
 
-  BoundInserter AddArgsTo(TrackId id) {
+  ArgsInserter AddArgsTo(TrackId id) {
     auto* table = context_->storage->mutable_track_table();
     uint32_t row = (*table)[id].ToRowNumber().row_number();
     return Bind(&table->dataframe(),
@@ -269,46 +266,46 @@ class ArgsTracker {
                 id.value);
   }
 
-  BoundInserter AddArgsTo(VulkanAllocId id) {
+  ArgsInserter AddArgsTo(VulkanAllocId id) {
     return AddArgsTo(
         context_->storage->mutable_vulkan_memory_allocations_table(), id);
   }
 
-  BoundInserter AddArgsToProcess(UniquePid id) {
+  ArgsInserter AddArgsToProcess(UniquePid id) {
     auto* table = context_->storage->mutable_process_table();
     return Bind(&table->dataframe(),
                 tables::ProcessTable::ColumnIndex::arg_set_id, id, id);
   }
 
-  BoundInserter AddArgsToThread(UniqueTid id) {
+  ArgsInserter AddArgsToThread(UniqueTid id) {
     auto* table = context_->storage->mutable_thread_table();
     return Bind(&table->dataframe(),
                 tables::ThreadTable::ColumnIndex::arg_set_id, id, id);
   }
 
-  BoundInserter AddArgsTo(tables::ExperimentalProtoPathTable::Id id) {
+  ArgsInserter AddArgsTo(tables::ExperimentalProtoPathTable::Id id) {
     return AddArgsTo(context_->storage->mutable_experimental_proto_path_table(),
                      id);
   }
 
-  BoundInserter AddArgsTo(tables::CpuTable::Id id) {
+  ArgsInserter AddArgsTo(tables::CpuTable::Id id) {
     return AddArgsTo(context_->storage->mutable_cpu_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::GpuTable::Id id) {
+  ArgsInserter AddArgsTo(tables::GpuTable::Id id) {
     return AddArgsTo(context_->storage->mutable_gpu_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::TraceImportLogsTable::Id id) {
+  ArgsInserter AddArgsTo(tables::TraceImportLogsTable::Id id) {
     return AddArgsTo(context_->storage->mutable_trace_import_logs_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::LogTable::Id id) {
+  ArgsInserter AddArgsTo(tables::LogTable::Id id) {
     return AddArgsTo(context_->storage->mutable_log_table(), id);
   }
 
   template <typename T>
-  BoundInserter AddArgsTo(T* table, typename T::Id id) {
+  ArgsInserter AddArgsTo(T* table, typename T::Id id) {
     uint32_t row = (*table)[id].ToRowNumber().row_number();
     return Bind(&table->dataframe(), T::ColumnIndex::arg_set_id, row, id.value);
   }

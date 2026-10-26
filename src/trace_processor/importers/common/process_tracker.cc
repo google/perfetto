@@ -750,16 +750,15 @@ void ProcessTracker::SetPidZeroIsUpidZeroIdleProcess() {
                    ThreadNamePriority::kTraceProcessorConstant);
 }
 
-ArgsTracker::BoundInserter& ProcessTracker::AddArgsToProcess(UniquePid upid) {
-  auto [it, inserted] =
-      process_args_.Insert(upid, ArgsTracker::BoundInserter());
+ArgsInserter& ProcessTracker::AddArgsToProcess(UniquePid upid) {
+  auto [it, inserted] = process_args_.Insert(upid, ArgsInserter());
   if (PERFETTO_UNLIKELY(inserted))
     *it = args_tracker_.AddArgsToProcess(upid);
   return *it;
 }
 
-ArgsTracker::BoundInserter& ProcessTracker::AddArgsToThread(UniqueTid utid) {
-  auto [it, inserted] = thread_args_.Insert(utid, ArgsTracker::BoundInserter());
+ArgsInserter& ProcessTracker::AddArgsToThread(UniqueTid utid) {
+  auto [it, inserted] = thread_args_.Insert(utid, ArgsInserter());
   if (PERFETTO_UNLIKELY(inserted))
     *it = args_tracker_.AddArgsToThread(utid);
   return *it;

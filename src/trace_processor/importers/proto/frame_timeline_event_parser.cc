@@ -275,11 +275,11 @@ void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(int64_t timestamp,
 
   TrackId track_id = context_->track_compressor->InternBegin(
       kExpectedBlueprint, tracks::Dimensions(upid), cookie);
-  context_->slice_tracker->Begin(
-      timestamp, track_id, kNullStringId, name_id,
-      [this, token](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(display_frame_token_id_, Variadic::Integer(token));
-      });
+  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId, name_id,
+                                 [this, token](ArgsInserter* inserter) {
+                                   inserter->AddArg(display_frame_token_id_,
+                                                    Variadic::Integer(token));
+                                 });
 }
 
 StringId FrameTimelineEventParser::CalculateDisplayFrameJankTag(
@@ -379,8 +379,7 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
       CalculateDisplayFrameJankTag(event.jank_type_experimental());
 
   std::optional<SliceId> opt_slice_id = context_->slice_tracker->Begin(
-      timestamp, track_id, kNullStringId, name_id,
-      [&](ArgsTracker::BoundInserter* inserter) {
+      timestamp, track_id, kNullStringId, name_id, [&](ArgsInserter* inserter) {
         inserter->AddArg(display_frame_token_id_, Variadic::Integer(token));
         inserter->AddArg(present_delay_millis_id_,
                          Variadic::Real(present_delay_millis));
@@ -474,8 +473,7 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(int64_t timestamp,
   TrackId track_id = context_->track_compressor->InternBegin(
       kExpectedBlueprint, tracks::Dimensions(upid), cookie);
   context_->slice_tracker->Begin(
-      timestamp, track_id, kNullStringId, name_id,
-      [&](ArgsTracker::BoundInserter* inserter) {
+      timestamp, track_id, kNullStringId, name_id, [&](ArgsInserter* inserter) {
         inserter->AddArg(surface_frame_token_id_, Variadic::Integer(token));
         inserter->AddArg(display_frame_token_id_,
                          Variadic::Integer(display_frame_token));
@@ -616,8 +614,7 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
   }
 
   std::optional<SliceId> opt_slice_id = context_->slice_tracker->Begin(
-      timestamp, track_id, kNullStringId, name_id,
-      [&](ArgsTracker::BoundInserter* inserter) {
+      timestamp, track_id, kNullStringId, name_id, [&](ArgsInserter* inserter) {
         inserter->AddArg(surface_frame_token_id_, Variadic::Integer(token));
         inserter->AddArg(display_frame_token_id_,
                          Variadic::Integer(display_frame_token));

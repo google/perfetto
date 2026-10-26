@@ -151,8 +151,7 @@ void MetadataModule::ParseTrigger(int64_t ts,
   StringId name_id = context_->storage->InternString(trigger.trigger_name());
   context_->slice_tracker->Scoped(
       ts, track_id, cat_id, name_id,
-      /* duration = */ 0,
-      [&trigger, this](ArgsTracker::BoundInserter* args_table) {
+      /* duration = */ 0, [&trigger, this](ArgsInserter* args_table) {
         StringId producer_name =
             context_->storage->InternString(trigger.producer_name());
         if (!producer_name.is_null()) {
@@ -194,7 +193,7 @@ void MetadataModule::ParseChromeTrigger(int64_t ts, ConstBytes blob) {
   }
   auto slice_id = context_->slice_tracker->Scoped(
       ts, track_id, cat_id, name_id,
-      /* duration = */ 0, [&](ArgsTracker::BoundInserter* inserter) {
+      /* duration = */ 0, [&](ArgsInserter* inserter) {
         inserter->AddArg(
             chrome_trigger_hash_id_,
             Variadic::UnsignedInteger(trigger.trigger_name_hash()));

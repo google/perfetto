@@ -92,13 +92,12 @@ void BM_SliceTrackerBeginEndArgs(benchmark::State& state) {
     state.ResumeTiming();
 
     for (int64_t i = 0; i < kEvents; i += 2) {
-      tracker.Begin(i, track, kNullStringId, name,
-                    [&](ArgsTracker::BoundInserter* inserter) {
-                      inserter->AddArg(key1, Variadic::Integer(i));
-                      inserter->AddArg(key2, Variadic::Integer(i * 2));
-                    });
+      tracker.Begin(i, track, kNullStringId, name, [&](ArgsInserter* inserter) {
+        inserter->AddArg(key1, Variadic::Integer(i));
+        inserter->AddArg(key2, Variadic::Integer(i * 2));
+      });
       tracker.End(i + 1, track, kNullStringId, name,
-                  [&](ArgsTracker::BoundInserter* inserter) {
+                  [&](ArgsInserter* inserter) {
                     inserter->AddArg(key1, Variadic::Integer(i + 1));
                   });
     }
