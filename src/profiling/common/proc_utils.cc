@@ -30,6 +30,12 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
+// TODO(rsavitski): centralise all references to both the mount point and the
+// nesting of Android's cgroup v2 directories. We are technically hardcoding
+// paths that are under libprocessgroup's control, so we could at least colocate
+// the references (currently in traced, traced_probes, and heapprofd).
+constexpr char kCgroupV2Root[] = "/sys/fs/cgroup";
+
 std::optional<uint32_t> ParseProcStatusSize(const std::string& status,
                                             const std::string& key) {
   auto entry_idx = status.find(key);
@@ -84,6 +90,36 @@ void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids) {
       ++it;
     }
   }
+}
+
+// Example file below. The line with the "0::" prefix is used by the kernel
+// to indicate cgroup v2. (deleted) suffix is technically possible for some
+// zombie or dead-leader situations, but is not important here.
+//
+// 3:cpuset:/foreground
+// 2:cpu:/
+// 1:blkio:/
+// 0::/system/uid_1000/pid_1490
+std::optional<std::string> GetCgroupV2Path(const std::string& proc_pid_cgroup) {
+  for (const std::string& line : base::SplitString(proc_pid_cgroup, "\n")) {
+    if (base::StartsWith(line, "0::"))
+      return base::StripSuffix(line.substr(3), " (deleted)");
+  }
+  return std::nullopt;
+}
+
+// Note: we only check the per-process freeze control file (which might not
+// reflect freeze status inherited from higher levels such as uid), but the
+// android platform only freezes at process level in practice.
+bool IsProcessFrozen(pid_t pid) {
+  std::string contents;
+  if (!base::ReadFile("/proc/" + std::to_string(pid) + "/cgroup", &contents))
+    return false;
+  std::optional<std::string> path = GetCgroupV2Path(contents);
+  std::string state;
+  return path &&
+         base::ReadFile(kCgroupV2Root + *path + "/cgroup.freeze", &state) &&
+         base::TrimWhitespace(state) == "1";
 }
 
 std::optional<Uids> GetUids(const std::string& status) {
