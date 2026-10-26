@@ -18,7 +18,7 @@
 name: Enforce 2 Google org member reviews for fork PRs
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize, labeled, edited, auto_merge_enabled, auto_merge_disabled]
 
 permissions:
@@ -37,19 +37,24 @@ jobs:
       - name: Check if PR is from a fork
         id: fork_check
         shell: bash
+        env:
+          IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
         run: |
-          echo "is_fork=${{ github.event.pull_request.head.repo.full_name != github.repository }}" >> $GITHUB_ENV
-          echo "Triggered by: ${{ github.event_name }}, ${{ github.event.review.state }} by ${{ github.event.review.user.login }}"
+          echo "is_fork=${IS_FORK}" >> "$GITHUB_ENV"
+          echo "Triggered by: ${EVENT_NAME} (${EVENT_ACTION})"
 
       - name: Check Google org member reviews
         if: env.is_fork == 'true'
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          LATEST_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          PR_NUMBER=${{ github.event.pull_request.number }}
-          REPO="${{ github.repository }}"
-          LATEST_SHA="${{ github.event.pull_request.head.sha }}"
-
-          REVIEWS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          REVIEWS=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
             "https://api.github.com/repos/$REPO/pulls/$PR_NUMBER/reviews")
 
           # Get unique reviewers who approved the latest commit
@@ -74,7 +79,7 @@ jobs:
 
             # Check if user is a member of Google organization
             HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
               "https://api.github.com/organizations/1342004/public_members/$reviewer")
 
             if [ "$HTTP_STATUS" = "204" ]; then
