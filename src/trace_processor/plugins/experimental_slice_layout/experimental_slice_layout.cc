@@ -45,6 +45,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/cold_sort.h"
 
 namespace perfetto::trace_processor {
 
@@ -237,16 +238,11 @@ ExperimentalSliceLayout::Cursor::ComputeLayoutTable(
   for (uint32_t i = 0; i < groups.size(); ++i) {
     order[i] = i;
   }
-  std::sort(order.begin(), order.end(), [&](uint32_t a, uint32_t b) {
-    const GroupInfo& ga = groups[a];
-    const GroupInfo& gb = groups[b];
-    if (ga.max_depth != gb.max_depth) {
-      return ga.max_depth > gb.max_depth;
-    }
-    if (ga.start != gb.start) {
-      return ga.start < gb.start;
-    }
-    return a < b;
+  // Two stable sorts, the second keeping the first's order among its ties.
+  ColdStableSortByKey(order.begin(), order.end(),
+                      [&](uint32_t g) { return groups[g].start; });
+  ColdStableSortByKeyDescending(order.begin(), order.end(), [&](uint32_t g) {
+    return groups[g].max_depth;
   });
 
   // Step 3: place each group at the lowest run of (max depth + 1) rows that is
