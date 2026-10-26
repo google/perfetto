@@ -16,13 +16,16 @@
 
 #include "src/trace_processor/sorter/trace_sorter.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <map>
 #include <memory>
 #include <random>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -86,6 +89,26 @@ class TraceSorterTest : public ::testing::Test {
     auto sorting_mode = full_sort ? TraceSorter::SortingMode::kFullSort
                                   : TraceSorter::SortingMode::kDefault;
     context_.sorter.reset(new TraceSorter(&context_, sorting_mode));
+  }
+
+  // Creates a stream whose parsed events are appended to |parsed| as
+  // (timestamp, cpu).
+  std::unique_ptr<TraceSorter::Stream<FtraceEventData>> CreateRecordingStream(
+      std::vector<std::pair<int64_t, uint32_t>>* parsed) {
+    auto sink = std::make_unique<MockSink<FtraceEventData>>();
+    EXPECT_CALL(*sink, MockParse(_, _))
+        .WillRepeatedly([parsed](int64_t ts, FtraceEventData data) {
+          parsed->emplace_back(ts, data.cpu);
+        });
+    return context_.sorter->CreateStream(std::move(sink));
+  }
+
+  // Signals the flushes and read buffer which extract, in default sorting
+  // mode, the events pushed before the previous such call.
+  void ReadBuffer() {
+    context_.sorter->NotifyFlushEvent();
+    context_.sorter->NotifyFlushEvent();
+    context_.sorter->NotifyReadBufferEvent();
   }
 
  protected:
@@ -274,49 +297,10 @@ TEST_F(TraceSorterTest, OutOfOrder) {
       2);
 }
 
-// Sorts events which straddle the point where the queue's memory wraps around.
-TEST_F(TraceSorterTest, SortAcrossQueueWrap) {
-  CreateSorter(false);
-
-  auto sink = std::make_unique<MockSink<FtraceEventData>>();
-  auto* sink_ptr = sink.get();
-  auto stream = context_.sorter->CreateStream(std::move(sink));
-  std::vector<int64_t> parsed;
-  EXPECT_CALL(*sink_ptr, MockParse(_, _))
-      .WillRepeatedly(
-          [&parsed](int64_t ts, FtraceEventData) { parsed.push_back(ts); });
-
-  // Fill most of the queue's 1024 slots in order, then extract them all so the
-  // next events are pushed from near the end of its memory.
-  TraceBlobView tbv(TraceBlob::Allocate(1));
-  constexpr int64_t kFirst = 1000;
-  for (int64_t i = 0; i < kFirst; ++i) {
-    stream->Push(i, {tbv.slice_off(0, 1), 0});
-  }
-  for (int i = 0; i < 2; ++i) {
-    context_.sorter->NotifyFlushEvent();
-    context_.sorter->NotifyFlushEvent();
-    context_.sorter->NotifyReadBufferEvent();
-  }
-  ASSERT_EQ(parsed.size(), static_cast<size_t>(kFirst));
-
-  // Push in reverse, so all of them need sorting.
-  constexpr int64_t kSecond = 100;
-  for (int64_t i = kSecond - 1; i >= 0; --i) {
-    stream->Push(kFirst + i, {tbv.slice_off(0, 1), 0});
-  }
-  context_.sorter->ExtractEventsForced();
-
-  ASSERT_EQ(parsed.size(), static_cast<size_t>(kFirst + kSecond));
-  for (size_t i = 0; i < parsed.size(); ++i) {
-    EXPECT_EQ(parsed[i], static_cast<int64_t>(i));
-  }
-}
-
 // Simulates a random stream of ftrace events happening on random CPUs.
 // Tests that the output of the TraceSorter matches the timestamp order
 // (% events happening at the same time on different CPUs).
-TEST_F(TraceSorterTest, MultiQueueSorting) {
+TEST_F(TraceSorterTest, MultiStreamSorting) {
   std::minstd_rand0 rnd_engine(0);
   std::map<int64_t /*ts*/, std::vector<uint32_t /*cpu*/>> expectations;
 
@@ -365,7 +349,7 @@ TEST_F(TraceSorterTest, MultiQueueSorting) {
   EXPECT_TRUE(expectations.empty());
 }
 
-TEST_F(TraceSorterTest, EqualTimestampsAcrossQueuesInArrivalOrder) {
+TEST_F(TraceSorterTest, EqualTimestampsAcrossStreamsInArrivalOrder) {
   std::vector<uint32_t> order;
   std::vector<std::unique_ptr<TraceSorter::Stream<FtraceEventData>>> streams;
   for (uint32_t i = 0; i < 2; ++i) {
@@ -377,7 +361,7 @@ TEST_F(TraceSorterTest, EqualTimestampsAcrossQueuesInArrivalOrder) {
     streams.emplace_back(context_.sorter->CreateStream(std::move(sink)));
   }
 
-  // The second queue's events arrive first and in between the first's.
+  // The second stream's events arrive first and in between the first's.
   TraceBlobView tbv(TraceBlob::Allocate(4));
   streams[1]->Push(10, {tbv.slice_off(0, 1), 0});
   streams[0]->Push(10, {tbv.slice_off(1, 1), 1});
@@ -386,6 +370,143 @@ TEST_F(TraceSorterTest, EqualTimestampsAcrossQueuesInArrivalOrder) {
 
   context_.sorter->ExtractEventsForced();
   EXPECT_THAT(order, ElementsAre(0, 1, 2, 3));
+}
+
+using Events = std::vector<std::pair<int64_t, uint32_t>>;
+
+// The order events must be extracted in: by timestamp, then arrival.
+Events SortedByTs(Events events) {
+  std::stable_sort(
+      events.begin(), events.end(),
+      [](const auto& a, const auto& b) { return a.first < b.first; });
+  return events;
+}
+
+constexpr uint32_t kBlock = TraceSorter::kBlockEvents;
+
+// Events from several streams, out of order within and across blocks and with
+// many equal timestamps, extracted incrementally from partly drained blocks
+// and then by forced extractions, with more events pushed after the first.
+TEST_F(TraceSorterTest, BlocksExtractInTsThenArrivalOrder) {
+  CreateSorter(false);
+  std::minstd_rand0 rnd_engine(0);
+  Events parsed;
+  std::vector<std::unique_ptr<TraceSorter::Stream<FtraceEventData>>> streams;
+  for (uint32_t i = 0; i < 3; ++i) {
+    streams.push_back(CreateRecordingStream(&parsed));
+  }
+  TraceBlobView tbv(TraceBlob::Allocate(1));
+  Events pushed;
+  auto push = [&](int64_t ts) {
+    auto n = static_cast<uint32_t>(pushed.size());
+    pushed.emplace_back(ts, n);
+    streams[rnd_engine() % streams.size()]->Push(ts, {tbv.slice_off(0, 1), n});
+  };
+
+  // Jittered across block edges. Each extraction takes the events pushed
+  // before the previous one, so batches larger than the jitter keep every
+  // event in order.
+  constexpr uint32_t kJitter = 8192;
+  constexpr uint32_t kEvents = 4 * kBlock + 17;
+  for (uint32_t i = 0; i < kEvents; ++i) {
+    push(static_cast<int64_t>((i + rnd_engine() % kJitter) / 4));
+    if (i % (kBlock / 2 + 1000) == 0) {
+      ReadBuffer();
+    }
+  }
+  ASSERT_GT(parsed.size(), 0u);
+  ASSERT_LT(parsed.size(), pushed.size());
+  context_.sorter->ExtractEventsForced();
+  ASSERT_EQ(parsed.size(), pushed.size());
+
+  // Another block and a bit, in reverse.
+  for (uint32_t i = 0; i < kBlock + 5; ++i) {
+    push(static_cast<int64_t>(kEvents + kBlock + 5 - i));
+  }
+  context_.sorter->ExtractEventsForced();
+  EXPECT_EQ(parsed, SortedByTs(pushed));
+  EXPECT_EQ(
+      context_.global_stats_tracker->GetStats(
+          std::nullopt, std::nullopt, stats::sorter_push_event_out_of_order),
+      0);
+}
+
+// Destroying the sorter discards the events of partly extracted blocks.
+TEST_F(TraceSorterTest, DestroyWithPartlyExtractedBlocks) {
+  CreateSorter(false);
+  Events parsed;
+  auto stream = CreateRecordingStream(&parsed);
+  TraceBlobView tbv(TraceBlob::Allocate(1));
+  for (uint32_t i = 0; i < kBlock + kBlock / 2; ++i) {
+    stream->Push(1000 + i, {tbv.slice_off(0, 1), i});
+  }
+  ReadBuffer();
+  for (uint32_t i = 0; i < kBlock; ++i) {
+    stream->Push(1000 + kBlock + i, {tbv.slice_off(0, 1), i});
+  }
+  ReadBuffer();
+  ASSERT_EQ(parsed.size(), kBlock + 1u);
+
+  // Every pending event is discarded, freeing its token buffer allocation:
+  // ~BumpAllocator CHECKs they all are.
+  context_.sorter.reset(nullptr);
+  EXPECT_EQ(parsed.size(), kBlock + 1u);
+}
+
+// JSON events, which order equal timestamps by phase, sorted across blocks,
+// some of them sorted before the order changed.
+TEST_F(TraceSorterTest, SlowSortingAcrossBlocks) {
+  std::minstd_rand0 rnd_engine(0);
+  auto sink = std::make_unique<MockSink<JsonEvent>>();
+  std::vector<uint32_t> parsed;
+  EXPECT_CALL(*sink, MockParse(_, _))
+      .WillRepeatedly(
+          [&parsed](int64_t, JsonEvent event) { parsed.push_back(event.pid); });
+  auto stream = context_.sorter->CreateStream(std::move(sink));
+
+  struct Pushed {
+    int64_t ts;
+    int64_t key;
+    uint32_t id;
+  };
+  std::vector<Pushed> pushed;
+  constexpr uint32_t kEvents = 3 * kBlock + 17;
+  for (uint32_t i = 0; i < kEvents; ++i) {
+    JsonEvent event;
+    event.pid = i;
+    // 'X' events, which turn on slow sorting, only after the first block.
+    uint32_t phases = i < kBlock + 10 ? 2 : 3;
+    int64_t key = std::numeric_limits<int64_t>::max();
+    switch (rnd_engine() % phases) {
+      case 0:
+        event.phase = 'B';
+        break;
+      case 1:
+        event.phase = 'E';
+        key = std::numeric_limits<int64_t>::min();
+        break;
+      default:
+        event.phase = 'X';
+        event.dur = static_cast<int64_t>(rnd_engine() % 10);
+        key -= event.dur;
+        break;
+    }
+    // Few distinct timestamps, overlapping across blocks, so many ties.
+    auto ts = static_cast<int64_t>(i / 8 + rnd_engine() % 4096);
+    pushed.push_back({ts, key, i});
+    stream->Push(ts, std::move(event));
+  }
+  context_.sorter->ExtractEventsForced();
+
+  std::stable_sort(pushed.begin(), pushed.end(),
+                   [](const Pushed& a, const Pushed& b) {
+                     return std::tie(a.ts, a.key) < std::tie(b.ts, b.key);
+                   });
+  std::vector<uint32_t> expected;
+  for (const Pushed& p : pushed) {
+    expected.push_back(p.id);
+  }
+  EXPECT_EQ(parsed, expected);
 }
 
 TEST_F(TraceSorterTest, SetSortingMode) {
