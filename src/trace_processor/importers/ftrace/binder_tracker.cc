@@ -255,17 +255,17 @@ void BinderTracker::Transaction(int64_t ts,
   TrackId track_id = context_->track_tracker->InternThreadTrack(src_utid);
 
   auto args_inserter = [this, transaction_id, dest_node, dest_tgid, is_reply,
-                        flags, code, tid](ArgsInserter* inserter) {
-    inserter->AddArg(transaction_id_, Variadic::Integer(transaction_id));
-    inserter->AddArg(dest_node_, Variadic::Integer(dest_node));
-    inserter->AddArg(dest_process_, Variadic::Integer(dest_tgid));
-    inserter->AddArg(is_reply_, Variadic::Boolean(is_reply));
+                        flags, code, tid](ArgsInserter& inserter) {
+    inserter.AddArg(transaction_id_, Variadic::Integer(transaction_id));
+    inserter.AddArg(dest_node_, Variadic::Integer(dest_node));
+    inserter.AddArg(dest_process_, Variadic::Integer(dest_tgid));
+    inserter.AddArg(is_reply_, Variadic::Boolean(is_reply));
     std::string flag_str =
         base::IntToHexString(flags) + " " + BinderFlagsToHuman(flags);
-    inserter->AddArg(flags_, Variadic::String(context_->storage->InternString(
-                                 base::StringView(flag_str))));
-    inserter->AddArg(code_, Variadic::String(code));
-    inserter->AddArg(calling_tid_, Variadic::UnsignedInteger(tid));
+    inserter.AddArg(flags_, Variadic::String(context_->storage->InternString(
+                                base::StringView(flag_str))));
+    inserter.AddArg(code_, Variadic::String(code));
+    inserter.AddArg(calling_tid_, Variadic::UnsignedInteger(tid));
   };
 
   bool is_oneway = (flags & kOneWay) == kOneWay;
@@ -275,10 +275,10 @@ void BinderTracker::Transaction(int64_t ts,
           static_cast<uint32_t>(dest_tid));
       auto dest_thread_name = context_->storage->thread_table()[utid].name();
       auto dest_args_inserter = [this, dest_tid,
-                                 &dest_thread_name](ArgsInserter* inserter) {
-        inserter->AddArg(dest_thread_, Variadic::Integer(dest_tid));
+                                 &dest_thread_name](ArgsInserter& inserter) {
+        inserter.AddArg(dest_thread_, Variadic::Integer(dest_tid));
         if (dest_thread_name.has_value()) {
-          inserter->AddArg(dest_name_, Variadic::String(*dest_thread_name));
+          inserter.AddArg(dest_name_, Variadic::String(*dest_thread_name));
         }
       };
       context_->slice_tracker->AddArgs(track_id, binder_category_id_, reply_id_,
@@ -365,11 +365,11 @@ void BinderTracker::TransactionReceived(int64_t ts,
         std::move(transaction.args_inserter));
   } else {
     if (transaction.send_track_id) {
-      auto args_inserter = [this, utid, pid](ArgsInserter* inserter) {
-        inserter->AddArg(dest_thread_, Variadic::UnsignedInteger(pid));
+      auto args_inserter = [this, utid, pid](ArgsInserter& inserter) {
+        inserter.AddArg(dest_thread_, Variadic::UnsignedInteger(pid));
         auto dest_thread_name = context_->storage->thread_table()[utid].name();
         if (dest_thread_name.has_value()) {
-          inserter->AddArg(dest_name_, Variadic::String(*dest_thread_name));
+          inserter.AddArg(dest_name_, Variadic::String(*dest_thread_name));
         }
       };
       context_->slice_tracker->AddArgs(*transaction.send_track_id,
@@ -541,9 +541,9 @@ void BinderTracker::TransactionAllocBuf(int64_t ts,
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
 
   auto args_inserter = [this, &data_size,
-                        offsets_size](ArgsInserter* inserter) {
-    inserter->AddArg(data_size_, Variadic::UnsignedInteger(data_size));
-    inserter->AddArg(offsets_size_, Variadic::UnsignedInteger(offsets_size));
+                        offsets_size](ArgsInserter& inserter) {
+    inserter.AddArg(data_size_, Variadic::UnsignedInteger(data_size));
+    inserter.AddArg(offsets_size_, Variadic::UnsignedInteger(offsets_size));
   };
   context_->slice_tracker->AddArgs(track_id, binder_category_id_,
                                    transaction_slice_id_, args_inserter);

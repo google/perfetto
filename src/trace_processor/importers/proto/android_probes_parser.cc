@@ -690,39 +690,38 @@ void AndroidProbesParser::ParseBtTraceEvent(int64_t ts, ConstBytes blob) {
 
   context_->slice_tracker->Scoped(
       ts, track_id, kNullStringId, bt_trace_event_id_, evt.duration(),
-      [&evt, this](ArgsInserter* inserter) {
+      [&evt, this](ArgsInserter& inserter) {
         if (evt.has_packet_type()) {
           StringId packet_type_str = context_->storage->InternString(
               bluetooth::tracing::pbzero::BluetoothTracePacketType_Name(
                   static_cast<
                       ::bluetooth::tracing::pbzero::BluetoothTracePacketType>(
                       evt.packet_type())));
-          inserter->AddArg(bt_packet_type_id_,
-                           Variadic::String(packet_type_str));
+          inserter.AddArg(bt_packet_type_id_,
+                          Variadic::String(packet_type_str));
         }
         if (evt.has_count()) {
-          inserter->AddArg(bt_count_id_,
-                           Variadic::UnsignedInteger(evt.count()));
+          inserter.AddArg(bt_count_id_, Variadic::UnsignedInteger(evt.count()));
         }
         if (evt.has_length()) {
-          inserter->AddArg(bt_length_id_,
-                           Variadic::UnsignedInteger(evt.length()));
+          inserter.AddArg(bt_length_id_,
+                          Variadic::UnsignedInteger(evt.length()));
         }
         if (evt.has_op_code()) {
-          inserter->AddArg(bt_op_code_id_,
-                           Variadic::UnsignedInteger(evt.op_code()));
+          inserter.AddArg(bt_op_code_id_,
+                          Variadic::UnsignedInteger(evt.op_code()));
         }
         if (evt.has_event_code()) {
-          inserter->AddArg(bt_event_code_id_,
-                           Variadic::UnsignedInteger(evt.event_code()));
+          inserter.AddArg(bt_event_code_id_,
+                          Variadic::UnsignedInteger(evt.event_code()));
         }
         if (evt.has_subevent_code()) {
-          inserter->AddArg(bt_subevent_code_id_,
-                           Variadic::UnsignedInteger(evt.subevent_code()));
+          inserter.AddArg(bt_subevent_code_id_,
+                          Variadic::UnsignedInteger(evt.subevent_code()));
         }
         if (evt.has_connection_handle()) {
-          inserter->AddArg(bt_handle_id_,
-                           Variadic::UnsignedInteger(evt.connection_handle()));
+          inserter.AddArg(bt_handle_id_,
+                          Variadic::UnsignedInteger(evt.connection_handle()));
         }
       });
 }

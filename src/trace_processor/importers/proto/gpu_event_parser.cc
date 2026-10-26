@@ -825,53 +825,52 @@ void GpuEventParser::ParseGpuRenderStageEvent(
     }
     auto opt_slice_id = context_->slice_tracker->Scoped(
         ts, track_id, kNullStringId, name_id,
-        static_cast<int64_t>(event.duration()), [&](ArgsInserter* inserter) {
+        static_cast<int64_t>(event.duration()), [&](ArgsInserter& inserter) {
           if (event.has_stage_iid()) {
             auto stage_iid = static_cast<size_t>(event.stage_iid());
             auto* decoder = sequence_state->LookupInternedMessage<
                 protos::pbzero::InternedData::kGpuSpecificationsFieldNumber,
                 protos::pbzero::InternedGpuRenderStageSpecification>(stage_iid);
             if (decoder) {
-              inserter->AddArg(
+              inserter.AddArg(
                   category_id_,
                   Variadic::Integer(static_cast<int64_t>(decoder->category())));
-              inserter->AddArg(description_id_,
-                               Variadic::String(context_->storage->InternString(
-                                   decoder->description())));
+              inserter.AddArg(description_id_,
+                              Variadic::String(context_->storage->InternString(
+                                  decoder->description())));
               // A named event's slice takes the event's name, so the stage
               // (kernel, memory transfer, ...) survives only here.
-              inserter->AddArg(stage_name_id_,
-                               Variadic::String(context_->storage->InternString(
-                                   decoder->name())));
+              inserter.AddArg(stage_name_id_,
+                              Variadic::String(context_->storage->InternString(
+                                  decoder->name())));
             }
           } else if (event.has_stage_id()) {
             size_t stage_id = static_cast<size_t>(event.stage_id());
             if (stage_id < gpu_render_stage_ids_.size()) {
-              inserter->AddArg(
+              inserter.AddArg(
                   stage_name_id_,
                   Variadic::String(gpu_render_stage_ids_[stage_id].first));
               auto description = gpu_render_stage_ids_[stage_id].second;
               if (description != kNullStringId) {
-                inserter->AddArg(description_id_,
-                                 Variadic::String(description));
+                inserter.AddArg(description_id_, Variadic::String(description));
               }
             }
           }
 
           if (event.has_kernel_iid()) {
-            ParseComputeKernel(sequence_state, event.kernel_iid(), inserter);
+            ParseComputeKernel(sequence_state, event.kernel_iid(), &inserter);
           }
 
           if (event.has_launch()) {
-            ParseComputeKernelLaunch(sequence_state, event.launch(), inserter);
+            ParseComputeKernelLaunch(sequence_state, event.launch(), &inserter);
           }
 
           if (event.render_pass_instance_id()) {
             base::StackString<512> id_str("rp:#%" PRIu64,
                                           event.render_pass_instance_id());
-            inserter->AddArg(correlation_id_,
-                             Variadic::String(context_->storage->InternString(
-                                 id_str.string_view())));
+            inserter.AddArg(correlation_id_,
+                            Variadic::String(context_->storage->InternString(
+                                id_str.string_view())));
           }
 
           for (auto it = event.extra_data(); it; ++it) {
@@ -879,38 +878,37 @@ void GpuEventParser::ParseGpuRenderStageEvent(
             StringId name_id = context_->storage->InternString(datum.name());
             StringId value = context_->storage->InternString(
                 datum.has_value() ? datum.value() : base::StringView());
-            inserter->AddArg(name_id, Variadic::String(value));
+            inserter.AddArg(name_id, Variadic::String(value));
           }
 
-          inserter->AddArg(context_id_id_,
-                           Variadic::UnsignedInteger(event.context()));
-          inserter->AddArg(
-              render_target_id_,
-              Variadic::UnsignedInteger(event.render_target_handle()));
-          inserter->AddArg(
+          inserter.AddArg(context_id_id_,
+                          Variadic::UnsignedInteger(event.context()));
+          inserter.AddArg(render_target_id_, Variadic::UnsignedInteger(
+                                                 event.render_target_handle()));
+          inserter.AddArg(
               render_target_name_id_,
               Variadic::String(FindDebugName(VK_OBJECT_TYPE_FRAMEBUFFER,
                                              event.render_target_handle())));
-          inserter->AddArg(render_pass_id_, Variadic::UnsignedInteger(
-                                                event.render_pass_handle()));
-          inserter->AddArg(
+          inserter.AddArg(render_pass_id_, Variadic::UnsignedInteger(
+                                               event.render_pass_handle()));
+          inserter.AddArg(
               render_pass_name_id_,
               Variadic::String(FindDebugName(VK_OBJECT_TYPE_RENDER_PASS,
                                              event.render_pass_handle())));
-          inserter->AddArg(render_subpasses_id_,
-                           Variadic::String(ParseRenderSubpasses(event)));
-          inserter->AddArg(
+          inserter.AddArg(render_subpasses_id_,
+                          Variadic::String(ParseRenderSubpasses(event)));
+          inserter.AddArg(
               command_buffer_id_,
               Variadic::UnsignedInteger(event.command_buffer_handle()));
-          inserter->AddArg(
+          inserter.AddArg(
               command_buffer_name_id_,
               Variadic::String(FindDebugName(VK_OBJECT_TYPE_COMMAND_BUFFER,
                                              event.command_buffer_handle())));
-          inserter->AddArg(submission_id_id_,
-                           Variadic::Integer(event.submission_id()));
-          inserter->AddArg(hw_queue_id_id_,
-                           Variadic::UnsignedInteger(hw_queue_id));
-          inserter->AddArg(
+          inserter.AddArg(submission_id_id_,
+                          Variadic::Integer(event.submission_id()));
+          inserter.AddArg(hw_queue_id_id_,
+                          Variadic::UnsignedInteger(hw_queue_id));
+          inserter.AddArg(
               upid_id_,
               Variadic::Integer(context_->process_tracker->GetOrCreateProcess(
                   static_cast<uint32_t>(pid))));
@@ -1157,16 +1155,16 @@ void GpuEventParser::ParseGpuLog(int64_t ts, ConstBytes blob) {
           : log_severity_ids_[log_severity_ids_.size() - 1];
   context_->slice_tracker->Scoped(
       ts, track_id, kNullStringId, severity_id, 0,
-      [this, &event](ArgsInserter* inserter) {
+      [this, &event](ArgsInserter& inserter) {
         if (event.has_tag()) {
-          inserter->AddArg(
+          inserter.AddArg(
               tag_id_,
               Variadic::String(context_->storage->InternString(event.tag())));
         }
         if (event.has_log_message()) {
-          inserter->AddArg(log_message_id_,
-                           Variadic::String(context_->storage->InternString(
-                               event.log_message())));
+          inserter.AddArg(log_message_id_,
+                          Variadic::String(context_->storage->InternString(
+                              event.log_message())));
         }
       });
 }
@@ -1192,29 +1190,29 @@ void GpuEventParser::ParseVulkanApiEvent(int64_t ts, ConstBytes blob) {
   context_->slice_tracker->Scoped(
       ts, track_id, kNullStringId, vk_queue_submit_id_,
       static_cast<int64_t>(event.duration_ns()),
-      [this, &event](ArgsInserter* inserter) {
-        inserter->AddArg(pid_id_, Variadic::Integer(event.pid()));
-        inserter->AddArg(tid_id_, Variadic::Integer(event.tid()));
+      [this, &event](ArgsInserter& inserter) {
+        inserter.AddArg(pid_id_, Variadic::Integer(event.pid()));
+        inserter.AddArg(tid_id_, Variadic::Integer(event.tid()));
         if (event.has_vk_command_buffers()) {
           uint32_t count = 0;
           for (auto it = event.vk_command_buffers(); it; ++it, ++count) {
             if (count == 0) {
               // Compatibility: first buffer as a flat "command_buffer"
-              inserter->AddArg(command_buffer_id_,
-                               Variadic::UnsignedInteger(*it));
+              inserter.AddArg(command_buffer_id_,
+                              Variadic::UnsignedInteger(*it));
             }
             size_t array_index =
-                inserter->GetNextArrayEntryIndex(command_buffers_id_);
+                inserter.GetNextArrayEntryIndex(command_buffers_id_);
             std::string child_key =
                 "command_buffers[" + std::to_string(array_index) + "]";
-            inserter->AddArg(command_buffers_id_,
-                             context_->storage->InternString(child_key),
-                             Variadic::UnsignedInteger(*it));
-            inserter->IncrementArrayEntryIndex(command_buffers_id_);
+            inserter.AddArg(command_buffers_id_,
+                            context_->storage->InternString(child_key),
+                            Variadic::UnsignedInteger(*it));
+            inserter.IncrementArrayEntryIndex(command_buffers_id_);
           }
         }
-        inserter->AddArg(submission_id_id_,
-                         Variadic::Integer(event.submission_id()));
+        inserter.AddArg(submission_id_id_,
+                        Variadic::Integer(event.submission_id()));
       });
 }
 

@@ -104,9 +104,9 @@ void ThermalTracker::ParseThermalExynosAcpmBulk(protozero::ConstBytes blob) {
         tracks::Dimensions(kAcpmThermalZones[tz_id]));
     context_->event_tracker->PushCounter(
         timestamp, static_cast<double>(event.current_temp()), track,
-        [this, tz_id](ArgsInserter* inserter) {
+        [this, tz_id](ArgsInserter& inserter) {
           StringId key = context_->storage->InternString(kThermalZoneIdKey);
-          inserter->AddArg(key, Variadic::Integer(tz_id));
+          inserter.AddArg(key, Variadic::Integer(tz_id));
         });
   }
   {
@@ -115,9 +115,9 @@ void ThermalTracker::ParseThermalExynosAcpmBulk(protozero::ConstBytes blob) {
         tracks::Dimensions(kAcpmThermalZones[tz_id]));
     context_->event_tracker->PushCounter(
         timestamp, static_cast<double>(event.cdev_state()), track,
-        [this, tz_id](ArgsInserter* inserter) {
+        [this, tz_id](ArgsInserter& inserter) {
           StringId key = context_->storage->InternString(kThermalZoneIdKey);
-          inserter->AddArg(key, Variadic::Integer(tz_id));
+          inserter.AddArg(key, Variadic::Integer(tz_id));
         });
   }
 }
@@ -138,9 +138,9 @@ void ThermalTracker::ParseThermalExynosAcpmHighOverhead(
         tracks::Dimensions(kAcpmThermalZones[tz_id]));
     context_->event_tracker->PushCounter(
         timestamp, static_cast<double>(event.current_temp()), track,
-        [this, tz_id](ArgsInserter* inserter) {
+        [this, tz_id](ArgsInserter& inserter) {
           StringId key = context_->storage->InternString(kThermalZoneIdKey);
-          inserter->AddArg(key, Variadic::Integer(tz_id));
+          inserter.AddArg(key, Variadic::Integer(tz_id));
         });
   }
   {
@@ -149,9 +149,9 @@ void ThermalTracker::ParseThermalExynosAcpmHighOverhead(
         tracks::Dimensions(kAcpmThermalZones[tz_id]));
     context_->event_tracker->PushCounter(
         timestamp, static_cast<double>(event.cdev_state()), track,
-        [this, tz_id](ArgsInserter* inserter) {
+        [this, tz_id](ArgsInserter& inserter) {
           StringId key = context_->storage->InternString(kThermalZoneIdKey);
-          inserter->AddArg(key, Variadic::Integer(tz_id));
+          inserter.AddArg(key, Variadic::Integer(tz_id));
         });
   }
 }

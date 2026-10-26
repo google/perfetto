@@ -64,12 +64,12 @@ void ArtMethodParser::Parse(int64_t ts, ArtMethodEvent e) {
   switch (e.action) {
     case ArtMethodEvent::kEnter:
       context_->slice_tracker->Begin(
-          ts, track_id, kNullStringId, e.method, [this, &e](ArgsInserter* i) {
+          ts, track_id, kNullStringId, e.method, [this, &e](ArgsInserter& i) {
             if (e.pathname) {
-              i->AddArg(pathname_id_, Variadic::String(*e.pathname));
+              i.AddArg(pathname_id_, Variadic::String(*e.pathname));
             }
             if (e.line_number) {
-              i->AddArg(line_number_id_, Variadic::Integer(*e.line_number));
+              i.AddArg(line_number_id_, Variadic::Integer(*e.line_number));
             }
           });
       break;
