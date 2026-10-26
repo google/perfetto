@@ -197,17 +197,14 @@ class TraceStorage {
   // Return an unique identifier for the contents of each string.
   // The string is copied internally and can be destroyed after this called.
   // Virtual for testing.
-  virtual StringId InternString(base::StringView str) {
+  virtual StringId InternString(std::string_view str) {
     return string_pool_.InternString(str);
   }
   virtual StringId InternString(const char* str) {
-    return InternString(base::StringView(str));
+    return InternString(std::string_view(str));
   }
   virtual StringId InternString(const std::string& str) {
-    return InternString(base::StringView(str));
-  }
-  virtual StringId InternString(std::string_view str) {
-    return InternString(base::StringView(str.data(), str.size()));
+    return InternString(std::string_view(str));
   }
 
   // Reading methods.
