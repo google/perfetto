@@ -1,0 +1,2 @@
+This is a dummy test file created to test the Jujutsu (jj) VS Code interface.
+Testing file status, diff views, and commit operations.
