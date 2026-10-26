@@ -21,7 +21,7 @@
 --
 -- Interpret: the highest pipe % is the most-utilized pipeline; a single pipe
 -- near peak while sm_busy_pct is lower points to a pipe bottleneck / imbalance;
--- consider a different precision or instruction mix. See compute/workload_analysis.md.
+-- consider a different precision or instruction mix. See compute/compute_workload_analysis.md.
 
 CREATE PERFETTO TABLE _kernels AS
 SELECT
