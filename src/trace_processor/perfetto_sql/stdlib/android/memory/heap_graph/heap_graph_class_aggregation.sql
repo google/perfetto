@@ -23,23 +23,45 @@ RETURNS LONG
 AS
 SELECT id + 1 FROM heap_graph_object ORDER BY id DESC LIMIT 1;
 
-CREATE PERFETTO FUNCTION _is_libcore_or_array(obj_name STRING)
+CREATE PERFETTO FUNCTION _is_static_class(obj_name STRING)
+RETURNS BOOL
+AS
+SELECT $obj_name GLOB 'java.lang.Class<*>';
+
+CREATE PERFETTO FUNCTION _is_language_runtime(obj_name STRING)
 RETURNS BOOL
 AS
 SELECT
-  ($obj_name GLOB 'java.*' AND NOT ($obj_name GLOB 'java.lang.Class<*>'))
+  ($obj_name GLOB 'java.*' AND NOT _is_static_class($obj_name))
+  OR $obj_name GLOB 'java.lang.Class<java.*>'
   OR $obj_name GLOB 'j$.*'
-  OR $obj_name GLOB 'int[[]*'
-  OR $obj_name GLOB 'long[[]*'
-  OR $obj_name GLOB 'byte[[]*'
-  OR $obj_name GLOB 'char[[]*'
-  OR $obj_name GLOB 'short[[]*'
-  OR $obj_name GLOB 'float[[]*'
-  OR $obj_name GLOB 'double[[]*'
-  OR $obj_name GLOB 'boolean[[]*'
+  OR $obj_name GLOB 'java.lang.Class<j$.*>'
+  OR $obj_name GLOB 'kotlin.*'
+  OR $obj_name GLOB 'java.lang.Class<kotlin.*>'
+  OR $obj_name GLOB 'kotlinx.*'
+  OR $obj_name GLOB 'java.lang.Class<kotlinx.*>';
+
+CREATE PERFETTO FUNCTION _is_container(obj_name STRING)
+RETURNS BOOL
+AS
+SELECT
+  $obj_name GLOB '*[[]]'
+  OR $obj_name GLOB 'java.lang.Class<*[[]]>'
   OR $obj_name GLOB 'android.util.*Array*'
-  OR $obj_name GLOB 'kotlinx.coroutines.*'
-  OR $obj_name GLOB 'kotlinx.atomicfu.*';
+  OR $obj_name GLOB 'java.lang.Class<android.util.*Array*>'
+  OR $obj_name GLOB 'java.util.*'
+  OR $obj_name GLOB 'java.lang.Class<java.util.*>'
+  OR $obj_name GLOB 'j$.util.*'
+  OR $obj_name GLOB 'java.lang.Class<j$.util.*>'
+  OR $obj_name GLOB 'kotlin.collections.*'
+  OR $obj_name GLOB 'java.lang.Class<kotlin.collections.*>'
+  OR $obj_name GLOB 'androidx.collection.*'
+  OR $obj_name GLOB 'java.lang.Class<androidx.collection.*>';
+
+CREATE PERFETTO FUNCTION _is_libcore_or_array(obj_name STRING)
+RETURNS BOOL
+AS
+SELECT _is_language_runtime($obj_name) OR _is_container($obj_name);
 
 -- Dominator tree nodes with no ancestor of the same class. Summing the
 -- dominated stats of these nodes per class counts every dominated object once.
@@ -117,8 +139,14 @@ CREATE PERFETTO TABLE android_heap_graph_class_aggregation(
   type_id LONG,
   -- Class name (deobfuscated if available)
   type_name STRING,
-  -- Is type an instance of a libcore object (java.*) or array
+  -- Deprecated: use is_language_runtime, is_container, and is_static_class instead.
   is_libcore_or_array BOOL,
+  -- Whether the class is part of standard Java/Kotlin runtime libraries.
+  is_language_runtime BOOL,
+  -- Whether the class is an array or standard collection/container.
+  is_container BOOL,
+  -- Whether the object is a java.lang.Class<*> singleton.
+  is_static_class BOOL,
   -- Count of class instances
   obj_count LONG,
   -- Size of class instances
@@ -148,6 +176,9 @@ SELECT
   a.type_id,
   coalesce(cls.deobfuscated_name, cls.name) AS type_name,
   _is_libcore_or_array(coalesce(cls.deobfuscated_name, cls.name)) AS is_libcore_or_array,
+  _is_language_runtime(coalesce(cls.deobfuscated_name, cls.name)) AS is_language_runtime,
+  _is_container(coalesce(cls.deobfuscated_name, cls.name)) AS is_container,
+  _is_static_class(coalesce(cls.deobfuscated_name, cls.name)) AS is_static_class,
   a.obj_count,
   a.size_bytes,
   a.native_size_bytes,
@@ -167,4 +198,7 @@ ORDER BY
   2,
   3,
   4,
-  5;
+  5,
+  6,
+  7,
+  8;
