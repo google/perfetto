@@ -1,5 +1,38 @@
 Unreleased:
   Tracing service and probes:
+   * Added an s390x syscall table.
+  Trace Processor:
+   * Added producer-declared track dimensions (`TrackDescriptor.dimensions`),
+     exposed through the `track_dimension`, `process_dimension` and
+     `thread_dimension` tables.
+   * The Python `TraceProcessor` now supports `metric()` over `remote` Unix
+     socket sessions.
+   * Python query results can now be converted to typed Arrow tables with
+     `as_arrow_table()`, and implement the Arrow PyCapsule interface so they
+     can be passed straight to pyarrow, polars and DuckDB.
+  UI:
+    * AndroidInputLifecycle arrows are now drawn as soon as an input slice is
+      selected, with the latency grid in an "Input Lifecycle" details tab.
+    * Embedders can now hide the status bar with the `hideStatusbar` route
+      arg.
+    * Added the `com.android.ProcessState` plugin (enabled by default),
+      visualizing Android framework process states and freezer state per
+      process and per state, with residency and transition breakdowns for area
+      selections.
+  SDK:
+    * Android Java SDK: events started while another event is being built on
+      the same thread are no longer dropped.
+  Misc:
+    * Added s390x cross-compilation support.
+
+v59.1 - 2026-10-23:
+  Misc:
+    * Fixed the Linux and Android release builds, which failed on the
+      release builder because of a newer GCC installation there. v59.0 was
+      never released because of this.
+
+v59.0 - 2026-10-22:
+  Tracing service and probes:
    * Changed compression logic to always emit clock snapshot, trace config and
    trace UUID uncompressed for metadata inspection by on-device tools.
    * Added support for persistent traces surviving device reboots on Android.
@@ -15,7 +48,6 @@ Unreleased:
    * When a config traces every syscall, the x86_64 uprobe/uretprobe
      trampoline syscalls are now filtered out, as their sys_enter is never
      closed by a matching sys_exit.
-   * Added an s390x syscall table.
    * Added GpuRenderStagesConfig.drawcall_stages to emit per-draw-call slices
      on the gpu.renderstages data source.
    * Added the pixel_metrics/long_irq and pixel_metrics/long_softirq ftrace
@@ -79,9 +111,6 @@ Unreleased:
    * Added Wattson support for Tensor G6 (CPU, GPU and TPU) and MT6789, and
      for Linux devices identified by their device tree. Removed Wattson's
      inferred idle support.
-   * Added producer-declared track dimensions (`TrackDescriptor.dimensions`),
-     exposed through the `track_dimension`, `process_dimension` and
-     `thread_dimension` tables.
    * Added explicit debuginfod lookup of native symbols, enabled with
      `--debuginfod`. Symbolization now sends far fewer requests to
      llvm-symbolizer, fails gracefully when llvm-symbolizer cannot be run,
@@ -100,11 +129,6 @@ Unreleased:
      `offset_ns` being ignored for proto files without clock snapshots.
    * Added terminal-aware progress reporting, `--no-progress`, and support
      for the `NO_COLOR` and `FORCE_COLOR` environment variables.
-   * The Python `TraceProcessor` now supports `metric()` over `remote` Unix
-     socket sessions.
-   * Python query results can now be converted to typed Arrow tables with
-     `as_arrow_table()`, and implement the Arrow PyCapsule interface so they
-     can be passed straight to pyarrow, polars and DuckDB.
    * Trace summary specs now ignore unknown fields.
    * Extension descriptors in a trace now override built-in definitions of
      the same fields.
@@ -148,8 +172,6 @@ Unreleased:
     * Frame timeline tracks are now grouped by layer.
     * Revamped the AndroidLockContention plugin: a lock contention breakdown
       in the selection details, and links from held locks to their slices.
-    * AndroidInputLifecycle arrows are now drawn as soon as an input slice is
-      selected, with the latency grid in an "Input Lifecycle" details tab.
     * Added a "CPU Time / Wall Time" column, shown by default, to CPU slice
       aggregations.
     * Battery status and plug type tracks are now always top level.
@@ -159,16 +181,12 @@ Unreleased:
       collection rate. Loading a record config now restores every probe
       setting.
     * Embedders can now stream traces over postMessage as a ReadableStream,
-      use the `shareable` and `downloadable` flags in place of `localOnly`,
-      and hide the status bar with the `hideStatusbar` route arg.
+      and use the `shareable` and `downloadable` flags in place of
+      `localOnly`.
       Note: Traces posted as a bare ArrayBuffer are now local-only by default.
     * Improved decoding of query results, especially when loading track data.
     * The timeline now recovers from WebGL context loss.
     * The Chrome extension now only accepts connections from ui.perfetto.dev.
-    * Added the `com.android.ProcessState` plugin (enabled by default),
-      visualizing Android framework process states and freezer state per
-      process and per state, with residency and transition breakdowns for area
-      selections.
   SDK:
     * Added TraceContext::drop_count() to the C++ SDK and
       PerfettoDsTracerGetDropCount() to the C SDK to detect data lost to
@@ -181,14 +199,12 @@ Unreleased:
     * Fixed a crash in Tracing::Shutdown() when data sources were still
       active.
     * Android Java SDK: only allowlisted apps can now register with the
-      system tracing service, and events started while another event is
-      being built on the same thread are no longer dropped.
+      system tracing service.
   Misc:
     * Added the `perfetto_cxx_standard` GN arg (default "c++17") to allow
       standalone builds to use a newer C++ standard (e.g. "c++20").
     * Added the `perfetto_use_system_re2`, `perfetto_use_system_zstd`,
       `perfetto_use_system_linenoise` and `perfetto_use_system_expat` GN args.
-    * Added s390x cross-compilation support.
     * Perfetto can now be used as a non-root Bazel module.
     * Release zips now include the LICENSE file.
     * `tools/open_trace_in_ui` can open traces on remote hosts with
