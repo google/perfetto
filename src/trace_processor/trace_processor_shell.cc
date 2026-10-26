@@ -857,6 +857,14 @@ class DefaultPlatformInterface : public TraceProcessorShell::PlatformInterface {
       TraceProcessor* trace_processor,
       const std::string& path,
       std::function<void(size_t)> progress_callback) override {
+    return LoadTrace(trace_processor, path, std::move(progress_callback),
+                     LoadTraceOptions());
+  }
+
+  base::Status LoadTrace(TraceProcessor* trace_processor,
+                         const std::string& path,
+                         std::function<void(size_t)> progress_callback,
+                         const LoadTraceOptions& options) override {
     // The shell opts into loading traces directly from http(s) URLs and from
     // Perfetto UI share links; the user opts in by passing such a path. Bytes
     // downloaded this way are cached on local disk so re-running on the same
@@ -865,6 +873,7 @@ class DefaultPlatformInterface : public TraceProcessorShell::PlatformInterface {
     args.allow_http = true;
     args.allow_perfetto_ui_links = true;
     args.cache_downloads = true;
+    args.use_mmap = options.use_mmap;
     return ReadTraceUnfinalized(trace_processor, path.c_str(),
                                 progress_callback, args);
   }

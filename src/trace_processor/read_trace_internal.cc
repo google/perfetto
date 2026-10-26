@@ -567,7 +567,7 @@ base::Status ReadTraceUnfinalized(
 
 #if PERFETTO_HAS_MMAP()
   char* no_mmap = getenv("TRACE_PROCESSOR_NO_MMAP");
-  bool use_mmap = !no_mmap || *no_mmap != '1';
+  bool use_mmap = args.use_mmap && (!no_mmap || *no_mmap != '1');
 
   if (use_mmap) {
     base::ScopedMmap mapped = base::ReadMmapWholeFile(filename);
@@ -585,9 +585,9 @@ base::Status ReadTraceUnfinalized(
         bytes_read += slice_size;
       }  // while (slices)
     }  // if (mapped.IsValid())
+    if (bytes_read == 0)
+      PERFETTO_LOG("Cannot use mmap on this system. Falling back on read()");
   }  // if (use_mmap)
-  if (bytes_read == 0)
-    PERFETTO_LOG("Cannot use mmap on this system. Falling back on read()");
 #endif  // PERFETTO_HAS_MMAP()
   if (bytes_read == 0) {
     base::ScopedFile fd(base::OpenFile(filename, O_RDONLY));
