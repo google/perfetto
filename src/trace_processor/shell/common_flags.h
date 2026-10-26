@@ -118,6 +118,7 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> SetupTraceProcessor(
 base::StatusOr<base::TimeNanos> LoadTraceFile(
     TraceProcessor* tp,
     TraceProcessorShell_PlatformInterface* platform,
+    const Config& config,
     const std::string& trace_file,
     bool quiet,
     const profiling::DebuginfodConfig& debuginfod);

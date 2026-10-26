@@ -49,6 +49,7 @@
 #include "src/trace_processor/shell/sql_packages.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
+#include "src/trace_processor/util/io_mode.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -63,6 +64,14 @@ namespace perfetto::trace_processor {
 // subcommand implementation do not need to link the legacy shell entrypoint.
 TraceProcessorShell_PlatformInterface::
     ~TraceProcessorShell_PlatformInterface() = default;
+
+base::Status TraceProcessorShell_PlatformInterface::LoadTrace(
+    TraceProcessor* trace_processor,
+    const std::string& path,
+    std::function<void(size_t)> progress_callback,
+    const LoadTraceOptions&) {
+  return LoadTrace(trace_processor, path, std::move(progress_callback));
+}
 
 }  // namespace perfetto::trace_processor
 
@@ -461,6 +470,7 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> SetupTraceProcessor(
 base::StatusOr<base::TimeNanos> LoadTraceFile(
     TraceProcessor* tp,
     TraceProcessorShell_PlatformInterface* platform,
+    const Config& config,
     const std::string& trace_file,
     bool quiet,
     const profiling::DebuginfodConfig& debuginfod) {
@@ -468,12 +478,16 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
   double size_mb = 0;
   auto& progress = base::ProgressReporter::GetInstance();
 
+  TraceProcessorShell_PlatformInterface::LoadTraceOptions options;
+  options.use_mmap = GetIoMode(config) == IoMode::kNative;
   base::Status load_status = platform->LoadTrace(
-      tp, trace_file, [&size_mb, &progress](size_t parsed_size) {
+      tp, trace_file,
+      [&size_mb, &progress](size_t parsed_size) {
         size_mb = static_cast<double>(parsed_size) / 1E6;
         base::StackString<128> msg("Loading trace: %.2f MB", size_mb);
         progress.Update(msg.ToStdStringView());
-      });
+      },
+      options);
   progress.Clear();
   if (!load_status.ok()) {
     return base::ErrStatus("failed to read trace file (path: %s): %s",
@@ -654,8 +668,8 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> CreateTraceProcessor(
   ASSIGN_OR_RETURN(Config config, BuildConfig(opts, platform));
   ASSIGN_OR_RETURN(auto tp, SetupTraceProcessor(opts, config, platform));
   ASSIGN_OR_RETURN(base::TimeNanos t_load,
-                   LoadTraceFile(tp.get(), platform, trace_file, opts.quiet,
-                                 opts.debuginfod));
+                   LoadTraceFile(tp.get(), platform, config, trace_file,
+                                 opts.quiet, opts.debuginfod));
   if (t_load_out)
     *t_load_out = t_load;
   return std::move(tp);

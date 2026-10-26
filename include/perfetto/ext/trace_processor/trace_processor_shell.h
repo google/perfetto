@@ -88,6 +88,19 @@ class TraceProcessorShell_PlatformInterface
       TraceProcessor* trace_processor,
       const std::string& path,
       std::function<void(size_t)> progress_callback) = 0;
+
+  // How the shell wants the trace loaded.
+  struct LoadTraceOptions {
+    // False to read local files into heap buffers rather than mmap them.
+    bool use_mmap = true;
+  };
+
+  // As above, with |options|. Implementations which can't honour them can
+  // leave this to forward to the overload above.
+  virtual base::Status LoadTrace(TraceProcessor* trace_processor,
+                                 const std::string& path,
+                                 std::function<void(size_t)> progress_callback,
+                                 const LoadTraceOptions& options);
 };
 
 int PERFETTO_EXPORT_COMPONENT TraceProcessorShellMain(int argc, char** argv);

@@ -62,6 +62,10 @@ struct ReadTraceArgs {
   //
   // Defaults to false.
   bool cache_downloads = false;
+
+  // When false, local files are read with read() into heap buffers instead of
+  // being mmap'd, as the WASM build has to.
+  bool use_mmap = true;
 };
 
 base::Status PERFETTO_EXPORT_COMPONENT ReadTrace(
