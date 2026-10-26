@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <tuple>
@@ -26,8 +27,10 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/bits.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/util/heap.h"
+#include "src/trace_processor/core/util/sort.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
 #include "src/trace_processor/storage/stats.h"
@@ -48,9 +51,10 @@ TraceSorter::~TraceSorter() {
   // If trace processor encountered a fatal error, it's possible for some events
   // to have been pushed without evicting them by pushing to the next stage. Do
   // that now.
-  for (auto& queue : queues_) {
-    for (const auto& event : queue.events_) {
-      queue.sink->OnDiscardedEvent(this, GetTokenBufferId(event));
+  for (const Block& block : blocks_) {
+    for (size_t i = block.head; i < block.events.size(); ++i) {
+      const TimestampedEvent& event = block.events[i];
+      sinks_[event.stream]->OnDiscardedEvent(this, GetTokenBufferId(event));
     }
   }
 }
@@ -73,119 +77,104 @@ bool TraceSorter::SetSortingMode(SortingMode sorting_mode) {
   return true;
 }
 
-void TraceSorter::Queue::Sort(TraceTokenBuffer& buffer, bool use_slow_sorting) {
-  PERFETTO_DCHECK(needs_sorting());
-  PERFETTO_DCHECK(sort_start_idx_ < events_.size());
-
-  // If sort_min_ts_ has been set, it will no long be max_int, and so will be
-  // smaller than max_ts_.
-  PERFETTO_DCHECK(sort_min_ts_ < std::numeric_limits<int64_t>::max());
-
-  // We know that all events between [0, sort_start_idx_] are sorted. Within
-  // this range, perform a bound search and find the iterator for the min
-  // timestamp that broke the monotonicity. Re-sort from there to the end.
-  auto sort_end = events_.begin() + static_cast<ssize_t>(sort_start_idx_);
-  if (use_slow_sorting) {
-    PERFETTO_DCHECK(sort_min_ts_ <= max_ts_);
-    PERFETTO_DCHECK(std::is_sorted(events_.begin(), sort_end,
-                                   TimestampedEvent::SlowOperatorLess{buffer}));
-  } else {
-    PERFETTO_DCHECK(sort_min_ts_ < max_ts_);
-    PERFETTO_DCHECK(std::is_sorted(events_.begin(), sort_end));
+void TraceSorter::OpenBlock() {
+  // Start small, so few pending events take little memory, unless events
+  // just filled a block.
+  uint32_t capacity = block_open_ ? kBlockEvents : 4 * 1024;
+  if (block_open_) {
+    SortBlock(blocks_.back());
   }
-  auto sort_begin = std::lower_bound(events_.begin(), sort_end, sort_min_ts_,
-                                     &TimestampedEvent::Compare);
-  if (use_slow_sorting) {
-    std::sort(sort_begin, events_.end(),
-              TimestampedEvent::SlowOperatorLess{buffer});
-  } else {
-    std::sort(sort_begin, events_.end());
-  }
-  sort_start_idx_ = 0;
-  sort_min_ts_ = 0;
+  blocks_.emplace_back();
+  blocks_.back().events.reserve(capacity);
+  block_open_ = true;
+}
 
-  // At this point |events_| must be fully sorted
-  if (use_slow_sorting) {
-    PERFETTO_DCHECK(std::is_sorted(events_.begin(), events_.end(),
-                                   TimestampedEvent::SlowOperatorLess{buffer}));
-  } else {
-    PERFETTO_DCHECK(std::is_sorted(events_.begin(), events_.end()));
+void TraceSorter::SortBlock(Block& block) {
+  if (block.sorted) {
+    return;
+  }
+  block.sorted = true;
+  auto begin = block.events.begin() + static_cast<ptrdiff_t>(block.head);
+  auto end = block.events.end();
+  if (use_slow_sorting_) {
+    std::sort(begin, end, TimestampedEvent::SlowOperatorLess{token_buffer_});
+    return;
+  }
+  // Radix sort on the offsets from the earliest timestamp, on only the bits
+  // they use. The sort is stable, so equal timestamps keep arrival order.
+  auto [min_it, max_it] = std::minmax_element(
+      begin, end, [](const TimestampedEvent& a, const TimestampedEvent& b) {
+        return a.ts < b.ts;
+      });
+  int64_t min_ts = min_it->ts;
+  uint64_t range =
+      static_cast<uint64_t>(max_it->ts) - static_cast<uint64_t>(min_ts);
+  uint32_t key_bits = 64 - base::CountLeadZeros64(range);
+  auto n = static_cast<size_t>(end - begin);
+  radix_scratch_.resize(n);
+  radix_counts_.resize(core::RadixSortCountsSize(key_bits, n));
+  TimestampedEvent* sorted = core::RadixSort(
+      &*begin, &*begin + n, radix_scratch_.data(), radix_counts_.data(),
+      key_bits, [min_ts](const TimestampedEvent& e) {
+        return static_cast<uint64_t>(e.ts) - static_cast<uint64_t>(min_ts);
+      });
+  if (sorted != &*begin) {
+    memcpy(&*begin, sorted, n * sizeof(TimestampedEvent));
   }
 }
 
-// Removes all the events in |queues_| that are earlier than the given
-// packet index and moves them to the next parser stages, respecting global
-// timestamp order. This function is a "extract min from N sorted queues", with
-// some little cleverness: we know that events tend to be bursty, so events are
-// not going to be randomly distributed on the N |queues_|.
-// Upon each iteration this function finds the first two queues (if any) that
-// have the oldest events, and extracts events from the 1st until hitting the
-// min_ts of the 2nd. Imagine the queues are as follows:
+// Extracts, in |less| order, the events of all blocks until the first one at
+// or past |limit_alloc_id|. This is an "extract min from N sorted blocks",
+// with some little cleverness: events tend to arrive in time order, so blocks
+// cover mostly disjoint ranges. Upon each iteration this function finds the
+// two blocks with the oldest events, and extracts events from the 1st until
+// hitting the earliest event of the 2nd. Imagine the blocks are as follows:
 //
-//  q0           {min_ts: 10  max_ts: 30}
-//  q1    {min_ts:5              max_ts: 35}
-//  q2              {min_ts: 12    max_ts: 40}
+//  b0           {min_ts: 10  max_ts: 30}
+//  b1    {min_ts:5              max_ts: 35}
+//  b2              {min_ts: 12    max_ts: 40}
 //
-// We know that we can extract all events from q1 until we hit ts=10 without
-// looking at any other queue. After hitting ts=10, the next min-queue comes
-// from a heap: queues interleave finely, so this repeats every event or two,
-// and re-scanning all of them each time dominated extraction.
-void TraceSorter::SortAndExtractEventsUntilAllocId(
-    BumpAllocator::AllocId limit_alloc_id) {
-  constexpr int64_t kTsMax = std::numeric_limits<int64_t>::max();
-  // A min-heap of the non-empty queues by their earliest event, ties broken
-  // by arrival as they are within a queue.
-  auto later = [](const QueueHeapEntry& a, const QueueHeapEntry& b) {
-    return std::tie(b.min_ts, b.min_alloc_id) <
-           std::tie(a.min_ts, a.min_alloc_id);
+// We know that we can extract all events from b1 until we hit ts=10 without
+// looking at any other block. After hitting ts=10, the next min-block comes
+// from a heap: its top is that block and one of its children the runner-up.
+template <typename Less>
+void TraceSorter::MergeBlocks(BumpAllocator::AllocId limit_alloc_id,
+                              Less less) {
+  auto head = [this](uint32_t b) -> const TimestampedEvent& {
+    return blocks_[b].events[blocks_[b].head];
   };
-  std::vector<QueueHeapEntry>& heap = queue_heap_;
+  auto later = [&](uint32_t a, uint32_t b) { return less(head(b), head(a)); };
+  std::vector<uint32_t>& heap = block_heap_;
   heap.clear();
-  for (uint32_t i = 0; i < queues_.size(); ++i) {
-    if (!queues_[i].events_.empty()) {
-      PERFETTO_DCHECK(queues_[i].max_ts_ <= append_max_ts_);
-      heap.push_back({queues_[i].min_ts_, queues_[i].min_alloc_id_, i});
-    }
+  for (uint32_t i = 0; i < blocks_.size(); ++i) {
+    heap.push_back(i);
   }
   std::make_heap(heap.begin(), heap.end(), later);
   while (!heap.empty()) {
-    uint32_t min_queue_idx = heap[0].queue;
-    // The earliest event of any other queue.
-    auto next = std::make_pair(kTsMax, BumpAllocator::AllocId{});
+    uint32_t b = heap[0];
+    const TimestampedEvent* next = nullptr;
     for (size_t child = 1; child <= 2 && child < heap.size(); ++child) {
-      next = std::min(
-          next, std::make_pair(heap[child].min_ts, heap[child].min_alloc_id));
+      if (!next || less(head(heap[child]), *next)) {
+        next = &head(heap[child]);
+      }
     }
-
-    auto& queue = queues_[min_queue_idx];
-    auto& events = queue.events_;
-    if (queue.needs_sorting()) {
-      queue.Sort(token_buffer_, use_slow_sorting_);
-    }
-    PERFETTO_DCHECK(queue.min_ts_ == events.front().ts);
-
-    // Extract events from the min-queue until hitting either: (1) the
-    // earliest event of another queue or (2) the alloc id limit, whichever
-    // comes first.
-    size_t num_extracted = 0;
-    extracting_ = true;
-    for (auto& event : events) {
+    Block& block = blocks_[b];
+    size_t i = block.head;
+    for (; i < block.events.size(); ++i) {
+      const TimestampedEvent& event = block.events[i];
       if (event.alloc_id() >= limit_alloc_id) {
         break;
       }
-
-      // Stop at the earliest event of another queue, but always extract
-      // the first: with slow sorting it may not be the queue's first
-      // arrival.
-      if (num_extracted && std::make_pair(event.ts, event.alloc_id()) > next) {
+      // Stop at the earliest event of another block, but always extract the
+      // first.
+      if (i != block.head && next && less(*next, event)) {
         break;
       }
-      ++num_extracted;
-
+      UntypedSink* sink = sinks_[event.stream].get();
       if (event.ts < latest_pushed_event_ts_) {
         global_stats_tracker_->IncrementGlobalStats(
             stats::sorter_push_event_out_of_order);
-        queue.sink->OnDiscardedEvent(this, GetTokenBufferId(event));
+        sink->OnDiscardedEvent(this, GetTokenBufferId(event));
         continue;
       }
       latest_pushed_event_ts_ = event.ts;
@@ -193,53 +182,67 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
       if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kSortAndDrop)) {
         // Parse* would extract this event and push it to the next stage. Since
         // we are skipping that, just extract and discard it.
-        queue.sink->OnDiscardedEvent(this, GetTokenBufferId(event));
+        sink->OnDiscardedEvent(this, GetTokenBufferId(event));
         continue;
       }
       PERFETTO_DCHECK(event_handling_ == EventHandling::kSortAndPush);
 
-      queue.sink->OnSortedEvent(this, event.ts, GetTokenBufferId(event));
-    }  // for (event: events)
-    extracting_ = false;
-
+      sink->OnSortedEvent(this, event.ts, GetTokenBufferId(event));
+    }
     // The earliest event cannot be extracted without going past the limit.
-    if (!num_extracted) {
+    if (i == block.head) {
       break;
     }
-
-    // Now remove the entries from the event buffer and update the queue-local
-    // and global time bounds.
-    events.erase_front(num_extracted);
-    events.shrink_to_fit();
-
-    // Since we likely just removed a bunch of items try to reduce the memory
-    // usage of the token buffer.
-    token_buffer_.FreeMemory();
-
-    // Update the queue timestamps to reflect the bounds after extraction.
-    if (events.empty()) {
-      queue.min_ts_ = kTsMax;
-      queue.max_ts_ = 0;
-    } else {
-      queue.min_ts_ = queue.events_.front().ts;
-      queue.min_alloc_id_ = queue.events_.front().alloc_id();
-    }
-
-    // The queue's earliest event only moved later, so it moves down from the
-    // top; an empty queue is replaced there by the last.
-    if (events.empty()) {
-      QueueHeapEntry last = heap.back();
+    block.head = i;
+    if (block.head == block.events.size()) {
+      // Free it now, not after the merge: one extraction can be the whole
+      // trace.
+      block.events = std::vector<TimestampedEvent>();
+      uint32_t last = heap.back();
       heap.pop_back();
       if (!heap.empty()) {
         core::HeapSiftDown(heap.data(), heap.size(), last, later);
       }
     } else {
-      core::HeapSiftDown(
-          heap.data(), heap.size(),
-          QueueHeapEntry{queue.min_ts_, queue.min_alloc_id_, min_queue_idx},
-          later);
+      // Shrink it as it drains.
+      if (block.events.size() - i <= block.events.capacity() / 2) {
+        block.events.erase(block.events.begin(),
+                           block.events.begin() + static_cast<ptrdiff_t>(i));
+        block.events.shrink_to_fit();
+        block.head = 0;
+      }
+      core::HeapSiftDown(heap.data(), heap.size(), b, later);
     }
+    // Since we likely just removed a bunch of events try to reduce the memory
+    // usage of the token buffer.
+    token_buffer_.FreeMemory();
   }
+}
+
+void TraceSorter::SortAndExtractEventsUntilAllocId(
+    BumpAllocator::AllocId limit_alloc_id) {
+  // Events pushed from here on go to a new block: the merge takes every block
+  // as sorted.
+  block_open_ = false;
+  for (Block& block : blocks_) {
+    SortBlock(block);
+  }
+  // Free them rather than hold them while the parsers' tables grow: blocks
+  // are sorted again only as they fill.
+  radix_scratch_ = std::vector<TimestampedEvent>();
+  radix_counts_ = std::vector<uint32_t>();
+  extracting_ = true;
+  if (use_slow_sorting_) {
+    MergeBlocks(limit_alloc_id,
+                TimestampedEvent::SlowOperatorLess{token_buffer_});
+  } else {
+    MergeBlocks(limit_alloc_id, std::less<>{});
+  }
+  extracting_ = false;
+  blocks_.erase(
+      std::remove_if(blocks_.begin(), blocks_.end(),
+                     [](const Block& block) { return block.events.empty(); }),
+      blocks_.end());
 }
 
 TraceSorter::UntypedSink::~UntypedSink() = default;
