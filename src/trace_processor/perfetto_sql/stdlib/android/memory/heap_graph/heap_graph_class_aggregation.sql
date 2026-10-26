@@ -181,6 +181,7 @@ WITH
         -- java.util concrete collection and map classes
         WHEN 'java.util.ArrayDeque' THEN 1
         WHEN 'java.util.ArrayList' THEN 1
+        WHEN 'java.util.Arrays' THEN 1
         WHEN 'java.util.BitSet' THEN 1
         WHEN 'java.util.Collections' THEN 1
         WHEN 'java.util.EnumMap' THEN 1
@@ -247,5 +248,4 @@ FROM classified
 ORDER BY
   1,
   2,
-  3,
-  4;
+  3;
