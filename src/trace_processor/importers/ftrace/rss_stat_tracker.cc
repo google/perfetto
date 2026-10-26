@@ -130,11 +130,21 @@ void RssStatTracker::ParseRssStat(int64_t ts,
 std::optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
                                                          bool is_curr,
                                                          uint32_t pid) {
-  // If curr is true, we can just overwrite the state in the map and return
-  // the utid correspodning to |pid|.
+  // If curr is true, we can usually just overwrite the state in the map and
+  // return the utid correspodning to |pid|.
   if (is_curr) {
     UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-    mm_id_to_utid_[mm_id] = utid;
+    auto [owner_utid, inserted] = mm_id_to_utid_.Insert(mm_id, utid);
+    if (!inserted && *owner_utid != utid &&
+        IsRacyCurrEvent(mm_id, *owner_utid, utid)) {
+      context_->stats_tracker->IncrementStats(
+          stats::rss_stat_curr_ignored_mm_owned_by_other_process);
+      return *owner_utid;
+    }
+    *owner_utid = utid;
+    if (utid >= utid_to_curr_mm_id_.size())
+      utid_to_curr_mm_id_.resize(utid + 1, kNoMmId);
+    utid_to_curr_mm_id_[utid] = mm_id;
     return utid;
   }
 
@@ -161,6 +171,56 @@ std::optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
   // new mm has been installed). In either case the event describes the
   // recorded owner's mm, so return that utid.
   return mm_utid;
+}
+
+bool RssStatTracker::IsRacyCurrEvent(int64_t mm_id,
+                                     UniqueTid owner_utid,
+                                     UniqueTid utid) {
+  // BEST EFFORT heuristic for b/576695708.
+  //
+  // The hist trigger backing rss_stat_throttled keeps one element per
+  // (mm_id, member) shared by all CPUs. The curr/size field variables are
+  // written into it and read back to build the synthetic event without any
+  // cross-CPU serialization. So a thread touching another process's mm (e.g.
+  // direct reclaim, kswapd) can emit curr=true with the values of an event
+  // emitted concurrently by the mm's owner. The curr field of these events is
+  // therefore not trustworthy and the trace does not, in general, contain
+  // enough information to tell such events apart from legitimate ones.
+  //
+  // We treat curr=true as curr=false when:
+  //  1. the recorded owner thread's last curr=true event was for this mm,
+  //  2. the emitting thread is in a different process to the owner and
+  //  3. the owner is still alive.
+  //
+  // Note: vfork()/CLONE_VM children use their parent's mm until they exec;
+  // their curr=true events for it are (intentionally) attributed to the
+  // parent which owns the mm.
+  //
+  // Known cases where this is wrong:
+  //  * mm_id reuse after the owner exits but before the owner is reaped
+  //    (sched_process_free can arrive 100s of ms after the mm is released):
+  //    the new process' events are attributed to the dead owner until the
+  //    owner thread is marked as dead.
+  // Known cases this does not catch:
+  //  * The racing event is the first curr=true event we see for the mm or
+  //    races with a curr=true event which was itself bogus.
+  //  * Either thread is not associated with a process.
+  //
+  // This is only called when the emitting thread differs from the recorded
+  // owner; checks are ordered cheapest first. The most common caller is other
+  // threads of the same process, which bail out at (2).
+  if (owner_utid >= utid_to_curr_mm_id_.size() ||
+      utid_to_curr_mm_id_[owner_utid] != mm_id) {
+    return false;
+  }
+  const auto& threads = context_->storage->thread_table();
+  std::optional<UniquePid> upid = threads[utid].upid();
+  if (!upid)
+    return false;
+  std::optional<UniquePid> owner_upid = threads[owner_utid].upid();
+  if (!owner_upid || *owner_upid == *upid)
+    return false;
+  return context_->process_tracker->IsThreadAlive(owner_utid);
 }
 
 }  // namespace perfetto::trace_processor
