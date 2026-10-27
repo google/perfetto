@@ -1407,8 +1407,11 @@ function cp(src, dst) {
 function mklink(src, dst) {
   // If the symlink already points to the right place don't touch it. This is
   // to avoid changing the mtime of the ui/ dir when unnecessary.
-  if (fs.existsSync(dst)) {
-    if (fs.lstatSync(dst).isSymbolicLink() && fs.readlinkSync(dst) === src) {
+  // lstat, unlike existsSync, also sees dangling symlinks (e.g. ui/out after
+  // its out dir was deleted), which would make symlinkSync fail with EEXIST.
+  const stat = fs.lstatSync(dst, {throwIfNoEntry: false});
+  if (stat !== undefined) {
+    if (stat.isSymbolicLink() && fs.readlinkSync(dst) === src) {
       return;
     } else {
       fs.unlinkSync(dst);
