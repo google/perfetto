@@ -33,7 +33,7 @@ class FramePointerUnwinder {
  public:
   FramePointerUnwinder(size_t max_frames,
                        unwindstack::Maps* maps,
-                       CpuRegisters* regs,
+                       const CpuRegisters* regs,
                        std::shared_ptr<unwindstack::Memory> process_memory,
                        size_t stack_size)
       : max_frames_(max_frames),
@@ -41,7 +41,7 @@ class FramePointerUnwinder {
         regs_(regs),
         process_memory_(process_memory),
         stack_size_(stack_size),
-        arch_(regs->arch) {
+        arch_(regs->arch()) {
     stack_end_ = regs->sp() + stack_size;
   }
 
@@ -76,7 +76,7 @@ class FramePointerUnwinder {
  protected:
   const size_t max_frames_;
   unwindstack::Maps* maps_;
-  CpuRegisters* regs_;
+  const CpuRegisters* regs_;
   std::vector<unwindstack::FrameData> frames_;
   std::shared_ptr<unwindstack::Memory> process_memory_;
   const size_t stack_size_;

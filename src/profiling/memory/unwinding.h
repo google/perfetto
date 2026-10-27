@@ -19,12 +19,10 @@
 
 #include <optional>
 
-#include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "src/profiling/common/unwind_support.h"
-#include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/unwound_messages.h"
 #include "src/profiling/memory/wire_protocol.h"
 #include "src/profiling/unwind/cpu_registers.h"

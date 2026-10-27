@@ -29,10 +29,7 @@
 #include <procinfo/process_map.h>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/task_runner.h"
-#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 
 #include "src/profiling/memory/unwound_messages.h"
@@ -65,6 +62,10 @@ static std::vector<std::string> kSkipMaps{"heapprofd_client.so",
 
 }  // namespace
 
+// raw_data stores registers as 32-bit (4 bytes) or 64-bit (8 bytes)
+// depending on the target architecture, while CpuRegisters::regs uniformly
+// stores 64-bit values. For 64-bit architectures, raw memcpy can be used
+// directly; for 32-bit architectures, registers must be copied in a loop.
 std::optional<CpuRegisters> CreateRegsFromRawData(CpuArch arch,
                                                   const void* raw_data) {
   CpuRegisters ret(arch);
@@ -72,13 +73,13 @@ std::optional<CpuRegisters> CreateRegsFromRawData(CpuArch arch,
     case CpuArch::ARM: {
       const auto* src = static_cast<const uint32_t*>(raw_data);
       for (size_t i = 0; i < ARM_REG_MAX; ++i)
-        ret.regs[i] = src[i];
+        ret[i] = src[i];
       return ret;
     }
     case CpuArch::X86: {
       const auto* src = static_cast<const uint32_t*>(raw_data);
       for (size_t i = 0; i < X86_REG_MAX; ++i)
-        ret.regs[i] = src[i];
+        ret[i] = src[i];
       return ret;
     }
     case CpuArch::ARM64:

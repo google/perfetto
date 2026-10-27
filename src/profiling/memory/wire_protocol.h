@@ -37,6 +37,7 @@ class UnixSocketRaw;
 
 namespace profiling {
 
+// NOTE: <ARCH>_REG_MAX are the same as unwindstack::<ARCH>_REG_MAX.
 constexpr size_t kMaxRegisterDataSize =
     std::max({sizeof(uint32_t) * ARM_REG_MAX, sizeof(uint64_t) * ARM64_REG_MAX,
               sizeof(uint32_t) * X86_REG_MAX, sizeof(uint64_t) * X86_64_REG_MAX,

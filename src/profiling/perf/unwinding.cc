@@ -410,10 +410,9 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
 
     switch (unwind_mode) {
       case UnwindMode::kFramePointer: {
-        // Unwind clobbers registers, so make a copy in case of retries.
-        CpuRegisters regs_copy = *sample.regs;
+        const CpuRegisters& regs = *sample.regs;
         FramePointerUnwinder unwinder(kUnwindingMaxFrames,
-                                      &unwind_state->fd_maps, &regs_copy,
+                                      &unwind_state->fd_maps, &regs,
                                       overlay_memory, sample.stack.size());
         unwinder.Unwind();
         return {unwinder.LastErrorCode(), unwinder.warnings(),
