@@ -216,7 +216,7 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
   if (column.kind() != ColumnView::Kind::kVariant && column.type() == type_) {
     return true;
   }
-  ColumnBuffer buffer = s.context->TakeBuffer();
+  ColumnBuffer buffer = s.context->TakeBuffer(ValueWidth(type_));
   ColumnChunk& chunk = buffer.chunk();
   chunk.SizeValidity();
   if (column.kind() != ColumnView::Kind::kVariant) {

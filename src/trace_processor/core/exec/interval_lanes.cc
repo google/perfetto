@@ -209,8 +209,8 @@ void LaneKeys::Clear() {
 }
 
 void BoundsColumns::Take(Context& context) {
-  ts_buffer_ = context.TakeBuffer();
-  dur_buffer_ = context.TakeBuffer();
+  ts_buffer_ = context.TakeBuffer(sizeof(int64_t));
+  dur_buffer_ = context.TakeBuffer(sizeof(int64_t));
   ts = ts_buffer_.chunk().Values<int64_t>();
   dur = dur_buffer_.chunk().Values<int64_t>();
 }

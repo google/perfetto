@@ -59,7 +59,7 @@ ColumnView WriteKeys(const GroupTable& groups,
                      StorageType type,
                      ColumnBuffer& buffer) {
   ColumnChunk& chunk = buffer.chunk();
-  void* data = chunk.Values<int64_t>();
+  void* data = chunk.Values<uint8_t>();
   if (type.Is<Uint32>() || type.Is<String>()) {
     // Strings are stored as their interned id.
     WriteValues(groups, k, first, count, static_cast<uint32_t*>(data));
@@ -188,7 +188,7 @@ bool HashAggregate::Serve(RowBatch& out, Breaker::State& state) const {
   std::iota(s.served_rows.begin(), s.served_rows.end(), s.emitted);
   const uint32_t* rows = s.served_rows.data();
   for (uint32_t k = 0; k < spec_.key_columns.size(); ++k) {
-    ColumnBuffer buffer = s.context->TakeBuffer();
+    ColumnBuffer buffer = s.context->TakeBuffer(ValueWidth(s.key_types[k]));
     ColumnView view =
         WriteKeys(s.groups, k, s.emitted, count, s.key_types[k], buffer);
     out.AddColumn(view, std::move(buffer));

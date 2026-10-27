@@ -42,7 +42,7 @@ using testing::ElementsAre;
 
 // A buffer from `context` holding `values`.
 ColumnBuffer Filled(Context& context, const std::vector<int64_t>& values) {
-  ColumnBuffer buffer = context.TakeBuffer();
+  ColumnBuffer buffer = context.TakeBuffer(sizeof(int64_t));
   std::copy(values.begin(), values.end(), buffer.chunk().Values<int64_t>());
   return buffer;
 }
@@ -63,13 +63,13 @@ TEST(ExecutorContractTest, CopiesOfABatchHoldItsBuffers) {
     second.CopyFrom(published);
   }
   // Still held, so not handed out again.
-  EXPECT_NE(&context.TakeBuffer().chunk(), held);
+  EXPECT_NE(&context.TakeBuffer(sizeof(int64_t)).chunk(), held);
   first.Reset();
-  EXPECT_NE(&context.TakeBuffer().chunk(), held);
+  EXPECT_NE(&context.TakeBuffer(sizeof(int64_t)).chunk(), held);
   EXPECT_THAT(test::ReadColumn<int64_t>(second, 0), ElementsAre(10, 20, 30));
   second.Reset();
   // The last copy gone, it is the first handed out again.
-  EXPECT_EQ(&context.TakeBuffer().chunk(), held);
+  EXPECT_EQ(&context.TakeBuffer(sizeof(int64_t)).chunk(), held);
 }
 
 TEST(ExecutorContractTest, SelectionsMatchScalarRows) {
@@ -154,7 +154,7 @@ TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
                                           nullptr, batch * 128);
     in.AddBorrowedColumn(original);
     in.AddBorrowedColumn(original);
-    ColumnBuffer local = context.TakeBuffer();
+    ColumnBuffer local = context.TakeBuffer(sizeof(int64_t));
     ColumnChunk& chunk = local.chunk();
     chunk.validity = BitVector::CreateWithSize(129);
     for (uint32_t r = 0; r < 129; ++r) {

@@ -125,7 +125,7 @@ uint32_t RowStore::Gather(RowBatch* out,
   }
   const RowBatch& first = *batches_[0];
   for (uint32_t c = 0; c < first.column_count(); ++c) {
-    ColumnBuffer buffer = context.TakeBuffer();
+    ColumnBuffer buffer = context.TakeBuffer(ValueWidth(first.column(c)));
     ColumnChunk& chunk = buffer.chunk();
     chunk.Gather(first.column(c), sources_[c].data(), batches.data(),
                  batch_rows.data(), count, nullable_[c]);

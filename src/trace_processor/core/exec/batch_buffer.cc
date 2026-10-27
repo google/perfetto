@@ -44,7 +44,7 @@ void BatchBuffer::Append(const RowBatch& in, Context& context) {
   for (uint32_t c = 0; c < in.column_count(); ++c) {
     Column& column = columns_[c];
     if (!column.packed) {
-      column.packed = context.TakeBuffer();
+      column.packed = context.TakeBuffer(ValueWidth(in.column(c)));
     }
     column.packed.chunk().CopyFrom(in, c, before);
     column.nullable |= in.column(c).validity() != nullptr;
