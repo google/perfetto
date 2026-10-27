@@ -35,4 +35,6 @@ bool EmptySource::GetData(RowBatch& out, OperatorState&) const {
   return false;
 }
 
+void EmptySource::Rewind(OperatorState&) const {}
+
 }  // namespace perfetto::trace_processor::core::exec

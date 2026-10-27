@@ -40,7 +40,7 @@ class EmptySource final : public Source {
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool GetData(RowBatch& out, OperatorState&) const override;
-  void Rewind(OperatorState&) const override {}
+  void Rewind(OperatorState&) const override;
 };
 
 }  // namespace perfetto::trace_processor::core::exec
