@@ -294,7 +294,7 @@ std::optional<uint32_t> SliceTracker::MatchingIncompleteSliceIndex(
 
 void SliceTracker::MaybeAddTranslatableArgs(SliceInfo& slice_info) {
   PERFETTO_DCHECK(slice_info.args);
-  if (!slice_info.args->NeedsTranslation(*context_->args_translation_table)) {
+  if (!context_->args_translation_table->NeedsTranslation(*slice_info.args)) {
     return;
   }
   const auto& table = context_->storage->slice_table();

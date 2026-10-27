@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <algorithm>
 #include <optional>
 
 #include "perfetto/ext/base/string_utils.h"
@@ -86,6 +87,15 @@ bool ArgsTranslationTable::NeedsTranslation(StringId flat_key_id,
                                             StringId key_id,
                                             Variadic::Type type) const {
   return KeyIdAndTypeToEnum(flat_key_id, key_id, type).has_value();
+}
+
+bool ArgsTranslationTable::NeedsTranslation(
+    const ArgsInserter& inserter) const {
+  return std::any_of(inserter.args().begin(), inserter.args().end(),
+                     [this](const ArgsTracker::CompactArg& arg) {
+                       return NeedsTranslation(arg.flat_key, arg.key,
+                                               arg.value.type);
+                     });
 }
 
 void ArgsTranslationTable::TranslateArgs(

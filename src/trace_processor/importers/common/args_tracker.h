@@ -23,6 +23,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/murmur_hash.h"
@@ -47,7 +48,6 @@
 namespace perfetto::trace_processor {
 
 class ArgsInserter;
-class ArgsTranslationTable;
 
 // Owns the args of a trace: interns each arg set into the args table, and hands
 // out ArgsInserters, each bound to the arg_set_id cell of one table row.
@@ -281,9 +281,11 @@ class ArgsInserter {
   // Id passed to ArgsTracker::AddArgsTo).
   uint32_t id() const { return id_; }
 
-  // Returns whether this inserter holds any arg which requires translation
-  // according to the provided |table|.
-  bool NeedsTranslation(const ArgsTranslationTable& table) const;
+  // The args accumulated so far, with same-key duplicates already collapsed.
+  const std::vector<CompactArg>& args() const {
+    PERFETTO_DCHECK(buffer_);
+    return buffer_->args;
+  }
 
   // Moves the accumulated args out into a CompactArgSet, leaving this inserter
   // empty so it commits nothing when destroyed. Used by callers that must
