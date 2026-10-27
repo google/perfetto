@@ -16,7 +16,10 @@
 
 #include "src/trace_processor/core/util/ops.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <cstring>
+#include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -96,6 +99,87 @@ TEST(OpsTest, SortRowLayoutStably) {
   Span<uint32_t> index_span = MakeMutableSpan(indices);
   SortRowLayout(AsBytes(MakeSpan(rows)), sizeof(uint32_t), &index_span);
   EXPECT_THAT(index_span, testing::ElementsAre(20u, 10u, 30u));
+}
+
+// Against a stable sort comparing whole rows, at sizes sorted by comparison and
+// by radix, with few and many bytes differing between rows, on input in no
+// order, in order, in a few ascending runs whose values tie across them, in
+// reverse with and without ties, or all alike. The indices are not in order,
+// so ties must keep their rows' order, not their indices'.
+TEST(OpsTest, SortRowLayoutMatchesAStableSort) {
+  enum class Order {
+    kShuffled,
+    kSorted,
+    kRuns,
+    kReversed,
+    kReversedTies,
+    kAlike
+  };
+  for (uint32_t rows : {2u, 30u, 100u, 1000u, 5000u, 70000u}) {
+    for (uint32_t stride : {3u, 9u, 17u}) {
+      for (Order order :
+           {Order::kShuffled, Order::kSorted, Order::kRuns, Order::kReversed,
+            Order::kReversedTies, Order::kAlike}) {
+        std::vector<uint8_t> buffer(static_cast<size_t>(rows) * stride);
+        for (uint32_t r = 0; r < rows; ++r) {
+          uint64_t value = 0;
+          switch (order) {
+            case Order::kShuffled:
+              value = (r * 2654435761u) % 97;
+              break;
+            case Order::kSorted:
+              value = r / 3;
+              break;
+            case Order::kRuns:
+              value = (r % ((rows + 4) / 5)) / 2;
+              break;
+            case Order::kReversed:
+              value = rows - r;
+              break;
+            case Order::kReversedTies:
+              value = (rows - r) / 2;
+              break;
+            case Order::kAlike:
+              value = 7;
+              break;
+          }
+          // Big-endian in the last bytes, so rows compare as their values do,
+          // with every byte before them a function of the value too.
+          for (uint32_t b = 0; b < stride; ++b) {
+            uint32_t from_end = stride - 1 - b;
+            buffer[static_cast<size_t>(r) * stride + b] =
+                from_end < 4 ? static_cast<uint8_t>(value >> (from_end * 8))
+                             : static_cast<uint8_t>(value / 50);
+          }
+        }
+        std::vector<uint32_t> input(rows);
+        for (uint32_t r = 0; r < rows; ++r) {
+          input[r] = (rows - r) * 3;
+        }
+        std::vector<uint32_t> order_of(rows);
+        for (uint32_t r = 0; r < rows; ++r) {
+          order_of[r] = r;
+        }
+        std::stable_sort(
+            order_of.begin(), order_of.end(), [&](uint32_t a, uint32_t b) {
+              return memcmp(&buffer[static_cast<size_t>(a) * stride],
+                            &buffer[static_cast<size_t>(b) * stride],
+                            stride) < 0;
+            });
+        std::vector<uint32_t> expected(rows);
+        for (uint32_t r = 0; r < rows; ++r) {
+          expected[r] = input[order_of[r]];
+        }
+        std::vector<uint32_t> indices = input;
+        Span<uint32_t> span(indices.data(), indices.data() + rows);
+        SortRowLayout(
+            Span<const uint8_t>(buffer.data(), buffer.data() + buffer.size()),
+            stride, &span);
+        EXPECT_EQ(indices, expected) << "rows=" << rows << " stride=" << stride
+                                     << " order=" << static_cast<int>(order);
+      }
+    }
+  }
 }
 
 }  // namespace
