@@ -437,6 +437,17 @@ ComputeState::~ComputeState() = default;
 
 }  // namespace
 
+void Compute::DescribeColumns(StepColumns* out) {
+  for (ExprProgram& program : programs_) {
+    for (ExprStep& step : program.steps) {
+      if (step.op == ExprStep::Op::kColumn) {
+        out->reads.push_back(&step.a);
+      }
+    }
+  }
+  out->added = static_cast<uint32_t>(programs_.size());
+}
+
 Compute::Compute(std::vector<ExprProgram> programs)
     : programs_(std::move(programs)) {}
 Compute::~Compute() = default;

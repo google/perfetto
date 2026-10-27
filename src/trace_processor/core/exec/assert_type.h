@@ -46,6 +46,7 @@ class AssertType final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) override { out->reads = {&column_}; }
 
   AssertType(uint32_t column, AssertTypeTarget type, std::string name);
   ~AssertType() override;
@@ -83,6 +84,7 @@ class NullColumn final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) override { out->reads = {&column_}; }
 
   NullColumn(uint32_t column, StorageType type);
   ~NullColumn() override;

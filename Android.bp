@@ -17964,6 +17964,7 @@ filegroup {
         "src/trace_processor/core/exec/interval_lanes.cc",
         "src/trace_processor/core/exec/limit.cc",
         "src/trace_processor/core/exec/operator.cc",
+        "src/trace_processor/core/exec/parked_rows.cc",
         "src/trace_processor/core/exec/pipeline.cc",
         "src/trace_processor/core/exec/row_batch.cc",
         "src/trace_processor/core/exec/row_cursor.cc",
@@ -18008,6 +18009,7 @@ filegroup {
         "src/trace_processor/core/exec/interval_lanes_unittest.cc",
         "src/trace_processor/core/exec/limit_unittest.cc",
         "src/trace_processor/core/exec/operator_unittest.cc",
+        "src/trace_processor/core/exec/parked_rows_unittest.cc",
         "src/trace_processor/core/exec/row_batch_unittest.cc",
         "src/trace_processor/core/exec/row_store_unittest.cc",
         "src/trace_processor/core/exec/search_scans_unittest.cc",
@@ -19271,6 +19273,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.cc",
         "src/trace_processor/perfetto_sql/pipeline/plan_key.cc",
         "src/trace_processor/perfetto_sql/pipeline/plan_serialization.cc",
+        "src/trace_processor/perfetto_sql/pipeline/row_parking.cc",
     ],
 }
 

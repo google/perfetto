@@ -134,7 +134,8 @@ class Execution {
 };
 
 // The output: each row's payload, node number and parent node number, in the
-// order the rows came out.
+// order the rows came out. They are fetched back after the order, after the
+// rows' numbers in their store, as columns 3, 4 and 5.
 struct Output {
   std::vector<int64_t> payload;
   std::vector<int64_t> node;
@@ -147,9 +148,9 @@ struct Output {
 Output Drain(Execution* run) {
   Output out;
   while (RowBatch* batch = run->Next()) {
-    std::vector<int64_t> payload = test::ReadColumn<int64_t>(*batch, 2);
-    std::vector<uint32_t> nodes = test::ReadColumn<uint32_t>(*batch, 3);
-    std::vector<uint32_t> parents = test::ReadColumn<uint32_t>(*batch, 4);
+    std::vector<int64_t> payload = test::ReadColumn<int64_t>(*batch, 3);
+    std::vector<uint32_t> nodes = test::ReadColumn<uint32_t>(*batch, 4);
+    std::vector<uint32_t> parents = test::ReadColumn<uint32_t>(*batch, 5);
     out.payload.insert(out.payload.end(), payload.begin(), payload.end());
     for (uint32_t node : nodes) {
       out.node.push_back(node == kNoNode ? -1 : static_cast<int64_t>(node));
@@ -189,17 +190,32 @@ enum class Direction { kChildFirst, kParentFirst };
 constexpr Direction kDirections[] = {Direction::kChildFirst,
                                      Direction::kParentFirst};
 
-Pipeline::Step Order(Direction direction, uint32_t node, uint32_t parent) {
+// The steps the planner makes of ordering rows of `columns` columns, whose
+// node numbers are `node` and `parent`, in store `slot`.
+std::vector<Pipeline::Step> Order(Direction direction,
+                                  uint32_t node,
+                                  uint32_t parent,
+                                  uint32_t columns,
+                                  uint32_t slot = 0) {
   if (direction == Direction::kChildFirst) {
-    return std::make_unique<TreeChildFirst>(node, parent);
+    return test::ParkAndReorder(std::make_unique<TreeChildFirst>(node, parent),
+                                columns, slot);
   }
-  return std::make_unique<TreeParentFirst>(node, parent);
+  return test::ParkAndReorder(std::make_unique<TreeParentFirst>(node, parent),
+                              columns, slot);
 }
 
-// Numbers the nodes, then orders the rows.
+void Append(std::vector<Pipeline::Step> steps,
+            std::vector<Pipeline::Step>* ops) {
+  for (Pipeline::Step& step : steps) {
+    ops->push_back(std::move(step));
+  }
+}
+
+// Numbers the nodes, then orders the rows as the planner would.
 std::vector<Pipeline::Step> NumberAndOrder(Direction direction) {
   std::vector<Pipeline::Step> ops = Number();
-  ops.push_back(Order(direction, 3, 4));
+  Append(Order(direction, 3, 4, 5), &ops);
   return ops;
 }
 
@@ -319,8 +335,8 @@ inline constexpr auto kIdTree = dataframe::CreateTypedDataframeSpec(
     dataframe::CreateTypedColumnSpec(Uint32{}, DenseNull{}, Unsorted{}),
     dataframe::CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}));
 
-// Passing rows keep an implicit id while released rows carry a gathered one,
-// so a consumer retaining both sees the id column change representation.
+// Rows ordered twice are fetched back through both stores. The implicit id
+// column parked comes back as stored values.
 TEST(TreeOrderTest, DownThenUpOverAnImplicitIdColumn) {
   StringPool pool;
   dataframe::Dataframe df =
@@ -336,15 +352,19 @@ TEST(TreeOrderTest, DownThenUpOverAnImplicitIdColumn) {
   DataframeScan scan(
       {df.shared_column(0), df.shared_column(1), df.shared_column(2)},
       df.row_count());
+  // id, parent_id, payload, node, parent.
   auto ops = Number();
-  ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
-  ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
+  // numbers in store 0, id, parent_id, payload, node, parent.
+  Append(Order(Direction::kParentFirst, 3, 4, 5), &ops);
+  // numbers in store 1, then the six columns before.
+  Append(Order(Direction::kChildFirst, 4, 5, 6, /*slot=*/1), &ops);
   Pipeline pipeline(scan, std::move(ops));
 
   Execution run(pipeline);
   std::vector<uint32_t> ids;
   while (RowBatch* batch = run.Next()) {
-    std::vector<uint32_t> batch_ids = test::ReadColumn<uint32_t>(*batch, 0);
+    std::vector<uint32_t> batch_ids = test::ReadColumn<uint32_t>(*batch, 2);
+    // The id fetched back through both stores.
     ids.insert(ids.end(), batch_ids.begin(), batch_ids.end());
   }
   ASSERT_TRUE(run.status().ok()) << run.status().message();

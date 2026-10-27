@@ -186,7 +186,7 @@ base::Status GraphTree::Build(State& s) const {
       s.id_of_node.push_back(id);
     }
     s.retained.Project(s.batch, spec_.retained_columns);
-    RETURN_IF_ERROR(s.rows.Append(s.retained));
+    RETURN_IF_ERROR(s.rows.Append(s.retained, *s.context));
   }
   RETURN_IF_ERROR(spec_.nodes->status(*s.nodes_state));
 

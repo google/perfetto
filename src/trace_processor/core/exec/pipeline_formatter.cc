@@ -42,6 +42,7 @@
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/limit.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/parked_rows.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/sort.h"
 #include "src/trace_processor/core/exec/sorted_rows.h"
@@ -274,6 +275,20 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
     return "NullColumn(" + Column(null.column_) + " as " +
            TypeName(null.type_) + ")";
   }
+  if (transform.Is<ParkRows>()) {
+    const ParkRowsSpec& spec = static_cast<const ParkRows&>(transform).spec_;
+    return "ParkRows(" + Columns(spec.columns) + " in store " +
+           std::to_string(spec.slot) + ")";
+  }
+  if (transform.Is<FetchRows>()) {
+    const FetchRowsSpec& spec = static_cast<const FetchRows&>(transform).spec_;
+    std::string out;
+    for (uint32_t column : spec.columns) {
+      out += (out.empty() ? "" : ", ") + std::to_string(column);
+    }
+    return "FetchRows(store " + std::to_string(spec.slot) + " by " +
+           Column(spec.row_column) + ": " + out + ")";
+  }
   if (transform.Is<TreeNumberNodes>()) {
     const auto& number = static_cast<const TreeNumberNodes&>(transform);
     return "TreeNumberNodes(" + Column(number.id_column_) + ", " +
@@ -299,7 +314,9 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
     return "CombineBatches";
   }
   if (op.Is<Sort>()) {
-    return "Sort(" + Keys(static_cast<const Sort&>(op).spec_.keys) + ")";
+    const SortSpec& spec = static_cast<const Sort&>(op).spec_;
+    return "Sort(" + Keys(spec.keys) + "; numbers " + Column(spec.numbers) +
+           ")";
   }
   if (op.Is<GroupedSort>()) {
     const GroupedSortSpec& spec = static_cast<const GroupedSort&>(op).spec_;
@@ -307,7 +324,7 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
     if (!spec.keys.empty()) {
       out += "; " + Keys(spec.keys);
     }
-    return out + ")";
+    return out + "; numbers " + Column(spec.numbers) + ")";
   }
   if (op.Is<HashAggregate>()) {
     const HashAggregateSpec& spec = static_cast<const HashAggregate&>(op).spec_;
@@ -338,15 +355,21 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
     }
     return out + ")";
   }
+  if (op.Is<SelectColumns>()) {
+    return "SelectColumns(" +
+           Columns(static_cast<const SelectColumns&>(op).columns_) + ")";
+  }
   if (op.Is<TreeChildFirst>()) {
     const auto& order = static_cast<const TreeChildFirst&>(op);
     return "TreeChildFirst(" + Column(order.node_column_) + ", " +
-           Column(order.parent_column_) + ")";
+           Column(order.parent_column_) + "; numbers " +
+           Column(order.number_column_) + ")";
   }
   if (op.Is<TreeParentFirst>()) {
     const auto& order = static_cast<const TreeParentFirst&>(op);
     return "TreeParentFirst(" + Column(order.node_column_) + ", " +
-           Column(order.parent_column_) + ")";
+           Column(order.parent_column_) + "; numbers " +
+           Column(order.number_column_) + ")";
   }
   return "Operator";
 }

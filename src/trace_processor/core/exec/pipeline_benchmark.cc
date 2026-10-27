@@ -72,6 +72,7 @@ class PassThroughOperator final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) override {}
 
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
@@ -85,6 +86,7 @@ class PassThroughTransform final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) override {}
 
   bool Process(RowBatch&, OperatorState&) const override { return true; }
 };

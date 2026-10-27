@@ -19,9 +19,11 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
@@ -35,6 +37,16 @@ struct AggregateCall {
   // The column aggregated; unused by COUNT(*).
   uint32_t column = 0;
 };
+
+// Adds the columns `aggregates` read to `out`.
+inline void DescribeAggregateReads(std::vector<AggregateCall>* aggregates,
+                                   StepColumns* out) {
+  for (AggregateCall& call : *aggregates) {
+    if (call.function != AggregateCall::Function::kCountStar) {
+      out->reads.push_back(&call.column);
+    }
+  }
+}
 
 // What an aggregate reads of one batch: a value a row, contiguous, and
 // which rows hold one.

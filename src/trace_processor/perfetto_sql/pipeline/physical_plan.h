@@ -366,8 +366,11 @@ class Lowering {
   // Converts `side` to `type`. The conversion must be lossless.
   static void Convert(const Side& side, const PlanType& type);
 
-  // Builds the pipeline from the input and operators added so far.
-  std::unique_ptr<core::exec::Pipeline> Build();
+  // Builds the pipeline from the input and operators added so far, after
+  // deciding where rows are kept (see ParkReorderedRows). `outputs` are the
+  // columns read after the pipeline, renumbered to where it outputs them, or
+  // null if any may be read.
+  std::unique_ptr<core::exec::Pipeline> Build(std::vector<uint32_t>* outputs);
 
   // Borrowed for the duration of lowering.
   PlanLowering* plan_;
@@ -414,8 +417,9 @@ class Lowering {
   // Execution graph of this pipeline
   // ---------------------------------------------------------------------------
 
-  // The pipeline's input.
+  // The pipeline's input, and how many columns it produces.
   std::unique_ptr<core::exec::Source> input_;
+  uint32_t source_columns_ = 0;
 
   // The pipeline's operators, in the order they run.
   std::vector<core::exec::Pipeline::Step> operators_;
@@ -464,6 +468,10 @@ class PlanLowering {
 
   // The main pipeline first, then every side pipeline.
   std::vector<std::unique_ptr<Lowering>> pipelines_;
+
+  // The number of the next store rows are parked in. Unique across pipelines,
+  // which share the run's Context.
+  uint32_t store_count_ = 0;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

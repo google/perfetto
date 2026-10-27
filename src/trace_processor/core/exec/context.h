@@ -18,6 +18,8 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_CONTEXT_H_
 
 #include <cstdint>
+#include <memory>
+#include <vector>
 
 #include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
@@ -25,6 +27,7 @@
 
 namespace perfetto::trace_processor::core::exec {
 
+class RowStore;
 struct FilterValue;
 
 // What one execution of a plan shares as it runs: the storage the batches'
@@ -51,6 +54,12 @@ class Context {
   // value is zero.
   const ColumnBuffer& NullBuffer();
 
+  // Store `slot` of the run: where the rows a plan parks before reordering
+  // them are held, to be fetched back by row number (see ParkRows and
+  // FetchRows). The plan numbers its stores; each is created empty when
+  // first asked for.
+  RowStore& Store(uint32_t slot);
+
   // The values the next run's filters compare with, by parameter, already
   // cast (see FilterValue). Nothing is copied: the caller keeps them alive and
   // unchanged until the run ends.
@@ -60,9 +69,10 @@ class Context {
   Span<const FilterValue> filter_values() const { return filter_values_; }
 
  private:
-  // Declared before `nulls_`, so it outlives it.
+  // Declared before `nulls_` and `stores_`, so it outlives them.
   BufferPool buffers_;
   ColumnBuffer nulls_;
+  std::vector<std::unique_ptr<RowStore>> stores_;
   Span<const FilterValue> filter_values_;
 };
 

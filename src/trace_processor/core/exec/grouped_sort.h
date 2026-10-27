@@ -38,21 +38,38 @@ struct GroupedSortSpec {
   // The keys to sort each group by. With no keys, each group keeps the input
   // order of its rows. The planner relies on this.
   std::vector<SortKey> keys;
+  // The Uint32 column holding each row's number in the store it is parked in
+  // (see ParkRows): set by the planner when it parks the rows.
+  uint32_t numbers = 0;
 };
 
-// Groups rows by the group columns and stably sorts each group by the keys.
-// Groups come out in the order they are first seen, not sorted.
+// Groups rows parked in a store (see ParkRows) by the group columns and
+// stably sorts each group by the keys. Groups come out in the order they are
+// first seen, not sorted.
 //
-// Also appends a Uint32 column with each row's group number. Later operators
-// can use it to find group boundaries without comparing values.
+// Holds only the keys, each row's group and its number in the store, and
+// outputs two Uint32 columns: the numbers, in grouped order, then each row's
+// group number. Later operators can use the group numbers to find group
+// boundaries without comparing values.
 //
 // Group numbers come from a hash table. A counting sort by group number then
-// brings each group's rows together. Rows are copied once, in the final
-// order.
+// brings each group's rows together.
 class GroupedSort : public Breaker {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) override {
+    out->keeps = StepColumns::Keeps::kRowNumbers;
+    for (uint32_t& group : spec_.groups) {
+      out->reads.push_back(&group);
+    }
+    for (SortKey& key : spec_.keys) {
+      out->reads.push_back(&key.column);
+    }
+    out->numbers = &spec_.numbers;
+    // Each row's group number.
+    out->added = 1;
+  }
 
   explicit GroupedSort(GroupedSortSpec);
   ~GroupedSort() override;

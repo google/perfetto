@@ -46,6 +46,11 @@ class TreeAccumulateUp final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) override {
+    out->reads = {&spec_.node_column, &spec_.parent_column};
+    DescribeAggregateReads(&spec_.aggregates, out);
+    out->added = static_cast<uint32_t>(spec_.aggregates.size());
+  }
 
   explicit TreeAccumulateUp(TreeAccumulateSpec);
   ~TreeAccumulateUp() override;
@@ -70,6 +75,11 @@ class TreeAccumulateDown final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) override {
+    out->reads = {&spec_.node_column, &spec_.parent_column};
+    DescribeAggregateReads(&spec_.aggregates, out);
+    out->added = static_cast<uint32_t>(spec_.aggregates.size());
+  }
 
   explicit TreeAccumulateDown(TreeAccumulateSpec);
   ~TreeAccumulateDown() override;

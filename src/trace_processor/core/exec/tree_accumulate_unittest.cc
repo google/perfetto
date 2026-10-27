@@ -169,14 +169,18 @@ Result Accumulate(const std::vector<int64_t>& parent,
   // Ids become node numbers before anything else sees them.
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
+  // Reordered rows come back after their numbers: one column further on.
+  uint32_t shift = 0;
   if (!already_ordered) {
-    if (up) {
-      ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-    } else {
-      ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
+    std::vector<Pipeline::Step> reorder =
+        up ? test::ParkAndReorder(std::make_unique<TreeChildFirst>(3, 4), 5)
+           : test::ParkAndReorder(std::make_unique<TreeParentFirst>(3, 4), 5);
+    for (Pipeline::Step& step : reorder) {
+      ops.push_back(std::move(step));
     }
+    shift = 1;
   }
-  TreeAccumulateSpec spec{3, 4, {Sum(2)}};
+  TreeAccumulateSpec spec{3 + shift, 4 + shift, {Sum(2 + shift)}};
   if (up) {
     ops.push_back(std::make_unique<TreeAccumulateUp>(spec));
   } else {
@@ -191,8 +195,8 @@ Result Accumulate(const std::vector<int64_t>& parent,
   result.totals.assign(parent.size(), 0);
   while (pipeline.GetData(batch, *state)) {
     ++result.batches;
-    std::vector<int64_t> ids = test::ReadColumn<int64_t>(batch, 0);
-    std::vector<int64_t> totals = test::ReadColumn<int64_t>(batch, 5);
+    std::vector<int64_t> ids = test::ReadColumn<int64_t>(batch, shift);
+    std::vector<int64_t> totals = test::ReadColumn<int64_t>(batch, 5 + shift);
     for (uint32_t row = 0; row < batch.size(); ++row) {
       result.totals[static_cast<size_t>(ids[row])] = totals[row];
     }

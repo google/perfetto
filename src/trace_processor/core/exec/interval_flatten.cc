@@ -128,7 +128,7 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
   // keys in place until all rows have been consumed.
   if (!s.input_pending) {
     if (keyed_) {
-      s.status = s.keys.Hold(in);
+      s.status = s.keys.Hold(in, *s.context);
       s.key_row = LaneKeys::kCarried;
     }
     s.input_pending = true;

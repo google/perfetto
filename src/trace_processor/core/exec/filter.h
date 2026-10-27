@@ -49,6 +49,11 @@ class Filter final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) override {
+    for (Condition& condition : conditions_) {
+      out->reads.push_back(&condition.column);
+    }
+  }
 
   struct Condition {
     uint32_t column = 0;

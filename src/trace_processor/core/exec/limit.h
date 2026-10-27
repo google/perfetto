@@ -38,6 +38,7 @@ class Limit final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) override {}
 
   // No `limit` keeps every row after the offset.
   Limit(std::optional<uint32_t> limit, uint32_t offset);

@@ -16,11 +16,14 @@
 
 #include "src/trace_processor/core/exec/context.h"
 
+#include <cstdint>
 #include <cstring>
+#include <memory>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
+#include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
@@ -29,7 +32,18 @@ namespace perfetto::trace_processor::core::exec {
 Context::Context() = default;
 
 Context::~Context() {
+  stores_.clear();
   nulls_ = ColumnBuffer();
+}
+
+RowStore& Context::Store(uint32_t slot) {
+  if (slot >= stores_.size()) {
+    stores_.resize(slot + 1);
+  }
+  if (!stores_[slot]) {
+    stores_[slot] = std::make_unique<RowStore>();
+  }
+  return *stores_[slot];
 }
 
 const ColumnBuffer& Context::NullBuffer() {

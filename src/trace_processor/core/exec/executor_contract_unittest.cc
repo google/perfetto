@@ -132,7 +132,7 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
       ColumnView::Reference(StorageType{Double{}}, values.data()));
   input.SetRowCount(4);
   RowStore store;
-  ASSERT_TRUE(store.Append(input).ok());
+  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
   ASSERT_EQ(
       store.Gather(&output, Span<const uint32_t>(rows), test::TestContext()),
       4u);
@@ -173,7 +173,7 @@ TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
                               &chunk.validity, 1),
         local);
     in.SetRowCount(128);
-    ASSERT_TRUE(store.Append(in).ok());
+    ASSERT_TRUE(store.Append(in, context).ok());
   }
   RowBatch retained;
   for (uint32_t count : {63u, 64u, 65u, kMaxBatchRows}) {
@@ -264,6 +264,7 @@ class ContractFilter final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) override {}
 
   struct State : OperatorState {
     std::vector<uint32_t> selected;
@@ -292,6 +293,7 @@ class FinishProbe final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) override {}
 
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,

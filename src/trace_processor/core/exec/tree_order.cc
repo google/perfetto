@@ -18,7 +18,9 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <memory>
+#include <utility>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -26,6 +28,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
@@ -65,6 +68,7 @@ bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
   auto base = static_cast<uint32_t>(s.nodes.size());
   s.nodes.resize(base + count);
   s.parents.resize(base + count);
+  s.numbers.resize(base + count);
   for (uint32_t i = 0; i < count; ++i) {
     uint32_t node = in.Value<uint32_t>(node_column_, i);
     uint32_t parent = in.Value<uint32_t>(parent_column_, i);
@@ -95,14 +99,14 @@ bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
       }
     }
     s.has_row.set(node);
+    s.numbers[base + i] = in.Value<uint32_t>(number_column_, i);
   }
-  s.status = s.rows.Append(in);
-  return s.status.ok();
+  return true;
 }
 
 bool TreeChildFirst::Sort(State& s) const {
   uint32_t nodes = s.nodes_seen;
-  uint32_t rows = s.rows.size();
+  auto rows = static_cast<uint32_t>(s.numbers.size());
   // The children of every node, laid out end to end: a tree has as many
   // entries as it has non-roots.
   auto begin = FlexVector<uint32_t>::CreateFilled(nodes + 1, 0);
@@ -177,7 +181,7 @@ bool TreeChildFirst::Finalize(Breaker::State& state) const {
   }
   if (s.parent_first) {
     // Reversing is all it takes to turn one tree order into the other.
-    uint32_t rows = s.rows.size();
+    auto rows = static_cast<uint32_t>(s.numbers.size());
     s.order.resize(rows);
     PERFETTO_NO_VECTORIZE_LOOP
     for (uint32_t row = 0; row < rows; ++row) {
@@ -190,18 +194,26 @@ bool TreeChildFirst::Finalize(Breaker::State& state) const {
 
 bool TreeChildFirst::Serve(RowBatch& out, Breaker::State& state) const {
   State& s = state.Cast<State>();
-  if (s.emitted == s.rows.size()) {
+  auto rows = static_cast<uint32_t>(s.numbers.size());
+  if (s.emitted == rows) {
     return false;
   }
-  uint32_t count = std::min(kMaxBatchRows, s.rows.size() - s.emitted);
+  uint32_t count = std::min(kMaxBatchRows, rows - s.emitted);
+  ColumnBuffer buffer = s.context->TakeBuffer(sizeof(uint32_t));
+  auto* values = buffer.chunk().Values<uint32_t>();
+  const uint32_t* numbers = s.numbers.data();
   if (s.order.empty()) {
-    // A run never spans two chunks, so the store says how much it served.
-    count = s.rows.View(&out, s.emitted, count);
+    memcpy(values, numbers + s.emitted, count * sizeof(uint32_t));
   } else {
-    const uint32_t* begin = s.order.data() + s.emitted;
-    count = s.rows.Gather(&out, Span<const uint32_t>(begin, begin + count),
-                          *s.context);
+    const uint32_t* order = s.order.data() + s.emitted;
+    for (uint32_t i = 0; i < count; ++i) {
+      values[i] = numbers[order[i]];
+    }
   }
+  out.Reset();
+  out.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, values),
+                std::move(buffer));
+  out.SetRowCount(count);
   s.emitted += count;
   return true;
 }
@@ -215,7 +227,7 @@ void TreeChildFirst::State::Reset() {
   s.child_first = true;
   s.nodes.clear();
   s.parents.clear();
-  s.rows.Clear();
+  s.numbers.clear();
   s.order.clear();
   s.emitted = 0;
 }
@@ -243,7 +255,7 @@ void TreeParentFirst::State::Nodes::Clear() {
 }
 
 void TreeParentFirst::State::Held::Clear() {
-  rows.Clear();
+  number.clear();
   node.clear();
   next_waiting.clear();
   let_go = 0;
@@ -273,9 +285,17 @@ PERFETTO_NO_INLINE OpResult TreeParentFirst::LetGo(RowBatch& out,
                                                    State& s) const {
   auto total = static_cast<uint32_t>(s.letting_go.size());
   uint32_t count = std::min(kMaxBatchRows, total - s.served);
-  const uint32_t* begin = s.letting_go.data() + s.served;
-  count = s.held.rows.Gather(&out, Span<const uint32_t>(begin, begin + count),
-                             *s.context);
+  ColumnBuffer buffer = s.context->TakeBuffer(sizeof(uint32_t));
+  auto* values = buffer.chunk().Values<uint32_t>();
+  const uint32_t* rows = s.letting_go.data() + s.served;
+  const uint32_t* numbers = s.held.number.data();
+  for (uint32_t i = 0; i < count; ++i) {
+    values[i] = numbers[rows[i]];
+  }
+  out.Reset();
+  out.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, values),
+                std::move(buffer));
+  out.SetRowCount(count);
   s.served += count;
   if (s.served < total) {
     return OpResult::kHaveMoreOutput;
@@ -303,7 +323,6 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
   // they are not marked out yet: a row arriving under one of them in this
   // same batch has to wait too, or it would go out ahead of its parent.
   s.passing.clear();
-  s.holding.clear();
   for (uint32_t i = 0; i < count; ++i) {
     uint32_t node = in.Value<uint32_t>(node_column_, i);
     uint32_t parent = in.Value<uint32_t>(parent_column_, i);
@@ -316,9 +335,8 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
       s.nodes.Grow(needed);
     }
     if (parent != kNoNode && !s.nodes.out.is_set(parent)) {
-      // The row it will be in `held` once the batch's held rows are copied.
       auto row = static_cast<uint32_t>(s.held.node.size());
-      s.holding.push_back(i);
+      s.held.number.push_back(in.Value<uint32_t>(number_column_, i));
       s.held.node.push_back(node);
       s.held.next_waiting.push_back(s.nodes.first_waiting[parent]);
       s.nodes.first_waiting[parent] = row;
@@ -328,15 +346,6 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
     s.nodes.out.set(node);
     if (s.nodes.first_waiting[node] != kNoNode) {
       Release(node, s);
-    }
-  }
-
-  if (!s.holding.empty()) {
-    s.held_batch.CopyFrom(in);
-    s.held_batch.mutable_selection().Keep(s.holding.span());
-    s.status = s.held.rows.Append(s.held_batch);
-    if (!s.status.ok()) {
-      return OpResult::kError;
     }
   }
 
@@ -352,8 +361,24 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
   if (s.passing.empty() && !s.letting_go.empty()) {
     return LetGo(out, s);
   }
-  out.CopyFrom(in);
-  out.mutable_selection().Keep(s.passing.span());
+  // The numbers of the rows passing, every one of them kept, so that what
+  // reads them reads only rows which went out. If every row of the batch
+  // passes, they are its numbers as they are.
+  auto passing = static_cast<uint32_t>(s.passing.size());
+  if (passing == in.row_count()) {
+    out.Project(in, {number_column_});
+    return s.letting_go.empty() ? OpResult::kNeedMoreInput
+                                : OpResult::kHaveMoreOutput;
+  }
+  ColumnBuffer buffer = s.context->TakeBuffer(sizeof(uint32_t));
+  auto* values = buffer.chunk().Values<uint32_t>();
+  for (uint32_t i = 0; i < passing; ++i) {
+    values[i] = in.Value<uint32_t>(number_column_, s.passing[i]);
+  }
+  out.Reset();
+  out.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, values),
+                std::move(buffer));
+  out.SetRowCount(passing);
   return s.letting_go.empty() ? OpResult::kNeedMoreInput
                               : OpResult::kHaveMoreOutput;
 }
@@ -361,7 +386,7 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
 OpResult TreeParentFirst::Finish(RowBatch& out, OperatorState& state) const {
   State& s = state.Cast<State>();
   out.Reset();
-  uint32_t stuck = s.held.rows.size() - s.held.let_go;
+  auto stuck = static_cast<uint32_t>(s.held.node.size()) - s.held.let_go;
   if (stuck == 0) {
     return OpResult::kNeedMoreInput;
   }

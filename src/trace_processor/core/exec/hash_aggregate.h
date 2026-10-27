@@ -49,6 +49,15 @@ class HashAggregate : public Breaker {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) override {
+    out->keeps = StepColumns::Keeps::kNone;
+    for (uint32_t& key : spec_.key_columns) {
+      out->reads.push_back(&key);
+    }
+    DescribeAggregateReads(&spec_.aggregates, out);
+    out->added = static_cast<uint32_t>(spec_.key_columns.size() +
+                                       spec_.aggregates.size());
+  }
 
   explicit HashAggregate(HashAggregateSpec);
   ~HashAggregate() override;

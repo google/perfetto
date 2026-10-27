@@ -134,11 +134,11 @@ TEST(LaneKeysTest, CarriesTheOpenLane) {
   std::vector<uint32_t> key_columns = {2};
   LaneKeys keys(key_columns);
   RowBatch first = Batch({0, 0}, {1, 1}, {7, 3}, {0, 1});
-  ASSERT_TRUE(keys.Hold(first).ok());
+  ASSERT_TRUE(keys.Hold(first, context).ok());
   uint32_t open = keys.Of(1);
   keys.Carry(open);
   RowBatch second = Batch({0}, {1}, {9}, {2});
-  ASSERT_TRUE(keys.Hold(second).ok());
+  ASSERT_TRUE(keys.Hold(second, context).ok());
   std::vector<uint32_t> handles = {LaneKeys::kCarried, keys.Of(0)};
   RowBatch out;
   keys.Gather(&out, handles, context);

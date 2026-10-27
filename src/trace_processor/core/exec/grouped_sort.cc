@@ -53,7 +53,7 @@ bool GroupedSort::Consume(const RowBatch& in, Breaker::State& state) const {
         "GROUPED SORT: group %u must be a column holding one type", *bad + 1);
     return false;
   }
-  base::Status status = s.rows.Append(in, spec_.keys);
+  base::Status status = s.rows.Append(in, spec_.keys, spec_.numbers);
   if (!status.ok()) {
     s.status = base::ErrStatus("GROUPED SORT: %s", status.c_message());
     return false;
@@ -112,7 +112,7 @@ bool GroupedSort::Serve(RowBatch& out, Breaker::State& state) const {
   if (s.emitted == s.rows.size()) {
     return false;
   }
-  uint32_t count = s.rows.Gather(&out, s.emitted, *s.context);
+  uint32_t count = s.rows.Serve(&out, s.emitted, *s.context);
   out.AddBorrowedColumn(ColumnView::Reference(
       StorageType{Uint32{}}, s.ordered_groups.data(), nullptr, s.emitted));
   s.emitted += count;

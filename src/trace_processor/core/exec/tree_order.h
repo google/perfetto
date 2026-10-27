@@ -19,12 +19,12 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
@@ -43,12 +43,18 @@ namespace perfetto::trace_processor::core::exec {
 // so the planner only needs to leave this out when it knows the input is
 // already child first.
 //
-// The input columns are node numbers, which TreeNumberNodes produces. No
-// column is added.
+// The rows are parked in a store (see ParkRows). Only their node numbers,
+// which TreeNumberNodes produces, and their numbers in the store are read and
+// held. The output is one Uint32 column: the store numbers, in the new order.
 class TreeChildFirst : public Breaker {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) override {
+    out->keeps = StepColumns::Keeps::kRowNumbers;
+    out->reads = {&node_column_, &parent_column_};
+    out->numbers = &number_column_;
+  }
 
   TreeChildFirst(uint32_t node_column, uint32_t parent_column);
   ~TreeChildFirst() override;
@@ -67,11 +73,11 @@ class TreeChildFirst : public Breaker {
     bool parent_first = true;
     bool child_first = true;
 
-    // The node and parent of each row in order of arrival: what a sort needs.
+    // The node, parent and store number of each row in order of arrival.
     FlexVector<uint32_t> nodes;
     FlexVector<uint32_t> parents;
+    FlexVector<uint32_t> numbers;
 
-    RowStore rows;
     // The order to emit the rows in. Empty means in arrival order.
     FlexVector<uint32_t> order;
     uint32_t emitted = 0;
@@ -86,26 +92,37 @@ class TreeChildFirst : public Breaker {
 
   uint32_t node_column_;
   uint32_t parent_column_;
+  // Where the rows' numbers in their store are: set by the planner when it
+  // parks the rows (see StepColumns::numbers).
+  uint32_t number_column_ = 0;
 };
 
 // TREE ORDER PARENT FIRST: puts tree rows into an order where every parent
 // precedes its children. A fold down a tree runs over this order.
 //
 // Not a breaker: a row can go out as soon as its parent has. Rows whose
-// parent is already out stream straight through as views of their batch.
-// Only a row arriving before its parent is held: retained and let go the
-// moment the parent arrives, together with whatever is held under it. So the
-// cost is proportional to how far out of order the input is, nothing for
-// ordered input and everything for reversed input, and the planner never
-// needs to know which. Rows once held stay retained until the next rewind.
+// parent is already out stream straight through. Only a row arriving before
+// its parent is held, and let go the moment the
+// parent arrives, together with whatever is held under it. So the cost is
+// proportional to how far out of order the input is, nothing for ordered
+// input and everything for reversed input, and the planner never needs to
+// know which.
 //
 // The order is parent first and nothing more: not a pre-order, so a fold
-// down keeps a value per node rather than a path. The input columns are node
-// numbers, which TreeNumberNodes produces. No column is added.
+// down keeps a value per node rather than a path. The rows are parked in a
+// store (see ParkRows). Only their node numbers, which TreeNumberNodes
+// produces, and their numbers in the store are read, and a row held keeps
+// only those. The output is one Uint32 column: the store numbers, in the new
+// order.
 class TreeParentFirst : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) override {
+    out->keeps = StepColumns::Keeps::kRowNumbers;
+    out->reads = {&node_column_, &parent_column_};
+    out->numbers = &number_column_;
+  }
 
   TreeParentFirst(uint32_t node_column, uint32_t parent_column);
   ~TreeParentFirst() override;
@@ -137,12 +154,12 @@ class TreeParentFirst : public Operator {
       void Clear();
     };
 
-    // Rows which arrived before their parent. Each knows its node and the
-    // next row waiting on the same parent, which with `first_waiting` makes
-    // a list per parent. A row let go stays here, so this only grows until
-    // the next rewind.
+    // Rows which arrived before their parent. Each knows its store number,
+    // its node and the next row waiting on the same parent, which with
+    // `first_waiting` makes a list per parent. A row let go stays here, so
+    // this only grows until the next rewind.
     struct Held {
-      RowStore rows;
+      FlexVector<uint32_t> number;
       FlexVector<uint32_t> node;
       FlexVector<uint32_t> next_waiting;
       uint32_t let_go = 0;
@@ -158,13 +175,10 @@ class TreeParentFirst : public Operator {
     FlexVector<uint32_t> letting_go;
     uint32_t served = 0;
 
-    // Scratch for one batch: which of its rows pass straight through, which
-    // are held, and the held ones sliced out to be copied.
+    // Scratch for one batch: which of its rows pass straight through.
     FlexVector<uint32_t> passing;
-    FlexVector<uint32_t> holding;
-    RowBatch held_batch;
 
-    // What rows let go are gathered into.
+    // What the numbers of rows let go are written into.
     Context* context = nullptr;
 
     base::Status status = base::OkStatus();
@@ -176,6 +190,9 @@ class TreeParentFirst : public Operator {
 
   uint32_t node_column_;
   uint32_t parent_column_;
+  // Where the rows' numbers in their store are: set by the planner when it
+  // parks the rows (see StepColumns::numbers).
+  uint32_t number_column_ = 0;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

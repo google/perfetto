@@ -31,11 +31,36 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/parked_rows.h"
+#include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec::test {
+
+// The steps the planner makes of `reorder` over batches of `columns`
+// columns: every column parked in store `slot`, the rows' numbers reordered,
+// and every column fetched back. The output is the rows' numbers, then any
+// columns the reorder adds, then the input's columns.
+template <typename T>
+std::vector<Pipeline::Step> ParkAndReorder(std::unique_ptr<T> reorder,
+                                           uint32_t columns,
+                                           uint32_t slot = 0) {
+  std::vector<uint32_t> all;
+  for (uint32_t c = 0; c < columns; ++c) {
+    all.push_back(c);
+  }
+  StepColumns described;
+  reorder->DescribeColumns(&described);
+  *described.numbers = columns;
+  std::vector<Pipeline::Step> steps;
+  steps.push_back(std::make_unique<ParkRows>(ParkRowsSpec{slot, all}));
+  steps.push_back(std::move(reorder));
+  steps.push_back(
+      std::make_unique<FetchRows>(FetchRowsSpec{slot, 0, std::move(all)}));
+  return steps;
+}
 
 // A Context for tests which make states themselves, rather than through a
 // RowCursor. Tests run on one thread, so they can share it.

@@ -47,10 +47,10 @@ Output Drain(const Source& source) {
   RowBatch batch;
   Output out;
   while (source.GetData(batch, *state)) {
-    for (uint32_t id : test::ReadColumn<uint32_t>(batch, 0)) {
+    for (uint32_t id : test::ReadColumn<uint32_t>(batch, 2)) {
       out.ids.push_back(id);
     }
-    for (uint32_t group : test::ReadColumn<uint32_t>(batch, 2)) {
+    for (uint32_t group : test::ReadColumn<uint32_t>(batch, 1)) {
       out.groups.push_back(group);
     }
   }
@@ -58,13 +58,14 @@ Output Drain(const Source& source) {
   return out;
 }
 
-// A GroupedSort that groups by `column` and sorts each group by `keys`.
+// A GroupedSort of an ArraySource's rows that groups by `column` and sorts
+// each group by `keys`, as the planner would: the group numbers come back as
+// column 1 and the ids as column 2.
 std::vector<Pipeline::Step> GroupOn(uint32_t column,
                                     std::vector<SortKey> keys = {}) {
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<GroupedSort>(
-      GroupedSortSpec{{column}, std::move(keys)}));
-  return ops;
+  return test::ParkAndReorder(
+      std::make_unique<GroupedSort>(GroupedSortSpec{{column}, std::move(keys)}),
+      2);
 }
 
 // Groups come out in the order they are first seen. Rows within a group keep

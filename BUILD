@@ -2678,6 +2678,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/limit.h",
         "src/trace_processor/core/exec/operator.cc",
         "src/trace_processor/core/exec/operator.h",
+        "src/trace_processor/core/exec/parked_rows.cc",
+        "src/trace_processor/core/exec/parked_rows.h",
         "src/trace_processor/core/exec/pipeline.cc",
         "src/trace_processor/core/exec/pipeline.h",
         "src/trace_processor/core/exec/row_batch.cc",
@@ -4023,6 +4025,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/plan_serialization.cc",
         "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h",
         "src/trace_processor/perfetto_sql/pipeline/plan_types.h",
+        "src/trace_processor/perfetto_sql/pipeline/row_parking.cc",
+        "src/trace_processor/perfetto_sql/pipeline/row_parking.h",
     ],
 )
 

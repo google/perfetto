@@ -36,6 +36,7 @@
 #include "src/trace_processor/core/exec/sort.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
+#include "src/trace_processor/perfetto_sql/pipeline/row_parking.h"
 
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
@@ -109,6 +110,8 @@ void Lowering::Fail(base::Status status) {
 void Lowering::SetSource(std::unique_ptr<core::exec::Source> source) {
   PERFETTO_DCHECK(!input_);
   input_ = std::move(source);
+  // Every operation declares its source's columns before setting it.
+  source_columns_ = column_count_;
 }
 
 void Lowering::AddOperator(core::exec::Pipeline::Step operation) {
@@ -123,7 +126,7 @@ Lowering& Lowering::AddSidePipeline() {
 
 const core::exec::Source* Lowering::FinishSide() {
   PhysicalPlan& out = *plan_->out_;
-  std::unique_ptr<ex::Pipeline> pipeline = Build();
+  std::unique_ptr<ex::Pipeline> pipeline = Build(nullptr);
   out.side_inputs_.push_back(std::move(input_));
   out.side_pipelines_.push_back(std::move(pipeline));
   return out.side_pipelines_.back().get();
@@ -521,7 +524,12 @@ void Lowering::Convert(const Side& side, const PlanType& type) {
       plan.plan().names().text(plan.plan().columns()[side.column].name)));
 }
 
-std::unique_ptr<ex::Pipeline> Lowering::Build() {
+std::unique_ptr<ex::Pipeline> Lowering::Build(std::vector<uint32_t>* outputs) {
+  base::Status status = ParkReorderedRows(source_columns_, outputs,
+                                          &plan_->store_count_, &operators_);
+  if (!status.ok()) {
+    Fail(std::move(status));
+  }
   return std::make_unique<ex::Pipeline>(*input_, std::move(operators_));
 }
 
@@ -545,11 +553,16 @@ void PlanLowering::Fail(base::Status status) {
 base::StatusOr<std::unique_ptr<PhysicalPlan>> PlanLowering::Finish() {
   RETURN_IF_ERROR(status_);
   Lowering& lowering = main();
-  out_->pipeline_ = lowering.Build();
-  out_->input_ = std::move(lowering.input_);
+  std::vector<uint32_t> outputs;
   for (const NamedColumn& column : plan_.output()) {
+    outputs.push_back(lowering.QueryPosition(column.id));
+  }
+  out_->pipeline_ = lowering.Build(&outputs);
+  RETURN_IF_ERROR(status_);
+  out_->input_ = std::move(lowering.input_);
+  for (size_t i = 0; i < outputs.size(); ++i) {
     out_->columns_.push_back(
-        {plan_.names().text(column.name), lowering.QueryPosition(column.id)});
+        {plan_.names().text(plan_.output()[i].name), outputs[i]});
   }
   return std::move(out_);
 }

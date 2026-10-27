@@ -41,7 +41,7 @@ std::vector<uint32_t> Ids(const Source& source, base::Status* status) {
   RowBatch batch;
   std::vector<uint32_t> ids;
   while (source.GetData(batch, *state)) {
-    for (uint32_t id : test::ReadColumn<uint32_t>(batch, 0)) {
+    for (uint32_t id : test::ReadColumn<uint32_t>(batch, 1)) {
       ids.push_back(id);
     }
   }
@@ -49,18 +49,20 @@ std::vector<uint32_t> Ids(const Source& source, base::Status* status) {
   return ids;
 }
 
+// Sorts the rows of an ArraySource as the planner would: the ids come back
+// as column 1.
 std::vector<Pipeline::Step> SortBy(std::vector<SortSpec::Key> keys) {
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Sort>(SortSpec{std::move(keys)}));
-  return ops;
+  return test::ParkAndReorder(std::make_unique<Sort>(SortSpec{std::move(keys)}),
+                              2);
 }
 
 TEST(SortTest, RewindAfterInvalidKeysAndCompletedSort) {
-  Sort sort(SortSpec{{{1, false}, {2, true}}});
+  Sort sort(SortSpec{{{1, false}, {2, true}}, 3});
   auto state = sort.MakeState(test::TestContext());
   std::vector<int64_t> first = {2, 1, 2, 1};
   std::vector<int32_t> narrower = {2, 1, 2, 1};
   std::vector<double> second = {0.5, -1.5, -0.5, 2.5};
+  std::vector<uint32_t> numbers = {0, 1, 2, 3};
   RowBatch in;
   RowBatch out;
   in.AddBorrowedColumn(ColumnView::Reference(StorageType{Id{}}, nullptr));
@@ -68,6 +70,8 @@ TEST(SortTest, RewindAfterInvalidKeysAndCompletedSort) {
       ColumnView::Reference(StorageType{Int64{}}, first.data()));
   // The first key is valid, but the second cannot be used in a row layout.
   in.AddBorrowedColumn(ColumnView::Variants(nullptr));
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Uint32{}}, numbers.data()));
   in.SetRowCount(4);
   ASSERT_EQ(sort.Execute(in, out, *state), OpResult::kError);
   EXPECT_THAT(sort.status(*state).message(), testing::HasSubstr("key 2"));
@@ -86,7 +90,8 @@ TEST(SortTest, RewindAfterInvalidKeysAndCompletedSort) {
                  ColumnBuffer());
     ASSERT_EQ(sort.Execute(in, out, *state), OpResult::kNeedMoreInput);
     ASSERT_EQ(sort.Finish(out, *state), OpResult::kHaveMoreOutput);
-    // Equal first keys are ordered by the descending second key.
+    // The rows' numbers come out sorted. Equal first keys are ordered by the
+    // descending second key.
     EXPECT_THAT(test::ReadColumn<uint32_t>(out, 0), ElementsAre(3, 1, 0, 2));
     EXPECT_EQ(sort.Finish(out, *state), OpResult::kNeedMoreInput);
     EXPECT_TRUE(sort.status(*state).ok());

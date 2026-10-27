@@ -35,6 +35,7 @@ class CombineBatches final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) override {}
 
   // Batches with at most this many rows are combined.
   static constexpr uint32_t kSmallBatchRows = 64;

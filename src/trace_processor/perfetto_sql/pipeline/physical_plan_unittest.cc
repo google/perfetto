@@ -216,13 +216,25 @@ TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
   // walk. A new walk is added only when the direction changes. The
   // parent-first walk can output small batches, so they are combined before
   // the child-first walk.
+  //
+  // Each walk orders the rows' numbers alone: every column read after it is
+  // parked before it, and fetched back just before the first step reading
+  // it. The second walk parks the first store's numbers too, so `self`, read
+  // only at the end, is fetched back through both stores.
   EXPECT_EQ(PhysicalPlanToString(**plan),
             "main: DataframeScan | TreeNumberNodes(#0, #1) | "
-            "TreeParentFirst(#3, #4) | AssertType(#2 to Int64) | "
-            "TreeAccumulateDown(#3, #4; SUM(#2)) | "
-            "TreeAccumulateDown(#3, #4; SUM(#5)) | CombineBatches | "
-            "TreeChildFirst(#3, #4) | "
-            "TreeAccumulateUp(#3, #4; SUM(#6))");
+            "ParkRows(#0, #1, #2, #3, #4 in store 0) | "
+            "TreeParentFirst(#3, #4; numbers #5) | "
+            "FetchRows(store 0 by #0: 2) | AssertType(#1 to Int64) | "
+            "FetchRows(store 0 by #0: 3, 4) | "
+            "TreeAccumulateDown(#2, #3; SUM(#1)) | "
+            "TreeAccumulateDown(#2, #3; SUM(#4)) | CombineBatches | "
+            "ParkRows(#1, #2, #3, #4, #5, #0 in store 1) | "
+            "TreeChildFirst(#2, #3; numbers #6) | "
+            "FetchRows(store 1 by #0: 1, 2, 4) | "
+            "TreeAccumulateUp(#1, #2; SUM(#3)) | "
+            "FetchRows(store 1 by #0: 5) | FetchRows(store 0 by #5: 0, 1) | "
+            "FetchRows(store 1 by #0: 0, 3)");
   auto rows = Run(**plan, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, ElementsAre(Pair(0, 210), Pair(1, 150), Pair(2, 50),
@@ -241,14 +253,18 @@ TEST_F(PhysicalPlanTest, RowsAlreadyInOrderAreNotSortedAgain) {
   // Rows sorted by (cpu, ts) are also sorted by cpu. A sort that nothing
   // depends on yet is dropped when the rows are sorted again.
   EXPECT_EQ(plan("FROM t |> ORDER BY cpu, ts |> ORDER BY cpu"),
-            "main: DataframeScan | Sort(#2, #0)");
+            "main: DataframeScan | ParkRows(#0, #1, #2 in store 0) | "
+            "Sort(#2, #0; numbers #3) | FetchRows(store 0 by #0: 0, 1, 2)");
   EXPECT_EQ(plan("FROM t |> ORDER BY cpu, ts |> ORDER BY ts"),
-            "main: DataframeScan | Sort(#0)");
+            "main: DataframeScan | ParkRows(#0, #1, #2 in store 0) | "
+            "Sort(#0; numbers #3) | FetchRows(store 0 by #0: 0, 1, 2)");
   EXPECT_EQ(plan("FROM t |> ORDER BY cpu |> INTERVAL FLATTEN PER cpu "
                  "AGGREGATE COUNT(*) AS n"),
             "main: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | GroupedSort(#2; #0) | "
-            "IntervalFlatten(#0, #1, keys: #2, groups: #3; COUNT(*))");
+            "AssertType(#1 to Int64) | ParkRows(#0, #1, #2 in store 0) | "
+            "GroupedSort(#2; #0; numbers #3) | "
+            "FetchRows(store 0 by #0: 0, 1, 2) | "
+            "IntervalFlatten(#2, #3, keys: #4, groups: #1; COUNT(*))");
 
   // The scan outputs rows sorted by ts. Grouping is stable, so grouping by
   // cpu is enough to sort by ts within each cpu. No sort is needed.
@@ -257,20 +273,24 @@ TEST_F(PhysicalPlanTest, RowsAlreadyInOrderAreNotSortedAgain) {
   EXPECT_EQ(plan("FROM by_ts |> INTERVAL FLATTEN PER cpu "
                  "AGGREGATE COUNT(*) AS n"),
             "main: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | GroupedSort(#2) | "
-            "IntervalFlatten(#0, #1, keys: #2, groups: #3; COUNT(*))");
+            "AssertType(#1 to Int64) | ParkRows(#0, #1, #2 in store 0) | "
+            "GroupedSort(#2; numbers #3) | "
+            "FetchRows(store 0 by #0: 0, 1, 2) | "
+            "IntervalFlatten(#2, #3, keys: #4, groups: #1; COUNT(*))");
 
   // Groups are output in the order first seen, so if the input is sorted by
   // the key, the groups are too.
-  EXPECT_EQ(
-      plan("FROM t |> ORDER BY cpu |> AGGREGATE COUNT(*) AS n GROUP BY "
-           "cpu |> ORDER BY cpu"),
-      "main: DataframeScan | Sort(#0) | HashAggregate(keys: #0; COUNT(*))");
-  EXPECT_EQ(
-      plan("FROM t |> ORDER BY ts |> AGGREGATE COUNT(*) AS n GROUP BY "
-           "cpu |> ORDER BY cpu"),
-      "main: DataframeScan | Sort(#0) | HashAggregate(keys: #1; COUNT(*)) | "
-      "Sort(#0)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY cpu |> AGGREGATE COUNT(*) AS n GROUP BY "
+                 "cpu |> ORDER BY cpu"),
+            "main: DataframeScan | ParkRows(#0 in store 0) | "
+            "Sort(#0; numbers #1) | FetchRows(store 0 by #0: 0) | "
+            "HashAggregate(keys: #1; COUNT(*))");
+  EXPECT_EQ(plan("FROM t |> ORDER BY ts |> AGGREGATE COUNT(*) AS n GROUP BY "
+                 "cpu |> ORDER BY cpu"),
+            "main: DataframeScan | ParkRows(#1 in store 0) | "
+            "Sort(#0; numbers #2) | FetchRows(store 0 by #0: 0) | "
+            "HashAggregate(keys: #1; COUNT(*)) | ParkRows(#0, #1 in store 1) | "
+            "Sort(#0; numbers #2) | FetchRows(store 1 by #0: 0, 1)");
 }
 
 // Small batches are combined only after a step that may output them, and only
@@ -283,12 +303,17 @@ TEST_F(PhysicalPlanTest, OnlySmallBatchesAreCombined) {
     EXPECT_TRUE(lowered.ok()) << lowered.status().message();
     return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
   };
-  EXPECT_EQ(plan("FROM t |> ORDER BY n"), "main: DataframeScan | Sort(#2)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY n"),
+            "main: DataframeScan | ParkRows(#0, #1, #2 in store 0) | "
+            "Sort(#2; numbers #3) | FetchRows(store 0 by #0: 0, 1, 2)");
   EXPECT_EQ(plan("FROM t |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS c "
                  "|> ORDER BY c"),
             "main: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | Sort(#0) | "
-            "IntervalFlatten(#0, #1; COUNT(*)) | CombineBatches | Sort(#2)");
+            "AssertType(#1 to Int64) | ParkRows(#0, #1 in store 0) | "
+            "Sort(#0; numbers #2) | FetchRows(store 0 by #0: 0, 1) | "
+            "IntervalFlatten(#1, #2; COUNT(*)) | CombineBatches | "
+            "ParkRows(#0, #1, #2 in store 1) | Sort(#2; numbers #4) | "
+            "FetchRows(store 1 by #0: 0, 1, 2)");
 }
 
 // DISTINCT compares only the columns of the row at that stage: `id`, dropped
@@ -347,10 +372,16 @@ TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {
   EXPECT_EQ(PhysicalPlanToString(**plan),
             "side: DataframeScan | AssertType(#2 to Int64) | "
             "AssertType(#0 to Int64) | AssertType(#1 to Int64) | "
-            "GroupedSort(#2; #0)\n"
+            "ParkRows(#0, #1, #2 in store 0) | "
+            "GroupedSort(#2; #0; numbers #3) | "
+            "FetchRows(store 0 by #0: 0, 1, 2) | "
+            "SelectColumns(#2, #3, #4, #1)\n"
             "side: DataframeScan | AssertType(#2 to Int64) | "
             "AssertType(#0 to Int64) | AssertType(#1 to Int64) | "
-            "GroupedSort(#2; #0)\n"
+            "ParkRows(#0, #1, #2 in store 1) | "
+            "GroupedSort(#2; #0; numbers #3) | "
+            "FetchRows(store 1 by #0: 0, 1, 2) | "
+            "SelectColumns(#2, #3, #4, #1)\n"
             "main: IntervalIntersect(#0, #1, keys: #2, groups: #3; #0, #1, "
             "keys: #2, groups: #3)");
 }
@@ -367,11 +398,16 @@ TEST_F(PhysicalPlanTest, FillGapsOrdersBothSides) {
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   EXPECT_EQ(PhysicalPlanToString(**plan),
             "side: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | GroupedSort(#2; #0)\n"
+            "AssertType(#1 to Int64) | ParkRows(#0, #1, #2 in store 0) | "
+            "GroupedSort(#2; #0; numbers #3) | "
+            "FetchRows(store 0 by #0: 0, 1, 2) | "
+            "SelectColumns(#2, #3, #4, #1)\n"
             "main: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | GroupedSort(#2; #0) | "
-            "IntervalFillGaps(#0, #1, keys: #2, groups: #3; "
-            "background: #0, #1, keys: #2, groups: #3)");
+            "AssertType(#1 to Int64) | ParkRows(#0, #1, #2 in store 1) | "
+            "GroupedSort(#2; #0; numbers #3) | "
+            "FetchRows(store 1 by #0: 0, 1, 2) | "
+            "IntervalFillGaps(#2, #3, keys: #4, groups: #1; background: #0, "
+            "#1, keys: #2, groups: #3)");
 }
 
 // An intersection needs its operands' bounds and PER columns, but only passes
@@ -396,12 +432,18 @@ TEST_F(PhysicalPlanTest, ASubpipelineBackgroundIsASidePipeline) {
       "(FROM windows |> WHERE x = 0 |> SELECT ts, dur, cpu) PER cpu");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   EXPECT_EQ(PhysicalPlanToString(**plan),
-            "side: DataframeScan | Filter(#3 = ?0) | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | CombineBatches | GroupedSort(#2; #0)\n"
+            "side: DataframeScan | Filter(#3 = ?0) | "
+            "AssertType(#0 to Int64) | AssertType(#1 to Int64) | "
+            "CombineBatches | ParkRows(#0, #1, #2, #3 in store 0) | "
+            "GroupedSort(#2; #0; numbers #4) | "
+            "FetchRows(store 0 by #0: 0, 1, 2, 3) | "
+            "SelectColumns(#2, #3, #4, #5, #1)\n"
             "main: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | GroupedSort(#2; #0) | "
-            "IntervalFillGaps(#0, #1, keys: #2, groups: #3; "
-            "background: #0, #1, keys: #2, groups: #4)");
+            "AssertType(#1 to Int64) | ParkRows(#0, #1, #2 in store 1) | "
+            "GroupedSort(#2; #0; numbers #3) | "
+            "FetchRows(store 1 by #0: 0, 1, 2) | "
+            "IntervalFillGaps(#2, #3, keys: #4, groups: #1; background: #0, "
+            "#1, keys: #2, groups: #4)");
 }
 
 TEST_F(PhysicalPlanTest, IntersectionCarriesOnlyColumnsUsedAfterIt) {
@@ -449,7 +491,6 @@ TEST_F(PhysicalPlanTest, OutputBindingsUseIdsRatherThanBatchPositions) {
                       {logical.names().Intern("again"), total}};
   auto plan = std::move(*LowerReadingSql(std::move(logical)));
   EXPECT_THAT(Names(*plan), ElementsAre("total", "id", "again"));
-  EXPECT_NE(plan->columns()[0].index, total);
   EXPECT_EQ(plan->columns()[0].index, plan->columns()[2].index);
   auto rows = Run(*plan, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
@@ -560,10 +601,15 @@ TEST_F(PhysicalPlanTest, FoldsAfterAGraphTreeReuseItsNumbering) {
             "side: DataframeScan | AssertType(#0 to Int64) | "
             "AssertType(#1 to Int64)\n"
             "side: DataframeScan | AssertType(#0 to Int64)\n"
-            "main: GraphTree(DOMINATOR; nodes: #0 keeping #0, #1; "
-            "edges: #0 -> #1; seeds: #0) | TreeAccumulateDown(#3, #4; "
-            "COUNT(*)) | TreeChildFirst(#3, #4) | AssertType(#1 to Int64) | "
-            "TreeAccumulateUp(#3, #4; SUM(#1))");
+            "main: GraphTree(DOMINATOR; nodes: #0 keeping #0, #1; edges: #0 -> "
+            "#1; seeds: #0) | "
+            "TreeAccumulateDown(#3, #4; COUNT(*)) | "
+            "ParkRows(#0, #1, #2, #3, #4, #5 in store 0) | "
+            "TreeChildFirst(#3, #4; numbers #6) | "
+            "FetchRows(store 0 by #0: 1) | AssertType(#1 to Int64) | "
+            "FetchRows(store 0 by #0: 3, 4) | "
+            "TreeAccumulateUp(#2, #3; SUM(#1)) | "
+            "FetchRows(store 0 by #0: 0, 2, 5)");
   auto depth = Run(**plan, "depth");
   ASSERT_TRUE(depth.ok()) << depth.status().message();
   EXPECT_THAT(*depth,

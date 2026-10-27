@@ -46,6 +46,7 @@ class Reverse final : public Breaker {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) override {}
 
   explicit Reverse(uint32_t column = 1) : column_(column) {}
 

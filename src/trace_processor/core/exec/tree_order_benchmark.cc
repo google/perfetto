@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/parked_rows.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
@@ -114,6 +115,22 @@ void BM_TreeOrderNumberOnly(benchmark::State& state) {
   Run(state, pipeline, rows);
 }
 
+// Numbers the nodes, then orders the rows as the planner does: every column
+// is parked, the rows' numbers are ordered and every column is fetched back.
+template <typename Order>
+std::vector<Pipeline::Step> NumberAndOrder() {
+  std::vector<Pipeline::Step> ops;
+  ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
+  ops.push_back(std::make_unique<ParkRows>(ParkRowsSpec{0, {0, 1, 2, 3}}));
+  auto order = std::make_unique<Order>(2, 3);
+  StepColumns columns;
+  order->DescribeColumns(&columns);
+  *columns.numbers = 4;
+  ops.push_back(std::move(order));
+  ops.push_back(std::make_unique<FetchRows>(FetchRowsSpec{0, 0, {0, 1, 2, 3}}));
+  return ops;
+}
+
 void BM_TreeParentFirst(benchmark::State& state) {
   StringPool pool;
   auto rows = static_cast<uint32_t>(state.range(0));
@@ -121,10 +138,7 @@ void BM_TreeParentFirst(benchmark::State& state) {
       BuildTree(rows, static_cast<Arrival>(state.range(1)), &pool);
   DataframeScan scan({df.shared_column(0), df.shared_column(1)},
                      df.row_count());
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
-  ops.push_back(std::make_unique<TreeParentFirst>(2, 3));
-  Pipeline pipeline(scan, std::move(ops));
+  Pipeline pipeline(scan, NumberAndOrder<TreeParentFirst>());
   Run(state, pipeline, rows);
 }
 
@@ -135,10 +149,7 @@ void BM_TreeChildFirst(benchmark::State& state) {
       BuildTree(rows, static_cast<Arrival>(state.range(1)), &pool);
   DataframeScan scan({df.shared_column(0), df.shared_column(1)},
                      df.row_count());
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
-  ops.push_back(std::make_unique<TreeChildFirst>(2, 3));
-  Pipeline order(scan, std::move(ops));
+  Pipeline order(scan, NumberAndOrder<TreeChildFirst>());
   Run(state, order, rows);
 }
 

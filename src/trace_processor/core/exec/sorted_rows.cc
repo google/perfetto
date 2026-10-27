@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <numeric>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -29,6 +30,8 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/layout_column.h"
+#include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/ops.h"
 #include "src/trace_processor/core/util/span.h"
 
@@ -61,7 +64,8 @@ std::optional<RowLayout::Type> LayoutType(const ColumnView& column) {
 }  // namespace
 
 base::Status SortedRows::Append(const RowBatch& in,
-                                const std::vector<SortKey>& keys) {
+                                const std::vector<SortKey>& keys,
+                                uint32_t numbers) {
   uint32_t count = in.size();
   if (count == 0) {
     return base::OkStatus();
@@ -86,7 +90,7 @@ base::Status SortedRows::Append(const RowBatch& in,
     layout_ = RowLayout(columns);
   }
 
-  uint64_t at = uint64_t{rows_.size()} * layout_.stride();
+  uint64_t at = uint64_t{size()} * layout_.stride();
   keys_.resize(at + uint64_t{count} * layout_.stride());
   uint8_t* rows = keys_.data() + at;
   for (uint32_t k = 0; k < keys.size(); ++k) {
@@ -125,11 +129,24 @@ base::Status SortedRows::Append(const RowBatch& in,
         break;
     }
   }
-  return rows_.Append(in);
+  const ColumnView& number_column = in.column(numbers);
+  PERFETTO_DCHECK(number_column.kind() == ColumnView::Kind::kFlat &&
+                  number_column.type().Is<Uint32>());
+  const uint32_t* number_data =
+      static_cast<const uint32_t*>(number_column.data()) +
+      number_column.start();
+  const Selection& selection = in.selection();
+  uint64_t held = numbers_.size();
+  numbers_.resize(held + count);
+  uint32_t* out = numbers_.data() + held;
+  for (uint32_t i = 0; i < count; ++i) {
+    out[i] = number_data[selection[i]];
+  }
+  return base::OkStatus();
 }
 
 void SortedRows::Sort() {
-  uint32_t rows = rows_.size();
+  uint32_t rows = size();
   order_.resize(rows);
   std::iota(order_.data(), order_.data() + rows, 0u);
   if (layout_.stride()) {
@@ -140,16 +157,26 @@ void SortedRows::Sort() {
   }
 }
 
-uint32_t SortedRows::Gather(RowBatch* out, uint32_t at, Context& context) {
-  uint32_t count = std::min(kMaxBatchRows, rows_.size() - at);
-  const uint32_t* begin = order_.data() + at;
-  return rows_.Gather(out, Span<const uint32_t>(begin, begin + count), context);
+uint32_t SortedRows::Serve(RowBatch* out, uint32_t at, Context& context) {
+  out->Reset();
+  uint32_t count = std::min(kMaxBatchRows, size() - at);
+  ColumnBuffer buffer = context.TakeBuffer(sizeof(uint32_t));
+  auto* values = buffer.chunk().Values<uint32_t>();
+  const uint32_t* order = order_.data() + at;
+  const uint32_t* numbers = numbers_.data();
+  for (uint32_t i = 0; i < count; ++i) {
+    values[i] = numbers[order[i]];
+  }
+  out->AddColumn(ColumnView::Reference(StorageType{Uint32{}}, values),
+                 std::move(buffer));
+  out->SetRowCount(count);
+  return count;
 }
 
 void SortedRows::Clear() {
   types_.clear();
   keys_.clear();
-  rows_.Clear();
+  numbers_.clear();
   order_.clear();
 }
 

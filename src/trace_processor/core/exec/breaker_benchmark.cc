@@ -39,7 +39,8 @@ namespace {
 constexpr uint32_t kRows = 16 * kMaxBatchRows;
 
 // Runs `op` over `rows` rows of `key_columns` Int64 keys with `distinct`
-// values spread through them.
+// values spread through them, followed by the rows' numbers in their store,
+// as the planner leaves rows to reorder (see ParkRows).
 void Run(benchmark::State& state,
          const Operator& op,
          uint32_t rows,
@@ -48,8 +49,10 @@ void Run(benchmark::State& state,
   // Before every batch and state, which hold its buffers.
   Context context;
   std::vector<int64_t> keys;
+  std::vector<uint32_t> numbers;
   for (uint32_t i = 0; i < rows; ++i) {
     keys.push_back(int64_t{(i * 2654435761u) % distinct});
+    numbers.push_back(i);
   }
   std::vector<RowBatch> batches;
   for (uint32_t at = 0; at < rows; at += kMaxBatchRows) {
@@ -59,6 +62,8 @@ void Run(benchmark::State& state,
       batch.AddBorrowedColumn(ColumnView::Reference(StorageType{Int64{}},
                                                     keys.data(), nullptr, at));
     }
+    batch.AddBorrowedColumn(ColumnView::Reference(StorageType{Uint32{}},
+                                                  numbers.data(), nullptr, at));
     batch.SetRowCount(count);
   }
   std::unique_ptr<OperatorState> op_state = op.MakeState(context);
@@ -76,32 +81,32 @@ void Run(benchmark::State& state,
 }
 
 void BM_SortInt64(benchmark::State& state) {
-  Sort sort(SortSpec{{{0, false}}});
+  Sort sort(SortSpec{{{0, false}}, 1});
   Run(state, sort, kRows, 1u << 30);
 }
 BENCHMARK(BM_SortInt64);
 
 void BM_SortInt64OneRow(benchmark::State& state) {
-  Sort sort(SortSpec{{{0, false}}});
+  Sort sort(SortSpec{{{0, false}}, 1});
   Run(state, sort, 1, 1);
 }
 BENCHMARK(BM_SortInt64OneRow);
 
 void BM_GroupByInt64(benchmark::State& state) {
-  GroupedSort group_by(GroupedSortSpec{{0}, {}});
+  GroupedSort group_by(GroupedSortSpec{{0}, {}, 1});
   Run(state, group_by, kRows, static_cast<uint32_t>(state.range(0)));
 }
 BENCHMARK(BM_GroupByInt64)->Arg(16)->Arg(kRows);
 
 // Keys too long for std::string to hold inline.
 void BM_GroupByThreeKeys(benchmark::State& state) {
-  GroupedSort group_by(GroupedSortSpec{{0, 1, 2}, {}});
+  GroupedSort group_by(GroupedSortSpec{{0, 1, 2}, {}, 3});
   Run(state, group_by, kRows, kRows, 3);
 }
 BENCHMARK(BM_GroupByThreeKeys);
 
 void BM_GroupByInt64OneRow(benchmark::State& state) {
-  GroupedSort group_by(GroupedSortSpec{{0}, {}});
+  GroupedSort group_by(GroupedSortSpec{{0}, {}, 1});
   Run(state, group_by, 1, 1);
 }
 BENCHMARK(BM_GroupByInt64OneRow);

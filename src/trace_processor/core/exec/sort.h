@@ -31,15 +31,29 @@ namespace perfetto::trace_processor::core::exec {
 struct SortSpec {
   using Key = SortKey;
   std::vector<Key> keys;
+  // The Uint32 column holding each row's number in the store it is parked in
+  // (see ParkRows): set by the planner when it parks the rows.
+  uint32_t numbers = 0;
 };
 
-// Stably sorts rows by their keys. Nulls sort as in SQLite: first ascending,
-// last descending.
+// Stably sorts rows parked in a store (see ParkRows) by their keys. Nulls
+// sort as in SQLite: first ascending, last descending.
+//
+// Holds only the keys and each row's number in the store, and outputs one
+// Uint32 column: the numbers, in sorted order. Rows already in order come out
+// numbered one after another, which FetchRows reads without copying.
 // TODO(lalitm): support string keys, which needs the string pool for ranks.
 class Sort : public Breaker {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) override {
+    out->keeps = StepColumns::Keeps::kRowNumbers;
+    for (SortKey& key : spec_.keys) {
+      out->reads.push_back(&key.column);
+    }
+    out->numbers = &spec_.numbers;
+  }
 
   explicit Sort(SortSpec);
   ~Sort() override;

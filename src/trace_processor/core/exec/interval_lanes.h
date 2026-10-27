@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/selection.h"
@@ -58,6 +59,18 @@ struct IntervalLaneSpec {
   // Whether a dur of -1 is an interval which never ends.
   bool forever = false;
 };
+
+// Adds the columns an interval input reads to `out`.
+inline void DescribeLaneReads(IntervalLaneSpec* lanes, StepColumns* out) {
+  out->reads.push_back(&lanes->ts_column);
+  out->reads.push_back(&lanes->dur_column);
+  for (uint32_t& key : lanes->key_columns) {
+    out->reads.push_back(&key);
+  }
+  if (!lanes->key_columns.empty()) {
+    out->reads.push_back(&lanes->group_column);
+  }
+}
 
 // An interval input read whole from its own source, keeping
 // `retained_columns` of each row, in this order. Any other column is read
@@ -197,8 +210,10 @@ class CollectedLanes {
 
   // Reads every batch of the input's source. Lanes are numbered in `shared`
   // if given, as LaneReader::Start() does, and by group number otherwise.
-  // Lanes numbered at or above `limit` are dropped.
+  // Lanes numbered at or above `limit` are dropped. The rows are held in
+  // buffers from `context` where they are packed (see RowStore).
   base::Status Collect(OperatorState& state,
+                       Context& context,
                        GroupTable* shared,
                        uint32_t limit = std::numeric_limits<uint32_t>::max());
 
@@ -262,8 +277,9 @@ class LaneKeys {
       : key_columns_(&key_columns) {}
 
   // Holds the keys of every row of `in`, after those carried by Carry().
-  // Handles from before are invalid.
-  base::Status Hold(const RowBatch& in);
+  // Handles from before are invalid. Keys packed are held in buffers from
+  // `context` (see RowStore).
+  base::Status Hold(const RowBatch& in, Context& context);
 
   // The handle of the keys of row `row` of the batch held.
   uint32_t Of(uint32_t row) const { return first_ + row; }

@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -26,6 +27,53 @@
 namespace perfetto::trace_processor::core::exec {
 
 class Context;
+
+// A plan is a Source followed by steps: Transforms and Operators. Every step
+// keeps to these rules, which are what make the plan's memory and the
+// planner's passes over it predictable:
+//
+//  1. A step reads only the columns it describes in DescribeColumns(), and
+//     produces the columns it describes there, nothing else.
+//  2. A batch it is given lives for one call. A step keeps nothing that
+//     points into it afterwards: no batch, view or buffer of it.
+//  3. What a step keeps across calls it derived itself: keys, numbers,
+//     hash tables, accumulated values, or buffers it filled. Never rows.
+//     Rows which must outlive a call are parked by the planner in one of the
+//     run's stores (see ParkRows), and a step which reorders rows orders
+//     their numbers in the store alone (StepColumns::Keeps::kRowNumbers).
+//
+// TODO(lalitm): GraphTree and the interval operators still hold rows of their
+// inputs in a RowStore of their own, against rule 3.
+
+// How a step uses the columns of the batches it is given: what every
+// Transform and Operator describes in DescribeColumns(). The planner's passes
+// read and renumber steps through this alone.
+struct StepColumns {
+  // What a step's output keeps of its input's columns.
+  enum class Keeps : uint8_t {
+    // Every column, where it was, followed by `added` new ones. Rows may be
+    // dropped.
+    kAll,
+    // None: the output is `added` new columns.
+    kNone,
+    // A reorder. The planner plans it as keeping every column, but it runs on
+    // rows parked in a store (see ParkRows): its input holds their numbers in
+    // the store at `numbers`, and its output is those numbers in the new
+    // order, every row kept, followed by `added` new columns. The planner parks
+    // rows before it
+    // and fetches them back after it (see ParkReorderedRows).
+    kRowNumbers,
+  };
+
+  Keeps keeps = Keeps::kAll;
+  // The columns the step adds.
+  uint32_t added = 0;
+  // Every batch column the step reads, as references to every copy of its
+  // position the step keeps, so that a pass can renumber them all.
+  std::vector<uint32_t*> reads;
+  // For kRowNumbers: the position of the rows' numbers in the input.
+  uint32_t* numbers = nullptr;
+};
 
 // The mutable state of one execution of a plan.
 //
@@ -112,12 +160,17 @@ class Source {
 };
 
 // A step changing the batch it is given in place. Unlike an Operator it never
-// holds rows back, so a pipeline runs it with nothing copied or buffered.
+// holds rows back, so a pipeline runs it with nothing copied or buffered. It
+// keeps every column of the batch (StepColumns::Keeps::kAll).
 class Transform {
  public:
   virtual ~Transform();
   Transform(const Transform&) = delete;
   Transform& operator=(const Transform&) = delete;
+
+  // How the step uses the batch's columns (see StepColumns). Not const, as the
+  // positions it hands out can be renumbered before the plan runs.
+  virtual void DescribeColumns(StepColumns* out) = 0;
 
   virtual std::unique_ptr<OperatorState> MakeState(Context&) const {
     return std::make_unique<OperatorState>();
@@ -176,12 +229,16 @@ class Operator {
     return std::make_unique<OperatorState>();
   }
 
+  // How the step uses the batches' columns (see StepColumns). Not const, as
+  // the positions it hands out can be renumbered before the plan runs.
+  virtual void DescribeColumns(StepColumns* out) = 0;
+
   virtual OpResult Execute(const RowBatch& in,
                            RowBatch& out,
                            OperatorState& state) const = 0;
 
-  // Called once after the last input batch, for an operator which holds rows
-  // back to let them go. The results mean what they do for Execute(): keep
+  // Called once after the last input batch, for an operator which holds its
+  // output back to let it go. The results mean what they do for Execute(): keep
   // returning kHaveMoreOutput to be called again. An operator which holds
   // nothing back leaves `out` empty.
   virtual OpResult Finish(RowBatch& out, OperatorState&) const {
