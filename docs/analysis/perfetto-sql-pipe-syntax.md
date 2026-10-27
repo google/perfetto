@@ -66,6 +66,7 @@ Diagram(Choice(0,
   Link(Terminal('WHERE'), '#where'),
   Link(Terminal('DISTINCT'), '#distinct'),
   Link(Terminal('ORDER BY'), '#order-by'),
+  Link(Terminal('LIMIT'), '#limit'),
   Link(Terminal('INTERVAL FLATTEN'), '#interval-flatten'),
   Link(Terminal('INTERVAL FILL GAPS'), '#interval-fill-gaps'),
   Link(Terminal('TREE ACCUMULATE'), '#tree-accumulate'),
@@ -286,16 +287,30 @@ Diagram(
   Terminal('WHERE'),
   OneOrMore(
     Sequence(
-      NonTerminal('column'), NonTerminal('op'), NonTerminal('number')),
+      NonTerminal('column'),
+      Choice(0,
+        Sequence(NonTerminal('op'), NonTerminal('literal')),
+        Sequence(Terminal('GLOB'), NonTerminal('string')),
+        Sequence(Terminal('IN'), Terminal('('),
+                 OneOrMore(NonTerminal('literal'), Terminal(',')),
+                 Terminal(')')),
+        Sequence(Terminal('BETWEEN'), NonTerminal('literal'), Terminal('AND'),
+                 NonTerminal('literal')),
+        Sequence(Terminal('IS'), Optional(Terminal('NOT')), Terminal('NULL')))),
     Terminal('AND')))
 ```
 
-- `<op>` is one of `=`, `!=`, `<`, `<=`, `>` and `>=`.
-- `<number>` is an integer or floating-point literal.
-- `NULL` never matches. Integers compare with fractions as in SQL.
+- `<op>` is one of `=`, `==`, `!=`, `<>`, `<`, `<=`, `>` and `>=`.
+- `<literal>` is an integer, floating-point or string literal.
+- `GLOB` matches only string columns.
+- `NULL` never matches a comparison, `GLOB` or `IN`. Integers compare with
+  fractions as in SQL, and numbers sort before strings. A string is never
+  converted to a number, so `dur = '5'` matches nothing, as in a filter on a
+  Perfetto table.
 - Keeps all columns and aliases.
-- Not supported yet: `OR`, `NOT`, `IS NULL`, parentheses, strings, functions,
-  arithmetic, and a literal on the left. Filter in the source subquery instead.
+- Not supported yet: `OR`, `NOT`, `NOT IN`, `NOT GLOB`, `LIKE`, `REGEXP`,
+  parentheses, functions, arithmetic, and a literal on the left. Filter in the
+  source subquery instead.
 
 ### `DISTINCT` {#distinct}
 
@@ -335,6 +350,23 @@ Diagram(
 - Keeps all columns and aliases.
 - `INTERVAL FLATTEN`, `INTERVAL FILL GAPS`, `TREE ACCUMULATE` and `AGGREGATE`
   arrange rows their own way, so put `ORDER BY` after them.
+
+### `LIMIT` {#limit}
+
+Keeps the first rows, after skipping some:
+
+```railroad
+Diagram(
+  Terminal('LIMIT'), NonTerminal('count'),
+  Optional(Sequence(Terminal('OFFSET'), NonTerminal('skipped'))))
+```
+
+- Skips `<skipped>` rows, then keeps up to `<count>` rows, in the order they
+  arrive. Put it after [`ORDER BY`](#order-by) to keep the first rows of a
+  sort.
+- `<count>` and `<skipped>` are integer literals. As in SQL, a negative count
+  keeps every row and a negative offset skips none.
+- Keeps all columns and aliases.
 
 ### `INTERVAL FLATTEN` {#interval-flatten}
 

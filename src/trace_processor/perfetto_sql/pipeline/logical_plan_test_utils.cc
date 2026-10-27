@@ -22,6 +22,7 @@
 #include <variant>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -32,6 +33,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_fill_gaps.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/limit.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.h"
@@ -105,8 +107,20 @@ std::string OpString(const WherePredicate::Op& op) {
   if (op.Is<core::Gt>()) {
     return ">";
   }
-  PERFETTO_CHECK(op.Is<core::Ge>());
-  return ">=";
+  if (op.Is<core::Ge>()) {
+    return ">=";
+  }
+  if (op.Is<core::Glob>()) {
+    return "GLOB";
+  }
+  if (op.Is<core::In>()) {
+    return "IN";
+  }
+  if (op.Is<core::IsNull>()) {
+    return "IS NULL";
+  }
+  PERFETTO_CHECK(op.Is<core::IsNotNull>());
+  return "IS NOT NULL";
 }
 
 }  // namespace
@@ -129,6 +143,7 @@ class LogicalPlanFormatter {
                                             const PlanNode&);
   static std::string OrderByString(const OrderBy&);
   static std::string DistinctString(const Distinct&);
+  static std::string LimitString(const Limit&);
   static std::string WhereString(const Where&);
   static std::string AggregateStageString(const LogicalPlan&,
                                           const AggregateStage&);
@@ -319,14 +334,37 @@ std::string LogicalPlanFormatter::DistinctString(const Distinct& distinct) {
   return out + ")";
 }
 
+std::string LogicalPlanFormatter::LimitString(const Limit& limit) {
+  return "Limit(" + std::to_string(limit.count_) + ", " +
+         std::to_string(limit.offset_) + ")";
+}
+
 std::string LogicalPlanFormatter::WhereString(const Where& where) {
   std::string out = "Where(";
   for (size_t i = 0; i < where.predicates_.size(); ++i) {
     const WherePredicate& p = where.predicates_[i];
-    out += (i ? ", #" : "#") + std::to_string(p.column) + " " + OpString(p.op) +
-           " " +
-           (p.is_double ? std::to_string(p.double_value)
-                        : std::to_string(p.int_value));
+    out += (i ? ", #" : "#") + std::to_string(p.column) + " " + OpString(p.op);
+    std::vector<std::string> literals;
+    for (uint32_t j = 0; j < p.literal_count; ++j) {
+      const WhereLiteral& l = where.literals_[p.first_literal + j];
+      switch (l.type) {
+        case WhereLiteral::Type::kInt64:
+          literals.push_back(std::to_string(l.int_value));
+          break;
+        case WhereLiteral::Type::kDouble:
+          literals.push_back(std::to_string(l.double_value));
+          break;
+        case WhereLiteral::Type::kString:
+          literals.push_back(
+              "'" + where.strings_[static_cast<size_t>(l.int_value)] + "'");
+          break;
+      }
+    }
+    if (p.op.Is<core::In>()) {
+      out += " (" + base::Join(literals, ", ") + ")";
+    } else if (!literals.empty()) {
+      out += " " + literals[0];
+    }
   }
   return out + ")";
 }
@@ -402,6 +440,10 @@ std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
   if (node.Is<Where>()) {
     return SubtreeString(plan, node.children()[0]) +
            WhereString(node.Cast<Where>()) + "\n";
+  }
+  if (node.Is<Limit>()) {
+    return SubtreeString(plan, node.children()[0]) +
+           LimitString(node.Cast<Limit>()) + "\n";
   }
   PERFETTO_FATAL("Unknown plan operation");
 }
