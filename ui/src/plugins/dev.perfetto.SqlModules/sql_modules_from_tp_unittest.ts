@@ -16,6 +16,7 @@ import protos from '../../protos';
 import type {Trace} from '../../public/trace';
 import {createQueryResult} from '../../trace_processor/query_result';
 import {loadSqlModulesFromTp} from './sql_modules_from_tp';
+import type {StdlibModuleImpl} from './sql_modules_impl';
 
 const CELL_TYPE = protos.QueryResult.CellsBatch.CellType;
 
@@ -30,6 +31,8 @@ type ObjectRow = readonly [
   returnDescription: string,
   args: string,
   columns: string,
+  // JSON array of included module names. Defaults to '[]' when omitted.
+  includes?: string,
 ];
 
 function makeQueryResult(rows: readonly ObjectRow[]) {
@@ -43,6 +46,7 @@ function makeQueryResult(rows: readonly ObjectRow[]) {
     row[7],
     row[8],
     row[9],
+    row[10] ?? '[]',
   ]);
   const cells = rows.flatMap(() => [
     CELL_TYPE.CELL_STRING,
@@ -51,6 +55,7 @@ function makeQueryResult(rows: readonly ObjectRow[]) {
     CELL_TYPE.CELL_STRING,
     CELL_TYPE.CELL_STRING,
     CELL_TYPE.CELL_VARINT,
+    CELL_TYPE.CELL_STRING,
     CELL_TYPE.CELL_STRING,
     CELL_TYPE.CELL_STRING,
     CELL_TYPE.CELL_STRING,
@@ -74,6 +79,7 @@ function makeQueryResult(rows: readonly ObjectRow[]) {
       'return_description',
       'args',
       'cols',
+      'includes',
     ],
     batch: [batch],
   });
@@ -161,7 +167,6 @@ test('loads the unified stdlib object catalog', async () => {
   const sqlModules = await loadSqlModulesFromTp(trace, {
     'test.module': {
       tags: ['test'],
-      includes: [],
       data_check_sql: null,
       tables: {
         test_table: {importance: 'high', data_check_sql: null},
@@ -181,4 +186,69 @@ test('loads the unified stdlib object catalog', async () => {
   expect(module.tableFunctions[0]!.name).toBe('test_table_function');
   expect(module.tableFunctions[0]!.returnCols[0]!.name).toBe('output');
   expect(module.macros[0]!.name).toBe('test_macro');
+});
+
+test('takes module includes from TP, not from the build-time metadata', async () => {
+  const result = makeQueryResult([
+    [
+      'test',
+      'test.with_includes',
+      'test.with_includes',
+      'MODULE',
+      '',
+      1,
+      '',
+      '',
+      '[]',
+      '[]',
+      JSON.stringify(['test.a', 'test.b']),
+    ],
+    [
+      'test',
+      'test.no_includes',
+      'test.no_includes',
+      'MODULE',
+      '',
+      1,
+      '',
+      '',
+      '[]',
+      '[]',
+    ],
+    // A module the build-time metadata knows nothing about (e.g. one from an
+    // extension package or --override-stdlib).
+    [
+      'ext',
+      'ext.module',
+      'ext.module',
+      'MODULE',
+      '',
+      1,
+      '',
+      '',
+      '[]',
+      '[]',
+      JSON.stringify(['test.a']),
+    ],
+  ]);
+  const trace = {
+    engine: {query: async () => result},
+  } as unknown as Trace;
+
+  const sqlModules = await loadSqlModulesFromTp(trace, {
+    // Stale includes in the JSON must be ignored.
+    'test.with_includes': {tags: [], includes: ['stale.module']},
+  } as unknown as Parameters<typeof loadSqlModulesFromTp>[1]);
+
+  const byKey = new Map(
+    sqlModules
+      .listModules()
+      .map((m) => [m.includeKey, m as StdlibModuleImpl] as const),
+  );
+  expect(byKey.get('test.with_includes')!.includes).toEqual([
+    'test.a',
+    'test.b',
+  ]);
+  expect(byKey.get('test.no_includes')!.includes).toEqual([]);
+  expect(byKey.get('ext.module')!.includes).toEqual(['test.a']);
 });

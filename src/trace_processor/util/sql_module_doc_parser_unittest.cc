@@ -260,6 +260,47 @@ CREATE PERFETTO FUNCTION f(x LONG) RETURNS LONG AS SELECT $x;
   EXPECT_EQ(m.functions[0].args[0].description, "");
 }
 
+TEST(SqlModuleDocParserTest, NoIncludes) {
+  auto m = Parse("CREATE PERFETTO VIEW v AS SELECT 1 AS x;");
+  ASSERT_TRUE(m.errors.empty());
+  EXPECT_TRUE(m.includes.empty());
+}
+
+TEST(SqlModuleDocParserTest, SingleInclude) {
+  auto m = Parse(R"(
+INCLUDE PERFETTO MODULE slices.with_context;
+CREATE PERFETTO VIEW v AS SELECT 1 AS x;
+)");
+  ASSERT_TRUE(m.errors.empty());
+  ASSERT_EQ(m.includes.size(), 1u);
+  EXPECT_EQ(m.includes[0], "slices.with_context");
+  EXPECT_EQ(m.table_views.size(), 1u);
+}
+
+TEST(SqlModuleDocParserTest, MultipleIncludesKeepSourceOrder) {
+  auto m = Parse(R"(
+INCLUDE PERFETTO MODULE android.suspend;
+INCLUDE PERFETTO MODULE slices.flow;
+INCLUDE PERFETTO MODULE android.process_metadata;
+)");
+  ASSERT_TRUE(m.errors.empty());
+  ASSERT_EQ(m.includes.size(), 3u);
+  EXPECT_EQ(m.includes[0], "android.suspend");
+  EXPECT_EQ(m.includes[1], "slices.flow");
+  EXPECT_EQ(m.includes[2], "android.process_metadata");
+}
+
+TEST(SqlModuleDocParserTest, CommentedOutIncludeIgnored) {
+  auto m = Parse(R"(
+-- Example:
+-- INCLUDE PERFETTO MODULE sched.thread_executing_spans;
+INCLUDE PERFETTO MODULE slices.flow;
+)");
+  ASSERT_TRUE(m.errors.empty());
+  ASSERT_EQ(m.includes.size(), 1u);
+  EXPECT_EQ(m.includes[0], "slices.flow");
+}
+
 TEST(SqlModuleDocParserTest, EmptyInput) {
   auto m = Parse("");
   EXPECT_TRUE(m.errors.empty());

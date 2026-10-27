@@ -41,6 +41,73 @@ class StdlibDocs(TestSuite):
         "slices.with_context","slices"
         """))
 
+  def test_stdlib_objects_includes_multiple(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        SELECT i.key AS idx, i.value AS included_module
+        FROM __intrinsic_stdlib_objects AS o,
+             json_each(o.includes) AS i
+        WHERE o.object_type = 'MODULE'
+          AND o.module = 'android.binder'
+        ORDER BY i.key;
+        """,
+        out=Csv("""
+        "idx","included_module"
+        0,"android.process_metadata"
+        1,"android.suspend"
+        2,"slices.flow"
+        """))
+
+  def test_stdlib_objects_includes_single(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        SELECT i.value AS included_module
+        FROM __intrinsic_stdlib_objects AS o,
+             json_each(o.includes) AS i
+        WHERE o.object_type = 'MODULE'
+          AND o.module = 'slices.with_context';
+        """,
+        out=Csv("""
+        "included_module"
+        "std.thread.with_context"
+        """))
+
+  # graphs.search only mentions INCLUDE PERFETTO MODULE inside a doc comment,
+  # which must not be reported as an include.
+  def test_stdlib_objects_includes_none(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        SELECT module, json_array_length(includes) AS num_includes
+        FROM __intrinsic_stdlib_objects
+        WHERE object_type = 'MODULE'
+          AND module IN ('graphs.search', 'slices.hierarchy')
+        ORDER BY module;
+        """,
+        out=Csv("""
+        "module","num_includes"
+        "graphs.search",0
+        "slices.hierarchy",0
+        """))
+
+  # Includes are a property of the module, so they are only populated on the
+  # MODULE row.
+  def test_stdlib_objects_includes_only_on_module_rows(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        SELECT COUNT(*) AS non_module_rows_with_includes
+        FROM __intrinsic_stdlib_objects
+        WHERE object_type != 'MODULE'
+          AND json_array_length(includes) > 0;
+        """,
+        out=Csv("""
+        "non_module_rows_with_includes"
+        0
+        """))
+
   def test_stdlib_objects_all_kinds(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),

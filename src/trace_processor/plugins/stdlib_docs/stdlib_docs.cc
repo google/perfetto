@@ -61,6 +61,16 @@ std::string SerializeEntries(const std::vector<Entry>& entries) {
   });
 }
 
+std::string SerializeStrings(const std::vector<std::string>& values) {
+  return json::SerializeJson([&](json::JsonValueSerializer&& writer) {
+    std::move(writer).WriteArray([&](json::JsonArraySerializer& array) {
+      for (const auto& value : values) {
+        array.AppendString(value);
+      }
+    });
+  });
+}
+
 template <typename Entry>
 void AppendSummaryEntries(const char* heading,
                           const std::vector<Entry>& entries,
@@ -195,6 +205,7 @@ class StdlibDocsObjects : public StaticTableFunction {
       table_.Clear();
       const std::vector<stdlib_doc::Arg> no_args;
       const std::vector<stdlib_doc::Column> no_columns;
+      const std::vector<std::string> no_includes;
       for (const auto& package_and_module : engine_->GetModules()) {
         const std::string& package = package_and_module.first;
         const std::string& module = package_and_module.second;
@@ -209,7 +220,7 @@ class StdlibDocsObjects : public StaticTableFunction {
                           std::string_view description,
                           std::string_view return_type,
                           std::string_view return_description, const auto& args,
-                          const auto& columns) {
+                          const auto& columns, const auto& includes) {
           tables::StdlibDocsObjectsTable::Row row;
           row.package = string_pool_->InternString(base::StringView(package));
           row.module = string_pool_->InternString(base::StringView(module));
@@ -235,25 +246,29 @@ class StdlibDocsObjects : public StaticTableFunction {
               base::StringView(SerializeEntries(args)));
           row.cols = string_pool_->InternString(
               base::StringView(SerializeEntries(columns)));
+          row.includes = string_pool_->InternString(
+              base::StringView(SerializeStrings(includes)));
           table_.Insert(row);
         };
 
-        insert(module, module, "MODULE", true, "", "", "", no_args, no_columns);
+        insert(module, module, "MODULE", true, "", "", "", no_args, no_columns,
+               parsed->includes);
         for (const auto& table_view : parsed->table_views) {
           insert(table_view.name, module + "." + table_view.name,
                  table_view.type, table_view.exposed, table_view.description,
-                 "", "", no_args, table_view.columns);
+                 "", "", no_args, table_view.columns, no_includes);
         }
         for (const auto& function : parsed->functions) {
           insert(function.name, module + "." + function.name,
                  function.is_table_function ? "TABLE_FUNCTION" : "FUNCTION",
                  function.exposed, function.description, function.return_type,
-                 function.return_description, function.args, function.columns);
+                 function.return_description, function.args, function.columns,
+                 no_includes);
         }
         for (const auto& macro : parsed->macros) {
           insert(macro.name, module + "." + macro.name, "MACRO", macro.exposed,
                  macro.description, macro.return_type, macro.return_description,
-                 macro.args, no_columns);
+                 macro.args, no_columns, no_includes);
         }
       }
 

@@ -16,7 +16,8 @@
 
 The UI gets the stdlib docs themselves (tables, functions, columns etc.) from
 trace processor. This script emits only the metadata trace processor does not
-expose: tags, includes, data availability checks and table importance.
+expose: tags, data availability checks and table importance. Module includes
+are exposed by trace processor (`__intrinsic_stdlib_objects.includes`).
 """
 
 import argparse
@@ -44,14 +45,12 @@ def _format_metadata(modules: List[Tuple[str, str, str, ParsedModule]]) -> dict:
   descriptions, types, columns and args. This function emits only the
   complementary metadata that lives outside the SQL syntax:
     - tags and data-availability check SQL (module level)
-    - includes (INCLUDE PERFETTO MODULE directives)
     - importance and data-availability check SQL (table level)
 
   Output (keyed by module name so the UI can look up by key):
   {
     "android.memory": {
       "tags": ["android"],
-      "includes": ["android.memory.heap"],
       "data_check_sql": "SELECT EXISTS(...) AS has_data",  // null if absent
       "tables": {                                          // omitted if empty
         "android_heap_profile_allocation": {
@@ -67,7 +66,6 @@ def _format_metadata(modules: List[Tuple[str, str, str, ParsedModule]]) -> dict:
 
   for _, _, module_name, parsed in modules:
     tags = get_tags(module_name)
-    includes = [inc.module for inc in parsed.includes]
     data_check_sql = (
         check_to_query(MODULE_DATA_CHECK_SQL[module_name])
         if module_name in MODULE_DATA_CHECK_SQL else None)
@@ -86,7 +84,6 @@ def _format_metadata(modules: List[Tuple[str, str, str, ParsedModule]]) -> dict:
 
     entry = {
         'tags': tags,
-        'includes': includes,
         'data_check_sql': data_check_sql,
     }
     if tables:

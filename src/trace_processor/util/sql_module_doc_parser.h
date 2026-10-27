@@ -77,6 +77,9 @@ struct ParsedModule {
   std::vector<TableOrView> table_views;
   std::vector<Function> functions;
   std::vector<Macro> macros;
+  // Module names from `INCLUDE PERFETTO MODULE <name>` statements, in source
+  // order and exactly as written (no deduplication or wildcard expansion).
+  std::vector<std::string> includes;
   // Parse errors encountered (non-fatal). Each entry describes what went wrong.
   std::vector<std::string> errors;
 };

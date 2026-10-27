@@ -37,6 +37,10 @@ STDLIB_DOCS_OBJECTS_TABLE = Table(
         C("return_description", CppString()),
         C("args", CppString()),
         C("cols", CppString()),
+        # JSON array of the module names this module includes via
+        # `INCLUDE PERFETTO MODULE`. Only populated on MODULE rows; "[]" for
+        # all other object types.
+        C("includes", CppString()),
     ],
 )
 
