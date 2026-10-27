@@ -18,7 +18,7 @@
 #define SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_SURFACEFLINGER_LAYERS_PARSER_H_
 
 #include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_layers.pbzero.h"
-#include "src/trace_processor/importers/proto/args_parser.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
 #include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_rect_computation.h"
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_visibility_computation.h"
@@ -67,7 +67,7 @@ class SurfaceFlingerLayersParser {
 
   void TryAddBlockingLayerArgs(const std::vector<int32_t>& blocking_layers,
                                const std::string key_prefix,
-                               ArgsParser& writer);
+                               ArgSink& writer);
 
   void ParseDisplay(
       const DisplayDecoder& display_decoder,

@@ -27,9 +27,9 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_layers.pbzero.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
-#include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_extractor.h"
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_rect_computation.h"
@@ -138,14 +138,15 @@ const SnapshotId SurfaceFlingerLayersParser::ParseSnapshot(
 
   auto inserter =
       context_->trace_processor_context_->args_tracker->AddArgsTo(snapshot_id);
-  ArgsParser writer(timestamp, inserter, *storage,
-                    *context_->trace_processor_context_->process_tracker);
+  util::ProtoArgsEnv env(
+      timestamp, context_->trace_processor_context_->process_tracker.get());
+  ArgsInserterSink writer(inserter);
   const auto table_name = tables::SurfaceFlingerLayersSnapshotTable::Name();
   auto allowed_fields =
       util::winscope_proto_mapping::GetAllowedFields(table_name);
   base::Status status = args_parser_.ParseMessage(
       blob, *util::winscope_proto_mapping::GetProtoName(table_name),
-      &allowed_fields.value(), writer);
+      &allowed_fields.value(), env, writer);
   if (!status.ok()) {
     context_->trace_processor_context_->stats_tracker->IncrementStats(
         stats::winscope_sf_layers_parse_errors);
@@ -166,13 +167,14 @@ void SurfaceFlingerLayersParser::ParseLayer(
       InsertLayerRow(blob, snapshot_id, visibility, layers_by_id, rects);
   auto inserter =
       context_->trace_processor_context_->args_tracker->AddArgsTo(row_id);
-  ArgsParser writer(timestamp, inserter, *storage,
-                    *context_->trace_processor_context_->process_tracker);
+  util::ProtoArgsEnv env(
+      timestamp, context_->trace_processor_context_->process_tracker.get());
+  ArgsInserterSink writer(inserter);
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(
                                     tables::SurfaceFlingerLayerTable::Name()),
-                                nullptr /* parse all fields */, writer);
+                                nullptr /* parse all fields */, env, writer);
   if (!status.ok()) {
     context_->trace_processor_context_->stats_tracker->IncrementStats(
         stats::winscope_sf_layers_parse_errors);
@@ -184,11 +186,11 @@ void SurfaceFlingerLayersParser::ParseLayer(
   if (visibility->visibility_reasons.size() > 0) {
     auto i = 0;
     auto pool = storage->mutable_string_pool();
-    auto flat_key = writer.InternString(base::StringView("visibility_reason"));
+    auto flat_key = pool->InternString("visibility_reason");
     for (const auto& reason : visibility->visibility_reasons) {
-      auto key = writer.InternString(
+      auto key = pool->InternString(
           base::StringView("visibility_reason[" + std::to_string(i) + ']'));
-      writer.AddString(flat_key, key, pool->Get(reason).c_str());
+      writer.Add({flat_key, key}, Variadic::String(reason));
       i++;
     }
   }
@@ -259,16 +261,18 @@ tables::SurfaceFlingerLayerTable::Id SurfaceFlingerLayersParser::InsertLayerRow(
 void SurfaceFlingerLayersParser::TryAddBlockingLayerArgs(
     const std::vector<int32_t>& blocking_layers,
     const std::string key_prefix,
-    ArgsParser& writer) {
+    ArgSink& writer) {
   if (blocking_layers.size() == 0) {
     return;
   }
   auto i = 0;
-  auto flat_key = writer.InternString(base::StringView(key_prefix));
+  auto* pool =
+      context_->trace_processor_context_->storage->mutable_string_pool();
+  auto flat_key = pool->InternString(base::StringView(key_prefix));
   for (auto blocking_layer : blocking_layers) {
-    auto key = writer.InternString(
+    auto key = pool->InternString(
         base::StringView(key_prefix + "[" + std::to_string(i) + ']'));
-    writer.AddInteger(flat_key, key, blocking_layer);
+    writer.Add({flat_key, key}, Variadic::Integer(blocking_layer));
     i++;
   }
 }

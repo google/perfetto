@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -38,7 +39,11 @@
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/json_args.h"
+#include "src/trace_processor/util/json_parser.h"
 
 #include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
@@ -112,13 +117,14 @@ struct ProtoToArgsParser::DebugAnnotationWorkItem {
   protos::pbzero::DebugAnnotation::Decoder decoder;
   // The key context for the current annotation node.
   ScopedNestedKeyContext key;
-  // The index of the current array entry.
+  // The index of the current array entry, and the key of the array.
   std::optional<size_t> array_index = {};
+  StringPool::Id array_key = StringPool::Id::Null();
   // [first, first + count) range into da_nested_storage_ holding this node's
   // children while iterating dict_entries / array_values.
   uint32_t nested_count = 0;
   uint32_t nested_current = 0;
-  // Whether processing of this node added any entry to the delegate.
+  // Whether processing of this node added any entry to the sink.
   bool added_entry = false;
   // Whether the dict/array enumeration has been done once already.
   bool first_pass_done = false;
@@ -137,6 +143,7 @@ struct ProtoToArgsParser::NestedValueWorkItem {
   std::optional<ScopedNestedKeyContext> key = std::nullopt;
 
   std::optional<size_t> array_index = std::nullopt;
+  StringPool::Id array_key = StringPool::Id::Null();
   uint32_t nested_count = 0;
   uint32_t nested_current = 0;
   bool added_entry = false;
@@ -188,7 +195,10 @@ void ProtoToArgsParser::ScopedNestedKeyContext::RemoveFieldSuffix() {
   old_key_length_ = std::nullopt;
 }
 
-ProtoToArgsParser::Delegate::~Delegate() = default;
+InternedMessageView* ProtoArgsEnv::GetInternedMessageView(uint32_t field_id,
+                                                          uint64_t iid) const {
+  return seq_state ? seq_state->GetInternedMessageView(field_id, iid) : nullptr;
+}
 
 // Out-of-line and placed after the WorkItem struct definitions so the
 // std::vector<std::variant<...>> members' constructors and destructors (which
@@ -263,14 +273,15 @@ base::Status ProtoToArgsParser::ParseMessage(
     const protozero::ConstBytes& cb,
     const std::string& type,
     const std::vector<uint32_t>* allowed_fields,
-    Delegate& delegate,
+    const ProtoArgsEnv& env,
+    ArgSink& sink,
     int* unknown_extensions,
     bool add_defaults) {
   // If the caller has opted into DebugAnnotation handling, top-level
   // DebugAnnotation parses go through the dedicated entry point which uses
   // DebugAnnotation parsing semantics rather than generic proto reflection.
   if (debug_annotation_enabled_ && type == kDebugAnnotationTypeName) {
-    return ParseDebugAnnotation(cb, delegate);
+    return ParseDebugAnnotation(cb, env, sink);
   }
   PERFETTO_DCHECK(work_stack_.empty());
   auto idx = pool_.FindDescriptorIdx(type);
@@ -281,7 +292,11 @@ base::Status ProtoToArgsParser::ParseMessage(
     allowed_fields_ = nullptr;
     unknown_extensions_ = nullptr;
     add_defaults_ = false;
+    env_ = nullptr;
+    sink_ = nullptr;
   });
+  env_ = &env;
+  sink_ = &sink;
   allowed_fields_ = allowed_fields;
   unknown_extensions_ = unknown_extensions;
   add_defaults_ = add_defaults;
@@ -291,7 +306,7 @@ base::Status ProtoToArgsParser::ParseMessage(
   uint32_t root_path = slot ? *slot
                             : AppendPathNode(root_key, StringPool::Id::Null(),
                                              /*has_array=*/false);
-  if (!allowed_fields_ && TryRunFlatMessage(root_path, *idx, cb, delegate)) {
+  if (!allowed_fields_ && TryRunFlatMessage(root_path, *idx, cb)) {
     return base::OkStatus();
   }
   work_stack_.emplace_back(WorkItem{protozero::ProtoDecoder(cb),
@@ -301,13 +316,14 @@ base::Status ProtoToArgsParser::ParseMessage(
                                     ScopedNestedKeyContext(key_prefix_),
                                     true,
                                     root_path});
-  return RunWorkLoop(delegate);
+  return RunWorkLoop();
 }
 
 base::Status ProtoToArgsParser::ParseMessageField(
     uint32_t descriptor_idx,
     const protozero::Field& field,
-    Delegate& delegate,
+    const ProtoArgsEnv& env,
+    ArgSink& sink,
     int* unknown_extensions,
     RepeatedFieldIndex* repeated_field_index) {
   PERFETTO_DCHECK(work_stack_.empty());
@@ -316,7 +332,11 @@ base::Status ProtoToArgsParser::ParseMessageField(
     allowed_fields_ = nullptr;
     unknown_extensions_ = nullptr;
     add_defaults_ = false;
+    env_ = nullptr;
+    sink_ = nullptr;
   });
+  env_ = &env;
+  sink_ = &sink;
   unknown_extensions_ = unknown_extensions;
   uint64_t root_key = PathEdgeKey(kNoPath, descriptor_idx);
   uint32_t* slot = path_index_.Find(root_key);
@@ -330,8 +350,7 @@ base::Status ProtoToArgsParser::ParseMessageField(
       if (!path.override && path.resolved_idx &&
           pool_.descriptors()[*path.resolved_idx].type() ==
               ProtoDescriptor::Type::kMessage &&
-          TryRunFlatMessage(node, *path.resolved_idx, field.as_bytes(),
-                            delegate)) {
+          TryRunFlatMessage(node, *path.resolved_idx, field.as_bytes())) {
         return base::OkStatus();
       }
     }
@@ -351,18 +370,18 @@ base::Status ProtoToArgsParser::ParseMessageField(
         .repeated_field_index.swap(*repeated_field_index);
   }
   base::Status status =
-      HandleField(std::get<WorkItem>(work_stack_.back()), field, delegate);
+      HandleField(std::get<WorkItem>(work_stack_.back()), field);
   if (repeated_field_index) {
     // HandleField may have pushed an item; the root is the first.
     std::get<WorkItem>(work_stack_.front())
         .repeated_field_index.swap(*repeated_field_index);
   }
   // Drain the stack even after an error, as ParseMessage does.
-  base::Status loop_status = RunWorkLoop(delegate);
+  base::Status loop_status = RunWorkLoop();
   return status.ok() ? loop_status : status;
 }
 
-base::Status ProtoToArgsParser::RunWorkLoop(Delegate& delegate) {
+base::Status ProtoToArgsParser::RunWorkLoop() {
   // Drain scratch state on every exit path: work items hold raw pointers into
   // descriptors and packet bytes that don't outlive this call. Pop in LIFO
   // order so ScopedNestedKeyContext restores key_prefix_ correctly.
@@ -377,13 +396,12 @@ base::Status ProtoToArgsParser::RunWorkLoop(Delegate& delegate) {
     bool done = false;
     auto& top = work_stack_.back();
     if (auto* item = std::get_if<WorkItem>(&top)) {
-      RETURN_IF_ERROR(StepProtoMessage(*item, delegate, done));
+      RETURN_IF_ERROR(StepProtoMessage(*item, done));
     } else if (auto* da = std::get_if<DebugAnnotationWorkItem>(&top)) {
-      RETURN_IF_ERROR(StepDebugAnnotation(*da, delegate, done));
+      RETURN_IF_ERROR(StepDebugAnnotation(*da, done));
     } else {
       auto& nv = std::get<NestedValueWorkItem>(top);
-      RETURN_IF_ERROR(
-          StepNestedValue(nv, work_stack_.size() - 1, delegate, done));
+      RETURN_IF_ERROR(StepNestedValue(nv, work_stack_.size() - 1, done));
     }
     if (done) {
       work_stack_.pop_back();
@@ -431,8 +449,7 @@ void ProtoToArgsParser::PrepareFlatMessage(uint32_t node,
 
 bool ProtoToArgsParser::TryRunFlatMessage(uint32_t node,
                                           uint32_t descriptor_idx,
-                                          protozero::ConstBytes bytes,
-                                          Delegate& delegate) {
+                                          protozero::ConstBytes bytes) {
   if (node == kNoPath || add_defaults_ || path_nodes_[node].has_array) {
     return false;
   }
@@ -457,44 +474,40 @@ bool ProtoToArgsParser::TryRunFlatMessage(uint32_t node,
     }
     key_prefix_.flat_key_id = cached->key;
     key_prefix_.key_id = cached->key;
-    auto status =
-        ParseSimpleField(*cached->descriptor, field, cached->node, delegate);
+    auto status = ParseSimpleField(*cached->descriptor, field, cached->node);
     PERFETTO_DCHECK(status.ok());
   }
   if (empty) {
     auto key = path_nodes_[node].flat_key_id;
     if (key == StringPool::Id::Null()) {
       InternCurrentKey();
-      delegate.AddNull(key_prefix_.flat_key_id, key_prefix_.key_id);
+      Add(key_prefix_.flat_key_id, key_prefix_.key_id, Variadic::Null());
     } else {
-      delegate.AddNull(key, key);
+      Add(key, key, Variadic::Null());
     }
   }
   return true;
 }
 
-base::Status ProtoToArgsParser::StepProtoMessage(WorkItem& item,
-                                                 Delegate& delegate,
-                                                 bool& done) {
+base::Status ProtoToArgsParser::StepProtoMessage(WorkItem& item, bool& done) {
   protozero::Field field = item.decoder.ReadField();
   if (field.valid()) {
-    return HandleField(item, field, delegate);
+    return HandleField(item, field);
   }
 
   done = true;
   if (PERFETTO_UNLIKELY(add_defaults_)) {
-    RETURN_IF_ERROR(AddMessageDefaults(item, delegate));
+    RETURN_IF_ERROR(AddMessageDefaults(item));
   }
   if (PERFETTO_UNLIKELY(item.empty_message)) {
     InternCurrentKey();
-    delegate.AddNull(key_prefix_.flat_key_id, key_prefix_.key_id);
+    Add(key_prefix_.flat_key_id, key_prefix_.key_id, Variadic::Null());
   }
   return base::OkStatus();
 }
 
 base::Status ProtoToArgsParser::HandleField(WorkItem& item,
-                                            const protozero::Field& field,
-                                            Delegate& delegate) {
+                                            const protozero::Field& field) {
   item.empty_message = false;
   const auto* field_descriptor = item.descriptor->FindFieldByTag(field.id());
   if (!field_descriptor) {
@@ -529,7 +542,7 @@ base::Status ProtoToArgsParser::HandleField(WorkItem& item,
       descriptor_type != FieldDescriptorProto::TYPE_BYTES;
   if (looks_packed) {
     return ParsePackedField(*field_descriptor, item.repeated_field_index, field,
-                            item.path, delegate);
+                            item.path);
   }
 
   ScopedNestedKeyContext field_key_context(key_prefix_);
@@ -559,7 +572,8 @@ base::Status ProtoToArgsParser::HandleField(WorkItem& item,
   ParsingOverrideForField* override =
       node != kNoPath ? path_nodes_[node].override : FindOverrideForKey();
   if (override) {
-    if (std::optional<base::Status> status = (*override)(field, delegate)) {
+    OverrideContext ctx(*sink_, string_pool_, *env_);
+    if (std::optional<base::Status> status = (*override)(field, ctx)) {
       return *status;
     }
   }
@@ -573,7 +587,7 @@ base::Status ProtoToArgsParser::HandleField(WorkItem& item,
       // via the "name" field, so the field name we just appended is
       // dropped before the DA item enters the dictionary.
       field_key_context.RemoveFieldSuffix();
-      return PushDebugAnnotation(field.as_bytes(), delegate);
+      return PushDebugAnnotation(field.as_bytes());
     }
     std::optional<uint32_t> desc_idx =
         ResolveTypeDescriptorIdx(*field_descriptor, node);
@@ -581,7 +595,7 @@ base::Status ProtoToArgsParser::HandleField(WorkItem& item,
       return base::ErrStatus("Failed to find proto descriptor for %s",
                              resolved.c_str());
     }
-    if (TryRunFlatMessage(node, *desc_idx, field.as_bytes(), delegate)) {
+    if (TryRunFlatMessage(node, *desc_idx, field.as_bytes())) {
       return base::OkStatus();
     }
     work_stack_.emplace_back(WorkItem{protozero::ProtoDecoder(field.as_bytes()),
@@ -605,11 +619,10 @@ base::Status ProtoToArgsParser::HandleField(WorkItem& item,
   } else {
     InternCurrentKey();
   }
-  return ParseSimpleField(*field_descriptor, field, node, delegate);
+  return ParseSimpleField(*field_descriptor, field, node);
 }
 
-base::Status ProtoToArgsParser::AddMessageDefaults(WorkItem& item,
-                                                   Delegate& delegate) {
+base::Status ProtoToArgsParser::AddMessageDefaults(WorkItem& item) {
   for (const auto& [id, field_desc] : item.descriptor->fields()) {
     if (work_stack_.size() == 1 &&
         !IsFieldAllowed(field_desc, allowed_fields_)) {
@@ -625,7 +638,7 @@ base::Status ProtoToArgsParser::AddMessageDefaults(WorkItem& item,
     AppendProtoType(key_prefix_.flat_key, field_name);
     AppendProtoType(key_prefix_.key, field_name);
     InternCurrentKey();
-    RETURN_IF_ERROR(AddDefault(field_desc, delegate));
+    RETURN_IF_ERROR(AddDefault(field_desc));
     item.empty_message = false;
   }
   return base::OkStatus();
@@ -635,8 +648,7 @@ base::Status ProtoToArgsParser::ParsePackedField(
     const FieldDescriptor& field_descriptor,
     RepeatedFieldIndex& repeated_field_index,
     protozero::Field field,
-    uint32_t parent_path,
-    Delegate& delegate) {
+    uint32_t parent_path) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   using PWT = protozero::proto_utils::ProtoWireType;
 
@@ -684,11 +696,12 @@ base::Status ProtoToArgsParser::ParsePackedField(
     ParsingOverrideForField* override =
         node != kNoPath ? path_nodes_[node].override : FindOverrideForKey();
     if (override) {
-      if (std::optional<base::Status> status = (*override)(f, delegate)) {
+      OverrideContext ctx(*sink_, string_pool_, *env_);
+      if (std::optional<base::Status> status = (*override)(f, ctx)) {
         return *status;
       }
     }
-    return ParseSimpleField(field_descriptor, f, node, delegate);
+    return ParseSimpleField(field_descriptor, f, node);
   };
 
   const uint8_t* data = field.as_bytes().data;
@@ -748,8 +761,7 @@ ProtoToArgsParser::FindOverrideForKey() {
 base::Status ProtoToArgsParser::ParseSimpleField(
     const FieldDescriptor& descriptor,
     const protozero::Field& field,
-    uint32_t node,
-    Delegate& delegate) {
+    uint32_t node) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   const StringPool::Id fk = key_prefix_.flat_key_id;
   const StringPool::Id k = key_prefix_.key_id;
@@ -759,62 +771,61 @@ base::Status ProtoToArgsParser::ParseSimpleField(
       if (auto idx = descriptor.flags_enum_descriptor_idx()) {
         // Zero-extend so the mask stays 32-bit (bit 31 is 0x80000000, not a
         // sign-extended int64).
-        return AddFlags(
-            *idx, static_cast<int64_t>(static_cast<uint32_t>(field.as_int32())),
-            delegate);
+        return AddFlags(*idx, static_cast<int64_t>(
+                                  static_cast<uint32_t>(field.as_int32())));
       }
-      delegate.AddInteger(fk, k, field.as_int32());
+      Add(fk, k, Variadic::Integer(field.as_int32()));
       if (descriptor.is_pid()) {
-        AddPid(field.as_int32(), delegate);
+        AddPid(field.as_int32());
       }
       if (descriptor.is_tid()) {
-        AddTid(field.as_int32(), delegate);
+        AddTid(field.as_int32());
       }
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT32:
-      delegate.AddInteger(fk, k, field.as_sint32());
+      Add(fk, k, Variadic::Integer(field.as_sint32()));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_INT64:
     case FieldDescriptorProto::TYPE_SFIXED64:
       if (auto idx = descriptor.flags_enum_descriptor_idx()) {
-        return AddFlags(*idx, field.as_int64(), delegate);
+        return AddFlags(*idx, field.as_int64());
       }
-      delegate.AddInteger(fk, k, field.as_int64());
+      Add(fk, k, Variadic::Integer(field.as_int64()));
       if (descriptor.is_pid()) {
-        AddPid(field.as_int64(), delegate);
+        AddPid(field.as_int64());
       }
       if (descriptor.is_tid()) {
-        AddTid(field.as_int64(), delegate);
+        AddTid(field.as_int64());
       }
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT64:
-      delegate.AddInteger(fk, k, field.as_sint64());
+      Add(fk, k, Variadic::Integer(field.as_sint64()));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_UINT32:
     case FieldDescriptorProto::TYPE_FIXED32:
-      delegate.AddUnsignedInteger(fk, k, field.as_uint32());
+      Add(fk, k, Variadic::UnsignedInteger(field.as_uint32()));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_UINT64:
     case FieldDescriptorProto::TYPE_FIXED64:
-      delegate.AddUnsignedInteger(fk, k, field.as_uint64());
+      Add(fk, k, Variadic::UnsignedInteger(field.as_uint64()));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_BOOL:
-      delegate.AddBoolean(fk, k, field.as_bool());
+      Add(fk, k, Variadic::Boolean(field.as_bool()));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_DOUBLE:
-      delegate.AddDouble(fk, k, field.as_double());
+      Add(fk, k, Variadic::Real(field.as_double()));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_FLOAT:
-      delegate.AddDouble(fk, k, static_cast<double>(field.as_float()));
+      Add(fk, k, Variadic::Real(static_cast<double>(field.as_float())));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_BYTES:
-      delegate.AddBytes(fk, k, field.as_bytes());
+      AddBytes(fk, k, field.as_bytes());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_STRING:
-      delegate.AddString(fk, k, field.as_string());
+      AddString(fk, k, field.as_string());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_ENUM:
-      return AddEnum(descriptor, field.as_int32(), node, delegate);
+      return AddEnum(descriptor, field.as_int32(), node);
     default:
       return base::ErrStatus(
           "Tried to write value of type field %s (in proto type "
@@ -839,16 +850,15 @@ ProtoToArgsParser::ScopedNestedKeyContext ProtoToArgsParser::EnterDictionary(
   return context;
 }
 
-base::Status ProtoToArgsParser::AddDefault(const FieldDescriptor& descriptor,
-                                           Delegate& delegate) {
+base::Status ProtoToArgsParser::AddDefault(const FieldDescriptor& descriptor) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
-  if (!delegate.ShouldAddDefaultArg(key_prefix_)) {
+  if (!sink_->WantsDefault({key_prefix_.flat_key_id, key_prefix_.key_id})) {
     return base::OkStatus();
   }
   const StringPool::Id fk = key_prefix_.flat_key_id;
   const StringPool::Id k = key_prefix_.key_id;
   if (descriptor.is_repeated()) {
-    delegate.AddNull(fk, k);
+    Add(fk, k, Variadic::Null());
     return base::OkStatus();
   }
   const auto& default_value = descriptor.default_value();
@@ -857,62 +867,65 @@ base::Status ProtoToArgsParser::AddDefault(const FieldDescriptor& descriptor,
   switch (descriptor.type()) {
     case FieldDescriptorProto::TYPE_INT32:
     case FieldDescriptorProto::TYPE_SFIXED32:
-      delegate.AddInteger(fk, k,
-                          base::StringToInt32(default_value_if_number).value());
+      Add(fk, k,
+          Variadic::Integer(
+              base::StringToInt32(default_value_if_number).value()));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT32:
-      delegate.AddInteger(
-          fk, k,
-          protozero::proto_utils::ZigZagDecode(
-              base::StringToInt64(default_value_if_number).value()));
+      Add(fk, k,
+          Variadic::Integer(protozero::proto_utils::ZigZagDecode(
+              base::StringToInt64(default_value_if_number).value())));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_INT64:
     case FieldDescriptorProto::TYPE_SFIXED64:
-      delegate.AddInteger(fk, k,
-                          base::StringToInt64(default_value_if_number).value());
+      Add(fk, k,
+          Variadic::Integer(
+              base::StringToInt64(default_value_if_number).value()));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT64:
-      delegate.AddInteger(
-          fk, k,
-          protozero::proto_utils::ZigZagDecode(
-              base::StringToInt64(default_value_if_number).value()));
+      Add(fk, k,
+          Variadic::Integer(protozero::proto_utils::ZigZagDecode(
+              base::StringToInt64(default_value_if_number).value())));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_UINT32:
     case FieldDescriptorProto::TYPE_FIXED32:
-      delegate.AddUnsignedInteger(
-          fk, k, base::StringToUInt32(default_value_if_number).value());
+      Add(fk, k,
+          Variadic::UnsignedInteger(
+              base::StringToUInt32(default_value_if_number).value()));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_UINT64:
     case FieldDescriptorProto::TYPE_FIXED64:
-      delegate.AddUnsignedInteger(
-          fk, k, base::StringToUInt64(default_value_if_number).value());
+      Add(fk, k,
+          Variadic::UnsignedInteger(
+              base::StringToUInt64(default_value_if_number).value()));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_BOOL:
-      delegate.AddBoolean(fk, k, default_value == "true");
+      Add(fk, k, Variadic::Boolean(default_value == "true"));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_DOUBLE:
     case FieldDescriptorProto::TYPE_FLOAT:
-      delegate.AddDouble(fk, k,
-                         base::StringToDouble(default_value_if_number).value());
+      Add(fk, k,
+          Variadic::Real(
+              base::StringToDouble(default_value_if_number).value()));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_BYTES:
-      delegate.AddBytes(fk, k, protozero::ConstBytes{});
+      AddBytes(fk, k, protozero::ConstBytes{});
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_STRING:
       if (default_value) {
-        delegate.AddString(fk, k, default_value.value());
+        AddString(fk, k, default_value.value());
       } else {
-        delegate.AddNull(fk, k);
+        Add(fk, k, Variadic::Null());
       }
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_MESSAGE:
-      delegate.AddNull(fk, k);
+      Add(fk, k, Variadic::Null());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_ENUM:
       // Defaults have a dynamic key, hence no node to cache into.
       return AddEnum(descriptor,
                      base::StringToInt32(default_value_if_number).value(),
-                     /*node=*/kNoPath, delegate);
+                     /*node=*/kNoPath);
     default:
       return base::ErrStatus(
           "Tried to write default value of type field %s (in proto type "
@@ -924,8 +937,7 @@ base::Status ProtoToArgsParser::AddDefault(const FieldDescriptor& descriptor,
 
 base::Status ProtoToArgsParser::AddEnum(const FieldDescriptor& descriptor,
                                         int32_t value,
-                                        uint32_t node,
-                                        Delegate& delegate) {
+                                        uint32_t node) {
   const StringPool::Id fk = key_prefix_.flat_key_id;
   const StringPool::Id k = key_prefix_.key_id;
   std::optional<uint32_t> opt_enum_descriptor_idx =
@@ -936,7 +948,7 @@ base::Status ProtoToArgsParser::AddEnum(const FieldDescriptor& descriptor,
     // EXTRACT_ARG() should return consistent types under error conditions and
     // that CREATE PERFETTO TABLE AS EXTRACT_ARG(...) should be generally safe
     // to use.
-    delegate.AddString(fk, k, std::to_string(value));
+    AddString(fk, k, std::to_string(value));
     return base::OkStatus();
   }
   auto opt_enum_string =
@@ -944,18 +956,17 @@ base::Status ProtoToArgsParser::AddEnum(const FieldDescriptor& descriptor,
   if (!opt_enum_string) {
     // Fall back to the integer representation of the field. See above for
     // motivation.
-    delegate.AddString(fk, k, std::to_string(value));
+    AddString(fk, k, std::to_string(value));
     return base::OkStatus();
   }
-  delegate.AddString(
+  AddString(
       fk, k,
       protozero::ConstChars{opt_enum_string->data(), opt_enum_string->size()});
   return base::OkStatus();
 }
 
 base::Status ProtoToArgsParser::AddFlags(uint32_t enum_descriptor_idx,
-                                         int64_t value,
-                                         Delegate& delegate) {
+                                         int64_t value) {
   flag_views_.clear();
   int64_t unmatched =
       pool_.FlagSetToViews(enum_descriptor_idx, value, &flag_views_);
@@ -963,9 +974,9 @@ base::Status ProtoToArgsParser::AddFlags(uint32_t enum_descriptor_idx,
   const StringPool::Id fk = key_prefix_.flat_key_id;
   auto emit = [&](size_t i, protozero::ConstChars chars) {
     ScopedNestedKeyContext ctx = EnterArray(i);
-    StringPool::Id k = delegate.InternString(
+    StringPool::Id k = string_pool_.InternString(
         base::StringView(key_prefix_.key.data(), key_prefix_.key.size()));
-    delegate.AddString(fk, k, chars);
+    AddString(fk, k, chars);
   };
   size_t i = 0;
   for (; i < flag_views_.size(); ++i) {
@@ -980,7 +991,6 @@ base::Status ProtoToArgsParser::AddFlags(uint32_t enum_descriptor_idx,
 }
 
 std::pair<StringPool::Id, StringPool::Id> ProtoToArgsParser::InternSuffixedKeys(
-    Delegate& delegate,
     std::string_view from,
     std::string_view to) {
   auto intern = [&](const std::string& key) {
@@ -990,19 +1000,54 @@ std::pair<StringPool::Id, StringPool::Id> ProtoToArgsParser::InternSuffixedKeys(
     if (!matched)
       suffixed_key_scratch_.push_back('_');
     suffixed_key_scratch_.append(to);
-    return delegate.InternString(base::StringView(suffixed_key_scratch_));
+    return string_pool_.InternString(base::StringView(suffixed_key_scratch_));
   };
   return {intern(key_prefix_.flat_key), intern(key_prefix_.key)};
 }
 
-void ProtoToArgsParser::AddPid(int64_t pid, Delegate& delegate) {
-  auto [fk, k] = InternSuffixedKeys(delegate, "pid", "upid");
-  delegate.AddUpid(fk, k, pid);
+void ProtoToArgsParser::AddPid(int64_t pid) {
+  if (!env_->process_tracker) {
+    return;
+  }
+  if (auto upid = env_->process_tracker->GetProcessOrNull(pid)) {
+    auto [fk, k] = InternSuffixedKeys("pid", "upid");
+    Add(fk, k, Variadic::Integer(*upid));
+  }
 }
 
-void ProtoToArgsParser::AddTid(int64_t tid, Delegate& delegate) {
-  auto [fk, k] = InternSuffixedKeys(delegate, "tid", "utid");
-  delegate.AddUtid(fk, k, tid);
+void ProtoToArgsParser::AddTid(int64_t tid) {
+  if (!env_->process_tracker) {
+    return;
+  }
+  if (auto utid = env_->process_tracker->GetThreadOrNull(tid)) {
+    auto [fk, k] = InternSuffixedKeys("tid", "utid");
+    Add(fk, k, Variadic::Integer(*utid));
+  }
+}
+
+void ProtoToArgsParser::AddBytes(StringPool::Id flat_key,
+                                 StringPool::Id key,
+                                 protozero::ConstBytes value) {
+  if (env_->bytes == ProtoArgsEnv::BytesMode::kRaw) {
+    AddString(flat_key, key,
+              base::StringView(reinterpret_cast<const char*>(value.data),
+                               value.size));
+    return;
+  }
+  AddString(flat_key, key,
+            base::StringView(base::Base64Encode(value.data, value.size)));
+}
+
+void ProtoToArgsParser::AddJson(StringPool::Id flat_key,
+                                StringPool::Id key,
+                                protozero::ConstChars value) {
+  NullTermStringView fk = string_pool_.Get(flat_key);
+  NullTermStringView k = string_pool_.Get(key);
+  json::Iterator iterator;
+  json::AddJsonValueToArgs(iterator, value.data, value.data + value.size,
+                           std::string_view(fk.data(), fk.size()),
+                           std::string_view(k.data(), k.size()), &string_pool_,
+                           sink_);
 }
 
 // ===========================================================================
@@ -1026,11 +1071,11 @@ std::string SanitizeDebugAnnotationName(std::string_view raw_name) {
 
 base::Status ParseDebugAnnotationName(
     protos::pbzero::DebugAnnotation::Decoder& annotation,
-    ProtoToArgsParser::Delegate& delegate,
+    const ProtoArgsEnv& env,
     std::string& result) {
   uint64_t name_iid = annotation.name_iid();
   if (PERFETTO_LIKELY(name_iid)) {
-    auto* decoder = delegate.GetInternedMessage(
+    auto* decoder = env.GetInternedMessage(
         protos::pbzero::InternedData::kDebugAnnotationNames, name_iid);
     if (!decoder)
       return base::ErrStatus("Debug annotation with invalid name_iid");
@@ -1047,17 +1092,24 @@ base::Status ParseDebugAnnotationName(
 }  // namespace
 
 base::Status ProtoToArgsParser::ParseDebugAnnotation(protozero::ConstBytes data,
-                                                     Delegate& delegate) {
+                                                     const ProtoArgsEnv& env,
+                                                     ArgSink& sink) {
   PERFETTO_DCHECK(work_stack_.empty());
-  RETURN_IF_ERROR(PushDebugAnnotation(data, delegate));
-  return RunWorkLoop(delegate);
+  auto reset_call_params = base::OnScopeExit([this] {
+    env_ = nullptr;
+    sink_ = nullptr;
+  });
+  env_ = &env;
+  sink_ = &sink;
+  RETURN_IF_ERROR(PushDebugAnnotation(data));
+  return RunWorkLoop();
 }
 
-base::Status ProtoToArgsParser::PushDebugAnnotation(protozero::ConstBytes data,
-                                                    Delegate& delegate) {
+base::Status ProtoToArgsParser::PushDebugAnnotation(
+    protozero::ConstBytes data) {
   protos::pbzero::DebugAnnotation::Decoder decoder(data);
   std::string name;
-  RETURN_IF_ERROR(ParseDebugAnnotationName(decoder, delegate, name));
+  RETURN_IF_ERROR(ParseDebugAnnotationName(decoder, *env_, name));
   work_stack_.emplace_back(
       DebugAnnotationWorkItem{std::move(decoder), EnterDictionary(name)});
   return base::OkStatus();
@@ -1065,7 +1117,6 @@ base::Status ProtoToArgsParser::PushDebugAnnotation(protozero::ConstBytes data,
 
 base::Status ProtoToArgsParser::StepDebugAnnotation(
     DebugAnnotationWorkItem& item,
-    Delegate& delegate,
     bool& done) {
   // DebugAnnotation keys are always dynamic (built from runtime names), so
   // intern this node's key directly rather than via the traversal tree. The
@@ -1087,7 +1138,7 @@ base::Status ProtoToArgsParser::StepDebugAnnotation(
       protos::pbzero::DebugAnnotation::Decoder key_value(
           da_nested_storage_[item.nested_current++]);
       std::string key_name;
-      RETURN_IF_ERROR(ParseDebugAnnotationName(key_value, delegate, key_name));
+      RETURN_IF_ERROR(ParseDebugAnnotationName(key_value, *env_, key_name));
       work_stack_.emplace_back(DebugAnnotationWorkItem{
           std::move(key_value), EnterDictionary(key_name)});
       return base::OkStatus();
@@ -1104,7 +1155,8 @@ base::Status ProtoToArgsParser::StepDebugAnnotation(
         da_nested_storage_.emplace_back(*res);
       }
       item.nested_count = count;
-      item.array_index = delegate.GetArrayEntryIndex(item.key.key().key);
+      item.array_key = k;
+      item.array_index = sink_->ArrayIndex(k);
       item.first_pass_done = true;
     }
     if (item.nested_current < da_nested_storage_.size()) {
@@ -1118,41 +1170,41 @@ base::Status ProtoToArgsParser::StepDebugAnnotation(
       da_nested_storage_.pop_back();
     }
   } else if (item.decoder.has_bool_value()) {
-    delegate.AddBoolean(fk, k, item.decoder.bool_value());
+    Add(fk, k, Variadic::Boolean(item.decoder.bool_value()));
     item.added_entry = true;
   } else if (item.decoder.has_uint_value()) {
-    delegate.AddUnsignedInteger(fk, k, item.decoder.uint_value());
+    Add(fk, k, Variadic::UnsignedInteger(item.decoder.uint_value()));
     item.added_entry = true;
   } else if (item.decoder.has_int_value()) {
-    delegate.AddInteger(fk, k, item.decoder.int_value());
+    Add(fk, k, Variadic::Integer(item.decoder.int_value()));
     item.added_entry = true;
   } else if (item.decoder.has_double_value()) {
-    delegate.AddDouble(fk, k, item.decoder.double_value());
+    Add(fk, k, Variadic::Real(item.decoder.double_value()));
     item.added_entry = true;
   } else if (item.decoder.has_string_value()) {
-    delegate.AddString(fk, k, item.decoder.string_value());
+    AddString(fk, k, item.decoder.string_value());
     item.added_entry = true;
   } else if (item.decoder.has_string_value_iid()) {
-    auto* str_decoder = delegate.GetInternedMessage(
+    auto* str_decoder = env_->GetInternedMessage(
         protos::pbzero::InternedData::kDebugAnnotationStringValues,
         item.decoder.string_value_iid());
     if (!str_decoder) {
       return base::ErrStatus("Debug annotation with invalid string_value_iid");
     }
-    delegate.AddString(fk, k, str_decoder->str().ToStdString());
+    AddString(fk, k, str_decoder->str().ToStdString());
     item.added_entry = true;
   } else if (item.decoder.has_pointer_value()) {
-    delegate.AddPointer(fk, k, item.decoder.pointer_value());
+    Add(fk, k, Variadic::Pointer(item.decoder.pointer_value()));
     item.added_entry = true;
   } else if (item.decoder.has_legacy_json_value()) {
-    delegate.AddJson(fk, k, item.decoder.legacy_json_value());
+    AddJson(fk, k, item.decoder.legacy_json_value());
     item.added_entry = true;
   } else if (item.decoder.has_proto_value() && !item.subtree_pushed) {
     std::string type_name;
     if (item.decoder.has_proto_type_name()) {
       type_name = item.decoder.proto_type_name().ToStdString();
     } else if (item.decoder.has_proto_type_name_iid()) {
-      auto* interned_name = delegate.GetInternedMessage(
+      auto* interned_name = env_->GetInternedMessage(
           protos::pbzero::InternedData::kDebugAnnotationValueTypeNames,
           item.decoder.proto_type_name_iid());
       if (!interned_name) {
@@ -1171,7 +1223,7 @@ base::Status ProtoToArgsParser::StepDebugAnnotation(
     // DebugAnnotationWorkItem; any other type pushes a ProtoMessage WorkItem.
     protozero::ConstBytes proto_bytes = item.decoder.proto_value();
     if (type_name == kDebugAnnotationTypeName) {
-      return PushDebugAnnotation(proto_bytes, delegate);
+      return PushDebugAnnotation(proto_bytes);
     }
     auto desc_idx = pool_.FindDescriptorIdx(type_name);
     if (!desc_idx) {
@@ -1207,7 +1259,7 @@ base::Status ProtoToArgsParser::StepDebugAnnotation(
             &work_stack_[work_stack_.size() - 2])) {
       if (just_added_entry && parent_da->array_index) {
         parent_da->array_index =
-            delegate.IncrementArrayEntryIndex(parent_da->key.key().key);
+            sink_->IncrementArrayIndex(parent_da->array_key);
       }
       parent_da->added_entry = parent_da->added_entry || just_added_entry;
     }
@@ -1215,30 +1267,15 @@ base::Status ProtoToArgsParser::StepDebugAnnotation(
   return base::OkStatus();
 }
 
-const ProtoToArgsParser::Key& ProtoToArgsParser::EffectiveNestedValueKey(
-    size_t nv_index) const {
-  PERFETTO_DCHECK(nv_index < work_stack_.size());
-  const auto& nv = std::get<NestedValueWorkItem>(work_stack_[nv_index]);
-  if (nv.key) {
-    return nv.key->key();
-  }
-  PERFETTO_DCHECK(nv_index > 0);
-  PERFETTO_DCHECK(std::holds_alternative<DebugAnnotationWorkItem>(
-      work_stack_[nv_index - 1]));
-  return std::get<DebugAnnotationWorkItem>(work_stack_[nv_index - 1]).key.key();
-}
-
 void ProtoToArgsParser::PropagateNestedValueResult(size_t child_index,
-                                                   bool added_entry,
-                                                   Delegate& delegate) {
+                                                   bool added_entry) {
   if (child_index == 0) {
     return;
   }
   auto& parent = work_stack_[child_index - 1];
   if (auto* parent_nv = std::get_if<NestedValueWorkItem>(&parent)) {
     if (added_entry && parent_nv->array_index) {
-      const Key& pk = EffectiveNestedValueKey(child_index - 1);
-      parent_nv->array_index = delegate.IncrementArrayEntryIndex(pk.key);
+      parent_nv->array_index = sink_->IncrementArrayIndex(parent_nv->array_key);
     }
     parent_nv->added_entry = parent_nv->added_entry || added_entry;
   } else if (auto* parent_da = std::get_if<DebugAnnotationWorkItem>(&parent)) {
@@ -1249,10 +1286,8 @@ void ProtoToArgsParser::PropagateNestedValueResult(size_t child_index,
 
 base::Status ProtoToArgsParser::StepNestedValue(NestedValueWorkItem& item,
                                                 size_t self_index,
-                                                Delegate& delegate,
                                                 bool& done) {
   using NV = protos::pbzero::DebugAnnotation::NestedValue;
-  const Key& key = EffectiveNestedValueKey(self_index);
   // NestedValue keys are dynamic; intern the effective key directly.
   InternCurrentKey();
   const StringPool::Id fk_id = key_prefix_.flat_key_id;
@@ -1261,16 +1296,16 @@ base::Status ProtoToArgsParser::StepNestedValue(NestedValueWorkItem& item,
   switch (item.decoder.nested_type()) {
     case NV::UNSPECIFIED: {
       if (item.decoder.has_bool_value()) {
-        delegate.AddBoolean(fk_id, k_id, item.decoder.bool_value());
+        Add(fk_id, k_id, Variadic::Boolean(item.decoder.bool_value()));
         item.added_entry = true;
       } else if (item.decoder.has_int_value()) {
-        delegate.AddInteger(fk_id, k_id, item.decoder.int_value());
+        Add(fk_id, k_id, Variadic::Integer(item.decoder.int_value()));
         item.added_entry = true;
       } else if (item.decoder.has_double_value()) {
-        delegate.AddDouble(fk_id, k_id, item.decoder.double_value());
+        Add(fk_id, k_id, Variadic::Real(item.decoder.double_value()));
         item.added_entry = true;
       } else if (item.decoder.has_string_value()) {
-        delegate.AddString(fk_id, k_id, item.decoder.string_value());
+        AddString(fk_id, k_id, item.decoder.string_value());
         item.added_entry = true;
       }
       break;
@@ -1318,7 +1353,8 @@ base::Status ProtoToArgsParser::StepNestedValue(NestedValueWorkItem& item,
           nv_nested_storage_.push_back({"", *res});
         }
         item.nested_count = count;
-        item.array_index = delegate.GetArrayEntryIndex(key.key);
+        item.array_key = k_id;
+        item.array_index = sink_->ArrayIndex(k_id);
         item.first_pass_done = true;
       }
       if (item.nested_current < nv_nested_storage_.size()) {
@@ -1340,7 +1376,7 @@ base::Status ProtoToArgsParser::StepNestedValue(NestedValueWorkItem& item,
     item.key->RemoveFieldSuffix();
   }
   done = true;
-  PropagateNestedValueResult(self_index, just_added_entry, delegate);
+  PropagateNestedValueResult(self_index, just_added_entry);
   return base::OkStatus();
 }
 

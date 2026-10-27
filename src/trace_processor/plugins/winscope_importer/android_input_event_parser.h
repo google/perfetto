@@ -20,8 +20,8 @@
 #include <cstdint>
 #include "perfetto/base/build_config.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/util/descriptors.h"
@@ -48,10 +48,10 @@ class AndroidInputEventParser {
   void TryConvertMonotonicTimestampFields(
       std::optional<int64_t> event_time_nanos,
       std::optional<int64_t> down_time_nanos,
-      ArgsParser& writer);
+      ArgSink& writer);
   void ConvertMonotonicTimestampField(int64_t monotonic_time,
                                       const std::string& key_string,
-                                      ArgsParser& writer);
+                                      ArgSink& writer);
 };
 
 }  // namespace perfetto::trace_processor

@@ -40,6 +40,7 @@
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
@@ -58,7 +59,6 @@
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
-#include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/importers/proto/selective_track_event_decoder.h"
@@ -1329,15 +1329,12 @@ class TrackEventEventImporter {
       if (event_.has_callstack_iid() || event_.has_callstack())
         log_errors(ParseCallstack());
     }
-    std::optional<ArgsParser> args_writer;
-    auto writer = [&]() -> ArgsParser& {
-      if (!args_writer) {
-        args_writer.emplace(ts_, *inserter, *storage_,
-                            *context_->process_tracker, sequence_state_,
-                            /*support_json=*/true);
-      }
-      return *args_writer;
-    };
+    util::ProtoArgsEnv env(ts_, context_->process_tracker.get());
+    env.seq_state = sequence_state_;
+    std::optional<ArgsInserterSink> sink;
+    if (inserter) {
+      sink.emplace(*inserter);
+    }
 
     field_context_.utid = utid_.value_or(TrackEventFieldContext::kNone);
     field_context_.upid = upid_.value_or(TrackEventFieldContext::kNone);
@@ -1364,7 +1361,7 @@ class TrackEventEventImporter {
         continue;
       }
       log_errors(parser_->args_parser_.ParseMessageField(
-          *track_event_idx, field, writer(), &unknown_extensions,
+          *track_event_idx, field, env, *sink, &unknown_extensions,
           &repeated_field_index));
     }
     if (unknown_extensions > 0) {
@@ -1378,7 +1375,7 @@ class TrackEventEventImporter {
     if (event_.has_debug_annotations()) {
       auto key = parser_->args_parser_.EnterDictionary("debug");
       for (auto it = event_.debug_annotations(); it; ++it) {
-        log_errors(parser_->args_parser_.ParseDebugAnnotation(*it, writer()));
+        log_errors(parser_->args_parser_.ParseDebugAnnotation(*it, env, *sink));
       }
     }
 

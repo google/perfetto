@@ -14,52 +14,60 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_VIEWCAPTURE_ARGS_PARSER_H_
-#define SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_VIEWCAPTURE_ARGS_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_VIEWCAPTURE_DEINTERNER_H_
+#define SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_VIEWCAPTURE_DEINTERNER_H_
 
+#include <cstdint>
 #include <optional>
 
-#include "perfetto/protozero/field.h"
-#include "src/trace_processor/importers/proto/args_parser.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
+namespace perfetto::trace_processor {
+class PacketSequenceStateGeneration;
+}
+
 namespace perfetto::trace_processor::winscope {
 
-// Specialized args parser to de-intern ViewCapture strings
-class ViewCaptureArgsParser : public ArgsParser {
+// Resolves the interned strings of a ViewCapture snapshot or view, for use as
+// a DeinterningArgSink::Lookup. Records every string it resolves, and copies
+// the ones that have a column into the snapshot or view row.
+class ViewCaptureDeinterner {
  public:
-  using Key = ArgsParser::Key;
   using IidToStringMap = base::FlatHashMap<uint64_t, StringId>;
 
-  ViewCaptureArgsParser(int64_t packet_timestamp,
-                        ArgsInserter& inserter,
-                        TraceProcessorContext& context,
+  ViewCaptureDeinterner(TraceProcessorContext& context,
                         PacketSequenceStateGeneration* sequence_state,
                         tables::ViewCaptureTable::RowReference* snapshot_row,
                         tables::ViewCaptureViewTable::RowReference* view_row);
-  void AddInteger(Id flat_key, Id key, int64_t) override;
-  void AddUnsignedInteger(Id flat_key, Id key, uint64_t) override;
+
+  std::optional<base::StringView> Lookup(ArgKey key, uint64_t iid);
 
   base::FlatHashMap<StringId, IidToStringMap> flat_key_to_iid_args;
 
  private:
-  bool TryAddDeinternedString(const Key&, uint64_t);
-  std::optional<protozero::ConstChars> TryDeinternString(const Key&, uint64_t);
+  std::optional<base::StringView> TryDeinternString(base::StringView key,
+                                                    uint64_t iid);
 
   template <uint32_t FieldNumber>
-  std::optional<protozero::ConstChars> DeinternString(uint64_t);
+  std::optional<base::StringView> DeinternString(uint64_t);
 
   template <uint32_t FieldNumber, typename RowRef>
-  std::optional<protozero::ConstChars>
-  DeinternString(uint64_t, RowRef*, void (RowRef::*setter)(StringPool::Id));
+  std::optional<base::StringView> DeinternString(
+      uint64_t,
+      RowRef*,
+      void (RowRef::*setter)(StringPool::Id));
 
-  const base::StringView ERROR_MSG{"STRING DE-INTERNING ERROR"};
   TraceProcessorContext& context_;
+  PacketSequenceStateGeneration* const sequence_state_;
   tables::ViewCaptureTable::RowReference* snapshot_row_;
   tables::ViewCaptureViewTable::RowReference* view_row_;
 };
 
 }  // namespace perfetto::trace_processor::winscope
 
-#endif  // SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_VIEWCAPTURE_ARGS_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_VIEWCAPTURE_DEINTERNER_H_

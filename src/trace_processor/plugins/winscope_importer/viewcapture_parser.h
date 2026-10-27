@@ -19,7 +19,7 @@
 
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_to_args_parser.h"
-#include "src/trace_processor/plugins/winscope_importer/viewcapture_args_parser.h"
+#include "src/trace_processor/plugins/winscope_importer/viewcapture_deinterner.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_context.h"
 #include "src/trace_processor/util/descriptors.h"
 
@@ -42,7 +42,7 @@ class ViewCaptureParser {
       std::unordered_map<int32_t, tables::WinscopeTraceRectTable::Id>&
           computed_rects);
 
-  void AddDeinternedData(const ViewCaptureArgsParser&, uint32_t);
+  void AddDeinternedData(const ViewCaptureDeinterner&, uint32_t);
 
   WinscopeContext* const context_;
   util::ProtoToArgsParser args_parser_;

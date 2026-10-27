@@ -17,6 +17,8 @@ import("../../../../gn/perfetto.gni")
 source_set("common") {
   sources = [
     "address_range.h",
+    "arg_sink.cc",
+    "arg_sink.h",
     "args_tracker.cc",
     "args_tracker.h",
     "args_translation_table.cc",
