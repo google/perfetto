@@ -436,7 +436,7 @@ ColumnBuffer FinalizeToBuffer(Context& context,
                               GroupStates states,
                               const uint32_t* groups,
                               uint32_t count) {
-  ColumnBuffer buffer = context.TakeBuffer();
+  ColumnBuffer buffer = context.TakeBuffer(sizeof(int64_t));
   ColumnChunk& chunk = buffer.chunk();
   chunk.SizeValidity();
   function.Finalize(states, groups, count, chunk.Values<int64_t>(),

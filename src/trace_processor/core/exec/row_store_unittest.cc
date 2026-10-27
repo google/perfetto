@@ -51,7 +51,7 @@ void Fill(RowBatch* batch,
 // of its own, taken afresh for each batch.
 void FillBuffer(RowBatch* batch, const std::vector<int64_t>& values) {
   batch->Reset();
-  ColumnBuffer buffer = test::TestContext().TakeBuffer();
+  ColumnBuffer buffer = test::TestContext().TakeBuffer(sizeof(int64_t));
   int64_t* data = buffer.chunk().Values<int64_t>();
   std::copy(values.begin(), values.end(), data);
   batch->AddColumn(ColumnView::Reference(StorageType{Int64{}}, data),
