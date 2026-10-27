@@ -40,6 +40,10 @@ class TraceBuffer_WriterStats;
 
 // Virtual interface for trace buffers to enable multiple implementations.
 // This interface defines the minimal surface used by the tracing service.
+//
+// TODO(sashwinbalaji): Add a trace_buffer.cc with default no-op versions of
+// OnWriteCheckpoint() and similar calls, so each implementation doesn't
+// repeat them.
 class TraceBuffer {
  public:
   using WriterStats = TraceBuffer_WriterStats;
@@ -48,11 +52,12 @@ class TraceBuffer {
   enum OverwritePolicy { kOverwrite, kDiscard };
 
   // Type of trace buffer implementation.
-  // TODO(primiano): remove this once TraceBufferV2 proves itself.
-  // kV2 is experimental.
+  // TODO(sashwinbalaji): Remove this once one implementation remains.
+  // kV2 and kV3 are experimental.
   enum BufType {
     kV1,
     kV2,
+    kV3,
   };
 
   // Argument for out-of-band patches applied through TryPatchChunkContents().
@@ -145,6 +150,11 @@ class TraceBuffer {
   // updates the statistic and does not record a gap on any packet sequence.
   virtual void RecordAbiViolation() = 0;
 
+  // Called when the current write cycle is complete, after CommitData, an SMB
+  // v2 drain pass or an SMB v1 scrape, including any patches for that cycle.
+  // The buffer can now read and move the available packets.
+  virtual void OnWriteCheckpoint() = 0;
+
   // To read the contents of the buffer the caller needs to:
   //   BeginRead()
   //   while (ReadNextTracePacket(packet_fragments)) { ... }
@@ -157,9 +167,10 @@ class TraceBuffer {
   // producer_uid, and writer_id of the producer/writer that wrote it.
   // Returns false if no packets can be read at this point.
   // |previous_packet_on_sequence_dropped| is a bitmask: 0 if no data was lost
-  // on the sequence before this packet, otherwise nonzero. TraceBufferV2 sets
-  // the DataLossReason cause bits; TraceBufferV1 just sets 1. The value is
-  // forwarded into TracePacket.previous_packet_dropped.
+  // on the sequence before this packet, otherwise nonzero.
+  // TraceBufferV2 and TraceBufferV3 set the DataLossReason cause bits.
+  // TraceBufferV1 just sets 1.
+  // The value is forwarded into TracePacket.previous_packet_dropped.
   virtual bool ReadNextTracePacket(
       TracePacket*,
       PacketSequenceProperties* sequence_properties,
