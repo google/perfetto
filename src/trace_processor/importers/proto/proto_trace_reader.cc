@@ -1356,6 +1356,9 @@ bool TraceMayHaveClockSnapshot(const uint8_t* data, size_t size) {
     }
     protozero::ProtoDecoder packet(p.as_bytes());
     for (auto f = packet.ReadField(); f.valid(); f = packet.ReadField()) {
+      // TODO(vibhuagarwal): compressed packets are not inflated, so a trace
+      // holding some counts as having a ClockSnapshot even when it has none,
+      // and sorts early. See https://github.com/google/perfetto/issues/8308.
       if (f.id() == TracePacket::kClockSnapshotFieldNumber ||
           f.id() == TracePacket::kCompressedPacketsFieldNumber ||
           f.id() == TracePacket::kZstdCompressedPacketsFieldNumber) {
