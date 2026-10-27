@@ -56,9 +56,7 @@ void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
           .id;
 
   auto inserter = context_->args_tracker->AddArgsTo(snapshot_id);
-  util::ProtoArgsEnv env;
-  env.packet_timestamp = timestamp;
-  env.process_tracker = context_->process_tracker.get();
+  util::ProtoArgsEnv env(timestamp, context_->process_tracker.get());
   ArgsInserterSink writer(inserter);
   base::Status status = args_parser_.ParseMessage(
       blob,
@@ -400,9 +398,7 @@ void SurfaceFlingerTransactionsParser::AddArgs(
     std::string message_type,
     std::optional<protozero::ConstBytes> transaction) {
   auto inserter = context_->args_tracker->AddArgsTo(row_id);
-  util::ProtoArgsEnv env;
-  env.packet_timestamp = timestamp;
-  env.process_tracker = context_->process_tracker.get();
+  util::ProtoArgsEnv env(timestamp, context_->process_tracker.get());
   ArgsInserterSink writer(inserter);
   base::Status status = args_parser_.ParseMessage(
       blob, message_type, nullptr /* parse all fields */, env, writer);

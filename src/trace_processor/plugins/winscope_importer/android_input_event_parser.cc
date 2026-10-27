@@ -109,9 +109,7 @@ void AndroidInputEventParser::ParseMotionEvent(
                           ->Insert(event_row)
                           .id;
   auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
-  util::ProtoArgsEnv env;
-  env.packet_timestamp = packet_ts;
-  env.process_tracker = context_.process_tracker.get();
+  util::ProtoArgsEnv env(packet_ts, context_.process_tracker.get());
   ArgsInserterSink writer(inserter);
 
   base::Status status =
@@ -150,9 +148,7 @@ void AndroidInputEventParser::ParseKeyEvent(
                           ->Insert(event_row)
                           .id;
   auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
-  util::ProtoArgsEnv env;
-  env.packet_timestamp = packet_ts;
-  env.process_tracker = context_.process_tracker.get();
+  util::ProtoArgsEnv env(packet_ts, context_.process_tracker.get());
   ArgsInserterSink writer(inserter);
 
   base::Status status =
@@ -189,9 +185,7 @@ void AndroidInputEventParser::ParseWindowDispatchEvent(
           .id;
 
   auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
-  util::ProtoArgsEnv env;
-  env.packet_timestamp = packet_ts;
-  env.process_tracker = context_.process_tracker.get();
+  util::ProtoArgsEnv env(packet_ts, context_.process_tracker.get());
   ArgsInserterSink writer(inserter);
 
   base::Status status = args_parser_.ParseMessage(

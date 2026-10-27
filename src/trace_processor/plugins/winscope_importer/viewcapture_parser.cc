@@ -63,11 +63,9 @@ void ViewCaptureParser::Parse(int64_t timestamp,
                             [&deinterner](ArgKey key, uint64_t iid) {
                               return deinterner.Lookup(key, iid);
                             });
-  util::ProtoArgsEnv env;
+  util::ProtoArgsEnv env(
+      timestamp, context_->trace_processor_context_->process_tracker.get());
   env.seq_state = seq_state;
-  env.packet_timestamp = timestamp;
-  env.process_tracker =
-      context_->trace_processor_context_->process_tracker.get();
   const auto table_name = tables::ViewCaptureTable::Name();
   auto allowed_fields =
       util::winscope_proto_mapping::GetAllowedFields(table_name);
@@ -135,11 +133,9 @@ void ViewCaptureParser::ParseView(
                             [&deinterner](ArgKey key, uint64_t iid) {
                               return deinterner.Lookup(key, iid);
                             });
-  util::ProtoArgsEnv env;
+  util::ProtoArgsEnv env(
+      timestamp, context_->trace_processor_context_->process_tracker.get());
   env.seq_state = seq_state;
-  env.packet_timestamp = timestamp;
-  env.process_tracker =
-      context_->trace_processor_context_->process_tracker.get();
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(

@@ -199,9 +199,8 @@ void WinscopeModule::ParseInputMethodClientsData(int64_t timestamp,
           .id;
 
   auto inserter = trace_processor_context->args_tracker->AddArgsTo(rowId);
-  util::ProtoArgsEnv env;
-  env.packet_timestamp = timestamp;
-  env.process_tracker = trace_processor_context->process_tracker.get();
+  util::ProtoArgsEnv env(timestamp,
+                         trace_processor_context->process_tracker.get());
   ArgsInserterSink writer(inserter);
   base::Status status =
       args_parser_.ParseMessage(blob,
@@ -230,9 +229,8 @@ void WinscopeModule::ParseInputMethodManagerServiceData(
                    .id;
 
   auto inserter = trace_processor_context->args_tracker->AddArgsTo(rowId);
-  util::ProtoArgsEnv env;
-  env.packet_timestamp = timestamp;
-  env.process_tracker = trace_processor_context->process_tracker.get();
+  util::ProtoArgsEnv env(timestamp,
+                         trace_processor_context->process_tracker.get());
   ArgsInserterSink writer(inserter);
   base::Status status = args_parser_.ParseMessage(
       blob,
@@ -260,9 +258,8 @@ void WinscopeModule::ParseInputMethodServiceData(int64_t timestamp,
           .id;
 
   auto inserter = trace_processor_context->args_tracker->AddArgsTo(rowId);
-  util::ProtoArgsEnv env;
-  env.packet_timestamp = timestamp;
-  env.process_tracker = trace_processor_context->process_tracker.get();
+  util::ProtoArgsEnv env(timestamp,
+                         trace_processor_context->process_tracker.get());
   ArgsInserterSink writer(inserter);
   base::Status status =
       args_parser_.ParseMessage(blob,

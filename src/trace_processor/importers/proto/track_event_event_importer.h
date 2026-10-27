@@ -1329,10 +1329,8 @@ class TrackEventEventImporter {
       if (event_.has_callstack_iid() || event_.has_callstack())
         log_errors(ParseCallstack());
     }
-    util::ProtoArgsEnv env;
+    util::ProtoArgsEnv env(ts_, context_->process_tracker.get());
     env.seq_state = sequence_state_;
-    env.packet_timestamp = ts_;
-    env.process_tracker = context_->process_tracker.get();
     std::optional<ArgsInserterSink> sink;
     if (inserter) {
       sink.emplace(*inserter);

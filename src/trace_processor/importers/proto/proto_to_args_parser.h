@@ -62,6 +62,10 @@ struct ProtoArgsEnv {
     kRaw,
   };
 
+  ProtoArgsEnv() = default;
+  ProtoArgsEnv(int64_t ts, ProcessTracker* tracker)
+      : packet_timestamp(ts), process_tracker(tracker) {}
+
   // Returns the interned message |iid| of |field_id| in |seq_state|, or null.
   InternedMessageView* GetInternedMessageView(uint32_t field_id,
                                               uint64_t iid) const;

@@ -138,10 +138,8 @@ const SnapshotId SurfaceFlingerLayersParser::ParseSnapshot(
 
   auto inserter =
       context_->trace_processor_context_->args_tracker->AddArgsTo(snapshot_id);
-  util::ProtoArgsEnv env;
-  env.packet_timestamp = timestamp;
-  env.process_tracker =
-      context_->trace_processor_context_->process_tracker.get();
+  util::ProtoArgsEnv env(
+      timestamp, context_->trace_processor_context_->process_tracker.get());
   ArgsInserterSink writer(inserter);
   const auto table_name = tables::SurfaceFlingerLayersSnapshotTable::Name();
   auto allowed_fields =
@@ -169,10 +167,8 @@ void SurfaceFlingerLayersParser::ParseLayer(
       InsertLayerRow(blob, snapshot_id, visibility, layers_by_id, rects);
   auto inserter =
       context_->trace_processor_context_->args_tracker->AddArgsTo(row_id);
-  util::ProtoArgsEnv env;
-  env.packet_timestamp = timestamp;
-  env.process_tracker =
-      context_->trace_processor_context_->process_tracker.get();
+  util::ProtoArgsEnv env(
+      timestamp, context_->trace_processor_context_->process_tracker.get());
   ArgsInserterSink writer(inserter);
   base::Status status =
       args_parser_.ParseMessage(blob,

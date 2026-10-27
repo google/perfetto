@@ -81,9 +81,8 @@ tables::WindowManagerTable::Id WindowManagerParser::InsertSnapshotRow(
                     .id;
 
   auto inserter = trace_processor_context->args_tracker->AddArgsTo(row_id);
-  util::ProtoArgsEnv env;
-  env.packet_timestamp = timestamp;
-  env.process_tracker = trace_processor_context->process_tracker.get();
+  util::ProtoArgsEnv env(timestamp,
+                         trace_processor_context->process_tracker.get());
   ArgsInserterSink writer(inserter);
   base::Status status =
       args_parser_.ParseMessage(pruned_proto_bytes,
@@ -198,10 +197,8 @@ void WindowManagerParser::InsertWindowContainerArgs(
 
   auto inserter =
       context_->trace_processor_context_->args_tracker->AddArgsTo(row_id);
-  util::ProtoArgsEnv env;
-  env.packet_timestamp = timestamp;
-  env.process_tracker =
-      context_->trace_processor_context_->process_tracker.get();
+  util::ProtoArgsEnv env(
+      timestamp, context_->trace_processor_context_->process_tracker.get());
   ArgsInserterSink writer(inserter);
 
   base::Status status = args_parser_.ParseMessage(

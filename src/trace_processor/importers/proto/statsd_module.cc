@@ -193,9 +193,7 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
   context_->slice_tracker->Scoped(
       ts, InternTrackId(), kNullStringId, atom_name, 0,
       [&](ArgsInserter& inserter) {
-        util::ProtoArgsEnv env;
-        env.packet_timestamp = ts;
-        env.process_tracker = context_->process_tracker.get();
+        util::ProtoArgsEnv env(ts, context_->process_tracker.get());
         ArgsInserterSink sink(inserter);
 
         const auto& descriptor =
