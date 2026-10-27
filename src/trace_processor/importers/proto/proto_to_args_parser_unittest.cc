@@ -131,7 +131,9 @@ class ArgsRecorder : public ArgSink {
   TraceProcessorContext context_;
 
  private:
-  std::string K(StringPool::Id id) { return string_pool_.Get(id).ToStdString(); }
+  std::string K(StringPool::Id id) {
+    return string_pool_.Get(id).ToStdString();
+  }
 
   std::vector<std::string> args_;
   std::map<StringPool::Id, size_t> array_indices_;
@@ -374,7 +376,8 @@ TEST_F(ProtoToArgsParserTest, ParseMessageField) {
     protozero::Field field = decoder.ReadField();
     ASSERT_EQ(field.id(),
               static_cast<uint32_t>(NestedA::kSuperNestedFieldNumber));
-    ASSERT_OK(parser.ParseMessageField(nested_a, field, env(), *this, &unknown));
+    ASSERT_OK(
+        parser.ParseMessageField(nested_a, field, env(), *this, &unknown));
   }
   protozero::HeapBuffered<EveryField> scalar{kChunkSize, kChunkSize};
   scalar->set_field_string("s");
@@ -388,8 +391,8 @@ TEST_F(ProtoToArgsParserTest, ParseMessageField) {
       9999,
       static_cast<uint8_t>(protozero::proto_utils::ProtoWireType::kVarInt), 1,
       0);
-  ASSERT_OK(
-      parser.ParseMessageField(every_field, unknown_field, env(), *this, &unknown));
+  ASSERT_OK(parser.ParseMessageField(every_field, unknown_field, env(), *this,
+                                     &unknown));
   EXPECT_EQ(unknown, 1);
   // Occurrences of a repeated field are numbered across calls that share
   // an index.
@@ -402,8 +405,8 @@ TEST_F(ProtoToArgsParserTest, ParseMessageField) {
   ProtoToArgsParser::RepeatedFieldIndex index;
   for (protozero::Field f = repeated_decoder.ReadField(); f.valid();
        f = repeated_decoder.ReadField()) {
-    ASSERT_OK(
-        parser.ParseMessageField(every_field, f, env(), *this, &unknown, &index));
+    ASSERT_OK(parser.ParseMessageField(every_field, f, env(), *this, &unknown,
+                                       &index));
   }
   EXPECT_THAT(args(), testing::ElementsAre(
                           "super_nested.value_c super_nested.value_c 1",
@@ -479,9 +482,8 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideHandled) {
                            << status.message();
 
   parser.AddParsingOverrideForField(
-      "super_nested.value_c",
-      [](const protozero::Field& field,
-         ProtoToArgsParser::OverrideContext& ctx) {
+      "super_nested.value_c", [](const protozero::Field& field,
+                                 ProtoToArgsParser::OverrideContext& ctx) {
         EXPECT_EQ(field.type(), protozero::proto_utils::ProtoWireType::kVarInt);
         ctx.Add(base::StringView("super_nested.value_b.replaced"),
                 Variadic::Integer(field.as_int32()));
@@ -517,8 +519,9 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideSkipped) {
 
   int nested_val = 0;
   parser.AddParsingOverrideForField(
-      "super_nested.value_c", [&nested_val](const protozero::Field& field,
-                                            ProtoToArgsParser::OverrideContext&) {
+      "super_nested.value_c",
+      [&nested_val](const protozero::Field& field,
+                    ProtoToArgsParser::OverrideContext&) {
         ++nested_val;
         EXPECT_EQ(1, nested_val);
         EXPECT_EQ(field.type(), protozero::proto_utils::ProtoWireType::kVarInt);
@@ -570,8 +573,7 @@ TEST_F(ProtoToArgsParserTest, LookingUpInternedStateParsingOverride) {
   // multiple args rows.
   parser.AddParsingOverrideForField(
       "super_nested.value_c",
-      [](const protozero::Field& field,
-         ProtoToArgsParser::OverrideContext& ctx)
+      [](const protozero::Field& field, ProtoToArgsParser::OverrideContext& ctx)
           -> std::optional<base::Status> {
         auto* decoder = ctx.env().GetInternedMessage(
             protos::pbzero::InternedData::kSourceLocations, field.as_uint64());
@@ -858,7 +860,8 @@ TEST_F(ProtoToArgsParserTest, AddsDefaults) {
 
   status = parser.ParseMessage(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.EveryField", nullptr, env(), *this, nullptr, true);
+      ".protozero.test.protos.EveryField", nullptr, env(), *this, nullptr,
+      true);
 
   EXPECT_TRUE(status.ok()) << "AddsDefaults failed with error: "
                            << status.message();
@@ -870,8 +873,7 @@ TEST_F(ProtoToArgsParserTest, AddsDefaults) {
           "repeated_string repeated_string[0] test",
           "repeated_sfixed32 repeated_sfixed32[0] 1",
           "repeated_fixed64 repeated_fixed64[0] 1",
-          "nested_enum nested_enum PONG",
-          "field_bytes field_bytes ",
+          "nested_enum nested_enum PONG", "field_bytes field_bytes ",
           "field_string field_string [NULL]",  // null if no string default
           "field_nested field_nested [NULL]",  // no defaults for inner fields
           "field_bool field_bool false",
@@ -1065,7 +1067,8 @@ TEST_F(DebugAnnotationParserTest, DoesNotReuseStaleUnknownExtensionsPointer) {
       static_cast<uint8_t>(protozero::proto_utils::ProtoWireType::kVarInt), 1,
       0);
   ASSERT_TRUE(
-      args_parser.ParseMessageField(every_field, unknown_field, env(), *this, &unknown)
+      args_parser
+          .ParseMessageField(every_field, unknown_field, env(), *this, &unknown)
           .ok());
   ASSERT_EQ(unknown, 1);
 
@@ -1202,7 +1205,8 @@ TEST_F(DebugAnnotationParserTest, ErrorClearsPersistentWorkState) {
   DescriptorPool pool;
   ProtoToArgsParser args_parser(pool, string_pool_);
 
-  base::Status status = ParseDebugAnnotation(args_parser, bad_msg, env(), *this);
+  base::Status status =
+      ParseDebugAnnotation(args_parser, bad_msg, env(), *this);
   EXPECT_FALSE(status.ok());
 
   protozero::HeapBuffered<protos::pbzero::DebugAnnotation> good_msg;

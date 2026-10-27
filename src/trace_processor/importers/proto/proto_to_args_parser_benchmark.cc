@@ -46,9 +46,7 @@ class BenchmarkSink : public ArgSink {
     sink_ += key.flat_key.raw_id() + key.key.raw_id() +
              static_cast<uint64_t>(value.type);
   }
-  size_t ArrayIndex(StringPool::Id key) override {
-    return array_indexes_[key];
-  }
+  size_t ArrayIndex(StringPool::Id key) override { return array_indexes_[key]; }
   size_t IncrementArrayIndex(StringPool::Id key) override {
     return ++array_indexes_[key];
   }
