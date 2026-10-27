@@ -1098,6 +1098,9 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
         stats::traced_buf_buffer_size, buf_num,
         static_cast<int64_t>(buf.buffer_size()));
     context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_buffer_type, buf_num,
+        static_cast<int64_t>(buf.buffer_type()));
+    context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_bytes_written, buf_num,
         static_cast<int64_t>(buf.bytes_written()));
     context_->stats_tracker->SetIndexedStats(
@@ -1163,6 +1166,54 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_oversized_packets_dropped, buf_num,
         static_cast<int64_t>(buf.oversized_packets_dropped()));
+    protos::pbzero::TraceStats::BufferStats::ExperimentalV3Stats::Decoder
+        v3_stats(buf.experimental_v3_stats());
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundles_written, buf_num,
+        static_cast<int64_t>(v3_stats.bundles_written()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundle_bytes_uncompressed, buf_num,
+        static_cast<int64_t>(v3_stats.bundle_bytes_uncompressed()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundle_bytes_stored, buf_num,
+        static_cast<int64_t>(v3_stats.bundle_bytes_stored()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundles_overwritten, buf_num,
+        static_cast<int64_t>(v3_stats.bundles_overwritten()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundles_too_large, buf_num,
+        static_cast<int64_t>(v3_stats.bundles_too_large()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundling_max_us, buf_num,
+        static_cast<int64_t>(v3_stats.bundling_max_us()));
+
+    // The stats table holds one value per buffer index, so import the total
+    // count and time of the bundling passes instead of each bucket.
+    // The full distribution stays in the TraceStats packet.
+    bool histogram_error = false;
+    uint64_t bundling_passes = 0;
+    uint64_t bundling_time_us = 0;
+    for (auto count =
+             v3_stats.bundling_time_us_histogram_counts(&histogram_error);
+         count; ++count) {
+      bundling_passes += *count;
+    }
+    for (auto sum = v3_stats.bundling_time_us_histogram_sum(&histogram_error);
+         sum; ++sum) {
+      bundling_time_us += static_cast<uint64_t>(*sum);
+    }
+    if (!histogram_error) {
+      context_->stats_tracker->SetIndexedStats(
+          stats::traced_buf_bundling_passes, buf_num,
+          static_cast<int64_t>(bundling_passes));
+      context_->stats_tracker->SetIndexedStats(
+          stats::traced_buf_bundling_time_us, buf_num,
+          static_cast<int64_t>(bundling_time_us));
+    }
+
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_staging_space_passes, buf_num,
+        static_cast<int64_t>(v3_stats.staging_space_passes()));
   }
 
   struct BufStats {

@@ -261,6 +261,40 @@ traced_buf_chunks_di                    0 info                 trace       0
 traced_buf_chunks_ov                    0 info                 trace       0
 ```
 
+`traced_buf_buffer_type` reports the type actually used, so it reflects any
+fallback during selection. The values are 1 for V1, 2 for V2 and 3 for V3.
+A value of 0 means the service did not report the type.
+
+A compressed buffer (`buffer_type.v3`) can also lose data after compression.
+Its bundle counters are experimental, in
+`TraceStats.BufferStats.experimental_v3_stats`, and can change.
+For such a buffer:
+
+* `chunks_overwritten` and `chunks_discarded` count only the chunks lost in
+  its staging buffer, before their packets were compressed.
+  `chunks_discarded` can also count late commits of chunks that the service
+  already scraped and compressed after a flush. Those packets are not lost.
+* `bundles_overwritten` (`traced_buf_bundles_overwritten`) counts bundles that
+  a `RING_BUFFER` overwrote before they were read. This is how a compressed
+  ring buffer normally drops old data.
+* `bundles_too_large` (`traced_buf_bundles_too_large`) counts bundles dropped
+  because they were larger than `size_kb` after compression, with either fill
+  policy. This happens when a large packet doesn't compress well. Use a larger
+  buffer.
+
+`traced_buf_bundle_bytes_uncompressed` divided by
+`traced_buf_bundle_bytes_stored` is the compression ratio including bundle
+overhead. This helps to size `size_kb`.
+
+The service compresses on its main thread. While a pass runs, it doesn't copy
+chunks out of the producers' shared memory buffers, so long passes can add to
+[shared memory losses](#shared-memory-losses).
+`traced_buf_bundling_max_us` is the longest pass, and
+`traced_buf_bundling_passes` and `traced_buf_bundling_time_us` count all
+passes and their total time, including passes with no readable packets.
+`traced_buf_staging_space_passes` counts the passes triggered when a chunk
+doesn't fit in staging. `TraceStats` also has the full duration histogram.
+
 When using [streaming mode] an overwrite is also a data loss: the overwritten
 data is never written into the file, so the trace has a gap. This data is
 available in the `stats` table, one entry per affected central buffer, where
