@@ -39,6 +39,7 @@
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
+#include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_arg_fields.h"
 #include "src/trace_processor/importers/proto/track_event_event_importer.h"
@@ -46,7 +47,6 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"

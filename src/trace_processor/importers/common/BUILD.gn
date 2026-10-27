@@ -98,8 +98,11 @@ source_set("common") {
   public_deps = [
     ":stats_tracker",
     ":synthetic_tid_hdr",
+    "../../../base",
+    "../../containers",
     "../../util:clock",
-    "../../util:proto_to_args_parser",
+    "../../util:descriptors",
+    "../../util:interned_message_view",
     "../../util:protozero_to_text",
   ]
   deps = [

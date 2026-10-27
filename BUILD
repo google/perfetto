@@ -464,6 +464,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
+        ":src_trace_processor_importers_proto_proto_to_args_parser",
         ":src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
@@ -600,7 +601,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
-        ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_simple_json_serializer",
@@ -794,6 +794,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
+        ":src_trace_processor_importers_proto_proto_to_args_parser",
         ":src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
@@ -940,7 +941,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
-        ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_simple_json_serializer",
@@ -3552,6 +3552,15 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/proto_importer_module.h",
         "src/trace_processor/importers/proto/selective_trace_packet_decoder.h",
         "src/trace_processor/importers/proto/typed_proto_field.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/proto:proto_to_args_parser
+perfetto_filegroup(
+    name = "src_trace_processor_importers_proto_proto_to_args_parser",
+    srcs = [
+        "src/trace_processor/importers/proto/proto_to_args_parser.cc",
+        "src/trace_processor/importers/proto/proto_to_args_parser.h",
     ],
 )
 
@@ -6482,15 +6491,6 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/util/proto_profiler.cc",
         "src/trace_processor/util/proto_profiler.h",
-    ],
-)
-
-# GN target: //src/trace_processor/util:proto_to_args_parser
-perfetto_filegroup(
-    name = "src_trace_processor_util_proto_to_args_parser",
-    srcs = [
-        "src/trace_processor/util/proto_to_args_parser.cc",
-        "src/trace_processor/util/proto_to_args_parser.h",
     ],
 )
 
@@ -12111,6 +12111,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
+        ":src_trace_processor_importers_proto_proto_to_args_parser",
         ":src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
@@ -12246,7 +12247,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
-        ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_simple_json_serializer",
@@ -12476,6 +12476,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
+        ":src_trace_processor_importers_proto_proto_to_args_parser",
         ":src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
@@ -12611,7 +12612,6 @@ perfetto_cc_binary(
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
-        ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_simple_json_serializer",

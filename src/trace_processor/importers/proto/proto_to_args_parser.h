@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_UTIL_PROTO_TO_ARGS_PARSER_H_
-#define SRC_TRACE_PROCESSOR_UTIL_PROTO_TO_ARGS_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TO_ARGS_PARSER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TO_ARGS_PARSER_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -494,4 +494,4 @@ class ProtoToArgsParser {
 }  // namespace util
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_UTIL_PROTO_TO_ARGS_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TO_ARGS_PARSER_H_

@@ -32,13 +32,13 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
+#include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 namespace perfetto::trace_processor {
 

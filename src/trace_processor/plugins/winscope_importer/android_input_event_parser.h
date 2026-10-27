@@ -23,8 +23,8 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 namespace perfetto::trace_processor {
 

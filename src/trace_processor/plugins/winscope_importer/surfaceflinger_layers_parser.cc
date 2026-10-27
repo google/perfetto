@@ -30,6 +30,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
+#include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_extractor.h"
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_rect_computation.h"
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_utils.h"
@@ -40,7 +41,6 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 namespace perfetto::trace_processor::winscope {
 

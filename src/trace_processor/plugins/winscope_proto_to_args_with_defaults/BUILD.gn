@@ -36,11 +36,11 @@ source_set("winscope_proto_to_args_with_defaults") {
     "../../containers",
     "../../core/dataframe",
     "../../core/plugin",
+    "../../importers/proto:proto_to_args_parser",
     "../../perfetto_sql/engine",
     "../../storage",
     "../../types",
     "../../util:descriptors",
-    "../../util:proto_to_args_parser",
     "../winscope_importer",
   ]
 }

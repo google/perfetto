@@ -27,10 +27,10 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 namespace perfetto::trace_processor {
 

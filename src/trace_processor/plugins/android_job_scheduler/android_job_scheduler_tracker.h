@@ -22,10 +22,10 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/field.h"
+#include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/importers/proto/track_event_extension_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
 
