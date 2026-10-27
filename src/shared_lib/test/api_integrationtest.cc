@@ -55,6 +55,8 @@
 #include "perfetto/public/te_macros.h"
 #include "perfetto/public/tracing_session.h"
 #include "perfetto/public/track_event.h"
+#include "perfetto/tracing/core/flush_flags.h"
+#include "perfetto/tracing/data_source.h"
 
 #include "test/gtest_and_gmock.h"
 
@@ -1343,6 +1345,53 @@ TEST_F(SharedLibDataSourceTest, FlushReason) {
   tracing_session.FlushBlocking(/*timeout_ms=*/10000);
   flush_called.WaitForNotification();
   EXPECT_EQ(reason, static_cast<uint64_t>(PERFETTO_DS_FLUSH_REASON_EXPLICIT));
+}
+
+TEST_F(SharedLibDataSourceTest, FlushCloneTarget) {
+  EXPECT_EQ(PerfettoDsOnFlushArgsGetCloneTarget(nullptr),
+            static_cast<uint64_t>(PERFETTO_DS_FLUSH_CLONE_TARGET_UNKNOWN));
+
+  struct FakeFlushArgs : public perfetto::DataSourceBase::FlushArgs {
+    std::function<void()> HandleFlushAsynchronously() const override {
+      return [] {};
+    }
+  };
+  FakeFlushArgs unknown_args;
+  unknown_args.flush_flags = perfetto::FlushFlags(
+      perfetto::FlushFlags::Initiator::kTraced,
+      perfetto::FlushFlags::Reason::kTraceClone,
+      perfetto::FlushFlags::CloneTarget::kUnknown);
+  EXPECT_EQ(PerfettoDsOnFlushArgsGetCloneTarget(
+                reinterpret_cast<struct PerfettoDsOnFlushArgs*>(&unknown_args)),
+            static_cast<uint64_t>(PERFETTO_DS_FLUSH_CLONE_TARGET_UNKNOWN));
+
+  FakeFlushArgs bugreport_args;
+  bugreport_args.flush_flags = perfetto::FlushFlags(
+      perfetto::FlushFlags::Initiator::kTraced,
+      perfetto::FlushFlags::Reason::kTraceClone,
+      perfetto::FlushFlags::CloneTarget::kBugreport);
+  EXPECT_EQ(
+      PerfettoDsOnFlushArgsGetCloneTarget(
+          reinterpret_cast<struct PerfettoDsOnFlushArgs*>(&bugreport_args)),
+      static_cast<uint64_t>(PERFETTO_DS_FLUSH_CLONE_TARGET_BUGREPORT));
+
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name(kDataSourceName2).Build();
+
+  uint64_t clone_target = PERFETTO_DS_FLUSH_CLONE_TARGET_BUGREPORT;
+  WaitableEvent flush_called;
+
+  EXPECT_CALL(ds2_callbacks_, OnFlush(_, _, kDataSource2UserArg, _, _))
+      .WillOnce([&](struct PerfettoDsImpl*, PerfettoDsInstanceIndex, void*,
+                    void*, struct PerfettoDsOnFlushArgs* args) {
+        clone_target = PerfettoDsOnFlushArgsGetCloneTarget(args);
+        flush_called.Notify();
+      });
+
+  tracing_session.FlushBlocking(/*timeout_ms=*/10000);
+  flush_called.WaitForNotification();
+  EXPECT_EQ(clone_target,
+            static_cast<uint64_t>(PERFETTO_DS_FLUSH_CLONE_TARGET_UNKNOWN));
 }
 
 TEST_F(SharedLibDataSourceTest, ThreadLocalState) {
