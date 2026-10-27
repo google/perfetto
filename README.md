@@ -15,6 +15,8 @@ It is a production-grade tool that is the default tracing system for the
 
 ## Core Components
 
+sdfjdsfjklsdjklfdkljsf
+
 Perfetto is not a single tool, but a collection of components that work
 together:
 
