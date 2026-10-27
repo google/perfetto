@@ -36,6 +36,21 @@ namespace perfetto::trace_processor::core::exec {
 
 class RowBatch;
 
+// Where one batch's values of a column are, as a ColumnView has them, flat
+// enough to be copied into an array: row `row` of the batch is the value and
+// the bit at `start + row`.
+struct GatherSource {
+  static GatherSource Of(const ColumnView& view) {
+    return {view.data(), view.validity(), view.start()};
+  }
+
+  // Null for a sequence, whose value is where it would be stored.
+  const void* data;
+  // Null when every value is there.
+  const BitVector* validity;
+  uint32_t start;
+};
+
 // kMaxBatchRows rows of one column: the buffer matching the column's type,
 // plus which of its rows hold a value.
 struct ColumnChunk {
@@ -49,16 +64,16 @@ struct ColumnChunk {
   // `offset`, preserving value bits and nulls.
   void CopyFrom(const RowBatch& batch, uint32_t column, uint32_t offset);
 
-  // Copies, for each i below `count`, batch row rows[i] of views[sources[i]]
-  // into this chunk at i. The views hold one type. The type is dispatched on
-  // once, however the rows interleave the views. `nullable` is whether any of
-  // `views` has nulls; `bases` is scratch.
-  void Gather(const std::vector<const ColumnView*>& views,
-              const uint32_t* sources,
+  // Copies, for each i below `count`, batch row rows[i] of
+  // sources[batches[i]] into this chunk at i. The sources hold the type of
+  // `like`, a view of any of them, which is dispatched on once. `nullable` is
+  // whether any of the sources has nulls.
+  void Gather(const ColumnView& like,
+              const GatherSource* sources,
+              const uint32_t* batches,
               const uint32_t* rows,
               uint32_t count,
-              bool nullable,
-              std::vector<const void*>* bases);
+              bool nullable);
 
   // Copies the first `count` of `data`, present where `present` says if not
   // null, into this chunk, and views them.

@@ -55,19 +55,23 @@ base::Status RowStore::Append(const RowBatch& in) {
     }
 #endif
   } else {
-    nullable_.assign(in.column_count(), false);
+    nullable_ = FlexVector<bool>::CreateFilled(in.column_count(), false);
+    sources_.resize(in.column_count());
   }
   if (held_ == batches_.size()) {
     batches_.push_back(std::make_unique<RowBatch>());
   }
-  batches_[held_++]->CopyFrom(in);
+  const RowBatch& held = *batches_[held_];
+  batches_[held_]->CopyFrom(in);
   for (uint32_t c = 0; c < in.column_count(); ++c) {
-    if (in.column(c).validity()) {
+    const ColumnView& column = held.column(c);
+    sources_[c].push_back(GatherSource::Of(column));
+    if (column.validity()) {
       nullable_[c] = true;
     }
   }
   size_ += in.size();
-  batch_of_row_.resize(size_, static_cast<uint32_t>(ends_.size()));
+  batch_of_row_.push_back_multiple(held_++, in.size());
   ends_.push_back(size_);
   return base::OkStatus();
 }
@@ -79,13 +83,11 @@ void RowStore::Clear() {
   held_ = 0;
   ends_.clear();
   batch_of_row_.clear();
+  for (FlexVector<GatherSource>& sources : sources_) {
+    sources.clear();
+  }
   nullable_.clear();
   size_ = 0;
-}
-
-uint32_t RowStore::Find(uint32_t row) const {
-  PERFETTO_DCHECK(row < size_);
-  return batch_of_row_[row];
 }
 
 uint32_t RowStore::View(RowBatch* out, uint32_t offset, uint32_t count) const {
@@ -93,6 +95,7 @@ uint32_t RowStore::View(RowBatch* out, uint32_t offset, uint32_t count) const {
   if (!count) {
     return 0;
   }
+  PERFETTO_DCHECK(offset < size_);
   uint32_t batch = Find(offset);
   uint32_t start = batch ? ends_[batch - 1] : 0;
   count = std::min(count, ends_[batch] - offset);
@@ -110,31 +113,22 @@ uint32_t RowStore::Gather(RowBatch* out,
   if (!count) {
     return 0;
   }
-  // Which batch each row is in, and where in it: found once for every
+  // Which batch each row is in, and which row of it: found once for every
   // column. Rows taken out of order rarely come in runs from one batch, so
   // each column is then copied a row at a time, not a run at a time.
-  std::array<uint32_t, kMaxBatchRows> sources;
+  std::array<uint32_t, kMaxBatchRows> batches;
   std::array<uint32_t, kMaxBatchRows> batch_rows;
-  uint32_t batch = Find(rows[0]);
-  uint32_t start = batch ? ends_[batch - 1] : 0;
   for (uint32_t r = 0; r < count; ++r) {
-    if (rows[r] < start || rows[r] >= ends_[batch]) {
-      batch = Find(rows[r]);
-      start = batch ? ends_[batch - 1] : 0;
-    }
-    sources[r] = batch;
-    batch_rows[r] = batches_[batch]->selection()[rows[r] - start];
+    PERFETTO_DCHECK(rows[r] < size_);
+    batches[r] = Find(rows[r]);
+    batch_rows[r] = RowInBatch(rows[r], batches[r]);
   }
   const RowBatch& first = *batches_[0];
-  views_.resize(held_);
   for (uint32_t c = 0; c < first.column_count(); ++c) {
-    for (uint32_t b = 0; b < held_; ++b) {
-      views_[b] = &batches_[b]->column(c);
-    }
     ColumnBuffer buffer = context.TakeBuffer();
     ColumnChunk& chunk = buffer.chunk();
-    chunk.Gather(views_, sources.data(), batch_rows.data(), count, nullable_[c],
-                 &bases_);
+    chunk.Gather(first.column(c), sources_[c].data(), batches.data(),
+                 batch_rows.data(), count, nullable_[c]);
     out->AddColumn(chunk.View(first.column(c), nullable_[c]),
                    std::move(buffer));
   }
