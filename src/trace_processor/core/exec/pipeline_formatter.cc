@@ -69,6 +69,8 @@ std::string OpName(const Op& op) {
       return ">=";
     case Op::GetTypeIndex<In>():
       return "IN";
+    case Op::GetTypeIndex<Glob>():
+      return "GLOB";
     case Op::GetTypeIndex<IsNull>():
       return "IS NULL";
     case Op::GetTypeIndex<IsNotNull>():
