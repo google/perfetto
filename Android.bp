@@ -19426,6 +19426,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile/intervals.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile/summary_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/lmk.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/memcg.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/memory_breakdown.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/process.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/monitor_contention.sql",
