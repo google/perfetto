@@ -611,3 +611,4 @@ power/psci_domain_idle_exit
 power/psci_domain_idle_enter
 pixel_metrics/long_irq
 pixel_metrics/long_softirq
+gti/tracing_mark_write

@@ -97,6 +97,7 @@
 #include "protos/perfetto/trace/ftrace/google_icc_trace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/google_irm_trace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/gpu_mem.pbzero.h"
+#include "protos/perfetto/trace/ftrace/gti.pbzero.h"
 #include "protos/perfetto/trace/ftrace/i2c.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ion.pbzero.h"
 #include "protos/perfetto/trace/ftrace/irq.pbzero.h"
@@ -1188,6 +1189,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseDpuTracingMarkWrite(ts, pid, fld_bytes);
         break;
       }
+      case FtraceEvent::kGtiTracingMarkWriteFieldNumber: {
+        ParseGtiTracingMarkWrite(ts, pid, fld_bytes);
+        break;
+      }
       case FtraceEvent::kDpuDispDpuUnderrunFieldNumber: {
         ParseDpuDispDpuUnderrun(ts, fld_bytes);
         break;
@@ -2124,6 +2129,28 @@ void FtraceParser::ParseDpuTracingMarkWrite(int64_t timestamp,
   // rely on the existing swapper workarounds. Counter event parsing has
   // existing workarounds for this scenario, so keep their tgid for backwards
   // compatibility with existing queries.
+  char evt_type = static_cast<char>(evt.type());
+  uint32_t tgid = static_cast<uint32_t>(evt.pid());
+  if (evt_type != 'C')
+    tgid = 0;
+
+  SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
+      timestamp, pid, evt_type, false /*trace_begin*/, evt.name(), tgid,
+      evt.value());
+}
+
+void FtraceParser::ParseGtiTracingMarkWrite(int64_t timestamp,
+                                            uint32_t pid,
+                                            ConstBytes blob) {
+  protos::pbzero::GtiTracingMarkWriteFtraceEvent::Decoder evt(blob);
+  if (!evt.type()) {
+    context_->stats_tracker->IncrementStats(stats::systrace_parse_failure);
+    return;
+  }
+
+  // Same tgid handling as dpu/tracing_mark_write: B/E/I events are emitted
+  // from kernel threads (e.g. threaded IRQ handlers), so rely on the existing
+  // swapper workarounds for those and keep the tgid for counter events.
   char evt_type = static_cast<char>(evt.type());
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
   if (evt_type != 'C')

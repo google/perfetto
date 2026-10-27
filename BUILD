@@ -9636,6 +9636,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/ftrace/google_irm_trace.proto",
         "protos/perfetto/trace/ftrace/gpu_mem.proto",
         "protos/perfetto/trace/ftrace/gpu_scheduler.proto",
+        "protos/perfetto/trace/ftrace/gti.proto",
         "protos/perfetto/trace/ftrace/hyp.proto",
         "protos/perfetto/trace/ftrace/hypervisor.proto",
         "protos/perfetto/trace/ftrace/i2c.proto",

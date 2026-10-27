@@ -110,6 +110,9 @@ class FtraceParser {
                                 uint32_t pid,
                                 protozero::ConstBytes);
   void ParseDpuDispDpuUnderrun(int64_t timestamp, protozero::ConstBytes);
+  void ParseGtiTracingMarkWrite(int64_t timestamp,
+                                uint32_t pid,
+                                protozero::ConstBytes);
   void ParseGramCollision(int64_t timestamp, protozero::ConstBytes);
   void ParseG2dTracingMarkWrite(int64_t timestamp,
                                 uint32_t pid,
