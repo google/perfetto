@@ -390,6 +390,7 @@ class ChunkSeqReader {
   };
   FragReassemblyOutcome ReassembleFragmentedPacket(TracePacket* out_packet,
                                                    Frag* initial_frag);
+  void ReportReadGapBeforeChunk();
   void ConsumeFragment(TBChunk*, Frag*);
 
   TraceBufferV2* const buf_ = nullptr;
