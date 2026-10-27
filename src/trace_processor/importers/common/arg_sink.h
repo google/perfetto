@@ -20,17 +20,18 @@
 #include <cstddef>
 
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
 
+class ArgsInserter;
+
 // The key of one arg. |flat_key| is the path without array indices; |key|
 // includes them. The two are equal when no array is on the path.
 struct ArgKey {
-  StringId flat_key;
-  StringId key;
+  StringPool::Id flat_key;
+  StringPool::Id key;
 };
 
 // Receives args produced by a parser, e.g. ProtoToArgsParser or the JSON args
@@ -43,10 +44,10 @@ class ArgSink {
 
   // Array indices under |key| are tracked by the sink so that arrays built
   // across several parses into the same sink continue each other.
-  virtual size_t ArrayIndex(StringId) {
+  virtual size_t ArrayIndex(StringPool::Id) {
     PERFETTO_FATAL("Arrays not supported by this sink");
   }
-  virtual size_t IncrementArrayIndex(StringId) {
+  virtual size_t IncrementArrayIndex(StringPool::Id) {
     PERFETTO_FATAL("Arrays not supported by this sink");
   }
 
@@ -61,15 +62,9 @@ class ArgsInserterSink : public ArgSink {
   explicit ArgsInserterSink(ArgsInserter& inserter) : inserter_(inserter) {}
   ~ArgsInserterSink() override;
 
-  void Add(ArgKey key, Variadic value) override {
-    inserter_.AddArg(key.flat_key, key.key, value);
-  }
-  size_t ArrayIndex(StringId key) override {
-    return inserter_.GetNextArrayEntryIndex(key);
-  }
-  size_t IncrementArrayIndex(StringId key) override {
-    return inserter_.IncrementArrayEntryIndex(key);
-  }
+  void Add(ArgKey key, Variadic value) override;
+  size_t ArrayIndex(StringPool::Id key) override;
+  size_t IncrementArrayIndex(StringPool::Id key) override;
 
  private:
   ArgsInserter& inserter_;

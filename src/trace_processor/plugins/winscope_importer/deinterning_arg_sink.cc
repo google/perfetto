@@ -34,7 +34,7 @@ constexpr char kIidSuffix[] = "_iid";
 constexpr size_t kIidSuffixSize = sizeof(kIidSuffix) - 1;
 constexpr char kDeinternError[] = "STRING DE-INTERNING ERROR";
 
-StringId StripIidSuffix(StringPool& pool, StringId id) {
+StringPool::Id StripIidSuffix(StringPool& pool, StringPool::Id id) {
   NullTermStringView str = pool.Get(id);
   return pool.InternString(
       base::StringView(str.data(), str.size() - kIidSuffixSize));

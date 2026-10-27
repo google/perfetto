@@ -43,8 +43,10 @@ class DeinterningArgSink : public ArgSink {
   ~DeinterningArgSink() override;
 
   void Add(ArgKey key, Variadic value) override;
-  size_t ArrayIndex(StringId key) override { return inner_.ArrayIndex(key); }
-  size_t IncrementArrayIndex(StringId key) override {
+  size_t ArrayIndex(StringPool::Id key) override {
+    return inner_.ArrayIndex(key);
+  }
+  size_t IncrementArrayIndex(StringPool::Id key) override {
     return inner_.IncrementArrayIndex(key);
   }
   bool WantsDefault(ArgKey key) override { return inner_.WantsDefault(key); }

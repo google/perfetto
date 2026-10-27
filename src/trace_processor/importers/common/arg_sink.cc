@@ -16,9 +16,27 @@
 
 #include "src/trace_processor/importers/common/arg_sink.h"
 
+#include <cstddef>
+
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/types/variadic.h"
+
 namespace perfetto::trace_processor {
 
 ArgSink::~ArgSink() = default;
 ArgsInserterSink::~ArgsInserterSink() = default;
+
+void ArgsInserterSink::Add(ArgKey key, Variadic value) {
+  inserter_.AddArg(key.flat_key, key.key, value);
+}
+
+size_t ArgsInserterSink::ArrayIndex(StringPool::Id key) {
+  return inserter_.GetNextArrayEntryIndex(key);
+}
+
+size_t ArgsInserterSink::IncrementArrayIndex(StringPool::Id key) {
+  return inserter_.IncrementArrayEntryIndex(key);
+}
 
 }  // namespace perfetto::trace_processor

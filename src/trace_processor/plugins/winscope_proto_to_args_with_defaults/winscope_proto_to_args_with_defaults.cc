@@ -281,22 +281,25 @@ base::Status InsertRows(
     InternedData* interned_data = proto_to_interned_data.Find(*base64_proto_id);
     WinscopeArgsSink args_sink(*base64_proto_id, inflated_args_table,
                                key_to_row);
-    winscope::DeinterningArgSink deinterning_sink(
-        args_sink, *string_pool,
-        [interned_data, string_pool](
-            ArgKey key, uint64_t iid) -> std::optional<base::StringView> {
-          DeinternedIids* iids = interned_data->Find(key.flat_key);
-          if (!iids) {
-            return std::nullopt;
-          }
-          DeinternedValue* value = iids->Find(static_cast<Iid>(iid));
-          if (!value) {
-            return std::nullopt;
-          }
-          return string_pool->Get(*value);
-        });
-    ArgSink& sink = interned_data ? static_cast<ArgSink&>(deinterning_sink)
-                                  : static_cast<ArgSink&>(args_sink);
+    std::optional<winscope::DeinterningArgSink> deinterning_sink;
+    if (interned_data) {
+      deinterning_sink.emplace(
+          args_sink, *string_pool,
+          [interned_data, string_pool](
+              ArgKey key, uint64_t iid) -> std::optional<base::StringView> {
+            DeinternedIids* iids = interned_data->Find(key.flat_key);
+            if (!iids) {
+              return std::nullopt;
+            }
+            DeinternedValue* value = iids->Find(static_cast<Iid>(iid));
+            if (!value) {
+              return std::nullopt;
+            }
+            return string_pool->Get(*value);
+          });
+    }
+    ArgSink& sink = deinterning_sink ? static_cast<ArgSink&>(*deinterning_sink)
+                                     : static_cast<ArgSink&>(args_sink);
     util::ProtoArgsEnv env;
     env.bytes = util::ProtoArgsEnv::BytesMode::kRaw;
 
