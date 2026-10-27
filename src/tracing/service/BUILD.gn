@@ -95,6 +95,7 @@ source_set("service") {
     ]
 
     # TraceBufferV3 needs zstd to store packets, so include it only with zstd.
+    # TraceBufferFactory skips it in other builds.
     sources += [
       "trace_buffer_v3.cc",
       "trace_buffer_v3.h",
