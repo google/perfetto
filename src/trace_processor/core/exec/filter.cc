@@ -42,6 +42,7 @@
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
+using filter::CastFilterValueListResult;
 using filter::CastFilterValueResult;
 
 // The batch rows kept so far: `count` of them from `rows`, increasing. Each
@@ -77,11 +78,13 @@ void Compare(const ColumnView& column,
              const FilterValue& cast,
              const StringPool& pool,
              Rows& r) {
+  // The value was cast for the column's storage type, which picks its
+  // alternative.
+  PERFETTO_DCHECK(cast.value.value.index() == StorageType::GetTypeIndex<T>());
   uint32_t* begin = r.rows;
   uint32_t* end = r.rows + r.count;
   uint32_t* kept;
   if constexpr (std::is_same_v<T, Id>) {
-    // An Id's value is where it would be stored.
     kept = filter::IdentityFilter(
         column.start(), begin, end, begin,
         base::unchecked_get<CastFilterValueResult::Id>(cast.value.value).value,
@@ -110,6 +113,24 @@ void Compare(const ColumnView& column,
   r.count = static_cast<uint32_t>(kept - begin);
 }
 
+// Keeps the rows of a column of storage type T whose value is in `list`.
+template <typename T>
+void KeepIn(const ColumnView& column,
+            const CastFilterValueListResult& list,
+            Rows& r) {
+  using M =
+      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
+  // An Id column stores nothing: its window's start is added to each row.
+  const auto* data = static_cast<const M*>(column.data());
+  if constexpr (!std::is_same_v<T, Id>) {
+    data += column.start();
+  }
+  Span<uint32_t> rows(r.rows, r.rows + r.count);
+  Span<uint32_t> dest = rows;
+  filter::NonIndexedFilterInScan<T>(list, data, column.start(), rows, dest);
+  r.count = static_cast<uint32_t>(dest.size());
+}
+
 template <typename T>
 void CompareByOp(const Op& op,
                  const ColumnView& column,
@@ -129,36 +150,36 @@ void CompareByOp(const Op& op,
       return Compare<T, Gt>(column, cast, pool, r);
     case Op::GetTypeIndex<Ge>():
       return Compare<T, Ge>(column, cast, pool, r);
+    case Op::GetTypeIndex<In>():
+      return KeepIn<T>(column, *cast.list, r);
     default:
       PERFETTO_FATAL("Unsupported filter operator");
   }
 }
 
-// Applies a comparison to the rows kept so far. As the interpreter does, it
-// first drops the nulls, which it can never be true of, and only then looks at
-// whether its value cast.
-void ApplyComparison(const Op& op,
-                     const FilterValue& cast,
-                     const ColumnView& column,
-                     const StringPool& pool,
-                     Rows& r) {
-  switch (cast.value.validity) {
-    case CastFilterValueResult::kNoneMatch:
-      r.count = 0;
-      return;
-    case CastFilterValueResult::kAllMatch:
-      KeepNulls(column, /*nulls=*/false, r);
-      return;
-    case CastFilterValueResult::kValid:
-      KeepNulls(column, /*nulls=*/false, r);
-      break;
+// Drops the nulls, which no comparison or IN is true of, as the interpreter
+// does. False if nothing is left to compare: no row can match the cast value,
+// every row left does, or no row is left.
+bool KeepRowsWhichCanMatch(const FilterValue& cast,
+                           const ColumnView& column,
+                           Rows& r) {
+  if (cast.value.validity == CastFilterValueResult::kNoneMatch) {
+    r.count = 0;
+    return false;
   }
-  if (r.count == 0) {
+  KeepNulls(column, /*nulls=*/false, r);
+  return cast.value.validity == CastFilterValueResult::kValid && r.count != 0;
+}
+
+// Applies a comparison or IN to the rows kept so far.
+void ApplyCondition(const Op& op,
+                    const FilterValue& cast,
+                    const ColumnView& column,
+                    const StringPool& pool,
+                    Rows& r) {
+  if (!KeepRowsWhichCanMatch(cast, column, r)) {
     return;
   }
-  // The value was cast for the column's storage type, which picks its
-  // alternative.
-  PERFETTO_DCHECK(cast.value.value.index() == column.type().index());
   switch (column.type().index()) {
     case StorageType::GetTypeIndex<Id>():
       PERFETTO_DCHECK(column.kind() == ColumnView::Kind::kSequence);
@@ -183,7 +204,8 @@ void ApplyComparison(const Op& op,
 Filter::Filter(std::vector<Condition> conditions, const StringPool* pool)
     : conditions_(std::move(conditions)), pool_(pool) {
   for (const Condition& c : conditions_) {
-    PERFETTO_CHECK(c.op.IsAnyOf<NonStringOp>() || c.op.IsAnyOf<NullOp>());
+    PERFETTO_CHECK(c.op.IsAnyOf<NonStringOp>() || c.op.IsAnyOf<NullOp>() ||
+                   c.op.Is<In>());
   }
 }
 
@@ -211,7 +233,7 @@ bool Filter::Process(RowBatch& batch, OperatorState& state) const {
       continue;
     }
     PERFETTO_DCHECK(c.value < s.context->filter_values().size());
-    ApplyComparison(c.op, values[c.value], column, *pool_, r);
+    ApplyCondition(c.op, values[c.value], column, *pool_, r);
   }
   batch.mutable_selection().KeepRows(
       Span<const uint32_t>(r.rows, r.rows + r.count));
