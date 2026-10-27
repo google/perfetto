@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.pbzero.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
@@ -59,32 +60,32 @@ std::optional<base::StringView> ViewCaptureDeinterner::TryDeinternString(
     base::StringView key,
     uint64_t iid) {
   using com::android::internal::pbzero::FrameworksBaseInternedData;
-  if (key.EndsWith("class_name_iid")) {
+  if (base::EndsWith(key, "class_name_iid")) {
     return DeinternString<
         FrameworksBaseInternedData::kViewcaptureClassNameFieldNumber>(
         iid, view_row_, &ViewRow::set_class_name);
   }
-  if (key.EndsWith("package_name_iid")) {
+  if (base::EndsWith(key, "package_name_iid")) {
     return DeinternString<
         FrameworksBaseInternedData::kViewcapturePackageNameFieldNumber>(
         iid, snapshot_row_, &ViewCaptureRow::set_package_name);
   }
-  if (key.EndsWith("view_id_iid")) {
+  if (base::EndsWith(key, "view_id_iid")) {
     return DeinternString<
         FrameworksBaseInternedData::kViewcaptureViewIdFieldNumber>(
         iid, view_row_, &ViewRow::set_view_id);
   }
-  if (key.EndsWith("window_name_iid")) {
+  if (base::EndsWith(key, "window_name_iid")) {
     return DeinternString<
         FrameworksBaseInternedData::kViewcaptureWindowNameFieldNumber>(
         iid, snapshot_row_, &ViewCaptureRow::set_window_name);
   }
-  if (key.EndsWith("content_description_iid")) {
+  if (base::EndsWith(key, "content_description_iid")) {
     return DeinternString<
         FrameworksBaseInternedData::kViewcaptureContentDescriptionFieldNumber>(
         iid);
   }
-  if (key.EndsWith("text_iid")) {
+  if (base::EndsWith(key, "text_iid")) {
     return DeinternString<
         FrameworksBaseInternedData::kViewcaptureTextFieldNumber>(iid);
   }

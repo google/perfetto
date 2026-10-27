@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <utility>
 
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -50,7 +51,7 @@ DeinterningArgSink::~DeinterningArgSink() = default;
 
 void DeinterningArgSink::Add(ArgKey key, Variadic value) {
   if ((value.type != Variadic::kInt && value.type != Variadic::kUint) ||
-      !pool_.Get(key.key).EndsWith(kIidSuffix)) {
+      !base::EndsWith(pool_.Get(key.key), kIidSuffix)) {
     inner_.Add(key, value);
     return;
   }
