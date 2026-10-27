@@ -356,7 +356,8 @@ base::StatusOr<TarTraceReader::ParseResult> TarTraceReader::ParseContent() {
     AddFile(*metadata_,
             *buffer_.SliceOff(
                 buffer_.start_offset(),
-                std::min(static_cast<uint64_t>(512), metadata_->size)),
+                std::min(static_cast<uint64_t>(kContentPriorityLookahead),
+                         metadata_->size)),
             buffer_.MultiSliceOff(buffer_.start_offset(), metadata_->size));
   }
 
@@ -373,10 +374,12 @@ void TarTraceReader::AddFile(const Metadata& metadata,
   auto file_id = context_->trace_file_tracker->AddFile(metadata.name);
   context_->trace_file_tracker->SetSize(file_id, metadata.size);
   const auto& importers = *context_->trace_importer_registry;
-  TraceImporterId type = importers.Guess(header.data(), header.size());
+  TraceImporterRegistry::GuessResult guess =
+      importers.Guess(header.data(), header.size());
   ordered_files_.emplace(
-      ArchiveEntry{metadata.name, ordered_files_.size(), type,
-                   ArchiveEntry::ComputePriority(type, importers)},
+      ArchiveEntry{metadata.name, ordered_files_.size(), guess.id,
+                   ArchiveEntry::ComputeTraceTypePriority(guess.id, importers),
+                   guess.content_priority},
       File{file_id, std::move(data)});
 }
 
@@ -388,14 +391,14 @@ class TarImporter : public TraceImporter<TarImporter> {
   TarImporter() : TraceImporter(MakeDescriptor()) {}
   ~TarImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     static constexpr size_t kOffset = 257;
     static constexpr char kPosix[] = {'u', 's', 't', 'a', 'r', '\0'};
     static constexpr char kGnu[] = {'u', 's', 't', 'a', 'r', ' ', ' ', '\0'};
-    return (size >= sizeof(kPosix) + kOffset &&
-            memcmp(data + kOffset, kPosix, sizeof(kPosix)) == 0) ||
-           (size >= sizeof(kGnu) + kOffset &&
-            memcmp(data + kOffset, kGnu, sizeof(kGnu)) == 0);
+    return {(size >= sizeof(kPosix) + kOffset &&
+             memcmp(data + kOffset, kPosix, sizeof(kPosix)) == 0) ||
+            (size >= sizeof(kGnu) + kOffset &&
+             memcmp(data + kOffset, kGnu, sizeof(kGnu)) == 0)};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

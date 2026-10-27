@@ -1340,14 +1340,53 @@ bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
   return tag == kModuleSymbolsTag;
 }
 
+// Returns whether a packet of the proto trace starting with [data, data + size)
+// carries a ClockSnapshot, or compressed packets which may hide one (they are
+// not inflated). If not even the first packet fits in `size`, it may: traced
+// compresses whole batches of packets into one, often bigger than `size`, and
+// older versions put the first ClockSnapshot in there too. Malformed input is
+// not an error here: reading the file reports it.
+bool TraceMayHaveClockSnapshot(const uint8_t* data, size_t size) {
+  using protos::pbzero::TracePacket;
+  protozero::ProtoDecoder trace(data, size);
+  for (auto p = trace.ReadField(); p.valid(); p = trace.ReadField()) {
+    if (p.id() != protos::pbzero::Trace::kPacketFieldNumber ||
+        p.type() != protozero::proto_utils::ProtoWireType::kLengthDelimited) {
+      return false;
+    }
+    protozero::ProtoDecoder packet(p.as_bytes());
+    for (auto f = packet.ReadField(); f.valid(); f = packet.ReadField()) {
+      // TODO(vibhuagarwal): compressed packets are not inflated, so a trace
+      // holding some counts as having a ClockSnapshot even when it has none,
+      // and sorts early. See https://github.com/google/perfetto/issues/8308.
+      if (f.id() == TracePacket::kClockSnapshotFieldNumber ||
+          f.id() == TracePacket::kCompressedPacketsFieldNumber ||
+          f.id() == TracePacket::kZstdCompressedPacketsFieldNumber) {
+        return true;
+      }
+    }
+  }
+  // ProtoDecoder stops at a packet cut off at `size`: was it the first one?
+  return trace.read_offset() == 0;
+}
+
 // Perfetto proto trace.
 class ProtoImporter : public TraceImporter<ProtoImporter> {
  public:
   ProtoImporter() : TraceImporter(MakeDescriptor()) {}
   ~ProtoImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
-    return size > 0 && data[0] == kTracePacketTag;
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
+    if (size == 0 || data[0] != kTracePacketTag) {
+      return {};
+    }
+    // In an archive, traces with a ClockSnapshot near their start are read
+    // before those without: the first trace read on a machine is its primary
+    // trace, and traces without a ClockSnapshot of their own (e.g. in-process
+    // SDK traces) are converted through its clocks. Only the start is looked
+    // at, as traced writes its first ClockSnapshot there.
+    size_t lookahead = std::min(size, kContentPriorityLookahead);
+    return {true, TraceMayHaveClockSnapshot(data, lookahead) ? 0 : 1};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
@@ -1381,8 +1420,8 @@ class SymbolsImporter : public TraceImporter<SymbolsImporter> {
   SymbolsImporter() : TraceImporter(MakeDescriptor()) {}
   ~SymbolsImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
-    return IsProtoTraceWithSymbols(data, size);
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
+    return {IsProtoTraceWithSymbols(data, size)};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
