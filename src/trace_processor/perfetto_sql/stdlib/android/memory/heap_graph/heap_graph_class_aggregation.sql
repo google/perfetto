@@ -172,7 +172,10 @@ WITH
       *,
       (normalized_name GLOB 'java.*'
       OR normalized_name GLOB 'kotlin.*'
-      OR normalized_name GLOB 'kotlinx.*') AS is_language_runtime,
+      OR normalized_name GLOB 'kotlinx.*'
+      OR normalized_name GLOB 'sun.*'
+      OR normalized_name GLOB 'dalvik.*'
+      OR normalized_name GLOB 'libcore.*') AS is_language_runtime,
       (normalized_name GLOB '*[[]]'
       OR normalized_name GLOB 'android.util.*Array*'
       OR normalized_name GLOB 'kotlin.collections.*'
