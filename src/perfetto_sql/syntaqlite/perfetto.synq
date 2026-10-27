@@ -490,6 +490,20 @@ node PerfettoPipeWhere {
   fmt { group { "WHERE" nest { line child(condition) } } }
 }
 
+// `LIMIT count [OFFSET skipped]`: keeps `count` rows after skipping
+// `skipped`.
+node PerfettoPipeLimit {
+  count: index Expr
+  offset: index Expr
+
+  fmt {
+    group {
+      "LIMIT" space child(count)
+      if_set(offset) { space "OFFSET" space child(offset) }
+    }
+  }
+}
+
 // `DISTINCT`: keeps one of each set of rows equal in every column.
 node PerfettoPipeDistinct {
   fmt { "DISTINCT" }
@@ -498,6 +512,7 @@ node PerfettoPipeDistinct {
 abstract PerfettoPipeStage {
   PerfettoPipeWhere
   PerfettoPipeDistinct
+  PerfettoPipeLimit
   PerfettoTreeAccumulate
   PerfettoIntervalFlatten
   PerfettoIntervalFillGaps
