@@ -111,10 +111,11 @@ struct RawRegisterData {
 };
 
 // Converts the kernel perf_event |RawRegisterData| array (indexed by
-// PERF_REG_*) into a |CpuRegisters| struct (indexed by DWARF register numbers).
-// For architectures where the perf and DWARF register indices match (ARM64,
-// RISCV64, ARM), registers are copied in bulk; for X86/X86_64, where the
-// register orderings differ, registers are mapped individually.
+// PERF_REG_*) into a |CpuRegisters| struct.
+// For ARM64, RISCV64, and ARM, the register layouts match the kernel
+// pt_regs / perf_event format, allowing bulk copies. For x86 and x86_64,
+// CpuRegisters uses DWARF numbering (which differs from the kernel format),
+// so registers are remapped individually.
 CpuRegisters PerfRegsToCpuRegs(const RawRegisterData& raw_regs, CpuArch arch) {
   if (arch == CpuArch::ARM64) {
     static_assert(
@@ -124,6 +125,9 @@ CpuRegisters PerfRegsToCpuRegs(const RawRegisterData& raw_regs, CpuArch arch) {
     static_assert(
         static_cast<int>(ARM64_REG_PC) == static_cast<int>(PERF_REG_ARM64_PC),
         "register layout mismatch");
+    // Both the perf_event register order and the CpuRegisters format are
+    // derived from "struct pt_regs", so we can directly memcpy all of the
+    // registers.
     CpuRegisters cpu_regs(CpuArch::ARM64);
     memcpy(cpu_regs.regs, raw_regs.regs,
            sizeof(uint64_t) * (PERF_REG_ARM64_PC + 1));
@@ -141,7 +145,7 @@ CpuRegisters PerfRegsToCpuRegs(const RawRegisterData& raw_regs, CpuArch arch) {
     // As with arm64, the layouts match, but we need to downcast to u32.
     CpuRegisters cpu_regs(CpuArch::ARM);
     for (size_t i = 0; i < ARM_REG_MAX; i++) {
-      cpu_regs.regs[i] = static_cast<uint32_t>(raw_regs.regs[i]);
+      cpu_regs[i] = static_cast<uint32_t>(raw_regs.regs[i]);
     }
     return cpu_regs;
   }
@@ -150,23 +154,23 @@ CpuRegisters PerfRegsToCpuRegs(const RawRegisterData& raw_regs, CpuArch arch) {
     // We've sampled more registers than what libunwindstack will use. Don't
     // copy over cs/ss/flags.
     CpuRegisters cpu_regs(CpuArch::X86_64);
-    cpu_regs.regs[X86_64_REG_RAX] = raw_regs.regs[PERF_REG_X86_AX];
-    cpu_regs.regs[X86_64_REG_RBX] = raw_regs.regs[PERF_REG_X86_BX];
-    cpu_regs.regs[X86_64_REG_RCX] = raw_regs.regs[PERF_REG_X86_CX];
-    cpu_regs.regs[X86_64_REG_RDX] = raw_regs.regs[PERF_REG_X86_DX];
-    cpu_regs.regs[X86_64_REG_R8] = raw_regs.regs[PERF_REG_X86_R8];
-    cpu_regs.regs[X86_64_REG_R9] = raw_regs.regs[PERF_REG_X86_R9];
-    cpu_regs.regs[X86_64_REG_R10] = raw_regs.regs[PERF_REG_X86_R10];
-    cpu_regs.regs[X86_64_REG_R11] = raw_regs.regs[PERF_REG_X86_R11];
-    cpu_regs.regs[X86_64_REG_R12] = raw_regs.regs[PERF_REG_X86_R12];
-    cpu_regs.regs[X86_64_REG_R13] = raw_regs.regs[PERF_REG_X86_R13];
-    cpu_regs.regs[X86_64_REG_R14] = raw_regs.regs[PERF_REG_X86_R14];
-    cpu_regs.regs[X86_64_REG_R15] = raw_regs.regs[PERF_REG_X86_R15];
-    cpu_regs.regs[X86_64_REG_RDI] = raw_regs.regs[PERF_REG_X86_DI];
-    cpu_regs.regs[X86_64_REG_RSI] = raw_regs.regs[PERF_REG_X86_SI];
-    cpu_regs.regs[X86_64_REG_RBP] = raw_regs.regs[PERF_REG_X86_BP];
-    cpu_regs.regs[X86_64_REG_RSP] = raw_regs.regs[PERF_REG_X86_SP];
-    cpu_regs.regs[X86_64_REG_RIP] = raw_regs.regs[PERF_REG_X86_IP];
+    cpu_regs[X86_64_REG_RAX] = raw_regs.regs[PERF_REG_X86_AX];
+    cpu_regs[X86_64_REG_RBX] = raw_regs.regs[PERF_REG_X86_BX];
+    cpu_regs[X86_64_REG_RCX] = raw_regs.regs[PERF_REG_X86_CX];
+    cpu_regs[X86_64_REG_RDX] = raw_regs.regs[PERF_REG_X86_DX];
+    cpu_regs[X86_64_REG_R8] = raw_regs.regs[PERF_REG_X86_R8];
+    cpu_regs[X86_64_REG_R9] = raw_regs.regs[PERF_REG_X86_R9];
+    cpu_regs[X86_64_REG_R10] = raw_regs.regs[PERF_REG_X86_R10];
+    cpu_regs[X86_64_REG_R11] = raw_regs.regs[PERF_REG_X86_R11];
+    cpu_regs[X86_64_REG_R12] = raw_regs.regs[PERF_REG_X86_R12];
+    cpu_regs[X86_64_REG_R13] = raw_regs.regs[PERF_REG_X86_R13];
+    cpu_regs[X86_64_REG_R14] = raw_regs.regs[PERF_REG_X86_R14];
+    cpu_regs[X86_64_REG_R15] = raw_regs.regs[PERF_REG_X86_R15];
+    cpu_regs[X86_64_REG_RDI] = raw_regs.regs[PERF_REG_X86_DI];
+    cpu_regs[X86_64_REG_RSI] = raw_regs.regs[PERF_REG_X86_SI];
+    cpu_regs[X86_64_REG_RBP] = raw_regs.regs[PERF_REG_X86_BP];
+    cpu_regs[X86_64_REG_RSP] = raw_regs.regs[PERF_REG_X86_SP];
+    cpu_regs[X86_64_REG_RIP] = raw_regs.regs[PERF_REG_X86_IP];
     return cpu_regs;
   }
 
@@ -176,23 +180,23 @@ CpuRegisters PerfRegsToCpuRegs(const RawRegisterData& raw_regs, CpuArch arch) {
     // Both raw_regs.regs and cpu_regs.regs are uint64_t, but the x86 registers
     // are only 32-bit. We mask them to avoid writing incorrect values.
     CpuRegisters cpu_regs(CpuArch::X86);
-    cpu_regs.regs[X86_REG_EAX] =
+    cpu_regs[X86_REG_EAX] =
         static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_AX]);
-    cpu_regs.regs[X86_REG_EBX] =
+    cpu_regs[X86_REG_EBX] =
         static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_BX]);
-    cpu_regs.regs[X86_REG_ECX] =
+    cpu_regs[X86_REG_ECX] =
         static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_CX]);
-    cpu_regs.regs[X86_REG_EDX] =
+    cpu_regs[X86_REG_EDX] =
         static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_DX]);
-    cpu_regs.regs[X86_REG_EBP] =
+    cpu_regs[X86_REG_EBP] =
         static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_BP]);
-    cpu_regs.regs[X86_REG_EDI] =
+    cpu_regs[X86_REG_EDI] =
         static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_DI]);
-    cpu_regs.regs[X86_REG_ESI] =
+    cpu_regs[X86_REG_ESI] =
         static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_SI]);
-    cpu_regs.regs[X86_REG_ESP] =
+    cpu_regs[X86_REG_ESP] =
         static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_SP]);
-    cpu_regs.regs[X86_REG_EIP] =
+    cpu_regs[X86_REG_EIP] =
         static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_IP]);
     return cpu_regs;
   }
@@ -202,7 +206,7 @@ CpuRegisters PerfRegsToCpuRegs(const RawRegisterData& raw_regs, CpuArch arch) {
                           static_cast<int>(PERF_REG_RISCV_PC) &&
                       static_cast<int>(RISCV64_REG_PC) == 0,
                   "register layout mismatch");
-    static_assert(static_cast<int>(RISCV64_REG_VLENB) ==
+    static_assert(static_cast<int>(RISCV64_REG_REAL_MAX) ==
                       static_cast<int>(PERF_REG_RISCV_MAX),
                   "register layout mismatch");
     // Register layout matches, copy the raw data to the cpu_regs.regs array.
