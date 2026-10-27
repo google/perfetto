@@ -1,6 +1,8 @@
 Unreleased:
   Tracing service and probes:
    * Added an s390x syscall table.
+   * `traced` and `traced_probes` now signal readiness to systemd (`READY=1` on
+     `$NOTIFY_SOCKET`) when run as `Type=notify` services.
   Trace Processor:
    * Added producer-declared track dimensions (`TrackDescriptor.dimensions`),
      exposed through the `track_dimension`, `process_dimension` and
