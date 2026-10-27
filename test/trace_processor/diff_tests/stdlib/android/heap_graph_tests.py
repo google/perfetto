@@ -129,6 +129,12 @@ class HeapGraph(TestSuite):
               objects { id: 18 type_id: 18 self_size: 10 }
               objects { id: 19 type_id: 19 self_size: 10 }
               objects { id: 20 type_id: 20 self_size: 10 }
+              objects { id: 21 type_id: 21 self_size: 10 }
+              objects { id: 22 type_id: 22 self_size: 10 }
+              objects { id: 23 type_id: 23 self_size: 10 }
+              objects { id: 24 type_id: 24 self_size: 10 }
+              objects { id: 25 type_id: 25 self_size: 10 }
+              objects { id: 26 type_id: 26 self_size: 10 }
               types { id: 1 class_name: "com.example.RegularClass" }
               types { id: 2 class_name: "java.lang.String" }
               types { id: 3 class_name: "j$.time.Instant" }
@@ -149,6 +155,12 @@ class HeapGraph(TestSuite):
               types { id: 18 class_name: "java.lang.Class<java.util.HashMap>" }
               types { id: 19 class_name: "java.lang.Class<j$.util.concurrent.ConcurrentHashMap>" }
               types { id: 20 class_name: "java.lang.Class<com.example.RegularClass[]>" }
+              types { id: 21 class_name: "sun.misc.Cleaner" }
+              types { id: 22 class_name: "dalvik.system.PathClassLoader" }
+              types { id: 23 class_name: "java.lang.Class<sun.misc.Cleaner>" }
+              types { id: 24 class_name: "java.lang.Class<dalvik.system.PathClassLoader>" }
+              types { id: 25 class_name: "libcore.io.BlockGuardOs" }
+              types { id: 26 class_name: "java.lang.Class<libcore.io.BlockGuardOs>" }
               continued: false
               index: 0
             }
@@ -188,6 +200,12 @@ class HeapGraph(TestSuite):
           "java.lang.Class<java.util.HashMap>",1,1,1,1
           "java.lang.Class<j$.util.concurrent.ConcurrentHashMap>",1,1,1,1
           "java.lang.Class<com.example.RegularClass[]>",1,0,1,1
+          "sun.misc.Cleaner",1,1,0,0
+          "dalvik.system.PathClassLoader",1,1,0,0
+          "java.lang.Class<sun.misc.Cleaner>",1,1,0,1
+          "java.lang.Class<dalvik.system.PathClassLoader>",1,1,0,1
+          "libcore.io.BlockGuardOs",1,1,0,0
+          "java.lang.Class<libcore.io.BlockGuardOs>",1,1,0,1
         """))
 
   def test_heap_graph_class_summary_tree(self):
