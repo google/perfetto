@@ -43,10 +43,14 @@ static_assert(kMaxFragmentSizeVarIntBytes ==
 // The supported CPU/ABI set provides atomic observation of that 32-bit half
 // during the 64-bit CAS.
 const uint32_t* ReadPosFutexAddress(const std::atomic<uint64_t>* rw_positions) {
-  static_assert(PERFETTO_IS_LITTLE_ENDIAN(),
-                "The low-word futex requires read_pos to be the first four "
-                "bytes of rw_positions");
+#if PERFETTO_IS_LITTLE_ENDIAN()
   return reinterpret_cast<const uint32_t*>(rw_positions);
+#else
+  // The v2 shared ring buffer ABI is little-endian only, v2 is disabled on
+  // big-endian via ShouldUseTracingV2().
+  base::ignore_result(rw_positions);
+  PERFETTO_FATAL("tracing v2 is not supported on big-endian");
+#endif
 }
 
 // Callers validate untrusted layouts with NumChunksForRingBufferLayout()
