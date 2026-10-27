@@ -22,7 +22,7 @@ source_set("ninja") {
     "../../importers/common",
     "../../sorter",
     "../../storage",
-    "../../util:cold_sort",
+    "../../util:sort",
     "../../util:trace_type",
   ]
 }

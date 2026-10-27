@@ -95,7 +95,7 @@ source_set("winscope_importer") {
     "../../storage",
     "../../tables",
     "../../types",
-    "../../util:cold_sort",
+    "../../util:sort",
   ]
 }
 

@@ -3295,7 +3295,6 @@ cc_test {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
-        ":perfetto_src_trace_processor_util_cold_sort",
         ":perfetto_src_trace_processor_util_compressor",
         ":perfetto_src_trace_processor_util_decompressor",
         ":perfetto_src_trace_processor_util_descriptors",
@@ -3318,6 +3317,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_simple_json_parser",
         ":perfetto_src_trace_processor_util_simple_json_serializer",
+        ":perfetto_src_trace_processor_util_sort",
         ":perfetto_src_trace_processor_util_sorted_search",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_sql_bundle",
@@ -18077,7 +18077,6 @@ filegroup {
         "src/trace_processor/core/util/interval_gaps_unittest.cc",
         "src/trace_processor/core/util/ops_unittest.cc",
         "src/trace_processor/core/util/slab_unittest.cc",
-        "src/trace_processor/core/util/sort_unittest.cc",
         "src/trace_processor/core/util/span_unittest.cc",
     ],
 }
@@ -18088,7 +18087,6 @@ filegroup {
     srcs: [
         "src/trace_processor/core/util/ops.cc",
         "src/trace_processor/core/util/row_layout_sort.cc",
-        "src/trace_processor/core/util/sort.cc",
     ],
 }
 
@@ -21812,7 +21810,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
-        ":perfetto_src_trace_processor_util_cold_sort",
         ":perfetto_src_trace_processor_util_compressor",
         ":perfetto_src_trace_processor_util_decompressor",
         ":perfetto_src_trace_processor_util_deobfuscation_deobfuscator",
@@ -21836,6 +21833,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_simple_json_parser",
         ":perfetto_src_trace_processor_util_simple_json_serializer",
+        ":perfetto_src_trace_processor_util_sort",
         ":perfetto_src_trace_processor_util_sorted_search",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_sql_bundle",
@@ -22213,14 +22211,6 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/util:cold_sort
-filegroup {
-    name: "perfetto_src_trace_processor_util_cold_sort",
-    srcs: [
-        "src/trace_processor/util/cold_sort.cc",
-    ],
-}
-
 // GN: //src/trace_processor/util:compressor
 filegroup {
     name: "perfetto_src_trace_processor_util_compressor",
@@ -22409,6 +22399,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/util:sort
+filegroup {
+    name: "perfetto_src_trace_processor_util_sort",
+    srcs: [
+        "src/trace_processor/util/sort.cc",
+    ],
+}
+
 // GN: //src/trace_processor/util:sorted_search
 filegroup {
     name: "perfetto_src_trace_processor_util_sorted_search",
@@ -22512,7 +22510,6 @@ filegroup {
     name: "perfetto_src_trace_processor_util_unittests",
     srcs: [
         "src/trace_processor/util/bump_allocator_unittest.cc",
-        "src/trace_processor/util/cold_sort_unittest.cc",
         "src/trace_processor/util/concurrency_stress_test_util_unittest.cc",
         "src/trace_processor/util/descriptors_unittest.cc",
         "src/trace_processor/util/flatbuffer_reader_unittest.cc",
@@ -22528,6 +22525,8 @@ filegroup {
         "src/trace_processor/util/protozero_to_text_unittests.cc",
         "src/trace_processor/util/simple_json_parser_unittest.cc",
         "src/trace_processor/util/simple_json_serializer_unittest.cc",
+        "src/trace_processor/util/sort_by_key_unittest.cc",
+        "src/trace_processor/util/sort_unittest.cc",
         "src/trace_processor/util/sorted_search_unittest.cc",
         "src/trace_processor/util/sql_argument_unittest.cc",
         "src/trace_processor/util/sql_module_doc_parser_unittest.cc",
@@ -24960,7 +24959,6 @@ cc_test {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
-        ":perfetto_src_trace_processor_util_cold_sort",
         ":perfetto_src_trace_processor_util_compressor",
         ":perfetto_src_trace_processor_util_concurrency_stress_test_util",
         ":perfetto_src_trace_processor_util_decompressor",
@@ -24986,6 +24984,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_simple_json_parser",
         ":perfetto_src_trace_processor_util_simple_json_serializer",
+        ":perfetto_src_trace_processor_util_sort",
         ":perfetto_src_trace_processor_util_sorted_search",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_sql_bundle",
@@ -26105,7 +26104,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
-        ":perfetto_src_trace_processor_util_cold_sort",
         ":perfetto_src_trace_processor_util_compressor",
         ":perfetto_src_trace_processor_util_decompressor",
         ":perfetto_src_trace_processor_util_descriptors",
@@ -26128,6 +26126,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_simple_json_parser",
         ":perfetto_src_trace_processor_util_simple_json_serializer",
+        ":perfetto_src_trace_processor_util_sort",
         ":perfetto_src_trace_processor_util_sorted_search",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_sql_bundle",
@@ -26829,7 +26828,6 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
-        ":perfetto_src_trace_processor_util_cold_sort",
         ":perfetto_src_trace_processor_util_compressor",
         ":perfetto_src_trace_processor_util_decompressor",
         ":perfetto_src_trace_processor_util_deobfuscation_deobfuscator",
@@ -26853,6 +26851,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_simple_json_parser",
         ":perfetto_src_trace_processor_util_simple_json_serializer",
+        ":perfetto_src_trace_processor_util_sort",
         ":perfetto_src_trace_processor_util_sorted_search",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_sql_bundle",

@@ -41,7 +41,7 @@
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/util/build_id.h"
-#include "src/trace_processor/util/cold_sort.h"
+#include "src/trace_processor/util/sort.h"
 #include "src/trace_processor/util/symbolizer/breakpad_symbolizer.h"
 #include "src/trace_processor/util/symbolizer/local_symbolizer.h"
 #include "src/trace_processor/util/symbolizer/symbolizer.h"
@@ -53,8 +53,8 @@
 namespace perfetto::profiling {
 
 namespace {
-using trace_processor::ColdStableSortByKeyDescending;
 using trace_processor::Iterator;
+using trace_processor::StableSortByKeyDescending;
 
 // Runtime mapping start/end addresses do not affect symbolization. Group by
 // the fields used for address correction and by rel_pc so repeated mappings
@@ -464,7 +464,7 @@ std::vector<UnresolvedGroup> GroupUnresolved(const SymbolizerResult& result) {
   }
   // Largest first, so the short report names the mappings that matter most.
   for (auto& group : groups) {
-    ColdStableSortByKeyDescending(
+    StableSortByKeyDescending(
         group.mappings.begin(), group.mappings.end(),
         [](const UnresolvedMapping& m) { return m.frame_count; });
   }

@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/span.h"
 #include "src/trace_processor/util/glob.h"
+#include "src/trace_processor/util/sort.h"
 #include "src/trace_processor/util/sorted_search.h"
 
 namespace perfetto::trace_processor::core::filter {
@@ -336,6 +337,10 @@ uint32_t* StringFilterRegex(const StringPool* string_pool,
   }
   return Filter(data, begin, end, output, regex.value(),
                 RegexComparator{string_pool});
+}
+
+void SortRowIndices(uint32_t* begin, uint32_t* end) {
+  SortByKey(begin, end, [](uint32_t row) { return row; });
 }
 
 }  // namespace perfetto::trace_processor::core::filter

@@ -19,7 +19,7 @@
 #include <algorithm>
 #include <utility>
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_utils.h"
-#include "src/trace_processor/util/cold_sort.h"
+#include "src/trace_processor/util/sort.h"
 
 namespace perfetto::trace_processor::winscope::surfaceflinger_layers {
 
@@ -32,13 +32,13 @@ void SortByZThenLayerId(
     const std::unordered_map<int32_t, LayerDecoder>& layers_by_id) {
   // (z, id) packed into one key, each with its sign bit flipped to order
   // negative values first.
-  ColdSortByKey(layer_ids.begin(), layer_ids.end(),
-                [&layers_by_id](int32_t layer_id) {
-                  const auto& layer = layers_by_id.at(layer_id);
-                  auto z = static_cast<uint32_t>(layer.z()) ^ 0x80000000u;
-                  auto id = static_cast<uint32_t>(layer.id()) ^ 0x80000000u;
-                  return (uint64_t{z} << 32) | id;
-                });
+  SortByKey(layer_ids.begin(), layer_ids.end(),
+            [&layers_by_id](int32_t layer_id) {
+              const auto& layer = layers_by_id.at(layer_id);
+              auto z = static_cast<uint32_t>(layer.z()) ^ 0x80000000u;
+              auto id = static_cast<uint32_t>(layer.id()) ^ 0x80000000u;
+              return (uint64_t{z} << 32) | id;
+            });
 }
 
 // Extract layers bottom-to-top according to layer drawing order from
