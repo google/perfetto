@@ -53,8 +53,14 @@ constexpr CpuArch CurrentCpuArch() {
 #endif
 }
 
-// Per-architecture register indices following **DWARF** register ordering.
+// Per-architecture register indices.
+// x86     : DWARF ordering (IA-32 ABI).
+// x86_64  : DWARF ordering (System V ABI).
+// ARM     : DWARF / user_pt_regs / perf_event ordering
+// ARM64   : user_pt_regs ordering, 0..31 matches with DWARF.
+// RISCV64 : user_pt_regs / perf_event + vlenb(32). 1..31 matches with DWARF.
 
+// 0..15 : matches DWARF / user_pt_regs / perf_event ordering
 enum ArmReg : uint16_t {
   ARM_REG_R0 = 0,
   ARM_REG_R1 = 1,
@@ -80,6 +86,10 @@ enum ArmReg : uint16_t {
   ARM_REG_PC = ARM_REG_R15,
 };
 
+// Fully matches user_pt_regs registers.
+// 0-31: DWARF/perf_event/user_pt_regs registers.
+// 32 (PC): perf_event and user_pt_regs.
+// 33 (PSTATE): user_pt_regs only.
 enum Arm64Reg : uint16_t {
   ARM64_REG_X0 = 0,
   ARM64_REG_X1 = 1,
@@ -121,6 +131,7 @@ enum Arm64Reg : uint16_t {
   ARM64_REG_LR = ARM64_REG_X30,
 };
 
+// Following DWARF (IA-32 ABI) register ordering.
 enum X86Reg : uint16_t {
   X86_REG_EAX = 0,
   X86_REG_ECX = 1,
@@ -139,8 +150,11 @@ enum X86Reg : uint16_t {
   X86_REG_FS = 14,
   X86_REG_GS = 15,
   X86_REG_MAX = 16,
+
+  X86_REG_FP = X86_REG_EBP,
 };
 
+// Following DWARF (System V ABI) register ordering.
 enum X86_64Reg : uint16_t {
   X86_64_REG_RAX = 0,
   X86_64_REG_RDX = 1,
@@ -160,8 +174,13 @@ enum X86_64Reg : uint16_t {
   X86_64_REG_R15 = 15,
   X86_64_REG_RIP = 16,
   X86_64_REG_MAX = 17,
+
+  X86_64_REG_FP = X86_64_REG_RBP,
 };
 
+// 0 (PC): following perf_event/user_pt_regs registers.
+// 1..31: following DWARF/perf_event/user_pt_regs registers.
+// 32 (vlenb): DWARF register (0x1c22).
 enum Riscv64Reg : uint16_t {
   RISCV64_REG_PC = 0,
   RISCV64_REG_RA = 1,
@@ -195,7 +214,9 @@ enum Riscv64Reg : uint16_t {
   RISCV64_REG_T4 = 29,
   RISCV64_REG_T5 = 30,
   RISCV64_REG_T6 = 31,
-  RISCV64_REG_VLENB = 32,
+  RISCV64_REG_REAL_MAX = 32,
+  // This is the last real register, vlenb is a special register value.
+  RISCV64_REG_VLENB = RISCV64_REG_REAL_MAX,
   RISCV64_REG_MAX = 33,
 
   RISCV64_REG_FP = RISCV64_REG_S0,

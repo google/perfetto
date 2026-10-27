@@ -46,13 +46,13 @@ void FramePointerUnwinder::TryUnwind() {
   uint64_t fp = 0;
   switch (arch_) {
     case CpuArch::ARM64:
-      fp = regs_->regs[ARM64_REG_FP];
+      fp = (*regs_)[ARM64_REG_FP];
       break;
     case CpuArch::X86_64:
-      fp = regs_->regs[X86_64_REG_RBP];
+      fp = (*regs_)[X86_64_REG_FP];
       break;
     case CpuArch::RISCV64:
-      fp = regs_->regs[RISCV64_REG_FP];
+      fp = (*regs_)[RISCV64_REG_FP];
       break;
     case CpuArch::UNKNOWN:
     case CpuArch::ARM:
