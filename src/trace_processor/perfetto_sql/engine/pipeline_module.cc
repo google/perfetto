@@ -123,7 +123,7 @@ void ResultFlat(sqlite3_context* ctx,
                 const ColumnView& view,
                 uint32_t row) {
   uint32_t index = view.Index(row);
-  if (view.validity() && !view.validity()->is_set(index)) {
+  if (!view.IsValid(row)) {
     return sqlite::result::Null(ctx);
   }
   T value = static_cast<const T*>(view.data())[index];
@@ -141,7 +141,7 @@ void ResultSequence(sqlite3_context* ctx,
                     const ColumnView& view,
                     uint32_t row) {
   uint32_t index = view.Index(row);
-  if (view.validity() && !view.validity()->is_set(index)) {
+  if (!view.IsValid(row)) {
     return sqlite::result::Null(ctx);
   }
   sqlite::result::Long(ctx, index);
