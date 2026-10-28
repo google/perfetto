@@ -76,9 +76,9 @@ bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
       s.status = base::ErrStatus("%s: a node is its own parent", kChildFirst);
       return false;
     }
-    s.nodes_seen = std::max(s.nodes_seen, node + 1);
+    s.nodes_seen = std::max(*s.nodes_seen, node + 1);
     if (parent != kNoNode) {
-      s.nodes_seen = std::max(s.nodes_seen, parent + 1);
+      s.nodes_seen = std::max(*s.nodes_seen, parent + 1);
     }
     if (s.has_row.size() < s.nodes_seen) {
       // Grown ahead, as nodes are numbered densely and arrive nearly in order.
@@ -208,20 +208,6 @@ bool TreeChildFirst::Serve(RowBatch& out, Breaker::State& state) const {
   return true;
 }
 
-void TreeChildFirst::State::Reset() {
-  Breaker::State::Reset();
-  State& s = *this;
-  s.has_row.clear();
-  s.nodes_seen = 0;
-  s.parent_first = true;
-  s.child_first = true;
-  s.nodes.clear();
-  s.parents.clear();
-  s.rows.Clear();
-  s.order.clear();
-  s.emitted = 0;
-}
-
 TreeParentFirst::TreeParentFirst(uint32_t node_column, uint32_t parent_column)
     : node_column_(node_column), parent_column_(parent_column) {}
 
@@ -239,12 +225,24 @@ PERFETTO_NO_INLINE void TreeParentFirst::State::Nodes::Grow(uint32_t count) {
             kNoNode);
 }
 
+void TreeParentFirst::State::Nodes::EndRun() {
+  EndRunOf(&out);
+  EndRunOf(&first_waiting);
+}
+
 void TreeParentFirst::State::Nodes::Clear() {
   out.clear();
   first_waiting.clear();
 }
 
-void TreeParentFirst::State::Held::Clear() {
+void TreeParentFirst::State::Waiting::EndRun() {
+  rows.EndRun();
+  EndRunOf(&node);
+  EndRunOf(&next_waiting);
+  let_go = 0;
+}
+
+void TreeParentFirst::State::Waiting::Clear() {
   rows.Clear();
   node.clear();
   next_waiting.clear();
@@ -391,15 +389,6 @@ OpResult TreeParentFirst::Finish(RowBatch& out, OperatorState& state) const {
       "%s: the rows are not a tree, because %u of them are in a cycle",
       kParentFirst, stuck);
   return OpResult::kError;
-}
-
-void TreeParentFirst::State::Reset() {
-  State& s = *this;
-  s.nodes.Clear();
-  s.held.Clear();
-  s.letting_go.clear();
-  s.served = 0;
-  s.status = base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor::core::exec

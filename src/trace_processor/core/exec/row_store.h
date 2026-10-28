@@ -71,6 +71,9 @@ class RowStore {
   // Lets go of every row held.
   void Clear();
 
+  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  void EndRun();
+
   // By column of the batches appended, whether it is never read back: such
   // a column is not held, and reads back as nulls of its type. Variant
   // columns are always held. Applies from the next Append() after a Clear().

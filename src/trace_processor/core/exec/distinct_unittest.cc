@@ -133,7 +133,7 @@ TEST(DistinctTest, OnlyTheRowsKeptAreRead) {
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1, 2));
 }
 
-TEST(DistinctTest, AColumnChangingKindFailsUntilReset) {
+TEST(DistinctTest, AColumnChangingKindFailsTheRun) {
   std::vector<int64_t> ints = {1};
   std::vector<double> doubles = {1.0};
   RowBatch of_ints;
@@ -154,12 +154,12 @@ TEST(DistinctTest, AColumnChangingKindFailsUntilReset) {
               HasSubstr("DISTINCT: key 1 must be a column holding one type"));
 
   // A new run starts with nothing seen.
-  state->Reset();
+  state->EndRun();
   EXPECT_TRUE(op.status(*state).ok());
   ASSERT_TRUE(test::ProcessCopy(op, of_doubles, out, *state));
   ASSERT_TRUE(test::ProcessCopy(op, of_doubles, out, *state));
   EXPECT_EQ(out.size(), 0u);
-  state->Reset();
+  state->EndRun();
   ASSERT_TRUE(test::ProcessCopy(op, of_doubles, out, *state));
   EXPECT_EQ(out.size(), 1u);
 }

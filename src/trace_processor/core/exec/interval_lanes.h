@@ -171,6 +171,8 @@ class LaneReader {
 
   // Forgets the last lane read, for a new run.
   void Reset() { last_group_ = kNoGroup; }
+  // Ends a run (see RunHeld).
+  void EndRun() { Reset(); }
 
  private:
   const IntervalLaneSpec* spec_;
@@ -239,6 +241,8 @@ class CollectedLanes {
   const LaneReader& reader() const { return reader_; }
 
   void Clear();
+  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  void EndRun();
 
  private:
   struct Range {
@@ -291,6 +295,8 @@ class LaneKeys {
   void Gather(RowBatch* out, Span<const uint32_t> handles, Context&);
 
   void Clear();
+  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  void EndRun();
 
  private:
   const std::vector<uint32_t>* key_columns_;
@@ -312,6 +318,8 @@ class BoundsColumns {
   void AddTsTo(RowBatch* out) const;
   void AddDurTo(RowBatch* out) const;
   void Clear();
+  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  void EndRun();
 
   int64_t* ts = nullptr;
   int64_t* dur = nullptr;

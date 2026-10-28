@@ -125,7 +125,7 @@ class Execution {
     return source_.GetData(batch_, *state_) ? &batch_ : nullptr;
   }
   base::Status status() const { return source_.status(*state_); }
-  void Rewind() { source_.Rewind(*state_); }
+  void Rewind() { Restart(source_, *state_); }
 
  private:
   const Source& source_;

@@ -33,6 +33,7 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/group_table.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/interval_gaps.h"
 #include "src/trace_processor/core/util/span.h"
@@ -62,68 +63,54 @@ void AddNulls(const ColumnShape* like,
 
 struct IntervalFillGaps::State : OperatorState {
   State(const IntervalFillGapsSpec& spec, Context& c)
-      : OperatorState(ResetEachRun{}),
-        context(&c),
-        background(spec.background, {kName, "the background"}),
-        input(spec.input, {kName, "the input"}),
-        keys(spec.input.key_columns) {}
+      : context(&c),
+        background(this,
+                   spec.background,
+                   IntervalInputName{kName, "the background"}),
+        input(this, spec.input, IntervalInputName{kName, "the input"}),
+        keys(this, spec.input.key_columns) {}
   ~State() override;
-  void Reset() override;
 
   Context* context;
   std::unique_ptr<OperatorState> background_state;
-  base::Status status = base::OkStatus();
-  bool background_read = false;
-  bool finished = false;
 
+  Held<base::Status> status{this};
   // Numbers lanes by key on both sides, if both have PER columns.
-  GroupTable lanes;
-  CollectedLanes background;
-  LaneReader input;
+  Held<GroupTable> lanes{this};
 
+  // The background, read in full before any input.
+  RunValue<bool> background_read{this, false};
+  Held<CollectedLanes> background;
   // Whether each background lane had any input.
-  std::vector<bool> visited;
+  Held<std::vector<bool>> visited{this};
 
+  // The input, a lane at a time.
+  RunValue<bool> finished{this, false};
+  Held<LaneReader> input;
   // If broadcasting, the PER values of the input batch's lanes, and the
   // handle of the current lane's.
-  LaneKeys keys;
-  uint32_t lane_key = 0;
-
+  Held<LaneKeys> keys;
+  RunValue<uint32_t> lane_key{this};
   // The current input lane.
-  uint32_t lane = 0;
-  IntervalGaps gaps;
+  RunValue<uint32_t> lane{this};
+  Held<IntervalGaps> gaps{this};
 
+  // The fillers served.
   // The shape of each output's input column, from the first input batch:
   // empty until then.
-  std::vector<ColumnShape> shapes;
-
+  Held<std::vector<ColumnShape>> shapes{this};
   // How many gaps have been output, and whether the current input batch has
   // been output but its gaps have not.
-  size_t served = 0;
-  bool serving = false;
+  RunValue<size_t> served{this};
+  RunValue<bool> serving{this, false};
+  Held<RowBatch> gathered{this};
+  Held<RowBatch> gathered_keys{this};
 
-  // Scratch for serving fillers.
-  std::vector<uint32_t> rows;
-  RowBatch gathered;
-  RowBatch gathered_keys;
+  // Scratch for one call: the rows of a filler being gathered.
+  CallScratch<std::vector<uint32_t>> rows;
 };
 
 IntervalFillGaps::State::~State() = default;
-
-void IntervalFillGaps::State::Reset() {
-  status = base::OkStatus();
-  background_read = false;
-  finished = false;
-  lanes.Clear();
-  background.Clear();
-  input.Reset();
-  visited.clear();
-  keys.Clear();
-  gaps.Clear();
-  shapes.clear();
-  served = 0;
-  serving = false;
-}
 
 IntervalFillGaps::IntervalFillGaps(IntervalFillGapsSpec spec)
     : spec_(std::move(spec)) {
@@ -167,7 +154,7 @@ base::Status IntervalFillGaps::status(const OperatorState& state) const {
 
 bool IntervalFillGaps::EnsureBackgroundRead(State& s) const {
   if (!s.background_read) {
-    spec_.background.source->Rewind(*s.background_state);
+    Restart(*spec_.background.source, *s.background_state);
     s.status = ReadBackground(s);
     s.background_read = true;
   }

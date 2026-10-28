@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
@@ -350,6 +351,13 @@ void GroupTable::Grow(uint32_t groups) {
   for (uint32_t group = 0; group < size(); ++group) {
     Place(group);
   }
+}
+
+void GroupTable::EndRun() {
+  Clear();
+  EndRunOf(&slots_);
+  EndRunOf(&hashes_);
+  EndRunOf(&group_rows_);
 }
 
 void GroupTable::Clear() {

@@ -78,6 +78,7 @@ source_set("exec") {
     "row_cursor.h",
     "row_store.cc",
     "row_store.h",
+    "run_held.h",
     "selection.cc",
     "selection.h",
     "sort.cc",

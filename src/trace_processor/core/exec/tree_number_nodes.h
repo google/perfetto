@@ -27,6 +27,7 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
@@ -87,22 +88,26 @@ class TreeNumberNodes final : public Transform {
     uint32_t* parent_nodes;
   };
   struct State : OperatorState {
-    explicit State(Context& c) : OperatorState(ResetEachRun{}), context(&c) {}
+    explicit State(Context& c) : context(&c) {}
     ~State() override;
-    void Reset() override;
-    // While the ids arriving are 0, 1, 2, ... they are already node numbers,
-    // so the map stays empty.
-    bool dense = true;
-    uint32_t numbered = 0;
-    base::FlatHashMap<Key, uint32_t> numbers;
-    // Which nodes have had a row of their own, to catch an id used twice.
-    BitVector has_row;
-    // The batch's ids and parent ids, whatever type they arrived as.
-    FlexVector<Variant> ids;
-    FlexVector<Variant> parents;
     // What the numbers are written in.
     Context* context;
-    base::Status status = base::OkStatus();
+
+    Held<base::Status> status{this};
+
+    // The number of each id seen.
+    // While the ids arriving are 0, 1, 2, ... they are already node numbers,
+    // so the map stays empty.
+    RunValue<bool> dense{this, true};
+    RunValue<uint32_t> numbered{this};
+    Held<base::FlatHashMap<Key, uint32_t>> numbers{this};
+    // Which nodes have had a row of their own, to catch an id used twice.
+    Held<BitVector> has_row{this};
+
+    // Scratch for one call: the batch's ids and parent ids, whatever type
+    // they arrived as.
+    CallScratch<FlexVector<Variant>> ids;
+    CallScratch<FlexVector<Variant>> parents;
   };
 
   // Numbers a batch of a table scanned in row order whose parents all point

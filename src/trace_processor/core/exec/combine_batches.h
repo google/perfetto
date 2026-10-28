@@ -23,6 +23,7 @@
 #include "src/trace_processor/core/exec/batch_buffer.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -53,15 +54,14 @@ class CombineBatches final : public Operator {
 
  private:
   struct State : OperatorState {
-    explicit State(Context& c) : OperatorState(ResetEachRun{}), context(&c) {}
+    explicit State(Context& c) : context(&c) {}
     ~State() override;
-    void Reset() override;
-
-    // The buffered rows.
-    BatchBuffer buffered;
 
     // Provides the buffers combined rows are copied into.
     Context* context;
+
+    // The buffered rows.
+    Held<BatchBuffer> buffered{this};
   };
 };
 

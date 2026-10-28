@@ -172,15 +172,6 @@ std::unique_ptr<OperatorState> TreeNumberNodes::MakeState(
   return state;
 }
 
-void TreeNumberNodes::State::Reset() {
-  State& s = *this;
-  s.dense = true;
-  s.numbered = 0;
-  s.numbers.Clear();
-  s.has_row.clear();
-  s.status = base::OkStatus();
-}
-
 base::Status TreeNumberNodes::status(const OperatorState& state) const {
   return state.Cast<const State>().status;
 }

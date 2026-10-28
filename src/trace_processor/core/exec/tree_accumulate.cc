@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -44,37 +45,37 @@ class AccumulateState : public OperatorState {
   AccumulateState(
       Context& c,
       const std::vector<std::unique_ptr<AggregateFunction>>& functions)
-      : OperatorState(ResetEachRun{}), context(&c) {
+      : context(&c) {
     seen.resize(functions.size());
     for (const auto& function : functions) {
       stride += function->state_words();
     }
   }
   ~AccumulateState() override;
-  void Reset() override {
-    states.clear();
-    for (SeenBytes& bytes : seen) {
-      bytes.Clear();
-    }
-    status = base::OkStatus();
-  }
 
-  // By node, `stride` words apart: each aggregate's state in turn.
-  FlexVector<int64_t> states;
-  uint32_t stride = 0;
-  // By aggregate: see GroupStates::seen.
-  std::vector<SeenBytes> seen;
-  std::vector<uint32_t> node_scratch;
-  std::vector<uint32_t> parent_scratch;
-  // The edges of the batch's rows with a parent, in row order.
-  FlexVector<GroupMerge> merges;
-  AggregateInputLoader input;
-  // The rows kept's results, before they're written at the batch's rows.
-  FlexVector<int64_t> values;
-  BitVector valid;
   // What each batch's columns are written in.
   Context* context;
-  base::Status status = base::OkStatus();
+  // Words of state per node.
+  uint32_t stride = 0;
+
+  Held<base::Status> status{this};
+
+  // The aggregates' state of every node seen.
+  // By node, `stride` words apart: each aggregate's state in turn.
+  Held<FlexVector<int64_t>> states{this};
+  // By aggregate: see GroupStates::seen.
+  Held<RunEach<SeenBytes>> seen{this};
+
+  // Scratch for one call.
+  // The batch's nodes and parents, flattened.
+  CallScratch<std::vector<uint32_t>> node_scratch;
+  CallScratch<std::vector<uint32_t>> parent_scratch;
+  // The edges of the batch's rows with a parent, in row order.
+  CallScratch<FlexVector<GroupMerge>> merges;
+  CallScratch<AggregateInputLoader> input;
+  // The rows kept's results, before they're written at the batch's rows.
+  CallScratch<FlexVector<int64_t>> values;
+  CallScratch<BitVector> valid;
 };
 
 AccumulateState::~AccumulateState() = default;
