@@ -17,6 +17,7 @@ from python.generators.diff_tests.testing import Path
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
+from python.generators.diff_tests.testing import TextProto
 
 
 class SurfaceFlingerLayers(TestSuite):
@@ -171,6 +172,62 @@ class SurfaceFlingerLayers(TestSuite):
         "screen_bounds.top","-24000.0"
         "visibility_reason[0]","buffer is empty"
         "visibility_reason[1]","does not have color fill, shadow or blur"
+        """))
+
+  def test_layer_frontend_visibility(self):
+    # takes is_visible and visibility_reason from SurfaceFlinger: 1 is
+    # occluded by 2, and the raw fields don't show up in args
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          [com.android.internal.FrameworksNativeWinscopeTracePacket.surfaceflinger_layers_snapshot] {
+            elapsed_realtime_nanos: 1000
+            excludes_composition_state: false
+            layers {
+              layers {
+                id: 1
+                z: 0
+                color { a: 1 }
+                active_buffer { width: 1 height: 1 stride: 1 format: 1 }
+                bounds { right: 1080 bottom: 2400 }
+                screen_bounds { right: 1080 bottom: 2400 }
+                visible_region { }
+                is_visible: false
+                visibility_reason: VISIBILITY_REASON_OCCLUDED
+              }
+              layers {
+                id: 2
+                z: 1
+                is_opaque: true
+                color { a: 1 }
+                active_buffer { width: 1 height: 1 stride: 1 format: 1 }
+                bounds { right: 1080 bottom: 2400 }
+                screen_bounds { right: 1080 bottom: 2400 }
+                visible_region { rect { right: 1080 bottom: 2400 } }
+                is_visible: true
+                visibility_reason: VISIBILITY_REASON_VISIBLE
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          sfl.layer_id, sfl.is_visible, args.key, args.display_value
+        FROM
+          surfaceflinger_layer AS sfl LEFT JOIN args
+          ON sfl.arg_set_id = args.arg_set_id AND (
+            args.key GLOB "is_visible*" OR args.key GLOB "visibility_reason*"
+            OR args.key GLOB "occluded_by*")
+        ORDER BY sfl.layer_id, args.key
+        """,
+        out=Csv("""
+        "layer_id","is_visible","key","display_value"
+        1,0,"occluded_by[0]","2"
+        1,0,"visibility_reason[0]","occluded"
+        2,1,"[NULL]","[NULL]"
         """))
 
   def test_layer_rects(self):
