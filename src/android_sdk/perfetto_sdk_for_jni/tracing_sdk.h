@@ -30,30 +30,16 @@
 #include "perfetto/public/tracing_session.h"
 #include "perfetto/public/track_event.h"
 
-// Macro copied from
-// https://source.corp.google.com/h/googleplex-android/platform/superproject/main/+/main:system/libbase/include/android-base/macros.h;l=45;drc=bd641075ad60ed703baf59f63a9153d96d96b98e
-// A macro to disallow the copy constructor and operator= functions
-// This must be placed in the private: declarations for a class.
-//
-// For disallowing only assign or copy, delete the relevant operator or
-// constructor, for example:
-// void operator=(const TypeName&) = delete;
-// Note, that most uses of DISALLOW_ASSIGN and DISALLOW_COPY are broken
-// semantically, one should either use disallow both or neither. Try to
-// avoid these in new code.
-#define DISALLOW_COPY_AND_ASSIGN(TypeName) \
-  TypeName(const TypeName&) = delete;      \
-  void operator=(const TypeName&) = delete
-
 /**
  * The objects declared here are intended to be managed by Java.
  * This means the Java Garbage Collector is responsible for freeing the
  * underlying native resources.
  *
  * The static methods prefixed with `delete_` are special. They are designed to
- * be invoked by Java through the `NativeAllocationRegistry` when the
+ * be invoked by Java through the `PerfettoNativeMemoryCleaner` when the
  * corresponding Java object becomes unreachable.  These methods act as
  * callbacks to ensure proper deallocation of native resources.
+ * These callbacks must match the cleaner's `void (*)(void*)` signature.
  */
 namespace perfetto {
 namespace sdk_for_jni {
@@ -97,16 +83,16 @@ uint64_t get_thread_track_uuid(pid_t tid);
 class Extra {
  public:
   Extra();
+  Extra(const Extra&) = delete;
+  Extra& operator=(const Extra&) = delete;
   void push_extra(PerfettoTeHlExtra* extra);
   void pop_extra();
   void clear_extras();
-  static void delete_extra(Extra* extra);
+  static void delete_extra(void* ptr);
 
   PerfettoTeHlExtra* const* get() const { return extras_.data(); }
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(Extra);
-
   // These PerfettoTeHlExtra pointers are really pointers to all the other
   // types of extras: Category, DebugArg, Counter etc. Those objects are
   // individually managed by Java.
@@ -124,18 +110,20 @@ class Category {
 
   ~Category();
 
+  Category(const Category&) = delete;
+  Category& operator=(const Category&) = delete;
+
   void register_category();
 
   void unregister_category();
 
   bool is_category_enabled();
 
-  static void delete_category(Category* category);
+  static void delete_category(void* ptr);
 
   const PerfettoTeCategory* get() const { return &category_; }
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(Category);
   PerfettoTeCategory category_;
   const std::string name_;
   const std::vector<std::string> tags_;
@@ -148,15 +136,16 @@ class Category {
 class Flow {
  public:
   Flow();
+  Flow(const Flow&) = delete;
+  Flow& operator=(const Flow&) = delete;
 
   void set_process_flow(uint64_t id);
   void set_process_terminating_flow(uint64_t id);
-  static void delete_flow(Flow* flow);
+  static void delete_flow(void* ptr);
 
   const PerfettoTeHlExtraFlow* get() const { return &flow_; }
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(Flow);
   PerfettoTeHlExtraFlow flow_;
 };
 
@@ -169,13 +158,14 @@ class NamedTrack {
              uint64_t parent_uuid,
              const std::string& name,
              bool is_name_static);
+  NamedTrack(const NamedTrack&) = delete;
+  NamedTrack& operator=(const NamedTrack&) = delete;
 
-  static void delete_track(NamedTrack* track);
+  static void delete_track(void* ptr);
 
   const PerfettoTeHlExtraNamedTrack* get() const { return &track_; }
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(NamedTrack);
   const std::string name_;
   PerfettoTeHlExtraNamedTrack track_;
 };
@@ -212,13 +202,14 @@ struct NestedLevel {
 class NestedTracks {
  public:
   NestedTracks(RootType root_type, std::vector<NestedLevel> levels);
+  NestedTracks(const NestedTracks&) = delete;
+  NestedTracks& operator=(const NestedTracks&) = delete;
 
-  static void delete_track(NestedTracks* track);
+  static void delete_track(void* ptr);
 
   const PerfettoTeHlExtraNestedTracks* get() const { return &extra_; }
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(NestedTracks);
   // named_[i] borrows level i's name and merge key, ptrs_ point into
   // named_/root_; nothing is resized after construction, so the pointers and
   // the strings they reference stay valid for the object's lifetime.
@@ -243,14 +234,16 @@ class RegisteredTrack {
 
   ~RegisteredTrack();
 
+  RegisteredTrack(const RegisteredTrack&) = delete;
+  RegisteredTrack& operator=(const RegisteredTrack&) = delete;
+
   void register_track();
   void unregister_track();
-  static void delete_track(RegisteredTrack* track);
+  static void delete_track(void* ptr);
 
   const PerfettoTeHlExtraRegisteredTrack* get() const { return &track_; }
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(RegisteredTrack);
   PerfettoTeRegisteredTrack registered_track_;
   PerfettoTeHlExtraRegisteredTrack track_;
   const std::string name_;
@@ -267,13 +260,14 @@ class RegisteredTrack {
 class Counter {
  public:
   Counter() {}
+  Counter(const Counter&) = delete;
+  Counter& operator=(const Counter&) = delete;
 
-  static void delete_counter(Counter* counter) { delete counter; }
+  static void delete_counter(void* ptr) { delete static_cast<Counter*>(ptr); }
 
   PerfettoTeHlExtraCounterUnion* get() { return &counter_; }
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(Counter);
   PerfettoTeHlExtraCounterUnion counter_;
 };
 
@@ -284,8 +278,12 @@ class Counter {
 class CorrelationId {
  public:
   CorrelationId() : correlation_id_{} {}
+  CorrelationId(const CorrelationId&) = delete;
+  CorrelationId& operator=(const CorrelationId&) = delete;
 
-  static void delete_correlation_id(CorrelationId* ptr) { delete ptr; }
+  static void delete_correlation_id(void* ptr) {
+    delete static_cast<CorrelationId*>(ptr);
+  }
 
   const char* set_str(std::string_view val) {
     str_ = val;
@@ -294,7 +292,6 @@ class CorrelationId {
   PerfettoTeHlExtraCorrelationIdUnion* get() { return &correlation_id_; }
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(CorrelationId);
   PerfettoTeHlExtraCorrelationIdUnion correlation_id_;
   std::string str_;
 };
@@ -305,8 +302,10 @@ class CorrelationId {
 class DebugArg {
  public:
   explicit DebugArg(const std::string& name) : name_(name) {}
+  DebugArg(const DebugArg&) = delete;
+  DebugArg& operator=(const DebugArg&) = delete;
 
-  static void delete_arg(DebugArg* arg) { delete arg; }
+  static void delete_arg(void* ptr) { delete static_cast<DebugArg*>(ptr); }
 
   const char* name() const { return name_.c_str(); }
   const char* set_value(std::string_view val) {
@@ -316,7 +315,6 @@ class DebugArg {
   PerfettoTeHlExtraDebugArgUnion* get() { return &arg_; }
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(DebugArg);
   PerfettoTeHlExtraDebugArgUnion arg_;
   const std::string name_;
   std::string value_;
@@ -325,7 +323,9 @@ class DebugArg {
 class ProtoField {
  public:
   ProtoField() {}
-  static void delete_field(ProtoField* field) { delete field; }
+  ProtoField(const ProtoField&) = delete;
+  ProtoField& operator=(const ProtoField&) = delete;
+  static void delete_field(void* ptr) { delete static_cast<ProtoField*>(ptr); }
 
   const char* set_str(std::string_view val) {
     str_ = val;
@@ -334,7 +334,6 @@ class ProtoField {
   PerfettoTeHlProtoFieldUnion* get() { return &arg_; }
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(ProtoField);
   PerfettoTeHlProtoFieldUnion arg_;
   std::string str_;
 };
@@ -342,15 +341,16 @@ class ProtoField {
 class ProtoFieldNested {
  public:
   ProtoFieldNested();
+  ProtoFieldNested(const ProtoFieldNested&) = delete;
+  ProtoFieldNested& operator=(const ProtoFieldNested&) = delete;
 
   void add_field(PerfettoTeHlProtoField* field);
   void set_id(uint32_t id);
-  static void delete_field(ProtoFieldNested* field);
+  static void delete_field(void* ptr);
 
   const PerfettoTeHlProtoFieldNested* get() const { return &field_; }
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(ProtoFieldNested);
   PerfettoTeHlProtoFieldNested field_;
   // These PerfettoTeHlProtoField pointers are really pointers to all the other
   // types of protos: PerfettoTeHlProtoFieldVarInt,
@@ -363,15 +363,16 @@ class ProtoFieldNested {
 class Proto {
  public:
   Proto();
+  Proto(const Proto&) = delete;
+  Proto& operator=(const Proto&) = delete;
 
   void add_field(PerfettoTeHlProtoField* field);
   void clear_fields();
-  static void delete_proto(Proto* proto);
+  static void delete_proto(void* ptr);
 
   const PerfettoTeHlExtraProtoFields* get() const { return &proto_; }
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(Proto);
   PerfettoTeHlExtraProtoFields proto_;
   // These PerfettoTeHlProtoField pointers are really pointers to all the other
   // types of protos: PerfettoTeHlProtoFieldVarInt,
@@ -392,7 +393,7 @@ class Session {
   void StopBlocking();
   std::vector<uint8_t> ReadBlocking();
 
-  static void delete_session(Session* session);
+  static void delete_session(void* ptr);
 
   struct PerfettoTracingSessionImpl* session_ = nullptr;
 };
