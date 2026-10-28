@@ -415,8 +415,11 @@ void TraceWriterImpl::FinishTracePacket() {
 
   FinalizeFragmentIfRequired();
 
-  cur_packet_->Reset(&protobuf_stream_writer_);
-  cur_packet_->Finalize();  // To avoid the CHECK in NewTracePacket().
+  // When called from OnMessageFinalized() the packet is already finalized.
+  if (!cur_packet_->is_finalized()) {
+    cur_packet_->Reset(&protobuf_stream_writer_);
+    cur_packet_->Finalize();  // To avoid the CHECK in NewTracePacket().
+  }
 
   // cur_chunk_packet_count_inflated_ can be true if FinishTracePacket() is
   // called multiple times.
