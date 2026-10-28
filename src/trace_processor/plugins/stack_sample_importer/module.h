@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PLUGINS_STACK_SAMPLE_IMPORTER_MODULE_H_
 #define SRC_TRACE_PROCESSOR_PLUGINS_STACK_SAMPLE_IMPORTER_MODULE_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -82,6 +83,20 @@ class StackSampleModule : public ProtoImporterModule {
                         uint32_t seq_id,
                         PacketSequenceStateGeneration* sequence_state,
                         protozero::ConstBytes blob);
+
+  // Records a sample the sampler could not take (StackSample.error): bumps
+  // the stat of the error's kind and records an import log, instead of
+  // adding a profiler_sample row.
+  void ParseErrorSample(int64_t ts,
+                        PacketSequenceStateGeneration* sequence_state,
+                        StringId source_id,
+                        const protos::pbzero::StackSample::Decoder& sample);
+
+  // Returns the key of the stat that counts errors of the kind `desc`
+  // describes: a stat from stats.h for builtin kinds (and kinds that cannot
+  // be resolved), a dynamic stat for producer-defined ones.
+  size_t GetErrorStatKey(
+      const protos::pbzero::StackSample::ErrorDescriptor::Decoder& desc);
 
   std::optional<CallsiteId> ResolveCallstack(
       PacketSequenceStateGeneration* sequence_state,
