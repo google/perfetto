@@ -171,7 +171,6 @@ RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
 TEST(UnwindingTest, DoUnwind) {
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
-  GlobalCallstackTrie callsites;
   UnwindingMetadata metadata(std::move(proc_maps), std::move(proc_mem));
   WireMessage msg;
   auto record = GetRecord(&msg);
@@ -191,7 +190,6 @@ TEST(UnwindingTest, DoUnwind) {
 TEST(UnwindingTest, DoUnwindReparse) {
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
-  GlobalCallstackTrie callsites;
   UnwindingMetadata metadata(std::move(proc_maps), std::move(proc_mem));
   // Force reparse in DoUnwind.
   metadata.fd_maps.Reset();

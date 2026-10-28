@@ -41,7 +41,7 @@ class FramePointerUnwinder {
         regs_(regs),
         process_memory_(process_memory),
         stack_size_(stack_size),
-        arch_(regs->arch()) {
+        arch_(regs->arch) {
     stack_end_ = regs->sp() + stack_size;
   }
 

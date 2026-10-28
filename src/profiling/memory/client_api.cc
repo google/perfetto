@@ -38,6 +38,7 @@
 
 #include "src/profiling/memory/client.h"
 #include "src/profiling/memory/client_api_factory.h"
+#include "src/profiling/memory/sampler.h"
 #include "src/profiling/memory/scoped_spinlock.h"
 #include "src/profiling/memory/unhooked_allocator.h"
 #include "src/profiling/memory/wire_protocol.h"
