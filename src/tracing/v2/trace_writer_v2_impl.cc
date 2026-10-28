@@ -187,12 +187,25 @@ void TraceWriterV2Impl::EnsurePacketClosed() {
   PERFETTO_CHECK(!packet_open_);
 }
 
-protozero::ContiguousMemoryRange TraceWriterV2Impl::BeginPacketFragment(
+inline protozero::ContiguousMemoryRange TraceWriterV2Impl::BeginPacketFragment(
+    bool continues_from_prev) {
+  const auto range = ring_buffer_writer_.BeginFragment(kMinFragmentPayloadSize,
+                                                       continues_from_prev);
+  if (PERFETTO_LIKELY(
+          range.result ==
+              SharedRingBufferWriter::BeginFragmentResult::kSuccess &&
+          !in_drop_mode_)) {
+    fragment_begin_ = range.begin;
+    return {range.begin, range.end};
+  }
+  return BeginPacketFragmentSlowPath(range, continues_from_prev);
+}
+
+protozero::ContiguousMemoryRange TraceWriterV2Impl::BeginPacketFragmentSlowPath(
+    SharedRingBufferWriter::FragmentRange range,
     bool continues_from_prev) {
   std::optional<base::TimeMillis> stall_deadline;
   for (;;) {
-    const auto range = ring_buffer_writer_.BeginFragment(
-        kMinFragmentPayloadSize, continues_from_prev);
     if (range.result == SharedRingBufferWriter::BeginFragmentResult::kSuccess) {
       fragment_begin_ = range.begin;
       if (PERFETTO_UNLIKELY(in_drop_mode_)) {
@@ -212,10 +225,12 @@ protozero::ContiguousMemoryRange TraceWriterV2Impl::BeginPacketFragment(
       EnterDropMode();
       return GetDropBuffer();
     }
+    range = ring_buffer_writer_.BeginFragment(kMinFragmentPayloadSize,
+                                              continues_from_prev);
   }
 }
 
-void TraceWriterV2Impl::EndPacketFragment(bool continues_on_next) {
+inline void TraceWriterV2Impl::EndPacketFragment(bool continues_on_next) {
   if (!fragment_begin_) {
     // The packet went to the drop buffer. The next publication carries
     // kFlagDataLoss, even if it reuses a cached chunk.
@@ -231,27 +246,12 @@ void TraceWriterV2Impl::EndPacketFragment(bool continues_on_next) {
   //
   // If EndFragment() cannot claim a replacement, the relocation stays pending
   // until the policy lets the writer try again or drop it.
-  SharedRingBufferWriter::EndFragmentResult result =
+  const SharedRingBufferWriter::EndFragmentResult result =
       ring_buffer_writer_.EndFragment(used, continues_on_next);
-  // The stall deadline of the current replacement acquisition. It starts at
-  // the first wait after EndFragment() returns.
-  std::optional<base::TimeMillis> stall_deadline;
-  while (result != SharedRingBufferWriter::EndFragmentResult::kSuccess) {
-    const bool claim_failed =
-        result == SharedRingBufferWriter::EndFragmentResult::kClaimFailed;
-    if (!TryStallForSpace(claim_failed, &stall_deadline)) {
-      // Discard the saved fragment and the rest of the packet.
-      ring_buffer_writer_.DropRelocation();
-      EnterDropMode();
-      return;
-    }
-    const auto retry = ring_buffer_writer_.RetryRelocation();
-    // A claimed replacement ends the current acquisition, even if the reader
-    // then took it before publication. The next acquisition gets its own
-    // deadline at its first wait. Retries without a claim keep the deadline.
-    if (retry.acquired_replacement)
-      stall_deadline.reset();
-    result = retry.result;
+  if (PERFETTO_UNLIKELY(
+          result != SharedRingBufferWriter::EndFragmentResult::kSuccess &&
+          !RetryEndPacketFragment(result))) {
+    return;
   }
 
   // Batch drain requests until occupancy reaches the threshold:
@@ -265,6 +265,31 @@ void TraceWriterV2Impl::EndPacketFragment(bool continues_on_next) {
     ring_buffer_arbiter_->RequestDrain(
         ProducerRingBufferArbiter::DrainUrgency::kRoutine);
   }
+}
+
+bool TraceWriterV2Impl::RetryEndPacketFragment(
+    SharedRingBufferWriter::EndFragmentResult result) {
+  // The stall deadline of the current replacement acquisition. It starts at
+  // the first wait after EndFragment() returns.
+  std::optional<base::TimeMillis> stall_deadline;
+  while (result != SharedRingBufferWriter::EndFragmentResult::kSuccess) {
+    const bool claim_failed =
+        result == SharedRingBufferWriter::EndFragmentResult::kClaimFailed;
+    if (!TryStallForSpace(claim_failed, &stall_deadline)) {
+      // Discard the saved fragment and the rest of the packet.
+      ring_buffer_writer_.DropRelocation();
+      EnterDropMode();
+      return false;
+    }
+    const auto retry = ring_buffer_writer_.RetryRelocation();
+    // A claimed replacement ends the current acquisition, even if the reader
+    // then took it before publication. The next acquisition gets its own
+    // deadline at its first wait. Retries without a claim keep the deadline.
+    if (retry.acquired_replacement)
+      stall_deadline.reset();
+    result = retry.result;
+  }
+  return true;
 }
 
 bool TraceWriterV2Impl::TryStallForSpace(
