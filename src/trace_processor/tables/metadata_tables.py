@@ -852,7 +852,9 @@ STATS_TABLE = Table(
         group='Misc',
         columns={
             'name': 'Stat name (e.g. ftrace_cpu_overrun_begin).',
-            'key': 'Numeric stat key (stats::KeyIDs enum value).',
+            'key': ('Numeric stat key: the stats::KeyIDs enum value, or, for '
+                    'a dynamic stat whose name is only known at runtime, a '
+                    'value from stats::kNumKeys up.'),
             'idx': 'Per-stat index for kIndexed stats; NULL for kSingle.',
             'severity': '"info" | "data_loss" | "error".',
             'source': '"trace" (recorded on-device) or "analysis" (TP).',
