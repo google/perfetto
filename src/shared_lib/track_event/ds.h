@@ -40,7 +40,23 @@
 
 namespace perfetto::shlib {
 
+// The encoded TracePacket, except the trailing timestamp, of an event without
+// extra data. Valid until the incremental state is cleared.
+struct EventPrefix {
+  static constexpr size_t kMaxSize = 48;
+  static constexpr size_t kMaxNameSize = 32;
+  bool valid = false;
+  int32_t type = 0;
+  uint32_t size = 0;
+  const void* cat = nullptr;
+  const char* name_ptr = nullptr;
+  // NUL-terminated copy of the name, to detect a reused name buffer.
+  char name[kMaxNameSize];
+  uint8_t bytes[kMaxSize];
+};
+
 struct TrackEventIncrementalState {
+  static constexpr size_t kNumEventPrefixes = 16;
   // A heap-allocated message for storing newly seen interned data while we are
   // in the middle of writing a track event. When a track event wants to write
   // new interned data into the trace, it is first serialized into this message
@@ -60,6 +76,7 @@ struct TrackEventIncrementalState {
   // state.
   base::FlatHashMap<std::string, bool> dynamic_categories;
   InternMap iids;
+  EventPrefix event_prefixes[kNumEventPrefixes];
 
   // Marks cat_iid as seen in the current incremental state.
   // Returns true only on the first call for this IID since creation or Clear().
@@ -83,6 +100,8 @@ struct TrackEventIncrementalState {
     seen_category_iids.assign(seen_category_iids.size(), false);
     dynamic_categories.Clear();
     iids.Clear();
+    for (EventPrefix& prefix : event_prefixes)
+      prefix.valid = false;
   }
 };
 
