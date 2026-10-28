@@ -22,6 +22,7 @@
 
 #include <atomic>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/futex.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
@@ -149,16 +150,17 @@ class SharedRingBuffer {
   // which must preserve the format, flags, fragment count and WriterID.
   // Only the reader's rewrite request can change the word while this writer
   // owns the chunk. The caller must relocate any unpublished fragment.
-  bool TryReleaseChunkAsComplete(ChunkIndex chunk_idx,
-                                 uint32_t complete_word,
-                                 uint32_t* expected);
+  PERFETTO_ALWAYS_INLINE bool TryReleaseChunkAsComplete(ChunkIndex chunk_idx,
+                                                        uint32_t complete_word,
+                                                        uint32_t* expected);
 
   // Complete(N) -> BeingWritten(N), so the writer can append fragments to its
   // cached chunk. |observed| is the Complete word this writer published.
   //
   // On failure, the reader reclaimed the chunk first. The writer must discard
   // its cached handle and acquire another chunk.
-  bool TryReacquireChunkForWriting(ChunkIndex chunk_idx, uint32_t observed);
+  PERFETTO_ALWAYS_INLINE bool TryReacquireChunkForWriting(ChunkIndex chunk_idx,
+                                                          uint32_t observed);
 
   // RewriteRequested -> RewriteAcknowledged after the writer saves any
   // unpublished fragment and stops access to the old chunk.
@@ -321,6 +323,46 @@ class SharedRingBuffer {
   const uint32_t num_chunks_;
   const uint32_t chunk_size_;
 };
+
+inline bool SharedRingBuffer::TryReleaseChunkAsComplete(ChunkIndex chunk_idx,
+                                                        uint32_t complete_word,
+                                                        uint32_t* expected) {
+  PERFETTO_DCHECK(ChunkStateOf(*expected) == ChunkState::kBeingWritten);
+  PERFETTO_DCHECK(ChunkStateOf(complete_word) == ChunkState::kComplete);
+
+  // BeingWritten(N) -> Complete(M).
+  //
+  // On failure, the reader requested a rewrite first. |*expected| receives
+  // RewriteRequested(N), and the caller relocates any unpublished fragment.
+  //
+  // Proposed memory ordering:
+  // - Success: release to publish M fragments and their sizes.
+  //   The first publication also makes BufferID visible.
+  // - Failure: acquire to observe the reader's RewriteRequested(N).
+  //   The reader must finish copying N fragments before the writer relocates.
+  std::atomic<uint32_t>* state_word = chunk_state_word_at(chunk_idx);
+  return state_word->compare_exchange_strong(*expected, complete_word);
+}
+
+inline bool SharedRingBuffer::TryReacquireChunkForWriting(ChunkIndex chunk_idx,
+                                                          uint32_t observed) {
+  PERFETTO_DCHECK(ChunkStateOf(observed) == ChunkState::kComplete);
+
+  // Complete(N) -> BeingWritten(N).
+  //
+  // On failure, the reader reclaimed the chunk first. The writer discards its
+  // cached handle and acquires another chunk.
+  //
+  // Proposed memory ordering:
+  // - Success: relaxed because reuse publishes no new bytes.
+  //   The read-modify-write extends Complete(N)'s release sequence.
+  //   The reader's acquire load still sees the N published fragments.
+  // - Failure: relaxed because the returned word is ignored.
+  uint32_t expected = observed;
+  std::atomic<uint32_t>* state_word = chunk_state_word_at(chunk_idx);
+  return state_word->compare_exchange_strong(
+      expected, ReplaceChunkState(observed, ChunkState::kBeingWritten));
+}
 
 }  // namespace perfetto::tracing_v2
 
