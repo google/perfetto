@@ -4504,7 +4504,7 @@ class ProcessStatsConfig(_message.Message):
     def __init__(self, quirks: _Optional[_Iterable[_Union[ProcessStatsConfig.Quirks, str]]] = ..., scan_all_processes_on_start: bool = ..., record_thread_names: bool = ..., proc_stats_poll_ms: _Optional[int] = ..., proc_stats_cache_ttl_ms: _Optional[int] = ..., scan_smaps_rollup: bool = ..., record_process_age: bool = ..., record_process_runtime: bool = ..., record_process_dmabuf_rss: bool = ..., resolve_process_fds: bool = ..., skip_main_thread_message: bool = ...) -> None: ...
 
 class HeapprofdConfig(_message.Message):
-    __slots__ = ("sampling_interval_bytes", "adaptive_sampling_shmem_threshold", "adaptive_sampling_max_sampling_interval_bytes", "process_cmdline", "pid", "target_installed_by", "heaps", "exclude_heaps", "stream_allocations", "heap_sampling_intervals", "all_heaps", "all", "min_anonymous_memory_kb", "max_heapprofd_memory_kb", "max_heapprofd_cpu_secs", "skip_symbol_prefix", "continuous_dump_config", "shmem_size_bytes", "block_client", "block_client_timeout_us", "no_startup", "no_running", "dump_at_max", "disable_fork_teardown", "disable_vfork_detection")
+    __slots__ = ("sampling_interval_bytes", "adaptive_sampling_shmem_threshold", "adaptive_sampling_max_sampling_interval_bytes", "process_cmdline", "pid", "target_installed_by", "heaps", "exclude_heaps", "stream_allocations", "heap_sampling_intervals", "all_heaps", "all", "min_anonymous_memory_kb", "skip_frozen_processes", "max_heapprofd_memory_kb", "max_heapprofd_cpu_secs", "skip_symbol_prefix", "continuous_dump_config", "shmem_size_bytes", "block_client", "block_client_timeout_us", "no_startup", "no_running", "dump_at_max", "disable_fork_teardown", "disable_vfork_detection")
     class ContinuousDumpConfig(_message.Message):
         __slots__ = ("dump_phase_ms", "dump_interval_ms")
         DUMP_PHASE_MS_FIELD_NUMBER: _ClassVar[int]
@@ -4525,6 +4525,7 @@ class HeapprofdConfig(_message.Message):
     ALL_HEAPS_FIELD_NUMBER: _ClassVar[int]
     ALL_FIELD_NUMBER: _ClassVar[int]
     MIN_ANONYMOUS_MEMORY_KB_FIELD_NUMBER: _ClassVar[int]
+    SKIP_FROZEN_PROCESSES_FIELD_NUMBER: _ClassVar[int]
     MAX_HEAPPROFD_MEMORY_KB_FIELD_NUMBER: _ClassVar[int]
     MAX_HEAPPROFD_CPU_SECS_FIELD_NUMBER: _ClassVar[int]
     SKIP_SYMBOL_PREFIX_FIELD_NUMBER: _ClassVar[int]
@@ -4550,6 +4551,7 @@ class HeapprofdConfig(_message.Message):
     all_heaps: bool
     all: bool
     min_anonymous_memory_kb: int
+    skip_frozen_processes: bool
     max_heapprofd_memory_kb: int
     max_heapprofd_cpu_secs: int
     skip_symbol_prefix: _containers.RepeatedScalarFieldContainer[str]
@@ -4562,7 +4564,7 @@ class HeapprofdConfig(_message.Message):
     dump_at_max: bool
     disable_fork_teardown: bool
     disable_vfork_detection: bool
-    def __init__(self, sampling_interval_bytes: _Optional[int] = ..., adaptive_sampling_shmem_threshold: _Optional[int] = ..., adaptive_sampling_max_sampling_interval_bytes: _Optional[int] = ..., process_cmdline: _Optional[_Iterable[str]] = ..., pid: _Optional[_Iterable[int]] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., heaps: _Optional[_Iterable[str]] = ..., exclude_heaps: _Optional[_Iterable[str]] = ..., stream_allocations: bool = ..., heap_sampling_intervals: _Optional[_Iterable[int]] = ..., all_heaps: bool = ..., all: bool = ..., min_anonymous_memory_kb: _Optional[int] = ..., max_heapprofd_memory_kb: _Optional[int] = ..., max_heapprofd_cpu_secs: _Optional[int] = ..., skip_symbol_prefix: _Optional[_Iterable[str]] = ..., continuous_dump_config: _Optional[_Union[HeapprofdConfig.ContinuousDumpConfig, _Mapping]] = ..., shmem_size_bytes: _Optional[int] = ..., block_client: bool = ..., block_client_timeout_us: _Optional[int] = ..., no_startup: bool = ..., no_running: bool = ..., dump_at_max: bool = ..., disable_fork_teardown: bool = ..., disable_vfork_detection: bool = ...) -> None: ...
+    def __init__(self, sampling_interval_bytes: _Optional[int] = ..., adaptive_sampling_shmem_threshold: _Optional[int] = ..., adaptive_sampling_max_sampling_interval_bytes: _Optional[int] = ..., process_cmdline: _Optional[_Iterable[str]] = ..., pid: _Optional[_Iterable[int]] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., heaps: _Optional[_Iterable[str]] = ..., exclude_heaps: _Optional[_Iterable[str]] = ..., stream_allocations: bool = ..., heap_sampling_intervals: _Optional[_Iterable[int]] = ..., all_heaps: bool = ..., all: bool = ..., min_anonymous_memory_kb: _Optional[int] = ..., skip_frozen_processes: bool = ..., max_heapprofd_memory_kb: _Optional[int] = ..., max_heapprofd_cpu_secs: _Optional[int] = ..., skip_symbol_prefix: _Optional[_Iterable[str]] = ..., continuous_dump_config: _Optional[_Union[HeapprofdConfig.ContinuousDumpConfig, _Mapping]] = ..., shmem_size_bytes: _Optional[int] = ..., block_client: bool = ..., block_client_timeout_us: _Optional[int] = ..., no_startup: bool = ..., no_running: bool = ..., dump_at_max: bool = ..., disable_fork_teardown: bool = ..., disable_vfork_detection: bool = ...) -> None: ...
 
 class ProcessSmapsConfig(_message.Message):
     __slots__ = ("smaps_config", "scope", "read_period_ms", "max_processes_per_period")
@@ -4657,7 +4659,7 @@ class RedactionRule(_message.Message):
     def __init__(self, pattern: _Optional[str] = ..., match_mode: _Optional[_Union[RedactionRule.MatchMode, str]] = ..., keep_full: bool = ..., replacement_name: _Optional[str] = ..., keep_file_extension: bool = ..., keep_path_elements: _Optional[int] = ...) -> None: ...
 
 class JavaHprofConfig(_message.Message):
-    __slots__ = ("process_cmdline", "pid", "target_installed_by", "continuous_dump_config", "min_anonymous_memory_kb", "min_java_heap_size_kb", "dump_smaps", "smaps_config", "ignored_types", "dump_oome_callstack")
+    __slots__ = ("process_cmdline", "pid", "target_installed_by", "continuous_dump_config", "min_anonymous_memory_kb", "min_java_heap_size_kb", "skip_frozen_processes", "dump_smaps", "smaps_config", "ignored_types", "dump_oome_callstack")
     class ContinuousDumpConfig(_message.Message):
         __slots__ = ("dump_phase_ms", "dump_interval_ms", "scan_pids_only_on_start")
         DUMP_PHASE_MS_FIELD_NUMBER: _ClassVar[int]
@@ -4673,6 +4675,7 @@ class JavaHprofConfig(_message.Message):
     CONTINUOUS_DUMP_CONFIG_FIELD_NUMBER: _ClassVar[int]
     MIN_ANONYMOUS_MEMORY_KB_FIELD_NUMBER: _ClassVar[int]
     MIN_JAVA_HEAP_SIZE_KB_FIELD_NUMBER: _ClassVar[int]
+    SKIP_FROZEN_PROCESSES_FIELD_NUMBER: _ClassVar[int]
     DUMP_SMAPS_FIELD_NUMBER: _ClassVar[int]
     SMAPS_CONFIG_FIELD_NUMBER: _ClassVar[int]
     IGNORED_TYPES_FIELD_NUMBER: _ClassVar[int]
@@ -4683,11 +4686,12 @@ class JavaHprofConfig(_message.Message):
     continuous_dump_config: JavaHprofConfig.ContinuousDumpConfig
     min_anonymous_memory_kb: int
     min_java_heap_size_kb: int
+    skip_frozen_processes: bool
     dump_smaps: bool
     smaps_config: SmapsConfig
     ignored_types: _containers.RepeatedScalarFieldContainer[str]
     dump_oome_callstack: bool
-    def __init__(self, process_cmdline: _Optional[_Iterable[str]] = ..., pid: _Optional[_Iterable[int]] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., continuous_dump_config: _Optional[_Union[JavaHprofConfig.ContinuousDumpConfig, _Mapping]] = ..., min_anonymous_memory_kb: _Optional[int] = ..., min_java_heap_size_kb: _Optional[int] = ..., dump_smaps: bool = ..., smaps_config: _Optional[_Union[SmapsConfig, _Mapping]] = ..., ignored_types: _Optional[_Iterable[str]] = ..., dump_oome_callstack: bool = ...) -> None: ...
+    def __init__(self, process_cmdline: _Optional[_Iterable[str]] = ..., pid: _Optional[_Iterable[int]] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., continuous_dump_config: _Optional[_Union[JavaHprofConfig.ContinuousDumpConfig, _Mapping]] = ..., min_anonymous_memory_kb: _Optional[int] = ..., min_java_heap_size_kb: _Optional[int] = ..., skip_frozen_processes: bool = ..., dump_smaps: bool = ..., smaps_config: _Optional[_Union[SmapsConfig, _Mapping]] = ..., ignored_types: _Optional[_Iterable[str]] = ..., dump_oome_callstack: bool = ...) -> None: ...
 
 class PerfEvents(_message.Message):
     __slots__ = ()
