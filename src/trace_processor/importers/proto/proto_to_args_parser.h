@@ -349,9 +349,15 @@ class ProtoToArgsParser {
   // field's key; unmatched bits become a trailing hex element.
   base::Status AddFlags(uint32_t enum_descriptor_idx, int64_t value);
 
-  // Emit companion args for (pid)/(tid) fields.
-  void AddPid(int64_t pid);
-  void AddTid(int64_t tid);
+  // Add the upid / utid arg for a pid / tid field at |node|, whose key is the
+  // current key.
+  void AddPid(int64_t pid, uint32_t node);
+  void AddTid(int64_t tid, uint32_t node);
+  // The current key with |from| replaced by |to|: cached in |node| when the
+  // key is the same for every occurrence.
+  std::pair<StringPool::Id, StringPool::Id> SuffixedKeys(uint32_t node,
+                                                         std::string_view from,
+                                                         std::string_view to);
 
   // Emit one arg into |sink_|.
   void Add(StringPool::Id flat_key, StringPool::Id key, Variadic value) {
@@ -407,6 +413,10 @@ class ProtoToArgsParser {
     // True if this node or an ancestor is repeated, so |key| (with "[i]")
     // differs from |flat_key| and is interned per occurrence.
     bool has_array = false;
+
+    // For a pid or tid field without an array on its path: the key of its
+    // upid / utid arg, interned on first use.
+    StringPool::Id suffixed_key_id = StringPool::Id::Null();
 
     uint32_t flat_generation = 0;
     bool flat_eligible = false;

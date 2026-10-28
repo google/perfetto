@@ -418,10 +418,9 @@ void ProtoToArgsParser::PrepareFlatMessage(uint32_t node,
   path_nodes_[node].flat_eligible = false;
   const auto& descriptor = pool_.descriptors()[descriptor_idx];
   for (const auto& [id, field] : descriptor.fields()) {
-    if (field.is_repeated() || field.is_pid() || field.is_tid() ||
-        field.flags_enum_descriptor_idx() || field.type() == FD::TYPE_MESSAGE ||
-        field.type() == FD::TYPE_GROUP || field.type() < FD::TYPE_DOUBLE ||
-        field.type() > FD::TYPE_SINT64) {
+    if (field.is_repeated() || field.flags_enum_descriptor_idx() ||
+        field.type() == FD::TYPE_MESSAGE || field.type() == FD::TYPE_GROUP ||
+        field.type() < FD::TYPE_DOUBLE || field.type() > FD::TYPE_SINT64) {
       return;
     }
   }
@@ -439,6 +438,12 @@ void ProtoToArgsParser::PrepareFlatMessage(uint32_t node,
     uint32_t child = GetOrCreatePathChild(node, id, false);
     if (field_overrides_.Find(key_prefix_.flat_key)) {
       return;
+    }
+    // The flat path sets only key ids, so the upid / utid key, which needs
+    // the key's string, is interned here.
+    if (field.is_pid() || field.is_tid()) {
+      SuffixedKeys(child, field.is_tid() ? "tid" : "pid",
+                   field.is_tid() ? "utid" : "upid");
     }
     path_nodes_[child].resolved_done = false;
     path_nodes_[node].flat_fields.Insert(
@@ -776,10 +781,10 @@ base::Status ProtoToArgsParser::ParseSimpleField(
       }
       Add(fk, k, Variadic::Integer(field.as_int32()));
       if (descriptor.is_pid()) {
-        AddPid(field.as_int32());
+        AddPid(field.as_int32(), node);
       }
       if (descriptor.is_tid()) {
-        AddTid(field.as_int32());
+        AddTid(field.as_int32(), node);
       }
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT32:
@@ -792,10 +797,10 @@ base::Status ProtoToArgsParser::ParseSimpleField(
       }
       Add(fk, k, Variadic::Integer(field.as_int64()));
       if (descriptor.is_pid()) {
-        AddPid(field.as_int64());
+        AddPid(field.as_int64(), node);
       }
       if (descriptor.is_tid()) {
-        AddTid(field.as_int64());
+        AddTid(field.as_int64(), node);
       }
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT64:
@@ -1005,22 +1010,37 @@ std::pair<StringPool::Id, StringPool::Id> ProtoToArgsParser::InternSuffixedKeys(
   return {intern(key_prefix_.flat_key), intern(key_prefix_.key)};
 }
 
-void ProtoToArgsParser::AddPid(int64_t pid) {
+std::pair<StringPool::Id, StringPool::Id> ProtoToArgsParser::SuffixedKeys(
+    uint32_t node,
+    std::string_view from,
+    std::string_view to) {
+  if (node == kNoPath || path_nodes_[node].has_array) {
+    return InternSuffixedKeys(from, to);
+  }
+  // Without an array the key is the flat key, the same every time.
+  StringPool::Id& cached = path_nodes_[node].suffixed_key_id;
+  if (cached.is_null()) {
+    cached = InternSuffixedKeys(from, to).first;
+  }
+  return {cached, cached};
+}
+
+void ProtoToArgsParser::AddPid(int64_t pid, uint32_t node) {
   if (!env_->process_tracker) {
     return;
   }
   if (auto upid = env_->process_tracker->GetProcessOrNull(pid)) {
-    auto [fk, k] = InternSuffixedKeys("pid", "upid");
+    auto [fk, k] = SuffixedKeys(node, "pid", "upid");
     Add(fk, k, Variadic::Integer(*upid));
   }
 }
 
-void ProtoToArgsParser::AddTid(int64_t tid) {
+void ProtoToArgsParser::AddTid(int64_t tid, uint32_t node) {
   if (!env_->process_tracker) {
     return;
   }
   if (auto utid = env_->process_tracker->GetThreadOrNull(tid)) {
-    auto [fk, k] = InternSuffixedKeys("tid", "utid");
+    auto [fk, k] = SuffixedKeys(node, "tid", "utid");
     Add(fk, k, Variadic::Integer(*utid));
   }
 }
