@@ -168,6 +168,32 @@ void BM_Shlib_TeBasic(benchmark::State& state) {
   }
 }
 
+void BM_Shlib_TeBeginEnd(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session = StartTrackEventSession();
+
+  while (state.KeepRunning()) {
+    PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_BEGIN("Event"));
+    PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_END());
+    benchmark::ClobberMemory();
+  }
+}
+
+void BM_Shlib_TeBeginEndV2(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .set_v2_probability(100)
+                                       .Build();
+
+  while (state.KeepRunning()) {
+    PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_BEGIN("Event"));
+    PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_END());
+    benchmark::ClobberMemory();
+  }
+}
+
 void BM_Shlib_TeBasicNoIntern(benchmark::State& state) {
   EnsureInitialized();
   TracingSession tracing_session = StartTrackEventSession();
@@ -455,6 +481,8 @@ BENCHMARK(BM_Shlib_DataSource_Disabled);
 BENCHMARK(BM_Shlib_DataSource_DifferentPacketSize)->Range(1, 1000);
 BENCHMARK(BM_Shlib_TeDisabled);
 BENCHMARK(BM_Shlib_TeBasic);
+BENCHMARK(BM_Shlib_TeBeginEnd);
+BENCHMARK(BM_Shlib_TeBeginEndV2);
 BENCHMARK(BM_Shlib_TeBasicNoIntern);
 BENCHMARK(BM_Shlib_TeDebugAnnotations);
 BENCHMARK(BM_Shlib_TeCustomProto);
