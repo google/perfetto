@@ -151,6 +151,53 @@ class AndroidMetrics(TestSuite):
         query=Metric('android_blocking_calls_cuj_per_frame_metric'),
         out=Path('android_blocking_calls_cuj_per_frame_metric.out'))
 
+  def test_android_blocking_calls_cuj_per_frame_canceled_excluded(self):
+    return DiffTestBlueprint(
+        trace=Path(
+            '../../stdlib/android/jank_cuj_canceled_and_completed_trace.py'),
+        query=Metric('android_blocking_calls_cuj_per_frame_metric'),
+        out=TextProto(r"""
+        android_blocking_calls_cuj_per_frame_metric {
+          cuj {
+            name: "SHADE_EXPAND"
+            process {
+              name: "com.android.systemui"
+              uid: 10001
+              android_user_id: 0
+              pid: 5000
+              is_kernel_task: false
+            }
+            blocking_calls {
+              name: "DrawFrames"
+              max_dur_per_frame_ms: 0
+              max_dur_per_frame_ns: 800000
+              mean_dur_per_frame_ms: 0
+              mean_dur_per_frame_ns: 800000
+              max_cnt_per_frame: 1
+              mean_cnt_per_frame: 1.0
+            }
+            blocking_calls {
+              name: "animation"
+              max_dur_per_frame_ms: 2
+              max_dur_per_frame_ns: 2000000
+              mean_dur_per_frame_ms: 2
+              mean_dur_per_frame_ns: 2000000
+              max_cnt_per_frame: 1
+              mean_cnt_per_frame: 1.0
+            }
+            blocking_calls {
+              name: "hwuiTask"
+              max_dur_per_frame_ms: 0
+              max_dur_per_frame_ns: 300000
+              mean_dur_per_frame_ms: 0
+              mean_dur_per_frame_ns: 300000
+              max_cnt_per_frame: 1
+              mean_cnt_per_frame: 1.0
+            }
+          }
+        }
+        """))
+
   def test_sysui_notif_shade_list_builder(self):
     return DiffTestBlueprint(
         trace=Path('android_sysui_notif_shade_list_builder_metric.py'),

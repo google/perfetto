@@ -26,7 +26,7 @@ import {
   addDebugSliceTrack,
   type DebugSliceTrackArgs,
 } from '../../../components/tracks/debug_tracks';
-import {LONG, type QueryResult} from '../../../trace_processor/query_result';
+import {NUM, type QueryResult} from '../../../trace_processor/query_result';
 
 class BlockingCallMetricHandler implements MetricHandler {
   /**
@@ -136,10 +136,11 @@ class BlockingCallMetricHandler implements MetricHandler {
 
       SELECT
         frame_id
-      FROM _blocking_calls_frame_cuj
+      FROM android_jank_cuj_frame_blocking_calls
       WHERE ${this.blockingCallWhereClause(metricData)}
+      GROUP BY frame_id
       -- select frame_id for the metric with the maximum duration.
-      ORDER BY dur DESC
+      ORDER BY SUM(blocking_dur) DESC
       LIMIT 1`);
   }
   private async frameWithMaxDurBlockingCallTrackConfig(
@@ -161,7 +162,7 @@ class BlockingCallMetricHandler implements MetricHandler {
       );
       return undefined;
     }
-    const row = result.firstRow({frame_id: LONG});
+    const row = result.firstRow({frame_id: NUM});
 
     // Fetch the ts and dur for the extended frame boundary corresponding to the above frame_id.
     const frameWithMaxDurBlockingCallQuery = `
@@ -171,6 +172,7 @@ class BlockingCallMetricHandler implements MetricHandler {
         (ts_end - ts) AS dur
       FROM _extended_frame_boundary
       WHERE frame_id = ${row.frame_id}
+        AND cuj_name = "${metricData.cujName}"
       `;
 
     return {

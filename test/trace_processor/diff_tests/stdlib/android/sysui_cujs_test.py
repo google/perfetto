@@ -168,3 +168,117 @@ class SystemUICujs(TestSuite):
         "CreateGraphicsPipeline",19000000,1000000,"ACTION_EXPAND_PANEL","latency",1500
         "flush layers",20000000,500000,"ACTION_EXPAND_PANEL","latency",1501
         """))
+
+  def test_android_jank_cuj_frame_blocking_calls(self):
+    return DiffTestBlueprint(
+        trace=Path(
+            '../../metrics/android/android_blocking_calls_cuj_per_frame_metric.py'
+        ),
+        query="""
+        INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
+        SELECT
+          bc.cuj_name,
+          bc.process_name,
+          bc.frame_id,
+          bc.layer_id,
+          bc.name,
+          bc.ts,
+          bc.ts_end,
+          bc.dur,
+          bc.blocking_dur,
+          bc.is_hwui_task,
+          thread.tid
+        FROM android_jank_cuj_frame_blocking_calls AS bc
+        JOIN thread USING (utid)
+        ORDER BY bc.cuj_name, bc.frame_id, bc.ts, bc.is_hwui_task, bc.name;
+        """,
+        out=Csv("""
+        "cuj_name","process_name","frame_id","layer_id","name","ts","ts_end","dur","blocking_dur","is_hwui_task","tid"
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"DrawFrames",27000000,28000000,1000000,1000000,0,1555
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"binder transaction",27000000,27500000,500000,500000,0,5020
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"CreateGraphicsPipeline",27100000,27900000,800000,800000,0,1555
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"drawLayer",27100000,27200000,100000,100000,0,1555
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"drawLayer [TestLayer]",27100000,27200000,100000,100000,0,1555
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"Texture upload",27200000,27300000,100000,100000,0,1555
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"flush layers",27300000,27400000,100000,100000,0,1555
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"flush commands",27400000,27500000,100000,100000,0,1555
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"hwuiTask",27400000,27600000,200000,200000,1,1556
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"binder transaction",27500000,30000000,2500000,2500000,0,5020
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"queueBuffer",27500000,27600000,100000,100000,0,1555
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"animation",30000000,32000000,2000000,2000000,0,5020
+        "BACK_PANEL_ARROW","com.android.systemui",22,0,"DrawFrames",44000000,45000000,1000000,1000000,0,1555
+        "BACK_PANEL_ARROW","com.android.systemui",24,0,"DrawFrames",61000000,62000000,1000000,1000000,0,1555
+        "BACK_PANEL_ARROW","com.android.systemui",24,0,"animation",62000000,64000000,2000000,2000000,0,5020
+        "BACK_PANEL_ARROW","com.android.systemui",65,2,"DrawFrames",85000000,86000000,1000000,1000000,0,1555
+        "BACK_PANEL_ARROW","com.android.systemui",65,2,"binder transaction",86000000,88500000,2500000,2500000,0,5020
+        "CUJ_NAME","com.google.android.apps.nexuslauncher",80,1,"DrawFrames",121000000,122000000,1000000,800000,0,1655
+        "CUJ_NAME","com.google.android.apps.nexuslauncher",80,1,"animation",127000000,138000000,11000000,11000000,0,6020
+        "CUJ_NAME","com.google.android.apps.nexuslauncher",82,1,"DrawFrames",142000000,142500000,500000,500000,0,1655
+        """))
+
+  def test_android_jank_cuj_frame_blocking_calls_canceled_excluded(self):
+    return DiffTestBlueprint(
+        trace=Path('jank_cuj_canceled_and_completed_trace.py'),
+        query="""
+        INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
+        SELECT
+          bc.cuj_name,
+          bc.process_name,
+          bc.frame_id,
+          bc.layer_id,
+          bc.name,
+          bc.ts,
+          bc.ts_end,
+          bc.dur,
+          bc.blocking_dur,
+          bc.is_hwui_task,
+          thread.name AS thread_name
+        FROM android_jank_cuj_frame_blocking_calls AS bc
+        JOIN thread USING (utid)
+        ORDER BY bc.ts, bc.is_hwui_task, bc.name;
+        """,
+        out=Csv("""
+        "cuj_name","process_name","frame_id","layer_id","name","ts","ts_end","dur","blocking_dur","is_hwui_task","thread_name"
+        "SHADE_EXPAND","com.android.systemui",20,0,"animation",53000000,55000000,2000000,2000000,0,"UiThread"
+        "SHADE_EXPAND","com.android.systemui",20,0,"DrawFrames",54000000,55000000,1000000,800000,0,"RenderThread"
+        "SHADE_EXPAND","com.android.systemui",20,0,"hwuiTask",54200000,54500000,300000,300000,1,"hwuiTask0"
+        """))
+
+  def test_android_jank_cuj_frame_blocking_calls_interval_intersect(self):
+    return DiffTestBlueprint(
+        trace=Path('jank_cuj_canceled_and_completed_trace.py'),
+        query="""
+        INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE active_sched AS
+        SELECT id, ts, dur, utid
+        FROM sched
+        WHERE dur > 0;
+
+        SELECT
+          bc.cuj_name,
+          bc.frame_id,
+          bc.name,
+          bc.is_hwui_task,
+          thread.name AS thread_name,
+          ii.ts,
+          ii.dur
+        FROM _interval_intersect!(
+          (android_jank_cuj_frame_blocking_calls, active_sched),
+          (utid)
+        ) AS ii
+        JOIN android_jank_cuj_frame_blocking_calls AS bc
+          ON bc.id = ii.id_0
+        JOIN thread
+          ON thread.utid = ii.utid
+        ORDER BY ii.ts, bc.name;
+        """,
+        out=Csv("""
+        "cuj_name","frame_id","name","is_hwui_task","thread_name","ts","dur"
+        "SHADE_EXPAND",20,"animation",0,"UiThread",53000000,800000
+        "SHADE_EXPAND",20,"DrawFrames",0,"RenderThread",54000000,500000
+        "SHADE_EXPAND",20,"hwuiTask",1,"hwuiTask0",54200000,300000
+        "SHADE_EXPAND",20,"animation",0,"UiThread",54300000,700000
+        "SHADE_EXPAND",20,"DrawFrames",0,"RenderThread",54700000,300000
+        """))
