@@ -1028,6 +1028,34 @@ public class PerfettoTraceTest {
   }
 
   @Test
+  public void testUnregisteredCategoryEmitsNothing() throws Exception {
+    Category category = new Category("reregistered").register();
+    PerfettoTrace.Session session =
+        new PerfettoTrace.Session(true, getTraceConfig("reregistered").toByteArray());
+    assertThat(category.isEnabled()).isTrue();
+
+    // unregister() leaves the native wrapper alive.
+    category.unregister();
+    assertThat(category.isEnabled()).isFalse();
+    PerfettoTrace.instant(category, "unregistered").emit();
+    PerfettoTrace.begin(category, "unregistered").emit();
+    PerfettoTrace.end(category).emit();
+
+    category.register();
+    assertThat(category.isEnabled()).isTrue();
+    PerfettoTrace.instant(category, "registered_again").emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+    for (TracePacket packet : trace.getPacketList()) {
+      collectInternedData(packet);
+    }
+    assertThat(getTrackEvent(trace, 0).getType()).isEqualTo(TrackEvent.Type.TYPE_INSTANT);
+    assertThat(getTrackEvent(trace, 1)).isNull();
+    assertThat(mEventNames).containsExactly("registered_again");
+    assertThat(mCategoryNames).containsExactly("reregistered");
+  }
+
+  @Test
   public void testDisabledCategory() throws Exception {
     class DisabledCategory extends Category {
       public DisabledCategory(String name) {
@@ -1534,6 +1562,37 @@ public class PerfettoTraceTest {
     // On host / default variant, system backend registration is unrestricted.
     assertThat(PerfettoTrace.register(false)).isTrue();
     assertThat(PerfettoTrace.getAttempedSystemRegistration()).isTrue();
+  }
+
+  @Test
+  public void testTrackUuidsMatchTheCSdk() throws Exception {
+    PerfettoTrace.Session session =
+        new PerfettoTrace.Session(true, getTraceConfig(FOO).toByteArray());
+    PerfettoTrace.instant(FOO_CATEGORY, "event").emit();
+    Trace trace = Trace.parseFrom(session.close());
+
+    long processUuid = PerfettoTrace.getProcessTrackUuid();
+    int processes = 0;
+    int threads = 0;
+    for (TracePacket packet : trace.getPacketList()) {
+      TrackDescriptor td = packet.getTrackDescriptor();
+      if (td.hasProcess()) {
+        assertThat(td.getUuid()).isEqualTo(processUuid);
+        processes++;
+      }
+      if (td.hasThread()) {
+        assertThat(td.getUuid())
+            .isEqualTo(PerfettoTrace.getThreadTrackUuid(td.getThread().getTid()));
+        assertThat(td.getParentUuid()).isEqualTo(processUuid);
+        threads++;
+      }
+    }
+    assertThat(processes).isGreaterThan(0);
+    assertThat(threads).isGreaterThan(0);
+
+    // Preserve pid_t truncation and sign extension.
+    assertThat(PerfettoTrace.getThreadTrackUuid(0x1_0000_0005L)).isEqualTo(processUuid ^ 5);
+    assertThat(PerfettoTrace.getThreadTrackUuid(0xFFFF_FFFFL)).isEqualTo(processUuid ^ -1L);
   }
 
   @Test

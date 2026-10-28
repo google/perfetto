@@ -3,7 +3,6 @@
 class com.android.internal.dev.perfetto.sdk.PerfettoCategories keepclass
 class com.android.internal.dev.perfetto.sdk.PerfettoTrace keepclass
     method native_get_process_track_uuid ignore
-    method native_get_thread_track_uuid ignore
     method native_activate_trigger ignore
     method native_register ignore
     method native_start_session ignore

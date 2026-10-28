@@ -21,6 +21,9 @@ src/android_sdk/java/host_stubs/ to compile the perfetto Java SDK and the
 PerfettoTraceTest suite for host. Links against the libperfetto_jni.so the
 gn+ninja pipeline produces and runs the JUnit suite.
 
+Use --benchmark to run benchmarks and forward subsequent arguments, e.g.
+`--benchmark --filter=instant --reps=5`.
+
 Prerequisites
 -------------
   $JAVA_HOME points at a JDK >= 11 install root.
@@ -28,6 +31,7 @@ Prerequisites
   tools/install-build-deps --java-sdk   # Maven jars (opt-in)
 """
 
+import argparse
 import logging
 import os
 import subprocess
@@ -42,6 +46,12 @@ JAVA_PROTOS_TARGET = 'src/android_sdk/java/test:perfetto_test_java_protos'
 JAVA_PROTOS_DIR = 'gen/src/android_sdk/java/test'
 
 TEST_CLASS = 'dev.perfetto.sdk.test.PerfettoTraceTest'
+BENCH_CLASS = 'dev.perfetto.sdk.bench.PerfettoTraceBenchmark'
+
+# Fix heap size and GC settings for comparisons across builds.
+BENCH_JVM_FLAGS = [
+    '-Xms1g', '-Xmx1g', '-XX:+UseParallelGC', '-XX:+AlwaysPreTouch'
+]
 
 
 def Die(msg):
@@ -151,14 +161,44 @@ def RunTests(jdk_home, jars, sdk_jar, test_jar):
       env=env)
 
 
+def CompileBench(jdk_home, jars, sdk_jar):
+  classes = os.path.join(OUT_DIR, 'bench_classes')
+  os.makedirs(classes, exist_ok=True)
+  srcs = list(Glob(os.path.join(SDK_DIR, 'bench'), '.java'))
+  Javac(jdk_home, classes, Classpath(sdk_jar, *jars), srcs)
+  jar = os.path.join(OUT_DIR, 'perfetto_sdk_host_bench.jar')
+  Jar(jdk_home, jar, classes)
+  return jar
+
+
+def RunBench(jdk_home, sdk_jar, bench_jar, bench_args):
+  env = dict(os.environ, LD_LIBRARY_PATH=OUT_DIR)
+  Run([os.path.join(jdk_home, 'bin/java')] + BENCH_JVM_FLAGS + [
+      '-Djava.library.path=' + OUT_DIR, '-cp',
+      Classpath(sdk_jar, bench_jar), BENCH_CLASS
+  ] + bench_args,
+      env=env)
+
+
 def main():
   logging.basicConfig(level=logging.INFO, format='%(message)s')
+  parser = argparse.ArgumentParser()
+  parser.add_argument(
+      '--benchmark',
+      nargs=argparse.REMAINDER,
+      help='Run the benchmark with the arguments that follow, not the tests.')
+  args = parser.parse_args()
+
   jdk_home = JdkHome()
   jars = MavenJars()
   Gn(jdk_home)
   Ninja()
   java_protos = os.path.join(OUT_DIR, JAVA_PROTOS_DIR)
   sdk_jar = CompileSdk(jdk_home, jars, java_protos)
+  if args.benchmark is not None:
+    bench_jar = CompileBench(jdk_home, jars, sdk_jar)
+    RunBench(jdk_home, sdk_jar, bench_jar, args.benchmark)
+    return
   test_jar = CompileTest(jdk_home, jars, sdk_jar)
   RunTests(jdk_home, jars, sdk_jar, test_jar)
 
