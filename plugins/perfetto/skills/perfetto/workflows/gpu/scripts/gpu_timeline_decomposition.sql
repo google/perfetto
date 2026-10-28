@@ -34,9 +34,10 @@ WHERE
 
 CREATE PERFETTO TABLE _gpu_busy AS
 SELECT ugpu, ts, dur
-FROM interval_merge_overlapping_partitioned!((
-    SELECT ts, dur, ugpu FROM _gpu_work
-  ), (ugpu));
+FROM interval_merge_overlapping_partitioned!(
+  (SELECT ts, dur, ugpu FROM _gpu_work),
+  (ugpu)
+);
 
 SELECT
   k.ugpu AS gpu,
