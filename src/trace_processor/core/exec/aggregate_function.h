@@ -24,6 +24,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
@@ -71,6 +72,12 @@ class AggregateInputLoader {
             uint32_t count,
             AggregateInput* out);
 
+  // Ends a run (see RunHeld).
+  void EndRun() {
+    EndRunOf(&values_);
+    EndRunOf(&valid_);
+  }
+
  private:
   FlexVector<int64_t> values_;
   FlexVector<uint64_t> valid_;
@@ -96,6 +103,8 @@ class SeenBytes {
   // groups in all, whose input holds nulls if `nulls`.
   uint8_t* For(uint32_t groups, bool nulls);
   void Clear();
+  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  void EndRun();
 
  private:
   FlexVector<uint8_t> bytes_;

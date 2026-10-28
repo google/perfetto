@@ -27,6 +27,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
@@ -66,23 +67,25 @@ class TreeChildFirst : public Breaker {
 
   struct State : Breaker::State {
     ~State() override;
-    void Reset() override;
 
-    // By node number.
-    BitVector has_row;
-    uint32_t nodes_seen = 0;
-    // Which orders the rows so far are still consistent with.
-    bool parent_first = true;
-    bool child_first = true;
-
+    // The rows, as they arrive.
+    Held<RowStore> rows{this};
     // The node and parent of each row in order of arrival: what a sort needs.
-    FlexVector<uint32_t> nodes;
-    FlexVector<uint32_t> parents;
+    Held<FlexVector<uint32_t>> nodes{this};
+    Held<FlexVector<uint32_t>> parents{this};
 
-    RowStore rows;
+    // What is known of the tree so far.
+    // By node number.
+    Held<BitVector> has_row{this};
+    RunValue<uint32_t> nodes_seen{this};
+    // Which orders the rows so far are still consistent with.
+    RunValue<bool> parent_first{this, true};
+    RunValue<bool> child_first{this, true};
+
+    // The rows served.
     // The order to emit the rows in. Empty means in arrival order.
-    FlexVector<uint32_t> order;
-    uint32_t emitted = 0;
+    Held<FlexVector<uint32_t>> order{this};
+    RunValue<uint32_t> emitted{this};
   };
 
   std::unique_ptr<Breaker::State> CreateState() const override;
@@ -137,9 +140,8 @@ class TreeParentFirst : public Operator {
   friend class PipelineFormatter;
 
   struct State : OperatorState {
-    State() : OperatorState(ResetEachRun{}) {}
+    State() = default;
     ~State() override;
-    void Reset() override;
 
     // What is known about each node number.
     struct Nodes {
@@ -151,39 +153,46 @@ class TreeParentFirst : public Operator {
       // Grows to at least `count` nodes, ahead of need.
       void Grow(uint32_t count);
       void Clear();
+      // Ends a run (see RunHeld).
+      void EndRun();
     };
 
     // Rows which arrived before their parent. Each knows its node and the
     // next row waiting on the same parent, which with `first_waiting` makes
-    // a list per parent. A row let go stays here, so this only grows until
-    // the next rewind.
-    struct Held {
+    // a list per parent. A row let go stays here until none is waiting, or
+    // the run ends.
+    struct Waiting {
       RowStore rows;
       FlexVector<uint32_t> node;
       FlexVector<uint32_t> next_waiting;
       uint32_t let_go = 0;
 
       void Clear();
+      // Ends a run (see RunHeld).
+      void EndRun();
     };
-
-    Nodes nodes;
-    Held held;
-
-    // Rows of `held` on their way out after the current batch, served a
-    // batch at a time from `served`.
-    FlexVector<uint32_t> letting_go;
-    uint32_t served = 0;
-
-    // Scratch for one batch: which of its rows pass straight through, which
-    // are held, and the held ones sliced out to be copied.
-    FlexVector<uint32_t> passing;
-    FlexVector<uint32_t> holding;
-    RowBatch held_batch;
 
     // What rows let go are gathered into.
     Context* context = nullptr;
 
-    base::Status status = base::OkStatus();
+    Held<base::Status> status{this};
+
+    // The nodes, and the rows waiting on them.
+    Held<Nodes> nodes{this};
+    Held<Waiting> held{this};
+
+    // Rows of `held` on their way out after the current batch, served a
+    // batch at a time from `served`.
+    Held<FlexVector<uint32_t>> letting_go{this};
+    RunValue<uint32_t> served{this};
+
+    // The batch's rows held, sliced out to be copied.
+    Held<RowBatch> held_batch{this};
+
+    // Scratch for one call: which of the batch's rows pass straight through,
+    // and which are held.
+    CallScratch<FlexVector<uint32_t>> passing;
+    CallScratch<FlexVector<uint32_t>> holding;
   };
 
   // Moves every row waiting on `node` to `letting_go`.

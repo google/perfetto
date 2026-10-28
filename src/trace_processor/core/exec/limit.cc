@@ -33,11 +33,6 @@ Limit::Limit(std::optional<uint32_t> limit, uint32_t offset)
 Limit::~Limit() = default;
 Limit::State::~State() = default;
 
-void Limit::State::Reset() {
-  skipped = 0;
-  kept = 0;
-}
-
 std::unique_ptr<OperatorState> Limit::MakeState(Context&) const {
   return std::make_unique<State>();
 }

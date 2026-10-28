@@ -36,6 +36,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/util/graph.h"
 
@@ -112,38 +113,37 @@ class NodeIndex {
 struct GraphTree::State : OperatorState {
   ~State() override;
 
-  void Clear() {
-    rows.Clear();
-    computed = false;
-    id_of_node.clear();
-    tree = {};
-    position.clear();
-    served = 0;
-    status = base::OkStatus();
-  }
+  struct Tree : util::GraphTree {
+    using util::GraphTree::operator=;
+    void EndRun() { static_cast<util::GraphTree&>(*this) = {}; }
+  };
 
   std::unique_ptr<OperatorState> nodes_state;
   std::unique_ptr<OperatorState> edges_state;
   std::unique_ptr<OperatorState> seeds_state;
   Context* context = nullptr;
 
-  // The retained columns of every node row, in the order they arrived.
-  RowStore rows;
-  bool computed = false;
+  Held<base::Status> status{this};
+
+  // The inputs, read in full: what each batch is read into, and the retained
+  // columns of every node row, in the order they arrived.
+  Held<RowBatch> batch{this};
+  Held<RowBatch> retained{this};
+  Held<RowStore> rows{this};
   // Nodes are numbered in the order they arrived, so a node's number is also
   // its row in `rows`.
-  std::vector<int64_t> id_of_node;
-  util::GraphTree tree;
-  // By node, its row's place in the output.
-  std::vector<uint32_t> position;
-  uint32_t served = 0;
-  base::Status status = base::OkStatus();
+  Held<std::vector<int64_t>> id_of_node{this};
 
-  // Scratch, reused across calls.
-  RowBatch batch;
-  RowBatch retained;
-  RowBatch gathered;
-  std::vector<uint32_t> gather_rows;
+  // The tree, computed once.
+  RunValue<bool> computed{this, false};
+  Held<Tree> tree{this};
+  // By node, its row's place in the output.
+  Held<std::vector<uint32_t>> position{this};
+
+  // The rows served.
+  RunValue<uint32_t> served{this};
+  Held<RowBatch> gathered{this};
+  CallScratch<std::vector<uint32_t>> gather_rows;
 };
 
 GraphTree::State::~State() = default;
@@ -163,10 +163,9 @@ std::unique_ptr<OperatorState> GraphTree::MakeState(Context& context) const {
 
 void GraphTree::Rewind(OperatorState& state) const {
   State& s = state.Cast<State>();
-  spec_.nodes->Rewind(*s.nodes_state);
-  spec_.edges->Rewind(*s.edges_state);
-  spec_.seeds->Rewind(*s.seeds_state);
-  s.Clear();
+  Restart(*spec_.nodes, *s.nodes_state);
+  Restart(*spec_.edges, *s.edges_state);
+  Restart(*spec_.seeds, *s.seeds_state);
 }
 
 base::Status GraphTree::status(const OperatorState& state) const {

@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/layout_column.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
@@ -209,6 +210,16 @@ uint32_t SortedRows::Gather(RowBatch* out, uint32_t at, Context& context) {
   uint32_t count = std::min(kMaxBatchRows, rows_.size() - at);
   const uint32_t* begin = order_.data() + at;
   return rows_.Gather(out, Span<const uint32_t>(begin, begin + count), context);
+}
+
+void SortedRows::EndRun() {
+  types_.clear();
+  strings_.clear();
+  ranks_.Clear();
+  pool_ = nullptr;
+  EndRunOf(&keys_);
+  rows_.EndRun();
+  EndRunOf(&order_);
 }
 
 void SortedRows::Clear() {

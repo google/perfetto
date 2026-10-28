@@ -30,6 +30,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/span.h"
 
@@ -172,6 +173,21 @@ void RowStore::Clear() {
   held_columns_.clear();
   stored_column_.clear();
   size_ = 0;
+}
+
+void RowStore::EndRun() {
+  Clear();
+  EndRunOf(&ends_);
+  EndRunOf(&batch_of_row_);
+  EndRunOf(&nullable_);
+  for (FlexVector<GatherSource>& sources : sources_) {
+    EndRunOf(&sources);
+  }
+  // The batches kept for reuse take a few KB each.
+  size_t keep = kRunKeptBytes / sizeof(RowBatch);
+  if (batches_.size() > keep) {
+    batches_.resize(keep);
+  }
 }
 
 uint32_t RowStore::View(RowBatch* out, uint32_t offset, uint32_t count) {

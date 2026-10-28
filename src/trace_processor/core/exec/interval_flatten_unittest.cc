@@ -85,10 +85,10 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
   auto state = op.MakeState(test::TestContext());
   // Refill the same vectors for each input batch, published in a buffer each,
   // as a source refilling its storage would. Retained group keys must survive
-  // this, and Reset must discard a previous execution's state.
+  // this.
   for (uint32_t chunk : {1u, 17u, kMaxBatchRows}) {
     SCOPED_TRACE(chunk);
-    state->Reset();
+    state->EndRun();
     std::vector<int64_t> ts(chunk), dur(chunk), key(chunk), weight(chunk);
     std::vector<uint32_t> groups(chunk);
     auto key_valid = BitVector::CreateWithSize(chunk);
