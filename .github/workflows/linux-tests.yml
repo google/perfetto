@@ -187,6 +187,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: 'Sandbox bootstrap hygiene self-check (informational)'
+        continue-on-error: true
+        timeout-minutes: 2
+        run: bash test/ci_sandbox_hygiene.sh
+
       - name: Restore cache
         uses: ./.github/actions/cache-on-google-cloud-storage/restore
         with:
