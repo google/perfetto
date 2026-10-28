@@ -81,6 +81,7 @@ class Compute final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override;
 
   explicit Compute(std::vector<ExprProgram> programs);
   ~Compute() override;

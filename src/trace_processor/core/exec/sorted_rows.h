@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -69,6 +70,11 @@ class SortedRows {
   // the order. Returns the number of rows copied.
   uint32_t Gather(RowBatch* out, uint32_t at, Context& context);
   void Clear();
+
+  // Which columns are not held (see RowStore::SetUnread).
+  void SetUnread(std::vector<bool> unread) {
+    rows_.SetUnread(std::move(unread));
+  }
 
  private:
   struct KeyType {

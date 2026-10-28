@@ -44,6 +44,7 @@ class DropOddRows final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) const override {}
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
@@ -88,6 +89,7 @@ class Twice final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) const override {}
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
@@ -219,6 +221,7 @@ class Trailer final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) const override {}
 
   Trailer(int64_t first, uint32_t count) : first_(first), count_(count) {}
 
@@ -307,6 +310,7 @@ class DropOddRowsInPlace final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) const override {}
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();

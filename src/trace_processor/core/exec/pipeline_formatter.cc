@@ -93,6 +93,17 @@ std::string Columns(const std::vector<uint32_t>& positions) {
   return out;
 }
 
+// The columns a step holding rows does not hold, if any.
+std::string Unread(const std::vector<bool>& unread) {
+  std::vector<uint32_t> positions;
+  for (uint32_t c = 0; c < unread.size(); ++c) {
+    if (unread[c]) {
+      positions.push_back(c);
+    }
+  }
+  return positions.empty() ? "" : "; drops " + Columns(positions);
+}
+
 std::string Lanes(const IntervalLaneSpec& lanes) {
   std::string out = Column(lanes.ts_column) + ", " + Column(lanes.dur_column);
   if (!lanes.key_columns.empty()) {
@@ -307,15 +318,17 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
     return "CombineBatches";
   }
   if (op.Is<Sort>()) {
-    return "Sort(" + Keys(static_cast<const Sort&>(op).spec_.keys) + ")";
+    const auto& sort = static_cast<const Sort&>(op);
+    return "Sort(" + Keys(sort.spec_.keys) + Unread(sort.unread_) + ")";
   }
   if (op.Is<GroupedSort>()) {
-    const GroupedSortSpec& spec = static_cast<const GroupedSort&>(op).spec_;
+    const auto& sort = static_cast<const GroupedSort&>(op);
+    const GroupedSortSpec& spec = sort.spec_;
     std::string out = "GroupedSort(" + Columns(spec.groups);
     if (!spec.keys.empty()) {
       out += "; " + Keys(spec.keys);
     }
-    return out + ")";
+    return out + Unread(sort.unread_) + ")";
   }
   if (op.Is<HashAggregate>()) {
     const HashAggregateSpec& spec = static_cast<const HashAggregate&>(op).spec_;
@@ -349,12 +362,12 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
   if (op.Is<TreeChildFirst>()) {
     const auto& order = static_cast<const TreeChildFirst&>(op);
     return "TreeChildFirst(" + Column(order.node_column_) + ", " +
-           Column(order.parent_column_) + ")";
+           Column(order.parent_column_) + Unread(order.unread_) + ")";
   }
   if (op.Is<TreeParentFirst>()) {
     const auto& order = static_cast<const TreeParentFirst&>(op);
     return "TreeParentFirst(" + Column(order.node_column_) + ", " +
-           Column(order.parent_column_) + ")";
+           Column(order.parent_column_) + Unread(order.unread_) + ")";
   }
   return "Operator";
 }

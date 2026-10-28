@@ -265,6 +265,7 @@ class ContractFilter final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) const override {}
 
   struct State : OperatorState {
     std::vector<uint32_t> selected;
@@ -293,6 +294,7 @@ class FinishProbe final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) const override {}
 
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,

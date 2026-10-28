@@ -266,11 +266,10 @@ TEST_F(PhysicalPlanTest, RowsAlreadyInOrderAreNotSortedAgain) {
       plan("FROM t |> ORDER BY cpu |> AGGREGATE COUNT(*) AS n GROUP BY "
            "cpu |> ORDER BY cpu"),
       "main: DataframeScan | Sort(#0) | HashAggregate(keys: #0; COUNT(*))");
-  EXPECT_EQ(
-      plan("FROM t |> ORDER BY ts |> AGGREGATE COUNT(*) AS n GROUP BY "
-           "cpu |> ORDER BY cpu"),
-      "main: DataframeScan | Sort(#0) | HashAggregate(keys: #1; COUNT(*)) | "
-      "Sort(#0)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY ts |> AGGREGATE COUNT(*) AS n GROUP BY "
+                 "cpu |> ORDER BY cpu"),
+            "main: DataframeScan | Sort(#0; drops #0) | "
+            "HashAggregate(keys: #1; COUNT(*)) | Sort(#0)");
 }
 
 // Small batches are combined only after a step that may output them, and only
@@ -288,7 +287,22 @@ TEST_F(PhysicalPlanTest, OnlySmallBatchesAreCombined) {
                  "|> ORDER BY c"),
             "main: DataframeScan | AssertType(#0 to Int64) | "
             "AssertType(#1 to Int64) | Sort(#0) | "
-            "IntervalFlatten(#0, #1; COUNT(*)) | CombineBatches | Sort(#2)");
+            "IntervalFlatten(#0, #1; COUNT(*)) | CombineBatches | "
+            "Sort(#2; drops #3)");
+}
+
+// A step which holds rows holds only the columns read after it: the others
+// read back as nulls.
+TEST_F(PhysicalPlanTest, ReordersHoldOnlyColumnsReadAfterThem) {
+  Exec("CREATE TABLE t(id INTEGER, ts INTEGER, n INTEGER)");
+  Exec("INSERT INTO t VALUES (1, 50, 2), (2, 60, 1), (3, 70, 3)");
+  auto plan = Plan("FROM t |> ORDER BY n |> SELECT id, ts");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "main: DataframeScan | Sort(#2; drops #2)");
+  auto rows = Run(**plan, "ts");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(1, 50), Pair(2, 60), Pair(3, 70)));
 }
 
 // DISTINCT compares only the columns of the row at that stage: `id`, dropped

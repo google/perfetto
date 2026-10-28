@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/selection.h"
@@ -58,6 +59,17 @@ struct IntervalLaneSpec {
   // Whether a dur of -1 is an interval which never ends.
   bool forever = false;
 };
+
+// Adds the columns an interval input reads to `out`.
+inline void DescribeLaneReads(const IntervalLaneSpec& lanes, StepColumns* out) {
+  out->reads.push_back(lanes.ts_column);
+  out->reads.push_back(lanes.dur_column);
+  out->reads.insert(out->reads.end(), lanes.key_columns.begin(),
+                    lanes.key_columns.end());
+  if (!lanes.key_columns.empty()) {
+    out->reads.push_back(lanes.group_column);
+  }
+}
 
 // An interval input read whole from its own source, keeping
 // `retained_columns` of each row, in this order. Any other column is read

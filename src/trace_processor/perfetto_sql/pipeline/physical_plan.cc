@@ -23,6 +23,7 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -33,6 +34,8 @@
 #include "src/trace_processor/core/exec/assert_type.h"
 #include "src/trace_processor/core/exec/combine_batches.h"
 #include "src/trace_processor/core/exec/grouped_sort.h"
+#include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/sort.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
@@ -55,6 +58,61 @@ std::vector<SortKey> Without(const std::vector<SortKey>& keys,
     }
   }
   return kept;
+}
+
+void Describe(const ex::Pipeline::Step& step, ex::StepColumns* out) {
+  if (const auto* transform =
+          std::get_if<std::unique_ptr<ex::Transform>>(&step)) {
+    (*transform)->DescribeColumns(out);
+  } else {
+    std::get<std::unique_ptr<ex::Operator>>(step)->DescribeColumns(out);
+  }
+}
+
+// Tells each operator which columns of its input no later step reads, so an
+// operator holding rows holds only the others. `steps` follow a source of
+// `source_columns` columns. `outputs` are the columns read after them, or
+// null if any may be.
+void SetUnreadColumns(uint32_t source_columns,
+                      const std::vector<uint32_t>* outputs,
+                      std::vector<ex::Pipeline::Step>* steps) {
+  // By step, how it uses columns, and how many its input has.
+  std::vector<ex::StepColumns> columns(steps->size());
+  std::vector<uint32_t> widths = {source_columns};
+  for (size_t i = 0; i < steps->size(); ++i) {
+    Describe((*steps)[i], &columns[i]);
+    widths.push_back(columns[i].keeps == ex::StepColumns::Keeps::kNone
+                         ? columns[i].added
+                         : widths[i] + columns[i].added);
+  }
+  // By column of the output of the step being looked at, whether a later
+  // step reads it.
+  std::vector<bool> read(widths.back(), outputs == nullptr);
+  if (outputs) {
+    for (uint32_t column : *outputs) {
+      read[column] = true;
+    }
+  }
+  for (size_t i = steps->size(); i-- > 0;) {
+    const ex::StepColumns& step = columns[i];
+    bool keeps_all = step.keeps == ex::StepColumns::Keeps::kAll;
+    auto* op = std::get_if<std::unique_ptr<ex::Operator>>(&(*steps)[i]);
+    if (op && keeps_all) {
+      std::vector<bool> unread(widths[i]);
+      for (uint32_t c = 0; c < widths[i]; ++c) {
+        unread[c] = !read[c];
+      }
+      (*op)->SetUnreadColumns(std::move(unread));
+    }
+    if (keeps_all) {
+      read.resize(widths[i]);
+    } else {
+      read.assign(widths[i], false);
+    }
+    for (uint32_t column : step.reads) {
+      read[column] = true;
+    }
+  }
 }
 
 }  // namespace
@@ -109,6 +167,8 @@ void Lowering::Fail(base::Status status) {
 void Lowering::SetSource(std::unique_ptr<core::exec::Source> source) {
   PERFETTO_DCHECK(!input_);
   input_ = std::move(source);
+  // Every operation declares its source's columns before setting it.
+  source_columns_ = column_count_;
 }
 
 void Lowering::AddOperator(core::exec::Pipeline::Step operation) {
@@ -123,7 +183,7 @@ Lowering& Lowering::AddSidePipeline() {
 
 const core::exec::Source* Lowering::FinishSide() {
   PhysicalPlan& out = *plan_->out_;
-  std::unique_ptr<ex::Pipeline> pipeline = Build();
+  std::unique_ptr<ex::Pipeline> pipeline = Build(nullptr);
   out.side_inputs_.push_back(std::move(input_));
   out.side_pipelines_.push_back(std::move(pipeline));
   return out.side_pipelines_.back().get();
@@ -522,7 +582,9 @@ void Lowering::Convert(const Side& side, const PlanType& type) {
       plan.plan().names().text(plan.plan().columns()[side.column].name)));
 }
 
-std::unique_ptr<ex::Pipeline> Lowering::Build() {
+std::unique_ptr<ex::Pipeline> Lowering::Build(
+    const std::vector<uint32_t>* outputs) {
+  SetUnreadColumns(source_columns_, outputs, &operators_);
   return std::make_unique<ex::Pipeline>(*input_, std::move(operators_));
 }
 
@@ -546,12 +608,13 @@ void PlanLowering::Fail(base::Status status) {
 base::StatusOr<std::unique_ptr<PhysicalPlan>> PlanLowering::Finish() {
   RETURN_IF_ERROR(status_);
   Lowering& lowering = main();
-  out_->pipeline_ = lowering.Build();
-  out_->input_ = std::move(lowering.input_);
+  std::vector<uint32_t> outputs;
   for (const NamedColumn& column : plan_.output()) {
-    out_->columns_.push_back(
-        {plan_.names().text(column.name), lowering.QueryPosition(column.id)});
+    outputs.push_back(lowering.QueryPosition(column.id));
+    out_->columns_.push_back({plan_.names().text(column.name), outputs.back()});
   }
+  out_->pipeline_ = lowering.Build(&outputs);
+  out_->input_ = std::move(lowering.input_);
   return std::move(out_);
 }
 
