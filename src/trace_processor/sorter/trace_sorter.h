@@ -29,7 +29,6 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
@@ -46,7 +45,7 @@ namespace perfetto::trace_processor {
 // order. In order to support streaming use-cases, sorting happens within a
 // window.
 //
-// Events are held in the TraceSorter staging area (events_) until either:
+// Events are held in the TraceSorter staging area (blocks_) until either:
 // 1. We can determine that it's safe to extract events by observing
 //  TracingServiceEvent Flush and ReadBuffer events
 // 2. The trace EOF is reached
@@ -64,29 +63,17 @@ namespace perfetto::trace_processor {
 //
 // Sorting algorithm
 //
-// The sorting algorithm is designed around the assumption that:
-// - Most events come from ftrace.
-// - Ftrace events are sorted within each cpu most of the times.
+// The events of all streams are appended, in arrival order, to shared blocks
+// of up to kBlockEvents events. Arrival order is token buffer (alloc id)
+// order, so sorting by (timestamp, alloc id) gives the order events must be
+// extracted in, whichever stream they came from.
 //
-// Due to this, this class is oprerates as a streaming merge-sort of N+1 queues
-// (N = num cpus + 1 for non-ftrace events). Each queue in turn gets sorted (if
-// necessary) before proceeding with the global merge-sort-extract.
-//
-// When an event is pushed through, it is just appended to the end of one of
-// the N queues. While appending, we keep track of the fact that the queue
-// is still ordered or just lost ordering. When an out-of-order event is
-// detected on a queue we keep track of: (1) the offset within the queue where
-// the chaos begun, (2) the timestamp that broke the ordering.
-//
-// When we decide to extract events from the queues into the next stages of
-// the trace processor, we re-sort the events in the queue. Rather than
-// re-sorting everything all the times, we use the above knowledge to restrict
-// sorting to the (hopefully smaller) tail of the |events_| staging area.
-// At any time, the first partition of |events_| [0 .. sort_start_idx_) is
-// ordered, and the second partition [sort_start_idx_.. end] is not.
-// We use a logarithmic bound search operation to figure out what is the index
-// within the first partition where sorting should start, and sort all events
-// from there to the end.
+// A block is sorted as soon as it fills, while its events are still in cache,
+// with a stable radix sort on timestamps. Extraction merges the sorted blocks
+// through a heap. Arrival is roughly in time order, so blocks cover mostly
+// disjoint ranges and the merge takes long runs from each. Blocks grow as
+// events arrive and shrink as they drain, so they hold memory in proportion
+// to the pending events.
 class TraceSorter {
  public:
   template <typename T>
@@ -131,10 +118,7 @@ class TraceSorter {
   void ExtractEventsForced() {
     BumpAllocator::AllocId end_id = token_buffer_.PastTheEndAllocId();
     SortAndExtractEventsUntilAllocId(end_id);
-    for (auto& queue : queues_) {
-      PERFETTO_CHECK(queue.events_.empty());
-      queue.events_ = base::CircularQueue<TimestampedEvent>();
-    }
+    PERFETTO_CHECK(blocks_.empty());
 
     alloc_id_for_extraction_ = end_id;
     flushes_since_extraction_ = 0;
@@ -155,8 +139,15 @@ class TraceSorter {
 
   int64_t max_timestamp() const { return append_max_ts_; }
 
+  // The most events in a block. 64K events (1MB): small enough to sort in
+  // cache, large enough that blocks are few to merge.
+  static constexpr uint32_t kBlockEvents = 64 * 1024;
+
  private:
   class UntypedSink;
+
+  // The bits of TimestampedEvent left for the stream index.
+  static constexpr uint32_t kStreamBits = 64 - BumpAllocator::kMaxIdBits - 1;
 
   struct TimestampedEvent {
     // The timestamp of this event.
@@ -172,13 +163,11 @@ class TraceSorter {
     // TODO(sashwinbalaji): Update to bool.
     uint64_t is_json_event : 1;
 
+    // The index into |sinks_| of the stream the event was pushed to.
+    uint64_t stream : kStreamBits;
+
     BumpAllocator::AllocId alloc_id() const {
       return BumpAllocator::AllocId{chunk_index, chunk_offset};
-    }
-
-    // For std::lower_bound().
-    static bool Compare(const TimestampedEvent& x, int64_t ts) {
-      return x.ts < ts;
     }
 
     // For std::sort().
@@ -230,58 +219,42 @@ class TraceSorter {
   static_assert(std::is_nothrow_swappable_v<TimestampedEvent>,
                 "TimestampedEvent must be trivially swappable");
 
-  struct Queue {
-    void Append(int64_t ts,
-                TraceTokenBuffer::Id id,
-                bool is_json_event,
-                bool use_slow_sorting) {
-      {
-        events_.emplace_back();
-
-        TimestampedEvent& event = events_.back();
-        event.ts = ts;
-        event.chunk_index = id.alloc_id.chunk_index;
-        event.chunk_offset = id.alloc_id.chunk_offset;
-        event.is_json_event = is_json_event;
-      }
-
-      // Events are often seen in order.
-      if (PERFETTO_LIKELY(ts > max_ts_ ||
-                          (!use_slow_sorting && ts == max_ts_))) {
-        max_ts_ = ts;
-      } else {
-        // The event is breaking ordering. The first time it happens, keep
-        // track of which index we are at. We know that everything before that
-        // is sorted (because events were pushed monotonically). Everything
-        // after that index, instead, will need a sorting pass before moving
-        // events to the next pipeline stage.
-        if (sort_start_idx_ == 0) {
-          sort_start_idx_ = events_.size() - 1;
-          sort_min_ts_ = ts;
-        } else {
-          sort_min_ts_ = std::min(sort_min_ts_, ts);
-        }
-      }
-
-      if (ts < min_ts_) {
-        min_ts_ = ts;
-        min_alloc_id_ = id.alloc_id;
-      }
-      PERFETTO_DCHECK(min_ts_ <= max_ts_);
-    }
-
-    bool needs_sorting() const { return sort_start_idx_ != 0; }
-    void Sort(TraceTokenBuffer&, bool use_slow_sorting);
-
-    base::CircularQueue<TimestampedEvent> events_;
-    int64_t min_ts_ = std::numeric_limits<int64_t>::max();
-    // The first event to arrive at min_ts_.
-    BumpAllocator::AllocId min_alloc_id_{};
-    int64_t max_ts_ = 0;
-    size_t sort_start_idx_ = 0;
-    int64_t sort_min_ts_ = std::numeric_limits<int64_t>::max();
-    std::unique_ptr<UntypedSink> sink;
+  // Events in arrival order until the block is sorted; |head| is the first
+  // not yet extracted.
+  struct Block {
+    std::vector<TimestampedEvent> events;
+    size_t head = 0;
+    int64_t max_ts = std::numeric_limits<int64_t>::min();
+    // Whether |events| are in extraction order.
+    bool sorted = true;
   };
+
+  PERFETTO_ALWAYS_INLINE void Append(int64_t ts,
+                                     TraceTokenBuffer::Id id,
+                                     uint32_t stream,
+                                     bool is_json_event) {
+    if (PERFETTO_UNLIKELY(!block_open_ ||
+                          blocks_.back().events.size() == kBlockEvents)) {
+      OpenBlock();
+    }
+    Block& block = blocks_.back();
+    block.events.push_back({ts, id.alloc_id.chunk_index,
+                            id.alloc_id.chunk_offset, is_json_event, stream});
+    // Events are often seen in order.
+    if (PERFETTO_LIKELY(ts > block.max_ts ||
+                        (!use_slow_sorting_ && ts == block.max_ts))) {
+      block.max_ts = ts;
+    } else {
+      block.sorted = false;
+    }
+    append_max_ts_ = std::max(append_max_ts_, ts);
+  }
+
+  // Sorts the open block, if any, and starts a new one.
+  void OpenBlock();
+  void SortBlock(Block&);
+  template <typename Less>
+  void MergeBlocks(BumpAllocator::AllocId limit_alloc_id, Less less);
 
   void SortAndExtractEventsUntilAllocId(BumpAllocator::AllocId alloc_id);
 
@@ -289,20 +262,22 @@ class TraceSorter {
     return TraceTokenBuffer::Id{event.alloc_id()};
   }
 
-  std::vector<Queue> queues_;
+  // The sink of each stream, by stream index.
+  std::vector<std::unique_ptr<UntypedSink>> sinks_;
 
-  // SortAndExtractEventsUntilAllocId()'s heap of queues, kept to reuse its
-  // memory. Each entry holds its queue's earliest timestamp, so the heap is
-  // ordered without reading the queues.
-  struct QueueHeapEntry {
-    int64_t min_ts;
-    BumpAllocator::AllocId min_alloc_id;
-    uint32_t queue;
-  };
-  std::vector<QueueHeapEntry> queue_heap_;
+  // The pending events of all streams, in arrival order.
+  std::vector<Block> blocks_;
+  // Whether new events go to the last of |blocks_|.
+  bool block_open_ = false;
+  // MergeBlocks()' heap of block indices, kept to reuse its memory.
+  std::vector<uint32_t> block_heap_;
+  // SortBlock()'s radix sort scratch, kept to reuse its memory until the next
+  // extraction.
+  std::vector<TimestampedEvent> radix_scratch_;
+  std::vector<uint32_t> radix_counts_;
 
-  // Whether events are being extracted: the heap of queues assumes none are
-  // pushed meanwhile.
+  // Whether events are being extracted: the merge assumes none are pushed
+  // meanwhile.
   bool extracting_ = false;
 
   // Whether we should ignore incremental extraction and just wait for
@@ -334,8 +309,8 @@ class TraceSorter {
   // max(e.ts for e pushed to next stage)
   int64_t latest_pushed_event_ts_ = std::numeric_limits<int64_t>::min();
 
-  // Whether when std::sorting the queues, we should use the slow
-  // sorting algorithm
+  // Whether blocks are sorted and merged in SlowOperatorLess order, needed
+  // once a JSON 'X' event is pushed.
   bool use_slow_sorting_ = false;
 };
 
@@ -395,25 +370,28 @@ class TraceSorter::Stream {
       return;
     }
     if constexpr (std::is_same_v<T, JsonEvent>) {
-      sorter_->use_slow_sorting_ =
-          sorter_->use_slow_sorting_ || data.phase == 'X';
+      if (PERFETTO_UNLIKELY(data.phase == 'X' && !sorter_->use_slow_sorting_)) {
+        sorter_->use_slow_sorting_ = true;
+        // Sorted blocks are not in the slow order.
+        for (Block& block : sorter_->blocks_) {
+          block.sorted = false;
+        }
+      }
     }
     PERFETTO_DCHECK(!sorter_->extracting_);
     TraceTokenBuffer::Id id = sorter_->token_buffer_.Append(std::move(data));
-    Queue& queue = sorter_->queues_[queue_idx_];
-    queue.Append(ts, id, std::is_same_v<T, JsonEvent>,
-                 sorter_->use_slow_sorting_);
-    sorter_->append_max_ts_ = std::max(sorter_->append_max_ts_, queue.max_ts_);
+    sorter_->Append(ts, id, static_cast<uint32_t>(stream_idx_),
+                    std::is_same_v<T, JsonEvent>);
   }
 
  private:
   // Only the TraceSorter can create streams.
   friend class TraceSorter;
-  Stream(TraceSorter* sorter, size_t queue_idx)
-      : sorter_(sorter), queue_idx_(queue_idx) {}
+  Stream(TraceSorter* sorter, size_t stream_idx)
+      : sorter_(sorter), stream_idx_(stream_idx) {}
 
   TraceSorter* sorter_;
-  size_t queue_idx_;
+  size_t stream_idx_;
 };
 
 // The factory method implementation (in the header due to templates).
@@ -425,16 +403,13 @@ TraceSorter::CreateStream(std::unique_ptr<SinkType> sink) {
       std::is_base_of_v<Sink<T, SinkType>, SinkType>,
       "CreateStream sink must inherit from TraceSorter::Sink<T, Derived>");
 
-  // 1. Allocate a new queue.
-  queues_.emplace_back();
-  size_t queue_idx = queues_.size() - 1;
+  // The sorter owns the sink, upcast to the base class.
+  size_t stream_idx = sinks_.size();
+  PERFETTO_CHECK(stream_idx < (size_t{1} << kStreamBits));
+  sinks_.emplace_back(std::move(sink));
 
-  // 2. Move the unique_ptr, upcasting it to the base class.
-  //    The queue now owns the sink.
-  queues_[queue_idx].sink = std::move(sink);
-
-  // 3. Create and return the type-safe input handle.
-  return std::unique_ptr<Stream<T>>(new Stream<T>(this, queue_idx));
+  // Create and return the type-safe input handle.
+  return std::unique_ptr<Stream<T>>(new Stream<T>(this, stream_idx));
 }
 
 }  // namespace perfetto::trace_processor
