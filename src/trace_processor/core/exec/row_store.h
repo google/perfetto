@@ -18,7 +18,9 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_STORE_H_
 
 #include <cstdint>
+#include <limits>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -69,7 +71,23 @@ class RowStore {
   // Lets go of every row held.
   void Clear();
 
+  // By column of the batches appended, whether it is never read back: such
+  // a column is not held, and reads back as nulls of its type. Variant
+  // columns are always held. Applies from the next Append() after a Clear().
+  void SetUnread(std::vector<bool> unread) { unread_ = std::move(unread); }
+
  private:
+  static constexpr uint32_t kNotHeld = std::numeric_limits<uint32_t>::max();
+
+  // Decides, from the first batch appended, which of its columns are held.
+  void SetShape(const RowBatch& in, Context& context);
+
+  // Whether a column is not held.
+  bool drops() const { return held_columns_.size() != shape_.column_count(); }
+
+  // Holds the rows `in` keeps, of the columns held.
+  void Keep(const RowBatch& in, Context& context);
+
   // Whether `in` is held by sharing its buffers rather than packed.
   static bool Shares(const RowBatch& in);
 
@@ -111,9 +129,15 @@ class RowStore {
   // shared after them.
   BatchBuffer packing_;
   // The columns of the first batch appended, even one keeping no rows: what
-  // each column holds.
+  // each column holds. A column not held is nulls.
   RowBatch shape_;
   bool has_shape_ = false;
+  std::vector<bool> unread_;
+  // The columns held, and by column, where it is among them or kNotHeld.
+  std::vector<uint32_t> held_columns_;
+  std::vector<uint32_t> stored_column_;
+  // Scratch: the columns held of a batch appended.
+  RowBatch trimmed_;
   uint32_t size_ = 0;
 };
 

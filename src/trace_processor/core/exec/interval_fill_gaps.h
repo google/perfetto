@@ -80,6 +80,16 @@ class IntervalFillGaps : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override {
+    out->keeps = StepColumns::Keeps::kNone;
+    DescribeLaneReads(spec_.input, out);
+    for (const IntervalFillGapsSpec::Output& output : spec_.outputs) {
+      out->reads.push_back(output.input);
+    }
+    out->reads.insert(out->reads.end(), input_columns_.begin(),
+                      input_columns_.end());
+    out->added = static_cast<uint32_t>(spec_.outputs.size());
+  }
 
   explicit IntervalFillGaps(IntervalFillGapsSpec);
   ~IntervalFillGaps() override;

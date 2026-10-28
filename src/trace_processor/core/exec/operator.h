@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -26,6 +27,25 @@
 namespace perfetto::trace_processor::core::exec {
 
 class Context;
+
+// How a step uses the columns of the batches it is given: what every
+// Transform and Operator describes in DescribeColumns(), so the planner can
+// tell which columns are read after each step.
+struct StepColumns {
+  // What a step's output keeps of its input's columns.
+  enum class Keeps : uint8_t {
+    // Every column, where it was, followed by `added` new ones.
+    kAll,
+    // None: the output is `added` new columns.
+    kNone,
+  };
+
+  Keeps keeps = Keeps::kAll;
+  // The columns the step adds.
+  uint32_t added = 0;
+  // Every column of its input the step reads.
+  std::vector<uint32_t> reads;
+};
 
 // The mutable state of one execution of a plan.
 //
@@ -119,6 +139,10 @@ class Transform {
   Transform(const Transform&) = delete;
   Transform& operator=(const Transform&) = delete;
 
+  // How the step uses the batch's columns (see StepColumns). A Transform keeps
+  // every column (StepColumns::Keeps::kAll).
+  virtual void DescribeColumns(StepColumns* out) const = 0;
+
   virtual std::unique_ptr<OperatorState> MakeState(Context&) const {
     return std::make_unique<OperatorState>();
   }
@@ -171,6 +195,14 @@ class Operator {
   virtual ~Operator();
   Operator(const Operator&) = delete;
   Operator& operator=(const Operator&) = delete;
+
+  // How the step uses the batches' columns (see StepColumns).
+  virtual void DescribeColumns(StepColumns* out) const = 0;
+
+  // Tells an operator which holds rows which columns of its input no later
+  // step reads, by column, so it need not hold them. Called by the planner
+  // before the plan runs; an operator holding nothing ignores it.
+  virtual void SetUnreadColumns(std::vector<bool>) {}
 
   virtual std::unique_ptr<OperatorState> MakeState(Context&) const {
     return std::make_unique<OperatorState>();
