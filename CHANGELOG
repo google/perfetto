@@ -25,6 +25,9 @@ Unreleased:
   SDK:
     * Android Java SDK: events started while another event is being built on
       the same thread are no longer dropped.
+    * Fixed aborting startup tracing sessions when data sources are only
+      partially adopted by the tracing service (set up without being
+      started).
   Misc:
     * Added s390x cross-compilation support.
 
