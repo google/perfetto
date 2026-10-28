@@ -124,7 +124,8 @@ bool RowStore::Shares(const RowBatch& in) {
 
 void RowStore::Hold(const RowBatch& in) {
   if (!held_) {
-    nullable_ = FlexVector<bool>::CreateFilled(in.column_count(), false);
+    nullable_.clear();
+    nullable_.push_back_multiple(false, in.column_count());
     sources_.resize(in.column_count());
   }
   if (held_ == batches_.size()) {
