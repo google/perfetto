@@ -26,6 +26,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/combine_batches.h"
 #include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/empty_source.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
@@ -387,6 +388,22 @@ TEST(ExecutorContractTest, SourceFailureDoesNotFinalizeBufferedOperators) {
   uint32_t pulls = source.pulls;
   EXPECT_FALSE(cursor.Next());
   EXPECT_EQ(source.pulls, pulls);
+}
+
+// A plan known to return no rows still finishes its operators, every run.
+TEST(ExecutorContractTest, EmptySourceFinishesOperators) {
+  EmptySource source;
+  std::vector<Pipeline::Step> ops;
+  auto probe = std::make_unique<FinishProbe>();
+  FinishProbe* observed = probe.get();
+  ops.push_back(std::move(probe));
+  Pipeline pipeline(source, std::move(ops));
+  RowCursor cursor(pipeline);
+  for (uint32_t run = 1; run <= 2; ++run) {
+    EXPECT_FALSE(cursor.Open());
+    EXPECT_TRUE(cursor.status().ok());
+    EXPECT_EQ(observed->finishes, run);
+  }
 }
 
 TEST(ExecutorContractTest, CombineBatchesKeepsOrder) {
