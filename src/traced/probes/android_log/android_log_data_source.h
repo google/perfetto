@@ -21,6 +21,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_view.h"
@@ -121,7 +122,8 @@ class AndroidLogDataSource : public ProbesDataSource {
   std::string mode_;
 
   // For filtering events based on tags.
-  std::unordered_set<base::StringView> filter_tags_;
+  std::unordered_set<base::StringView, base::MurmurHash<base::StringView>>
+      filter_tags_;
   std::vector<char> filter_tags_strbuf_;
 
   // Lookup map for binary events (log_id=EVENTS). Translates a numeric id into

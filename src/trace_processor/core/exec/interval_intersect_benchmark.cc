@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
+#include "src/trace_processor/core/exec/interval_lanes.h"
 
 #include <benchmark/benchmark.h>
 
@@ -39,6 +40,9 @@ namespace {
 // ts, dur and one key, handed out as views of their storage.
 class Intervals final : public Source {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   explicit Intervals(uint32_t rows) {
     for (uint32_t i = 0; i < rows; ++i) {
       ts_.push_back(int64_t{i} * 10);
@@ -78,12 +82,12 @@ class Intervals final : public Source {
   std::vector<int64_t> key_;
 };
 
-IntervalIntersectOperand Operand(const Intervals& source) {
-  IntervalIntersectOperand operand;
+CollectedInputSpec Operand(const Intervals& source) {
+  CollectedInputSpec operand;
   operand.source = &source;
-  operand.ts_column = 0;
-  operand.dur_column = 1;
-  operand.key_columns = {2};
+  operand.lanes.ts_column = 0;
+  operand.lanes.dur_column = 1;
+  operand.lanes.key_columns = {2};
   operand.retained_columns = {2};
   return operand;
 }

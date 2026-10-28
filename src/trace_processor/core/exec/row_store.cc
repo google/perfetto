@@ -45,15 +45,15 @@ base::Status RowStore::Append(const RowBatch& in) {
     return base::ErrStatus("row store: too many rows");
   }
   if (size_) {
+    // The planner guarantees every batch of a step has the same columns.
     const RowBatch& first = *batches_[0];
-    if (first.column_count() != in.column_count()) {
-      return base::ErrStatus("row store: column count changed");
-    }
+    PERFETTO_DCHECK(first.column_count() == in.column_count());
+#if PERFETTO_DCHECK_IS_ON()
     for (uint32_t c = 0; c < in.column_count(); ++c) {
-      if (!SameLogicalType(first.column(c), in.column(c))) {
-        return base::ErrStatus("row store: column representation changed");
-      }
+      PERFETTO_DCHECK(SameLogicalType(ColumnShape::Of(first.column(c)),
+                                      ColumnShape::Of(in.column(c))));
     }
+#endif
   } else {
     nullable_.assign(in.column_count(), false);
   }
@@ -101,9 +101,9 @@ uint32_t RowStore::View(RowBatch* out, uint32_t offset, uint32_t count) const {
   return count;
 }
 
-uint32_t RowStore::View(RowBatch* out,
-                        Span<const uint32_t> rows,
-                        Context& context) {
+uint32_t RowStore::Gather(RowBatch* out,
+                          Span<const uint32_t> rows,
+                          Context& context) {
   out->Reset();
   auto count =
       static_cast<uint32_t>(std::min<size_t>(rows.size(), kMaxBatchRows));

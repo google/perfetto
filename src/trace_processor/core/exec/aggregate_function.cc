@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <memory>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -27,49 +28,51 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-bool AggregateInputLoader::Load(const ColumnView& column,
+void AggregateInputLoader::Load(const ColumnView& column,
                                 const Selection& selection,
                                 const uint32_t* rows,
                                 uint32_t count,
                                 AggregateInput* out) {
-  if (column.kind() != ColumnView::Kind::kFlat || !column.type().Is<Int64>()) {
-    return false;
-  }
+  PERFETTO_DCHECK(IsFlat<Int64>(column));
   const auto* data = static_cast<const int64_t*>(column.data());
   // Where the `i`th row loaded is stored.
   auto index = [&](uint32_t i) {
     return column.Index(selection[rows ? rows[i] : i]);
   };
-  bool contiguous = !rows && selection.prefix();
+  const BitVector* validity = column.validity();
   out->rows = count;
-  if (contiguous) {
-    out->values = data + column.start();
-  } else {
-    values_.resize(count);
-    for (uint32_t i = 0; i < count; ++i) {
-      values_[i] = data[index(i)];
-    }
-    out->values = values_.data();
-  }
   out->valid = nullptr;
-  if (const BitVector* validity = column.validity()) {
-    // The rows' validity from bit 0, a word at a time.
+  if (validity) {
     valid_.resize((count + 63) / 64);
-    for (uint32_t row = 0; row < count; row += 64) {
-      uint32_t n = std::min(64u, count - row);
-      uint64_t word = 0;
-      if (contiguous) {
-        word = validity->ReadBits(column.Index(row), n);
-      } else {
-        for (uint32_t i = 0; i < n; ++i) {
-          word |= uint64_t{validity->is_set(index(row + i))} << i;
-        }
-      }
-      valid_[row / 64] = word;
-    }
     out->valid = valid_.data();
   }
-  return true;
+  if (!rows && selection.prefix()) {
+    // The rows are a run: read in place, with their validity a word at a time.
+    out->values = data + column.start();
+    for (uint32_t row = 0; validity && row < count; row += 64) {
+      uint32_t n = std::min(64u, count - row);
+      valid_[row / 64] = validity->ReadBits(column.Index(row), n);
+    }
+    return;
+  }
+  // Gathered, a word of rows at a time: each row's value and validity are read
+  // from where it is stored, found once. Vector instructions do not speed up
+  // gathers, and only add code.
+  values_.resize(count);
+  for (uint32_t row = 0; row < count; row += 64) {
+    uint32_t n = std::min(64u, count - row);
+    uint64_t word = 0;
+    PERFETTO_NO_VECTORIZE_LOOP
+    for (uint32_t i = 0; i < n; ++i) {
+      uint32_t at = index(row + i);
+      values_[row + i] = data[at];
+      word |= uint64_t{validity && validity->is_set(at)} << i;
+    }
+    if (validity) {
+      valid_[row / 64] = word;
+    }
+  }
+  out->values = values_.data();
 }
 
 uint8_t* SeenBytes::For(uint32_t groups, bool nulls) {
@@ -108,6 +111,21 @@ void AggregateFunction::Prefix(uint32_t, GroupStates, bool*) const {
 
 namespace {
 
+// How many rows of `in` hold a value.
+uint32_t CountValid(const AggregateInput& in) {
+  if (!in.valid) {
+    return in.rows;
+  }
+  uint32_t count = 0;
+  for (uint32_t row = 0; row < in.rows; row += 64) {
+    uint32_t n = std::min(64u, in.rows - row);
+    uint64_t mask = n == 64 ? ~uint64_t{0} : (uint64_t{1} << n) - 1;
+    count +=
+        static_cast<uint32_t>(PERFETTO_POPCOUNT(in.valid[row / 64] & mask));
+  }
+  return count;
+}
+
 // COUNT(*): how many rows a group holds.
 class CountStar : public AggregateFunction {
  public:
@@ -121,6 +139,12 @@ class CountStar : public AggregateFunction {
     for (uint32_t row = 0; row < in.rows; ++row) {
       ++states.words[groups[row] * states.stride];
     }
+  }
+  void UpdateGroup(const AggregateInput& in,
+                   uint32_t group,
+                   GroupStates states,
+                   bool*) const override {
+    states.words[group * states.stride] += in.rows;
   }
   void Combine(const GroupMerge* merges,
                uint32_t count,
@@ -175,6 +199,12 @@ class Count final : public CountStar {
       states.words[groups[row] * states.stride] += valid;
     }
   }
+  void UpdateGroup(const AggregateInput& in,
+                   uint32_t group,
+                   GroupStates states,
+                   bool*) const override {
+    states.words[group * states.stride] += CountValid(in);
+  }
 };
 
 // SUM: the total of a group's values, null if it holds none. State: the
@@ -200,6 +230,45 @@ class Sum final : public AggregateFunction {
       }
     }
     *overflow |= ovf;
+  }
+  void UpdateGroup(const AggregateInput& in,
+                   uint32_t group,
+                   GroupStates states,
+                   bool* overflow) const override {
+    // The high and low 32 bits of the values are summed apart, which can't
+    // overflow for a batch and vectorizes, unlike checking each addition.
+    PERFETTO_DCHECK(in.rows <= kMaxBatchRows);
+    int64_t high = 0;
+    uint64_t low = 0;
+    if (!in.valid) {
+      for (uint32_t row = 0; row < in.rows; ++row) {
+        high += in.values[row] >> 32;
+        low += static_cast<uint32_t>(in.values[row]);
+      }
+    } else {
+      // A word of validity at a time, rather than a bit for each row.
+      for (uint32_t row = 0; row < in.rows; row += 64) {
+        uint32_t n = std::min(64u, in.rows - row);
+        uint64_t valid = in.valid[row / 64];
+        for (uint32_t i = 0; i < n; ++i) {
+          int64_t value =
+              in.values[row + i] & -static_cast<int64_t>((valid >> i) & 1);
+          high += value >> 32;
+          low += static_cast<uint32_t>(value);
+        }
+      }
+    }
+    // The sum is high * 2^32 + low, which fits in 64 bits if, once low's
+    // carry is in high, high fits in 32.
+    high += static_cast<int64_t>(low >> 32);
+    bool fits = high >= INT32_MIN && high <= INT32_MAX;
+    auto sum = static_cast<int64_t>(static_cast<uint64_t>(high) << 32 |
+                                    (low & 0xffffffff));
+    int64_t& total = states.words[group * states.stride];
+    *overflow |= !fits || !base::CheckedAdd(total, sum, &total);
+    if (states.seen) {
+      states.seen[group] |= CountValid(in) != 0;
+    }
   }
   void Combine(const GroupMerge* merges,
                uint32_t count,
@@ -286,6 +355,24 @@ class Extreme final : public AggregateFunction {
       }
     }
   }
+  void UpdateGroup(const AggregateInput& in,
+                   uint32_t group,
+                   GroupStates states,
+                   bool*) const override {
+    auto& state =
+        reinterpret_cast<uint64_t&>(states.words[group * states.stride]);
+    uint64_t best = state;
+    for (uint32_t row = 0; row < in.rows; ++row) {
+      bool valid = !in.valid || ((in.valid[row / 64] >> (row % 64)) & 1);
+      uint64_t value =
+          (static_cast<uint64_t>(in.values[row]) ^ mask_) & -uint64_t{valid};
+      best = std::max(best, value);
+    }
+    state = best;
+    if (states.seen) {
+      states.seen[group] |= CountValid(in) != 0;
+    }
+  }
   void Combine(const GroupMerge* merges,
                uint32_t count,
                GroupStates states,
@@ -351,7 +438,7 @@ ColumnBuffer FinalizeToBuffer(Context& context,
                               uint32_t count) {
   ColumnBuffer buffer = context.TakeBuffer();
   ColumnChunk& chunk = buffer.chunk();
-  chunk.validity.resize(kMaxBatchRows);
+  chunk.SizeValidity();
   function.Finalize(states, groups, count, chunk.Values<int64_t>(),
                     &chunk.validity);
   return buffer;

@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
@@ -135,17 +136,18 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
     procs->UpdateThreadName(event_utid, StringPool::Id::Raw(event.tid),
                             ThreadNamePriority::kOther);
   }
-  UniqueTid utid = procs->UpdateThread(event.tid, event.pid);
+  auto utid = [&] { return procs->UpdateThread(event.tid, event.pid); };
 
   // Only used for 'B', 'E', and 'X' events so wrap in lambda so it gets
   // ignored in other cases. This lambda is only safe to call within the
   // scope of this function due to the capture by reference.
-  auto args_inserter = [&](ArgsTracker::BoundInserter* inserter) {
+  auto args_inserter = [&](ArgsInserter& inserter) {
     if (event.args_size > 0) {
+      ArgsInserterSink sink(inserter);
       json::AddJsonValueToArgs(
           it_, event.args.get(), event.args.get() + event.args_size,
           /* flat_key = */ "args",
-          /* key = */ "args", context_->storage.get(), inserter);
+          /* key = */ "args", context_->storage->mutable_string_pool(), &sink);
     }
   };
 
@@ -158,7 +160,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
                                : event.name;
   switch (event.phase) {
     case 'B': {  // TRACE_EVENT_BEGIN.
-      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+      TrackId track_id = context_->track_tracker->InternThreadTrack(utid());
       auto slice_id = slice_tracker->Begin(timestamp, track_id, event.cat,
                                            slice_name_id, args_inserter);
       if (slice_id && event.tts != std::numeric_limits<int64_t>::max()) {
@@ -169,7 +171,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       break;
     }
     case 'E': {  // TRACE_EVENT_END.
-      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+      TrackId track_id = context_->track_tracker->InternThreadTrack(utid());
       auto slice_id = slice_tracker->End(timestamp, track_id, event.cat,
                                          event.name, args_inserter);
       // Now try to update thread_dur if we have a tts field.
@@ -230,7 +232,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         RecordEventError(timestamp, event, stats::json_parser_failure);
         return;
       }
-      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+      TrackId track_id = context_->track_tracker->InternThreadTrack(utid());
       std::optional<SliceTracker::OverlapInfo> overlap;
       auto slice_id =
           slice_tracker->Scoped(timestamp, track_id, event.cat, slice_name_id,
@@ -245,11 +247,11 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         // knows. See https://github.com/google/perfetto/issues/4280.
         RecordEventError(timestamp, event,
                          stats::slice_spill_overlapping_complete_event,
-                         [&](ArgsTracker::BoundInserter& inserter) {
+                         [&](ArgsInserter& inserter) {
                            slice_tracker->AddOverlapArgs(*overlap, inserter);
                          });
         track_id = context_->track_compressor->InternLegacyOverlappingScoped(
-            kThreadOverlappingSliceBlueprint, tracks::Dimensions(utid),
+            kThreadOverlappingSliceBlueprint, tracks::Dimensions(utid()),
             timestamp, event.dur);
         slice_id =
             slice_tracker->Scoped(timestamp, track_id, event.cat, slice_name_id,
@@ -323,8 +325,18 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         std::string counter_name = counter_name_prefix;
         counter_name += it_.key();
         StringId nid = context_->storage->InternString(counter_name);
-        context_->event_tracker->PushProcessCounterForThread(
-            EventTracker::JsonCounter{nid}, timestamp, counter, utid);
+        if (!event.pid_exists) {
+          context_->event_tracker->PushProcessCounterForThread(
+              EventTracker::JsonCounter{nid}, timestamp, counter, utid());
+          continue;
+        }
+        // Skip the thread: a placeholder tid would otherwise create one.
+        TrackId track_id = context_->track_tracker->InternTrack(
+            tracks::kJsonCounterBlueprint,
+            tracks::Dimensions(procs->GetOrCreateProcess(event.pid),
+                               context_->storage->GetString(nid)),
+            tracks::DynamicName(nid));
+        context_->event_tracker->PushCounter(timestamp, counter, track_id);
       }
       break;
     }
@@ -335,8 +347,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       if (event.scope == JsonEvent::Scope::kGlobal) {
         track_id = context_->track_tracker->InternTrack(
             tracks::kLegacyGlobalInstantsBlueprint, tracks::Dimensions(),
-            tracks::BlueprintName(),
-            [this](ArgsTracker::BoundInserter& inserter) {
+            tracks::BlueprintName(), [this](ArgsInserter& inserter) {
               inserter.AddArg(
                   context_->storage->InternString("source"),
                   Variadic::String(context_->storage->InternString("chrome")));
@@ -350,8 +361,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
             context_->process_tracker->GetOrCreateProcess(event.pid);
         track_id = context_->track_tracker->InternTrack(
             tracks::kChromeProcessInstantBlueprint, tracks::Dimensions(upid),
-            tracks::BlueprintName(),
-            [this](ArgsTracker::BoundInserter& inserter) {
+            tracks::BlueprintName(), [this](ArgsInserter& inserter) {
               inserter.AddArg(
                   context_->storage->InternString("source"),
                   Variadic::String(context_->storage->InternString("chrome")));
@@ -362,7 +372,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
           RecordEventError(timestamp, event, stats::json_parser_failure);
           return;
         }
-        track_id = context_->track_tracker->InternThreadTrack(utid);
+        track_id = context_->track_tracker->InternThreadTrack(utid());
         auto slice_id = slice_tracker->Scoped(timestamp, track_id, event.cat,
                                               slice_name_id, 0, args_inserter);
         if (slice_id) {
@@ -381,7 +391,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       break;
     }
     case 's': {  // TRACE_EVENT_FLOW_START
-      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+      TrackId track_id = context_->track_tracker->InternThreadTrack(utid());
       auto opt_source_id =
           MaybeExtractFlowIdentifier(context_->storage->mutable_string_pool(),
                                      event, /* version2 = */ false);
@@ -395,7 +405,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       break;
     }
     case 't': {  // TRACE_EVENT_FLOW_STEP
-      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+      TrackId track_id = context_->track_tracker->InternThreadTrack(utid());
       auto opt_source_id =
           MaybeExtractFlowIdentifier(context_->storage->mutable_string_pool(),
                                      event, /* version2 = */ false);
@@ -409,7 +419,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       break;
     }
     case 'f': {  // TRACE_EVENT_FLOW_END
-      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+      TrackId track_id = context_->track_tracker->InternThreadTrack(utid());
       auto opt_source_id =
           MaybeExtractFlowIdentifier(context_->storage->mutable_string_pool(),
                                      event, /* version2 = */ false);
@@ -432,7 +442,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       tables::ThreadStateTable::Row row;
       row.ts = timestamp;
       row.dur = event.dur;
-      row.utid = utid;
+      row.utid = utid();
       row.state = slice_name_id;
 
       std::optional<uint32_t> cpu;
@@ -473,7 +483,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         tables::SchedSliceTable::Row sched_row;
         sched_row.ts = timestamp;
         sched_row.dur = event.dur;
-        sched_row.utid = utid;
+        sched_row.utid = utid();
         sched_row.ucpu = context_->cpu_tracker->GetOrCreateCpu(*cpu);
         storage->mutable_sched_slice_table()->Insert(sched_row);
       }
@@ -529,7 +539,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
             procs->SetProcessSortIndex(upid, static_cast<int32_t>(sort_index),
                                        SortIndexPriority::kOther);
           } else {
-            procs->SetThreadSortIndex(utid, static_cast<int32_t>(sort_index),
+            procs->SetThreadSortIndex(utid(), static_cast<int32_t>(sort_index),
                                       SortIndexPriority::kOther);
           }
         } else {
@@ -543,7 +553,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
           }
           if (name == "thread_name") {
             auto thread_name_id = context_->storage->InternString(args_name);
-            procs->UpdateThreadName(utid, thread_name_id,
+            procs->UpdateThreadName(utid(), thread_name_id,
                                     ThreadNamePriority::kOther);
           } else if (name == "process_name") {
             UniquePid upid = procs->GetOrCreateProcess(event.pid);
@@ -583,7 +593,7 @@ void JsonTraceParser::RecordEventError(
     int64_t timestamp,
     const JsonEvent& event,
     size_t stat_key,
-    std::function<void(ArgsTracker::BoundInserter&)> extra_args) {
+    std::function<void(ArgsInserter&)> extra_args) {
   StringId name_key = context_->storage->InternString("event_name");
   StringId phase_key = context_->storage->InternString("event_phase");
   StringId name_id = event.name;
@@ -592,8 +602,7 @@ void JsonTraceParser::RecordEventError(
   context_->import_logs_tracker->RecordParserLog(
       stat_key, timestamp,
       [name_key, name_id, phase_key, phase_id,
-       extra_args =
-           std::move(extra_args)](ArgsTracker::BoundInserter& inserter) {
+       extra_args = std::move(extra_args)](ArgsInserter& inserter) {
         inserter.AddArg(name_key, Variadic::String(name_id));
         inserter.AddArg(phase_key, Variadic::String(phase_id));
         if (extra_args) {

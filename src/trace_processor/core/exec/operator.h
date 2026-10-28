@@ -97,6 +97,16 @@ class Source {
     return base::OkStatus();
   }
 
+  // Identifies the concrete class. Each class has a `static constexpr char
+  // kType` and returns its address.
+  virtual const void* type() const = 0;
+
+  // Whether this is a T. If so, it can be static_cast to T.
+  template <typename T>
+  bool Is() const {
+    return type() == &T::kType;
+  }
+
  protected:
   Source() = default;
 };
@@ -121,11 +131,19 @@ class Transform {
     return base::OkStatus();
   }
 
+  // Identifies the concrete class. Each class has a `static constexpr char
+  // kType` and returns its address.
+  virtual const void* type() const = 0;
+
+  // Whether this is a T. If so, it can be static_cast to T.
+  template <typename T>
+  bool Is() const {
+    return type() == &T::kType;
+  }
+
  protected:
   Transform() = default;
 };
-
-enum class BatchPreference : uint8_t { kLatency, kThroughput };
 
 enum class OpResult : uint8_t {
   // `out` holds all the output for this input. An empty `out` means the input
@@ -134,6 +152,9 @@ enum class OpResult : uint8_t {
   // `out` holds part of the output for this input. Call Execute() again with
   // the same input for the rest.
   kHaveMoreOutput,
+  // `out` holds the last of the operator's output. It takes no more input,
+  // Finish() is not called, and the steps before it are not pulled again.
+  kFinished,
   // The operator failed; status() says why.
   kError,
 };
@@ -147,19 +168,9 @@ enum class OpResult : uint8_t {
 // Finish().
 class Operator {
  public:
-  // Fixed when the operator is built.
-  struct Traits {
-    // A preference, never permission to change row order. Downstream finite
-    // demand overrides throughput batching. Blocking remains intrinsic to an
-    // op.
-    BatchPreference preference = BatchPreference::kLatency;
-  };
-
   virtual ~Operator();
   Operator(const Operator&) = delete;
   Operator& operator=(const Operator&) = delete;
-
-  const Traits& traits() const { return traits_; }
 
   virtual std::unique_ptr<OperatorState> MakeState(Context&) const {
     return std::make_unique<OperatorState>();
@@ -183,12 +194,18 @@ class Operator {
     return base::OkStatus();
   }
 
+  // Identifies the concrete class. Each class has a `static constexpr char
+  // kType` and returns its address.
+  virtual const void* type() const = 0;
+
+  // Whether this is a T. If so, it can be static_cast to T.
+  template <typename T>
+  bool Is() const {
+    return type() == &T::kType;
+  }
+
  protected:
   Operator() = default;
-  explicit Operator(Traits traits) : traits_(traits) {}
-
- private:
-  Traits traits_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

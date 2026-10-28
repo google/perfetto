@@ -46,7 +46,7 @@ namespace {
 
 namespace {
 constexpr char kRssStatThrottledTrigger[] =
-    "hist:keys=mm_id,member:bucket=size/0x80000"
+    "hist:keys=mm_id,member,curr:size=8192:bucket=size/0x80000"
     ":onchange($bucket).rss_stat_throttled(mm_id,curr,member,size)";
 
 // Kernel tracepoints |syscore_resume| and |timekeeping_freeze| are mutually

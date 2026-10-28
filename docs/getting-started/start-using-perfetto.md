@@ -484,7 +484,7 @@ For further inspiration on how Perfetto's flexible architecture has been adapted
 for a wide range of complex diagnostic scenarios, see:
 
 - Snap's presentation on
-  [Client Tracing at Scale](https://www.droidcon.com/2022/06/28/client-tracing-at-scale/).
+  [Client Tracing at Scale](https://web.archive.org/web/2023/https://www.droidcon.com/2022/06/28/client-tracing-at-scale/).
 - How Collabora used Perfetto for
   [profiling virtualized GPU acceleration](https://www.collabora.com/news-and-blog/blog/2021/04/22/profiling-virtualized-gpu-acceleration-with-perfetto/).
 

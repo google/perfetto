@@ -218,7 +218,7 @@ export function buildScrollOffsetsGraph(
   // rendered in a new layer, with new tooltip/color/etc.
   const filteredPresentedDeltas = presentedDeltas.filter((item) => {
     for (let i = 0; i < predictorDeltas.length; i++) {
-      const predictorDelta: ScrollDeltaDetails = predictorDeltas[i];
+      const predictorDelta: ScrollDeltaDetails = predictorDeltas[i]!;
       if (
         predictorDelta.ts == item.ts &&
         predictorDelta.scrollUpdateId == item.scrollUpdateId

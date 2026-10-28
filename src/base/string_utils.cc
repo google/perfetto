@@ -49,8 +49,11 @@ double StrToD(const char* nptr, char** endptr) {
 #endif
 }
 
-bool StartsWith(const std::string& str, const std::string& prefix) {
-  return str.compare(0, prefix.length(), prefix) == 0;
+bool StartsWith(std::string_view str, std::string_view prefix) {
+  if (prefix.size() > str.size())
+    return false;
+  return prefix.empty() ||
+         memcmp(str.data(), prefix.data(), prefix.size()) == 0;
 }
 
 bool StartsWithAny(const std::string& str,
@@ -60,10 +63,11 @@ bool StartsWithAny(const std::string& str,
       [&str](const std::string& prefix) { return StartsWith(str, prefix); });
 }
 
-bool EndsWith(const std::string& str, const std::string& suffix) {
+bool EndsWith(std::string_view str, std::string_view suffix) {
   if (suffix.size() > str.size())
     return false;
-  return str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+  return suffix.empty() || memcmp(str.data() + str.size() - suffix.size(),
+                                  suffix.data(), suffix.size()) == 0;
 }
 
 bool Contains(const std::string& haystack, const std::string& needle) {
@@ -96,6 +100,13 @@ bool CaseInsensitiveEqual(std::string_view first, std::string_view second) {
          std::equal(
              first.begin(), first.end(), second.begin(),
              [](char a, char b) { return Lowercase(a) == Lowercase(b); });
+}
+
+bool CaseInsensitiveOneOf(std::string_view str,
+                          const std::vector<std::string_view>& others) {
+  return std::any_of(others.begin(), others.end(), [str](std::string_view o) {
+    return CaseInsensitiveEqual(str, o);
+  });
 }
 
 std::string Join(const std::vector<std::string>& parts,

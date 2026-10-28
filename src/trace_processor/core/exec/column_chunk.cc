@@ -31,87 +31,79 @@
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
-// Copies the `count` values of `view` stored from `first` on into `chunk`
-// from `offset`.
-template <typename T>
-void CopyRun(const ColumnView& view,
-             uint32_t first,
-             uint32_t count,
-             uint32_t offset,
-             ColumnChunk& chunk) {
-  T* dest = chunk.Values<T>() + offset;
-  if constexpr (std::is_arithmetic_v<T>) {
-    // A sequence column has no storage: each value is where it is stored.
-    if (view.kind() == ColumnView::Kind::kSequence) {
-      for (uint32_t i = 0; i < count; ++i) {
-        dest[i] = static_cast<T>(first + i);
-      }
-      return;
-    }
+static_assert(std::is_trivially_copyable_v<Variant>);
+static_assert(sizeof(StringPool::Id) == sizeof(uint32_t));
+
+// The bytes one of `view`'s values takes. Values are copied as bytes, so
+// types of the same width share one copy loop.
+uint32_t Width(const ColumnView& view) {
+  if (view.kind() == ColumnView::Kind::kVariant) {
+    return sizeof(Variant);
   }
-  memcpy(dest, static_cast<const T*>(view.data()) + first, count * sizeof(T));
+  if (view.type().Is<Int64>() || view.type().Is<Double>()) {
+    return sizeof(int64_t);
+  }
+  // Id, Uint32, Int32 and string ids.
+  return sizeof(uint32_t);
+}
+
+// Calls `copy` with the width of `view`'s values, as a constant.
+template <typename Copy>
+void DispatchOnWidth(const ColumnView& view, Copy copy) {
+  switch (Width(view)) {
+    case sizeof(uint32_t):
+      copy(std::integral_constant<uint32_t, sizeof(uint32_t)>{});
+      break;
+    case sizeof(int64_t):
+      copy(std::integral_constant<uint32_t, sizeof(int64_t)>{});
+      break;
+    default:
+      copy(std::integral_constant<uint32_t, sizeof(Variant)>{});
+      break;
+  }
 }
 
 // Copies the values of `view` stored at `index(i)`, for each i below `count`,
-// into `chunk` from `offset`.
-template <typename T, typename Index>
+// into `chunk` from `offset`. Each value is `kWidth` bytes.
+template <uint32_t kWidth, typename Index>
 void CopyIndexed(const ColumnView& view,
                  Index index,
                  uint32_t count,
                  uint32_t offset,
                  ColumnChunk& chunk) {
-  T* dest = chunk.Values<T>() + offset;
-  if constexpr (std::is_arithmetic_v<T>) {
+  uint8_t* dest = chunk.Values<uint8_t>() + uint64_t{offset} * kWidth;
+  if constexpr (kWidth == sizeof(uint32_t)) {
+    // A sequence column has no storage: each value is where it is stored.
+    // Only Id columns are sequences.
     if (view.kind() == ColumnView::Kind::kSequence) {
       for (uint32_t i = 0; i < count; ++i) {
-        dest[i] = static_cast<T>(index(i));
+        uint32_t value = index(i);
+        memcpy(dest + i * kWidth, &value, kWidth);
       }
       return;
     }
   }
-  const auto* data = static_cast<const T*>(view.data());
+  const auto* data = static_cast<const uint8_t*>(view.data());
   for (uint32_t i = 0; i < count; ++i) {
-    dest[i] = data[index(i)];
+    memcpy(dest + i * kWidth, data + uint64_t{index(i)} * kWidth, kWidth);
   }
 }
 
-// Calls `copy` with a value of the type `view` is copied as.
-template <typename Copy>
-void DispatchOnType(const ColumnView& view, Copy copy) {
-  if (view.kind() == ColumnView::Kind::kVariant) {
-    copy(Variant{});
-  } else if (view.type().Is<Id>() || view.type().Is<Uint32>()) {
-    copy(uint32_t{});
-  } else if (view.type().Is<Int32>()) {
-    copy(int32_t{});
-  } else if (view.type().Is<Int64>()) {
-    copy(int64_t{});
-  } else if (view.type().Is<Double>()) {
-    copy(double{});
-  } else {
-    copy(StringPool::Id{});
-  }
-}
-
-// Copies the values of `view` stored at `index(i)`, for each i below `count`,
-// and whether each is there, into `chunk` from `offset`.
-template <typename Index>
-void Copy(const ColumnView& view,
-          Index index,
-          uint32_t count,
-          uint32_t offset,
-          ColumnChunk& chunk) {
-  DispatchOnType(view, [&](auto type) {
-    CopyIndexed<decltype(type)>(view, index, count, offset, chunk);
-  });
-  chunk.validity.resize(kMaxBatchRows);
-  const BitVector* source = view.validity();
-  if (!source) {
-    chunk.validity.FillBits(offset, count, true);
-    return;
-  }
-  for (uint32_t i = 0; i < count; ++i) {
-    chunk.validity.change(offset + i, source->is_set(index(i)));
+// Writes whether each of `count` rows holds a value into `validity` from
+// `offset`, a word of bits at a time: row i's is `valid(i)`.
+template <typename Valid>
+void WriteValidity(Valid valid,
+                   uint32_t count,
+                   uint32_t offset,
+                   BitVector& validity) {
+  validity.FillBits(offset, count, false);
+  for (uint32_t begin = 0; begin < count; begin += 64) {
+    uint32_t n = std::min(64u, count - begin);
+    uint64_t word = 0;
+    for (uint32_t i = 0; i < n; ++i) {
+      word |= uint64_t{valid(begin + i)} << i;
+    }
+    validity.OrBits(offset + begin, word, n);
   }
 }
 
@@ -124,20 +116,36 @@ void ColumnChunk::CopyFrom(const RowBatch& batch,
   const Selection& selection = batch.selection();
   uint32_t start = view.start();
   uint32_t count = batch.size();
+  SizeValidity();
+  const BitVector* source = view.validity();
   if (!selection.prefix()) {
-    Copy(
-        view, [&](uint32_t i) { return start + selection[i]; }, count, offset,
-        *this);
+    auto index = [&](uint32_t i) { return start + selection[i]; };
+    DispatchOnWidth(view, [&](auto width) {
+      CopyIndexed<decltype(width)::value>(view, index, count, offset, *this);
+    });
+    if (source) {
+      WriteValidity([&](uint32_t i) { return source->is_set(index(i)); }, count,
+                    offset, validity);
+    } else {
+      validity.FillBits(offset, count, true);
+    }
     return;
   }
   // The rows kept are the window's first: one run of values.
-  DispatchOnType(view, [&](auto type) {
-    CopyRun<decltype(type)>(view, start, count, offset, *this);
-  });
-  validity.resize(kMaxBatchRows);
-  if (const BitVector* source = view.validity()) {
+  if (view.kind() == ColumnView::Kind::kSequence) {
+    uint32_t* dest = Values<uint32_t>() + offset;
+    for (uint32_t i = 0; i < count; ++i) {
+      dest[i] = start + i;
+    }
+  } else {
+    uint32_t width = Width(view);
+    memcpy(Values<uint8_t>() + uint64_t{offset} * width,
+           static_cast<const uint8_t*>(view.data()) + uint64_t{start} * width,
+           uint64_t{count} * width);
+  }
+  if (source) {
     validity.FillBits(offset, count, false);
-    validity.SetBitsFrom(offset, *source, start, count);
+    validity.OrBitsFrom(offset, *source, start, count);
   } else {
     validity.FillBits(offset, count, true);
   }
@@ -154,45 +162,50 @@ void ColumnChunk::Gather(const std::vector<const ColumnView*>& views,
     PERFETTO_DCHECK(nullable || !view->validity());
     sequence |= view->kind() == ColumnView::Kind::kSequence;
   }
-  DispatchOnType(*views[0], [&](auto type) {
-    using T = decltype(type);
-    T* dest = Values<T>();
-    if (sequence) {
-      // A sequence has no storage to point at: rare, so read it as a view.
-      for (uint32_t i = 0; i < count; ++i) {
-        dest[i] = views[sources[i]]->At<T>(rows[i]);
+  DispatchOnWidth(*views[0], [&](auto width) {
+    constexpr uint32_t kWidth = decltype(width)::value;
+    uint8_t* dest = Values<uint8_t>();
+    if constexpr (kWidth == sizeof(uint32_t)) {
+      if (sequence) {
+        // A sequence has no storage to point at: rare, so read it as a view.
+        for (uint32_t i = 0; i < count; ++i) {
+          uint32_t value = views[sources[i]]->At<uint32_t>(rows[i]);
+          memcpy(dest + i * kWidth, &value, kWidth);
+        }
+        return;
       }
-      return;
     }
+    PERFETTO_DCHECK(!sequence);
     // Each view's values from its window's start, so a row is one load away.
     bases->resize(views.size());
     for (uint32_t v = 0; v < views.size(); ++v) {
-      (*bases)[v] = static_cast<const T*>(views[v]->data()) + views[v]->start();
+      (*bases)[v] = static_cast<const uint8_t*>(views[v]->data()) +
+                    uint64_t{views[v]->start()} * kWidth;
     }
     const void* const* base = bases->data();
     for (uint32_t i = 0; i < count; ++i) {
-      dest[i] = static_cast<const T*>(base[sources[i]])[rows[i]];
+      memcpy(dest + i * kWidth,
+             static_cast<const uint8_t*>(base[sources[i]]) +
+                 uint64_t{rows[i]} * kWidth,
+             kWidth);
     }
   });
 
+  SizeValidity();
   if (!nullable) {
-    validity.resize(kMaxBatchRows);
     validity.FillBits(0, count, true);
     return;
   }
-  // A word of bits at a time, rather than changing each in place.
-  validity.clear();
-  for (uint32_t begin = 0; begin < count; begin += 64) {
-    uint32_t end = std::min(begin + 64, count);
-    uint64_t word = 0;
-    for (uint32_t i = begin; i < end; ++i) {
-      const ColumnView& view = *views[sources[i]];
-      const BitVector* source = view.validity();
-      bool valid = !source || source->is_set(view.Index(rows[i]));
-      word |= uint64_t{valid} << (i - begin);
-    }
-    validity.AppendWord(word);
-  }
+  WriteValidity(
+      [&](uint32_t i) {
+        const ColumnView& view = *views[sources[i]];
+        const BitVector* source = view.validity();
+        return !source || source->is_set(view.Index(rows[i]));
+      },
+      count, 0, validity);
+}
+
+void ColumnChunk::GrowValidity() {
   validity.resize(kMaxBatchRows);
 }
 

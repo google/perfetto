@@ -26,9 +26,8 @@ import {
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import type {Track} from '../../public/track';
 import {TREE_EXPLORER_STATE_SCHEMA} from '../../widgets/tree_explorer';
-import type {Store} from '../../base/store';
+import type {Storage} from '../../public/trace';
 import {z} from 'zod';
-import {ensureExists} from '../../base/assert';
 import {Memo} from '../../base/memo';
 import {
   isProfileDescriptor,
@@ -49,7 +48,7 @@ import type {Flag} from '../../public/feature_flag';
 
 const EVENT_TABLE_NAME = 'heap_profile_events';
 
-const HEAP_PROFILE_PLUGIN_STATE_SCHEMA = z.record(
+export const HEAP_PROFILE_PLUGIN_STATE_SCHEMA = z.record(
   z.enum(ProfileType),
   z.object({
     trackFlamegraphState: TREE_EXPLORER_STATE_SCHEMA.optional(),
@@ -86,7 +85,6 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   }
 
   private readonly trackMap = new Map<string, Track>();
-  private store?: Store<HeapProfilePluginState>;
 
   private readonly nodeSelectedEvt = new EvtSource<{
     pathHashes: string;
@@ -106,28 +104,23 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     return this.nodeSelectedEvt.addListener(cb);
   }
 
-  private migrateHeapProfilePluginState(init: unknown): HeapProfilePluginState {
-    const result = HEAP_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return (
-      result.data ?? {
+  async onTraceLoad(trace: Trace): Promise<void> {
+    const storage = trace.registerStorage({
+      id: HeapProfilePlugin.id,
+      schema: HEAP_PROFILE_PLUGIN_STATE_SCHEMA,
+      defaultValue: {
         [ProfileType.NATIVE_HEAP_PROFILE]: {},
         [ProfileType.GENERIC_HEAP_PROFILE]: {},
         [ProfileType.JAVA_HEAP_SAMPLES]: {},
         [ProfileType.JAVA_HEAP_GRAPH]: {},
         [ProfileType.OOME_CALLSTACK]: {},
-      }
-    );
-  }
-
-  async onTraceLoad(trace: Trace): Promise<void> {
-    this.store = trace.mountStore(HeapProfilePlugin.id, (init) =>
-      this.migrateHeapProfilePluginState(init),
-    );
+      },
+    });
     await this.createHeapProfileTable(trace);
     // Ordered by priority, so the tracks and the area-selection flamegraph tabs
     // registered below come out in the right order.
     const heapTypes = await this.getHeapTypes(trace);
-    await this.addProcessTracks(trace, heapTypes);
+    await this.addProcessTracks(trace, heapTypes, storage);
 
     // For applicable heap types, register an area selection
     for (const heapType of heapTypes) {
@@ -140,7 +133,12 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         continue;
       }
       trace.selection.registerAreaSelectionTab(
-        this.heapProfileSelectionHandler(trace, descriptor, heapType.priority),
+        this.heapProfileSelectionHandler(
+          trace,
+          descriptor,
+          heapType.priority,
+          storage,
+        ),
       );
     }
 
@@ -247,6 +245,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   private async addProcessTracks(
     trace: Trace,
     heapTypes: ReadonlyArray<{type: string; priority: number}>,
+    storage: Storage<HeapProfilePluginState>,
   ) {
     const trackGroupsPlugin = trace.plugins.getPlugin(
       ProcessThreadGroupsPlugin,
@@ -282,7 +281,6 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         const group = trackGroupsPlugin.getGroupForProcess(upid);
         if (!group) continue;
 
-        const store = ensureExists(this.store);
         const uri = trackUri(upid, heapType.type);
         const descriptor = profileDescriptor(heapType.type);
         const track: Track = {
@@ -297,10 +295,15 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
             viewName,
             upid,
             incomplete,
-            store.state[descriptor.type].trackFlamegraphState,
+            storage.get()[descriptor.type]?.trackFlamegraphState,
             (state) => {
-              store.edit((draft) => {
-                draft[descriptor.type].trackFlamegraphState = state;
+              const current = storage.get();
+              storage.set({
+                ...current,
+                [descriptor.type]: {
+                  ...current[descriptor.type],
+                  trackFlamegraphState: state,
+                },
               });
             },
             heapType.type === 'java_heap_graph'
@@ -382,6 +385,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     trace: Trace,
     descriptor: ProfileDescriptor,
     priority: number,
+    storage: Storage<HeapProfilePluginState>,
   ): AreaSelectionTab {
     // One panel at a time, created for the selection it renders and disposed by
     // the memo as soon as the selection moves on. One memo per registered tab:
@@ -394,7 +398,6 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       // "lower first" priority to keep the same order (native before ART).
       priority: -priority,
       render: (selection: AreaSelection) => {
-        const store = ensureExists(this.store);
         const panel = panelMemo.use({
           key: areaSelectionKey(selection),
           compute: () => {
@@ -411,11 +414,15 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
                   descriptor,
                   selection.start,
                   selection.end,
-                  store.state[descriptor.type].areaSelectionFlamegraphState,
+                  storage.get()[descriptor.type]?.areaSelectionFlamegraphState,
                   (state) => {
-                    store.edit((draft) => {
-                      draft[descriptor.type].areaSelectionFlamegraphState =
-                        state;
+                    const current = storage.get();
+                    storage.set({
+                      ...current,
+                      [descriptor.type]: {
+                        ...current[descriptor.type],
+                        areaSelectionFlamegraphState: state,
+                      },
                     });
                   },
                   /* isAreaSelection= */ true,

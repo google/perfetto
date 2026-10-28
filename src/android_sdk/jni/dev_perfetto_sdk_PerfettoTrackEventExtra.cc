@@ -225,7 +225,7 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraArg_set_value_string(
   auto& arg_string = arg->get()->arg_string;
   arg_string.header.type = PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_STRING;
   arg_string.name = arg->name();
-  arg_string.value = StringBuffer::utf16_to_ascii(env, val).data();
+  arg_string.value = arg->set_value(StringBuffer::utf16_to_ascii(env, val));
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraField_init(
@@ -293,7 +293,7 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_string(
   auto& field_cstr = field->get()->field_cstr;
   field_cstr.header.type = PERFETTO_TE_HL_PROTO_TYPE_CSTR;
   field_cstr.header.id = static_cast<uint32_t>(id);
-  field_cstr.str = StringBuffer::utf16_to_ascii(env, val).data();
+  field_cstr.str = field->set_str(StringBuffer::utf16_to_ascii(env, val));
 }
 
 static void
@@ -308,7 +308,7 @@ dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_with_interning(
   auto& field_cstr = field->get()->field_cstr_interned;
   field_cstr.header.type = PERFETTO_TE_HL_PROTO_TYPE_CSTR_INTERNED;
   field_cstr.header.id = static_cast<uint32_t>(id);
-  field_cstr.str = StringBuffer::utf16_to_ascii(env, val).data();
+  field_cstr.str = field->set_str(StringBuffer::utf16_to_ascii(env, val));
   field_cstr.interned_type_id = static_cast<uint32_t>(interned_type_id);
 }
 
@@ -553,7 +553,7 @@ dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_set_value_string(
       toPointer<sdk_for_jni::CorrelationId>(ptr);
   auto& id_str = correlation_id->get()->correlation_id_str;
   id_str.header.type = PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR;
-  id_str.str = StringBuffer::utf16_to_ascii(env, val).data();
+  id_str.str = correlation_id->set_str(StringBuffer::utf16_to_ascii(env, val));
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounter_init(

@@ -67,8 +67,7 @@ void PrimesTraceParser::Parse(int64_t ts, TraceBlobView trace_edge) {
     HandleMark(ts, edge_decoder);
   } else {
     context_->import_logs_tracker->RecordParserLog(
-        stats::primes_unknown_edge_type, ts,
-        [&](ArgsTracker::BoundInserter& inserter) {
+        stats::primes_unknown_edge_type, ts, [&](ArgsInserter& inserter) {
           inserter.AddArg(
               edge_id_string_,
               Variadic::Integer(static_cast<int64_t>(edge_decoder.id())));
@@ -99,8 +98,7 @@ void PrimesTraceParser::HandleSliceBegin(
     auto* it = edge_to_executor_map_.Find(parent_id);
     if (!it) {
       context_->import_logs_tracker->RecordParserLog(
-          stats::primes_executor_not_found, ts,
-          [&](ArgsTracker::BoundInserter& inserter) {
+          stats::primes_executor_not_found, ts, [&](ArgsInserter& inserter) {
             inserter.AddArg(edge_id_string_, Variadic::Integer(edge_id));
             inserter.AddArg(parent_id_string_, Variadic::Integer(parent_id));
           });
@@ -110,8 +108,7 @@ void PrimesTraceParser::HandleSliceBegin(
     executor_name = kNullStringId;
   } else {
     context_->import_logs_tracker->RecordParserLog(
-        stats::primes_missing_parent_id, ts,
-        [&](ArgsTracker::BoundInserter& inserter) {
+        stats::primes_missing_parent_id, ts, [&](ArgsInserter& inserter) {
           inserter.AddArg(edge_id_string_, Variadic::Integer(edge_id));
         });
     return;
@@ -150,7 +147,7 @@ void PrimesTraceParser::HandleSliceEnd(
   if (!executor_id) {
     context_->import_logs_tracker->RecordParserLog(
         stats::primes_end_without_matching_begin, ts,
-        [&](ArgsTracker::BoundInserter& inserter) {
+        [&](ArgsInserter& inserter) {
           inserter.AddArg(edge_id_string_, Variadic::Integer(edge_id));
         });
     return;
@@ -169,8 +166,7 @@ void PrimesTraceParser::HandleMark(int64_t ts,
   auto mark_decoder = primespb::TraceEdge_Mark_Decoder(edge_decoder.mark());
   if (!mark_decoder.has_entity_details()) {
     context_->import_logs_tracker->RecordParserLog(
-        stats::primes_missing_entity_details, ts,
-        [&](ArgsTracker::BoundInserter& inserter) {
+        stats::primes_missing_entity_details, ts, [&](ArgsInserter& inserter) {
           inserter.AddArg(edge_id_string_, Variadic::Integer(edge_id));
         });
     return;
@@ -179,8 +175,7 @@ void PrimesTraceParser::HandleMark(int64_t ts,
       mark_decoder.entity_details());
   if (!details_decoder.has_parent_id()) {
     context_->import_logs_tracker->RecordParserLog(
-        stats::primes_missing_parent_id, ts,
-        [&](ArgsTracker::BoundInserter& inserter) {
+        stats::primes_missing_parent_id, ts, [&](ArgsInserter& inserter) {
           inserter.AddArg(edge_id_string_, Variadic::Integer(edge_id));
         });
     return;
@@ -191,8 +186,7 @@ void PrimesTraceParser::HandleMark(int64_t ts,
   auto* executor_id = edge_to_executor_map_.Find(parent_id);
   if (!executor_id) {
     context_->import_logs_tracker->RecordParserLog(
-        stats::primes_executor_not_found, ts,
-        [&](ArgsTracker::BoundInserter& inserter) {
+        stats::primes_executor_not_found, ts, [&](ArgsInserter& inserter) {
           inserter.AddArg(debug_edge_id_, Variadic::Integer(edge_id));
         });
     return;

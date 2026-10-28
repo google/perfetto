@@ -175,7 +175,7 @@ void GraphicsEventModule::TokenizeGpuCounterEvent(
       if (legacy_gpu_counters_.Find(counter_id)) {
         context_->import_logs_tracker->RecordTokenizationLog(
             stats::gpu_counters_invalid_spec, packet_offset,
-            [this, counter_id, &spec](ArgsTracker::BoundInserter& inserter) {
+            [this, counter_id, &spec](ArgsInserter& inserter) {
               inserter.AddArg(counter_id_key_id_,
                               Variadic::UnsignedInteger(counter_id));
               inserter.AddArg(counter_name_key_id_,

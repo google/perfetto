@@ -22,7 +22,6 @@
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -59,8 +58,7 @@ class ThreadStateTrackerUnittest : public testing::Test {
             TraceProcessorContext::TraceState{TraceId{0}});
     context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.process_tracker.reset(new ProcessTracker(&context_));
-    context_.global_args_tracker.reset(
-        new GlobalArgsTracker(context_.storage.get()));
+    context_.args_tracker.reset(new ArgsTracker(context_.storage.get()));
     context_.cpu_tracker.reset(new CpuTracker(&context_));
     tracker_.reset(new ThreadStateTracker(&context_));
   }

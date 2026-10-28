@@ -37,7 +37,7 @@ namespace perfetto::trace_processor::pipeline {
 
 const OperationRegistration OrderBy::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_ORDER_BY, &BuildPlan,
-    OperationRegistration::Encoding{4, false, &DecodePlan}};
+    OperationRegistration::Encoding{4, &MakeOperation<OrderBy>}};
 
 base::Status OrderBy::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("ORDER BY");
@@ -52,7 +52,7 @@ base::Status OrderBy::BuildPlan(Compiler* c, uint32_t stage) {
         Node<SyntaqlitePerfettoPipeOrderTerm>(c->parser(), term_id);
     ASSIGN_OR_RETURN(ColumnId id, c->ResolveColumnExpr(term->expr));
     const auto& type = c->plan().columns()[id].type;
-    if (type && type->Is<core::String>()) {
+    if (type.Is<core::String>()) {
       return c->Unsupported(term->expr, "ordering by a string column");
     }
     order.keys_.push_back({id, term->sort_order == SYNTAQLITE_SORT_ORDER_DESC});
@@ -71,7 +71,7 @@ std::optional<uint32_t> OrderBy::Prune(std::vector<bool>* needed) {
 
 void OrderBy::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerNode(node.children()[0]);
-  c->SortRows(keys_);
+  c->RequireSorted(keys_);
 }
 
 const OperationRegistration& OrderBy::registration() const {
@@ -82,27 +82,8 @@ std::unique_ptr<PlanOperation> OrderBy::Clone() const {
   return std::make_unique<OrderBy>(*this);
 }
 
-void OrderBy::Write(PlanWriter* c,
-                    const PlanNode&,
-                    Available* available) const {
-  c->writer().Size(keys_.size());
-  for (const SortKey& key : keys_) {
-    c->writer().Position(*available, key.column);
-    c->writer().U8(key.descending);
-  }
-}
-
-void OrderBy::DecodePlan(PlanReader* c, Available* available) {
-  OrderBy order;
-  order.keys_.resize(c->reader().Count());
-  if (order.keys_.empty()) {
-    c->reader().Fail();
-  }
-  for (SortKey& key : order.keys_) {
-    key.column = c->reader().Position(*available);
-    key.descending = c->reader().U8() != 0;
-  }
-  c->AddNode(std::move(order), {c->plan().root()});
+void OrderBy::Serialize(PlanCodec& c) {
+  c.Vec(&keys_);
 }
 
 }  // namespace perfetto::trace_processor::pipeline

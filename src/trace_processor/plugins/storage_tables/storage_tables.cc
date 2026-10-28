@@ -197,6 +197,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_heap_graph_thread_callsite_table());
     AddDataframe(out, s->mutable_heap_graph_java_oome_details_table());
     AddDataframe(out, s->mutable_stack_profile_mapping_table());
+    AddDataframe(out, s->mutable_vulkan_debug_names_table());
     AddDataframe(out, s->mutable_vulkan_memory_allocations_table());
     AddDataframe(out, s->mutable_chrome_raw_table());
     AddDataframe(out, s->mutable_ftrace_event_table());
@@ -207,6 +208,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_sched_slice_table(), {{"utid"}});
     AddDataframe(out, s->mutable_thread_state_table());
     AddDataframe(out, s->mutable_track_table());
+    AddDataframe(out, s->mutable_track_dimension_table(), {{"track_id"}});
     AddDataframe(out, s->mutable_counter_table());
     AddDataframe(out, s->mutable_android_network_packets_table());
     AddDataframe(out, s->mutable_metadata_table());

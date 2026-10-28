@@ -1363,7 +1363,7 @@ class AndroidStdlib(TestSuite):
         out=Csv("""
         "tid","pid","thread_name","process_name","gc_type","is_mark_compact","reclaimed_mb","min_heap_mb","gc_ts","gc_dur","gc_running_dur","gc_runnable_dur","gc_unint_io_dur","gc_unint_non_io_dur","gc_int_dur"
         2013,2003,"HeapTaskDaemon","android.process.media","collector_transition",0,0.670000,2.153000,2.823000,326468170,138781185,177630899,0,0,10056086
-        3494,3487,"HeapTaskDaemon","com.android.providers.media.module","young",0,"[NULL]","[NULL]","[NULL]",213263593,164870500,29632860,0,0,12881595
+        3494,3487,"HeapTaskDaemon","com.android.providers.media.module","young",0,"[NULL]","[NULL]","[NULL]",213263593,164870500,35511498,0,0,12881595
         3494,3487,"HeapTaskDaemon","com.android.providers.media.module","collector_transition",0,1.248000,2.201000,3.449000,169735717,135385084,24036227,0,1301,10313105
         3556,3549,"HeapTaskDaemon","com.android.externalstorage","collector_transition",0,0.450000,2.038000,2.488000,166379142,123781761,32547509,0,0,10049872
         """))
@@ -3254,12 +3254,12 @@ class AndroidStdlib(TestSuite):
           prev_state,
           prev_state_duration,
           state_rank,
-          reason
+          state_change_reason
         FROM _android_process_state_intervals
         ORDER BY pid, ts, state_rank;
         """,
         out=Csv("""
-        "ts","dur","pid","state","prev_state","prev_state_duration","state_rank","reason"
+        "ts","dur","pid","state","prev_state","prev_state_duration","state_rank","state_change_reason"
         2000,-1,100,"TOP","[NULL]","[NULL]",2,"[NULL]"
         2000,0,200,"TOP","[NULL]","[NULL]",2,"[NULL]"
         2000,2000,200,"IMPORTANT_FOREGROUND","TOP",0,6,"OOM_ADJ_REASON_START_RECEIVER"
@@ -3400,12 +3400,12 @@ class AndroidStdlib(TestSuite):
           prev_state,
           prev_state_duration,
           state_rank,
-          reason
+          state_change_reason
         FROM _android_process_state_intervals
         ORDER BY ts, state_rank;
         """,
         out=Csv("""
-        "ts","dur","pid","state","prev_state","prev_state_duration","state_rank","reason"
+        "ts","dur","pid","state","prev_state","prev_state_duration","state_rank","state_change_reason"
         1000,1000,200,"NONEXISTENT","[NULL]","[NULL]",20,"[NULL]"
         2000,1000,200,"CACHED_EMPTY","NONEXISTENT",1000,19,"OOM_ADJ_REASON_START_RECEIVER"
         3000,2000,200,"RECEIVER","CACHED_EMPTY",1000,11,"OOM_ADJ_REASON_BIND_SERVICE"

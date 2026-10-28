@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {AsyncMemo} from '../../base/async_memo';
 import {Time} from '../../base/time';
 import {Spinner} from '../../widgets/spinner';
 import {Button, ButtonVariant} from '../../widgets/button';
@@ -34,6 +35,7 @@ import {FlamegraphObjectsView} from './views/flamegraph_objects_view';
 import {FlamegraphView} from './views/flamegraph_view';
 import {CallstackView} from './views/callstack_view';
 import type {HeapDumpExplorerSession} from './session';
+import * as queries from './queries';
 
 interface HeapDumpPageAttrs {
   readonly session: HeapDumpExplorerSession;
@@ -62,7 +64,7 @@ function activeTabKey(session: HeapDumpExplorerSession): string {
             t.pathHashes === active.pathHashes &&
             t.isDominator === active.isDominator,
         )) ||
-      tabs[tabs.length - 1];
+      tabs[tabs.length - 1]!;
     return fgTabKey(tab.pathHashes, tab.isDominator);
   }
   const objId = session.activeInstanceObjId;
@@ -82,6 +84,7 @@ function buildTabs(
   session: HeapDumpExplorerSession,
   activeDump: HeapDump,
   state: NavState,
+  potentiallyMergedClasses: ReadonlySet<string>,
 ): {tabs: TabsTab[]; actions: Map<string, TabActions>} {
   const {engine, trace} = session;
   const navigateWithTabs = session.navigateWithTabs.bind(session);
@@ -130,6 +133,7 @@ function buildTabs(
         activeDump,
         navigate: navigateWithTabs,
         clearNavParam,
+        potentiallyMergedClasses,
         initialRootClass:
           state.view === 'classes' ? state.params.rootClass : undefined,
       }),
@@ -142,6 +146,7 @@ function buildTabs(
         activeDump,
         navigate: navigateWithTabs,
         clearNavParam,
+        potentiallyMergedClasses,
         initialClass: state.view === 'objects' ? state.params.cls : undefined,
       }),
     },
@@ -152,6 +157,7 @@ function buildTabs(
         engine,
         activeDump,
         navigate: navigateWithTabs,
+        potentiallyMergedClasses,
       }),
     },
     {
@@ -222,6 +228,7 @@ function buildTabs(
       content: m(FlamegraphObjectsView, {
         engine,
         navigate: navigateWithTabs,
+        potentiallyMergedClasses,
         pathHashes: fg.pathHashes,
         isDominator: fg.isDominator,
         onBackToTimeline: () => trace.navigate('#!/viewer'),
@@ -249,6 +256,7 @@ function buildTabs(
         navigate: navigateWithTabs,
         openFlamegraphPivotedAt: session.openFlamegraphPivotedAt.bind(session),
         params: {id: obj.objId},
+        potentiallyMergedClasses,
       }),
     });
     actions.set(key, {
@@ -298,7 +306,17 @@ function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
   );
 }
 
+const NO_CLASSES: ReadonlySet<string> = new Set();
+
 export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
+  // Class names in the active dump flagged as potentially merged by app
+  // optimization.
+  private readonly mergedClassesMemo = new AsyncMemo<ReadonlySet<string>>();
+
+  onremove() {
+    this.mergedClassesMemo.dispose();
+  }
+
   view({attrs}: m.Vnode<HeapDumpPageAttrs>) {
     const {session, subpage} = attrs;
     session.syncFromSubpage(subpage);
@@ -317,7 +335,17 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     // Keyed so Mithril remounts views (and their SQLDataSources) on
     // dump switch.
     const tabsKey = `${active.upid}:${active.ts}`;
-    const {tabs, actions} = buildTabs(session, active, session.nav);
+    const {data: potentiallyMergedClasses} = this.mergedClassesMemo.use({
+      key: {upid: active.upid, ts: active.ts},
+      compute: () =>
+        queries.getPotentiallyMergedClasses(session.engine, active),
+    });
+    const {tabs, actions} = buildTabs(
+      session,
+      active,
+      session.nav,
+      potentiallyMergedClasses ?? NO_CLASSES,
+    );
 
     return m(
       '.pf-hde-page',

@@ -98,7 +98,7 @@ void ConcurrentSessionsModule::ParseConcurrentSessionEvent(
       // STATE_UNSPECIFIED or a state added by a newer version of the proto.
       context_->import_logs_tracker->RecordParserLog(
           stats::concurrent_session_event_unknown_state, ts,
-          [&](ArgsTracker::BoundInserter& inserter) {
+          [&](ArgsInserter& inserter) {
             inserter.AddArg(context_->storage->InternString("state"),
                             Variadic::Integer(event.state()));
           });
@@ -121,11 +121,10 @@ void ConcurrentSessionsModule::ParseConcurrentSessionEvent(
 
   context_->state_tracker->UpdateState(
       ts, track_id, state_name, kNullStringId,
-      [this, &event](ArgsTracker::BoundInserter* args) {
-        args->AddArg(arg_consumer_uid_,
-                     Variadic::Integer(event.consumer_uid()));
-        args->AddArg(arg_num_data_sources_,
-                     Variadic::Integer(event.num_data_sources()));
+      [this, &event](ArgsInserter& args) {
+        args.AddArg(arg_consumer_uid_, Variadic::Integer(event.consumer_uid()));
+        args.AddArg(arg_num_data_sources_,
+                    Variadic::Integer(event.num_data_sources()));
       });
 
   // DISABLED is terminal: close it at the same timestamp, so it renders as a

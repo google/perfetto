@@ -153,7 +153,7 @@ std::string AsCsvString(const std::vector<uint64_t>& vals) {
   std::string ret;
   for (size_t i = 0; i < vals.size(); i++) {
     if (i != 0) {
-      ret += ",";
+      ret += ',';
     }
     ret += std::to_string(vals[i]);
   }
@@ -867,7 +867,7 @@ std::string CreateHeapDumpFlameGraphQuery(const std::string& columns,
       "NULL"};
 
   query += base::Join(query_params, ", ");
-  query += ")";
+  query += ')';
 
   return query;
 }

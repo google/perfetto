@@ -89,8 +89,9 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     auto scoped_trace =
         input_context_->global_stats_tracker->TraceExecutionTimeIntoStats(
             stats::guess_trace_type_duration_ns);
-    trace_type_ = input_context_->trace_importer_registry->Guess(blob.data(),
-                                                                 blob.size());
+    trace_type_ =
+        input_context_->trace_importer_registry->Guess(blob.data(), blob.size())
+            .id;
   }
   if (!trace_type_) {
     // If renaming this error message don't remove the "(ERR:fmt)" part.

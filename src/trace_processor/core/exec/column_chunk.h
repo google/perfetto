@@ -68,9 +68,9 @@ struct ColumnChunk {
     memcpy(copy, data, count * sizeof(T));
     const BitVector* kept = nullptr;
     if (present) {
-      validity.resize(kMaxBatchRows);
+      SizeValidity();
       validity.FillBits(0, count, false);
-      validity.SetBitsFrom(0, *present, 0, count);
+      validity.OrBitsFrom(0, *present, 0, count);
       kept = &validity;
     }
     using Type = typename TypeTagFor<T>::type;
@@ -80,6 +80,13 @@ struct ColumnChunk {
   // Views the populated chunk with the source's representation. Implicit Id
   // columns become stored Uint32 values. The chunk must outlive the view.
   ColumnView View(const ColumnView& source, bool nullable) const;
+
+  // Gives the validity kMaxBatchRows bits, which it then keeps.
+  void SizeValidity() {
+    if (PERFETTO_UNLIKELY(validity.size() != kMaxBatchRows)) {
+      GrowValidity();
+    }
+  }
 
   // The chunk's kMaxBatchRows values of T, its storage allocated the first
   // time any are used.
@@ -98,6 +105,9 @@ struct ColumnChunk {
 
   // The size of the largest type a chunk holds.
   static constexpr size_t kMaxValueSize = sizeof(Variant);
+
+ private:
+  PERFETTO_NO_INLINE void GrowValidity();
 };
 
 }  // namespace perfetto::trace_processor::core::exec

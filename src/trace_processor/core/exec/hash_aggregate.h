@@ -47,10 +47,15 @@ struct HashAggregateSpec {
 // number of groups, not the number of rows.
 class HashAggregate : public Breaker {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   explicit HashAggregate(HashAggregateSpec);
   ~HashAggregate() override;
 
  private:
+  friend class PipelineFormatter;
+
   struct State : Breaker::State {
     ~State() override;
     void Reset() override;

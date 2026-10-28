@@ -49,6 +49,9 @@ inline constexpr uint32_t kNoNode = std::numeric_limits<uint32_t>::max();
 // case: the ids are the numbers, so nothing is looked up or checked.
 class TreeNumberNodes final : public Transform {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   TreeNumberNodes(uint32_t id_column, uint32_t parent_column);
   ~TreeNumberNodes() override;
 
@@ -60,6 +63,8 @@ class TreeNumberNodes final : public Transform {
   bool IsDenseForTesting(const OperatorState&) const;
 
  private:
+  friend class PipelineFormatter;
+
   struct Key {
     int64_t value;
     bool is_string;

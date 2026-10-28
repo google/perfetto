@@ -111,6 +111,6 @@ export class TreeTable<T> implements m.ClassComponent<TreeTableAttrs<T>> {
 
   keyForRow(row: T, attrs: TreeTableAttrs<T>): string {
     const {columns} = attrs;
-    return columns[0].getData(row);
+    return columns[0]!.getData(row);
   }
 }

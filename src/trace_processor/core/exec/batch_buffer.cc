@@ -20,17 +20,21 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-base::Status BatchBuffer::Append(const RowBatch& in, Context& context) {
+void BatchBuffer::Append(const RowBatch& in, Context& context) {
   if (!in.size())
-    return base::OkStatus();
+    return;
   uint32_t before = size_, total = before + in.size();
+  // Callers remove rows before a batch overflows. The planner guarantees
+  // every batch of a step has the same columns.
+  PERFETTO_DCHECK(total <= kMaxBatchRows);
   if (before) {
-    if (total > kMaxBatchRows || in.column_count() != columns_.size())
-      return base::ErrStatus("batch buffer: incompatible batch size or schema");
+    PERFETTO_DCHECK(in.column_count() == columns_.size());
+#if PERFETTO_DCHECK_IS_ON()
     for (uint32_t c = 0; c < in.column_count(); ++c) {
-      if (!SameLogicalType(columns_[c].view, in.column(c)))
-        return base::ErrStatus("batch buffer: column representation changed");
+      PERFETTO_DCHECK(SameLogicalType(ColumnShape::Of(columns_[c].view),
+                                      ColumnShape::Of(in.column(c))));
     }
+#endif
   } else {
     columns_.resize(in.column_count());
     for (uint32_t c = 0; c < in.column_count(); ++c) {
@@ -46,7 +50,6 @@ base::Status BatchBuffer::Append(const RowBatch& in, Context& context) {
     column.nullable |= in.column(c).validity() != nullptr;
   }
   size_ = total;
-  return base::OkStatus();
 }
 
 void BatchBuffer::Take(RowBatch& out) {

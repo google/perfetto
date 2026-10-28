@@ -96,11 +96,6 @@ const uint32_t* Flatten(const ColumnView& column,
   return scratch->data();
 }
 
-bool IsNodeColumn(const ColumnView& column) {
-  return column.kind() == ColumnView::Kind::kFlat &&
-         column.type().Is<Uint32>() && column.validity() == nullptr;
-}
-
 std::vector<std::unique_ptr<AggregateFunction>> MakeFunctions(
     const TreeAccumulateSpec& spec) {
   std::vector<std::unique_ptr<AggregateFunction>> functions;
@@ -122,11 +117,9 @@ bool Accumulate(
     AccumulateState& s) {
   const ColumnView& node_column = batch.column(spec.node_column);
   const ColumnView& parent_column = batch.column(spec.parent_column);
-  if (!IsNodeColumn(node_column) || !IsNodeColumn(parent_column)) {
-    s.status = base::ErrStatus(
-        "TREE ACCUMULATE: node columns must be non-null Uint32");
-    return false;
-  }
+  // TreeNumberNodes produces these columns.
+  PERFETTO_DCHECK(IsFlat<Uint32>(node_column) && !node_column.validity());
+  PERFETTO_DCHECK(IsFlat<Uint32>(parent_column) && !parent_column.validity());
   const Selection& selection = batch.selection();
   uint32_t count = batch.size();
   const uint32_t* nodes = Flatten(node_column, selection, &s.node_scratch);
@@ -154,11 +147,9 @@ bool Accumulate(
     const AggregateFunction& function = *functions[a];
     AggregateInput input;
     input.rows = count;
-    if (function.reads_input() &&
-        !s.input.Load(batch.column(spec.aggregates[a].column), selection,
-                      nullptr, count, &input)) {
-      s.status = base::ErrStatus("TREE ACCUMULATE: values must be Int64");
-      return false;
+    if (function.reads_input()) {
+      s.input.Load(batch.column(spec.aggregates[a].column), selection, nullptr,
+                   count, &input);
     }
     GroupStates states{s.states.data() + offset, stride};
     offset += function.state_words();
@@ -174,7 +165,7 @@ bool Accumulate(
     ColumnBuffer buffer = s.context->TakeBuffer();
     ColumnChunk& chunk = buffer.chunk();
     int64_t* values = chunk.Values<int64_t>();
-    chunk.validity.resize(kMaxBatchRows);
+    chunk.SizeValidity();
     if (selection.prefix()) {
       function.Finalize(states, nodes, count, values, &chunk.validity);
     } else {

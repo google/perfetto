@@ -206,30 +206,6 @@ source_set("descriptors") {
   ]
 }
 
-source_set("proto_to_args_parser") {
-  sources = [
-    "proto_to_args_parser.cc",
-    "proto_to_args_parser.h",
-  ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../../protos/perfetto/common:zero",
-    "../../../protos/perfetto/trace/interned_data:zero",
-    "../../../protos/perfetto/trace/profiling:zero",
-    "../../../protos/perfetto/trace/track_event:zero",
-    "../../../protos/perfetto/trace_processor:zero",
-    "../../protozero",
-    "../importers/proto:gen_cc_track_event_descriptor",
-  ]
-
-  public_deps = [
-    ":descriptors",
-    ":interned_message_view",
-    "../../base",
-    "../containers",
-  ]
-}
-
 source_set("zip_reader") {
   sources = [
     "streaming_line_reader.cc",
@@ -249,6 +225,17 @@ source_set("zip_reader") {
   }
 }
 
+source_set("graph") {
+  sources = [
+    "graph.cc",
+    "graph.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+}
+
 perfetto_component("cold_sort") {
   sources = [
     "cold_sort.cc",
@@ -262,9 +249,13 @@ perfetto_component("cold_sort") {
   ]
 }
 
-source_set("galloping_search") {
-  sources = [ "galloping_search.h" ]
-  deps = [ "../../../gn:default_deps" ]
+source_set("sorted_search") {
+  sources = [ "sorted_search.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/public",
+  ]
 }
 
 source_set("concurrency_stress_test_util") {
@@ -510,17 +501,17 @@ source_set("unittests") {
     "concurrency_stress_test_util_unittest.cc",
     "descriptors_unittest.cc",
     "flatbuffer_reader_unittest.cc",
-    "galloping_search_unittest.cc",
     "glob_unittest.cc",
+    "graph_unittest.cc",
     "json_parser_unittest.cc",
     "json_serializer_unittest.cc",
     "json_value_unittest.cc",
     "proto_profiler_unittest.cc",
-    "proto_to_args_parser_unittest.cc",
     "protozero_to_json_unittests.cc",
     "protozero_to_text_unittests.cc",
     "simple_json_parser_unittest.cc",
     "simple_json_serializer_unittest.cc",
+    "sorted_search_unittest.cc",
     "sql_argument_unittest.cc",
     "streaming_line_reader_unittest.cc",
     "tar_writer_unittest.cc",
@@ -537,17 +528,17 @@ source_set("unittests") {
     ":descriptors",
     ":flatbuffer_reader",
     ":flatbuffer_writer",
-    ":galloping_search",
     ":glob",
+    ":graph",
     ":json_parser",
     ":json_serializer",
     ":json_value",
     ":proto_profiler",
-    ":proto_to_args_parser",
     ":protozero_to_json",
     ":protozero_to_text",
     ":simple_json_parser",
     ":simple_json_serializer",
+    ":sorted_search",
     ":sql_argument",
     ":tar_writer",
     ":trace_blob_view_reader",
@@ -596,7 +587,6 @@ if (enable_perfetto_benchmarks) {
     deps = [
       ":descriptors",
       ":glob",
-      ":proto_to_args_parser",
       "..:gen_cc_test_messages_descriptor",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
@@ -606,9 +596,6 @@ if (enable_perfetto_benchmarks) {
       "../../protozero:testing_messages_zero",
       "../containers",
     ]
-    sources = [
-      "glob_benchmark.cc",
-      "proto_to_args_parser_benchmark.cc",
-    ]
+    sources = [ "glob_benchmark.cc" ]
   }
 }

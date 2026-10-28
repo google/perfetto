@@ -118,24 +118,25 @@ PagedMemory::~PagedMemory() {
   ANNOTATE_DELETE_BUFFER(p_, size_, committed_size_)
 }
 
-bool PagedMemory::AdviseDontNeed(void* p, size_t size) {
-  PERFETTO_DCHECK(p_);
-  PERFETTO_DCHECK(p >= p_);
-  PERFETTO_DCHECK(static_cast<char*>(p) + size <= p_ + size_);
+void PagedMemory::AdviseDontNeedAfter(size_t offset) {
+  PERFETTO_CHECK(p_ && offset <= size_);
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
   // Discarding pages on Windows has more CPU cost than is justified for the
   // possible memory savings.
-  return false;
-#elif PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
-  int res = posix_madvise(p, size, POSIX_MADV_DISCARD_NP);
-  PERFETTO_DCHECK(res == 0);
-  return true;
-#else   // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) ||
-        // PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+#else
+  const size_t release_begin = RoundUpToSysPageSize(offset);
+  const size_t release_end = AlignDown(size_, GetSysPageSize());
+  if (release_begin >= release_end)
+    return;
+  char* const release_ptr = p_ + release_begin;
+  const size_t release_size = release_end - release_begin;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
+  int res = posix_madvise(release_ptr, release_size, POSIX_MADV_DISCARD_NP);
+#else
   // http://man7.org/linux/man-pages/man2/madvise.2.html
-  int res = madvise(p, size, MADV_DONTNEED);
+  int res = madvise(release_ptr, release_size, MADV_DONTNEED);
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
   PERFETTO_DCHECK(res == 0);
-  return true;
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) ||
         // PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
 }

@@ -112,7 +112,7 @@ bool GroupedSort::Serve(RowBatch& out, Breaker::State& state) const {
   if (s.emitted == s.rows.size()) {
     return false;
   }
-  uint32_t count = s.rows.View(&out, s.emitted, *s.context);
+  uint32_t count = s.rows.Gather(&out, s.emitted, *s.context);
   out.AddBorrowedColumn(ColumnView::Reference(
       StorageType{Uint32{}}, s.ordered_groups.data(), nullptr, s.emitted));
   s.emitted += count;

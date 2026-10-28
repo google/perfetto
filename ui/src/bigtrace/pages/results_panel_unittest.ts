@@ -80,7 +80,7 @@ function runningTab(
   uuid: string,
   client: BigtraceQueryClient,
 ): BigTraceEditorTab {
-  const tab = tabsState.tabs[0];
+  const tab = tabsState.tabs[0]!;
   tab.materialize = true;
   tab.configured = true;
   tab.editorText = SQL;

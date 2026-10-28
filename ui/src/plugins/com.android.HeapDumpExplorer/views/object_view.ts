@@ -45,7 +45,9 @@ import {
   BitmapImage,
   COL_INFO,
   colHeader,
+  classNameCellRenderer,
 } from '../components';
+import {ClassNameWithWarning} from '../../../components/merged_class_warning';
 import * as queries from '../queries';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
@@ -69,6 +71,7 @@ interface ObjectViewAttrs {
   readonly navigate: NavFn;
   readonly openFlamegraphPivotedAt: OpenFlamegraphPivotedAt;
   readonly params: ObjectParams;
+  readonly potentiallyMergedClasses: ReadonlySet<string>;
 }
 
 const JAVA_PRIM_SIZE: Record<string, number> = {
@@ -238,7 +241,10 @@ const SIZE_SCHEMA: ColumnSchema = {
   },
 };
 
-function makeInstanceSchema(navigate: NavFn): ColumnSchema {
+function makeInstanceSchema(
+  navigate: NavFn,
+  potentiallyMergedClasses: ReadonlySet<string>,
+): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -321,6 +327,7 @@ function makeInstanceSchema(navigate: NavFn): ColumnSchema {
     cls: {
       title: 'Class',
       columnType: 'text',
+      cellRenderer: classNameCellRenderer(potentiallyMergedClasses),
     },
     str: {
       title: 'String Value',
@@ -549,7 +556,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
       dataMemo.dispose();
     },
     view(vnode) {
-      const {navigate, params} = vnode.attrs;
+      const {navigate, params, potentiallyMergedClasses} = vnode.attrs;
 
       const {isPending, data: detail} = dataMemo.use({
         key: params.id,
@@ -717,9 +724,14 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
               m(
                 'span',
                 detail.classObjRow
-                  ? m(InstanceLink, {
-                      row: detail.classObjRow,
-                      navigate,
+                  ? m(ClassNameWithWarning, {
+                      name: m(InstanceLink, {
+                        row: detail.classObjRow,
+                        navigate,
+                      }),
+                      potentiallyMerged: potentiallyMergedClasses.has(
+                        row.className,
+                      ),
                     })
                   : '???',
               ),
@@ -790,7 +802,11 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             ? m(
                 Section,
                 {title: 'Class Hierarchy'},
-                renderClassHierarchy(detail.classHierarchy, navigate),
+                renderClassHierarchy(
+                  detail.classHierarchy,
+                  navigate,
+                  potentiallyMergedClasses,
+                ),
               )
             : null,
 
@@ -851,7 +867,10 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             },
             detail.reverseRefs.length > 0
               ? m(DataGrid, {
-                  schema: makeInstanceSchema(navigate),
+                  schema: makeInstanceSchema(
+                    navigate,
+                    potentiallyMergedClasses,
+                  ),
                   data: detail.reverseRefs.map(instanceRowToRow),
                   initialColumns: [
                     {id: 'id', field: 'id'},
@@ -887,7 +906,10 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             },
             detail.dominated.length > 0
               ? m(DataGrid, {
-                  schema: makeInstanceSchema(navigate),
+                  schema: makeInstanceSchema(
+                    navigate,
+                    potentiallyMergedClasses,
+                  ),
                   data: detail.dominated.map(instanceRowToRow),
                   initialColumns: [
                     {id: 'id', field: 'id'},
@@ -1056,6 +1078,7 @@ function classFilterLink(className: string, navigate: NavFn): m.Child {
 function renderClassHierarchy(
   hierarchy: readonly string[],
   navigate: NavFn,
+  potentiallyMergedClasses: ReadonlySet<string>,
 ): m.Children {
   const topDown = hierarchy.slice().reverse();
   return m(
@@ -1070,7 +1093,10 @@ function renderClassHierarchy(
         },
         [
           m('span.pf-hde-path-arrow', i === 0 ? '' : '→'),
-          classFilterLink(className, navigate),
+          m(ClassNameWithWarning, {
+            name: classFilterLink(className, navigate),
+            potentiallyMerged: potentiallyMergedClasses.has(className),
+          }),
         ],
       ),
     ),

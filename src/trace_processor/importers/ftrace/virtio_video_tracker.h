@@ -66,7 +66,7 @@ class VirtioVideoTracker : public Destructible {
 
   void AddCommandSliceArgs(
       protos::pbzero::VirtioVideoResourceQueueDoneFtraceEvent::Decoder*,
-      ArgsTracker::BoundInserter*);
+      ArgsInserter*);
 
   TraceProcessorContext* const context_;
 

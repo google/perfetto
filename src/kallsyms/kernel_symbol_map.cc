@@ -22,6 +22,7 @@
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -290,9 +291,9 @@ size_t KernelSymbolMap::Parse(int fd) {
     }
     const base::StringView cfi = ".cfi";
     const base::StringView cfi_jt = ".cfi_jt";
-    if (name.EndsWith(cfi)) {
+    if (base::EndsWith(name, cfi)) {
       name = name.substr(0, name.size() - cfi.size());
-    } else if (name.EndsWith(cfi_jt)) {
+    } else if (base::EndsWith(name, cfi_jt)) {
       name = name.substr(0, name.size() - cfi_jt.size());
     }
 

@@ -162,7 +162,7 @@ export function convertFromWireValues<T>(
   switch (setting.type) {
     case 'number': {
       if (raw.length === 0) return undefined;
-      const n = parseFloat(raw[0]);
+      const n = parseFloat(raw[0]!);
       return Number.isFinite(n) ? (n as unknown as T) : undefined;
     }
     case 'boolean':

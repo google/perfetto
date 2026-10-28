@@ -197,7 +197,7 @@ export class SortNode implements QueryNode {
       if (!this.attrs.sortCriteria) return;
       const newSortCriteria = [...this.attrs.sortCriteria];
       const [removed] = newSortCriteria.splice(from, 1);
-      newSortCriteria.splice(to, 0, removed);
+      newSortCriteria.splice(to, 0, removed!);
       this.attrs.sortCriteria = newSortCriteria;
       this.context.onchange?.();
       m.redraw();
@@ -217,7 +217,7 @@ export class SortNode implements QueryNode {
             label: criterion.direction,
             onclick: () => {
               if (this.attrs.sortCriteria) {
-                this.attrs.sortCriteria[index].direction =
+                this.attrs.sortCriteria[index]!.direction =
                   criterion.direction === 'ASC' ? 'DESC' : 'ASC';
                 this.context.onchange?.();
                 m.redraw();

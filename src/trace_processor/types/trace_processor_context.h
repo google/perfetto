@@ -44,7 +44,7 @@ class EventTracker;
 class FileIoTracker;
 class FlowTracker;
 class BlobPacketWriter;
-class GlobalArgsTracker;
+class ArgsTracker;
 class GlobalMetadataTracker;
 class GlobalStatsTracker;
 class ImportLogsTracker;
@@ -187,7 +187,7 @@ class TraceProcessorContext {
   // archive readers) can query per-type metadata without depending on the
   // reader registry header.
   TraceImporterRegistry* trace_importer_registry = nullptr;
-  GlobalPtr<GlobalArgsTracker> global_args_tracker;
+  GlobalPtr<ArgsTracker> args_tracker;
   GlobalPtr<GlobalMetadataTracker> global_metadata_tracker;
   GlobalPtr<GlobalStatsTracker> global_stats_tracker;
   GlobalPtr<TraceFileTracker> trace_file_tracker;

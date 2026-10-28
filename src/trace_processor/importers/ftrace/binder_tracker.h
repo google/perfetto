@@ -56,7 +56,7 @@ class BinderTracker : public Destructible {
     kBR_ONEWAY_SPAM_SUSPECT = 0x7213,
   };
 
-  using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter*)>;
+  using SetArgsCallback = std::function<void(ArgsInserter&)>;
   // Declared public for testing only.
   explicit BinderTracker(TraceProcessorContext*);
   BinderTracker(const BinderTracker&) = delete;

@@ -17,21 +17,23 @@
 #include "perfetto/public/abi/heap_buffer.h"
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "src/shared_lib/stream_writer.h"
+#include "perfetto/public/pb_msg.h"
+#include "src/shared_lib/pb_msg_writer.h"
 
 struct PerfettoHeapBuffer* PerfettoHeapBufferCreate(
-    struct PerfettoStreamWriter* w) {
+    struct PerfettoPbMsgWriter* w) {
   auto* shb = new protozero::ScatteredHeapBuffer(4096, 4096);
   auto* sw = new protozero::ScatteredStreamWriter(shb);
   shb->set_writer(sw);
 
-  w->impl = reinterpret_cast<PerfettoStreamWriterImpl*>(sw);
-  perfetto::UpdateStreamWriter(*sw, w);
+  w->encoding = PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED;
+  w->impl = reinterpret_cast<PerfettoPbMsgWriterImpl*>(sw);
+  perfetto::UpdatePbMsgWriter(*sw, w);
   return reinterpret_cast<PerfettoHeapBuffer*>(shb);
 }
 
 void PerfettoHeapBufferCopyInto(struct PerfettoHeapBuffer* buf,
-                                struct PerfettoStreamWriter* w,
+                                struct PerfettoPbMsgWriter* w,
                                 void* dst,
                                 size_t size) {
   auto* shb = reinterpret_cast<protozero::ScatteredHeapBuffer*>(buf);
@@ -52,7 +54,7 @@ void PerfettoHeapBufferCopyInto(struct PerfettoHeapBuffer* buf,
 }
 
 void PerfettoHeapBufferDestroy(struct PerfettoHeapBuffer* buf,
-                               struct PerfettoStreamWriter* w) {
+                               struct PerfettoPbMsgWriter* w) {
   auto* shb = reinterpret_cast<protozero::ScatteredHeapBuffer*>(buf);
   auto* sw = reinterpret_cast<protozero::ScatteredStreamWriter*>(w->impl);
   delete sw;

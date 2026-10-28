@@ -224,6 +224,9 @@ inline double HostToLE(double x) {
   return HostToLEDouble(x);
 }
 
+inline uint16_t LEToHost(uint16_t x) {
+  return LE16ToHost(x);
+}
 inline uint32_t LEToHost(uint32_t x) {
   return LE32ToHost(x);
 }

@@ -76,7 +76,7 @@ ColumnView WriteKeys(const GroupTable& groups,
   if (!nulls) {
     return ColumnView::Reference(type, data);
   }
-  chunk.validity.resize(kMaxBatchRows);
+  chunk.SizeValidity();
   for (uint32_t i = 0; i < count; ++i) {
     chunk.validity.change(i, !groups.IsNull(first + i, k));
   }
@@ -123,13 +123,13 @@ bool HashAggregate::Consume(const RowBatch& in, Breaker::State& state) const {
     return true;
   }
   // Find each row's group. Groups are numbered in the order first seen, so a
-  // row starts a new group when its number equals the group count.
+  // row starts a new group when its number equals the group count. With no
+  // keys, every row is in the one group.
   s.consumed = true;
-  s.row_groups.resize(rows);
-  uint32_t* row_groups = s.row_groups.data();
-  if (spec_.key_columns.empty()) {
-    std::fill(row_groups, row_groups + rows, 0u);
-  } else {
+  uint32_t* row_groups = nullptr;
+  if (!spec_.key_columns.empty()) {
+    s.row_groups.resize(rows);
+    row_groups = s.row_groups.data();
     if (std::optional<uint32_t> bad =
             s.groups.FindOrCreate(in, spec_.key_columns, row_groups)) {
       s.status = base::ErrStatus(
@@ -150,17 +150,19 @@ bool HashAggregate::Consume(const RowBatch& in, Breaker::State& state) const {
     const AggregateFunction& function = *functions_[a];
     AggregateInput input;
     input.rows = rows;
-    if (function.reads_input() &&
-        !s.input.Load(in.column(spec_.aggregates[a].column), in.selection(),
-                      nullptr, rows, &input)) {
-      s.status = base::ErrStatus("AGGREGATE: aggregated columns must be Int64");
-      return false;
+    if (function.reads_input()) {
+      s.input.Load(in.column(spec_.aggregates[a].column), in.selection(),
+                   nullptr, rows, &input);
     }
     GroupStates states{payloads + offsets_[a], stride};
     if (function.tracks_seen()) {
       states.seen = s.seen[a].For(GroupCount(s), input.valid != nullptr);
     }
-    function.Update(input, row_groups, states, &overflow);
+    if (row_groups) {
+      function.Update(input, row_groups, states, &overflow);
+    } else {
+      function.UpdateGroup(input, 0, states, &overflow);
+    }
   }
   if (overflow) {
     s.status = base::ErrStatus("AGGREGATE: integer overflow");

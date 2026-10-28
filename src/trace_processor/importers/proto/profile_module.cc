@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/field.h"
@@ -95,7 +96,7 @@ InternedSmapsPath InternSmapsPath(TraceProcessorContext* context,
   InternedSmapsPath ret;
   ret.path_id = context->storage->InternString(path);
   base::StringView trimmed = path;
-  if (path.EndsWith(kDeletedSuffix)) {
+  if (base::EndsWith(path, kDeletedSuffix)) {
     trimmed = path.substr(0, path.size() - kDeletedSuffix.size());
     ret.is_deleted = true;
   }
@@ -237,8 +238,7 @@ void ProfileModule::ParseStreamingProfileSample(
       sequence_state, upid, event.callstack_iid);
   if (!opt_cs_id) {
     context_->import_logs_tracker->RecordParserLog(
-        stats::stackprofile_parser_error, ts,
-        [&](ArgsTracker::BoundInserter& inserter) {
+        stats::stackprofile_parser_error, ts, [&](ArgsInserter& inserter) {
           inserter.AddArg(context_->storage->InternString("callstack_iid"),
                           Variadic::UnsignedInteger(event.callstack_iid));
         });
@@ -846,7 +846,7 @@ void ProfileModule::OnEventsFullyExtracted() {
     NullTermStringView path = context_->storage->GetString(it.name());
     NullTermStringView build_id = context_->storage->GetString(it.build_id());
 
-    if (path.StartsWith("/data/local/tmp/") && build_id.empty()) {
+    if (base::StartsWith(path, "/data/local/tmp/") && build_id.empty()) {
       context_->stats_tracker->IncrementStats(
           stats::symbolization_tmp_build_id_not_found);
     }

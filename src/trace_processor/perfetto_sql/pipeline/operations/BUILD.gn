@@ -20,6 +20,14 @@ source_set("operations") {
   sources = [
     "aggregate_stage.cc",
     "aggregate_stage.h",
+    "compute.cc",
+    "compute.h",
+    "distinct.cc",
+    "distinct.h",
+    "graph_tree.cc",
+    "graph_tree.h",
+    "interval_fill_gaps.cc",
+    "interval_fill_gaps.h",
     "interval_flatten.cc",
     "interval_flatten.h",
     "interval_intersect.cc",
@@ -32,6 +40,8 @@ source_set("operations") {
     "scan.h",
     "tree_accumulate.cc",
     "tree_accumulate.h",
+    "where.cc",
+    "where.h",
   ]
   deps = [
     "..:plan",
@@ -43,6 +53,7 @@ source_set("operations") {
     "../../../core/common",
     "../../../core/dataframe",
     "../../../core/exec",
+    "../../../core/util",
     "../../../sqlite",
     "../../../util:sql_argument",
     "../../schema",

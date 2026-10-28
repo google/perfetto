@@ -60,6 +60,25 @@ WHERE
 -- Slices logged from FrameTracker#markEvent that describe when
 -- the instrumentation was started and the reason the CUJ ended.
 CREATE PERFETTO TABLE _cuj_state_markers AS
+WITH
+  cuj_named_tracks AS MATERIALIZED (
+    SELECT DISTINCT track.id AS track_id, track.name AS track_name
+    FROM track
+    JOIN _jank_cujs_slices AS cuj
+      ON track.name = cuj.cuj_slice_name
+  ),
+  candidate_markers AS MATERIALIZED (
+    SELECT s.ts, s.name, s.track_id, cnt.track_name
+    FROM cuj_named_tracks AS cnt
+    JOIN slice AS s USING (track_id)
+    WHERE
+      s.name GLOB 'FT#*'
+    UNION ALL
+    SELECT s.ts, s.name, s.track_id, NULL AS track_name
+    FROM slice AS s
+    WHERE
+      s.name GLOB 'J<*'
+  )
 SELECT
   cuj.cuj_id,
   upid,
@@ -75,18 +94,16 @@ SELECT
   cuj_state_marker.name AS marker_name,
   thread_track.utid AS utid
 FROM _jank_cujs_slices AS cuj
-LEFT JOIN slice AS cuj_state_marker
+JOIN candidate_markers AS cuj_state_marker
   ON cuj_state_marker.ts >= cuj.ts
   AND cuj_state_marker.ts < cuj.ts_end
-LEFT JOIN track AS marker_track
-  ON marker_track.id = cuj_state_marker.track_id
 LEFT JOIN thread_track
   ON cuj_state_marker.track_id = thread_track.id
 WHERE
   -- e.g. J<CUJ_NAME>#FT#end#0 this for backward compatibility
-  cuj_state_marker.name GLOB (cuj.cuj_slice_name || "#FT#*")
-  OR (marker_track.name = cuj_slice_name AND cuj_state_marker.name GLOB 'FT#*')
-  OR cuj_state_marker.name = (cuj.cuj_slice_name || "#UIThread");
+  cuj_state_marker.name GLOB (cuj.cuj_slice_name || '#FT#*')
+  OR cuj_state_marker.track_name = cuj.cuj_slice_name
+  OR cuj_state_marker.name = (cuj.cuj_slice_name || '#UIThread');
 
 -- CUJ instant event values.
 CREATE PERFETTO TABLE _cuj_instant_events AS
@@ -139,7 +156,7 @@ SELECT substr($cuj_slice_name, 3, length($cuj_slice_name) - 3);
 
 -- Information about all frames in a process that overlap with a CUJ from the same process.
 -- This can include multiple frames for the same frame_id (for eg. frames with different layers).
-CREATE PERFETTO VIEW _all_frames_in_cuj AS
+CREATE PERFETTO TABLE _all_frames_in_cuj AS
 SELECT
   _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
   cuj.upid,

@@ -21,9 +21,13 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/core/util/heap.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
 #include "src/trace_processor/storage/stats.h"
@@ -123,46 +127,34 @@ void TraceSorter::Queue::Sort(TraceTokenBuffer& buffer, bool use_slow_sorting) {
 //  q2              {min_ts: 12    max_ts: 40}
 //
 // We know that we can extract all events from q1 until we hit ts=10 without
-// looking at any other queue. After hitting ts=10, we need to re-look to all of
-// them to figure out the next min-event.
-// There are more suitable data structures to do this (e.g. keeping a min-heap
-// to avoid re-scanning all the queues all the times) but doesn't seem worth it.
-// With Android traces (that have 8 CPUs) this function accounts for ~1-3% cpu
-// time in a profiler.
+// looking at any other queue. After hitting ts=10, the next min-queue comes
+// from a heap: queues interleave finely, so this repeats every event or two,
+// and re-scanning all of them each time dominated extraction.
 void TraceSorter::SortAndExtractEventsUntilAllocId(
     BumpAllocator::AllocId limit_alloc_id) {
   constexpr int64_t kTsMax = std::numeric_limits<int64_t>::max();
-  for (;;) {
-    size_t min_queue_idx = 0;  // The index of the queue with the min(ts).
-
-    // The top-2 min(ts) among all queues.
-    // queues_[min_queue_idx].events.timestamp == min_queue_ts[0].
-    int64_t min_queue_ts[2]{kTsMax, kTsMax};
-
-    // This loop identifies the queue which starts with the earliest event and
-    // also remembers the earliest event of the 2nd queue (in min_queue_ts[1]).
-    bool all_queues_empty = true;
-    for (size_t i = 0; i < queues_.size(); i++) {
-      auto& queue = queues_[i];
-      if (queue.events_.empty()) {
-        continue;
-      }
-      PERFETTO_DCHECK(queue.max_ts_ <= append_max_ts_);
-
-      // Checking for |all_queues_empty| is necessary here as in fuzzer cases
-      // we can end up with |int64::max()| as the value here.
-      // See https://crbug.com/oss-fuzz/69164 for an example.
-      if (all_queues_empty || queue.min_ts_ < min_queue_ts[0]) {
-        min_queue_ts[1] = min_queue_ts[0];
-        min_queue_ts[0] = queue.min_ts_;
-        min_queue_idx = i;
-      } else if (queue.min_ts_ < min_queue_ts[1]) {
-        min_queue_ts[1] = queue.min_ts_;
-      }
-      all_queues_empty = false;
+  // A min-heap of the non-empty queues by their earliest event, ties broken
+  // by arrival as they are within a queue.
+  auto later = [](const QueueHeapEntry& a, const QueueHeapEntry& b) {
+    return std::tie(b.min_ts, b.min_alloc_id) <
+           std::tie(a.min_ts, a.min_alloc_id);
+  };
+  std::vector<QueueHeapEntry>& heap = queue_heap_;
+  heap.clear();
+  for (uint32_t i = 0; i < queues_.size(); ++i) {
+    if (!queues_[i].events_.empty()) {
+      PERFETTO_DCHECK(queues_[i].max_ts_ <= append_max_ts_);
+      heap.push_back({queues_[i].min_ts_, queues_[i].min_alloc_id_, i});
     }
-    if (all_queues_empty) {
-      break;
+  }
+  std::make_heap(heap.begin(), heap.end(), later);
+  while (!heap.empty()) {
+    uint32_t min_queue_idx = heap[0].queue;
+    // The earliest event of any other queue.
+    auto next = std::make_pair(kTsMax, BumpAllocator::AllocId{});
+    for (size_t child = 1; child <= 2 && child < heap.size(); ++child) {
+      next = std::min(
+          next, std::make_pair(heap[child].min_ts, heap[child].min_alloc_id));
     }
 
     auto& queue = queues_[min_queue_idx];
@@ -172,19 +164,20 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
     }
     PERFETTO_DCHECK(queue.min_ts_ == events.front().ts);
 
-    // Now that we identified the min-queue, extract all events from it until
-    // we hit either: (1) the min-ts of the 2nd queue or (2) the packet index
-    // limit, whichever comes first.
+    // Extract events from the min-queue until hitting either: (1) the
+    // earliest event of another queue or (2) the alloc id limit, whichever
+    // comes first.
     size_t num_extracted = 0;
+    extracting_ = true;
     for (auto& event : events) {
       if (event.alloc_id() >= limit_alloc_id) {
         break;
       }
 
-      if (event.ts > min_queue_ts[1]) {
-        // We should never hit this condition on the first extraction as by
-        // the algorithm above (event.ts =) min_queue_ts[0] <= min_queue[1].
-        PERFETTO_DCHECK(num_extracted > 0);
+      // Stop at the earliest event of another queue, but always extract
+      // the first: with slow sorting it may not be the queue's first
+      // arrival.
+      if (num_extracted && std::make_pair(event.ts, event.alloc_id()) > next) {
         break;
       }
       ++num_extracted;
@@ -207,6 +200,7 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
 
       queue.sink->OnSortedEvent(this, event.ts, GetTokenBufferId(event));
     }  // for (event: events)
+    extracting_ = false;
 
     // The earliest event cannot be extracted without going past the limit.
     if (!num_extracted) {
@@ -228,8 +222,24 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
       queue.max_ts_ = 0;
     } else {
       queue.min_ts_ = queue.events_.front().ts;
+      queue.min_alloc_id_ = queue.events_.front().alloc_id();
     }
-  }  // for(;;)
+
+    // The queue's earliest event only moved later, so it moves down from the
+    // top; an empty queue is replaced there by the last.
+    if (events.empty()) {
+      QueueHeapEntry last = heap.back();
+      heap.pop_back();
+      if (!heap.empty()) {
+        core::HeapSiftDown(heap.data(), heap.size(), last, later);
+      }
+    } else {
+      core::HeapSiftDown(
+          heap.data(), heap.size(),
+          QueueHeapEntry{queue.min_ts_, queue.min_alloc_id_, min_queue_idx},
+          later);
+    }
+  }
 }
 
 TraceSorter::UntypedSink::~UntypedSink() = default;

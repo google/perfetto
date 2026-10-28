@@ -123,6 +123,7 @@ Set these on the iframe `src`. The route is hash-based:
 | ----------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
 | `mode`            | `embedded`                     | Enables embedded mode: the sidebar is **disabled entirely** (not just hidden) and the file-drop handler is not installed. Use this when embedding. |
 | `hideSidebar`     | `true`                         | Hides the sidebar visually without fully disabling it.                                                                             |
+| `hideStatusbar`   | `true`                         | Hides the status bar at the bottom of the window.                                                                                  |
 | `url`             | `<https url>`                  | UI fetches a public trace itself (requires CORS allowing the UI origin). Alternative to `postMessage` for public traces.           |
 | `s`               | `<hash>`                       | Loads a permalink (saved state).                                                                                                   |
 | `visStart`        | `<ns>`                         | Initial viewport start, raw **nanosecond** timestamp (as in SQL tables). Pair with `visEnd`.                                       |

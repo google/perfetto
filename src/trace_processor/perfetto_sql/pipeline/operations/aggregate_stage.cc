@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -38,15 +39,13 @@ namespace ex = core::exec;
 
 const OperationRegistration AggregateStage::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_AGGREGATE, &BuildPlan,
-    OperationRegistration::Encoding{5, false, &DecodePlan}};
+    OperationRegistration::Encoding{5, &MakeOperation<AggregateStage>}};
 
 base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("AGGREGATE");
   const auto* n = Node<SyntaqlitePerfettoPipeAggregate>(c->parser(), stage);
 
   AggregateStage aggregate;
-  // Output column names, keys then aggregates. Each name must be unique.
-  std::vector<std::string> names;
   std::vector<std::pair<NamedColumn, uint32_t>> keys;
   if (syntaqlite_node_is_present(n->group_by)) {
     const auto* list =
@@ -55,17 +54,21 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
       uint32_t item_id = syntaqlite_list_child_id(list, i);
       const auto* item =
           Node<SyntaqlitePerfettoPipeColumn>(c->parser(), item_id);
-      std::string qualifier = IsSpanPresent(item->qualifier)
-                                  ? SpanText(c->parser(), item->qualifier)
-                                  : "";
-      std::string name = SpanText(c->parser(), item->name);
+      std::optional<NameId> qualifier;
+      if (IsSpanPresent(item->qualifier)) {
+        qualifier = c->Name(item->qualifier);
+      }
+      NameId name = c->Name(item->name);
       ASSIGN_OR_RETURN(ColumnId key, c->Resolve(qualifier, name, item_id));
       if (IsSpanPresent(item->alias)) {
-        name = SpanText(c->parser(), item->alias);
+        name = c->Name(item->alias);
       }
-      RETURN_IF_ERROR(c->CheckListedOnce(names, name, item_id));
-      aggregate.keys_.push_back(key);
-      keys.push_back({NamedColumn{std::move(name), key}, item_id});
+      // Groups once by each column, but outputs one column per item listed.
+      if (std::find(aggregate.keys_.begin(), aggregate.keys_.end(), key) ==
+          aggregate.keys_.end()) {
+        aggregate.keys_.push_back(key);
+      }
+      keys.push_back({NamedColumn{name, key}, item_id});
     }
   }
 
@@ -76,12 +79,10 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
     uint32_t agg_id = syntaqlite_list_child_id(list, i);
     const auto* agg = Node<SyntaqlitePerfettoAggregate>(c->parser(), agg_id);
     ASSIGN_OR_RETURN(Aggregate resolved, c->ResolveAggregate(agg->expr));
-    std::string name = SpanText(c->parser(), agg->name);
-    RETURN_IF_ERROR(c->CheckListedOnce(names, name, agg_id));
+    NameId name = c->Name(agg->name);
     resolved.output = c->AddColumn(name, core::Int64{});
     aggregate.aggregates_.push_back(resolved);
-    aggregates.push_back(
-        {NamedColumn{std::move(name), resolved.output}, agg_id});
+    aggregates.push_back({NamedColumn{name, resolved.output}, agg_id});
   }
 
   // Only the keys and aggregates are visible after this stage.
@@ -110,22 +111,28 @@ void AggregateStage::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerNode(node.children()[0]);
   ex::HashAggregateSpec spec;
   for (ColumnId key : keys_) {
-    spec.key_columns.push_back(c->Position(key));
+    spec.key_columns.push_back(c->QueryPosition(key));
   }
   for (const Aggregate& agg : aggregates_) {
     spec.aggregates.push_back(LowerAggregate(c, agg));
   }
+  // Groups are output in the order first seen, so if the input is sorted by
+  // the keys, the output is too.
+  std::vector<SortKey> sorted = c->QuerySortedBy(keys_);
+  c->RequireFullBatches();
   c->AddOperator(std::make_unique<ex::HashAggregate>(std::move(spec)));
 
-  // The output has one row per group, in no particular order.
+  // The output has one row per group, with a new layout.
   c->ResetLayout();
   for (ColumnId key : keys_) {
-    c->Define(key);
+    c->DeclareColumn(key);
   }
   for (const Aggregate& agg : aggregates_) {
-    c->Define(agg.output);
+    c->DeclareColumn(agg.output);
   }
-  c->SetOrder({});
+  if (!sorted.empty()) {
+    c->DeclareSorted(sorted);
+  }
 }
 
 const OperationRegistration& AggregateStage::registration() const {
@@ -137,34 +144,9 @@ std::unique_ptr<PlanOperation> AggregateStage::Clone() const {
 }
 
 // Replaces `available` with the output columns.
-void AggregateStage::Write(PlanWriter* c,
-                           const PlanNode&,
-                           Available* available_columns) const {
-  auto& available = *available_columns;
-  c->writer().Size(keys_.size());
-  for (ColumnId key : keys_) {
-    c->writer().Position(available, key);
-  }
-  WriteAggregates(c, aggregates_, available);
-  available = keys_;
-  for (const Aggregate& agg : aggregates_) {
-    available.push_back(agg.output);
-  }
-}
-
-void AggregateStage::DecodePlan(PlanReader* c, Available* available_columns) {
-  auto& available = *available_columns;
-  AggregateStage aggregate;
-  aggregate.keys_.resize(c->reader().Count());
-  for (ColumnId& key : aggregate.keys_) {
-    key = c->reader().Position(available);
-  }
-  ReadAggregates(c, available, &aggregate.aggregates_);
-  available = aggregate.keys_;
-  for (const Aggregate& agg : aggregate.aggregates_) {
-    available.push_back(agg.output);
-  }
-  c->AddNode(std::move(aggregate), {c->plan().root()});
+void AggregateStage::Serialize(PlanCodec& c) {
+  c.Vec(&keys_);
+  SerializeAggregates(c, &aggregates_);
 }
 
 }  // namespace perfetto::trace_processor::pipeline

@@ -391,8 +391,8 @@ class AndroidLogcatImporter : public TraceImporter<AndroidLogcatImporter> {
   AndroidLogcatImporter() : TraceImporter(MakeDescriptor()) {}
   ~AndroidLogcatImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
-    return AndroidLogEvent::IsAndroidLogcat(data, size);
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
+    return {AndroidLogEvent::IsAndroidLogcat(data, size)};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

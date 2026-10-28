@@ -42,6 +42,9 @@ using ::testing::ElementsAre;
 // are scratch for one execution, so they live in the state, not the plan.
 class DropOddRows final : public Operator {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
@@ -83,6 +86,9 @@ std::vector<uint32_t> Drain(const Pipeline& pipeline) {
 // not fit in a single batch.
 class Twice final : public Operator {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
@@ -111,7 +117,7 @@ TEST(OperatorTest, NarrowingAComposedViewKeepsIt) {
   for (int i = 0; i < 3; ++i) {
     ops.push_back(std::make_unique<DropOddRows>());
   }
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
 
   // Keeping every second row three times leaves every eighth. The third
   // operator narrows a selection the batch already composed, in place.
@@ -121,7 +127,7 @@ TEST(OperatorTest, NarrowingAComposedViewKeepsIt) {
 // Reads every row of every batch, and reads them all again when reopened.
 TEST(SinkTest, ReadsEveryRowOfEveryBatch) {
   ArraySource source(Sequence(kMaxBatchRows * 2 + 7));
-  Pipeline pipeline(source, {}, {});
+  Pipeline pipeline(source, {});
 
   for (int run = 0; run < 2; ++run) {
     std::vector<uint32_t> rows = Drain(pipeline);
@@ -141,6 +147,9 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
 
   class TwoViewSource final : public Source {
    public:
+    // A local class cannot have static members. No test checks its type.
+    const void* type() const override { return nullptr; }
+
     TwoViewSource(const std::vector<int64_t>* payload,
                   const std::vector<int64_t>* computed)
         : payload_(payload), computed_(computed) {}
@@ -192,7 +201,7 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
 // must still report eof.
 TEST(SinkTest, EofStaysEof) {
   ArraySource source({1, 2});
-  Pipeline pipeline(source, {}, {});
+  Pipeline pipeline(source, {});
   RowCursor cursor(pipeline);
   EXPECT_TRUE(cursor.eof());
   cursor.Open();
@@ -208,6 +217,9 @@ TEST(SinkTest, EofStaysEof) {
 // rows back. A negative `first` makes Finish() fail.
 class Trailer final : public Operator {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   Trailer(int64_t first, uint32_t count) : first_(first), count_(count) {}
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
@@ -261,7 +273,7 @@ TEST(OperatorTest, FanOutNestsInnermostFirst) {
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Twice>());
   ops.push_back(std::make_unique<Twice>());
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 0, 1, 0, 1, 0, 1));
 }
@@ -273,7 +285,7 @@ TEST(FinishTest, RowsLetGoPassThroughTheOperatorsAbove) {
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Trailer>(99, 1));
   ops.push_back(std::make_unique<Twice>());
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 0, 1, 99, 99));
 }
@@ -285,7 +297,7 @@ TEST(FinishTest, OperatorsAreFinishedBottomUp) {
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Trailer>(7, 1));
   ops.push_back(std::make_unique<Trailer>(8, 1));
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 7, 8));
 }
@@ -293,6 +305,9 @@ TEST(FinishTest, OperatorsAreFinishedBottomUp) {
 // Keeps every second row in place, remembering the batch it was given.
 class DropOddRowsInPlace final : public Transform {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
@@ -326,7 +341,7 @@ TEST(OperatorTest, TransformChangesTheBatchHandedOut) {
   const DropOddRowsInPlace* transform = drop.get();
   std::vector<Pipeline::Step> steps;
   steps.push_back(std::move(drop));
-  Pipeline pipeline(source, std::move(steps), {});
+  Pipeline pipeline(source, std::move(steps));
 
   auto state = pipeline.MakeState(test::TestContext());
   RowBatch scratch;

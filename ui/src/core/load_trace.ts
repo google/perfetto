@@ -238,6 +238,10 @@ async function loadTraceIntoEngine(
     await engine.restoreInitialTables();
   }
 
+  // Set once the connection is in its final state: restoreInitialTables
+  // rebuilds it, which resets the flag.
+  await engine.query('PERFETTO PRAGMA pipelines = 1;');
+
   for (const p of await app.sqlPackages()) {
     await engine.registerSqlPackages(p);
   }
@@ -519,7 +523,7 @@ async function computeVisibleTime(
 // component trace if that trace was previously opened individually.
 async function computeGlobalUuid(uuids: string[]): Promise<string> {
   if (uuids.length === 0) return '';
-  if (uuids.length === 1) return uuids[0];
+  if (uuids.length === 1) return uuids[0]!;
   const sortedUuids = [...uuids].sort();
   return await sha1(sortedUuids.join(';'));
 }

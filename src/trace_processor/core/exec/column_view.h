@@ -85,10 +85,13 @@ class ColumnView {
   template <typename T>
   PERFETTO_ALWAYS_INLINE T At(uint32_t row) const {
     uint32_t index = start_ + row;
-    if constexpr (std::is_arithmetic_v<T>) {
+    // Only Id columns are sequences, and they are read as uint32_t.
+    if constexpr (std::is_same_v<T, uint32_t>) {
       if (kind_ == Kind::kSequence) {
-        return static_cast<T>(index);
+        return index;
       }
+    } else {
+      PERFETTO_DCHECK(kind_ != Kind::kSequence);
     }
     return static_cast<const T*>(data_)[index];
   }
@@ -112,18 +115,37 @@ class ColumnView {
   const BitVector* validity_ = nullptr;
 };
 
+// Whether `column` is a flat column of type `Tag`, which is what
+// FlatColumnReader reads.
+template <typename Tag>
+bool IsFlat(const ColumnView& column) {
+  return column.kind() == ColumnView::Kind::kFlat && column.type().Is<Tag>();
+}
+
+// The kind and storage type of a column view. These decide whether views from
+// different batches can be combined. Kept apart from the view so columns can
+// be compared after their batches are gone.
+struct ColumnShape {
+  static ColumnShape Of(const ColumnView& view) {
+    return {view.kind(), view.type()};
+  }
+
+  ColumnView::Kind kind;
+  StorageType type;
+};
+
 // Whether two batches' views of a column can be combined. An implicit Id and
 // a stored Uint32 hold the same values: gathering turns one into the other.
-inline bool SameLogicalType(const ColumnView& a, const ColumnView& b) {
-  auto is_uint32 = [](const ColumnView& view) {
-    return view.kind() != ColumnView::Kind::kVariant &&
-           (view.type().Is<Id>() || view.type().Is<Uint32>());
+inline bool SameLogicalType(const ColumnShape& a, const ColumnShape& b) {
+  auto is_uint32 = [](const ColumnShape& shape) {
+    return shape.kind != ColumnView::Kind::kVariant &&
+           (shape.type.Is<Id>() || shape.type.Is<Uint32>());
   };
   if (is_uint32(a) && is_uint32(b)) {
     return true;
   }
-  return a.kind() == b.kind() &&
-         (a.kind() == ColumnView::Kind::kVariant || a.type() == b.type());
+  return a.kind == b.kind &&
+         (a.kind == ColumnView::Kind::kVariant || a.type == b.type);
 }
 
 }  // namespace perfetto::trace_processor::core::exec

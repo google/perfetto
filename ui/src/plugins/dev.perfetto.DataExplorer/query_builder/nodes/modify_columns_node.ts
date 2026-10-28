@@ -255,7 +255,7 @@ export class ModifyColumnsNode implements QueryNode {
             ) => {
               const newSelectedColumns = [...this.attrs.selectedColumns];
               newSelectedColumns[idx] = {
-                ...newSelectedColumns[idx],
+                ...newSelectedColumns[idx]!,
                 type: newType,
                 typeUserModified: true,
               };
@@ -269,7 +269,7 @@ export class ModifyColumnsNode implements QueryNode {
                   const newSelectedColumns = [...this.attrs.selectedColumns];
                   const inputValue = (e.target as HTMLInputElement).value;
                   newSelectedColumns[index] = {
-                    ...newSelectedColumns[index],
+                    ...newSelectedColumns[index]!,
                     alias: inputValue.trim() === '' ? undefined : inputValue,
                   };
                   this.attrs.selectedColumns = newSelectedColumns;

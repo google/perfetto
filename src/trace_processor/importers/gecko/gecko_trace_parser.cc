@@ -19,6 +19,7 @@
 #include <cstdint>
 
 #include "perfetto/base/compiler.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/profiler_sample_tracker.h"
@@ -98,14 +99,15 @@ void GeckoTraceParser::ParseMarker(int64_t ts,
   // e.g. `{"type": "DOMEvent", "eventType": "mousedown"}` becomes
   // `data.type=DOMEvent` and `data.eventType=mousedown`.
   json::Iterator data_iterator;
-  auto args_inserter = [&](ArgsTracker::BoundInserter* inserter) {
+  auto args_inserter = [&](ArgsInserter& inserter) {
     if (marker.data_json_size == 0) {
       return;
     }
+    ArgsInserterSink sink(inserter);
     json::AddJsonValueToArgs(data_iterator, marker.data_json.get(),
                              marker.data_json.get() + marker.data_json_size,
                              /*flat_key=*/"data", /*key=*/"data",
-                             context_->storage.get(), inserter);
+                             context_->storage->mutable_string_pool(), &sink);
   };
 
   // One stable track per (utid, category, marker name); same-name markers all

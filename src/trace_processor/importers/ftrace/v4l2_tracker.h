@@ -156,7 +156,7 @@ class V4l2Tracker : public Destructible {
                                   uint32_t pid,
                                   const BufferEvent& evt);
 
-  void AddArgs(const BufferEvent& evt, ArgsTracker::BoundInserter* inserter);
+  void AddArgs(const BufferEvent& evt, ArgsInserter* inserter);
 
   StringId InternBufFlags(uint32_t flags);
   StringId InternTcFlags(uint32_t flags);

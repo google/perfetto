@@ -104,6 +104,20 @@ export interface App {
     buffer: ArrayBuffer;
     title: string;
     fileName: string;
+
+    // Extra arguments for plugins, passed to their onTraceLoad(), keyed by
+    // plugin id. E.g. {'com.example.Foo': {key1: 'value1'}}.
+    pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
+
+    // Whether the UI may share the trace externally (e.g. as a permalink) or
+    // download it to disk. Both default to true.
+    shareable?: boolean;
+    downloadable?: boolean;
+
+    // Whether the trace may be stored in the browser cache so that reloading
+    // the page reopens it. Defaults to true. Set it to false for traces that
+    // the opener regenerates on reload.
+    cacheable?: boolean;
   }): Promise<Trace>;
   closeCurrentTrace(): void;
 }

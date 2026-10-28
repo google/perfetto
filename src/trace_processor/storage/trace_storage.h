@@ -197,17 +197,14 @@ class TraceStorage {
   // Return an unique identifier for the contents of each string.
   // The string is copied internally and can be destroyed after this called.
   // Virtual for testing.
-  virtual StringId InternString(base::StringView str) {
+  virtual StringId InternString(std::string_view str) {
     return string_pool_.InternString(str);
   }
   virtual StringId InternString(const char* str) {
-    return InternString(base::StringView(str));
+    return InternString(std::string_view(str));
   }
   virtual StringId InternString(const std::string& str) {
-    return InternString(base::StringView(str));
-  }
-  virtual StringId InternString(std::string_view str) {
-    return InternString(base::StringView(str.data(), str.size()));
+    return InternString(std::string_view(str));
   }
 
   // Reading methods.
@@ -242,6 +239,13 @@ class TraceStorage {
   }
   tables::TrackTable* mutable_track_table() {
     return mutable_table<tables::TrackTable>();
+  }
+
+  const tables::TrackDimensionTable& track_dimension_table() const {
+    return table<tables::TrackDimensionTable>();
+  }
+  tables::TrackDimensionTable* mutable_track_dimension_table() {
+    return mutable_table<tables::TrackDimensionTable>();
   }
 
   const tables::GpuContextTable& gpu_context_table() const {
@@ -720,6 +724,14 @@ class TraceStorage {
     return mutable_table<tables::AggregateSampleTable>();
   }
 
+  const tables::VulkanDebugNamesTable& vulkan_debug_names_table() const {
+    return table<tables::VulkanDebugNamesTable>();
+  }
+
+  tables::VulkanDebugNamesTable* mutable_vulkan_debug_names_table() {
+    return mutable_table<tables::VulkanDebugNamesTable>();
+  }
+
   const tables::VulkanMemoryAllocationsTable& vulkan_memory_allocations_table()
       const {
     return table<tables::VulkanMemoryAllocationsTable>();
@@ -1138,6 +1150,20 @@ class TraceStorage {
   bool has_android_video_frames() const { return has_android_video_frames_; }
   void set_has_android_video_frames() { has_android_video_frames_ = true; }
 
+  // Returns the table of type |T|, which must be in tables::AllTables.
+  template <typename T>
+  T* mutable_table() {
+    constexpr size_t idx = base::variant_index<tables::AllTables, T>();
+    return reinterpret_cast<T*>(
+        &tables_storage_[idx * sizeof(dataframe::Dataframe)]);
+  }
+  template <typename T>
+  const T& table() const {
+    constexpr size_t idx = base::variant_index<tables::AllTables, T>();
+    return *reinterpret_cast<const T*>(
+        &tables_storage_[idx * sizeof(dataframe::Dataframe)]);
+  }
+
  private:
   using StringHash = uint64_t;
 
@@ -1154,20 +1180,6 @@ class TraceStorage {
   Destructible* etm_target_memory() { return etm_target_memory_.get(); }
   void set_etm_target_memory(std::unique_ptr<Destructible> target_memory) {
     etm_target_memory_ = std::move(target_memory);
-  }
-
-  // Helper to get a table by type.
-  template <typename T>
-  T* mutable_table() {
-    constexpr size_t idx = base::variant_index<tables::AllTables, T>();
-    return reinterpret_cast<T*>(
-        &tables_storage_[idx * sizeof(dataframe::Dataframe)]);
-  }
-  template <typename T>
-  const T& table() const {
-    constexpr size_t idx = base::variant_index<tables::AllTables, T>();
-    return *reinterpret_cast<const T*>(
-        &tables_storage_[idx * sizeof(dataframe::Dataframe)]);
   }
 
   // One entry for each unique string in the trace.

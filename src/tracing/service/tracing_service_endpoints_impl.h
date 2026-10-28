@@ -49,6 +49,10 @@ namespace perfetto {
 
 class SharedMemoryArbiterImpl;
 
+namespace protos::gen {
+class ExperimentalTracingV2ProducerStats;
+}
+
 namespace tracing_service {
 
 class TracingServiceImpl;
@@ -131,9 +135,9 @@ class ProducerEndpointImpl
   void DrainV2RingBuffer() override;
 
   // tracing_v2::ServiceRingBufferDrainer::Delegate implementation.
-  TraceBufferV2* GetRingBufferDestination(BufferID) override;
-  void ForEachRingBufferDestination(
-      const std::function<void(TraceBufferV2&)>& callback) override;
+  TraceBuffer* GetV2RingBufferDestination(BufferID) override;
+  void ForEachV2RingBufferDestination(
+      const std::function<void(TraceBuffer&)>& callback) override;
   void OnRingBufferChunksDiscarded(uint64_t count) override;
 
   // Mapping size for the memory guardrail. Zero if no ring buffer is attached.
@@ -153,6 +157,11 @@ class ProducerEndpointImpl
   friend class ConsumerEndpointImpl;
   ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
   ProducerEndpointImpl& operator=(const ProducerEndpointImpl&) = delete;
+
+  // Returns this producer's ring buffer stats, or nullopt if no ring buffer
+  // is attached.
+  std::optional<protos::gen::ExperimentalTracingV2ProducerStats>
+  GetTracingV2Stats() const;
 
   ProducerID const id_;
   ClientIdentity const client_identity_;
