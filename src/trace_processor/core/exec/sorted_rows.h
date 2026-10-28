@@ -50,10 +50,12 @@ class SortedRows {
   // Stores the rows of `in` and their values for `keys`. Pass the same
   // `keys` and `pool` for every batch. A key can be a string column only if
   // `pool`, holding its strings, is given. Fails if a key is neither, or if
-  // its type changes.
+  // its type changes. Rows packed are copied into buffers from `context` (see
+  // RowStore).
   base::Status Append(const RowBatch& in,
                       const std::vector<SortKey>& keys,
-                      const StringPool* pool);
+                      const StringPool* pool,
+                      Context& context);
   uint32_t size() const { return rows_.size(); }
 
   // Resets the order to input order, then stably sorts it by the keys. Nulls

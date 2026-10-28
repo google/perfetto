@@ -197,8 +197,10 @@ class CollectedLanes {
 
   // Reads every batch of the input's source. Lanes are numbered in `shared`
   // if given, as LaneReader::Start() does, and by group number otherwise.
-  // Lanes numbered at or above `limit` are dropped.
+  // Lanes numbered at or above `limit` are dropped. The rows are held in
+  // buffers from `context` where they are packed (see RowStore).
   base::Status Collect(OperatorState& state,
+                       Context& context,
                        GroupTable* shared,
                        uint32_t limit = std::numeric_limits<uint32_t>::max());
 
@@ -262,8 +264,9 @@ class LaneKeys {
       : key_columns_(&key_columns) {}
 
   // Holds the keys of every row of `in`, after those carried by Carry().
-  // Handles from before are invalid.
-  base::Status Hold(const RowBatch& in);
+  // Handles from before are invalid. Keys packed are held in buffers from
+  // `context` (see RowStore).
+  base::Status Hold(const RowBatch& in, Context& context);
 
   // The handle of the keys of row `row` of the batch held.
   uint32_t Of(uint32_t row) const { return first_ + row; }
