@@ -15,27 +15,31 @@
  */
 
 #include "src/protovm/parser.h"
-#include "protos/perfetto/protovm/vm_program.pbzero.h"
+
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "src/protovm/error_handling.h"
+#include "src/protovm/program.h"
 
 namespace perfetto {
 namespace protovm {
 
-Parser::Parser(protozero::ConstBytes program, Executor* executor)
-    : program_{program}, executor_(executor) {}
+Parser::Parser(Executor* executor) : executor_(executor) {}
 
-StatusOr<void> Parser::Run(RoCursor src, RwProto::Cursor dst) {
+StatusOr<void> Parser::Run(const Program& program,
+                           RoCursor src,
+                           RwProto::Cursor dst) {
+  program_ = &program;
   cursors_.src = src;
   cursors_.dst = dst;
   cursors_.innermost_saved_dst = nullptr;
-  return ParseInstructions(program_.instructions());
+  return ParseInstructions(program.GetRootInstructions());
 }
 
 StatusOr<void> Parser::ParseInstructions(
-    protozero::RepeatedFieldIterator<protozero::ConstBytes> it_instruction) {
+    base::Span<const Instruction> instructions) {
   int instruction_index = 0;
-  for (; it_instruction; ++it_instruction) {
-    auto instruction = protos::pbzero::VmInstruction::Decoder(*it_instruction);
+  for (const Instruction& instruction : instructions) {
     auto status = ParseInstruction(instruction);
 
     if (status.IsAbort()) {
@@ -43,15 +47,11 @@ StatusOr<void> Parser::ParseInstructions(
     }
 
     if (status.IsError()) {
-      using AbortLevel = perfetto::protos::pbzero::VmInstruction::AbortLevel;
-      auto abort_level =
-          instruction.has_abort_level()
-              ? static_cast<AbortLevel>(instruction.abort_level())
-              : AbortLevel::SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER;
-      if (abort_level == AbortLevel::SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER) {
+      auto abort_level = instruction.abort_level();
+      if (abort_level == AbortLevel::kSkipCurrentInstructionAndBreakOuter) {
         return StatusOr<void>::Error();
       }
-      if (abort_level == AbortLevel::ABORT) {
+      if (abort_level == AbortLevel::kAbort) {
         PROTOVM_ABORT(
             "instruction[%d]: returned status = error and instruction's "
             "abort level = 'abort'",
@@ -65,202 +65,178 @@ StatusOr<void> Parser::ParseInstructions(
   return StatusOr<void>::Ok();
 }
 
-StatusOr<void> Parser::ParseInstruction(
-    const protos::pbzero::VmInstruction::Decoder& instruction) {
-  if (instruction.has_select()) {
-    auto status = ParseSelect(instruction);
-    PROTOVM_RETURN(status, "select");
-  }
-
-  if (instruction.has_reg_load()) {
-    auto status = ParseRegLoad(instruction);
-    PROTOVM_RETURN_IF_NOT_OK(status, "reg_load");
-  } else if (instruction.has_del()) {
-    PROTOVM_ASSIGN_OR_RETURN(bool is_root, cursors_.dst.IsRoot());
-    if (cursors_.innermost_saved_dst != nullptr &&
-        cursors_.dst == *cursors_.innermost_saved_dst && !is_root) {
-      // Illegal operation
-      // For each "select" operation we effectively save a snapshot of the
-      // cursors on the stack, so that they can be restored when a frame is
-      // exited. This "del" operation is attempting to delete a "dst" cursor
-      // that is currently aliased in the parent stack frame. This would result
-      // in a dangling pointer when the current frame is exited and the aliased
-      // "dst" is restored.
-      PROTOVM_ABORT(
-          "del would invalidate a cursor saved by an enclosing select");
+StatusOr<void> Parser::ParseInstruction(const Instruction& instruction) {
+  switch (instruction.type()) {
+    case InstructionType::kSelect: {
+      auto status = ParseSelect(instruction.select);
+      PROTOVM_RETURN(status, "select");
     }
-    auto status = executor_->Delete(&cursors_.dst);
-    PROTOVM_RETURN_IF_NOT_OK(status, "del");
-  } else if (instruction.has_merge()) {
-    auto status = ParseMerge(instruction);
-    PROTOVM_RETURN_IF_NOT_OK(status, "merge");
-  } else if (instruction.has_set()) {
-    auto status = executor_->Set(&cursors_);
-    PROTOVM_RETURN_IF_NOT_OK(status, "set");
-  } else {
-    PROTOVM_ABORT("Unsupported instruction");
+    case InstructionType::kRegLoad: {
+      auto status = ParseRegLoad(instruction.reg_load);
+      PROTOVM_RETURN_IF_NOT_OK(status, "reg_load");
+      break;
+    }
+    case InstructionType::kDel: {
+      PROTOVM_ASSIGN_OR_RETURN(bool is_root, cursors_.dst.IsRoot());
+      if (cursors_.innermost_saved_dst != nullptr &&
+          cursors_.dst == *cursors_.innermost_saved_dst && !is_root) {
+        // Illegal operation
+        // For each "select" operation we effectively save a snapshot of the
+        // cursors on the stack, so that they can be restored when a frame is
+        // exited. This "del" operation is attempting to delete a "dst" cursor
+        // that is currently aliased in the parent stack frame. This would
+        // result in a dangling pointer when the current frame is exited and
+        // the aliased "dst" is restored.
+        PROTOVM_ABORT(
+            "del would invalidate a cursor saved by an enclosing select");
+      }
+      auto status = executor_->Delete(&cursors_.dst);
+      PROTOVM_RETURN_IF_NOT_OK(status, "del");
+      break;
+    }
+    case InstructionType::kMerge: {
+      auto status = ParseMerge(instruction.merge);
+      PROTOVM_RETURN_IF_NOT_OK(status, "merge");
+      break;
+    }
+    case InstructionType::kSet: {
+      auto status = executor_->Set(&cursors_);
+      PROTOVM_RETURN_IF_NOT_OK(status, "set");
+      break;
+    }
   }
 
-  return ParseInstructions(instruction.nested_instructions());
+  return ParseInstructions(instruction.GetNestedInstructions(*program_));
 }
 
-StatusOr<void> Parser::ParseMerge(
-    const protos::pbzero::VmInstruction::Decoder& instruction) {
-  protos::pbzero::VmOpMerge::Decoder merge(instruction.merge());
-  uint32_t flags = Executor::MergeFlags::kNone;
-  if (merge.skip_submessages())
-    flags |= Executor::MergeFlags::kSkipSubmessages;
-  if (merge.del_if_src_empty())
-    flags |= Executor::MergeFlags::kDelIfSrcEmpty;
-  auto status = executor_->Merge(&cursors_, flags);
+StatusOr<void> Parser::ParseMerge(const InstructionMerge& merge) {
+  auto status = executor_->Merge(&cursors_, merge.merge_flags);
   PROTOVM_RETURN_IF_NOT_OK(status);
   return status;
 }
 
-StatusOr<void> Parser::ParseRegLoad(
-    const protos::pbzero::VmInstruction::Decoder& instruction) {
+StatusOr<void> Parser::ParseRegLoad(const InstructionRegLoad& reg_load) {
   auto saved_selected = cursors_.selected;
-
-  protos::pbzero::VmOpRegLoad::Decoder reg_load(instruction.reg_load());
-  cursors_.selected = !reg_load.has_cursor()
-                          ? CursorEnum::VM_CURSOR_SRC
-                          : static_cast<CursorEnum>(reg_load.cursor());
-  auto status = executor_->WriteRegister(
-      cursors_, static_cast<uint8_t>(reg_load.dst_register()));
-
+  cursors_.selected = static_cast<CursorEnum>(reg_load.cursor);
+  auto status = executor_->WriteRegister(cursors_, reg_load.dst_register);
   cursors_.selected = saved_selected;
-
   PROTOVM_RETURN_IF_NOT_OK(status);
-
   return status;
 }
 
-StatusOr<void> Parser::ParseSelect(
-    const protos::pbzero::VmInstruction::Decoder& instruction) {
+StatusOr<void> Parser::ParseSelect(const InstructionSelect& select) {
   auto saved_cursors = cursors_;
   cursors_.innermost_saved_dst = &saved_cursors.dst;
+  cursors_.selected = static_cast<CursorEnum>(select.cursor);
+  cursors_.create_if_not_exist = select.create_if_not_exist;
 
-  protos::pbzero::VmOpSelect::Decoder select(instruction.select());
-  cursors_.selected = !select.has_cursor()
-                          ? CursorEnum::VM_CURSOR_SRC
-                          : static_cast<CursorEnum>(select.cursor());
-  cursors_.create_if_not_exist = select.create_if_not_exist();
-
-  if (cursors_.selected == CursorEnum::VM_CURSOR_SRC &&
-      cursors_.create_if_not_exist) {
-    PROTOVM_ABORT(
-        "incompatible params: src cursor (read only) + create_if_not_exist");
+  base::Span<const PathComponent> path_components =
+      select.GetPathComponents(*program_);
+  if (path_components.empty()) {
+    auto status = ParseInstructions(select.GetNestedInstructions(*program_));
+    cursors_ = saved_cursors;
+    return status;
   }
 
-  auto status = ParseSelectRec(instruction, select.relative_path());
+  auto status = ParseSelectRec(select, path_components);
   cursors_ = saved_cursors;
 
   return status;
 }
 
 StatusOr<void> Parser::ParseSelectRec(
-    const protos::pbzero::VmInstruction::Decoder& instruction,
-    protozero::RepeatedFieldIterator<protozero::ConstBytes> it_path_component) {
-  protos::pbzero::VmOpSelect::Decoder select(instruction.select());
+    const InstructionSelect& select,
+    base::Span<const PathComponent> remaining_components) {
+  const PathComponent& curr_component = remaining_components[0];
+  base::Span<const PathComponent> next_components(remaining_components.b + 1,
+                                                  remaining_components.e);
 
-  bool has_entered_all_path_components = !it_path_component;
-  if (has_entered_all_path_components) {
-    return ParseInstructions(instruction.nested_instructions());
-  }
-
-  auto curr_component =
-      protos::pbzero::VmOpSelect::PathComponent::Decoder(*it_path_component);
-  ++it_path_component;
-
-  std::optional<protos::pbzero::VmOpSelect::PathComponent::Decoder>
-      next_component =
-          it_path_component
-              ? std::make_optional(
-                    protos::pbzero::VmOpSelect::PathComponent::Decoder(
-                        *it_path_component))
-              : std::nullopt;
-
-  if (!curr_component.has_field_id()) {
-    PROTOVM_ABORT("Invalid path. Expected path component with field_id.");
-  }
-
-  // iterate repeated field
-  if (curr_component.is_repeated()) {
-    if (cursors_.selected == CursorEnum::VM_CURSOR_SRC) {
-      auto status_or_it = executor_->IterateRepeatedField(
-          &cursors_.src, curr_component.field_id());
-      PROTOVM_RETURN_IF_NOT_OK(status_or_it, "iterate repeated field (id = %d)",
-                               static_cast<int>(curr_component.field_id()));
-      int index = 0;
-      for (auto it = *status_or_it; it; ++it) {
-        cursors_.src = *it;
-        auto status = ParseSelectRec(instruction, it_path_component);
-        PROTOVM_RETURN_IF_NOT_OK(status, "repeated field (id = %d, index = %d)",
-                                 static_cast<int>(curr_component.field_id()),
-                                 index);
-        ++index;
+  switch (curr_component.type()) {
+    case PathComponentType::kRepeatedForEach: {
+      uint32_t field_id = curr_component.repeated_for_each.field_id;
+      if (cursors_.selected == CursorEnum::VM_CURSOR_SRC) {
+        auto status_or_it =
+            executor_->IterateRepeatedField(&cursors_.src, field_id);
+        PROTOVM_RETURN_IF_NOT_OK(status_or_it,
+                                 "iterate repeated field (id = %d)",
+                                 static_cast<int>(field_id));
+        int index = 0;
+        for (auto it = *status_or_it; it; ++it) {
+          cursors_.src = *it;
+          auto status =
+              !next_components.empty()
+                  ? ParseSelectRec(select, next_components)
+                  : ParseInstructions(select.GetNestedInstructions(*program_));
+          PROTOVM_RETURN_IF_NOT_OK(status,
+                                   "repeated field (id = %d, index = %d)",
+                                   static_cast<int>(field_id), index);
+          ++index;
+        }
+      } else {
+        auto status_or_it =
+            executor_->IterateRepeatedField(&cursors_.dst, field_id);
+        PROTOVM_RETURN_IF_NOT_OK(status_or_it,
+                                 "iterate repeated field (id = %d)",
+                                 static_cast<int>(field_id));
+        int index = 0;
+        for (auto it = *status_or_it; it; ++it) {
+          cursors_.dst = it.GetCursor();
+          auto status =
+              !next_components.empty()
+                  ? ParseSelectRec(select, next_components)
+                  : ParseInstructions(select.GetNestedInstructions(*program_));
+          PROTOVM_RETURN_IF_NOT_OK(status,
+                                   "repeated field (id = %d, index = %d)",
+                                   static_cast<int>(field_id), index);
+          ++index;
+        }
       }
-    } else if (cursors_.selected == CursorEnum::VM_CURSOR_DST) {
-      auto status_or_it = executor_->IterateRepeatedField(
-          &cursors_.dst, curr_component.field_id());
-      PROTOVM_RETURN_IF_NOT_OK(status_or_it, "iterate repeated field (id = %d)",
-                               static_cast<int>(curr_component.field_id()));
-      int index = 0;
-      for (auto it = *status_or_it; it; ++it) {
-        cursors_.dst = it.GetCursor();
-        auto status = ParseSelectRec(instruction, it_path_component);
-        PROTOVM_RETURN_IF_NOT_OK(status, "repeated field (id = %d, index = %d)",
-                                 static_cast<int>(curr_component.field_id()),
-                                 index);
-        ++index;
-      }
-    } else {
-      PROTOVM_ABORT(
-          "Iteration over selected cursor (%d) is not supported. Should be "
-          "either SRC or DST cursor.",
-          static_cast<int>(cursors_.selected));
+      return StatusOr<void>::Ok();
     }
-    return StatusOr<void>::Ok();
-  }
 
-  // enter indexed repeated field
-  if (next_component && next_component->has_array_index()) {
-    ++it_path_component;
-    auto status_enter = executor_->EnterRepeatedFieldAt(
-        &cursors_, curr_component.field_id(), next_component->array_index());
-    PROTOVM_RETURN_IF_NOT_OK(status_enter, "enter indexed repeated field");
-    auto status_select = ParseSelectRec(instruction, it_path_component);
-    PROTOVM_RETURN(status_select, "repeated field (id = %d, index = %d)",
-                   static_cast<int>(curr_component.field_id()),
-                   static_cast<int>(next_component->array_index()));
-  }
-
-  // enter mapped repeated field
-  if (next_component && next_component->has_map_key_field_id()) {
-    ++it_path_component;
-    if (!next_component->has_register_to_match()) {
-      PROTOVM_ABORT(
-          "enter mapped repeated field: expected field 'register_to_match'");
+    case PathComponentType::kRepeatedByIndex: {
+      const auto& component = curr_component.repeated_by_index;
+      auto status_enter = executor_->EnterRepeatedFieldAt(
+          &cursors_, component.field_id, component.array_index);
+      PROTOVM_RETURN_IF_NOT_OK(status_enter, "enter indexed repeated field");
+      auto status_select =
+          !next_components.empty()
+              ? ParseSelectRec(select, next_components)
+              : ParseInstructions(select.GetNestedInstructions(*program_));
+      PROTOVM_RETURN(status_select, "repeated field (id = %d, index = %d)",
+                     static_cast<int>(component.field_id),
+                     static_cast<int>(component.array_index));
     }
-    auto reg_id = static_cast<uint8_t>(next_component->register_to_match());
-    auto key = executor_->ReadRegister(reg_id);
-    PROTOVM_RETURN_IF_NOT_OK(key, "enter mapped repeated field");
-    auto status_enter = executor_->EnterRepeatedFieldByKey(
-        &cursors_, curr_component.field_id(),
-        next_component->map_key_field_id(), static_cast<uint32_t>(*key));
-    PROTOVM_RETURN_IF_NOT_OK(status_enter, "enter mapped repeated field");
-    auto status_select = ParseSelectRec(instruction, it_path_component);
-    PROTOVM_RETURN(status_select, "mapped repeated field (id = %d, key = %d)",
-                   static_cast<int>(curr_component.field_id()),
-                   static_cast<int>(*key));
+
+    case PathComponentType::kRepeatedByKey: {
+      const auto& component = curr_component.repeated_by_key;
+      auto key = executor_->ReadRegister(component.register_to_match);
+      PROTOVM_RETURN_IF_NOT_OK(key, "enter mapped repeated field");
+      auto status_enter = executor_->EnterRepeatedFieldByKey(
+          &cursors_, component.field_id, component.map_key_field_id,
+          static_cast<uint32_t>(*key));
+      PROTOVM_RETURN_IF_NOT_OK(status_enter, "enter mapped repeated field");
+      auto status_select =
+          !next_components.empty()
+              ? ParseSelectRec(select, next_components)
+              : ParseInstructions(select.GetNestedInstructions(*program_));
+      PROTOVM_RETURN(status_select, "mapped repeated field (id = %d, key = %d)",
+                     static_cast<int>(component.field_id),
+                     static_cast<int>(*key));
+    }
+
+    case PathComponentType::kFieldId: {
+      uint32_t field_id = curr_component.field_id.field_id;
+      auto status = executor_->EnterField(&cursors_, field_id);
+      PROTOVM_RETURN_IF_NOT_OK(status, "enter field (id = %d)",
+                               static_cast<int>(field_id));
+      return !next_components.empty()
+                 ? ParseSelectRec(select, next_components)
+                 : ParseInstructions(select.GetNestedInstructions(*program_));
+    }
   }
 
-  // enter field
-  auto status = executor_->EnterField(&cursors_, curr_component.field_id());
-  PROTOVM_RETURN_IF_NOT_OK(status, "enter field (id = %d)",
-                           static_cast<int>(curr_component.field_id()));
-
-  return ParseSelectRec(instruction, it_path_component);
+  PERFETTO_FATAL("For GCC");
 }
 
 }  // namespace protovm
