@@ -116,12 +116,12 @@ base::Status SortedRows::Append(const RowBatch& in,
     // Record the types only after every key is checked. Otherwise an error
     // could leave types set with no matching row layout. Every key is laid
     // out as nullable, because nullability can change from batch to batch.
-    std::vector<RowLayout::Column> columns;
+    columns_.clear();
     for (uint32_t k = 0; k < keys.size(); ++k) {
       types_.push_back(*GetKeyType(in.column(keys[k].column), true));
-      columns.push_back({types_[k].layout, true, keys[k].descending});
+      columns_.push_back({types_[k].layout, true, keys[k].descending});
     }
-    layout_ = RowLayout(columns);
+    layout_.Assign(columns_);
     strings_.resize(keys.size());
     pool_ = pool;
   }

@@ -97,6 +97,8 @@ class SortedRows {
   StringRanks ranks_;
   const StringPool* pool_ = nullptr;
   RowLayout layout_;
+  // What `layout_` is built from, kept for its capacity.
+  std::vector<RowLayout::Column> columns_;
   FlexVector<uint8_t> keys_;
   RowStore rows_;
   FlexVector<uint32_t> order_;

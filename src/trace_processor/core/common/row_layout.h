@@ -51,7 +51,12 @@ class RowLayout {
   static_assert(sizeof(Slot) <= 8);
 
   RowLayout() = default;
-  explicit RowLayout(const std::vector<Column>& columns) {
+  explicit RowLayout(const std::vector<Column>& columns) { Assign(columns); }
+
+  // Lays out `columns` instead, reusing the storage already allocated.
+  void Assign(const std::vector<Column>& columns) {
+    slots_.clear();
+    stride_ = 0;
     for (const Column& column : columns) {
       slots_.push_back({static_cast<uint16_t>(stride_), 0, column.nullable,
                         column.descending});
