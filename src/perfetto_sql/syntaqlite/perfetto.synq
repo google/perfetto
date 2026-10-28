@@ -504,6 +504,38 @@ node PerfettoPipeLimit {
   }
 }
 
+// `[LEFT | RIGHT | FULL | ...] JOIN rel { ON expr | USING (cols) }`: joins
+// the rows to another relation, as a SQL join does.
+node PerfettoPipeJoin {
+  join_type: inline JoinType
+  operand: index PerfettoPipeSource
+  on_expr: index Expr
+  using_columns: index PerfettoPipeNameList
+
+  fmt {
+    group {
+      switch(join_type) {
+        COMMA { "," }
+        INNER { "JOIN" }
+        LEFT { "LEFT" "JOIN" }
+        RIGHT { "RIGHT" "JOIN" }
+        FULL { "FULL" "JOIN" }
+        CROSS { "CROSS" "JOIN" }
+        NATURAL_INNER { "NATURAL" "JOIN" }
+        NATURAL_LEFT { "NATURAL" "LEFT" "JOIN" }
+        NATURAL_RIGHT { "NATURAL" "RIGHT" "JOIN" }
+        NATURAL_FULL { "NATURAL" "FULL" "JOIN" }
+        NATURAL_CROSS { "NATURAL" "CROSS" "JOIN" }
+      }
+      space child(operand)
+      if_set(on_expr) { nest { line "ON" space child(on_expr) } }
+      if_set(using_columns) {
+        space "USING" space "(" child(using_columns) ")"
+      }
+    }
+  }
+}
+
 // `DISTINCT`: keeps one of each set of rows equal in every column.
 node PerfettoPipeDistinct {
   fmt { "DISTINCT" }
@@ -516,6 +548,9 @@ abstract PerfettoPipeStage {
   PerfettoTreeAccumulate
   PerfettoIntervalFlatten
   PerfettoIntervalFillGaps
+  PerfettoIntervalMerge
+  PerfettoIntervalsFromEvents
+  PerfettoPipeJoin
   PerfettoPipeOrderBy
   PerfettoPipeAggregate
   PerfettoPipeSelect
@@ -574,6 +609,57 @@ node PerfettoIntervalFillGaps {
     group {
       "INTERVAL" "FILL" "GAPS" "WITH" space child(background)
       if_set(per) { space "PER" space child(per) }
+    }
+  }
+}
+
+enum PerfettoIntervalMergeKind { OVERLAPPING CONSECUTIVE }
+
+// `INTERVAL MERGE OVERLAPPING [PER cols] AGGREGATE ...` coalesces overlapping
+// and abutting rows. `INTERVAL MERGE CONSECUTIVE BY keys [PER cols]
+// AGGREGATE ...` merges only adjacent rows agreeing on the keys.
+node PerfettoIntervalMerge {
+  kind: inline PerfettoIntervalMergeKind
+  keys: index PerfettoPerColumnList
+  per: index PerfettoPerColumnList
+  aggregates: index PerfettoAggregateList
+
+  fmt {
+    group {
+      "INTERVAL" "MERGE" space
+      enum_display(kind, {
+        OVERLAPPING="OVERLAPPING"
+        CONSECUTIVE="CONSECUTIVE"
+      })
+      if_set(keys) { space "BY" space child(keys) }
+      if_set(per) { space "PER" space child(per) }
+      nest { line "AGGREGATE" space child(aggregates) }
+    }
+  }
+}
+
+enum PerfettoEventsLast { KEEP_OPEN CLOSE_AT }
+
+// `INTERVALS FROM EVENTS [PER cols] [STOP rel] { KEEPING LAST OPEN |
+// CLOSING LAST AT (expr) }`: turns each row into an interval ending at the
+// next row in its lane, or at the next STOP event.
+node PerfettoIntervalsFromEvents {
+  per: index PerfettoPerColumnList
+  stop: index PerfettoPipeSource
+  last: inline PerfettoEventsLast
+  close_at: index Expr
+
+  fmt {
+    group {
+      "INTERVALS" "FROM" "EVENTS"
+      if_set(per) { space "PER" space child(per) }
+      if_set(stop) { nest { line "STOP" space child(stop) } }
+      switch(last) {
+        KEEP_OPEN { nest { line "KEEPING" "LAST" "OPEN" } }
+        CLOSE_AT {
+          nest { line "CLOSING" "LAST" "AT" space "(" child(close_at) ")" }
+        }
+      }
     }
   }
 }

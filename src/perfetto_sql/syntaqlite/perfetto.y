@@ -23,7 +23,9 @@
 // Allow extension keywords to be used as regular identifiers.
 %fallback ID PERFETTO FUNCTION MODULE RETURNS MACRO DELEGATES INCLUDE
           TREE ACCUMULATE UP DOWN INTERVAL INTERSECTION PER EXTEND FLATTEN
-          AGGREGATE FILL GAPS GRAPH BFS DFS DOMINATOR NODES EDGES.
+          AGGREGATE FILL GAPS GRAPH BFS DFS DOMINATOR NODES EDGES MERGE
+          OVERLAPPING CONSECUTIVE INTERVALS EVENTS STOP KEEPING OPEN CLOSING
+          AT.
 
 // ---------- Helper nonterminals ----------
 
@@ -418,6 +420,46 @@ perfetto_pipe_stage(A) ::= INTERVAL FILL GAPS WITH perfetto_pipe_source(B)
                            perfetto_per(P). {
     A = synq_parse_perfetto_interval_fill_gaps(pCtx, B, P);
 }
+perfetto_pipe_stage(A) ::= INTERVAL MERGE OVERLAPPING perfetto_per(P)
+                           AGGREGATE perfetto_aggregate_list(L). {
+    A = synq_parse_perfetto_interval_merge(pCtx,
+        SYNTAQLITE_PERFETTO_INTERVAL_MERGE_KIND_OVERLAPPING,
+        SYNTAQLITE_NULL_NODE, P, L);
+}
+perfetto_pipe_stage(A) ::= INTERVAL MERGE CONSECUTIVE BY
+                           perfetto_per_col_list(K) perfetto_per(P)
+                           AGGREGATE perfetto_aggregate_list(L). {
+    A = synq_parse_perfetto_interval_merge(pCtx,
+        SYNTAQLITE_PERFETTO_INTERVAL_MERGE_KIND_CONSECUTIVE, K, P, L);
+}
+perfetto_pipe_stage(A) ::= INTERVALS FROM EVENTS perfetto_per(P)
+                           perfetto_events_stop(S) KEEPING LAST OPEN. {
+    A = synq_parse_perfetto_intervals_from_events(pCtx, P, S,
+        SYNTAQLITE_PERFETTO_EVENTS_LAST_KEEP_OPEN, SYNTAQLITE_NULL_NODE);
+}
+perfetto_pipe_stage(A) ::= INTERVALS FROM EVENTS perfetto_per(P)
+                           perfetto_events_stop(S)
+                           CLOSING LAST AT LP expr(E) RP. {
+    A = synq_parse_perfetto_intervals_from_events(pCtx, P, S,
+        SYNTAQLITE_PERFETTO_EVENTS_LAST_CLOSE_AT, E);
+}
+// [OR] makes a following ON bind to the join, as in SQLite's joins.
+perfetto_pipe_stage(A) ::= joinop(J) perfetto_pipe_source(S). [OR] {
+    if (J.join_type == SYNTAQLITE_JOIN_TYPE_COMMA) pCtx->error = 1;
+    A = synq_parse_perfetto_pipe_join(pCtx, J.join_type, S,
+        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
+}
+perfetto_pipe_stage(A) ::= joinop(J) perfetto_pipe_source(S) ON expr(E). {
+    if (J.join_type == SYNTAQLITE_JOIN_TYPE_COMMA) pCtx->error = 1;
+    A = synq_parse_perfetto_pipe_join(pCtx, J.join_type, S, E,
+        SYNTAQLITE_NULL_NODE);
+}
+perfetto_pipe_stage(A) ::= joinop(J) perfetto_pipe_source(S)
+                           USING LP perfetto_pipe_name_list(L) RP. {
+    if (J.join_type == SYNTAQLITE_JOIN_TYPE_COMMA) pCtx->error = 1;
+    A = synq_parse_perfetto_pipe_join(pCtx, J.join_type, S,
+        SYNTAQLITE_NULL_NODE, L);
+}
 perfetto_pipe_stage(A) ::= ORDER BY perfetto_pipe_order_list(L). {
     A = synq_parse_perfetto_pipe_order_by(pCtx, L);
 }
@@ -472,6 +514,11 @@ perfetto_per_col_list(A) ::= perfetto_per_col_list(L) COMMA nm(N). {
 %type perfetto_per {uint32_t}
 perfetto_per(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
 perfetto_per(A) ::= PER perfetto_per_col_list(L). { A = L; }
+
+// The events which close an interval without opening one.
+%type perfetto_events_stop {uint32_t}
+perfetto_events_stop(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
+perfetto_events_stop(A) ::= STOP perfetto_pipe_source(S). { A = S; }
 
 %type perfetto_from_pipeline {uint32_t}
 perfetto_from_pipeline(A) ::= FROM perfetto_pipe_source(F)

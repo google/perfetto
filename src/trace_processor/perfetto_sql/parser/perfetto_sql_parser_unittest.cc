@@ -739,6 +739,75 @@ TEST_F(PerfettoSqlParserTest, PipelineSyntaxDoesNotLeakIntoSql) {
   ASSERT_EQ(*Parse(SqlSource::FromExecuteQuery(
                 "SELECT (graph), nodes, edges, bfs, dfs, dominator FROM t")),
             std::vector<Statement>{Statement(SqliteSql{})});
+  ASSERT_EQ(*Parse(SqlSource::FromExecuteQuery(
+                "SELECT merge, overlapping, consecutive, intervals, events, "
+                "stop, keeping, last, open, closing, at FROM t")),
+            std::vector<Statement>{Statement(SqliteSql{})});
+}
+
+// Each form parses and reaches the compiler, which does not lower it yet.
+TEST_F(PerfettoSqlParserTest, StagesNotSupportedYet) {
+  struct Case {
+    const char* stage;
+    const char* name;
+  };
+  for (const Case& c : std::initializer_list<Case>{
+           {"JOIN t USING (a)", "JOIN"},
+           {"JOIN t AS x USING (a, b)", "JOIN"},
+           {"LEFT JOIN (SELECT 1 AS a) AS x ON x.a = s.a", "JOIN"},
+           {"LEFT OUTER JOIN t ON TRUE", "JOIN"},
+           {"INNER JOIN (FROM t |> DISTINCT) AS x USING (a)", "JOIN"},
+           {"RIGHT JOIN t USING (a)", "JOIN"},
+           {"FULL OUTER JOIN t USING (a)", "JOIN"},
+           {"CROSS JOIN t ON TRUE", "JOIN"},
+           {"NATURAL JOIN t USING (a)", "JOIN"},
+           {"INTERVAL MERGE OVERLAPPING AGGREGATE COUNT(*) AS n",
+            "INTERVAL MERGE"},
+           {"INTERVAL MERGE OVERLAPPING PER a, b AGGREGATE COUNT(*) AS n",
+            "INTERVAL MERGE"},
+           {"INTERVAL MERGE CONSECUTIVE BY a AGGREGATE MIN(b) AS b",
+            "INTERVAL MERGE"},
+           {"INTERVAL MERGE CONSECUTIVE BY a, b PER c AGGREGATE SUM(x) AS x",
+            "INTERVAL MERGE"},
+           {"INTERVALS FROM EVENTS KEEPING LAST OPEN", "INTERVALS FROM EVENTS"},
+           {"INTERVALS FROM EVENTS PER a CLOSING LAST AT (trace_end())",
+            "INTERVALS FROM EVENTS"},
+           {"INTERVALS FROM EVENTS PER a, b STOP (SELECT 1 AS ts) AS s "
+            "CLOSING LAST AT (100)",
+            "INTERVALS FROM EVENTS"},
+           {"INTERVALS FROM EVENTS STOP t KEEPING LAST OPEN",
+            "INTERVALS FROM EVENTS"},
+       }) {
+    std::string sql =
+        std::string("FROM (SELECT 1 AS a, 2 AS b, 3 AS c, 4 AS x) AS s |> ") +
+        c.stage + " |> DISTINCT";
+    EXPECT_THAT(Parse(SqlSource::FromExecuteQuery(sql)).status().message(),
+                HasSubstr(std::string(c.name) + " is not supported yet"))
+        << sql;
+  }
+}
+
+TEST_F(PerfettoSqlParserTest, JoinNeedsOnOrUsing) {
+  for (const char* stage : {"JOIN t", "CROSS JOIN t", "LEFT JOIN t AS x"}) {
+    std::string sql =
+        std::string("FROM (SELECT 1 AS a) AS s |> ") + stage + " |> DISTINCT";
+    EXPECT_THAT(Parse(SqlSource::FromExecuteQuery(sql)).status().message(),
+                HasSubstr("JOIN needs ON or USING"))
+        << sql;
+  }
+}
+
+TEST_F(PerfettoSqlParserTest, StageSyntaxErrors) {
+  for (const char* sql : {
+           "FROM s |> , t USING (a)",
+           "FROM s |> INTERVALS FROM EVENTS PER a",
+           "FROM s |> INTERVALS FROM EVENTS CLOSING LAST AT 100",
+           "FROM s |> INTERVAL MERGE CONSECUTIVE",
+           "FROM s |> INTERVAL MERGE OVERLAPPING",
+           "FROM s |> INTERVAL MERGE CONSECUTIVE BY a PER b",
+       }) {
+    EXPECT_FALSE(Parse(SqlSource::FromExecuteQuery(sql)).ok()) << sql;
+  }
 }
 
 TEST_F(PerfettoSqlParserTest, PipelineOnlyAsAStatementTableBodyOrSource) {
