@@ -16,6 +16,9 @@
 
 #include "perfetto/public/abi/track_event_hl_abi.h"
 
+#include <cstring>
+
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "src/shared_lib/track_event/ds.h"
 #include "src/shared_lib/track_event/serialization.h"
@@ -405,6 +408,148 @@ void AdvanceToFirstEnabledDynamicCategory(
   }
 }
 
+namespace pu = protozero::proto_utils;
+
+EventPrefix& EventPrefixSlot(TrackEventIncrementalState* incr,
+                             const void* cat,
+                             int32_t type,
+                             const char* name) {
+  const uintptr_t h = (reinterpret_cast<uintptr_t>(name) >> 3) ^
+                      (reinterpret_cast<uintptr_t>(cat) >> 4) ^
+                      static_cast<uintptr_t>(type);
+  return incr
+      ->event_prefixes[h % TrackEventIncrementalState::kNumEventPrefixes];
+}
+
+bool PrefixMatches(const EventPrefix& prefix,
+                   const void* cat,
+                   int32_t type,
+                   const char* name) {
+  if (!prefix.valid || prefix.cat != cat || prefix.type != type ||
+      prefix.name_ptr != name) {
+    return false;
+  }
+  if (!name)
+    return true;
+  for (size_t i = 0; i < EventPrefix::kMaxNameSize; i++) {
+    if (prefix.name[i] != name[i])
+      return false;
+    if (!name[i])
+      return true;
+  }
+  return false;
+}
+
+// Writes |prefix| followed by the timestamp.
+void WritePrefixedPacket(TraceWriterBase* trace_writer,
+                         TrackEventIncrementalState* incr,
+                         const EventPrefix& prefix,
+                         uint64_t ts) {
+  constexpr size_t kMaxSize =
+      EventPrefix::kMaxSize + pu::kMaxSimpleFieldEncodedSize;
+  const uint64_t delta = ts - incr->last_timestamp_ns;
+  incr->last_timestamp_ns = ts;
+
+  uint8_t packet[kMaxSize];
+  // A fixed-size copy compiles to a few moves. The timestamp then overwrites
+  // whatever was copied past prefix.size.
+  memcpy(packet, prefix.bytes, sizeof(prefix.bytes));
+  uint8_t* pos = packet + prefix.size;
+  pos = pu::WriteVarInt(
+      pu::MakeTagVarInt(protos::pbzero::TracePacket::kTimestampFieldNumber),
+      pos);
+  pos = pu::WriteVarInt(delta, pos);
+  trace_writer->WriteRawPacket(packet, static_cast<size_t>(pos - packet));
+}
+
+// Writes an event without extra data. The packet is encoded once per
+// incremental state and cached, with the timestamp last so that it is the only
+// part that changes.
+void WriteSimpleTrackEvent(TraceWriterBase* trace_writer,
+                           TrackEventIncrementalState* incr,
+                           const TrackEventTlsState& tls,
+                           const TraceTimestamp& ts,
+                           struct PerfettoTeCategoryImpl* cat,
+                           protos::pbzero::TrackEvent::Type type,
+                           const char* name) {
+  using protos::pbzero::TracePacket;
+  using protos::pbzero::TrackEvent;
+  const bool incremental_ts =
+      tls.default_clock_id == PERFETTO_TE_TIMESTAMP_TYPE_INCREMENTAL &&
+      ts.clock_id == PERFETTO_TE_TIMESTAMP_TYPE_INCREMENTAL &&
+      tls.timestamp_unit_multiplier == 1 && incr->last_timestamp_ns <= ts.value;
+  EventPrefix& slot = EventPrefixSlot(incr, cat, type, name);
+  if (PERFETTO_LIKELY(incremental_ts && PrefixMatches(slot, cat, type, name))) {
+    WritePrefixedPacket(trace_writer, incr, slot, ts.value);
+    return;
+  }
+
+  uint8_t buf[3 * pu::kMaxSimpleFieldEncodedSize];
+  uint8_t* pos = buf;
+  pos = pu::WriteVarInt(pu::MakeTagVarInt(TrackEvent::kTypeFieldNumber), pos);
+  pos = pu::WriteVarInt(static_cast<uint32_t>(type), pos);
+  if (type != TrackEvent::TYPE_SLICE_END) {
+    const uint64_t cat_iid = cat->cat_iid;
+    if (incr->MarkCategorySeen(cat_iid)) {
+      auto* ser = incr->serialized_interned_data->add_event_categories();
+      ser->set_iid(cat_iid);
+      ser->set_name(cat->desc->name);
+    }
+    pos = pu::WriteVarInt(
+        pu::MakeTagVarInt(TrackEvent::kCategoryIidsFieldNumber), pos);
+    pos = pu::WriteVarInt(cat_iid, pos);
+    if (name) {
+      auto res = incr->iids.FindOrAssign(
+          protos::pbzero::InternedData::kEventNamesFieldNumber, name,
+          strlen(name));
+      if (res.newly_assigned) {
+        auto* ser = incr->serialized_interned_data->add_event_names();
+        ser->set_iid(res.iid);
+        ser->set_name(name);
+      }
+      pos = pu::WriteVarInt(pu::MakeTagVarInt(TrackEvent::kNameIidFieldNumber),
+                            pos);
+      pos = pu::WriteVarInt(res.iid, pos);
+    }
+  }
+  const size_t te_size = static_cast<size_t>(pos - buf);
+
+  // Cache the prefix once the event needs no interned data.
+  const size_t name_size = name ? strlen(name) + 1 : 0;
+  if (incremental_ts && incr->serialized_interned_data.empty() &&
+      te_size + 4 <= EventPrefix::kMaxSize &&
+      name_size <= EventPrefix::kMaxNameSize) {
+    slot.valid = true;
+    slot.cat = cat;
+    slot.type = type;
+    slot.name_ptr = name;
+    if (name)
+      memcpy(slot.name, name, name_size);
+    uint8_t* p = slot.bytes;
+    p = pu::WriteVarInt(
+        pu::MakeTagVarInt(TracePacket::kSequenceFlagsFieldNumber), p);
+    p = pu::WriteVarInt(
+        static_cast<uint32_t>(TracePacket::SEQ_NEEDS_INCREMENTAL_STATE), p);
+    p = pu::WriteVarInt(
+        pu::MakeTagLengthDelimited(TracePacket::kTrackEventFieldNumber), p);
+    p = pu::WriteVarInt(static_cast<uint32_t>(te_size), p);
+    memcpy(p, buf, te_size);
+    slot.size = static_cast<uint32_t>(p + te_size - slot.bytes);
+    WritePrefixedPacket(trace_writer, incr, slot, ts.value);
+    return;
+  }
+
+  auto packet = NewTracePacketInternal(
+      trace_writer, incr, tls, ts, TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
+  packet->AppendBytes(TracePacket::kTrackEventFieldNumber, buf, te_size);
+  if (PERFETTO_UNLIKELY(!incr->serialized_interned_data.empty())) {
+    auto ranges = incr->serialized_interned_data.GetRanges();
+    packet->AppendScatteredBytes(TracePacket::kInternedDataFieldNumber,
+                                 ranges.data(), ranges.size());
+    incr->serialized_interned_data.Reset();
+  }
+}
+
 void InstanceOp(internal::DataSourceType* ds,
                 internal::DataSourceType::InstancesIterator* ii,
                 internal::DataSourceThreadLocalState* tls_state,
@@ -494,6 +639,15 @@ void InstanceOp(internal::DataSourceType* ds,
       ds->GetIncrementalState(ii->instance, ii->i));
   ResetIncrementalStateIfRequired(trace_writer, incr_state, track_event_tls,
                                   ts);
+
+  if (*extra_data == nullptr &&
+      (type == protos::pbzero::TrackEvent::TYPE_SLICE_BEGIN ||
+       type == protos::pbzero::TrackEvent::TYPE_SLICE_END ||
+       type == protos::pbzero::TrackEvent::TYPE_INSTANT)) {
+    WriteSimpleTrackEvent(trace_writer, incr_state, track_event_tls, ts, cat,
+                          type, name);
+    return;
+  }
 
   if (std::holds_alternative<const PerfettoTeRegisteredTrackImpl*>(track)) {
     auto* registered_track =
