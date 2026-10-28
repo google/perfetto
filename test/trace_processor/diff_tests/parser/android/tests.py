@@ -339,9 +339,39 @@ class AndroidParser(TestSuite):
           500,6,1000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
           600,"[NULL]","[NULL]","[NULL]","[NULL]","APP_EXIT_REASON_SIGNALED","[NULL]"
           700,7,"[NULL]",2000000000,2000000000,"APP_EXIT_REASON_FREEZER","[NULL]"
-          800,9,1000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
+          800,8,1000000000,3000000000,2000000000,"[NULL]","[NULL]"
+          800,9,2000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
           1100,10,1000000000,4000000000,2000000000,"[NULL]","[NULL]"
           1100,11,3000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
+        """))
+
+  def test_android_framework_track_event_system_server_restart(self):
+    return DiffTestBlueprint(
+        trace=Path(
+            'android_framework_track_event_system_server_restart.textproto'),
+        query="""
+        SELECT
+          p.pid,
+          p.name,
+          p.end_ts,
+          t.start_seq_id,
+          t.fw_start_ts,
+          (
+            SELECT count(*) FROM process_track pt WHERE pt.upid = p.upid
+          ) AS process_track_count
+        FROM process p
+        LEFT JOIN __intrinsic_android_track_event_process t USING (upid)
+        WHERE p.pid != 0
+        ORDER BY p.upid;
+        """,
+        out=Csv("""
+          "pid","name","end_ts","start_seq_id","fw_start_ts","process_track_count"
+          1000,"[NULL]",6000000000,"[NULL]","[NULL]",1
+          2000,"com.example.app_a",6000000000,1,1000000000,0
+          3000,"[NULL]",10000000000,"[NULL]","[NULL]",1
+          1000,"com.example.app_b",10000000000,1,6000000000,0
+          2000,"[NULL]","[NULL]","[NULL]","[NULL]",1
+          4000,"com.example.app_c","[NULL]",1,10000000000,0
         """))
 
   def test_android_framework_track_event_enum(self):

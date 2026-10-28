@@ -1,0 +1,69 @@
+# Exercises system_server restarts in android_framework_track_event.
+# A restart is seen as framework events coming from a new process track. The
+# previous system_server and all the apps it started die with it, without any
+# death event, so they must be ended:
+# - system_server #1 (pid 1000) starts app pid 2000, then restarts.
+# - system_server #2 (pid 3000) starts an app reusing pid 1000: it must be a
+#   new process, not the old system_server.
+# - system_server #3 reuses pid 2000 (the app of system_server #1): its tracks
+#   must go to a new process, not the old app.
+packet {
+  timestamp: 0
+  trusted_packet_sequence_id: 1
+  incremental_state_cleared: true
+  track_descriptor { uuid: 1 process { pid: 1000 } }
+}
+packet {
+  timestamp: 1000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 1
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      pid: 2000
+      start_seq_id: 1
+      process_name: "com.example.app_a"
+    }
+  }
+}
+packet {
+  timestamp: 5000000000
+  trusted_packet_sequence_id: 2
+  incremental_state_cleared: true
+  track_descriptor { uuid: 2 process { pid: 3000 } }
+}
+packet {
+  timestamp: 6000000000
+  trusted_packet_sequence_id: 2
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      pid: 1000
+      start_seq_id: 1
+      process_name: "com.example.app_b"
+    }
+  }
+}
+packet {
+  timestamp: 9000000000
+  trusted_packet_sequence_id: 3
+  incremental_state_cleared: true
+  track_descriptor { uuid: 3 process { pid: 2000 } }
+}
+packet {
+  timestamp: 10000000000
+  trusted_packet_sequence_id: 3
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 3
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      pid: 4000
+      start_seq_id: 1
+      process_name: "com.example.app_c"
+    }
+  }
+}

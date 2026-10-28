@@ -12,8 +12,9 @@
 #   matched through it.
 # - 901: a non-main thread of process 900; process_died for "pid 901" must not
 #   resolve to process 900.
-# - 800: pid reused before the old process was ended (same upid, start_seq_id
-#   updated to 9); a late binder_died for the old process (seq 8) is ignored.
+# - 800: pid reused (seq 9) before the old process (seq 8) was ended: the
+#   different start_seq_id ends the old process and starts a new one. A late
+#   binder_died for seq 8 records its death but does not end the new one.
 # - 100: a duplicate binder_died for seq 1 after the pid was reused keeps the
 #   first death and does not end the seq 3 process.
 # - 1100: ended by sched_process_free (no binder_died), pid reused (seq 11);
@@ -270,7 +271,7 @@ packet {
   }
 }
 # pid 800: the old process (seq 8) is never ended before pid 800 is reused
-# (seq 9), so both resolve to the same upid.
+# (seq 9).
 packet {
   timestamp: 1000000000
   trusted_packet_sequence_id: 1

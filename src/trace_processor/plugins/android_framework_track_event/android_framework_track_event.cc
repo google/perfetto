@@ -74,6 +74,16 @@ class AndroidTrackEventProcessTableHolder {
     return table_[*it_and_ins.first];
   }
 
+  // Returns the row for |upid|, if any.
+  std::optional<AndroidTrackEventProcessTable::RowReference> FindRow(
+      UniquePid upid) {
+    auto* id = upid_to_row_.Find(upid);
+    if (!id) {
+      return std::nullopt;
+    }
+    return table_[*id];
+  }
+
   // Sets |start_seq_id| on |row| and indexes |row| by it. All writes of
   // start_seq_id must go through here to keep the index in sync.
   void SetStartSeqId(AndroidTrackEventProcessTable::RowReference row,
@@ -101,6 +111,19 @@ class AndroidTrackEventProcessTableHolder {
       return std::nullopt;
     }
     return row;
+  }
+
+  // Drops the start_seq_id index. start_seq_ids are only unique within one
+  // system_server instance: they restart from scratch when it restarts.
+  void ClearStartSeqIdIndex() { start_seq_id_to_row_.Clear(); }
+
+  // Returns the upid of every process with a row.
+  std::vector<UniquePid> AllUpids() {
+    std::vector<UniquePid> upids;
+    for (auto it = upid_to_row_.GetIterator(); it; ++it) {
+      upids.push_back(it.key());
+    }
+    return upids;
   }
 
  private:
@@ -134,6 +157,7 @@ class Parser : public TrackEventExtensionParser {
       return Result::kIgnored;
     }
     int64_t ts = event.ts;
+    MaybeHandleSystemServerRestart(event);
     switch (field.id()) {
       case FBTE::kProcessStartEventFieldNumber:
         HandleProcessStart(field.Cast<FBTE::kProcessStartEvent>(), ts);
@@ -151,6 +175,47 @@ class Parser : public TrackEventExtensionParser {
   }
 
  private:
+  // These events are only emitted by system_server, on its process track, so
+  // a change of the emitting process means that system_server restarted (e.g.
+  // after a crash). The previous system_server and every app process died
+  // with it without any death event: end them, otherwise a later process
+  // reusing one of their pids would be merged into the stale process.
+  void MaybeHandleSystemServerRestart(const TrackEventFieldContext& event) {
+    if (!event.has_upid()) {
+      return;
+    }
+    if (!system_server_upid_ || *system_server_upid_ == event.upid) {
+      system_server_upid_ = event.upid;
+      return;
+    }
+    UniquePid old_system_server = *system_server_upid_;
+    system_server_upid_ = event.upid;
+
+    std::vector<UniquePid> upids = table_->AllUpids();
+    upids.push_back(old_system_server);
+    for (UniquePid upid : upids) {
+      // The new system_server may already have been created from its track
+      // descriptor: never end it.
+      if (upid == event.upid) {
+        continue;
+      }
+      EndProcessIfLive(upid, event.ts);
+    }
+    table_->ClearStartSeqIdIndex();
+  }
+
+  // Ends |upid| at |ts| if it is still the live process for its pid.
+  void EndProcessIfLive(UniquePid upid, int64_t ts) {
+    auto process = trace_context_->storage->process_table()[upid];
+    if (process.end_ts().has_value()) {
+      return;
+    }
+    int64_t pid = process.pid();
+    if (trace_context_->process_tracker->GetProcessOrNull(pid) == upid) {
+      trace_context_->process_tracker->EndThread(ts, pid);
+    }
+  }
+
   void SetProcessMetadata(UniquePid upid, protozero::ConstBytes process_start) {
     AndroidProcessStartEvent::Decoder evt(process_start);
     if (evt.has_uid()) {
@@ -169,8 +234,20 @@ class Parser : public TrackEventExtensionParser {
     if (!evt.has_pid() || evt.pid() <= 0) {
       return;
     }
-    UniquePid upid = trace_context_->process_tracker->GetOrCreateProcess(
-        static_cast<uint32_t>(evt.pid()));
+    auto pid = static_cast<uint32_t>(evt.pid());
+    // The pid may still map to an older process whose death was missed (e.g.
+    // a dropped AndroidBinderDiedEvent). A process with another start_seq_id
+    // cannot be the one starting now: end it so that a new process is created
+    // rather than merged into it.
+    if (auto old = trace_context_->process_tracker->GetProcessOrNull(pid);
+        old && evt.has_start_seq_id()) {
+      auto old_row = table_->FindRow(*old);
+      if (old_row && old_row->start_seq_id().has_value() &&
+          *old_row->start_seq_id() != evt.start_seq_id()) {
+        trace_context_->process_tracker->EndThread(ts, pid);
+      }
+    }
+    UniquePid upid = trace_context_->process_tracker->GetOrCreateProcess(pid);
     SetProcessMetadata(upid, data);
 
     auto row = table_->GetOrInsertRow(upid);
@@ -320,6 +397,8 @@ class Parser : public TrackEventExtensionParser {
   DescriptorPool::CachedDescriptor exit_reason_cache_;
   DescriptorPool::CachedDescriptor exit_sub_reason_cache_;
   AndroidTrackEventProcessTableHolder* table_;
+  // The process emitting the events, i.e. the current system_server.
+  std::optional<UniquePid> system_server_upid_;
 };
 
 // Handles the AndroidProcessStateSnapshot emitted at trace start
