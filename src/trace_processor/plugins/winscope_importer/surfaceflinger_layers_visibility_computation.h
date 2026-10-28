@@ -72,6 +72,9 @@ class VisibilityComputation {
   StringPool::Id empty_visible_region_id_;
   StringPool::Id null_visible_region_id_;
   StringPool::Id occluded_id_;
+  // Strings for LayerProto.visibility_reason values.
+  std::unordered_map<int32_t, StringPool::Id> frontend_reason_ids_;
+  StringPool::Id unknown_reason_id_;
 
   std::vector<int32_t> opaque_layer_ids = {};
   std::vector<int32_t> translucent_layer_ids = {};

@@ -148,6 +148,32 @@ enum HwcCompositionType {
   HWC_TYPE_DISPLAY_DECORATION = 6;
 }
 
+// Whether the FrontEnd shows a layer on its display, and if not, the first
+// check that failed.
+enum VisibilityReason {
+  VISIBILITY_REASON_UNSPECIFIED = 0;
+  VISIBILITY_REASON_VISIBLE = 1;
+  VISIBILITY_REASON_NOT_REACHABLE = 2;
+  VISIBILITY_REASON_ONLY_REACHABLE_BY_RELATIVE_PARENT = 3;
+  // Hidden by the layer's own flag or a parent's.
+  VISIBILITY_REASON_HIDDEN_BY_POLICY = 4;
+  VISIBILITY_REASON_HIDDEN_BY_RELATIVE_PARENT = 5;
+  VISIBILITY_REASON_INVALID_TRANSFORM = 6;
+  VISIBILITY_REASON_ALPHA_ZERO = 7;
+  // No buffer, color fill or effect.
+  VISIBILITY_REASON_NOTHING_TO_DRAW = 8;
+  // No enabled display shows the layer's layer stack, or the display filters
+  // the layer out.
+  VISIBILITY_REASON_NO_DISPLAY = 9;
+  VISIBILITY_REASON_EMPTY_BOUNDS = 10;
+  // Covered by the opaque layers above.
+  VISIBILITY_REASON_OCCLUDED = 11;
+  VISIBILITY_REASON_OUTSIDE_DISPLAY = 12;
+  // What's left on the display is covered by the layer's transparent region
+  // hint.
+  VISIBILITY_REASON_TRANSPARENT_REGION = 13;
+}
+
 // Information about each layer.
 message LayerProto {
   // unique id per layer.
@@ -301,6 +327,13 @@ message LayerProto {
 
   // Flag indicating if client-drawn radii are disabled.
   optional bool disable_client_drawn_radii = 69;
+
+  // Whether the layer is shown on its display, as computed by the FrontEnd.
+  // Accounts for occlusion by the opaque layers above, the display bounds and
+  // the layer's transparent region. Only set when the FrontEnd computes
+  // visibility (frontend_visible_region or frontend_caching_v0).
+  optional bool is_visible = 70;
+  optional VisibilityReason visibility_reason = 71;
 }
 
 message PositionProto {
