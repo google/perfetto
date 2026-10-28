@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -105,7 +106,7 @@ bool GroupedSort::Finalize(Breaker::State& state) const {
     uint32_t row = order[i];
     grouped[next[group_of_row[row]]++] = row;
   }
-  std::swap(order, s.scratch);
+  std::swap(order, static_cast<FlexVector<uint32_t>&>(s.scratch));
   return true;
 }
 
@@ -115,19 +116,15 @@ bool GroupedSort::Serve(RowBatch& out, Breaker::State& state) const {
     return false;
   }
   uint32_t count = s.rows.Gather(&out, s.emitted, *s.context);
-  out.AddBorrowedColumn(ColumnView::Reference(
-      StorageType{Uint32{}}, s.ordered_groups.data(), nullptr, s.emitted));
+  // In a buffer of its own, as the state can go before the batch does.
+  ColumnBuffer buffer = s.context->TakeBuffer(sizeof(uint32_t));
+  auto* groups = buffer.chunk().Values<uint32_t>();
+  memcpy(groups, s.ordered_groups.data() + s.emitted,
+         uint64_t{count} * sizeof(uint32_t));
+  out.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, groups),
+                std::move(buffer));
   s.emitted += count;
   return true;
-}
-
-void GroupedSort::State::Reset() {
-  Breaker::State::Reset();
-  group_table.Clear();
-  rows.Clear();
-  groups.clear();
-  ordered_groups.clear();
-  emitted = 0;
 }
 
 }  // namespace perfetto::trace_processor::core::exec

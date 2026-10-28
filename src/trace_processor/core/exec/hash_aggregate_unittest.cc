@@ -83,7 +83,7 @@ TEST(HashAggregateTest, NoKeysIsOneGroupEvenWithoutRows) {
   EXPECT_THAT(ReadNullableColumn<int64_t>(out, 1), ElementsAre(std::nullopt));
   EXPECT_EQ(op.Finish(out, *state), OpResult::kNeedMoreInput);
 
-  state->Reset();
+  state->EndRun();
   std::vector<int64_t> values = {4, 5, 6};
   RowBatch in;
   in.AddBorrowedColumn(

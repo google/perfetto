@@ -61,10 +61,9 @@ class Sort : public Breaker {
 
   struct State : Breaker::State {
     ~State() override;
-    void Reset() override;
 
-    SortedRows rows;
-    uint32_t emitted = 0;
+    Held<SortedRows> rows{this};
+    RunValue<uint32_t> emitted{this};
   };
 
   std::unique_ptr<Breaker::State> CreateState() const override;

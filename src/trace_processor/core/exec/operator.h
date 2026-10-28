@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_OPERATOR_H_
 
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <vector>
 
@@ -27,6 +28,7 @@
 namespace perfetto::trace_processor::core::exec {
 
 class Context;
+class RunHeld;
 
 // How a step uses the columns of the batches it is given: what every
 // Transform and Operator describes in DescribeColumns(), so the planner can
@@ -47,12 +49,32 @@ struct StepColumns {
   std::vector<uint32_t> reads;
 };
 
-// The mutable state of one execution of a plan.
+// The mutable state of one step (Source, Transform or Operator) for one run
+// of a plan. Every step keeps to these rules, so that what a step holds, and
+// for how long, is decided in one place:
 //
-// Operators and Sources are plan nodes: they stay const while running and hold
-// no values. Everything which changes as a query runs lives here, created by
-// the plan node and owned by the executor. A plan can be run more than once or
-// concurrently, but it and its borrowed dependencies must outlive each run.
+//  1. A plan is const once lowering ends: Sources, Transforms and Operators
+//     hold no values, and nothing the planner sets changes during a run.
+//  2. Whatever a step needs only during one call is not kept past it.
+//  3. Whatever a step keeps across calls is either set when its state is
+//     made and never changed, scratch for one call kept for its capacity
+//     (CallScratch<T>), or held for the run (Held<T> or RunValue<T>, see
+//     run_held.h). The executor ends the run of everything
+//     held when the step's stream ends: the step has served its last batch,
+//     or no more will be pulled from it, and again before a source is
+//     restarted (see Restart()). A step never clears its own state; a source
+//     only restarts its read position in Rewind().
+//  4. A batch a step outputs never points into its state: its columns are in
+//     buffers from the run's Context, or borrow storage which outlives the
+//     run (see RowBatch). So a state's run can end while batches it output
+//     are still being read.
+//  5. Batches are not changed once output. A step changing one works on its
+//     own RowBatch, onto the same buffers.
+//  6. Rows read after the step which produced them has finished are held by
+//     the run, never in a step's state.
+//
+// A plan can be run more than once or concurrently, but it and its borrowed
+// dependencies must outlive each run.
 class OperatorState {
  public:
   OperatorState() = default;
@@ -71,18 +93,94 @@ class OperatorState {
     return static_cast<const T&>(*this);
   }
 
-  // A state keeping data across the batches of a run is made with
-  // ResetEachRun, and Reset() before every run but the first.
-  virtual void Reset() {}
-  bool reset_each_run() const { return reset_each_run_; }
+  // Ends the run of everything the state holds (see RunHeld). Called by the
+  // executor, never by the step.
+  void EndRun() {
+    if (held_) {
+      EndHeldRuns();
+    }
+  }
 
- protected:
-  struct ResetEachRun {};
-  explicit OperatorState(ResetEachRun) : reset_each_run_(true) {}
+  // Whether the state holds anything for a run, which is settled once it is
+  // made.
+  bool holds() const { return held_ != nullptr; }
 
  private:
-  bool reset_each_run_ = false;
+  friend class Pipeline;
+  friend class RunHeld;
+  template <typename T>
+  friend class RunValue;
+  template <typename T>
+  friend class Held;
+
+  // A plain value held for a run: where it is, and the bytes it starts each
+  // run with. Put back with a store, so ending a run calls nothing for it.
+  struct HeldValue {
+    void* where;
+    uint64_t initial;
+    uint32_t size;
+  };
+  // Everything the state holds for a run. Behind a pointer, made on the
+  // first registration, so a state holding nothing stays small.
+  struct Registry {
+    std::vector<RunHeld*> held;
+    std::vector<HeldValue> values;
+    std::vector<base::Status*> statuses;
+  };
+
+  Registry& registry() {
+    if (!held_) {
+      held_ = std::make_unique<Registry>();
+    }
+    return *held_;
+  }
+  void EndHeldRuns();
+  static void EndRuns(const Registry& registry);
+
+  std::unique_ptr<Registry> held_;
 };
+
+// Something a step's state holds for one run. It registers itself with the
+// state when made, so the executor can end its run without the step's help.
+class RunHeld {
+ public:
+  RunHeld(const RunHeld&) = delete;
+  RunHeld& operator=(const RunHeld&) = delete;
+
+  // Lets go of what the run left, keeping only small allocations for the
+  // next run.
+  virtual void EndRun() = 0;
+
+ protected:
+  explicit RunHeld(OperatorState* owner) {
+    owner->registry().held.push_back(this);
+  }
+  virtual ~RunHeld();
+};
+
+inline void OperatorState::EndRuns(const Registry& registry) {
+  for (const HeldValue& value : registry.values) {
+    switch (value.size) {
+      case 1:
+        memcpy(value.where, &value.initial, 1);
+        break;
+      case 4:
+        memcpy(value.where, &value.initial, 4);
+        break;
+      default:
+        memcpy(value.where, &value.initial, 8);
+        break;
+    }
+  }
+  for (base::Status* status : registry.statuses) {
+    if (!status->ok()) {
+      *status = base::OkStatus();
+    }
+  }
+  for (RunHeld* held : registry.held) {
+    held->EndRun();
+  }
+}
 
 // Produces the batches a plan runs over.
 class Source {
@@ -130,6 +228,14 @@ class Source {
  protected:
   Source() = default;
 };
+
+// Ends the run of `state` (see RunHeld) and starts `source` again from its
+// first batch. How every consumer restarts a source, so that nothing the last
+// run held survives into the next.
+inline void Restart(const Source& source, OperatorState& state) {
+  state.EndRun();
+  source.Rewind(state);
+}
 
 // A step changing the batch it is given in place. Unlike an Operator it never
 // holds rows back, so a pipeline runs it with nothing copied or buffered.

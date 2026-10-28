@@ -28,10 +28,6 @@ CombineBatches::CombineBatches() = default;
 CombineBatches::~CombineBatches() = default;
 CombineBatches::State::~State() = default;
 
-void CombineBatches::State::Reset() {
-  buffered.Clear();
-}
-
 std::unique_ptr<OperatorState> CombineBatches::MakeState(
     Context& context) const {
   return std::make_unique<State>(context);

@@ -25,10 +25,12 @@
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "test/gtest_and_gmock.h"
@@ -54,14 +56,9 @@ class Reverse final : public Breaker {
   uint32_t column_;
 
   struct State : Breaker::State {
-    void Reset() override {
-      Breaker::State::Reset();
-      values.clear();
-      served = 0;
-    }
     ~State() override;
-    std::vector<int64_t> values;
-    uint32_t served = 0;
+    Held<std::vector<int64_t>> values{this};
+    RunValue<uint32_t> served{this};
   };
 
   std::unique_ptr<Breaker::State> CreateState() const override {
@@ -92,9 +89,13 @@ class Reverse final : public Breaker {
     }
     uint32_t count = std::min(kMaxBatchRows, rows - s.served);
     out.Reset();
-    out.AddBorrowedColumn(
-        ColumnView::Reference(StorageType{Int64{}}, s.values.data()));
-    test::Window(&out, s.served, count);
+    // In a buffer, as the state can go before the batch does.
+    ColumnBuffer buffer = s.context->TakeBuffer(sizeof(int64_t));
+    int64_t* values = buffer.chunk().Values<int64_t>();
+    std::copy_n(s.values.data() + s.served, count, values);
+    out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values),
+                  std::move(buffer));
+    out.SetRowCount(count);
     s.served += count;
     return true;
   }

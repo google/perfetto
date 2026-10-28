@@ -71,6 +71,9 @@ class SortedRows {
   uint32_t Gather(RowBatch* out, uint32_t at, Context& context);
   void Clear();
 
+  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  void EndRun();
+
   // Which columns are not held (see RowStore::SetUnread).
   void SetUnread(std::vector<bool> unread) {
     rows_.SetUnread(std::move(unread));
