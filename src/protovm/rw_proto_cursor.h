@@ -115,6 +115,9 @@ class RwProtoCursor {
 
   StatusOr<void> ConvertToMessageIfNeeded(Node* node);
   StatusOr<OwnedPtr<Node>> CreateNodeFromField(protozero::Field field);
+  PERFETTO_ALWAYS_INLINE StatusOr<void> UpdateNodeFromField(
+      Node* node,
+      protozero::Field field);
   StatusOr<void> ConvertToMappedRepeatedFieldIfNeeded(
       Node* node,
       uint32_t map_key_field_id);
