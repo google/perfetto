@@ -111,31 +111,24 @@ namespace {
 
 constexpr uint32_t kNone = GraphTree::kNoParent;
 
-// The state of the Lengauer-Tarjan algorithm. Nodes are numbered in the order
-// the depth first search reaches them, and `semi` holds those numbers.
+// The state of the Semi-NCA algorithm. Nodes are numbered in the order the
+// depth first search reaches them, and every step after the search works on
+// those numbers, so it reads its arrays mostly in order.
 class Dominators {
  public:
   Dominators(const Digraph& graph, uint32_t root)
-      : graph_(graph),
-        semi_(graph.node_count(), kNone),
-        tree_parent_(graph.node_count(), kNone),
-        dominator_(graph.node_count(), kNone),
-        bucket_head_(graph.node_count(), kNone),
-        bucket_next_(graph.node_count(), kNone),
-        ancestor_(graph.node_count(), kNone),
-        label_(graph.node_count()) {
-    for (uint32_t n = 0; n < graph.node_count(); ++n) {
-      label_[n] = n;
-    }
+      : graph_(graph), number_(graph.node_count(), kNone) {
     RunDfs(root);
   }
 
   GraphTree Run() {
-    ComputeSemiDominatorsAndPartialDominators();
+    ComputeSemiDominators();
     ComputeDominators();
     GraphTree tree;
-    tree.parent = std::move(dominator_);
-    tree.parent[order_[0]] = kNone;
+    tree.parent.assign(graph_.node_count(), kNone);
+    for (uint32_t w = 1; w < order_.size(); ++w) {
+      tree.parent[order_[w]] = order_[dominator_[w]];
+    }
     tree.order = std::move(order_);
     return tree;
   }
@@ -151,109 +144,130 @@ class Dominators {
     while (!stack.empty()) {
       Entry entry = stack.back();
       stack.pop_back();
-      if (InTree(entry.node)) {
+      if (number_[entry.node] != kNone) {
         continue;
       }
-      semi_[entry.node] = static_cast<uint32_t>(order_.size());
-      tree_parent_[entry.node] = entry.parent;
+      auto number = static_cast<uint32_t>(order_.size());
+      number_[entry.node] = number;
       order_.push_back(entry.node);
+      tree_parent_.push_back(entry.parent);
       for (uint32_t i = graph_.offsets[entry.node + 1];
            i-- > graph_.offsets[entry.node];) {
-        stack.push_back(Entry{graph_.targets[i], semi_[entry.node]});
+        stack.push_back(Entry{graph_.targets[i], number});
       }
     }
   }
 
-  // Steps 2 and 3.
-  void ComputeSemiDominatorsAndPartialDominators() {
-    Digraph predecessors = Reverse();
+  // Step 2: the semi-dominator of each node, as Lengauer-Tarjan computes it.
+  void ComputeSemiDominators() {
+    auto count = static_cast<uint32_t>(order_.size());
+    Predecessors();
+    semi_.resize(count);
+    for (uint32_t w = 0; w < count; ++w) {
+      semi_[w] = w;
+    }
+    label_ = semi_;
+    ancestor_.assign(count, kNone);
     // The root is not processed.
-    for (auto i = static_cast<uint32_t>(order_.size()) - 1; i > 0; --i) {
-      uint32_t w = order_[i];
-      for (uint32_t j = predecessors.offsets[w];
-           j < predecessors.offsets[w + 1]; ++j) {
-        uint32_t v = predecessors.targets[j];
-        if (!InTree(v)) {
-          continue;
-        }
-        semi_[w] = std::min(semi_[w], semi_[Eval(v)]);
+    for (uint32_t w = count - 1; w > 0; --w) {
+      uint32_t semi = semi_[w];
+      for (uint32_t i = predecessor_offsets_[w];
+           i < predecessor_offsets_[w + 1]; ++i) {
+        semi = std::min(semi, Eval(predecessors_[i]));
       }
-      uint32_t semi_dominator = order_[semi_[w]];
-      bucket_next_[w] = bucket_head_[semi_dominator];
-      bucket_head_[semi_dominator] = w;
-
-      uint32_t parent = order_[tree_parent_[w]];
-      ancestor_[w] = parent;
-      for (uint32_t v = bucket_head_[parent]; v != kNone; v = bucket_next_[v]) {
-        uint32_t u = Eval(v);
-        dominator_[v] = semi_[u] < semi_[v] ? u : parent;
-      }
-      bucket_head_[parent] = kNone;
+      semi_[w] = semi;
+      label_[w] = semi;
+      ancestor_[w] = tree_parent_[w];
     }
   }
 
-  // Step 4.
+  // Step 3: the immediate dominator of each node is the nearest common
+  // ancestor, in the dominator tree so far, of its tree parent and its
+  // semi-dominator.
   void ComputeDominators() {
-    // The root is not processed.
-    for (uint32_t i = 1; i < order_.size(); ++i) {
-      uint32_t w = order_[i];
-      if (dominator_[w] != order_[semi_[w]]) {
-        dominator_[w] = dominator_[dominator_[w]];
+    dominator_.assign(order_.size(), 0);
+    for (uint32_t w = 1; w < order_.size(); ++w) {
+      uint32_t d = tree_parent_[w];
+      while (d > semi_[w]) {
+        d = dominator_[d];
+      }
+      dominator_[w] = d;
+    }
+  }
+
+  // The predecessors of each reached node, by number.
+  void Predecessors() {
+    auto count = static_cast<uint32_t>(order_.size());
+    // The successors of each reached node by number, so that the second pass
+    // reads them in order instead of looking each one up again.
+    std::vector<uint32_t> successors;
+    std::vector<uint32_t> successor_ends(count);
+    predecessor_offsets_.assign(count + 1, 0);
+    for (uint32_t v = 0; v < count; ++v) {
+      uint32_t node = order_[v];
+      for (uint32_t i = graph_.offsets[node]; i < graph_.offsets[node + 1];
+           ++i) {
+        uint32_t target = number_[graph_.targets[i]];
+        if (target != kNone) {
+          successors.push_back(target);
+          ++predecessor_offsets_[target + 1];
+        }
+      }
+      successor_ends[v] = static_cast<uint32_t>(successors.size());
+    }
+    for (uint32_t w = 0; w < count; ++w) {
+      predecessor_offsets_[w + 1] += predecessor_offsets_[w];
+    }
+    predecessors_.resize(predecessor_offsets_[count]);
+    std::vector<uint32_t> next(predecessor_offsets_.begin(),
+                               predecessor_offsets_.end() - 1);
+    uint32_t i = 0;
+    for (uint32_t v = 0; v < count; ++v) {
+      for (; i < successor_ends[v]; ++i) {
+        predecessors_[next[successors[i]]++] = v;
       }
     }
   }
 
-  // The predecessors of each node in the tree.
-  Digraph Reverse() const {
-    std::vector<uint32_t> sources;
-    std::vector<uint32_t> targets;
-    for (uint32_t v : order_) {
-      for (uint32_t i = graph_.offsets[v]; i < graph_.offsets[v + 1]; ++i) {
-        sources.push_back(graph_.targets[i]);
-        targets.push_back(v);
-      }
-    }
-    return Digraph::FromEdges(graph_.node_count(), sources, targets);
-  }
-
-  bool InTree(uint32_t v) const { return semi_[v] != kNone; }
-
-  // The node with the smallest semi-dominator on the path from `v` up to the
-  // root of its tree in the forest built by linking.
+  // The smallest semi-dominator on the path from `v` up to the root of its
+  // tree in the forest built so far, excluding that root.
   uint32_t Eval(uint32_t v) {
-    if (ancestor_[v] == kNone) {
-      return v;
+    if (ancestor_[v] != kNone) {
+      Compress(v);
     }
-    Compress(v);
     return label_[v];
   }
 
   // Path compression, with an explicit stack because heap graphs are deep.
   void Compress(uint32_t v) {
-    std::vector<uint32_t> path;
+    path_.clear();
     for (uint32_t u = v; ancestor_[ancestor_[u]] != kNone; u = ancestor_[u]) {
-      path.push_back(u);
+      path_.push_back(u);
     }
-    for (auto it = path.rbegin(); it != path.rend(); ++it) {
+    for (auto it = path_.rbegin(); it != path_.rend(); ++it) {
       uint32_t u = *it;
       uint32_t a = ancestor_[u];
-      if (semi_[label_[a]] < semi_[label_[u]]) {
-        label_[u] = label_[a];
-      }
+      label_[u] = std::min(label_[u], label_[a]);
       ancestor_[u] = ancestor_[a];
     }
   }
 
   const Digraph& graph_;
+  // By node, its number, or kNone if it is not reached.
+  std::vector<uint32_t> number_;
+  // By number: the node, and its parent in the depth first search.
   std::vector<uint32_t> order_;
-  std::vector<uint32_t> semi_;
   std::vector<uint32_t> tree_parent_;
-  std::vector<uint32_t> dominator_;
-  // The nodes waiting for their dominator, as a list per semi-dominator.
-  std::vector<uint32_t> bucket_head_;
-  std::vector<uint32_t> bucket_next_;
-  std::vector<uint32_t> ancestor_;
+  // By number: the semi-dominator, the smallest semi-dominator on its path in
+  // the forest, its forest parent, and its immediate dominator.
+  std::vector<uint32_t> semi_;
   std::vector<uint32_t> label_;
+  std::vector<uint32_t> ancestor_;
+  std::vector<uint32_t> dominator_;
+  std::vector<uint32_t> predecessor_offsets_;
+  std::vector<uint32_t> predecessors_;
+  // Reused by Compress.
+  std::vector<uint32_t> path_;
 };
 
 }  // namespace

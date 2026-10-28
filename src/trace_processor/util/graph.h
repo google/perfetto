@@ -65,11 +65,16 @@ GraphTree DepthFirstSearch(const Digraph&, const std::vector<uint32_t>& seeds);
 // is its immediate dominator. The nodes are in the order a depth first search
 // from `root` reaches them.
 //
-// This is the Lengauer-Tarjan algorithm [2], which runs in O(E log(N)) time.
-// It is chosen because the graphs can be as large as Java heap graphs.
+// This is the Semi-NCA algorithm [2]: Lengauer-Tarjan's semi-dominators [3],
+// then each immediate dominator found by walking up the dominator tree built
+// so far. It is quadratic in the worst case, but is faster than
+// Lengauer-Tarjan in practice, which matters because the graphs can be as
+// large as Java heap graphs.
 //
 // [1] https://en.wikipedia.org/wiki/Dominator_(graph_theory)
-// [2] https://dl.acm.org/doi/10.1145/357062.357071
+// [2] Georgiadis, Tarjan, Werneck: "Finding Dominators in Practice", JGAA
+//     10(1), 2006.
+// [3] https://dl.acm.org/doi/10.1145/357062.357071
 GraphTree DominatorTree(const Digraph&, uint32_t root);
 
 }  // namespace perfetto::trace_processor::util
