@@ -69,7 +69,7 @@ void Run(benchmark::State& state,
   RowBatch out;
   for (auto _ : state) {
     for (const RowBatch& batch : batches) {
-      benchmark::DoNotOptimize(store.Append(batch));
+      benchmark::DoNotOptimize(store.Append(batch, context));
     }
     for (uint32_t at = 0; at < rows; at += kMaxBatchRows) {
       const uint32_t* begin = order.data() + at;

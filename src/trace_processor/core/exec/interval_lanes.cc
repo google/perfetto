@@ -113,6 +113,7 @@ base::Status LaneReader::Start(const RowBatch& in, GroupTable* shared) {
 }
 
 base::Status CollectedLanes::Collect(OperatorState& state,
+                                     Context& context,
                                      GroupTable* shared,
                                      uint32_t limit) {
   const Source& source = *input_->source;
@@ -138,7 +139,7 @@ base::Status CollectedLanes::Collect(OperatorState& state,
                            first_row + row});
     }
     retained_.Project(batch_, input_->retained_columns);
-    RETURN_IF_ERROR(rows_.Append(retained_));
+    RETURN_IF_ERROR(rows_.Append(retained_, context));
   }
   RETURN_IF_ERROR(source.status(state));
   by_number_.clear();
@@ -181,16 +182,16 @@ void CollectedLanes::Clear() {
   rows_.Clear();
 }
 
-base::Status LaneKeys::Hold(const RowBatch& in) {
+base::Status LaneKeys::Hold(const RowBatch& in, Context& context) {
   rows_.Clear();
   // The open lane's keys may be in buffers the previous batch has since
   // given back for reuse, so they were kept by Carry().
   if (carried_.size()) {
-    RETURN_IF_ERROR(rows_.Append(carried_));
+    RETURN_IF_ERROR(rows_.Append(carried_, context));
   }
   first_ = rows_.size();
   retained_.Project(in, *key_columns_);
-  return rows_.Append(retained_);
+  return rows_.Append(retained_, context);
 }
 
 void LaneKeys::Carry(uint32_t handle) {
