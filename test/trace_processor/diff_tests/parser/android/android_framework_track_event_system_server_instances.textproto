@@ -1,0 +1,93 @@
+# Exercises system_server restart detection. A restart is inferred from the
+# process emitting framework process events (only system_server emits them)
+# changing, and placed at the first activity of the new instance (the
+# timestamp of its first process track descriptor), as its first framework
+# process event can be seconds later.
+# - system_server #1 (pid 1000, process track 10) starts app_a (pid 2000).
+# - An app (pid 4000) emits events on a track named like a framework track
+#   ("broadcast"): only framework process events identify system_server, so
+#   this is not a restart.
+# - system_server #2 (process track 20) reuses pid 1000 of #1: only its
+#   process track uuid tells it apart. Its first activity is at 5s (an event on
+#   psc_validation), its first framework process event at 7s: #1 and app_a,
+#   which died with #1 without any death event, are ended at 5s.
+packet {
+  timestamp: 0
+  trusted_packet_sequence_id: 1
+  incremental_state_cleared: true
+  track_descriptor { uuid: 10 process { pid: 1000 } }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  track_descriptor { uuid: 11 parent_uuid: 10 static_name: "proc_lifecycle" }
+}
+packet {
+  timestamp: 1000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 11
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      pid: 2000
+      start_seq_id: 1
+      process_name: "com.example.app_a"
+    }
+  }
+}
+packet {
+  timestamp: 3000000000
+  trusted_packet_sequence_id: 4
+  incremental_state_cleared: true
+  track_descriptor { uuid: 40 process { pid: 4000 } }
+}
+packet {
+  trusted_packet_sequence_id: 4
+  track_descriptor { uuid: 41 parent_uuid: 40 static_name: "broadcast" }
+}
+packet {
+  timestamp: 3000000000
+  trusted_packet_sequence_id: 4
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 41
+    name: "app_broadcast"
+  }
+}
+packet {
+  timestamp: 5000000000
+  trusted_packet_sequence_id: 3
+  incremental_state_cleared: true
+  track_descriptor { uuid: 20 process { pid: 1000 } }
+}
+packet {
+  trusted_packet_sequence_id: 3
+  track_descriptor { uuid: 22 parent_uuid: 20 static_name: "psc_validation" }
+}
+packet {
+  timestamp: 5000000000
+  trusted_packet_sequence_id: 3
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 22
+    name: "capability_summary"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 3
+  track_descriptor { uuid: 21 parent_uuid: 20 static_name: "proc_lifecycle" }
+}
+packet {
+  timestamp: 7000000000
+  trusted_packet_sequence_id: 3
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 21
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      pid: 3000
+      start_seq_id: 1
+      process_name: "com.example.app_c"
+    }
+  }
+}

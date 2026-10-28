@@ -33,6 +33,13 @@ namespace perfetto::trace_processor::stats {
   F(android_log_format_invalid,           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_skipped,              kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_total,                kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(android_system_server_restart_inferred, kSingle, kDataLoss, kAnalysis, Scope::kMachineAndTrace,   \
+      "system_server restarted during the trace (e.g. it crashed), which "     \
+      "was inferred from its process emitting framework events changing. "    \
+      "The processes it started died with it without any death event: they "  \
+      "were ended at the start of the new instance. Process lifetimes and "    \
+      "the attribution of events around the restart may be inaccurate. See "   \
+      "trace_import_logs for the restarts."),                                  \
   F(android_video_size_cap_hit,           kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "android.display.video producer hit max_stream_size_bytes; stream torn " \
       "down. See trace_import_logs for the affected display."),                \

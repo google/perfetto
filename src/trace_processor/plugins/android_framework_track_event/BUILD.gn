@@ -30,6 +30,8 @@ source_set("android_framework_track_event") {
   deps = [
     ":tables",
     "../../../../gn:default_deps",
+    "../../../../protos/perfetto/trace:zero",
+    "../../../../protos/perfetto/trace/track_event:zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_track_event_zero",
     "../../../base",

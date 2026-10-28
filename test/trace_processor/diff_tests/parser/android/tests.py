@@ -339,9 +339,92 @@ class AndroidParser(TestSuite):
           500,6,1000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
           600,"[NULL]","[NULL]","[NULL]","[NULL]","APP_EXIT_REASON_SIGNALED","[NULL]"
           700,7,"[NULL]",2000000000,2000000000,"APP_EXIT_REASON_FREEZER","[NULL]"
-          800,9,1000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
+          800,8,1000000000,3000000000,2000000000,"[NULL]","[NULL]"
+          800,9,2000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
           1100,10,1000000000,4000000000,2000000000,"[NULL]","[NULL]"
           1100,11,3000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
+        """))
+
+  def test_android_framework_track_event_system_server_restart(self):
+    return DiffTestBlueprint(
+        trace=Path(
+            'android_framework_track_event_system_server_restart.textproto'),
+        query="""
+        SELECT
+          p.pid,
+          p.name,
+          p.end_ts,
+          t.start_seq_id,
+          t.fw_start_ts,
+          (
+            SELECT count(*) FROM process_track pt WHERE pt.upid = p.upid
+          ) AS process_track_count
+        FROM process p
+        LEFT JOIN __intrinsic_android_track_event_process t USING (upid)
+        WHERE p.pid != 0
+        ORDER BY p.upid;
+        """,
+        out=Csv("""
+          "pid","name","end_ts","start_seq_id","fw_start_ts","process_track_count"
+          1000,"[NULL]",5000000000,"[NULL]","[NULL]",1
+          2000,"com.example.app_a",5000000000,1,1000000000,0
+          3000,"[NULL]",9000000000,"[NULL]","[NULL]",1
+          1000,"com.example.app_b",9000000000,1,6000000000,0
+          2000,"[NULL]","[NULL]","[NULL]","[NULL]",1
+          4000,"com.example.app_c","[NULL]",1,10000000000,0
+        """))
+
+  def test_android_framework_track_event_system_server_instances(self):
+    return DiffTestBlueprint(
+        trace=Path(
+            'android_framework_track_event_system_server_instances.textproto'),
+        query="""
+        SELECT
+          p.pid,
+          p.name,
+          p.end_ts,
+          t.start_seq_id,
+          t.fw_start_ts,
+          (
+            SELECT group_concat(pt.name, ',')
+            FROM (
+              SELECT name FROM process_track pt
+              WHERE pt.upid = p.upid AND pt.name IS NOT NULL
+              ORDER BY name
+            ) pt
+          ) AS tracks
+        FROM process p
+        LEFT JOIN __intrinsic_android_track_event_process t USING (upid)
+        WHERE p.pid != 0
+        ORDER BY p.upid;
+        """,
+        out=Csv("""
+          "pid","name","end_ts","start_seq_id","fw_start_ts","tracks"
+          1000,"[NULL]",5000000000,"[NULL]","[NULL]","proc_lifecycle"
+          2000,"com.example.app_a",5000000000,1,1000000000,"[NULL]"
+          4000,"[NULL]","[NULL]","[NULL]","[NULL]","broadcast"
+          1000,"[NULL]","[NULL]","[NULL]","[NULL]","proc_lifecycle,psc_validation"
+          3000,"com.example.app_c","[NULL]",1,7000000000,"[NULL]"
+        """))
+
+  def test_android_framework_track_event_system_server_restart_warning(self):
+    return DiffTestBlueprint(
+        trace=Path(
+            'android_framework_track_event_system_server_instances.textproto'),
+        query="""
+        SELECT
+          l.ts,
+          l.severity,
+          l.name,
+          extract_arg(l.arg_set_id, 'old_system_server_pid') AS old_pid,
+          extract_arg(l.arg_set_id, 'new_system_server_pid') AS new_pid
+        FROM _trace_import_logs l
+        WHERE l.name = 'android_system_server_restart_inferred'
+        ORDER BY l.ts;
+        """,
+        out=Csv("""
+          "ts","severity","name","old_pid","new_pid"
+          5000000000,"data_loss","android_system_server_restart_inferred",1000,1000
         """))
 
   def test_android_framework_track_event_enum(self):
