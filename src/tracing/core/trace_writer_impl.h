@@ -60,6 +60,7 @@ class TraceWriterImpl : public TraceWriter,
   // TraceWriter implementation. See documentation in trace_writer.h.
   TracePacketHandle NewTracePacket() override;
   void FinishTracePacket() override;
+  void WriteRawPacket(const uint8_t* data, size_t size) override;
   // Commits the data pending for the current chunk into the shared memory
   // buffer and sends a CommitDataRequest() to the service.
   // TODO(primiano): right now the |callback| will be called on the IPC thread.

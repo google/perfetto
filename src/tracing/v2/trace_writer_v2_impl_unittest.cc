@@ -207,6 +207,40 @@ TEST_F(TraceWriterV2ImplTest, FinishTracePacketPublishesRawStreamPacket) {
   EXPECT_EQ(writer->drop_count(), 0u);
 }
 
+// WriteRawPacket() must publish small packets in the cached chunk, packets
+// that span chunks, and packets interleaved with protozero ones.
+TEST_F(TraceWriterV2ImplTest, WriteRawPacketRoundTrips) {
+  CreateRingBufferArbiterWithReader(/*num_chunks=*/32);
+  std::vector<std::string> expected;
+  {
+    auto writer = CreateWriter();
+    auto write_raw = [&](const std::string& str) {
+      protos::gen::TracePacket packet;
+      packet.mutable_for_testing()->set_str(str);
+      const std::string bytes = packet.SerializeAsString();
+      writer->WriteRawPacket(reinterpret_cast<const uint8_t*>(bytes.data()),
+                             bytes.size());
+      expected.push_back(str);
+    };
+    // The small packets fill several 256-byte chunks.
+    for (int i = 0; i < 40; i++)
+      write_raw("raw " + std::to_string(i));
+    write_raw(std::string(600, 'r'));
+    WritePacket(writer.get(), "message");
+    expected.push_back("message");
+    write_raw("after message");
+    EXPECT_EQ(writer->drop_count(), 0u);
+  }
+  task_runner_.RunUntilIdle();
+
+  const auto packets = ReadPackets();
+  ASSERT_EQ(packets.size(), expected.size());
+  for (size_t i = 0; i < packets.size(); i++)
+    EXPECT_EQ(packets[i].packet.for_testing().str(), expected[i]);
+  EXPECT_TRUE(packets[0].packet.first_packet_on_sequence());
+  EXPECT_FALSE(packets[1].packet.first_packet_on_sequence());
+}
+
 // --- Flush ---
 
 // Flush() releases the cached chunk. The next packet must use a new
