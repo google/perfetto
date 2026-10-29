@@ -26,6 +26,7 @@
 #include "src/trace_processor/plugins/winscope_importer/viewcapture_rect_computation.h"
 #include "src/trace_processor/plugins/winscope_importer/viewcapture_views_extractor.h"
 #include "src/trace_processor/plugins/winscope_importer/viewcapture_visibility_computation.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 
 namespace perfetto::trace_processor::winscope {

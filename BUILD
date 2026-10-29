@@ -5985,6 +5985,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/storage/metadata.h",
         "src/trace_processor/storage/stats.h",
+        "src/trace_processor/storage/stats_types.h",
         "src/trace_processor/storage/trace_storage.cc",
         "src/trace_processor/storage/trace_storage.h",
     ],

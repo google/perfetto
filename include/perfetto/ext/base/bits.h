@@ -23,17 +23,11 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
-#include <immintrin.h>
-#endif
-
 namespace perfetto {
 namespace base {
 
 inline PERFETTO_ALWAYS_INLINE uint32_t CountLeadZeros32(uint32_t value) {
-#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
-  return static_cast<uint32_t>(_lzcnt_u32(value));
-#elif defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__)
   return value ? static_cast<uint32_t>(__builtin_clz(value)) : 32u;
 #else
   unsigned long out;
@@ -42,9 +36,7 @@ inline PERFETTO_ALWAYS_INLINE uint32_t CountLeadZeros32(uint32_t value) {
 }
 
 inline PERFETTO_ALWAYS_INLINE uint32_t CountLeadZeros64(uint64_t value) {
-#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
-  return static_cast<uint32_t>(_lzcnt_u64(value));
-#elif defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__)
   return value ? static_cast<uint32_t>(__builtin_clzll(value)) : 64u;
 #else
   unsigned long out;
@@ -60,9 +52,7 @@ uint32_t CountLeadZeros(T value) {
 }
 
 inline PERFETTO_ALWAYS_INLINE uint32_t CountTrailZeros64(uint64_t value) {
-#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
-  return static_cast<uint32_t>(_tzcnt_u64(value));
-#elif defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__)
   return value ? static_cast<uint32_t>(__builtin_ctzll(value)) : 64u;
 #else
   unsigned long out;
@@ -71,9 +61,7 @@ inline PERFETTO_ALWAYS_INLINE uint32_t CountTrailZeros64(uint64_t value) {
 }
 
 inline PERFETTO_ALWAYS_INLINE uint32_t CountTrailZeros32(uint32_t value) {
-#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
-  return _tzcnt_u32(value);
-#elif defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__)
   return value ? static_cast<uint32_t>(__builtin_ctz(value)) : 32u;
 #else
   unsigned long out;
@@ -87,6 +75,36 @@ inline PERFETTO_ALWAYS_INLINE uint32_t CountTrailZeros(T value) {
     return CountTrailZeros64(static_cast<uint64_t>(value));
   }
   return CountTrailZeros32(static_cast<uint32_t>(value));
+}
+
+// Software emulation of the x64 PEXT instruction. Extracts bits from |word|
+// at positions where |mask| has set bits, packing them into the low bits.
+// See https://www.felixcloutier.com/x86/pext for details.
+//
+// Scales with the number of set bits in |mask| rather than being constant
+// time: prefer Pext64(), which uses the real instruction where available.
+inline PERFETTO_ALWAYS_INLINE uint64_t PextSlow64(uint64_t word,
+                                                  uint64_t mask) {
+  if (word == 0 || mask == ~uint64_t(0)) {
+    return word;
+  }
+  uint64_t result = 0;
+  for (uint64_t bb = 1; mask; bb += bb) {
+    if (word & mask & (0ull - mask)) {
+      result |= bb;
+    }
+    mask &= mask - 1;
+  }
+  return result;
+}
+
+inline PERFETTO_ALWAYS_INLINE uint64_t Pext64(uint64_t word, uint64_t mask) {
+#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT) && \
+    (defined(__GNUC__) || defined(__clang__))
+  return __builtin_ia32_pext_di(word, mask);
+#else
+  return PextSlow64(word, mask);
+#endif
 }
 
 template <typename T>

@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/tables/metadata_tables_fwd.h"
 
 namespace perfetto::trace_processor {
 
@@ -35,7 +36,7 @@ class TraceProcessorContext;
 class ImportLogsTracker {
  public:
   explicit ImportLogsTracker(TraceProcessorContext*,
-                             tables::TraceFileTable::Id trace_id);
+                             tables::TraceFileTable_Id trace_id);
 
   // For "tokenization" logs (pre-parsing, only have byte offset).
   // Use when reading raw bytes and encountering malformed data.
@@ -91,7 +92,7 @@ class ImportLogsTracker {
                        std::function<void(ArgsInserter&)> args_callback);
 
   TraceProcessorContext* context_;
-  tables::TraceFileTable::Id trace_id_;
+  tables::TraceFileTable_Id trace_id_;
 };
 
 }  // namespace perfetto::trace_processor
