@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE android.memory.heap_graph.class_classification;
+
 INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;
 
 INCLUDE PERFETTO MODULE graphs.partition;
@@ -130,124 +132,32 @@ CREATE PERFETTO TABLE android_heap_graph_class_aggregation(
   dominated_native_size_bytes LONG
 )
 AS
-WITH
-  base AS MATERIALIZED (
-    SELECT
-      a.upid,
-      a.graph_sample_ts,
-      a.type_id,
-      coalesce(cls.deobfuscated_name, cls.name) AS type_name,
-      replace(
-        coalesce(
-          rtrim(
-            str_split(
-              coalesce(cls.deobfuscated_name, cls.name),
-              'java.lang.Class<',
-              1
-            ),
-            '>'
-          ),
-          coalesce(cls.deobfuscated_name, cls.name)
-        ),
-        'j$.',
-        'java.'
-      ) AS normalized_name,
-      a.obj_count,
-      a.size_bytes,
-      a.native_size_bytes,
-      coalesce(r.obj_count, 0) AS reachable_obj_count,
-      coalesce(r.size_bytes, 0) AS reachable_size_bytes,
-      coalesce(r.native_size_bytes, 0) AS reachable_native_size_bytes,
-      coalesce(d.dominated_obj_count, 0) AS dominated_obj_count,
-      coalesce(d.dominated_size_bytes, 0) AS dominated_size_bytes,
-      coalesce(d.dominated_native_size_bytes, 0) AS dominated_native_size_bytes
-    FROM _heap_graph_class_obj_stats AS a
-    JOIN heap_graph_class AS cls
-      ON a.type_id = cls.id
-    LEFT JOIN _heap_graph_class_reachable_obj_stats AS r USING (type_id)
-    LEFT JOIN _heap_graph_class_dominated_stats AS d USING (type_id)
-  ),
-  classified AS MATERIALIZED (
-    SELECT
-      *,
-      (normalized_name GLOB 'java.*'
-      OR normalized_name GLOB 'kotlin.*'
-      OR normalized_name GLOB 'kotlinx.*'
-      OR normalized_name GLOB 'sun.*'
-      OR normalized_name GLOB 'dalvik.*'
-      OR normalized_name GLOB 'libcore.*') AS is_language_runtime,
-      (normalized_name GLOB '*[[]]'
-      OR normalized_name GLOB 'android.util.*Array*'
-      OR normalized_name GLOB 'kotlin.collections.*'
-      OR normalized_name GLOB 'androidx.collection.*'
-      OR CASE str_split(normalized_name, '$', 0)
-        -- java.util concrete collection and map classes
-        WHEN 'java.util.ArrayDeque' THEN 1
-        WHEN 'java.util.ArrayList' THEN 1
-        WHEN 'java.util.Arrays' THEN 1
-        WHEN 'java.util.BitSet' THEN 1
-        WHEN 'java.util.Collections' THEN 1
-        WHEN 'java.util.EnumMap' THEN 1
-        WHEN 'java.util.HashMap' THEN 1
-        WHEN 'java.util.HashSet' THEN 1
-        WHEN 'java.util.Hashtable' THEN 1
-        WHEN 'java.util.IdentityHashMap' THEN 1
-        WHEN 'java.util.ImmutableCollections' THEN 1
-        WHEN 'java.util.LinkedHashMap' THEN 1
-        WHEN 'java.util.LinkedHashSet' THEN 1
-        WHEN 'java.util.LinkedList' THEN 1
-        WHEN 'java.util.PriorityQueue' THEN 1
-        WHEN 'java.util.Properties' THEN 1
-        WHEN 'java.util.RegularEnumSet' THEN 1
-        WHEN 'java.util.Stack' THEN 1
-        WHEN 'java.util.TreeMap' THEN 1
-        WHEN 'java.util.TreeSet' THEN 1
-        WHEN 'java.util.Vector' THEN 1
-        WHEN 'java.util.WeakHashMap' THEN 1
-        -- java.util.concurrent concrete collection and map classes
-        WHEN 'java.util.concurrent.ArrayBlockingQueue' THEN 1
-        WHEN 'java.util.concurrent.ConcurrentHashMap' THEN 1
-        WHEN 'java.util.concurrent.ConcurrentLinkedDeque' THEN 1
-        WHEN 'java.util.concurrent.ConcurrentLinkedQueue' THEN 1
-        WHEN 'java.util.concurrent.ConcurrentSkipListMap' THEN 1
-        WHEN 'java.util.concurrent.ConcurrentSkipListSet' THEN 1
-        WHEN 'java.util.concurrent.CopyOnWriteArrayList' THEN 1
-        WHEN 'java.util.concurrent.CopyOnWriteArraySet' THEN 1
-        WHEN 'java.util.concurrent.DelayQueue' THEN 1
-        WHEN 'java.util.concurrent.LinkedBlockingDeque' THEN 1
-        WHEN 'java.util.concurrent.LinkedBlockingQueue' THEN 1
-        WHEN 'java.util.concurrent.LinkedTransferQueue' THEN 1
-        WHEN 'java.util.concurrent.PriorityBlockingQueue' THEN 1
-        WHEN 'java.util.concurrent.SynchronousQueue' THEN 1
-        ELSE 0
-      END
-      = 1) AS is_container,
-      type_name GLOB 'java.lang.Class<*>' AS is_static_class
-    FROM base
-  )
 SELECT
   -- core dims
-  upid,
-  graph_sample_ts,
-  type_id,
-  type_name,
+  a.upid,
+  a.graph_sample_ts,
+  a.type_id,
+  cls.type_name,
   -- properties of the type_name
-  is_language_runtime
-  OR is_container AS is_libcore_or_array,
-  is_language_runtime,
-  is_container,
-  is_static_class,
+  cls.is_language_runtime
+  OR cls.is_container AS is_libcore_or_array,
+  cls.is_language_runtime,
+  cls.is_container,
+  cls.is_static_class,
   -- metrics
-  obj_count,
-  size_bytes,
-  native_size_bytes,
-  reachable_obj_count,
-  reachable_size_bytes,
-  reachable_native_size_bytes,
-  dominated_obj_count,
-  dominated_size_bytes,
-  dominated_native_size_bytes
-FROM classified
+  a.obj_count,
+  a.size_bytes,
+  a.native_size_bytes,
+  coalesce(r.obj_count, 0) AS reachable_obj_count,
+  coalesce(r.size_bytes, 0) AS reachable_size_bytes,
+  coalesce(r.native_size_bytes, 0) AS reachable_native_size_bytes,
+  coalesce(d.dominated_obj_count, 0) AS dominated_obj_count,
+  coalesce(d.dominated_size_bytes, 0) AS dominated_size_bytes,
+  coalesce(d.dominated_native_size_bytes, 0) AS dominated_native_size_bytes
+FROM _heap_graph_class_obj_stats AS a
+JOIN _heap_graph_class_classification AS cls ON a.type_id = cls.id
+LEFT JOIN _heap_graph_class_reachable_obj_stats AS r USING (type_id)
+LEFT JOIN _heap_graph_class_dominated_stats AS d USING (type_id)
 ORDER BY
   1,
   2,
