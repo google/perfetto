@@ -35,6 +35,8 @@
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -347,6 +349,102 @@ std::optional<uint32_t> Where::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
+core::exec::FilterValue CastWhereLiterals(
+    const WherePredicate& p,
+    const std::vector<WhereLiteral>& literals,
+    const std::vector<std::string>& strings,
+    core::StorageType type,
+    const StringPool& pool) {
+  LiteralFetcher fetcher(literals.data() + p.first_literal, p.literal_count,
+                         strings);
+  ex::FilterValue value;
+  if (p.op.Is<core::In>()) {
+    ex::GetFilterValueListCaster<LiteralFetcher>(type)(fetcher, 0, pool,
+                                                       &value);
+  } else {
+    ex::GetFilterValueCaster<LiteralFetcher>(type, p.op)(fetcher, 0, pool,
+                                                         &value);
+  }
+  return value;
+}
+
+void SearchScans(BoundPlan* bound, const LoweringContext& context) {
+  LogicalPlan& plan = bound->plan;
+  for (uint32_t id = 0; id < plan.nodes().size(); ++id) {
+    PlanNode& node = plan.nodes()[id];
+    if (!node.Is<Where>()) {
+      continue;
+    }
+    PlanNodeId scan_id = node.children()[0];
+    PlanNode& below = plan.nodes()[scan_id];
+    if (!below.Is<Scan>() || below.Cast<Scan>().has_search()) {
+      continue;
+    }
+    auto& where = node.Cast<Where>();
+    auto& scan = below.Cast<Scan>();
+
+    // A scan converts no column, so only conditions on columns of a known
+    // type, read as the table stores them, have values to search with.
+    std::vector<uint32_t> of;
+    std::vector<ex::FilterValue> values;
+    for (uint32_t i = 0; i < where.predicates_.size(); ++i) {
+      const WherePredicate& p = where.predicates_[i];
+      std::optional<core::StorageType> type =
+          bound->bindings.types[p.column].storage();
+      if (!type || p.op.IsAnyOf<core::NullOp>() ||
+          (p.op.Is<core::Glob>() && !type->Is<core::String>())) {
+        continue;
+      }
+      of.push_back(i);
+      values.push_back(CastWhereLiterals(p, where.literals_, where.strings_,
+                                         *type, *context.pool));
+    }
+    std::vector<Scan::Condition> conditions;
+    for (uint32_t j = 0; j < of.size(); ++j) {
+      const WherePredicate& p = where.predicates_[of[j]];
+      conditions.push_back({p.column, p.op, &values[j]});
+    }
+    std::optional<Scan::SearchPlan> searched =
+        scan.PlanSearch(conditions, *bound->bindings.dataframes[scan_id]);
+    if (!searched) {
+      continue;
+    }
+
+    // The answered conditions move into the scan with their literals.
+    ScanSearch search;
+    search.kind = searched->kind;
+    search.index = searched->index;
+    std::vector<bool> moved(where.predicates_.size(), false);
+    for (uint32_t j : searched->answered) {
+      WherePredicate p = where.predicates_[of[j]];
+      moved[of[j]] = true;
+      auto first = static_cast<uint32_t>(search.literals.size());
+      for (uint32_t k = 0; k < p.literal_count; ++k) {
+        WhereLiteral literal = where.literals_[p.first_literal + k];
+        if (literal.type == WhereLiteral::Type::kString) {
+          search.strings.push_back(
+              where.strings_[static_cast<size_t>(literal.int_value)]);
+          literal.int_value = static_cast<int64_t>(search.strings.size() - 1);
+        }
+        search.literals.push_back(literal);
+      }
+      p.first_literal = first;
+      search.predicates.push_back(p);
+    }
+    scan.SetSearch(std::move(search));
+    std::vector<WherePredicate> kept;
+    for (uint32_t i = 0; i < where.predicates_.size(); ++i) {
+      if (!moved[i]) {
+        kept.push_back(where.predicates_[i]);
+      }
+    }
+    where.predicates_ = std::move(kept);
+    if (where.predicates_.empty()) {
+      plan.Bypass(id);
+    }
+  }
+}
+
 void Where::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerNode(node.children()[0]);
   std::vector<ex::Filter::Condition> conditions;
@@ -367,17 +465,8 @@ void Where::Lower(Lowering* c, const PlanNode& node) const {
       }
     }
     if (type && !p.op.IsAnyOf<core::NullOp>()) {
-      LiteralFetcher fetcher(literals_.data() + p.first_literal,
-                             p.literal_count, strings_);
-      ex::FilterValue value;
-      if (p.op.Is<core::In>()) {
-        ex::GetFilterValueListCaster<LiteralFetcher> (*type)(
-            fetcher, 0, *c->context().pool, &value);
-      } else {
-        ex::GetFilterValueCaster<LiteralFetcher>(*type, p.op)(
-            fetcher, 0, *c->context().pool, &value);
-      }
-      condition.value = c->AddFilterValue(std::move(value));
+      condition.value = c->AddFilterValue(
+          CastWhereLiterals(p, literals_, strings_, *type, *c->context().pool));
     }
     conditions.push_back(condition);
   }

@@ -62,6 +62,20 @@ PlanNode& PlanNode::operator=(const PlanNode& other) {
 PlanNode::PlanNode(PlanNode&&) noexcept = default;
 PlanNode& PlanNode::operator=(PlanNode&&) noexcept = default;
 
+void LogicalPlan::Bypass(PlanNodeId node) {
+  PlanNodeId input = nodes_[node].children()[0];
+  for (PlanNode& other : nodes_) {
+    for (PlanNodeId& child : other.children()) {
+      if (child == node) {
+        child = input;
+      }
+    }
+  }
+  if (root_ == node) {
+    root_ = input;
+  }
+}
+
 PlanOperation::~PlanOperation() = default;
 
 void PlanOperation::MoveSqlSourcesToDataframeArgs(const NameTable&,

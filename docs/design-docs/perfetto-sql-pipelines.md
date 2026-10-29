@@ -389,6 +389,24 @@ a type per row. `BETWEEN` is two comparisons. `Filter` compares with the same
 kernels as the dataframe's own filters and narrows each batch's selection, so
 nothing is copied.
 
+A bound pass (`SearchScans`) moves into each scan a `WHERE` reads directly the
+conditions the scan can answer by searching, choosing as the dataframe's own
+planner does (`SortedFilterStrategy`, `GetBestIndexForFilterSpecs`):
+
+- If a condition can match no row, such as a string the pool does not hold,
+  the scan becomes an `EmptySource`.
+- Otherwise conditions on sorted columns without nulls become a `SortedScan`:
+  binary searches, or the SetId and small-value lookups, which narrow the rows
+  to a range kept in table order.
+- Otherwise equalities on an index's leading columns become an `IndexScan`,
+  which reads rows in index order, so no table order is assumed after it. The
+  table's indexes are found when the plan is loaded, as its columns are, so an
+  index made after a pipeline was written is still used.
+
+A `Filter` after the scan tests the rest, and a `WHERE` left with nothing to
+test is dropped. Only conditions on columns read as the table stores them are
+searched; one converted first is left to the `Filter`.
+
 ---
 
 ## `DISTINCT`

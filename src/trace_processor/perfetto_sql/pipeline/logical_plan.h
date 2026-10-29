@@ -26,13 +26,13 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
 namespace perfetto::trace_processor {
 class StringPool;
 namespace core::dataframe {
-struct Column;
 class Dataframe;
 }  // namespace core::dataframe
 }  // namespace perfetto::trace_processor
@@ -208,6 +208,10 @@ class LogicalPlan {
   PlanNodeId root() const { return root_; }
   void SetRoot(PlanNodeId root) { root_ = root; }
 
+  // Drops `node` from the plan: whatever read it reads its first input
+  // instead. The node stays in nodes(), unread, so IDs do not change.
+  void Bypass(PlanNodeId node);
+
   std::vector<NamedColumn>& output() { return output_; }
   const std::vector<NamedColumn>& output() const { return output_; }
 
@@ -242,6 +246,8 @@ struct Bindings {
     // By scan column, the dataframe column it reads.
     std::vector<std::shared_ptr<const core::dataframe::Column>> columns;
     uint32_t row_count = 0;
+    // The dataframe's indexes on columns the scan reads.
+    std::vector<core::dataframe::Index> indexes;
   };
 
   // By node, the dataframe a scan reads. Unset for any other node.
