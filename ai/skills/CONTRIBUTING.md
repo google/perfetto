@@ -1,4 +1,4 @@
-# Contributing to the Perfetto agent skill
+# Contributing to the Perfetto AI skill
 
 `ai/skills/perfetto/` is the skill; [README.md](README.md) covers what it
 does and how users install it. This file is for people changing it.

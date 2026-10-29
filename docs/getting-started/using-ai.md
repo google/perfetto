@@ -5,9 +5,9 @@ and
 [go/perfetto-ai-skills-android-memory](http://go/perfetto-ai-skills-android-memory)
 instead of this page.
 
-Perfetto ships an [Agent Skills](https://agentskills.io) skill for coding
-agents such as Claude Code, Codex, OpenCode, Antigravity and Cursor. Point your
-agent at a trace and ask questions in plain English: it loads the trace into
+The Perfetto AI skill is a [skill](https://agentskills.io) for coding agents
+such as Claude Code, Codex, OpenCode, Antigravity and Cursor. Point your agent
+at a trace and ask questions in plain English: it loads the trace into
 `trace_processor`, writes the PerfettoSQL and reports what it found. It can
 also record traces and follow guided workflows for Android memory and GPU
 analysis. The skill bundles `trace_processor`, so there is nothing else to
