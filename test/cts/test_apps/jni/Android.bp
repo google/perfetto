@@ -39,7 +39,7 @@ cc_library_shared {
     "libz",
   ],
   compile_multilib: "both",
-  stl: "libc++_static",
+  stl: "libc++",
   defaults: [
     "perfetto_defaults",
   ],
