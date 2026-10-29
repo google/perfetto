@@ -704,6 +704,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const isFlat = (a: TreeExplorerOptionalAction) =>
       a.execute !== undefined &&
       (a.subActions === undefined || a.subActions.length === 0);
+    const path = this.nodePath(node);
     const embedderFlat: NodeAction[] = nodeActions.filter(isFlat).map((a) => ({
       label: a.name,
       icon: a.icon ?? 'open_in_new',
@@ -713,6 +714,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         a.execute!({
           properties: this.createReducedProperties(properties),
           node,
+          path,
         });
         this.tooltipPos = undefined;
       },
@@ -746,6 +748,24 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         );
       }),
     );
+  }
+
+  // Names from the root down to `node` (its position in the tree). Walks the
+  // tree via parentId; used so a node action can target the exact box (path)
+  // rather than every same-named node.
+  private nodePath(node: TreeExplorerNode): ReadonlyArray<string> {
+    const nodes = this.attrs.data?.nodes;
+    if (nodes === undefined) return [node.name];
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const path: string[] = [];
+    const seen = new Set<number>();
+    let cur: TreeExplorerNode | undefined = node;
+    while (cur !== undefined && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      path.push(cur.name);
+      cur = cur.parentId === -1 ? undefined : byId.get(cur.parentId);
+    }
+    return path.reverse();
   }
 
   private renderNodeActionItem(a: NodeAction): m.Children {
