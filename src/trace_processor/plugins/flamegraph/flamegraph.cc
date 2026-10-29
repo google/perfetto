@@ -1540,7 +1540,7 @@ Layout ComputeLayout(const core::Tree& tree,
   for (uint32_t node = 0; node < row_count; ++node) {
     uint64_t bits;
     memcpy(&bits, &width[node], sizeof(bits));
-    keys[node] = base::HostToBE64(~bits);
+    keys[node] = base::HostToBE(~bits);
     by_width[node] = node;
   }
   core::Slab<uint32_t> scratch = core::Slab<uint32_t>::Alloc(row_count);

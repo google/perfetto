@@ -682,13 +682,11 @@ void HttpServerConnection::SendWebsocketFrame(uint8_t opcode,
   } else if (payload_len < 0xffff) {
     hdr_len = 4;
     hdr[1] = 126;  // Special value: Header extends for 2 bytes.
-    uint16_t len_be = HostToBE16(static_cast<uint16_t>(payload_len));
-    memcpy(&hdr[2], &len_be, sizeof(len_be));
+    StoreBE(&hdr[2], static_cast<uint16_t>(payload_len));
   } else {
     hdr_len = 10;
     hdr[1] = 127;  // Special value: Header extends for 4 bytes.
-    uint64_t len_be = HostToBE64(payload_len);
-    memcpy(&hdr[2], &len_be, sizeof(len_be));
+    StoreBE(&hdr[2], static_cast<uint64_t>(payload_len));
   }
 
   sock->Send(hdr, hdr_len);
