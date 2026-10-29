@@ -59,16 +59,16 @@ ColumnView WriteKeys(const GroupTable& groups,
                      StorageType type,
                      ColumnBuffer& buffer) {
   ColumnChunk& chunk = buffer.chunk();
-  void* data = chunk.Values<uint8_t>();
   if (type.Is<Uint32>() || type.Is<String>()) {
     // Strings are stored as their interned id.
-    WriteValues(groups, k, first, count, static_cast<uint32_t*>(data));
+    WriteValues(groups, k, first, count, chunk.Values<uint32_t>());
   } else if (type.Is<Int32>()) {
-    WriteValues(groups, k, first, count, static_cast<int32_t*>(data));
+    WriteValues(groups, k, first, count, chunk.Values<int32_t>());
   } else {
     // Int64 values are stored as is and doubles as their bits.
-    WriteValues(groups, k, first, count, static_cast<int64_t*>(data));
+    WriteValues(groups, k, first, count, chunk.Values<int64_t>());
   }
+  void* data = chunk.Values<uint8_t>();
   bool nulls = false;
   for (uint32_t i = 0; i < count && !nulls; ++i) {
     nulls = groups.IsNull(first + i, k);
