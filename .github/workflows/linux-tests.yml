@@ -135,8 +135,9 @@ jobs:
             $HOST_OUT_PATH/trace_processor_shell
 
       - name: TraceProcessor python tests
-        # These are a Python API tests, not C++ tests, so we run them only in a single config.
-        if: ${{ matrix.config.name == 'clang-x86_64-debug' }}
+        # These are a Python API tests, not C++ tests, so we run them only in a
+        # single config: the shortest job, as the shell is slow in debug.
+        if: ${{ matrix.config.name == 'clang-x86-release' }}
         shell: bash
         run: .venv/bin/python3 python/run_tests.py $HOST_OUT_PATH
 
