@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <optional>
 
 #include "src/trace_processor/storage/stats.h"
@@ -190,6 +192,89 @@ TEST_F(GlobalStatsTrackerTest, NoStatUsesKMachineOrKTraceScope) {
         << "Stat #" << i << " (" << stats::kNames[i]
         << ") uses kTrace scope; add a death test for missing trace_id.";
   }
+}
+
+// Dynamic stats get keys after the ones in stats.h. Asking for an existing
+// name returns its key.
+TEST_F(GlobalStatsTrackerTest, DynamicStatKeys) {
+  size_t a = tracker_.InternDynamicStatDescriptor("test.a", stats::kDataLoss,
+                                                  stats::kTrace, "Stat A");
+  size_t b = tracker_.InternDynamicStatDescriptor("test.b", stats::kError,
+                                                  stats::kTrace, "Stat B");
+  EXPECT_EQ(a, stats::kNumKeys);
+  EXPECT_EQ(b, stats::kNumKeys + 1);
+  EXPECT_EQ(tracker_.InternDynamicStatDescriptor("test.a", stats::kDataLoss,
+                                                 stats::kTrace, "Stat A"),
+            a);
+}
+
+// Dynamic stats are kMachineAndTrace stats: each context has its own value.
+TEST_F(GlobalStatsTrackerTest, DynamicStatPerContext) {
+  size_t key = tracker_.InternDynamicStatDescriptor("test.a", stats::kDataLoss,
+                                                    stats::kTrace, "Stat A");
+  tracker_.IncrementStats(MachineId(1), TraceId(1), key);
+  tracker_.IncrementStats(MachineId(1), TraceId(1), key);
+  tracker_.IncrementStats(MachineId(2), TraceId(1), key, 5);
+
+  EXPECT_EQ(tracker_.GetStats(MachineId(1), TraceId(1), key), 2);
+  EXPECT_EQ(tracker_.GetStats(MachineId(2), TraceId(1), key), 5);
+  EXPECT_EQ(tracker_.GetStats(MachineId(3), TraceId(1), key), 0);
+}
+
+// The stats table row of a dynamic stat has the name, severity, source and
+// description given by the first InternDynamicStatDescriptor call.
+TEST_F(GlobalStatsTrackerTest, DynamicStatRow) {
+  size_t key = tracker_.InternDynamicStatDescriptor("test.a", stats::kError,
+                                                    stats::kTrace, "First");
+  ASSERT_EQ(tracker_.InternDynamicStatDescriptor("test.a", stats::kInfo,
+                                                 stats::kAnalysis, "Second"),
+            key);
+  tracker_.SetStats(MachineId(1), TraceId(2), key, 7);
+
+  uint32_t rows = 0;
+  for (auto it = storage_.stats_table().IterateRows(); it; ++it) {
+    if (it.key() != static_cast<int64_t>(key)) {
+      continue;
+    }
+    ++rows;
+    EXPECT_EQ(storage_.GetString(it.name()).ToStdString(), "test.a");
+    EXPECT_EQ(storage_.GetString(it.severity()).ToStdString(), "error");
+    EXPECT_EQ(storage_.GetString(it.source()).ToStdString(), "trace");
+    EXPECT_EQ(storage_.GetString(it.description()).ToStdString(), "First");
+    EXPECT_EQ(it.value(), 7);
+    EXPECT_EQ(it.idx(), std::nullopt);
+    ASSERT_TRUE(it.machine_id().has_value());
+    EXPECT_EQ(it.machine_id()->value, 1u);
+    ASSERT_TRUE(it.trace_id().has_value());
+    EXPECT_EQ(it.trace_id()->value, 2u);
+  }
+  EXPECT_EQ(rows, 1u);
+}
+
+// Unlike the kSingle stats in stats.h, a dynamic stat is not zeroed for new
+// contexts: it only has rows where it was written.
+TEST_F(GlobalStatsTrackerTest, DynamicStatIsNotZeroed) {
+  size_t key = tracker_.InternDynamicStatDescriptor("test.a", stats::kDataLoss,
+                                                    stats::kTrace, "Stat A");
+  tracker_.ZeroSingleStatsForContext(stats::Scope::kMachineAndTrace,
+                                     MachineId(1), TraceId(1));
+  for (auto it = storage_.stats_table().IterateRows(); it; ++it) {
+    EXPECT_NE(it.key(), static_cast<int64_t>(key));
+  }
+}
+
+// Using a dynamic stat as an indexed or kGlobal stat is a programmer error,
+// as it is for the stats in stats.h. So is using a key that was never handed
+// out.
+TEST_F(GlobalStatsTrackerTest, DynamicStatMisuseCrashes) {
+  size_t key = tracker_.InternDynamicStatDescriptor("test.a", stats::kDataLoss,
+                                                    stats::kTrace, "Stat A");
+  EXPECT_DEATH_IF_SUPPORTED(tracker_.IncrementGlobalStats(key), "");
+  EXPECT_DEATH_IF_SUPPORTED(
+      tracker_.SetIndexedStats(MachineId(1), TraceId(1), key, /*index=*/0, 1),
+      "");
+  EXPECT_DEATH_IF_SUPPORTED(
+      tracker_.IncrementStats(MachineId(1), TraceId(1), key + 1), "");
 }
 
 }  // namespace

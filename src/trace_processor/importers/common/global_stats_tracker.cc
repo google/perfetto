@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string_view>
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/storage/stats.h"
@@ -28,9 +29,12 @@ namespace perfetto::trace_processor {
 
 GlobalStatsTracker::GlobalStatsTracker(TraceStorage* storage)
     : storage_(storage) {
+  descriptors_.reserve(stats::kNumKeys);
   for (size_t i = 0; i < stats::kNumKeys; ++i) {
-    name_ids_[i] = storage->InternString(stats::kNames[i]);
-    description_ids_[i] = storage->InternString(stats::kDescriptions[i]);
+    descriptors_.push_back({storage->InternString(stats::kNames[i]),
+                            storage->InternString(stats::kDescriptions[i]),
+                            stats::kTypes[i], stats::kSeverities[i],
+                            stats::kSources[i], stats::kScopes[i]});
   }
   severity_ids_[stats::kInfo] = storage->InternString("info");
   severity_ids_[stats::kNotice] = storage->InternString("notice");
@@ -45,12 +49,27 @@ GlobalStatsTracker::GlobalStatsTracker(TraceStorage* storage)
   ZeroSingleStatsForContext(stats::Scope::kGlobal, std::nullopt, std::nullopt);
 }
 
+size_t GlobalStatsTracker::InternDynamicStatDescriptor(
+    std::string_view name,
+    stats::Severity severity,
+    stats::Source source,
+    std::string_view description) {
+  StringId name_id = storage_->InternString(name);
+  auto [key, inserted] =
+      dynamic_key_by_name_.Insert(name_id, descriptors_.size());
+  if (inserted) {
+    descriptors_.push_back({name_id, storage_->InternString(description),
+                            stats::kSingle, severity, source,
+                            stats::Scope::kMachineAndTrace});
+  }
+  return *key;
+}
+
 void GlobalStatsTracker::SetStats(std::optional<MachineId> machine_id,
                                   std::optional<TraceId> trace_id,
                                   size_t key,
                                   int64_t value) {
-  PERFETTO_CHECK(key < stats::kNumKeys);
-  PERFETTO_CHECK(stats::kTypes[key] == stats::kSingle);
+  PERFETTO_CHECK(GetDescriptor(key).type == stats::kSingle);
   auto ctx = GetContextIds(key, machine_id, trace_id);
   FindOrInsertRow(key, std::nullopt, ctx).set_value(value);
 }
@@ -59,8 +78,7 @@ void GlobalStatsTracker::IncrementStats(std::optional<MachineId> machine_id,
                                         std::optional<TraceId> trace_id,
                                         size_t key,
                                         int64_t increment) {
-  PERFETTO_CHECK(key < stats::kNumKeys);
-  PERFETTO_CHECK(stats::kTypes[key] == stats::kSingle);
+  PERFETTO_CHECK(GetDescriptor(key).type == stats::kSingle);
   auto ctx = GetContextIds(key, machine_id, trace_id);
   auto rr = FindOrInsertRow(key, std::nullopt, ctx);
   rr.set_value(rr.value() + increment);
@@ -71,8 +89,7 @@ void GlobalStatsTracker::SetIndexedStats(std::optional<MachineId> machine_id,
                                          size_t key,
                                          int index,
                                          int64_t value) {
-  PERFETTO_CHECK(key < stats::kNumKeys);
-  PERFETTO_CHECK(stats::kTypes[key] == stats::kIndexed);
+  PERFETTO_CHECK(GetDescriptor(key).type == stats::kIndexed);
   auto ctx = GetContextIds(key, machine_id, trace_id);
   FindOrInsertRow(key, index, ctx).set_value(value);
 }
@@ -83,8 +100,7 @@ void GlobalStatsTracker::IncrementIndexedStats(
     size_t key,
     int index,
     int64_t increment) {
-  PERFETTO_CHECK(key < stats::kNumKeys);
-  PERFETTO_CHECK(stats::kTypes[key] == stats::kIndexed);
+  PERFETTO_CHECK(GetDescriptor(key).type == stats::kIndexed);
   auto ctx = GetContextIds(key, machine_id, trace_id);
   auto rr = FindOrInsertRow(key, index, ctx);
   rr.set_value(rr.value() + increment);
@@ -93,8 +109,7 @@ void GlobalStatsTracker::IncrementIndexedStats(
 int64_t GlobalStatsTracker::GetStats(std::optional<MachineId> machine_id,
                                      std::optional<TraceId> trace_id,
                                      size_t key) const {
-  PERFETTO_CHECK(key < stats::kNumKeys);
-  PERFETTO_CHECK(stats::kTypes[key] == stats::kSingle);
+  PERFETTO_CHECK(GetDescriptor(key).type == stats::kSingle);
   auto ctx = GetContextIds(key, machine_id, trace_id);
   StatsEntry entry{key, std::nullopt, ctx.machine_id, ctx.trace_id};
   if (const auto* id_ptr = id_by_entry_.Find(entry)) {
@@ -108,8 +123,7 @@ std::optional<int64_t> GlobalStatsTracker::GetIndexedStats(
     std::optional<TraceId> trace_id,
     size_t key,
     int index) const {
-  PERFETTO_CHECK(key < stats::kNumKeys);
-  PERFETTO_CHECK(stats::kTypes[key] == stats::kIndexed);
+  PERFETTO_CHECK(GetDescriptor(key).type == stats::kIndexed);
   auto ctx = GetContextIds(key, machine_id, trace_id);
   StatsEntry entry{key, index, ctx.machine_id, ctx.trace_id};
   if (const auto* id_ptr = id_by_entry_.Find(entry)) {
@@ -119,38 +133,38 @@ std::optional<int64_t> GlobalStatsTracker::GetIndexedStats(
 }
 
 void GlobalStatsTracker::SetGlobalStats(size_t key, int64_t value) {
-  PERFETTO_CHECK(stats::kScopes[key] == stats::Scope::kGlobal);
+  PERFETTO_CHECK(GetDescriptor(key).scope == stats::Scope::kGlobal);
   SetStats(std::nullopt, std::nullopt, key, value);
 }
 
 void GlobalStatsTracker::IncrementGlobalStats(size_t key, int64_t increment) {
-  PERFETTO_CHECK(stats::kScopes[key] == stats::Scope::kGlobal);
+  PERFETTO_CHECK(GetDescriptor(key).scope == stats::Scope::kGlobal);
   IncrementStats(std::nullopt, std::nullopt, key, increment);
 }
 
 int64_t GlobalStatsTracker::GetGlobalStats(size_t key) const {
-  PERFETTO_CHECK(stats::kScopes[key] == stats::Scope::kGlobal);
+  PERFETTO_CHECK(GetDescriptor(key).scope == stats::Scope::kGlobal);
   return GetStats(std::nullopt, std::nullopt, key);
 }
 
 void GlobalStatsTracker::SetGlobalIndexedStats(size_t key,
                                                int index,
                                                int64_t value) {
-  PERFETTO_CHECK(stats::kScopes[key] == stats::Scope::kGlobal);
+  PERFETTO_CHECK(GetDescriptor(key).scope == stats::Scope::kGlobal);
   SetIndexedStats(std::nullopt, std::nullopt, key, index, value);
 }
 
 void GlobalStatsTracker::IncrementGlobalIndexedStats(size_t key,
                                                      int index,
                                                      int64_t increment) {
-  PERFETTO_CHECK(stats::kScopes[key] == stats::Scope::kGlobal);
+  PERFETTO_CHECK(GetDescriptor(key).scope == stats::Scope::kGlobal);
   IncrementIndexedStats(std::nullopt, std::nullopt, key, index, increment);
 }
 
 std::optional<int64_t> GlobalStatsTracker::GetGlobalIndexedStats(
     size_t key,
     int index) const {
-  PERFETTO_CHECK(stats::kScopes[key] == stats::Scope::kGlobal);
+  PERFETTO_CHECK(GetDescriptor(key).scope == stats::Scope::kGlobal);
   return GetIndexedStats(std::nullopt, std::nullopt, key, index);
 }
 
@@ -158,7 +172,7 @@ GlobalStatsTracker::ContextIds GlobalStatsTracker::GetContextIds(
     size_t key,
     std::optional<MachineId> machine_id,
     std::optional<TraceId> trace_id) const {
-  switch (stats::kScopes[key]) {
+  switch (GetDescriptor(key).scope) {
     case stats::Scope::kGlobal:
       return {std::nullopt, std::nullopt};
     case stats::Scope::kMachine:
@@ -186,14 +200,15 @@ tables::StatsTable::RowReference GlobalStatsTracker::FindOrInsertRow(
   if (auto* id_ptr = id_by_entry_.Find(entry)) {
     return table[*id_ptr];
   }
+  const StatDescriptor& descriptor = GetDescriptor(key);
   tables::StatsTable::Row row;
-  row.name = name_ids_[key];
+  row.name = descriptor.name;
   row.key = static_cast<int64_t>(key);
   row.idx = index ? std::make_optional<int64_t>(*index) : std::nullopt;
-  row.severity = severity_ids_[stats::kSeverities[key]];
-  row.source = source_ids_[stats::kSources[key]];
+  row.severity = severity_ids_[descriptor.severity];
+  row.source = source_ids_[descriptor.source];
   row.value = 0;
-  row.description = description_ids_[key];
+  row.description = descriptor.description;
   row.machine_id = ctx.machine_id;
   row.trace_id = ctx.trace_id;
   auto id_and_row = table.Insert(row);
@@ -206,21 +221,23 @@ void GlobalStatsTracker::ZeroSingleStatsForContext(
     std::optional<MachineId> machine_id,
     std::optional<TraceId> trace_id) {
   auto& table = *storage_->mutable_stats_table();
+  // Only the stats in stats.h: a dynamic stat gets its row when written.
   for (size_t k = 0; k < stats::kNumKeys; ++k) {
-    if (stats::kScopes[k] != scope) {
+    const StatDescriptor& descriptor = descriptors_[k];
+    if (descriptor.scope != scope) {
       continue;
     }
-    if (stats::kTypes[k] != stats::kSingle) {
+    if (descriptor.type != stats::kSingle) {
       continue;
     }
     tables::StatsTable::Row row;
-    row.name = name_ids_[k];
+    row.name = descriptor.name;
     row.key = static_cast<int64_t>(k);
     row.idx = std::nullopt;
-    row.severity = severity_ids_[stats::kSeverities[k]];
-    row.source = source_ids_[stats::kSources[k]];
+    row.severity = severity_ids_[descriptor.severity];
+    row.source = source_ids_[descriptor.source];
     row.value = 0;
-    row.description = description_ids_[k];
+    row.description = descriptor.description;
     row.machine_id = machine_id;
     row.trace_id = trace_id;
     auto id_and_row = table.Insert(row);
