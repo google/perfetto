@@ -467,6 +467,16 @@ class PerfettoPipeline(TestSuite):
         """,
         out=ExpectedError('aggregate AVG is not supported yet'))
 
+  # LIMIT parses, but nothing lowers it yet.
+  def test_limit_is_not_supported_yet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 1 AS id) |> LIMIT 1 OFFSET 0;
+        """,
+        out=ExpectedError('LIMIT is not supported yet'))
+
   # Must match SQL's WHERE and DISTINCT, including comparing an integer
   # column with a fraction.
   def test_where_and_distinct_match_sql(self):

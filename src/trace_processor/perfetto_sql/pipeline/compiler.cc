@@ -153,7 +153,13 @@ ColumnId Compiler::AddColumn(NameId name, PlanType type) {
 base::Status Compiler::BuildOperation(uint32_t stage) {
   uint32_t tag = Node<SyntaqliteNode>(p_, stage)->tag;
   const auto* registration = FindOperationBySyntax(tag);
-  PERFETTO_CHECK(registration);
+  if (!registration) {
+    // The grammar can accept a stage before anything lowers it.
+    std::string sql = source_(stage).sql();
+    std::string keyword = sql.substr(0, sql.find_first_of(" \n"));
+    return source_(stage).AddTraceback(
+        0, base::ErrStatus("%s is not supported yet", keyword.c_str()));
+  }
   return registration->BuildPlan(this, stage);
 }
 

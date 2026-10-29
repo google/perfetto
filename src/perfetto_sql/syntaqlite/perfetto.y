@@ -421,6 +421,12 @@ perfetto_pipe_stage(A) ::= INTERVAL FILL GAPS WITH perfetto_pipe_source(B)
 perfetto_pipe_stage(A) ::= ORDER BY perfetto_pipe_order_list(L). {
     A = synq_parse_perfetto_pipe_order_by(pCtx, L);
 }
+perfetto_pipe_stage(A) ::= LIMIT expr(N). {
+    A = synq_parse_perfetto_pipe_limit(pCtx, N, SYNTAQLITE_NULL_NODE);
+}
+perfetto_pipe_stage(A) ::= LIMIT expr(N) OFFSET expr(O). {
+    A = synq_parse_perfetto_pipe_limit(pCtx, N, O);
+}
 perfetto_pipe_stage(A) ::= AGGREGATE perfetto_aggregate_list(L)
                            perfetto_pipe_group_by(G). {
     A = synq_parse_perfetto_pipe_aggregate(pCtx, L, G);
