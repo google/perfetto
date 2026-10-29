@@ -23,7 +23,13 @@ import {Intent} from '../../../widgets/common';
 import {Icon} from '../../../widgets/icon';
 import {Billboard} from '../components/billboard';
 import {ProgressBar} from '../components/progress_bar';
-import {billboardBytes, maxSeriesKb, niceKbInterval} from '../utils';
+import {
+  billboardBytes,
+  chartXWindow,
+  formatRelativeXValue,
+  maxSeriesKb,
+  niceKbInterval,
+} from '../utils';
 import {formatBytesIec} from '../../../base/bytes_format';
 import {Icons} from '../../../base/semantic_icons';
 import {Stack} from '../../../widgets/stack';
@@ -213,19 +219,21 @@ function renderBreakdownChart(attrs: ProfilePageAttrs): m.Children {
   const {chartData} = attrs;
   const body = chartData
     ? (() => {
-        const {xMin, xMax} = xRange(chartData);
+        const {xMax} = xRange(chartData);
+        // Same fixed-width window as the dashboard charts: 60s ending at the
+        // latest sample, labels relative to it (0s on the right, -60s on the
+        // left).
+        const xWindow = chartXWindow(xMax ?? 0);
         return m(LineChartSvg, {
           data: {series: chartData.series},
           height: 350,
-          xAxisLabel: 'Time (s)',
-          yAxisLabel: 'Memory',
           showLegend: true,
           showPoints: false,
           stacked: true,
           gridLines: 'both',
-          xAxisMin: xMin,
-          xAxisMax: xMax,
-          formatXValue: (v: number) => `${v.toFixed(0)}s`,
+          xAxisMin: xWindow.min,
+          xAxisMax: xWindow.max,
+          formatXValue: formatRelativeXValue(xMax ?? 0),
           formatYValue: (v: number) => formatBytesIec(v * 1024),
           yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
         });
