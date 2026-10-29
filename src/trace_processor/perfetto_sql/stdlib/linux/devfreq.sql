@@ -16,7 +16,8 @@
 INCLUDE PERFETTO MODULE counters.intervals;
 
 -- Gets devfreq frequency counter based on device queried. These counters will
--- only be available if the "devfreq/devfreq_frequency" ftrace event is enabled.
+-- be available if the "devfreq/devfreq_frequency" ftrace event or sys_stats
+-- devfreq polling (devfreq_period_ms) is enabled.
 CREATE PERFETTO FUNCTION _get_devfreq_counters(
   -- Devfreq name to query for.
   device_name STRING
@@ -38,13 +39,17 @@ SELECT
   count_w_dur.dur,
   cast_int!(count_w_dur.value) AS freq
 FROM counter_leading_intervals!((
-  SELECT c.id, c.ts, c.track_id, c.value
+  SELECT
+    c.id,
+    c.ts,
+    -- Normalize to a single track_id so counter_leading_intervals! generates
+    -- a single continuous timeline across both ftrace and sys_stats sources.
+    0 AS track_id,
+    c.value
   FROM counter c
-  WHERE c.track_id IN (
-    SELECT t.id FROM track t
-    WHERE t.type = 'linux_device_frequency'
-      AND EXTRACT_ARG(t.dimension_arg_set_id, 'linux_device') GLOB $device_name
-  )
+  JOIN track t ON c.track_id = t.id
+  WHERE t.type IN ('linux_device_frequency', 'clock_frequency')
+    AND EXTRACT_ARG(t.dimension_arg_set_id, 'linux_device') GLOB $device_name
 )) AS count_w_dur;
 
 -- ARM DSU device frequency counters. This table will only be populated on
