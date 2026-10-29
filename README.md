@@ -55,7 +55,7 @@ Open an [example Android trace](https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fst
 without installing anything, or drag your own trace file onto
 [ui.perfetto.dev](https://ui.perfetto.dev).
 
-[![An Android trace in the Perfetto UI, showing thread activity, CPU scheduling and a flamegraph of sampled callstacks](docs/images/system-tracing-trace-view.png)](https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s)
+[![The Perfetto UI on an Android trace: a selected slice with its call stack and thread states on the timeline, and its details and duration histogram below](docs/images/readme-ui.png)](https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s)
 
 ## Quick start
 
