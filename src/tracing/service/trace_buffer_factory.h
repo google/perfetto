@@ -53,7 +53,7 @@ class TraceBufferFactory {
   // Checks the types in |types| from the highest field number down and creates
   // the first one this build supports, or V1 if none is supported.
   // Returns nullptr if allocation fails.
-  std::unique_ptr<TraceBuffer> CreateNewestListedType(
+  std::unique_ptr<TraceBuffer> CreateLatestSupportedVersion(
       const protos::gen::TraceConfig_BufferConfig_BufferTypeConfig& types,
       size_t size_in_bytes,
       TraceBuffer::OverwritePolicy policy);

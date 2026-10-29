@@ -79,10 +79,11 @@ message TraceConfig {
     // configure which buffer a data source writes to.
     optional string name = 7;
 
-    // Legacy selector to be deprecated, but kept for backwards compatibility
-    // because older services do not understand |buffer_type|.
-    // Set it alongside |buffer_type| to select the buffer type on older
-    // services.
+    // Deprecated: use |buffer_type| instead.
+    // Kept for backwards compatibility because older builds do not understand
+    // |buffer_type| and field configs use it to validate TRACE_BUFFER_V2. Set
+    // it alongside |buffer_type| to select the buffer type on older builds.
+    // TODO(sashwinbalaji): Remove this in 27Q2.
     enum ExperimentalMode {
       // Use the default V1 implementation.
       MODE_UNSPECIFIED = 0;
@@ -94,7 +95,7 @@ message TraceConfig {
       // V2 against V1.
       reserved 2;
     }
-    optional ExperimentalMode experimental_mode = 8;
+    optional ExperimentalMode experimental_mode = 8 [deprecated = true];
 
     // Selects the trace buffer implementation, ignoring |experimental_mode|.
     // The service picks the supported type with the highest field number, or V1

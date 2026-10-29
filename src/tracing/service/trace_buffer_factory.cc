@@ -53,8 +53,16 @@ base::StatusOr<std::unique_ptr<TraceBuffer>> TraceBufferFactory::Create(
 
   std::unique_ptr<TraceBuffer> buffer;
   const auto mode = config.experimental_mode();
+
+  // For historical reasons there are two ways to select the buffer type.
+  // (1) The older |experimental_mode| enum, the only one that services before
+  //     Android 27Q1 (perfetto v60) understand.
+  // (2) The newer |buffer_type|, with a submessage per type.
+  // A config sets both to get the same type on old and new services, and
+  // |buffer_type| has higher priority and wins over |experimental_mode|.
   if (config.has_buffer_type()) {
-    buffer = CreateNewestListedType(config.buffer_type(), buf_size, policy);
+    buffer =
+        CreateLatestSupportedVersion(config.buffer_type(), buf_size, policy);
   } else if (mode == TraceConfig::BufferConfig::MODE_UNSPECIFIED) {
     buffer = TraceBufferV1::Create(buf_size, policy);
   } else if (mode == TraceConfig::BufferConfig::TRACE_BUFFER_V2) {
@@ -74,7 +82,7 @@ base::StatusOr<std::unique_ptr<TraceBuffer>> TraceBufferFactory::Create(
   return std::move(buffer);
 }
 
-std::unique_ptr<TraceBuffer> TraceBufferFactory::CreateNewestListedType(
+std::unique_ptr<TraceBuffer> TraceBufferFactory::CreateLatestSupportedVersion(
     const TraceConfig::BufferConfig::BufferTypeConfig& types,
     size_t size_in_bytes,
     TraceBuffer::OverwritePolicy policy) {

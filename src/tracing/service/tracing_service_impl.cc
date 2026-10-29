@@ -1242,7 +1242,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 #endif
 
   // Initialize the log buffers.
-  base::Status buffers_status;
+  base::Status buffers_status = base::OkStatus();
 
   // Allocate the trace buffers. Also create a map to translate a consumer
   // relative index (TraceConfig.DataSourceConfig.target_buffer) into the
