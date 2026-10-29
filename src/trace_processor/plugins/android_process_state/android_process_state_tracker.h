@@ -43,7 +43,8 @@ StringId InternEnum(TraceProcessorContext* context,
 
 // Tracks process states and freezer states from incremental track events and
 // trace-stop dump snapshots, and synthesizes per-process initial-state rows
-// (is_initial = 1, ts = NULL) at finalization.
+// (is_initial = 1, ts = NULL) at finalization. Initial process state rows carry
+// the time the state was entered, when known, in state_start_ts.
 class AndroidProcessStateTracker {
  public:
   AndroidProcessStateTracker(
@@ -72,6 +73,9 @@ class AndroidProcessStateTracker {
     std::optional<int32_t> proc_state;
     std::optional<int32_t> capability_flags;
     std::optional<int32_t> process_group;
+    // Trace time at which the process entered |proc_state|, converted from
+    // the CLOCK_BOOTTIME proc_state_start_ns / prev_proc_state_start_ns.
+    std::optional<int64_t> start_ts;
   };
 
   // Information captured for freezer state from trace-stop dumps.
@@ -86,6 +90,11 @@ class AndroidProcessStateTracker {
     int64_t ts = std::numeric_limits<int64_t>::max();
     ProcessStateValues values;
   };
+
+  // Converts a CLOCK_BOOTTIME timestamp written by system_server (e.g.
+  // proc_state_start_ns) to trace time. Returns std::nullopt if the
+  // conversion fails (the clock tracker records a stat in that case).
+  std::optional<int64_t> BoottimeToTraceTime(int64_t boottime_ns);
 
   // Records the pre-change state (prev_*) from the earliest delta track event
   // seen for a process to establish its baseline at trace start.

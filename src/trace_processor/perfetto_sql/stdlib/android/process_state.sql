@@ -66,21 +66,58 @@ WITH
       p.upid,
       -- AndroidProcessStartEvent only sets fw_start_ts; process.start_ts can
       -- predate the trace, but the initial state is only known from its start.
+      -- The initial proc_state may start later than this (state_start_ts).
       max(coalesce(fw.fw_start_ts, p.start_ts, trace_start()), trace_start()) AS start_ts,
       p.end_ts AS death_ts
     FROM (SELECT DISTINCT upid FROM __intrinsic_android_process_state)
     JOIN process AS p USING (upid)
     LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
   ),
+  first_changes AS (
+    SELECT upid, min(ts) AS first_ts
+    FROM __intrinsic_android_process_state
+    WHERE
+      is_initial = 0
+    GROUP BY
+      upid
+  ),
+  states AS (
+    SELECT
+      s.ts,
+      s.is_initial,
+      s.upid,
+      s.proc_state,
+      s.reason,
+      f.first_ts,
+      -- The initial row has no ts. It starts when the process entered the
+      -- state (state_start_ts) when known, but, like every other initial
+      -- interval, not before the process start clamped to the trace start. A
+      -- state_start_ts after the process's first change event is bogus, so it
+      -- is treated as unknown.
+      max(
+        p.start_ts,
+        coalesce(
+          iif(s.state_start_ts > f.first_ts, NULL, s.state_start_ts),
+          p.start_ts
+        )
+      ) AS initial_start_ts
+    FROM __intrinsic_android_process_state AS s
+    JOIN process_lifetimes AS p USING (upid)
+    LEFT JOIN first_changes AS f ON f.upid = s.upid AND s.is_initial = 1
+  ),
   all_events AS (
     SELECT
-      coalesce(s.ts, p.start_ts) AS ts,
+      -- The initial interval never starts after the first change event.
+      iif(
+        s.is_initial = 1,
+        min(s.initial_start_ts, coalesce(s.first_ts, s.initial_start_ts)),
+        s.ts
+      ) AS ts,
       s.is_initial,
       s.upid,
       replace(s.proc_state, 'PROCESS_STATE_', '') AS cur_state,
       s.reason AS cur_reason
-    FROM __intrinsic_android_process_state AS s
-    JOIN process_lifetimes AS p USING (upid)
+    FROM states AS s
     UNION ALL
     -- Death is never reported by the state stream, so synthesize it. Left open
     -- ended (dur = -1), as the process never comes back.

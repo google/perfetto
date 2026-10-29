@@ -27,11 +27,13 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_common.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
@@ -62,6 +64,13 @@ AndroidProcessStateTracker::AndroidProcessStateTracker(
       freezer_state_table_(freezer_state_table),
       capability_flags_id_(context->storage->InternString("capability_flags")),
       unknown_process_logger_(context) {}
+
+std::optional<int64_t> AndroidProcessStateTracker::BoottimeToTraceTime(
+    int64_t boottime_ns) {
+  return context_->clock_tracker->ToTraceTime(
+      ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
+      boottime_ns);
+}
 
 // The track-event stream only emits delta transitions (prev -> cur). To
 // reconstruct each process's state at the start of the trace, we record the
@@ -106,6 +115,9 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   }
   if (p.has_prev_process_group()) {
     prev.process_group = static_cast<int32_t>(p.prev_process_group());
+  }
+  if (p.has_prev_proc_state_start_ns()) {
+    prev.start_ts = BoottimeToTraceTime(p.prev_proc_state_start_ns());
   }
   UpdateInitialStateFromDelta(ts, prev);
 
@@ -188,6 +200,9 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
         rec.has_process_group()
             ? static_cast<int32_t>(rec.process_group())
             : static_cast<int32_t>(fb::ProcessGroup::PROCESS_GROUP_UNKNOWN);
+    if (rec.has_proc_state_start_ns()) {
+      v.start_ts = BoottimeToTraceTime(rec.proc_state_start_ns());
+    }
     process_dump_[v.upid] = v;
   }
 }
@@ -263,6 +278,8 @@ void AndroidProcessStateTracker::ParseFreezerDump(int64_t ts,
 // 2. Processes that changed state during the trace have their initial state
 //    recovered from the `prev_*` fields of their earliest delta in
 //    `earliest_prev_`.
+// The time the initial proc_state was entered (start_ts) always comes from the
+// same source as the proc_state itself.
 std::map<UniquePid, AndroidProcessStateTracker::ProcessStateValues>
 AndroidProcessStateTracker::ComputeInitialProcessStates() const {
   std::map<UniquePid, ProcessStateValues> initial = process_dump_;
@@ -282,6 +299,12 @@ AndroidProcessStateTracker::ComputeInitialProcessStates() const {
     if (earliest.values.process_group.has_value()) {
       v.process_group = earliest.values.process_group;
     }
+    // The start time belongs to the earliest delta's prev_proc_state, so never
+    // keep the trace-stop snapshot's (which is the start of the *last* state),
+    // even when the delta has none: system_server omits
+    // prev_proc_state_start_ns when it is 0, e.g. on the first transition out
+    // of PROCESS_STATE_NONEXISTENT.
+    v.start_ts = earliest.values.start_ts;
   }
 
   return initial;
@@ -318,6 +341,7 @@ void AndroidProcessStateTracker::EmitInitialProcessStateRow(
         InternEnum(context_, process_group_cache_,
                    ".com.android.internal.ProcessGroup", *v.process_group);
   }
+  row.state_start_ts = v.start_ts;
   auto id = process_state_table_->Insert(row).id;
   if (row.capability_flags.has_value()) {
     AddCapabilityFlagsArgs(id, *row.capability_flags);
