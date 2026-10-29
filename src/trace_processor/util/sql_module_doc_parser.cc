@@ -93,6 +93,26 @@ bool IsInternal(const std::string& name) {
   return base::StartsWith(name, "_");
 }
 
+// Look up the argument name token so each argument gets its own comments
+std::string GetArgDescription(SyntaqliteParser* p,
+                              SyntaqliteTextSpan name_span,
+                              const char* stmt_ptr) {
+  uint32_t name_len = 0, name_off = 0;
+  if (!syntaqlite_parser_span_text(p, &name_span, &name_len, &name_off)) {
+    return {};
+  }
+  uint32_t tok_count = 0;
+  const SyntaqliteParserToken* toks = syntaqlite_result_tokens(p, &tok_count);
+  for (uint32_t ti = 0; ti < tok_count; ti++) {
+    if (toks[ti]._layer_id == 0 && toks[ti].offset == name_off) {
+      uint32_t c_count = 0;
+      const auto* cs = syntaqlite_token_leading_comments(p, ti, &c_count);
+      return JoinLineComments(stmt_ptr, cs, c_count);
+    }
+  }
+  return {};
+}
+
 // Extracts entries from a PerfettoArgDefList node. Entry must be a struct with
 // name/type/description fields (Column or Arg).
 template <typename Entry>
@@ -103,9 +123,6 @@ std::vector<Entry> ExtractArgDefList(SyntaqliteParser* p,
   if (!syntaqlite_node_is_present(list_id)) {
     return result;
   }
-
-  uint32_t tok_count = 0;
-  const SyntaqliteParserToken* toks = syntaqlite_result_tokens(p, &tok_count);
 
   const auto* list = static_cast<const SyntaqlitePerfettoArgDefList*>(
       syntaqlite_parser_node(p, list_id));
@@ -126,20 +143,8 @@ std::vector<Entry> ExtractArgDefList(SyntaqliteParser* p,
     entry.type =
         ::perfetto::perfetto_sql::SyntaqliteSpanText(p, item->arg_type);
 
-    // Locate the token for the arg name by its source offset, then fetch
-    // the leading comments attached to that token.
-    uint32_t name_len = 0, name_off = 0;
-    if (syntaqlite_parser_span_text(p, &name_node->ident_name.source, &name_len,
-                                    &name_off)) {
-      for (uint32_t ti = 0; ti < tok_count; ti++) {
-        if (toks[ti]._layer_id == 0 && toks[ti].offset == name_off) {
-          uint32_t c_count = 0;
-          const auto* cs = syntaqlite_token_leading_comments(p, ti, &c_count);
-          entry.description = JoinLineComments(stmt_ptr, cs, c_count);
-          break;
-        }
-      }
-    }
+    entry.description =
+        GetArgDescription(p, name_node->ident_name.source, stmt_ptr);
 
     result.push_back(std::move(entry));
   }
@@ -181,9 +186,7 @@ std::vector<Arg> ExtractMacroArgs(SyntaqliteParser* p,
     arg.name = ::perfetto::perfetto_sql::SyntaqliteSpanText(p, item->arg_name);
     arg.type = ::perfetto::perfetto_sql::SyntaqliteSpanText(p, item->arg_type);
 
-    uint32_t c_count = 0;
-    const auto* cs = syntaqlite_node_leading_comments(p, item_id, &c_count);
-    arg.description = JoinLineComments(stmt_ptr, cs, c_count);
+    arg.description = GetArgDescription(p, item->arg_name, stmt_ptr);
 
     result.push_back(std::move(arg));
   }
