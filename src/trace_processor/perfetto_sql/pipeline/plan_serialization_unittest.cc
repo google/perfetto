@@ -109,7 +109,9 @@ const char* const kPipelines[] = {
     "FROM df |> ORDER BY self DESC, id |> SELECT id",
     "FROM spans |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n |> ORDER BY n",
     "FROM df |> SELECT parent_id |> DISTINCT",
+    "FROM df |> ORDER BY self |> LIMIT 3 OFFSET 1 |> SELECT id",
     "FROM df |> WHERE self > 0 AND id < 10",
+    "FROM df |> WHERE self != 'a''b' AND id IN (1, 2.5, 'x') AND id NOTNULL",
     "FROM spans |> AGGREGATE COUNT(*) AS n, SUM(dur) AS d GROUP BY cpu AS c",
     "FROM spans |> AGGREGATE MAX(dur) AS m |> SELECT m",
     R"(GRAPH DOMINATOR TREE NODES df EDGES (SELECT parent_id AS src, id AS dst

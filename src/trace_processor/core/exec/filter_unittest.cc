@@ -34,6 +34,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
@@ -315,6 +316,30 @@ TEST(FilterInTest, KeepsTheRowsWhoseValueIsListed) {
   EXPECT_THAT(KeptIn(sparse, StorageType{Id{}},
                      {int64_t{1001}, int64_t{1003}, int64_t{7}}, pool),
               ElementsAre(20, 40));
+}
+
+// IS [NOT] NULL also reads a column carrying a type per row, from where its
+// window starts.
+TEST(FilterNullTest, ReadsVariantColumns) {
+  StringPool pool;
+  Variant variants[] = {Variant::Int64(9), Variant::Null(), Variant::Int64(1),
+                        Variant::String(pool.InternString("a")),
+                        Variant::Null()};
+  int64_t numbers[] = {10, 20, 30, 40};
+  auto kept = [&](Op op) {
+    Filter filter({{0, op}}, &pool);
+    Context context;
+    std::unique_ptr<OperatorState> state = filter.MakeState(context);
+    RowBatch batch;
+    batch.AddBorrowedColumn(ColumnView::Variants(variants, 1));
+    batch.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Int64{}}, numbers, nullptr));
+    batch.SetRowCount(4);
+    PERFETTO_CHECK(filter.Process(batch, *state));
+    return test::ReadColumn<int64_t>(batch, 1);
+  };
+  EXPECT_THAT(kept(IsNull{}), ElementsAre(10, 40));
+  EXPECT_THAT(kept(IsNotNull{}), ElementsAre(20, 30));
 }
 
 }  // namespace

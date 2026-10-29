@@ -44,7 +44,7 @@ namespace perfetto::trace_processor::core::exec {
 // the rows SQL would.
 //
 // Columns must be flat or Id sequences, of the storage type their values were
-// cast for.
+// cast for. IS [NOT] NULL also reads variant columns.
 class Filter final : public Transform {
  public:
   static constexpr char kType = 0;

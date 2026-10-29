@@ -358,12 +358,17 @@ all aliases.
 
 Code: `operations/where.cc`, `/src/trace_processor/core/exec/filter.cc`
 
-`WHERE` lowers to one streaming `Filter`. Each comparison's literal is cast to
-its column's type once, during lowering, and stored with the plan
-(`PhysicalPlan::filter_values()`). A column with no known type is first
-converted to the literal's type. `Filter` compares with the same kernels as the
-dataframe's own filters and narrows each batch's selection, so nothing is
-copied.
+`WHERE` lowers to one streaming `Filter`. Each comparison's literal, or `IN`
+list, is cast to its column's type once, during lowering, and stored with the
+plan (`PhysicalPlan::filter_values()`). A string is cast to its id in the
+string pool, so `=` and `!=` compare ids, and a string no row holds matches
+nothing. Casting during lowering is safe because a plan is lowered for each
+cursor, after its inputs are bound, so every string they hold is in the pool. A
+column with no known type is first converted to the literals' type, a string
+if any literal is one. `IS [NOT] NULL` reads any column, including one carrying
+a type per row. `BETWEEN` is two comparisons. `Filter` compares with the same
+kernels as the dataframe's own filters and narrows each batch's selection, so
+nothing is copied.
 
 ---
 
@@ -396,6 +401,18 @@ already keeps sorted, such as `ts` on `slice`, needs no `Sort`. A `Sort` that
 nothing reads the order of, because a later stage sorts, groups or walks a tree
 first, is removed. After a sort, the tree order is forgotten, so a later
 `TREE ACCUMULATE` reorders the rows but keeps its node numbers.
+
+---
+
+## `LIMIT`
+
+Code: `operations/limit.cc`, `/src/trace_processor/core/exec/limit.cc`
+
+`LIMIT` lowers to one streaming `Limit`, which narrows each batch's selection.
+It closes any open `Sort` before it, so `ORDER BY` is never removed from in
+front of a `LIMIT`. Once it has kept `count` rows it takes no more input, so
+nothing before it reads further than the rows it needs. Rows kept stay in their
+order, so every known arrangement survives.
 
 ---
 

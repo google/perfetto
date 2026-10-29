@@ -36,6 +36,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/span.h"
 
@@ -54,6 +55,19 @@ struct Rows {
 
 // Keeps the rows which are null if `nulls`, or which are not otherwise.
 void KeepNulls(const ColumnView& column, bool nulls, Rows& r) {
+  if (column.kind() == ColumnView::Kind::kVariant) {
+    const auto* data = static_cast<const Variant*>(column.data());
+    uint32_t start = column.start();
+    uint32_t kept = 0;
+    for (uint32_t i = 0; i < r.count; ++i) {
+      uint32_t row = r.rows[i];
+      if ((data[start + row].type == Variant::Type::kNull) == nulls) {
+        r.rows[kept++] = row;
+      }
+    }
+    r.count = kept;
+    return;
+  }
   const BitVector* validity = column.validity();
   if (!validity) {
     r.count = nulls ? 0 : r.count;
@@ -233,11 +247,11 @@ bool Filter::Process(RowBatch& batch, OperatorState& state) const {
   for (uint32_t i = 0; i < conditions_.size() && r.count != 0; ++i) {
     const Condition& c = conditions_[i];
     const ColumnView& column = batch.column(c.column);
-    PERFETTO_DCHECK(column.kind() != ColumnView::Kind::kVariant);
     if (c.op.IsAnyOf<NullOp>()) {
       KeepNulls(column, c.op.Is<IsNull>(), r);
       continue;
     }
+    PERFETTO_DCHECK(column.kind() != ColumnView::Kind::kVariant);
     PERFETTO_DCHECK(c.value < s.context->filter_values().size());
     ApplyCondition(c.op, values[c.value], column, *pool_, r);
   }
