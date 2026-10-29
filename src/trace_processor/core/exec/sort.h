@@ -21,6 +21,7 @@
 #include <memory>
 #include <vector>
 
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -31,11 +32,13 @@ namespace perfetto::trace_processor::core::exec {
 struct SortSpec {
   using Key = SortKey;
   std::vector<Key> keys;
+  // Holds the strings of the string keys, which there can be only if it is
+  // given. Must outlive the sort.
+  const StringPool* pool = nullptr;
 };
 
 // Stably sorts rows by their keys. Nulls sort as in SQLite: first ascending,
-// last descending.
-// TODO(lalitm): support string keys, which needs the string pool for ranks.
+// last descending. Strings sort by their contents.
 class Sort : public Breaker {
  public:
   static constexpr char kType = 0;

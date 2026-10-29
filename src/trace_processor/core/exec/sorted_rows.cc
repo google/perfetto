@@ -24,31 +24,66 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/common/string_ranks.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/layout_column.h"
+#include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/ops.h"
 #include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
-std::optional<RowLayout::Type> LayoutType(const ColumnView& column) {
+// Records `column`'s string at each row `selection` keeps, and whether it has
+// one, adding each string to those to rank.
+void AppendStrings(const ColumnView& column,
+                   const Selection& selection,
+                   FlexVector<StringPool::Id>* ids,
+                   BitVector* present,
+                   StringRanks* ranks) {
+  const auto* data = static_cast<const StringPool::Id*>(column.data());
+  const BitVector* validity = column.validity();
+  uint32_t start = column.start();
+  for (uint32_t row = 0; row < selection.size(); ++row) {
+    uint32_t index = start + selection[row];
+    bool valid = !validity || validity->is_set(index);
+    ids->push_back(valid ? data[index] : StringPool::Id::Null());
+    present->push_back(valid);
+    if (valid) {
+      ranks->Add(data[index]);
+    }
+  }
+}
+
+}  // namespace
+
+std::optional<SortedRows::KeyType> SortedRows::GetKeyType(
+    const ColumnView& column,
+    bool strings) {
   switch (column.kind()) {
     case ColumnView::Kind::kSequence:
-      return RowLayout::Type::kUint32;
+      return KeyType{RowLayout::Type::kUint32, false};
     case ColumnView::Kind::kFlat:
       switch (column.type().index()) {
         case StorageType::GetTypeIndex<Uint32>():
-          return RowLayout::Type::kUint32;
+          return KeyType{RowLayout::Type::kUint32, false};
         case StorageType::GetTypeIndex<Int32>():
-          return RowLayout::Type::kInt32;
+          return KeyType{RowLayout::Type::kInt32, false};
         case StorageType::GetTypeIndex<Int64>():
-          return RowLayout::Type::kInt64;
+          return KeyType{RowLayout::Type::kInt64, false};
         case StorageType::GetTypeIndex<Double>():
-          return RowLayout::Type::kDouble;
+          return KeyType{RowLayout::Type::kDouble, false};
+        case StorageType::GetTypeIndex<String>():
+          if (strings) {
+            return KeyType{RowLayout::Type::kUint32, true};
+          }
+          return std::nullopt;
         default:
           return std::nullopt;
       }
@@ -58,20 +93,22 @@ std::optional<RowLayout::Type> LayoutType(const ColumnView& column) {
   PERFETTO_FATAL("Unknown column kind");
 }
 
-}  // namespace
-
 base::Status SortedRows::Append(const RowBatch& in,
-                                const std::vector<SortKey>& keys) {
+                                const std::vector<SortKey>& keys,
+                                const StringPool* pool) {
   uint32_t count = in.size();
   if (count == 0) {
     return base::OkStatus();
   }
   bool first = types_.empty() && !keys.empty();
   for (uint32_t k = 0; k < keys.size(); ++k) {
-    std::optional<RowLayout::Type> type = LayoutType(in.column(keys[k].column));
-    if (!type || (!first && types_[k] != *type)) {
-      return base::ErrStatus("key %u must be a column of numbers of one type",
-                             k + 1);
+    std::optional<KeyType> type =
+        GetKeyType(in.column(keys[k].column), pool != nullptr);
+    if (!type || (!first && (types_[k].layout != type->layout ||
+                             types_[k].string != type->string))) {
+      return base::ErrStatus(
+          "key %u must be a column of numbers, or of strings, of one type",
+          k + 1);
     }
   }
   if (first) {
@@ -80,10 +117,12 @@ base::Status SortedRows::Append(const RowBatch& in,
     // out as nullable, because nullability can change from batch to batch.
     std::vector<RowLayout::Column> columns;
     for (uint32_t k = 0; k < keys.size(); ++k) {
-      types_.push_back(*LayoutType(in.column(keys[k].column)));
-      columns.push_back({types_[k], true, keys[k].descending});
+      types_.push_back(*GetKeyType(in.column(keys[k].column), true));
+      columns.push_back({types_[k].layout, true, keys[k].descending});
     }
     layout_ = RowLayout(columns);
+    strings_.resize(keys.size());
+    pool_ = pool;
   }
 
   uint64_t at = uint64_t{rows_.size()} * layout_.stride();
@@ -98,7 +137,13 @@ base::Status SortedRows::Append(const RowBatch& in,
       continue;
     }
     const void* data = column.data();
-    switch (types_[k]) {
+    if (types_[k].string) {
+      // Written by Sort(), once every string is in and ranked.
+      AppendStrings(column, in.selection(), &strings_[k].ids,
+                    &strings_[k].present, &ranks_);
+      continue;
+    }
+    switch (types_[k].layout) {
       case RowLayout::Type::kUint32:
         WriteLayoutColumn<uint32_t>(
             column, in.selection(), slot, rows, [data](uint32_t index) {
@@ -130,6 +175,25 @@ base::Status SortedRows::Append(const RowBatch& in,
 
 void SortedRows::Sort() {
   uint32_t rows = rows_.size();
+  if (ranks_.size()) {
+    ranks_.Rank(*pool_);
+  }
+  for (uint32_t k = 0; k < types_.size(); ++k) {
+    if (!types_[k].string) {
+      continue;
+    }
+    const Strings& strings = strings_[k];
+    RowLayout::Write<uint32_t>(
+        layout_.slot(k), rows,
+        [&](uint32_t row, uint32_t* out) {
+          if (!strings.present.is_set(row)) {
+            return false;
+          }
+          *out = *ranks_.Find(strings.ids[row]);
+          return true;
+        },
+        keys_.data());
+  }
   order_.resize(rows);
   std::iota(order_.data(), order_.data() + rows, 0u);
   if (layout_.stride()) {
@@ -148,6 +212,9 @@ uint32_t SortedRows::Gather(RowBatch* out, uint32_t at, Context& context) {
 
 void SortedRows::Clear() {
   types_.clear();
+  strings_.clear();
+  ranks_.Clear();
+  pool_ = nullptr;
   keys_.clear();
   rows_.Clear();
   order_.clear();

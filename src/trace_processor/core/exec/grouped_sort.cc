@@ -53,7 +53,7 @@ bool GroupedSort::Consume(const RowBatch& in, Breaker::State& state) const {
         "GROUPED SORT: group %u must be a column holding one type", *bad + 1);
     return false;
   }
-  base::Status status = s.rows.Append(in, spec_.keys);
+  base::Status status = s.rows.Append(in, spec_.keys, nullptr);
   if (!status.ok()) {
     s.status = base::ErrStatus("GROUPED SORT: %s", status.c_message());
     return false;

@@ -181,6 +181,7 @@ void Lowering::RequireSorted(const std::vector<SortKey>& keys) {
     return;
   }
   ex::SortSpec sort;
+  sort.pool = context().pool;
   for (const SortKey& key : keys) {
     if (!plan_->TypeOf(key.column).storage()) {
       RequireType(key.column, core::Int64{});

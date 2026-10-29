@@ -35,7 +35,7 @@ std::unique_ptr<Breaker::State> Sort::CreateState() const {
 
 bool Sort::Consume(const RowBatch& in, Breaker::State& state) const {
   auto& s = static_cast<State&>(state);
-  base::Status status = s.rows.Append(in, spec_.keys);
+  base::Status status = s.rows.Append(in, spec_.keys, spec_.pool);
   if (!status.ok()) {
     s.status = base::ErrStatus("SORT: %s", status.c_message());
     return false;
