@@ -28,6 +28,8 @@
 
 namespace perfetto::trace_processor {
 
+class TraceStorage;
+
 // Coordinates the loading of traces from an arbitrary source.
 class PERFETTO_EXPORT_COMPONENT TraceProcessorStorage {
  public:
@@ -47,6 +49,8 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessorStorage {
 
   // See comment on TraceProcessor::NotifyEndOfFile.
   virtual base::Status NotifyEndOfFile() = 0;
+
+  virtual const TraceStorage* storage() const { return nullptr; }
 };
 
 }  // namespace perfetto::trace_processor
