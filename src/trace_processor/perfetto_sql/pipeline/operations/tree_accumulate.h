@@ -29,6 +29,13 @@ namespace perfetto::trace_processor::pipeline {
 
 class Lowering;
 class PlanNode;
+struct BoundPlan;
+struct LoweringContext;
+
+// Runs two independent folds over one tree in the order its rows already walk
+// it, so only one of them reorders the rows: a fold directly on a fold in the
+// opposite direction over the same tree, reading none of its outputs.
+void ReorderTreeFolds(BoundPlan* plan, const LoweringContext& context);
 
 // `|> TREE ACCUMULATE UP | DOWN agg AS name, ...`. Appends one column per
 // aggregate.
@@ -47,6 +54,13 @@ class TreeAccumulate : public PlanOperation {
   void Serialize(PlanCodec&) override;
 
   static base::Status BuildPlan(Compiler*, uint32_t);
+
+  // Whether this fold, directly on `below`, can run before it instead: they
+  // walk the same tree in opposite directions and this reads none of
+  // `below`'s outputs.
+  bool CommutesWith(const TreeAccumulate& below) const;
+
+  friend void ReorderTreeFolds(BoundPlan*, const LoweringContext&);
 
   const OperationRegistration& registration() const override;
 

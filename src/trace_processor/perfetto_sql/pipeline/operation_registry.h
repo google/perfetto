@@ -28,6 +28,8 @@ namespace perfetto::trace_processor::pipeline {
 
 class Compiler;
 class PlanOperation;
+struct BoundPlan;
+struct LoweringContext;
 
 // Entry points which need no operation instance: building a plan from an AST
 // and reconstructing it from bytes. Each registration is a static singleton;
@@ -78,6 +80,11 @@ class OperationRegistration {
 
 const OperationRegistration* FindOperationByTag(uint8_t tag);
 const OperationRegistration* FindOperationBySyntax(uint32_t syntax);
+
+// Rewrites a bound plan before it is lowered, with what binding found:
+// reorders, merges or drops nodes. Each pass is defined beside the operation
+// it rewrites; this runs them in order.
+void RunBoundPasses(BoundPlan* plan, const LoweringContext& context);
 
 }  // namespace perfetto::trace_processor::pipeline
 

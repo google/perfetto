@@ -159,6 +159,9 @@ class PlanNode {
   PlanOperation& operation() { return *operation_; }
   const PlanOperation& operation() const { return *operation_; }
 
+  // Swaps the operations of this node and `other`, each keeping its children.
+  void SwapOperation(PlanNode* other) { operation_.swap(other->operation_); }
+
  private:
   std::vector<PlanNodeId> children_;
   std::unique_ptr<PlanOperation> operation_;

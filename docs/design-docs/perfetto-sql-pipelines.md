@@ -31,8 +31,9 @@ Code: `/src/trace_processor/perfetto_sql/pipeline/`
    [`FROM`](#from)).
 4. **Lower.** When SQLite runs that statement, the plan is read back
    (`DeserializePlan`), the SQL sources are bound as dataframes
-   (`BindDataframeArgs`), and `Lower` turns it into a `PhysicalPlan` of
-   executor operators. A table read directly is checked to be the one the plan
+   (`BindDataframeArgs`), the bound passes rewrite it (see
+   [Bound passes](#bound-passes)), and `Lower` turns it into a
+   `PhysicalPlan` of executor operators. A table read directly is checked to be the one the plan
    was compiled against.
 5. **Run.** A `RowCursor` pulls batches through the operators and SQLite reads
    them row by row.
@@ -70,6 +71,20 @@ sources and marks the columns that are read:
 - `INTERVAL FILL GAPS` drops outputs nobody reads.
 - `WHERE`, `ORDER BY` and `DISTINCT` keep the columns they compare, and
   `AGGREGATE` keeps its keys.
+
+### Bound passes
+
+Some choices need what binding finds: how a table is sorted or indexed, or
+the order an input's rows will arrive in. Compiling cannot make them, as it
+only sees names and shapes, and lowering cannot either, as it adds steps one
+operation at a time and never moves operations.
+
+Binding records what it finds in `Bindings`, beside the plan, and leaves the
+plan as it was written. `RunBoundPasses` then runs passes which may reorder,
+merge or drop nodes, using those facts. Each pass is defined beside the
+operation it rewrites. A pass which needs the order of an input's rows lowers
+that input on its own and asks `Lowering`, so lowering stays the one
+definition of row order.
 
 ---
 
@@ -300,6 +315,10 @@ and `AGGREGATE` do:
 - Two `UP` stages in a row, or two `DOWN` stages, reuse the first stage's row
   order.
 - Switching between `UP` and `DOWN` keeps the numbers and reorders the rows.
+- Two stages in opposite directions, where the later reads nothing the earlier
+  computes, run in whichever order the rows already walk the tree, so only one
+  of them reorders the rows (`ReorderTreeFolds`). A `GRAPH ... TREE` outputs
+  its rows parent-first, so on it a `DOWN` written after an `UP` runs first.
 
 ---
 
