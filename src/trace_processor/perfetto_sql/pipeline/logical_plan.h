@@ -38,6 +38,7 @@ class Dataframe;
 
 namespace perfetto::trace_processor::pipeline {
 
+class BoundRewriter;
 class Catalog;
 class Lowering;
 class PlanCodec;
@@ -84,6 +85,12 @@ class PlanOperation {
       LogicalPlan*,
       const std::vector<const core::dataframe::Dataframe*>&,
       StringPool*);
+
+  // Rewrites the plan around node `self`, which holds this operation, using
+  // what binding resolved: e.g. the order the rows of its input will be in.
+  // Runs after the node's inputs are rewritten, before lowering. Operations
+  // without such rewrites inherit a no-op.
+  virtual void RewriteBound(BoundRewriter*, PlanNodeId self);
 
   // Builds execution steps, including child traversal. Intersection attaches
   // independent operand pipelines; other stages lower their single input.
@@ -148,6 +155,9 @@ class PlanNode {
 
   PlanOperation& operation() { return *operation_; }
   const PlanOperation& operation() const { return *operation_; }
+
+  // Swaps the operations of this node and `other`, each keeping its children.
+  void SwapOperation(PlanNode* other) { operation_.swap(other->operation_); }
 
  private:
   std::vector<PlanNodeId> children_;

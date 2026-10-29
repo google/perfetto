@@ -78,4 +78,6 @@ base::Status PlanOperation::BindDataframeArgs(
   return base::OkStatus();
 }
 
+void PlanOperation::RewriteBound(BoundRewriter*, PlanNodeId) {}
+
 }  // namespace perfetto::trace_processor::pipeline

@@ -140,7 +140,7 @@ class PhysicalPlanTest : public ::testing::Test {
     LogicalPlan moved = MoveSqlSourcesToDataframeArgs(std::move(plan)).plan;
     RETURN_IF_ERROR(
         BindDataframeArgs(moved, DataframeArgs(dataframes), &pool_));
-    return Lower(moved, {&pool_});
+    return Lower(std::move(moved), {&pool_});
   }
 
   std::vector<std::string> Names(const PhysicalPlan& plan) {

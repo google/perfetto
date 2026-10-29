@@ -1076,7 +1076,7 @@ PerfettoSqlConnection::LoadPipeline(
   RETURN_IF_ERROR(pipeline::BindDataframeArgs(plan, args, pool_));
   pipeline::LoweringContext context;
   context.pool = pool_;
-  return pipeline::Lower(plan, context);
+  return pipeline::Lower(std::move(plan), context);
 }
 
 base::Status PerfettoSqlConnection::ExecuteCreateView(

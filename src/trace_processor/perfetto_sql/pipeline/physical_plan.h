@@ -98,8 +98,29 @@ struct LoweringContext {
 // Builds executor nodes from a logical plan. Establishes tree numbering, row
 // ordering, and column types as needed, reusing them across consecutive folds.
 // Every dataframe the plan reads must already be resolved.
-base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan&,
+//
+// First rewrites the plan with what binding resolved (see
+// PlanOperation::RewriteBound), so `plan` is taken by value.
+base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(LogicalPlan plan,
                                                     const LoweringContext&);
+
+// What an operation rewriting a bound plan can see and change.
+class BoundRewriter {
+ public:
+  BoundRewriter(LogicalPlan* plan, const LoweringContext& context)
+      : plan_(plan), context_(context) {}
+
+  LogicalPlan& plan() { return *plan_; }
+  const LoweringContext& context() const { return context_; }
+
+  // The order of the rows `node` outputs, as lowering it would leave them.
+  // nullopt if it cannot be lowered.
+  std::optional<RowOrder> QueryRowOrder(PlanNodeId node) const;
+
+ private:
+  LogicalPlan* plan_;
+  const LoweringContext& context_;
+};
 
 // -----------------------------------------------------------------------------
 // Lowering
@@ -297,6 +318,9 @@ class Lowering : private OrderSteps {
   std::vector<SortKey> QuerySortedBy(
       const std::vector<ColumnId>& columns) const;
 
+  // Everything known about the order of the rows.
+  const RowOrder& QueryOrder() const { return order_; }
+
   // ---------------------------------------------------------------------------
   // Accessors
   // ---------------------------------------------------------------------------
@@ -383,6 +407,9 @@ class PlanLowering {
   base::StatusOr<std::unique_ptr<PhysicalPlan>> Finish();
 
   const LogicalPlan& plan() const { return plan_; }
+
+  // The first error recorded by Fail, or ok.
+  const base::Status& status() const { return status_; }
 
  private:
   friend class Lowering;

@@ -98,6 +98,15 @@ void SetUnreadColumns(uint32_t source_columns,
   }
 }
 
+// Rewrites the subtree at `id`, inputs first.
+void RewriteSubtree(BoundRewriter* rewriter, PlanNodeId id) {
+  std::vector<PlanNodeId> children = rewriter->plan().nodes()[id].children();
+  for (PlanNodeId child : children) {
+    RewriteSubtree(rewriter, child);
+  }
+  rewriter->plan().nodes()[id].operation().RewriteBound(rewriter, id);
+}
+
 }  // namespace
 
 std::optional<PlanType> CommonType(const PlanType& a, const PlanType& b) {
@@ -471,9 +480,20 @@ PlanType PlanLowering::TypeOf(ColumnId column) const {
 PhysicalPlan::PhysicalPlan() = default;
 PhysicalPlan::~PhysicalPlan() = default;
 
+std::optional<RowOrder> BoundRewriter::QueryRowOrder(PlanNodeId node) const {
+  PlanLowering lowering(*plan_, context_);
+  lowering.main().LowerNode(node);
+  if (!lowering.status().ok()) {
+    return std::nullopt;
+  }
+  return lowering.main().QueryOrder();
+}
+
 base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(
-    const LogicalPlan& plan,
+    LogicalPlan plan,
     const LoweringContext& context) {
+  BoundRewriter rewriter(&plan, context);
+  RewriteSubtree(&rewriter, plan.root());
   PlanLowering lowering(plan, context);
   lowering.main().LowerNode(plan.root());
   return lowering.Finish();

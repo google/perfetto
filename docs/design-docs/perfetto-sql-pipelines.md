@@ -31,8 +31,9 @@ Code: `/src/trace_processor/perfetto_sql/pipeline/`
    [`FROM`](#from)).
 4. **Lower.** When SQLite runs that statement, the plan is read back
    (`DeserializePlan`), the SQL sources are bound as dataframes
-   (`BindDataframeArgs`), and `Lower` turns it into a `PhysicalPlan` of
-   executor operators. A table read directly is checked to be the one the plan
+   (`BindDataframeArgs`), and `Lower` rewrites it with what binding resolved
+   (see [Rewriting bound plans](#rewriting-bound-plans)) and turns it into a
+   `PhysicalPlan` of executor operators. A table read directly is checked to be the one the plan
    was compiled against.
 5. **Run.** A `RowCursor` pulls batches through the operators and SQLite reads
    them row by row.
@@ -70,6 +71,19 @@ sources and marks the columns that are read:
 - `INTERVAL FILL GAPS` drops outputs nobody reads.
 - `WHERE`, `ORDER BY` and `DISTINCT` keep the columns they compare, and
   `AGGREGATE` keeps its keys.
+
+### Rewriting bound plans
+
+Some choices need what binding resolves: how a table is sorted or indexed, or
+the order an input's rows will arrive in. Compiling cannot make them, as it
+only sees names and shapes, and lowering cannot either, as it adds steps one
+operation at a time and never moves operations.
+
+So `Lower` first lets each operation rewrite the plan around its node
+(`PlanOperation::RewriteBound`), inputs first. A rewrite can ask for the order
+lowering would leave an input's rows in (`BoundRewriter::QueryRowOrder`). That
+is answered by lowering the input on its own, so `RowOrder`, which decides
+every sort, grouping and tree walk, stays the one definition of row order.
 
 ---
 
