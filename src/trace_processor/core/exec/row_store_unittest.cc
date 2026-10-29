@@ -265,9 +265,10 @@ TEST(RowStoreTest, DoesNotHoldColumnsNeverReadBack) {
     RowBatch input;
     input.AddBorrowedColumn(
         ColumnView::Reference(StorageType{Int64{}}, kept.data()));
-    input.AddColumn(ColumnView::Reference(StorageType{Int64{}},
-                                          buffer.chunk().Values<int64_t>()),
-                    std::move(buffer));
+    // Made before the buffer moves: arguments are evaluated in any order.
+    ColumnView view = ColumnView::Reference(StorageType{Int64{}},
+                                            buffer.chunk().Values<int64_t>());
+    input.AddColumn(view, std::move(buffer));
     input.SetRowCount(kMaxBatchRows);
     ASSERT_TRUE(store.Append(input, context).ok());
   }
