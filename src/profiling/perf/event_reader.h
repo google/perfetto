@@ -107,15 +107,22 @@ class EventReader {
               perf_event_attr event_attr,
               base::ScopedFile perf_fd,
               std::vector<base::ScopedFile> followers_fds,
+              uint64_t timebase_stream_id,
+              std::vector<uint64_t> follower_stream_ids,
               std::optional<PerfRingBuffer> ring_buffer);
 
   ParsedSample ParseSampleRecord(uint32_t cpu, const char* record_start);
+  bool SetSingleReadValue(uint64_t stream_id,
+                          uint64_t count,
+                          CommonSampleData* sample) const;
 
   // All events are cpu-bound (thread-scoped events not supported).
   const uint32_t cpu_;
   const perf_event_attr event_attr_;
   base::ScopedFile perf_fd_;
   std::vector<base::ScopedFile> follower_fds_;
+  const uint64_t timebase_stream_id_;
+  const std::vector<uint64_t> follower_stream_ids_;
   // Ring buffer is absent if and only if we're polling counters.
   std::optional<PerfRingBuffer> ring_buffer_;
 };
