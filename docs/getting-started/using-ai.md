@@ -5,29 +5,32 @@ and
 [go/perfetto-ai-skills-android-memory](http://go/perfetto-ai-skills-android-memory)
 instead of this page.
 
-Perfetto ships an [agentskills.io](https://agentskills.io) skill for coding
-agents. It teaches an agent to invoke `trace_processor`, write PerfettoSQL,
-record traces on Android, and follow guided workflows for Android memory and
-GPU analysis. Each install bundles a `trace_processor` wrapper, so no separate
-binary is needed.
+The Perfetto AI skill is a [skill](https://agentskills.io) for coding agents
+such as Claude Code, Codex, OpenCode, Antigravity and Cursor. Point your agent
+at a trace and ask questions in plain English: it loads the trace into
+`trace_processor`, writes the PerfettoSQL and reports what it found. It can
+also record traces and follow guided workflows for Android memory and GPU
+analysis. The skill bundles `trace_processor`, so there is nothing else to
+install.
 
-The design is described in
-[RFC-0025](https://github.com/google/perfetto/discussions/5763) and
-[RFC-0026](https://github.com/google/perfetto/discussions/5892).
+## Quick start
 
-## Install
+### 1. Install the skill
 
 | Agent | Install |
 | ----- | ------- |
-| Claude Code | `/plugin marketplace add google/perfetto@ai-agents` |
-| Codex | `codex plugin marketplace add google/perfetto --ref ai-agents` |
+| Claude Code | `/plugin marketplace add google/perfetto@ai-agents`, then `/plugin install perfetto@perfetto` |
+| Codex | `codex plugin marketplace add google/perfetto --ref ai-agents`, then install `perfetto` from the plugin list |
 | OpenCode | Add to `opencode.json`: `"skills": { "urls": ["https://raw.githubusercontent.com/google/perfetto/ai-agents/plugins/perfetto/skills"] }` |
 | Other (Antigravity, Cursor, ...) | Use the fallback installer (below) |
 
-For any other agent, use the fallback installer (any platform with Python 3):
+For any other agent, use the fallback installer, which needs Python 3:
 
 ```bash
-# macOS / Linux
+# macOS / Linux: into an agent's default directory
+curl -fsSL https://get.perfetto.dev/agents-install | python3 - --agent <claude|codex|opencode|antigravity|pi>
+
+# macOS / Linux: into any skills directory, e.g. one committed to your repo
 curl -fsSL https://get.perfetto.dev/agents-install | python3 - --target <path>
 ```
 
@@ -36,13 +39,108 @@ curl -fsSL https://get.perfetto.dev/agents-install | python3 - --target <path>
 curl.exe -fsSL https://get.perfetto.dev/agents-install | python - --target <path>
 ```
 
-Pass `--agent <claude|codex|opencode|antigravity|pi>` instead of `--target` to
-install into that agent's default directory.
-
 To share the setup with your team, point `--target` at a per-agent directory
 in your repo (for example `.claude/`) and commit the result.
 
-### Offline install
+### 2. Ask about a trace
+
+Mention a trace file and ask your question:
+
+```
+> Investigate object retention and potential leaks in heap_dump.pftrace.
+```
+
+No trace yet? Let the agent record one:
+
+```
+> Record a Java heap dump of com.example.app from my connected device and
+  find what is keeping memory alive.
+```
+
+You do not need to mention the skill: the agent picks it up whenever the
+conversation involves a trace or a performance problem. In Claude Code you can
+also invoke it explicitly with `/perfetto:perfetto`.
+
+## Example prompts
+
+### Memory leaks and heap dumps
+
+Guided workflows for leaks, OOMs, churn and allocation hot paths.
+
+```
+> Investigate object retention and potential leaks in heap_dump.pftrace.
+
+> Why does com.example.app's Java heap keep growing? Compare before.pftrace
+  and after.pftrace.
+
+> Analyze native heap allocations and find memory growth hot paths in
+  native_heap.pftrace.
+
+> Which code paths allocate the most short-lived objects in
+  java_alloc.pftrace?
+
+> Here are 40 heap dumps of com.example.app in ~/dumps/. Cluster them and
+  find the common root causes.
+```
+
+The agent runs tested SQL to extract dominator paths, native callstacks or
+allocation summaries, then searches your workspace for the suspect classes and
+points at the files to fix. See
+[Using AI in the Android cookbook](android-trace-analysis.md#using-ai) for
+more.
+
+### Ad-hoc trace analysis
+
+Any question you could answer with PerfettoSQL.
+
+```
+> Load ~/traces/startup.pftrace and tell me which threads used the most CPU
+  in the first two seconds.
+
+> Why is app startup slow in startup.pftrace? Break down the main thread.
+
+> Find the top causes of uninterruptible sleep for com.example.myapp in
+  trace.pftrace.
+
+> Which frames were janky in jank.pftrace and what was the UI thread doing?
+```
+
+The agent discovers the tables and standard library modules it needs rather
+than guessing, and keeps the trace loaded across queries.
+
+### Recording
+
+Traces from a connected Android device or the local Linux machine.
+
+```
+> Record a 10 second trace of com.example.app starting up on my connected
+  device, then tell me what took the longest.
+```
+
+The agent picks a config from the bundled examples, records the trace and
+then analyses it.
+
+### GPU performance
+
+Is the workload GPU-bound or host-bound, and why. Counter support is deepest
+for NVIDIA/CUDA today.
+
+```
+> Is this workload GPU-bound or host-bound? The trace is at game.pftrace.
+
+> The GPU looks busy but the workload is slow. Was the clock throttled or
+  slow to ramp in gpu.pftrace?
+
+> Which kernels dominate this CUDA trace, and are they compute-bound or
+  memory-bound?
+```
+
+The agent splits the timeline into busy and idle time, attributes idle gaps to
+host-side causes, checks for DVFS ramp or thermal throttling, and for compute
+workloads classifies kernels against the hardware's compute and memory
+ceilings.
+
+## Offline install {#offline-install}
 
 Machines that can't reach github.com at install time can use the
 `perfetto-ai-skill.zip` asset attached to each
@@ -70,7 +168,7 @@ must come from the same release. On Windows the cache directory is
 `%USERPROFILE%\.local\share\perfetto\prebuilts` and the file is
 `trace_processor_shell-<sha256 prefix>.exe`.
 
-## Update
+## Updating
 
 Updating uses the same mechanism as installing:
 
@@ -85,46 +183,13 @@ New skill versions are published with each Perfetto release. The fallback
 installer installs the latest release by default; pass `--version vX.Y` to
 pin a specific one.
 
-## Ad-hoc trace analysis
+## Design
 
-Mention a trace file and ask your question; the agent loads the trace,
-discovers the schema, and writes the PerfettoSQL for you.
-
-```
-> Load ~/traces/startup.pftrace and tell me which threads used the most CPU
-  in the first two seconds.
-
-> Find the top causes of uninterruptible sleep for com.example.myapp in
-  trace.pftrace.
-```
-
-For Android-specific workflows (memory leak debugging, fleet-wide heap dump
-clustering, trace recording), see
-[Using AI in the Android cookbook](android-trace-analysis.md#using-ai).
-
-## Debugging GPU performance
-
-Guided workflows answering "is this workload GPU-bound or host-bound?", then
-drilling into whichever side is the problem. Deepest counter support is
-NVIDIA/CUDA today.
-
-```
-> Is this workload GPU-bound or host-bound? The trace is at
-  ~/traces/game.pftrace.
-
-> The GPU looks busy but the workload is slow. Was the clock throttled or
-  slow to ramp in gpu.pftrace?
-
-> Which kernels dominate this CUDA trace, and are they compute-bound or
-  memory-bound?
-```
-
-The agent inventories the GPUs, splits the timeline into busy vs idle time
-(attributing idle gaps to host-side causes), checks for DVFS ramp or thermal
-throttling, and for compute workloads classifies kernels against the
-hardware's compute and memory ceilings.
+The design is described in
+[RFC-0025](https://github.com/google/perfetto/discussions/5763) and
+[RFC-0026](https://github.com/google/perfetto/discussions/5892).
 
 ## Contributing
 
 To author or modify a skill, see
-[`ai/skills/README.md`](https://github.com/google/perfetto/blob/main/ai/skills/README.md).
+[`ai/skills/CONTRIBUTING.md`](https://github.com/google/perfetto/blob/main/ai/skills/CONTRIBUTING.md).
