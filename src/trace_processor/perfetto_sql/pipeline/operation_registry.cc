@@ -84,7 +84,10 @@ const OperationRegistration* FindOperationBySyntax(uint32_t syntax) {
   return nullptr;
 }
 
-void RunBoundPasses(BoundPlan* bound, const LoweringContext&) {
+void RunBoundPasses(BoundPlan* bound, const LoweringContext& context) {
+  // Choosing how a scan finds its rows can change their order, which later
+  // rewrites read, so it comes first. It reads nothing derived.
+  SearchScans(bound, context);
   std::vector<PlanNode>& nodes = bound->plan.nodes();
   bound->outputs.resize(nodes.size());
   // A node's inputs come before it, so a rewrite at a node sees all that is
