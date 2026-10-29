@@ -64,6 +64,8 @@ perfetto_unittest_source_set("unittests") {
     "../../gn:gtest_and_gmock",
     "../../protos/perfetto/protovm:lite",
     "../../protos/perfetto/protovm:zero",
+    "../../protos/perfetto/trace:zero",
+    "../../protos/third_party/android/frameworks/native/tracing/winscope:winscope_extensions_zero",
     "../base",
     "../base:test_support",
     "../protozero",
@@ -81,4 +83,20 @@ perfetto_unittest_source_set("unittests") {
     "test/utils.h",
     "test/vm_unittest.cc",
   ]
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":protovm",
+      "../../gn:benchmark",
+      "../../gn:default_deps",
+      "../../protos/perfetto/trace:zero",
+      "../base",
+      "../base:test_support",
+      "../protozero",
+    ]
+    sources = [ "vm_benchmark.cc" ]
+  }
 }
