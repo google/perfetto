@@ -47,6 +47,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
           CATEGORY: "Team Design Discussions"
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_RFC_WEBHOOK_URL }}
         run: |
           # Convert comma-separated list to array, properly handling spaces in filenames
           IFS=',' read -ra FILES <<< "${{ steps.changed-files.outputs.all_changed_files }}"

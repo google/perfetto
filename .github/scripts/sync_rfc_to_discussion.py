@@ -305,6 +305,45 @@ def add_discussion_comment(token, discussion_id, body):
     return data['addDiscussionComment']['comment']
 
 
+def extract_summary(content, max_len=400):
+    """Return the first prose paragraph after the first H2 heading."""
+    body = re.sub(r'```.*?```', '', content.split('\n## ', 1)[-1], flags=re.S)
+    paragraphs = re.split(r'\n\s*\n', body)
+    for p in paragraphs[1:]:
+        p = ' '.join(p.split())
+        if p and not p.startswith(('#', '|', '```', '-', '*', '!')):
+            return p if len(p) <= max_len else p[:max_len - 1] + '…'
+    return ''
+
+
+def announce_on_discord(title, content, url):
+    """Post a new RFC to Discord if DISCORD_WEBHOOK_URL is set."""
+    webhook = os.environ.get('DISCORD_WEBHOOK_URL')
+    if not webhook:
+        return
+    authors = re.search(r'^\*\*Authors?:\*\*\s*(.+)$', content, re.M)
+    description = extract_summary(content)
+    if authors:
+        description = f"**Authors:** {authors.group(1).strip()}\n\n{description}"
+    payload = {
+        'username': 'Perfetto RFCs',
+        'allowed_mentions': {
+            'parse': []
+        },
+        'embeds': [{
+            'title': title[:256],
+            'url': url,
+            'description': description,
+            'footer': {
+                'text': 'Discussion happens on GitHub'
+            },
+        }],
+    }
+    resp = requests.post(webhook, json=payload, timeout=30)
+    resp.raise_for_status()
+    print("Announced on Discord")
+
+
 def get_commit_sha_for_file(filepath, branch):
     """Get the current commit SHA for a file (for diff links)."""
     try:
@@ -433,6 +472,12 @@ def sync_rfc_to_discussion(github_token, repository, branch, rfc_file):
 
             print(f"✅ Created discussion for RFC-{rfc_number}")
             print(f"Discussion URL: {discussion['url']}")
+
+            try:
+                announce_on_discord(discussion_title, content,
+                                    discussion['url'])
+            except Exception as e:
+                print(f"Warning: Could not announce on Discord: {e}")
 
         return True
 
