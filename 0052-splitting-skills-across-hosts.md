@@ -63,6 +63,15 @@ provides: [query]
 adapter. google3 and Android CLI each add one. The adapter is the only file
 that differs between hosts.
 
+Adapters don't have to live in this repo. Google-internal, OEM and CI
+environments often mandate their own `trace_processor` and setup, and today
+`setup.md` can only tell the agent to "prefer that team-specific setup". Such
+an environment passes its own adapter to the generator
+(`--adapter <path>`) and gets the shared content with its setup in place of
+ours, without forking any content. A custom `trace_processor` build can also
+carry its adapter through the platform interface, as #5772 prototyped with
+`GetExtraAiAgents()`, so that installing from that binary picks it up.
+
 ### Files declare what they need
 
 Each content file lists the actions it needs beyond `query`:
