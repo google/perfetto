@@ -479,6 +479,20 @@ class TrackEventTracker {
   // interned, and so resolved, before its children.
   const DimensionVec& ResolveDimensions(uint64_t uuid);
 
+  // Writes the custom dimensions of the descriptor |uuid| (see
+  // |ResolveDimensions|) to the track dimension table for |track_id|, a track
+  // created for that descriptor.
+  void RecordTrackDimensions(uint64_t uuid, TrackId track_id);
+
+  // Returns the custom dimensions of the descriptor |uuid|: the ones of its
+  // parent plus the ones it declares itself. A declared value conflicting with
+  // an inherited one, or with one declared earlier on the same descriptor, is
+  // ignored and recorded as `track_dimension_conflicting_value`. This is
+  // computed once per descriptor, when its first track is created, so each bad
+  // declaration is only recorded once. The parent of a descriptor is always
+  // interned, and so resolved, before its children.
+  const DimensionVec& ResolveDimensions(uint64_t uuid);
+
   // Helper to record analysis errors with track_uuid arg
   void RecordTrackError(size_t stat_key, uint64_t track_uuid);
 
