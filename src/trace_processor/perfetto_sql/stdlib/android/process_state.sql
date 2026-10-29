@@ -29,43 +29,31 @@ CREATE PERFETTO TABLE _android_process_state_rank AS
 WITH
   r(state, rank) AS (
     VALUES
-      ('PROCESS_STATE_PERSISTENT', 0), ('PROCESS_STATE_PERSISTENT_UI', 1),
-      (
-        'PROCESS_STATE_TOP',
-        2
-      ), ('PROCESS_STATE_BOUND_TOP', 3), ('PROCESS_STATE_FOREGROUND_SERVICE', 4),
-      (
-        'PROCESS_STATE_BOUND_FOREGROUND_SERVICE',
-        5
-      ), ('PROCESS_STATE_IMPORTANT_FOREGROUND', 6),
-      (
-        'PROCESS_STATE_IMPORTANT_BACKGROUND',
-        7
-      ), ('PROCESS_STATE_TRANSIENT_BACKGROUND', 8), ('PROCESS_STATE_BACKUP', 9),
-      (
-        'PROCESS_STATE_SERVICE',
-        10
-      ), ('PROCESS_STATE_RECEIVER', 11), ('PROCESS_STATE_TOP_SLEEPING', 12),
-      (
-        'PROCESS_STATE_HEAVY_WEIGHT',
-        13
-      ), ('PROCESS_STATE_HOME', 14), ('PROCESS_STATE_LAST_ACTIVITY', 15),
-      (
-        'PROCESS_STATE_CACHED_ACTIVITY',
-        16
-      ), ('PROCESS_STATE_CACHED_ACTIVITY_CLIENT', 17),
-      (
-        'PROCESS_STATE_CACHED_RECENT',
-        18
-      ), ('PROCESS_STATE_CACHED_EMPTY', 19), ('PROCESS_STATE_NONEXISTENT', 20),
-      (
-        'EXITED',
-        21
-      ), ('PROCESS_STATE_UNSPECIFIED', 997),
-      (
-        'PROCESS_STATE_UNKNOWN_TO_PROTO',
-        998
-      ), ('PROCESS_STATE_UNKNOWN', 999)
+      ('PROCESS_STATE_PERSISTENT', 0),
+      ('PROCESS_STATE_PERSISTENT_UI', 1),
+      ('PROCESS_STATE_TOP', 2),
+      ('PROCESS_STATE_BOUND_TOP', 3),
+      ('PROCESS_STATE_FOREGROUND_SERVICE', 4),
+      ('PROCESS_STATE_BOUND_FOREGROUND_SERVICE', 5),
+      ('PROCESS_STATE_IMPORTANT_FOREGROUND', 6),
+      ('PROCESS_STATE_IMPORTANT_BACKGROUND', 7),
+      ('PROCESS_STATE_TRANSIENT_BACKGROUND', 8),
+      ('PROCESS_STATE_BACKUP', 9),
+      ('PROCESS_STATE_SERVICE', 10),
+      ('PROCESS_STATE_RECEIVER', 11),
+      ('PROCESS_STATE_TOP_SLEEPING', 12),
+      ('PROCESS_STATE_HEAVY_WEIGHT', 13),
+      ('PROCESS_STATE_HOME', 14),
+      ('PROCESS_STATE_LAST_ACTIVITY', 15),
+      ('PROCESS_STATE_CACHED_ACTIVITY', 16),
+      ('PROCESS_STATE_CACHED_ACTIVITY_CLIENT', 17),
+      ('PROCESS_STATE_CACHED_RECENT', 18),
+      ('PROCESS_STATE_CACHED_EMPTY', 19),
+      ('PROCESS_STATE_NONEXISTENT', 20),
+      ('EXITED', 21),
+      ('PROCESS_STATE_UNSPECIFIED', 997),
+      ('PROCESS_STATE_UNKNOWN_TO_PROTO', 998),
+      ('PROCESS_STATE_UNKNOWN', 999)
   )
 SELECT replace(state, 'PROCESS_STATE_', '') AS state, rank FROM r;
 
@@ -86,7 +74,7 @@ WITH
   ),
   all_events AS (
     SELECT
-      coalesce(s.ts, p.start_ts) AS ts,
+      coalesce(s.ts, s.state_start_ts, p.start_ts) AS ts,
       s.is_initial,
       s.upid,
       replace(s.proc_state, 'PROCESS_STATE_', '') AS cur_state,
@@ -169,8 +157,7 @@ SELECT
 FROM state_changes AS c
 JOIN process AS p USING (upid)
 LEFT JOIN android_process_metadata AS m USING (upid)
-LEFT JOIN _android_process_state_rank AS r
-  ON r.state = c.state
+LEFT JOIN _android_process_state_rank AS r ON r.state = c.state
 LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid);
 
 -- Number of processes concurrently in each framework process state over time.
@@ -188,5 +175,4 @@ SELECT
 FROM intervals_overlap_count_by_group!(
   _android_process_state_intervals, ts, dur, state
 ) AS c
-LEFT JOIN _android_process_state_rank AS r
-  ON r.state = c.group_name;
+LEFT JOIN _android_process_state_rank AS r ON r.state = c.group_name;

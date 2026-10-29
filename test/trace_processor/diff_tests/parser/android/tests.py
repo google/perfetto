@@ -429,6 +429,31 @@ class AndroidParser(TestSuite):
           2000,500,"PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",20,0
         """))
 
+  def test_android_process_state_start_ts(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_start_ts.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.proc_state,
+          t.is_initial,
+          t.state_start_ts
+        FROM __intrinsic_android_process_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts, t.reason;
+        """,
+        out=Csv("""
+          "ts","pid","proc_state","is_initial","state_start_ts"
+          "[NULL]",100,"PROCESS_STATE_TOP",1,500
+          "[NULL]",200,"PROCESS_STATE_TOP",1,800
+          2000,200,"PROCESS_STATE_IMPORTANT_FOREGROUND",0,"[NULL]"
+          3000,200,"PROCESS_STATE_CACHED_ACTIVITY",0,"[NULL]"
+          "[NULL]",300,"PROCESS_STATE_TOP",1,"[NULL]"
+          2000,300,"PROCESS_STATE_IMPORTANT_FOREGROUND",0,"[NULL]"
+          "[NULL]",400,"PROCESS_STATE_FOREGROUND_SERVICE",1,"[NULL]"
+        """))
+
   def test_android_freezer_state(self):
     return DiffTestBlueprint(
         trace=Path('android_process_state.textproto'),

@@ -71,6 +71,7 @@ class AndroidProcessStateTracker {
     std::optional<int32_t> proc_state;
     std::optional<int32_t> capability_flags;
     std::optional<int32_t> process_group;
+    std::optional<int64_t> start_ts;
   };
 
   // Information captured for freezer state from trace-stop dumps.

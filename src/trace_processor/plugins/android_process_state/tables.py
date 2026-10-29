@@ -46,6 +46,7 @@ ANDROID_PROCESS_STATE_TABLE = Table(
           CppOptional(CppUint32()),
           cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C('is_initial', CppUint32(), cpp_access=CppAccess.READ),
+        C('state_start_ts', CppOptional(CppInt64())),
     ],
     tabledoc=TableDoc(
         doc='Per-process state events from snapshots and track events.',
@@ -73,6 +74,11 @@ ANDROID_PROCESS_STATE_TABLE = Table(
                     joinable='args.arg_set_id'),
             'is_initial':
                 '1 for synthesized initial state row, 0 for change event.',
+            'state_start_ts':
+                'For initial rows: CLOCK_BOOTTIME timestamp at which the process '
+                'entered the initial proc_state (prev_proc_state_start_ns of the '
+                'earliest delta, else proc_state_start_ns of the trace-stop snapshot). '
+                'NULL if unknown or for change rows (whose start is ts).',
         },
     ),
 )

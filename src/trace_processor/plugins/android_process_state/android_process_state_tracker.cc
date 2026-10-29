@@ -105,6 +105,9 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   if (p.has_prev_process_group()) {
     prev.process_group = static_cast<int32_t>(p.prev_process_group());
   }
+  if (p.has_prev_proc_state_start_ns()) {
+    prev.start_ts = p.prev_proc_state_start_ns();
+  }
   UpdateInitialStateFromDelta(ts, prev);
 
   // Insert the change row.
@@ -179,6 +182,9 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
         rec.has_process_group()
             ? static_cast<int32_t>(rec.process_group())
             : static_cast<int32_t>(fb::ProcessGroup::PROCESS_GROUP_UNKNOWN);
+    if (rec.has_proc_state_start_ns()) {
+      v.start_ts = rec.proc_state_start_ns();
+    }
     process_dump_[v.upid] = v;
   }
 }
@@ -270,6 +276,7 @@ AndroidProcessStateTracker::ComputeInitialProcessStates() const {
     if (earliest.values.process_group.has_value()) {
       v.process_group = earliest.values.process_group;
     }
+    v.start_ts = earliest.values.start_ts;
   }
 
   return initial;
@@ -306,6 +313,7 @@ void AndroidProcessStateTracker::EmitInitialProcessStateRow(
         InternEnum(context_, process_group_cache_,
                    ".com.android.internal.ProcessGroup", *v.process_group);
   }
+  row.state_start_ts = v.start_ts;
   auto id = process_state_table_->Insert(row).id;
   if (row.capability_flags.has_value()) {
     AddCapabilityFlagsArgs(id, *row.capability_flags);
