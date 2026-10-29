@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@use "../common" as c;
 // Callout strip: a leading icon plus a one-line message, tinted by intent.
 // Mirrors the colour treatment of the shared `widgets/callout` Callout
 // (pf-color-primary/success/warning/danger via the `pf-intent-*` classes), with
@@ -30,7 +31,7 @@
   padding: 10px 14px;
   background: var(--pf-color-background-secondary);
   border: solid 1px color-mix(in srgb, currentColor, transparent 50%);
-  border-radius: 8px;
+  border-radius: c.$memscope-section-radius;
   font-size: var(--pf-font-size-s);
 
   & > .pf-left-icon {

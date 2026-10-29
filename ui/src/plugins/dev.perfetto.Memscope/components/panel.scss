@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@use "../common" as c;
 .pf-memscope-panel {
-  border-radius: 8px;
+  border-radius: c.$memscope-section-radius;
   background: var(--pf-col-surface);
   border: 0.5px solid var(--pf-col-border);
   box-shadow:
@@ -28,7 +29,7 @@
 }
 
 .pf-memscope-panel__header {
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--pf-col-border);
 
   h2 {
@@ -48,6 +49,7 @@
 
 .pf-memscope-panel__controls {
   display: flex;
+  align-items: baseline;
   gap: 8px;
   flex-wrap: wrap;
   flex-shrink: 0;
@@ -55,7 +57,7 @@
 }
 
 .pf-memscope-panel__body {
-  padding: 12px;
+  padding: 10px;
 }
 
 // Content fades in when it mounts. The body keeps its DOM node across the
@@ -73,7 +75,7 @@
 }
 
 .pf-memscope-panel__body > * {
-  animation: pf-memscope-body-fade 0.3s ease-out both;
+  animation: pf-memscope-body-fade 0.12s ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {
