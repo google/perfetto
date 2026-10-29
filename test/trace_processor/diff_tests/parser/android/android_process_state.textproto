@@ -1,6 +1,6 @@
 # Exercises the android_process_state plugin: AndroidProcessStateSnapshot,
 # AndroidFreezerStateSnapshot dump packets, and incremental track events
-# (process_state_changed_event and freezer_event).
+# (process_state_changed_event, freezer_event, and process_group_changed_event).
 
 packet {
   timestamp: 500
@@ -64,6 +64,21 @@ packet {
       unfrozen_dur_ms: 100
       frozen_dur_ms: 300
       unfreeze_reason: UFR_BIND_SERVICE
+    }
+  }
+}
+# Track event for process 200: process group change event.
+packet {
+  timestamp: 3500
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "set_process_group"
+    [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+      pid: 200
+      uid: 10002
+      cur_process_group: PROCESS_GROUP_DEFAULT
     }
   }
 }
@@ -173,6 +188,20 @@ packet {
       unfrozen_dur_ms: 10
       frozen_dur_ms: 20
       unfreeze_reason: UFR_BIND_SERVICE
+    }
+  }
+}
+packet {
+  timestamp: 2500
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "set_process_group"
+    [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+      pid: 999
+      uid: 10999
+      cur_process_group: PROCESS_GROUP_DEFAULT
     }
   }
 }

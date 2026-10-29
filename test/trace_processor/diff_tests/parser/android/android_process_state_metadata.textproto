@@ -119,6 +119,20 @@ packet {
     }
   }
 }
+# Process 400: process group change event, likewise resolved via the START dump.
+packet {
+  timestamp: 2600000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "set_process_group"
+    [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+      pid: 400
+      uid: 40001
+      cur_process_group: PROCESS_GROUP_DEFAULT
+    }
+  }
+}
 # Process 400: Pre-existing process dies mid-trace before DUMP_REASON_END.
 packet {
   timestamp: 3000000000
