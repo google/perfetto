@@ -4037,6 +4037,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/plan_serialization.cc",
         "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h",
         "src/trace_processor/perfetto_sql/pipeline/plan_types.h",
+        "src/trace_processor/perfetto_sql/pipeline/row_order.cc",
+        "src/trace_processor/perfetto_sql/pipeline/row_order.h",
     ],
 )
 

@@ -52,6 +52,8 @@ source_set("plan") {
     "plan_serialization.cc",
     "plan_serialization.h",
     "plan_types.h",
+    "row_order.cc",
+    "row_order.h",
   ]
   deps = [
     "../../../../gn:default_deps",
