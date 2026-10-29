@@ -192,6 +192,12 @@ export class Time {
     return Time.toMicros(time).toString() + ' µs';
   }
 
+  // Format as a compact list of units relative to zero, e.g. "1h2m3s4ms".
+  static formatCompact(time: time): string {
+    const sign = time < 0 ? '-' : '';
+    return sign + Duration.format(BigintMath.abs(time), '');
+  }
+
   static toTimecode(time: time): Timecode {
     return new Timecode(time);
   }
@@ -295,7 +301,7 @@ export class Duration {
   }
 
   // Print duration with absolute precision.
-  static format(duration: duration): string {
+  static format(duration: duration, separator = ' '): string {
     let result = '';
     if (duration < 1) return '0s';
     const unitAndValue: [string, bigint][] = [
@@ -311,11 +317,11 @@ export class Duration {
     unitAndValue.forEach(([unit, unitSize]) => {
       if (duration >= unitSize) {
         const unitCount = duration / unitSize;
-        result += unitCount.toLocaleString() + unit + ' ';
+        result += unitCount.toLocaleString() + unit + separator;
         duration = duration % unitSize;
       }
     });
-    return result.slice(0, -1);
+    return result.slice(0, result.length - separator.length);
   }
 
   static formatSeconds(dur: duration): string {
