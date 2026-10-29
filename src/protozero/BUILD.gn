@@ -168,3 +168,13 @@ if (enable_perfetto_benchmarks) {
     ]
   }
 }
+
+if (perfetto_build_standalone) {
+  test("perfetto_protozero_unittests") {
+    deps = [
+      ":unittests",
+      "../../gn:default_deps",
+      "../../gn:gtest_main",
+    ]
+  }
+}
