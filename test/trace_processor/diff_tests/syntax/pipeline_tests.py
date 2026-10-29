@@ -467,6 +467,46 @@ class PerfettoPipeline(TestSuite):
         """,
         out=ExpectedError('aggregate AVG is not supported yet'))
 
+  # JOIN, INTERVAL MERGE and INTERVALS FROM EVENTS parse, but nothing lowers
+  # them yet.
+  def test_join_is_not_supported_yet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 1 AS id) |> LEFT JOIN (SELECT 1 AS id) AS t USING (id);
+        """,
+        out=ExpectedError('JOIN is not supported yet'))
+
+  def test_join_needs_on_or_using(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 1 AS id) |> JOIN (SELECT 1 AS id) AS t;
+        """,
+        out=ExpectedError('JOIN needs ON or USING'))
+
+  def test_interval_merge_is_not_supported_yet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 0 AS ts, 1 AS dur)
+        |> INTERVAL MERGE OVERLAPPING AGGREGATE COUNT(*) AS n;
+        """,
+        out=ExpectedError('INTERVAL MERGE is not supported yet'))
+
+  def test_intervals_from_events_is_not_supported_yet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 0 AS ts, 1 AS cpu)
+        |> INTERVALS FROM EVENTS PER cpu CLOSING LAST AT (10);
+        """,
+        out=ExpectedError('INTERVALS FROM EVENTS is not supported yet'))
+
   # Must match SQL's LIMIT and OFFSET after an ORDER BY, which the LIMIT
   # keeps in front of it.
   def test_limit_matches_sql(self):
