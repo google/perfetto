@@ -218,6 +218,11 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
                    static_cast<int32_t>(evt.unfreeze_reason()));
   }
   row.is_initial = 0;
+  if (evt.has_unfrozen_start_ns()) {
+    row.state_start_ts = evt.unfrozen_start_ns();
+  } else if (evt.has_frozen_start_ns()) {
+    row.state_start_ts = evt.frozen_start_ns();
+  }
   freezer_state_table_->Insert(row);
 }
 
@@ -236,16 +241,26 @@ void AndroidProcessStateTracker::ParseFreezerDump(protozero::ConstBytes blob) {
     }
     FreezerStateValues v;
     v.upid = *opt_upid;
-    // If the process is unfrozen in the dump, has_unfrozen_dur_ms() is true.
+    // If the process is unfrozen in the dump, has_unfrozen_start_ns() is true,
+    // or has_unfrozen_dur_ms() is true without has_frozen_start_ns() for older
+    // dumps.
     // Note: android.util.proto.ProtoOutputStream omits 0 values during
     // serialization, so an unset unfreeze_reason on an unfrozen process
     // represents UFR_NONE (0). When the process is frozen, unfreeze_reason is
     // left as std::nullopt so the initial row has NULL.
-    if (rec.has_unfrozen_dur_ms()) {
+    const bool unfrozen =
+        rec.has_unfrozen_start_ns() ||
+        (!rec.has_frozen_start_ns() && rec.has_unfrozen_dur_ms());
+    if (unfrozen) {
       v.unfreeze_reason =
           rec.has_unfreeze_reason()
               ? static_cast<int32_t>(rec.unfreeze_reason())
               : static_cast<int32_t>(fb::UnfreezeReason::UFR_NONE);
+    }
+    if (rec.has_frozen_start_ns()) {
+      v.start_ts = rec.frozen_start_ns();
+    } else if (rec.has_unfrozen_start_ns()) {
+      v.start_ts = rec.unfrozen_start_ns();
     }
     freezer_dump_[v.upid] = v;
   }
@@ -356,6 +371,7 @@ void AndroidProcessStateTracker::EmitInitialFreezerRow(
   row.unfrozen_dur_ms = std::nullopt;
   row.frozen_dur_ms = std::nullopt;
   row.is_initial = 1;
+  row.state_start_ts = v.start_ts;
   if (v.unfreeze_reason.has_value()) {
     row.unfreeze_reason =
         InternEnum(context_, unfreeze_reason_cache_,

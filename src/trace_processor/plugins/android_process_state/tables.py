@@ -100,6 +100,7 @@ ANDROID_FREEZER_STATE_TABLE = Table(
           CppOptional(CppString()),
           cpp_access=CppAccess.READ),
         C('is_initial', CppUint32(), cpp_access=CppAccess.READ),
+        C('state_start_ts', CppOptional(CppInt64())),
     ],
     tabledoc=TableDoc(
         doc='Process freezer events from snapshots and track events.',
@@ -117,6 +118,12 @@ ANDROID_FREEZER_STATE_TABLE = Table(
                 'Reason for unfreezing.',
             'is_initial':
                 '1 for synthesized initial state row, 0 for track event.',
+            'state_start_ts':
+                'For initial rows: CLOCK_BOOTTIME timestamp at which the process '
+                'entered its current state (frozen_start_ns or unfrozen_start_ns '
+                'from snapshot). For event rows: CLOCK_BOOTTIME timestamp at which '
+                'the previous state began (unfrozen_start_ns on freeze, '
+                'frozen_start_ns on unfreeze). NULL if unknown.',
         },
     ),
 )

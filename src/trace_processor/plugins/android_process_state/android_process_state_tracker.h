@@ -78,6 +78,7 @@ class AndroidProcessStateTracker {
   struct FreezerStateValues {
     UniquePid upid = 0;
     std::optional<int32_t> unfreeze_reason;
+    std::optional<int64_t> start_ts;
   };
 
   // Tracks the state before the first observed change (prev_*) for a process,

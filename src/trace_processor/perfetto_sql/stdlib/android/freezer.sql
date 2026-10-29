@@ -199,8 +199,7 @@ WITH
       extract_arg(s.arg_set_id, 'app_freeze_changed.time_unfrozen_millis') AS time_unfrozen_millis,
       extract_arg(s.arg_set_id, 'app_freeze_changed.unfreeze_reason_v2') AS unfreeze_reason
     FROM slice AS s
-    JOIN track AS t
-      ON s.track_id = t.id
+    JOIN track AS t ON s.track_id = t.id
     WHERE
       t.name = 'Statsd Atoms'
       AND s.name = 'app_freeze_changed'
@@ -239,6 +238,7 @@ WITH
     SELECT
       upid,
       ts,
+      state_start_ts,
       iif(unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state,
       lag(ts) OVER (PARTITION BY upid ORDER BY ts) AS prev_ts,
       lead(ts) OVER (PARTITION BY upid ORDER BY ts) AS next_ts
@@ -265,8 +265,8 @@ WITH
     -- Before its first event a process was in the opposite state.
     SELECT
       e.upid,
-      l.birth AS ts,
-      e.ts - l.birth AS dur,
+      coalesce(e.state_start_ts, l.birth) AS ts,
+      e.ts - coalesce(e.state_start_ts, l.birth) AS dur,
       iif(e.state = 'FROZEN', 'UNFROZEN', 'FROZEN') AS state
     FROM events AS e
     JOIN lifetimes AS l USING (upid)
@@ -276,8 +276,8 @@ WITH
     -- Processes without events kept their trace-stop state throughout.
     SELECT
       s.upid,
-      l.birth AS ts,
-      iif(l.death IS NULL, -1, l.death - l.birth) AS dur,
+      coalesce(s.state_start_ts, l.birth) AS ts,
+      iif(l.death IS NULL, -1, l.death - coalesce(s.state_start_ts, l.birth)) AS dur,
       iif(s.unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state
     FROM __intrinsic_android_freezer_state AS s
     JOIN lifetimes AS l USING (upid)

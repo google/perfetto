@@ -853,6 +853,14 @@ message AndroidFreezerEvent {
 
   // Unfreeze reason.
   optional UnfreezeReason unfreeze_reason = 5;
+
+  // On freeze: timestamp (CLOCK_BOOTTIME, nanoseconds) at which the process
+  // was last unfrozen, or started if it was never frozen.
+  optional int64 unfrozen_start_ns = 6;
+
+  // On unfreeze: timestamp (CLOCK_BOOTTIME, nanoseconds) at which the process
+  // was frozen.
+  optional int64 frozen_start_ns = 7;
 }
 
 message AndroidProcessStartEvent {

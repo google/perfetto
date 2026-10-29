@@ -162,6 +162,12 @@ message AndroidFreezerStateSnapshot {
     optional int64 frozen_dur_ms = 4;
     // Unfreeze reason.
     optional UnfreezeReason unfreeze_reason = 5;
+    // Timestamp (CLOCK_BOOTTIME, nanoseconds) at which the process was last
+    // unfrozen, or started if it was never frozen. Set if not frozen.
+    optional int64 unfrozen_start_ns = 6;
+    // Timestamp (CLOCK_BOOTTIME, nanoseconds) at which the process was
+    // frozen. Set if frozen.
+    optional int64 frozen_start_ns = 7;
   }
   repeated Record record = 1;
 }

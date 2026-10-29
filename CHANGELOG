@@ -2,6 +2,9 @@ Unreleased:
   Tracing service and probes:
    * Added an s390x syscall table.
   Trace Processor:
+   * `__intrinsic_android_freezer_state` and `_android_freezer_intervals` now
+     bound freezer states using `frozen_start_ns` / `unfrozen_start_ns` from
+     system_server, and use them to reliably detect frozen processes in dumps.
    * `__intrinsic_android_process_state` and
      `_android_process_state_intervals` now bound the initial proc_state using
      `proc_state_start_ns` / `prev_proc_state_start_ns` from system_server.

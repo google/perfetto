@@ -478,6 +478,33 @@ class AndroidParser(TestSuite):
           "[NULL]",800,"[NULL]","[NULL]","[NULL]",1
         """))
 
+  def test_android_freezer_state_start_ts(self):
+    return DiffTestBlueprint(
+        trace=Path('../../stdlib/android/freezer_start_ts.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.unfrozen_dur_ms,
+          t.frozen_dur_ms,
+          t.unfreeze_reason,
+          t.is_initial,
+          t.state_start_ts
+        FROM __intrinsic_android_freezer_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts, t.is_initial DESC;
+        """,
+        out=Csv("""
+          "ts","pid","unfrozen_dur_ms","frozen_dur_ms","unfreeze_reason","is_initial","state_start_ts"
+          "[NULL]",100,"[NULL]","[NULL]","[NULL]",1,600
+          "[NULL]",200,"[NULL]","[NULL]","UFR_NONE",1,800
+          "[NULL]",300,"[NULL]","[NULL]","UFR_ACTIVITY",1,5000
+          3000,300,"[NULL]","[NULL]","[NULL]",0,1500
+          5000,300,"[NULL]","[NULL]","UFR_ACTIVITY",0,3000
+          "[NULL]",400,"[NULL]","[NULL]","[NULL]",1,"[NULL]"
+          "[NULL]",500,"[NULL]","[NULL]","UFR_PING",1,"[NULL]"
+        """))
+
   def test_android_process_state_metadata(self):
     return DiffTestBlueprint(
         trace=Path('android_process_state_metadata.textproto'),

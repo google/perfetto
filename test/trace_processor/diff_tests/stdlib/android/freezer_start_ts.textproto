@@ -1,0 +1,94 @@
+# Exercises frozen_start_ns and unfrozen_start_ns bounding of freezer state:
+# - PID 100: dump-only frozen process with frozen_start_ns (600).
+# - PID 200: dump-only unfrozen process with unfrozen_start_ns (800) and no
+#            unfrozen_dur_ms (dropped zero test; detected as UNFROZEN with UFR_NONE).
+# - PID 300: freeze event with unfrozen_start_ns (1500), followed by unfreeze event
+#            with frozen_start_ns (3000).
+# - PID 400: older-format dump-only frozen process (frozen_dur_ms only, no start_ns).
+# - PID 500: older-format dump-only unfrozen process (unfrozen_dur_ms only, no start_ns).
+
+packet {
+  timestamp: 1000
+  process_tree {
+    processes { pid: 100 ppid: 1 cmdline: "proc100" }
+    processes { pid: 200 ppid: 1 cmdline: "proc200" }
+    processes { pid: 300 ppid: 1 cmdline: "proc300" }
+    processes { pid: 400 ppid: 1 cmdline: "proc400" }
+    processes { pid: 500 ppid: 1 cmdline: "proc500" }
+  }
+}
+packet {
+  timestamp: 1000
+  track_descriptor {
+    uuid: 2
+    thread {
+      pid: 300
+      tid: 300
+      thread_name: "main"
+    }
+  }
+}
+# Track event for PID 300: freeze event at 3000 with unfrozen_start_ns = 1500.
+packet {
+  timestamp: 3000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "freezer_event"
+    [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+      pid: 300
+      uid: 10003
+      unfrozen_start_ns: 1500
+    }
+  }
+}
+# Track event for PID 300: unfreeze event at 5000 with frozen_start_ns = 3000.
+packet {
+  timestamp: 5000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "freezer_event"
+    [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+      pid: 300
+      uid: 10003
+      frozen_start_ns: 3000
+      unfreeze_reason: UFR_ACTIVITY
+    }
+  }
+}
+# Trace-stop freezer dump at 10000.
+packet {
+  timestamp: 10000
+  [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
+    record {
+      pid: 100
+      uid: 10001
+      frozen_start_ns: 600
+    }
+    record {
+      pid: 200
+      uid: 10002
+      unfrozen_start_ns: 800
+    }
+    record {
+      pid: 300
+      uid: 10003
+      unfrozen_start_ns: 5000
+      unfreeze_reason: UFR_ACTIVITY
+    }
+    record {
+      pid: 400
+      uid: 10004
+      frozen_dur_ms: 600
+    }
+    record {
+      pid: 500
+      uid: 10005
+      unfrozen_dur_ms: 50
+      unfreeze_reason: UFR_PING
+    }
+  }
+}
