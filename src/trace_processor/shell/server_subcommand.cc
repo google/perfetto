@@ -279,6 +279,19 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
 
   if (mode == "http") {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
+    // Secure-by-default: the HTTP RPC server executes SQL received from any
+    // client that can connect to it (e.g. the Perfetto UI over the local
+    // loopback), so it must not also expose the filesystem.
+    // --allow-sql-file-access is documented as unsafe to enable for
+    // untrusted SQL; refuse the combination here. If you need filesystem
+    // access from SQL, use a non-server subcommand (e.g. `query`) instead.
+    if (config.enable_sql_file_access) {
+      return base::ErrStatus(
+          "--allow-sql-file-access cannot be combined with the HTTP RPC "
+          "server (`server http` / --httpd), which executes SQL received "
+          "from connecting clients. Run SQL that needs filesystem access "
+          "via a non-server subcommand (e.g. `query`) instead.");
+    }
     std::vector<std::string> additional_cors_origins;
     if (!additional_cors_origins_str_.empty()) {
       additional_cors_origins =
