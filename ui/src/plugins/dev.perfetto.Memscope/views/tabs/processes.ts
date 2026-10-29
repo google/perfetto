@@ -213,19 +213,18 @@ function buildOomScoreTimeSeries(
   const timestamps = [...tsSet].sort((a, b) => a - b);
   if (timestamps.length < 2) return undefined;
   const pointsByBucket = new Map<number, {x: number; y: number}[]>();
-  for (let i = 0; i < OOM_SCORE_BUCKETS.length; i++) pointsByBucket.set(i, []);
+  for (const [i] of OOM_SCORE_BUCKETS.entries()) pointsByBucket.set(i, []);
   for (const ts of timestamps) {
     const x = (ts - t0) / 1e9;
     const bucketMap = byBucketTs.get(ts)!;
-    for (let i = 0; i < OOM_SCORE_BUCKETS.length; i++) {
-      pointsByBucket.get(i)!.push({x, y: bucketMap.get(i) ?? 0});
+    for (const [i, points] of pointsByBucket) {
+      points.push({x, y: bucketMap.get(i) ?? 0});
     }
   }
   const series: LineChartSeries[] = [];
-  for (let i = 0; i < OOM_SCORE_BUCKETS.length; i++) {
-    const points = pointsByBucket.get(i)!;
-    if (points.some((p) => p.y > 0)) {
-      const bucket = OOM_SCORE_BUCKETS[i]!;
+  for (const [i, bucket] of OOM_SCORE_BUCKETS.entries()) {
+    const points = pointsByBucket.get(i);
+    if (points !== undefined && points.some((p) => p.y > 0)) {
       series.push({name: bucket.name, points, color: chipColor(bucket.color)});
     }
   }

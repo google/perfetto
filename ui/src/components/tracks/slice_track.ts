@@ -928,8 +928,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const tsCol = cols.__ts;
     const countCol = cols.__count;
     const depthCol = cols.__depth;
-    const schemaKeys = Object.keys(dataset.schema);
-    const schemaCols = schemaKeys.map((k) => cols[k]!);
+    const schema = Object.keys(dataset.schema).map(
+      (k) => [k, cols[k]] as const,
+    );
     const xs = new Float32Array(tsCol);
     const depths = new Uint16Array(depthCol);
 
@@ -944,7 +945,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       // would change the track API.
       // TODO(stevegolton): Change the getTitle(), getSubtitle(), getColor()
       // callbacks to avoid having to build a row object for every row.
-      const row = this.buildSchemaRow(schemaKeys, schemaCols, i);
+      const row = this.buildSchemaRow(schema, i);
       const title = this.getTitle(row);
       const subtitle = this.getSubtitle(row);
       const colorScheme = this.getColor(row, title);
@@ -1037,8 +1038,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const countCol = cols.__count;
     const depthCol = cols.__depth;
     const incompleteCol = cols.__incomplete;
-    const schemaKeys = Object.keys(dataset.schema);
-    const schemaCols = schemaKeys.map((k) => cols[k]!);
+    const schema = Object.keys(dataset.schema).map(
+      (k) => [k, cols[k]] as const,
+    );
 
     const starts = new Float32Array(startCol);
     const ends = new Float32Array(count);
@@ -1052,7 +1054,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         if (task.shouldYield()) await task.yield();
       }
 
-      const row = this.buildSchemaRow(schemaKeys, schemaCols, i);
+      const row = this.buildSchemaRow(schema, i);
       const title = this.getTitle(row);
       const subtitle = this.getSubtitle(row);
       const colorScheme = this.getColor(row, title);
@@ -1085,16 +1087,18 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     };
   }
 
-  // Reads the dataset.schema columns out of the decoded columnar arrays (cols[k]
-  // holds the data for schema key k) into a per-row object for the callbacks.
+  // Reads the dataset.schema columns out of the decoded columnar arrays into a
+  // per-row object for the callbacks. `schema` pairs each schema key with its
+  // column; it is zipped once per decode so this per-row hot loop allocates
+  // nothing.
   private buildSchemaRow(
-    keys: readonly string[],
-    cols: readonly ArrayLike<SqlValue>[],
+    schema: readonly (readonly [string, ArrayLike<SqlValue> | undefined])[],
     i: number,
   ): InferRowType<T> {
     const row: Record<string, SqlValue> = {};
-    for (let k = 0; k < keys.length; k++) {
-      row[keys[k]!] = cols[k]![i]!;
+    for (const [key, col] of schema) {
+      // A missing value is normalised to null, as SQL has no undefined.
+      row[key] = col?.[i] ?? null;
     }
     return row as InferRowType<T>;
   }
@@ -1145,7 +1149,8 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     if (hoveredSlice || highlightedSliceName !== undefined) {
       const hoveredSliceId = hoveredSlice?.id;
       const hoveredTitle = highlightedSliceName;
-      // Index based iteration is more efficient than .map
+      // Hot path (every frame): indexed iteration avoids the per-iteration
+      // pair allocation of `.entries()`. `i` is provably in range.
       for (let i = 0; i < slices.length; i++) {
         const {id, title} = slices[i]!;
         variants[i] =
