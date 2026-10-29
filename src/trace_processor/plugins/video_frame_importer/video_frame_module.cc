@@ -40,12 +40,15 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.pbzero.h"
 
 namespace perfetto::trace_processor {
 
 using ::com::android::internal::pbzero::FrameworksBaseTracePacket;
+using ::com::android::internal::pbzero::FrameworksNativeTracePacket;
 using ::com::android::internal::pbzero::VideoFrame;
 using ::com::android::internal::pbzero::VideoFrameError;
+using ::com::android::internal::pbzero::VirtualDisplayComposite;
 using ::perfetto::protos::pbzero::TracePacket;
 
 VideoFrameModule::VideoFrameModule(ProtoImporterModuleContext* mc,
@@ -58,6 +61,8 @@ VideoFrameModule::VideoFrameModule(ProtoImporterModuleContext* mc,
       au_data_(au_data) {
   RegisterForField(FrameworksBaseTracePacket::kVideoFrameFieldNumber);
   RegisterForField(FrameworksBaseTracePacket::kVideoFrameErrorFieldNumber);
+  RegisterForField(
+      FrameworksNativeTracePacket::kVirtualDisplayCompositeFieldNumber);
 }
 
 VideoFrameModule::~VideoFrameModule() = default;
@@ -99,6 +104,11 @@ void VideoFrameModule::ParseField(const ParseFieldArgs& args) {
       ParseVideoFrameError(
           args.field.Cast<FrameworksBaseTracePacket::kVideoFrameError>(),
           args.ts);
+      break;
+    case FrameworksNativeTracePacket::kVirtualDisplayCompositeFieldNumber:
+      ParseVirtualDisplayComposite(
+          args.field
+              .Cast<FrameworksNativeTracePacket::kVirtualDisplayComposite>());
       break;
     default:
       break;
@@ -174,11 +184,17 @@ void VideoFrameModule::ParseVideoFrame(protozero::ConstBytes bytes,
   }
   info.emitted_bytes += static_cast<int64_t>(payload.size);
 
-  auto id = table_->Insert(row).id.value;
+  auto id_and_row = table_->Insert(row);
+  auto id = id_and_row.id.value;
   // Signal frame output to trace doctor (see TraceStorage).
   context_->storage->set_has_android_video_frames();
   // au_data is parallel to the table, indexed by row id.
   PERFETTO_DCHECK(id == au_data_->size());
+  // Remember access units with a pts, so OnEventsFullyExtracted can link them
+  // to the composite with the same present time.
+  if (row.pts_us.has_value()) {
+    row_pts_us_.emplace_back(id_and_row.row, *row.pts_us);
+  }
   const TraceBlobView& packet = data.packet;
   const uint8_t* base = packet.blob()->data();
   PERFETTO_DCHECK(payload.data >= base &&
@@ -226,6 +242,66 @@ void VideoFrameModule::ParseVideoFrameError(protozero::ConstBytes bytes,
         inserter.AddArg(context_->storage->InternString("display_id"),
                         Variadic::UnsignedInteger(display_id));
       });
+}
+
+void VideoFrameModule::ParseVirtualDisplayComposite(
+    protozero::ConstBytes bytes) {
+  VirtualDisplayComposite::Decoder composite(bytes);
+  if (!composite.has_present_time_us() || !composite.has_vsync_id()) {
+    return;
+  }
+  // A negative vsync id is SurfaceFlinger's INVALID_VSYNC_ID (-1): the
+  // composite had no pacing vsync, so there's no frame timeline to link to.
+  if (composite.vsync_id() < 0) {
+    return;
+  }
+  // present_time_us is the queued buffer's timestamp, which the encoder
+  // normally carries through as the frame's pts, so it's the join key.
+  // display_id is SurfaceFlinger's id for the virtual display, which is
+  // unrelated to VideoFrame.display_id, so it can't narrow the match.
+  auto [info, inserted] = composites_by_present_us_.Insert(
+      composite.present_time_us(), CompositeInfo{composite.vsync_id()});
+  if (!inserted && info->vsync_id != composite.vsync_id()) {
+    info->conflicting = true;
+  }
+  info->count++;
+}
+
+void VideoFrameModule::OnEventsFullyExtracted() {
+  if (composites_by_present_us_.size() == 0) {
+    return;
+  }
+  for (const auto& [row, pts_us] : row_pts_us_) {
+    CompositeInfo* info = composites_by_present_us_.Find(pts_us);
+    if (!info) {
+      continue;
+    }
+    info->matched = true;
+    // With conflicting vsync ids there's no telling which composite produced
+    // this frame, so leave it unlinked rather than guess.
+    if (!info->conflicting) {
+      (*table_)[row].set_frame_timeline_vsync_id(info->vsync_id);
+    }
+  }
+  int64_t unmatched_composites = 0;
+  int64_t ambiguous_present_times = 0;
+  for (auto it = composites_by_present_us_.GetIterator(); it; ++it) {
+    const CompositeInfo& info = it.value();
+    if (!info.matched) {
+      unmatched_composites += info.count;
+    } else if (info.conflicting) {
+      ambiguous_present_times++;
+    }
+  }
+  if (unmatched_composites > 0) {
+    context_->stats_tracker->IncrementStats(
+        stats::android_video_vsync_composite_unmatched, unmatched_composites);
+  }
+  if (ambiguous_present_times > 0) {
+    context_->stats_tracker->IncrementStats(
+        stats::android_video_vsync_present_time_ambiguous,
+        ambiguous_present_times);
+  }
 }
 
 }  // namespace perfetto::trace_processor
