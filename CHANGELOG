@@ -10,6 +10,9 @@ Unreleased:
      and `authoritative_trigger` packets, reporting the effective trigger
      mode of the session.
   Trace Processor:
+   * `__intrinsic_android_process_state` and
+     `_android_process_state_intervals` now bound the initial proc_state using
+     `proc_state_start_ns` / `prev_proc_state_start_ns` from system_server.
    * The `trace_trigger` metadata is now taken from the
      `authoritative_trigger` packet, when present. Older traces fall back on
      the previous logic.
