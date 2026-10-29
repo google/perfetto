@@ -128,13 +128,11 @@ class PERFETTO_EXPORT_COMPONENT Message {
     if (nested_message_)
       EndNestedMessage();
 
-    uint8_t buffer[proto_utils::kMaxSimpleFieldEncodedSize];
-    uint8_t* pos = buffer;
-
-    pos = proto_utils::WriteVarInt(proto_utils::MakeTagVarInt(field_id), pos);
-    // WriteVarInt encodes signed values in two's complement form.
-    pos = proto_utils::WriteVarInt(value, pos);
-    WriteToStream(buffer, pos);
+    WriteSimpleField([field_id, value](uint8_t* pos) {
+      pos = proto_utils::WriteVarInt(proto_utils::MakeTagVarInt(field_id), pos);
+      // WriteVarInt encodes signed values in two's complement form.
+      return proto_utils::WriteVarInt(value, pos);
+    });
   }
 
   // Proto types: sint64, sint32.
@@ -150,12 +148,12 @@ class PERFETTO_EXPORT_COMPONENT Message {
     if (nested_message_)
       EndNestedMessage();
 
-    uint8_t buffer[proto_utils::kMaxSimpleFieldEncodedSize];
-    uint8_t* pos = buffer;
-    // MakeTagVarInt gets super optimized here for constexpr.
-    pos = proto_utils::WriteVarInt(proto_utils::MakeTagVarInt(field_id), pos);
-    *pos++ = static_cast<uint8_t>(value);
-    WriteToStream(buffer, pos);
+    WriteSimpleField([field_id, value](uint8_t* pos) {
+      // MakeTagVarInt gets super optimized here for constexpr.
+      pos = proto_utils::WriteVarInt(proto_utils::MakeTagVarInt(field_id), pos);
+      *pos++ = static_cast<uint8_t>(value);
+      return pos;
+    });
   }
 
   // Proto types: fixed64, sfixed64, fixed32, sfixed32, double, float.
@@ -164,15 +162,13 @@ class PERFETTO_EXPORT_COMPONENT Message {
     if (nested_message_)
       EndNestedMessage();
 
-    uint8_t buffer[proto_utils::kMaxSimpleFieldEncodedSize];
-    uint8_t* pos = buffer;
-
-    pos = proto_utils::WriteVarInt(proto_utils::MakeTagFixed<T>(field_id), pos);
-    T le_value = perfetto::base::HostToLE(value);
-    memcpy(pos, &le_value, sizeof(T));
-    pos += sizeof(T);
-    // TODO: Optimize memcpy performance, see http://crbug.com/624311 .
-    WriteToStream(buffer, pos);
+    WriteSimpleField([field_id, value](uint8_t* pos) {
+      pos =
+          proto_utils::WriteVarInt(proto_utils::MakeTagFixed<T>(field_id), pos);
+      T le_value = perfetto::base::HostToLE(value);
+      memcpy(pos, &le_value, sizeof(T));
+      return pos + sizeof(T);
+    });
   }
 
   void AppendString(uint32_t field_id, const char* str);
@@ -238,6 +234,23 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // Ends the open child: finalizes it, adds its encoded size to this message
   // and, in kProtoGroup mode, appends its closing byte.
   void EndNestedMessage();
+
+  // |encode| writes at most kMaxSimpleFieldEncodedSize bytes and returns the
+  // end. Encodes in place when the chunk has room, to avoid a copy.
+  template <typename EncodeFn>
+  void WriteSimpleField(EncodeFn encode) {
+    PERFETTO_DCHECK(!is_finalized());
+    if (PERFETTO_LIKELY(stream_writer_->bytes_available() >=
+                        proto_utils::kMaxSimpleFieldEncodedSize)) {
+      uint8_t* begin = stream_writer_->write_ptr();
+      uint8_t* end = encode(begin);
+      stream_writer_->set_write_ptr(end);
+      size_ += static_cast<uint32_t>(end - begin);
+      return;
+    }
+    uint8_t buffer[proto_utils::kMaxSimpleFieldEncodedSize];
+    WriteToStream(buffer, encode(buffer));
+  }
 
   void WriteToStream(const uint8_t* src_begin, const uint8_t* src_end) {
     PERFETTO_DCHECK(!is_finalized());
