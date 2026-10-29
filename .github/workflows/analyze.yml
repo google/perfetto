@@ -14,25 +14,27 @@
 
 name: Perfetto CI
 on:
-  # 1. postsubmit
-  push:
-    branches:
-      - main
+  # 1. postsubmit: hourly on main, skipped if the commit was already tested.
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
 
-  # 2. presubmit
+  # 2. presubmit. 'closed' only exists to cancel in-progress runs.
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, closed]
     branches:
       - main
       - dev/**/*
 
 permissions:
   pull-requests: write # Required for UI build PR comment
+  actions: read # Required to look up previous postsubmit runs
 
-# If a new commit is pushed, cancel previous jobs for the same PR / branch.
+# If a new commit is pushed, cancel previous jobs for the same PR. Scheduled
+# runs queue behind each other instead, so a slow run still completes.
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   analyze:
@@ -42,13 +44,28 @@ jobs:
     # (2) when our CI autoscaler ramps down, it can take a long time until we
     # have some capacity to run this. In turn, delaying analyze.yml further
     # delays in scaling-up because we didn't queue the child jobs.
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
+      ALREADY_TESTED: ${{ steps.already_tested.outputs.ALREADY_TESTED }}
       TRIVIAL_CHANGE: ${{ steps.trivial.outputs.TRIVIAL_CHANGE }}
       UI_ONLY_CHANGE: ${{ steps.ui_only.outputs.UI_ONLY_CHANGE }}
       BIGTRACE_CHANGE: ${{ steps.bigtrace.outputs.BIGTRACE_CHANGE }}
     steps:
+      - name: Check if this commit already had a scheduled run
+        id: already_tested
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          n=0
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            n=$(gh api "repos/${{ github.repository }}/actions/workflows/analyze.yml/runs?event=schedule&head_sha=${{ github.sha }}&status=completed" \
+              --jq '[.workflow_runs[] | select(.id != ${{ github.run_id }} and (.conclusion == "success" or .conclusion == "failure"))] | length')
+          fi
+          echo "ALREADY_TESTED=$([ "$n" -gt 0 ] && echo 1 || echo 0)" | tee -a $GITHUB_OUTPUT
+
       - uses: actions/checkout@v5
         with:
           fetch-depth: 1
@@ -96,6 +113,7 @@ jobs:
   linux:
     needs: analyze
     if:
+      needs.analyze.outputs.ALREADY_TESTED == '0' &&
       needs.analyze.outputs.UI_ONLY_CHANGE == '0' &&
       needs.analyze.outputs.TRIVIAL_CHANGE == '0'
     uses: ./.github/workflows/linux-tests.yml
@@ -103,18 +121,22 @@ jobs:
   android:
     needs: analyze
     if:
+      needs.analyze.outputs.ALREADY_TESTED == '0' &&
       needs.analyze.outputs.UI_ONLY_CHANGE == '0' &&
       needs.analyze.outputs.TRIVIAL_CHANGE == '0'
     uses: ./.github/workflows/android-tests.yml
 
   ui:
     needs: analyze
-    if: needs.analyze.outputs.TRIVIAL_CHANGE == '0'
+    if:
+      needs.analyze.outputs.ALREADY_TESTED == '0' &&
+      needs.analyze.outputs.TRIVIAL_CHANGE == '0'
     uses: ./.github/workflows/ui-tests.yml
 
   bazel:
     needs: analyze
     if:
+      needs.analyze.outputs.ALREADY_TESTED == '0' &&
       needs.analyze.outputs.UI_ONLY_CHANGE == '0' &&
       needs.analyze.outputs.TRIVIAL_CHANGE == '0'
     uses: ./.github/workflows/bazel-tests.yml
@@ -122,6 +144,7 @@ jobs:
   fuzzer:
     needs: analyze
     if:
+      needs.analyze.outputs.ALREADY_TESTED == '0' &&
       needs.analyze.outputs.UI_ONLY_CHANGE == '0' &&
       needs.analyze.outputs.TRIVIAL_CHANGE == '0'
     uses: ./.github/workflows/fuzzer-tests.yml
@@ -133,11 +156,13 @@ jobs:
 
   repo-checks:
     needs: analyze
+    if: needs.analyze.outputs.ALREADY_TESTED == '0'
     uses: ./.github/workflows/repo-checks.yml
 
   rust-sdk:
     needs: analyze
     if:
+      needs.analyze.outputs.ALREADY_TESTED == '0' &&
       needs.analyze.outputs.UI_ONLY_CHANGE == '0' &&
       needs.analyze.outputs.TRIVIAL_CHANGE == '0'
     uses: ./.github/workflows/rust-sdk-tests.yml
@@ -156,7 +181,7 @@ jobs:
       - bigtrace
       - repo-checks
       - rust-sdk
-    if: always()
+    if: always() && github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
       - name: Ensure all non-skipped jobs have suceeded
