@@ -15,9 +15,9 @@
  */
 #include "src/profiling/perf/frame_pointer_unwinder.h"
 
+#include <cstring>
+
 #include "perfetto/base/logging.h"
-#include "src/profiling/common/unwind_support.h"
-#include "src/profiling/unwind/cpu_registers.h"
 
 namespace perfetto {
 namespace profiling {
@@ -25,13 +25,13 @@ namespace profiling {
 void FramePointerUnwinder::Unwind() {
   if (!IsArchSupported()) {
     PERFETTO_ELOG("Unsupported architecture: %d", static_cast<int>(arch_));
-    last_error_.code = unwindstack::ErrorCode::ERROR_UNSUPPORTED;
+    last_error_ = UnwindErrorCode::kUnsupported;
     return;
   }
 
-  if (maps_ == nullptr || maps_->Total() == 0) {
-    PERFETTO_ELOG("No maps provided");
-    last_error_.code = unwindstack::ErrorCode::ERROR_INVALID_MAP;
+  if (state_ == nullptr) {
+    PERFETTO_ELOG("No unwind state provided");
+    last_error_ = UnwindErrorCode::kInvalidParam;
     return;
   }
 
@@ -62,38 +62,21 @@ void FramePointerUnwinder::TryUnwind() {
   }
   uint64_t sp = regs_->sp();
   uint64_t pc = regs_->pc();
-  unwindstack::ArchEnum uw_arch = ToLibUnwindstackArch(arch_);
+
   for (size_t i = 0; i < max_frames_; i++) {
     if (!IsFrameValid(fp, sp))
       return;
 
-    // retrieve the map info and elf info
-    std::shared_ptr<unwindstack::MapInfo> map_info = maps_->Find(pc);
-    if (map_info == nullptr) {
-      last_error_.code = unwindstack::ErrorCode::ERROR_INVALID_MAP;
+    // Looks up the mapping for |pc|, computes the ELF-relative PC and return
+    // address adjustment, and optionally resolves the symbol name.
+    FrameData frame =
+        UnwindEngine::Get()->BuildFrameFromPc(state_, pc, resolve_names_);
+    if (!frame.map_info) {
+      last_error_ = UnwindErrorCode::kInvalidMap;
       return;
     }
 
-    unwindstack::FrameData frame;
-    frame.num = i;
-    frame.rel_pc = pc;
-    frame.pc = pc;
-    frame.map_info = map_info;
-    unwindstack::Elf* elf = map_info->GetElf(process_memory_, uw_arch);
-    if (elf != nullptr) {
-      uint64_t relative_pc = elf->GetRelPc(pc, map_info.get());
-      uint64_t pc_adjustment = GetPcAdjustment(relative_pc, elf, uw_arch);
-      frame.rel_pc = relative_pc - pc_adjustment;
-      frame.pc = pc - pc_adjustment;
-      if (!resolve_names_ ||
-          !elf->GetFunctionName(frame.rel_pc, &frame.function_name,
-                                &frame.function_offset)) {
-        frame.function_name = "";
-        frame.function_offset = 0;
-      }
-    }
-    frames_.push_back(frame);
-    // move to the next frame
+    frames_.push_back(std::move(frame));
     fp = DecodeFrame(fp, &pc, &sp);
   }
 }
@@ -101,20 +84,17 @@ void FramePointerUnwinder::TryUnwind() {
 uint64_t FramePointerUnwinder::DecodeFrame(uint64_t fp,
                                            uint64_t* next_pc,
                                            uint64_t* next_sp) {
-  uint64_t next_fp;
-  if (!process_memory_->ReadFully(fp, &next_fp, sizeof(next_fp)))
-    return 0;
-
-  uint64_t pc;
-  if (!process_memory_->ReadFully(static_cast<uint64_t>(fp + sizeof(uint64_t)),
-                                  &pc, sizeof(pc)))
-    return 0;
-
   // Ensure there's not a stack overflow.
   if (__builtin_add_overflow(fp, sizeof(uint64_t) * 2, next_sp))
     return 0;
 
-  *next_pc = pc;
+  size_t offset = static_cast<size_t>(fp - regs_->sp());
+  uint64_t next_fp = 0;
+
+  std::memcpy(&next_fp, stack_data_ + offset, sizeof(uint64_t));
+  std::memcpy(next_pc, stack_data_ + offset + sizeof(uint64_t),
+              sizeof(uint64_t));
+
   return next_fp;
 }
 
