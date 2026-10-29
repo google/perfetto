@@ -447,6 +447,14 @@ const LogicalPlan& Lowering::plan() const {
   return plan_->plan();
 }
 
+const Bindings::Dataframe& Lowering::QueryDataframe(
+    const PlanNode& node) const {
+  const std::optional<Bindings::Dataframe>& dataframe =
+      plan_->bound_.bindings.dataframes[plan().IdOf(node)];
+  PERFETTO_CHECK(dataframe);
+  return *dataframe;
+}
+
 bool Lowering::IsArranged(const std::vector<ColumnId>& keys,
                           const std::vector<SortKey>& sorted_by) const {
   // Sort keys on group columns are constant within a group, so ignore them.
@@ -565,7 +573,7 @@ void Lowering::Convert(const Side& side, const PlanType& type) {
   plan.converted_[side.column] = *type.storage();
   uint32_t position = side.pipeline->QueryPosition(side.column);
   // TypeOf forgets a Null column once it has been converted.
-  if (plan.plan().columns()[side.column].type.is_null()) {
+  if (plan.bound_.bindings.types[side.column].is_null()) {
     side.pipeline->AddOrderIndependent(
         std::make_unique<ex::NullColumn>(position, *type.storage()));
     return;
@@ -588,11 +596,11 @@ std::unique_ptr<ex::Pipeline> Lowering::Build(
   return std::make_unique<ex::Pipeline>(*input_, std::move(operators_));
 }
 
-PlanLowering::PlanLowering(const LogicalPlan& plan,
+PlanLowering::PlanLowering(const BoundPlan& plan,
                            const LoweringContext& context)
-    : plan_(plan),
+    : bound_(plan),
       context_(context),
-      converted_(plan.columns().size()),
+      converted_(plan.plan.columns().size()),
       out_(std::make_unique<PhysicalPlan>()) {
   pipelines_.push_back(std::make_unique<Lowering>(this));
 }
@@ -609,9 +617,10 @@ base::StatusOr<std::unique_ptr<PhysicalPlan>> PlanLowering::Finish() {
   RETURN_IF_ERROR(status_);
   Lowering& lowering = main();
   std::vector<uint32_t> outputs;
-  for (const NamedColumn& column : plan_.output()) {
+  for (const NamedColumn& column : plan().output()) {
     outputs.push_back(lowering.QueryPosition(column.id));
-    out_->columns_.push_back({plan_.names().text(column.name), outputs.back()});
+    out_->columns_.push_back(
+        {plan().names().text(column.name), outputs.back()});
   }
   out_->pipeline_ = lowering.Build(&outputs);
   out_->input_ = std::move(lowering.input_);
@@ -622,17 +631,17 @@ PlanType PlanLowering::TypeOf(ColumnId column) const {
   if (converted_[column]) {
     return *converted_[column];
   }
-  return plan_.columns()[column].type;
+  return bound_.bindings.types[column];
 }
 
 PhysicalPlan::PhysicalPlan() = default;
 PhysicalPlan::~PhysicalPlan() = default;
 
 base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(
-    const LogicalPlan& plan,
+    const BoundPlan& plan,
     const LoweringContext& context) {
   PlanLowering lowering(plan, context);
-  lowering.main().LowerNode(plan.root());
+  lowering.main().LowerNode(plan.plan.root());
   return lowering.Finish();
 }
 

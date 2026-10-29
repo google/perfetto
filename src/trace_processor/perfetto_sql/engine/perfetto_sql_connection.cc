@@ -1071,9 +1071,9 @@ PerfettoSqlConnection::LoadPipeline(
     std::string_view serialized,
     const std::vector<const dataframe::Dataframe*>& args) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "PIPELINE_LOAD");
-  ASSIGN_OR_RETURN(pipeline::LogicalPlan plan,
+  ASSIGN_OR_RETURN(pipeline::BoundPlan plan,
                    pipeline::DeserializePlan(serialized, plan_key_, *catalog_));
-  RETURN_IF_ERROR(pipeline::BindDataframeArgs(plan, args, pool_));
+  RETURN_IF_ERROR(pipeline::BindDataframeArgs(&plan, args, pool_));
   pipeline::LoweringContext context;
   context.pool = pool_;
   return pipeline::Lower(plan, context);

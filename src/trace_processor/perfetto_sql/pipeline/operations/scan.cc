@@ -252,13 +252,11 @@ Scan Scan::BuildDataframeScan(Compiler* c,
   Scan scan;
   Scan::Dataframe source;
   source.name = std::move(name);
-  source.row_count = dataframe.row_count();
   for (const DataframeColumn& column : columns) {
     Scan::AddScanColumn(c, &scan, column.name,
                         ColumnType(dataframe, column.index));
     source.read.push_back(
         {column.index, c->Name(dataframe.column_names()[column.index])});
-    source.columns.push_back(dataframe.shared_column(column.index));
   }
   scan.source_ = std::move(source);
   return scan;
@@ -367,13 +365,10 @@ std::optional<uint32_t> Scan::Prune(std::vector<bool>* needed) {
     case base::variant_index<Scan::Source, Scan::Dataframe>(): {
       auto& dataframe = base::unchecked_get<Scan::Dataframe>(scan.source_);
       std::vector<ScanDataframeColumn> kept_read;
-      std::vector<std::shared_ptr<const dataframe::Column>> kept;
       for (uint32_t i : keep) {
         kept_read.push_back(dataframe.read[i]);
-        kept.push_back(std::move(dataframe.columns[i]));
       }
       dataframe.read = std::move(kept_read);
-      dataframe.columns = std::move(kept);
       return std::nullopt;
     }
     case base::variant_index<Scan::Source, SqlSource>():
@@ -385,34 +380,21 @@ std::optional<uint32_t> Scan::Prune(std::vector<bool>* needed) {
   }
 }
 
-void Scan::Lower(Lowering* c, const PlanNode&) const {
-  const auto& scan = *this;
-
+void Scan::Lower(Lowering* c, const PlanNode& node) const {
   PERFETTO_DCHECK(!c->has_source());
-  for (const NamedColumn& column : scan.columns_) {
+  // SQL is moved out into dataframe arguments, and every scan is bound to a
+  // dataframe, before a plan is run.
+  const Bindings::Dataframe& data = c->QueryDataframe(node);
+  for (const NamedColumn& column : columns_) {
     c->DeclareColumn(column.id);
   }
-  c->SetSource(scan.MakeSource());
+  c->SetSource(
+      std::make_unique<ex::DataframeScan>(data.columns, data.row_count));
   // A dataframe is read in order, so a column it keeps sorted ascends.
-  const auto& dataframe = base::unchecked_get<Scan::Dataframe>(scan.source_);
-  for (uint32_t i = 0; i < scan.columns_.size(); ++i) {
-    if (!dataframe.columns[i]->sort_state.Is<core::Unsorted>()) {
-      c->DeclareSorted({{scan.columns_[i].id, false}});
+  for (uint32_t i = 0; i < columns_.size(); ++i) {
+    if (!data.columns[i]->sort_state.Is<core::Unsorted>()) {
+      c->DeclareSorted({{columns_[i].id, false}});
     }
-  }
-}
-
-std::unique_ptr<ex::Source> Scan::MakeSource() const {
-  const auto& scan = *this;
-  switch (scan.source_.index()) {
-    case base::variant_index<Scan::Source, Scan::Dataframe>(): {
-      const auto& data = base::unchecked_get<Scan::Dataframe>(scan.source_);
-      return std::make_unique<ex::DataframeScan>(data.columns, data.row_count);
-    }
-    default:
-      // SQL is moved out into dataframe arguments, and those are bound to
-      // dataframes, before a plan is run.
-      PERFETTO_FATAL("Unknown scan source");
   }
 }
 
@@ -424,9 +406,11 @@ std::unique_ptr<PlanOperation> Scan::Clone() const {
   return std::make_unique<Scan>(*this);
 }
 
-base::Status Scan::ResolveDataframes(LogicalPlan*,
+base::Status Scan::ResolveDataframes(const LogicalPlan&,
+                                     PlanNodeId self,
                                      const Catalog& catalog,
-                                     const PlanKey& key) {
+                                     const PlanKey* key,
+                                     Bindings* bindings) const {
   auto* data = std::get_if<Scan::Dataframe>(&source_);
   if (!data) {
     return base::OkStatus();
@@ -436,36 +420,42 @@ base::Status Scan::ResolveDataframes(LogicalPlan*,
     return base::ErrStatus("Pipeline: table '%s' no longer exists",
                            data->name.c_str());
   }
-  const std::vector<std::string>& names = dataframe->column_names();
-  TableStamp stamp(data->name);
-  bool in_range = true;
-  PERFETTO_NO_VECTORIZE_LOOP
-  for (const ScanDataframeColumn& column : data->read) {
-    uint32_t i = column.index;
-    in_range = in_range && i < names.size();
-    if (in_range) {
-      stamp.AddColumn(i, names[i], ColumnType(*dataframe, i));
+  // A plan written into SQL may be read after the table changed.
+  if (key) {
+    const std::vector<std::string>& names = dataframe->column_names();
+    TableStamp stamp(data->name);
+    bool in_range = true;
+    PERFETTO_NO_VECTORIZE_LOOP
+    for (const ScanDataframeColumn& column : data->read) {
+      uint32_t i = column.index;
+      in_range = in_range && i < names.size();
+      if (in_range) {
+        stamp.AddColumn(i, names[i], ColumnType(*dataframe, i));
+      }
+    }
+    if (!in_range || stamp.Stamp(*key) != data->stamp) {
+      return base::ErrStatus(
+          "Pipeline: table '%s' has changed since the pipeline was written",
+          data->name.c_str());
     }
   }
-  if (!in_range || stamp.Stamp(key) != data->stamp) {
-    return base::ErrStatus(
-        "Pipeline: table '%s' has changed since the pipeline was written",
-        data->name.c_str());
-  }
+  Bindings::Dataframe bound;
   PERFETTO_NO_VECTORIZE_LOOP
   for (const ScanDataframeColumn& column : data->read) {
-    data->columns.push_back(dataframe->shared_column(column.index));
+    bound.columns.push_back(dataframe->shared_column(column.index));
   }
-  data->row_count = dataframe->row_count();
+  bound.row_count = dataframe->row_count();
+  bindings->dataframes[self] = std::move(bound);
   return base::OkStatus();
 }
 
 base::Status Scan::BindDataframeArgs(
-    LogicalPlan* logical_plan,
+    const LogicalPlan& plan,
+    PlanNodeId self,
     const std::vector<const dataframe::Dataframe*>& args,
-    StringPool* pool) {
-  auto& plan = *logical_plan;
-  auto& scan = *this;
+    StringPool* pool,
+    Bindings* bindings) const {
+  const auto& scan = *this;
   const auto* arg = std::get_if<Scan::DataframeArg>(&scan.source_);
   if (!arg) {
     return base::OkStatus();
@@ -488,23 +478,22 @@ base::Status Scan::BindDataframeArgs(
                    .Build());
     dataframe = &*empty;
   }
-  Scan::Dataframe data;
-  data.name = "dataframe argument " + std::to_string(arg->index);
+  Bindings::Dataframe data;
   for (const NamedColumn& column : scan.columns_) {
     const std::string& name = plan.names().text(column.name);
     std::optional<uint32_t> i = FindScanColumn(*dataframe, name);
     if (!i) {
-      return base::ErrStatus("Pipeline: %s has no column '%s'",
-                             data.name.c_str(), name.c_str());
+      return base::ErrStatus(
+          "Pipeline: dataframe argument %u has no column '%s'", arg->index,
+          name.c_str());
     }
     // The dataframe was built after the plan was written, so it decides
     // what each column holds.
-    plan.columns()[column.id].type = ColumnType(*dataframe, *i);
-    data.read.push_back({*i, column.name});
+    bindings->types[column.id] = ColumnType(*dataframe, *i);
     data.columns.push_back(dataframe->shared_column(*i));
   }
   data.row_count = dataframe->row_count();
-  scan.source_ = std::move(data);
+  bindings->dataframes[self] = std::move(data);
 
   return base::OkStatus();
 }
