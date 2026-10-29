@@ -174,6 +174,12 @@ class TraceWriterV2Impl : public TraceWriter,
   PERFETTO_ALWAYS_INLINE protozero::ContiguousMemoryRange BeginPacketFragment(
       bool continues_from_prev);
 
+  // BeginPacketFragment() after |range|, the first attempt, did not return
+  // space outside drop mode.
+  protozero::ContiguousMemoryRange BeginPacketFragmentSlowPath(
+      SharedRingBufferWriter::FragmentRange range,
+      bool continues_from_prev);
+
   // Publishes the open fragment, if any.
   // - |continues_on_next| sets kFlagContinuesOnNextChunk.
   // - After the publication, asks for a drain at the threshold.
@@ -184,12 +190,6 @@ class TraceWriterV2Impl : public TraceWriter,
   //   packet.
   // - Returns with no relocation pending in |ring_buffer_writer_|.
   PERFETTO_ALWAYS_INLINE void EndPacketFragment(bool continues_on_next);
-
-  // BeginPacketFragment() after |range|, the first attempt, did not return
-  // space outside drop mode.
-  protozero::ContiguousMemoryRange BeginPacketFragmentSlowPath(
-      SharedRingBufferWriter::FragmentRange range,
-      bool continues_from_prev);
 
   // EndPacketFragment() after EndFragment() returned |result|, which is not
   // kSuccess. Returns false if the rest of the packet is dropped.
