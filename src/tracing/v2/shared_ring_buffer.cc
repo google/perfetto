@@ -143,46 +143,6 @@ bool SharedRingBuffer::TryAcquireChunkForWriting(uint32_t chunk_pos,
   return state_word->compare_exchange_strong(expected, being_written_word);
 }
 
-bool SharedRingBuffer::TryReleaseChunkAsComplete(ChunkIndex chunk_idx,
-                                                 uint32_t complete_word,
-                                                 uint32_t* expected) {
-  PERFETTO_DCHECK(ChunkStateOf(*expected) == ChunkState::kBeingWritten);
-  PERFETTO_DCHECK(ChunkStateOf(complete_word) == ChunkState::kComplete);
-
-  // BeingWritten(N) -> Complete(M).
-  //
-  // On failure, the reader requested a rewrite first. |*expected| receives
-  // RewriteRequested(N), and the caller relocates any unpublished fragment.
-  //
-  // Proposed memory ordering:
-  // - Success: release to publish M fragments and their sizes.
-  //   The first publication also makes BufferID visible.
-  // - Failure: acquire to observe the reader's RewriteRequested(N).
-  //   The reader must finish copying N fragments before the writer relocates.
-  std::atomic<uint32_t>* state_word = chunk_state_word_at(chunk_idx);
-  return state_word->compare_exchange_strong(*expected, complete_word);
-}
-
-bool SharedRingBuffer::TryReacquireChunkForWriting(ChunkIndex chunk_idx,
-                                                   uint32_t observed) {
-  PERFETTO_DCHECK(ChunkStateOf(observed) == ChunkState::kComplete);
-
-  // Complete(N) -> BeingWritten(N).
-  //
-  // On failure, the reader reclaimed the chunk first. The writer discards its
-  // cached handle and acquires another chunk.
-  //
-  // Proposed memory ordering:
-  // - Success: relaxed because reuse publishes no new bytes.
-  //   The read-modify-write extends Complete(N)'s release sequence.
-  //   The reader's acquire load still sees the N published fragments.
-  // - Failure: relaxed because the returned word is ignored.
-  uint32_t expected = observed;
-  std::atomic<uint32_t>* state_word = chunk_state_word_at(chunk_idx);
-  return state_word->compare_exchange_strong(
-      expected, ReplaceChunkState(observed, ChunkState::kBeingWritten));
-}
-
 bool SharedRingBuffer::TryAcknowledgeRewrite(ChunkIndex chunk_idx,
                                              uint32_t observed) {
   PERFETTO_DCHECK(ChunkStateOf(observed) == ChunkState::kRewriteRequested);
