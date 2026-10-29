@@ -437,7 +437,7 @@ TEST_F(ExportJsonTest, StorageWithStats) {
 TEST_F(ExportJsonTest, StorageWithDynamicStats) {
   // Dynamic stats have no entry in stats.h, so they are left out of the JSON
   // export. They must not affect the export of the other stats.
-  size_t key = context_.global_stats_tracker->GetOrCreateDynamicStatDescriptor(
+  size_t key = context_.global_stats_tracker->InternDynamicStatDescriptor(
       "test.dynamic", stats::kDataLoss, stats::kTrace, "A dynamic stat");
   context_.stats_tracker->IncrementStats(key, 3);
   context_.stats_tracker->SetStats(stats::traced_producers_connected, 10);

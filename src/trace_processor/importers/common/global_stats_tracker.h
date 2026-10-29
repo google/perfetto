@@ -63,10 +63,10 @@ class GlobalStatsTracker {
   //
   // `name` must not be the name of a stat in stats.h: callers should prefix
   // it to keep the two apart.
-  size_t GetOrCreateDynamicStatDescriptor(std::string_view name,
-                                          stats::Severity severity,
-                                          stats::Source source,
-                                          std::string_view description);
+  size_t InternDynamicStatDescriptor(std::string_view name,
+                                     stats::Severity severity,
+                                     stats::Source source,
+                                     std::string_view description);
 
   void SetStats(std::optional<MachineId> machine_id,
                 std::optional<TraceId> trace_id,

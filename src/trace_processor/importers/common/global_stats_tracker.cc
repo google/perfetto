@@ -49,7 +49,7 @@ GlobalStatsTracker::GlobalStatsTracker(TraceStorage* storage)
   ZeroSingleStatsForContext(stats::Scope::kGlobal, std::nullopt, std::nullopt);
 }
 
-size_t GlobalStatsTracker::GetOrCreateDynamicStatDescriptor(
+size_t GlobalStatsTracker::InternDynamicStatDescriptor(
     std::string_view name,
     stats::Severity severity,
     stats::Source source,
