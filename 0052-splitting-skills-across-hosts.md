@@ -179,8 +179,7 @@ Con:
 
 ### Embed the content in `trace_processor`
 
-Rex does this: the binary carries the guide, so the content always matches
-the tool.
+The binary carries the guide, so the content always matches the tool.
 
 Con:
 
