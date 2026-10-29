@@ -16,6 +16,7 @@
 
 #include "src/profiling/memory/bookkeeping.h"
 
+#include "src/profiling/unwind/unwind_types.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -25,10 +26,10 @@ namespace {
 using ::testing::AnyOf;
 using ::testing::Eq;
 
-std::vector<unwindstack::FrameData> stack() {
-  std::vector<unwindstack::FrameData> res;
+std::vector<FrameData> stack() {
+  std::vector<FrameData> res;
 
-  unwindstack::FrameData data{};
+  FrameData data{};
   data.function_name = "fun1";
   data.pc = 1;
   res.emplace_back(std::move(data));
@@ -39,9 +40,9 @@ std::vector<unwindstack::FrameData> stack() {
   return res;
 }
 
-std::vector<unwindstack::FrameData> stack2() {
-  std::vector<unwindstack::FrameData> res;
-  unwindstack::FrameData data{};
+std::vector<FrameData> stack2() {
+  std::vector<FrameData> res;
+  FrameData data{};
   data.function_name = "fun1";
   data.pc = 1;
   res.emplace_back(std::move(data));
@@ -52,9 +53,9 @@ std::vector<unwindstack::FrameData> stack2() {
   return res;
 }
 
-std::vector<unwindstack::FrameData> stack3() {
-  std::vector<unwindstack::FrameData> res;
-  unwindstack::FrameData data{};
+std::vector<FrameData> stack3() {
+  std::vector<FrameData> res;
+  FrameData data{};
   data.function_name = "fun1";
   data.pc = 1;
   res.emplace_back(std::move(data));
@@ -247,8 +248,8 @@ TEST(BookkeepingTest, ManyAllocations) {
 }
 
 TEST(BookkeepingTest, ArbitraryOrder) {
-  std::vector<unwindstack::FrameData> s = stack();
-  std::vector<unwindstack::FrameData> s2 = stack2();
+  std::vector<FrameData> s = stack();
+  std::vector<FrameData> s2 = stack2();
 
   std::vector<std::string> s_b = DummyBuildIds(s.size());
   std::vector<std::string> s2_b = DummyBuildIds(s2.size());
@@ -259,9 +260,9 @@ TEST(BookkeepingTest, ArbitraryOrder) {
     uint64_t sequence_number;
     OperationType type;
     uint64_t address;
-    uint64_t bytes;                                    // 0 for free
-    const std::vector<unwindstack::FrameData>* stack;  // nullptr for free
-    const std::vector<std::string>* build_ids;         // nullptr for free
+    uint64_t bytes;                             // 0 for free
+    const std::vector<FrameData>* stack;        // nullptr for free
+    const std::vector<std::string>* build_ids;  // nullptr for free
 
     // For std::next_permutation.
     bool operator<(const Operation& other) const {
