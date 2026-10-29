@@ -38,6 +38,7 @@ group("tools") {
       "cpu_utilization",
       "dump_ftrace_stats",
       "skippy",
+      "trace_replay",
     ]
   }
 }
