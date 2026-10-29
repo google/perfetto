@@ -151,43 +151,30 @@ void ColumnChunk::CopyFrom(const RowBatch& batch,
   }
 }
 
-void ColumnChunk::Gather(const std::vector<const ColumnView*>& views,
-                         const uint32_t* sources,
+void ColumnChunk::Gather(const ColumnView& like,
+                         const GatherSource* sources,
+                         const uint32_t* batches,
                          const uint32_t* rows,
                          uint32_t count,
-                         bool nullable,
-                         std::vector<const void*>* bases) {
-  bool sequence = false;
-  for (const ColumnView* view : views) {
-    PERFETTO_DCHECK(nullable || !view->validity());
-    sequence |= view->kind() == ColumnView::Kind::kSequence;
-  }
-  DispatchOnWidth(*views[0], [&](auto width) {
+                         bool nullable) {
+  DispatchOnWidth(like, [&](auto width) {
     constexpr uint32_t kWidth = decltype(width)::value;
     uint8_t* dest = Values<uint8_t>();
-    if constexpr (kWidth == sizeof(uint32_t)) {
-      if (sequence) {
-        // A sequence has no storage to point at: rare, so read it as a view.
-        for (uint32_t i = 0; i < count; ++i) {
-          uint32_t value = views[sources[i]]->At<uint32_t>(rows[i]);
-          memcpy(dest + i * kWidth, &value, kWidth);
-        }
-        return;
-      }
-    }
-    PERFETTO_DCHECK(!sequence);
-    // Each view's values from its window's start, so a row is one load away.
-    bases->resize(views.size());
-    for (uint32_t v = 0; v < views.size(); ++v) {
-      (*bases)[v] = static_cast<const uint8_t*>(views[v]->data()) +
-                    uint64_t{views[v]->start()} * kWidth;
-    }
-    const void* const* base = bases->data();
     for (uint32_t i = 0; i < count; ++i) {
-      memcpy(dest + i * kWidth,
-             static_cast<const uint8_t*>(base[sources[i]]) +
-                 uint64_t{rows[i]} * kWidth,
-             kWidth);
+      const GatherSource& source = sources[batches[i]];
+      uint32_t index = source.start + rows[i];
+      if constexpr (kWidth == sizeof(uint32_t)) {
+        // A sequence has no storage: its value is where it would be stored.
+        // Only Id columns are sequences.
+        if (PERFETTO_UNLIKELY(!source.data)) {
+          memcpy(dest + i * kWidth, &index, kWidth);
+          continue;
+        }
+      }
+      memcpy(
+          dest + i * kWidth,
+          static_cast<const uint8_t*>(source.data) + uint64_t{index} * kWidth,
+          kWidth);
     }
   });
 
@@ -198,9 +185,9 @@ void ColumnChunk::Gather(const std::vector<const ColumnView*>& views,
   }
   WriteValidity(
       [&](uint32_t i) {
-        const ColumnView& view = *views[sources[i]];
-        const BitVector* source = view.validity();
-        return !source || source->is_set(view.Index(rows[i]));
+        const GatherSource& source = sources[batches[i]];
+        return !source.validity ||
+               source.validity->is_set(source.start + rows[i]);
       },
       count, 0, validity);
 }
