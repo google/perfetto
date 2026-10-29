@@ -34,23 +34,11 @@ namespace {
 static_assert(std::is_trivially_copyable_v<Variant>);
 static_assert(sizeof(StringPool::Id) == sizeof(uint32_t));
 
-// The bytes one of `view`'s values takes. Values are copied as bytes, so
-// types of the same width share one copy loop.
-uint32_t Width(const ColumnView& view) {
-  if (view.kind() == ColumnView::Kind::kVariant) {
-    return sizeof(Variant);
-  }
-  if (view.type().Is<Int64>() || view.type().Is<Double>()) {
-    return sizeof(int64_t);
-  }
-  // Id, Uint32, Int32 and string ids.
-  return sizeof(uint32_t);
-}
-
-// Calls `copy` with the width of `view`'s values, as a constant.
+// Calls `copy` with the width of `view`'s values, as a constant. Values are
+// copied as bytes, so types of the same width share one copy loop.
 template <typename Copy>
 void DispatchOnWidth(const ColumnView& view, Copy copy) {
-  switch (Width(view)) {
+  switch (ValueWidth(view)) {
     case sizeof(uint32_t):
       copy(std::integral_constant<uint32_t, sizeof(uint32_t)>{});
       break;
@@ -113,6 +101,7 @@ void ColumnChunk::CopyFrom(const RowBatch& batch,
                            uint32_t column,
                            uint32_t offset) {
   const ColumnView& view = batch.column(column);
+  PERFETTO_DCHECK(uint64_t{ValueWidth(view)} * kMaxBatchRows <= storage.size());
   const Selection& selection = batch.selection();
   uint32_t start = view.start();
   uint32_t count = batch.size();
@@ -138,7 +127,7 @@ void ColumnChunk::CopyFrom(const RowBatch& batch,
       dest[i] = start + i;
     }
   } else {
-    uint32_t width = Width(view);
+    uint32_t width = ValueWidth(view);
     memcpy(Values<uint8_t>() + uint64_t{offset} * width,
            static_cast<const uint8_t*>(view.data()) + uint64_t{start} * width,
            uint64_t{count} * width);
@@ -157,6 +146,7 @@ void ColumnChunk::Gather(const ColumnView& like,
                          const uint32_t* rows,
                          uint32_t count,
                          bool nullable) {
+  PERFETTO_DCHECK(uint64_t{ValueWidth(like)} * kMaxBatchRows <= storage.size());
   DispatchOnWidth(like, [&](auto width) {
     constexpr uint32_t kWidth = decltype(width)::value;
     uint8_t* dest = Values<uint8_t>();

@@ -287,7 +287,7 @@ PERFETTO_NO_INLINE void IntervalFlatten::GrowSegments(State& s) const {
 
 PERFETTO_NO_INLINE void IntervalFlatten::TakeSegmentBuffers(State& s) const {
   s.bounds.Take(*s.context);
-  s.group_buffer = s.context->TakeBuffer();
+  s.group_buffer = s.context->TakeBuffer(sizeof(uint32_t));
   s.segment_groups = s.group_buffer.chunk().Values<uint32_t>();
 }
 

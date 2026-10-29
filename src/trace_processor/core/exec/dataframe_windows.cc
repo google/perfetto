@@ -85,7 +85,7 @@ class ExpanderImpl final : public DataframeWindows::Expander {
       return;
     }
     Skip(from);
-    *buffer = context.TakeBuffer();
+    *buffer = context.TakeBuffer(kWidth);
     ColumnChunk& chunk = buffer->chunk();
     uint8_t* values = chunk.Values<uint8_t>();
     chunk.SizeValidity();
@@ -118,7 +118,7 @@ class ExpanderImpl final : public DataframeWindows::Expander {
       LendOne(from, view, buffer);
       return;
     }
-    *buffer = context.TakeBuffer();
+    *buffer = context.TakeBuffer(kWidth);
     ColumnChunk& chunk = buffer->chunk();
     uint8_t* values = chunk.Values<uint8_t>();
     chunk.SizeValidity();

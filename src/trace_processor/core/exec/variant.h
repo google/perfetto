@@ -26,7 +26,7 @@
 namespace perfetto::trace_processor::core::exec {
 
 // One value of a column whose type is per row rather than per column.
-struct Variant {
+struct alignas(8) Variant {
   enum class Type : uint8_t { kNull, kInt64, kDouble, kString };
 
   static Variant Null() {
