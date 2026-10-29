@@ -1367,8 +1367,8 @@ class JsonExporter {
         continue;
       }
       size_t key = static_cast<size_t>(it.key());
-      // Dynamic stats (see GlobalStatsTracker::GetOrCreateDynamicStat) have
-      // no entry in stats.h and are not part of the legacy JSON shape.
+      // Dynamic stats have no entry in stats.h and are not part of the legacy
+      // JSON shape. See GlobalStatsTracker::GetOrCreateDynamicStatDescriptor.
       if (key >= stats::kNumKeys) {
         continue;
       }

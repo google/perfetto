@@ -50,7 +50,7 @@ bool AnyPositiveStat(TraceProcessorContext* context, Pred pred) {
     if (it.machine_id() != machine_id || it.trace_id() != trace_id)
       continue;
     // The predicates look keys up in stats.h, which has no entry for dynamic
-    // stats (see GlobalStatsTracker::GetOrCreateDynamicStat).
+    // stats (see GlobalStatsTracker::GetOrCreateDynamicStatDescriptor).
     auto key = static_cast<size_t>(it.key());
     if (key >= stats::kNumKeys)
       continue;
