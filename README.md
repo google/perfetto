@@ -11,7 +11,7 @@
 </p>
 
 <p>
-  <a href="https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s">Try the demo</a> ·
+  <a href="https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace">Try the demo</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#what-can-you-do-with-it">What can you do with it?</a> ·
   <a href="https://perfetto.dev/docs/">Documentation</a> ·
@@ -51,11 +51,11 @@ Trace Processor also run on macOS and Windows.
 
 ## Try it in your browser
 
-Open an [example Android trace](https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s)
+Open an [example Android trace](https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace)
 without installing anything, or drag your own trace file onto
 [ui.perfetto.dev](https://ui.perfetto.dev).
 
-[![The Perfetto UI on an Android trace: a selected slice with its call stack and thread states on the timeline, and its details and duration histogram below](docs/images/readme-ui.png)](https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s)
+[![The Perfetto UI on an Android trace: a binder transaction selected in SurfaceFlinger, with its call stack and frame timelines on the timeline, and its details, binder reply and arguments below](docs/images/readme-ui.png)](https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace)
 
 ## Quick start
 
