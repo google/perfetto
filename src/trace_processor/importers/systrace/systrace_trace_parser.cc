@@ -174,7 +174,8 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
             "HTML traces written by catapult's trace2html (e.g. from "
             "chromeperf) are not supported. Open the file with \"Open with "
             "legacy UI\" in the Perfetto UI, or extract its traces with "
-            "catapult's html2trace.");
+            "catapult's html2trace. Comment on "
+            "https://github.com/google/perfetto/issues/8367 if you need this.");
       }
     } else if (state_ == ParseState::kTraceDataSection) {
       if (base::StartsWith(buffer, "#") && base::Contains(buffer, "TASK-PID")) {
