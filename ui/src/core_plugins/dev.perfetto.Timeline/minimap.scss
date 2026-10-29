@@ -13,15 +13,35 @@
 // limitations under the License.
 
 .pf-minimap {
-  $minimap-height: 70px;
   $header-height: 20px;
 
-  height: $minimap-height;
-  border-bottom: solid 1px var(--pf-color-border);
+  // The height is set inline as it depends on the active mode and can be
+  // resized by the user.
   position: relative;
   z-index: 1; // Stack above the VirtualOverlayCanvas canvas layer.
   overflow: hidden;
   contain: strict;
+
+  .pf-minimap__overlay {
+    position: absolute;
+    inset: 0;
+  }
+
+  // Mode menu in the top right corner, only visible on hover or while open.
+  .pf-minimap__menu {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 2;
+
+    .pf-visible-on-hover:not(.pf-active) {
+      visibility: hidden;
+    }
+  }
+
+  &:hover .pf-minimap__menu .pf-visible-on-hover {
+    visibility: visible;
+  }
 
   // Semi-opaque overlay over non-visible time ranges.
   .pf-minimap__shade {
@@ -72,7 +92,7 @@
     top: $header-height;
     left: 0;
     width: 100%;
-    height: calc(($minimap-height - $header-height) * 0.4);
+    height: min(20px, calc((100% - #{$header-height} + 1px) * 0.4));
     background: var(--pf-color-border);
     pointer-events: none;
   }
