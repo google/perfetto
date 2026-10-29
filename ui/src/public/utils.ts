@@ -19,6 +19,8 @@ import {NUM} from '../trace_processor/query_result';
 import type {App} from './app';
 import type {Trace} from './trace';
 
+export const DISCORD_URL = 'https://discord.gg/35ShE3A';
+
 export function getBugReportUrl(app: App): string {
   return app.isInternalUser
     ? 'https://goto.google.com/perfetto-ui-bug'
