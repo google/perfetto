@@ -29,11 +29,6 @@ namespace base {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
-namespace {
-// Do not hold up startup if systemd's notify socket queue is full.
-constexpr uint32_t kSendTimeoutMs = 1000;
-}  // namespace
-
 bool SdNotify(const char* state) {
   const char* addr = getenv("NOTIFY_SOCKET");
   if (!addr || !*addr)
@@ -52,7 +47,6 @@ bool SdNotify(const char* state) {
     PERFETTO_PLOG("Failed to create the sd_notify socket");
     return false;
   }
-  sock.SetTxTimeout(kSendTimeoutMs);
   if (!sock.Connect(addr)) {
     PERFETTO_PLOG("Failed to connect to NOTIFY_SOCKET %s", addr);
     return false;
