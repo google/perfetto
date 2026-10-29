@@ -30,20 +30,27 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
+#include "src/trace_processor/importers/archive/decompressing_trace_reader.h"
 #include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/importers/systrace/systrace_line_parser.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
@@ -108,6 +115,21 @@ bool IsCpusHeaderLine(const std::deque<uint8_t>& buf,
   return true;
 }
 
+// catapult's trace2html embeds each trace in an HTML file as: this tag on a
+// line of its own, the base64 of the trace (usually gzipped) and a "</script>"
+// line. Like catapult's html2trace, require the whole line to match.
+bool IsViewerDataStartLine(base::StringView line) {
+  if (!line.empty() && line.at(line.size() - 1) == '\r') {
+    line = line.substr(0, line.size() - 1);
+  }
+  return line == R"(<script id="viewer-data" type="text/plain">)" ||
+         line == R"(<script id="viewer-data" type="application/json">)";
+}
+
+bool IsGzip(const uint8_t* data, size_t size) {
+  return size >= 2 && data[0] == 0x1f && data[1] == 0x8b;
+}
+
 }  // namespace
 
 SystraceTraceParser::SystraceTraceParser(TraceProcessorContext* ctx)
@@ -167,6 +189,20 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
     if (state_ == ParseState::kHtmlBeforeSystrace) {
       if (base::Contains(buffer, kTraceDataSection)) {
         state_ = ParseState::kTraceDataSection;
+      } else if (IsViewerDataStartLine(base::StringView(buffer))) {
+        viewer_data_blocks_.push_back(
+            {ctx_->trace_file_tracker->AddFile(), std::string()});
+        state_ = ParseState::kViewerData;
+      }
+    } else if (state_ == ParseState::kViewerData) {
+      if (base::Contains(buffer, R"(</script>)")) {
+        state_ = ParseState::kHtmlBeforeSystrace;
+      } else {
+        // Like html2trace, also accept the data split across lines.
+        if (!buffer.empty() && buffer.back() == '\r') {
+          buffer.pop_back();
+        }
+        viewer_data_blocks_.back().base64 += buffer;
       }
     } else if (state_ == ParseState::kTraceDataSection) {
       if (base::StartsWith(buffer, "#") && base::Contains(buffer, "TASK-PID")) {
@@ -275,6 +311,49 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
     partial_buf_.erase(partial_buf_.begin(), start_it);
   }
   return base::OkStatus();
+}
+
+base::Status SystraceTraceParser::OnPushDataToSorter() {
+  for (ViewerDataBlock& block : viewer_data_blocks_) {
+    size_t max_size = base::Base64DecSize(block.base64.size());
+    if (max_size == 0) {
+      continue;
+    }
+    std::unique_ptr<uint8_t[]> data(new uint8_t[max_size]);
+    ssize_t size = base::Base64Decode(block.base64.data(), block.base64.size(),
+                                      data.get(), max_size);
+    if (size < 0) {
+      return base::ErrStatus(
+          "Failed to decode a trace embedded in an HTML file (ERR:tp-corrupt)");
+    }
+    if (size == 0) {
+      continue;
+    }
+    std::unique_ptr<ChunkedTraceReader> reader =
+        std::make_unique<ForwardingTraceParser>(ctx_, block.file_id);
+    // Like html2trace, decompress if needed. This is not left to the
+    // ForwardingTraceParser, which would hand the gzip container this trace's
+    // context: containers must only be given the root context.
+    if (IsGzip(data.get(), static_cast<size_t>(size))) {
+      reader = std::make_unique<DecompressingTraceReader>(
+          std::move(reader), util::CompressionType::kGzip);
+    }
+    ChunkedTraceReader& parser = *reader;
+    viewer_data_readers_.push_back(std::move(reader));
+    RETURN_IF_ERROR(parser.Parse(TraceBlobView(
+        TraceBlob::TakeOwnership(std::move(data), static_cast<size_t>(size)))));
+    RETURN_IF_ERROR(parser.OnPushDataToSorter());
+  }
+  viewer_data_blocks_.clear();
+  return base::OkStatus();
+}
+
+void SystraceTraceParser::OnEventsFullyExtracted() {
+  // Files must finish parsing in the reverse order they started.
+  for (auto it = viewer_data_readers_.rbegin();
+       it != viewer_data_readers_.rend(); ++it) {
+    (*it)->OnEventsFullyExtracted();
+  }
 }
 
 namespace {

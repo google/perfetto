@@ -13,9 +13,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Csv, Json
+import base64
+import gzip
+
+from python.generators.diff_tests.testing import Csv, Json, RawText
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
+
+
+def _catapult_html(*blocks):
+  """Returns an HTML file like the ones written by catapult's trace2html.
+
+  Each block is a (mime_type, trace, gzipped) tuple: the trace is embedded as
+  base64 (of its gzip if `gzipped`) in a <script id="viewer-data"> tag.
+  """
+  lines = [
+      '<!DOCTYPE html>',
+      '<html>',
+      '<script>',
+      "document.querySelectorAll('#viewer-data');",
+      '</script>',
+  ]
+  for mime_type, trace, gzipped in blocks:
+    data = trace.encode()
+    if gzipped:
+      data = gzip.compress(data, mtime=0)
+    lines.append(f'<script id="viewer-data" type="{mime_type}">')
+    lines.append(base64.b64encode(data).decode())
+    lines.append('</script>')
+  lines.append('</html>')
+  return '\n'.join(lines) + '\n'
+
+
+_CATAPULT_HTML = _catapult_html(
+    ('text/plain', '''{"traceEvents": [{"name": "FirstTraceSlice",
+        "ph": "X", "ts": 100, "dur": 10, "pid": 1, "tid": 1}]}''', True),
+    ('application/json', '''[{"name": "SecondTraceSlice",
+        "ph": "X", "ts": 200, "dur": 20, "pid": 2, "tid": 2}]''', False),
+)
 
 
 class JsonParser(TestSuite):
@@ -2054,3 +2089,35 @@ class JsonParser(TestSuite):
           "slice_count","spill_count","drop_count"
           2,1,0
         """))
+
+  # HTML files from catapult's trace2html (e.g. chromeperf) embed each trace,
+  # gzipped or not, as base64 in a <script id="viewer-data"> tag.
+  def test_catapult_html_viewer_data(self):
+    return DiffTestBlueprint(
+        trace=RawText(_CATAPULT_HTML),
+        query='''
+          SELECT ts, dur, name
+          FROM slice
+          ORDER BY ts
+        ''',
+        out=Csv('''
+          "ts","dur","name"
+          100000,10000,"FirstTraceSlice"
+          200000,20000,"SecondTraceSlice"
+        '''))
+
+  # Each embedded trace is a child of the HTML file, like a zip member.
+  def test_catapult_html_viewer_data_trace_files(self):
+    return DiffTestBlueprint(
+        trace=RawText(_CATAPULT_HTML),
+        query='''
+          SELECT id, parent_id, name, trace_type, processing_order
+          FROM __intrinsic_trace_file
+          ORDER BY processing_order
+        ''',
+        out=Csv('''
+          "id","parent_id","name","trace_type","processing_order"
+          0,"[NULL]","[NULL]","systrace",0
+          1,0,"[NULL]","json",1
+          2,0,"[NULL]","json",2
+        '''))

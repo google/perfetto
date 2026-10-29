@@ -56,8 +56,11 @@ source_set("full") {
     "../../containers",
     "../../sorter",
     "../../storage",
+    "../../tables:tables_python",
     "../../types",
+    "../../util:decompressor",
     "../../util:trace_type",
+    "../archive",
     "../common",
     "../ftrace:full",
   ]
