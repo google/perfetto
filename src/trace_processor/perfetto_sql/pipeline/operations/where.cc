@@ -350,6 +350,7 @@ std::optional<uint32_t> Where::Prune(std::vector<bool>* needed) {
 void Where::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerNode(node.children()[0]);
   std::vector<ex::Filter::Condition> conditions;
+  conditions.reserve(predicates_.size());
   for (const WherePredicate& p : predicates_) {
     ex::Filter::Condition condition;
     condition.column = c->QueryPosition(p.column);
@@ -358,10 +359,12 @@ void Where::Lower(Lowering* c, const PlanNode& node) const {
     // of no known type carries a type per row, so it is converted to the
     // literals' type. GLOB matches only strings.
     std::optional<core::StorageType> type = c->QueryType(p.column).storage();
-    std::optional<core::StorageType> wanted = TypeForLiterals(p, literals_);
-    if (wanted && (!type || p.op.Is<core::Glob>())) {
-      type = wanted;
-      c->RequireType(p.column, *type);
+    if (!type || p.op.Is<core::Glob>()) {
+      std::optional<core::StorageType> wanted = TypeForLiterals(p, literals_);
+      if (wanted) {
+        type = wanted;
+        c->RequireType(p.column, *type);
+      }
     }
     if (type && !p.op.IsAnyOf<core::NullOp>()) {
       LiteralFetcher fetcher(literals_.data() + p.first_literal,
