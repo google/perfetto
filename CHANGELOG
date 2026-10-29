@@ -10,6 +10,8 @@ Unreleased:
    * Python query results can now be converted to typed Arrow tables with
      `as_arrow_table()`, and implement the Arrow PyCapsule interface so they
      can be passed straight to pyarrow, polars and DuckDB.
+   * HTML files written by catapult's trace2html (e.g. chromeperf traces) now
+     load the traces embedded in them, instead of loading as empty traces.
   UI:
     * AndroidInputLifecycle arrows are now drawn as soon as an input slice is
       selected, with the latency grid in an "Input Lifecycle" details tab.
