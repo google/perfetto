@@ -472,6 +472,27 @@ TEST(TraceProcessorCustomConfigTest, ExtraParsingDescriptors) {
   EXPECT_THAT(it.Get(0).AsLong(), Eq(0));
 }
 
+base::Status LoadTraceInto(TraceProcessor* processor,
+                           const char* name,
+                           size_t min_chunk_size = 512,
+                           size_t max_chunk_size = kMaxChunkSize) {
+  EXPECT_LE(min_chunk_size, max_chunk_size);
+  base::ScopedFstream f =
+      base::OpenFstream(base::GetTestDataPath(std::string("test/data/") + name),
+                        base::kFopenReadFlag);
+  std::minstd_rand0 rnd_engine(0);
+  std::uniform_int_distribution<size_t> dist(min_chunk_size, max_chunk_size);
+  while (!feof(*f)) {
+    size_t chunk_size = dist(rnd_engine);
+    std::unique_ptr<uint8_t[]> buf(new uint8_t[chunk_size]);
+    auto rsize = fread(reinterpret_cast<char*>(buf.get()), 1, chunk_size, *f);
+    auto status = processor->Parse(std::move(buf), rsize);
+    if (!status.ok())
+      return status;
+  }
+  return processor->NotifyEndOfFile();
+}
+
 class TraceProcessorIntegrationTest : public ::testing::Test {
  public:
   TraceProcessorIntegrationTest()
@@ -481,21 +502,8 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
   base::Status LoadTrace(const char* name,
                          size_t min_chunk_size = 512,
                          size_t max_chunk_size = kMaxChunkSize) {
-    EXPECT_LE(min_chunk_size, max_chunk_size);
-    base::ScopedFstream f = base::OpenFstream(
-        base::GetTestDataPath(std::string("test/data/") + name),
-        base::kFopenReadFlag);
-    std::minstd_rand0 rnd_engine(0);
-    std::uniform_int_distribution<size_t> dist(min_chunk_size, max_chunk_size);
-    while (!feof(*f)) {
-      size_t chunk_size = dist(rnd_engine);
-      std::unique_ptr<uint8_t[]> buf(new uint8_t[chunk_size]);
-      auto rsize = fread(reinterpret_cast<char*>(buf.get()), 1, chunk_size, *f);
-      auto status = processor_->Parse(std::move(buf), rsize);
-      if (!status.ok())
-        return status;
-    }
-    return NotifyEndOfFile();
+    return LoadTraceInto(processor_.get(), name, min_chunk_size,
+                         max_chunk_size);
   }
   base::Status NotifyEndOfFile() { return processor_->NotifyEndOfFile(); }
 
@@ -1073,10 +1081,11 @@ TEST_F(TraceProcessorIntegrationTest, NinjaLog) {
  * 4096 bytes, which will be read in one chunk.
  */
 TEST_F(TraceProcessorIntegrationTest, TraceWithoutUuidReadInOneChunk) {
-  ASSERT_TRUE(LoadTrace("example_android_trace_30s.pb", kMaxChunkSize).ok());
+  ASSERT_TRUE(
+      LoadTrace("track_event_callstack_weights.pftrace", kMaxChunkSize).ok());
   auto it = Query("select str_value from metadata where name = 'trace_uuid'");
   ASSERT_TRUE(it.Next());
-  EXPECT_STREQ(it.Get(0).string_value, "00000000-0000-0000-8906-ebb53e1d0738");
+  EXPECT_STREQ(it.Get(0).string_value, "00000000-0000-0000-11f1-fa5e0b6bb2ba");
 }
 
 /*
@@ -1084,10 +1093,11 @@ TEST_F(TraceProcessorIntegrationTest, TraceWithoutUuidReadInOneChunk) {
  * 4096 bytes, which will be read in multiple chunks.
  */
 TEST_F(TraceProcessorIntegrationTest, TraceWithoutUuidReadInMultipleChunks) {
-  ASSERT_TRUE(LoadTrace("example_android_trace_30s.pb", 512, 2048).ok());
+  ASSERT_TRUE(
+      LoadTrace("track_event_callstack_weights.pftrace", 512, 2048).ok());
   auto it = Query("select str_value from metadata where name = 'trace_uuid'");
   ASSERT_TRUE(it.Next());
-  EXPECT_STREQ(it.Get(0).string_value, "00000000-0000-0000-8906-ebb53e1d0738");
+  EXPECT_STREQ(it.Get(0).string_value, "00000000-0000-0000-11f1-fa5e0b6bb2ba");
 }
 
 /*
@@ -1365,11 +1375,39 @@ TEST_F(TraceProcessorIntegrationTest, ExportSqliteRequiresFilePath) {
       IsError());
 }
 
-TEST_F(TraceProcessorIntegrationTest, ExportPerfetto) {
-  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
+// Loading and exporting this trace is slow in debug builds, so do it once.
+class TraceProcessorPerfettoExportTest : public ::testing::Test {
+ protected:
+  static void SetUpTestSuite() {
+    processor_ = TraceProcessor::CreateInstance(Config()).release();
+    base::Status status =
+        LoadTraceInto(processor_, "example_android_trace_30s.pb");
+    if (!status.ok()) {
+      PERFETTO_ELOG("Failed to load trace: %s", status.c_message());
+      return;
+    }
+    tar_ = new std::string(
+        ExportToString(processor_, TraceProcessor::ExportFormat::kPerfetto));
+  }
 
-  std::string tar =
-      ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
+  static void TearDownTestSuite() {
+    delete tar_;
+    tar_ = nullptr;
+    delete processor_;
+    processor_ = nullptr;
+  }
+
+  void SetUp() override { ASSERT_NE(tar_, nullptr); }
+
+  static TraceProcessor* processor_;
+  static std::string* tar_;
+};
+
+TraceProcessor* TraceProcessorPerfettoExportTest::processor_ = nullptr;
+std::string* TraceProcessorPerfettoExportTest::tar_ = nullptr;
+
+TEST_F(TraceProcessorPerfettoExportTest, ExportPerfetto) {
+  const std::string& tar = *tar_;
 
   // The archive must start with the manifest entry: a tar file begins with
   // the first entry's 100-byte name field.
@@ -1389,7 +1427,7 @@ TEST_F(TraceProcessorIntegrationTest, ExportPerfetto) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, ExportArrowTar) {
-  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
+  ASSERT_OK(LoadTrace("track_event_callstack_weights.pftrace"));
   auto runtime_table = Processor()->ExecuteQuery(
       "CREATE PERFETTO TABLE runtime_export_test AS "
       "SELECT 1 AS value");
@@ -1412,31 +1450,25 @@ TEST_F(TraceProcessorIntegrationTest, ExportArrowTar) {
   EXPECT_THAT(ParsePerfettoExport(reimport.get(), tar), IsError());
 }
 
-TEST_F(TraceProcessorIntegrationTest, PerfettoExportRoundTrip) {
-  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
-
+TEST_F(TraceProcessorPerfettoExportTest, PerfettoExportRoundTrip) {
   int64_t thread_count =
-      QuerySingleInt(Processor(), "SELECT count() FROM thread");
-  int64_t slice_count =
-      QuerySingleInt(Processor(), "SELECT count() FROM slice");
+      QuerySingleInt(processor_, "SELECT count() FROM thread");
+  int64_t slice_count = QuerySingleInt(processor_, "SELECT count() FROM slice");
   int64_t slice_dur_sum =
-      QuerySingleInt(Processor(), "SELECT sum(dur) FROM slice");
+      QuerySingleInt(processor_, "SELECT sum(dur) FROM slice");
   int64_t dimension_count =
-      QuerySingleInt(Processor(), "SELECT count() FROM track_dimension");
+      QuerySingleInt(processor_, "SELECT count() FROM track_dimension");
   const std::string arg_lookup =
       "SELECT extract_arg(a.arg_set_id, a.key) = a.int_value FROM args AS a "
       "WHERE a.int_value IS NOT NULL "
       "AND a.value_type IN ('int', 'uint', 'bool', 'pointer') "
       "ORDER BY a.arg_set_id, a.key LIMIT 1";
-  ASSERT_EQ(QuerySingleInt(Processor(), arg_lookup), 1);
+  ASSERT_EQ(QuerySingleInt(processor_, arg_lookup), 1);
   std::string first_thread_name = QuerySingleString(
-      Processor(),
+      processor_,
       "SELECT name FROM thread WHERE name IS NOT NULL ORDER BY name LIMIT 1");
   ASSERT_GT(thread_count, 0);
   ASSERT_GT(slice_count, 0);
-
-  std::string tar =
-      ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
 
   auto reimport = TraceProcessor::CreateInstance(Config());
   ASSERT_EQ(QuerySingleInt(reimport.get(),
@@ -1445,7 +1477,7 @@ TEST_F(TraceProcessorIntegrationTest, PerfettoExportRoundTrip) {
   ASSERT_EQ(QuerySingleString(reimport.get(),
                               "SELECT __intrinsic_arg_set_to_json(0)"),
             "{}");
-  ASSERT_OK(ParsePerfettoExport(reimport.get(), tar));
+  ASSERT_OK(ParsePerfettoExport(reimport.get(), *tar_));
   EXPECT_EQ(QuerySingleInt(reimport.get(), arg_lookup), 1);
   EXPECT_EQ(
       QuerySingleInt(reimport.get(), "SELECT count() FROM track_dimension"),
@@ -1464,10 +1496,8 @@ TEST_F(TraceProcessorIntegrationTest, PerfettoExportRoundTrip) {
             first_thread_name);
 }
 
-TEST_F(TraceProcessorIntegrationTest, PerfettoExportSchemaMismatchRejected) {
-  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
-  std::string tar =
-      ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
+TEST_F(TraceProcessorPerfettoExportTest, PerfettoExportSchemaMismatchRejected) {
+  std::string tar = *tar_;
 
   // Corrupt the manifest: flip a column type. Same-length replacement keeps
   // the tar structure intact.
@@ -1482,10 +1512,9 @@ TEST_F(TraceProcessorIntegrationTest, PerfettoExportSchemaMismatchRejected) {
       << status.message();
 }
 
-TEST_F(TraceProcessorIntegrationTest, PerfettoExportVersionMismatchRejected) {
-  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
-  std::string tar =
-      ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
+TEST_F(TraceProcessorPerfettoExportTest,
+       PerfettoExportVersionMismatchRejected) {
+  std::string tar = *tar_;
 
   size_t pos = tar.find("\"format\":1");
   ASSERT_NE(pos, std::string::npos);
@@ -1498,10 +1527,9 @@ TEST_F(TraceProcessorIntegrationTest, PerfettoExportVersionMismatchRejected) {
       << status.message();
 }
 
-TEST_F(TraceProcessorIntegrationTest, PerfettoExportRowCountMismatchRejected) {
-  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
-  std::string tar =
-      ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
+TEST_F(TraceProcessorPerfettoExportTest,
+       PerfettoExportRowCountMismatchRejected) {
+  std::string tar = *tar_;
 
   size_t pos = tar.find("\"row_count\":");
   ASSERT_NE(pos, std::string::npos);
