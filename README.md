@@ -1,7 +1,5 @@
 # Perfetto - System profiling, app tracing and trace analysis
 
-[![Discord](https://img.shields.io/badge/Discord-ask%20in%20%23help-5865F2?logo=discord&logoColor=white)](https://discord.gg/35ShE3A)
-
 Perfetto is an open-source suite of SDKs, daemons and tools which use
 **tracing** to help developers understand the behaviour of complex systems and
 root-cause functional and performance issues on client and embedded systems.
@@ -91,15 +89,12 @@ of truth and packaging efforts are maintained at
 
 Have questions? Need help?
 
-- **[Discord](https://discord.gg/35ShE3A):** Ask in #help, chat with the
-  community and developers, and follow releases.
+- **[GitHub Discussions](https://github.com/google/perfetto/discussions/categories/q-a):**
+  For Q&A and general discussions.
 - **[GitHub Issues](https://github.com/google/perfetto/issues):** For bug
   reports.
-- **[Mailing list](https://groups.google.com/forum/#!forum/perfetto-dev):** If
-  you prefer email.
-
-See [Community and getting help](https://perfetto.dev/docs/community) for
-more.
+- **[Discord](https://discord.gg/35ShE3A):** For live chat with the community
+  and developers.
 
 We follow
 [Google's Open Source Community Guidelines](https://opensource.google/conduct/).
