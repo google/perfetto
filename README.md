@@ -24,8 +24,9 @@
 
 Perfetto is an open-source suite of tools for **recording, visualizing and
 analyzing traces**: timelines of what software and the system under it were
-doing. It is the default tracing system for **Android** and **Chromium**, and
-it works just as well on Linux, macOS and Windows.
+doing. It is the default tracing system for **Android** and **Chromium**.
+System-wide recording works on Android and Linux. The tracing SDK, the UI and
+Trace Processor also run on macOS and Windows.
 
 - **Record the whole system.** Scheduling, CPU frequency, memory, syscalls and
   any kernel tracepoint on Android and Linux, plus Android framework events,
@@ -108,7 +109,7 @@ print(tp.query('SELECT ts, dur, name FROM slice LIMIT 10').as_pandas_dataframe()
   ANRs and low memory kills, and profile Java/Kotlin and native memory.
   ([Android guides](https://perfetto.dev/docs/getting-started/android-trace-analysis))
 - **C, C++ and Rust developers:** instrument your code to see where time goes
-  across threads and processes, on Linux, macOS and Windows.
+  across threads and processes.
   ([In-app tracing](https://perfetto.dev/docs/getting-started/in-app-tracing))
 - **Linux kernel and systems developers:** visualize scheduling, syscalls,
   interrupts and custom tracepoints. Perfetto is an efficient userspace daemon
