@@ -48,21 +48,25 @@ inline constexpr uint32_t kMaxPipelineColumns = 256;
 // it and run it later without compiling the pipeline again.
 std::string SerializePlan(LogicalPlan, const PlanKey& key);
 
-// Rebuilds a plan written by SerializePlan, looking its dataframes up in
-// `catalog` again. Anyone can write bytes into SQL, so bytes without the
-// stamp of `key` are refused, as is a plan whose dataframes have since
+// Rebuilds a plan written by SerializePlan, binding the dataframes it names
+// to those in `catalog` now. Anyone can write bytes into SQL, so bytes without
+// the stamp of `key` are refused, as is a plan whose dataframes have since
 // changed.
-base::StatusOr<LogicalPlan> DeserializePlan(std::string_view,
-                                            const PlanKey& key,
-                                            const Catalog&);
+base::StatusOr<BoundPlan> DeserializePlan(std::string_view,
+                                          const PlanKey& key,
+                                          const Catalog&);
 
-// Points each scan of a dataframe argument at `args[i]`, the dataframe the
+// Binds the dataframes a plan compiled in this process names, which it never
+// wrote, to those in `catalog`.
+base::StatusOr<BoundPlan> ResolveCompiledPlan(LogicalPlan, const Catalog&);
+
+// Binds each scan of a dataframe argument to `args[i]`, the dataframe the
 // plan is passed as its i-th argument when it runs, and types the scan's
 // columns as the dataframe does. A null argument is a relation with no rows.
 // Anyone can pass dataframes to a plan in SQL, so each must have the columns
 // the plan reads from it.
 base::Status BindDataframeArgs(
-    LogicalPlan& plan,
+    BoundPlan* plan,
     const std::vector<const dataframe::Dataframe*>& args,
     StringPool* pool);
 
