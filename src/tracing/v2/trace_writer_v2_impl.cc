@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <optional>
 #include <utility>
@@ -39,6 +40,27 @@ namespace {
 // A new fragment must fit Protozero's largest scalar field.
 constexpr uint32_t kMinFragmentPayloadSize =
     static_cast<uint32_t>(protozero::proto_utils::kMaxSimpleFieldEncodedSize);
+
+// memcpy() of a small packet without a call into libc: copies |size| bytes
+// with fixed-size, possibly overlapping, moves.
+PERFETTO_ALWAYS_INLINE inline void CopySmall(uint8_t* dst,
+                                             const uint8_t* src,
+                                             size_t size) {
+  if (size >= 16) {
+    for (size_t i = 0; i + 16 < size; i += 16)
+      memcpy(dst + i, src + i, 16);
+    memcpy(dst + size - 16, src + size - 16, 16);
+  } else if (size >= 8) {
+    memcpy(dst, src, 8);
+    memcpy(dst + size - 8, src + size - 8, 8);
+  } else if (size >= 4) {
+    memcpy(dst, src, 4);
+    memcpy(dst + size - 4, src + size - 4, 4);
+  } else {
+    for (size_t i = 0; i < size; i++)
+      dst[i] = src[i];
+  }
+}
 
 // Each wait for space requests at most this time. A wait can end early, for
 // example when the reader moves read_pos.
@@ -130,6 +152,30 @@ void TraceWriterV2Impl::FinishTracePacket() {
   // packet_open_ true until it returns so GetNewBuffer() can obtain space for
   // those bytes. Then publish the final fragment without a continuation flag.
   cur_packet_->Finalize();
+  packet_open_ = false;
+  EndPacketFragment(/*continues_on_next=*/false);
+}
+
+void TraceWriterV2Impl::WriteRawPacket(const uint8_t* data, size_t size) {
+  PERFETTO_DCHECK(process_id_ == base::GetProcessId());
+  EnsurePacketClosed();
+  // The first packet needs a field that only the protozero path writes.
+  if (PERFETTO_UNLIKELY(first_packet_on_sequence_)) {
+    TraceWriter::WriteRawPacket(data, size);
+    return;
+  }
+  const protozero::ContiguousMemoryRange range =
+      BeginPacketFragment(/*continues_from_prev=*/false);
+  if (PERFETTO_LIKELY(fragment_begin_ && size <= range.size())) {
+    CopySmall(range.begin, data, size);
+    EndPacketFragmentOfSize(/*continues_on_next=*/false,
+                            static_cast<uint32_t>(size));
+    return;
+  }
+  // The packet goes to the drop buffer, or continues in another fragment.
+  stream_writer_.Reset(range);
+  packet_open_ = true;
+  stream_writer_.WriteBytes(data, size);
   packet_open_ = false;
   EndPacketFragment(/*continues_on_next=*/false);
 }
@@ -237,8 +283,13 @@ inline void TraceWriterV2Impl::EndPacketFragment(bool continues_on_next) {
     return;
   }
 
-  const uint32_t used =
-      static_cast<uint32_t>(stream_writer_.write_ptr() - fragment_begin_);
+  EndPacketFragmentOfSize(
+      continues_on_next,
+      static_cast<uint32_t>(stream_writer_.write_ptr() - fragment_begin_));
+}
+
+inline void TraceWriterV2Impl::EndPacketFragmentOfSize(bool continues_on_next,
+                                                       uint32_t used) {
   fragment_begin_ = nullptr;
 
   // If the reader took the chunk, EndFragment() relocates the fragment and

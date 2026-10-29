@@ -135,6 +135,7 @@ class TraceWriterV2Impl : public TraceWriter,
   // TraceWriter:
   TracePacketHandle NewTracePacket() override;
   void FinishTracePacket() override;
+  void WriteRawPacket(const uint8_t* data, size_t size) override;
   // Unlike v1, |callback| does not wait for a service ack. See
   // ProducerRingBufferArbiter::Flush().
   void Flush(std::function<void()> callback = {}) override;
@@ -190,6 +191,9 @@ class TraceWriterV2Impl : public TraceWriter,
   //   packet.
   // - Returns with no relocation pending in |ring_buffer_writer_|.
   PERFETTO_ALWAYS_INLINE void EndPacketFragment(bool continues_on_next);
+  // EndPacketFragment() for a fragment of |used| bytes.
+  PERFETTO_ALWAYS_INLINE void EndPacketFragmentOfSize(bool continues_on_next,
+                                                      uint32_t used);
 
   // EndPacketFragment() after EndFragment() returned |result|, which is not
   // kSuccess. Returns false if the rest of the packet is dropped.
