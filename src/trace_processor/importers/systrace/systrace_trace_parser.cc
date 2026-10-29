@@ -156,6 +156,8 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
   // good to also parse the process dump section.
   const char kTraceDataSection[] =
       R"(<script class="trace-data" type="application/text">)";
+  // catapult's trace2html instead embeds traces as base64 in these blocks.
+  const char kViewerDataSection[] = R"(<script id="viewer-data")";
   auto start_it = partial_buf_.begin();
   for (;;) {
     auto line_it = std::find(start_it, partial_buf_.end(), '\n');
@@ -167,6 +169,12 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
     if (state_ == ParseState::kHtmlBeforeSystrace) {
       if (base::Contains(buffer, kTraceDataSection)) {
         state_ = ParseState::kTraceDataSection;
+      } else if (base::StartsWith(buffer, kViewerDataSection)) {
+        return base::ErrStatus(
+            "HTML traces written by catapult's trace2html (e.g. from "
+            "chromeperf) are not supported. Open the file with \"Open with "
+            "legacy UI\" in the Perfetto UI, or extract its traces with "
+            "catapult's html2trace.");
       }
     } else if (state_ == ParseState::kTraceDataSection) {
       if (base::StartsWith(buffer, "#") && base::Contains(buffer, "TASK-PID")) {
