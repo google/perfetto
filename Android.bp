@@ -16431,6 +16431,7 @@ filegroup {
         "src/base/scoped_file_unittest.cc",
         "src/base/scoped_mmap_unittest.cc",
         "src/base/scoped_sched_boost_unittest.cc",
+        "src/base/sd_notify_unittest.cc",
         "src/base/small_vector_unittest.cc",
         "src/base/status_or_unittest.cc",
         "src/base/status_unittest.cc",
@@ -16458,6 +16459,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_base_unix_socket",
     srcs: [
+        "src/base/sd_notify.cc",
         "src/base/unix_socket.cc",
     ],
 }
