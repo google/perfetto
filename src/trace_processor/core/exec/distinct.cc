@@ -24,9 +24,9 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -80,7 +80,7 @@ bool Distinct::Process(RowBatch& batch, OperatorState& state) const {
     n += first;
     next += first;
   }
-  batch.mutable_selection().Keep(Span<const uint32_t>(kept, kept + n));
+  batch.mutable_selection().Keep(base::Span<const uint32_t>(kept, kept + n));
   return true;
 }
 

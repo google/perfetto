@@ -258,6 +258,7 @@ perfetto_unittest_source_set("unittests") {
     "scoped_mmap_unittest.cc",
     "scoped_sched_boost_unittest.cc",
     "small_vector_unittest.cc",
+    "span_unittest.cc",
     "status_or_unittest.cc",
     "status_unittest.cc",
     "string_splitter_unittest.cc",

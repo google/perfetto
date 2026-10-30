@@ -21,7 +21,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/core/util/span.h"
+#include "perfetto/ext/base/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -61,10 +61,10 @@ class Selection {
   }
 
   // Keeps the rows kept at `positions`, which are increasing.
-  void Keep(Span<const uint32_t> positions);
+  void Keep(base::Span<const uint32_t> positions);
 
   // Keeps the batch rows `rows`, which are increasing and all kept already.
-  void KeepRows(Span<const uint32_t> rows);
+  void KeepRows(base::Span<const uint32_t> rows);
 
   // Keeps `count` of the rows kept, from the `first`.
   void KeepRange(uint32_t first, uint32_t count);

@@ -23,8 +23,8 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/containers/interval_tree.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core {
 
@@ -44,7 +44,7 @@ class IntervalGaps {
 
   // Starts lane `lane`, whose background is sorted by start, with no two
   // intervals of width overlapping. Ends the current lane first.
-  void StartLane(uint32_t lane, Span<const Interval> background) {
+  void StartLane(uint32_t lane, base::Span<const Interval> background) {
     EndLane();
     in_lane_ = true;
     lane_ = lane;

@@ -24,6 +24,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/filter_value_cast.h"
@@ -33,7 +34,6 @@
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::filter {
@@ -235,8 +235,9 @@ void CheckIndexEqual(StorageType type) {
         // Values in the column, and out of its range either way.
         auto value = static_cast<T>(static_cast<int>(rng() % 24) - 2);
         std::vector<uint32_t> index = c.index;
-        Span<const uint32_t> entries(index.data(), index.data() + index.size());
-        Span<const uint32_t> actual = SearchIndexEqual(
+        base::Span<const uint32_t> entries(index.data(),
+                                           index.data() + index.size());
+        base::Span<const uint32_t> actual = SearchIndexEqual(
             column, CastFilterValueResult::Value(value), entries);
         auto [lb, ub] = std::equal_range(
             index.begin(), index.end(), std::optional<T>(value),
@@ -288,9 +289,9 @@ TEST(SearchIndexEqualTest, String) {
           base::StackString<16>("s%02u", static_cast<uint32_t>(rng() % 22))
               .ToStdString();
       std::vector<uint32_t> copy = index;
-      Span<const uint32_t> actual = SearchIndexEqual(
+      base::Span<const uint32_t> actual = SearchIndexEqual(
           column, CastFilterValueResult::Value(value.c_str()),
-          Span<const uint32_t>(copy.data(), copy.data() + copy.size()));
+          base::Span<const uint32_t>(copy.data(), copy.data() + copy.size()));
       uint32_t expected_b = 0;
       while (expected_b < size && text[index[expected_b]] < value) {
         ++expected_b;

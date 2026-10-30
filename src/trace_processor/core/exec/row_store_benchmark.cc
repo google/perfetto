@@ -23,11 +23,11 @@
 #include <cstdint>
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
-#include "src/trace_processor/core/util/span.h"
 
 // Retaining borrowed batches of Int64 columns and reading them back in another
 // order, as an operator holding its input does: two columns over 16 full
@@ -74,7 +74,8 @@ void Run(benchmark::State& state,
     for (uint32_t at = 0; at < rows; at += kMaxBatchRows) {
       const uint32_t* begin = order.data() + at;
       uint32_t count = std::min(kMaxBatchRows, rows - at);
-      store.Gather(&out, Span<const uint32_t>(begin, begin + count), context);
+      store.Gather(&out, base::Span<const uint32_t>(begin, begin + count),
+                   context);
       benchmark::DoNotOptimize(out.size());
     }
     store.Clear();

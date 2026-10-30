@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/filter_kernels.h"
@@ -38,7 +39,6 @@
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -139,8 +139,8 @@ void KeepIn(const ColumnView& column,
   if constexpr (!std::is_same_v<T, Id>) {
     data += column.start();
   }
-  Span<uint32_t> rows(r.rows, r.rows + r.count);
-  Span<uint32_t> dest = rows;
+  base::Span<uint32_t> rows(r.rows, r.rows + r.count);
+  base::Span<uint32_t> dest = rows;
   filter::NonIndexedFilterInScan<T>(list, data, column.start(), rows, dest);
   r.count = static_cast<uint32_t>(dest.size());
 }
@@ -256,7 +256,7 @@ bool Filter::Process(RowBatch& batch, OperatorState& state) const {
     ApplyCondition(c.op, values[c.value], column, *pool_, r);
   }
   batch.mutable_selection().KeepRows(
-      Span<const uint32_t>(r.rows, r.rows + r.count));
+      base::Span<const uint32_t>(r.rows, r.rows + r.count));
   return true;
 }
 

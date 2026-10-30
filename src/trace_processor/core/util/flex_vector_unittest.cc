@@ -273,5 +273,12 @@ TEST(FlexVectorTest, ResizeGrowsGeometrically) {
   EXPECT_GE(vec.capacity(), capacity * 3 / 2);
 }
 
+TEST(FlexVectorTest, CreatesSpan) {
+  auto flex = FlexVector<uint32_t>::CreateFilled(2, 3);
+  EXPECT_THAT(flex.span(), testing::ElementsAre(3u, 3u));
+  flex.mutable_span().b[0] = 4;
+  EXPECT_EQ(flex[0], 4u);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core

@@ -26,12 +26,12 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/ops.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::interpreter::ops {
 
@@ -64,7 +64,7 @@ void CopySpanIntersectingRange(
   auto& update = state.ReadFromRegister(bytecode.arg<B::update_register>());
   PERFETTO_DCHECK(source.size() <= update.size());
   update.e = filter::CopySpanIntersectingRange(
-      Span<const uint32_t>(source.b, source.e), source_range, update.b);
+      base::Span<const uint32_t>(source.b, source.e), source_range, update.b);
 }
 
 void InitRankMap(InterpreterState& state, const struct InitRankMap& bytecode) {

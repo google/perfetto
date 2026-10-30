@@ -65,7 +65,7 @@ bool TryAdd(T value, T* total) {
 template <typename T>
 bool AccumulateSum(T value,
                    uint32_t destination,
-                   core::Span<T> sums,
+                   base::Span<T> sums,
                    core::BitVector* has_value) {
   PERFETTO_DCHECK(destination < sums.size());
   PERFETTO_DCHECK(has_value->size() == sums.size());
@@ -86,9 +86,9 @@ core::Slab<T> AllocFilled(uint64_t size, T value) {
 
 void UpdateNonZeroRows(const core::Tree::Column& column,
                        uint32_t offset,
-                       core::Span<uint8_t> rows) {
+                       base::Span<uint8_t> rows) {
   if (column.type.Is<core::Int64>()) {
-    core::Span<const int64_t> values =
+    base::Span<const int64_t> values =
         column.unchecked_span<int64_t>().subspan(offset, rows.size());
     for (uint32_t row = 0; row < rows.size(); ++row) {
       rows[row] |= !base::IsZero(values[row]);
@@ -96,7 +96,7 @@ void UpdateNonZeroRows(const core::Tree::Column& column,
     return;
   }
   PERFETTO_DCHECK(column.type.Is<core::Double>());
-  core::Span<const double> values =
+  base::Span<const double> values =
       column.unchecked_span<double>().subspan(offset, rows.size());
   for (uint32_t row = 0; row < rows.size(); ++row) {
     rows[row] |= !base::IsZero(values[row]);
@@ -244,9 +244,9 @@ uint64_t DistinctKey(double value) {
 }
 
 struct NativeFrameRouting {
-  core::Span<const PathState> states;
-  core::Span<const uint32_t> downward_nodes;
-  core::Span<const TreeConstituent> upward_constituents;
+  base::Span<const PathState> states;
+  base::Span<const uint32_t> downward_nodes;
+  base::Span<const TreeConstituent> upward_constituents;
   uint32_t downward_size;
   uint64_t required_show_stack_bits;
   bool has_downward;
@@ -261,8 +261,8 @@ class AggregateOperator {
 
   virtual ~AggregateOperator();
   virtual InputMode input_mode() const { return InputMode::kRowsToOutputs; }
-  virtual base::Status UpdateBatch(core::Span<const uint32_t>,
-                                   core::Span<const uint32_t>) {
+  virtual base::Status UpdateBatch(base::Span<const uint32_t>,
+                                   base::Span<const uint32_t>) {
     PERFETTO_FATAL("Aggregate operator does not support direct row updates");
   }
   virtual base::Status UpdateFrames(const NativeFrameRouting&) {
@@ -295,8 +295,8 @@ class SumAggregateOperator final : public AggregateOperator {
   }
 
   base::Status UpdateFrames(const NativeFrameRouting& routing) override {
-    core::Span<const T> input = input_.unchecked_span<T>();
-    core::Span<T> totals = frame_totals_.unchecked_span<T>();
+    base::Span<const T> input = input_.unchecked_span<T>();
+    base::Span<T> totals = frame_totals_.unchecked_span<T>();
     for (uint32_t row = 0; row < input.size(); ++row) {
       if (input_.null_bv.size() > 0 && !input_.null_bv.is_set(row)) {
         continue;
@@ -316,8 +316,8 @@ class SumAggregateOperator final : public AggregateOperator {
 
   base::Status MergeFrames(const NativeFrameRouting& routing) override {
     const core::Tree::Column& frame_totals = frame_totals_;
-    core::Span<const T> totals = frame_totals.unchecked_span<T>();
-    core::Span<T> output = output_.unchecked_span<T>();
+    base::Span<const T> totals = frame_totals.unchecked_span<T>();
+    base::Span<T> output = output_.unchecked_span<T>();
     if (routing.has_downward) {
       for (uint32_t frame = 0; frame < routing.states.size(); ++frame) {
         const PathState& state = routing.states[frame];
@@ -365,9 +365,9 @@ class OneOrSummaryAggregateOperator final : public AggregateOperator {
     output_.null_bv = core::BitVector::CreateWithSize(output_rows, false);
   }
 
-  base::Status UpdateBatch(core::Span<const uint32_t> output_rows,
-                           core::Span<const uint32_t> input_rows) override {
-    core::Span<const T> input = input_.unchecked_span<T>();
+  base::Status UpdateBatch(base::Span<const uint32_t> output_rows,
+                           base::Span<const uint32_t> input_rows) override {
+    base::Span<const T> input = input_.unchecked_span<T>();
     for (uint32_t i = 0; i < input_rows.size(); ++i) {
       const uint32_t input_row = input_rows[i];
       if (input_.null_bv.size() > 0 && !input_.null_bv.is_set(input_row)) {
@@ -409,7 +409,7 @@ class OneOrSummaryAggregateOperator final : public AggregateOperator {
     if (!has_value_) {
       return;
     }
-    core::Span<StringPool::Id> output =
+    base::Span<StringPool::Id> output =
         output_.unchecked_span<StringPool::Id>();
     if constexpr (std::is_same_v<T, StringPool::Id>) {
       if (!has_multiple_values_) {
@@ -466,9 +466,9 @@ class ConcatAggregateOperator final : public AggregateOperator {
     output_.null_bv = core::BitVector::CreateWithSize(output_rows, false);
   }
 
-  base::Status UpdateBatch(core::Span<const uint32_t> output_rows,
-                           core::Span<const uint32_t> input_rows) override {
-    core::Span<const T> input = input_.unchecked_span<T>();
+  base::Status UpdateBatch(base::Span<const uint32_t> output_rows,
+                           base::Span<const uint32_t> input_rows) override {
+    base::Span<const T> input = input_.unchecked_span<T>();
     for (uint32_t i = 0; i < input_rows.size(); ++i) {
       const uint32_t input_row = input_rows[i];
       if (input_.null_bv.size() > 0 && !input_.null_bv.is_set(input_row)) {
@@ -531,10 +531,10 @@ struct PackedTree {
   }
 
   uint32_t size() const { return rows; }
-  core::Span<const uint32_t> source_node_span() const {
+  base::Span<const uint32_t> source_node_span() const {
     return source_nodes.span().subspan(0, rows);
   }
-  core::Span<const uint32_t> representative_frame_span() const {
+  base::Span<const uint32_t> representative_frame_span() const {
     return representative_frames.span().subspan(0, rows);
   }
 
@@ -577,7 +577,7 @@ class FlamegraphBuilder {
 
   template <typename T>
   base::Status MarkActiveBottomUpAnchors(const core::Tree::Column& column,
-                                         core::Span<uint8_t> active);
+                                         base::Span<uint8_t> active);
 
   template <typename T>
   static void InitializeMetricColumns(uint32_t rows, MetricColumns* output);
@@ -588,27 +588,27 @@ class FlamegraphBuilder {
 
   template <typename T>
   base::Status AccumulateDownwardMetric(const core::Tree::Column& input,
-                                        core::Span<T> self,
-                                        core::Span<T> cumulative);
+                                        base::Span<T> self,
+                                        base::Span<T> cumulative);
 
   template <typename T>
   base::Status AccumulateUpwardMetric(const core::Tree::Column& input,
-                                      core::Span<T> self,
-                                      core::Span<T> cumulative);
+                                      base::Span<T> self,
+                                      base::Span<T> cumulative);
 
   template <typename T>
   base::Status AccumulateBottomUpMetric(const core::Tree::Column& input,
-                                        core::Span<T> self,
-                                        core::Span<T> cumulative);
+                                        base::Span<T> self,
+                                        base::Span<T> cumulative);
 
   template <typename T>
   base::Status AccumulatePivotUpwardMetric(const core::Tree::Column& input,
-                                           core::Span<T> self,
-                                           core::Span<T> cumulative);
+                                           base::Span<T> self,
+                                           base::Span<T> cumulative);
 
   template <typename T>
   static base::Status PropagateCumulative(const core::TreePathInterner& tree,
-                                          core::Span<T> cumulative);
+                                          base::Span<T> cumulative);
 
   void AppendPackedNodes(const core::TreePathInterner& tree,
                          uint32_t id_offset,
@@ -753,8 +753,8 @@ FilterMatches FlamegraphBuilder::MatchText(const char* value) const {
 
 void FlamegraphBuilder::PrepareFrameHashes() {
   analysis_.frame_hashes.resize(input_.row_count);
-  core::Span<base::MurmurHashCombiner> hashes =
-      core::MakeMutableSpan(analysis_.frame_hashes);
+  base::Span<base::MurmurHashCombiner> hashes =
+      base::MakeMutableSpan(analysis_.frame_hashes);
   core::tree_ops::UpdateRowHashes(*config_.name, hashes);
   for (const core::Tree::Column* column : config_.grouping_columns) {
     core::tree_ops::UpdateRowHashes(*column, hashes);
@@ -925,8 +925,8 @@ void FlamegraphBuilder::BuildDownwardHalf() {
 template <typename T>
 base::Status FlamegraphBuilder::MarkActiveBottomUpAnchors(
     const core::Tree::Column& column,
-    core::Span<uint8_t> active) {
-  core::Span<const T> values = column.unchecked_span<T>();
+    base::Span<uint8_t> active) {
+  base::Span<const T> values = column.unchecked_span<T>();
   for (uint32_t row = 0; row < input_.row_count; ++row) {
     if (column.null_bv.size() > 0 && !column.null_bv.is_set(row)) {
       continue;
@@ -1012,8 +1012,8 @@ void FlamegraphBuilder::InitializeMetricColumns(uint32_t rows,
                                                 MetricColumns* output) {
   output->self = core::Tree::Column::Create<T>(rows);
   output->cumulative = core::Tree::Column::Create<T>(rows);
-  core::Span<T> self = output->self.unchecked_span<T>();
-  core::Span<T> cumulative = output->cumulative.unchecked_span<T>();
+  base::Span<T> self = output->self.unchecked_span<T>();
+  base::Span<T> cumulative = output->cumulative.unchecked_span<T>();
   std::fill(self.begin(), self.end(), T{});
   std::fill(cumulative.begin(), cumulative.end(), T{});
 }
@@ -1025,8 +1025,8 @@ base::Status FlamegraphBuilder::AccumulateMetric(
   const uint32_t downward_size = downward_.tree.size();
   const uint32_t upward_size = upward_.tree.size();
   InitializeMetricColumns<T>(downward_size + upward_size, output);
-  core::Span<T> self = output->self.unchecked_span<T>();
-  core::Span<T> cumulative = output->cumulative.unchecked_span<T>();
+  base::Span<T> self = output->self.unchecked_span<T>();
+  base::Span<T> cumulative = output->cumulative.unchecked_span<T>();
   RETURN_IF_ERROR(
       AccumulateDownwardMetric<T>(input, self.subspan(0, downward_size),
                                   cumulative.subspan(0, downward_size)));
@@ -1038,7 +1038,7 @@ base::Status FlamegraphBuilder::AccumulateMetric(
 template <typename T>
 base::Status FlamegraphBuilder::PropagateCumulative(
     const core::TreePathInterner& tree,
-    core::Span<T> cumulative) {
+    base::Span<T> cumulative) {
   PERFETTO_DCHECK(tree.size() == cumulative.size());
   for (uint32_t node = tree.size(); node-- > 0;) {
     const uint32_t parent = tree.parent(node);
@@ -1053,13 +1053,13 @@ base::Status FlamegraphBuilder::PropagateCumulative(
 template <typename T>
 base::Status FlamegraphBuilder::AccumulateDownwardMetric(
     const core::Tree::Column& input,
-    core::Span<T> self,
-    core::Span<T> cumulative) {
+    base::Span<T> self,
+    base::Span<T> cumulative) {
   if (!config_.view.IsAnyOf<Config::DownwardViews>()) {
     return base::OkStatus();
   }
 
-  core::Span<const T> values = input.unchecked_span<T>();
+  base::Span<const T> values = input.unchecked_span<T>();
   for (uint32_t row = 0; row < input_.row_count; ++row) {
     if (input.null_bv.size() > 0 && !input.null_bv.is_set(row)) {
       continue;
@@ -1085,8 +1085,8 @@ base::Status FlamegraphBuilder::AccumulateDownwardMetric(
 template <typename T>
 base::Status FlamegraphBuilder::AccumulateUpwardMetric(
     const core::Tree::Column& input,
-    core::Span<T> self,
-    core::Span<T> cumulative) {
+    base::Span<T> self,
+    base::Span<T> cumulative) {
   if (!config_.view.IsAnyOf<Config::UpwardViews>()) {
     return base::OkStatus();
   }
@@ -1098,9 +1098,9 @@ base::Status FlamegraphBuilder::AccumulateUpwardMetric(
 template <typename T>
 base::Status FlamegraphBuilder::AccumulateBottomUpMetric(
     const core::Tree::Column& input,
-    core::Span<T> self,
-    core::Span<T> cumulative) {
-  core::Span<const T> values = input.unchecked_span<T>();
+    base::Span<T> self,
+    base::Span<T> cumulative) {
+  base::Span<const T> values = input.unchecked_span<T>();
   for (uint32_t row = 0; row < input_.row_count; ++row) {
     if (input.null_bv.size() > 0 && !input.null_bv.is_set(row)) {
       continue;
@@ -1127,9 +1127,9 @@ base::Status FlamegraphBuilder::AccumulateBottomUpMetric(
 template <typename T>
 base::Status FlamegraphBuilder::AccumulatePivotUpwardMetric(
     const core::Tree::Column& input,
-    core::Span<T> self,
-    core::Span<T> cumulative) {
-  core::Span<const T> values = input.unchecked_span<T>();
+    base::Span<T> self,
+    base::Span<T> cumulative) {
+  base::Span<const T> values = input.unchecked_span<T>();
 
   auto anchor_weights = AllocFilled<T>(input_.row_count, T{});
   for (uint32_t row = 0; row < input_.row_count; ++row) {
@@ -1312,16 +1312,16 @@ base::Status FlamegraphBuilder::RunAggregateOperator(AggregateOperator* op) {
           destinations.push_back(node);
           sources.push_back(aggregate_routing_.frame_rows[ri]);
           if (sources.size() == kBatchSize) {
-            RETURN_IF_ERROR(op->UpdateBatch(core::MakeSpan(destinations),
-                                            core::MakeSpan(sources)));
+            RETURN_IF_ERROR(op->UpdateBatch(base::MakeSpan(destinations),
+                                            base::MakeSpan(sources)));
             destinations.clear();
             sources.clear();
           }
         }
       }
       if (sources.size() == kBatchSize) {
-        RETURN_IF_ERROR(op->UpdateBatch(core::MakeSpan(destinations),
-                                        core::MakeSpan(sources)));
+        RETURN_IF_ERROR(op->UpdateBatch(base::MakeSpan(destinations),
+                                        base::MakeSpan(sources)));
         destinations.clear();
         sources.clear();
       }
@@ -1329,7 +1329,7 @@ base::Status FlamegraphBuilder::RunAggregateOperator(AggregateOperator* op) {
   }
   if (!sources.empty()) {
     RETURN_IF_ERROR(
-        op->UpdateBatch(core::MakeSpan(destinations), core::MakeSpan(sources)));
+        op->UpdateBatch(base::MakeSpan(destinations), base::MakeSpan(sources)));
   }
   return op->Finalize();
 }
@@ -1458,7 +1458,7 @@ base::StatusOr<core::Tree> FlamegraphBuilder::PackOutput() {
   // operations composed as a linear pipeline of ops over the source instead,
   // the intermediate rewrites (and this packing step with them) would
   // largely disappear.
-  const core::Span<const uint32_t> representatives =
+  const base::Span<const uint32_t> representatives =
       packed.representative_frame_span();
   output.names.push_back("name");
   output.columns.push_back(
@@ -1473,7 +1473,7 @@ base::StatusOr<core::Tree> FlamegraphBuilder::PackOutput() {
   // increasing filter over the combined id space. When every node is kept the
   // filter is the identity and the builder-owned columns can be adopted
   // outright instead of gathered.
-  const core::Span<const uint32_t> packed_sources = packed.source_node_span();
+  const base::Span<const uint32_t> packed_sources = packed.source_node_span();
   const bool keep_all =
       packed.size() == downward_.tree.size() + upward_.tree.size();
   const auto take_or_gather = [&](core::Tree::Column& column) {
@@ -1517,7 +1517,7 @@ Layout ComputeLayout(const core::Tree& tree,
   if (row_count == 0) {
     return {};
   }
-  const core::Span<const int64_t> depths = depth.unchecked_span<int64_t>();
+  const base::Span<const int64_t> depths = depth.unchecked_span<int64_t>();
   core::Slab<double> width = core::Slab<double>::Alloc(row_count);
   const bool cumulative_is_int = cumulative.type.Is<core::Int64>();
   for (uint32_t node = 0; node < row_count; ++node) {

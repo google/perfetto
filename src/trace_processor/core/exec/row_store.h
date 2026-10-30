@@ -25,12 +25,12 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/batch_buffer.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/util/flex_vector.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -66,7 +66,9 @@ class RowStore {
   // are viewed where they are held; any others are copied into buffers taken
   // from `context`. The work done is in proportion to the rows, however many
   // batches are held.
-  uint32_t Gather(RowBatch* out, Span<const uint32_t> rows, Context& context);
+  uint32_t Gather(RowBatch* out,
+                  base::Span<const uint32_t> rows,
+                  Context& context);
 
   // Lets go of every row held.
   void Clear();

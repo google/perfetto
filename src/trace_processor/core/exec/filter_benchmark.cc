@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/op_types.h"
@@ -42,7 +43,6 @@
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -137,7 +137,7 @@ void RunExecutor(benchmark::State& state,
   FilterValue cast[1];
 
   Context context;
-  context.SetFilterValues(Span<const FilterValue>(cast));
+  context.SetFilterValues(base::Span<const FilterValue>(cast));
   std::unique_ptr<OperatorState> scan_state = scan.MakeState(context);
   std::unique_ptr<OperatorState> filter_state = filter.MakeState(context);
   RowBatch batch;

@@ -23,6 +23,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/column_view.h"
@@ -32,7 +33,6 @@
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -201,8 +201,8 @@ bool TreeChildFirst::Serve(RowBatch& out, Breaker::State& state) const {
     count = s.rows.View(&out, s.emitted, count);
   } else {
     const uint32_t* begin = s.order.data() + s.emitted;
-    count = s.rows.Gather(&out, Span<const uint32_t>(begin, begin + count),
-                          *s.context);
+    count = s.rows.Gather(
+        &out, base::Span<const uint32_t>(begin, begin + count), *s.context);
   }
   s.emitted += count;
   return true;
@@ -277,8 +277,8 @@ PERFETTO_NO_INLINE OpResult TreeParentFirst::LetGo(RowBatch& out,
   auto total = static_cast<uint32_t>(s.letting_go.size());
   uint32_t count = std::min(kMaxBatchRows, total - s.served);
   const uint32_t* begin = s.letting_go.data() + s.served;
-  count = s.held.rows.Gather(&out, Span<const uint32_t>(begin, begin + count),
-                             *s.context);
+  count = s.held.rows.Gather(
+      &out, base::Span<const uint32_t>(begin, begin + count), *s.context);
   s.served += count;
   if (s.served < total) {
     return OpResult::kHaveMoreOutput;

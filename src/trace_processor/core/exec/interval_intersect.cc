@@ -29,6 +29,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/containers/interval_intersector.h"
@@ -44,7 +45,6 @@
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/span.h"
 #include "src/trace_processor/util/cold_sort.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -134,7 +134,7 @@ void NarrowKey(const std::vector<CollectedLanes::Lane>& groups,
   if (std::all_of(
           groups.begin(), groups.end(),
           [](const CollectedLanes::Lane& g) { return g.nonoverlapping; })) {
-    base::SmallVector<const Span<const Interval>*, 16> tables;
+    base::SmallVector<const base::Span<const Interval>*, 16> tables;
     for (const CollectedLanes::Lane& group : groups) {
       tables.emplace_back(&group.intervals);
     }

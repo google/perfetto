@@ -22,11 +22,11 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/tree/tree.h"
-#include "src/trace_processor/core/util/span.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/plugins/flamechart/flamechart.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
@@ -110,12 +110,12 @@ struct FlamechartAgg : public sqlite::AggregateFunction<FlamechartAgg> {
     // correct schema.
     const core::Tree empty_tree;
     const core::Tree& tree = raw_agg ? raw_agg.get()->tree : empty_tree;
-    const core::Span<const int64_t> ts = raw_agg
-                                             ? core::MakeSpan(raw_agg.get()->ts)
-                                             : core::Span<const int64_t>();
-    const core::Span<const int64_t> leaf_id =
-        raw_agg ? core::MakeSpan(raw_agg.get()->leaf_id)
-                : core::Span<const int64_t>();
+    const base::Span<const int64_t> ts = raw_agg
+                                             ? base::MakeSpan(raw_agg.get()->ts)
+                                             : base::Span<const int64_t>();
+    const base::Span<const int64_t> leaf_id =
+        raw_agg ? base::MakeSpan(raw_agg.get()->leaf_id)
+                : base::Span<const int64_t>();
     SQLITE_ASSIGN_OR_RETURN(ctx, auto runs,
                             flamechart::Build(tree, ts, leaf_id, pool));
     return sqlite::result::UniquePointer(

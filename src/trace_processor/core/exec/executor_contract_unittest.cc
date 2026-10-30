@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/combine_batches.h"
@@ -33,7 +34,6 @@
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
-#include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -134,9 +134,9 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
   input.SetRowCount(4);
   RowStore store;
   ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
-  ASSERT_EQ(
-      store.Gather(&output, Span<const uint32_t>(rows), test::TestContext()),
-      4u);
+  ASSERT_EQ(store.Gather(&output, base::Span<const uint32_t>(rows),
+                         test::TestContext()),
+            4u);
   for (uint32_t i = 0; i < 4; ++i) {
     double value = output.Value<double>(0, i);
     uint64_t actual;
@@ -194,11 +194,11 @@ TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
                         : std::nullopt);
     }
     RowBatch out;
-    ASSERT_EQ(
-        store.Gather(&out,
-                     Span<const uint32_t>(order.data(), order.data() + count),
-                     context),
-        count);
+    ASSERT_EQ(store.Gather(&out,
+                           base::Span<const uint32_t>(order.data(),
+                                                      order.data() + count),
+                           context),
+              count);
     EXPECT_NE(out.column(0).data(), stable.data());
     EXPECT_TRUE(out.selection().prefix());
     EXPECT_EQ(test::ReadColumn<int64_t>(out, 0), expected_stable);
