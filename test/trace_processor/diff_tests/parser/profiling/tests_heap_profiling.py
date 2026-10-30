@@ -167,3 +167,66 @@ class ProfilingHeapProfiling(TestSuite):
         "unknown",20,0,20
         "unknown",21,19,40
         """))
+
+  def test_heap_profile_unwinding_time_histogram(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          clock_snapshot {
+            clocks: {
+              clock_id: 6 # BOOTTIME
+              timestamp: 0
+            }
+            clocks: {
+              clock_id: 4 # MONOTONIC_COARSE
+              timestamp: 10
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 999
+          timestamp: 10
+          profile_packet {
+            index: 0
+            process_dumps {
+              pid: 42
+              stats {
+                unwinding_time_us {
+                  buckets { upper_limit: 2 count: 3 }
+                  buckets { upper_limit: 4 count: 5 }
+                  buckets { max_bucket: true count: 1 }
+                }
+              }
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 999
+          timestamp: 20
+          profile_packet {
+            index: 1
+            process_dumps {
+              pid: 42
+              stats {
+                unwinding_time_us {
+                  buckets { upper_limit: 2 count: 4 }
+                  buckets { upper_limit: 4 count: 2 }
+                  buckets { max_bucket: true count: 0 }
+                }
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT h.name, h.idx, b.lower_bound, b.upper_bound, b.count
+        FROM __intrinsic_histogram h
+        JOIN __intrinsic_histogram_bucket b ON b.histogram_id = h.id
+        ORDER BY h.idx, b.upper_bound;
+        """,
+        out=Csv("""
+        "name","idx","lower_bound","upper_bound","count"
+        "heapprofd_unwinding_time_us",42,"[NULL]",2,7
+        "heapprofd_unwinding_time_us",42,2,4,7
+        "heapprofd_unwinding_time_us",42,4,9223372036854775807,1
+        """))
