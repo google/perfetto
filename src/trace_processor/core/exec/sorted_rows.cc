@@ -95,7 +95,8 @@ std::optional<SortedRows::KeyType> SortedRows::GetKeyType(
 
 base::Status SortedRows::Append(const RowBatch& in,
                                 const std::vector<SortKey>& keys,
-                                const StringPool* pool) {
+                                const StringPool* pool,
+                                Context& context) {
   uint32_t count = in.size();
   if (count == 0) {
     return base::OkStatus();
@@ -170,7 +171,7 @@ base::Status SortedRows::Append(const RowBatch& in,
         break;
     }
   }
-  return rows_.Append(in);
+  return rows_.Append(in, context);
 }
 
 void SortedRows::Sort() {
