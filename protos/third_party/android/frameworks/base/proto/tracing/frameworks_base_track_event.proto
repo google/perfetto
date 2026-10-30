@@ -999,11 +999,18 @@ message AndroidProcessStateChangedEvent {
       [(perfetto.protos.flags_enum) =
            ".com.android.internal.FreezerPolicyFlag"];
 
-  // Current kernel process group (android.os.Process.THREAD_GROUP_*).
+  // Current OomAdjuster process group (android.os.Process.THREAD_GROUP_*),
+  // derived from its scheduling group.
   optional ProcessGroup cur_process_group = 14;
 
-  // Previous kernel process group (android.os.Process.THREAD_GROUP_*).
+  // Previous OomAdjuster process group (android.os.Process.THREAD_GROUP_*),
+  // derived from its scheduling group.
   optional ProcessGroup prev_process_group = 15;
+
+  // Timestamp (CLOCK_BOOTTIME, nanoseconds) at which the process entered
+  // prev_proc_state. Lets trace processors bound the initial proc_state when
+  // the event that entered it was lost (e.g. ring buffer wrap).
+  optional int64 prev_proc_state_start_ns = 16;
 }
 
 message AndroidProcessGroupChangedEvent {

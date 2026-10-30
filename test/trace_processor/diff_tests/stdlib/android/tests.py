@@ -3271,6 +3271,35 @@ class AndroidStdlib(TestSuite):
         2000,-1,500,"IMPORTANT_FOREGROUND","BOUND_FOREGROUND_SERVICE",0,6,"OOM_ADJ_REASON_BIND_SERVICE"
         """))
 
+  def test_android_process_state_intervals_start_ts(self):
+    return DiffTestBlueprint(
+        trace=Path(
+            '../../parser/android/android_process_state_start_ts.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_state;
+        SELECT
+          ts,
+          dur,
+          pid,
+          state,
+          prev_state,
+          prev_state_duration,
+          state_rank,
+          state_change_reason
+        FROM _android_process_state_intervals
+        ORDER BY pid, ts, state_rank;
+        """,
+        out=Csv("""
+        "ts","dur","pid","state","prev_state","prev_state_duration","state_rank","state_change_reason"
+        500,-1,100,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        800,1200,200,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        2000,1000,200,"IMPORTANT_FOREGROUND","TOP",1200,6,"OOM_ADJ_REASON_START_RECEIVER"
+        3000,-1,200,"CACHED_ACTIVITY","IMPORTANT_FOREGROUND",1000,16,"OOM_ADJ_REASON_BIND_SERVICE"
+        2000,0,300,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        2000,-1,300,"IMPORTANT_FOREGROUND","TOP",0,6,"OOM_ADJ_REASON_START_RECEIVER"
+        2000,-1,400,"FOREGROUND_SERVICE","[NULL]","[NULL]",4,"[NULL]"
+        """))
+
   def test_android_process_state_concurrency(self):
     return DiffTestBlueprint(
         trace=Path('../../parser/android/android_process_state.textproto'),
