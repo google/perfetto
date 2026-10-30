@@ -52,6 +52,7 @@ import type {TraceArrayBufferSource, TraceSource} from './trace_source';
 import {TaskTrackerImpl} from '../frontend/task_tracker/task_tracker';
 import type {Embedder} from './embedder/embedder';
 import {createEmbedder} from './embedder/create_embedder';
+import {createBuiltinSkillSource, SkillManagerImpl} from './skill_manager';
 
 // localStorage key for the internal-user answer saved on the previous visit.
 const IS_INTERNAL_USER_KEY = 'isInternalUser';
@@ -107,6 +108,7 @@ export class AppImpl implements App {
   readonly analytics: AnalyticsInternal;
   readonly serviceWorkerController = new ServiceWorkerController();
   readonly taskTracker = new TaskTrackerImpl();
+  readonly skills = new SkillManagerImpl(createBuiltinSkillSource());
   httpRpc = {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE' as NewEngineMode,
     httpRpcAvailable: false,
