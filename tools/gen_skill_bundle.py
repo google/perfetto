@@ -59,7 +59,7 @@ files (such as Python scripts) are not followed.
   no file system, and reads a skill through tools that fetch one file at a
   time. It gets only the .md and .sql files reached from SKILL.md, and an index
   (one entry per skill: name, description, files).
-    For the UI build:
+    For the UI build (see ui/build.mjs):
       <out>/index.json
       <out>/<skill>/<path>
 """
@@ -82,7 +82,8 @@ FOLLOWED_EXTS = ('.md', '.sql')
 MAX_FILE_BYTES = 64 * 1024
 MAX_DESCRIPTION = 1024
 NAME_RE = re.compile(r'^[a-z0-9]+(-[a-z0-9]+)*$')
-# The characters the UI accepts in a path segment.
+# The characters the UI accepts in a path segment (PATH_SEGMENT_RE in
+# ui/src/core/skill_manager.ts).
 PATH_SEGMENT_RE = re.compile(r'^[A-Za-z0-9_.-]+$')
 
 # The hosts that an adapter can name.

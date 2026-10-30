@@ -13,10 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {ensureExists} from '../../base/assert';
+import type {SkillInfo, SkillManager} from '../../public/skills';
 import type {LlmGateway, ModelPath} from '../dev.perfetto.Llm/gateway';
 import {Agent} from './agent';
 import type {ContextRegistry} from './context';
 import type {ToolRegistry} from './tools';
+import {listSkillsForPrompt, skillsPromptSection} from './skill_tools';
 import {SYSTEM_PROMPT} from './system_prompt';
 
 /** A single line in the conversation transcript. */
@@ -42,9 +45,10 @@ export interface ChatLine {
 export class ChatSession {
   /**
    * The assembled system prompt in use for this conversation - kept so the
-   * "show system prompt" inspector displays exactly what the agent sends.
+   * "show system prompt" inspector displays exactly what the agent sends. It
+   * is final once the skill index has loaded (before the first turn runs).
    */
-  readonly systemPrompt: string;
+  systemPrompt: string;
 
   /** The conversation transcript, in display order. */
   lines: ChatLine[] = [];
@@ -58,7 +62,9 @@ export class ChatSession {
   /** Context items the user has toggled off for the next prompt. */
   readonly excludedContext = new Set<string>();
 
-  private readonly agent: Agent;
+  // Created once the skill index is in the system prompt.
+  private agent?: Agent;
+  private readonly ready: Promise<void>;
   private abort?: AbortController;
   // Messages typed while a turn was in flight. The agent polls this at the top
   // of each tool-use round; anything still queued when the turn ends starts a
@@ -71,17 +77,22 @@ export class ChatSession {
    * @param context - The registry supplying per-turn context items and, at
    *     construction, the payload-format descriptions folded into the system
    *     prompt.
+   * @param skills - The skills whose index goes into the system prompt.
    */
   constructor(
     gateway: LlmGateway,
     tools: ToolRegistry,
     private readonly context: ContextRegistry,
+    skills: SkillManager,
   ) {
-    // The context providers' invariant payload-format descriptions are folded
-    // into the system prompt here, once per conversation - per-turn payloads
-    // stay data-only.
-    this.systemPrompt = assembleSystemPrompt(context);
-    this.agent = new Agent(gateway, tools, this.systemPrompt);
+    // The context providers' invariant payload-format descriptions and the
+    // skill index are folded into the system prompt once per conversation -
+    // per-turn payloads stay data-only.
+    this.systemPrompt = assembleSystemPrompt(context, []);
+    this.ready = listSkillsForPrompt(skills).then((list) => {
+      this.systemPrompt = assembleSystemPrompt(context, list);
+      this.agent = new Agent(gateway, tools, this.systemPrompt);
+    });
     this.lines = [];
   }
 
@@ -148,7 +159,9 @@ export class ChatSession {
     m.redraw();
 
     try {
-      for await (const evt of this.agent.sendMessage(
+      await this.ready;
+      const agent = ensureExists(this.agent);
+      for await (const evt of agent.sendMessage(
         prompt,
         model,
         this.abort.signal,
@@ -207,17 +220,24 @@ export class ChatSession {
   }
 }
 
-// The assembled system prompt: the application brief plus the context
-// providers' payload-format descriptions (already sorted by provider id, so
-// the result is byte-identical across turns and the cached prefix survives).
-// Sampled once per conversation; providers registered mid-conversation take
-// effect on the next one.
-function assembleSystemPrompt(context: ContextRegistry): string {
+// The assembled system prompt: the application brief, the context providers'
+// payload-format descriptions (already sorted by provider id) and the skill
+// index (sorted by name), so the result is byte-identical across turns and the
+// cached prefix survives. Sampled once per conversation; providers and skills
+// added mid-conversation take effect on the next one.
+function assembleSystemPrompt(
+  context: ContextRegistry,
+  skills: ReadonlyArray<SkillInfo>,
+): string {
+  const parts = [SYSTEM_PROMPT];
   const descriptions = context.descriptions();
-  if (descriptions.length === 0) return SYSTEM_PROMPT;
-  return [
-    SYSTEM_PROMPT,
-    'Context payload formats (for the context preamble on user messages):',
-    ...descriptions,
-  ].join('\n\n');
+  if (descriptions.length > 0) {
+    parts.push(
+      'Context payload formats (for the context preamble on user messages):',
+      ...descriptions,
+    );
+  }
+  const skillsSection = skillsPromptSection(skills);
+  if (skillsSection !== undefined) parts.push(skillsSection);
+  return parts.join('\n\n');
 }
