@@ -47,11 +47,12 @@ class TraceTokenBufferUnittest : public testing::Test {
         TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
             TraceProcessorContext::TraceState{TraceId{0}});
     context.stats_tracker = std::make_unique<StatsTracker>(&context);
-    state = PacketSequenceStateGeneration::CreateFirst(&context);
+    state = PacketSequenceStateGeneration::CreateFirst(
+        &context, /*trusted_packet_sequence_id=*/1);
   }
 
  protected:
-  TraceTokenBuffer store;
+  TraceTokenBuffer store{/*keep_track_event_packets=*/false};
   TraceProcessorContext context;
   RefPtr<PacketSequenceStateGeneration> state;
 };
@@ -151,19 +152,35 @@ TEST_F(TraceTokenBufferUnittest, PacketLargeOffset) {
 
 TEST_F(TraceTokenBufferUnittest, TrackEventDataInOut) {
   TraceBlobView tbv(TraceBlob::Allocate(1234));
-  TrackEventData ted(tbv.copy(), state);
+  TrackEventData ted(tbv.copy(), state, std::nullopt);
   ted.thread_instruction_count = 123;
   ted.extra_counter_values = {10, 2, 0, 0, 0, 0, 0, 0};
   auto counter_array = ted.extra_counter_values;
 
   TraceTokenBuffer::Id id = store.Append(std::move(ted));
   TrackEventData extracted = store.Extract<TrackEventData>(id);
-  ASSERT_EQ(extracted.trace_packet_data.packet, tbv);
-  ASSERT_EQ(extracted.trace_packet_data.sequence_state, state);
+  ASSERT_EQ(extracted.event, tbv);
+  ASSERT_EQ(extracted.packet, std::nullopt);
+  ASSERT_EQ(extracted.sequence_state, state);
   ASSERT_EQ(extracted.thread_instruction_count, 123);
   ASSERT_EQ(extracted.thread_timestamp, std::nullopt);
   ASSERT_DOUBLE_EQ(extracted.counter_value, 0.0);
   ASSERT_EQ(extracted.extra_counter_values, counter_array);
+}
+
+TEST_F(TraceTokenBufferUnittest, TrackEventDataWithPacketInOut) {
+  TraceTokenBuffer keeping_store{/*keep_track_event_packets=*/true};
+  TraceBlobView packet(TraceBlob::Allocate(1234));
+  TraceBlobView event = packet.slice_off(100, 200);
+  TrackEventData ted(event.copy(), state, packet.copy());
+  ted.thread_timestamp = 456;
+
+  TraceTokenBuffer::Id id = keeping_store.Append(std::move(ted));
+  TrackEventData extracted = keeping_store.Extract<TrackEventData>(id);
+  ASSERT_EQ(extracted.event, event);
+  ASSERT_EQ(extracted.packet, packet);
+  ASSERT_EQ(extracted.sequence_state, state);
+  ASSERT_EQ(extracted.thread_timestamp, 456);
 }
 
 TEST_F(TraceTokenBufferUnittest, FtraceDataInOutWithoutRawTs) {
