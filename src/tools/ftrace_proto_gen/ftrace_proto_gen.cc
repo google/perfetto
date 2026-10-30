@@ -55,7 +55,7 @@ std::string EventNameToProtoFieldName(const std::string& group,
   // proto:
   if (group == "sde" || group == "g2d" || group == "dpu" || group == "mali" ||
       group == "lwis" || group == "samsung" || group == "kgsl" ||
-      group == "hypervisor") {
+      group == "hypervisor" || group == "gti") {
     event_name = group + "_" + event_name;
   }
   return event_name;

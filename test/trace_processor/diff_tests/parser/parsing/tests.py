@@ -283,6 +283,76 @@ class Parsing(TestSuite):
         795620943421,"dpu_vote_clock",100.000000,237
         """))
 
+  def test_kernel_gti_tmw_slices_and_counters(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 1000
+              pid: 751
+              gti_tracing_mark_write {
+                pid: 751
+                name: "gti_irq_thread_fn: IRQ_IDX=10."
+                type: 66
+              }
+            }
+            event {
+              timestamp: 1100
+              pid: 751
+              gti_tracing_mark_write {
+                pid: 751
+                name: "gti: spi_sync: len=12(W) "
+                type: 66
+              }
+            }
+            event {
+              timestamp: 1200
+              pid: 751
+              gti_tracing_mark_write {
+                pid: 751
+                name: ""
+                type: 69
+              }
+            }
+            event {
+              timestamp: 1300
+              pid: 751
+              gti_tracing_mark_write {
+                pid: 751
+                name: "gti_report_rate"
+                type: 67
+                value: 240
+              }
+            }
+            event {
+              timestamp: 1500
+              pid: 751
+              gti_tracing_mark_write {
+                pid: 751
+                name: ""
+                type: 69
+              }
+            }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 3
+        }
+        """),
+        query="""
+        SELECT s.ts, s.dur, s.name, s.depth, t.tid
+        FROM slice s
+        JOIN thread_track tt ON s.track_id = tt.id
+        JOIN thread t USING (utid)
+        ORDER BY s.ts;
+        """,
+        out=Csv("""
+        "ts","dur","name","depth","tid"
+        1000,500,"gti_irq_thread_fn: IRQ_IDX=10.",0,751
+        1100,100,"gti: spi_sync: len=12(W) ",1,751
+        """))
+
   # Unsigned integers
   def test_print_systrace_unsigned(self):
     return DiffTestBlueprint(
