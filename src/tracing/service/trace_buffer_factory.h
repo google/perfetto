@@ -33,6 +33,8 @@ class TraceConfig_BufferConfig_BufferTypeConfig;
 }  // namespace gen
 }  // namespace protos
 
+class ZstdFrameCodec;
+
 // Creates trace buffers and owns the state they share.
 class TraceBufferFactory {
  public:
@@ -49,6 +51,10 @@ class TraceBufferFactory {
   base::StatusOr<std::unique_ptr<TraceBuffer>> Create(
       const protos::gen::TraceConfig_BufferConfig& config);
 
+  // Returns the memory of the shared state, which can't be attributed to any
+  // single buffer.
+  size_t GetMemoryUsageBytes() const;
+
  private:
   // Checks the types in |types| from the highest field number down and creates
   // the first one this build supports, or V1 if none is supported.
@@ -57,6 +63,13 @@ class TraceBufferFactory {
       const protos::gen::TraceConfig_BufferConfig_BufferTypeConfig& types,
       size_t size_in_bytes,
       TraceBuffer::OverwritePolicy policy);
+
+  // The codec shared by the TraceBufferV3s from this factory and their clones.
+  // Each of them holds a shared_ptr, so the codec lives until the last one is
+  // destroyed.
+  // A weak_ptr lets Create() reuse the codec without keeping it alive, so the
+  // factory holds no codec memory while no buffer uses it.
+  std::weak_ptr<ZstdFrameCodec> v3_codec_;
 };
 
 }  // namespace perfetto

@@ -22,10 +22,16 @@
 #include <memory>
 #include <utility>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/status.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/tracing/service/trace_buffer_v1.h"
 #include "src/tracing/service/trace_buffer_v2.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+#include "src/tracing/service/trace_buffer_v3.h"
+#include "src/tracing/service/zstd_frame_codec.h"
+#endif
 
 namespace perfetto {
 
@@ -78,9 +84,32 @@ std::unique_ptr<TraceBuffer> TraceBufferFactory::CreateNewestListedType(
     const TraceConfig::BufferConfig::BufferTypeConfig& types,
     size_t size_in_bytes,
     TraceBuffer::OverwritePolicy policy) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+  // TraceBufferV3 compresses bundles with zstd, so only zstd builds have it.
+  if (types.has_v3()) {
+    std::shared_ptr<ZstdFrameCodec> codec = v3_codec_.lock();
+    if (!codec) {
+      // Use new rather than make_shared() to allocate the codec separately.
+      // Its storage is freed after destruction while |v3_codec_| keeps only the
+      // shared_ptr bookkeeping allocation.
+      // https://en.cppreference.com/cpp/memory/shared_ptr/make_shared#Notes
+      codec.reset(new ZstdFrameCodec(TraceBufferV3::kMaxBundleTargetSize));
+      v3_codec_ = codec;
+    }
+    return TraceBufferV3::Create(size_in_bytes, policy, std::move(codec));
+  }
+#endif
   if (types.has_v2())
     return TraceBufferV2::Create(size_in_bytes, policy);
   return TraceBufferV1::Create(size_in_bytes, policy);
+}
+
+size_t TraceBufferFactory::GetMemoryUsageBytes() const {
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+  if (std::shared_ptr<ZstdFrameCodec> codec = v3_codec_.lock())
+    return codec->GetMemoryUsageBytes();
+#endif
+  return 0;
 }
 
 }  // namespace perfetto
