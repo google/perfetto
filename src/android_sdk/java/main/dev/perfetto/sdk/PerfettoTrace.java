@@ -60,6 +60,11 @@ public final class PerfettoTrace {
    * events within the category, it must also be enabled in the trace config.
    */
   public static class Category implements PerfettoTrackEventExtra.PerfettoPointer {
+    // Category can initialize before PerfettoTrace, so load JNI here.
+    static {
+      PerfettoNativeLibrary.load();
+    }
+
     private final String mName;
     private final List<String> mTags;
     private volatile long mPtr;
@@ -169,13 +174,24 @@ public final class PerfettoTrace {
   public static final class Session {
     private final long mPtr;
 
+    // Ravenwood uses mPtr == 0 for open sessions, so track closure separately.
+    private boolean mIsClosed;
+
     /** Session ctor. */
     public Session(boolean isBackendInProcess, byte[] config) {
       mPtr = native_start_session(isBackendInProcess, config);
     }
 
-    /** Closes the session and returns the trace. */
-    public byte[] close() {
+    /**
+     * Closes the session and returns the trace.
+     *
+     * @throws IllegalStateException if the session is already closed.
+     */
+    public synchronized byte[] close() {
+      if (mIsClosed) {
+        throw new IllegalStateException("The session is already closed.");
+      }
+      mIsClosed = true;
       return native_stop_session(mPtr);
     }
   }

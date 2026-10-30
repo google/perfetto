@@ -440,10 +440,15 @@ public final class PerfettoTrackEventBuilder {
       checkNotBuildingProto();
     }
 
-    NamedTrack track = mObjectsCache.mNamedTrackCache.get(name.hashCode());
-    if (track == null || !track.getName().equals(name) || track.isNameStatic() != isNameStatic) {
+    int key = trackKey(id, name, parentUuid, isNameStatic);
+    NamedTrack track = mObjectsCache.mNamedTrackCache.get(key);
+    if (track == null
+        || track.getId() != id
+        || track.getParentUuid() != parentUuid
+        || track.isNameStatic() != isNameStatic
+        || !track.getName().equals(name)) {
       track = new NamedTrack(id, name, parentUuid, isNameStatic, mNativeMemoryCleaner);
-      mObjectsCache.mNamedTrackCache.put(name.hashCode(), track);
+      mObjectsCache.mNamedTrackCache.put(key, track);
     }
     addPerfettoPointerToExtra(track);
     return this;
@@ -521,10 +526,14 @@ public final class PerfettoTrackEventBuilder {
       checkNotBuildingProto();
     }
 
-    CounterTrack track = mObjectsCache.mCounterTrackCache.get(name.hashCode());
-    if (track == null || !track.getName().equals(name) || track.isNameStatic() != isNameStatic) {
+    int key = trackKey(0, name, parentUuid, isNameStatic);
+    CounterTrack track = mObjectsCache.mCounterTrackCache.get(key);
+    if (track == null
+        || track.getParentUuid() != parentUuid
+        || track.isNameStatic() != isNameStatic
+        || !track.getName().equals(name)) {
       track = new CounterTrack(name, parentUuid, isNameStatic, mNativeMemoryCleaner);
-      mObjectsCache.mCounterTrackCache.put(name.hashCode(), track);
+      mObjectsCache.mCounterTrackCache.put(key, track);
     }
     addPerfettoPointerToExtra(track);
     return this;
@@ -574,10 +583,14 @@ public final class PerfettoTrackEventBuilder {
       checkNotBuildingProto();
     }
 
-    StateTrack track = mObjectsCache.mStateTrackCache.get(name.hashCode());
-    if (track == null || !track.getName().equals(name) || track.isNameStatic() != isNameStatic) {
+    int key = trackKey(0, name, parentUuid, isNameStatic);
+    StateTrack track = mObjectsCache.mStateTrackCache.get(key);
+    if (track == null
+        || track.getParentUuid() != parentUuid
+        || track.isNameStatic() != isNameStatic
+        || !track.getName().equals(name)) {
       track = new StateTrack(name, parentUuid, isNameStatic, mNativeMemoryCleaner);
-      mObjectsCache.mStateTrackCache.put(name.hashCode(), track);
+      mObjectsCache.mStateTrackCache.put(key, track);
     }
     addPerfettoPointerToExtra(track);
     return this;
@@ -838,6 +851,14 @@ public final class PerfettoTrackEventBuilder {
   // Only used in tests.
   public static AllocationStats getNativeAllocationStats() {
     return sNativeAllocationStats;
+  }
+
+  // Hash collisions are possible, so cache hits must compare all track inputs.
+  private static int trackKey(long id, String name, long parentUuid, boolean isNameStatic) {
+    int key = name.hashCode();
+    key = 31 * key + Long.hashCode(id);
+    key = 31 * key + Long.hashCode(parentUuid);
+    return 31 * key + (isNameStatic ? 1 : 0);
   }
 
   /**
