@@ -38,6 +38,7 @@ import * as echarts from 'echarts/core';
 import {
   BarChart as EBarChart,
   BoxplotChart as EBoxplotChart,
+  GraphChart as EGraphChart,
   HeatmapChart as EHeatmapChart,
   LineChart as ELineChart,
   PieChart as EPieChart,
@@ -75,6 +76,7 @@ function ensureEChartsSetup(): void {
   echarts.use([
     EBarChart,
     EBoxplotChart,
+    EGraphChart,
     EHeatmapChart,
     ELineChart,
     EPieChart,
@@ -316,6 +318,7 @@ export interface EChartBrushEndParams {
 export interface EChartClickParams {
   readonly name?: string;
   readonly seriesName?: string;
+  readonly dataType?: string;
   readonly dataIndex?: number;
   readonly value?: unknown;
   readonly data?: unknown;
@@ -332,6 +335,18 @@ export interface EChartClickParams {
 export interface EChartEventHandler {
   readonly eventName: string;
   readonly handler: (...args: unknown[]) => void;
+}
+
+/**
+ * Imperative handle exposed via `EChartViewAttrs.onReady` for programmatic
+ * interactions (such as keyboard roam actions).
+ */
+export interface EChartApi {
+  dispatchAction(payload: {
+    readonly type: string;
+    readonly [key: string]: unknown;
+  }): void;
+  getSize(): {readonly width: number; readonly height: number};
 }
 
 export interface EChartViewAttrs {
@@ -382,6 +397,25 @@ export interface EChartViewAttrs {
    * automatically without requiring user to click a toolbox button.
    */
   readonly activeBrushType?: 'rect' | 'lineX' | 'lineY';
+
+  /**
+   * Whether ECharts replaces previous series options instead of merging in
+   * place. Defaults to true. Set to false for stateful interactive charts
+   * (such as roamable graphs) to preserve pan/zoom across option updates.
+   */
+  readonly notMerge?: boolean;
+
+  /**
+   * Optional callback invoked when the user clicks empty canvas space outside
+   * any chart element.
+   */
+  readonly onCanvasEmptyClick?: () => void;
+
+  /**
+   * Optional callback invoked when the underlying ECharts instance is ready or
+   * disposed.
+   */
+  readonly onReady?: (api: EChartApi | undefined) => void;
 }
 
 const DEFAULT_HEIGHT = 200;
@@ -393,6 +427,9 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
   private chart?: EChartsType;
   private resizeObs?: Disposable;
   private prevHandlers: ReadonlyArray<EChartEventHandler> = [];
+  private emptyClickHandler?: () => void;
+  private zrClickListener?: (ev: {target?: unknown}) => void;
+  private onReadyCallback?: (api: EChartApi | undefined) => void;
   private prevOptionJson?: string;
   private prevThemeHash?: string;
 
@@ -437,12 +474,17 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
     const optionJson = JSON.stringify(resolvedOption);
     if (optionJson !== this.prevOptionJson) {
       this.prevOptionJson = optionJson;
-      this.chart.setOption(resolvedOption, {notMerge: true});
-      // The canvas may have been display:none (loading state) since the
-      // last option, so ECharts' cached dimensions could be stale.
-      this.chart.resize();
+      const notMerge = attrs.notMerge ?? true;
+      this.chart.setOption(resolvedOption, {notMerge});
+      if (notMerge) {
+        // The canvas may have been display:none (loading state) since the
+        // last option, so ECharts' cached dimensions could be stale.
+        this.chart.resize();
+      }
       this.activateBrush(attrs.activeBrushType);
     }
+    this.emptyClickHandler = attrs.onCanvasEmptyClick;
+    this.onReadyCallback = attrs.onReady;
     this.syncHandlers(attrs.eventHandlers ?? []);
   }
 
@@ -462,13 +504,27 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
     const resolvedOption = this.applyResolveOption(attrs.option, attrs, colors);
 
     // Initialize chart with the theme
-    this.chart = echarts.init(container, THEME_NAME);
-    this.chart.setOption(resolvedOption);
+    const chart = echarts.init(container, THEME_NAME);
+    this.chart = chart;
+    chart.setOption(resolvedOption);
 
     this.prevOptionJson = JSON.stringify(resolvedOption);
     this.prevThemeHash = themeHash(colors);
+    this.emptyClickHandler = attrs.onCanvasEmptyClick;
+    this.onReadyCallback = attrs.onReady;
+    this.zrClickListener = (ev: {target?: unknown}) => {
+      if (!Boolean(ev.target) && this.emptyClickHandler !== undefined) {
+        this.emptyClickHandler();
+        m.redraw();
+      }
+    };
+    chart.getZr().on('click', this.zrClickListener);
     this.syncHandlers(attrs.eventHandlers ?? []);
     this.activateBrush(attrs.activeBrushType);
+    this.onReadyCallback?.({
+      dispatchAction: (payload) => chart.dispatchAction(payload),
+      getSize: () => ({width: chart.getWidth(), height: chart.getHeight()}),
+    });
   }
 
   private applyResolveOption(
@@ -485,6 +541,11 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
   private disposeChart(): void {
     this.detachAllHandlers();
     if (this.chart) {
+      this.onReadyCallback?.(undefined);
+      if (this.zrClickListener) {
+        this.chart.getZr().off('click', this.zrClickListener);
+        this.zrClickListener = undefined;
+      }
       this.chart.dispose();
       this.chart = undefined;
     }
