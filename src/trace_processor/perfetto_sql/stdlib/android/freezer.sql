@@ -240,6 +240,10 @@ WITH
       upid,
       ts,
       iif(unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state,
+      -- How long the process was in the opposite state before this event: a
+      -- freeze carries the time spent unfrozen, an unfreeze the time spent
+      -- frozen.
+      iif(unfreeze_reason IS NULL, unfrozen_dur_ms, frozen_dur_ms) AS prev_state_dur_ms,
       lag(ts) OVER (PARTITION BY upid ORDER BY ts) AS prev_ts,
       lead(ts) OVER (PARTITION BY upid ORDER BY ts) AS next_ts
     FROM __intrinsic_android_freezer_state
@@ -262,11 +266,15 @@ WITH
     FROM events AS e
     JOIN lifetimes AS l USING (upid)
     UNION ALL
-    -- Before its first event a process was in the opposite state.
+    -- Before its first event a process was in the opposite state, for as long
+    -- as the event says. In ring-buffer traces the event that started that
+    -- state is often overwritten, so don't stretch the span back to process or
+    -- trace start; before it the state is unknown.
     SELECT
       e.upid,
-      l.birth AS ts,
-      e.ts - l.birth AS dur,
+      max(l.birth, coalesce(e.ts - e.prev_state_dur_ms * 1000000, l.birth)) AS ts,
+      e.ts
+      - max(l.birth, coalesce(e.ts - e.prev_state_dur_ms * 1000000, l.birth)) AS dur,
       iif(e.state = 'FROZEN', 'UNFROZEN', 'FROZEN') AS state
     FROM events AS e
     JOIN lifetimes AS l USING (upid)
