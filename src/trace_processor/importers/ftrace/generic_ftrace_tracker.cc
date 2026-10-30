@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/importers/ftrace/generic_ftrace_tracker.h"
 
+#include <string_view>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -28,6 +30,7 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -122,7 +125,11 @@ GenericFtraceTracker::GenericFtraceTracker(TraceProcessorContext* context)
       track_name_(context->storage->InternString("track_name")),
       counter_value_(context->storage->InternString("counter_value")),
       scope_tgid_(context->storage->InternString("scope_tgid")),
-      scope_cpu_(context->storage->InternString("scope_cpu")) {}
+      scope_cpu_(context->storage->InternString("scope_cpu")),
+      compiled_track_events_(GetDescriptorsSize()) {
+  for (uint32_t i = 0; i < compiled_track_events_.size(); i++)
+    MatchCompiledEvent(i);
+}
 
 GenericFtraceTracker::~GenericFtraceTracker() = default;
 
@@ -214,6 +221,41 @@ void GenericFtraceTracker::MatchTrackEventTemplate(uint32_t pb_field_id,
     return;
   }
   track_event_info_.Insert(pb_field_id, info);
+}
+
+void GenericFtraceTracker::MatchCompiledEvent(uint32_t pb_field_id) {
+  const FtraceMessageDescriptor* m = GetMessageDescriptorForId(pb_field_id);
+  if (!m->name)
+    return;
+
+  // Every match needs one of these fields, so skip interning field names of
+  // all the other events.
+  bool has_required_field = false;
+  for (size_t i = 1; i <= m->max_field_id; i++) {
+    if (!m->fields[i].name)
+      continue;
+    std::string_view name = m->fields[i].name;
+    if (name == "track_event_type" || name == "counter_value") {
+      has_required_field = true;
+      break;
+    }
+  }
+  if (!has_required_field)
+    return;
+
+  GenericEvent event;
+  event.name = context_->storage->InternString(m->name);
+  event.fields.resize(m->max_field_id + 1);
+  for (size_t i = 1; i <= m->max_field_id; i++) {
+    const FtraceFieldDescriptor& field = m->fields[i];
+    if (!field.name)
+      continue;
+    event.fields[i].name = context_->storage->InternString(field.name);
+    event.fields[i].type = field.type;
+  }
+  MatchTrackEventTemplate(pb_field_id, event);
+  compiled_track_events_[pb_field_id] =
+      track_event_info_.Find(pb_field_id) != nullptr;
 }
 
 void GenericFtraceTracker::MaybeParseAsTrackEvent(

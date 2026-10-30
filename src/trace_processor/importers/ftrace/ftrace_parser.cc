@@ -1597,8 +1597,16 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseMemcgReclaimEnd(ts, pid, fld_bytes);
         break;
       }
-      default:
+      default: {
+        // Events matching the kernel track event convention get slice/counter
+        // tracks without needing dedicated parsing code.
+        if (generic_tracker_->MaybeTrackEvent(fld.id())) {
+          ProtoDecoder evt_decoder(fld_bytes);
+          generic_tracker_->MaybeParseAsTrackEvent(fld.id(), ts, pid,
+                                                   evt_decoder);
+        }
         break;
+      }
     }
   }
 
@@ -1743,17 +1751,10 @@ void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
                                       uint32_t cpu,
                                       uint32_t tid,
                                       ConstBytes blob) {
-  ProtoDecoder decoder(blob);
-
-  // Special handling for events matching a convention - derive track/counter
-  // tracks for them automatically (no perfetto code changes needed).
-  if (PERFETTO_LIKELY(ts >= soft_drop_ftrace_data_before_ts_)) {
-    generic_tracker_->MaybeParseAsTrackEvent(event_proto_id, ts, tid, decoder);
-  }
-
   if (PERFETTO_UNLIKELY(!context_->config.ingest_ftrace_in_raw_table)) {
     return;
   }
+  ProtoDecoder decoder(blob);
 
   GenericFtraceTracker::GenericEvent* descriptor =
       generic_tracker_->GetEvent(event_proto_id);
