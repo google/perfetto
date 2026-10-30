@@ -15,11 +15,11 @@ NOTE: The API is only compatible with Python3.
 
 The main entry point to the API is the `TraceProcessor` class.
 
-## Example Usage
+## Example usage
 
 The following examples demonstrate basic usage of the Python API.
 
-### Querying Slices
+### Querying slices
 
 This example shows how to query for slices and print their names.
 
@@ -278,7 +278,7 @@ qr_df = qr_df.set_index('ts')['value'].plot()
 
 ![Graph made from the query results](/docs/images/example_pd_graph.png)
 
-### Trace Summary
+### Trace summary
 
 The `trace_summary()` function computes a structured summary of the trace. This
 is useful for creating structured protobuf messages for consumption by other
@@ -363,7 +363,7 @@ tp_meta = TraceProcessor(trace='tp_metatrace.pftrace')
 tp_meta.query('select * from slice')
 ```
 
-### Metric (Deprecated)
+### Metric (deprecated)
 
 The `metric()` function takes in a list of trace metrics and returns the results
 as a Protobuf.

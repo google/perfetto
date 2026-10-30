@@ -21,7 +21,7 @@ duplicate.
   are trusted by the UI, so traces open with no consent prompt (see
   [Trust prompts and going to production](#trust-prompts-and-going-to-production)).
 
-## Step 1: Add the iframe
+## Step 1: add the iframe
 
 Embed the UI with `mode=embedded` in the URL. This fully disables the sidebar
 (not just hides it), which is what you want for an embedded view. The route is
@@ -39,7 +39,7 @@ hash-based:
 In embedded mode the file-drop handler is also not installed, so the iframe only
 loads traces you post to it.
 
-## Step 2: Do the PING/PONG handshake
+## Step 2: do the PING/PONG handshake
 
 The `postMessage` channel into the iframe is not buffered: if you post a trace
 before the UI has registered its message listener, the message is silently
@@ -67,7 +67,7 @@ function waitForReady() {
 }
 ```
 
-## Step 3: Post the trace
+## Step 3: post the trace
 
 Once the handshake completes, post an object with a single `perfetto` key to the
 iframe's `contentWindow`. Pass `title` and exactly one of `buffer` (an
@@ -154,7 +154,7 @@ downloaded, shared, or cached. See the
 [embedding API reference](/docs/visualization/embedding-api-reference.md) for
 the precise stream requirements.
 
-## Step 4 (optional): Drive the view
+## Step 4 (optional): drive the view
 
 You can steer the embedded view in two ways.
 

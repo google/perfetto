@@ -1,4 +1,4 @@
-# UI Plugins
+# UI plugins
 
 UI plugins allow developers to add new visualizations and analysis tools
 directly into the Perfetto interface. By leveraging a rich set of extension
@@ -65,7 +65,7 @@ Now navigate to [localhost:10000](http://localhost:10000/)
 You can request for your plugin to be enabled by default. Follow the
 [default plugins](#default-plugins) section for this.
 
-### Adding Styles
+### Adding styles
 
 To add custom styles to your plugin, create a `styles.scss` file in your
 plugin's directory, next to your `index.ts` file.
@@ -257,7 +257,7 @@ type of selection. The optional `SelectionOpts` object can be passed to
 selection methods to influence UI behaviors like automatically scrolling to the
 selection or switching to the "Current Selection" tab.
 
-#### Selection Options (`SelectionOpts`)
+#### Selection options (`SelectionOpts`)
 
 The `SelectionOpts` object can be passed to most selection methods to customize
 the UI's response to a new selection. It has the following optional properties:
@@ -268,7 +268,7 @@ the UI's response to a new selection. It has the following optional properties:
 - `scrollToSelection?: boolean`: If `true`, the timeline will attempt to scroll
   to bring the newly selected item into view. The default is `false`.
 
-#### Selecting a Track Event (event, slice, counter sample, etc)
+#### Selecting a track event (event, slice, counter sample, etc)
 
 To select an individual event on a track:
 
@@ -276,7 +276,7 @@ To select an individual event on a track:
 trace.selection.selectTrackEvent('my.track', 123);
 ```
 
-#### Selecting an Area (Time Range)
+#### Selecting an area (time range)
 
 To select a specific time range, potentially across multiple tracks. The `Area`
 object requires `start` (time), `end` (time), and an array of `trackUris`
@@ -290,7 +290,7 @@ trace.selection.selectArea({
 });
 ```
 
-#### Selecting an Entire Track
+#### Selecting an entire track
 
 Selecting an entire track highlights it in the timeline and displays track
 details in the drawer.
@@ -299,7 +299,7 @@ details in the drawer.
 trace.selection.selectTrack('my.track');
 ```
 
-#### Selecting an Event via SQL Table and ID
+#### Selecting an event via SQL table and ID
 
 If you have an event's ID from a specific SQL table (e.g., `slice` table) but
 not its direct track URI, Perfetto can attempt to resolve and select it. Certain
@@ -310,7 +310,7 @@ plugin developers whether or not these are wired up properly.
 trace.selection.selectSqlEvent('slice', 123);
 ```
 
-#### Clearing the Current Selection
+#### Clearing the current selection
 
 To deselect whatever is currently selected in the UI:
 
@@ -318,7 +318,7 @@ To deselect whatever is currently selected in the UI:
 trace.selection.clearSelection();
 ```
 
-### Pinning Tracks
+### Pinning tracks
 
 A common task for plugins are to pin certain interesting tracks (usually as a
 result of a command).
@@ -344,7 +344,7 @@ The main interfaces and classes related to workspaces are `WorkspaceManager`,
 `trace.workspaces` (for the manager) and `trace.workspace` (for the current
 active workspace) once a trace is loaded.
 
-#### Workspace Manager (`trace.workspaces`)
+#### Workspace manager (`trace.workspaces`)
 
 The `WorkspaceManager` provides an overview and control over all available
 workspaces. It's accessible via `trace.workspaces`.
@@ -422,7 +422,7 @@ Key methods:
   descendant nodes in the main track area, in no particular order (more
   efficient if order doesn't matter).
 
-#### Track Node (`TrackNode`)
+#### Track node (`TrackNode`)
 
 `TrackNode` is the fundamental building block for structuring tracks within a
 workspace. A `TrackNode` can represent an individual track (if it has a `uri`
@@ -553,7 +553,7 @@ invoked by the user via the command palette which can be opened by pressing
 `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac), or by typing a `>` into the omnibox,
 but can also be invoked programmatically.
 
-#### Registering Commands
+#### Registering commands
 
 To add a command, the `CommandManager` (available as `app.commands` or
 `trace.commands`) provides the `registerCommand` method for this purpose.
@@ -603,7 +603,7 @@ Notes on naming:
   - Good: "Pin janky frame timeline tracks"
   - Bad: "Tracks are Displayed if Janky"
 
-#### Invoking Commands
+#### Invoking commands
 
 Besides registering their own commands, plugins can also invoke any existing
 command by its ID. This allows plugins to trigger actions provided by other
@@ -757,7 +757,7 @@ See
 [the source](https://github.com/google/perfetto/blob/main/ui/src/components/tracks/counter_track.ts)
 for detailed usage.
 
-### Track Descriptions / Help Text
+### Track descriptions / help text
 
 If a `description` property is provided when registering a track, any
 `TrackNode` that references that track will display a help button in its shell.
@@ -822,7 +822,7 @@ const groupNode = new TrackNode({uri, name: 'Group with Help Text'});
 Example:
 https://github.com/google/perfetto/blob/main/ui/src/plugins/com.example.Tracks/index.ts
 
-#### Grouping Tracks
+#### Grouping tracks
 
 Any track can have children. Just add child nodes any `TrackNode` object using
 its `addChildXYZ()` methods. Nested tracks are rendered as a collapsible tree.
@@ -870,7 +870,7 @@ Examples
 
 - [com.example.Tracks](https://github.com/google/perfetto/blob/main/ui/src/plugins/com.example.Tracks/index.ts).
 
-#### Track Ordering
+#### Track ordering
 
 Tracks can be manually reordered using the `addChildXYZ()` functions available
 on the track node api, including `addChildFirst()`, `addChildLast()`,
@@ -1018,7 +1018,7 @@ queried, processed, and displayed. Remember to consult the source code of
 and related interfaces for the most up-to-date details and advanced usage
 patterns.
 
-### Timeline Overlays
+### Timeline overlays
 
 Timeline overlays allow plugins to draw on top of the timeline, spanning
 multiple tracks. This is useful for drawing annotations that show relationships
@@ -1129,7 +1129,7 @@ Tabs have the following properties:
   times with the same URI will only activate the tab, not add a new instance of
   the tab to the tab bar.
 
-#### Ephemeral Tabs
+#### Ephemeral tabs
 
 By default, tabs are registered as 'permanent' tabs. These tabs have the
 following additional properties:
@@ -1201,7 +1201,7 @@ function handleCommand(trace: Trace): void {
 }
 ```
 
-### Sidebar Menu Items
+### Sidebar menu items
 
 Plugins can add new entries to the sidebar menu which appears on the left hand
 side of the UI. These entries can include:
@@ -1361,7 +1361,7 @@ displayed in a popup when the statusbar item is clicked.
 
 - [dev.perfetto.TimelineSync](https://github.com/google/perfetto/blob/main/ui/src/plugins/dev.perfetto.TimelineSync/index.ts).
 
-### Omnibox Prompts
+### Omnibox prompts
 
 Plugins can leverage the omnibox to prompt users for input. This is more
 integrated than a standard browser `window.prompt()` and can be used for
@@ -1466,7 +1466,7 @@ async function selectProcess(
 This feature allows for creating interactive workflows directly within the
 omnibox, guided by your plugin.
 
-### Selection Tabs
+### Selection tabs
 
 Plugins can register custom subtabs in the bottom details panel for timeline selections.
 
@@ -1476,7 +1476,7 @@ Perfetto provides convenience helpers targeting specific selection types, as wel
 - `trace.selection.registerAreaSelectionTab`: Registers a tab for area selections.
 - `trace.selection.registerSelectionTab`: Generic registration for any selection type (`Selection` union).
 
-#### Track Event Selection Tab Example
+#### Track event selection tab example
 
 ```ts
 trace.selection.registerTrackEventSelectionTab({
@@ -1491,7 +1491,7 @@ trace.selection.registerTrackEventSelectionTab({
 });
 ```
 
-#### Area Selection Tab Example
+#### Area selection tab example
 
 ```ts
 trace.selection.registerAreaSelectionTab({
@@ -1513,7 +1513,7 @@ Examples:
 - [com.android.AndroidLockContention](https://github.com/google/perfetto/blob/main/ui/src/plugins/com.android.AndroidLockContention/index.ts).
 - [dev.perfetto.TraceProcessorTrack/index.ts](https://github.com/google/perfetto/blob/main/ui/src/plugins/dev.perfetto.TraceProcessorTrack/index.ts).
 
-### Metric Visualisations
+### Metric visualisations
 
 TBD
 
@@ -1602,7 +1602,7 @@ Examples:
 
 - [com.example.State](https://github.com/google/perfetto/blob/main/ui/src/plugins/com.example.State/index.ts).
 
-### Feature Flags
+### Feature flags
 
 Plugins can register feature flags, which allow users to toggle experimental or
 developmental features on or off. This is useful for rolling out new
@@ -1686,7 +1686,7 @@ export default class MyFeatureFlagPlugin implements PerfettoPlugin {
 Users can typically manage these flags through a dedicated "Flags" page in the
 Perfetto UI, where they can see descriptions and toggle them.
 
-### Custom Settings
+### Custom settings
 
 Plugins can define and register their own settings, allowing users to customize
 plugin behavior. These settings are managed through the `SettingsManager`,
@@ -1821,7 +1821,7 @@ Examples:
 
 - https://github.com/google/perfetto/blob/main/ui/src/plugins/com.example.Settings/index.ts
 
-### Logging Analytics and Errors
+### Logging analytics and errors
 
 Plugins can contribute to Perfetto's internal analytics by logging custom events
 and errors. This helps in understanding feature usage and identifying issues.
@@ -1893,7 +1893,7 @@ export default class implements PerfettoPlugin {
 By using the provided analytics interface, plugins can integrate their telemetry
 with the main application in a consistent way.
 
-### Adding Timeline Notes and Spans
+### Adding timeline notes and spans
 
 Plugins can add visual markers (notes) and highlighted time ranges (span notes)
 directly onto the timeline. This is useful for drawing attention to specific
@@ -1962,7 +1962,7 @@ export default class implements PerfettoPlugin {
 These notes are visually represented on the timeline's marker track, providing a
 way for plugins to annotate the trace dynamically.
 
-### Controlling the Minimap
+### Controlling the minimap
 
 Plugins can provide custom data to be displayed on the global timeline minimap.
 This allows visualization of high-level overviews of plugin-specific data across
@@ -2051,7 +2051,7 @@ The UI will then call the `getData` method of registered providers as needed
 when the minimap needs to be redrawn, allowing plugins to contribute dynamic,
 trace-wide overviews.
 
-### Plugin Dependencies
+### Plugin dependencies
 
 Plugins can declare dependencies on other plugins. This ensures that the
 dependent plugins are loaded and available before the current plugin is

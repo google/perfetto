@@ -76,7 +76,7 @@ typically requires running the producer commands as root (or with
 
 ## Usage
 
-### Step 1: Start `traced` on the host, listening on TCP
+### Step 1: start `traced` on the host, listening on TCP
 
 On `host`:
 
@@ -111,7 +111,7 @@ var.
 
 Leave this process running.
 
-### Step 2: Start `traced_probes` on the host
+### Step 2: start `traced_probes` on the host
 
 In a second shell on `host`:
 
@@ -128,7 +128,7 @@ the privilege escalation needed for ftrace. (If you used the
 the default UNIX producer socket is still up, and `traced_probes` will
 connect to it without any extra configuration.)
 
-### Step 3: Start `traced_relay` on the guest
+### Step 3: start `traced_relay` on the guest
 
 On `guest`:
 
@@ -150,7 +150,7 @@ that directory exists — both are valid Linux defaults.)
 
 Leave this process running.
 
-### Step 4: Start `traced_probes` on the guest
+### Step 4: start `traced_probes` on the guest
 
 In a second shell on `guest`:
 
@@ -163,7 +163,7 @@ No env var is needed: with `PERFETTO_PRODUCER_SOCK_NAME` unset,
 exactly the path `traced_relay` is listening on — so the two find each
 other automatically.
 
-### Step 5: Record a trace from the host
+### Step 5: record a trace from the host
 
 Multi-machine tracing requires an explicit `TraceConfig` — the
 `tracebox perfetto -t 10s ... sched/sched_switch` shorthand records on
@@ -197,7 +197,7 @@ Then record:
 tracebox perfetto --txt -c config.pbtx -o trace.pftrace
 ```
 
-### Step 6: Verify both machines are in the trace
+### Step 6: verify both machines are in the trace
 
 Open `trace.pftrace` at <https://ui.perfetto.dev>. In the SQL query view,
 run:

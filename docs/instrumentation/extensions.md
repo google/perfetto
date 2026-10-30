@@ -1,4 +1,4 @@
-# Extending TrackEvent with Custom Protos
+# Extending TrackEvent with custom protos
 
 Perfetto's trace format is extensible: you can attach your own strongly-typed
 fields to `TrackEvent` without forking Perfetto or modifying its upstream proto
@@ -100,7 +100,7 @@ registration is required in Trace Processor itself.
 
 There are three ways to deliver descriptors:
 
-#### Option 1: Embed descriptors in the trace (`ExtensionDescriptor` packet)
+#### Option 1: embed descriptors in the trace (`ExtensionDescriptor` packet)
 
 This is the most portable option: the trace is self-describing, so Trace
 Processor can parse it anywhere without extra configuration.
@@ -135,7 +135,7 @@ recorded on the device.
 > releases `traced` does not read these paths; use Option 1 or Option 3
 > instead.
 
-#### Option 3: Extension Servers (UI side)
+#### Option 3: extension servers (UI side)
 
 If you run a shared [Extension Server](/docs/visualization/extension-servers.md)
 for your team, add your descriptors to it. The Perfetto UI fetches descriptors

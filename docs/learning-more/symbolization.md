@@ -135,7 +135,7 @@ add `--no-auto-symbol-paths` and `--no-auto-proguard-maps`. Native paths from
 See the [bundle command reference](/docs/reference/trace-processor-cli.md#subcommand-bundle)
 for option semantics, color controls, output replacement, and exit status.
 
-### {#option-2-legacy-traceconv-symbolize-deobfuscate} Option 2: Legacy `trace_processor util symbolize` / `util deobfuscate`
+### {#option-2-legacy-traceconv-symbolize-deobfuscate} Option 2: legacy `trace_processor util symbolize` / `util deobfuscate`
 
 NOTE: This flow is kept for backwards compatibility with existing scripts and
 CI pipelines that already depend on it. For new usage, always prefer

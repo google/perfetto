@@ -1,4 +1,4 @@
-# Perfetto UI Review Antipatterns
+# Perfetto UI review antipatterns
 
 This is a canonical catalogue of UI antipatterns and the preferred alternatives,
 **mined from real code-review feedback** that maintainers repeatedly gave on 
@@ -23,7 +23,7 @@ How to use it:
 
 ---
 
-## 1. Mithril & Rendering
+## 1. Mithril & rendering
 
 - 🔁 **❌ Calling `m.redraw()` / `raf.scheduleFullRedraw()` manually → ✅ rely on
   autoredraw.** Mithril automatically schedules a redraw after (1) DOM event
@@ -75,7 +75,7 @@ How to use it:
 
 ---
 
-## 2. State, Data Model & Lifecycle
+## 2. State, data model & lifecycle
 
 - 🔁 **❌ Module-level globals / static fields / new singletons for "convenient
   access" → ✅ inject the dependency.** Global mutable state breaks the fact that
@@ -134,7 +134,7 @@ How to use it:
 
 ---
 
-## 3. Architecture & Layering
+## 3. Architecture & layering
 
 - 🔁 **❌ Vendor / product / plugin-specific code in `src/core` or the `public/`
   API surface → ✅ push specifics into a plugin; keep the core interface
@@ -161,7 +161,7 @@ How to use it:
 
 ---
 
-## 4. Plugin & API Design
+## 4. Plugin & API design
 
 - 🔁 **❌ Plugin with no / placeholder `description` → ✅ add a real
   `static readonly description`.** It surfaces on the plugins page and tells users
@@ -200,7 +200,7 @@ How to use it:
 
 ---
 
-## 5. Widgets & Reuse
+## 5. Widgets & reuse
 
 > 🔁 **Search the widget library (`ui/src/widgets/`) before building anything.**
 > "The vast majority of this file could disappear if you use the existing widgets
@@ -238,7 +238,7 @@ How to use it:
 
 ---
 
-## 6. CSS & Styling
+## 6. CSS & styling
 
 - 🔁 **❌ Inline `style={...}` → ✅ put styles in the component's `.scss` file.**
   Static, unchanging styles always belong in the stylesheet. *(#4737, #3185, #2394, #2615)*
@@ -277,7 +277,7 @@ How to use it:
 
 ---
 
-## 7. TypeScript & Types
+## 7. TypeScript & types
 
 - 🔁 **❌ `null` → ✅ `undefined`.** The codebase is rigorously consistent here; use
   `?:` optional syntax. The *only* sanctioned `null` is a SQL `NULL` in query
@@ -328,7 +328,7 @@ How to use it:
 
 ---
 
-## 8. Naming & Conventions
+## 8. Naming & conventions
 
 - 🔁 **IDs follow a settled convention.** Settings/registry IDs: reverse-DNS,
   `dev.perfetto.*` for core-owned, the contributor org's namespace
@@ -363,7 +363,7 @@ How to use it:
 
 ---
 
-## 9. Error Handling
+## 9. Error handling
 
 - 🔁 **❌ Swallowing errors (empty `catch`, `console.warn`, returning `undefined`)
   → ✅ make failures visible.** Console messages are ignored in practice. For
@@ -412,7 +412,7 @@ How to use it:
 
 ---
 
-## 11. PR Hygiene & Scope
+## 11. PR hygiene & scope
 
 - 🔁 **❌ Bundling unrelated refactors, drive-by renames, stray fields, whitespace
   churn into a feature PR → ✅ keep the diff minimal and scoped to its purpose.**

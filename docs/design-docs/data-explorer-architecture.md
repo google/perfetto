@@ -1,4 +1,4 @@
-# Data Explorer Architecture
+# Data Explorer architecture
 
 This document explains how Perfetto's Data Explorer works, from creating visual query graphs to executing SQL queries and displaying results. It covers the key components, data flow, and architectural patterns that enable the Data Explorer to provide an interactive, node-based SQL query builder for trace analysis.
 
@@ -6,14 +6,14 @@ This document explains how Perfetto's Data Explorer works, from creating visual 
 
 The Data Explorer is a visual query builder that allows users to construct complex SQL queries by connecting nodes in a directed acyclic graph (DAG). Each node represents either a data source (table, slices, custom SQL) or an operation (filter, aggregation, join, etc.). The system converts this visual graph into structured SQL queries, executes them via the trace processor, and displays results in an interactive data grid.
 
-## Core Data Flow
+## Core data flow
 
 ```
 User Interaction → Node Graph → Structured Query Generation →
 Query Analysis (Validation) → Query Materialization → Result Display
 ```
 
-## Node Graph Structure
+## Node graph structure
 
 **QueryNode** (`ui/src/plugins/dev.perfetto.DataExplorer/query_node.ts:139-175`)
 - Base abstraction for all node types
@@ -27,7 +27,7 @@ Query Analysis (Validation) → Query Materialization → Result Display
 - Bidirectional relationship management via `addConnection()`/`removeConnection()`
 - Port-based routing for multi-input operations
 
-## Node Registration and Creation
+## Node registration and creation
 
 **NodeRegistry** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/node_registry.ts`)
 - Central registry for all node types
@@ -47,15 +47,15 @@ registerCoreNodes() {
 }
 ```
 
-## Node Types
+## Node types
 
-### 1. Source Nodes (Data Origin)
+### 1. Source nodes (data origin)
 **TableSourceNode** - Queries a specific SQL table
 **SlicesSourceNode** - Pre-configured query for trace slices
 **SqlSourceNode** - Custom SQL query as data source
 **TimeRangeSourceNode** - Generates time intervals
 
-### 2. Single-Input Modification Nodes
+### 2. Single-input modification nodes
 **FilterNode** - Adds WHERE conditions (autoExecute=false when in 'sql' mode)
 **SortNode** - Adds ORDER BY clauses
 **AggregationNode** - GROUP BY with aggregate functions
@@ -67,20 +67,20 @@ registerCoreNodes() {
 **VisualisationNode** - Visualizes query output as a chart
 **TraceSummaryNode** - Renders trace summary data
 
-### 3. Multi-Input Nodes
+### 3. Multi-input nodes
 **UnionNode** - Combines rows from multiple sources
 **JoinNode** - Combines columns via JOIN conditions (autoExecute=false by default; switches to true when conditionType is 'equality')
 **IntervalIntersectNode** - Finds overlapping time intervals
 **FilterDuringNode** - Filters using secondary interval input
 **CreateSlicesNode** - Pairs start/end events from two secondary sources into slices
 
-### 4. Grouping Nodes
+### 4. Grouping nodes
 **GroupNode** - Encapsulates an inner sub-graph, exposing it as a single node; inner connections are preserved through serialization
 
-### 5. Dashboard Nodes
+### 5. Dashboard nodes
 **DashboardNode** - Connects a query node output to a dashboard visualization
 
-## UI Components
+## UI components
 
 **Builder** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/builder.ts`)
 - Main component coordinating all sub-components
@@ -108,9 +108,9 @@ registerCoreNodes() {
 - Column-based filtering and sorting
 - Export to timeline functionality
 
-## Query Execution Model
+## Query execution model
 
-### Two-Phase Execution
+### Two-phase execution
 
 **Phase 1: Analysis (Validation)**
 ```
@@ -216,7 +216,7 @@ async processNode(node: QueryNode): Promise<void> {
 
 Auto-execute disabled for: SqlSourceNode (always), JoinNode (default; switches to true for equality joins), FilterNode (when in 'sql' mode)
 
-### State Management
+### State management
 
 **DataExplorerState** (`ui/src/plugins/dev.perfetto.DataExplorer/data_explorer.ts`)
 ```typescript
@@ -285,7 +285,7 @@ The validation ensures callbacks from old nodes are ignored after switching.
 - Serialization via `serializeState()` for each node
 - Deserialization reconstructs entire graph from JSON
 
-## Graph Operations
+## Graph operations
 
 **Node Creation** (`ui/src/plugins/dev.perfetto.DataExplorer/node_crud_operations.ts`)
 ```typescript
@@ -330,7 +330,7 @@ deleteNode(deps, state, node) {
 - `getAllUpstreamNodes()`: Backward traversal (for dependency checking)
 - `insertNodeBetween()`: Rewires connections when inserting operations
 
-## Invalidation and Caching
+## Invalidation and caching
 
 **TP-Managed Caching**
 
@@ -399,7 +399,7 @@ summarizer doesn't exist. The UI handles this gracefully by treating it as a nee
 re-create the summarizer and re-sync all queries on the next execution attempt. Users
 may see an error message, but clicking "Run Query" again will recover the state.
 
-## Structured Query Generation
+## Structured query generation
 
 **Query Construction** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/query_builder_utils.ts`)
 ```typescript
@@ -427,7 +427,7 @@ analyzeNode(node, engine) {
 }
 ```
 
-## Serialization and Examples
+## Serialization and examples
 
 **JSON Serialization** (`ui/src/plugins/dev.perfetto.DataExplorer/json_handler.ts`)
 - `exportStateAsJson()`: Serializes entire graph state to JSON file
@@ -440,23 +440,23 @@ analyzeNode(node, engine) {
 - Base page state auto-loaded on first visit
 - Modal allows users to load curated examples
 
-## Key Architectural Patterns
+## Key architectural patterns
 
-### 1. Node-Based Query Building
+### 1. Node-based query building
 All queries constructed via composable nodes:
 - Sources provide initial data (tables, slices, custom SQL)
 - Operations transform data (filter, aggregate, join)
 - Nodes connected via drag-and-drop visual interface
 - Graph structure maps directly to SQL query structure
 
-### 2. Bidirectional Graph Connections
+### 2. Bidirectional graph connections
 Nodes maintain both forward and backward links:
 - `primaryInput`: Single parent (vertical data flow)
 - `secondaryInputs`: Map of port → parent (side connections)
 - `nextNodes`: Array of children (consumers of this node's output)
 - Graph operations maintain consistency across all links
 
-### 3. Two-Phase Execution with Lazy Materialization
+### 3. Two-phase execution with lazy materialization
 - Analysis phase: Validate query structure without execution
 - Execution phase: Materialize into PERFETTO table for pagination
 - Lazy materialization: only materialize selected node and its upstream dependencies
@@ -464,20 +464,20 @@ Nodes maintain both forward and backward links:
 - Smart re-materialization: unchanged parent queries use table-source substitution
 - Server-side pagination via SQLDataSource (no full result fetch)
 
-### 4. FIFO Queue with TP-Managed State
+### 4. FIFO queue with TP-managed state
 - Prevents race conditions during rapid user input
 - Operations execute in order (preserves node dependencies)
 - Per-operation error isolation (one failure doesn't block queue)
 - TP handles all caching/change detection internally
 - UI queries TP on-demand for table names (no UI-side caching)
 
-### 5. Structured Query Protocol
+### 5. Structured query protocol
 - Nodes generate protobuf `PerfettoSqlStructuredQuery`
 - Engine validates and converts to SQL via `updateSummarizerSpec()` + `querySummarizer()`
 - Hash-based change detection (proto bytes hashed by TP)
 - Enables query analysis without SQL string manipulation
 
-### 6. Modular Pure-Function Architecture
+### 6. Modular pure-function architecture
 `data_explorer.ts` delegates business logic to focused modules of pure functions:
 - Each module defines a `Deps` interface for its required dependencies
 - Functions receive dependencies explicitly (no class `this` access)
@@ -491,14 +491,14 @@ Modules:
 - **graph_io.ts** — Import/export, graph loading, template initialization (`GraphIODeps`)
 - **node_actions.ts** — Closure-based callbacks for node→graph interaction (`NodeActionHandlers`)
 
-### 7. GraphCallbacks Interface (Prop Drilling Reduction)
+### 7. GraphCallbacks interface (prop drilling reduction)
 16 callbacks flow from `data_explorer.ts` → `Builder` → `Graph` (14 required, 2 optional):
 - `GraphCallbacks` interface defined in `graph.ts` groups all 16 callbacks
 - `BuilderAttrs` has a single `graphCallbacks: GraphCallbacks` field
 - Builder spreads `...attrs.graphCallbacks` directly into `Graph` component
 - Eliminates manual forwarding of each callback through Builder
 
-## File Path Reference
+## File path reference
 
 **Core Infrastructure**:
 - `ui/src/plugins/dev.perfetto.DataExplorer/index.ts` - Plugin entry point, lifecycle hooks, route registration, localStorage/permalink persistence

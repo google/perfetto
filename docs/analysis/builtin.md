@@ -1,9 +1,9 @@
-# PerfettoSQL Built-ins
+# PerfettoSQL built-ins
 
 These are functions built into C++ which reduce the amount of boilerplate which
 needs to be written in SQL.
 
-## Profile Functions
+## Profile functions
 
 ### STACK_FROM_STACK_PROFILE_FRAME
 
@@ -14,7 +14,7 @@ needs to be written in SQL.
 Creates a stack with just the frame referenced by `frame_id` (reference to the
 [stack_profile_frame](sql-tables.autogen#stack_profile_frame) table)
 
-#### Return Type
+#### Return type
 
 `BYTES`
 
@@ -35,7 +35,7 @@ Creates a stack by taking a `callsite_id` (reference to the
 generating a list of frames (by walking the
 [stack_profile_callsite]](sql-tables.autogen#stack_profile_callsite) table)
 
-#### Return Type
+#### Return type
 
 `BYTES`
 
@@ -54,7 +54,7 @@ callsite_id | StackProfileCallsiteTable::Id | reference to the [stack_profile_ca
 Creates a Stack by concatenating other Stacks. Also accepts STRING values for
 which it generates a fake Frame. Null values are just ignored.
 
-#### Return Type
+#### Return type
 
 `BYTES`
 
@@ -75,7 +75,7 @@ leaf | BYTES or STRING | Stack or STRING for which a fake Frame is generated
 Aggregation function that generates a profile in
 [pprof](https://github.com/google/pprof) format from the given samples.
 
-#### Return Type
+#### Return type
 
 `BYTES` ([pprof](https://github.com/google/pprof) data)
 

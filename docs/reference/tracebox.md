@@ -19,7 +19,7 @@ command, but will also start `traced` and `traced_probes`.
 
 See [perfetto(1)](perfetto-cli.md) for the documentation of the commandline client.
 
-### Autostart Mode Usage
+### Autostart mode usage
 
 The autostart mode supports both simple and normal modes of `perfetto`'s
 operation, and additionally provides a `--system-sockets` flag.
@@ -37,7 +37,7 @@ The general syntax for using `tracebox` in *autostart mode* is as follows:
      use the standard system sockets, which is useful for debugging
      interactions with the system `traced` service.
 
-#### Simple Mode Example
+#### Simple mode example
 
 To capture a 10-second trace of `sched/sched_switch` events in autostart mode:
 
@@ -45,7 +45,7 @@ To capture a 10-second trace of `sched/sched_switch` events in autostart mode:
 tracebox -t 10s -o trace_file.perfetto-trace sched/sched_switch
 ```
 
-#### Normal Mode Example
+#### Normal mode example
 
 To capture a trace using a custom configuration file in autostart mode:
 

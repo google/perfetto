@@ -1,4 +1,4 @@
-# Cookbook: Tracing on Linux
+# Cookbook: tracing on Linux
 
 This page collects **end-to-end recipes** for profiling and tracing your own
 programs on Linux: how to build so that traces can be symbolized, how to record
@@ -205,7 +205,7 @@ To instead produce aggregated [pprof](https://github.com/google/pprof) profiles:
 ./trace_processor convert profile --perf /tmp/trace.pftrace
 ```
 
-## Recipe: Native heap (memory) profiling {#heap-profiling}
+## Recipe: native heap (memory) profiling {#heap-profiling}
 
 Goal: see which callstacks allocated the most native (malloc) memory. On Linux
 the `heap_profile` helper drives this end to end, including launching your binary
@@ -235,7 +235,7 @@ the allocation flamegraph. See
 [native heap profiler: Linux support](/docs/data-sources/native-heap-profiler.md#non-android-linux-support)
 for the full set of options (custom preload libraries, sampling interval, etc.).
 
-## Recipe: Kernel function graph tracing {#funcgraph}
+## Recipe: kernel function graph tracing {#funcgraph}
 
 Goal: see exactly which kernel functions ran, and for how long, as nested slices.
 The single most common mistake is forgetting `symbolize_ksyms`, which leaves
@@ -279,7 +279,7 @@ calls are visualised. Note that, unlike the [CPU profile](#cpu-profiling) recipe
 these kernel symbols come from `symbolize_ksyms` and **cannot** be added later
 with `trace_processor bundle`.
 
-## Recipe: Finding why a thread is blocked {#blocked-thread}
+## Recipe: finding why a thread is blocked {#blocked-thread}
 
 Goal: understand why a thread keeps getting descheduled (lock contention,
 priority inversion, blocking syscalls).

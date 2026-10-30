@@ -56,7 +56,7 @@ This page is split into three sections:
 [section-b-link]: #part-b-integrating-new-tracepoints-with-perfetto
 [section-c-link]: #part-c-simple-slice-counter-visualisations-without-modifying-perfetto-code-kernel-track-events-
 
-## Part A: Instrumenting the kernel and recording tracepoints
+## Part A: instrumenting the kernel and recording tracepoints
 
 ### Create the kernel module source files
 
@@ -212,7 +212,7 @@ Note: You can always uninstall the kernel module with:
 sudo rmmod ticker.ko
 ```
 
-### (optional) Manually verify the tracepoint
+### (optional) manually verify the tracepoint
 
 We can manually verify the tracepoint by using the `tracefs` file system to view
 the textual representation of the event.
@@ -313,7 +313,7 @@ The events can also be queried with a query like:
 SELECT * FROM ftrace_event JOIN args USING (arg_set_id)
 ```
 
-## Part B: Integrating new tracepoints with perfetto
+## Part B: integrating new tracepoints with perfetto
 
 To add dedicated parsing for this new tracepoint in Perfetto, we need to:
 - generate a protobuf description of the event, so that the serialising code (in
@@ -450,7 +450,7 @@ makes the results available to all users of perfetto.
 
 [ftrace-parser-link]: https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/src/trace_processor/importers/ftrace/ftrace_parser.cc?q=FtraceParser
 
-## Part C: Simple slice/counter visualisations without modifying perfetto code (kernel track events)
+## Part C: simple slice/counter visualisations without modifying perfetto code (kernel track events)
 
 There is a simpler way for perfetto to automatically create basic slice &
 counter tracks from events, that is more suitable for people tinkering with a

@@ -76,7 +76,7 @@ four categories:
   outside the query graph: a dashboard view, a metric spec, or a trace
   summary for cross-trace analysis.
 
-### The Graph
+### The graph
 
 <video width="800" controls>
   <source src="https://storage.googleapis.com/perfetto-misc/de-graph.webm" type="video/webm">
@@ -102,7 +102,7 @@ of the graph stays intact.
 
 Use buttons to undo and redo changes.
 
-### Column Types
+### Column types
 
 Every column has a PerfettoSQL type. Types affect how values are
 displayed in the data grid, what operations are available on a column,
@@ -134,9 +134,9 @@ and handles large result sets via pagination through the query engine. Column ty
 used for special cell formatting - durations are shown in readable units,
 and IDs link directly to the timeline.
 
-## Building a Query
+## Building a query
 
-### Smart Graph
+### Smart graph
 
 The quickest way to get started is **Smart Graph**, available from the
 navigation panel. It inspects the currently loaded trace and automatically
@@ -209,14 +209,14 @@ primary input:
 | [**Metrics**](#metrics) | Define a trace metric with a value column and dimensions. |
 | [**Trace Summary**](#trace-summary) | Bundle multiple metrics into a single trace summary specification. |
 
-## Running Queries
+## Running queries
 
 Most nodes execute automatically as you build the graph. Nodes that
 require you to write SQL or finish configuring inputs before they can
 run — such as the Query node — show a **Run Query** button instead.
 Click it once the node is ready.
 
-## Viewing Results
+## Viewing results
 
 Click any node to select it. Its results appear in the data grid at the
 bottom of the Data Explorer. The grid supports:
@@ -232,7 +232,7 @@ the node sidebar. The **Proto** tab shows the node's internal query
 representation as a structured proto — useful for debugging or for
 sharing query graphs programmatically.
 
-## Import / Export
+## Import / export
 
 Use **Export to JSON** in the canvas menu to save the current graph as a
 JSON file. Use **Import from JSON** to reload a previously saved graph.
@@ -246,7 +246,7 @@ The navigation panel lists a curated set of pre-built query graphs under
 time-based queries, and a slice analysis pipeline, and are a good
 starting point for building your own queries.
 
-## Node Reference
+## Node reference
 
 ### Sources {#sources}
 
@@ -304,7 +304,7 @@ columns to have the correct types (for link rendering, duration
 formatting, foreign-key enrichment, etc.), you must set them manually
 using a [Modify Columns](#modify-columns) node downstream.
 
-#### Time Range {#time-range}
+#### Time range {#time-range}
 
 A time interval used as a data source. The interval can be entered
 manually or synced from the current timeline selection - in the latter
@@ -313,7 +313,7 @@ case it updates dynamically as the selection changes. Useful as input to
 
 ---
 
-### Modification Nodes {#modification-nodes}
+### Modification nodes {#modification-nodes}
 
 #### Filter {#filter}
 
@@ -416,7 +416,7 @@ Orders rows by one or more columns, each independently ascending or
 descending. Columns can be reordered by dragging to control priority.
 Equivalent to a SQL `ORDER BY`.
 
-#### Modify Columns {#modify-columns}
+#### Modify columns {#modify-columns}
 
 Controls which columns are passed downstream and how they appear:
 
@@ -428,7 +428,7 @@ Controls which columns are passed downstream and how they appear:
 Useful for cleaning up intermediate results before further processing or
 visualization.
 
-#### Add Columns {#add-columns}
+#### Add columns {#add-columns}
 
 The mental model for this node is simple: take everything from the
 upstream node, and add one or more new columns to it. Every row passes
@@ -547,14 +547,14 @@ Multiple columns of any mix of types can be added in a single node,
 each configured independently. Each column's type can be overridden
 inline if the automatic inference is incorrect.
 
-#### Limit and Offset {#limit-offset}
+#### Limit and offset {#limit-offset}
 
 Restricts how many rows are returned and optionally skips a leading
 number of rows. Equivalent to SQL `LIMIT` / `OFFSET`. Default is
 limit=10, offset=0. Useful for sampling large results or paginating
 through data.
 
-#### Counter to Intervals {#counter-to-intervals}
+#### Counter to intervals {#counter-to-intervals}
 
 Converts counter data - which has timestamps but no duration - into
 intervals by pairing each sample with the next, producing `ts`, `dur`,
@@ -579,7 +579,7 @@ a filter back into the pipeline automatically.
 
 ---
 
-### Multi-Source Nodes {#multi-source-nodes}
+### Multi-source nodes {#multi-source-nodes}
 
 #### Join {#join}
 
@@ -628,7 +628,7 @@ requires all inputs to have identical columns. Here, you can freely
 add sources with different schemas - columns that don't appear in all
 of them simply won't be in the result.
 
-#### Interval Intersect {#interval-intersect}
+#### Interval intersect {#interval-intersect}
 
 Takes between two and six sources of time intervals and returns only
 the portions where all of them overlap simultaneously. Each input must
@@ -648,7 +648,7 @@ Key options:
   bounds with no `id`; set to a specific input to carry through that
   input's original `id`, `ts`, and `dur` alongside the clipped bounds.
 
-#### Create Slices {#create-slices}
+#### Create slices {#create-slices}
 
 Takes two sources of events - one for start events and one for end
 events - and pairs them up into slices with a `ts` and `dur`. Useful
@@ -670,7 +670,7 @@ columns: `ts` and `dur`.
 
 ---
 
-### Export Nodes {#export-nodes}
+### Export nodes {#export-nodes}
 
 #### Dashboard {#dashboard}
 
@@ -730,7 +730,7 @@ metric.
 Connect this node to a [Trace Summary](#trace-summary) node to bundle
 it with other metrics for a combined export.
 
-#### Trace Summary {#trace-summary}
+#### Trace summary {#trace-summary}
 
 Bundles one or more [Metrics](#metrics) nodes into a single
 [trace summary](/docs/analysis/trace-summary.md) specification. This

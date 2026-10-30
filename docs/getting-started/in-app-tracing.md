@@ -1,4 +1,4 @@
-# Recording In-App Traces with Perfetto
+# Recording in-app traces with Perfetto
 
 In this guide, you'll learn how to:
 
@@ -278,7 +278,7 @@ JOIN track ON track.id = counter.track_id
 WHERE name = 'Framerate';
 ```
 
-## Combined In-App and System Tracing
+## Combined in-app and system tracing
 
 While in-app tracing is useful for understanding your application's behavior in
 isolation, its real power comes from combining it with a system-wide trace. This

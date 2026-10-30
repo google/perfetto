@@ -151,7 +151,7 @@ to [LMKs](#lmk). We have two tools to investigate situations like this
 - RSS High Watermark.
 - Memory tracepoints.
 
-### RSS High Watermark
+### RSS high watermark
 
 We can get a lot of information from the `/proc/[pid]/status` file, including
 memory information. `VmHWM` shows the maximum RSS usage the process has seen
@@ -308,7 +308,7 @@ upload to the [Perfetto UI](https://ui.perfetto.dev).
 We can see that the OOM score of Camera gets reduced (making it less likely to
 be killed) when it is opened, and gets increased again once it is closed.
 
-## {#heapprofd} Analyzing the Native Heap
+## {#heapprofd} Analyzing the native heap
 
 **Native Heap Profiles require Android 10.**
 
@@ -467,7 +467,7 @@ if you only need callstacks (and not the ftrace arguments timeline).
 adb shell 'simpleperf record -e raw_syscalls:sys_enter --tp-filter "id == 222" -a --duration 10 -g'
 ```
 
-## {#java-hprof} Analyzing the Java Heap
+## {#java-hprof} Analyzing the Java heap
 
 **ART Heap Dumps require Android 11.**
 
@@ -494,7 +494,7 @@ We can also collect a snapshot of the object graph when allocations start
 failing with
 [java.lang.OutOfMemoryError](/docs/getting-started/local-android-trace-recording.md#oom-heap-dump).
 
-### Viewing the Data
+### Viewing the data
 
 Upload the trace to the [Perfetto UI](https://ui.perfetto.dev) and click on
 diamond marker that shows.
@@ -503,7 +503,7 @@ diamond marker that shows.
 
 This will present a set of flamegraph views as explained below.
 
-#### "Object Size" and "Object Count" tabs
+#### "Object size" and "object count" tabs
 
 ![ART heap dump flamegraph: Object Size](/docs/images/java-heap-graph.png)
 
@@ -532,7 +532,7 @@ same type retained by a `java.lang.Object[]`, we will show one element as its
 child, as you can see in the leftmost stack above. This also applies to the
 dominator tree paths as described below.
 
-#### "Dominated Object Size" and "Dominated Object Count" tabs
+#### "Dominated object size" and "dominated object count" tabs
 
 ![ART heap dump flamegraph: Dominated Object Size](/docs/images/java-heap-graph-dominated-size.png)
 

@@ -1,4 +1,4 @@
-# Android Version Notes
+# Android version notes
 This page documents all the caveats of using Perfetto on older versions of
 Android. Because of the yearly release cycle, it's often the case that a
 feature is shipped but we later discover a bug/problem which makes the feature

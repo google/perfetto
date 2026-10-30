@@ -1,4 +1,4 @@
-# SQLite Upgrade Guide
+# SQLite upgrade guide
 
 ## Overview
 
@@ -6,7 +6,7 @@ Perfetto depends on SQLite internals:
 - SQLite grammar processing via the syntaqlite library
 - Internal SQLite constants and structures
 
-## Upgrade Procedure
+## Upgrade procedure
 
 ### Prerequisites
 Only upgrade when Chrome, Android, and Google3 all support the target SQLite version.
@@ -29,25 +29,25 @@ Only upgrade when Chrome, Android, and Google3 all support the target SQLite ver
    tools/diff_test_trace_processor.py out/linux_clang_release/trace_processor_shell --quiet
    ```
 
-## Common Issues
+## Common issues
 
-### SQLite Internal API Changes
+### SQLite internal API changes
 **Error:** Compilation errors in `sqlite_utils.h` or `sqlite/bindings/*.h`
 
 **Fix:** Update bindings for SQLite API changes
 
-## Key Files
+## Key files
 
-### Always Review
+### Always review
 - `tools/install-build-deps` - SQLite version/hash
 - `bazel/deps.bzl` - SQLite version/hash
 - `tools/gen_syntaqlite_parser` - Parser regeneration script
 
-### Generated (Don't Edit)
+### Generated (don't edit)
 - `src/perfetto_sql/syntaqlite/syntaqlite_perfetto.c`
 - `src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h`
 
-### Grammar Sources (Edit These)
+### Grammar sources (edit these)
 - `src/perfetto_sql/syntaqlite/perfetto.y` - Perfetto dialect grammar
 - `src/perfetto_sql/syntaqlite/perfetto.synq` - AST node definitions
 

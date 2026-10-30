@@ -1,4 +1,4 @@
-# Memory: Callstack-based Allocation Profiling
+# Memory: callstack-based allocation profiling
 
 NOTE: **heapprofd requires Android 10 or higher**
 
@@ -84,7 +84,7 @@ You can use the [Perfetto UI](https://ui.perfetto.dev) to visualize heap dumps.
 Upload the `raw-trace` file in your output directory. You will see all heap
 dumps as slices on the timeline, click any of them to get a flamegraph.
 
-#### Using the Recording page of Perfetto UI
+#### Using the recording page of Perfetto UI
 
 You can also use the [Perfetto UI](https://ui.perfetto.dev/#!/record/memory)
 to record heapprofd profiles. Tick "Native heap profiling" in the trace
@@ -252,7 +252,7 @@ the `<application>` section of the app manifest.
 </manifest>
 ```
 
-## {#art-allocation-profiling} ART Allocation Profiling (Churn Profiling)
+## {#art-allocation-profiling} ART allocation profiling (churn profiling)
 
 NOTE: **Java allocation profiling is available on Android 12 or higher**
 
@@ -398,7 +398,7 @@ tools/heap_profile host \
   -- ./my_binary --some-flag
 ```
 
-## Known Issues
+## Known issues
 
 ### {#known-issues-android13} Android 13
 
@@ -510,7 +510,7 @@ gzip /tmp/heap_profile-XXXXXX/*.pb
 
 to get gzipped protos, which tools handling pprof profile protos expect.
 
-## {#heapprofd-example-queries} Example SQL Queries
+## {#heapprofd-example-queries} Example SQL queries
 
 We can get the callstacks that allocated using an SQL Query in the
 Trace Processor. For each frame, we get one row for the number of allocated

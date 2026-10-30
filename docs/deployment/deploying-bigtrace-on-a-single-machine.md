@@ -13,16 +13,16 @@ NOTE: Options 1 and 2 are intended for development purposes and are not recommen
 ## Prerequisites
 To build Bigtrace you must first follow the [Quickstart setup and building](/docs/contributing/getting-started.md#quickstart) steps but using `tools/install-build-deps --grpc` in order to install the required dependencies for Bigtrace and gRPC.
 
-## Running the Orchestrator and Worker executables manually
+## Running the orchestrator and worker executables manually
 To manually run Bigtrace locally with the executables you must first build the executables before running them as follows:
 
-### Building the Orchestrator and Worker executables
+### Building the orchestrator and worker executables
 ```bash
 tools/ninja -C out/[BUILD] orchestrator_main
 tools/ninja -C out/[BUILD] worker_main
 ```
 
-### Running the Orchestrator and Worker executables
+### Running the orchestrator and worker executables
 Run the Orchestrator and Worker executables using command-line arguments:
 
 ```bash

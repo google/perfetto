@@ -1,4 +1,4 @@
-# PerfettoSQL Pipe Operator Implementation Notes
+# PerfettoSQL pipe operator implementation notes
 
 This page describes how pipelines are compiled and run, and how each stage is
 implemented.
@@ -15,7 +15,7 @@ Related pages:
 
 ---
 
-## From Query to Rows
+## From query to rows
 
 Code: `/src/trace_processor/perfetto_sql/pipeline/`
 

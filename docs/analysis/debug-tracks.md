@@ -1,4 +1,4 @@
-# Debug Tracks
+# Debug tracks
 
 Debug Tracks are a way to display tabular results from running a PerfettoSQL
 query as a so-called "debug" track. Specifically, if the resultant table can
@@ -21,7 +21,7 @@ include:
     Note: Pivoting means allows you to create a single debug track per distinct
     value in the selected "pivot" column.
 
-## Creating Debug `slice` Tracks
+## Creating debug `slice` tracks
 
 To create `slice` tracks:
 
@@ -58,7 +58,7 @@ To create `slice` tracks:
 
    ![Resultant pivoted debug slice tracks](/docs/images/debug-tracks/pivot-slice-tracks-results.png)
 
-## Creating Debug `counter` Tracks
+## Creating debug `counter` tracks
 
 You can create new debug `counter` tracks by following similar steps to the ones
 mentioned above:

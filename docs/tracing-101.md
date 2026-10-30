@@ -1,4 +1,4 @@
-# What is Tracing?
+# What is tracing?
 
 NOTE: the word "tracing" in this document is used in the context of
 **client-side** side software (e.g. programs running on a single machine). In
@@ -10,7 +10,7 @@ useful to you if you are interested in such traces.
 This page provides a bird's-eye view of performance analysis and tracing. The
 aim is to orient people who have no idea what "tracing" is.
 
-## Introduction to Performance
+## Introduction to performance
 
 Performance analysis is concerned with making software run _better_. The
 definition of _better_ varies widely and depends on the situation. Examples
@@ -30,7 +30,7 @@ critical.
 **Tracing** and **profiling** are two such widely-used techniques for
 performance analysis.
 
-## Introduction to Tracing
+## Introduction to tracing
 
 **Tracing** involves collecting highly detailed data about the execution of a
 system. A single continuous session of recording is called a trace file or
@@ -98,7 +98,7 @@ traces. In these situations, traces should be used as a **root-causing** tool.
 When your metrics show there is a problem, targeted tracing can be rolled out to
 understand why the regression may have happened.
 
-## Introduction to Profiling
+## Introduction to profiling
 
 **Profiling** involves sampling some usage of a resource by a program. A single
 continuous session of recording is known as a **profile**.
@@ -154,7 +154,7 @@ insight into why code was run in the first place.
 NOTE: Perfetto supports collecting, analyzing and visualizing both profiles and
 traces at the same time so you can have the best of both worlds!
 
-## Next Steps
+## Next steps
 
 Now that you have a better understanding of tracing and profiling, you can use
 Perfetto to:

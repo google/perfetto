@@ -34,7 +34,7 @@ Tool | Language | What is instrumented | Usage
 [Native Allocation Profiling](#native-heap-profiling) | Native C/C++/Rust | `malloc` + `free` | Reduce native allocation churn, breakdown memory usage and find leaks **after profiling started**.
 [ART Allocation Profiling](/docs/data-sources/native-heap-profiler.md#art-allocation-profiling) | Java/Kotlin | Object allocations | Reduce Java/Kotlin allocation churn
 
-## {#native-heap-profiling} Native (C/C++/Rust) Allocation Profiling (aka native heap profiling)
+## {#native-heap-profiling} Native (C/C++/Rust) allocation profiling (aka native heap profiling)
 
 Native languages like C/C++/Rust commonly allocate and deallocate memory at the
 lowest level by using the libc family of `malloc`/`free` functions. Native heap
@@ -61,7 +61,7 @@ anecdotal experience is that if you are chasing a memory leak, there is a good
 chance that the leak will keep happening over time and hence you will be able to
 see future increments.
 
-### Collecting your first Native Allocation Profile
+### Collecting your first native allocation profile
 
 <?tabs>
 
@@ -318,7 +318,7 @@ FROM android_heap_profile_summary_tree;
 
 you can see the memory allocated by every unique callstack in the trace.
 
-## ART Heap Dumps
+## ART heap dumps
 
 Java—and managed languages built on top of it, like Kotlin—use a runtime
 environment to handle memory management and garbage collection. In these

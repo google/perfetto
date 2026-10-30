@@ -15,7 +15,7 @@ with Trace Processor.
 This page provides a guide on how to programmatically generate these synthetic
 traces.
 
-## The Basics: Perfetto's Trace Format
+## The basics: Perfetto's trace format
 
 A Perfetto trace file (`.pftrace` or `.perfetto-trace`) is a sequence of
 [TracePacket](/protos/perfetto/trace/trace_packet.proto) messages, wrapped in a
@@ -35,7 +35,7 @@ allows you to define:
   metrics).
 - **Flows**: Arrows connecting related slices across different tracks.
 
-## Generating Traces Programmatically
+## Generating traces programmatically
 
 The examples in this guide use Python and a helper class from the `perfetto`
 Python library to demonstrate how to construct these protobuf messages. However,
@@ -58,7 +58,7 @@ according to the Perfetto
 [protobuf schemas](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/)
 and serialize them into a binary file.
 
-### Python Script Template
+### Python script template
 
 For the Python examples in the following sections, we'll use a script template.
 This script handles the basics of creating a trace file and serializing
@@ -158,7 +158,7 @@ helps manage the list of `TracePacket` messages that form the `Trace`. The
 `populate_packets` function is where you'll define the content of these packets
 based on your specific data.
 
-## Creating Basic Timeline Slices
+## Creating basic timeline slices
 
 The most fundamental way to represent an activity in Perfetto is as a "slice." A
 slice is simply a named event that has a start time and a duration. Slices live
@@ -184,7 +184,7 @@ To create slices from your custom data, you'll typically:
 2.  For each event in your data, emit `TrackEvent` packets to mark the beginning
     and end of the slice.
 
-### Python Example: Basic Slices
+### Python example: basic slices
 
 Let's say you have data representing tasks with a name, start time, and end
 time. Here's how you could convert them into Perfetto slices on a custom track.
@@ -260,7 +260,7 @@ JOIN track ON slice.track_id = track.id
 WHERE track.name = 'My Custom Data Timeline';
 ```
 
-## Nested Slices (Hierarchical Activities)
+## Nested slices (hierarchical activities)
 
 Often, an activity or operation is made up of several sub-activities that must
 complete before the main activity can finish. Nested slices are perfect for
@@ -286,7 +286,7 @@ This is very common for:
 
 The Perfetto UI will visually nest these slices, making the hierarchy clear.
 
-### Python Example: Nested Slices
+### Python example: nested slices
 
 This example demonstrates creating multiple stacks of nested slices on a custom
 track. The packets are emitted in timestamp order to correctly represent the
@@ -359,7 +359,7 @@ WHERE track.name = 'My Nested Operations Timeline'
 ORDER BY ts;
 ```
 
-## Asynchronous Slices and Overlapping Events
+## Asynchronous slices and overlapping events
 
 Many systems deal with asynchronous operations where multiple activities can be
 in progress simultaneously and their lifetimes can overlap without strict
@@ -392,7 +392,7 @@ This is a convention and can be controlled by the user. For more details, see
 the section on controlling merging in the
 [synthetic track event reference docs](/docs/reference/synthetic-track-event.md#controlling-track-merging).
 
-### Python Example: Asynchronous Slices
+### Python example: asynchronous slices
 
 Imagine we are tracking active network connections. Each connection is an
 independent asynchronous event. We'll give all connection tracks the same name
@@ -458,7 +458,7 @@ WHERE track.name = 'HTTP Connections'
 ORDER BY ts;
 ```
 
-## Counters (Values Changing Over Time)
+## Counters (values changing over time)
 
 Counters are used to represent a numerical value that changes over time. They
 are excellent for tracking metrics or states that are not event-based but rather
@@ -484,7 +484,7 @@ To create a counter track, you'll:
     have a `timestamp` and either a `counter_value` (an integer) or a
     `double_counter_value` (a double).
 
-### Python Example: Counters
+### Python example: counters
 
 Let's say we want to track the number of outstanding network requests over time.
 
@@ -542,7 +542,7 @@ JOIN track ON counter.track_id = track.id
 WHERE track.name = 'Outstanding Network Requests';
 ```
 
-## Flows (Connecting Causally Related Events)
+## Flows (connecting causally related events)
 
 Flows are used to visually connect slices that have an explicit causal or
 dependency relationship, especially when these slices occur on different tracks
@@ -580,7 +580,7 @@ with consistent colors) without implying causality. See the
 [Linking Related Events with Correlation IDs](/docs/reference/synthetic-track-event.md#linking-related-events-with-correlation-ids)
 section in the Advanced Guide for details.
 
-### Python Example: Flows
+### Python example: flows
 
 Let's model a simple system where a "Request Handler" track dispatches work to a
 "Data Processor" track. We'll use flows to link the request dispatch to its
@@ -664,7 +664,7 @@ JOIN slice AS slice_out ON flow.slice_out = slice_out.id
 JOIN slice AS slice_in ON flow.slice_in = slice_in.id;
 ```
 
-## Grouping Tracks with Hierarchies
+## Grouping tracks with hierarchies
 
 As traces become more complex, you might want to group related tracks together
 to create a more organized and understandable visualization. Perfetto allows you
@@ -691,7 +691,7 @@ A parent track can serve two main purposes:
 
 The Perfetto UI will typically render these as an expandable tree.
 
-### Python Example: Track Hierarchies
+### Python example: track hierarchies
 
 Let's create a hierarchy:
 
@@ -782,7 +782,7 @@ WHERE track.name IN ('Main System', 'Subsystem A', 'Subsystem B', 'Detail A.1')
 ORDER BY slice.ts;
 ```
 
-## Track Hierarchies for Waterfall / Trace Views
+## Track hierarchies for waterfall / trace views
 
 Another powerful use of track hierarchies is to visualize the breakdown of a
 complex operation or request, similar to how "trace views" or "span views" are
@@ -802,7 +802,7 @@ In this model:
   render these as an expandable tree, and the start/end times of the slices on
   these hierarchically arranged tracks create the "waterfall" effect.
 
-### Python Example: Service Request Breakdown
+### Python example: service request breakdown
 
 Let's imagine a frontend service makes a request that involves calls to two
 backend services: an Authentication Service and a Data Service. The Data Service
@@ -899,7 +899,7 @@ WHERE track.name LIKE '%Request%' OR track.name LIKE '%Service%'
 ORDER BY slice.ts;
 ```
 
-## {#debug-annotations} Adding Debug Annotations to Events
+## {#debug-annotations} Adding debug annotations to events
 
 Debug annotations allow you to attach arbitrary key-value data to any
 `TrackEvent`. They appear in the Perfetto UI when you inspect individual
@@ -919,7 +919,7 @@ integers, booleans, doubles), nested dictionaries, and arrays. They use the
 `DebugAnnotation` protobuf message, which can represent complex nested
 structures.
 
-### Python Example: Basic Debug Annotations
+### Python example: basic debug annotations
 
 This example shows how to add simple key-value debug annotations to track
 events. This is useful for attaching additional information like object IDs,
@@ -1019,7 +1019,7 @@ JOIN track ON slice.track_id = track.id
 WHERE track.name = 'Debug Annotations Example';
 ```
 
-### Python Example: Nested Debug Annotations
+### Python example: nested debug annotations
 
 Debug annotations can represent complex nested data structures including
 dictionaries and arrays. This is useful when you need to attach structured
@@ -1105,7 +1105,7 @@ JOIN track ON slice.track_id = track.id
 WHERE track.name = 'Nested Debug Annotations';
 ```
 
-## {#callstacks} Attaching Callstacks to Events
+## {#callstacks} Attaching callstacks to events
 
 Callstacks (also known as stack traces or backtraces) show the sequence of
 function calls that led to a particular event. Adding callstacks to your trace
@@ -1127,7 +1127,7 @@ repeated callstacks or when you need binary mapping information, use
 [interned callstacks](/docs/reference/synthetic-track-event.md#callstacks)
 instead.
 
-### Python Example: Inline Callstacks
+### Python example: inline callstacks
 
 Each frame includes a function name, and optionally a source file and line
 number.
@@ -1235,7 +1235,7 @@ By default each callstack counts once in the flamegraph. To attribute a value
 to each occurrence instead (e.g. bytes allocated), see
 [Weighted Callstacks and Custom Measures](/docs/reference/synthetic-track-event.md#callstack-weights).
 
-## Adding Trace-Level Metadata
+## Adding trace-level metadata
 
 Sometimes the data you want to attach isn't tied to any specific event, slice,
 or track, but describes the trace as a whole, things like a build ID, the
@@ -1278,7 +1278,7 @@ the `attributes` section of a
 [trace manifest](/docs/reference/perfetto-manifest.md#attributes), which
 uses its own `manifest_attribute.*` namespace.
 
-### Python Example: Trace Metadata
+### Python example: trace metadata
 
 Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
@@ -1342,7 +1342,7 @@ between the formats and the exact contents of each, see
 and the
 [Trace Processor reference](/docs/reference/trace-processor-cli.md#subcommand-export).
 
-## Next Steps
+## Next steps
 
 You've now seen how to convert custom timestamped data into Perfetto traces
 using Python and `TrackEvent`. With these techniques, you can represent slices,

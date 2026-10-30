@@ -1,4 +1,4 @@
-# Advanced System Tracing on Android
+# Advanced system tracing on Android
 
 This guide dives deeper into recording system traces on Android, building on the
 concepts introduced in the
@@ -19,7 +19,7 @@ including:
 - Writing and using a full trace config for advanced customization.
 - Using exclusive mode for tracing sessions to prevent interference from other traces.
 
-## Prerequisites: Enabling Tracing Services
+## Prerequisites: enabling tracing services
 
 Perfetto's tracing daemons (`traced`) are built into Android, but they are only
 enabled by default on **Android 11 (R) and newer**.
@@ -78,7 +78,7 @@ However, there are several caveats to be aware of when using
   to use `adb shell cat`:
   `adb shell cat /data/misc/perfetto-traces/trace > trace.pftrace`.
 
-## Using a Full Trace Config
+## Using a full trace config
 
 For full control over the tracing process, you can provide a complete trace
 config file instead of using command-line flags. This allows you to enable
@@ -171,7 +171,7 @@ around.
 The full reference for the `perfetto` cmdline interface can be found
 [here](/docs/reference/perfetto-cli.md).
 
-## Exclusive Tracing Sessions
+## Exclusive tracing sessions
 
 Perfetto is designed to support [multiple concurrent tracing sessions](/docs/concepts/concurrent-tracing-sessions.md) from different sources (e.g., adb, on-device apps, automated testing). While this works for most data sources, some advanced features cannot be reliably multiplexed, and sensitive performance measurements require minimizing interference from other traces. In these situations, Perfetto requires a guarantee that no other tracing session is active.
 

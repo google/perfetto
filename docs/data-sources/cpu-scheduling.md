@@ -1,4 +1,4 @@
-# CPU Scheduling events
+# CPU scheduling events
 
 On Android and Linux Perfetto can gather scheduler traces via the Linux Kernel
 [ftrace](https://www.kernel.org/doc/Documentation/trace/ftrace.txt)

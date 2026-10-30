@@ -4,7 +4,7 @@ The [Perfetto UI](https://ui.perfetto.dev) enables you to view and analyze
 traces in the browser. It supports several different tracing formats, including
 the perfetto proto trace format and the legacy json trace format.
 
-## Loading a Trace
+## Loading a trace
 
 Click one of the examples in the 'New Trace' section of the sidebar to get
 going.
@@ -16,7 +16,7 @@ Selecting or dropping several files at once merges them onto a single shared
 timeline via a configuration dialog: see
 [Merging traces in the UI](/docs/visualization/merging-traces.md).
 
-## Navigating the Timeline
+## Navigating the timeline
 
 Use the WASD cluster to zoom and pan around the timeline. W and S zoom in and
 out, and A and D pan left and right respectively.
@@ -32,7 +32,7 @@ zooms in and out.
   <source src="https://storage.googleapis.com/perfetto-misc/mouse-nav.webm" type="video/webm">
 </video>
 
-## Track Event Selections
+## Track event selections
 
 Selecting entities on the trace is the primary way to dig into events of a trace
 and reveal more data about those events.
@@ -61,7 +61,7 @@ level.
 At any point, press 'escape' or click on some empty space in the timeline to
 clear the selection.
 
-## Area Selections
+## Area selections
 
 Click and drag over the timeline to make an area selection. An area selection
 consists of a start + end time and a list of tracks. Click+drag on the markers
@@ -98,7 +98,7 @@ all extension mechanisms, see
 
 Press 'Q' to toggle the tab drawer.
 
-## Finding Tracks
+## Finding tracks
 
 Press 'Ctrl+P' (or 'Cmd+P' on Mac) to open the track finder and start
 typing to fuzzy find tracks.
@@ -107,7 +107,7 @@ typing to fuzzy find tracks.
   <source src="https://storage.googleapis.com/perfetto-misc/finding-tracks.webm" type="video/webm">
 </video>
 
-## Filtering Tracks
+## Filtering tracks
 
 Click the filter icon in the timeline toolbar to filter which tracks are shown
 on the timeline. Type comma separated terms to filter tracks by name, or use
@@ -120,7 +120,7 @@ again. While filters are active, the filter icon appears filled.
   <source src="https://storage.googleapis.com/perfetto-misc/filtering-tracks.webm" type="video/webm">
 </video>
 
-## Pinning Tracks
+## Pinning tracks
 
 Press the 'Pin' icon in the track shell to pin a track to the top of the
 timeline. This operation moves the track to the top of the workspace. This can
@@ -136,7 +136,7 @@ the main timeline.
 Hotkey bindings are displayed to the right of the commands in the command
 palette, or press the '?' hotkey to display all configured hotkeys.
 
-## Next Steps
+## Next steps
 
 Once you're comfortable with the basic UI interactions, you can customize and
 extend the UI to speed up your analysis workflow:

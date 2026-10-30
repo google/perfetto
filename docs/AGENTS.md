@@ -1,8 +1,8 @@
-# Perfetto Project Development Guidelines for AI Agents
+# Perfetto project development guidelines for AI agents
 
 This document provides essential instructions and best practices for developing in the Perfetto codebase. Adhere to these guidelines to ensure consistency and quality.
 
-## Where to Land Changes
+## Where to land changes
 
 All Perfetto changes must be landed in the upstream repository at
 https://github.com/google/perfetto.
@@ -30,7 +30,7 @@ The perfetto repo contains several projects. These are the major ones
 
 5. A bunch of other tools and utilities used rarely, in tools/ and src/tools.
 
-## Core Software Engineering Principles
+## Core software engineering principles
 
 Follow these principles when writing and modifying code.
 
@@ -82,7 +82,7 @@ tools/ninja -C out/linux_clang_release -k 10000 trace_processor_shell perfetto_u
 
 All the C++ projects share the same "base" target (include/perfetto/base, include/perfetto/ext/base) and can share some other targets (See GN).
 
-### C++ Code style
+### C++ code style
 
 We mainly adhere to the Google C++ style guide, which you can consult here
 https://google.github.io/styleguide/cppguide.html
@@ -137,7 +137,7 @@ If you need to split code for different platforms, you must use  perfetto/base/b
 Note that every PERFETTO_BUILDFLAG_DEFINE_XXX that you see there must be used via the PERFETTO_BUILDFLAG(XXX) wrapper.
 For example PERFETTO_BUILDFLAG(PERFETTO_OS_QNX) when you see  PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_QNX.
 
-### Running C++ Tests
+### Running C++ tests
 
 Perfetto uses the Google Test framework. You will see c++ sources like
 ```cpp
@@ -169,7 +169,7 @@ out/linux_clang_release/perfetto_benchmarks --benchmark_filter='.*BM_RtMutex_NoC
 Note that unlike Google Test, where the filter is a glob, in Google Benchmarks
 the filter is a regex.
 
-### Trace Processor Diff Tests
+### Trace Processor diff tests
 
 Trace Processor Diff Tests (or diff tests for short) are executed by running the following command:
 
@@ -185,14 +185,14 @@ tools/diff_test_trace_processor.py out/linux_clang_release/trace_processor_shell
 runner automatically drops this prefix.
 For example, to run `test_my_cool_test`, use the filter `MyTestSuite.my_cool_test`.
 
-### Test Guidelines
+### Test guidelines
 
 - **Prefer test suites over individual tests.** When using the `--gtest_filter` flag, specify a whole test suite (e.g., `"MyTestSuite.*"`) instead of a single test case (e.g., `"MyTestSuite.MySpecificTest"`). This ensures broader test coverage.
 - **Do not test unstable IDs.** When writing diff tests, do not include columns that contain unstable IDs (e.g. `upid`, `utid`, `id`, etc) in the output. These IDs can change between different runs of the same test, which will cause the test to fail.
   
 - **Remove `test_` prefix for diff tests.** When using the `--name-filter` flag for diff tests, do not include `test_` in the filter. The test runner automatically drops this prefix. For example, to run `test_my_cool_test`, use the filter `MyTestSuite.my_cool_test`.
 
-## Fixing GN Dependencies
+## Fixing GN dependencies
 
 When asked to fix GN dependencies, run the following command and fix any errors
 that are reported:
@@ -205,9 +205,9 @@ tools/gn check out/linux_clang_release
 unless explicitly instructed to by the user. Instead, add a direct dependency to
 the target that requires it.
 
-## Other Configurations
+## Other configurations
 
-### ASan (AddressSanitizer) Build
+### ASan (AddressSanitizer) build
 
 To build with ASan for memory error detection:
 
@@ -215,7 +215,7 @@ To build with ASan for memory error detection:
 tools/ninja -C out/linux_asan -k 10000 trace_processor_shell perfetto_unittests
 ```
 
-### MSan (MemorySanitizer) Build
+### MSan (MemorySanitizer) build
 
 To build with MSan for uninitialized read detection:
 
@@ -223,7 +223,7 @@ To build with MSan for uninitialized read detection:
 tools/ninja -C out/linux_msan -k 10000 trace_processor_shell perfetto_unittests
 ```
 
-### ASan (AddressSanitizer) Tests
+### ASan (AddressSanitizer) tests
 
 **Note:** Ensure the `ASAN_SYMBOLIZER_PATH` is set correctly.
 
@@ -232,7 +232,7 @@ ASAN_SYMBOLIZER_PATH="$(pwd)/buildtools/linux64/clang/bin/llvm-symbolizer" \
 out/linux_asan/perfetto_unittests --gtest_brief=1 --gtest_filter="<TestSuiteName.*>"
 ```
 
-### MSan (MemorySanitizer) Tests
+### MSan (MemorySanitizer) tests
 
 **Note:** Ensure the `MSAN_SYMBOLIZER_PATH` is set correctly.
 
@@ -241,7 +241,7 @@ MSAN_SYMBOLIZER_PATH="$(pwd)/buildtools/linux64/clang/bin/llvm-symbolizer" \
 out/linux_msan/perfetto_unittests --gtest_brief=1 --gtest_filter="<TestSuiteName.*>"
 ```
 
-## Creating Pull Requests
+## Creating pull requests
 
 **Note:** This is the default PR workflow. If the user has their own way of
 creating and managing pull requests, follow that and skip this section.
@@ -256,7 +256,7 @@ When creating a pull request, follow these steps:
 
 **Note:** The `git checkout` command only creates and switches to a new branch. The normal `git add` and `git commit` workflow should be used to add changes to the branch.
 
-## Commit Messages
+## Commit messages
 
 When writing commit messages, follow these guidelines:
 

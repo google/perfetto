@@ -1,4 +1,4 @@
-# Cookbook: Recording Android Traces Locally
+# Cookbook: recording Android traces locally
 
 This page collects **end-to-end recipes** for recording Perfetto traces on
 Android in situations that the standard interactive workflow does not cover.
@@ -18,7 +18,7 @@ full reference on each topic, follow the links into the deeper guides:
 - [ART heap dumps](/docs/data-sources/java-heap-profiler.md)
 - [Analysing Android traces](/docs/getting-started/android-trace-analysis.md)
 
-## Recipe: Tracing Android boot {#boot-tracing}
+## Recipe: tracing Android boot {#boot-tracing}
 
 Goal: record a trace covering the Android boot sequence, to profile process
 startup, scheduling and everything else that happens while the device boots.
@@ -126,7 +126,7 @@ The last condition is why setting the property on a booted device arms the
 *next* boot instead of starting a trace immediately. The earliest boot stages
 (kernel init, mounting filesystems) are therefore not covered by the trace.
 
-## Recipe: Capturing a heap dump on OutOfMemoryError {#oom-heap-dump}
+## Recipe: capturing a heap dump on OutOfMemoryError {#oom-heap-dump}
 
 Goal: automatically capture an ART (Java/Kotlin) heap dump at the moment a
 process crashes with a `java.lang.OutOfMemoryError`, so you can see exactly

@@ -1,4 +1,4 @@
-# Advanced Guide to Programmatic Trace Generation
+# Advanced guide to programmatic trace generation
 
 This page serves as an advanced reference for programmatically creating Perfetto
 trace files. It builds upon the foundational concepts and examples presented in
@@ -40,7 +40,7 @@ fields, always refer to the official Perfetto protobuf sources, particularly
 and its various sub-messages, including
 [TrackEvent](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/track_event/track_event.proto).
 
-## Associating Tracks with Operating System Concepts
+## Associating tracks with operating system concepts
 
 While the
 "[Converting arbitrary timestamped data to Perfetto](/docs/getting-started/converting.md)"
@@ -49,7 +49,7 @@ context to Perfetto by associating your tracks with operating system (OS)
 processes and threads. This allows Perfetto's UI and analysis tools to offer
 richer integration and better correlation with other system-wide data.
 
-### Associating Tracks with Processes
+### Associating tracks with processes
 
 You can create a top-level track that represents an OS process. Any other custom
 tracks (which might contain slices or counters) can then be parented to this
@@ -74,7 +74,7 @@ Unlike with "global" tracks, these track types may interact with other data
 sources and as such having a timestamp makes sure that Trace Processor can
 accurately sort the descriptor into the right place.
 
-#### Python Example: Process-Scoped Counter
+#### Python example: process-scoped counter
 
 Let's say you want to emit a custom counter (e.g. "Active DB Connections") and
 have it appear under a specific process named "MyDatabaseService" with PID 1234.
@@ -157,7 +157,7 @@ guide).
 For details on how to explicitly control the display order of process tracks, see
 [Controlling Track Sorting Order](#controlling-track-sorting-order).
 
-### Associating Tracks with Threads
+### Associating tracks with threads
 
 You can create tracks that are explicitly associated with specific threads
 within an OS process. This is the most common way to represent thread-specific
@@ -193,7 +193,7 @@ information from the kernel). Unlike with "global" tracks, these track types may
 interact with other data sources and as such having a timestamp makes sure that
 Trace Processor can accurately sort the descriptor into the right place.
 
-#### Python Example: Thread-Specific Slices
+#### Python example: thread-specific slices
 
 This example defines a thread "MainWorkLoop" (TID 5678) belonging to process
 "MyApplication" (PID 1234). It then emits a couple of slices directly onto this
@@ -286,14 +286,14 @@ WHERE tid = 5678;
 For details on how to explicitly control the display order of threads within a process, see
 [Controlling Track Sorting Order](#controlling-track-sorting-order).
 
-## Customizing Track Display
+## Customizing track display
 
 Beyond associating tracks with OS concepts, Perfetto offers ways to fine-tune
 how your tracks are presented in the UI: how sibling tracks are sorted and
 merged, how counters share their scale, and how tracks are described to the
 user.
 
-### Controlling Track Sorting Order
+### Controlling track sorting order
 
 By default, the Perfetto UI applies its own heuristics to sort tracks (e.g.,
 alphabetically by name, or by track UUID). However, for complex custom traces,
@@ -301,7 +301,7 @@ you might want to explicitly define the order in which tracks appear. This
 sorting behavior differs depending on whether you are ordering standard custom
 child tracks, processes, or threads within a process.
 
-#### Child Track Sorting
+#### Child track sorting
 
 For standard custom tracks that are parented to another custom track using `parent_uuid`,
 you can configure child ordering on the parent track.
@@ -317,7 +317,7 @@ Available `child_ordering` modes (defined in `TrackDescriptor.ChildTracksOrderin
   respective `TrackDescriptor`s. Lower ranks appear first. If ranks are equal, or if
   `sibling_order_rank` is not set, the tie-breaking order is undefined.
 
-#### Process Sorting
+#### Process sorting
 
 To explicitly control how the UI displays top-level process tracks relative to
 each other, you must configure the root track descriptor (`uuid = 0`).
@@ -333,7 +333,7 @@ Available `process_ordering` modes (defined in `TrackDescriptor.ProcessOrdering`
 
 ![Process Sorting](/docs/images/synthetic-track-event-process-order.png)
 
-#### Thread Sorting
+#### Thread sorting
 
 To explicitly control how the UI displays thread tracks within a process group
 relative to each other, you must configure the root track descriptor (`uuid = 0`).
@@ -354,7 +354,7 @@ orderings, there are contexts in which the UI reserves the right _not_ to show
 them in this order; generally this would be if the user explicitly requested
 this or if the UI has some special handling for these tracks.
 
-#### Python Example: Demonstrating All Sorting Types
+#### Python example: demonstrating all sorting types
 
 This example defines three parent tracks demonstrating different `child_ordering` modes,
 as well as configuring explicit process and thread ordering on the root track.
@@ -498,7 +498,7 @@ your `trace_converter_template.py` script.
 
 ![Controlling Track Sorting Order](/docs/images/synthetic-track-event-sorting.png)
 
-### {#controlling-track-merging} Controlling Track Merging
+### {#controlling-track-merging} Controlling track merging
 
 By default, the Perfetto UI merges tracks that share the same name. This is
 often the desired behavior for grouping related asynchronous events. However,
@@ -522,7 +522,7 @@ The `sibling_merge_behavior` field can be set to one of the following values:
 - `SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`: Merges sibling tracks that have
   the same `sibling_merge_key` string.
 
-#### Python Example: Preventing Merging
+#### Python example: preventing merging
 
 In this example, we create two tracks with the same name. By setting their
 `sibling_merge_behavior` to `SIBLING_MERGE_BEHAVIOR_NONE`, we ensure they are
@@ -572,7 +572,7 @@ always displayed as distinct tracks in the UI.
 
 ![Preventing Merging](/docs/images/synthetic-track-event-no-merge.png)
 
-#### Python Example: Merging by Key
+#### Python example: merging by key
 
 In this example, we create two tracks with different names but the same
 `sibling_merge_key`. By setting their `sibling_merge_behavior` to
@@ -625,7 +625,7 @@ of the tracks (usually the one with the lower UUID).
 
 ![Merging by Key](/docs/images/synthetic-track-event-merge-by-key.png)
 
-### Sharing Y-Axis Between Counters
+### Sharing y-axis between counters
 
 When visualizing multiple counter tracks, it is often useful to have them share
 the same Y-axis range. This allows for easy comparison of their values. Perfetto
@@ -635,7 +635,7 @@ supports this feature through the `y_axis_share_key` field in the
 All counter tracks that have the same `y_axis_share_key` and the same parent
 track will share their Y-axis range in the UI.
 
-#### Python Example: Sharing Y-Axis
+#### Python example: sharing y-axis
 
 In this example, we create two counter tracks with the same `y_axis_share_key`.
 This will cause them to be rendered with the same Y-axis range in the Perfetto
@@ -685,7 +685,7 @@ UI.
 
 ![Sharing Y-Axis](/docs/images/synthetic-track-event-share-y-axis.png)
 
-### Adding a Track Description
+### Adding a track description
 
 You can add a human-readable description to any track to provide more context
 about the data it contains. In the Perfetto UI, this description appears in a
@@ -696,7 +696,7 @@ it should be interpreted, especially in complex custom traces.
 To add a description, you simply set the optional `description` field in the
 track's `TrackDescriptor`.
 
-#### Python Example: Track Descriptions
+#### Python example: track descriptions
 
 This example defines two tracks: one with a `description` field set and one
 without, to illustrate the difference in the UI.
@@ -757,7 +757,7 @@ your `trace_converter_template.py` script.
 
 ![Adding a Track Description](/docs/images/synthetic-track-event-description.png)
 
-## Interning Data for Trace Size Optimization
+## Interning data for trace size optimization
 
 Interning is a technique used to reduce the size of trace files by emitting
 frequently repeated strings (like event names or categories) only once in the
@@ -793,7 +793,7 @@ events that share the same name or other string-based attributes.
     to the existing valid dictionary) will set
     `TracePacket.SEQ_NEEDS_INCREMENTAL_STATE`.
 
-#### Python Example: Interning Event Names
+#### Python example: interning event names
 
 This example shows how to define an interned string for an event name and then
 use it multiple times.
@@ -889,7 +889,7 @@ your `trace_converter_template.py` script.
 
 ![Interning Data for Trace Size Optimization](/docs/images/synthetic-track-event-interning.png)
 
-### {#callstacks} Interned Callstacks
+### {#callstacks} Interned callstacks
 
 The [Getting Started guide](/docs/getting-started/converting.md#callstacks)
 covers inline callstacks for simple use cases. This section covers interned
@@ -909,7 +909,7 @@ other pieces are optional and can be supplied when you have that information:
 3.  **Frames** → **Callstacks** (frame sequences)
 4.  **Callstacks** → Events (via `callstack_iid`)
 
-#### Python Example: Interned Callstacks
+#### Python example: interned callstacks
 
 This example demonstrates the complete workflow for interning callstacks,
 including mappings, frames, and callstacks. For minimal traces you can skip the
@@ -1118,14 +1118,14 @@ the following output:
 
 ![Interned Callstacks](/docs/images/synthetic-track-event-interned-callstack.png)
 
-## Enriching Events with Additional Data
+## Enriching events with additional data
 
 Beyond a name and a timestamp, each event can carry extra data: weights that
 change how callstacks aggregate into flamegraphs, correlation IDs that link
 related events together, and fully custom typed fields defined by your own
 protobuf schema.
 
-### {#callstack-weights} Weighted Callstacks and Custom Measures
+### {#callstack-weights} Weighted callstacks and custom measures
 
 By default, every callstack attached to an event counts once when aggregated
 into a flamegraph: this is the **Samples** measure. Often, though, each
@@ -1165,7 +1165,7 @@ parallel measures: for example, an allocation profiler can use
 `callstack_weight` for bytes and an `objects` debug annotation for the number
 of objects.
 
-#### Python Example: Weighted Callstacks
+#### Python example: weighted callstacks
 
 This example models a simple allocation profiler: each slice records the
 callstack of an allocation, with `callstack_weight` set to the number of bytes
@@ -1330,7 +1330,7 @@ flamegraph changes, as `RenderOutput` allocates many more objects than
 As with `callstack_weight`, only samples which actually have that argument are
 included in the measure.
 
-### Linking Related Events with Correlation IDs
+### Linking related events with correlation IDs
 
 Correlation IDs provide a way to visually link slices that are part of the same
 logical operation, even when they are not causally connected. Unlike flows,
@@ -1368,7 +1368,7 @@ Perfetto supports three types of correlation identifiers:
   [Interning Data for Trace Size Optimization](#interning-data-for-trace-size-optimization)
   above for details on interning)
 
-#### Python Example: Correlation IDs
+#### Python example: correlation IDs
 
 This example demonstrates correlation IDs using integer identifiers by
 simulating different stages of processing for two separate requests across
@@ -1437,7 +1437,7 @@ your `trace_converter_template.py` script.
 
 ![Correlation IDs](/docs/images/synthetic-track-event-correlation-ids.png)
 
-### {#proto-extensions} Attaching Custom Typed Fields with Proto Extensions
+### {#proto-extensions} Attaching custom typed fields with proto extensions
 
 When `debug_annotations` aren't expressive enough — you want a real schema
 with nested messages, repeated fields, or types your downstream tooling can
@@ -1452,7 +1452,7 @@ This section focuses on the manual-trace-writing flow: how to set extension
 fields with the standard protobuf Python API and embed the descriptor in the
 trace so the result is self-contained.
 
-#### Two-File Setup
+#### Two-file setup
 
 Split the schema across two `.proto` files.
 
@@ -1512,7 +1512,7 @@ protoc -I. --include_imports \
        acme_extension.proto
 ```
 
-#### Python Example: Setting Extension Fields
+#### Python example: setting extension fields
 
 The extension payload is written as protobuf wire bytes onto the
 `TrackEvent` — a length-delimited field (wire type 2) whose value is the
@@ -1595,7 +1595,7 @@ FROM slice
 WHERE EXTRACT_ARG(slice.arg_set_id, 'request_metadata.request_id') IS NOT NULL;
 ```
 
-## {#handling-large-traces-with-streaming} Handling Large Traces with Streaming
+## {#handling-large-traces-with-streaming} Handling large traces with streaming
 
 All the examples so far have used the `TraceProtoBuilder`, which builds the
 entire trace in memory before writing it to a file. This is simple and effective
@@ -1606,7 +1606,7 @@ For these scenarios, the `StreamingTraceProtoBuilder` is the recommended
 solution. It writes each `TracePacket` to a file as it's created, keeping memory
 usage minimal regardless of the trace size.
 
-### How it Works
+### How it works
 
 The API for the streaming builder is slightly different:
 
@@ -1617,7 +1617,7 @@ The API for the streaming builder is slightly different:
 3.  **Packet Writing**: After populating the packet, you must explicitly call
     `builder.write_packet(packet)` to serialize and write it to the file.
 
-### Python Example: Complete Streaming Script
+### Python example: complete streaming script
 
 Here is a complete, standalone Python script that demonstrates how to use the
 `StreamingTraceProtoBuilder`. It is based on the "Creating Basic Timeline

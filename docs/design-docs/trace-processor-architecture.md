@@ -1,4 +1,4 @@
-# Trace Processor Architecture
+# Trace Processor architecture
 
 This document explains how Perfetto's trace processor works, from ingesting raw trace files to providing SQL-queryable data. It covers the key components, data flow, and architectural patterns that enable the trace processor to handle traces from various formats (Proto, JSON, Systrace, etc.) and transform them into a unified analytical database.
 
@@ -6,14 +6,14 @@ This document explains how Perfetto's trace processor works, from ingesting raw 
 
 The trace processor is a system that ingests trace files of various formats, parses their contents, sorts events by timestamp, and stores the data in a columnar SQL database for analysis. It processes traces in chunks to efficiently handle large files.
 
-## Core Data Pipeline
+## Core data pipeline
 
 ```
 Raw Trace → ForwardingTraceParser → Format-Specific ChunkedTraceReader →
 TraceSorter → TraceStorage → SQL Query Engine
 ```
 
-## Format Detection and Delegation
+## Format detection and delegation
 
 **ForwardingTraceParser** (`src/trace_processor/forwarding_trace_parser.cc:85-254`)
 - Detects trace format using `TraceImporterRegistry::Guess()` from first bytes
@@ -27,15 +27,15 @@ context()->reader_registry->Register(CreateProtoImporter());
 context()->reader_registry->Register(CreateSystraceImporter());
 ```
 
-## Format-Specific Readers (Diverse Approaches)
+## Format-specific readers (diverse approaches)
 
-### 1. JSON Traces
+### 1. JSON traces
 **JsonTraceTokenizer** (`src/trace_processor/importers/json/json_trace_tokenizer.h:74`)
 - **Data Flow**: Raw JSON → Tokenizer → JsonEvent objects → TraceSorter::Stream<JsonEvent>
 - **Parser**: JsonTraceParser processes sorted events → TraceStorage
 - **Architecture**: Tokenizer/Parser split with JSON-specific state machine
 
-### 2. Proto Traces (Complex Modular System)
+### 2. Proto traces (complex modular system)
 **ProtoTraceReader** (`src/trace_processor/importers/proto/proto_trace_reader.h:61`)
 - **Data Flow**: Proto bytes → ProtoTraceTokenizer → ProtoImporterModules → TraceSorter::Stream<TracePacketData>
 - **Modules**: Register for specific packet field IDs (`src/trace_processor/importers/proto/proto_importer_module.h:131`)
@@ -43,17 +43,17 @@ context()->reader_registry->Register(CreateSystraceImporter());
   - Parsing phase: Post-sorting detailed processing
 - **Examples**: FtraceModule, TrackEventModule, AndroidModule (many files in `src/trace_processor/importers/proto/`)
 
-### 3. Systrace (Line-Based Processing)
+### 3. Systrace (line-based processing)
 **SystraceTraceParser** (`src/trace_processor/importers/systrace/systrace_trace_parser.h:35`)
 - **Data Flow**: Text lines → SystraceLineTokenizer → SystraceLine objects → TraceSorter::Stream<SystraceLine>
 - **Architecture**: State machine for HTML + trace data sections
 
-### 4. Other Formats
+### 4. Other formats
 - **Perf**: `perf_importer::PerfDataTokenizer` (binary perf.data format)
 - **Gecko**: `gecko_importer::GeckoTraceTokenizer` (Firefox traces)
 - **Fuchsia**: `FuchsiaTraceTokenizer` (Fuchsia kernel traces)
 
-## Event Sorting and Processing
+## Event sorting and processing
 
 **TraceSorter** (`src/trace_processor/sorter/trace_sorter.h:44`)
 - **Purpose**: Multi-stream timestamp-based merge sorting
@@ -61,14 +61,14 @@ context()->reader_registry->Register(CreateSystraceImporter());
 - **Streams**: Each format creates typed streams (JsonEvent, TracePacketData, SystraceLine, etc.)
 - **Output**: Sorted events to format-specific parsers
 
-## Storage Layer
+## Storage layer
 
 **TraceStorage** (`src/trace_processor/storage/trace_storage.h`)
 - **Architecture**: Columnar storage with specialized table types
 - **Tables**: SliceTable, ProcessTable, ThreadTable, CounterTable, etc.
 - **Access**: Direct insertion by parsers, SQL queries by engine
 
-## Context and Coordination
+## Context and coordination
 
 **TraceProcessorContext** (`src/trace_processor/types/trace_processor_context.h`)
 - **Multi-level state management**:
@@ -78,9 +78,9 @@ context()->reader_registry->Register(CreateSystraceImporter());
   - Per-trace-and-machine state (most specific)
 - **Coordination**: Central access point for storage, sorter, trackers
 
-## Key Architectural Patterns
+## Key architectural patterns
 
-### 1. ChunkedTraceReader Interface
+### 1. ChunkedTraceReader interface
 All format readers implement same interface but with completely different internal architectures:
 - JSON: Incremental JSON parsing with state machine
 - Proto: Modular packet processing with field-based routing
@@ -91,18 +91,18 @@ All format readers implement same interface but with completely different intern
   configures cross-file [merging](/docs/concepts/merging-traces.md): machine
   attribution and clock relations)
 
-### 2. TraceSorter::Stream<T> Pattern
+### 2. TraceSorter::stream<T> pattern
 Each format defines its own event types and creates typed streams:
 - `Stream<JsonEvent>` for JSON traces
 - `Stream<TracePacketData>` for proto events
 - `Stream<SystraceLine>` for systrace lines
 
-### 3. Parser vs Tokenizer Split
+### 3. Parser vs tokenizer split
 - **Tokenizer**: Pre-sorting processing, fast timestamp extraction
 - **Parser**: Post-sorting detailed processing into storage
 - Not all formats use this split (depends on complexity)
 
-## File Path Reference
+## File path reference
 
 **Core Infrastructure**:
 - `src/trace_processor/forwarding_trace_parser.{h,cc}` - Format detection and delegation

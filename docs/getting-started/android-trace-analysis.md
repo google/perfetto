@@ -1,4 +1,4 @@
-# Cookbook: Analyzing Android Traces
+# Cookbook: analyzing Android traces
 
 This page will take you through some real world examples on how you can analyse
 issues with SQL and more advanced features of the Perfetto UI.
@@ -561,7 +561,7 @@ Result
 
 ![](/docs/images/android-trace-analysis-background-jobs.png)
 
-## Get CPU Utilization and processing information
+## Get CPU utilization and processing information
 
 To collect data related to events on CPU and utilization, you will need the
 following snippet in your Perfetto configuration when recording traces:
@@ -611,7 +611,7 @@ data_sources {
 }
 ```
 
-### Process Level CPU utilization
+### Process level CPU utilization
 
 CPU utilization for an Android device refers to the percentage of time the
 device's CPU is actively working to execute instructions and run programs. CPU
@@ -639,7 +639,7 @@ Result:
 
 ![](/docs/images/android-trace-analysis-cpu-utilization-process.png)
 
-### Slice Level CPU utilisation
+### Slice level CPU utilisation
 
 To see cpu utilisation for an interesting slice, use the following query:
 

@@ -1,4 +1,4 @@
-# Commands Automation Reference
+# Commands automation reference
 
 This page documents Perfetto UI's stable command surface specifically for
 automation use cases. These commands have backwards compatibility guarantees and
@@ -18,7 +18,7 @@ automation purposes. These stable automation commands are designed for:
 Commands outside this automation reference are internal implementation details
 with no backwards compatibility guarantees and may change without warning.
 
-## Backwards Compatibility Guarantees
+## Backwards compatibility guarantees
 
 For automation commands listed in this reference, Perfetto UI guarantees:
 
@@ -34,9 +34,9 @@ For automation commands listed in this reference, Perfetto UI guarantees:
 Optional parameters may be added to commands without notice, but will not affect
 existing usage.
 
-## Command Reference
+## Command reference
 
-### Track Manipulation Commands
+### Track manipulation commands
 
 These commands control how tracks are displayed in the timeline view.
 
@@ -154,7 +154,7 @@ Collapses track groups matching a regular expression pattern.
 **Tip:** Use `".*"` to collapse all tracks as a starting point for focused
 analysis.
 
-### Debug Track Commands
+### Debug track commands
 
 Create custom visualization tracks from SQL queries. Debug tracks are overlaid
 on the timeline and update automatically when the view changes.
@@ -271,7 +271,7 @@ Creates multiple counter tracks grouped by a pivot column.
 }
 ```
 
-### Workspace Commands
+### Workspace commands
 
 Workspaces allow you to create custom views of your trace data by organizing
 specific tracks together.
@@ -393,7 +393,7 @@ groups for context.
 }
 ```
 
-### Query Commands
+### Query commands
 
 #### `dev.perfetto.RunQuery`
 
@@ -441,7 +441,7 @@ Executes a PerfettoSQL query and displays results in a new query tab.
 }
 ```
 
-### Note Commands
+### Note commands
 
 #### `dev.perfetto.AddNoteAtTimestamp`
 
@@ -464,12 +464,12 @@ Add a note for a given timestamp in trace clock with specific text.
 }
 ```
 
-### Macro Commands
+### Macro commands
 
 Macros are user-defined sequences of commands that execute in order. They
 provide a way to automate complex, multi-step analysis workflows.
 
-#### User-defined Macros
+#### User-defined macros
 
 Macros can be defined through the UI settings (**Settings > Macros**). Each
 macro has a unique ID that you define, which becomes the command ID used to
@@ -509,7 +509,7 @@ None (macro commands and arguments are pre-configured)
 
 ---
 
-## Using Commands for Automation
+## Using commands for automation
 
 These stable automation commands can be used in several contexts:
 
@@ -526,7 +526,7 @@ These stable automation commands can be used in several contexts:
 For practical automation examples and recipes, see the
 [UI Automation guide](/docs/visualization/ui-automation.md).
 
-## Requesting New Stable Automation Commands
+## Requesting new stable automation commands
 
 To request a command be added to the stable automation surface:
 
@@ -542,7 +542,7 @@ Commands are prioritized based on:
 - Importance for common analysis workflows
 - Feasibility of maintaining backwards compatibility
 
-## See Also
+## See also
 
 - [UI Automation guide](/docs/visualization/ui-automation.md) - Practical
   recipes using these commands

@@ -33,7 +33,7 @@ This decoupled architecture allows for multiple, independent producers and
 consumers to interact with the tracing system simultaneously without interfering
 with each other.
 
-## Core Responsibilities
+## Core responsibilities
 
 `traced` itself does not generate trace data. Its primary role is to manage the
 logistics of one or more tracing sessions:
@@ -56,7 +56,7 @@ logistics of one or more tracing sessions:
     central trace buffers. This isolation prevents a malicious or buggy producer
     from corrupting the trace data of others.
 
-## Interaction Model
+## Interaction model
 
 Entities interact with `traced` primarily through two channels:
 
@@ -104,7 +104,7 @@ Entities interact with `traced` primarily through two channels:
     producer sockets get `RelayPort`; it does not introduce new endpoints.
     May be repeated.
 
-## Built-in Producer
+## Built-in producer
 
 On Android, `traced` also includes a built-in producer with several key
 responsibilities:

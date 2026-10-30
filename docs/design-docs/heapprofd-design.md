@@ -1,4 +1,4 @@
-# heapprofd: Android Heap Profiler
+# heapprofd: Android heap profiler
 
 _**Status:** COMPLETED **·** fmayer, primiano **·** 2018-06-15_  
 _**Updated:** 2020-04-20_
@@ -34,7 +34,7 @@ These are the properties that must be fulfilled by a heap profiler for Android:
 **Bounded performance impact:** the device must still be usable for all use-cases.
 
 
-## Detailed Design
+## Detailed design
 
 ### Enabling profiling
 
@@ -187,18 +187,18 @@ more details.
 
 Prior art: [crbug.com/812262](http://crbug.com/812262), [crbug.com/803276](http://crbug.com/803276).
 
-## Implementation Plan
+## Implementation plan
 ### Implement prototype [done]
 Implement a prototype of the system described above that works with SELinux `setenforce 0` and running as root on walleye.
 
-### Implement Benchmark [done]
+### Implement benchmark [done]
 Implement a program that executes malloc / free calls from ground truth data. Profile this program using heapprofd, then compare results to ground truth data. Use this to iterate on sampling heuristics.
 
 ### Productionize [done]
 Do security changes required to run heapprofd with `setenforce 1` and as non-root.
 
 
-## Testing Plan
+## Testing plan
 
 * Employ fuzzing on the shared memory buffer. [done]
 * Unit-tests for components. [done]
@@ -216,7 +216,7 @@ ART (Android RunTime, the Android Java Runtime) has three different modes of exe
 
 **AOT (ahead of time) compiled:** Java code is compiled into native code before run-time. This produces an .oat file, which is essentially an .so. Both code and ELF information is stored on disk. During execution, like shared native libraries, it is memory mapped into process memory.
 
-### Stack Unwinding
+### Stack unwinding
 Stack unwinding is the process of determining the chain of return addresses from the raw bytes of the stack. These are the addresses we want to attribute the allocated memory to.
 
 The most efficient way of stack unwinding is using frame pointers. This is unreliable on Android as we do not control build parameters for vendor libraries or OEM builds and due to issues on ARM32. Thus, our stack unwinding relies on libunwindstack which uses DWARF information from the library ELF files to determine return addresses. This can significantly slower, with unwinding of a stack taking between 100μs and ~100 ms ([data from simpleperf](https://gist.github.com/fmayer/a3a5a352196f9037f34241f8fb09004d)).
@@ -232,7 +232,7 @@ For other builds, symbolization requires debug info contained within the binary.
 [Perfetto](https://perfetto.dev) is an open-source, highly efficient and expandable platform-wide tracing system that allows collection of performance data from kernel, apps and services. It aims to become the next-gen performance tracing mechanism for both Android and Chrome.
 
 
-## Related Work
+## Related work
 
 ### simpleperf
 Even though [simpleperf](https://cs.android.com/android/platform/superproject/main/+/main:system/extras/simpleperf/doc/README.md) is a CPU rather than memory profiler, it is similar in nature to the work proposed here in that it supports offline unwinding. The kernel is asked to provide copies of stack traces at regular intervals, which are dumped onto disk. The dumped information is then used to unwind the stacks after the profiling is complete.
@@ -242,13 +242,13 @@ Even though [simpleperf](https://cs.android.com/android/platform/superproject/ma
 [malloc-debug](https://cs.android.com/android/platform/superproject/main/+/main:bionic/libc/malloc_debug/) instruments bionic's allocation functions to detect common memory problems like buffer overflows, double frees, etc. This is similar to the project described in this document as it uses the same mechanism to instrument the libc allocation functions. Unlike heapprofd, it does not provide the user with heap dumps.
 
 
-### Feature Matrix
+### Feature matrix
 |              | use after free detection | Java object graph attribution | native memory attribution | Android | out-of-process |
 |--------------|--------------------------|-------------------------------|---------------------------|---------|----------------|
 | heapprofd    | no                       | no                            | yes                       | yes     | yes            |
 | malloc-debug | yes                      | no                            | yes                       | yes     | no             |
 
-## Alternatives Considered
+## Alternatives considered
 
 ### Copy-on-write stack
 The lower frames of the stack are unlikely to change between the client sending and the server unwinding the stack information. We wanted to exploit this fact by marking the stack pages as copy-on-write by [`vmsplice(2)`](http://man7.org/linux/man-pages/man2/vmsplice.2.html)-ing them into a pipe. Unfortunately, the vmsplice system call does not mark pages as copy-on-write, but is conceptually a mmap into the pipe buffer, which causes the daemon to see changes to the stack that happen after the vmsplice and hence corrupt the unwinder.
@@ -278,7 +278,7 @@ This option relies on the ability of the tracing system to detect app startup (w
 *   less accurate, will miss the first X ms of startup
 *   a mechanism that watches ftrace events to detect startup is non-trivial.
 
-### Delayed Unwinding
+### Delayed unwinding
 Anticipating that many allocations are short-lived, we can delay the unwinding of stacks by a fixed time. This is a memory vs CPU usage trade-off, as these stacks have to be held in memory until they are either unwound or freed.
 
 This graph shows that 20 % of allocations are freed within 900 sampled allocations (at 1 %, so 500000 total) from the same process.

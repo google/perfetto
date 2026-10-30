@@ -1,4 +1,4 @@
-# heapprofd Custom Allocator API - Early Access
+# heapprofd custom allocator API - early access
 
 WARNING: The heapprofd Custom Allocator API is currently in **beta** stage.
          Please file [bugs](https://github.com/google/perfetto/issues/new)
@@ -12,7 +12,7 @@ NOTE: The heapprofd Custom Allocator API requires a device running Android
 Before instrumenting your app, you need to get the heapprofd library and
 header.
 
-### Option 1: Prebuilts
+### Option 1: prebuilts
 
 You can download the library as a binary from [Google Drive](
 https://drive.google.com/drive/folders/15RPlGgAHWRSk7KquBqlQ7fsCaXnNaa6r
@@ -20,7 +20,7 @@ https://drive.google.com/drive/folders/15RPlGgAHWRSk7KquBqlQ7fsCaXnNaa6r
 Join our [Google Group](https://groups.google.com/forum/#!forum/perfetto-dev)
 to get access.
 
-### Option 2: Build yourself (on Linux)
+### Option 2: build yourself (on Linux)
 
 Alternatively, you can build the binaries yourself from AOSP.
 
@@ -58,7 +58,7 @@ git rev-parse HEAD > perfetto-version.txt
 ```
 Please include this in any bugs you file.
 
-## Instrument App
+## Instrument app
 
 Let's assume your application has a very simple custom allocator that looks
 like this:
@@ -97,7 +97,7 @@ void my_free(void* ptr) {
 Don't forget to link `heapprofd_standalone_client.so` and including it in
 your app.
 
-## Profile your App
+## Profile your app
 
 Then, use the [heap_profile](
 https://raw.githubusercontent.com/google/perfetto/main/tools/heap_profile)

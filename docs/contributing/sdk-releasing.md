@@ -12,7 +12,7 @@ release (cherry-picks on the releases/vN.x branch).
 
 Continue with the appropriate section below.
 
-## a) Creating a new major version
+## a) creating a new major version
 
 Make sure that the current main branch builds on
 [LUCI](https://luci-scheduler.appspot.com/jobs/perfetto) by triggering all the
@@ -39,7 +39,7 @@ git checkout -b releases/v16.x -t origin/releases/v16.x
 
 Continue with [tagging the release](#tagging-the-release).
 
-## b) Bumping the minor version
+## b) bumping the minor version
 
 Check out the existing release branch ("5.x" here) and merge in the desired
 revision for the new release, resolving any conflicts you may encounter.

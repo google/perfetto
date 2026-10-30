@@ -1,4 +1,4 @@
-# heapprofd: Shared Memory
+# heapprofd: shared memory
 
 _**Status**: Implemented_  
 _**Authors**: fmayer_  

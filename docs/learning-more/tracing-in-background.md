@@ -1,9 +1,9 @@
-# Tracing in Background
+# Tracing in background
 
 This document describes how to run Perfetto in the background, allowing you to
 disconnect from the device and collect the trace file later.
 
-## Use Case
+## Use case
 
 Let's say you want to start recording a long-running trace on an Android device
 or a Linux server, then terminate your adb/ssh shell and come back later to stop

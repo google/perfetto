@@ -488,7 +488,7 @@ If everything went successfully, the following output should be visible
 - The [common tasks](/docs/contributing/common-tasks.md) page gives a list of
   steps on how new metrics can be added to the trace processor.
 
-## Appendix: Case for upstreaming
+## Appendix: case for upstreaming
 
 NOTE: Googlers: for internal usage of metrics in Google3 (i.e. metrics which are
 confidential), please see [this internal page](https://goto.google.com/viecd).

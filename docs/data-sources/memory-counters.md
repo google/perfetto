@@ -226,7 +226,7 @@ data_sources: {
 }
 ```
 
-## Low-memory Kills (LMK)
+## Low-memory kills (LMK)
 
 #### Background
 

@@ -1,4 +1,4 @@
-# Migrating to PerfettoSQL Pipe Syntax
+# Migrating to PerfettoSQL pipe syntax
 
 This guide is for people who already know PerfettoSQL. It covers why pipe
 syntax exists, how it differs from the macros and virtual tables it replaces,
@@ -17,7 +17,7 @@ Related pages:
 
 ---
 
-## Why Pipe Syntax?
+## Why pipe syntax?
 
 Writing trace analysis queries in standard SQLite has several recurring pain
 points:
@@ -60,7 +60,7 @@ does, and runs them on a columnar executor in C++:
 
 ---
 
-## Opting In
+## Opting in
 
 In `trace_processor_shell`, the Perfetto UI, the Python API and diff tests,
 turn pipe syntax on with:
@@ -74,7 +74,7 @@ can always use pipelines.
 
 ---
 
-## What Goes in SQL vs. the Pipeline?
+## What goes in SQL vs. the pipeline?
 
 Pipelines do not do everything SQL does yet. Split the work like this:
 
@@ -99,7 +99,7 @@ function or `WITH` clause.
 
 ---
 
-## Migrating Interval Intersections
+## Migrating interval intersections
 
 Replace `_interval_intersect!` and `SPAN_JOIN` with `INTERVAL INTERSECTION OF`.
 
@@ -162,7 +162,7 @@ INTERVAL INTERSECTION OF (
 
 ---
 
-## Migrating Tree Aggregations
+## Migrating tree aggregations
 
 Replace `_graph_aggregating_scan!`, and recursive CTEs which sum over subtrees
 or paths, with `TREE ACCUMULATE UP` and `TREE ACCUMULATE DOWN`.
@@ -242,7 +242,7 @@ FROM _heap_graph_class_tree
 
 ---
 
-## Common Pitfalls
+## Common pitfalls
 
 ### 1. Every source column needs a valid, distinct name
 

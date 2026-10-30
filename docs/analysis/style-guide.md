@@ -1,4 +1,4 @@
-# PerfettoSQL Style Guide
+# PerfettoSQL style guide
 
 _This page provides a suggested style guide for writing PerfettoSQL and is in
 use inside the PerfettoSQL standard library in the trace processor. It also

@@ -1,4 +1,4 @@
-# heapprofd: Sampling for Memory Profiles
+# heapprofd: sampling for memory profiles
 
 _tomlewin, fmayer **·** 2021-04-14_
 
@@ -115,8 +115,8 @@ This should be considered more as a measure akin to standard deviation.
 
 ![](/docs/images/heapprofd-sampling/conditional-expected-error.png)
 
-## Performance Considerations
-### STL Distributions
+## Performance considerations
+### STL distributions
 
 Benchmarking of the STL distributions on a Pixel 4 reinforces our approach of
 estimating the geometric distribution using an exponential distribution, as its

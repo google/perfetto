@@ -1,4 +1,4 @@
-# Recording Traces with the Rust SDK
+# Recording traces with the Rust SDK
 
 In this guide, you'll learn how to:
 

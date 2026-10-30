@@ -1,4 +1,4 @@
-# Statsd Checkpoint Atoms
+# Statsd checkpoint atoms
 ## Tracing
 
 This diagram gives the atoms and the state transitions between when tracing/

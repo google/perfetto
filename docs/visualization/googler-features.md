@@ -1,4 +1,4 @@
-# Googler Features & 3rd-Party Cookies
+# Googler features & 3rd-party cookies
 
 When using the [Perfetto UI](https://ui.perfetto.dev), Googlers have access to
 internal features that extend the UI with Google-specific workflows, including:
@@ -16,7 +16,7 @@ internal features that extend the UI with Google-specific workflows, including:
 These features are provided by connecting to the internal Google extension
 server at `https://perfetto-gae-internal.googleplex.com`.
 
-## Why 3rd-Party Cookies Are Required
+## Why 3rd-party cookies are required
 
 The Perfetto UI is hosted on `https://ui.perfetto.dev`, while the internal
 extension server is hosted on `https://perfetto-gae-internal.googleplex.com`.
@@ -33,12 +33,12 @@ or CORS errors. As a result:
 2. The UI cannot verify your internal user status, disabling Googler-specific
    features such as internal trace sharing.
 
-## How to Enable 3rd-Party Cookies in Chrome
+## How to enable 3rd-party cookies in Chrome
 
 To enable access to internal features, you need to allow third-party cookies for
 the internal extension server.
 
-### Option 1: Add a Site Exception in Chrome Settings (Recommended)
+### Option 1: add a site exception in Chrome settings (recommended)
 
 You do not need to allow 3rd-party cookies globally. You can add specific site
 exceptions:
@@ -51,7 +51,7 @@ exceptions:
 3. Add `https://ui.perfetto.dev` and click **Add**.
 4. Reload [https://ui.perfetto.dev](https://ui.perfetto.dev).
 
-### Option 2: Allow via the Chrome Address Bar
+### Option 2: allow via the Chrome address bar
 
 1. Navigate to [https://ui.perfetto.dev](https://ui.perfetto.dev).
 2. Look for the **eye icon** (or the site controls icon next to the address bar)
@@ -60,7 +60,7 @@ exceptions:
    `ui.perfetto.dev`.
 4. Reload the page when prompted.
 
-## Verifying Your Setup
+## Verifying your setup
 
 Once 3rd-party cookies are enabled:
 

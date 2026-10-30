@@ -1,4 +1,4 @@
-# pprof Support in Perfetto
+# pprof support in Perfetto
 
 _**Status:** COMPLETED **·** lalitm **·** 2025-09-30_
 
@@ -39,9 +39,9 @@ The implementation builds upon existing Perfetto infrastructure:
 
 **No timeline confusion:** Keep pprof data completely separate from time-based trace analysis to avoid user confusion.
 
-## Detailed Design
+## Detailed design
 
-### File Format Support
+### File format support
 
 The implementation supports the standard pprof format as defined by [Google's pprof tool](https://github.com/google/pprof/blob/main/proto/profile.proto):
 
@@ -55,9 +55,9 @@ The implementation supports the standard pprof format as defined by [Google's pp
 - Function and mapping metadata
 - Multiple value types (CPU samples, allocations, etc.)
 
-### Import Architecture
+### Import architecture
 
-#### File Detection
+#### File detection
 
 The import pipeline automatically detects pprof files through a two-stage process:
 
@@ -84,9 +84,9 @@ class PprofTraceReader : public ChunkedTraceReader {
 
 The reader accumulates pprof data into an internal buffer and parses the complete protobuf message upon EOF notification.
 
-### Database Schema
+### Database schema
 
-#### New Tables
+#### New tables
 
 The implementation introduces two new tables that integrate with existing stack profiling infrastructure:
 
@@ -109,7 +109,7 @@ CREATE TABLE aggregate_sample (
 );
 ```
 
-#### Integration with Existing Infrastructure
+#### Integration with existing infrastructure
 
 - **stack_profile_frame:** Stores function name and source file information
 - **stack_profile_callsite:** Maintains call stack hierarchy from root to leaf
@@ -117,27 +117,27 @@ CREATE TABLE aggregate_sample (
 
 Each pprof location becomes a frame, callsites represent the full call chain from root to leaf, and samples aggregate values at each callsite.
 
-### Data Processing Pipeline
+### Data processing pipeline
 
-#### Step 1: String Table Parsing
+#### Step 1: string table parsing
 
 All pprof files use a string table for deduplication. The importer builds a vector of strings from the protobuf `string_table` field.
 
-#### Step 2: Mapping and Function Creation
+#### Step 2: mapping and function creation
 
 For each pprof `Mapping` and `Function`:
 - Extract binary name, build ID, and memory ranges
 - Create entries in `stack_profile_mapping` and populate frame metadata
 - Build lookup tables for location resolution
 
-#### Step 3: Location Processing
+#### Step 3: location processing
 
 Each pprof `Location` represents a program counter with optional debug information:
 - Map addresses to existing or dummy memory mappings
 - Extract function names from associated line information
 - Create `stack_profile_frame` entries with relative PCs
 
-#### Step 4: Sample Processing
+#### Step 4: sample processing
 
 For each pprof `Sample`:
 - Build complete callsite hierarchy from location chain (reversing pprof leaf-first order)
@@ -152,13 +152,13 @@ Perfetto Callsite hierarchy: 1 → 2 → 3 (root to leaf)
 Multiple aggregate_sample entries (one per value type)
 ```
 
-### UI Implementation
+### UI implementation
 
-#### PprofPage Component
+#### PprofPage component
 
 The UI provides a dedicated page for pprof analysis accessible from the main navigation. The page automatically discovers available data and provides interactive controls.
 
-#### Dynamic Data Discovery
+#### Dynamic data discovery
 
 Upon loading, the UI queries the database to discover:
 
@@ -180,7 +180,7 @@ const metricsResult = await trace.engine.query(`
 `);
 ```
 
-#### Flamegraph Integration
+#### Flamegraph integration
 
 The implementation reuses Perfetto's existing `QueryFlamegraph` component with dynamically generated metrics:
 
@@ -216,7 +216,7 @@ This query leverages the existing `_callstacks_for_stack_profile_samples!` table
 
 ### Usage
 
-#### Command Line Analysis
+#### Command line analysis
 
 ```bash
 # Analyze a pprof file directly
@@ -231,14 +231,14 @@ $ trace_processor_shell profile.pprof
   WHERE aggregate_profile_id = 1;
 ```
 
-#### Web UI Analysis
+#### Web UI analysis
 
 1. **File loading**: Drag and drop pprof file into Perfetto UI or use file picker
 2. **Automatic detection**: Perfetto recognizes pprof format and imports data
 3. **Navigation**: Go to "Aggregate Profiles" page from main navigation
 4. **Interactive analysis**: Select scope/metric and explore flame graph
 
-#### Multi-metric Files
+#### Multi-metric files
 
 For pprof files containing multiple value types (e.g., CPU samples + heap allocations):
 
@@ -246,9 +246,9 @@ For pprof files containing multiple value types (e.g., CPU samples + heap alloca
 2. **Metric switching**: UI dropdown allows switching between metrics instantly
 3. **Independent analysis**: Each metric displays as separate flame graph
 
-## Design Principles
+## Design principles
 
-### Integration over Replacement
+### Integration over replacement
 
 Rather than building a standalone pprof viewer, this feature integrates pprof analysis into Perfetto's existing infrastructure. This provides:
 
@@ -258,7 +258,7 @@ Rather than building a standalone pprof viewer, this feature integrates pprof an
 
 **Consistent UX:** Familiar Perfetto interface for users already using the platform.
 
-### Separation of Concerns
+### Separation of concerns
 
 **Timeline independence:** pprof data represents aggregate samples without time dimension, kept completely separate from timeline-based trace analysis.
 
@@ -266,7 +266,7 @@ Rather than building a standalone pprof viewer, this feature integrates pprof an
 
 **Format-specific handling:** Dedicated importer handles pprof-specific concepts while mapping to Perfetto's general profiling abstractions.
 
-### Minimal Overhead
+### Minimal overhead
 
 **Zero cost when unused:** No impact on existing Perfetto functionality when pprof features are not used.
 

@@ -12,7 +12,7 @@ In this guide, you'll learn how to:
 You'll also learn how to customize the UI state when opening traces (zoom,
 selection, queries).
 
-## Option 1: Direct URL for public traces
+## Option 1: direct URL for public traces
 
 If your trace is publicly accessible via HTTPS, you can link directly to it
 using the `url` query parameter:
@@ -41,13 +41,13 @@ authentication or custom sharing features.
 If you need any of these features, use
 [Option 2](#option-2-using-postmessage-for-full-control) instead.
 
-## Option 2: Using postMessage for full control
+## Option 2: using postMessage for full control
 
 For traces that require authentication, custom sharing URLs, or other advanced
 features, use the postMessage approach. This requires some JavaScript code
 running on infrastructure you control.
 
-### Step 1: Open ui.perfetto.dev via window.open
+### Step 1: open ui.perfetto.dev via window.open
 
 The source dashboard (the one that knows how to locate a trace and deal with ACL
 checking, OAuth authentication, etc.) creates a new tab:
@@ -59,14 +59,14 @@ var handle = window.open('https://ui.perfetto.dev');
 The window handle allows bidirectional communication using `postMessage()`
 between your dashboard and the Perfetto UI.
 
-### Step 2: Wait for the UI to be ready via PING/PONG
+### Step 2: wait for the UI to be ready via PING/PONG
 
 The `window.open()` message channel is not buffered. If you send a message
 before the opened page has registered an `onmessage` listener, the message will
 be dropped. To avoid this race condition, use a PING/PONG protocol: keep sending
 'PING' messages until the opened window replies with 'PONG'.
 
-### Step 3: Post the trace data
+### Step 3: post the trace data
 
 Once the PING/PONG handshake is complete, post a message to the Perfetto UI
 window. The message should be a JavaScript object with a single `perfetto` key:

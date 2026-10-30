@@ -1,4 +1,4 @@
-# Android Jank detection with FrameTimeline
+# Android jank detection with FrameTimeline
 
 NOTE: **FrameTimeline requires Android 12(S) or higher**
 
@@ -152,7 +152,7 @@ least one vsync late no matter how quickly the app finishes its work.
 Frames will still be smooth in this state but there is an increased input
 latency associated with the late present.
 
-### SurfaceFlinger Janks
+### SurfaceFlinger janks
 
 There are two ways SurfaceFlinger can composite frames.
 * Device Composition - uses a dedicated hardware

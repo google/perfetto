@@ -112,7 +112,7 @@ data_sources: {
 }
 ```
 
-## {#odpm} On-Device Power Rails Monitor (ODPM)
+## {#odpm} On-device power rails monitor (ODPM)
 
 _This data source has been introduced in Android 10 (Q) and requires the
 dedicated hardware on the device. This hardware is not yet available on

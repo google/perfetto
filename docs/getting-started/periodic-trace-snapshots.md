@@ -1,4 +1,4 @@
-# Cookbook: Capturing Periodic Trace Snapshots
+# Cookbook: capturing periodic trace snapshots
 
 In this guide, you'll learn how to:
 
@@ -65,7 +65,7 @@ sudo chown -R $USER /sys/kernel/tracing
 
 </tabs?>
 
-## Step 1: Start a ring-buffer trace
+## Step 1: start a ring-buffer trace
 
 <?tabs>
 
@@ -203,7 +203,7 @@ ring buffer.
 
 </tabs?>
 
-## Step 2: Take a snapshot
+## Step 2: take a snapshot
 
 Whenever you want to capture the current state of the ring buffer, clone the
 session by name:
@@ -249,7 +249,7 @@ perfetto --clone-by-name my_snapshot \
 
 </tabs?>
 
-## Step 3: Pull and analyze a snapshot
+## Step 3: pull and analyze a snapshot
 
 <?tabs>
 

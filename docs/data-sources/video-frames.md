@@ -1,4 +1,4 @@
-# Screen Recording
+# Screen recording
 
 The **android.display.video** data source records what each physical
 display showed while a trace was being captured. Perfetto stores the
@@ -67,7 +67,7 @@ After the device restarts you have to set it again before you can capture
 display video. Once it is set, capture works through any of the methods
 below: the on-device toggle, the record page, or a raw config.
 
-### On the device, with System Tracing
+### On the device, with system tracing
 
 The System Tracing app has a **Record display video** toggle under
 **Trace settings**. Enable it, then record a trace as usual — the capture

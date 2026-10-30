@@ -27,7 +27,7 @@ other.
 
 ![traced_probes and traced](/docs/images/platform-tracing.png)
 
-## Security and Privileges
+## Security and privileges
 
 `traced_probes` often needs to run with elevated privileges (e.g., `root` or
 `system` user on Android) to access kernel interfaces like `debugfs` or `/proc`.
@@ -42,7 +42,7 @@ trace configuration protobuf that is sent to `traced`. For example, to enable
 ftrace, you would include an `FtraceConfig` within the `DataSourceConfig` for
 the `linux.ftrace` data source.
 
-## Data Sources
+## Data sources
 
 `traced_probes` provides a wide range of data sources, collecting system-level
 and kernel-level data. The configuration for these data sources is specified in
@@ -73,7 +73,7 @@ data_sources: {
 Below is a detailed list of the main data sources provided by `traced_probes`,
 separated by platform.
 
-## Linux Data Sources
+## Linux data sources
 
 These data sources are available on Linux-based systems, including Android.
 
@@ -109,7 +109,7 @@ data_sources: {
 }
 ```
 
-### `linux.ftrace` (Kernel Tracing)
+### `linux.ftrace` (kernel tracing)
 
 *   **Description**: This is the primary data source for high-frequency kernel
     events. It enables and reads raw ftrace data from the Linux kernel's ftrace
@@ -140,7 +140,7 @@ data_sources: {
     *   `symbolize_ksyms`: Enables kernel symbolization.
     *   `print_filter`: Filters `ftrace/print` events based on content.
 
-### `linux.process_stats` (Process and Thread Statistics)
+### `linux.process_stats` (process and thread statistics)
 
 *   **Description**: Collects detailed process and thread-level statistics from
     the `/proc` filesystem. It provides both a snapshot of the process tree and
@@ -170,7 +170,7 @@ data_sources: {
     *   `proc_stats_cache_ttl_ms`: Time-to-live for cached stats.
     *   `quirks`: Special behaviors (e.g., `DISABLE_ON_DEMAND`).
 
-### `linux.sys_stats` (System-Wide Statistics)
+### `linux.sys_stats` (system-wide statistics)
 
 *   **Description**: Collects system-wide statistics by periodically polling
     various files in `/proc` and `/sys`.
@@ -191,7 +191,7 @@ data_sources: {
     control over which counters to collect and their polling frequencies (e.g.,
     `meminfo_period_ms`, `vmstat_period_ms`, `stat_counters`).
 
-### `linux.sysfs_power` (Power and Battery Information)
+### `linux.sysfs_power` (power and battery information)
 
 *   **Description**: Collects power and battery statistics using the Linux sysfs
     interface.
@@ -206,7 +206,7 @@ data_sources: {
 *   **Configuration**: This data source does not have a specific configuration
     proto.
 
-### `linux.inode_file_map` (Inode to File Path Mapping)
+### `linux.inode_file_map` (inode to file path mapping)
 
 *   **Description**: Maps inode numbers to file paths, which is useful for
     correlating I/O events with the files being accessed.
@@ -227,7 +227,7 @@ data_sources: {
     `mount_point_mapping` (to remap scan roots), `scan_interval_ms`,
     `scan_delay_ms`, `scan_batch_size`, and `do_not_scan`.
 
-### `perfetto.metatrace` (Perfetto Self-Tracing)
+### `perfetto.metatrace` (Perfetto self-tracing)
 
 *   **Description**: A self-tracing data source that records events within
     Perfetto itself, useful for debugging and performance analysis of the
@@ -242,7 +242,7 @@ data_sources: {
     ```
 *   **Configuration**: No specific configuration in `DataSourceConfig`.
 
-### `linux.system_info` (System Information)
+### `linux.system_info` (system information)
 
 *   **Description**: Records general information about the system, such as CPU
     details and kernel version.
@@ -257,7 +257,7 @@ data_sources: {
 *   **Configuration**: `SystemInfoConfig` allows enabling `irq_names` to record
     hardware interrupt ID-to-name mappings from `/proc/interrupts`.
 
-## Android Data Sources
+## Android data sources
 
 These data sources are available only on Android.
 
@@ -290,7 +290,7 @@ data_sources: {
 }
 ```
 
-### `android.power` (Power and Battery Information)
+### `android.power` (power and battery information)
 
 *   **Description**: Collects power and battery statistics using Android-specific
     HALs.
@@ -335,7 +335,7 @@ data_sources: {
     (`log_ids`) and tags (`filter_tags`), and setting a minimum priority
     (`min_prio`).
 
-### `android.system_property` (Android System Properties)
+### `android.system_property` (Android system properties)
 
 *   **Description**: Collects the state of Android system properties.
 *   **Configuration Example**:
@@ -353,7 +353,7 @@ data_sources: {
 *   **Configuration**: `AndroidSystemPropertyConfig` allows specifying
     `property_name`s to monitor and a `poll_ms` interval.
 
-### `android.packages_list` (Android Package Information)
+### `android.packages_list` (Android package information)
 
 *   **Description**: Dumps information about installed packages on Android.
 *   **Configuration Example**:
@@ -372,7 +372,7 @@ data_sources: {
     `package_name_filter` and can be configured to
     `only_write_on_cpu_use_every_ms` (polling mode) or dump all at start.
 
-### `android.game_interventions` (Android Game Intervention List)
+### `android.game_interventions` (Android game intervention list)
 
 *   **Description**: Dumps the game intervention list from the package manager
     on Android.
@@ -390,7 +390,7 @@ data_sources: {
 *   **Configuration**: `AndroidGameInterventionListConfig` allows filtering by
     `package_name_filter`.
 
-### `android.cpu_per_uid` (Per-UID CPU Time)
+### `android.cpu_per_uid` (per-UID CPU time)
 
 *   **Description**: Collects per-UID CPU time from the kernel.
 *   **Configuration Example**:
@@ -406,7 +406,7 @@ data_sources: {
     ```
 *   **Configuration**: `CpuPerUidConfig` allows setting the `poll_ms` interval.
 
-### `android.kernel_wakelocks` (Kernel Wakelocks)
+### `android.kernel_wakelocks` (kernel wakelocks)
 
 *   **Description**: Collects kernel wakelock information.
 *   **Configuration Example**:
@@ -423,7 +423,7 @@ data_sources: {
 *   **Configuration**: `KernelWakelocksConfig` allows setting the `poll_ms`
     interval.
 
-### `android.polled_state` (Android Initial Display State)
+### `android.polled_state` (Android initial display state)
 
 *   **Description**: Records the initial display state (e.g., screen on/off,
     brightness) on Android.
@@ -441,7 +441,7 @@ data_sources: {
 *   **Configuration**: `AndroidPolledStateConfig` allows setting a `poll_ms`
     interval.
 
-### `android.statsd` (Android StatsD Atoms)
+### `android.statsd` (Android StatsD atoms)
 
 *   **Description**: Collects StatsD atoms from the binder interface on Android.
 *   **Configuration Example**:

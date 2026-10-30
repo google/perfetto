@@ -1,4 +1,4 @@
-# Memory: ART Heap Dumps for Java/Kotlin Heap
+# Memory: ART heap dumps for Java/Kotlin heap
 
 NOTE: Capturing Heap dumps requires Android 11 or higher
 

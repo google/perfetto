@@ -42,7 +42,7 @@ graph TD
     B --> H["<a href='#not-listed'>None of the above</a>"];
 ```
 
-## {#android-developers} Android App & Platform Developers
+## {#android-developers} Android app & platform developers
 
 ```mermaid
 graph TD
@@ -125,7 +125,7 @@ Perfetto makes available for comprehensive system analysis and debugging.
 
 </tabs?>
 
-### {#android-understanding-system-behavior} Understanding System Behavior & Debugging Functional Issues
+### {#android-understanding-system-behavior} Understanding system behavior & debugging functional issues
 
 When you need to understand how different parts of the system interact, debug a
 complex functional bug, or see the sequence of events leading to an unexpected
@@ -172,7 +172,7 @@ state, Perfetto provides powerful insights.
     - **Tutorial**:
       [Merging traces in the UI](/docs/visualization/merging-traces.md)
 
-### {#android-optimizing-performance} Optimizing Performance & Addressing Latency
+### {#android-optimizing-performance} Optimizing performance & addressing latency
 
 When a component is slow, exhibits jank, or critical operations take too long,
 Perfetto provides the tools to investigate. This can involve direct CPU/GPU
@@ -224,7 +224,7 @@ section below.
   - **Tutorial**:
     [Visualizing simpleperf files](/docs/getting-started/other-formats.md#firefox-json-format)
 
-### {#android-diagnosing-memory-issues} Diagnosing Memory Issues
+### {#android-diagnosing-memory-issues} Diagnosing memory issues
 
 High memory usage can lead to poor performance, increased garbage collection
 pauses (for Java/Kotlin), and even apps or services being killed by the Low
@@ -268,7 +268,7 @@ Perfetto also provides specific tools to investigate and attribute memory usage:
   - **Reference**:
     [Memory Counters and Events Data Source](/docs/data-sources/memory-counters.md)
 
-## {#linux-kernel-developers} Linux Kernel Developer
+## {#linux-kernel-developers} Linux kernel developer
 
 Perfetto offers deep integration with the Linux kernel, providing powerful tools
 for kernel developers to understand system behavior, debug issues, and optimize
@@ -328,7 +328,7 @@ Here's how Perfetto can assist Linux kernel development and debugging:
   - **Guide**:
     [Visualizing perf files](/docs/getting-started/other-formats.md#firefox-json-format)
 
-## {#c-cpp-developers} C/C++ Developer (non-Android)
+## {#c-cpp-developers} C/C++ developer (non-Android)
 
 If you're developing C/C++ applications on Linux, macOS, or Windows, Perfetto's
 [Tracing SDK](/docs/instrumentation/tracing-sdk.md) allows you to instrument
@@ -370,7 +370,7 @@ Here’s how Perfetto can help:
   - **Reference**:
     [Native Heap Profiler Data Source](/docs/data-sources/native-heap-profiler.md)
 
-## {#rust-developers} Rust Developers
+## {#rust-developers} Rust developers
 
 If you're developing Rust applications, the community-maintained Perfetto
 Rust SDK allows you to instrument your code with trace points, record
@@ -388,7 +388,7 @@ macros.
   - **Reference**:
     [Rust SDK on crates.io](https://crates.io/crates/perfetto-sdk)
 
-## {#chromium-developers} Chromium Developers
+## {#chromium-developers} Chromium developers
 
 Perfetto underpins the chrome://tracing system for the Chromium browser and its
 related projects (Angle, Skia, V8). While the Chromium project has its own

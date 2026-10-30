@@ -1,9 +1,9 @@
-# Trace Summarization
+# Trace summarization
 
 This guide explains how to use Perfetto's trace summarization feature to extract
 structured, actionable data from your traces.
 
-## Why Use Trace Summarization?
+## Why use trace summarization?
 
 PerfettoSQL is a powerful tool for interactively exploring traces. You can write
 any query you want, and the results are immediately available. However, this
@@ -30,7 +30,7 @@ In short, use trace summarization when you need to:
 - Ensure a stable output schema for your analysis.
 - Perform large-scale, cross-trace analysis.
 
-## Using Summaries with the Standard Library
+## Using summaries with the standard library
 
 The easiest way to get started is by using the modules in the
 [PerfettoSQL Standard Library](/docs/analysis/stdlib-docs.autogen).
@@ -96,7 +96,7 @@ trace_processor_shell summarize \
 
 </tabs?>
 
-## Reducing Duplication with Templates
+## Reducing duplication with templates
 
 Often, you'll want to compute several related metrics that share the same
 underlying query and dimensions. For example, for a given process, you might
@@ -187,7 +187,7 @@ trace_processor_shell summarize \
 
 </tabs?>
 
-## Adding Units and Polarity
+## Adding units and polarity
 
 To make automated analysis and visualization of metrics more powerful, you can
 add units and polarity (i.e., whether a higher or lower value is better) to your
@@ -253,7 +253,7 @@ This will add the specified `unit` and `polarity` to the `TraceMetricV2Spec` of
 each generated metric, making the output richer and more useful for automated
 tooling.
 
-## Using Summaries with Custom SQL Modules
+## Using summaries with custom SQL modules
 
 While the standard library is powerful, you will often need to analyze custom
 events specific to your application. You can achieve this by writing your own
@@ -368,9 +368,9 @@ trace_processor_shell summarize \
 
 </tabs?>
 
-## Common Patterns and Techniques
+## Common patterns and techniques
 
-### Column Transformations
+### Column transformations
 
 The `select_columns` field provides a powerful way to manipulate the columns of
 your query result. You can rename columns and perform transformations using SQL
@@ -382,7 +382,7 @@ Each `SelectColumn` message has two fields:
     expression.
 -   `alias`: The new name for the column.
 
-#### Example: Renaming and Transforming Columns
+#### Example: renaming and transforming columns
 
 This example shows how to select the `ts` and `dur` columns from the `slice`
 table, rename `ts` to `timestamp`, and create a new column `dur_ms` by
@@ -404,7 +404,7 @@ query: {
 }
 ```
 
-### Analyzing Time Intervals with `interval_intersect`
+### Analyzing time intervals with `interval_intersect`
 
 A common analysis pattern is to analyze data from one source (e.g., CPU usage)
 within specific time windows from another (e.g., a "Critical User Journey"
@@ -422,7 +422,7 @@ one row from _each_ of the `interval` queries.
 - Find system events that occur only when multiple conditions are simultaneously
   true (e.g., "app in foreground" AND "scrolling activity").
 
-#### Example: CPU Time during a Specific CUJ Slice
+#### Example: CPU time during a specific CUJ slice
 
 This example demonstrates using `interval_intersect` to find total CPU time for
 thread `bar` within the duration of any "baz\_\*" slice from the "system_server"
@@ -463,7 +463,7 @@ query: {
 }
 ```
 
-### Composing Queries with `dependencies`
+### Composing queries with `dependencies`
 
 The `dependencies` field in the `Sql` source allows you to build complex
 queries by composing them from other structured queries. This is especially
@@ -473,7 +473,7 @@ Each dependency is given an `alias`, which is a string that can be used in the
 SQL query to refer to the result of the dependency. The SQL query can then
 use this alias as if it were a table.
 
-#### Example: Joining CPU data with CUJ slices
+#### Example: joining CPU data with CUJ slices
 
 This example shows how to use `dependencies` to join CPU scheduling data
 with CUJ slices. We define two dependencies, one for the CPU data and one for
@@ -507,7 +507,7 @@ query: {
 }
 ```
 
-### Adding Trace-Wide Metadata
+### Adding trace-wide metadata
 
 You can add key-value metadata to your summary to provide context for the
 metrics, such as the device model or OS version. This is especially useful when
@@ -564,7 +564,7 @@ trace_processor_shell summarize \\
 
 </tabs?>
 
-### Output Format
+### Output format
 
 The result of a summary is a `TraceSummary` protobuf message. This message
 contains a `metric_bundles` field, which is a list of `TraceMetricV2Bundle`
@@ -577,7 +577,7 @@ the same bundle, sharing the same `specs` and `row` structure. This is highly
 efficient as the dimension values, which are often repetitive, are only written
 once per row.
 
-#### Example Output
+#### Example output
 
 For the `memory_per_process` template example, the output `TraceSummary` would
 contain a `TraceMetricV2Bundle` like this:
@@ -622,7 +622,7 @@ metric_bundles {
 }
 ```
 
-## Comparison with the Legacy Metrics System
+## Comparison with the legacy metrics system
 
 Perfetto previously had a different system for computing metrics, often referred
 to as "v1 metrics." Trace summarization is the successor to this system,
@@ -655,7 +655,7 @@ configure how metrics are produced from a single trace.
 
 ## Reference
 
-### Running Summaries
+### Running summaries
 
 You can compute summaries using different Perfetto tools.
 
@@ -790,7 +790,7 @@ The `PerfettoSqlStructuredQuery` message provides a structured way to define
 PerfettoSQL queries. It is built by defining a data `source` and then optionally
 applying `filters`, `group_by` operations, and `select_columns` transformations.
 
-#### Query Sources
+#### Query sources
 
 A query's source can be one of the following:
 
@@ -802,7 +802,7 @@ A query's source can be one of the following:
 - **`interval_intersect`**: A time-based intersection of a `base` data source
   with one or more `interval` data sources.
 
-#### Query Operations
+#### Query operations
 
 These operations are applied sequentially to the data from the source:
 
@@ -810,7 +810,7 @@ These operations are applied sequentially to the data from the source:
 - **`group_by`**: Groups rows and applies aggregate functions.
 - **`select_columns`**: Selects and optionally renames columns.
 
-#### Aggregation Operators
+#### Aggregation operators
 
 The `group_by` operation allows you to use the following aggregate functions:
 
@@ -825,13 +825,13 @@ The `group_by` operation allows you to use the following aggregate functions:
 | `DURATION_WEIGHTED_MEAN` | Calculates the duration-weighted average of a numerical column. This is useful for time-series data where values should be weighted by their duration. |
 | `PERCENTILE`             | Calculates a given percentile of a numerical column. The percentile is specified in the `percentile` field of the `Aggregate` message.                   |
 
-##### Aggregation Field Requirements
+##### Aggregation field requirements
 
 - **`COUNT`**: `column_name` is optional. If omitted, it defaults to `COUNT(*)`.
 - **`SUM`, `MIN`, `MAX`, `MEAN`, `MEDIAN`, `DURATION_WEIGHTED_MEAN`**: `column_name` is required.
 - **`PERCENTILE`**: Both `column_name` and `percentile` are required.
 
-##### Example: Calculating the 99th Percentile
+##### Example: calculating the 99th percentile
 
 This example shows how to calculate the 99th percentile of the `dur` column from the `slice` table.
 

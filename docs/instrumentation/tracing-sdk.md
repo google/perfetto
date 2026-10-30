@@ -134,7 +134,7 @@ When opting in, the matching system header must also be reachable from the
 include path; on Debian/Ubuntu that's `zlib1g-dev` / `libzstd-dev` /
 `libre2-dev`, on Fedora `zlib-devel` / `libzstd-devel` / `re2-devel`.
 
-## Custom data sources vs Track events
+## Custom data sources vs track events
 
 The SDK offers two abstraction layers to inject tracing data, built on top of
 each other, which trade off code complexity vs expressive power:
@@ -334,7 +334,7 @@ To report several instances of the same thing (e.g. one set of counters per GPU)
    The types must be known at compile time, and each uses one of the
    `kMaxDataSources` (=32) slots shared by all data sources in the process.
 
-## In-process vs System mode
+## In-process vs system mode
 
 The two modes are not mutually exclusive. An app can be configured to work in
 both modes and respond both to in-process tracing requests and system tracing

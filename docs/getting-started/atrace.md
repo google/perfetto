@@ -504,7 +504,7 @@ data_sources {
 ```
 </tabs?>
 
-## Next Steps
+## Next steps
 
 Now that you've learned how to instrument your code with `ATrace`, here are some
 other documents you might find useful:

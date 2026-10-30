@@ -1,4 +1,4 @@
-# Extension Server Protocol Reference
+# Extension server protocol reference
 
 This page documents the HTTP protocol that extension servers must implement. Use
 this if you are building a custom extension server rather than using the

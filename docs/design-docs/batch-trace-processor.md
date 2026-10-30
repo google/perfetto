@@ -60,7 +60,7 @@ Putting all this together, we want to build a library which can:
   Google-internal sources: e.g. lab runs and internal testing populations
 * Integrate with data analysis libraries for easy charting and visulazation
 
-## Design Highlights
+## Design highlights
 In this section, we briefly discuss some of the most impactful design decisions
 taken when building batch trace processor and the reasons behind them.
 
@@ -74,7 +74,7 @@ further eases the implementation as we do not have to start from scratch.
 The main downside of choosing Python is performance but given that that all
 the data crunching happens in C++ inside TP,  this is not a big factor.
 
-### Trace URIs and Resolvers
+### Trace URIs and resolvers
 [Trace URIs](/docs/analysis/batch-trace-processor#trace-uris)
 are an elegant solution to the problem of loading traces from a diverse range
 of public and internal sources. As with web URIs, the idea with trace URIs is

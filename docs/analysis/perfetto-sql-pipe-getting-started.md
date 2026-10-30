@@ -1,4 +1,4 @@
-# Getting Started with PerfettoSQL Pipe Syntax
+# Getting started with PerfettoSQL pipe syntax
 
 > **Warning:** Pipe syntax is **experimental and unstable**. Do **not** rely on
 > it in dashboards, scripts, or production queries. Anything can and will break
@@ -13,7 +13,7 @@ Related pages:
 
 ---
 
-## How Pipelines Work
+## How pipelines work
 
 A SQL query reads inside-out: `SELECT` comes first but runs last, and every
 extra step needs another subquery or CTE. A pipeline reads top to bottom, in
@@ -54,7 +54,7 @@ LIMIT 10;
 
 ---
 
-## Intersecting Time Intervals: `INTERVAL INTERSECTION OF`
+## Intersecting time intervals: `INTERVAL INTERSECTION OF`
 
 Many questions about a trace ask where two or more sets of intervals
 `[ts, ts + dur)` overlap:
@@ -106,7 +106,7 @@ Result regions:      [-- 10 @ 1.8G --)[- 10 -]     [-- 20 @ 2.4G --)
 
 ---
 
-## Flattening Overlapping Intervals: `INTERVAL FLATTEN` {#flattening-overlapping-intervals-interval-flatten}
+## Flattening overlapping intervals: `INTERVAL FLATTEN` {#flattening-overlapping-intervals-interval-flatten}
 
 `INTERVAL FLATTEN` splits one set of overlapping intervals into segments and
 aggregates the rows active in each. Use it to count concurrent activity or sum
@@ -152,7 +152,7 @@ for zero-duration intervals, `NULL`s and the supported aggregates.
 
 ---
 
-## Filling Gaps: `INTERVAL FILL GAPS` {#filling-gaps-interval-fill-gaps}
+## Filling gaps: `INTERVAL FILL GAPS` {#filling-gaps-interval-fill-gaps}
 
 `INTERVAL FILL GAPS` keeps every input row and adds a row for each stretch of a
 background interval which no input covers. A filler row takes its values from
@@ -186,7 +186,7 @@ FROM spans
 
 ---
 
-## Summing Over Trees: `TREE ACCUMULATE`
+## Summing over trees: `TREE ACCUMULATE`
 
 Traces hold many trees where each row has an `id` and a `parent_id`, and roots
 have `parent_id IS NULL`:
@@ -244,7 +244,7 @@ every row goes into one group.
 
 ---
 
-## Filtering and Sorting Rows
+## Filtering and sorting rows
 
 - **`|> WHERE`** keeps the rows that match. Today it supports comparing a
   column with a number, joined with `AND`:
@@ -266,7 +266,7 @@ every row goes into one group.
 
 ---
 
-## Reshaping Columns
+## Reshaping columns
 
 These stages change the columns without wrapping the query in another
 `SELECT`:
@@ -305,7 +305,7 @@ yet.
 
 ---
 
-## Next Steps
+## Next steps
 
 - [PerfettoSQL Pipe Syntax Reference](/docs/analysis/perfetto-sql-pipe-syntax.md)
 - [Migrating to PerfettoSQL Pipe Syntax](/docs/analysis/perfetto-sql-pipe-migration.md)

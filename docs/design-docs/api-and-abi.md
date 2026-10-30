@@ -35,7 +35,7 @@ on top of each other. (Googlers, for more details see also
 
 ![C++ API](/docs/images/api-and-abi.png)
 
-### Track Event (public)
+### Track event (public)
 
 This mainly consists of the `TRACE_EVENT*` macros defined in
 [`track_event.h`](/include/perfetto/tracing/track_event.h).
@@ -43,7 +43,7 @@ Those macros provide apps with a quick and easy way to add common types of
 instrumentation points (slices, counters, instant events).
 For details and instructions see the [Client Library doc][cli_lib].
 
-### Custom Data Sources (public)
+### Custom data sources (public)
 
 This consists of the `perfetto::DataSource` base class and the
 `perfetto::Tracing` controller class defined in
@@ -62,7 +62,7 @@ WARNING: The team is still iterating on this API surface. While we try to avoid
          encountered when updating the library. The interface is expected to
          stabilize by the end of 2020.
 
-### Producer / Consumer API (internal)
+### Producer / consumer API (internal)
 
 This consists of all the interfaces defined in the
 [`include/perfetto/ext`](/include/perfetto/ext) directory. These provide access
@@ -78,7 +78,7 @@ of subtle use cases accumulated through over ten years of legacy of
 chrome://tracing. The team is continuously reshaping this surface to gradually
 migrate all Chrome Tracing use cases over to Perfetto.
 
-## Tracing Protocol ABI
+## Tracing protocol ABI
 
 The Tracing Protocol ABI consists of the following binary interfaces that allow
 various processes in the operating system to contribute to tracing sessions and
@@ -433,7 +433,7 @@ Defined in [trace_packet.proto]. This is the root object written by any data
 source into the SMB when producing any form of trace event.
 See the [TracePacket reference][trace-packet-ref] for the full details.
 
-## {#abi-stability} ABI Stability
+## {#abi-stability} ABI stability
 
 All the layers of the tracing protocol ABI are long-term stable and can only
 be changed maintaining backwards compatibility.
@@ -444,7 +444,7 @@ tools (e.g. Perfetto UI) can be updated at a more frequently cadence.
 
 Both the following scenarios are possible:
 
-#### Producer/Consumer client older than tracing service
+#### Producer/consumer client older than tracing service
 
 This happens typically during Android development. At some point some newer code
 is dropped in the Android platform and shipped to users, while client software
@@ -461,7 +461,7 @@ Producer or Consumer tracing protocol.
   `will_notify_on_stop` or `handles_incremental_state_clear` flags in
   [data_source_descriptor.proto]
 
-#### Producer/Consumer client newer than tracing service
+#### Producer/consumer client newer than tracing service
 
 This is the most likely scenario. At some point in 2022 a large number of phones
 will still run Android P or Q, hence running a snapshot of the tracing service

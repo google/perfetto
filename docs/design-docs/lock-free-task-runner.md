@@ -1,4 +1,4 @@
-# LockFreeTaskRunner Design Document
+# LockFreeTaskRunner design document
 
 ## Overview
 
@@ -52,7 +52,7 @@ Add/RemoveFileDescriptorWatch() happen on the main thread in our codebase; (2)
 they are almost never hot paths.
 
 
-### Slab-Based Architecture
+### Slab-based architecture
 
 The LockFreeTaskRunner implements a **Multi-Producer Single-Consumer (MPSC)**
 queue using a slab-based approach.
@@ -128,9 +128,9 @@ of tasks, as Run() becomes both slower (to traverse the list) and stack-greedy
 We don't expect a large number of outstanding tasks in Perfetto (with the
 exception of known issues like b/330580374 which should be fixed regardless).
 
-## Threading Considerations
+## Threading considerations
 
-### Producer Thread Workflow
+### Producer thread workflow
 
 The `PostTask()` operation follows this lock-free protocol:
 
@@ -142,7 +142,7 @@ The `PostTask()` operation follows this lock-free protocol:
 6. **Publish**: Set corresponding bit in `tasks_written` bitmask with release semantics
 7. **Release Refcount**: Automatically decremented when `ScopedRefcount` destructor runs
 
-#### Overflow Handling
+#### Overflow handling
 
 When a slab becomes full (`slot >= kSlabSize`):
 
@@ -159,7 +159,7 @@ if (!tail_.compare_exchange_strong(slab, new_slab)) {
 }
 ```
 
-### Consumer Thread Workflow
+### Consumer thread workflow
 
 The main thread in `Run()` performs:
 
@@ -183,7 +183,7 @@ on the event horizon. As Hyrum's Law teaches, this is now an API of our
 TaskRunner and will be until several tests get rewritten and de-flaked.
 
 
-#### Task Consumption Algorithm
+#### Task consumption algorithm
 
 `PopTaskRecursive()` implements the consumption logic:
 
@@ -214,7 +214,7 @@ std::function<void()> PopTaskRecursive(Slab* slab, Slab* next_slab) {
 }
 ```
 
-### Reference Counting System
+### Reference counting system
 
 At first glance, the simple access pattern, where writers only access the tail
 Slab and never walk back the list, greatly simplifies the need for complex
@@ -331,7 +331,7 @@ This is the logic that underpins the `LockFreeTaskRunner.refcounts_` array of
 atomic integers, and the `ScopedRefcount` class used by the writers.
 
 
-### Delayed Task Handling
+### Delayed task handling
 
 Delayed tasks use a separate `FlatSet<DelayedTask>` container. This requires
 some cost to maintain the entries sorted (we expect only a handful of delayed

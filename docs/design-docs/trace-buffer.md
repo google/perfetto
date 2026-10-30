@@ -1,4 +1,4 @@
-# TraceBuffer V2 Design document
+# TraceBuffer V2 design document
 
 ## Overview
 
@@ -496,7 +496,7 @@ in sequence order, as follows:
 * When doing so it just consumes the fragment required for reassembly and leaves
   the other packets in the chunk untouched, to preserve global FIFO-ness.
 
-### Buffer order vs Sequence order
+### Buffer order vs sequence order
 
 Chunks can be visited in two different ways:
 
@@ -525,7 +525,7 @@ So the writing itself is straightforward, but the deletion (overwrite) of
 existing chunks is where most of the complexity lies. This is described in
 the next section.
 
-#### DeleteNextChunksFor() Flow
+#### DeleteNextChunksFor() flow
 
 ```mermaid
 flowchart TD
@@ -624,7 +624,7 @@ flowchart TD
     style L fill:#ffcdd2
 ```
 
-#### ChunkSeqReader Internal Flow
+#### ChunkSeqReader internal flow
 
 This is how ReadNextTracePacket() works:
 

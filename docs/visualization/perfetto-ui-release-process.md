@@ -1,4 +1,4 @@
-# Perfetto UI Release Process
+# Perfetto UI release process
 
 The UI has three release channels. Each channel is served from the HEAD of a
 long-lived branch:

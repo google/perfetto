@@ -1,4 +1,4 @@
-# PerfettoSQL Pipe Syntax Reference
+# PerfettoSQL pipe syntax reference
 
 > **Warning:** Pipe syntax is **experimental and unstable**. Do **not** rely on
 > it in dashboards, scripts, or production queries. Anything can and will break
@@ -13,7 +13,7 @@ Related pages:
 
 ---
 
-## Pragma and Statement Forms
+## Pragma and statement forms
 
 ### `PERFETTO PRAGMA pipelines` {#perfetto-pragma-pipelines}
 

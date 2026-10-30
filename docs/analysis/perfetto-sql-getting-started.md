@@ -1,11 +1,11 @@
-# Getting Started with PerfettoSQL
+# Getting started with PerfettoSQL
 
 PerfettoSQL is the foundation of trace analysis in Perfetto. It is a dialect of
 SQL that allows you to query the contents of your traces as if they were a
 database. This page introduces the core concepts of trace querying with PerfettoSQL
 and provides guidance on how to write queries.
 
-## Overview of Trace Querying
+## Overview of trace querying
 
 The Perfetto UI is a powerful tool for visual analysis, offering call stacks, timeline views, thread tracks, and slices. However, it also includes a robust SQL query language (PerfettoSQL) which is interpreted by a query engine ([TraceProcessor](trace-processor.md)) which allows you to extract data programmatically.
 
@@ -20,7 +20,7 @@ Beyond the Perfetto UI, you can query traces programmatically using the [Python 
 
 Perfetto also supports bulk trace analysis through the [Batch Trace Processor](batch-trace-processor.md). A key advantage of this system is query reusability: the same PerfettoSQL queries used for individual traces can be applied to large datasets without modification.
 
-## Core Concepts
+## Core concepts
 
 Before writing queries, it's important to understand the foundational concepts
 of how Perfetto structures trace data.
@@ -288,7 +288,7 @@ In order to find out how to write queries refer to the [Syntax guide](perfetto-s
 
 A lot of times, it will be useful to transform query results into tracks to perform complex analyses within the UI, we encourage readers to take a look at [Debug Tracks](debug-tracks.md) for more information on how to achieve this.
 
-### Example: Executing a basic query
+### Example: executing a basic query
 
 The simplest way to explore a trace is to select from the raw tables. For
 example, to see the first 10 slices in a trace, you can run:
@@ -301,7 +301,7 @@ Which you can write and execute by clicking on **Run Query** within the Perfetto
 
 ![Basic Query](/docs/images/perfetto-sql-basic-query.png)
 
-### Adding Context to Slices
+### Adding context to slices
 
 A common question when querying slices is: "how do I get the thread or process
 that emitted this slice?" The easiest way is to use the `slices.with_context`
@@ -381,7 +381,7 @@ WHERE slice.name = 'measure'
 GROUP BY thread_name;
 ```
 
-## Best Practices
+## Best practices
 
 ### Prefer stdlib views over manual JOINs
 
@@ -418,7 +418,7 @@ FROM slice
 WHERE dur > time_from_ms(10);
 ```
 
-## Advanced Querying
+## Advanced querying
 
 For users who need to go beyond the standard library or build their own
 abstractions, PerfettoSQL provides several advanced features.
@@ -613,7 +613,7 @@ SELECT
 FROM interesting_slices
 ```
 
-#### Connected/Following/Preceding flows
+#### Connected/following/preceding flows
 
 DIRECTLY_CONNECTED_FLOW, FOLLOWING_FLOW and PRECEDING_FLOW are custom operator
 tables that take a
@@ -654,7 +654,7 @@ and
 SELECT (SELECT COUNT(*) FROM FOLLOWING_FLOW(slice_id)) as following FROM slice;
 ```
 
-## Next Steps
+## Next steps
 
 Now that you have a foundational understanding of PerfettoSQL, you can explore
 the following topics to deepen your knowledge:

@@ -103,7 +103,7 @@ is still encountered in several situations:
 - **Original `about:tracing` tool context:**
   [The Trace Event Profiling Tool (Chromium Docs)](https://www.chromium.org/developers/how-tos/trace-event-profiling-tool/)
 
-## {#firefox-json-format} Firefox Profiler JSON format
+## {#firefox-json-format} Firefox profiler JSON format
 
 **Description:** The Firefox Profiler JSON format is primarily known for its use
 by the [Firefox Profiler](https://profiler.firefox.com/), a web-based tool for
@@ -1334,7 +1334,7 @@ involves collecting CPU profiles from Go programs or converting `perf.data` file
 - **`perf_data_converter` GitHub Repository:**
   [https://github.com/google/perf_data_converter](https://github.com/google/perf_data_converter)
 
-## Collapsed Stack format
+## Collapsed stack format
 
 **Description:** The Collapsed Stack format is a simple text-based format for
 representing profiling data, commonly used with Brendan Gregg's FlameGraph

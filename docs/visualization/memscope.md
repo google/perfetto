@@ -1,4 +1,4 @@
-# Memscope and Memory Overview
+# Memscope and memory overview
 
 NOTE: Memscope and Memory Overview are currently under heavy development, so
 while they are now available on all branches, you may get better results using
@@ -22,7 +22,7 @@ Memory Overview page.
 NOTE: Recording smaps snapshots requires Android build `ZP1A.260626.001` or
 newer.
 
-## Memscope: Live Memory Profiling
+## Memscope: live memory profiling
 
 Memscope lets you connect to an Android device or Linux host and watch system
 and per-process memory metrics update in real time. It is useful for:
@@ -93,7 +93,7 @@ using the stacked area graph on this page.
 
 ![Memscope recording the Mandelbrot process, with an arrow pointing to Stop & Open Trace](../images/memscope-mandelbrot-profile-stop-open.png)
 
-## Memory Overview: Post-Hoc Memory Triage
+## Memory overview: post-hoc memory triage
 
 The Memory Overview page opens by default for any trace that contains smaps
 snapshots, but you can also find it in the sidebar under **Memory Overview**. It
@@ -188,7 +188,7 @@ leak one 512x512px buffer, which has added up steadily over time.
 Click on the 'Show in timeline' button to drill down into the native allocation
 flamegraph in more detail.
 
-#### Smaps Detail
+#### Smaps detail
 
 Scrolling back up to the top of the page, click the **Smaps Detail** tab at the
 top of Memory Overview to inspect the raw `/proc/<pid>/smaps` data. The table

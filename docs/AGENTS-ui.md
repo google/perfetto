@@ -1,8 +1,8 @@
-# Perfetto UI Development for AI Agents
+# Perfetto UI development for AI agents
 
 Perfetto UI is a Single Page Web Application written in TypeScript using the Mithril framework. It lives in `ui/` and powers ui.perfetto.dev. The UI embeds TraceProcessor via WebAssembly.
 
-## General Principles
+## General principles
 
 - **Don't over-engineer** - Solve the problem at hand, not hypothetical future problems.
 - **Prefer simpler approaches** - If there's a simple solution and a complex one, choose simple.
@@ -10,7 +10,7 @@ Perfetto UI is a Single Page Web Application written in TypeScript using the Mit
 - **Be consistent** - Follow the patterns established in the surrounding code.
 - **Prefer interfaces with immutable readonly members** - We like immutability, makes the code easier to debug.
 
-## Directory Structure
+## Directory structure
 
 The UI codebase is organized as follows:
 
@@ -35,7 +35,7 @@ When possible (if the API surface allows) feature functionality should be encaps
 - This distinction is mostly historical. These days in 90% of cases things can (and should) go only inside plugins/
 - Look at /docs/contributing/ui-plugins.md as it has extra useful content for plugin authors.
 
-## Building and Running the UI
+## Building and running the UI
 
 To build and serve the UI for development:
 
@@ -66,7 +66,7 @@ without interfering with the current build.
 ui/build --typecheck --no-build
 ```
 
-## Plugin Architecture
+## Plugin architecture
 
 Plugins are the primary extension mechanism for the UI. They follow this structure:
 
@@ -114,7 +114,7 @@ export default class MyPlugin implements PerfettoPlugin {
 - `trace.timeline` - Access timeline state
 - `trace.workspaces`, `trace.currentWorkspace` - Manage the track tree structure
 
-## Mithril Patterns and Best Practices
+## Mithril patterns and best practices
 
 The UI uses Mithril.js. Follow these patterns:
 
@@ -155,7 +155,7 @@ import {Gate} from '../base/mithril_utils';
 m(Gate, {open: this.isVisible}, m(ExpensiveComponent));
 ```
 
-### Declarative Data Loading (`AsyncMemo`)
+### Declarative data loading (`AsyncMemo`)
 
 UI components in Mithril render synchronously, but often depend on asynchronous data (e.g. SQL queries). **Never hand-roll data fetching in lifecycle hooks (`oninit`/`onupdate`) using manual `loading` booleans, sequence counters (`fetchSeq`), or `prevId` tracking.** Likewise, **avoid initiating data fetching directly inside DOM event handlers (`onclick`, `onkeydown`, etc.)**. Loading should be a declarative product of state, which could be triggered from many different places (e.g. keyboard shortcuts, external selection, deep links). Update the state in the event handler and let the redraw mechanism handle data loading automatically.
 
@@ -212,13 +212,13 @@ export function MyComponent(): m.Component<MyComponentAttrs> {
 - **Automatic Resource Disposal (`AsyncDisposable`)**: If the returned value is disposable (implements `AsyncDisposable`), it will automatically be disposed when no longer required—specifically, when a new value replaces it after a key change, when `memo.invalidate()` is called, or when the memo itself is disposed in `onremove()`. Disposal is coordinated through the task queue so it stays synchronized with in-flight work.
 - **`compute` functions should be side-effect free**: A `compute` function should only derive data or manage cached SQL structures. Do not mutate external state inside `compute`. The only allowed side effects are temporary SQL entities (tables, views, indexes)—and these **must be dropped in the returned disposable** (`AsyncDisposable`) so they are cleaned up automatically when evicted or invalidated.
 
-#### Multi-Step Operations & `AtomicTaskQueue`
+#### Multi-step operations & `AtomicTaskQueue`
 
 When an operation requires more than one asynchronous step (e.g., creating temporary tables/views, dropping old tables, and then querying them), standard async/await code easily suffers from race conditions. If inputs change while task A is halfway through, task B might start and drop or overwrite temporary tables that task A is still querying.
 
 `AtomicTaskQueue` runs one task at a time to completion then starts the next task. Sharing a single `AtomicTaskQueue` across multiple `AsyncMemo` instances guarantees that their multi-step queries never interleave.
 
-#### Chaining `AsyncMemo` Instances (Multi-Tier Caching)
+#### Chaining `AsyncMemo` instances (multi-tier caching)
 
 When some state changes infrequently (e.g., creating temporary mipmap tables or preparing views) while other derived state changes frequently (e.g., timeline pan/zoom bounds, pagination, or filters), chain two `AsyncMemo` instances together:
 
@@ -287,7 +287,7 @@ Key takeaways:
 - **Guaranteed non-interleaving**: Notice that `fetchData` runs multiple queries across asynchronous `await` points. Because `tableSlot` and `dataSlot` share the same `AtomicTaskQueue`, it is **impossible for `createMipmapTables` (or any other task on this queue) to run in between the two queries in `fetchData`**. The queue ensures all tasks run to completion atomically and serially.
 
 
-### Widget Library
+### Widget library
 
 The `ui/src/widgets/` directory contains reusable components. Always check here before creating new UI elements:
 
@@ -316,7 +316,7 @@ m(Button, {
 });
 ```
 
-## TypeScript Code Style
+## TypeScript code style
 
 Follow these guidelines for TypeScript code:
 
@@ -399,7 +399,7 @@ Rarely you need to create a new Track from scratch.
 In most cases you can use higher level components in ui/src/components/tracks/, especially SliceTrack (examples in /docs/contributing/ui-plugins.md).
 Look at those examples first and keep creating a track via trace.tracks.registerTrack as a last-resort.
 
-## CSS/SCSS Conventions
+## CSS/SCSS conventions
 
 Stylesheets live in `ui/src/assets/` and component-specific `.scss` files alongside components.
 
@@ -408,7 +408,7 @@ Stylesheets live in `ui/src/assets/` and component-specific `.scss` files alongs
 - Use CSS custom properties (variables) defined in `theme_provider.scss` for colors
 - Support both light and dark themes using semantic color variables
 
-## Common Pitfalls to Avoid
+## Common pitfalls to avoid
 
 1. **Don't create new widgets without checking existing ones** - The widget library is comprehensive.
 2. **Try to use the Trace object as much as possible** - Plumb the Trace object through the hierarchy wherever needed.
@@ -416,7 +416,7 @@ Stylesheets live in `ui/src/assets/` and component-specific `.scss` files alongs
 4. **Disposing `AsyncMemo` instances in `onremove()` is optional** - You can call `.dispose()` to cancel pending tasks and clean up cached disposable resources eagerly when the component unmounts.
 5. **Never instantiate `AsyncMemo` inside `view()`** - It must be created in the component setup closure or class constructor/field so its cache persists across render cycles.
 
-## Code Review Pet Peeves and Style Preferences
+## Code review pet peeves and style preferences
 
 The following patterns are consistently enforced during code review. Adhering to these will significantly speed up the review process.
 
@@ -426,7 +426,7 @@ The following patterns are consistently enforced during code review. Adhering to
 > design, widgets, CSS, types, error handling, performance, PR scope). Consult it
 > when authoring or reviewing UI changes to pre-empt recurring mistakes.
 
-### TypeScript/JavaScript Style
+### TypeScript/JavaScript style
 
 **Prefer `undefined` over `null`:**
 ```typescript
@@ -517,7 +517,7 @@ const trace_processor_id = 123;
 const traceProcessorId = 123;
 ```
 
-### CSS/SCSS Style
+### CSS/SCSS style
 
 **Never use inline styles - use stylesheets:**
 ```typescript
@@ -554,7 +554,7 @@ m('.pf-my-component', 'content') // with styles in .scss file
 }
 ```
 
-### Mithril-Specific Rules
+### Mithril-specific rules
 
 **Don't use `oncreate`/lifecycle hooks for things that can be done in `view()`:**
 ```typescript
@@ -570,7 +570,7 @@ view() {
 }
 ```
 
-### Widget Usage
+### Widget usage
 
 **Use the `Anchor` widget for links:**
 ```typescript
@@ -584,7 +584,7 @@ m('a', {href: 'https://example.com', target: '_blank'}, 'Link')
 m(Anchor, {href: 'https://example.com', icon: Icons.ExternalLink}, 'Link')
 ```
 
-### Naming Conventions
+### Naming conventions
 
 **Settings/flags should use reverse-DNS format:**
 ```typescript
@@ -632,7 +632,7 @@ const config = ConfigSchema.parse(JSON.parse(data));
 ```
 
 
-### UI Unit Tests
+### UI unit tests
 
 Unit tests are run with:
 ```sh
@@ -641,7 +641,7 @@ ui/run-unittests
 
 TypeScript unit tests follow the pattern `*_unittest.ts` and use Vitest.
 
-### UI Integration Tests
+### UI integration tests
 
 Integration tests use Playwright:
 ```sh

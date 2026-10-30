@@ -151,7 +151,7 @@ For bugs affecting Chrome Tracing:
 
 - Use http://crbug.com `Component:Speed>Tracing label:Perfetto`.
 
-## Contributor License Agreement
+## Contributor license agreement
 
 Contributions to this project must be accompanied by a Contributor License
 Agreement. You (or your employer) retain the copyright to your contribution;

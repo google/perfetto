@@ -1,18 +1,18 @@
-# Trace Analysis Overview
+# Trace analysis overview
 
 This page is the entrypoint to the world of trace analysis with Perfetto. It
 provides an overview of the different tools and concepts you can use to extract
 meaningful information from traces, guiding you from interactive exploration to
 large-scale automated analysis.
 
-## The Challenge: Making Sense of Raw Traces
+## The challenge: making sense of raw traces
 
 Events in a trace are optimized for fast, low-overhead recording. Therefore,
 traces need significant data processing to extract meaningful information from
 them. This is compounded by the number of legacy formats which are still in use
 and need to be supported in trace analysis tools.
 
-## The Solution: The Trace Processor and PerfettoSQL
+## The solution: the Trace Processor and PerfettoSQL
 
 At the heart of all trace analysis in Perfetto is the **Trace Processor**, a C++
 library that solves this complexity. It does the heavy lifting of parsing,
@@ -32,7 +32,7 @@ The Trace Processor is responsible for:
 - **Bundling the standard library**: Including the PerfettoSQL standard library
   for out-of-the-box analysis.
 
-## The Trace Analysis Workflow
+## The trace analysis workflow
 
 Perfetto offers a flexible set of tools that build on each other to support
 different analysis needs. The typical workflow progresses from broad,
@@ -52,9 +52,9 @@ interactive exploration to narrow, automated analysis.
     stable, structured output for your analysis, making it perfect for
     performance monitoring and regression detection at scale.
 
-## Where to Go Next
+## Where to go next
 
-### Learn the Language: PerfettoSQL
+### Learn the language: PerfettoSQL
 
 Before diving into the tools, it's helpful to have a foundational understanding
 of PerfettoSQL.
@@ -68,7 +68,7 @@ of PerfettoSQL.
   available in the standard library for analyzing common scenarios like CPU
   usage, memory, and power.
 
-### Explore the Tools
+### Explore the tools
 
 Once you're comfortable with the basics of PerfettoSQL, you can explore the
 different ways to use the Trace Processor.
@@ -79,7 +79,7 @@ different ways to use the Trace Processor.
   API to combine trace analysis with the rich data science and visualization
   ecosystem.
 
-### Automate Your Analysis
+### Automate your analysis
 
 For large-scale or automated analysis, Trace Summarization is the recommended
 approach.

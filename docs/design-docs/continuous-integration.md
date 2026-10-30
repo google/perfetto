@@ -52,7 +52,7 @@ The sandbox runs with a restricted service account
 `gce-ci-sandbox@perfetto-ci.iam.gserviceaccount.com` which is only allowed to
 create - but not delete or overwrite - artifacts in gs://perfetto-ci-artifacts
 
-# Sequence Diagram
+# Sequence diagram
 
 This is what happens, in order, on a worker instance from boot to the test run.
 
@@ -87,7 +87,7 @@ Test-locally: `make -C infra/ci/frontend test`
 
 Deploy with `make -C infra/ci/frontend deploy`
 
-### Worker/Sandbox changes
+### Worker/sandbox changes
 
 1. Build and push the new docker containers with:
 

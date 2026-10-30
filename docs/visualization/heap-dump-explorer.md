@@ -335,7 +335,7 @@ Because nodes are only merged when Root Type and Heap Type match, the
 same class can legitimately appear as several sibling nodes — e.g.
 one `java.lang.String` node per heap.
 
-### Top Down and Bottom Up
+### Top down and bottom up
 
 The radio buttons at the top-right flip the direction of aggregation:
 
@@ -709,7 +709,7 @@ mapping files older than format 2.3), every renamed class is flagged.
      the existing memory guides (docs/case-studies/memory.md). Rationalize
      the material so it isn't duplicated across docs. -->
 
-### Finding a leaked Activity
+### Finding a leaked activity
 
 A developer on a Kotlin app reports that rotating their profile
 screen a few times drives the Java heap upward and never comes back

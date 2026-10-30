@@ -22,7 +22,7 @@ The Orchestrator is the central component of the service and is responsible for 
 ### Worker
 Each Worker runs an instance of TraceProcessor and performs the inputted query on a given trace. Each Worker runs on its own pod in the cluster.
 
-### Object Store (GCS)
+### Object store (GCS)
 The object store contains the set of traces the service can query from and is accessed by the Worker.
 Currently, there is support for GCS as the main object store and the loading of traces stored locally on each machine for testing.
 
@@ -76,10 +76,10 @@ gcloud container clusters get-credentials [CLUSTER_NAME] --zone [ZONE] --project
 
 ---
 
-### Deploying the Orchestrator
+### Deploying the orchestrator
 The deployment of Orchestrator requires two main steps: Building and pushing the images to Artifact Registry & deploying to the cluster.
 
-#### Building and uploading the Orchestrator image
+#### Building and uploading the orchestrator image
 Configure docker to push into the Google Cloud artifact registry
 ```bash
 gcloud auth configure-docker [ZONE]-docker.pkg.dev
@@ -121,7 +121,7 @@ kubectl apply -f infra/bigtrace/gke/orchestrator-ilb.yaml
 
 This deploys the Orchestrator as a single replica in a pod and exposes it as a service for access within the VPC by the client.
 
-### Deploying the Worker
+### Deploying the worker
 Similar to the Orchestrator first build and push the images to Artifact Registry.
 
 ```bash
@@ -212,7 +212,7 @@ This means the orchestrator, workers and clickhouse have been deployed successfu
 
 Contains the image of the Clickhouse server and configures the necessary volumes and resources.
 
-#### Internal Load Balancer Service (ILB)
+#### Internal load balancer service (ILB)
 
 This Internal Load Balancer is used to allow for the Clickhouse server pod to be reached from within the VPC in GKE. This means that VMs outside the cluster are able to access the Clickhouse server through Clickhouse Client, without exposing the service to the public.
 
