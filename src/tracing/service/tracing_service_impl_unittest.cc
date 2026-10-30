@@ -52,6 +52,7 @@
 #include "perfetto/protozero/contiguous_memory_range.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_arena.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/flush_flags.h"
@@ -8237,6 +8238,74 @@ TEST_F(TracingServiceImplTest, CloneWithFileDescriptorNoWriteIntoFile) {
   EXPECT_THAT(GetForTestingStrings(consumer_buffers), ElementsAre("payload"));
 }
 
+TEST_F(TracingServiceImplTest,
+       BufferTypeSelectsHighestSupportedImplementation) {
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  TraceConfig trace_config;
+  auto* v1_buffer = trace_config.add_buffers();
+  v1_buffer->set_size_kb(128);
+  v1_buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  v1_buffer->mutable_buffer_type()->mutable_v1();
+
+  auto* v2_buffer = trace_config.add_buffers();
+  v2_buffer->set_size_kb(128);
+  v2_buffer->mutable_buffer_type()->mutable_v1();
+  v2_buffer->mutable_buffer_type()->mutable_v2();
+
+  consumer->EnableTracing(trace_config);
+  consumer->GetTraceStats();
+  const TraceStats stats = consumer->WaitForTraceStats(/*success=*/true);
+  ASSERT_EQ(stats.buffer_stats().size(), 2u);
+  EXPECT_EQ(stats.buffer_stats()[0].buffer_type(),
+            TraceStats::BufferStats::BUFFER_TYPE_V1);
+  EXPECT_EQ(stats.buffer_stats()[1].buffer_type(),
+            TraceStats::BufferStats::BUFFER_TYPE_V2);
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, BufferTypeUsesLegacyModeOnlyWhenAbsent) {
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  // A future type arrives as an unknown submessage, so an empty or unsupported
+  // buffer_type must use V1 without consulting the legacy mode.
+  protozero::HeapBuffered<protozero::Message> unknown_type;
+  unknown_type->AppendBytes(999, "", 0);
+
+  TraceConfig trace_config;
+  for (auto mode : {TraceConfig::BufferConfig::MODE_UNSPECIFIED,
+                    TraceConfig::BufferConfig::TRACE_BUFFER_V2}) {
+    auto* absent = trace_config.add_buffers();
+    absent->set_experimental_mode(mode);
+    auto* empty = trace_config.add_buffers();
+    empty->set_experimental_mode(mode);
+    empty->mutable_buffer_type();
+    auto* unknown = trace_config.add_buffers();
+    unknown->set_experimental_mode(mode);
+    ASSERT_TRUE(unknown->mutable_buffer_type()->ParseFromString(
+        unknown_type.SerializeAsString()));
+  }
+  for (auto& buffer : *trace_config.mutable_buffers())
+    buffer.set_size_kb(128);
+
+  consumer->EnableTracing(trace_config);
+  consumer->GetTraceStats();
+  const TraceStats stats = consumer->WaitForTraceStats(/*success=*/true);
+  ASSERT_EQ(stats.buffer_stats().size(), 6u);
+  for (size_t i = 0; i < stats.buffer_stats().size(); ++i) {
+    EXPECT_EQ(stats.buffer_stats()[i].buffer_type(),
+              i == 3 ? TraceStats::BufferStats::BUFFER_TYPE_V2
+                     : TraceStats::BufferStats::BUFFER_TYPE_V1);
+  }
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+}
+
 TEST_F(TracingServiceImplTest, InvalidBufferSizes) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
@@ -8255,7 +8324,27 @@ TEST_F(TracingServiceImplTest, InvalidBufferSizes) {
   EXPECT_CALL(*consumer, OnTracingDisabled(_))
       .WillOnce(DoAll(SaveArg<0>(&error), checkpoint));
   task_runner.RunUntilCheckpoint("tracing_disabled");
-  EXPECT_THAT(error, HasSubstr("Invalid buffer sizes"));
+  EXPECT_THAT(error, HasSubstr("buffers[2]: size_kb must be nonzero"));
+}
+
+TEST_F(TracingServiceImplTest, UnknownBufferExperimentalMode) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(128);
+  // experimental_mode 2 is reserved and unknown to the service.
+  buffer->set_experimental_mode(
+      static_cast<TraceConfig::BufferConfig::ExperimentalMode>(2));
+  consumer->EnableTracing(trace_config);
+
+  std::string error;
+  auto checkpoint = task_runner.CreateCheckpoint("tracing_disabled");
+  EXPECT_CALL(*consumer, OnTracingDisabled(_))
+      .WillOnce(DoAll(SaveArg<0>(&error), checkpoint));
+  task_runner.RunUntilCheckpoint("tracing_disabled");
+  EXPECT_THAT(error, HasSubstr("buffers[0]: Unknown experimental_mode 2"));
 }
 
 TEST_F(TracingServiceImplTest, StringFiltering) {
