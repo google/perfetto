@@ -3,6 +3,7 @@
   - [What is Perfetto?](README.md)
   - [What is Tracing?](tracing-101.md)
   - [How do I start using Perfetto?](getting-started/start-using-perfetto.md)
+  - [Community and getting help](community.md)
 
 - [Getting Started](#)
 

@@ -202,31 +202,10 @@ posts, articles and videos:
 For our source code and project home:
 [GitHub](https://github.com/google/perfetto)
 
-For Q/A:
-
-- [GitHub Discussions](https://github.com/google/perfetto/discussions/categories/q-a)
-  or our
-  [public mailing list](https://groups.google.com/forum/#!forum/perfetto-dev).
-- **Googlers**: use [YAQS](https://go/perfetto-yaqs) or our
-  [internal mailing list](http://go/perfetto-dev).
-
-For bugs affecting any part of Perfetto **except** Chrome tracing:
-
-- [GitHub issues](https://github.com/google/perfetto/issues).
-- **Googlers**: use the internal bug tracker
-  [go/perfetto-bugs](http://goto.google.com/perfetto-bugs)
-
-For bugs affecting Chrome Tracing:
-
-- Use http://crbug.com `Component:Speed>Tracing label:Perfetto`.
-
-For chatting directly with the Perfetto team:
-
-- Use [Discord](https://discord.gg/35ShE3A)
-- **Googlers**: Thank you for contacting us. All our lines are currently busy.
-  Your message is important to us, and an operator will get back to you as soon
-  as possible. If your enquiry is truly urgent see
-  [this page](http://go/perfetto-project).
+To ask a question, use the #help channel on our
+[Discord server](https://discord.gg/35ShE3A). See
+[Community and getting help](community.md) for bug reports, the mailing list
+and other ways to reach us.
 
 Perfetto follows
 [Google's Open Source Community Guidelines](https://opensource.google/conduct/).

@@ -493,6 +493,6 @@ situation:
 
 - **Browse our documentation:** Use the navigation sidebar to explore different
   sections like "Concepts," "Data Sources," or "Diving Deep."
-- **Engage with the community:** Ask questions on
-  [Discord](https://discord.gg/35ShE3A) or our
-  [public mailing list](https://groups.google.com/forum/#!forum/perfetto-dev).
+- **Engage with the community:** Ask questions in the #help channel on our
+  [Discord server](https://discord.gg/35ShE3A). See
+  [Community and getting help](/docs/community.md) for other options.
