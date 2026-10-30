@@ -104,7 +104,7 @@ void BM_Distinct(benchmark::State& state) {
       op.Process(out, *op_state);
       benchmark::DoNotOptimize(out.size());
     }
-    op_state->Reset();
+    op_state->EndRun();
   }
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * rows);
 }

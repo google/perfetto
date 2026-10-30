@@ -249,7 +249,7 @@ TEST_F(GraphTreeTest, ManyBatchesAndRewind) {
     for (uint32_t i = 1; i < kNodes; ++i) {
       ASSERT_EQ(rows[i], (Row{i, i * 10, i - 1, i, i - 1}));
     }
-    tree->Rewind(*state);
+    Restart(*tree, *state);
   }
 }
 

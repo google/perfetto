@@ -60,11 +60,6 @@ OpResult Breaker::Finish(RowBatch& out, OperatorState& state) const {
   return s.status.ok() ? OpResult::kNeedMoreInput : OpResult::kError;
 }
 
-void Breaker::State::Reset() {
-  status = base::OkStatus();
-  filled = false;
-}
-
 base::Status Breaker::status(const OperatorState& state) const {
   const State& s = state.Cast<const State>();
   return s.status;

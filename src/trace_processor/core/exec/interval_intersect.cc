@@ -42,6 +42,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/span.h"
@@ -68,6 +69,11 @@ struct Regions {
     ends.clear();
     rows.clear();
   }
+  void EndRun() {
+    EndRunOf(&starts);
+    EndRunOf(&ends);
+    EndRunOf(&rows);
+  }
   // Adds a region covering [start, end) whose rows are `from`, which may be
   // null when none are known yet.
   uint32_t* Push(Ts start, Ts end, const uint32_t* from) {
@@ -88,23 +94,26 @@ class IntersectState : public OperatorState {
   ~IntersectState() override;
 
   std::vector<std::unique_ptr<OperatorState>> operand_states;
-  // Shared by all operands, so a key has the same number in each of them.
-  // This only works if their key types match.
-  GroupTable group_table;
-  // Per operand, its intervals by lane. A key with no lane in some operand
-  // covers nothing, so only keys every operand has produce regions.
-  std::vector<std::unique_ptr<CollectedLanes>> lanes;
-
-  bool computed = false;
-  Regions regions;
-  uint32_t served = 0;
-
   // What the bounds of the regions served are written in, which no operand
   // owns.
   Context* context = nullptr;
+
+  Held<base::Status> status{this};
+
+  // The operands' intervals, read in full.
+  // Shared by all operands, so a key has the same number in each of them.
+  // This only works if their key types match.
+  Held<GroupTable> group_table{this};
+  // Per operand, its intervals by lane. A key with no lane in some operand
+  // covers nothing, so only keys every operand has produce regions.
+  Held<RunEach<std::unique_ptr<CollectedLanes>>> lanes{this};
+
+  // The regions, computed once and then served.
+  RunValue<bool> computed{this, false};
+  Held<Regions> regions{this};
+  RunValue<uint32_t> served{this};
   // One gathered batch per operand.
-  std::vector<RowBatch> gathered;
-  base::Status status = base::OkStatus();
+  Held<RunEach<RowBatch>> gathered{this};
 
   // Buffers reused across calls to avoid allocating: nothing in them outlives
   // the call which fills them.
@@ -120,7 +129,19 @@ class IntersectState : public OperatorState {
     std::vector<std::vector<uint32_t>> gather_rows;
     // Per operand, its lane of the key being narrowed.
     std::vector<CollectedLanes::Lane> key_lanes;
-  } scratch;
+
+    void EndRun() {
+      running.EndRun();
+      narrowed.EndRun();
+      EndRunOf(&order);
+      EndRunOf(&overlaps);
+      for (std::vector<uint32_t>& rows : gather_rows) {
+        EndRunOf(&rows);
+      }
+      EndRunOf(&key_lanes);
+    }
+  };
+  Held<Scratch> scratch{this};
 };
 
 IntersectState::~IntersectState() = default;
@@ -218,14 +239,8 @@ base::Status IntervalIntersect::status(const OperatorState& state) const {
 void IntervalIntersect::Rewind(OperatorState& state) const {
   IntersectState& s = state.Cast<IntersectState>();
   for (uint32_t i = 0; i < operands_.size(); ++i) {
-    operands_[i].source->Rewind(*s.operand_states[i]);
-    s.lanes[i]->Clear();
+    Restart(*operands_[i].source, *s.operand_states[i]);
   }
-  s.group_table.Clear();
-  s.computed = false;
-  s.regions.Clear();
-  s.served = 0;
-  s.status = base::OkStatus();
 }
 
 bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {

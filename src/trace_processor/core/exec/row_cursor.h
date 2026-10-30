@@ -47,7 +47,7 @@ class RowCursor {
   // `filter_values` (see Context::SetFilterValues).
   bool Open(Span<const FilterValue> filter_values = {}) {
     context_.SetFilterValues(filter_values);
-    source_.Rewind(*state_);
+    Restart(source_, *state_);
     batch_ = nullptr;
     index_ = 0;
     size_ = 0;

@@ -27,6 +27,7 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -78,7 +79,7 @@ class Filter final : public Transform {
     // Where the run's filter values are.
     const Context* context;
     // The batch rows still kept, increasing.
-    std::array<uint32_t, kMaxBatchRows> rows;
+    CallScratch<std::array<uint32_t, kMaxBatchRows>> rows;
   };
 
   std::vector<Condition> conditions_;

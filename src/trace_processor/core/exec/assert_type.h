@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -61,12 +62,11 @@ class AssertType final : public Transform {
   friend class PipelineFormatter;
 
   struct State : OperatorState {
-    explicit State(Context& c) : OperatorState(ResetEachRun{}), context(&c) {}
+    explicit State(Context& c) : context(&c) {}
     ~State() override;
-    void Reset() override;
     // What the converted column is written in.
     Context* context;
-    base::Status status = base::OkStatus();
+    Held<base::Status> status{this};
   };
 
   bool Widen(const ColumnView&, const Selection&, ColumnChunk&, State&) const;

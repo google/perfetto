@@ -80,7 +80,7 @@ void RunTreeNumberNodes(benchmark::State& state,
   RowBatch out;
   for (auto _ : state) {
     scan.Rewind(*scan_state);
-    op_state->Reset();
+    op_state->EndRun();
     while (scan.GetData(in, *scan_state)) {
       out.CopyFrom(in);
       if (!op.Process(out, *op_state)) {
