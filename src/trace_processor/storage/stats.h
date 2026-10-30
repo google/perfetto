@@ -1038,6 +1038,12 @@ namespace perfetto::trace_processor::stats {
       "for well known dimensions (machine, gpu, cpu, process, thread). These " \
       "are synthesized by trace processor and cannot be redefined: the "       \
       "dimension is ignored. This is a bug in the trace producer."),           \
+  F(track_descriptor_shared_thread_custom_dimensions, kSingle, kError, kAnalysis, Scope::kMachineAndTrace, \
+      "A TrackDescriptor with thread set declared custom dimensions without "  \
+      "disallow_merging_with_system_tracks=true. This flag is required for "   \
+      "custom declarations on any descriptor with thread set; the "            \
+      "declarations are ignored. Set disallow_merging_with_system_tracks "     \
+      "to true to use custom dimensions. This is a bug in the trace producer."), \
   F(track_dimension_conflicting_value,          kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "A TrackDescriptor declared a dimension which it already inherits "      \
       "from a parent_uuid ancestor, or declares twice, with a *different* "    \

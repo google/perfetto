@@ -4,9 +4,10 @@ Unreleased:
    * `traced` and `traced_probes` now signal readiness to systemd (`READY=1` on
      `$NOTIFY_SOCKET`) when run as `Type=notify` services.
   Trace Processor:
-   * Added producer-declared track dimensions (`TrackDescriptor.dimensions`),
-     exposed through the `track_dimension`, `process_dimension` and
-     `thread_dimension` tables.
+   * Added producer-declared track dimensions (`TrackDescriptor.dimensions`).
+     Canonical values are available in `track.dimension_arg_set_id` under
+     `custom_dimension.<name>`. Optional display labels are available in
+     `track.source_arg_set_id` under `custom_dimension_display_name.<name>`.
    * The Python `TraceProcessor` now supports `metric()` over `remote` Unix
      socket sessions.
    * Python query results can now be converted to typed Arrow tables with

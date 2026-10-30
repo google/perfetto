@@ -77,6 +77,8 @@ class ArgsTracker {
   ArgsInserter AddArgsToProcess(UniquePid id);
   ArgsInserter AddArgsToThread(UniqueTid id);
 
+  static uint64_t ComputeArgSetHash(const CompactArg* args, uint32_t count);
+
   // Interns the arg set formed by |args| and returns its id. Keys in |args|
   // must be unique.
   ArgSetId AddArgSet(const CompactArg* args, uint32_t count);
