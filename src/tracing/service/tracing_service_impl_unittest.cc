@@ -271,7 +271,8 @@ testing::Matcher<const protos::gen::TracePacket&> PacketIsCompressed() {
       Property(&GenTracePacket::zstd_compressed_packets, Not(IsEmpty())),
       Property(&GenTracePacket::has_clock_snapshot, IsTrue()),
       Property(&GenTracePacket::has_trace_uuid, IsTrue()),
-      Property(&GenTracePacket::has_trace_config, IsTrue()));
+      Property(&GenTracePacket::has_trace_config, IsTrue()),
+      Property(&GenTracePacket::has_authoritative_trigger, IsTrue()));
 }
 
 std::vector<std::string> GetReceivedTriggers(
@@ -280,6 +281,17 @@ std::vector<std::string> GetReceivedTriggers(
   for (const protos::gen::TracePacket& packet : trace) {
     if (packet.has_trigger()) {
       triggers.push_back(packet.trigger().trigger_name());
+    }
+  }
+  return triggers;
+}
+
+std::vector<std::string> GetAuthoritativeTriggers(
+    const std::vector<protos::gen::TracePacket>& trace) {
+  std::vector<std::string> triggers;
+  for (const protos::gen::TracePacket& packet : trace) {
+    if (packet.has_authoritative_trigger()) {
+      triggers.push_back(packet.authoritative_trigger().trigger_name());
     }
   }
   return triggers;
@@ -2023,6 +2035,7 @@ TEST_F(TracingServiceImplTest, EmitTriggersWithStartTracingTrigger) {
       packets,
       HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::START_TRACING));
   EXPECT_THAT(GetReceivedTriggers(packets), ElementsAre("trigger_name"));
+  EXPECT_THAT(GetAuthoritativeTriggers(packets), ElementsAre("trigger_name"));
 }
 
 // Creates a tracing session with a STOP_TRACING trigger and checks that the
@@ -2074,6 +2087,18 @@ TEST_F(TracingServiceImplTest, EmitTriggersWithStopTracingTrigger) {
       HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::STOP_TRACING));
   EXPECT_THAT(GetReceivedTriggers(packets),
               UnorderedElementsAre("trigger_name", "trigger_name_3"));
+  // Only the first trigger is the one that stopped the trace.
+  EXPECT_THAT(
+      packets,
+      Contains(Property(
+          &protos::gen::TracePacket::authoritative_trigger,
+          AllOf(
+              Property(&protos::gen::Trigger::trigger_name, Eq("trigger_name")),
+              Property(&protos::gen::Trigger::producer_name,
+                       Eq("mock_producer")),
+              Property(&protos::gen::Trigger::trusted_producer_uid, Eq(321)),
+              Property(&protos::gen::Trigger::stop_delay_ms, Eq(1u))))));
+  EXPECT_THAT(GetAuthoritativeTriggers(packets), ElementsAre("trigger_name"));
 
   EXPECT_THAT(packets,
               IsSupersetOf(
@@ -2131,6 +2156,7 @@ TEST_F(TracingServiceImplTest, EmitTriggersRepeatedly) {
       packets,
       HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::STOP_TRACING));
   EXPECT_THAT(GetReceivedTriggers(packets), ElementsAre("trigger_name"));
+  EXPECT_THAT(GetAuthoritativeTriggers(packets), ElementsAre("trigger_name"));
 
   // Send a new trigger.
   producer->endpoint()->ActivateTriggers({"trigger_name_2"});
@@ -2143,6 +2169,8 @@ TEST_F(TracingServiceImplTest, EmitTriggersRepeatedly) {
   packets = consumer->ReadBuffers();
   // We don't rewrite the old trigger.
   EXPECT_THAT(GetReceivedTriggers(packets), ElementsAre("trigger_name_2"));
+  // The authoritative trigger is emitted only once and doesn't change.
+  EXPECT_THAT(GetAuthoritativeTriggers(packets), IsEmpty());
 }
 
 // Creates a tracing session with a STOP_TRACING trigger and checks that the
@@ -2609,7 +2637,63 @@ TEST_F(TracingServiceImplTest, CloneSnapshotTriggers) {
     EXPECT_THAT(
         packets,
         Not(expect_received_trigger("trigger_" + std::to_string(iter - 1))));
+
+    // The clone was not requested with a clone trigger, so it doesn't have
+    // an authoritative trigger.
+    EXPECT_THAT(GetAuthoritativeTriggers(packets), IsEmpty());
   }  // for (iter)
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_1");
+  consumer->WaitForTracingDisabled();
+}
+
+// Creates a tracing session with a STOP_TRACING trigger, hits the trigger and
+// clones the session without a clone trigger (e.g. as in a bugreport). Checks
+// that the cloned session inherits the authoritative trigger.
+TEST_F(TracingServiceImplTest, CloneInheritsAuthoritativeTrigger) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("ds_1");
+  auto* trigger_config = trace_config.mutable_trigger_config();
+  trigger_config->set_trigger_mode(TraceConfig::TriggerConfig::STOP_TRACING);
+  trigger_config->set_trigger_timeout_ms(30000);
+  for (int i = 0; i < 2; i++) {
+    auto* trigger = trigger_config->add_triggers();
+    trigger->set_name("trigger_" + std::to_string(i));
+    trigger->set_stop_delay_ms(30000);
+  }
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  auto writer = producer->CreateTraceWriter("ds_1");
+
+  producer->endpoint()->ActivateTriggers({"trigger_0"});
+  producer->endpoint()->ActivateTriggers({"trigger_1"});
+
+  std::unique_ptr<MockConsumer> clone_cons = CreateMockConsumer();
+  clone_cons->Connect(svc.get());
+  auto clone_done = task_runner.CreateCheckpoint("clone_done");
+  EXPECT_CALL(*clone_cons, OnSessionCloned(_)).WillOnce(clone_done);
+  clone_cons->CloneSession(GetLastTracingSessionId(clone_cons.get()));
+  // CloneSession() will implicitly issue a flush. Linearize with that.
+  producer->ExpectFlush(writer.get());
+  task_runner.RunUntilCheckpoint("clone_done");
+
+  auto packets = clone_cons->ReadBuffers();
+  EXPECT_THAT(GetReceivedTriggers(packets),
+              ElementsAre("trigger_0", "trigger_1"));
+  EXPECT_THAT(GetAuthoritativeTriggers(packets), ElementsAre("trigger_0"));
 
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("ds_1");
@@ -3245,6 +3329,52 @@ TEST_F(TracingServiceImplTest, CompressionReadIpc) {
               Contains(Property(
                   &protos::gen::TracePacket::for_testing,
                   Property(&protos::gen::TestEvent::str, Eq("payload-2")))));
+}
+
+// Checks that the authoritative trigger is not compressed, while the other
+// trigger packets are.
+TEST_F(TracingServiceImplTest, CompressionAuthoritativeTriggerInClear) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("ds_1");
+  trace_config.set_compression_type(TraceConfig::COMPRESSION_TYPE_DEFLATE);
+  auto* trigger_config = trace_config.mutable_trigger_config();
+  trigger_config->set_trigger_mode(TraceConfig::TriggerConfig::STOP_TRACING);
+  trigger_config->set_trigger_timeout_ms(30000);
+  auto* trigger = trigger_config->add_triggers();
+  trigger->set_name("trigger_name");
+  trigger->set_stop_delay_ms(1);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  producer->endpoint()->ActivateTriggers({"trigger_name"});
+
+  auto writer = producer->CreateTraceWriter("ds_1");
+  producer->ExpectFlush(writer.get());
+  producer->WaitForDataSourceStop("ds_1");
+  consumer->WaitForTracingDisabled();
+
+  std::vector<protos::gen::TracePacket> compressed_packets =
+      consumer->ReadBuffers();
+  EXPECT_THAT(compressed_packets, Each(PacketIsCompressed()));
+  EXPECT_THAT(GetAuthoritativeTriggers(compressed_packets),
+              ElementsAre("trigger_name"));
+  EXPECT_THAT(GetReceivedTriggers(compressed_packets), IsEmpty());
+
+  std::vector<protos::gen::TracePacket> decompressed_packets =
+      DecompressTraceZlib(compressed_packets);
+  EXPECT_THAT(GetReceivedTriggers(decompressed_packets),
+              ElementsAre("trigger_name"));
 }
 
 // A config that selects zstd via `compression` but is served by a build without
@@ -8174,8 +8304,13 @@ TEST_F(TracingServiceImplTest, CloneSessionEmitsTrigger) {
             static_cast<int32_t>(kCloneTriggerProducerUid));
   EXPECT_EQ(trigger.stop_delay_ms(), kCloneTriggerDelayMs);
 
+  EXPECT_THAT(GetAuthoritativeTriggers(packets), IsEmpty());
+  EXPECT_THAT(GetAuthoritativeTriggers(cloned_packets),
+              ElementsAre(kCloneTriggerName));
+
   // A second ReadBuffers() should not reemit the clone_snapshot_trigger.
   cloned_packets = consumer2->ReadBuffers();
+  EXPECT_THAT(GetAuthoritativeTriggers(cloned_packets), IsEmpty());
   EXPECT_THAT(
       cloned_packets,
       Not(Contains(Property(
