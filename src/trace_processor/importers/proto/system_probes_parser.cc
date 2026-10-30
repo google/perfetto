@@ -403,7 +403,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   for (auto it = sys_stats.devfreq(); it; ++it) {
     protos::pbzero::SysStats::DevfreqValue::Decoder vm(*it);
     TrackId track = context_->track_tracker->InternTrack(
-        tracks::kClockFrequencyBlueprint, tracks::Dimensions(vm.key()));
+        tracks::kLinuxDeviceFrequencyBlueprint, tracks::Dimensions(vm.key()));
     context_->event_tracker->PushCounter(ts, static_cast<double>(vm.value()),
                                          track);
   }
