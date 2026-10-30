@@ -50,6 +50,8 @@ struct TrackEventIncrementalState {
   protozero::HeapBuffered<protos::pbzero::InternedData>
       serialized_interned_data;
   uint64_t last_timestamp_ns = 0;
+  // Cached uuid of the current thread's track, also used by nested tracks.
+  uint64_t thread_track_uuid = 0;
   bool was_cleared = true;
   base::FlatSet<uint64_t> seen_track_uuids;
   // Map from serialized representation of a dynamic category to its enabled
