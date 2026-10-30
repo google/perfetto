@@ -35,13 +35,15 @@
 namespace perfetto::trace_processor::pipeline {
 namespace {
 
-// Points each dataframe scan at the dataframe now registered under its name,
+// Binds each dataframe scan to the dataframe now registered under its name,
 // which must still have every column the plan reads, with the same type.
-base::Status ResolveDataframes(LogicalPlan& plan,
+base::Status ResolveDataframes(BoundPlan* bound,
                                const Catalog& catalog,
-                               const PlanKey& key) {
-  for (PlanNode& node : plan.nodes()) {
-    RETURN_IF_ERROR(node.operation().ResolveDataframes(&plan, catalog, key));
+                               const PlanKey* key) {
+  const LogicalPlan& plan = bound->plan;
+  for (uint32_t i = 0; i < plan.nodes().size(); ++i) {
+    RETURN_IF_ERROR(plan.nodes()[i].operation().ResolveDataframes(
+        plan, i, catalog, key, &bound->bindings));
   }
   return base::OkStatus();
 }
@@ -124,18 +126,27 @@ std::string SerializePlan(LogicalPlan plan, const PlanKey& key) {
 }
 
 base::Status BindDataframeArgs(
-    LogicalPlan& plan,
+    BoundPlan* bound,
     const std::vector<const dataframe::Dataframe*>& args,
     StringPool* pool) {
-  for (PlanNode& node : plan.nodes()) {
-    RETURN_IF_ERROR(node.operation().BindDataframeArgs(&plan, args, pool));
+  const LogicalPlan& plan = bound->plan;
+  for (uint32_t i = 0; i < plan.nodes().size(); ++i) {
+    RETURN_IF_ERROR(plan.nodes()[i].operation().BindDataframeArgs(
+        plan, i, args, pool, &bound->bindings));
   }
   return base::OkStatus();
 }
 
-base::StatusOr<LogicalPlan> DeserializePlan(std::string_view bytes,
-                                            const PlanKey& key,
-                                            const Catalog& catalog) {
+base::StatusOr<BoundPlan> ResolveCompiledPlan(LogicalPlan plan,
+                                              const Catalog& catalog) {
+  BoundPlan bound(std::move(plan));
+  RETURN_IF_ERROR(ResolveDataframes(&bound, catalog, nullptr));
+  return std::move(bound);
+}
+
+base::StatusOr<BoundPlan> DeserializePlan(std::string_view bytes,
+                                          const PlanKey& key,
+                                          const Catalog& catalog) {
   // Bytes in SQL could be anything: only those this process stamped are read.
   uint64_t stamp = 0;
   bool stamped = bytes.size() > sizeof(stamp);
@@ -149,8 +160,9 @@ base::StatusOr<LogicalPlan> DeserializePlan(std::string_view bytes,
   LogicalPlan plan;
   PlanCodec c(&plan, &key, bytes);
   SerializeContents(c);
-  RETURN_IF_ERROR(ResolveDataframes(plan, catalog, key));
-  return std::move(plan);
+  BoundPlan bound(std::move(plan));
+  RETURN_IF_ERROR(ResolveDataframes(&bound, catalog, &key));
+  return std::move(bound);
 }
 
 }  // namespace perfetto::trace_processor::pipeline

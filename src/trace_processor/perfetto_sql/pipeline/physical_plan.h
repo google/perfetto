@@ -94,10 +94,10 @@ struct LoweringContext {
   const StringPool* pool = nullptr;
 };
 
-// Builds executor nodes from a logical plan. Establishes tree numbering, row
+// Builds executor nodes from a bound plan. Establishes tree numbering, row
 // ordering, and column types as needed, reusing them across consecutive folds.
-// Every dataframe the plan reads must already be resolved.
-base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan&,
+// Every dataframe the plan reads must be bound.
+base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const BoundPlan&,
                                                     const LoweringContext&);
 
 // -----------------------------------------------------------------------------
@@ -301,6 +301,9 @@ class Lowering {
   // ---------------------------------------------------------------------------
 
   const LogicalPlan& plan() const;
+
+  // The dataframe the scan `node` is bound to.
+  const Bindings::Dataframe& QueryDataframe(const PlanNode& node) const;
   bool has_source() const { return input_ != nullptr; }
 
  private:
@@ -427,7 +430,7 @@ class Lowering {
 // State shared by all pipelines while lowering a plan.
 class PlanLowering {
  public:
-  PlanLowering(const LogicalPlan& plan, const LoweringContext& context);
+  PlanLowering(const BoundPlan& plan, const LoweringContext& context);
   PlanLowering(const PlanLowering&) = delete;
   PlanLowering& operator=(const PlanLowering&) = delete;
   ~PlanLowering();
@@ -442,7 +445,7 @@ class PlanLowering {
   // after lowering the root into main().
   base::StatusOr<std::unique_ptr<PhysicalPlan>> Finish();
 
-  const LogicalPlan& plan() const { return plan_; }
+  const LogicalPlan& plan() const { return bound_.plan; }
 
  private:
   friend class Lowering;
@@ -451,7 +454,7 @@ class PlanLowering {
   PlanType TypeOf(ColumnId column) const;
 
   // Borrowed for the duration of lowering.
-  const LogicalPlan& plan_;
+  const BoundPlan& bound_;
   LoweringContext context_;
 
   // For each logical column, the type it was converted to, if any. Kept here

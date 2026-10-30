@@ -72,9 +72,6 @@ struct ScanDataframe {
   // The stamp of the table's name and the columns read, as SerializePlan
   // wrote it. Only a read plan has this.
   uint64_t stamp = 0;
-  // Resolved at compile time; only the selected columns are retained.
-  std::vector<std::shared_ptr<const dataframe::Column>> columns;
-  uint32_t row_count = 0;
 };
 
 // The dataframe the plan is passed as its `index`-th argument when it runs.
@@ -96,7 +93,6 @@ class Scan : public PlanOperation {
   static std::optional<NameId> SourceQualifier(
       Compiler*,
       const SyntaqlitePerfettoPipeSource& n);
-  std::unique_ptr<core::exec::Source> MakeSource() const;
 
   const std::vector<NamedColumn>& columns() const { return columns_; }
 
@@ -125,13 +121,17 @@ class Scan : public PlanOperation {
   void MoveSqlSourcesToDataframeArgs(const NameTable&,
                                      std::vector<std::string>*) override;
   void Serialize(PlanCodec&) override;
-  base::Status ResolveDataframes(LogicalPlan*,
+  base::Status ResolveDataframes(const LogicalPlan&,
+                                 PlanNodeId self,
                                  const Catalog&,
-                                 const PlanKey&) override;
+                                 const PlanKey* key,
+                                 Bindings*) const override;
   base::Status BindDataframeArgs(
-      LogicalPlan*,
+      const LogicalPlan&,
+      PlanNodeId self,
       const std::vector<const dataframe::Dataframe*>&,
-      StringPool*) override;
+      StringPool*,
+      Bindings*) const override;
 
   static base::Status BuildPlan(Compiler*, uint32_t);
 

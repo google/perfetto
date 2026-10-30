@@ -137,10 +137,13 @@ class PhysicalPlanTest : public ::testing::Test {
       LogicalPlan plan) {
     ASSIGN_OR_RETURN(auto dataframes, TestCatalog::BuildSqlSources(
                                           connection_.get(), &pool_, plan));
-    LogicalPlan moved = MoveSqlSourcesToDataframeArgs(std::move(plan)).plan;
+    ASSIGN_OR_RETURN(
+        BoundPlan bound,
+        ResolveCompiledPlan(MoveSqlSourcesToDataframeArgs(std::move(plan)).plan,
+                            catalog_));
     RETURN_IF_ERROR(
-        BindDataframeArgs(moved, DataframeArgs(dataframes), &pool_));
-    return Lower(moved, {&pool_});
+        BindDataframeArgs(&bound, DataframeArgs(dataframes), &pool_));
+    return Lower(bound, {&pool_});
   }
 
   std::vector<std::string> Names(const PhysicalPlan& plan) {
@@ -197,7 +200,9 @@ TEST_F(PhysicalPlanTest, PruningACopyLeavesTheOriginalResultsIntact) {
   copy.output().resize(1);
   PruneColumns(copy);
 
-  auto physical = Lower(*original, {&pool_});
+  auto bound = ResolveCompiledPlan(*original, catalog_);
+  ASSERT_TRUE(bound.ok()) << bound.status().message();
+  auto physical = Lower(*bound, {&pool_});
   ASSERT_TRUE(physical.ok()) << physical.status().message();
   auto rows = Run(**physical, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
