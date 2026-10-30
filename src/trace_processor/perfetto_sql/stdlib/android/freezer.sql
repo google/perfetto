@@ -199,8 +199,7 @@ WITH
       extract_arg(s.arg_set_id, 'app_freeze_changed.time_unfrozen_millis') AS time_unfrozen_millis,
       extract_arg(s.arg_set_id, 'app_freeze_changed.unfreeze_reason_v2') AS unfreeze_reason
     FROM slice AS s
-    JOIN track AS t
-      ON s.track_id = t.id
+    JOIN track AS t ON s.track_id = t.id
     WHERE
       t.name = 'Statsd Atoms'
       AND s.name = 'app_freeze_changed'
