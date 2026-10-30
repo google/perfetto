@@ -589,6 +589,8 @@ namespace perfetto::trace_processor::stats {
       "by adaptive sampling."),                                                \
   F(heapprofd_unwind_time_us,             kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
       "Time spent unwinding callstacks."),                                     \
+  F(heapprofd_unwind_time_us_histogram,   kIndexedHistogram, kInfo, kTrace, Scope::kMachineAndTrace,    \
+      "Histogram of callstack unwinding times (us), per pid."),                \
   F(heapprofd_unwind_samples,             kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
       "Number of samples unwound."),                                           \
   F(heapprofd_client_spinlock_blocked,    kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
