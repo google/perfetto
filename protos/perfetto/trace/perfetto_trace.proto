@@ -19166,7 +19166,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 141.
+// Next id: 142.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -19354,6 +19354,18 @@ message TracePacket {
     // Values of the cgroup v2 memory controller, from the "linux.cgroup" data
     // source.
     MemcgStats memcg_stats = 140;
+
+    // Written by the tracing service at most once per trace, together with the
+    // other initial packets that are never compressed. It is the trigger that
+    // caused this trace to be finalized:
+    // - For START_TRACING: the trigger that started the session.
+    // - For STOP_TRACING: the trigger that stopped the session.
+    // - For CLONE_SNAPSHOT: the trigger that caused the clone.
+    // A clone not caused by a trigger (e.g. bugreport) inherits the one of the
+    // source session, if any. Absent if the trace was not caused by a trigger.
+    // The same trigger is also emitted as a |trigger| or
+    // |clone_snapshot_trigger| packet for backwards compatibility.
+    Trigger authoritative_trigger = 141;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

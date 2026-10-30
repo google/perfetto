@@ -75,6 +75,7 @@ MetadataModule::MetadataModule(ProtoImporterModuleContext* module_context,
   RegisterForField(TracePacket::kTriggerFieldNumber);
   RegisterForField(TracePacket::kChromeTriggerFieldNumber);
   RegisterForField(TracePacket::kCloneSnapshotTriggerFieldNumber);
+  RegisterForField(TracePacket::kAuthoritativeTriggerFieldNumber);
   RegisterForField(TracePacket::kTraceUuidFieldNumber);
   RegisterForField(TracePacket::kRecoveredTraceInfoFieldNumber);
 }
@@ -140,38 +141,58 @@ void MetadataModule::ParseField(const ParseFieldArgs& args) {
     ParseTrigger(args.ts, args.field.Cast<TracePacket::kCloneSnapshotTrigger>(),
                  TraceTriggerPacketType::kCloneSnapshot);
   }
+  if (args.field.id() == TracePacket::kAuthoritativeTriggerFieldNumber) {
+    ParseTrigger(args.ts, args.field.Cast<TracePacket::kAuthoritativeTrigger>(),
+                 TraceTriggerPacketType::kAuthoritative);
+  }
 }
 
 void MetadataModule::ParseTrigger(int64_t ts,
                                   ConstBytes blob,
                                   TraceTriggerPacketType packetType) {
   protos::pbzero::Trigger::Decoder trigger(blob.data, blob.size);
-  StringId cat_id = kNullStringId;
-  TrackId track_id =
-      context_->track_tracker->InternTrack(kTriggerTrackBlueprint);
   StringId name_id = context_->storage->InternString(trigger.trigger_name());
-  context_->slice_tracker->Scoped(
-      ts, track_id, cat_id, name_id,
-      /* duration = */ 0, [&trigger, this](ArgsInserter& args_table) {
-        StringId producer_name =
-            context_->storage->InternString(trigger.producer_name());
-        if (!producer_name.is_null()) {
-          args_table.AddArg(producer_name_key_id_,
-                            Variadic::String(producer_name));
-        }
-        if (trigger.has_trusted_producer_uid()) {
-          args_table.AddArg(trusted_producer_uid_key_id_,
-                            Variadic::Integer(trigger.trusted_producer_uid()));
-        }
-      });
 
-  if (packetType == TraceTriggerPacketType::kCloneSnapshot &&
-      trace_trigger_packet_type_ != TraceTriggerPacketType::kCloneSnapshot) {
-    trace_trigger_packet_type_ = TraceTriggerPacketType::kCloneSnapshot;
+  // The authoritative trigger is also emitted as a |trigger| or
+  // |clone_snapshot_trigger| packet, which creates the slice.
+  if (packetType != TraceTriggerPacketType::kAuthoritative) {
+    StringId cat_id = kNullStringId;
+    TrackId track_id =
+        context_->track_tracker->InternTrack(kTriggerTrackBlueprint);
+    context_->slice_tracker->Scoped(
+        ts, track_id, cat_id, name_id,
+        /* duration = */ 0, [&trigger, this](ArgsInserter& args_table) {
+          StringId producer_name =
+              context_->storage->InternString(trigger.producer_name());
+          if (!producer_name.is_null()) {
+            args_table.AddArg(producer_name_key_id_,
+                              Variadic::String(producer_name));
+          }
+          if (trigger.has_trusted_producer_uid()) {
+            args_table.AddArg(
+                trusted_producer_uid_key_id_,
+                Variadic::Integer(trigger.trusted_producer_uid()));
+          }
+        });
+  }
+
+  // Packets are parsed in timestamp order, so a |trigger| or
+  // |clone_snapshot_trigger| packet can come before or after the authoritative
+  // trigger. The authoritative trigger always wins. For older traces without
+  // it, a clone snapshot trigger takes precedence over the first trace trigger.
+  if (packetType == TraceTriggerPacketType::kAuthoritative) {
+    trace_trigger_packet_type_ = TraceTriggerPacketType::kAuthoritative;
     context_->metadata_tracker->SetMetadata(metadata::trace_trigger,
                                             Variadic::String(name_id));
+  } else if (packetType == TraceTriggerPacketType::kCloneSnapshot) {
     context_->stats_tracker->SetStats(stats::traced_clone_trigger_timestamp_ns,
                                       ts);
+    if (trace_trigger_packet_type_ != TraceTriggerPacketType::kAuthoritative &&
+        trace_trigger_packet_type_ != TraceTriggerPacketType::kCloneSnapshot) {
+      trace_trigger_packet_type_ = TraceTriggerPacketType::kCloneSnapshot;
+      context_->metadata_tracker->SetMetadata(metadata::trace_trigger,
+                                              Variadic::String(name_id));
+    }
   } else if (packetType == TraceTriggerPacketType::kTraceTrigger &&
              trace_trigger_packet_type_ == TraceTriggerPacketType::kNone) {
     trace_trigger_packet_type_ = TraceTriggerPacketType::kTraceTrigger;

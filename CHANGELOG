@@ -3,7 +3,13 @@ Unreleased:
    * Added an s390x syscall table.
    * `traced` and `traced_probes` now signal readiness to systemd (`READY=1` on
      `$NOTIFY_SOCKET`) when run as `Type=notify` services.
+   * Added `TracePacket.authoritative_trigger`, emitted uncompressed together
+     with the other initial packets. It reports the trigger that caused the
+     trace to be finalized (START_TRACING, STOP_TRACING or CLONE_SNAPSHOT).
   Trace Processor:
+   * The `trace_trigger` metadata is now taken from the
+     `authoritative_trigger` packet, when present. Older traces fall back on
+     the previous logic.
    * Added producer-declared track dimensions (`TrackDescriptor.dimensions`),
      exposed through the `track_dimension`, `process_dimension` and
      `thread_dimension` tables.
