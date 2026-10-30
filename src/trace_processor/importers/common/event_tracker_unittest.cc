@@ -29,6 +29,7 @@
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/counter_tables_py.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor {

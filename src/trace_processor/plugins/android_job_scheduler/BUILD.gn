@@ -55,6 +55,7 @@ perfetto_unittest_source_set("unittests") {
     "../../importers/proto:gen_cc_android_extension_descriptor",
     "../../importers/proto:minimal",
     "../../storage",
+    "../../tables:tables_python",
     "../../types",
   ]
   sources = [ "android_job_scheduler_tracker_unittest.cc" ]

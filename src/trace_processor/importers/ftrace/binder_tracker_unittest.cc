@@ -29,6 +29,7 @@
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/flow_tables_py.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor {
