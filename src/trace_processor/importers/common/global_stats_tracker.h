@@ -155,6 +155,16 @@ class GlobalStatsTracker {
                                  std::optional<MachineId> machine_id,
                                  std::optional<TraceId> trace_id);
 
+  // Finds or inserts a histogram row for (name, idx, machine_id, trace_id) and
+  // adds `count` to the bucket matching [lower_bound, upper_bound).
+  void AddHistogramBucket(std::optional<MachineId> machine_id,
+                          std::optional<TraceId> trace_id,
+                          StringId name,
+                          std::optional<int64_t> idx,
+                          std::optional<int64_t> lower_bound,
+                          std::optional<int64_t> upper_bound,
+                          int64_t count);
+
  private:
   // Describes a stat: an entry of stats.h, or a dynamic stat descriptor.
   struct StatDescriptor {
@@ -182,6 +192,42 @@ class GlobalStatsTracker {
     friend H PerfettoHashValue(H h, const StatsEntry& value) {
       return H::Combine(std::move(h), value.key, value.index, value.machine_id,
                         value.trace_id);
+    }
+  };
+
+  struct HistogramEntry {
+    StringId name;
+    std::optional<int64_t> idx;
+    std::optional<MachineId> machine_id;
+    std::optional<TraceId> trace_id;
+
+    bool operator==(const HistogramEntry& other) const {
+      return name == other.name && idx == other.idx &&
+             machine_id == other.machine_id && trace_id == other.trace_id;
+    }
+
+    template <typename H>
+    friend H PerfettoHashValue(H h, const HistogramEntry& value) {
+      return H::Combine(std::move(h), value.name, value.idx, value.machine_id,
+                        value.trace_id);
+    }
+  };
+
+  struct HistogramBucketEntry {
+    tables::HistogramTable::Id histogram_id;
+    std::optional<int64_t> lower_bound;
+    std::optional<int64_t> upper_bound;
+
+    bool operator==(const HistogramBucketEntry& other) const {
+      return histogram_id == other.histogram_id &&
+             lower_bound == other.lower_bound &&
+             upper_bound == other.upper_bound;
+    }
+
+    template <typename H>
+    friend H PerfettoHashValue(H h, const HistogramBucketEntry& value) {
+      return H::Combine(std::move(h), value.histogram_id.value,
+                        value.lower_bound, value.upper_bound);
     }
   };
 
@@ -228,6 +274,10 @@ class GlobalStatsTracker {
   std::array<StringId, stats::kNumSources> source_ids_;
 
   base::FlatHashMap<StatsEntry, tables::StatsTable::Id> id_by_entry_;
+  base::FlatHashMap<HistogramEntry, tables::HistogramTable::Id>
+      histogram_id_by_entry_;
+  base::FlatHashMap<HistogramBucketEntry, tables::HistogramBucketTable::Id>
+      bucket_id_by_entry_;
 };
 
 }  // namespace perfetto::trace_processor

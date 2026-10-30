@@ -71,6 +71,16 @@ class StatsTracker {
         context_->machine_id(), context_->trace_id(), key, index);
   }
 
+  void AddHistogramBucket(StringId name,
+                          std::optional<int64_t> idx,
+                          std::optional<int64_t> lower_bound,
+                          std::optional<int64_t> upper_bound,
+                          int64_t count) {
+    context_->global_stats_tracker->AddHistogramBucket(
+        context_->machine_id(), context_->trace_id(), name, idx, lower_bound,
+        upper_bound, count);
+  }
+
  private:
   TraceProcessorContext* const context_;
 };

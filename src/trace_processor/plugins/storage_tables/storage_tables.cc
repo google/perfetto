@@ -119,6 +119,8 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_gpu_context_table());
     AddDataframe(out, s->mutable_gpu_counter_group_table());
     AddDataframe(out, s->mutable_gpu_table());
+    AddDataframe(out, s->mutable_histogram_bucket_table());
+    AddDataframe(out, s->mutable_histogram_table());
     AddDataframe(out, s->mutable_machine_table());
     AddDataframe(out, s->mutable_memory_snapshot_edge_table());
     AddDataframe(out, s->mutable_memory_snapshot_table());

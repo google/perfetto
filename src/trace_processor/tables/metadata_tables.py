@@ -1139,6 +1139,68 @@ TRACE_IMPORT_LOGS_TABLE = Table(
     ],
 )
 
+HISTOGRAM_TABLE = Table(
+    python_module=__file__,
+    class_name='HistogramTable',
+    sql_name='__intrinsic_histogram',
+    columns=[
+        C('name', CppString()),
+        C('idx', CppOptional(CppInt64())),
+        C(
+            'trace_id',
+            CppOptional(CppTableId(TRACE_FILE_TABLE)),
+        ),
+        C(
+            'machine_id',
+            CppOptional(CppTableId(MACHINE_TABLE)),
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+            Histogram metadata, one row per (name, idx, machine_id, trace_id)
+            combination. Buckets live in __intrinsic_histogram_bucket.
+        ''',
+        group='Misc',
+        columns={
+            'name':
+                'Histogram name (e.g. heapprofd_unwinding_time_us).',
+            'idx':
+                'Optional per-histogram index (e.g. PID); NULL if unindexed.',
+            'trace_id':
+                'Trace that produced this histogram.',
+            'machine_id':
+                'Machine that produced this histogram.',
+        }))
+
+HISTOGRAM_BUCKET_TABLE = Table(
+    python_module=__file__,
+    class_name='HistogramBucketTable',
+    sql_name='__intrinsic_histogram_bucket',
+    columns=[
+        C('histogram_id', CppTableId(HISTOGRAM_TABLE)),
+        C(
+            'count',
+            CppInt64(),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C('lower_bound', CppOptional(CppInt64())),
+        C('upper_bound', CppOptional(CppInt64())),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+            Buckets for histograms in __intrinsic_histogram, one row per
+            (histogram_id, lower_bound, upper_bound).
+        ''',
+        group='Misc',
+        columns={
+            'histogram_id': 'Parent histogram in __intrinsic_histogram.',
+            'count': 'Accumulated sample count in [lower_bound, upper_bound).',
+            'lower_bound': 'Optional inclusive lower bound.',
+            'upper_bound': 'Optional exclusive upper bound.',
+        }))
+
 # Keep this list sorted.
 ALL_TABLES = [
     ARG_TABLE,
@@ -1151,14 +1213,16 @@ ALL_TABLES = [
     FILEDESCRIPTOR_TABLE,
     FTRACE_EVENT_TABLE,
     GPU_TABLE,
+    HISTOGRAM_BUCKET_TABLE,
+    HISTOGRAM_TABLE,
     INTERRUPT_MAPPING_TABLE,
-    TRACE_IMPORT_LOGS_TABLE,
     MACHINE_TABLE,
     METADATA_TABLE,
-    STATS_TABLE,
     MODULES_TABLE,
     PROCESS_TABLE,
+    STATS_TABLE,
     THREAD_TABLE,
     TRACE_DIAGNOSTICS_TABLE,
     TRACE_FILE_TABLE,
+    TRACE_IMPORT_LOGS_TABLE,
 ]

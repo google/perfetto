@@ -277,5 +277,40 @@ TEST_F(GlobalStatsTrackerTest, DynamicStatMisuseCrashes) {
       tracker_.IncrementStats(MachineId(1), TraceId(1), key + 1), "");
 }
 
+TEST_F(GlobalStatsTrackerTest, HistogramMergesMatchingBuckets) {
+  StringId name = storage_.InternString("test_hist");
+  tracker_.AddHistogramBucket(MachineId(1), TraceId(1), name, /*idx=*/100,
+                              /*lower_bound=*/0, /*upper_bound=*/4,
+                              /*count=*/5);
+  tracker_.AddHistogramBucket(MachineId(1), TraceId(1), name, /*idx=*/100,
+                              /*lower_bound=*/0, /*upper_bound=*/4,
+                              /*count=*/7);
+  tracker_.AddHistogramBucket(MachineId(1), TraceId(1), name, /*idx=*/100,
+                              /*lower_bound=*/4, /*upper_bound=*/8,
+                              /*count=*/3);
+
+  EXPECT_EQ(storage_.histogram_table().row_count(), 1u);
+  ASSERT_EQ(storage_.histogram_bucket_table().row_count(), 2u);
+  EXPECT_EQ(storage_.histogram_bucket_table()[0].count(), 12);
+  EXPECT_EQ(storage_.histogram_bucket_table()[1].count(), 3);
+}
+
+TEST_F(GlobalStatsTrackerTest, HistogramSeparatesByIdxAndContext) {
+  StringId name = storage_.InternString("test_hist");
+
+  tracker_.AddHistogramBucket(MachineId(1), TraceId(1), name, /*idx=*/1,
+                              /*lower_bound=*/0, /*upper_bound=*/4,
+                              /*count=*/2);
+  tracker_.AddHistogramBucket(MachineId(1), TraceId(1), name, /*idx=*/2,
+                              /*lower_bound=*/0, /*upper_bound=*/4,
+                              /*count=*/4);
+  tracker_.AddHistogramBucket(MachineId(2), TraceId(1), name, /*idx=*/1,
+                              /*lower_bound=*/0, /*upper_bound=*/4,
+                              /*count=*/9);
+
+  EXPECT_EQ(storage_.histogram_table().row_count(), 3u);
+  EXPECT_EQ(storage_.histogram_bucket_table().row_count(), 3u);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

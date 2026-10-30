@@ -246,4 +246,43 @@ void GlobalStatsTracker::ZeroSingleStatsForContext(
   }
 }
 
+void GlobalStatsTracker::AddHistogramBucket(std::optional<MachineId> machine_id,
+                                            std::optional<TraceId> trace_id,
+                                            StringId name,
+                                            std::optional<int64_t> idx,
+                                            std::optional<int64_t> lower_bound,
+                                            std::optional<int64_t> upper_bound,
+                                            int64_t count) {
+  auto& hist_table = *storage_->mutable_histogram_table();
+  HistogramEntry hist_entry{name, idx, machine_id, trace_id};
+  tables::HistogramTable::Id hist_id;
+  if (auto* id_ptr = histogram_id_by_entry_.Find(hist_entry)) {
+    hist_id = *id_ptr;
+  } else {
+    tables::HistogramTable::Row hist_row;
+    hist_row.name = name;
+    hist_row.idx = idx;
+    hist_row.trace_id = trace_id;
+    hist_row.machine_id = machine_id;
+    hist_id = hist_table.Insert(hist_row).id;
+    histogram_id_by_entry_.Insert(hist_entry, hist_id);
+  }
+
+  auto& bucket_table = *storage_->mutable_histogram_bucket_table();
+  HistogramBucketEntry bucket_entry{hist_id, lower_bound, upper_bound};
+  if (auto* bucket_id_ptr = bucket_id_by_entry_.Find(bucket_entry)) {
+    auto row_ref = bucket_table[*bucket_id_ptr];
+    row_ref.set_count(row_ref.count() + count);
+    return;
+  }
+
+  tables::HistogramBucketTable::Row bucket_row;
+  bucket_row.histogram_id = hist_id;
+  bucket_row.count = count;
+  bucket_row.lower_bound = lower_bound;
+  bucket_row.upper_bound = upper_bound;
+  auto bucket_id = bucket_table.Insert(bucket_row).id;
+  bucket_id_by_entry_.Insert(bucket_entry, bucket_id);
+}
+
 }  // namespace perfetto::trace_processor
