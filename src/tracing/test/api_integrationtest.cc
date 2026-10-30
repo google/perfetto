@@ -7920,6 +7920,220 @@ TEST_P(PerfettoStartupTracingApiTest, NoEventInStartupTracing) {
   EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
 }
 
+// Regression test for crbug.com/578678045: if a session with
+// deferred_start=true half-adopts a startup tracing session (via
+// SetupDataSource without StartDataSource) and the startup session is aborted
+// before the deferred session starts or stops, subsequent Start/Stop calls and
+// new startup sessions must succeed without corrupting startup_sessions.
+TEST_P(PerfettoStartupTracingApiTest, DeferredStartAbortedBeforeStart) {
+  auto make_deferred_cfg = [] {
+    perfetto::TraceConfig cfg;
+    cfg.set_deferred_start(true);
+    cfg.add_buffers()->set_size_kb(1024);
+    auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+    ds_cfg->set_name("track_event");
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_disabled_categories("*");
+    te_cfg.add_enabled_categories("test");
+    ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
+    return cfg;
+  };
+
+  // Phase 1: deferred session stopped directly without StartBlocking() after
+  // aborting the half-adopted startup session.
+  WaitableTestEvent first_aborted;
+  SetupStartupTracingOpts opts1;
+  opts1.on_aborted = [&first_aborted] { first_aborted.Notify(); };
+  SetupStartupTracing({}, std::move(opts1));
+  perfetto::test::SyncProducers();
+  TRACE_EVENT_BEGIN("test", "StartupEvent1");
+
+  auto* deferred1 = NewTrace(make_deferred_cfg());
+  ASSERT_TRUE(WaitForOneProducerConnected(deferred1->get()));
+  perfetto::test::SyncProducers();
+
+  AbortStartupTracing();
+  first_aborted.Wait();
+
+  // Phase 2: start a second startup session while deferred1 is still configured
+  // (so startup_sessions.size() == capacity()), then stop deferred1 without
+  // starting it.
+  WaitableTestEvent second_aborted;
+  SetupStartupTracingOpts opts2;
+  opts2.on_aborted = [&second_aborted] { second_aborted.Notify(); };
+  SetupStartupTracing({}, std::move(opts2));
+  perfetto::test::SyncProducers();
+  TRACE_EVENT_BEGIN("test", "StartupEvent2");
+
+  deferred1->get()->StopBlocking();
+  EXPECT_THAT(ReadSlicesFromTrace(deferred1->get()->ReadTraceBlocking(),
+                                  /*expect_incremental_state_cleared=*/false),
+              IsEmpty());
+
+  // Half-adopt the second startup session with deferred2, abort the second
+  // startup session, start a third startup session, and exercise both
+  // StartBlocking() and StopBlocking() on deferred2 before adopting the third
+  // startup session.
+  auto* deferred2 = NewTrace(make_deferred_cfg());
+  ASSERT_TRUE(WaitForOneProducerConnected(deferred2->get()));
+  perfetto::test::SyncProducers();
+
+  AbortStartupTracing();
+  second_aborted.Wait();
+
+  WaitableTestEvent third_adopted;
+  SetupStartupTracingOpts opts3;
+  opts3.on_adopted = [&third_adopted] { third_adopted.Notify(); };
+  SetupStartupTracing({}, std::move(opts3));
+  perfetto::test::SyncProducers();
+  TRACE_EVENT_BEGIN("test", "StartupEvent3");
+
+  deferred2->get()->StartBlocking();
+  deferred2->get()->StopBlocking();
+  EXPECT_THAT(ReadSlicesFromTrace(deferred2->get()->ReadTraceBlocking(),
+                                  /*expect_incremental_state_cleared=*/false),
+              IsEmpty());
+
+  auto* active_session = NewTraceWithCategories({"test"});
+  ASSERT_TRUE(WaitForOneProducerConnected(active_session->get()));
+  active_session->get()->StartBlocking();
+  third_adopted.Wait();
+
+  TRACE_EVENT_BEGIN("test", "MainEvent");
+  perfetto::TrackEvent::Flush();
+  active_session->get()->StopBlocking();
+
+  auto slices = ReadSlicesFromTraceSession(active_session->get());
+  EXPECT_THAT(slices, ElementsAre("B:test.StartupEvent3", "B:test.MainEvent"));
+}
+
+// Verifies that:
+// 1) Stopping a deferred session before AbortStartupTracing() invokes
+//    on_aborted cleanly and makes a subsequent AbortStartupTracing() a no-op.
+// 2) Partially adopting a multi-data-source startup session (where one data
+//    source is stopped unbound while the remaining one is adopted) invokes
+//    on_aborted rather than on_adopted.
+TEST_P(PerfettoStartupTracingApiTest, HalfAdoptedStoppedOrPartiallyAdopted) {
+  // Part 1: service stops half-adopted instance before AbortStartupTracing().
+  WaitableTestEvent aborted1;
+  std::atomic<int> aborted1_count{0};
+  std::atomic<int> adopted1_count{0};
+  SetupStartupTracingOpts opts1;
+  opts1.timeout_ms = 0;
+  opts1.on_aborted = [&] {
+    aborted1_count.fetch_add(1);
+    aborted1.Notify();
+  };
+  opts1.on_adopted = [&] { adopted1_count.fetch_add(1); };
+  SetupStartupTracing({}, std::move(opts1));
+  perfetto::test::SyncProducers();
+
+  perfetto::TraceConfig deferred_te_cfg;
+  deferred_te_cfg.set_deferred_start(true);
+  deferred_te_cfg.add_buffers()->set_size_kb(1024);
+  auto* te_ds_cfg = deferred_te_cfg.add_data_sources()->mutable_config();
+  te_ds_cfg->set_name("track_event");
+  perfetto::protos::gen::TrackEventConfig te_cfg;
+  te_cfg.add_disabled_categories("*");
+  te_cfg.add_enabled_categories("test");
+  te_ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
+  auto* deferred1 = NewTrace(deferred_te_cfg);
+  ASSERT_TRUE(WaitForOneProducerConnected(deferred1->get()));
+  perfetto::test::SyncProducers();
+
+  deferred1->get()->StopBlocking();
+  aborted1.Wait();
+  AbortStartupTracing();
+  perfetto::test::SyncProducers();
+  EXPECT_EQ(aborted1_count.load(), 1);
+  EXPECT_EQ(adopted1_count.load(), 0);
+
+  // Part 2: startup session with both track_event and CustomDataSource; a
+  // deferred session half-adopts and stops CustomDataSource, then an active
+  // session adopts track_event -> on_aborted (not on_adopted) must fire.
+  perfetto::TraceConfig multi_startup_cfg;
+  multi_startup_cfg.add_data_sources()->mutable_config()->set_name(
+      "CustomDataSource");
+  WaitableTestEvent aborted2;
+  std::atomic<int> adopted2_count{0};
+  SetupStartupTracingOpts opts2;
+  opts2.timeout_ms = 0;
+  opts2.on_aborted = [&] { aborted2.Notify(); };
+  opts2.on_adopted = [&] { adopted2_count.fetch_add(1); };
+  SetupStartupTracing(multi_startup_cfg, std::move(opts2));
+  perfetto::test::SyncProducers();
+
+  perfetto::TraceConfig deferred_custom_cfg;
+  deferred_custom_cfg.set_deferred_start(true);
+  deferred_custom_cfg.add_buffers()->set_size_kb(1024);
+  deferred_custom_cfg.add_data_sources()->mutable_config()->set_name(
+      "CustomDataSource");
+  auto* deferred2 = NewTrace(deferred_custom_cfg);
+  ASSERT_TRUE(WaitForOneProducerConnected(deferred2->get()));
+  perfetto::test::SyncProducers();
+  deferred2->get()->StopBlocking();
+
+  auto* active_te = NewTraceWithCategories({"test"});
+  ASSERT_TRUE(WaitForOneProducerConnected(active_te->get()));
+  active_te->get()->StartBlocking();
+  aborted2.Wait();
+  EXPECT_EQ(adopted2_count.load(), 0);
+  active_te->get()->StopBlocking();
+}
+
+// Verifies validation of invalid (0) and duplicate DataSourceInstanceIDs on
+// ProducerImpl, as well as duplicate StartDataSource() calls.
+TEST_P(PerfettoApiTest, InvalidAndDuplicateDataSourceInstanceIds) {
+  {
+    // Ensure the backend SMB is initialized before driving ProducerImpl
+    // directly.
+    auto* warmup = NewTraceWithCategories({"foo"});
+    warmup->get()->StartBlocking();
+    warmup->get()->StopBlocking();
+  }
+
+  auto& ds_handle = data_sources_["my_data_source"];
+  int start_count = 0;
+  int stop_count = 0;
+  ds_handle.on_start_callback = [&] { start_count++; };
+  ds_handle.on_stop_callback = [&] { stop_count++; };
+
+  perfetto::DataSourceConfig ds_cfg;
+  ds_cfg.set_name("my_data_source");
+  ds_cfg.set_target_buffer(1);
+
+  // Instance ID 0 is reserved for unadopted startup data sources and must be
+  // rejected.
+  perfetto::test::TracingMuxerImplInternalsForTest::SetupDataSourceOnProducer(
+      GetParam(), /*instance_id=*/0, ds_cfg);
+  perfetto::test::TracingMuxerImplInternalsForTest::StartDataSourceOnProducer(
+      GetParam(), /*instance_id=*/0, ds_cfg);
+  perfetto::test::TracingMuxerImplInternalsForTest::StopDataSourceOnProducer(
+      GetParam(), /*instance_id=*/0);
+  EXPECT_FALSE(ds_handle.on_setup.notified());
+  EXPECT_EQ(start_count, 0);
+
+  // Duplicate SetupDataSource and duplicate StartDataSource for the same
+  // instance ID must be ignored so OnSetup and OnStart each run only once.
+  constexpr uint64_t kInstanceId = 9999;
+  perfetto::test::TracingMuxerImplInternalsForTest::SetupDataSourceOnProducer(
+      GetParam(), kInstanceId, ds_cfg);
+  perfetto::test::TracingMuxerImplInternalsForTest::SetupDataSourceOnProducer(
+      GetParam(), kInstanceId, ds_cfg);
+  perfetto::test::TracingMuxerImplInternalsForTest::StartDataSourceOnProducer(
+      GetParam(), kInstanceId, ds_cfg);
+  perfetto::test::TracingMuxerImplInternalsForTest::StartDataSourceOnProducer(
+      GetParam(), kInstanceId, ds_cfg);
+  EXPECT_TRUE(ds_handle.on_setup.notified());
+  EXPECT_EQ(start_count, 1);
+
+  perfetto::test::TracingMuxerImplInternalsForTest::StopDataSourceOnProducer(
+      GetParam(), kInstanceId);
+  ds_handle.on_stop.Wait();
+  perfetto::test::SyncProducers();
+  EXPECT_EQ(stop_count, 1);
+}
+
 class ConcurrentSessionTest : public ::testing::Test {
  public:
   void SetUp() override {
