@@ -587,6 +587,7 @@ if (enable_perfetto_benchmarks) {
     deps = [
       ":descriptors",
       ":glob",
+      ":graph",
       "..:gen_cc_test_messages_descriptor",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
@@ -596,6 +597,9 @@ if (enable_perfetto_benchmarks) {
       "../../protozero:testing_messages_zero",
       "../containers",
     ]
-    sources = [ "glob_benchmark.cc" ]
+    sources = [
+      "glob_benchmark.cc",
+      "graph_benchmark.cc",
+    ]
   }
 }
