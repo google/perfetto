@@ -139,7 +139,7 @@ Perfetto is a collection of components that work together:
 
 See the [documentation](https://perfetto.dev/docs/) for the full picture.
 
-## Community and support
+## Community and Support
 
 - **[Discord](https://discord.gg/35ShE3A):** ask questions in #help, chat with
   the team and community, and follow releases.
