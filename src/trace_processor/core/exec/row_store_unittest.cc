@@ -248,6 +248,44 @@ TEST(RowStoreTest, GathersARunOfOneBatchWithoutCopying) {
 }
 
 // A gather turns an implicit id into a stored one, so a stream can carry both.
+// A column never read back is not held, so its buffer is given back at once,
+// and it reads back as nulls.
+TEST(RowStoreTest, DoesNotHoldColumnsNeverReadBack) {
+  Context context;
+  std::vector<int64_t> kept(kMaxBatchRows);
+  for (uint32_t i = 0; i < kMaxBatchRows; ++i) {
+    kept[i] = i;
+  }
+  RowStore store;
+  store.SetUnread({false, true});
+  const ColumnChunk* unread;
+  {
+    ColumnBuffer buffer = context.TakeBuffer(sizeof(int64_t));
+    unread = &buffer.chunk();
+    RowBatch input;
+    input.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Int64{}}, kept.data()));
+    // Made before the buffer moves: arguments are evaluated in any order.
+    ColumnView view = ColumnView::Reference(StorageType{Int64{}},
+                                            buffer.chunk().Values<int64_t>());
+    input.AddColumn(view, std::move(buffer));
+    input.SetRowCount(kMaxBatchRows);
+    ASSERT_TRUE(store.Append(input, context).ok());
+  }
+  EXPECT_EQ(&context.TakeBuffer(sizeof(int64_t)).chunk(), unread);
+
+  RowBatch out;
+  ASSERT_EQ(store.View(&out, 1, 2), 2u);
+  EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1, 2));
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 1),
+              ElementsAre(std::nullopt, std::nullopt));
+  RowBatch gathered;
+  ASSERT_EQ(Gather(store, &gathered, {5, 0}), 2u);
+  EXPECT_THAT(test::ReadColumn<int64_t>(gathered, 0), ElementsAre(5, 0));
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(gathered, 1),
+              ElementsAre(std::nullopt, std::nullopt));
+}
+
 TEST(RowStoreTest, AnImplicitIdColumnCanBecomeAStoredOne) {
   auto stored =
       std::make_shared<std::vector<uint32_t>>(std::vector<uint32_t>{40, 41});

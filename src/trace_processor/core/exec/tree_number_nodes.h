@@ -51,6 +51,10 @@ class TreeNumberNodes final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override {
+    out->reads = {id_column_, parent_column_};
+    out->added = 2;
+  }
 
   TreeNumberNodes(uint32_t id_column, uint32_t parent_column);
   ~TreeNumberNodes() override;

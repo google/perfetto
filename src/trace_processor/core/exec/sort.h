@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
@@ -43,6 +44,14 @@ class Sort : public Breaker {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override {
+    for (const SortKey& key : spec_.keys) {
+      out->reads.push_back(key.column);
+    }
+  }
+  void SetUnreadColumns(std::vector<bool> unread) override {
+    unread_ = std::move(unread);
+  }
 
   explicit Sort(SortSpec);
   ~Sort() override;
@@ -64,6 +73,8 @@ class Sort : public Breaker {
   bool Serve(RowBatch& out, Breaker::State& state) const override;
 
   SortSpec spec_;
+  // Input columns no later step reads (see Operator::SetUnreadColumns).
+  std::vector<bool> unread_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

@@ -42,6 +42,9 @@ class Distinct final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override {
+    out->reads = columns_;
+  }
 
   static constexpr uint32_t kMaxColumns = 64;
 

@@ -35,7 +35,9 @@ GroupedSort::~GroupedSort() = default;
 GroupedSort::State::~State() = default;
 
 std::unique_ptr<Breaker::State> GroupedSort::CreateState() const {
-  return std::make_unique<State>();
+  auto state = std::make_unique<State>();
+  state->rows.SetUnread(unread_);
+  return state;
 }
 
 bool GroupedSort::Consume(const RowBatch& in, Breaker::State& state) const {

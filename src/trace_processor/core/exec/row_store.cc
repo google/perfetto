@@ -40,8 +40,7 @@ RowStore::~RowStore() = default;
 
 base::Status RowStore::Append(const RowBatch& in, Context& context) {
   if (!has_shape_) {
-    shape_.CopyFrom(in);
-    has_shape_ = true;
+    SetShape(in, context);
   }
   if (!in.size()) {
     return base::OkStatus();
@@ -58,11 +57,45 @@ base::Status RowStore::Append(const RowBatch& in, Context& context) {
   }
 #endif
   size_ += in.size();
+  if (!drops()) {
+    Keep(in, context);
+    return base::OkStatus();
+  }
+  trimmed_.Project(in, held_columns_);
+  Keep(trimmed_, context);
+  // Not to keep the batch's buffers until the next one.
+  trimmed_.Reset();
+  return base::OkStatus();
+}
+
+void RowStore::SetShape(const RowBatch& in, Context& context) {
+  shape_.CopyFrom(in);
+  has_shape_ = true;
+  held_columns_.clear();
+  stored_column_.assign(in.column_count(), kNotHeld);
+  for (uint32_t c = 0; c < in.column_count(); ++c) {
+    const ColumnView& column = in.column(c);
+    if (c < unread_.size() && unread_[c] &&
+        column.kind() != ColumnView::Kind::kVariant) {
+      // Read back as nulls, typed as a stored Id would be.
+      StorageType type =
+          column.kind() == ColumnView::Kind::kSequence || column.type().Is<Id>()
+              ? StorageType{Uint32{}}
+              : column.type();
+      shape_.SetNullColumn(c, type, context);
+      continue;
+    }
+    stored_column_[c] = static_cast<uint32_t>(held_columns_.size());
+    held_columns_.push_back(c);
+  }
+}
+
+void RowStore::Keep(const RowBatch& in, Context& context) {
   if (Shares(in)) {
     // Rows packed before come first.
     Flush();
     Hold(in);
-    return base::OkStatus();
+    return;
   }
   RowBatch part;
   for (uint32_t done = 0; done < in.size();) {
@@ -75,7 +108,6 @@ base::Status RowStore::Append(const RowBatch& in, Context& context) {
       Flush();
     }
   }
-  return base::OkStatus();
 }
 
 bool RowStore::Shares(const RowBatch& in) {
@@ -136,6 +168,8 @@ void RowStore::Clear() {
   packing_.Clear();
   shape_.Reset();
   has_shape_ = false;
+  held_columns_.clear();
+  stored_column_.clear();
   size_ = 0;
 }
 
@@ -149,7 +183,20 @@ uint32_t RowStore::View(RowBatch* out, uint32_t offset, uint32_t count) {
   uint32_t batch = Find(offset);
   uint32_t start = batch ? ends_[batch - 1] : 0;
   count = std::min(count, ends_[batch] - offset);
-  out->CopyFrom(*batches_[batch]);
+  const RowBatch& held = *batches_[batch];
+  if (!drops()) {
+    out->CopyFrom(held);
+  } else {
+    out->Project(held, {});
+    for (uint32_t c = 0; c < shape_.column_count(); ++c) {
+      uint32_t stored = stored_column_[c];
+      if (stored == kNotHeld) {
+        out->AddColumn(shape_.column(c), shape_.buffer(c));
+      } else {
+        out->AddColumn(held.column(stored), held.buffer(stored));
+      }
+    }
+  }
   out->mutable_selection().KeepRange(offset - start, count);
   return count;
 }
@@ -176,10 +223,15 @@ uint32_t RowStore::Gather(RowBatch* out,
     run = rows[r] == first + r;
   }
   if (run) {
-    for (uint32_t c = 0; c < held.column_count(); ++c) {
-      ColumnView view = held.column(c);
+    for (uint32_t c = 0; c < shape_.column_count(); ++c) {
+      uint32_t stored = stored_column_[c];
+      if (stored == kNotHeld) {
+        out->AddColumn(shape_.column(c), shape_.buffer(c));
+        continue;
+      }
+      ColumnView view = held.column(stored);
       view.set_start(view.start() + (first - start));
-      out->AddColumn(view, held.buffer(c));
+      out->AddColumn(view, held.buffer(stored));
     }
     out->SetRowCount(count);
     return count;
@@ -196,11 +248,16 @@ uint32_t RowStore::Gather(RowBatch* out,
   }
   for (uint32_t c = 0; c < shape_.column_count(); ++c) {
     const ColumnView& like = shape_.column(c);
+    uint32_t stored = stored_column_[c];
+    if (stored == kNotHeld) {
+      out->AddColumn(like, shape_.buffer(c));
+      continue;
+    }
     ColumnBuffer buffer = context.TakeBuffer(ValueWidth(like));
     ColumnChunk& chunk = buffer.chunk();
-    chunk.Gather(like, sources_[c].data(), batches.data(), batch_rows.data(),
-                 count, nullable_[c]);
-    out->AddColumn(chunk.View(like, nullable_[c]), std::move(buffer));
+    chunk.Gather(like, sources_[stored].data(), batches.data(),
+                 batch_rows.data(), count, nullable_[stored]);
+    out->AddColumn(chunk.View(like, nullable_[stored]), std::move(buffer));
   }
   out->SetRowCount(count);
   return count;
