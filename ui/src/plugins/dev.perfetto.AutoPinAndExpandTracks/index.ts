@@ -65,7 +65,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
       if (!e.target.files) {
         return;
       }
-      const file = e.target.files[0];
+      const file = e.target.files[0]!;
       const textPromise = file.text();
 
       // Reset the value so onchange will be fired with the same file.
@@ -259,7 +259,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
     let mostSimilarTrackDifferenceScore: number = 0;
 
     for (let i = 0; i < localTracks.length; i++) {
-      const localTrack = localTracks[i];
+      const localTrack = localTracks[i]!;
       const differenceScore = this.calculateSimilarityScore(
         localTrack.savedTrack,
         savedTrack,

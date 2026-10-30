@@ -103,6 +103,9 @@ class SqliteConnection {
   // underlying in-memory store is shared.
   std::unique_ptr<SqliteConnection> Fork();
 
+  // Disabled by default; see the constructor.
+  void SetAttachCreateWriteEnabled(bool enabled);
+
   // Prepares a SQLite statement for the given SQL.
   PreparedStatement PrepareStatement(SqlSource);
 

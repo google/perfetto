@@ -39,5 +39,6 @@ source_set("graph_traversal") {
     "../../sqlite",
     "../../storage",
     "../../types",
+    "../../util:graph",
   ]
 }

@@ -22,6 +22,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -32,6 +33,7 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
 
 namespace perfetto::trace_processor::pipeline {
 
@@ -42,15 +44,17 @@ namespace perfetto::trace_processor::pipeline {
 // The most columns a pipeline can output.
 inline constexpr uint32_t kMaxPipelineColumns = 256;
 
-// Writes an optimized plan as bytes, so that SQL can carry it and run it later
-// without compiling the pipeline again.
-std::string SerializePlan(const LogicalPlan&);
+// Writes an optimized plan as bytes, stamped with `key`, so that SQL can carry
+// it and run it later without compiling the pipeline again.
+std::string SerializePlan(LogicalPlan, const PlanKey& key);
 
 // Rebuilds a plan written by SerializePlan, looking its dataframes up in
-// `catalog` again. Anyone can write bytes into SQL, so anything SerializePlan
-// could not have written is refused, as is a plan whose dataframes have since
+// `catalog` again. Anyone can write bytes into SQL, so bytes without the
+// stamp of `key` are refused, as is a plan whose dataframes have since
 // changed.
-base::StatusOr<LogicalPlan> DeserializePlan(std::string_view, const Catalog&);
+base::StatusOr<LogicalPlan> DeserializePlan(std::string_view,
+                                            const PlanKey& key,
+                                            const Catalog&);
 
 // Points each scan of a dataframe argument at `args[i]`, the dataframe the
 // plan is passed as its i-th argument when it runs, and types the scan's
@@ -63,98 +67,50 @@ base::Status BindDataframeArgs(
     StringPool* pool);
 
 // -----------------------------------------------------------------------------
-// Byte encoding
-// -----------------------------------------------------------------------------
-
-class Writer {
- public:
-  void U8(uint8_t value);
-  void U32(uint32_t value);
-  void Size(size_t value);
-  void Str(std::string_view value);
-
-  // Out of bounds if `id` is not available.
-  void Position(const Available& available, ColumnId id);
-
-  std::string Take();
-
- private:
-  void Append(const void* data, size_t size);
-
-  std::string out_;
-};
-
-// Failures are latched: ok() remains false after any invalid read. Callers
-// must discard the partially decoded plan on failure.
-class Reader {
- public:
-  explicit Reader(std::string_view in);
-
-  uint8_t U8();
-  uint32_t U32();
-
-  // At most the bytes left, so a corrupt count cannot allocate much.
-  uint32_t Count();
-  std::string Str();
-
-  ColumnId Position(const Available& available);
-  void Fail();
-
-  bool ok() const;
-  bool done() const;
-
- private:
-  void Read(void* out, size_t size);
-
-  std::string_view in_;
-  size_t at_ = 0;
-  bool ok_ = true;
-};
-
-void WriteType(Writer* w, const PlanType& type);
-PlanType ReadType(Reader* r);
-
-// -----------------------------------------------------------------------------
 // Plan encoding
 // -----------------------------------------------------------------------------
 
-// Writes stages in input-to-output order. Operations update Available from
-// input to output column IDs as their payloads are written.
-class PlanWriter {
+// Moves a plan to or from bytes. Each operation describes its payload once,
+// in PlanOperation::Serialize, which a codec runs either way: writing, each
+// call appends the field it is given; reading, it fills the field in. Only
+// stamped bytes are read, so a read trusts them. Fields are in the host's byte
+// order: a plan is only read by the process which wrote it.
+class PlanCodec {
  public:
-  explicit PlanWriter(const LogicalPlan& plan);
-  std::string Write();
+  // Writes into `out`.
+  PlanCodec(LogicalPlan* plan, const PlanKey* key, std::string* out)
+      : plan_(plan), key_(key), out_(out) {}
+  // Reads `in`, which SerializePlan wrote.
+  PlanCodec(LogicalPlan* plan, const PlanKey* key, std::string_view in)
+      : plan_(plan), key_(key), in_(in) {}
 
-  const LogicalPlan& plan() const { return plan_; }
-  Writer& writer() { return w_; }
-
- private:
-  // Borrowed for the duration of encoding.
-  const LogicalPlan& plan_;
-  Writer w_;
-};
-
-// Reconstructs logical IDs from encoded column positions. Operation decoders
-// append nodes to plan_ and update Available to match their output.
-class PlanReader {
- public:
-  explicit PlanReader(Reader& r);
-
-  LogicalPlan Read();
-  ColumnId AddColumn(std::string name, PlanType type);
+  bool reading() const { return !out_; }
+  LogicalPlan& plan() { return *plan_; }
+  const PlanKey& key() const { return *key_; }
 
   template <typename T>
-  PlanNodeId AddNode(T operation, std::vector<PlanNodeId> children = {}) {
-    return plan_.AddNode(std::move(operation), std::move(children));
+  void Pod(T* value) {
+    static_assert(kCopiedAsBytes<T>);
+    Bytes(value, sizeof(T));
   }
-
-  const LogicalPlan& plan() const { return plan_; }
-  Reader& reader() { return r_; }
+  template <typename T>
+  void Vec(std::vector<T>* values) {
+    static_assert(kCopiedAsBytes<T>);
+    values->resize(Count(values->size()));
+    Bytes(values->data(), values->size() * sizeof(T));
+  }
+  // The size of a list: `size` when writing, the size written when reading.
+  uint32_t Count(size_t size);
+  void Str(std::string* value);
 
  private:
-  // Borrowed reader; its error state covers the whole plan.
-  Reader& r_;
-  LogicalPlan plan_;
+  // Appends `size` bytes from `data` or reads them into it.
+  void Bytes(void* data, size_t size);
+
+  LogicalPlan* plan_;
+  const PlanKey* key_;
+  std::string* out_ = nullptr;
+  std::string_view in_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

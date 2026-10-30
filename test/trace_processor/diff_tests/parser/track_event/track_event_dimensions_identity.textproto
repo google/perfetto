@@ -1,0 +1,211 @@
+# Dimensions are part of the track identity.
+#
+# A global track with a rank.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 1
+    name: "g1"
+    sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+    dimensions {
+      name: "rank"
+      int_value: 1
+    }
+    dimensions {
+      name: "stage"
+      string_value: "fwd"
+    }
+  }
+}
+# Re-emitted with the same dimensions in a different order and with a display
+# name: same identity, accepted.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 1
+    name: "g1"
+    sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+    dimensions {
+      name: "stage"
+      string_value: "fwd"
+    }
+    dimensions {
+      name: "rank"
+      int_value: 1
+      display_name: "one"
+    }
+  }
+}
+# Re-emitted with a different value: conflicting reservation, ignored.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 1
+    name: "g1"
+    sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+    dimensions {
+      name: "rank"
+      int_value: 2
+    }
+    dimensions {
+      name: "stage"
+      string_value: "fwd"
+    }
+  }
+}
+# A global track first described without dimensions.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 2
+    name: "g2"
+    sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+  }
+}
+# Re-emitted with dimensions: conflicting reservation, ignored.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 2
+    name: "g2"
+    sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+    dimensions {
+      name: "rank"
+      int_value: 5
+    }
+  }
+}
+# Sibling tracks merged by name under the same process: only the siblings
+# declaring the same dimensions are merged.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 10
+    process {
+      pid: 100
+      process_name: "trainer"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 11
+    parent_uuid: 10
+    name: "step"
+    dimensions {
+      name: "rank"
+      int_value: 1
+    }
+    dimensions {
+      name: "stage"
+      string_value: "fwd"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 12
+    parent_uuid: 10
+    name: "step"
+    dimensions {
+      name: "rank"
+      int_value: 2
+    }
+    dimensions {
+      name: "stage"
+      string_value: "fwd"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 13
+    parent_uuid: 10
+    name: "step"
+    dimensions {
+      name: "stage"
+      string_value: "fwd"
+    }
+    dimensions {
+      name: "rank"
+      int_value: 1
+      display_name: "one"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 14
+    parent_uuid: 10
+    name: "step"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 100
+  track_event {
+    track_uuid: 1
+    type: TYPE_INSTANT
+    name: "g1_event"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 100
+  track_event {
+    track_uuid: 2
+    type: TYPE_INSTANT
+    name: "g2_event"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  track_event {
+    track_uuid: 11
+    type: TYPE_INSTANT
+    name: "rank1_a"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2000
+  track_event {
+    track_uuid: 12
+    type: TYPE_INSTANT
+    name: "rank2"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 3000
+  track_event {
+    track_uuid: 13
+    type: TYPE_INSTANT
+    name: "rank1_b"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 4000
+  track_event {
+    track_uuid: 14
+    type: TYPE_INSTANT
+    name: "no_rank"
+  }
+}

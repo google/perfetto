@@ -270,33 +270,32 @@ void NetworkTraceModule::ParseGenericEvent(int64_t ts,
         GetTcpFlagMask(evt.tcp_flags()).string_view());
   }
   std::optional<SliceId> id = context_->slice_tracker->Scoped(
-      ts, track_id, kNullStringId, slice_name, dur,
-      [&](ArgsTracker::BoundInserter* i) {
-        i->AddArg(net_arg_ip_proto_,
-                  Variadic::String(actual_row.packet_transport));
+      ts, track_id, kNullStringId, slice_name, dur, [&](ArgsInserter& i) {
+        i.AddArg(net_arg_ip_proto_,
+                 Variadic::String(actual_row.packet_transport));
 
-        i->AddArg(net_arg_uid_, Variadic::Integer(evt.uid()));
-        i->AddArg(net_arg_tag_, Variadic::String(actual_row.socket_tag_str));
+        i.AddArg(net_arg_uid_, Variadic::Integer(evt.uid()));
+        i.AddArg(net_arg_tag_, Variadic::String(actual_row.socket_tag_str));
 
         if (actual_row.packet_tcp_flags_str.has_value()) {
-          i->AddArg(net_arg_tcp_flags_,
-                    Variadic::String(*actual_row.packet_tcp_flags_str));
+          i.AddArg(net_arg_tcp_flags_,
+                   Variadic::String(*actual_row.packet_tcp_flags_str));
         }
 
         if (evt.has_local_port()) {
-          i->AddArg(net_arg_local_port_, Variadic::Integer(evt.local_port()));
+          i.AddArg(net_arg_local_port_, Variadic::Integer(evt.local_port()));
         }
         if (evt.has_remote_port()) {
-          i->AddArg(net_arg_remote_port_, Variadic::Integer(evt.remote_port()));
+          i.AddArg(net_arg_remote_port_, Variadic::Integer(evt.remote_port()));
         }
         if (evt.has_icmp_type()) {
-          i->AddArg(net_arg_icmp_type_, Variadic::Integer(evt.icmp_type()));
+          i.AddArg(net_arg_icmp_type_, Variadic::Integer(evt.icmp_type()));
         }
         if (evt.has_icmp_code()) {
-          i->AddArg(net_arg_icmp_code_, Variadic::Integer(evt.icmp_code()));
+          i.AddArg(net_arg_icmp_code_, Variadic::Integer(evt.icmp_code()));
         }
-        i->AddArg(net_arg_length_, Variadic::Integer(length));
-        i->AddArg(packet_count_, Variadic::Integer(count));
+        i.AddArg(net_arg_length_, Variadic::Integer(length));
+        i.AddArg(packet_count_, Variadic::Integer(count));
       });
   if (id) {
     auto* network_packets =

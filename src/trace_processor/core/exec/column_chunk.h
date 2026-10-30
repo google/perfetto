@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
@@ -36,12 +37,41 @@ namespace perfetto::trace_processor::core::exec {
 
 class RowBatch;
 
+// The bytes one value of a column of `type` takes in a chunk: what a buffer
+// for the column is taken for (see Context::TakeBuffer).
+constexpr uint32_t ValueWidth(StorageType type) {
+  // Id, Uint32, Int32 and String, stored as its interned id, are 4 bytes.
+  return type.Is<Int64>() || type.Is<Double>() ? sizeof(int64_t)
+                                               : sizeof(uint32_t);
+}
+
+// The bytes one of `view`'s values takes in a chunk.
+inline uint32_t ValueWidth(const ColumnView& view) {
+  return view.kind() == ColumnView::Kind::kVariant ? sizeof(Variant)
+                                                   : ValueWidth(view.type());
+}
+
+// Where one batch's values of a column are, as a ColumnView has them, flat
+// enough to be copied into an array: row `row` of the batch is the value and
+// the bit at `start + row`.
+struct GatherSource {
+  static GatherSource Of(const ColumnView& view) {
+    return {view.data(), view.validity(), view.start()};
+  }
+
+  // Null for a sequence, whose value is where it would be stored.
+  const void* data;
+  // Null when every value is there.
+  const BitVector* validity;
+  uint32_t start;
+};
+
 // kMaxBatchRows rows of one column: the buffer matching the column's type,
 // plus which of its rows hold a value.
 struct ColumnChunk {
-  // kMaxBatchRows values of whichever type the chunk holds: allocated once,
-  // as large as the largest type, so a chunk reused for another type, as
-  // buffers are by whichever column next takes one, never reallocates.
+  // kMaxBatchRows values of the width the chunk's buffer was taken for (see
+  // BufferPool): allocated with the buffer, and reused, never reallocated, by
+  // every column of that width which takes it after.
   Slab<uint8_t> storage;
   BitVector validity;
 
@@ -49,16 +79,16 @@ struct ColumnChunk {
   // `offset`, preserving value bits and nulls.
   void CopyFrom(const RowBatch& batch, uint32_t column, uint32_t offset);
 
-  // Copies, for each i below `count`, batch row rows[i] of views[sources[i]]
-  // into this chunk at i. The views hold one type. The type is dispatched on
-  // once, however the rows interleave the views. `nullable` is whether any of
-  // `views` has nulls; `bases` is scratch.
-  void Gather(const std::vector<const ColumnView*>& views,
-              const uint32_t* sources,
+  // Copies, for each i below `count`, batch row rows[i] of
+  // sources[batches[i]] into this chunk at i. The sources hold the type of
+  // `like`, a view of any of them, which is dispatched on once. `nullable` is
+  // whether any of the sources has nulls.
+  void Gather(const ColumnView& like,
+              const GatherSource* sources,
+              const uint32_t* batches,
               const uint32_t* rows,
               uint32_t count,
-              bool nullable,
-              std::vector<const void*>* bases);
+              bool nullable);
 
   // Copies the first `count` of `data`, present where `present` says if not
   // null, into this chunk, and views them.
@@ -68,9 +98,9 @@ struct ColumnChunk {
     memcpy(copy, data, count * sizeof(T));
     const BitVector* kept = nullptr;
     if (present) {
-      validity.resize(kMaxBatchRows);
+      SizeValidity();
       validity.FillBits(0, count, false);
-      validity.SetBitsFrom(0, *present, 0, count);
+      validity.OrBitsFrom(0, *present, 0, count);
       kept = &validity;
     }
     using Type = typename TypeTagFor<T>::type;
@@ -81,23 +111,32 @@ struct ColumnChunk {
   // columns become stored Uint32 values. The chunk must outlive the view.
   ColumnView View(const ColumnView& source, bool nullable) const;
 
-  // The chunk's kMaxBatchRows values of T, its storage allocated the first
-  // time any are used.
+  // Gives the validity kMaxBatchRows bits, which it then keeps.
+  void SizeValidity() {
+    if (PERFETTO_UNLIKELY(validity.size() != kMaxBatchRows)) {
+      GrowValidity();
+    }
+  }
+
+  // The chunk's kMaxBatchRows values of T. The chunk's buffer must have been
+  // taken for values at least as wide as T.
   template <typename T>
   T* Values() {
     static_assert(sizeof(T) <= kMaxValueSize && alignof(T) <= kMaxValueSize);
-    if (PERFETTO_UNLIKELY(!storage.size())) {
-      storage = Slab<uint8_t>::Alloc(uint64_t{kMaxBatchRows} * kMaxValueSize);
-    }
+    PERFETTO_DCHECK(uint64_t{kMaxBatchRows} * sizeof(T) <= storage.size());
     return reinterpret_cast<T*>(storage.data());
   }
   template <typename T>
   const T* Values() const {
+    PERFETTO_DCHECK(uint64_t{kMaxBatchRows} * sizeof(T) <= storage.size());
     return reinterpret_cast<const T*>(storage.data());
   }
 
   // The size of the largest type a chunk holds.
   static constexpr size_t kMaxValueSize = sizeof(Variant);
+
+ private:
+  PERFETTO_NO_INLINE void GrowValidity();
 };
 
 }  // namespace perfetto::trace_processor::core::exec

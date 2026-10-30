@@ -31,7 +31,6 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
@@ -45,7 +44,7 @@ namespace perfetto::trace_processor {
 // Tracks and stores tracks based on track types, ids and scopes.
 class TrackTracker {
  public:
-  using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter&)>;
+  using SetArgsCallback = std::function<void(ArgsInserter&)>;
 
   explicit TrackTracker(TraceProcessorContext*);
 
@@ -131,7 +130,7 @@ class TrackTracker {
       const typename BlueprintT::name_t& name = tracks::BlueprintName(),
       const SetArgsCallback& args = {},
       const typename BlueprintT::unit_t& unit = tracks::BlueprintUnit()) {
-    std::array<GlobalArgsTracker::CompactArg, 8> a;
+    std::array<ArgsTracker::CompactArg, 8> a;
     DimensionsToArgs<0>(dims, bp.dimension_blueprints.data(), a.data());
     StringId n;
     using NBT = tracks::NameBlueprintT;
@@ -193,7 +192,7 @@ class TrackTracker {
                    StringId,
                    StringId,
                    StringId,
-                   GlobalArgsTracker::CompactArg*,
+                   ArgsTracker::CompactArg*,
                    uint32_t,
                    const SetArgsCallback&);
 
@@ -215,7 +214,7 @@ class TrackTracker {
   template <size_t i, typename TupleDimensions>
   void DimensionsToArgs(const TupleDimensions& dimensions,
                         const tracks::DimensionBlueprintBase* dimensions_schema,
-                        GlobalArgsTracker::CompactArg* a) {
+                        ArgsTracker::CompactArg* a) {
     static constexpr size_t kTupleSize = std::tuple_size_v<TupleDimensions>;
     if constexpr (i < kTupleSize) {
       using elem_t = std::tuple_element_t<i, TupleDimensions>;
@@ -240,7 +239,6 @@ class TrackTracker {
   base::FlatHashMap<uint64_t, TrackId, base::AlreadyHashed<uint64_t>> tracks_;
 
   TraceProcessorContext* const context_;
-  ArgsTracker args_tracker_;
   StringId description_key_id_;
 };
 

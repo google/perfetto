@@ -34,7 +34,7 @@ function pad2(n: number): string {
 
 function toUtc(iso: string): Date {
   const [y, mo, d] = iso.split('-').map(Number);
-  return new Date(Date.UTC(y, mo - 1, d));
+  return new Date(Date.UTC(y!, mo! - 1, d));
 }
 
 export function isoDate(year: number, month: number, day: number): string {
@@ -81,7 +81,7 @@ export function formatMonth(ym: YearMonth): string {
 
 export function yearMonthOf(iso: string): YearMonth {
   const [y, mo] = iso.split('-').map(Number);
-  return {year: y, month: mo - 1};
+  return {year: y!, month: mo! - 1};
 }
 
 export function shiftMonth(ym: YearMonth, by: number): YearMonth {

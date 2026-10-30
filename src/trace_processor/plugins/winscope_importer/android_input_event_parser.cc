@@ -28,17 +28,17 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/third_party/android/frameworks/native/tracing/winscope/android_input_event.pbzero.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
-#include "src/trace_processor/importers/proto/args_parser.h"
+#include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 namespace perfetto::trace_processor {
 
@@ -108,16 +108,15 @@ void AndroidInputEventParser::ParseMotionEvent(
   auto event_row_id = context_.storage->mutable_android_motion_events_table()
                           ->Insert(event_row)
                           .id;
-  ArgsTracker args_tracker(&context_);
-  auto inserter = args_tracker.AddArgsTo(event_row_id);
-  ArgsParser writer{packet_ts, inserter, *context_.storage,
-                    *context_.process_tracker};
+  auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
+  util::ProtoArgsEnv env(packet_ts, context_.process_tracker.get());
+  ArgsInserterSink writer(inserter);
 
   base::Status status =
       args_parser_.ParseMessage(bytes,
                                 *util::winscope_proto_mapping::GetProtoName(
                                     tables::AndroidMotionEventsTable::Name()),
-                                nullptr /*parse all fields*/, writer);
+                                nullptr /*parse all fields*/, env, writer);
   if (!status.ok()) {
     context_.stats_tracker->IncrementStats(
         stats::android_input_event_parse_errors);
@@ -148,16 +147,15 @@ void AndroidInputEventParser::ParseKeyEvent(
   auto event_row_id = context_.storage->mutable_android_key_events_table()
                           ->Insert(event_row)
                           .id;
-  ArgsTracker args_tracker(&context_);
-  auto inserter = args_tracker.AddArgsTo(event_row_id);
-  ArgsParser writer{packet_ts, inserter, *context_.storage,
-                    *context_.process_tracker};
+  auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
+  util::ProtoArgsEnv env(packet_ts, context_.process_tracker.get());
+  ArgsInserterSink writer(inserter);
 
   base::Status status =
       args_parser_.ParseMessage(bytes,
                                 *util::winscope_proto_mapping::GetProtoName(
                                     tables::AndroidKeyEventsTable::Name()),
-                                nullptr /*parse all fields*/, writer);
+                                nullptr /*parse all fields*/, env, writer);
   if (!status.ok()) {
     context_.stats_tracker->IncrementStats(
         stats::android_input_event_parse_errors);
@@ -186,16 +184,15 @@ void AndroidInputEventParser::ParseWindowDispatchEvent(
           ->Insert(event_row)
           .id;
 
-  ArgsTracker args_tracker(&context_);
-  auto inserter = args_tracker.AddArgsTo(event_row_id);
-  ArgsParser writer{packet_ts, inserter, *context_.storage,
-                    *context_.process_tracker};
+  auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
+  util::ProtoArgsEnv env(packet_ts, context_.process_tracker.get());
+  ArgsInserterSink writer(inserter);
 
   base::Status status = args_parser_.ParseMessage(
       bytes,
       *util::winscope_proto_mapping::GetProtoName(
           tables::AndroidInputEventDispatchTable::Name()),
-      nullptr /*parse all fields*/, writer);
+      nullptr /*parse all fields*/, env, writer);
   if (!status.ok())
     context_.stats_tracker->IncrementStats(
         stats::android_input_event_parse_errors);
@@ -204,7 +201,7 @@ void AndroidInputEventParser::ParseWindowDispatchEvent(
 void AndroidInputEventParser::TryConvertMonotonicTimestampFields(
     std::optional<int64_t> event_time_nanos,
     std::optional<int64_t> down_time_nanos,
-    ArgsParser& writer) {
+    ArgSink& writer) {
   if (event_time_nanos.has_value()) {
     ConvertMonotonicTimestampField(event_time_nanos.value(), KERNEL_TIME_KEY,
                                    writer);
@@ -218,13 +215,13 @@ void AndroidInputEventParser::TryConvertMonotonicTimestampFields(
 void AndroidInputEventParser::ConvertMonotonicTimestampField(
     int64_t monotonic_time,
     const std::string& key_string,
-    ArgsParser& writer) {
+    ArgSink& writer) {
   auto boottime = context_.clock_tracker->ToTraceTime(
       ClockId::Machine(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
       monotonic_time);
   if (boottime.has_value()) {
-    auto key = writer.InternString(base::StringView(key_string));
-    writer.AddInteger(key, key, boottime.value());
+    auto key = context_.storage->InternString(base::StringView(key_string));
+    writer.Add({key, key}, Variadic::Integer(boottime.value()));
   }
 }
 

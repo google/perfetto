@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_EXT_BASE_FLAT_HASH_MAP_H_
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/bits.h"
 #include "perfetto/ext/base/flat_hash_map_v1.h"
@@ -215,7 +216,8 @@ struct Group {
   };
 
   PERFETTO_ALWAYS_INLINE explicit Group(const uint8_t* pos) {
-    memcpy(&ctrl_, pos, sizeof(ctrl_));
+    // Match*() and Iterator::Next() expect control byte i in bits 8*i..8*i+7.
+    ctrl_ = LoadLE<uint64_t>(pos);
   }
 
   PERFETTO_ALWAYS_INLINE Iterator Match(uint8_t h2) const {

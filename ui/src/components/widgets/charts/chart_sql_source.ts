@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertUnreachable} from '../../../base/assert';
+import {assertDefined, assertUnreachable} from '../../../base/assert';
 import {AsyncMemo} from '../../../base/async_memo';
 import type {Engine} from '../../../trace_processor/engine';
 import type {QueryResult as TPQueryResult} from '../../../trace_processor/query_result';
@@ -371,7 +371,10 @@ SELECT ${aliasList} FROM _other WHERE ${measAliases[0]} > 0`.trim();
     const whereClause = this.buildWhereClause(config.filters);
     const groupByExprs = config.dimensions.map((d) => d.column);
     const direction = config.orderDirection ?? 'desc';
-    const firstDimAlias = this.dimAlias(config.dimensions[0], 0);
+    // buildAggregated only routes here with >= 2 dimensions.
+    const firstDim = config.dimensions[0];
+    assertDefined(firstDim);
+    const firstDimAlias = this.dimAlias(firstDim, 0);
     const orderAlias = this.measureAlias(config.measures, 0);
 
     const dimAliases = config.dimensions.map((d, i) => this.dimAlias(d, i));
@@ -607,6 +610,7 @@ ORDER BY _bucket_idx`.trim();
     index: number,
   ): string {
     const meas = measures[index];
+    assertDefined(meas);
     if (meas.alias !== undefined) {
       validateColumnName(meas.alias);
       return meas.alias;
@@ -651,19 +655,17 @@ function chartFilterToSql(filter: Filter): string {
   ) {
     const nonNull = filter.value.filter((v) => v !== null);
     const negated = filter.op === 'not in';
-    const parts: string[] = [];
-    if (nonNull.length > 0) {
-      parts.push(filterToSql({...filter, value: nonNull}, filter.field));
-    }
-    parts.push(
-      filterToSql(
-        {field: filter.field, op: negated ? 'is not null' : 'is null'},
-        filter.field,
-      ),
+    const nullClause = filterToSql(
+      {field: filter.field, op: negated ? 'is not null' : 'is null'},
+      filter.field,
     );
-    if (parts.length === 1) return parts[0];
+    if (nonNull.length === 0) return nullClause;
+    const nonNullClause = filterToSql(
+      {...filter, value: nonNull},
+      filter.field,
+    );
     const joiner = negated ? ' AND ' : ' OR ';
-    return `(${parts.join(joiner)})`;
+    return `(${nonNullClause}${joiner}${nullClause})`;
   }
   return filterToSql(filter, filter.field);
 }

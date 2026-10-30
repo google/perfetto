@@ -334,21 +334,21 @@ describe('TimeRangeSourceNode', () => {
       const node = makeNode({start: '100', end: '500', isDynamic: false});
 
       expect(node.finalCols.length).toBe(3);
-      expect(node.finalCols[0].name).toBe('id');
-      expect(node.finalCols[1].name).toBe('ts');
-      expect(node.finalCols[2].name).toBe('dur');
+      expect(node.finalCols[0]!.name).toBe('id');
+      expect(node.finalCols[1]!.name).toBe('ts');
+      expect(node.finalCols[2]!.name).toBe('dur');
     });
 
     it('should have correct column types', () => {
       const node = makeNode({start: '100', end: '500', isDynamic: false});
 
       expect(node.finalCols.length).toBe(3);
-      expect(node.finalCols[0].name).toBe('id');
-      expect(node.finalCols[0].type).toEqual({kind: 'int'});
-      expect(node.finalCols[1].name).toBe('ts');
-      expect(node.finalCols[1].type).toEqual({kind: 'timestamp'});
-      expect(node.finalCols[2].name).toBe('dur');
-      expect(node.finalCols[2].type).toEqual({kind: 'duration'});
+      expect(node.finalCols[0]!.name).toBe('id');
+      expect(node.finalCols[0]!.type).toEqual({kind: 'int'});
+      expect(node.finalCols[1]!.name).toBe('ts');
+      expect(node.finalCols[1]!.type).toEqual({kind: 'timestamp'});
+      expect(node.finalCols[2]!.name).toBe('dur');
+      expect(node.finalCols[2]!.type).toEqual({kind: 'duration'});
     });
   });
 

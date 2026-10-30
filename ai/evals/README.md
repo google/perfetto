@@ -6,7 +6,7 @@ what `trace_processor` prints, to the docs) make it do a better job, and
 at what cost? Reading a skill tells you whether it looks right; only
 running an agent against it tells you whether it helps. What the first
 rounds found, and how it shaped the skill, is summarised in
-[`ai/skills/README.md`](../skills/README.md#design-choices-and-the-evidence-behind-them).
+[`ai/skills/CONTRIBUTING.md`](../skills/CONTRIBUTING.md#design-choices-and-the-evidence-behind-them).
 
 ## How a trial works
 

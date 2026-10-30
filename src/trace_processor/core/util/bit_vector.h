@@ -87,16 +87,22 @@ struct BitVector {
   // ceil(size / 8) bytes holding bit i at byte i / 8, bit i % 8. This is the
   // layout of the words below, so the bitmap is taken verbatim.
   static BitVector CreateFromBitmap(const uint8_t* bitmap, uint64_t size) {
-    static_assert(PERFETTO_IS_LITTLE_ENDIAN());
     if (size == 0) {
       return {};
     }
     auto words = FlexVector<uint64_t>::CreateWithSize((size + 63u) / 64u);
     size_t bitmap_bytes = static_cast<size_t>((size + 7u) / 8u);
     size_t word_bytes = words.size() * sizeof(uint64_t);
+#if PERFETTO_IS_LITTLE_ENDIAN()
     memcpy(words.data(), bitmap, bitmap_bytes);
     memset(reinterpret_cast<uint8_t*>(words.data()) + bitmap_bytes, 0,
            word_bytes - bitmap_bytes);
+#else
+    memset(words.data(), 0, word_bytes);
+    for (size_t i = 0; i < bitmap_bytes; ++i) {
+      words[i / 8u] |= static_cast<uint64_t>(bitmap[i]) << (8u * (i % 8u));
+    }
+#endif
     // Bits past `size` are unspecified in the source bitmap.
     if (size % 64u != 0u) {
       words.back() &= (1ull << (size % 64u)) - 1ull;
@@ -316,36 +322,49 @@ struct BitVector {
     }
   }
 
-  // Sets bits [at, at + count) from `src` bits [from, from + count). Bits in
-  // the destination range which are unset in the source are left alone, so the
+  // ORs `src` bits [from, from + count) into bits [at, at + count), so the
   // range has to start clear to be a copy rather than a merge.
-  //
-  // A partial first word, whole destination words, then a partial last word:
-  // each destination word costs one read-modify-write, where a bit at a time
-  // would serialise on it.
-  void SetBitsFrom(uint64_t at,
+  void OrBitsFrom(uint64_t at,
+                  const BitVector& src,
+                  uint64_t from,
+                  uint64_t count) {
+    ForEachSourceChunk(
+        at, src, from, count,
+        [this](uint64_t a, uint64_t word, uint64_t n) { OrBits(a, word, n); });
+  }
+
+  // ANDs `src` bits [from, from + count) into bits [at, at + count).
+  void AndBitsFrom(uint64_t at,
                    const BitVector& src,
                    uint64_t from,
                    uint64_t count) {
-    PERFETTO_DCHECK(at + count <= size_);
-    PERFETTO_DCHECK(from + count <= src.size_);
-    if (count == 0) {
-      return;
+    ForEachSourceChunk(
+        at, src, from, count,
+        [this](uint64_t a, uint64_t word, uint64_t n) { AndBits(a, word, n); });
+  }
+
+  // ORs the low `n` bits of `word`, whose other bits are clear, into bits
+  // [at, at + n).
+  PERFETTO_ALWAYS_INLINE void OrBits(uint64_t at, uint64_t word, uint64_t n) {
+    PERFETTO_DCHECK(n <= 64 && at + n <= size_);
+    PERFETTO_DCHECK(n == 64 || (word >> n) == 0);
+    uint64_t shift = at % 64;
+    words_[at / 64] |= word << shift;
+    if (shift && shift + n > 64) {
+      words_[at / 64 + 1] |= word >> (64 - shift);
     }
-    uint64_t done = 0;
-    // Up to the destination's next word boundary.
-    if (at % 64 != 0) {
-      uint64_t n = std::min(count, 64 - at % 64);
-      words_[at / 64] |= src.ReadBits(from, n) << (at % 64);
-      done = n;
-    }
-    // Whole destination words.
-    for (; count - done >= 64; done += 64) {
-      words_[(at + done) / 64] |= src.ReadBits(from + done, 64);
-    }
-    // The tail short of a word.
-    if (done < count) {
-      words_[(at + done) / 64] |= src.ReadBits(from + done, count - done);
+  }
+
+  // ANDs the low `n` bits of `word`, whose other bits are clear, into bits
+  // [at, at + n).
+  PERFETTO_ALWAYS_INLINE void AndBits(uint64_t at, uint64_t word, uint64_t n) {
+    PERFETTO_DCHECK(n <= 64 && at + n <= size_);
+    PERFETTO_DCHECK(n == 64 || (word >> n) == 0);
+    uint64_t cleared = n == 64 ? ~word : ((uint64_t{1} << n) - 1) & ~word;
+    uint64_t shift = at % 64;
+    words_[at / 64] &= ~(cleared << shift);
+    if (shift && shift + n > 64) {
+      words_[at / 64 + 1] &= ~(cleared >> (64 - shift));
     }
   }
 
@@ -407,6 +426,23 @@ struct BitVector {
   }
 
  private:
+  // Calls `fn(at, word, n)` for `src` bits [from, from + count) in chunks which
+  // each fall in one destination word, so each word is written once.
+  template <typename Fn>
+  void ForEachSourceChunk(uint64_t at,
+                          const BitVector& src,
+                          uint64_t from,
+                          uint64_t count,
+                          Fn fn) {
+    PERFETTO_DCHECK(at + count <= size_);
+    PERFETTO_DCHECK(from + count <= src.size_);
+    for (uint64_t done = 0; done < count;) {
+      uint64_t n = std::min(count - done, 64 - (at + done) % 64);
+      fn(at + done, src.ReadBits(from + done, n), n);
+      done += n;
+    }
+  }
+
   // Software emulation of the x64 PEXT instruction. Extracts bits from |word|
   // at positions where |mask| has set bits, packing them into the low bits.
   // See https://www.felixcloutier.com/x86/pext for details.

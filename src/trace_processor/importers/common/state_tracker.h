@@ -33,7 +33,7 @@ class TraceProcessorContext;
 
 class StateTracker {
  public:
-  using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter*)>;
+  using SetArgsCallback = std::function<void(ArgsInserter&)>;
 
   explicit StateTracker(TraceProcessorContext*);
   virtual ~StateTracker();

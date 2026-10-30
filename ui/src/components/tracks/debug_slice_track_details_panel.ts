@@ -185,7 +185,7 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
       if (key.startsWith(RAW_PREFIX)) {
         this.data.rawCols[key.substr(RAW_PREFIX.length)] = (
           row as {[key: string]: SqlValue}
-        )[key];
+        )[key]!;
       }
     }
 

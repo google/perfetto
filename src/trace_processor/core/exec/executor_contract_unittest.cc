@@ -26,6 +26,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/combine_batches.h"
 #include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/empty_source.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
@@ -42,7 +43,7 @@ using testing::ElementsAre;
 
 // A buffer from `context` holding `values`.
 ColumnBuffer Filled(Context& context, const std::vector<int64_t>& values) {
-  ColumnBuffer buffer = context.TakeBuffer();
+  ColumnBuffer buffer = context.TakeBuffer(sizeof(int64_t));
   std::copy(values.begin(), values.end(), buffer.chunk().Values<int64_t>());
   return buffer;
 }
@@ -63,13 +64,13 @@ TEST(ExecutorContractTest, CopiesOfABatchHoldItsBuffers) {
     second.CopyFrom(published);
   }
   // Still held, so not handed out again.
-  EXPECT_NE(&context.TakeBuffer().chunk(), held);
+  EXPECT_NE(&context.TakeBuffer(sizeof(int64_t)).chunk(), held);
   first.Reset();
-  EXPECT_NE(&context.TakeBuffer().chunk(), held);
+  EXPECT_NE(&context.TakeBuffer(sizeof(int64_t)).chunk(), held);
   EXPECT_THAT(test::ReadColumn<int64_t>(second, 0), ElementsAre(10, 20, 30));
   second.Reset();
   // The last copy gone, it is the first handed out again.
-  EXPECT_EQ(&context.TakeBuffer().chunk(), held);
+  EXPECT_EQ(&context.TakeBuffer(sizeof(int64_t)).chunk(), held);
 }
 
 TEST(ExecutorContractTest, SelectionsMatchScalarRows) {
@@ -134,7 +135,8 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
   RowStore store;
   ASSERT_TRUE(store.Append(input).ok());
   ASSERT_EQ(
-      store.View(&output, Span<const uint32_t>(rows), test::TestContext()), 4u);
+      store.Gather(&output, Span<const uint32_t>(rows), test::TestContext()),
+      4u);
   for (uint32_t i = 0; i < 4; ++i) {
     double value = output.Value<double>(0, i);
     uint64_t actual;
@@ -153,7 +155,7 @@ TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
                                           nullptr, batch * 128);
     in.AddBorrowedColumn(original);
     in.AddBorrowedColumn(original);
-    ColumnBuffer local = context.TakeBuffer();
+    ColumnBuffer local = context.TakeBuffer(sizeof(int64_t));
     ColumnChunk& chunk = local.chunk();
     chunk.validity = BitVector::CreateWithSize(129);
     for (uint32_t r = 0; r < 129; ++r) {
@@ -193,9 +195,9 @@ TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
     }
     RowBatch out;
     ASSERT_EQ(
-        store.View(&out,
-                   Span<const uint32_t>(order.data(), order.data() + count),
-                   context),
+        store.Gather(&out,
+                     Span<const uint32_t>(order.data(), order.data() + count),
+                     context),
         count);
     EXPECT_NE(out.column(0).data(), stable.data());
     EXPECT_TRUE(out.selection().prefix());
@@ -386,6 +388,22 @@ TEST(ExecutorContractTest, SourceFailureDoesNotFinalizeBufferedOperators) {
   uint32_t pulls = source.pulls;
   EXPECT_FALSE(cursor.Next());
   EXPECT_EQ(source.pulls, pulls);
+}
+
+// A plan known to return no rows still finishes its operators, every run.
+TEST(ExecutorContractTest, EmptySourceFinishesOperators) {
+  EmptySource source;
+  std::vector<Pipeline::Step> ops;
+  auto probe = std::make_unique<FinishProbe>();
+  FinishProbe* observed = probe.get();
+  ops.push_back(std::move(probe));
+  Pipeline pipeline(source, std::move(ops));
+  RowCursor cursor(pipeline);
+  for (uint32_t run = 1; run <= 2; ++run) {
+    EXPECT_FALSE(cursor.Open());
+    EXPECT_TRUE(cursor.status().ok());
+    EXPECT_EQ(observed->finishes, run);
+  }
 }
 
 TEST(ExecutorContractTest, CombineBatchesKeepsOrder) {

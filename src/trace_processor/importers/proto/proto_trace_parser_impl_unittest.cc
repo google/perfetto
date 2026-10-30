@@ -39,7 +39,6 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
@@ -246,8 +245,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.machine_tracker.reset(
         new MachineTracker(&context_, kDefaultMachineId));
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
-    context_.global_args_tracker =
-        std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.args_tracker =
+        std::make_unique<ArgsTracker>(context_.storage.get());
     context_.global_metadata_tracker =
         std::make_unique<GlobalMetadataTracker>(context_.storage.get());
     context_.global_stats_tracker =

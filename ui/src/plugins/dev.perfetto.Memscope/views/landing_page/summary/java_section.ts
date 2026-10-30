@@ -266,7 +266,7 @@ async function loadRetainers(
   const retainerOf = new Map<string, ClassRetainer[]>();
   try {
     await trace.engine.query(
-      'INCLUDE PERFETTO MODULE android.memory.heap_graph.raw_dominator_tree;',
+      'INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;',
     );
     await trace.engine.query('INCLUDE PERFETTO MODULE graphs.scan;');
     const res = await trace.engine.query(`
@@ -315,7 +315,7 @@ async function loadRetainers(
         FROM _graph_scan!(
           (
             SELECT d.idom_id AS source_node_id, d.id AS dest_node_id
-            FROM _raw_heap_graph_dominator_tree d
+            FROM heap_graph_dominator_tree d
             JOIN obj ob ON ob.id = d.id
             WHERE d.idom_id IS NOT NULL
           ),
@@ -323,7 +323,7 @@ async function loadRetainers(
             SELECT ob.id,
               CASE WHEN ob.is_app = 1 THEN ob.id ELSE -1 END AS nearest_app_id
             FROM obj ob
-            JOIN _raw_heap_graph_dominator_tree d ON d.id = ob.id
+            JOIN heap_graph_dominator_tree d ON d.id = ob.id
             WHERE d.idom_id IS NULL
           ),
           (nearest_app_id),
@@ -404,7 +404,7 @@ async function loadRetainers(
     // Drop trailing owners that are tiny next to the class's biggest one; the
     // SQL already ordered each list largest-first.
     for (const [cls, list] of retainerOf) {
-      const cutoff = list[0].bytes * RETAINER_MIN_SHARE;
+      const cutoff = list[0]!.bytes * RETAINER_MIN_SHARE;
       retainerOf.set(
         cls,
         list.filter((r) => r.bytes >= cutoff),

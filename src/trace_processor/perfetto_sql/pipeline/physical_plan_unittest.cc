@@ -40,6 +40,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 #include "src/trace_processor/perfetto_sql/pipeline/test_catalog.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -139,7 +140,7 @@ class PhysicalPlanTest : public ::testing::Test {
     LogicalPlan moved = MoveSqlSourcesToDataframeArgs(std::move(plan)).plan;
     RETURN_IF_ERROR(
         BindDataframeArgs(moved, DataframeArgs(dataframes), &pool_));
-    return Lower(moved);
+    return Lower(moved, {&pool_});
   }
 
   std::vector<std::string> Names(const PhysicalPlan& plan) {
@@ -163,7 +164,8 @@ class PhysicalPlanTest : public ::testing::Test {
     }
     Rows out;
     RowCursor cursor(plan.source());
-    for (bool row = cursor.Open(); row; row = cursor.Next()) {
+    for (bool row = cursor.Open(plan.filter_values()); row;
+         row = cursor.Next()) {
       out.emplace_back(*IntAt(cursor, id_column), IntAt(cursor, value_column));
     }
     if (!cursor.status().ok()) {
@@ -195,7 +197,7 @@ TEST_F(PhysicalPlanTest, PruningACopyLeavesTheOriginalResultsIntact) {
   copy.output().resize(1);
   PruneColumns(copy);
 
-  auto physical = Lower(*original);
+  auto physical = Lower(*original, {&pool_});
   ASSERT_TRUE(physical.ok()) << physical.status().message();
   auto rows = Run(**physical, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
@@ -289,6 +291,83 @@ TEST_F(PhysicalPlanTest, OnlySmallBatchesAreCombined) {
             "IntervalFlatten(#0, #1; COUNT(*)) | CombineBatches | Sort(#2)");
 }
 
+// DISTINCT compares only the columns of the row at that stage: `id`, dropped
+// before it, does not make rows differ.
+TEST_F(PhysicalPlanTest, DistinctComparesTheRowAtItsStage) {
+  Exec("CREATE TABLE t(id INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO t VALUES (0, 1), (1, 2), (2, 1), (3, 3), (4, 2)");
+  auto plan = Plan("FROM t |> SELECT cpu |> DISTINCT");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+
+  uint32_t cpu_column = (*plan)->columns()[0].index;
+  std::vector<int64_t> values;
+  RowCursor cursor((*plan)->source());
+  for (bool row = cursor.Open(); row; row = cursor.Next()) {
+    values.push_back(*IntAt(cursor, cpu_column));
+  }
+  ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
+  EXPECT_THAT(values, ElementsAre(1, 2, 3));
+}
+
+// WHERE keeps the rows matching every comparison. A literal is compared as
+// SQL compares it with the column, whatever their types: an integer column
+// with a fraction and a double column with an integer. The columns keep their
+// types. Each comparison drops at least one row.
+TEST_F(PhysicalPlanTest, WhereKeepsRowsMatchingEveryComparison) {
+  Exec("CREATE TABLE t(cpu INTEGER, value REAL)");
+  Exec("INSERT INTO t VALUES (1, 3.5), (5, 2.5), (3, 1.5), (9, 3.5), (7, 2.5)");
+  auto plan = Plan(
+      "FROM t |> WHERE cpu > 2.5 AND cpu < 9 AND value >= 2 |> SELECT cpu");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+
+  uint32_t cpu_column = (*plan)->columns()[0].index;
+  std::vector<int64_t> values;
+  RowCursor cursor((*plan)->source());
+  for (bool row = cursor.Open((*plan)->filter_values()); row;
+       row = cursor.Next()) {
+    values.push_back(*IntAt(cursor, cpu_column));
+  }
+  ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
+  EXPECT_THAT(values, ElementsAre(5, 7));
+}
+
+// WHERE also compares strings, matches GLOB patterns, keeps the rows whose
+// value an IN list holds and tests for nulls.
+TEST_F(PhysicalPlanTest, WhereComparesStringsListsAndNulls) {
+  Exec("CREATE TABLE t(id INTEGER, name TEXT, v INTEGER)");
+  Exec(
+      "INSERT INTO t VALUES (1, 'foo', 10), (2, 'bar', NULL), (3, NULL, 30), "
+      "(4, 'it''s', 40), (5, 'food', 50)");
+  auto ids = [this](const std::string& condition) {
+    auto plan = Plan("FROM t |> WHERE " + condition + " |> SELECT id");
+    PERFETTO_CHECK(plan.ok());
+    uint32_t id_column = (*plan)->columns()[0].index;
+    std::vector<int64_t> out;
+    RowCursor cursor((*plan)->source());
+    for (bool row = cursor.Open((*plan)->filter_values()); row;
+         row = cursor.Next()) {
+      out.push_back(*IntAt(cursor, id_column));
+    }
+    PERFETTO_CHECK(cursor.status().ok());
+    return out;
+  };
+  EXPECT_THAT(ids("name = 'foo'"), ElementsAre(1));
+  EXPECT_THAT(ids("name == 'it''s'"), ElementsAre(4));
+  EXPECT_THAT(ids("name <> 'foo'"), ElementsAre(2, 4, 5));
+  EXPECT_THAT(ids("name = 'absent'"), ElementsAre());
+  EXPECT_THAT(ids("name != 'absent'"), ElementsAre(1, 2, 4, 5));
+  EXPECT_THAT(ids("name < 'foo'"), ElementsAre(2));
+  EXPECT_THAT(ids("name GLOB 'fo*'"), ElementsAre(1, 5));
+  EXPECT_THAT(ids("name IN ('bar', 'food', 'absent')"), ElementsAre(2, 5));
+  EXPECT_THAT(ids("v IN (10, 40.0, 99)"), ElementsAre(1, 4));
+  EXPECT_THAT(ids("name IS NULL"), ElementsAre(3));
+  EXPECT_THAT(ids("v IS NOT NULL AND v NOTNULL"), ElementsAre(1, 3, 4, 5));
+  EXPECT_THAT(ids("v BETWEEN 20 AND 45"), ElementsAre(3, 4));
+  // Numbers sort before strings, as in SQL.
+  EXPECT_THAT(ids("name > 5"), ElementsAre(1, 2, 4, 5));
+  EXPECT_THAT(ids("v = 'foo'"), ElementsAre());
+}
+
 // Each operand is grouped by its PER keys and sorted by ts within each group,
 // unless it already is.
 TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {
@@ -303,19 +382,65 @@ TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {
   // ts and dur are converted to Int64. So is cpu, because it has a different
   // integer type in each dataframe.
   EXPECT_EQ(PhysicalPlanToString(**plan),
-            "side: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | AssertType(#2 to Int64) | "
+            "side: DataframeScan | AssertType(#2 to Int64) | "
+            "AssertType(#0 to Int64) | AssertType(#1 to Int64) | "
             "GroupedSort(#2; #0)\n"
-            "side: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | AssertType(#2 to Int64) | "
+            "side: DataframeScan | AssertType(#2 to Int64) | "
+            "AssertType(#0 to Int64) | AssertType(#1 to Int64) | "
             "GroupedSort(#2; #0)\n"
             "main: IntervalIntersect(#0, #1, keys: #2, groups: #3; #0, #1, "
             "keys: #2, groups: #3)");
 }
 
+// The input is grouped by its PER columns and sorted by ts within each group.
+// The background is read from a side pipeline and sorted by ts within each of
+// its lanes.
+TEST_F(PhysicalPlanTest, FillGapsOrdersBothSides) {
+  Exec("CREATE TABLE spans(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO spans VALUES (5, 1, 1), (0, 1, 0)");
+  Exec("CREATE TABLE windows(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO windows VALUES (9, 10, 1), (0, 10, 0)");
+  auto plan = Plan("FROM spans |> INTERVAL FILL GAPS WITH windows PER cpu");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "side: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0)\n"
+            "main: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0) | "
+            "IntervalFillGaps(#0, #1, keys: #2, groups: #3; "
+            "background: #0, #1, keys: #2, groups: #3)");
+}
+
 // An intersection needs its operands' bounds and PER columns, but only passes
 // on the columns something after it reads: it neither buffers nor gathers
 // the rest.
+TEST_F(PhysicalPlanTest, ASubpipelineInFromFusesIntoItsParent) {
+  Exec("CREATE TABLE spans(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO spans VALUES (5, 1, 1), (0, 1, 0)");
+  auto plan = Plan("FROM (FROM spans |> WHERE cpu > 0) |> DISTINCT");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "main: DataframeScan | Filter(#2 > ?0) | Distinct(#0, #1, #2)");
+}
+
+TEST_F(PhysicalPlanTest, ASubpipelineBackgroundIsASidePipeline) {
+  Exec("CREATE TABLE spans(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO spans VALUES (5, 1, 1), (0, 1, 0)");
+  Exec("CREATE TABLE windows(ts INTEGER, dur INTEGER, cpu INTEGER, x INTEGER)");
+  Exec("INSERT INTO windows VALUES (9, 10, 1, 0), (0, 10, 0, 0)");
+  auto plan = Plan(
+      "FROM spans |> INTERVAL FILL GAPS WITH "
+      "(FROM windows |> WHERE x = 0 |> SELECT ts, dur, cpu) PER cpu");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "side: DataframeScan | Filter(#3 = ?0) | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | CombineBatches | GroupedSort(#2; #0)\n"
+            "main: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0) | "
+            "IntervalFillGaps(#0, #1, keys: #2, groups: #3; "
+            "background: #0, #1, keys: #2, groups: #4)");
+}
+
 TEST_F(PhysicalPlanTest, IntersectionCarriesOnlyColumnsUsedAfterIt) {
   Exec("CREATE TABLE a(ts INTEGER, dur INTEGER, cpu INTEGER, x INTEGER)");
   Exec("INSERT INTO a VALUES (0, 10, 1, 7)");
@@ -356,7 +481,9 @@ TEST_F(PhysicalPlanTest, OutputBindingsUseIdsRatherThanBatchPositions) {
   ColumnId total = logical.output().back().id;
   ColumnId id = logical.output().front().id;
   // Project and alias the same value twice, independently of the source names.
-  logical.output() = {{"total", total}, {"id", id}, {"again", total}};
+  logical.output() = {{logical.names().Intern("total"), total},
+                      {logical.names().Intern("id"), id},
+                      {logical.names().Intern("again"), total}};
   auto plan = std::move(*LowerReadingSql(std::move(logical)));
   EXPECT_THAT(Names(*plan), ElementsAre("total", "id", "again"));
   EXPECT_NE(plan->columns()[0].index, total);
@@ -410,8 +537,9 @@ TEST_F(PhysicalPlanTest, DiagnosticsUseDefiningNamesAfterProjection) {
   ASSERT_TRUE(parser.Next()) << parser.status().message();
   auto logical = std::get<PerfettoSqlParser::Pipeline>(parser.statement()).plan;
   // Neither the original input name nor its value is exposed in the result.
-  logical.output() = {{"id", logical.output().front().id},
-                      {"renamed_total", logical.output().back().id}};
+  logical.output() = {
+      {logical.names().Intern("id"), logical.output().front().id},
+      {logical.names().Intern("renamed_total"), logical.output().back().id}};
   EXPECT_THAT(LowerReadingSql(std::move(logical)).status().message(),
               HasSubstr("'self'"));
 }
@@ -435,9 +563,10 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   auto moved = MoveSqlSourcesToDataframeArgs(std::move(*plan));
   EXPECT_TRUE(moved.args.empty());
-  auto read = DeserializePlan(SerializePlan(moved.plan), catalog_);
+  PlanKey key(0, 0);
+  auto read = DeserializePlan(SerializePlan(moved.plan, key), key, catalog_);
   ASSERT_TRUE(read.ok()) << read.status().message();
-  auto lowered = Lower(*read);
+  auto lowered = Lower(*read, {&pool_});
   ASSERT_TRUE(lowered.ok()) << lowered.status().message();
   EXPECT_THAT(Names(**lowered),
               ElementsAre("id", "parent_id", "own", "copy", "total"));
@@ -445,6 +574,41 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 10), Pair(1, 20), Pair(2, 30), Pair(3, 40)));
+}
+
+// 1 -> 2, 1 -> 3, 2 -> 4, 3 -> 4. Each input is read from its own side
+// pipeline with its ids as Int64. The rows come out numbered and parent first,
+// so a fold down needs nothing more and a fold up only reverses them. Every
+// object's parent_id is junk which the tree's own replaces.
+TEST_F(PhysicalPlanTest, FoldsAfterAGraphTreeReuseItsNumbering) {
+  Exec("CREATE TABLE objects(id INTEGER, parent_id INTEGER, self INTEGER)");
+  Exec(
+      "INSERT INTO objects VALUES (4, 99, 40), (2, 99, 20), (3, 99, 30), "
+      "(1, 99, 10)");
+  Exec("CREATE TABLE refs(src INTEGER, dst INTEGER)");
+  Exec("INSERT INTO refs VALUES (3, 4), (1, 3), (2, 4), (1, 2)");
+  auto plan = Plan(
+      "GRAPH DOMINATOR TREE NODES objects EDGES refs FROM (SELECT 1 AS id) "
+      "|> TREE ACCUMULATE DOWN COUNT(*) AS depth "
+      "|> TREE ACCUMULATE UP SUM(self) AS retained");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "side: DataframeScan | AssertType(#0 to Int64)\n"
+            "side: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64)\n"
+            "side: DataframeScan | AssertType(#0 to Int64)\n"
+            "main: GraphTree(DOMINATOR; nodes: #0 keeping #0, #1; "
+            "edges: #0 -> #1; seeds: #0) | TreeAccumulateDown(#3, #4; "
+            "COUNT(*)) | TreeChildFirst(#3, #4) | AssertType(#1 to Int64) | "
+            "TreeAccumulateUp(#3, #4; SUM(#1))");
+  auto depth = Run(**plan, "depth");
+  ASSERT_TRUE(depth.ok()) << depth.status().message();
+  EXPECT_THAT(*depth,
+              ElementsAre(Pair(1, 1), Pair(2, 2), Pair(3, 2), Pair(4, 2)));
+  auto retained = Run(**plan, "retained");
+  ASSERT_TRUE(retained.ok()) << retained.status().message();
+  EXPECT_THAT(*retained,
+              ElementsAre(Pair(1, 100), Pair(2, 20), Pair(3, 30), Pair(4, 40)));
 }
 
 }  // namespace

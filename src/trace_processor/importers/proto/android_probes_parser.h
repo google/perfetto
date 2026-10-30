@@ -65,8 +65,6 @@ class AndroidProbesParser {
   TraceProcessorContext* const context_;
   AndroidProbesTracker* const tracker_;
 
-  std::unique_ptr<ArgsTracker> power_rails_args_tracker_;
-
   const StringId energy_consumer_id_;
   const StringId consumer_type_id_;
   const StringId ordinal_id_;

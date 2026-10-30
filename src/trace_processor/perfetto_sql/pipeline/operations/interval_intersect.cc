@@ -32,6 +32,7 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
+#include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
@@ -43,22 +44,7 @@ namespace ex = core::exec;
 
 const OperationRegistration IntervalIntersect::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION, &BuildPlan,
-    OperationRegistration::Encoding{2, true, &DecodePlan}};
-
-namespace {
-
-// The column of a relation named `name`, or nothing when it has none.
-std::optional<ColumnId> FindColumn(const std::vector<NamedColumn>& columns,
-                                   const std::string& name) {
-  for (const NamedColumn& column : columns) {
-    if (base::CaseInsensitiveEqual(column.name, name)) {
-      return column.id;
-    }
-  }
-  return std::nullopt;
-}
-
-}  // namespace
+    OperationRegistration::Encoding{2, &MakeOperation<IntervalIntersect>}};
 
 base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
   c->SetOperation("INTERVAL INTERSECTION");
@@ -74,22 +60,34 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
       syntaqlite_node_is_present(n->per)
           ? Node<SyntaqlitePerfettoPerColumnList>(c->parser(), n->per)
           : nullptr;
-  uint32_t key_count = per ? syntaqlite_list_count(per) : 0;
+  // A PER column listed again adds nothing to the grouping.
+  std::vector<std::pair<NameId, uint32_t>> per_columns;
+  for (uint32_t k = 0; per && k < syntaqlite_list_count(per); k++) {
+    uint32_t col_id = syntaqlite_list_child_id(per, k);
+    NameId name =
+        c->Name(Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id)->name);
+    if (std::none_of(per_columns.begin(), per_columns.end(),
+                     [&](const auto& p) { return c->Same(p.first, name); })) {
+      per_columns.emplace_back(name, col_id);
+    }
+  }
 
   IntervalIntersect isect;
   // The region's bounds are the operation's own, so they are named before an
   // operand can bind anything.
-  isect.ts_ = c->AddColumn("ts", core::Int64{});
-  isect.dur_ = c->AddColumn("dur", core::Int64{});
+  NameId ts_name = c->Name("ts");
+  NameId dur_name = c->Name("dur");
+  isect.ts_ = c->AddColumn(ts_name, core::Int64{});
+  isect.dur_ = c->AddColumn(dur_name, core::Int64{});
 
-  c->Append({"ts", isect.ts_}, node);
-  c->Append({"dur", isect.dur_}, node);
+  c->Append({ts_name, isect.ts_}, node);
+  c->Append({dur_name, isect.dur_}, node);
   std::vector<PlanNodeId> children;
   for (uint32_t i = 0; i < count; i++) {
     uint32_t source_id = syntaqlite_list_child_id(list, i);
     const auto* source =
         Node<SyntaqlitePerfettoPipeSource>(c->parser(), source_id);
-    std::optional<std::string> alias = Scan::SourceQualifier(c, *source);
+    std::optional<NameId> alias = Scan::SourceQualifier(c, *source);
     if (!alias) {
       return c->Expected(source_id,
                          "an alias for the relation, as in `(...) AS x`");
@@ -99,33 +97,35 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
     }
     ASSIGN_OR_RETURN(SourceRelation relation,
                      Scan::BuildRelation(c, source_id));
-    std::optional<ColumnId> ts = FindColumn(relation.columns, "ts");
-    std::optional<ColumnId> dur = FindColumn(relation.columns, "dur");
+    std::optional<ColumnId> ts = c->FindColumn(relation.columns, ts_name);
+    std::optional<ColumnId> dur = c->FindColumn(relation.columns, dur_name);
     if (!ts || !dur) {
-      return c->Expected(
-          source_id, *alias + " to have a " + (ts ? "dur" : "ts") + " column");
+      return c->Expected(source_id, c->Text(*alias) + " to have a " +
+                                        (ts ? "dur" : "ts") + " column");
     }
     IntervalIntersect::Operand operand;
     operand.ts = *ts;
     operand.dur = *dur;
-    for (uint32_t k = 0; k < key_count; k++) {
-      uint32_t col_id = syntaqlite_list_child_id(per, k);
-      const auto* col = Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id);
-      std::string name = SpanText(c->parser(), col->name);
-      std::optional<ColumnId> key = FindColumn(relation.columns, name);
+    for (const auto& [name, col_id] : per_columns) {
+      std::optional<ColumnId> key = c->FindColumn(relation.columns, name);
       if (!key) {
-        return c->Expected(col_id, *alias + " to have a " + name + " column");
+        return c->Expected(col_id, c->Text(*alias) + " to have a " +
+                                       c->Text(name) + " column");
       }
       operand.keys.push_back(*key);
     }
-    // Every operand column is carried, reachable through the operand's alias.
-    // A PER column holds the same value in every operand, so the first
-    // operand's is also the one a bare name finds.
+    // Every operand column is carried, reachable through the operand's alias
+    // and, for most, by its bare name too. The region's ts and dur are what
+    // a bare ts and dur mean, so an operand's own are found only through its
+    // alias. A PER column holds the same value in every operand, so only the
+    // first operand's is found by its bare name.
     Compiler::Alias operand_alias{*alias, {}};
     for (const NamedColumn& column : relation.columns) {
       bool is_key = std::find(operand.keys.begin(), operand.keys.end(),
                               column.id) != operand.keys.end();
-      c->Append(column, source_id, /*qualified_only=*/!(is_key && i == 0));
+      bool is_bound = column.id == operand.ts || column.id == operand.dur;
+      c->Append(column, source_id,
+                /*qualified_only=*/is_bound || (is_key && i != 0));
       operand_alias.columns.push_back(c->row().back());
       operand.carried.push_back(column.id);
     }
@@ -170,15 +170,11 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
   c->DeclareColumn(isect.ts_);
   c->DeclareColumn(isect.dur_);
 
-  // Each operand is read from its own side pipeline, which converts ts and
-  // dur to Int64 if needed.
+  // Each operand is read from its own side pipeline.
   std::vector<Lowering*> sides;
   for (uint32_t i = 0; i < isect.operands_.size(); i++) {
-    const IntervalIntersect::Operand& operand = isect.operands_[i];
     Lowering& side = c->AddSidePipeline();
     side.LowerNode(children[i]);
-    side.RequireType(operand.ts, core::Int64{});
-    side.RequireType(operand.dur, core::Int64{});
     sides.push_back(&side);
   }
 
@@ -194,22 +190,13 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
     c->RequireCommonType(same);
   }
 
-  std::vector<ex::IntervalIntersectOperand> inputs;
+  std::vector<ex::CollectedInputSpec> inputs;
   for (uint32_t i = 0; i < isect.operands_.size(); i++) {
     const IntervalIntersect::Operand& operand = isect.operands_[i];
     Lowering& side = *sides[i];
-    ex::IntervalIntersectOperand lowered;
-    // The operator reads each key's intervals sorted by start.
-    std::vector<SortKey> by_start = {{operand.ts, false}};
-    side.RequireSortedWithinGroups(operand.keys, by_start);
-    if (!operand.keys.empty()) {
-      lowered.group_column = side.RequireGroupNumbers(operand.keys);
-    }
-    lowered.ts_column = side.QueryPosition(operand.ts);
-    lowered.dur_column = side.QueryPosition(operand.dur);
-    for (ColumnId key : operand.keys) {
-      lowered.key_columns.push_back(side.QueryPosition(key));
-    }
+    ex::CollectedInputSpec lowered;
+    lowered.lanes =
+        side.RequireIntervalLanes(operand.ts, operand.dur, operand.keys);
     for (ColumnId id : operand.carried) {
       lowered.retained_columns.push_back(side.QueryPosition(id));
     }
@@ -248,69 +235,17 @@ std::unique_ptr<PlanOperation> IntervalIntersect::Clone() const {
   return std::make_unique<IntervalIntersect>(*this);
 }
 
-void IntervalIntersect::Write(PlanWriter* c,
-                              const PlanNode& node,
-                              Available* available_columns) const {
-  auto& available = *available_columns;
-  const auto& isect = node.Cast<IntervalIntersect>();
-  c->writer().Str(c->plan().columns()[isect.ts_].name);
-  c->writer().Str(c->plan().columns()[isect.dur_].name);
-  c->writer().Size(isect.operands_.size());
-  c->writer().Size(isect.operands_.empty() ? 0
-                                           : isect.operands_[0].keys.size());
-  available = {isect.ts_, isect.dur_};
-  for (uint32_t k = 0; k < isect.operands_.size(); ++k) {
-    const IntervalIntersect::Operand& operand = isect.operands_[k];
-    PERFETTO_CHECK(c->plan().nodes()[node.children()[k]].Is<Scan>());
-    Available in;
-    const auto& child = c->plan().nodes()[node.children()[k]];
-    child.operation().Write(c, child, &in);
-    c->writer().Position(in, operand.ts);
-    c->writer().Position(in, operand.dur);
-    for (ColumnId id : operand.keys) {
-      c->writer().Position(in, id);
-    }
-    c->writer().Size(operand.carried.size());
-    for (ColumnId id : operand.carried) {
-      c->writer().Position(in, id);
-      available.push_back(id);
-    }
+void IntervalIntersect::Serialize(PlanCodec& c) {
+  c.Pod(&ts_);
+  c.Pod(&dur_);
+  operands_.resize(c.Count(operands_.size()));
+  PERFETTO_NO_VECTORIZE_LOOP
+  for (Operand& operand : operands_) {
+    c.Pod(&operand.ts);
+    c.Pod(&operand.dur);
+    c.Vec(&operand.keys);
+    c.Vec(&operand.carried);
   }
-}
-
-void IntervalIntersect::DecodePlan(PlanReader* c,
-                                   Available* available_columns) {
-  auto& available = *available_columns;
-  IntervalIntersect isect;
-  isect.ts_ = c->AddColumn(c->reader().Str(), core::Int64{});
-  isect.dur_ = c->AddColumn(c->reader().Str(), core::Int64{});
-  available = {isect.ts_, isect.dur_};
-  isect.operands_.resize(c->reader().Count());
-  uint32_t keys = c->reader().Count();
-  if (isect.operands_.size() < 2) {
-    c->reader().Fail();
-  }
-  std::vector<PlanNodeId> children;
-  for (IntervalIntersect::Operand& operand : isect.operands_) {
-    Scan scan;
-    Available in = Scan::ReadPayload(c, &scan);
-    if (!c->reader().ok()) {
-      return;
-    }
-    children.push_back(c->AddNode(std::move(scan)));
-    operand.ts = c->reader().Position(in);
-    operand.dur = c->reader().Position(in);
-    operand.keys.resize(keys);
-    for (ColumnId& id : operand.keys) {
-      id = c->reader().Position(in);
-    }
-    operand.carried.resize(c->reader().Count());
-    for (ColumnId& id : operand.carried) {
-      id = c->reader().Position(in);
-      available.push_back(id);
-    }
-  }
-  c->AddNode(std::move(isect), std::move(children));
 }
 
 }  // namespace perfetto::trace_processor::pipeline

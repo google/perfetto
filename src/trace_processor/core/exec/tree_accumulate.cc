@@ -162,10 +162,10 @@ bool Accumulate(
                      states, &overflow);
 
     // Written at the batch's rows, as every column of it is.
-    ColumnBuffer buffer = s.context->TakeBuffer();
+    ColumnBuffer buffer = s.context->TakeBuffer(sizeof(int64_t));
     ColumnChunk& chunk = buffer.chunk();
     int64_t* values = chunk.Values<int64_t>();
-    chunk.validity.resize(kMaxBatchRows);
+    chunk.SizeValidity();
     if (selection.prefix()) {
       function.Finalize(states, nodes, count, values, &chunk.validity);
     } else {

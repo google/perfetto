@@ -254,7 +254,7 @@ const char* GetSmapsKey(uint32_t field_id) {
 }
 
 base::StringView MaybeTruncateKworkerName(base::StringView comm) {
-  if (comm.StartsWith("kworker/")) {
+  if (base::StartsWith(comm, "kworker/")) {
     size_t delim_loc = std::min(comm.find('+', 8), comm.find('-', 8));
     if (delim_loc != base::StringView::npos) {
       return comm.substr(0, delim_loc);
@@ -671,8 +671,7 @@ void SystemProbesParser::ParseSlabInfo(int64_t ts, ConstBytes blob) {
 
   auto id = context_->event_tracker->PushCounter(ts, size_bytes, track);
   if (id) {
-    ArgsTracker tracker(context_);
-    tracker.AddArgsTo(*id)
+    context_->args_tracker->AddArgsTo(*id)
         .AddArg(pages_per_slab_id_,
                 Variadic::UnsignedInteger(slab.pages_per_slab()))
         .AddArg(num_slabs_id_, Variadic::UnsignedInteger(slab.num_slabs()));
@@ -1166,8 +1165,8 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   }
 
   if (cpu_infos.empty()) {
-    context_->import_logs_tracker->RecordAnalysisLog(
-        stats::cpu_info_empty, [](ArgsTracker::BoundInserter&) {});
+    context_->import_logs_tracker->RecordAnalysisLog(stats::cpu_info_empty,
+                                                     [](ArgsInserter&) {});
     return;
   }
 
@@ -1240,8 +1239,7 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
       context_->storage->mutable_cpu_freq_table()->Insert(cpu_freq_row);
     }
 
-    ArgsTracker args_tracker(context_);
-    auto inserter = args_tracker.AddArgsTo(ucpu);
+    auto inserter = context_->args_tracker->AddArgsTo(ucpu);
     if (auto* id = std::get_if<ArmCpuIdentifier>(&cpu_info.identifier)) {
       inserter
           .AddArg(arm_cpu_implementer,
@@ -1266,8 +1264,7 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     // version of trace_processor; they stay queryable via the raw bitmap.
     if ((cpu_info.features >> base::ArraySize(base::kCpuInfoFeatures)) != 0) {
       context_->import_logs_tracker->RecordAnalysisLog(
-          stats::cpu_info_unknown_cpu_features,
-          [](ArgsTracker::BoundInserter&) {});
+          stats::cpu_info_unknown_cpu_features, [](ArgsInserter&) {});
     }
   }
 }
@@ -1291,8 +1288,7 @@ void SystemProbesParser::ParseGpuInfo(ConstBytes blob) {
         std::string_view(uuid_hex), gpu.pci_bdf().ToStdStringView());
 
     // Store vendor-specific extra_info as args.
-    ArgsTracker args_tracker(context_);
-    auto inserter = args_tracker.AddArgsTo(ugpu);
+    auto inserter = context_->args_tracker->AddArgsTo(ugpu);
     for (auto kv_it = gpu.extra_info(); kv_it; ++kv_it) {
       protos::pbzero::GpuInfo::Gpu::KeyValue::Decoder kv(*kv_it);
       if (kv.has_key() && kv.has_value()) {

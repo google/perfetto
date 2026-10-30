@@ -82,7 +82,10 @@ source_set("base") {
     "weak_runner.h",
   ]
   if (enable_perfetto_ipc) {
-    sources += [ "unix_socket.h" ]
+    sources += [
+      "sd_notify.h",
+      "unix_socket.h",
+    ]
   }
   if (perfetto_build_with_android) {
     libs = [ "perfetto_flags_c_lib" ]

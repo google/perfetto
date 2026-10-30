@@ -54,7 +54,7 @@ SliceTracker::SliceTracker(TraceProcessorContext* context)
           context->storage->InternString("current_slice_name")) {}
 
 void SliceTracker::AddOverlapArgs(const OverlapInfo& info,
-                                  ArgsTracker::BoundInserter& inserter) const {
+                                  ArgsInserter& inserter) const {
   inserter.AddArg(overlap_start_key_, Variadic::Integer(info.start));
   inserter.AddArg(overlap_end_key_, Variadic::Integer(info.end));
   inserter.AddArg(overlap_conflicting_name_key_,
@@ -67,7 +67,7 @@ void SliceTracker::AddOverlapArgs(const OverlapInfo& info,
 
 void SliceTracker::AddMaxDepthArgs(StringId parent_name,
                                    StringId current_name,
-                                   ArgsTracker::BoundInserter& inserter) const {
+                                   ArgsInserter& inserter) const {
   inserter.AddArg(max_depth_parent_name_key_, Variadic::String(parent_name));
   inserter.AddArg(max_depth_current_name_key_, Variadic::String(current_name));
 }
@@ -111,8 +111,7 @@ void SliceTracker::LogMaxDepthExceeded(const SliceInfo& parent,
 
   context_->import_logs_tracker->RecordParserLog(
       stats::slice_max_depth_exceeded, timestamp,
-      [this, parent_name_id,
-       current_name_id](ArgsTracker::BoundInserter& inserter) {
+      [this, parent_name_id, current_name_id](ArgsInserter& inserter) {
         AddMaxDepthArgs(parent_name_id, current_name_id, inserter);
       });
 }
@@ -248,7 +247,7 @@ ArgsInserter* SliceTracker::GetArgsInserter(SliceInfo& slice_info, SliceId id) {
   // Lazily bind the slice's inserter; reused so all its args merge into one
   // set.
   if (!slice_info.args) {
-    slice_info.args = ArgsTracker(context_).AddArgsTo(id);
+    slice_info.args = context_->args_tracker->AddArgsTo(id);
   }
   return &*slice_info.args;
 }
@@ -295,7 +294,7 @@ std::optional<uint32_t> SliceTracker::MatchingIncompleteSliceIndex(
 
 void SliceTracker::MaybeAddTranslatableArgs(SliceInfo& slice_info) {
   PERFETTO_DCHECK(slice_info.args);
-  if (!slice_info.args->NeedsTranslation(*context_->args_translation_table)) {
+  if (!context_->args_translation_table->NeedsTranslation(*slice_info.args)) {
     return;
   }
   const auto& table = context_->storage->slice_table();
@@ -325,10 +324,10 @@ void SliceTracker::FlushPendingSlices() {
 
   // Translate and flush all pending args.
   for (const auto& translatable_arg : translatable_args_) {
-    ArgsTracker args_tracker(context_);
-    auto bound_inserter = args_tracker.AddArgsTo(translatable_arg.slice_id);
+    auto inserter =
+        context_->args_tracker->AddArgsTo(translatable_arg.slice_id);
     context_->args_translation_table->TranslateArgs(
-        translatable_arg.compact_arg_set, bound_inserter);
+        translatable_arg.compact_arg_set, inserter);
   }
   translatable_args_.clear();
 
@@ -466,7 +465,7 @@ bool SliceTracker::MaybeCloseStack(TrackInfo& track_info,
         // them.
         context_->import_logs_tracker->RecordParserLog(
             stats::slice_drop_overlapping_complete_event, new_ts,
-            [this, info](ArgsTracker::BoundInserter& inserter) {
+            [this, info](ArgsInserter& inserter) {
               AddOverlapArgs(info, inserter);
             });
       }

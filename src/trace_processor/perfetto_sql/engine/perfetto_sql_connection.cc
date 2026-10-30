@@ -258,11 +258,12 @@ constexpr std::array<std::string_view, 8> kTokensAllowedInMacro{
 
 bool IsTokenAllowedInMacro(const std::string& str) {
   base::StringView view = base::StringView{str};
-  return std::any_of(kTokensAllowedInMacro.begin(), kTokensAllowedInMacro.end(),
-                     [&view](const auto& allowed_token) {
-                       return view.CaseInsensitiveEq(base::StringView{
-                           allowed_token.data(), allowed_token.size()});
-                     });
+  return std::any_of(
+      kTokensAllowedInMacro.begin(), kTokensAllowedInMacro.end(),
+      [&view](const auto& allowed_token) {
+        return base::CaseInsensitiveEqual(
+            view, base::StringView{allowed_token.data(), allowed_token.size()});
+      });
 }
 
 std::string GetTokenNamesAllowedInMacro() {
@@ -1054,7 +1055,7 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
 base::StatusOr<SqliteConnection::PreparedStatement>
 PerfettoSqlConnection::PreparePipeline(const pipeline::LogicalPlan& plan,
                                        const SqlSource& source) {
-  auto sql = pipeline::SelectPipelineSql(plan);
+  auto sql = pipeline::SelectPipelineSql(plan, plan_key_);
   if (!sql.ok()) {
     return source.AddTraceback(0, sql.status());
   }
@@ -1071,9 +1072,11 @@ PerfettoSqlConnection::LoadPipeline(
     const std::vector<const dataframe::Dataframe*>& args) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "PIPELINE_LOAD");
   ASSIGN_OR_RETURN(pipeline::LogicalPlan plan,
-                   pipeline::DeserializePlan(serialized, *catalog_));
+                   pipeline::DeserializePlan(serialized, plan_key_, *catalog_));
   RETURN_IF_ERROR(pipeline::BindDataframeArgs(plan, args, pool_));
-  return pipeline::Lower(plan);
+  pipeline::LoweringContext context;
+  context.pool = pool_;
+  return pipeline::Lower(plan, context);
 }
 
 base::Status PerfettoSqlConnection::ExecuteCreateView(
@@ -1412,7 +1415,7 @@ base::Status PerfettoSqlConnection::ExecuteCreateFunction(
           state->prototype.function_name.c_str());
     }
 
-    if (!base::StringView(name).StartsWith("$")) {
+    if (!base::StartsWith(base::StringView(name), "$")) {
       return base::ErrStatus(
           "%s: invalid parameter name %s used in the SQL definition of "
           "the view function: all parameters must be prefixed with '$' not "

@@ -80,15 +80,15 @@ tables::WindowManagerTable::Id WindowManagerParser::InsertSnapshotRow(
                     ->Insert(row)
                     .id;
 
-  ArgsTracker tracker(trace_processor_context);
-  auto inserter = tracker.AddArgsTo(row_id);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage,
-                    *trace_processor_context->process_tracker);
+  auto inserter = trace_processor_context->args_tracker->AddArgsTo(row_id);
+  util::ProtoArgsEnv env(timestamp,
+                         trace_processor_context->process_tracker.get());
+  ArgsInserterSink writer(inserter);
   base::Status status =
       args_parser_.ParseMessage(pruned_proto_bytes,
                                 *util::winscope_proto_mapping::GetProtoName(
                                     tables::WindowManagerTable::Name()),
-                                nullptr /* parse all fields */, writer);
+                                nullptr /* parse all fields */, env, writer);
   if (!status.ok()) {
     trace_processor_context->stats_tracker->IncrementStats(
         stats::winscope_windowmanager_parse_errors);
@@ -194,15 +194,15 @@ void WindowManagerParser::InsertWindowContainerArgs(
               : ".com.android.internal.WindowContainerChildProto";
   protozero::ConstBytes bytes{window_container.pruned_proto.data(),
                               window_container.pruned_proto.size()};
-  ArgsTracker tracker(context_->trace_processor_context_);
 
-  auto inserter = tracker.AddArgsTo(row_id);
-  ArgsParser writer(timestamp, inserter,
-                    *context_->trace_processor_context_->storage,
-                    *context_->trace_processor_context_->process_tracker);
+  auto inserter =
+      context_->trace_processor_context_->args_tracker->AddArgsTo(row_id);
+  util::ProtoArgsEnv env(
+      timestamp, context_->trace_processor_context_->process_tracker.get());
+  ArgsInserterSink writer(inserter);
 
   base::Status status = args_parser_.ParseMessage(
-      bytes, proto_name, nullptr /* parse all fields */, writer);
+      bytes, proto_name, nullptr /* parse all fields */, env, writer);
   if (!status.ok()) {
     context_->trace_processor_context_->stats_tracker->IncrementStats(
         stats::winscope_windowmanager_parse_errors);

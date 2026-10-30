@@ -158,9 +158,7 @@ bool ArtHprofParser::TraceBlobViewIterator::ReadU2(uint16_t& value) {
   const uint8_t* d = Peek(2);
   if (!d)
     return false;
-  uint16_t raw;
-  std::memcpy(&raw, d, sizeof(raw));
-  value = base::BE16ToHost(raw);
+  value = base::LoadBE<uint16_t>(d);
   current_offset_ += 2;
   return true;
 }
@@ -169,9 +167,7 @@ bool ArtHprofParser::TraceBlobViewIterator::ReadU4(uint32_t& value) {
   const uint8_t* d = Peek(4);
   if (!d)
     return false;
-  uint32_t raw;
-  std::memcpy(&raw, d, sizeof(raw));
-  value = base::BE32ToHost(raw);
+  value = base::LoadBE<uint32_t>(d);
   current_offset_ += 4;
   return true;
 }
@@ -186,13 +182,9 @@ bool ArtHprofParser::TraceBlobViewIterator::ReadId(uint64_t& value,
     return false;
 
   if (id_size == 4) {
-    uint32_t raw;
-    std::memcpy(&raw, d, sizeof(raw));
-    value = base::BE32ToHost(raw);
+    value = base::LoadBE<uint32_t>(d);
   } else {
-    uint64_t raw;
-    std::memcpy(&raw, d, sizeof(raw));
-    value = base::BE64ToHost(raw);
+    value = base::LoadBE<uint64_t>(d);
   }
   current_offset_ += id_size;
   return true;
@@ -711,10 +703,11 @@ class ArtHprofImporter : public TraceImporter<ArtHprofImporter> {
   ArtHprofImporter() : TraceImporter(MakeDescriptor()) {}
   ~ArtHprofImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     static constexpr char kMagic[] = {'J', 'A', 'V', 'A', ' ', 'P',
                                       'R', 'O', 'F', 'I', 'L', 'E'};
-    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+    return {size >= sizeof(kMagic) &&
+            memcmp(data, kMagic, sizeof(kMagic)) == 0};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

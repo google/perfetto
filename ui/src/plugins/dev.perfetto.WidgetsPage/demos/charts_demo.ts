@@ -2546,8 +2546,8 @@ function HeatmapChartDemo(): m.Component<{
         let max = -Infinity;
         const filteredValues: Array<readonly [number, number, number]> = [];
         for (const [xIdx, yIdx, val] of data.values) {
-          const xLabel = data.xLabels[xIdx];
-          const yLabel = data.yLabels[yIdx];
+          const xLabel = data.xLabels[xIdx]!;
+          const yLabel = data.yLabels[yIdx]!;
           const newX = xIndices.get(xLabel);
           const newY = yIndices.get(yLabel);
           if (newX !== undefined && newY !== undefined) {
@@ -2829,8 +2829,8 @@ function SQLHeatmapDemo(): m.Component<{
         let max = -Infinity;
         const filteredValues: Array<readonly [number, number, number]> = [];
         for (const [xIdx, yIdx, val] of data.values) {
-          const xLabel = data.xLabels[xIdx];
-          const yLabel = data.yLabels[yIdx];
+          const xLabel = data.xLabels[xIdx]!;
+          const yLabel = data.yLabels[yIdx]!;
           const newX = xIndices.get(xLabel);
           const newY = yIndices.get(yLabel);
           if (newX !== undefined && newY !== undefined) {

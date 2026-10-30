@@ -38,11 +38,13 @@ SELECT
   count_w_dur.dur,
   cast_int!(count_w_dur.value) AS freq
 FROM counter_leading_intervals!((
-  SELECT c.*
+  SELECT c.id, c.ts, c.track_id, c.value
   FROM counter c
-  JOIN track t ON t.id = c.track_id
-  WHERE t.type = 'linux_device_frequency'
-    AND EXTRACT_ARG(t.dimension_arg_set_id, 'linux_device') GLOB $device_name
+  WHERE c.track_id IN (
+    SELECT t.id FROM track t
+    WHERE t.type = 'linux_device_frequency'
+      AND EXTRACT_ARG(t.dimension_arg_set_id, 'linux_device') GLOB $device_name
+  )
 )) AS count_w_dur;
 
 -- ARM DSU device frequency counters. This table will only be populated on

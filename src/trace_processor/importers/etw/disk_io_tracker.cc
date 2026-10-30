@@ -113,37 +113,36 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp,
       decoder.has_issuing_thread_id()
           ? std::optional(decoder.issuing_thread_id())
           : std::nullopt;
-  std::function<void(ArgsTracker::BoundInserter*)> set_args =
+  std::function<void(ArgsInserter&)> set_args =
       [this, disk_number, irp_flags, transfer_size, byte_offset, file_object,
-       irp, response_time,
-       issuing_thread_id](ArgsTracker::BoundInserter* inserter) {
+       irp, response_time, issuing_thread_id](ArgsInserter& inserter) {
         if (irp) {
-          inserter->AddArg(irp_ptr_arg_, Variadic::Pointer(*irp));
+          inserter.AddArg(irp_ptr_arg_, Variadic::Pointer(*irp));
         }
         if (disk_number) {
-          inserter->AddArg(disk_number_arg_,
-                           Variadic::UnsignedInteger(*disk_number));
+          inserter.AddArg(disk_number_arg_,
+                          Variadic::UnsignedInteger(*disk_number));
         }
         if (irp_flags) {
-          inserter->AddArg(irp_flags_arg_, Variadic::Pointer(*irp_flags));
+          inserter.AddArg(irp_flags_arg_, Variadic::Pointer(*irp_flags));
         }
         if (transfer_size) {
-          inserter->AddArg(transfer_size_arg_,
-                           Variadic::UnsignedInteger(*transfer_size));
+          inserter.AddArg(transfer_size_arg_,
+                          Variadic::UnsignedInteger(*transfer_size));
         }
         if (byte_offset) {
-          inserter->AddArg(byte_offset_arg_, Variadic::Integer(*byte_offset));
+          inserter.AddArg(byte_offset_arg_, Variadic::Integer(*byte_offset));
         }
         if (file_object) {
-          inserter->AddArg(file_object_arg_, Variadic::Pointer(*file_object));
+          inserter.AddArg(file_object_arg_, Variadic::Pointer(*file_object));
         }
         if (response_time) {
-          inserter->AddArg(response_time_arg_,
-                           Variadic::Integer(*response_time));
+          inserter.AddArg(response_time_arg_,
+                          Variadic::Integer(*response_time));
         }
         if (issuing_thread_id) {
-          inserter->AddArg(issuing_thread_id_arg_,
-                           Variadic::UnsignedInteger(*issuing_thread_id));
+          inserter.AddArg(issuing_thread_id_arg_,
+                          Variadic::UnsignedInteger(*issuing_thread_id));
         }
       };
 

@@ -159,7 +159,7 @@ function renderBillboards(
   const latest = (name: string): number => {
     const s = chartData.series.find((sr) => sr.name === name);
     if (s === undefined || s.points.length === 0) return 0;
-    return s.points[s.points.length - 1].y;
+    return s.points[s.points.length - 1]!.y;
   };
 
   const card = (

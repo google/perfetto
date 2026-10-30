@@ -22,9 +22,9 @@
 #include "perfetto/ext/base/string_view.h"
 #include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_transactions.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
-#include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -55,15 +55,14 @@ void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
           ->Insert(row)
           .id;
 
-  ArgsTracker args_tracker(context_);
-  auto inserter = args_tracker.AddArgsTo(snapshot_id);
-  ArgsParser writer(timestamp, inserter, *context_->storage,
-                    *context_->process_tracker);
+  auto inserter = context_->args_tracker->AddArgsTo(snapshot_id);
+  util::ProtoArgsEnv env(timestamp, context_->process_tracker.get());
+  ArgsInserterSink writer(inserter);
   base::Status status = args_parser_.ParseMessage(
       blob,
       *util::winscope_proto_mapping::GetProtoName(
           tables::SurfaceFlingerTransactionsTable::Name()),
-      nullptr /* parse all fields */, writer);
+      nullptr /* parse all fields */, env, writer);
   if (!status.ok()) {
     context_->stats_tracker->IncrementStats(
         stats::winscope_sf_transactions_parse_errors);
@@ -398,12 +397,11 @@ void SurfaceFlingerTransactionsParser::AddArgs(
     tables::SurfaceFlingerTransactionTable::Id row_id,
     std::string message_type,
     std::optional<protozero::ConstBytes> transaction) {
-  ArgsTracker tracker(context_);
-  auto inserter = tracker.AddArgsTo(row_id);
-  ArgsParser writer(timestamp, inserter, *context_->storage,
-                    *context_->process_tracker);
+  auto inserter = context_->args_tracker->AddArgsTo(row_id);
+  util::ProtoArgsEnv env(timestamp, context_->process_tracker.get());
+  ArgsInserterSink writer(inserter);
   base::Status status = args_parser_.ParseMessage(
-      blob, message_type, nullptr /* parse all fields */, writer);
+      blob, message_type, nullptr /* parse all fields */, env, writer);
   if (!status.ok()) {
     context_->stats_tracker->IncrementStats(
         stats::winscope_sf_transactions_parse_errors);
@@ -413,7 +411,7 @@ void SurfaceFlingerTransactionsParser::AddArgs(
     std::vector<uint32_t> allowed_fields = {10, 11};
     args_parser_.ParseMessage(transaction.value(),
                               ".com.android.internal.TransactionState",
-                              &allowed_fields, writer);
+                              &allowed_fields, env, writer);
   }
 }
 

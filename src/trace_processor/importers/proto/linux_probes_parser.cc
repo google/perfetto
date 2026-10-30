@@ -114,8 +114,7 @@ void LinuxProbesParser::ParseSystemdJournaldEvent(int64_t ts,
   auto id = context_->storage->mutable_log_table()->Insert(row).id;
 
   if (uid || comm_id || unit_id || hostname_id || transport_id) {
-    ArgsTracker args_tracker(context_);
-    auto inserter = args_tracker.AddArgsTo(id);
+    auto inserter = context_->args_tracker->AddArgsTo(id);
     if (uid) {
       inserter.AddArg(uid_key_id_,
                       Variadic::Integer(static_cast<int64_t>(*uid)));

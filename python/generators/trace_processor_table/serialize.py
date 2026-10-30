@@ -339,6 +339,8 @@ class TableSerializer(object):
   def serialize_id_type(self) -> str:
     """Generate the Id type at namespace scope."""
     return f'''struct {self.table_name}_Id : BaseId {{
+  using Table = {self.table_name};
+
   {self.table_name}_Id() = default;
   explicit constexpr {self.table_name}_Id(uint32_t _value) : BaseId(_value) {{}}
 
@@ -745,9 +747,9 @@ def serialize_fwd_header(ifdef_guard: str, tables: List[ParsedTable],
 
 namespace perfetto::trace_processor::tables {{
 
-{id_types}
-
 {fwd_decls}
+
+{id_types}
 
 // Tuple of all table types in this header
 using {tuple_name} = std::tuple<{table_names}>;

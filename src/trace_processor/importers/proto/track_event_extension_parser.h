@@ -57,7 +57,7 @@ struct TrackEventFieldContext {
   uint32_t row_id = kNone;
 
   // Args of that row, or null when the row takes none.
-  ArgsTracker::BoundInserter* args = nullptr;
+  ArgsInserter* args = nullptr;
 
   bool has_utid() const { return utid != kNone; }
   bool has_upid() const { return upid != kNone; }

@@ -79,6 +79,14 @@ class Trace(object):
     if curr is not None:
       rss_stat.curr = curr
 
+  def add_rss_stat_throttled(self, ts, tid, member, size, mm_id, curr):
+    ftrace = self.__add_ftrace_event(ts, tid)
+    rss_stat = ftrace.rss_stat_throttled
+    rss_stat.member = member
+    rss_stat.size = size
+    rss_stat.mm_id = mm_id
+    rss_stat.curr = curr
+
   def add_ion_event(self, ts, tid, heap_name, len, size=0):
     ftrace = self.__add_ftrace_event(ts, tid)
     ion = ftrace.ion_heap_grow

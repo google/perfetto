@@ -22,8 +22,10 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -51,30 +53,38 @@ class RowStore {
   uint32_t View(RowBatch* out, uint32_t offset, uint32_t count) const;
 
   // Copies up to kMaxBatchRows of `rows`, in that order and repeats included,
-  // into buffers taken from `context`. Returns how many.
-  uint32_t View(RowBatch* out, Span<const uint32_t> rows, Context& context);
+  // into buffers taken from `context`. Returns how many. The work done is in
+  // proportion to the rows copied, however many batches are held.
+  uint32_t Gather(RowBatch* out, Span<const uint32_t> rows, Context& context);
 
   // Lets go of every row held.
   void Clear();
 
  private:
   // The batch held which row `row` is in.
-  uint32_t Find(uint32_t row) const;
+  uint32_t Find(uint32_t row) const { return batch_of_row_[row]; }
+
+  // The row `row` is of the batch it is in, before that batch's selection.
+  uint32_t RowInBatch(uint32_t row, uint32_t batch) const {
+    uint32_t start = batch ? ends_[batch - 1] : 0;
+    return batches_[batch]->selection()[row - start];
+  }
 
   // The first `held_` are the batches held, the rest kept for reuse.
   std::vector<std::unique_ptr<RowBatch>> batches_;
   uint32_t held_ = 0;
   // By batch held, the row after its last.
-  std::vector<uint32_t> ends_;
+  FlexVector<uint32_t> ends_;
   // By row held, the batch it is in: found at once, as rows taken out of
   // order would otherwise each search the batches.
-  std::vector<uint32_t> batch_of_row_;
+  FlexVector<uint32_t> batch_of_row_;
+  // By column, where each batch held has its values: what gathering reads,
+  // recorded as each batch is appended so no gather has to look at batches
+  // its rows are not in.
+  std::vector<FlexVector<GatherSource>> sources_;
   // By column, whether any batch held has nulls in it.
-  std::vector<bool> nullable_;
+  FlexVector<bool> nullable_;
   uint32_t size_ = 0;
-  // Scratch for gathering: by batch held, its view of the column copied.
-  std::vector<const ColumnView*> views_;
-  std::vector<const void*> bases_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

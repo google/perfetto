@@ -177,7 +177,7 @@ std::optional<TrackId> StackSampleModule::InternCounterTrack(
     }
   }
 
-  auto args_fn = [&, this](ArgsTracker::BoundInserter& inserter) {
+  auto args_fn = [&, this](ArgsInserter& inserter) {
     inserter.AddArg(context_->storage->InternString("is_timebase"),
                     Variadic::Boolean(is_timebase));
     if (desc.has_unit_multiplier()) {

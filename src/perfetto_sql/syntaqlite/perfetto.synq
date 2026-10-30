@@ -80,7 +80,6 @@ node CreatePerfettoTableStmt {
   schema: index PerfettoArgDefList
   select: index Select
   select_span: inline SyntaqliteTextSpan
-  pipeline: index PerfettoPipeline
 
   semantic { define_table(name: table_name, columns: schema, select: select) }
 
@@ -102,10 +101,8 @@ node CreatePerfettoTableStmt {
         softline ")"
       }
       if_set(select) { line "AS" }
-      if_set(pipeline) { line "AS" }
     }
     if_set(select) { hardline child(select) }
-    if_set(pipeline) { hardline child(pipeline) }
   }
 }
 
@@ -368,8 +365,20 @@ node PerfettoPipeStar {
   }
 }
 
+// A column a SELECT or EXTEND lists: `expr [AS name]`. Only a column
+// reference may go without a name.
+node PerfettoPipeExprItem {
+  expr: index Expr
+  alias: inline SyntaqliteTextSpan
+
+  fmt {
+    child(expr)
+    if_span(alias) { space "AS" space span(alias) }
+  }
+}
+
 abstract PerfettoPipeSelectItem {
-  PerfettoPipeColumn
+  PerfettoPipeExprItem
   PerfettoPipeStar
 }
 
@@ -378,8 +387,7 @@ list PerfettoPipeSelectItemList {
   fmt { for_each(sep: "," line) { child(_item) } }
 }
 
-// `SELECT item, ...`: picks, orders and renames columns. A computed column
-// has no spelling here yet.
+// `SELECT item, ...`: picks, orders, renames and computes columns.
 node PerfettoPipeSelect {
   columns: index PerfettoPipeSelectItemList
 
@@ -407,10 +415,10 @@ node PerfettoPipeRename {
   fmt { group { "RENAME" nest { line child(columns) } } }
 }
 
-// One assignment of a SET stage: `name = column`.
+// One assignment of a SET stage: `name = expr`.
 node PerfettoPipeSetItem {
   name: inline SyntaqliteTextSpan
-  value: index PerfettoPipeColumn
+  value: index Expr
 
   fmt { span(name) space "=" space child(value) }
 }
@@ -420,7 +428,7 @@ list PerfettoPipeSetItemList {
   fmt { for_each(sep: "," line) { child(_item) } }
 }
 
-// `SET name = column, ...`: replaces the values of columns.
+// `SET name = expr, ...`: replaces the values of columns.
 node PerfettoPipeSet {
   items: index PerfettoPipeSetItemList
 
@@ -482,6 +490,52 @@ node PerfettoPipeWhere {
   fmt { group { "WHERE" nest { line child(condition) } } }
 }
 
+// `LIMIT count [OFFSET skipped]`: keeps `count` rows after skipping
+// `skipped`.
+node PerfettoPipeLimit {
+  count: index Expr
+  offset: index Expr
+
+  fmt {
+    group {
+      "LIMIT" space child(count)
+      if_set(offset) { space "OFFSET" space child(offset) }
+    }
+  }
+}
+
+// `[LEFT | RIGHT | FULL | ...] JOIN rel { ON expr | USING (cols) }`: joins
+// the rows to another relation, as a SQL join does.
+node PerfettoPipeJoin {
+  join_type: inline JoinType
+  operand: index PerfettoPipeSource
+  on_expr: index Expr
+  using_columns: index PerfettoPipeNameList
+
+  fmt {
+    group {
+      switch(join_type) {
+        COMMA { "," }
+        INNER { "JOIN" }
+        LEFT { "LEFT" "JOIN" }
+        RIGHT { "RIGHT" "JOIN" }
+        FULL { "FULL" "JOIN" }
+        CROSS { "CROSS" "JOIN" }
+        NATURAL_INNER { "NATURAL" "JOIN" }
+        NATURAL_LEFT { "NATURAL" "LEFT" "JOIN" }
+        NATURAL_RIGHT { "NATURAL" "RIGHT" "JOIN" }
+        NATURAL_FULL { "NATURAL" "FULL" "JOIN" }
+        NATURAL_CROSS { "NATURAL" "CROSS" "JOIN" }
+      }
+      space child(operand)
+      if_set(on_expr) { nest { line "ON" space child(on_expr) } }
+      if_set(using_columns) {
+        space "USING" space "(" child(using_columns) ")"
+      }
+    }
+  }
+}
+
 // `DISTINCT`: keeps one of each set of rows equal in every column.
 node PerfettoPipeDistinct {
   fmt { "DISTINCT" }
@@ -490,9 +544,13 @@ node PerfettoPipeDistinct {
 abstract PerfettoPipeStage {
   PerfettoPipeWhere
   PerfettoPipeDistinct
+  PerfettoPipeLimit
   PerfettoTreeAccumulate
   PerfettoIntervalFlatten
   PerfettoIntervalFillGaps
+  PerfettoIntervalMerge
+  PerfettoIntervalsFromEvents
+  PerfettoPipeJoin
   PerfettoPipeOrderBy
   PerfettoPipeAggregate
   PerfettoPipeSelect
@@ -555,6 +613,57 @@ node PerfettoIntervalFillGaps {
   }
 }
 
+enum PerfettoIntervalMergeKind { OVERLAPPING CONSECUTIVE }
+
+// `INTERVAL MERGE OVERLAPPING [PER cols] AGGREGATE ...` coalesces overlapping
+// and abutting rows. `INTERVAL MERGE CONSECUTIVE BY keys [PER cols]
+// AGGREGATE ...` merges only adjacent rows agreeing on the keys.
+node PerfettoIntervalMerge {
+  kind: inline PerfettoIntervalMergeKind
+  keys: index PerfettoPerColumnList
+  per: index PerfettoPerColumnList
+  aggregates: index PerfettoAggregateList
+
+  fmt {
+    group {
+      "INTERVAL" "MERGE" space
+      enum_display(kind, {
+        OVERLAPPING="OVERLAPPING"
+        CONSECUTIVE="CONSECUTIVE"
+      })
+      if_set(keys) { space "BY" space child(keys) }
+      if_set(per) { space "PER" space child(per) }
+      nest { line "AGGREGATE" space child(aggregates) }
+    }
+  }
+}
+
+enum PerfettoEventsLast { KEEP_OPEN CLOSE_AT }
+
+// `INTERVALS FROM EVENTS [PER cols] [STOP rel] { KEEPING LAST OPEN |
+// CLOSING LAST AT (expr) }`: turns each row into an interval ending at the
+// next row in its lane, or at the next STOP event.
+node PerfettoIntervalsFromEvents {
+  per: index PerfettoPerColumnList
+  stop: index PerfettoPipeSource
+  last: inline PerfettoEventsLast
+  close_at: index Expr
+
+  fmt {
+    group {
+      "INTERVALS" "FROM" "EVENTS"
+      if_set(per) { space "PER" space child(per) }
+      if_set(stop) { nest { line "STOP" space child(stop) } }
+      switch(last) {
+        KEEP_OPEN { nest { line "KEEPING" "LAST" "OPEN" } }
+        CLOSE_AT {
+          nest { line "CLOSING" "LAST" "AT" space "(" child(close_at) ")" }
+        }
+      }
+    }
+  }
+}
+
 // `INTERVAL INTERSECTION OF (rel AS a, rel AS b, ...) [PER cols]`: the
 // regions every operand covers, one row per region carrying all of their
 // columns.
@@ -572,16 +681,42 @@ node PerfettoIntervalIntersection {
   }
 }
 
-// A pipeline: a source followed by `|>` stages. Exactly one of `from` and
-// `intersection` names the source.
+enum PerfettoGraphTreeKind { BFS DFS DOMINATOR }
+
+// `GRAPH BFS | DFS | DOMINATOR TREE NODES rel EDGES rel FROM rel`: reduces the
+// graph to a tree over the nodes reachable from the seeds in FROM.
+node PerfettoGraphTree {
+  kind: inline PerfettoGraphTreeKind
+  nodes: index PerfettoPipeSource
+  edges: index PerfettoPipeSource
+  seeds: index PerfettoPipeSource
+
+  fmt {
+    group {
+      "GRAPH" space
+      enum_display(kind, { BFS="BFS" DFS="DFS" DOMINATOR="DOMINATOR" })
+      space "TREE"
+      nest {
+        line "NODES" space child(nodes)
+        line "EDGES" space child(edges)
+        line "FROM" space child(seeds)
+      }
+    }
+  }
+}
+
+// A pipeline: a source followed by `|>` stages. Exactly one of `from`,
+// `intersection` and `graph` names the source.
 node PerfettoPipeline {
   from: index PerfettoPipeSource
   intersection: index PerfettoIntervalIntersection
+  graph: index PerfettoGraphTree
   stages: index PerfettoPipeStageList
 
   fmt {
     if_set(from) { "FROM" space child(from) }
     if_set(intersection) { child(intersection) }
+    if_set(graph) { child(graph) }
     if_set(stages) { hardline "|>" space child(stages) }
   }
 }

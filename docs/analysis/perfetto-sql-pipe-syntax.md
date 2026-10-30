@@ -1,8 +1,5 @@
 # PerfettoSQL Pipe Syntax Reference
 
-This page is the language syntax and semantics reference for PerfettoSQL
-pipelines.
-
 > **Warning:** Pipe syntax is **experimental and unstable**. Do **not** rely on
 > it in dashboards, scripts, or production queries. Anything can and will break
 > without notice. Outside the PerfettoSQL standard library, enable it on a
@@ -18,373 +15,642 @@ Related pages:
 
 ## Pragma and Statement Forms
 
-### `PERFETTO PRAGMA pipelines`
+### `PERFETTO PRAGMA pipelines` {#perfetto-pragma-pipelines}
 
-Controls whether pipe syntax is permitted on the current connection outside the
-standard library:
+Turns pipe syntax on or off for the connection. The standard library can always
+use it.
 
 ```sql
-PERFETTO PRAGMA pipelines = 1;  -- Enable pipelines
-PERFETTO PRAGMA pipelines = 0;  -- Disable pipelines
+PERFETTO PRAGMA pipelines = 1;  -- On
+PERFETTO PRAGMA pipelines = 0;  -- Off
 ```
 
-The right-hand side must evaluate to a whole number. Unknown pragma names
-produce an error.
+The value must be a non-negative integer literal; any value other than `0`
+turns pipelines on. The pragma name is case-sensitive.
 
 ### Top-level forms
 
-A pipeline is valid in two statement positions:
+A pipeline can be a statement on its own, or the body of a `PERFETTO TABLE`:
 
 ```sql
--- 1. Standalone query
 <pipeline>;
 
--- 2. Materialized Perfetto table
 CREATE [OR REPLACE] PERFETTO TABLE <table_name> [(<schema>)] AS
 <pipeline>;
 ```
 
-A `<pipeline>` consists of a source, either `FROM` or `INTERVAL INTERSECTION OF`,
-followed by zero or more `|>` stages:
+It cannot yet be the body of a view, function or `WITH` clause, or appear inside
+a subquery.
 
-```sql
-<source>
-[|> <stage_1>]
-[|> <stage_2>]
-...
+A `<pipeline>` is a source followed by any number of stages:
+
+```railroad pipeline
+Diagram(
+  NonTerminal('source-clause'),
+  ZeroOrMore(Sequence(Terminal('|>'), NonTerminal('stage'))))
 ```
 
-> **Note:** The pipe operator `|>` must be written with no whitespace between
-> `|` and `>`. The pipeline keywords `TREE`, `ACCUMULATE`, `UP`, `DOWN`,
-> `INTERVAL`, `INTERSECTION`, `FLATTEN`, `AGGREGATE`, `PER`, and `EXTEND` are non-reserved and remain
-> valid as normal identifiers in standard SQL statements.
+- `|>` must be written with no space between `|` and `>`.
+- `TREE`, `ACCUMULATE`, `UP`, `DOWN`, `INTERVAL`, `INTERSECTION`, `FLATTEN`,
+  `FILL`, `GAPS`, `AGGREGATE`, `PER`, `EXTEND`, `GRAPH`, `BFS`, `DFS`,
+  `DOMINATOR`, `NODES` and `EDGES` are not reserved, so they can still be used
+  as names in SQL.
+- An alias always needs `AS`: `FROM slice AS s`, not `FROM slice s`.
+
+A `<source-clause>` is [`FROM`](#from),
+[`INTERVAL INTERSECTION OF`](#interval-intersection-of) or
+[`GRAPH ... TREE`](#graph-tree). A `<stage>` is one of:
+
+```railroad stage
+Diagram(Choice(0,
+  Link(Terminal('WHERE'), '#where'),
+  Link(Terminal('DISTINCT'), '#distinct'),
+  Link(Terminal('ORDER BY'), '#order-by'),
+  Link(Terminal('LIMIT'), '#limit'),
+  Link(Terminal('INTERVAL FLATTEN'), '#interval-flatten'),
+  Link(Terminal('INTERVAL FILL GAPS'), '#interval-fill-gaps'),
+  Link(Terminal('TREE ACCUMULATE'), '#tree-accumulate'),
+  Link(Terminal('AGGREGATE'), '#aggregate'),
+  Link(Terminal('SELECT'), '#select'),
+  Link(Terminal('EXTEND'), '#extend'),
+  Link(Terminal('DROP'), '#drop'),
+  Link(Terminal('RENAME'), '#rename'),
+  Link(Terminal('SET'), '#set'),
+  Link(Terminal('AS'), '#as')))
+```
+
+### Shared rules
+
+A `<source>` is a table or a subquery, with an optional alias:
+
+```railroad source
+Diagram(
+  Choice(0,
+    NonTerminal('table-name'),
+    Sequence(Terminal('('), NonTerminal('select-stmt'), Terminal(')'))),
+  Optional(Sequence(Terminal('AS'), NonTerminal('alias'))))
+```
+
+A `<column>` can be qualified by an alias:
+
+```railroad column
+Diagram(Optional(Sequence(NonTerminal('alias'), Terminal('.'))), NonTerminal('name'))
+```
+
+A `<per-clause>` lists the columns that split rows into groups:
+
+```railroad per-clause
+Diagram(Terminal('PER'), OneOrMore(NonTerminal('column'), Terminal(',')))
+```
+
+A column listed again groups nothing new.
+
+### Limits
+
+- A pipeline outputs at most 256 columns.
+- Every column of a source must have a distinct name made of letters, digits
+  and `_`, not starting with a digit. This holds even for columns a later stage
+  drops:
+  - A column with no name, such as `SELECT 1 + 1`, fails with `expected every
+    column to have a name, but column <n> has none: give it one with AS`.
+  - A name which is not a valid identifier fails with `expected every column
+    to have a valid name, but '<name>' is not one: give it one with AS`.
+  - Two columns with one name fail with `expected distinct column names, but
+    there are two named '<name>'`.
 
 ---
 
-## Pipeline Sources
+## Sources
 
-### `FROM`
+### `FROM` {#from}
 
-Starts a pipeline from a single relation:
-
-```sql
-FROM [<schema>.]<table_name> [[AS] <alias>]
-FROM (<select_stmt>) [[AS] <alias>]
+```railroad
+Diagram(Terminal('FROM'), NonTerminal('source'))
 ```
 
-- `<table_name>` may be any table or view, or a macro invocation that expands to
-  a table or parenthesized subquery.
-- `(<select_stmt>)` may be any valid SQL `SELECT` statement enclosed in
-  parentheses.
-- **Table qualifier:**
-  - If `<alias>` is given, columns of the source can be qualified with
-    `<alias>.<col>`. When the source is a table name, `<alias>` replaces
-    `<table_name>` as the qualifier.
-  - If the source is an unaliased `<table_name>`, columns can be qualified with
-    `<table_name>.<col>`.
-  - If the source is an unaliased `(<select_stmt>)`, its columns have no table
-    qualifier unless a later `|> AS <alias>` stage binds one.
+- `<table-name>` is a table, a view, or a macro which expands to one. A
+  schema-qualified name such as `main.t` is not supported.
+- `<select-stmt>` is any SQL `SELECT`.
+- **Qualifiers:** `FROM slice` lets columns be written `slice.<col>`.
+  `FROM slice AS s` makes that `s.<col>` instead. An unaliased subquery has no
+  qualifier until a later `|> AS <alias>`.
 
-### `INTERVAL INTERSECTION OF`
+### `INTERVAL INTERSECTION OF` {#interval-intersection-of}
 
-Starts a pipeline with the overlapping time regions across two or more
-relations:
+Finds where intervals from two or more sources overlap:
 
-```sql
-INTERVAL INTERSECTION OF (
-  <source_1> [AS] <alias_1>,
-  <source_2> [AS] <alias_2>
-  [, <source_N> [AS] <alias_N> ...]
-) [PER <col_1> [, <col_2> ...]]
+```railroad
+Diagram(
+  Terminal('INTERVAL'), Terminal('INTERSECTION'), Terminal('OF'),
+  Terminal('('), OneOrMore(NonTerminal('source'), Terminal(',')), Terminal(')'),
+  Optional(NonTerminal('per-clause')))
 ```
 
 #### Requirements
 
-1. At least two operand sources must be listed.
-2. Every operand must have a distinct alias. An unaliased table name acts as its
-   own alias; a parenthesized subquery must specify `[AS] <alias>`.
-3. Every operand must contain `ts` and `dur` columns, and every column listed in
-   `PER` must exist in every operand.
+- At least two sources.
+- Each source has its own alias. A table name is its own alias; a subquery
+  needs `AS <alias>`.
+- Every source has `ts` and `dur`, and every `PER` column.
 
-#### Output columns and scoping
+#### Output
 
-For each overlapping region `[ts, ts + dur)` shared by all operands within a
-matching `PER` key group, one row is produced with the following columns:
+One row is produced for each region `[ts, ts + dur)` where a row of every
+source overlaps, among rows that agree on the `PER` columns.
 
-1. `ts` and `dur`: 64-bit integer columns holding the intersected region's start
-   and duration. These are the only `ts` and `dur` columns visible to
-   unqualified column lookups.
-2. Each operand's columns in operand order:
-   - The first operand's `PER` key columns are visible both unqualified, such as
-     `cpu`, and qualified, such as `<alias_1>.cpu`.
-   - All other operand columns are qualified-only. This includes each operand's
-     original `ts` and `dur`, as well as subsequent operands' copies of `PER`
-     columns. They can only be referenced via `<alias_i>.<col>` or expanded via
-     `*` or `<alias_i>.*`.
+| Column | Found by bare name | Found through alias |
+| :--- | :--- | :--- |
+| Region `ts`, `dur` | Yes | No |
+| Each source's own `ts`, `dur` | No | `<alias>.ts` |
+| `PER` columns of the first source | Yes | Yes |
+| `PER` columns of later sources | No | Yes |
+| Every other source column | Yes, if only one source has it | Yes |
 
-#### Interval semantics
+A bare name two sources share is ambiguous, and an error when something refers
+to it.
 
-- **Half-open bounds:** Each interval is `[ts, ts + dur)`. Two intervals
-  touching at their endpoints, such as `[0, 10)` and `[10, 20)`, do not
-  intersect.
-- **Zero-duration points:** A row with `dur = 0` is a point at instant `ts`. It
-  intersects an interval `[a, b)` when `a <= ts < b`, and intersects another
-  point when both sit at the same instant `ts`, producing a region with
+`*`, `|> AS <alias>` and the result of a pipeline which ends at the
+intersection all hold the columns found by bare name: the region's `ts` and
+`dur`, then each source's columns in order. When two sources share a column
+name, both copies are in the result, which then cannot be saved as a table. Add
+a `|> SELECT` naming them through their aliases.
+
+#### Interval rules
+
+- **Half-open:** `[0, 10)` and `[10, 20)` do not overlap.
+- **Points:** A row with `dur = 0` is the instant `ts`. It overlaps `[a, b)`
+  when `a <= ts < b`, and another point at the same instant. The region has
   `dur = 0`.
-- **Missing bounds:** A row with `ts IS NULL` or `dur IS NULL` covers no time
-  and is skipped.
-- **Negative bounds:** A row with `ts < 0` or `dur < 0` fails with the error
-  `ts or dur is below zero`.
-- **`NULL` in `PER` columns:** Two rows with `NULL` in a `PER` column agree on
-  that column, matching `GROUP BY` semantics.
+- **`NULL` bounds:** A row with a `NULL` `ts` or `dur` is skipped.
+- **Negative bounds:** A negative `ts` or `dur` fails with `ts or dur is below
+  zero`.
+- **Overflow:** `ts + dur` beyond the 64-bit range fails with `integer
+  overflow`.
+- **`NULL` in `PER` columns:** Rows holding `NULL` in a `PER` column agree on
+  it, as in `GROUP BY`.
 
-### Source column naming rules
+### `GRAPH ... TREE` {#graph-tree}
 
-Every column of any pipeline source must have a valid identifier name matching
-`^[a-zA-Z_][a-zA-Z0-9_]*$` and must be distinct within that source, even if a
-later stage drops the column:
+Reduces a graph to a tree over the nodes reachable from a set of seeds:
 
-- Unaliased SQL expressions like `1 + 1` or `max(ts)` are rejected with:
-  `expected every column to have a valid name, but '<expr>' is not one: give it one with AS`.
-- Duplicate column names in a source are rejected with:
-  `expected distinct column names, but there are two named '<name>'`.
-
----
-
-## Pipeline Stages
-
-### `INTERVAL FLATTEN`
-
-Splits overlapping intervals into segments and aggregates the rows active in
-each segment:
-
-```sql
-|> INTERVAL FLATTEN [PER <col_1> [, <col_2> ...]]
-  AGGREGATE <aggregate> AS <out_1> [, <aggregate> AS <out_2> ...]
+```railroad
+Diagram(
+  Terminal('GRAPH'), Choice(0, Terminal('BFS'), Terminal('DFS'),
+    Terminal('DOMINATOR')),
+  Terminal('TREE'),
+  Terminal('NODES'), NonTerminal('source'),
+  Terminal('EDGES'), NonTerminal('source'),
+  Terminal('FROM'), NonTerminal('source'))
 ```
 
-- **Interval columns:** Resolves bare `ts` and `dur` in the current row. Both
-  must be integer columns. Input need not be sorted; the pipeline arranges
-  rows by timestamp within each group.
-- **Grouping:** Each distinct combination of `PER` values is flattened
-  independently. Without `PER`, all rows belong to one group. `NULL` keys
-  group together, as in SQL `GROUP BY`.
-- **Aggregates:** At least one is required. Supported forms are `COUNT(*)`
-  and `SUM([<qualifier>.]<column>)`. Each needs an `AS` name. `SUM` accepts
-  integer columns (`ID`, `UINT32`, `INT32`, or `LONG`), ignores `NULL` values,
-  and returns `NULL` if all contributing values are `NULL`. Expressions,
-  `DISTINCT`, `FILTER`, `OVER`, and other aggregate functions are unsupported.
-- **Output:** Replaces the current row with `ts`, `dur`, the `PER` columns in
-  their listed order, and the named aggregates in their listed order. `ts`,
-  `dur`, and aggregates are `LONG` columns. Other input columns and all table
-  aliases are removed. Output names must be distinct.
-
-#### Interval semantics
-
-- **Segments:** Positive-duration intervals cover `[ts, ts + dur)`. Output
-  splits at input start and end timestamps, with aggregates over the rows
-  covering each segment. Gaps with no active rows produce no output. Adjacent
-  segments are not merged merely because their aggregate values are equal.
-- **Zero-duration points:** Rows with `dur = 0` at the same timestamp produce
-  one additional zero-duration segment per group. Its aggregates include all
-  points there and all positive-duration intervals covering that instant.
-  Intervals ending there are excluded; intervals starting there are included.
-  Points do not contribute to positive-duration segments.
-- **Missing bounds:** Rows with `ts IS NULL` or `dur IS NULL` are skipped.
-- **Negative bounds:** Negative `ts` or `dur` values cause an error. Filter out
-  unfinished trace slices (`dur = -1`) in the source subquery if needed.
-- **Overflow:** Interval endpoints and aggregate arithmetic use checked signed
-  64-bit integers; overflow causes an error.
-
-For a worked example, see
-[Flattening Overlapping Intervals](/docs/analysis/perfetto-sql-pipe-getting-started.md#flattening-overlapping-intervals-interval-flatten).
-
----
-
-### `TREE ACCUMULATE`
-
-Accumulates sums up or down a tree defined by `id` and `parent_id`:
-
 ```sql
-|> TREE ACCUMULATE UP|DOWN
-  SUM([<qualifier>.]<col_1>) AS <out_1>
-  [, SUM([<qualifier>.]<col_2>) AS <out_2> ...]
+GRAPH DOMINATOR TREE
+  NODES heap_graph_object
+  EDGES (SELECT owner_id AS src, owned_id AS dst FROM heap_graph_reference)
+  FROM (SELECT id FROM heap_graph_object WHERE root_type IS NOT NULL)
+|> TREE ACCUMULATE UP SUM(self_size) AS retained_size
 ```
 
-- **Tree structure columns:** Resolves bare `id` and `parent_id` in the current
-  row. Root nodes have `parent_id IS NULL`.
-- **Directions:**
-  - `UP`: Bottom-up fold. Each node's aggregate is the sum of its own value and
-    the values of all its descendants. Output rows are emitted child-first.
-  - `DOWN`: Top-down fold. Each node's aggregate is the sum of its own value and
-    the values of all its ancestors. Output rows are emitted parent-first.
-- **Aggregate expressions:**
-  - Only `SUM(<column_ref>)` is currently supported. `DISTINCT`, `FILTER`,
-    `OVER`, `*`, non-column expressions, and other aggregate functions are
-    rejected.
-  - The target column must be an integer type: `ID`, `UINT32`, `INT32`, or
-    `LONG`. `NULL` values contribute `0`.
-  - All aggregates in a single stage resolve their input columns against the row
-    before the stage. A stage cannot reference an output column defined in the
-    same stage.
-- **Output:** Keeps all columns of the input row and existing table aliases, and
-  appends `<out_1>, <out_2>, ...` as `LONG` columns.
+#### Requirements
+
+- `NODES` has an `id` column, `EDGES` has `src` and `dst` columns, and `FROM`
+  has an `id` column. All of them hold integers.
+- No two nodes have the same `id`, and every node has one.
+
+#### Output
+
+One row for each node reachable from the seeds, with every `NODES` column and
+`parent_id`, the `id` of the node's parent in the tree. `parent_id` is `NULL`
+for a root. A `NODES` column named `parent_id` is not carried. Parents come
+before their children. `NODES` can be given an alias, which qualifies its
+columns.
+
+| Kind | Roots | A node's parent |
+| :--- | :--- | :--- |
+| `BFS` | Every seed | The first node searched with an edge to it |
+| `DFS` | Each seed not reached from an earlier one | The node it was reached from |
+| `DOMINATOR` | Every seed | Its immediate dominator |
+
+#### Graph rules
+
+- **Order:** Seeds are searched, and each node's edges followed, in the order
+  their rows arrive. Where a node can be reached from several equally good
+  parents, that order picks one, so sort `FROM` or `EDGES` to choose.
+- **Missing nodes:** An edge or seed whose `id` is not a node, or is `NULL`,
+  is ignored. `NODES` can be a subset of the graph `EDGES` describes.
+- **Dominators:** A node's dominators are the nodes every path to it from the
+  seeds passes through, as though one more node had an edge to every seed.
 
 ---
 
-### `ORDER BY`
+## Aggregates
+
+`INTERVAL FLATTEN`, `TREE ACCUMULATE` and `AGGREGATE` take an
+`<aggregate-list>`, and treat every aggregate the same way:
+
+```railroad aggregate-list
+Diagram(OneOrMore(
+  Sequence(NonTerminal('aggregate'), Terminal('AS'), NonTerminal('name')),
+  Terminal(',')))
+```
+
+```railroad aggregate
+Diagram(Choice(0,
+  Sequence(Terminal('COUNT'), Terminal('('), Terminal('*'), Terminal(')')),
+  Sequence(
+    Choice(0, Terminal('SUM'), Terminal('MIN'), Terminal('MAX')),
+    Terminal('('), NonTerminal('column'), Terminal(')'))))
+```
+
+- **Forms:** Each aggregate needs an `AS` name. Expressions, `DISTINCT`,
+  `FILTER`, `OVER` and other functions are rejected.
+- **`COUNT(*)`** counts rows.
+- **`SUM`, `MIN` and `MAX`** take an integer column. They skip `NULL`s and
+  return `NULL` if every value is `NULL`. A column from a SQL source whose type
+  is not known in advance is checked when the query runs.
+- **Results** are `LONG` columns. Overflow is an error.
+- **Scope:** Every aggregate reads the row from before the stage, so one
+  aggregate cannot read another.
+- **Names:** An aggregate can take a name another column has. That name is then
+  ambiguous, and an error when a later stage refers to it.
+
+---
+
+## Stages
+
+### `WHERE` {#where}
+
+Keeps the rows that match a condition:
+
+```railroad
+Diagram(
+  Terminal('WHERE'),
+  OneOrMore(
+    Sequence(
+      NonTerminal('column'),
+      Choice(0,
+        Sequence(NonTerminal('op'), NonTerminal('literal')),
+        Sequence(Terminal('GLOB'), NonTerminal('string')),
+        Sequence(Terminal('IN'), Terminal('('),
+                 OneOrMore(NonTerminal('literal'), Terminal(',')),
+                 Terminal(')')),
+        Sequence(Terminal('BETWEEN'), NonTerminal('literal'), Terminal('AND'),
+                 NonTerminal('literal')),
+        Sequence(Terminal('IS'), Optional(Terminal('NOT')), Terminal('NULL')))),
+    Terminal('AND')))
+```
+
+- `<op>` is one of `=`, `==`, `!=`, `<>`, `<`, `<=`, `>` and `>=`.
+- `<literal>` is an integer, floating-point or string literal.
+- `GLOB` matches only string columns.
+- `NULL` never matches a comparison, `GLOB` or `IN`. Integers compare with
+  fractions as in SQL, and numbers sort before strings. A string is never
+  converted to a number, so `dur = '5'` matches nothing, as in a filter on a
+  Perfetto table.
+- Keeps all columns and aliases.
+- Not supported yet: `OR`, `NOT`, `NOT IN`, `NOT GLOB`, `LIKE`, `REGEXP`,
+  parentheses, functions, arithmetic, and a literal on the left. Filter in the
+  source subquery instead.
+
+### `DISTINCT` {#distinct}
+
+Removes repeated rows:
+
+```railroad
+Diagram(Terminal('DISTINCT'))
+```
+
+- Rows are equal when they agree on every column found by bare name. `NULL`s
+  are equal.
+- Columns only an alias finds, such as an intersection's `x.ts`, are not
+  compared, and are dropped since they have no one value per row. Aliases are
+  kept, holding only the columns that were compared.
+- The first of each set of equal rows is kept, and kept rows stay in order.
+- A row can have at most 64 columns.
+
+### `ORDER BY` {#order-by}
 
 Sorts the rows:
 
-```sql
-|> ORDER BY <expr_1> [ASC | DESC] [, <expr_2> [ASC | DESC] ...]
+```railroad
+Diagram(
+  Terminal('ORDER'), Terminal('BY'),
+  OneOrMore(
+    Sequence(NonTerminal('column'),
+      Optional(Choice(0, Terminal('ASC'), Terminal('DESC')))),
+    Terminal(',')))
 ```
 
-- **Keys:** The first key decides the order and each later key breaks ties
-  among the ones before it. Each defaults to `ASC`. A key parses as an
-  expression, but only a column, optionally qualified, is supported yet. A
-  bitwise OR (`|`) must be in parentheses, since `|>` starts the next stage.
-- **Types:** Keys must be integer or floating-point columns. Ordering by a
-  string column is not supported yet. A key read from a SQL subquery or view
-  must hold integers.
-- **`NULL` values:** Sort as in SQLite: first when ascending, last when
-  descending.
-- **Ties:** Rows equal on every key keep the order they arrived in.
-- **Output:** Keeps all columns of the input row and existing table aliases.
-  A later `TREE ACCUMULATE` or `INTERVAL FLATTEN` stage arranges rows as it
-  needs, so put `ORDER BY` last to order a pipeline's result.
+- The first key decides the order and each later key breaks ties. Each defaults
+  to `ASC`.
+- A key is a column, which can be qualified. Expressions are not supported yet.
+- Strings sort by their bytes, as SQLite's default `BINARY` collation does.
+- `NULL`s come first when ascending and last when descending, as in SQLite.
+- Rows equal on every key keep their order.
+- Keeps all columns and aliases.
+- `INTERVAL FLATTEN`, `INTERVAL FILL GAPS`, `TREE ACCUMULATE` and `AGGREGATE`
+  arrange rows their own way, so put `ORDER BY` after them.
+
+### `LIMIT` {#limit}
+
+Keeps the first rows, after skipping some:
+
+```railroad
+Diagram(
+  Terminal('LIMIT'), NonTerminal('count'),
+  Optional(Sequence(Terminal('OFFSET'), NonTerminal('skipped'))))
+```
+
+- Skips `<skipped>` rows, then keeps up to `<count>` rows, in the order they
+  arrive. Put it after [`ORDER BY`](#order-by) to keep the first rows of a
+  sort.
+- `<count>` and `<skipped>` are integer literals. As in SQL, a negative count
+  keeps every row and a negative offset skips none.
+- Keeps all columns and aliases.
+
+### `INTERVAL FLATTEN` {#interval-flatten}
+
+Splits overlapping intervals into segments and aggregates the rows active in
+each:
+
+```railroad
+Diagram(
+  Terminal('INTERVAL'), Terminal('FLATTEN'), Optional(NonTerminal('per-clause')),
+  Terminal('AGGREGATE'), NonTerminal('aggregate-list'))
+```
+
+- **Intervals:** Bare `ts` and `dur`, which must be integer columns. Input does
+  not need to be sorted.
+- **Groups:** Each combination of `PER` values is flattened on its own. Without
+  `PER`, all rows are one group. `NULL` keys group together.
+- **Aggregates:** At least one; see [Aggregates](#aggregates). Each is taken
+  over the rows covering a segment.
+- **Output:** `ts`, `dur`, the `PER` columns, then the aggregates. Every other
+  column and all aliases are dropped. A `PER` column listed twice is output
+  twice, so its name is then ambiguous.
+
+Interval rules:
+
+- **Segments:** Output splits at every input start and end. Gaps with no rows
+  give no output. Neighbouring segments are not merged even when their values
+  match.
+- **Points:** Rows with `dur = 0` at one instant give one extra segment with
+  `dur = 0`. Its aggregates cover those points and the intervals active at that
+  instant: intervals starting there count, intervals ending there do not.
+  Points do not count towards other segments.
+- **`NULL` bounds:** Rows with a `NULL` `ts` or `dur` are skipped.
+- **Negative bounds** are an error. Filter out unfinished slices, which have
+  `dur = -1`, first.
+- **Overflow** is an error.
+
+For an example, see
+[Flattening Overlapping Intervals](/docs/analysis/perfetto-sql-pipe-getting-started.md#flattening-overlapping-intervals-interval-flatten).
+
+### `INTERVAL FILL GAPS` {#interval-fill-gaps}
+
+Keeps every row and adds a row for each stretch of a background interval which
+no row covers:
+
+```railroad
+Diagram(
+  Terminal('INTERVAL'), Terminal('FILL'), Terminal('GAPS'), Terminal('WITH'),
+  NonTerminal('source'), Optional(NonTerminal('per-clause')))
+```
+
+`<source>` holds the background intervals.
+
+- **Intervals:** Bare `ts` and `dur`, in the input and the background.
+- **Lanes:** Each combination of `PER` values is filled on its own. The
+  background has either every `PER` column or none of them:
+  - With them, it says which lanes exist. A lane with no input is filled whole,
+    and input in a lane the background does not have gets no fillers.
+  - Without them, the same background applies to every lane in the input.
+- **Fillers** take each background column's value by name, their lane's `PER`
+  values, and `NULL` for every other column. Every background column must also
+  be in the input.
+- **Types:** A column takes one type across both inputs. A column holding
+  strings in one and numbers in the other is an error.
+- **Output:** The input's columns. Rows come out in no particular order. Aliases
+  are kept.
+
+Interval rules:
+
+- Overlapping input rows cover their union.
+- An input row with `dur = -1` covers everything after its `ts`.
+- An input row with a `NULL` `ts` covers nothing, but is still output.
+- A point does not split a filler.
+- A negative input `ts` is an error.
+- Background rows which overlap within a lane are an error.
+
+For an example, see
+[Filling Gaps](/docs/analysis/perfetto-sql-pipe-getting-started.md#filling-gaps-interval-fill-gaps).
+
+### `TREE ACCUMULATE` {#tree-accumulate}
+
+Aggregates up or down a tree:
+
+```railroad
+Diagram(
+  Terminal('TREE'), Terminal('ACCUMULATE'),
+  Choice(0, Terminal('UP'), Terminal('DOWN')),
+  NonTerminal('aggregate-list'))
+```
+
+- **Tree:** Bare `id` and `parent_id`. Roots have `parent_id IS NULL`.
+- **Directions:**
+  - `UP`: each node's aggregate covers itself and all its descendants. Rows
+    come out children first.
+  - `DOWN`: each node's aggregate covers itself and all its ancestors. Rows
+    come out parents first.
+- **Aggregates:** See [Aggregates](#aggregates). `COUNT(*)` going `DOWN` is a
+  node's depth, counting from 1.
+- **Output:** Every input column, then the aggregates. Aliases are kept but do
+  not include the new columns.
+- **Errors:** Two rows with one `id`, a row which is its own parent, and a
+  `parent_id` with no row of that `id`. These are only checked if a later stage
+  reads one of the aggregates; otherwise the stage is skipped.
+
+### `AGGREGATE` {#aggregate}
+
+Collapses each group of rows into one:
+
+```railroad
+Diagram(
+  Terminal('AGGREGATE'), NonTerminal('aggregate-list'),
+  Optional(NonTerminal('group-by')))
+```
+
+```railroad group-by
+Diagram(
+  Terminal('GROUP'), Terminal('BY'),
+  OneOrMore(
+    Sequence(NonTerminal('column'),
+      Optional(Sequence(Terminal('AS'), NonTerminal('name')))),
+    Terminal(',')))
+```
+
+- **Groups:** Rows that agree on every `GROUP BY` column. A key can have any
+  type and can be qualified. `NULL` keys group together. Without `GROUP BY`,
+  all rows are one group, which gives a row even when there are no rows.
+- **Aggregates:** At least one; see [Aggregates](#aggregates).
+- **Output:** The keys, then the aggregates. A key is named by its `AS` name,
+  or else its column name without qualifier. Every other column and all aliases
+  are dropped. A key listed twice, even as `cpu` and `t.cpu`, groups once
+  but is output twice.
+- **Order:** Groups come out in the order their first rows arrived.
+
+For example, CPU time per slice:
+
+```sql
+INCLUDE PERFETTO MODULE slices.with_context;
+
+INTERVAL INTERSECTION OF (
+  (SELECT id, ts, dur, utid FROM thread_slice WHERE dur > 0) AS s,
+  (SELECT ts, dur, utid FROM sched WHERE dur > 0) AS running
+) PER utid
+|> AGGREGATE SUM(dur) AS cpu_time GROUP BY s.id
+|> ORDER BY id;
+```
+
+### `SELECT` {#select}
+
+Replaces the row with the listed items, and clears all aliases:
+
+```railroad
+Diagram(Terminal('SELECT'), OneOrMore(NonTerminal('item'), Terminal(',')))
+```
+
+Each `<item>` is one of:
+
+```railroad item
+Diagram(Choice(0,
+  Sequence(NonTerminal('column'),
+    Optional(Sequence(Terminal('AS'), NonTerminal('name')))),
+  NonTerminal('star')))
+```
+
+- **A column.** Without `AS`, it keeps its name. Other expressions parse, but
+  fail with `a computed column is not supported yet`.
+- **A `<star>`:**
+
+```railroad star
+Diagram(
+  Optional(Sequence(NonTerminal('alias'), Terminal('.'))), Terminal('*'),
+  Optional(NonTerminal('except')), Optional(NonTerminal('replace')))
+```
+
+```railroad except
+Diagram(
+  Terminal('EXCEPT'), Terminal('('),
+  OneOrMore(NonTerminal('name'), Terminal(',')), Terminal(')'))
+```
+
+```railroad replace
+Diagram(
+  Terminal('REPLACE'), Terminal('('),
+  OneOrMore(
+    Sequence(NonTerminal('column'), Terminal('AS'), NonTerminal('target')),
+    Terminal(',')),
+  Terminal(')'))
+```
+
+A star works as follows:
+
+1. `*` is the columns found by bare name. After `INTERVAL INTERSECTION OF`,
+   that leaves out each source's own `ts` and `dur`. `<alias>.*` is the
+   columns the alias had when it was set.
+2. `EXCEPT` removes every column with a listed name. Each name must match at
+   least one column and be listed once, and at least one column must remain.
+3. `REPLACE (<column> AS <target>)` puts `<column>`'s values in `<target>`,
+   keeping `<target>`'s name and position. `<column>` is looked up in the row
+   before the stage; `<target>` must be one column left after `EXCEPT`.
+4. Every column a star adds can be referred to by bare name in later stages.
+
+### `EXTEND` {#extend}
+
+Adds columns at the end of the row, keeping every column and alias:
+
+```railroad
+Diagram(Terminal('EXTEND'), OneOrMore(NonTerminal('item'), Terminal(',')))
+```
+
+- Items are as in `SELECT`, except that a bare `*` is not allowed. Use
+  `<alias>.*` to add an alias's columns.
+- Items read the row before the stage, so one cannot refer to another.
+- Aliases do not include the new columns.
+
+### `DROP` {#drop}
+
+Removes columns by name:
+
+```railroad
+Diagram(Terminal('DROP'), OneOrMore(NonTerminal('name'), Terminal(',')))
+```
+
+- Each name must match a column found by bare name, and removes every column
+  of that name.
+- Each name is listed once, and at least one column must remain.
+- Aliases keep the dropped columns. An alias with the same name as a dropped
+  column is removed.
+
+### `RENAME` {#rename}
+
+Renames columns in place:
+
+```railroad
+Diagram(
+  Terminal('RENAME'),
+  OneOrMore(
+    Sequence(NonTerminal('old'), Terminal('AS'), NonTerminal('new')),
+    Terminal(',')))
+```
+
+- Each `<old>` must be one column found by bare name, listed once.
+- All renames happen together, so `|> RENAME x AS y, y AS x` swaps `x` and
+  `y`.
+- Renaming to an existing name is allowed; the name is then ambiguous.
+- Aliases keep the old name.
+
+### `SET` {#set}
+
+Replaces the values of columns in place:
+
+```railroad
+Diagram(
+  Terminal('SET'),
+  OneOrMore(
+    Sequence(NonTerminal('target'), Terminal('='), NonTerminal('column')),
+    Terminal(',')))
+```
+
+- Each `<target>` must be one column found by bare name, listed once.
+- Each `<column>` is looked up in the row before the stage. So `|> SET x = y, y = x` swaps the values of `x` and `y`. Other
+  expressions fail with `a computed column is not supported yet`.
+- Aliases keep the old values. An alias with the same name as a target is
+  removed.
+
+### `AS` {#as}
+
+Replaces all aliases with one alias for the current row:
+
+```railroad
+Diagram(Terminal('AS'), NonTerminal('alias'))
+```
+
+After `|> AS u`, earlier aliases are gone, and `u.<col>` and `u.*` are the
+columns found by bare name at this point. After `INTERVAL INTERSECTION OF`,
+`u.ts` is the region's `ts`, and the sources' own `ts` and `dur` can no longer
+be reached.
 
 ---
 
-### `SELECT`
+## Names
 
-Replaces the current row with the specified items and clears all table aliases:
-
-```sql
-|> SELECT <select_item> [, <select_item> ...]
-```
-
-Each `<select_item>` is one of:
-
-- **Column reference:** `[<qualifier>.]<col> [[AS] <alias>]`
-- **Star expansion:**
-  `[<qualifier>.]* [EXCEPT (<col_1> [, <col_2> ...])] [REPLACE (<replace_item> [, ...])]`
-  where each `<replace_item>` is `[<qualifier>.]<source_col> AS <target_col>`.
-  `AS` is required in `REPLACE`.
-
-Star expansion rules:
-
-1. `*` starts with all columns in the current row, including qualified-only
-   operand columns after `INTERVAL INTERSECTION OF`. `<qualifier>.*` starts with
-   the columns captured when `<qualifier>` was bound.
-2. `EXCEPT (<col>, ...)` removes every column matching any listed bare name
-   case-insensitively. Every listed name must match at least one column, no name
-   may be listed twice, and at least one column must remain after `EXCEPT`.
-3. `REPLACE (<source_col> AS <target_col>, ...)` resolves `<source_col>` against
-   the input row or aliases before the stage and replaces the value of
-   `<target_col>` in the star's expansion while keeping `<target_col>`'s
-   position and name. `<target_col>` must match a single column remaining in the
-   star after `EXCEPT`.
-4. All columns produced by `*` or `<qualifier>.*` can be referenced without a
-   qualifier in subsequent stages.
-
----
-
-### `EXTEND`
-
-Appends columns to the end of the current row while keeping all existing columns
-and aliases:
-
-```sql
-|> EXTEND <extend_item> [, <extend_item> ...]
-```
-
-- Accepts the same items as `SELECT`, except that a bare `*` is not allowed. Use
-  `<qualifier>.*` to append all columns of a table alias.
-- All items in `EXTEND` resolve against the row before the stage, so an item
-  cannot reference another column added in the same `EXTEND` stage.
-- Columns added by `EXTEND` are not added to any existing table aliases.
-
----
-
-### `DROP`
-
-Removes columns from the current row by bare name:
-
-```sql
-|> DROP <col_1> [, <col_2> ...]
-```
-
-- Every listed name must match at least one unqualified-accessible column in the
-  current row, and removes all columns of that name from the bare row.
-- No name may be listed twice, and at least one column must remain in the row
-  after `DROP`.
-- Existing table aliases keep the dropped columns, except that any table alias
-  whose name matches a dropped column name is removed.
-
----
-
-### `RENAME`
-
-Renames columns in the current row in place:
-
-```sql
-|> RENAME <old_1> [AS] <new_1> [, <old_2> [AS] <new_2> ...]
-```
-
-- `<old_i>` must be a bare column name that resolves unambiguously in the
-  current row, and may not be listed twice in the same `RENAME`.
-- All renames in a single stage take effect at the same time, so
-  `|> RENAME x AS y, y AS x` swaps `x` and `y`.
-- Renaming a column to an existing column's name is allowed. This creates
-  duplicate column names in the row, which only error if a later stage
-  references the ambiguous name.
-- Existing table aliases are unaffected and continue to expose the column under
-  its old name.
-
----
-
-### `SET`
-
-Replaces the values of existing columns in the current row in place:
-
-```sql
-|> SET <target_1> = [<qualifier>.]<source_1> [, <target_2> = [<qualifier>.]<source_2> ...]
-```
-
-- `<target_i>` must be a bare column name that resolves unambiguously in the
-  current row, and may not be listed twice in the same `SET`.
-- Every `<source_i>` is resolved against the row and aliases before the stage,
-  so `|> SET x = y, y = x` swaps the values of `x` and `y`.
-- Existing table aliases keep the pre-`SET` values, except that any table alias
-  whose name matches `<target_i>` is removed.
-
----
-
-### `AS`
-
-Replaces all existing table aliases with a single new alias bound to a snapshot
-of the current row:
-
-```sql
-|> AS <alias>
-```
-
-After `|> AS u`, earlier table aliases are no longer in scope, and `u.<col>` and
-`u.*` reflect the row as of the `AS` stage.
-
----
-
-## Name Resolution and Ambiguity Rules
-
-- **Case insensitivity:** Column names and table aliases are matched
-  case-insensitively using ASCII folding, while keeping the casing of the
-  defining column or alias in output schemas.
-- **Duplicate column names:** A stage is allowed to create duplicate column
-  names in the row, such as `|> EXTEND x` or `|> RENAME x AS y` when `y` already
-  exists. Duplicate names only cause an error if a later stage references the
-  ambiguous name without a table qualifier. You can also drop or exclude all
-  copies at once via `DROP y` or `* EXCEPT (y)`.
-- **Quoted identifiers:** Identifiers may be quoted with `"..."`, `` `...` ``,
-  or `[...]`. Inside `"..."` and `` `...` ``, doubling the quote character
-  escapes a literal quote, and `""` spells the empty column name.
+- **Case:** Column names and aliases match regardless of ASCII case. Output
+  keeps the case they were defined with.
+- **Duplicates:** A stage can leave two columns with one name, as
+  `|> RENAME x AS y` does when `y` exists. This is only an error when a later
+  stage refers to that name without a qualifier. `DROP y` or `* EXCEPT (y)`
+  removes every copy.
+- **Quoting:** Names can be quoted with `"..."`, `` `...` `` or `[...]`. Inside
+  `"..."` and `` `...` ``, a doubled quote is a literal quote.

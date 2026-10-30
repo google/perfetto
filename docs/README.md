@@ -183,7 +183,7 @@ posts, articles and videos:
   efficient podcast ever. Ben and Matt talk performance testing and optimization
   in fewer than 30 minutes."
 - [Collabora: Profiling virtualized GPU acceleration with Perfetto](https://www.collabora.com/news-and-blog/blog/2021/04/22/profiling-virtualized-gpu-acceleration-with-perfetto/)
-- [Snap: Client Tracing at Scale](https://www.droidcon.com/2022/06/28/client-tracing-at-scale/)
+- [Snap: Client Tracing at Scale](https://web.archive.org/web/2023/https://www.droidcon.com/2022/06/28/client-tracing-at-scale/)
   "With the wide range of Android devices, it can be difficult to find the root
   cause of performance problems. By leveraging traces, we can begin to
   understand the exact circumstances that led to a poor user experience. We will

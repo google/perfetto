@@ -113,10 +113,21 @@ class TraceImporterId {
   const void* tag_ = nullptr;
 };
 
+// What TraceImporterBase::Sniff() found in the first bytes of a file.
+struct SniffResult {
+  // Whether the file is in this importer's format.
+  bool matches = false;
+  // Orders archive members of the same TraceTypeDescriptor::archive_priority,
+  // lower first, so that an importer can read some of its files before others
+  // based on their content. Only meaningful if `matches`.
+  int content_priority = 0;
+};
+
 // Pure-virtual interface for trace importers (mirrors PluginBase). Concrete
 // importers derive from TraceImporter<Self> below, which supplies identity and
 // descriptor storage; a metadata-only type (one detected structurally
-// elsewhere) implements Sniff() as false and CreateReader() as an error.
+// elsewhere) never matches in Sniff() and implements CreateReader() as an
+// error.
 //
 // Detection and reader creation are deliberately separate calls: archives sniff
 // every member up front to order them, then create readers later in that order,
@@ -131,8 +142,9 @@ class TraceImporterBase {
   // The static metadata for this trace type.
   virtual const TraceTypeDescriptor& descriptor() const = 0;
 
-  // Returns true if `data` (the first bytes of a file) is this format.
-  virtual bool Sniff(const uint8_t* data, size_t size) const = 0;
+  // Returns whether `data` (the first bytes of a file) is this format and, if
+  // so, the file's content_priority.
+  virtual SniffResult Sniff(const uint8_t* data, size_t size) const = 0;
 
   // Creates the reader for this format. `file_id` is the trace_file_table id of
   // the file being read.
@@ -175,10 +187,18 @@ class TraceImporterRegistry {
   // Returns the importer for `id`, or nullptr if none is registered.
   const TraceImporterBase* FindImporter(TraceImporterId id) const;
 
+  // What Guess() found: the first importer whose Sniff() matched.
+  struct GuessResult {
+    // Invalid if no importer matched.
+    TraceImporterId id;
+    // The matching importer's SniffResult::content_priority.
+    int content_priority = 0;
+  };
+
   // Runs every importer's Sniff() in detection_priority order (lowest first,
-  // and priorities are globally unique) and returns the matching id, or an
+  // and priorities are globally unique) and returns the first match, or an
   // invalid id if none match.
-  TraceImporterId Guess(const uint8_t* data, size_t size) const;
+  GuessResult Guess(const uint8_t* data, size_t size) const;
 
   // Per-type metadata helpers.
   const char* ToString(TraceImporterId id) const;
@@ -191,9 +211,13 @@ class TraceImporterRegistry {
       importers_;
 };
 
-// The number of leading bytes an importer's Sniff() may inspect. Detection
-// must decide from at most this prefix.
+// The number of leading bytes an importer's Sniff() may inspect to detect its
+// format. Detection must decide from at most this prefix.
 constexpr size_t kGuessTraceMaxLookahead = 128;
+// The number of leading bytes an importer's Sniff() may inspect to choose
+// SniffResult::content_priority. Archives pass at least this much of each
+// member to TraceImporterRegistry::Guess(), or the whole member if smaller.
+constexpr size_t kContentPriorityLookahead = 64 * 1024;
 // The formats read_trace distinguishes, detected from magic bytes only, so
 // tools that merely decompress or pass through a trace need not build the
 // importer registry or link any tokenizer. kGzip/kZstd map to the matching

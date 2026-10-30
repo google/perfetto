@@ -263,7 +263,10 @@ class TraceSorter {
         }
       }
 
-      min_ts_ = std::min(min_ts_, ts);
+      if (ts < min_ts_) {
+        min_ts_ = ts;
+        min_alloc_id_ = id.alloc_id;
+      }
       PERFETTO_DCHECK(min_ts_ <= max_ts_);
     }
 
@@ -272,6 +275,8 @@ class TraceSorter {
 
     base::CircularQueue<TimestampedEvent> events_;
     int64_t min_ts_ = std::numeric_limits<int64_t>::max();
+    // The first event to arrive at min_ts_.
+    BumpAllocator::AllocId min_alloc_id_{};
     int64_t max_ts_ = 0;
     size_t sort_start_idx_ = 0;
     int64_t sort_min_ts_ = std::numeric_limits<int64_t>::max();
@@ -291,6 +296,7 @@ class TraceSorter {
   // ordered without reading the queues.
   struct QueueHeapEntry {
     int64_t min_ts;
+    BumpAllocator::AllocId min_alloc_id;
     uint32_t queue;
   };
   std::vector<QueueHeapEntry> queue_heap_;

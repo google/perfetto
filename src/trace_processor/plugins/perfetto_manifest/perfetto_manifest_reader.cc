@@ -698,12 +698,12 @@ class PerfettoManifestImporter
   PerfettoManifestImporter() : TraceImporter(MakeDescriptor()) {}
   ~PerfettoManifestImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     std::string start(reinterpret_cast<const char*>(data),
                       std::min<size_t>(size, kGuessTraceMaxLookahead));
     start.erase(std::remove_if(start.begin(), start.end(), base::IsSpace),
                 start.end());
-    return base::StartsWith(start, "{\"perfetto_manifest\"");
+    return {base::StartsWith(start, "{\"perfetto_manifest\"")};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

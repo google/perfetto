@@ -370,7 +370,7 @@ const char* GetMmEventTypeStr(uint32_t type) {
 void InsertFieldIntoArgs(StringId name_id,
                          ProtoSchemaType type,
                          const protozero::Field& fld,
-                         ArgsTracker::BoundInserter& inserter,
+                         ArgsInserter& inserter,
                          TraceProcessorContext* context) {
   switch (type) {
     case ProtoSchemaType::kInt32:
@@ -780,8 +780,7 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
         any_errors = true;
         StringId message_id = storage->InternString(base::StringView(message));
         context_->import_logs_tracker->RecordCollectionLog(
-            stats::ftrace_setup_errors,
-            [&](ArgsTracker::BoundInserter& inserter) {
+            stats::ftrace_setup_errors, [&](ArgsInserter& inserter) {
               inserter.AddArg(message_key, Variadic::String(message_id));
             });
       };
@@ -1721,8 +1720,7 @@ void FtraceParser::ParseLegacyGenericFtrace(int64_t ts,
       context_->storage->mutable_ftrace_event_table()
           ->Insert({ts, event_id, utid, {}, {}, ucpu})
           .id;
-  ArgsTracker args_tracker(context_);
-  auto inserter = args_tracker.AddArgsTo(id);
+  auto inserter = context_->args_tracker->AddArgsTo(id);
 
   for (auto it = evt.field(); it; ++it) {
     protos::pbzero::GenericFtraceEvent::Field::Decoder fld(*it);
@@ -1774,8 +1772,7 @@ void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
       context_->storage->mutable_ftrace_event_table()
           ->Insert({ts, descriptor->name, utid, {}, {}, ucpu})
           .id;
-  ArgsTracker args_tracker(context_);
-  auto inserter = args_tracker.AddArgsTo(id);
+  auto inserter = context_->args_tracker->AddArgsTo(id);
 
   // Insert fields into |args|.
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
@@ -1821,8 +1818,7 @@ void FtraceParser::ParseTypedFtraceToRaw(
           ->Insert(
               {timestamp, message_strings.message_name_id, utid, {}, {}, ucpu})
           .id;
-  ArgsTracker args_tracker(context_);
-  auto inserter = args_tracker.AddArgsTo(id);
+  auto inserter = context_->args_tracker->AddArgsTo(id);
 
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
     uint32_t field_id = fld.id();
@@ -2154,11 +2150,11 @@ void FtraceParser::ParseDpuDispDpuUnderrun(int64_t timestamp, ConstBytes blob) {
 
   context_->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, slice_name_id, 0,
-      [&](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(
+      [&](ArgsInserter& inserter) {
+        inserter.AddArg(
             context_->storage->InternString(base::StringView("vsync_count")),
             Variadic::Integer(ex.vsync_count()));
-        inserter->AddArg(
+        inserter.AddArg(
             context_->storage->InternString(base::StringView("pending_frame")),
             Variadic::Integer(ex.frames_pending()));
       });
@@ -2180,8 +2176,8 @@ void FtraceParser::ParseGramCollision(int64_t timestamp, ConstBytes blob) {
 
   context_->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, slice_name_id, 0,
-      [&](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(
+      [&](ArgsInserter& inserter) {
+        inserter.AddArg(
             context_->storage->InternString(base::StringView("collision_cnt")),
             Variadic::Integer(ex.collision_cnt()));
       });
@@ -2203,32 +2199,32 @@ void FtraceParser::ParsePanelSettingsFull(int64_t timestamp, ConstBytes blob) {
 
   context_->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, slice_name_id, 0,
-      [&](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(
+      [&](ArgsInserter& inserter) {
+        inserter.AddArg(
             context_->storage->InternString(base::StringView("hbm")),
             Variadic::Boolean(ex.hbm()));
-        inserter->AddArg(
+        inserter.AddArg(
             context_->storage->InternString(base::StringView("irc")),
             Variadic::Integer(ex.irc()));
-        inserter->AddArg(
+        inserter.AddArg(
             context_->storage->InternString(base::StringView("h_pwm")),
             Variadic::Boolean(ex.h_pwm()));
-        inserter->AddArg(
+        inserter.AddArg(
             context_->storage->InternString(base::StringView("fi_auto")),
             Variadic::Boolean(ex.fi_auto()));
-        inserter->AddArg(
+        inserter.AddArg(
             context_->storage->InternString(base::StringView("fi_manual")),
             Variadic::Boolean(ex.fi_manual()));
-        inserter->AddArg(
+        inserter.AddArg(
             context_->storage->InternString(base::StringView("early_exit")),
             Variadic::Boolean(ex.early_exit()));
-        inserter->AddArg(
+        inserter.AddArg(
             context_->storage->InternString(base::StringView("min_rr")),
             Variadic::Integer(ex.min_rr()));
-        inserter->AddArg(
+        inserter.AddArg(
             context_->storage->InternString(base::StringView("max_rr")),
             Variadic::Integer(ex.max_rr()));
-        inserter->AddArg(
+        inserter.AddArg(
             context_->storage->InternString(base::StringView("te_freq")),
             Variadic::Integer(ex.te_freq()));
       });
@@ -2250,17 +2246,17 @@ void FtraceParser::ParsePanelSettingsLite(int64_t timestamp, ConstBytes blob) {
 
   context_->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, slice_name_id, 0,
-      [&](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(
+      [&](ArgsInserter& inserter) {
+        inserter.AddArg(
             context_->storage->InternString(base::StringView("vrr")),
             Variadic::Boolean(ex.vrr()));
-        inserter->AddArg(
+        inserter.AddArg(
             context_->storage->InternString(base::StringView("min_rr")),
             Variadic::Integer(ex.min_rr()));
-        inserter->AddArg(
+        inserter.AddArg(
             context_->storage->InternString(base::StringView("max_rr")),
             Variadic::Integer(ex.max_rr()));
-        inserter->AddArg(
+        inserter.AddArg(
             context_->storage->InternString(base::StringView("te_freq")),
             Variadic::Integer(ex.te_freq()));
       });
@@ -2538,9 +2534,9 @@ void FtraceParser::ParseDmaHeapStat(int64_t timestamp,
 
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(dma_heap.len()), track,
-      [&, this](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(inode_arg_id_,
-                         Variadic::UnsignedInteger(dma_heap.inode()));
+      [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(inode_arg_id_,
+                        Variadic::UnsignedInteger(dma_heap.inode()));
       });
 
   static constexpr auto kAllocsBlueprint = TrackCompressor::SliceBlueprint(
@@ -2575,8 +2571,8 @@ void FtraceParser::ParseSignalGenerate(int64_t timestamp, ConstBytes blob) {
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
   context_->slice_tracker->Scoped(
       timestamp, track, kNullStringId, signal_generate_id_, 0,
-      [this, signal](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(signal_name_id_, Variadic::Integer(signal));
+      [this, signal](ArgsInserter& inserter) {
+        inserter.AddArg(signal_name_id_, Variadic::Integer(signal));
       });
 }
 
@@ -2589,8 +2585,8 @@ void FtraceParser::ParseSignalDeliver(int64_t timestamp,
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
   context_->slice_tracker->Scoped(
       timestamp, track, kNullStringId, signal_deliver_id_, 0,
-      [this, signal](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(signal_name_id_, Variadic::Integer(signal));
+      [this, signal](ArgsInserter& inserter) {
+        inserter.AddArg(signal_name_id_, Variadic::Integer(signal));
       });
 }
 
@@ -2645,7 +2641,7 @@ void FtraceParser::ParseSysEnterEvent(int64_t timestamp,
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
   SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(context_);
-  auto args_callback = [this, &evt](ArgsTracker::BoundInserter* inserter) {
+  auto args_callback = [this, &evt](ArgsInserter& inserter) {
     // process all syscall arguments
     uint32_t count = 0;
     for (auto it = evt.args(); it; ++it) {
@@ -2655,8 +2651,8 @@ void FtraceParser::ParseSysEnterEvent(int64_t timestamp,
             context_->storage->InternString(string_arg.string_view());
         syscall_arg_name_ids_.emplace_back(string_id);
       }
-      inserter->AddArg(syscall_args_id_, syscall_arg_name_ids_[count],
-                       Variadic::UnsignedInteger(*it));
+      inserter.AddArg(syscall_args_id_, syscall_arg_name_ids_[count],
+                      Variadic::UnsignedInteger(*it));
       ++count;
     }
   };
@@ -2675,10 +2671,10 @@ void FtraceParser::ParseSysExitEvent(int64_t timestamp,
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
   SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(context_);
-  auto args_callback = [this, &evt](ArgsTracker::BoundInserter* inserter) {
+  auto args_callback = [this, &evt](ArgsInserter& inserter) {
     if (evt.has_ret()) {
       const auto ret = evt.ret();
-      inserter->AddArg(syscall_ret_id_, Variadic::Integer(ret));
+      inserter.AddArg(syscall_ret_id_, Variadic::Integer(ret));
     }
   };
   syscall_tracker->Exit(timestamp, utid, syscall_num, args_callback);
@@ -2965,20 +2961,20 @@ void FtraceParser::ParseCmaAllocFinish(int64_t timestamp,
   const CmaMigrationInfo& info = info_ptr ? *info_ptr : CmaMigrationInfo{};
 
   auto args_inserter = [this, &cma_alloc_finish,
-                        &info](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(cma_name_id_,
-                     Variadic::String(context_->storage->InternString(
-                         cma_alloc_finish.name())));
-    inserter->AddArg(cma_pfn_id_,
-                     Variadic::UnsignedInteger(cma_alloc_finish.pfn()));
-    inserter->AddArg(cma_req_pages_id_,
-                     Variadic::UnsignedInteger(cma_alloc_finish.count()));
-    inserter->AddArg(cma_nr_migrated_id_,
-                     Variadic::UnsignedInteger(info.nr_migrated));
-    inserter->AddArg(cma_nr_reclaimed_id_,
-                     Variadic::UnsignedInteger(info.nr_reclaimed));
-    inserter->AddArg(cma_nr_mapped_id_,
-                     Variadic::UnsignedInteger(info.nr_mapped));
+                        &info](ArgsInserter& inserter) {
+    inserter.AddArg(cma_name_id_,
+                    Variadic::String(context_->storage->InternString(
+                        cma_alloc_finish.name())));
+    inserter.AddArg(cma_pfn_id_,
+                    Variadic::UnsignedInteger(cma_alloc_finish.pfn()));
+    inserter.AddArg(cma_req_pages_id_,
+                    Variadic::UnsignedInteger(cma_alloc_finish.count()));
+    inserter.AddArg(cma_nr_migrated_id_,
+                    Variadic::UnsignedInteger(info.nr_migrated));
+    inserter.AddArg(cma_nr_reclaimed_id_,
+                    Variadic::UnsignedInteger(info.nr_reclaimed));
+    inserter.AddArg(cma_nr_mapped_id_,
+                    Variadic::UnsignedInteger(info.nr_mapped));
   };
   context_->slice_tracker->End(timestamp, track_id, kNullStringId,
                                kNullStringId, args_inserter);
@@ -2998,27 +2994,26 @@ void FtraceParser::ParseCmaAllocInfo(int64_t timestamp,
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
   protos::pbzero::CmaAllocInfoFtraceEvent::Decoder cma_alloc_info(blob);
-  auto args_inserter = [this,
-                        &cma_alloc_info](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(cma_name_id_,
-                     Variadic::String(context_->storage->InternString(
-                         cma_alloc_info.name())));
-    inserter->AddArg(cma_pfn_id_,
-                     Variadic::UnsignedInteger(cma_alloc_info.pfn()));
-    inserter->AddArg(cma_req_pages_id_,
-                     Variadic::UnsignedInteger(cma_alloc_info.count()));
-    inserter->AddArg(cma_nr_migrated_id_,
-                     Variadic::UnsignedInteger(cma_alloc_info.nr_migrated()));
-    inserter->AddArg(cma_nr_reclaimed_id_,
-                     Variadic::UnsignedInteger(cma_alloc_info.nr_reclaimed()));
-    inserter->AddArg(cma_nr_mapped_id_,
-                     Variadic::UnsignedInteger(cma_alloc_info.nr_mapped()));
-    inserter->AddArg(cma_nr_isolate_fail_id_,
-                     Variadic::UnsignedInteger(cma_alloc_info.err_iso()));
-    inserter->AddArg(cma_nr_migrate_fail_id_,
-                     Variadic::UnsignedInteger(cma_alloc_info.err_mig()));
-    inserter->AddArg(cma_nr_test_fail_id_,
-                     Variadic::UnsignedInteger(cma_alloc_info.err_test()));
+  auto args_inserter = [this, &cma_alloc_info](ArgsInserter& inserter) {
+    inserter.AddArg(cma_name_id_,
+                    Variadic::String(context_->storage->InternString(
+                        cma_alloc_info.name())));
+    inserter.AddArg(cma_pfn_id_,
+                    Variadic::UnsignedInteger(cma_alloc_info.pfn()));
+    inserter.AddArg(cma_req_pages_id_,
+                    Variadic::UnsignedInteger(cma_alloc_info.count()));
+    inserter.AddArg(cma_nr_migrated_id_,
+                    Variadic::UnsignedInteger(cma_alloc_info.nr_migrated()));
+    inserter.AddArg(cma_nr_reclaimed_id_,
+                    Variadic::UnsignedInteger(cma_alloc_info.nr_reclaimed()));
+    inserter.AddArg(cma_nr_mapped_id_,
+                    Variadic::UnsignedInteger(cma_alloc_info.nr_mapped()));
+    inserter.AddArg(cma_nr_isolate_fail_id_,
+                    Variadic::UnsignedInteger(cma_alloc_info.err_iso()));
+    inserter.AddArg(cma_nr_migrate_fail_id_,
+                    Variadic::UnsignedInteger(cma_alloc_info.err_mig()));
+    inserter.AddArg(cma_nr_test_fail_id_,
+                    Variadic::UnsignedInteger(cma_alloc_info.err_test()));
   };
   context_->slice_tracker->End(timestamp, track_id, kNullStringId,
                                kNullStringId, args_inserter);
@@ -3035,13 +3030,12 @@ void FtraceParser::ParseDirectReclaimBegin(int64_t timestamp,
   StringId name_id =
       context_->storage->InternString("mm_vmscan_direct_reclaim");
 
-  auto args_inserter = [this, &direct_reclaim_begin](
-                           ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(direct_reclaim_order_id_,
-                     Variadic::Integer(direct_reclaim_begin.order()));
-    inserter->AddArg(direct_reclaim_may_writepage_id_,
-                     Variadic::Integer(direct_reclaim_begin.may_writepage()));
-    inserter->AddArg(
+  auto args_inserter = [this, &direct_reclaim_begin](ArgsInserter& inserter) {
+    inserter.AddArg(direct_reclaim_order_id_,
+                    Variadic::Integer(direct_reclaim_begin.order()));
+    inserter.AddArg(direct_reclaim_may_writepage_id_,
+                    Variadic::Integer(direct_reclaim_begin.may_writepage()));
+    inserter.AddArg(
         direct_reclaim_gfp_flags_id_,
         Variadic::UnsignedInteger(direct_reclaim_begin.gfp_flags()));
   };
@@ -3058,12 +3052,11 @@ void FtraceParser::ParseDirectReclaimEnd(int64_t timestamp,
   protos::pbzero::MmVmscanDirectReclaimEndFtraceEvent::Decoder
       direct_reclaim_end(blob);
 
-  auto args_inserter =
-      [this, &direct_reclaim_end](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(
-            direct_reclaim_nr_reclaimed_id_,
-            Variadic::UnsignedInteger(direct_reclaim_end.nr_reclaimed()));
-      };
+  auto args_inserter = [this, &direct_reclaim_end](ArgsInserter& inserter) {
+    inserter.AddArg(
+        direct_reclaim_nr_reclaimed_id_,
+        Variadic::UnsignedInteger(direct_reclaim_end.nr_reclaimed()));
+  };
   context_->slice_tracker->End(timestamp, track_id, kNullStringId,
                                kNullStringId, args_inserter);
 }
@@ -3082,13 +3075,13 @@ void FtraceParser::ParseShrinkSlabStart(
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
   context_->slice_tracker->Begin(
       timestamp, track, kNullStringId, shrink_slab_id_,
-      [&, this](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(shrink_name_id_, Variadic::String(shrink_name));
-        inserter->AddArg(
+      [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(shrink_name_id_, Variadic::String(shrink_name));
+        inserter.AddArg(
             shrink_total_scan_id_,
             Variadic::UnsignedInteger(shrink_slab_start.total_scan()));
-        inserter->AddArg(shrink_priority_id_,
-                         Variadic::Integer(shrink_slab_start.priority()));
+        inserter.AddArg(shrink_priority_id_,
+                        Variadic::Integer(shrink_slab_start.priority()));
       });
 }
 
@@ -3101,9 +3094,9 @@ void FtraceParser::ParseShrinkSlabEnd(int64_t timestamp,
 
   context_->slice_tracker->End(
       timestamp, track, kNullStringId, kNullStringId,
-      [&, this](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(shrink_freed_id_,
-                         Variadic::Integer(shrink_slab_end.retval()));
+      [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(shrink_freed_id_,
+                        Variadic::Integer(shrink_slab_end.retval()));
       });
 }
 
@@ -3119,11 +3112,11 @@ void FtraceParser::ParseWorkqueueExecuteStart(
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
 
-  context_->slice_tracker->Begin(
-      timestamp, track, workqueue_id_, name_id,
-      [&, this](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(cpu_id_, Variadic::Integer(cpu));
-      });
+  context_->slice_tracker->Begin(timestamp, track, workqueue_id_, name_id,
+                                 [&, this](ArgsInserter& inserter) {
+                                   inserter.AddArg(cpu_id_,
+                                                   Variadic::Integer(cpu));
+                                 });
 }
 
 void FtraceParser::ParseWorkqueueExecuteEnd(int64_t timestamp,
@@ -3170,11 +3163,10 @@ void FtraceParser::ParseIrqHandlerExit(uint32_t cpu,
   TrackId track = context_->track_tracker->InternTrack(kIrqBlueprint,
                                                        tracks::Dimensions(cpu));
   context_->slice_tracker->End(
-      timestamp, track, irq_id_, {},
-      [&, this](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(ret_arg_id_,
-                         Variadic::String(context_->storage->InternString(
-                             evt.ret() == 1 ? "handled" : "unhandled")));
+      timestamp, track, irq_id_, {}, [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(ret_arg_id_,
+                        Variadic::String(context_->storage->InternString(
+                            evt.ret() == 1 ? "handled" : "unhandled")));
       });
 }
 
@@ -3224,11 +3216,10 @@ void FtraceParser::ParseSoftIrqExit(uint32_t cpu,
 
   TrackId track = context_->track_tracker->InternTrack(kSoftIrqBlueprint,
                                                        tracks::Dimensions(cpu));
-  context_->slice_tracker->End(timestamp, track, irq_id_, {},
-                               [&, this](ArgsTracker::BoundInserter* inserter) {
-                                 inserter->AddArg(vec_arg_id_,
-                                                  Variadic::Integer(evt.vec()));
-                               });
+  context_->slice_tracker->End(
+      timestamp, track, irq_id_, {}, [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(vec_arg_id_, Variadic::Integer(evt.vec()));
+      });
 }
 
 void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
@@ -3378,11 +3369,11 @@ void FtraceParser::ParseNetifReceiveSkb(uint32_t cpu,
   uint64_t nic_received_kb = received / 1024;
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(nic_received_kb), track,
-      [&, this](ArgsTracker::BoundInserter* inserter) {
+      [&, this](ArgsInserter& inserter) {
         StringId cpu_key = context_->storage->InternString("cpu");
         StringId len_key = context_->storage->InternString("len");
-        inserter->AddArg(cpu_key, Variadic::UnsignedInteger(cpu));
-        inserter->AddArg(len_key, Variadic::UnsignedInteger(event.len()));
+        inserter.AddArg(cpu_key, Variadic::UnsignedInteger(cpu));
+        inserter.AddArg(len_key, Variadic::UnsignedInteger(event.len()));
       });
 }
 
@@ -3415,9 +3406,9 @@ void FtraceParser::ParseNetDevXmit(uint32_t cpu,
   uint64_t nic_transmitted_kilobytes = transmitted / 1024;
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(nic_transmitted_kilobytes), track,
-      [&, this](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(cpu_id_, Variadic::UnsignedInteger(cpu));
-        inserter->AddArg(len_arg_id_, Variadic::UnsignedInteger(evt.len()));
+      [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(cpu_id_, Variadic::UnsignedInteger(cpu));
+        inserter.AddArg(len_arg_id_, Variadic::UnsignedInteger(evt.len()));
       });
 }
 
@@ -3518,8 +3509,8 @@ void FtraceParser::ParseNapiGroReceiveEntry(uint32_t cpu,
   StringId slice_name_id = context_->storage->InternString(evt.name());
   context_->slice_tracker->Begin(
       timestamp, track, napi_gro_id_, slice_name_id,
-      [&, this](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(len_arg_id_, Variadic::Integer(evt.len()));
+      [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(len_arg_id_, Variadic::Integer(evt.len()));
       });
 }
 
@@ -3530,11 +3521,10 @@ void FtraceParser::ParseNapiGroReceiveExit(uint32_t cpu,
 
   TrackId track = context_->track_tracker->InternTrack(kNapiGroBlueprint,
                                                        tracks::Dimensions(cpu));
-  context_->slice_tracker->End(timestamp, track, napi_gro_id_, {},
-                               [&, this](ArgsTracker::BoundInserter* inserter) {
-                                 inserter->AddArg(ret_arg_id_,
-                                                  Variadic::Integer(evt.ret()));
-                               });
+  context_->slice_tracker->End(
+      timestamp, track, napi_gro_id_, {}, [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(ret_arg_id_, Variadic::Integer(evt.ret()));
+      });
 }
 
 void FtraceParser::ParseCpuFrequencyLimits(int64_t timestamp,
@@ -3570,12 +3560,12 @@ void FtraceParser::ParseKfreeSkb(int64_t timestamp,
   TrackId track = context_->track_tracker->InternTrack(kBlueprint);
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(num_of_kfree_skb_ip_prot), track,
-      [&, this](ArgsTracker::BoundInserter* inserter) {
+      [&, this](ArgsInserter& inserter) {
         base::StackString<255> prot("%s",
                                     evt.protocol() == kEthPIp ? "IP" : "IPV6");
         StringId prot_id = context_->storage->InternString(prot.string_view());
         // Store protocol as args for metrics computation.
-        inserter->AddArg(protocol_arg_id_, Variadic::String(prot_id));
+        inserter.AddArg(protocol_arg_id_, Variadic::String(prot_id));
       });
 }
 
@@ -3598,14 +3588,14 @@ void FtraceParser::ParseCrosEcSensorhubData(int64_t timestamp,
   context_->event_tracker->PushCounter(
       timestamp,
       static_cast<double>(evt.current_time() - evt.current_timestamp()), track,
-      [&, this](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(cros_ec_arg_num_id_,
-                         Variadic::Integer(evt.ec_sensor_num()));
-        inserter->AddArg(
+      [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(cros_ec_arg_num_id_,
+                        Variadic::Integer(evt.ec_sensor_num()));
+        inserter.AddArg(
             cros_ec_arg_ec_id_,
             Variadic::Integer(evt.fifo_timestamp() - evt.current_timestamp()));
-        inserter->AddArg(cros_ec_arg_sample_ts_id_,
-                         Variadic::Integer(evt.current_timestamp()));
+        inserter.AddArg(cros_ec_arg_sample_ts_id_,
+                        Variadic::Integer(evt.current_timestamp()));
       });
 }
 
@@ -4090,21 +4080,21 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
 
   TrackId start_id = context_->track_compressor->InternBegin(
       kSuspendResumeBlueprint, tracks::Dimensions(), cookie);
-  auto args_inserter = [&](ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(suspend_resume_utid_arg_name_,
-                     Variadic::UnsignedInteger(
-                         context_->process_tracker->GetOrCreateThread(tid)));
-    inserter->AddArg(suspend_resume_event_type_arg_name_,
-                     Variadic::String(suspend_resume_main_event_id_));
-    inserter->AddArg(cpu_id_, Variadic::UnsignedInteger(cpu));
+  auto args_inserter = [&](ArgsInserter& inserter) {
+    inserter.AddArg(suspend_resume_utid_arg_name_,
+                    Variadic::UnsignedInteger(
+                        context_->process_tracker->GetOrCreateThread(tid)));
+    inserter.AddArg(suspend_resume_event_type_arg_name_,
+                    Variadic::String(suspend_resume_main_event_id_));
+    inserter.AddArg(cpu_id_, Variadic::UnsignedInteger(cpu));
 
     // These fields are set to null as this is not a device PM callback event.
-    inserter->AddArg(suspend_resume_device_arg_name_,
-                     Variadic::String(kNullStringId));
-    inserter->AddArg(suspend_resume_driver_arg_name_,
-                     Variadic::String(kNullStringId));
-    inserter->AddArg(suspend_resume_callback_phase_arg_name_,
-                     Variadic::String(kNullStringId));
+    inserter.AddArg(suspend_resume_device_arg_name_,
+                    Variadic::String(kNullStringId));
+    inserter.AddArg(suspend_resume_driver_arg_name_,
+                    Variadic::String(kNullStringId));
+    inserter.AddArg(suspend_resume_callback_phase_arg_name_,
+                    Variadic::String(kNullStringId));
   };
   context_->slice_tracker->Begin(timestamp, start_id, kNullStringId,
                                  slice_name_id, args_inserter);
@@ -4248,13 +4238,13 @@ void FtraceParser::ParseAndroidFsDatareadStart(int64_t ts,
       kAndroidFsBlueprint, tracks::Dimensions(), pid);
   context_->slice_tracker->Begin(
       ts, track_id, kNullStringId, android_fs_data_read_id_,
-      [&, this](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(file_path_id_,
-                         Variadic::String(context_->storage->InternString(
-                             base::StringView(decoder.pathbuf()))));
-        inserter->AddArg(offset_id_start_, Variadic::Integer(decoder.offset()));
-        inserter->AddArg(bytes_read_id_start_,
-                         Variadic::Integer(decoder.bytes()));
+      [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(file_path_id_,
+                        Variadic::String(context_->storage->InternString(
+                            base::StringView(decoder.pathbuf()))));
+        inserter.AddArg(offset_id_start_, Variadic::Integer(decoder.offset()));
+        inserter.AddArg(bytes_read_id_start_,
+                        Variadic::Integer(decoder.bytes()));
       });
 }
 
@@ -4271,10 +4261,9 @@ void FtraceParser::ParseAndroidFsDatareadEnd(int64_t ts, ConstBytes data) {
       kAndroidFsBlueprint, tracks::Dimensions(), start_event_tid);
   context_->slice_tracker->End(
       ts, track_id, kNullStringId, kNullStringId,
-      [&, this](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(offset_id_end_, Variadic::Integer(decoder.offset()));
-        inserter->AddArg(bytes_read_id_end_,
-                         Variadic::Integer(decoder.bytes()));
+      [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(offset_id_end_, Variadic::Integer(decoder.offset()));
+        inserter.AddArg(bytes_read_id_end_, Variadic::Integer(decoder.bytes()));
       });
 }
 
@@ -4350,24 +4339,22 @@ void FtraceParser::ParseDevicePmCallbackStart(int64_t ts,
   TrackId track_id = context_->track_compressor->InternBegin(
       kSuspendResumeBlueprint, tracks::Dimensions(), cookie);
   context_->slice_tracker->Begin(
-      ts, track_id, kNullStringId, slice_name_id,
-      [&](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(
-            suspend_resume_utid_arg_name_,
-            Variadic::UnsignedInteger(
-                context_->process_tracker->GetOrCreateThread(tid)));
-        inserter->AddArg(suspend_resume_event_type_arg_name_,
-                         Variadic::String(suspend_resume_device_pm_event_id_));
-        inserter->AddArg(cpu_id_, Variadic::UnsignedInteger(cpu));
-        inserter->AddArg(suspend_resume_device_arg_name_,
-                         Variadic::String(context_->storage->InternString(
-                             device_name.c_str())));
-        inserter->AddArg(suspend_resume_driver_arg_name_,
-                         Variadic::String(context_->storage->InternString(
-                             driver_name.c_str())));
-        inserter->AddArg(suspend_resume_callback_phase_arg_name_,
-                         Variadic::String(context_->storage->InternString(
-                             callback_phase.c_str())));
+      ts, track_id, kNullStringId, slice_name_id, [&](ArgsInserter& inserter) {
+        inserter.AddArg(suspend_resume_utid_arg_name_,
+                        Variadic::UnsignedInteger(
+                            context_->process_tracker->GetOrCreateThread(tid)));
+        inserter.AddArg(suspend_resume_event_type_arg_name_,
+                        Variadic::String(suspend_resume_device_pm_event_id_));
+        inserter.AddArg(cpu_id_, Variadic::UnsignedInteger(cpu));
+        inserter.AddArg(suspend_resume_device_arg_name_,
+                        Variadic::String(context_->storage->InternString(
+                            device_name.c_str())));
+        inserter.AddArg(suspend_resume_driver_arg_name_,
+                        Variadic::String(context_->storage->InternString(
+                            driver_name.c_str())));
+        inserter.AddArg(suspend_resume_callback_phase_arg_name_,
+                        Variadic::String(context_->storage->InternString(
+                            callback_phase.c_str())));
       });
 }
 
@@ -4468,9 +4455,9 @@ void FtraceParser::ParseBlockIoStart(int64_t ts, protozero::ConstBytes blob) {
       context_->track_tracker->InternTrack(kBlockTrackBlueprint, {event.dev()});
   context_->slice_tracker->Begin(
       ts, track_id, kNullStringId, block_io_id_,
-      [this, &event](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(block_io_arg_sector_id_,
-                         Variadic::UnsignedInteger(event.sector()));
+      [this, &event](ArgsInserter& inserter) {
+        inserter.AddArg(block_io_arg_sector_id_,
+                        Variadic::UnsignedInteger(event.sector()));
       });
 }
 
@@ -4478,12 +4465,12 @@ void FtraceParser::ParseBlockIoDone(int64_t ts, protozero::ConstBytes blob) {
   protos::pbzero::BlockIoDoneFtraceEvent::Decoder event(blob);
   TrackId track_id =
       context_->track_tracker->InternTrack(kBlockTrackBlueprint, {event.dev()});
-  context_->slice_tracker->End(
-      ts, track_id, kNullStringId, block_io_id_,
-      [this, &event](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(block_io_arg_sector_id_,
-                         Variadic::UnsignedInteger(event.sector()));
-      });
+  context_->slice_tracker->End(ts, track_id, kNullStringId, block_io_id_,
+                               [this, &event](ArgsInserter& inserter) {
+                                 inserter.AddArg(
+                                     block_io_arg_sector_id_,
+                                     Variadic::UnsignedInteger(event.sector()));
+                               });
 }
 
 namespace {
@@ -4528,11 +4515,10 @@ void FtraceParser::ParseCpuhpEnter(uint32_t fld_id,
   TrackId track_id = context_->track_tracker->InternTrack(
       kCpuHpBlueprint, tracks::Dimensions(hp_cpu));
   context_->slice_tracker->Begin(
-      ts, track_id, cpu_id_, slice_name_id,
-      [&](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(cpuhp_action_cpu_id_,
-                         Variadic::UnsignedInteger(action_cpu));
-        inserter->AddArg(cpuhp_idx_id_, Variadic::Integer(idx));
+      ts, track_id, cpu_id_, slice_name_id, [&](ArgsInserter& inserter) {
+        inserter.AddArg(cpuhp_action_cpu_id_,
+                        Variadic::UnsignedInteger(action_cpu));
+        inserter.AddArg(cpuhp_idx_id_, Variadic::Integer(idx));
       });
 }
 
@@ -4675,25 +4661,25 @@ void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
 
     context_->slice_tracker->Begin(
         ts, track_id, kNullStringId, f2fs_checkpoint_name_id_,
-        [&](ArgsTracker::BoundInserter* inserter) {
-          inserter->AddArg(f2fs_dev_arg_id_, Variadic::UnsignedInteger(dev));
-          inserter->AddArg(f2fs_reason_int_arg_id_,
-                           Variadic::Integer(reason_int));
+        [&](ArgsInserter& inserter) {
+          inserter.AddArg(f2fs_dev_arg_id_, Variadic::UnsignedInteger(dev));
+          inserter.AddArg(f2fs_reason_int_arg_id_,
+                          Variadic::Integer(reason_int));
           if (reason_int == 0) {
-            inserter->AddArg(
+            inserter.AddArg(
                 f2fs_reason_str_arg_id_,
                 Variadic::String(f2fs_checkpoint_unknown_reason_id_));
           } else {
             for (size_t i = 0; i < f2fs_checkpoint_reason_ids_.size(); ++i) {
               if (reason_int & (1 << i)) {
                 size_t array_index =
-                    inserter->GetNextArrayEntryIndex(f2fs_reason_str_arg_id_);
+                    inserter.GetNextArrayEntryIndex(f2fs_reason_str_arg_id_);
                 StringId key = context_->storage->InternString(
                     "reason_str[" + std::to_string(array_index) + "]");
-                inserter->AddArg(
+                inserter.AddArg(
                     f2fs_reason_str_arg_id_, key,
                     Variadic::String(f2fs_checkpoint_reason_ids_[i]));
-                inserter->IncrementArrayEntryIndex(f2fs_reason_str_arg_id_);
+                inserter.IncrementArrayEntryIndex(f2fs_reason_str_arg_id_);
               }
             }
           }
@@ -4739,15 +4725,13 @@ void FtraceParser::ParseMemcgReclaimBegin(int64_t timestamp,
 
   StringId name_id = context_->storage->InternString("mm_vmscan_memcg_reclaim");
 
-  auto args_inserter = [this, &memcg_reclaim_begin](
-                           ArgsTracker::BoundInserter* inserter) {
-    inserter->AddArg(memcg_reclaim_order_id_,
-                     Variadic::Integer(memcg_reclaim_begin.order()));
-    inserter->AddArg(memcg_reclaim_may_writepage_id_,
-                     Variadic::Integer(memcg_reclaim_begin.may_writepage()));
-    inserter->AddArg(
-        memcg_reclaim_gfp_flags_id_,
-        Variadic::UnsignedInteger(memcg_reclaim_begin.gfp_flags()));
+  auto args_inserter = [this, &memcg_reclaim_begin](ArgsInserter& inserter) {
+    inserter.AddArg(memcg_reclaim_order_id_,
+                    Variadic::Integer(memcg_reclaim_begin.order()));
+    inserter.AddArg(memcg_reclaim_may_writepage_id_,
+                    Variadic::Integer(memcg_reclaim_begin.may_writepage()));
+    inserter.AddArg(memcg_reclaim_gfp_flags_id_,
+                    Variadic::UnsignedInteger(memcg_reclaim_begin.gfp_flags()));
   };
   context_->slice_tracker->Begin(timestamp, track_id, kNullStringId, name_id,
                                  args_inserter);
@@ -4762,12 +4746,11 @@ void FtraceParser::ParseMemcgReclaimEnd(int64_t timestamp,
   protos::pbzero::MmVmscanMemcgReclaimEndFtraceEvent::Decoder memcg_reclaim_end(
       blob);
 
-  auto args_inserter =
-      [this, &memcg_reclaim_end](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(
-            memcg_reclaim_nr_reclaimed_id_,
-            Variadic::UnsignedInteger(memcg_reclaim_end.nr_reclaimed()));
-      };
+  auto args_inserter = [this, &memcg_reclaim_end](ArgsInserter& inserter) {
+    inserter.AddArg(
+        memcg_reclaim_nr_reclaimed_id_,
+        Variadic::UnsignedInteger(memcg_reclaim_end.nr_reclaimed()));
+  };
   context_->slice_tracker->End(timestamp, track_id, kNullStringId,
                                kNullStringId, args_inserter);
 }

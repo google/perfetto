@@ -132,9 +132,10 @@ class PerfettoExportTableImporter
       : TraceImporter(MakeDescriptor()), state_(state) {}
   ~PerfettoExportTableImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     static constexpr char kMagic[] = {'A', 'R', 'R', 'O', 'W', '1'};
-    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+    return {size >= sizeof(kMagic) &&
+            memcmp(data, kMagic, sizeof(kMagic)) == 0};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

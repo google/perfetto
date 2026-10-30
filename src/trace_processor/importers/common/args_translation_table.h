@@ -25,7 +25,6 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/deobfuscation_mapping_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 template <>
 struct std::hash<std::pair<perfetto::trace_processor::MappingId, uint64_t>> {
@@ -43,7 +42,6 @@ namespace trace_processor {
 // to map for example hashes to their names.
 class ArgsTranslationTable {
  public:
-  using Key = util::ProtoToArgsParser::Key;
   using NativeSymbolKey = std::pair<MappingId, uint64_t>;
   struct SourceLocation {
     std::string file_name;
@@ -58,8 +56,11 @@ class ArgsTranslationTable {
                         StringId key_id,
                         Variadic::Type type) const;
 
+  // Returns true if any arg in |inserter| requires translation.
+  bool NeedsTranslation(const ArgsInserter& inserter) const;
+
   void TranslateArgs(const ArgsTracker::CompactArgSet& arg_set,
-                     ArgsTracker::BoundInserter& inserter) const;
+                     ArgsInserter& inserter) const;
 
   void AddChromeHistogramTranslationRule(uint64_t hash, base::StringView name) {
     chrome_histogram_hash_to_name_.Insert(hash, name.ToStdString());
@@ -227,7 +228,7 @@ class ArgsTranslationTable {
 
   void EmitMojoMethodLocation(std::optional<uint64_t> mapping_id,
                               std::optional<uint64_t> rel_pc,
-                              ArgsTracker::BoundInserter& inserter) const;
+                              ArgsInserter& inserter) const;
 };
 
 }  // namespace trace_processor

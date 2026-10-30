@@ -49,7 +49,7 @@ class EventTracker {
   using ProcessCounterForThread =
       std::variant<OomScoreAdj, MmEvent, RssStat, JsonCounter, DmabufRssStat>;
 
-  using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter*)>;
+  using SetArgsCallback = std::function<void(ArgsInserter&)>;
 
   explicit EventTracker(TraceProcessorContext*);
   EventTracker(const EventTracker&) = delete;

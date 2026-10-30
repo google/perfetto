@@ -21,6 +21,8 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -132,25 +134,27 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
     BumpAllocator::AllocId limit_alloc_id) {
   constexpr int64_t kTsMax = std::numeric_limits<int64_t>::max();
   // A min-heap of the non-empty queues by their earliest event, ties broken
-  // by queue index, so equal timestamps come out in queue order.
+  // by arrival as they are within a queue.
   auto later = [](const QueueHeapEntry& a, const QueueHeapEntry& b) {
-    return a.min_ts != b.min_ts ? a.min_ts > b.min_ts : a.queue > b.queue;
+    return std::tie(b.min_ts, b.min_alloc_id) <
+           std::tie(a.min_ts, a.min_alloc_id);
   };
   std::vector<QueueHeapEntry>& heap = queue_heap_;
   heap.clear();
   for (uint32_t i = 0; i < queues_.size(); ++i) {
     if (!queues_[i].events_.empty()) {
       PERFETTO_DCHECK(queues_[i].max_ts_ <= append_max_ts_);
-      heap.push_back({queues_[i].min_ts_, i});
+      heap.push_back({queues_[i].min_ts_, queues_[i].min_alloc_id_, i});
     }
   }
   std::make_heap(heap.begin(), heap.end(), later);
   while (!heap.empty()) {
     uint32_t min_queue_idx = heap[0].queue;
     // The earliest event of any other queue.
-    int64_t next_queue_ts = kTsMax;
+    auto next = std::make_pair(kTsMax, BumpAllocator::AllocId{});
     for (size_t child = 1; child <= 2 && child < heap.size(); ++child) {
-      next_queue_ts = std::min(next_queue_ts, heap[child].min_ts);
+      next = std::min(
+          next, std::make_pair(heap[child].min_ts, heap[child].min_alloc_id));
     }
 
     auto& queue = queues_[min_queue_idx];
@@ -170,10 +174,10 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
         break;
       }
 
-      if (event.ts > next_queue_ts) {
-        // We should never hit this condition on the first extraction as the
-        // min-queue's first event is no later than any other queue's.
-        PERFETTO_DCHECK(num_extracted > 0);
+      // Stop at the earliest event of another queue, but always extract
+      // the first: with slow sorting it may not be the queue's first
+      // arrival.
+      if (num_extracted && std::make_pair(event.ts, event.alloc_id()) > next) {
         break;
       }
       ++num_extracted;
@@ -218,6 +222,7 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
       queue.max_ts_ = 0;
     } else {
       queue.min_ts_ = queue.events_.front().ts;
+      queue.min_alloc_id_ = queue.events_.front().alloc_id();
     }
 
     // The queue's earliest event only moved later, so it moves down from the
@@ -229,8 +234,10 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
         core::HeapSiftDown(heap.data(), heap.size(), last, later);
       }
     } else {
-      core::HeapSiftDown(heap.data(), heap.size(),
-                         QueueHeapEntry{queue.min_ts_, min_queue_idx}, later);
+      core::HeapSiftDown(
+          heap.data(), heap.size(),
+          QueueHeapEntry{queue.min_ts_, queue.min_alloc_id_, min_queue_idx},
+          later);
     }
   }
 }

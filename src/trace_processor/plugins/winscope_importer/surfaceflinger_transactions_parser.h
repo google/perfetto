@@ -17,9 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_SURFACEFLINGER_TRANSACTIONS_PARSER_H_
 #define SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_SURFACEFLINGER_TRANSACTIONS_PARSER_H_
 
+#include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 namespace perfetto {
 

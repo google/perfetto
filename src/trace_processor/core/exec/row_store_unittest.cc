@@ -51,7 +51,7 @@ void Fill(RowBatch* batch,
 // of its own, taken afresh for each batch.
 void FillBuffer(RowBatch* batch, const std::vector<int64_t>& values) {
   batch->Reset();
-  ColumnBuffer buffer = test::TestContext().TakeBuffer();
+  ColumnBuffer buffer = test::TestContext().TakeBuffer(sizeof(int64_t));
   int64_t* data = buffer.chunk().Values<int64_t>();
   std::copy(values.begin(), values.end(), data);
   batch->AddColumn(ColumnView::Reference(StorageType{Int64{}}, data),
@@ -61,7 +61,7 @@ void FillBuffer(RowBatch* batch, const std::vector<int64_t>& values) {
 
 // Gathers `rows` of the store.
 uint32_t Gather(RowStore& store, RowBatch* out, std::vector<uint32_t> rows) {
-  return store.View(
+  return store.Gather(
       out, Span<const uint32_t>(rows.data(), rows.data() + rows.size()),
       test::TestContext());
 }
@@ -148,6 +148,30 @@ TEST(RowStoreTest, RetainedViewsSurviveGatherClearAndDestruction) {
   }
   EXPECT_THAT(test::ReadColumn<int64_t>(range, 0), ElementsAre(10, 20, 30));
   EXPECT_THAT(test::ReadColumn<int64_t>(gathered, 0), ElementsAre(30, 10, 30));
+}
+
+// Rows gathered from several batches keep their values and their nulls,
+// whichever batch they come from and however the batches' windows start.
+TEST(RowStoreTest, GathersAcrossBatchesWithAndWithoutNulls) {
+  std::vector<int64_t> values = {0, 1, 2, 3, 4};
+  RowStore store;
+  RowBatch batch;
+  Fill(&batch, values, 1, 3);
+  ASSERT_TRUE(store.Append(batch).ok());
+
+  std::vector<int64_t> more = {100, 200, 300};
+  BitVector validity = BitVector::CreateWithSize(3);
+  validity.set(1);
+  batch.Reset();
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, more.data(), &validity, 1));
+  batch.SetRowCount(2);
+  ASSERT_TRUE(store.Append(batch).ok());
+
+  RowBatch out;
+  ASSERT_EQ(Gather(store, &out, {4, 0, 3, 2, 3}), 5u);
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 0),
+              ElementsAre(std::nullopt, 1, 200, 3, 200));
 }
 
 // A gather turns an implicit id into a stored one, so a stream can carry both.

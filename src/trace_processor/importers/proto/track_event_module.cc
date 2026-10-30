@@ -16,6 +16,7 @@
 #include "src/trace_processor/importers/proto/track_event_module.h"
 
 #include <cstdint>
+#include <optional>
 #include <utility>
 
 #include "perfetto/base/logging.h"
@@ -90,7 +91,7 @@ void TrackEventModule::ParseField(const ParseFieldArgs& args) {
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
       parser_.ParseThreadDescriptor(
           args.field.Cast<TracePacket::kThreadDescriptor>(),
-          /*is_sandboxed=*/false);
+          /*is_sandboxed=*/false, /*resolved=*/std::nullopt);
       break;
     case TracePacket::kTrackEventFieldNumber:
       PERFETTO_DFATAL("Wrong TracePacket number");
