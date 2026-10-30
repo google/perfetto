@@ -85,6 +85,9 @@ const OperationRegistration* FindOperationBySyntax(uint32_t syntax) {
 }
 
 void RunBoundPasses(BoundPlan* plan, const LoweringContext& context) {
+  // Choosing how a scan finds its rows can change their order, which later
+  // passes may ask about.
+  SearchScans(plan, context);
   ReorderTreeFolds(plan, context);
 }
 

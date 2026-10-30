@@ -389,6 +389,43 @@ TEST_F(PhysicalPlanTest, WhereComparesStringsListsAndNulls) {
   EXPECT_THAT(ids("v = 'foo'"), ElementsAre());
 }
 
+// WHERE on a table's sorted columns searches them instead of testing each row;
+// whatever else it tests is left to a Filter.
+TEST_F(PhysicalPlanTest, WhereSearchesSortedColumns) {
+  catalog_.AddTable("ix", {"id", "k", "v"},
+                    {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  auto plan = Plan("FROM ix |> WHERE id >= 1 AND id < 4 AND v = 9");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan), "main: SortedScan | Filter(#2 = ?2)");
+  auto rows = Run(**plan, "v");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(1, 9), Pair(2, 9)));
+}
+
+// With no sorted column to search, an index finds equalities on its columns.
+TEST_F(PhysicalPlanTest, WhereLooksUpAnIndex) {
+  catalog_.AddTable("ix", {"id", "k", "v"},
+                    {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  catalog_.AddIndex("ix", {1});
+  auto plan = Plan("FROM ix |> WHERE k = 7 AND v > 1 |> SELECT id, v");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan), "main: IndexScan | Filter(#2 > ?1)");
+  auto rows = Run(**plan, "v");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(2, 9), Pair(4, 9)));
+}
+
+// A condition no row can match leaves nothing to read.
+TEST_F(PhysicalPlanTest, WhereNoRowCanMatchReadsNothing) {
+  catalog_.AddTable("ix", {"id", "k", "v"}, {{0, 7, 1}, {1, 5, 9}});
+  auto plan = Plan("FROM ix |> WHERE v > 0 AND k = 2.5 |> SELECT id, v");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan), "main: EmptySource");
+  auto rows = Run(**plan, "v");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre());
+}
+
 // Each operand is grouped by its PER keys and sorted by ts within each group,
 // unless it already is.
 TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {
@@ -454,8 +491,8 @@ TEST_F(PhysicalPlanTest, ASubpipelineBackgroundIsASidePipeline) {
       "(FROM windows |> WHERE x = 0 |> SELECT ts, dur, cpu) PER cpu");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   EXPECT_EQ(PhysicalPlanToString(**plan),
-            "side: DataframeScan | Filter(#3 = ?0) | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | CombineBatches | GroupedSort(#2; #0)\n"
+            "side: SortedScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0)\n"
             "main: DataframeScan | AssertType(#0 to Int64) | "
             "AssertType(#1 to Int64) | GroupedSort(#2; #0) | "
             "IntervalFillGaps(#0, #1, keys: #2, groups: #3; "

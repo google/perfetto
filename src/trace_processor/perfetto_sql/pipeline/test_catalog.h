@@ -79,6 +79,20 @@ class TestCatalog : public Catalog {
     dataframes_[name] = std::make_unique<dataframe::Dataframe>(std::move(*df));
   }
 
+  // Indexes `columns` of a table, as CREATE PERFETTO INDEX does.
+  void AddIndex(const std::string& name, const std::vector<uint32_t>& columns) {
+    auto* df = dataframes_.Find(name);
+    PERFETTO_CHECK(df);
+    if (!(*df)->finalized()) {
+      (*df)->Finalize();
+    }
+    auto index =
+        (*df)->BuildIndex(columns.data(), columns.data() + columns.size());
+    PERFETTO_CHECK(index.ok());
+    *df = std::make_unique<dataframe::Dataframe>(
+        (*df)->AddIndex(std::move(*index)));
+  }
+
   // Drops a table, as if replaced.
   void RemoveTable(const std::string& name) { dataframes_.Erase(name); }
 

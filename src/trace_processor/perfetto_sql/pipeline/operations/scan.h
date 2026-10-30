@@ -21,12 +21,16 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 
@@ -80,6 +84,28 @@ struct ScanDataframeArg {
   uint32_t index = 0;
 };
 
+// The conditions of a WHERE directly on a scan which the scan answers by
+// searching its dataframe instead of testing every row. Made by SearchScans
+// on a bound plan, so never serialized.
+struct ScanSearch {
+  enum class Kind : uint8_t {
+    // A condition no row can match, so nothing is read.
+    kEmpty,
+    // Searches of sorted columns, which narrow the rows to a range kept in
+    // table order.
+    kSorted,
+    // Equalities on an index's leading columns, read in index order.
+    kIndex,
+  };
+  Kind kind = Kind::kEmpty;
+  // For kIndex, which of the dataframe's indexes.
+  uint32_t index = 0;
+  // The conditions searched, in the order they are searched.
+  std::vector<WherePredicate> predicates;
+  std::vector<WhereLiteral> literals;
+  std::vector<std::string> strings;
+};
+
 // Reads all rows of a source. Always the first operation.
 class Scan : public PlanOperation {
  public:
@@ -95,6 +121,32 @@ class Scan : public PlanOperation {
       const SyntaqlitePerfettoPipeSource& n);
 
   const std::vector<NamedColumn>& columns() const { return columns_; }
+
+  // A WHERE condition on one of the scan's columns, with its value cast for
+  // the column's storage type.
+  struct Condition {
+    ColumnId column = 0;
+    core::Op op{core::Eq{}};
+    const core::exec::FilterValue* value = nullptr;
+  };
+  // How searching the dataframe would answer some of a WHERE's conditions.
+  struct SearchPlan {
+    ScanSearch::Kind kind = ScanSearch::Kind::kEmpty;
+    // For kIndex, which of the dataframe's indexes.
+    uint32_t index = 0;
+    // The conditions answered, in the order they are searched.
+    std::vector<uint32_t> answered;
+  };
+  // What of `conditions` the scan, bound to `data`, can answer by searching,
+  // choosing as the dataframe's own planner does: no rows at all if a
+  // condition can match none, else binary searches of sorted columns, else an
+  // index. nullopt if it can answer none.
+  std::optional<SearchPlan> PlanSearch(const std::vector<Condition>& conditions,
+                                       const Bindings::Dataframe& data) const;
+
+  // Makes the scan answer `search` instead of reading every row.
+  void SetSearch(ScanSearch search) { search_ = std::move(search); }
+  bool has_search() const { return search_.has_value(); }
 
  private:
   using Dataframe = ScanDataframe;
@@ -166,9 +218,18 @@ class Scan : public PlanOperation {
       const perfetto_sql::analysis::RelationLineage& lineage);
   static void AddScanColumn(Compiler*, Scan* scan, NameId name, PlanType type);
 
+  // Sets a source answering `search_`.
+  void LowerSearch(Lowering*, const Bindings::Dataframe&) const;
+  // Declares the columns a dataframe read in its own order keeps sorted.
+  void DeclareTableOrder(Lowering*, const Bindings::Dataframe&) const;
+  // The position among the scan's columns of `column`.
+  uint32_t Position(ColumnId column) const;
+
   const OperationRegistration& registration() const override;
 
   Source source_;
+  // The conditions the scan answers by searching, set on a bound plan.
+  std::optional<ScanSearch> search_;
   // Bindings in source column order.
   std::vector<NamedColumn> columns_;
 };
