@@ -306,7 +306,7 @@ class AdhocDataframeBuilder {
   PERFETTO_ALWAYS_INLINE bool PushNonNullInternal(uint32_t col,
                                                   T value,
                                                   uint32_t count = 1) {
-    using FlexVec = core::FlexVector<T>;
+    using FlexVec = ColumnVector<T>;
     using TypeTag = typename core::TypeTagFor<T>::type;
     auto& state = column_states_[col];
     if (!state.storage) {
@@ -400,7 +400,7 @@ class AdhocDataframeBuilder {
     return false;
   }
 
-  static Storage CreateIntegerStorage(core::FlexVector<int64_t> data,
+  static Storage CreateIntegerStorage(ColumnVector<int64_t> data,
                                       const IntegerColumnSummary& summary);
 
   static NullStorage CreateNullStorageFromBitvector(
@@ -417,9 +417,9 @@ class AdhocDataframeBuilder {
   }
 
   template <typename T>
-  PERFETTO_NO_INLINE static core::FlexVector<T> DowncastFromInt64(
-      const core::FlexVector<int64_t>& data) {
-    auto res = core::FlexVector<T>::CreateWithSize(data.size());
+  PERFETTO_NO_INLINE static ColumnVector<T> DowncastFromInt64(
+      const ColumnVector<int64_t>& data) {
+    auto res = ColumnVector<T>::CreateWithSize(data.size());
     for (uint32_t i = 0; i < data.size(); ++i) {
       PERFETTO_DCHECK(IsRangeFullyRepresentableByType<T>(data[i], data[i]));
       res[i] = static_cast<T>(data[i]);
@@ -435,7 +435,7 @@ class AdhocDataframeBuilder {
       const IntegerColumnSummary& summary);
 
   static SpecializedStorage::SmallValueEq BuildSmallValueEq(
-      const core::FlexVector<uint32_t>& data);
+      const ColumnVector<uint32_t>& data);
 
   static void EnsureNullOverlayExists(ColumnState& state);
 

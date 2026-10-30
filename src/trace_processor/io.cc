@@ -18,9 +18,20 @@
 
 namespace perfetto::trace_processor::io {
 
+Mapping::Mapping() = default;
+Mapping::~Mapping() = default;
 File::File() = default;
 File::~File() = default;
+base::Status File::CreateMapping(uint64_t,
+                                 uint64_t,
+                                 MappingAccess,
+                                 std::unique_ptr<Mapping>*) {
+  return base::ErrStatus("File mappings are not supported");
+}
 FileSystem::FileSystem() = default;
 FileSystem::~FileSystem() = default;
+base::Status FileSystem::CreateTemporaryFile(std::unique_ptr<File>*) {
+  return base::ErrStatus("Temporary files are not supported");
+}
 
 }  // namespace perfetto::trace_processor::io

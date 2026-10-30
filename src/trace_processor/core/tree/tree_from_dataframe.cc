@@ -34,13 +34,19 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/tree/tree.h"
-#include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/ops.h"
 #include "src/trace_processor/core/util/slab.h"
 
 namespace perfetto::trace_processor::core {
 
 namespace {
+
+template <typename T>
+Slab<uint8_t> CopyColumnData(Span<const T> values) {
+  auto slab = Slab<T>::Alloc(values.size());
+  std::copy(values.begin(), values.end(), slab.data());
+  return std::move(slab).TakeAsBytes();
+}
 
 template <typename T>
 Slab<uint8_t> GatherColumnData(Span<const T> values,
@@ -68,15 +74,15 @@ Tree::Column MoveRawColumn(dataframe::AdhocDataframeBuilder::RawColumn& rc) {
     if (rc.storage->type().Is<Int64>()) {
       tc.type = Tree::Column::Type(Int64{});
       auto& values = rc.storage->unchecked_get<Int64>();
-      tc.data = std::move(values).TakeSlab().TakeAsBytes();
+      tc.data = CopyColumnData(values.span());
     } else if (rc.storage->type().Is<Double>()) {
       tc.type = Tree::Column::Type(Double{});
       auto& values = rc.storage->unchecked_get<Double>();
-      tc.data = std::move(values).TakeSlab().TakeAsBytes();
+      tc.data = CopyColumnData(values.span());
     } else if (rc.storage->type().Is<String>()) {
       tc.type = Tree::Column::Type(String{});
       auto& values = rc.storage->unchecked_get<String>();
-      tc.data = std::move(values).TakeSlab().TakeAsBytes();
+      tc.data = CopyColumnData(values.span());
     } else {
       PERFETTO_FATAL("Unexpected storage type in raw column");
     }
@@ -207,7 +213,7 @@ base::StatusOr<Tree> BuildFromRawColumns(
   // consumers can still expose the schema of an empty tree.
   auto& id_rc = raw_cols[0];
   uint32_t row_count = 0;
-  const FlexVector<int64_t>* id_vec_ptr = nullptr;
+  const ColumnVector<int64_t>* id_vec_ptr = nullptr;
   if (!id_rc.storage) {
     if (id_rc.null_bv.size() != 0) {
       return base::ErrStatus("tree: id column must be integer");
@@ -222,7 +228,7 @@ base::StatusOr<Tree> BuildFromRawColumns(
     }
     row_count = static_cast<uint32_t>(id_vec_ptr->size());
   }
-  FlexVector<int64_t> empty_ids;
+  ColumnVector<int64_t> empty_ids;
   const auto& id_vec = id_vec_ptr ? *id_vec_ptr : empty_ids;
 
   Tree result;

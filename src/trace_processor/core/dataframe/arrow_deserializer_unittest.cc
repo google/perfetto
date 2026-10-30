@@ -252,6 +252,8 @@ TEST(ArrowDeserializerTest, RoundTripInt64SparseNullPopcountAlways) {
   auto dst = RoundTrip(kInt64SparsePopcountAlways, src, &pool);
 
   ASSERT_EQ(dst.row_count(), 3u);
+  EXPECT_TRUE(
+      dst.CreateSpec().column_specs[1].nullability.Is<core::DenseNull>());
   EXPECT_EQ((dst.GetCellUnchecked<1>(kInt64SparsePopcountAlways, 0)),
             std::optional<int64_t>{-1000000000000});
   EXPECT_EQ((dst.GetCellUnchecked<1>(kInt64SparsePopcountAlways, 1)),
@@ -260,7 +262,8 @@ TEST(ArrowDeserializerTest, RoundTripInt64SparseNullPopcountAlways) {
             std::optional<int64_t>{1000000000000});
 }
 
-// Exercises the prefix-popcount reconstruction across 64-bit word boundaries.
+// Exercises typed sparse GetCell compatibility when the imported runtime
+// representation is borrowed DenseNull.
 TEST(ArrowDeserializerTest, RoundTripSparseNullAcrossWordBoundary) {
   StringPool pool;
   auto src = Dataframe::CreateFromTypedSpec(kInt64SparsePopcountAlways, &pool);
@@ -314,8 +317,10 @@ TEST(ArrowDeserializerTest, RoundTripPlainSparseNull) {
   ASSERT_OK(dst_or);
   Dataframe dst = std::move(*dst_or);
 
-  // Plain SparseNull deliberately has no random-access API. Serializing again
-  // verifies its physical storage and validity bitmap instead.
+  EXPECT_TRUE(
+      dst.CreateSpec().column_specs[1].nullability.Is<core::DenseNull>());
+  // Serializing again verifies that changing the runtime physical layout does
+  // not change the Arrow contents.
   EXPECT_EQ(Serialize(dst, pool), serialized);
 }
 
