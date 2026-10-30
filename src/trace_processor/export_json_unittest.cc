@@ -434,6 +434,25 @@ TEST_F(ExportJsonTest, StorageWithStats) {
   EXPECT_EQ(stats["ftrace_cpu_bytes_begin"][0].AsInt(), kFtraceBegin);
 }
 
+TEST_F(ExportJsonTest, StorageWithDynamicStats) {
+  // Dynamic stats have no entry in stats.h, so they are left out of the JSON
+  // export. They must not affect the export of the other stats.
+  size_t key = context_.global_stats_tracker->InternDynamicStatDescriptor(
+      "test.dynamic", stats::kDataLoss, stats::kTrace, "A dynamic stat");
+  context_.stats_tracker->IncrementStats(key, 3);
+  context_.stats_tracker->SetStats(stats::traced_producers_connected, 10);
+
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
+  FILE* output = fopen(temp_file.path().c_str(), "w+e");
+  base::Status status = ExportJson(context_.storage.get(), output);
+  EXPECT_TRUE(status.ok()) << status.message();
+
+  Dom result = ToJsonValue(ReadFile(output));
+  const auto& stats = result["metadata"]["trace_processor_stats"];
+  EXPECT_EQ(stats["traced_producers_connected"].AsInt(), 10);
+  EXPECT_FALSE(stats.HasMember("test.dynamic"));
+}
+
 TEST_F(ExportJsonTest, StorageWithStatsFromGzipWrappedProto) {
   // Simulate the layout produced when a proto trace is wrapped in a gzip
   // container (which is the on-the-wire shape of Chrome/Edge traces):

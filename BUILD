@@ -1485,6 +1485,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/scoped_file.h",
         "include/perfetto/ext/base/scoped_mmap.h",
         "include/perfetto/ext/base/scoped_sched_boost.h",
+        "include/perfetto/ext/base/sd_notify.h",
         "include/perfetto/ext/base/small_set.h",
         "include/perfetto/ext/base/small_vector.h",
         "include/perfetto/ext/base/status_macros.h",
@@ -2094,6 +2095,7 @@ perfetto_cc_library(
 perfetto_cc_library(
     name = "src_base_unix_socket",
     srcs = [
+        "src/base/sd_notify.cc",
         "src/base/unix_socket.cc",
     ],
     hdrs = [
