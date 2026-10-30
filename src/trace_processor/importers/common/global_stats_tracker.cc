@@ -24,6 +24,7 @@
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 
 namespace perfetto::trace_processor {
 
@@ -71,7 +72,8 @@ void GlobalStatsTracker::SetStats(std::optional<MachineId> machine_id,
                                   int64_t value) {
   PERFETTO_CHECK(GetDescriptor(key).type == stats::kSingle);
   auto ctx = GetContextIds(key, machine_id, trace_id);
-  FindOrInsertRow(key, std::nullopt, ctx).set_value(value);
+  (*storage_->mutable_stats_table())[FindOrInsertRow(key, std::nullopt, ctx)]
+      .set_value(value);
 }
 
 void GlobalStatsTracker::IncrementStats(std::optional<MachineId> machine_id,
@@ -80,7 +82,9 @@ void GlobalStatsTracker::IncrementStats(std::optional<MachineId> machine_id,
                                         int64_t increment) {
   PERFETTO_CHECK(GetDescriptor(key).type == stats::kSingle);
   auto ctx = GetContextIds(key, machine_id, trace_id);
-  auto rr = FindOrInsertRow(key, std::nullopt, ctx);
+  auto rr =
+      (*storage_
+            ->mutable_stats_table())[FindOrInsertRow(key, std::nullopt, ctx)];
   rr.set_value(rr.value() + increment);
 }
 
@@ -91,7 +95,8 @@ void GlobalStatsTracker::SetIndexedStats(std::optional<MachineId> machine_id,
                                          int64_t value) {
   PERFETTO_CHECK(GetDescriptor(key).type == stats::kIndexed);
   auto ctx = GetContextIds(key, machine_id, trace_id);
-  FindOrInsertRow(key, index, ctx).set_value(value);
+  (*storage_->mutable_stats_table())[FindOrInsertRow(key, index, ctx)]
+      .set_value(value);
 }
 
 void GlobalStatsTracker::IncrementIndexedStats(
@@ -102,7 +107,8 @@ void GlobalStatsTracker::IncrementIndexedStats(
     int64_t increment) {
   PERFETTO_CHECK(GetDescriptor(key).type == stats::kIndexed);
   auto ctx = GetContextIds(key, machine_id, trace_id);
-  auto rr = FindOrInsertRow(key, index, ctx);
+  auto rr =
+      (*storage_->mutable_stats_table())[FindOrInsertRow(key, index, ctx)];
   rr.set_value(rr.value() + increment);
 }
 
@@ -191,14 +197,14 @@ GlobalStatsTracker::ContextIds GlobalStatsTracker::GetContextIds(
   PERFETTO_FATAL("For GCC");
 }
 
-tables::StatsTable::RowReference GlobalStatsTracker::FindOrInsertRow(
+tables::StatsTable_Id GlobalStatsTracker::FindOrInsertRow(
     size_t key,
     std::optional<int> index,
     const ContextIds& ctx) {
   auto& table = *storage_->mutable_stats_table();
   StatsEntry entry{key, index, ctx.machine_id, ctx.trace_id};
   if (auto* id_ptr = id_by_entry_.Find(entry)) {
-    return table[*id_ptr];
+    return *id_ptr;
   }
   const StatDescriptor& descriptor = GetDescriptor(key);
   tables::StatsTable::Row row;
@@ -213,7 +219,7 @@ tables::StatsTable::RowReference GlobalStatsTracker::FindOrInsertRow(
   row.trace_id = ctx.trace_id;
   auto id_and_row = table.Insert(row);
   id_by_entry_.Insert(entry, id_and_row.id);
-  return table[id_and_row.row];
+  return id_and_row.id;
 }
 
 void GlobalStatsTracker::ZeroSingleStatsForContext(

@@ -44,7 +44,6 @@
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
-#include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -56,6 +55,11 @@
 #include "src/trace_processor/util/sql_modules.h"
 
 namespace perfetto::trace_processor {
+
+namespace pipeline {
+class LogicalPlan;
+class PhysicalPlan;
+}  // namespace pipeline
 
 class ConnectionCatalog;
 

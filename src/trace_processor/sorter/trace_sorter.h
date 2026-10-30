@@ -31,10 +31,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/public/compiler.h"
-#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
-#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/bump_allocator.h"
@@ -310,6 +308,8 @@ class TraceSorter {
   SortingMode sorting_mode_ = SortingMode::kDefault;
 
   TraceStorage* storage_;
+  void RecordNegativeTimestampDropped();
+
   GlobalStatsTracker* global_stats_tracker_;
 
   // Buffer for storing tokenized objects while the corresponding events are
@@ -387,8 +387,7 @@ class TraceSorter::Stream {
     // (tokenize-only mode): the UI's merge dialog dry-runs a tokenize-only
     // pass and relies on this stat to warn about misconfigured offsets.
     if (PERFETTO_UNLIKELY(ts < 0)) {
-      sorter_->global_stats_tracker_->IncrementGlobalStats(
-          stats::trace_sorter_negative_timestamp_dropped);
+      sorter_->RecordNegativeTimestampDropped();
       return;
     }
     if (PERFETTO_UNLIKELY(sorter_->event_handling_ == EventHandling::kDrop)) {

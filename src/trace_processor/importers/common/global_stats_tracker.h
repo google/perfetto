@@ -29,9 +29,9 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/stats_types.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/metadata_tables_fwd.h"
 
 namespace perfetto::trace_processor {
 
@@ -42,8 +42,8 @@ namespace perfetto::trace_processor {
 // side index for O(1) row lookup on update.
 class GlobalStatsTracker {
  public:
-  using MachineId = tables::MachineTable::Id;
-  using TraceId = tables::TraceFileTable::Id;
+  using MachineId = tables::MachineTable_Id;
+  using TraceId = tables::TraceFileTable_Id;
 
   explicit GlobalStatsTracker(TraceStorage* storage);
 
@@ -208,11 +208,11 @@ class GlobalStatsTracker {
                            std::optional<MachineId> machine_id,
                            std::optional<TraceId> trace_id) const;
 
-  // Returns the table row for an existing entry, or inserts a new row with
-  // value=0 and registers it in the side index.
-  tables::StatsTable::RowReference FindOrInsertRow(size_t key,
-                                                   std::optional<int> index,
-                                                   const ContextIds& ctx);
+  // Returns the table row id for an existing entry, or inserts a new row
+  // with value=0 and registers it in the side index.
+  tables::StatsTable_Id FindOrInsertRow(size_t key,
+                                        std::optional<int> index,
+                                        const ContextIds& ctx);
 
   TraceStorage* const storage_;
 
@@ -227,7 +227,7 @@ class GlobalStatsTracker {
   std::array<StringId, stats::kNumSeverities> severity_ids_;
   std::array<StringId, stats::kNumSources> source_ids_;
 
-  base::FlatHashMap<StatsEntry, tables::StatsTable::Id> id_by_entry_;
+  base::FlatHashMap<StatsEntry, tables::StatsTable_Id> id_by_entry_;
 };
 
 }  // namespace perfetto::trace_processor

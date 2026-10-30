@@ -18,6 +18,7 @@
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
 #include "src/trace_processor/importers/proto/android_extension.descriptor.h"
 #include "src/trace_processor/importers/proto/track_event_extension_parser.h"
+#include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/util/descriptors.h"
 
 #include <memory>

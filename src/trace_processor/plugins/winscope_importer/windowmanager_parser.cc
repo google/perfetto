@@ -24,6 +24,7 @@
 #include "src/trace_processor/plugins/winscope_importer/windowmanager_hierarchy_walker.h"
 #include "src/trace_processor/plugins/winscope_importer/windowmanager_proto_clone.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 

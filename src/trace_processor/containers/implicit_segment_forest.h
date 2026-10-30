@@ -24,10 +24,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/bits.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
-#include <immintrin.h>
-#endif
-
 namespace perfetto::trace_processor {
 
 // An implementation of a segment tree data structure [1] with:
