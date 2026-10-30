@@ -1417,6 +1417,7 @@ perfetto_cc_library(
 perfetto_filegroup(
     name = "include_perfetto_base_base",
     srcs = [
+        "include/perfetto/base/bits.h",
         "include/perfetto/base/build_config.h",
         "include/perfetto/base/compiler.h",
         "include/perfetto/base/endian.h",
@@ -1450,7 +1451,6 @@ perfetto_filegroup(
         "include/perfetto/ext/base/android_utils.h",
         "include/perfetto/ext/base/atomic_file.h",
         "include/perfetto/ext/base/base64.h",
-        "include/perfetto/ext/base/bits.h",
         "include/perfetto/ext/base/circular_queue.h",
         "include/perfetto/ext/base/clock_snapshots.h",
         "include/perfetto/ext/base/container_annotations.h",

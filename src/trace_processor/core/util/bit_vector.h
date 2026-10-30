@@ -24,10 +24,10 @@
 #include <limits>
 #include <utility>
 
+#include "perfetto/base/bits.h"
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/bits.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/slab.h"
