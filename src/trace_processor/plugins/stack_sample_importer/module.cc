@@ -20,10 +20,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <vector>
 
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
@@ -611,14 +611,18 @@ size_t StackSampleModule::GetErrorStatKey(
     return stats::stack_sample_error_unknown_kind;
   }
   // The prefix groups these stats together and keeps them apart from the ones
-  // in stats.h, whose names have no dots.
-  std::string name = "stack_sample_error." + desc.name().ToStdString();
+  // in stats.h, whose names have no dots. Names too long for the buffer are
+  // cut short; reverse-domain names like the proto suggests are far shorter.
+  base::StackString<256> name("stack_sample_error.%.*s",
+                              static_cast<int>(desc.name().size),
+                              desc.name().data);
   std::string_view description =
       desc.description().size > 0 ? std::string_view(desc.description())
                                   : std::string_view(kCustomErrorDescription);
   auto severity = static_cast<ErrorDescriptor::Severity>(desc.severity());
   return context_->global_stats_tracker->InternDynamicStatDescriptor(
-      name, ToStatsSeverity(severity), stats::kTrace, description);
+      name.ToStdStringView(), ToStatsSeverity(severity), stats::kTrace,
+      description);
 }
 
 }  // namespace perfetto::trace_processor::stack_sample_importer
