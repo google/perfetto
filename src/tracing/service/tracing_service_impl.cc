@@ -4222,6 +4222,9 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
       case TraceBuffer::kV2:
         buffer_stats->set_buffer_type(TraceStats::BufferStats::BUFFER_TYPE_V2);
         break;
+      case TraceBuffer::kV3:
+        buffer_stats->set_buffer_type(TraceStats::BufferStats::BUFFER_TYPE_V3);
+        break;
     }
   }  // for (buf in session).
 
