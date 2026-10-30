@@ -157,4 +157,65 @@ describe('GraphChart helpers', () => {
     expect(effectiveNodeScaleRatio(3)).toBe(0.25);
     expect(effectiveNodeScaleRatio(5)).toBeCloseTo(0.125, 4);
   });
+
+  test('separates adjacent same-row nodes from hubs and syncs self-loop drag offsets', () => {
+    const spokes = Array.from({length: 60}, (_, i) => ({
+      id: `s${i}`,
+      label: `spoke-${i}`,
+      layer: 'low',
+      x: 250 + i * 5,
+      y: 120,
+    }));
+    const data = {
+      layers: [
+        {id: 'top', label: 'TOP', y: 40},
+        {id: 'low', label: 'LOW', y: 120},
+      ],
+      nodes: [
+        {id: 'hub', label: 'hub', layer: 'top', x: 500, y: 40},
+        {id: 'neighbor', label: 'neighbor', layer: 'top', x: 503, y: 40},
+        ...spokes,
+      ],
+      edges: [
+        ...spokes.map((s, i) => ({id: `e${i}`, source: s.id, target: 'hub'})),
+        {id: 'self1', source: 'hub', target: 'hub'},
+      ],
+      bounds: {minX: 215, maxX: 710, minY: 0, maxY: 200},
+    };
+
+    const baseOpt = buildGraphChartOption(data, TEST_THEME, {
+      viewportSize: {width: 440, height: 380},
+    });
+    const baseData = (
+      baseOpt.series as Array<{data: Array<Record<string, unknown>>}>
+    )[0]?.data;
+    const hubIdx = baseData?.findIndex((d) => d.id === 'hub') ?? -1;
+    const neighborIdx = baseData?.findIndex((d) => d.id === 'neighbor') ?? -1;
+    const hub = baseData?.[hubIdx];
+    const neighbor = baseData?.[neighborIdx];
+    const badge = baseData?.find((d) => d.id === 'loop-badge:self1');
+
+    expect(Number(hub?.symbolSize)).toBeLessThanOrEqual(22);
+    expect(hubIdx).toBeLessThan(neighborIdx);
+    const minSep =
+      (Number(hub?.symbolSize) + Number(neighbor?.symbolSize)) / 2 + 5;
+    expect(Number(neighbor?.x) - Number(hub?.x)).toBeGreaterThanOrEqual(minSep);
+    expect((badge?.symbolOffset as number[])[0]).toBeLessThan(0);
+
+    const draggedOpt = buildGraphChartOption(data, TEST_THEME, {
+      viewportSize: {width: 440, height: 380},
+      dragOffsets: new Map([['hub', {dx: -45, dy: 30}]]),
+    });
+    const draggedData = (
+      draggedOpt.series as Array<{data: Array<Record<string, unknown>>}>
+    )[0]?.data;
+    const draggedHub = draggedData?.find((d) => d.id === 'hub');
+    const draggedBadge = draggedData?.find((d) => d.id === 'loop-badge:self1');
+
+    expect(Number(draggedHub?.x)).toBeCloseTo(Number(hub?.x) - 45, 5);
+    expect(Number(draggedHub?.y)).toBeCloseTo(Number(hub?.y) + 30, 5);
+    expect(Number(draggedBadge?.x)).toBeCloseTo(Number(draggedHub?.x), 5);
+    expect(Number(draggedBadge?.y)).toBeCloseTo(Number(draggedHub?.y), 5);
+    expect(draggedBadge?.symbolOffset).toEqual(badge?.symbolOffset);
+  });
 });

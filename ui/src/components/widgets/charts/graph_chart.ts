@@ -27,9 +27,10 @@ import {
   type EChartApi,
   type EChartClickParams,
   EChartView,
+  type EChartZrElement,
 } from './echart_view';
 
-export const DEFAULT_GRAPH_CANVAS_W = 335;
+export const DEFAULT_GRAPH_CANVAS_W = 480;
 export const DEFAULT_GRAPH_LEFT_MARGIN_X = 230;
 export const DEFAULT_GRAPH_ROW_LABEL_X = 215;
 export const ROAM_MIN_ZOOM = 0.5;
@@ -37,6 +38,10 @@ export const ROAM_MAX_ZOOM = 15;
 
 const NODE_SCALE_SLOPE = 0.25;
 const MAX_NODE_GROWTH = 0.5; // Caps screen-space node & label growth at 1.5x.
+const MIN_AUTO_NODE_SIZE = 9.5;
+const MAX_AUTO_NODE_SIZE = 22;
+const ROW_NODE_GAP_PX = 5;
+const SELF_LOOP_CLEARANCE_PX = 17;
 const KEYBOARD_PAN_STEP_PX = 48;
 const KEYBOARD_ZOOM_FACTOR = 1.18;
 
@@ -392,11 +397,134 @@ export function parseRoamZoomDelta(raw: unknown): number | undefined {
     : undefined;
 }
 
+export interface GraphDragOffset {
+  readonly dx: number;
+  readonly dy: number;
+}
+
 export interface BuildGraphOptionConfig {
   readonly layout?: GraphChartLayout;
   readonly nodeScaleRatio?: number;
   readonly animateUpdates?: boolean;
   readonly showSelfLoopCountOnLabel?: boolean;
+  readonly viewportSize?: {readonly width: number; readonly height: number};
+  readonly dragOffsets?: ReadonlyMap<string, GraphDragOffset>;
+  readonly outBasePositions?: Map<
+    string,
+    {readonly x: number; readonly y: number}
+  >;
+}
+
+interface RowSlot {
+  readonly id: string;
+  readonly desiredX: number;
+  readonly leftExtent: number;
+  readonly rightExtent: number;
+}
+
+/**
+ * Separates overlapping nodes on a horizontal row via Pool Adjacent Violators
+ * (L2 minimum displacement) while keeping non-colliding nodes at their exact
+ * desired X columns.
+ */
+function solveRowPositions(
+  slots: ReadonlyArray<RowSlot>,
+  minX: number,
+  maxX: number,
+  minGapData: number,
+): ReadonlyMap<string, number> {
+  const out = new Map<string, number>();
+  const n = slots.length;
+  if (n === 0) return out;
+  if (n === 1) {
+    const only = slots[0];
+    if (only !== undefined) {
+      out.set(only.id, Math.min(maxX, Math.max(minX, only.desiredX)));
+    }
+    return out;
+  }
+
+  const seps: number[] = [];
+  let totalSep = 0;
+  for (let i = 0; i < n - 1; i++) {
+    const cur = slots[i];
+    const next = slots[i + 1];
+    const s = (cur?.rightExtent ?? 0) + (next?.leftExtent ?? 0) + minGapData;
+    seps.push(s);
+    totalSep += s;
+  }
+
+  const availSpan = Math.max(1, maxX - minX);
+  const compress = totalSep > availSpan ? availSpan / totalSep : 1;
+  const prefix: number[] = [0];
+  for (let i = 0; i < seps.length; i++) {
+    const prev = prefix[i] ?? 0;
+    const step = (seps[i] ?? 0) * compress;
+    seps[i] = step;
+    prefix.push(prev + step);
+  }
+
+  const blocks: Array<{
+    start: number;
+    end: number;
+    sum: number;
+    count: number;
+  }> = [];
+  for (let i = 0; i < n; i++) {
+    const target = (slots[i]?.desiredX ?? 0) - (prefix[i] ?? 0);
+    blocks.push({start: i, end: i, sum: target, count: 1});
+    while (blocks.length >= 2) {
+      const b2 = blocks[blocks.length - 1];
+      const b1 = blocks[blocks.length - 2];
+      if (
+        b1 === undefined ||
+        b2 === undefined ||
+        b1.sum / b1.count <= b2.sum / b2.count
+      ) {
+        break;
+      }
+      blocks.pop();
+      b1.end = b2.end;
+      b1.sum += b2.sum;
+      b1.count += b2.count;
+    }
+  }
+
+  const xs = new Array<number>(n).fill(0);
+  for (const b of blocks) {
+    const mean = b.sum / b.count;
+    for (let i = b.start; i <= b.end; i++) {
+      xs[i] = mean + (prefix[i] ?? 0);
+    }
+  }
+
+  if ((xs[0] ?? 0) < minX) {
+    xs[0] = minX;
+    for (let i = 1; i < n; i++) {
+      const minAllowed = (xs[i - 1] ?? minX) + (seps[i - 1] ?? 0);
+      if ((xs[i] ?? 0) < minAllowed) {
+        xs[i] = minAllowed;
+      }
+    }
+  }
+  if ((xs[n - 1] ?? 0) > maxX) {
+    xs[n - 1] = maxX;
+    for (let i = n - 2; i >= 0; i--) {
+      const maxAllowed = (xs[i + 1] ?? maxX) - (seps[i] ?? 0);
+      if ((xs[i] ?? 0) > maxAllowed) {
+        xs[i] = maxAllowed;
+      }
+    }
+  }
+
+  for (let i = 0; i < n; i++) {
+    const slot = slots[i];
+    const x = xs[i];
+    if (slot !== undefined && x !== undefined) {
+      out.set(slot.id, x);
+    }
+  }
+  return out;
 }
 
 function resolveEffectiveLayout(
@@ -440,8 +568,15 @@ export function buildGraphChartOption(
 
   const deg = new Map<string, number>();
   const selfLoopWeightById = new Map<string, number>();
+  const selfLoopBadgeCountById = new Map<string, number>();
   const parallelCount = new Map<string, number>();
   for (const e of data.edges) {
+    if (e.source === e.target) {
+      selfLoopBadgeCountById.set(
+        e.source,
+        (selfLoopBadgeCountById.get(e.source) ?? 0) + 1,
+      );
+    }
     if (e.highlight === 'removed') continue;
     deg.set(e.source, (deg.get(e.source) ?? 0) + 1);
     if (e.source !== e.target) {
@@ -456,11 +591,24 @@ export function buildGraphChartOption(
     parallelCount.set(pairKey, (parallelCount.get(pairKey) ?? 0) + 1);
   }
 
-  // Resolve coordinates for positioned layouts ('layered', 'circular', 'none').
+  // Resolve node sizes up front so row collision avoidance accounts for radii.
   const isPositioned = effectiveLayout !== 'force';
   const resolvedX = new Map<string, number>();
   const resolvedY = new Map<string, number>();
   const resolvedSize = new Map<string, number>();
+  for (const n of data.nodes) {
+    const d = deg.get(n.id) ?? 0;
+    const isGhost = n.highlight === 'ghost' || n.highlight === 'removed';
+    const size =
+      n.size ??
+      (isGhost
+        ? 8
+        : Math.min(
+            MAX_AUTO_NODE_SIZE,
+            Math.max(MIN_AUTO_NODE_SIZE, 8 + 2.2 * Math.sqrt(d)),
+          ));
+    resolvedSize.set(n.id, size);
+  }
 
   const layers = data.layers ?? [];
   const layerIndexById = new Map<string | number, number>();
@@ -560,6 +708,136 @@ export function buildGraphChartOption(
       ? maxX + 40
       : DEFAULT_GRAPH_LEFT_MARGIN_X + DEFAULT_GRAPH_CANVAS_W);
 
+  const hasLayerLabels = effectiveLayout === 'layered' && layers.length > 0;
+  const padLeft = hasLayerLabels ? 118 : 16;
+  const vpW =
+    config.viewportSize !== undefined && config.viewportSize.width > 0
+      ? config.viewportSize.width
+      : 440;
+  const vpH =
+    config.viewportSize !== undefined && config.viewportSize.height > 0
+      ? config.viewportSize.height
+      : 400;
+  const viewW = Math.max(120, vpW - padLeft - 14);
+  const viewH = Math.max(120, vpH - 18 - 16);
+  const dataW = Math.max(
+    1,
+    maxBoundX - (effectiveBounds?.minX ?? (Number.isFinite(minX) ? minX : 0)),
+  );
+  const dataH = Math.max(
+    1,
+    (effectiveBounds?.maxY ?? (Number.isFinite(maxY) ? maxY + 40 : 400)) -
+      (effectiveBounds?.minY ?? (Number.isFinite(minY) ? minY : 0)),
+  );
+  const pxToData = 1 / Math.max(0.05, Math.min(viewW / dataW, viewH / dataH));
+
+  // Separate adjacent nodes sharing a layered row and orient self-loops toward
+  // whichever side of the node has more horizontal clearance.
+  const preferredLoopSide = new Map<string, 1 | -1>();
+  if (effectiveLayout === 'layered' && data.nodes.length > 0) {
+    const rowMinX = hasLayerLabels
+      ? rowLabelX + Math.max(15, 11 * pxToData)
+      : (effectiveBounds?.minX ?? (Number.isFinite(minX) ? minX : 0)) +
+        8 * pxToData;
+    const rowMaxX = Math.max(
+      rowMinX + 1,
+      maxBoundX - Math.max(10, 8 * pxToData),
+    );
+    const byRow = new Map<number, string[]>();
+    for (const n of data.nodes) {
+      const yKey = Math.round((resolvedY.get(n.id) ?? 0) * 100);
+      let row = byRow.get(yKey);
+      if (row === undefined) {
+        row = [];
+        byRow.set(yKey, row);
+      }
+      row.push(n.id);
+    }
+
+    for (const rowIds of byRow.values()) {
+      rowIds.sort(
+        (a, b) =>
+          (resolvedX.get(a) ?? 0) - (resolvedX.get(b) ?? 0) ||
+          a.localeCompare(b),
+      );
+      const slots: RowSlot[] = rowIds.map((id, idx) => {
+        const dx = resolvedX.get(id) ?? 0;
+        const rPx = (resolvedSize.get(id) ?? MIN_AUTO_NODE_SIZE) / 2;
+        const loopCount = selfLoopBadgeCountById.get(id) ?? 0;
+        let side: 1 | -1 = dx + 26 * pxToData <= maxBoundX ? 1 : -1;
+        if (loopCount > 0) {
+          const prevId = idx > 0 ? rowIds[idx - 1] : undefined;
+          const nextId = idx + 1 < rowIds.length ? rowIds[idx + 1] : undefined;
+          const leftNeighborX =
+            prevId !== undefined ? (resolvedX.get(prevId) ?? rowMinX) : rowMinX;
+          const rightNeighborX =
+            nextId !== undefined ? (resolvedX.get(nextId) ?? rowMaxX) : rowMaxX;
+          const leftRoom = dx - leftNeighborX;
+          const rightRoom = rightNeighborX - dx;
+          const needRoom = (rPx + SELF_LOOP_CLEARANCE_PX + 4) * pxToData;
+          if (rightRoom >= needRoom && dx + 26 * pxToData <= maxBoundX) {
+            side = 1;
+          } else if (
+            leftRoom > rightRoom &&
+            dx - 26 * pxToData >= rowLabelX + 4
+          ) {
+            side = -1;
+          }
+          preferredLoopSide.set(id, side);
+        }
+        const extraLeftPx =
+          loopCount >= 2 || (loopCount === 1 && side === -1)
+            ? SELF_LOOP_CLEARANCE_PX
+            : 0;
+        const extraRightPx =
+          loopCount >= 2 || (loopCount === 1 && side === 1)
+            ? SELF_LOOP_CLEARANCE_PX
+            : 0;
+        return {
+          id,
+          desiredX: dx,
+          leftExtent: (rPx + extraLeftPx) * pxToData,
+          rightExtent: (rPx + extraRightPx) * pxToData,
+        };
+      });
+
+      if (slots.length >= 2) {
+        const adjusted = solveRowPositions(
+          slots,
+          rowMinX,
+          rowMaxX,
+          ROW_NODE_GAP_PX * pxToData,
+        );
+        for (const [id, x] of adjusted) {
+          resolvedX.set(id, x);
+        }
+      }
+    }
+  }
+
+  const preDragX = new Map<string, number>(resolvedX);
+  if (config.outBasePositions !== undefined) {
+    config.outBasePositions.clear();
+    if (isPositioned) {
+      for (const n of data.nodes) {
+        config.outBasePositions.set(n.id, {
+          x: resolvedX.get(n.id) ?? 0,
+          y: resolvedY.get(n.id) ?? 0,
+        });
+      }
+    }
+  }
+  if (isPositioned && config.dragOffsets !== undefined) {
+    for (const [id, offset] of config.dragOffsets) {
+      const curX = resolvedX.get(id);
+      const curY = resolvedY.get(id);
+      if (curX !== undefined && curY !== undefined) {
+        resolvedX.set(id, curX + offset.dx);
+        resolvedY.set(id, curY + offset.dy);
+      }
+    }
+  }
+
   const pinNodes =
     isPositioned && effectiveBounds !== undefined
       ? [
@@ -618,13 +896,16 @@ export function buildGraphChartOption(
         }))
       : [];
 
+  const selectedNodeIds = new Set<string>();
   const nodeLabelById = new Map<string, string>();
   const graphNodes = data.nodes.map((n) => {
     nodeLabelById.set(n.id, n.label);
+    if (n.selected === true) {
+      selectedNodeIds.add(n.id);
+    }
     const d = deg.get(n.id) ?? 0;
     const isGhost = n.highlight === 'ghost' || n.highlight === 'removed';
-    const size = n.size ?? (isGhost ? 8 : Math.max(10.5, 8 + 3 * Math.sqrt(d)));
-    resolvedSize.set(n.id, size);
+    const size = resolvedSize.get(n.id) ?? MIN_AUTO_NODE_SIZE;
 
     const selfCount = selfLoopWeightById.get(n.id) ?? 0;
     const displayLabel =
@@ -694,6 +975,17 @@ export function buildGraphChartOption(
     };
   });
 
+  // Order larger nodes first so smaller and selected nodes always paint above
+  // high-degree hubs and remain hoverable/clickable.
+  graphNodes.sort((a, b) => {
+    const aSel = selectedNodeIds.has(a.id);
+    const bSel = selectedNodeIds.has(b.id);
+    if (aSel !== bSel) {
+      return aSel ? 1 : -1;
+    }
+    return b.symbolSize - a.symbolSize;
+  });
+
   // Circular SVG arc + chevron badges keep self-loops crisp and locked to the
   // 1.5x zoom cap in positioned layouts ('layered', 'circular', 'none').
   const selfLoopPathRight =
@@ -719,21 +1011,29 @@ export function buildGraphChartOption(
     selfLoopSlotsUsed.set(nodeId, slot + 1);
     const baseX = resolvedX.get(nodeId) ?? 0;
     const baseY = resolvedY.get(nodeId) ?? 0;
-    const nodeRadius = (resolvedSize.get(nodeId) ?? 10.5) / 2;
+    const layoutX = preDragX.get(nodeId) ?? baseX;
+    const nodeRadius = (resolvedSize.get(nodeId) ?? MIN_AUTO_NODE_SIZE) / 2;
 
-    let side = 1;
+    const primarySide: 1 | -1 =
+      preferredLoopSide.get(nodeId) ?? (layoutX + 26 <= maxBoundX ? 1 : -1);
+    let side: 1 | -1 = primarySide;
     let loopSize = 20;
     let offsetDist = nodeRadius + 6.5;
-    if (slot === 0) {
-      if (baseX + 26 > maxBoundX) {
-        side = -1;
+    if (slot === 1) {
+      const oppositeSide: 1 | -1 = primarySide === 1 ? -1 : 1;
+      const canUseOpposite =
+        oppositeSide < 0
+          ? layoutX - 26 >= rowLabelX + 4
+          : layoutX + 26 <= maxBoundX;
+      if (canUseOpposite) {
+        side = oppositeSide;
+      } else {
+        loopSize = 26;
+        offsetDist = nodeRadius + 9.5;
       }
-    } else if (baseX - 26 >= rowLabelX + 4 && baseX + 26 <= maxBoundX) {
-      side = -1;
-    } else {
-      side = baseX + 34 <= maxBoundX ? 1 : -1;
+    } else if (slot >= 2) {
       loopSize = 26;
-      offsetDist = nodeRadius + 9.5;
+      offsetDist = nodeRadius + 9.5 + (slot - 1) * 4;
     }
 
     loopBadgeNodes.push({
@@ -847,8 +1147,6 @@ export function buildGraphChartOption(
     });
   }
 
-  const hasLayerLabels = effectiveLayout === 'layered' && layers.length > 0;
-
   return {
     backgroundColor: 'transparent',
     tooltip: {
@@ -906,6 +1204,7 @@ export class GraphChart implements m.ClassComponent<GraphChartAttrs> {
   private roamZoom = 1;
   private zoomOnlyUpdate = false;
   private lastResetToken?: number;
+  private lastLayout?: GraphChartLayout;
   private lastThemeBg?: string;
   private chartApi?: EChartApi;
   private canvasDom?: HTMLElement;
@@ -914,6 +1213,23 @@ export class GraphChart implements m.ClassComponent<GraphChartAttrs> {
   private hoverOffset?: {readonly x: number; readonly y: number};
   private docKeyListener?: Disposable;
   private keyboardEnabled = true;
+  private dragOffsets = new Map<string, GraphDragOffset>();
+  private basePositions = new Map<
+    string,
+    {readonly x: number; readonly y: number}
+  >();
+  private selfLoopNodeIds = new Set<string>();
+  private pendingDragNodeId?: string;
+  private dragStartState?: {
+    readonly el: EChartZrElement;
+    readonly startX: number;
+    readonly startY: number;
+  };
+  private activeDrag?: {
+    readonly nodeId: string;
+    readonly el: EChartZrElement;
+    readonly badgeEls: ReadonlyArray<EChartZrElement>;
+  };
 
   oncreate() {
     this.docKeyListener = bindEventListener(
@@ -929,6 +1245,83 @@ export class GraphChart implements m.ClassComponent<GraphChartAttrs> {
     this.docKeyListener = undefined;
     this.chartApi = undefined;
     this.canvasDom = undefined;
+    this.activeDrag = undefined;
+    this.dragStartState = undefined;
+    this.pendingDragNodeId = undefined;
+  }
+
+  private bindDragSync(api: EChartApi): void {
+    // ZRender's Draggable._dragStart runs before ECharts' mousedown listener,
+    // so capture the starting Symbol coords on dragstart, the nodeId on
+    // mousedown, and pair them lazily on the first drag frame.
+    api.on('mousedown', (rawParams: unknown) => {
+      const params = rawParams as EChartClickParams;
+      const parsed = parseGraphClickData(params.data);
+      this.pendingDragNodeId =
+        params.dataType === 'node' &&
+        parsed !== undefined &&
+        parsed.isAnchor !== true
+          ? parsed.nodeId
+          : undefined;
+    });
+    api.onZr('dragstart', (ev) => {
+      this.activeDrag = undefined;
+      this.pendingDragNodeId = undefined;
+      const el = ev.target?.parent;
+      this.dragStartState =
+        el !== undefined && typeof el.x === 'number' && typeof el.y === 'number'
+          ? {el, startX: el.x, startY: el.y}
+          : undefined;
+    });
+    api.onZr('drag', () => {
+      if (this.activeDrag === undefined) {
+        const start = this.dragStartState;
+        const nodeId = this.pendingDragNodeId;
+        if (start === undefined || nodeId === undefined) {
+          return;
+        }
+        const badgeEls: EChartZrElement[] = [];
+        if (this.selfLoopNodeIds.has(nodeId)) {
+          const siblings = start.el.parent?.children?.() ?? [];
+          for (const sib of siblings) {
+            if (
+              sib !== start.el &&
+              sib.getSymbolType?.()?.startsWith('path://') === true &&
+              Math.abs(sib.x - start.startX) < 0.05 &&
+              Math.abs(sib.y - start.startY) < 0.05
+            ) {
+              badgeEls.push(sib);
+            }
+          }
+        }
+        this.activeDrag = {nodeId, el: start.el, badgeEls};
+      }
+      const {el, badgeEls} = this.activeDrag;
+      for (const badgeEl of badgeEls) {
+        badgeEl.stopAnimation?.();
+        badgeEl.setPosition?.([el.x, el.y]);
+        badgeEl.markRedraw?.();
+      }
+    });
+    api.onZr('dragend', () => {
+      const drag = this.activeDrag;
+      this.activeDrag = undefined;
+      this.dragStartState = undefined;
+      this.pendingDragNodeId = undefined;
+      if (drag === undefined) {
+        return;
+      }
+      const basePos = this.basePositions.get(drag.nodeId);
+      if (basePos === undefined) {
+        return;
+      }
+      this.dragOffsets.set(drag.nodeId, {
+        dx: drag.el.x - basePos.x,
+        dy: drag.el.y - basePos.y,
+      });
+      this.zoomOnlyUpdate = true;
+      m.redraw();
+    });
   }
 
   private handleKeyDown(ev: KeyboardEvent): void {
@@ -1003,9 +1396,23 @@ export class GraphChart implements m.ClassComponent<GraphChartAttrs> {
       this.lastResetToken !== resetToken
     ) {
       this.roamZoom = 1;
+      this.dragOffsets.clear();
       this.zoomOnlyUpdate = true;
     }
     this.lastResetToken = resetToken;
+    if (this.lastLayout !== undefined && this.lastLayout !== layout) {
+      this.dragOffsets.clear();
+    }
+    this.lastLayout = layout;
+
+    this.selfLoopNodeIds.clear();
+    if (data !== undefined) {
+      for (const e of data.edges) {
+        if (e.source === e.target) {
+          this.selfLoopNodeIds.add(e.source);
+        }
+      }
+    }
 
     const isEmpty =
       data !== undefined &&
@@ -1076,8 +1483,11 @@ export class GraphChart implements m.ClassComponent<GraphChartAttrs> {
         notMerge: false,
         onReady: (api) => {
           this.chartApi = api;
+          if (api !== undefined) {
+            this.bindDragSync(api);
+          }
         },
-        resolveOption: (_opt, colors) => {
+        resolveOption: (_opt, colors, size) => {
           if (data === undefined) {
             return {};
           }
@@ -1093,6 +1503,9 @@ export class GraphChart implements m.ClassComponent<GraphChartAttrs> {
             nodeScaleRatio: effectiveNodeScaleRatio(this.roamZoom),
             animateUpdates: animateThisFrame,
             showSelfLoopCountOnLabel,
+            viewportSize: size,
+            dragOffsets: this.dragOffsets,
+            outBasePositions: this.basePositions,
           });
         },
         onCanvasEmptyClick: attrs.onCanvasEmptyClick,

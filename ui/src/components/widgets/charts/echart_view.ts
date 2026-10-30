@@ -338,8 +338,26 @@ export interface EChartEventHandler {
 }
 
 /**
+ * Minimal ZRender element surface used to synchronize auxiliary custom symbols
+ * (such as graph self-loop badges) during interactive drags.
+ */
+export interface EChartZrElement {
+  readonly x: number;
+  readonly y: number;
+  readonly parent?: EChartZrGroup;
+  getSymbolType?(): string | undefined;
+  stopAnimation?(): void;
+  setPosition?(pos: readonly [number, number]): void;
+  markRedraw?(): void;
+}
+
+export interface EChartZrGroup extends EChartZrElement {
+  children?(): ReadonlyArray<EChartZrElement>;
+}
+
+/**
  * Imperative handle exposed via `EChartViewAttrs.onReady` for programmatic
- * interactions (such as keyboard roam actions).
+ * interactions (such as keyboard roam actions and drag synchronization).
  */
 export interface EChartApi {
   dispatchAction(payload: {
@@ -347,6 +365,11 @@ export interface EChartApi {
     readonly [key: string]: unknown;
   }): void;
   getSize(): {readonly width: number; readonly height: number};
+  on(eventName: string, handler: (...args: unknown[]) => void): void;
+  onZr(
+    eventName: string,
+    handler: (ev: {readonly target?: EChartZrElement}) => void,
+  ): void;
 }
 
 export interface EChartViewAttrs {
@@ -365,6 +388,7 @@ export interface EChartViewAttrs {
   readonly resolveOption?: (
     option: echarts.EChartsCoreOption,
     colors: ChartThemeColors,
+    size: {readonly width: number; readonly height: number},
   ) => echarts.EChartsCoreOption;
 
   /**
@@ -470,7 +494,15 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
     }
 
     // Check if option changed
-    const resolvedOption = this.applyResolveOption(attrs.option, attrs, colors);
+    const resolvedOption = this.applyResolveOption(
+      attrs.option,
+      attrs,
+      colors,
+      {
+        width: this.chart.getWidth(),
+        height: this.chart.getHeight(),
+      },
+    );
     const optionJson = JSON.stringify(resolvedOption);
     if (optionJson !== this.prevOptionJson) {
       this.prevOptionJson = optionJson;
@@ -501,11 +533,19 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
     const theme = buildEChartsTheme(colors);
     echarts.registerTheme(THEME_NAME, theme);
 
-    const resolvedOption = this.applyResolveOption(attrs.option, attrs, colors);
-
-    // Initialize chart with the theme
+    // Initialize chart with the theme before resolving options so viewport
+    // dimensions are available to resolveOption on the first render.
     const chart = echarts.init(container, THEME_NAME);
     this.chart = chart;
+    const resolvedOption = this.applyResolveOption(
+      attrs.option,
+      attrs,
+      colors,
+      {
+        width: chart.getWidth(),
+        height: chart.getHeight(),
+      },
+    );
     chart.setOption(resolvedOption);
 
     this.prevOptionJson = JSON.stringify(resolvedOption);
@@ -524,6 +564,14 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
     this.onReadyCallback?.({
       dispatchAction: (payload) => chart.dispatchAction(payload),
       getSize: () => ({width: chart.getWidth(), height: chart.getHeight()}),
+      on: (eventName, handler) => {
+        chart.on(eventName, handler);
+      },
+      onZr: (eventName, handler) => {
+        chart
+          .getZr()
+          .on(eventName, handler as (ev: {target?: unknown}) => void);
+      },
     });
   }
 
@@ -531,9 +579,10 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
     option: echarts.EChartsCoreOption,
     attrs: EChartViewAttrs,
     colors: ChartThemeColors,
+    size: {readonly width: number; readonly height: number},
   ): echarts.EChartsCoreOption {
     const resolved = attrs.resolveOption
-      ? attrs.resolveOption(option, colors)
+      ? attrs.resolveOption(option, colors, size)
       : option;
     return autoAdjustGridSpacing(resolved);
   }
