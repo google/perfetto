@@ -240,6 +240,8 @@ message TracePacket {
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;
     DeobfuscationMapping deobfuscation_mapping = 64;
+    SourceFile source_file = 139;
+    ModuleDisassembly module_disassembly = 140;
 
     // Deprecated, use TrackDescriptor instead.
     ProcessDescriptor process_descriptor = 43;
