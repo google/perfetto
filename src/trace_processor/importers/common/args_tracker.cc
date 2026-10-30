@@ -27,6 +27,8 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
@@ -199,6 +201,88 @@ void ArgsInserter::Commit() {
   ArgSetId set_id =
       tracker_->AddArgSet(args.data(), static_cast<uint32_t>(args.size()));
   WriteArgSetId(df_, col_, row_, set_id);
+}
+
+ArgSetId ArgsTracker::AddArgSet(const CompactArg* args, uint32_t count) {
+  base::MurmurHashCombiner combiner;
+  for (uint32_t i = 0; i < count; ++i) {
+    const CompactArg& arg = args[i];
+    combiner.Combine(arg.key);
+    combiner.Combine(arg.value.type);
+    // We don't hash arg.flat_key because it's a subsequence of arg.key.
+    switch (arg.value.type) {
+      case Variadic::Type::kInt:
+        combiner.Combine(arg.value.int_value);
+        break;
+      case Variadic::Type::kUint:
+        combiner.Combine(arg.value.uint_value);
+        break;
+      case Variadic::Type::kString:
+        combiner.Combine(arg.value.string_value);
+        break;
+      case Variadic::Type::kReal:
+        combiner.Combine(arg.value.real_value);
+        break;
+      case Variadic::Type::kPointer:
+        combiner.Combine(arg.value.pointer_value);
+        break;
+      case Variadic::Type::kBool:
+        combiner.Combine(arg.value.bool_value);
+        break;
+      case Variadic::Type::kJson:
+        combiner.Combine(arg.value.json_value);
+        break;
+      case Variadic::Type::kNull:
+        combiner.Combine(0);
+        break;
+    }
+  }
+
+  auto& arg_table = *storage_->mutable_arg_table();
+
+  uint32_t arg_set_id = arg_table.row_count();
+  ArgSetHash digest = combiner.digest();
+  auto [it, inserted] = arg_row_for_hash_.Insert(digest, arg_set_id);
+  if (!inserted) {
+    // Already inserted.
+    return *it;
+  }
+
+  for (uint32_t i = 0; i < count; ++i) {
+    const CompactArg& arg = args[i];
+    tables::ArgTable::Row row;
+    row.arg_set_id = arg_set_id;
+    row.flat_key = arg.flat_key;
+    row.key = arg.key;
+    switch (arg.value.type) {
+      case Variadic::Type::kInt:
+        row.int_value = arg.value.int_value;
+        break;
+      case Variadic::Type::kUint:
+        row.int_value = static_cast<int64_t>(arg.value.uint_value);
+        break;
+      case Variadic::Type::kString:
+        row.string_value = arg.value.string_value;
+        break;
+      case Variadic::Type::kReal:
+        row.real_value = arg.value.real_value;
+        break;
+      case Variadic::Type::kPointer:
+        row.int_value = static_cast<int64_t>(arg.value.pointer_value);
+        break;
+      case Variadic::Type::kBool:
+        row.int_value = arg.value.bool_value;
+        break;
+      case Variadic::Type::kJson:
+        row.string_value = arg.value.json_value;
+        break;
+      case Variadic::Type::kNull:
+        break;
+    }
+    row.value_type = storage_->GetIdForVariadicType(arg.value.type);
+    arg_table.Insert(row);
+  }
+  return arg_set_id;
 }
 
 }  // namespace perfetto::trace_processor

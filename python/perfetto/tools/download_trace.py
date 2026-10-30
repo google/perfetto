@@ -30,6 +30,11 @@ import urllib.parse
 import urllib.request
 
 BUCKET_NAME = 'perfetto-ui-data'
+# Uploaded traces go to BUCKET_NAME, the example traces live in perfetto-misc.
+ALLOWED_TRACE_URLS = (
+    'https://storage.googleapis.com/%s/' % BUCKET_NAME,
+    'https://storage.googleapis.com/perfetto-misc/',
+)
 HASH_RE = re.compile(r'^[a-fA-F0-9]{40}$')
 
 
@@ -79,6 +84,9 @@ def resolve_trace_url(share_link):
         'Permalink does not contain a trace URL. The share link may have been '
         'created from a trace that was never uploaded (e.g. an HTTP/RPC '
         'source).')
+  # Anyone can make a permalink, so don't fetch whatever URL it points to.
+  if not trace_url.startswith(ALLOWED_TRACE_URLS):
+    raise ValueError('Refusing to download trace from %s' % trace_url)
   return trace_url
 
 

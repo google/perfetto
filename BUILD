@@ -1485,6 +1485,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/scoped_file.h",
         "include/perfetto/ext/base/scoped_mmap.h",
         "include/perfetto/ext/base/scoped_sched_boost.h",
+        "include/perfetto/ext/base/sd_notify.h",
         "include/perfetto/ext/base/small_set.h",
         "include/perfetto/ext/base/small_vector.h",
         "include/perfetto/ext/base/status_macros.h",
@@ -2094,6 +2095,7 @@ perfetto_cc_library(
 perfetto_cc_library(
     name = "src_base_unix_socket",
     srcs = [
+        "src/base/sd_notify.cc",
         "src/base/unix_socket.cc",
     ],
     hdrs = [
@@ -5983,6 +5985,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/storage/metadata.h",
         "src/trace_processor/storage/stats.h",
+        "src/trace_processor/storage/stats_types.h",
         "src/trace_processor/storage/trace_storage.cc",
         "src/trace_processor/storage/trace_storage.h",
     ],
@@ -7246,6 +7249,8 @@ perfetto_filegroup(
         "src/tracing/service/service_ring_buffer_drainer.cc",
         "src/tracing/service/service_ring_buffer_drainer.h",
         "src/tracing/service/trace_buffer.h",
+        "src/tracing/service/trace_buffer_factory.cc",
+        "src/tracing/service/trace_buffer_factory.h",
         "src/tracing/service/trace_buffer_protovms.cc",
         "src/tracing/service/trace_buffer_protovms.h",
         "src/tracing/service/trace_buffer_v1.cc",
@@ -7259,6 +7264,8 @@ perfetto_filegroup(
         "src/tracing/service/tracing_service_session.cc",
         "src/tracing/service/tracing_service_session.h",
         "src/tracing/service/tracing_service_structs.h",
+        "src/tracing/service/zstd_frame_codec.cc",
+        "src/tracing/service/zstd_frame_codec.h",
     ],
 )
 

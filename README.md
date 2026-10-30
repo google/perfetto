@@ -1,100 +1,167 @@
-# Perfetto - System profiling, app tracing and trace analysis
+<div align="center">
 
-Perfetto is an open-source suite of SDKs, daemons and tools which use
-**tracing** to help developers understand the behaviour of complex systems and
-root-cause functional and performance issues on client and embedded systems.
+<h1><a href="https://perfetto.dev">Perfetto</a></h1>
 
-It is a production-grade tool that is the default tracing system for the
-**Android operating system** and the **Chromium browser**.
+<p><strong>Record, explore and query traces of complex software.</strong></p>
 
-![](docs/images/perfetto-stack.svg)
+<p>
+  <a href="https://discord.gg/35ShE3A"><img alt="Discord" src="https://img.shields.io/badge/Discord-ask%20in%20%23help-5865F2?logo=discord&logoColor=white&style=for-the-badge"></a>
+  <a href="https://github.com/google/perfetto/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/google/perfetto?style=for-the-badge"></a>
+  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge"></a>
+</p>
 
-## Core Components
+<p>
+  <a href="https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace">Try the demo</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#what-can-you-do-with-it">What can you do with it?</a> ·
+  <a href="https://perfetto.dev/docs/">Documentation</a> ·
+  <a href="https://discord.gg/35ShE3A">Discord</a>
+</p>
 
-Perfetto is not a single tool, but a collection of components that work
-together:
+</div>
 
-- **High-performance tracing daemons:** For capturing tracing information from
-  many processes on a single machine into a unified trace file.
-- **Low-overhead tracing SDK:** A C++17 library for direct
-  userspace-to-userspace tracing of timings and state changes in your
-  application.
-- **Extensive OS-level probes:** For capturing system-wide context on Android
-  and Linux (e.g. scheduling states, CPU frequencies, memory profiling,
-  callstack sampling).
-- **Browser-based UI:** A powerful, fully local UI for visualizing and exploring
-  large, multi-GB traces on a timeline. It works in all major browsers, requires
-  no installation, and can open traces from other tools.
-- **SQL-based analysis library:** A powerful engine that allows you to
-  programmatically query traces using SQL to automate analysis and extract
-  custom metrics.
+## What is Perfetto?
 
-## Why Use Perfetto?
+Perfetto is an open-source suite of tools for **recording, visualizing and
+analyzing traces**: timelines of what software and the system under it were
+doing. It is the default tracing system for **Android** and **Chromium**.
+System-wide recording works on Android and Linux. The tracing SDK, the UI and
+Trace Processor also run on macOS and Windows.
 
-Perfetto was designed to be a versatile and powerful tracing system for a wide
-range of use cases.
+- **Record the whole system.** Scheduling, CPU frequency, memory, syscalls and
+  any kernel tracepoint on Android and Linux, plus Android framework events,
+  callstack sampling and Java and native heap profiles.
+- **Instrument your own code.** Add trace points with the
+  [C++](https://perfetto.dev/docs/instrumentation/tracing-sdk) or
+  [Rust](https://perfetto.dev/docs/getting-started/rust-sdk) SDKs and see them
+  next to everything else.
+- **Open traces from other tools.** Chrome JSON, Linux `perf`, Firefox
+  Profiler, macOS Instruments, pprof, systrace, Fuchsia and
+  [more](https://perfetto.dev/docs/getting-started/other-formats).
+- **Explore multi-GB traces in the browser.** The
+  [Perfetto UI](https://ui.perfetto.dev) needs no install and runs fully
+  locally: traces are not uploaded anywhere.
+- **Query everything with SQL.**
+  [Trace Processor](https://perfetto.dev/docs/analysis/trace-processor) turns
+  any trace into tables, with a standard library for common analyses. Use it
+  from the command line, Python or C++.
+- **Bring your AI agent.** The
+  [Perfetto AI skill](https://perfetto.dev/docs/getting-started/using-ai)
+  teaches coding agents to record and analyze traces.
 
-- **For Android App & Platform Developers:** Debug and root-cause functional and
-  performance issues like slow startups, dropped frames (jank), animation
-  glitches, low memory kills, and ANRs. Profile both Java/Kotlin and native C++
-  memory usage with heap dumps and profiles.
-- **For C/C++ Developers (Linux, macOS, Windows):** Use the
-  [Tracing SDK](docs/instrumentation/tracing-sdk.md) to instrument your
-  application with custom trace points to understand its execution flow, find
-  performance bottlenecks, and debug complex behavior. On Linux, you can also
-  perform detailed CPU and native heap profiling.
-- **For Linux Kernel & System Developers:** Get deep insights into kernel
-  behavior. Perfetto acts as an efficient userspace daemon for `ftrace`,
-  allowing you to visualize scheduling, syscalls, interrupts, and custom kernel
-  tracepoints on a timeline.
-- **For Chromium Developers:** Perfetto is the tracing backend for
-  `chrome://tracing`. Use it to debug and root-cause issues in the browser, V8,
-  and Blink.
-- **For Performance Engineers & SREs:** Analyze and visualize a wide range of
-  profiling and tracing formats, not just Perfetto's. Use the powerful SQL
-  interface to programmatically analyze traces from tools like **Linux perf**,
-  **macOS Instruments**, **Chrome JSON traces**, and more.
+## Try it in your browser
 
-## Getting Started
+Open an [example Android trace](https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace)
+without installing anything, or drag your own trace file onto
+[ui.perfetto.dev](https://ui.perfetto.dev).
 
-We've designed our documentation to guide you to the right information as
-quickly as possible, whether you're a newcomer to performance analysis or an
-experienced developer.
+[![The Perfetto UI on an Android trace: a binder transaction selected in SurfaceFlinger, with its call stack and frame timelines on the timeline, and its details, binder reply and arguments below](docs/images/readme-ui.png)](https://ui.perfetto.dev/#!/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace)
 
-1.  **New to tracing?** If you're unfamiliar with concepts like tracing and
-    profiling, start here:
+## Quick start
 
-    - [**What is Tracing?**](https://perfetto.dev/docs/tracing-101) - A gentle
-      introduction to the world of performance analysis.
+### Record a trace
 
-2.  **Ready to dive in?** Our "Getting Started" guide is the main entry point
-    for all users. It will help you find the right tutorials and documentation
-    for your specific needs:
+On **Android**, with a device connected over adb:
 
-    - [**How do I start using Perfetto?**](https://perfetto.dev/docs/getting-started/start-using-perfetto) -
-      Find your path based on your role and goals (e.g., Android App Developer,
-      C/C++ Developer, etc.).
+```bash
+curl -O https://raw.githubusercontent.com/google/perfetto/main/tools/record_android_trace
+python3 record_android_trace -o trace.pftrace -t 10s sched freq gfx view am wm
+```
 
-3.  **Want the full overview?** For a comprehensive look at what Perfetto is,
-    why it's useful, and who uses it, see our main documentation page:
-    - [**Perfetto Documentation Home**](https://perfetto.dev/docs/)
+The trace opens in the Perfetto UI when recording finishes.
 
-## Debian Distribution
+On **Linux**, record scheduling activity with `tracebox`:
 
-For users interested in the Debian distribution of Perfetto, the official source
-of truth and packaging efforts are maintained at
-[Debian Perfetto Salsa Repository](https://salsa.debian.org/debian/perfetto)
+```bash
+curl -LO https://get.perfetto.dev/tracebox && chmod +x tracebox
+curl -LO https://raw.githubusercontent.com/google/perfetto/main/test/configs/scheduling.cfg
+sudo ./tracebox -o trace.pftrace --txt -c scheduling.cfg
+```
 
-## Community & Support
+For **Chrome**, use the [recording page](https://ui.perfetto.dev/#!/record)
+in the UI. To trace **your own app**, see
+[in-app tracing](https://perfetto.dev/docs/getting-started/in-app-tracing).
 
-Have questions? Need help?
+### Query it with SQL
 
-- **[GitHub Discussions](https://github.com/google/perfetto/discussions/categories/q-a):**
-  For Q&A and general discussions.
-- **[GitHub Issues](https://github.com/google/perfetto/issues):** For bug
-  reports.
-- **[Discord](https://discord.gg/35ShE3A):** For live chat with the community
-  and developers.
+```bash
+curl -LO https://get.perfetto.dev/trace_processor && chmod +x trace_processor
+./trace_processor query trace.pftrace \
+  "SELECT name, COUNT(*) AS cnt FROM slice GROUP BY name ORDER BY cnt DESC LIMIT 10"
+```
 
-We follow
+Or from Python:
+
+```bash
+pip install perfetto
+```
+
+```python
+from perfetto.trace_processor import TraceProcessor
+
+tp = TraceProcessor(trace='trace.pftrace')
+print(tp.query('SELECT ts, dur, name FROM slice LIMIT 10').as_pandas_dataframe())
+```
+
+## What can you do with it?
+
+- **Android app and platform developers:** root-cause slow startups, jank,
+  ANRs and low memory kills, and profile Java/Kotlin and native memory.
+  ([Android guides](https://perfetto.dev/docs/getting-started/android-trace-analysis))
+- **C, C++ and Rust developers:** instrument your code to see where time goes
+  across threads and processes.
+  ([In-app tracing](https://perfetto.dev/docs/getting-started/in-app-tracing))
+- **Linux kernel and systems developers:** visualize scheduling, syscalls,
+  interrupts and custom tracepoints. Perfetto is an efficient userspace daemon
+  for `ftrace`.
+  ([Linux cookbook](https://perfetto.dev/docs/getting-started/linux-cookbook))
+- **Chromium developers:** Perfetto is the tracing backend behind
+  `chrome://tracing`, for debugging the browser, V8 and Blink.
+  ([Chrome tracing](https://perfetto.dev/docs/getting-started/chrome-tracing))
+- **Performance engineers:** analyze traces from many tools in one place and
+  automate the analysis with SQL across thousands of traces.
+  ([Trace analysis](https://perfetto.dev/docs/analysis/getting-started))
+
+Not sure where to start? [How do I start using Perfetto?](https://perfetto.dev/docs/getting-started/start-using-perfetto)
+picks a path based on what you want to do.
+
+## How it fits together
+
+![Perfetto's components: tracing daemons and SDKs that record traces, and the UI and Trace Processor that analyze them](docs/images/perfetto-stack.svg)
+
+Perfetto is a collection of components that work together:
+
+- **Tracing daemons** (`traced`, `traced_probes`) collect data from many
+  processes and the kernel into a single trace file.
+- **The tracing SDK** writes your app's trace points with low overhead.
+- **The Perfetto UI** visualizes traces on a timeline.
+- **Trace Processor** parses traces into a SQL database for analysis.
+
+See the [documentation](https://perfetto.dev/docs/) for the full picture.
+
+## Community and Support
+
+- **[Discord](https://discord.gg/35ShE3A):** ask questions in #help, chat with
+  the team and community, and follow releases.
+- **[GitHub issues](https://github.com/google/perfetto/issues):** report bugs.
+- **[Mailing list](https://groups.google.com/forum/#!forum/perfetto-dev):** if
+  you prefer email.
+
+See [Community and getting help](https://perfetto.dev/docs/community) for
+more. We follow
 [Google's Open Source Community Guidelines](https://opensource.google/conduct/).
+
+## Contributing
+
+Contributions are welcome. The
+[contributor guide](https://perfetto.dev/docs/contributing/getting-started)
+covers building, testing and sending pull requests.
+
+## Packages
+
+The Debian packaging of Perfetto is maintained in the
+[Debian Perfetto Salsa repository](https://salsa.debian.org/debian/perfetto).
+
+## License
+
+Apache 2.0. See [LICENSE](LICENSE) for details.

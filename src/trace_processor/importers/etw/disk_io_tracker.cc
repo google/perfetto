@@ -26,6 +26,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
+#include "src/trace_processor/storage/stats.h"
 
 namespace perfetto::trace_processor {
 

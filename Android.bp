@@ -16431,6 +16431,7 @@ filegroup {
         "src/base/scoped_file_unittest.cc",
         "src/base/scoped_mmap_unittest.cc",
         "src/base/scoped_sched_boost_unittest.cc",
+        "src/base/sd_notify_unittest.cc",
         "src/base/small_vector_unittest.cc",
         "src/base/status_or_unittest.cc",
         "src/base/status_unittest.cc",
@@ -16458,6 +16459,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_base_unix_socket",
     srcs: [
+        "src/base/sd_notify.cc",
         "src/base/unix_socket.cc",
     ],
 }
@@ -23733,12 +23735,14 @@ filegroup {
         "src/tracing/service/packet_stream_validator.cc",
         "src/tracing/service/random.cc",
         "src/tracing/service/service_ring_buffer_drainer.cc",
+        "src/tracing/service/trace_buffer_factory.cc",
         "src/tracing/service/trace_buffer_protovms.cc",
         "src/tracing/service/trace_buffer_v1.cc",
         "src/tracing/service/trace_buffer_v2.cc",
         "src/tracing/service/tracing_service_endpoints_impl.cc",
         "src/tracing/service/tracing_service_impl.cc",
         "src/tracing/service/tracing_service_session.cc",
+        "src/tracing/service/zstd_frame_codec.cc",
     ],
 }
 
@@ -23751,9 +23755,11 @@ filegroup {
         "src/tracing/service/packet_stream_validator_unittest.cc",
         "src/tracing/service/proto_group_rewriter_unittest.cc",
         "src/tracing/service/service_ring_buffer_drainer_unittest.cc",
+        "src/tracing/service/trace_buffer_factory_unittest.cc",
         "src/tracing/service/trace_buffer_v1_unittest.cc",
         "src/tracing/service/trace_buffer_v2_unittest.cc",
         "src/tracing/service/tracing_service_impl_unittest.cc",
+        "src/tracing/service/zstd_frame_codec_unittest.cc",
     ],
 }
 

@@ -300,15 +300,23 @@ void TrackEventParser::ParseTrackDescriptor(
   }
 
   if (decoder.has_thread()) {
+    // The track resolved to its thread. A descriptor a writer repeats after
+    // the thread ended describes that thread, not a new one.
+    std::optional<UniqueTid> resolved;
+    if (track->scope() ==
+        TrackEventTracker::ResolvedDescriptorTrack::Scope::kThread) {
+      resolved = track->utid();
+    }
     if (decoder.has_chrome_thread()) {
       protos::pbzero::ChromeThreadDescriptor::Decoder chrome_decoder(
           decoder.chrome_thread());
       bool is_sandboxed = chrome_decoder.has_is_sandboxed_tid() &&
                           chrome_decoder.is_sandboxed_tid();
-      UniqueTid utid = ParseThreadDescriptor(decoder.thread(), is_sandboxed);
+      UniqueTid utid =
+          ParseThreadDescriptor(decoder.thread(), is_sandboxed, resolved);
       ParseChromeThreadDescriptor(utid, decoder.chrome_thread());
     } else {
-      ParseThreadDescriptor(decoder.thread(), /*is_sandboxed=*/false);
+      ParseThreadDescriptor(decoder.thread(), /*is_sandboxed=*/false, resolved);
     }
   } else if (decoder.has_process()) {
     UniquePid upid =
@@ -394,17 +402,23 @@ void TrackEventParser::ParseChromeProcessDescriptor(
 
 UniqueTid TrackEventParser::ParseThreadDescriptor(
     protozero::ConstBytes thread_descriptor,
-    bool is_sandboxed) {
+    bool is_sandboxed,
+    std::optional<UniqueTid> resolved) {
   protos::pbzero::ThreadDescriptor::Decoder decoder(thread_descriptor);
-  // TODO: b/175152326 - Should pid namespace translation also be done here?
-  auto pid = static_cast<int64_t>(decoder.pid());
-  auto tid = static_cast<int64_t>(decoder.tid());
-  // If tid is sandboxed then use a unique synthetic tid, to avoid
-  // having concurrent threads with the same tid.
-  if (is_sandboxed) {
-    tid = CreateSyntheticTid(tid, pid);
+  UniqueTid utid;
+  if (resolved) {
+    utid = *resolved;
+  } else {
+    // TODO: b/175152326 - Should pid namespace translation also be done here?
+    auto pid = static_cast<int64_t>(decoder.pid());
+    auto tid = static_cast<int64_t>(decoder.tid());
+    // If tid is sandboxed then use a unique synthetic tid, to avoid
+    // having concurrent threads with the same tid.
+    if (is_sandboxed) {
+      tid = CreateSyntheticTid(tid, pid);
+    }
+    utid = context_->process_tracker->UpdateThread(tid, pid);
   }
-  UniqueTid utid = context_->process_tracker->UpdateThread(tid, pid);
   StringId name_id = kNullStringId;
   if (decoder.has_thread_name() && decoder.thread_name().size) {
     name_id = context_->storage->InternString(decoder.thread_name());

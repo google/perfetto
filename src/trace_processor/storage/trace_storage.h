@@ -41,7 +41,6 @@
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/all_tables_fwd.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/variadic.h"
@@ -1153,13 +1152,13 @@ class TraceStorage {
   // Returns the table of type |T|, which must be in tables::AllTables.
   template <typename T>
   T* mutable_table() {
-    constexpr size_t idx = base::variant_index<tables::AllTables, T>();
+    constexpr size_t idx = tables::TableIndex<T>::kValue;
     return reinterpret_cast<T*>(
         &tables_storage_[idx * sizeof(dataframe::Dataframe)]);
   }
   template <typename T>
   const T& table() const {
-    constexpr size_t idx = base::variant_index<tables::AllTables, T>();
+    constexpr size_t idx = tables::TableIndex<T>::kValue;
     return *reinterpret_cast<const T*>(
         &tables_storage_[idx * sizeof(dataframe::Dataframe)]);
   }

@@ -41,7 +41,8 @@
 #include <utility>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
-#include <immintrin.h>
+#include <emmintrin.h>
+#include <tmmintrin.h>
 #endif
 
 namespace perfetto::base {

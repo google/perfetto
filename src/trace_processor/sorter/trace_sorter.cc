@@ -28,6 +28,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/util/heap.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
 #include "src/trace_processor/storage/stats.h"
@@ -243,5 +244,10 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
 }
 
 TraceSorter::UntypedSink::~UntypedSink() = default;
+
+void TraceSorter::RecordNegativeTimestampDropped() {
+  global_stats_tracker_->IncrementGlobalStats(
+      stats::trace_sorter_negative_timestamp_dropped);
+}
 
 }  // namespace perfetto::trace_processor

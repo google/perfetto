@@ -1106,6 +1106,68 @@ class TrackEvent(TestSuite):
         "First Name"
         """))
 
+  # A thread's descriptor repeated after the thread was freed, as a writer
+  # repeats it on another sequence, describes that thread, not a new one.
+  def test_track_descriptor_repeated_after_thread_freed(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_descriptor {
+            uuid: 11
+            thread {
+              pid: 10
+              tid: 11
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1500
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 11
+            name: "work"
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 2000
+              pid: 0
+              sched_process_free {
+                comm: "worker"
+                pid: 11
+                prio: 120
+              }
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 3000
+          track_descriptor {
+            uuid: 11
+            thread {
+              pid: 10
+              tid: 11
+              thread_name: "worker"
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT tid, COUNT(*) AS threads, MAX(name) AS name FROM thread
+        WHERE tid = 11
+        GROUP BY tid;
+        """,
+        out=Csv("""
+        "tid","threads","name"
+        11,1,"worker"
+        """))
+
   def test_track_descriptor_process_thread_sort_index(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
