@@ -5559,6 +5559,7 @@ message DataSourceConfig {
 //
 // Next id: 51.
 message TraceConfig {
+  // Next id: 10.
   message BufferConfig {
     optional uint32 size_kb = 1;
 
@@ -5606,9 +5607,11 @@ message TraceConfig {
     // configure which buffer a data source writes to.
     optional string name = 7;
 
-    // When true, uses the experimental TraceBufferV2 implementation for this
-    // buffer. This is for testing purposes only and may be removed in future
-    // versions.
+    // Deprecated: use |buffer_type| instead.
+    // Kept for backwards compatibility because older builds do not understand
+    // |buffer_type| and field configs use it to validate TRACE_BUFFER_V2. Set
+    // it alongside |buffer_type| to select the buffer type on older builds.
+    // TODO(sashwinbalaji): Remove this in 27Q2.
     enum ExperimentalMode {
       // Use the default V1 implementation.
       MODE_UNSPECIFIED = 0;
@@ -5620,7 +5623,23 @@ message TraceConfig {
       // V2 against V1.
       reserved 2;
     }
-    optional ExperimentalMode experimental_mode = 8;
+    optional ExperimentalMode experimental_mode = 8 [deprecated = true];
+
+    // Selects the trace buffer implementation, ignoring |experimental_mode|.
+    // The service picks the supported type with the highest field number, or V1
+    // if none is supported.
+    // If allocating the picked type fails, tracing fails without a fallback.
+    //
+    // Introduced in: perfetto v60.
+    // Supported on: Android 27Q1+.
+    message BufferTypeConfig {
+      message V1 {}
+      message V2 {}
+
+      optional V1 v1 = 1;
+      optional V2 v2 = 2;
+    }
+    optional BufferTypeConfig buffer_type = 9;
   }
   repeated BufferConfig buffers = 1;
 
@@ -6630,10 +6649,23 @@ message SystemInfo {
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 25.
+  // Next id: 26.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
+
+    // Introduced in: perfetto v60.
+    // Supported on: Android 27Q1+.
+    enum BufferType {
+      BUFFER_TYPE_UNSPECIFIED = 0;
+      BUFFER_TYPE_V1 = 1;
+      BUFFER_TYPE_V2 = 2;
+    }
+    // Reports the implementation actually used, which can differ from the
+    // requested type because the service skips unsupported implementations.
+    // Older services do not set this field, so an absent value means the type
+    // was not reported.
+    optional BufferType buffer_type = 25;
 
     // Num. bytes written into the circular buffer, including chunk headers.
     optional uint64 bytes_written = 1;
