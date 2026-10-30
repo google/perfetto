@@ -1,0 +1,229 @@
+packet {
+  process_tree {
+    processes {
+      pid: 1
+      ppid: 0
+      cmdline: "init"
+      uid: 0
+    }
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "system_server"
+      uid: 1000
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  # Class hierarchy (linked via java.lang.Class.superClass on Class<T> objects):
+  #   java.lang.Object
+  #     <- android.os.Binder
+  #          <- com.example.IFoo$Stub
+  #               <- com.example.FooService$1
+  #          <- com.example.BarRecord
+  #
+  # Instance objects:
+  #   0x01 ServiceHolder (ROOT_STICKY_CLASS, 16B)
+  #     --strong--> 0x02 FooService$1 (ROOT_JNI_GLOBAL, 32B) -> 0x06 Payload (100B)
+  #     --strong--> 0x05 WeakReference (24B) --referent--> 0x03 FooService$1
+  #   0x03 FooService$1 (ROOT_JNI_GLOBAL, untracked, 32B)
+  #     --strong--> 0x07 Payload (200B, exclusive to 0x03)
+  #     --strong--> 0x08 Payload (400B, shared with 0x04)
+  #   0x04 BarRecord (ROOT_JNI_GLOBAL, untracked, 64B)
+  #     --strong--> 0x08 Payload (400B, shared with 0x03)
+  #     --strong--> 0x09 Payload (50B, exclusive to 0x04)
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+    pid: 2
+    roots {
+      root_type: ROOT_STICKY_CLASS
+      object_ids: 0x01
+    }
+    roots {
+      root_type: ROOT_JNI_GLOBAL
+      object_ids: 0x02
+      object_ids: 0x03
+      object_ids: 0x04
+    }
+    objects {
+      id: 0x01
+      type_id: 7
+      self_size: 16
+      reference_field_id: 1
+      reference_field_id: 1
+      reference_object_id: 0x02
+      reference_object_id: 0x05
+    }
+    objects {
+      id: 0x02
+      type_id: 4
+      self_size: 32
+      reference_field_id: 1
+      reference_object_id: 0x06
+    }
+    objects {
+      id: 0x03
+      type_id: 4
+      self_size: 32
+      reference_field_id: 1
+      reference_field_id: 1
+      reference_object_id: 0x07
+      reference_object_id: 0x08
+    }
+    objects {
+      id: 0x04
+      type_id: 5
+      self_size: 64
+      reference_field_id: 1
+      reference_field_id: 1
+      reference_object_id: 0x08
+      reference_object_id: 0x09
+    }
+    objects {
+      id: 0x05
+      type_id: 8
+      self_size: 24
+      reference_field_id: 2
+      reference_object_id: 0x03
+    }
+    objects {
+      id: 0x06
+      type_id: 6
+      self_size: 100
+    }
+    objects {
+      id: 0x07
+      type_id: 6
+      self_size: 200
+    }
+    objects {
+      id: 0x08
+      type_id: 6
+      self_size: 400
+    }
+    objects {
+      id: 0x09
+      type_id: 6
+      self_size: 50
+    }
+    # Class objects encoding superclass chain via java.lang.Class.superClass
+    objects {
+      id: 0x11
+      type_id: 11
+      self_size: 40
+    }
+    objects {
+      id: 0x12
+      type_id: 12
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x11
+    }
+    objects {
+      id: 0x13
+      type_id: 13
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x12
+    }
+    objects {
+      id: 0x14
+      type_id: 14
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x13
+    }
+    objects {
+      id: 0x15
+      type_id: 15
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x12
+    }
+    types {
+      id: 1
+      location_id: 1
+      class_name: "java.lang.Object"
+    }
+    types {
+      id: 2
+      location_id: 1
+      class_name: "android.os.Binder"
+    }
+    types {
+      id: 3
+      location_id: 1
+      class_name: "com.example.IFoo$Stub"
+    }
+    types {
+      id: 4
+      location_id: 1
+      class_name: "com.example.FooService$1"
+    }
+    types {
+      id: 5
+      location_id: 1
+      class_name: "com.example.BarRecord"
+    }
+    types {
+      id: 6
+      location_id: 1
+      class_name: "com.example.Payload"
+    }
+    types {
+      id: 7
+      location_id: 1
+      class_name: "com.example.ServiceHolder"
+    }
+    types {
+      id: 8
+      location_id: 1
+      class_name: "java.lang.ref.WeakReference"
+      kind: KIND_WEAK_REFERENCE
+    }
+    types {
+      id: 11
+      location_id: 1
+      class_name: "java.lang.Class<java.lang.Object>"
+    }
+    types {
+      id: 12
+      location_id: 1
+      class_name: "java.lang.Class<android.os.Binder>"
+    }
+    types {
+      id: 13
+      location_id: 1
+      class_name: "java.lang.Class<com.example.IFoo$Stub>"
+    }
+    types {
+      id: 14
+      location_id: 1
+      class_name: "java.lang.Class<com.example.FooService$1>"
+    }
+    types {
+      id: 15
+      location_id: 1
+      class_name: "java.lang.Class<com.example.BarRecord>"
+    }
+    field_names {
+      iid: 1
+      str: "com.example.Holder.ref"
+    }
+    field_names {
+      iid: 2
+      str: "java.lang.ref.Reference.referent"
+    }
+    field_names {
+      iid: 3
+      str: "java.lang.Class.superClass"
+    }
+    location_names {
+      iid: 1
+      str: "l1"
+    }
+    continued: false
+    index: 0
+  }
+}
