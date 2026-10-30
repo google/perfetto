@@ -29,6 +29,7 @@ import {Callout} from '../widgets/callout';
 import {CodeSnippet} from '../widgets/code_snippet';
 import {Icons} from '../base/semantic_icons';
 import {mapStackTraceWithMinifiedSourceMap} from '../base/source_map_utils';
+import {DISCORD_URL} from '../public/utils';
 
 const MODAL_KEY = 'crash_modal';
 
@@ -443,6 +444,19 @@ function fileBugNote(attaching: string): m.Children {
   );
 }
 
+function askOnDiscordNote(): m.Children {
+  return m(
+    'p.pf-error-dialog__note',
+    'Not sure what went wrong? Ask in #help on ',
+    m(
+      Anchor,
+      {href: DISCORD_URL, target: '_blank', icon: Icons.ExternalLink},
+      'Discord',
+    ),
+    '.',
+  );
+}
+
 interface TraceParseErrorAttrs {
   readonly variant: TraceParseErrorVariant;
   readonly message: string;
@@ -484,6 +498,7 @@ class TraceParseErrorComponent implements m.ClassComponent<TraceParseErrorAttrs>
       }),
       whatToDo !== undefined && m('p.pf-error-dialog__note', whatToDo),
       fileBugNote('attaching the trace'),
+      askOnDiscordNote(),
     );
   }
 }
@@ -514,6 +529,7 @@ function showTraceFetchError(message: string) {
             'try again.',
         ),
         fileBugNote('including the trace URL'),
+        askOnDiscordNote(),
       ),
   });
 }

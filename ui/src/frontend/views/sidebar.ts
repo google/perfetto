@@ -24,7 +24,7 @@ import type {TraceImpl} from '../../core/trace_impl';
 import {SCM_REVISION, VERSION} from '../../virtual/version';
 import type {App} from '../../public/app';
 import {SIDEBAR_SECTIONS, type SidebarSections} from '../../public/sidebar';
-import {getBugReportUrl} from '../../public/utils';
+import {DISCORD_URL, getBugReportUrl} from '../../public/utils';
 import {Icon} from '../../widgets/icon';
 import {Animation} from '../animation';
 import {toggleHelp} from '../help_modal';
@@ -270,6 +270,13 @@ function getSupportGlobalItems(app: App): SidebarMenuItemInternal[] {
       text: 'Documentation',
       href: 'https://perfetto.dev/docs',
       icon: 'find_in_page',
+    },
+    {
+      id: 'perfetto.AskOnDiscord',
+      section: 'support',
+      text: 'Ask on Discord',
+      href: DISCORD_URL,
+      icon: 'forum',
     },
     {
       id: 'perfetto.ReportBug',
