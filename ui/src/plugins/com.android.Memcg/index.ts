@@ -27,12 +27,20 @@ import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/tr
 // mem.rss.*), so that memcg tracks sit right after them.
 const PROCESS_TRACK_SORT_ORDER = 30;
 
-interface Cgroup {
+// A memcg track: a raw track of android_memcg_track (trackId set), or a
+// series of android_memcg_derived_intervals for one cgroup (trackId null).
+interface MemcgTrack {
+  readonly trackId: number | null;
   readonly cgroupKey: number;
   readonly level: string; // 'process' | 'uid' | 'group'
+  readonly kind: string; // 'size' | 'limit' | 'event' | 'derived'
   readonly memcgGroup: string; // 'apps' | 'system'
   readonly uid: number | null;
   readonly upid: number | null;
+  readonly pid: number | null;
+  readonly processName: string | null;
+  readonly key: string;
+  readonly name: string | null;
   readonly packageName: string | null;
   // The number of cgroups of the process, for process-level cgroups.
   readonly processCgroups: number;
@@ -45,7 +53,8 @@ interface Cgroup {
 //   cgroup if the process has several, e.g. when a pid was reused under
 //   another uid);
 // - uid- and top-level tracks go into Memory > Memcg > apps|system, with one
-//   uid_<uid> node per uid cgroup.
+//   uid_<uid> node per uid, which also has a pid_<pid> node per process
+//   cgroup of the uid, with copies of the process-level tracks.
 // Each cgroup's derived tracks (e.g. headroom) sit next to its raw tracks.
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.Memcg';
@@ -58,8 +67,10 @@ export default class implements PerfettoPlugin {
   private memcgGroup?: TrackNode;
   // apps|system nodes, keyed by memcg_group.
   private readonly topLevelGroups = new Map<string, TrackNode>();
-  // uid_<uid> nodes, keyed by cgroup_key.
-  private readonly uidGroups = new Map<number, TrackNode>();
+  // uid_<uid> nodes, keyed by memcg_group and uid.
+  private readonly uidGroups = new Map<string, TrackNode>();
+  // pid_<pid> nodes in the uid nodes, keyed by cgroup_key.
+  private readonly pidGroups = new Map<number, TrackNode>();
   // Nodes of the cgroups of processes with several cgroups, in the process'
   // track group, keyed by cgroup_key.
   private readonly processCgroupGroups = new Map<number, TrackNode>();
@@ -115,10 +126,15 @@ export default class implements PerfettoPlugin {
         from derived d
         left join cgroup_package p using (cgroup_key)
       )
-      select t.*, ifnull(pc.processCgroups, 0) as processCgroups
+      select
+        t.*,
+        p.pid,
+        p.name as processName,
+        ifnull(pc.processCgroups, 0) as processCgroups
       from tracks t
+      left join process p using (upid)
       left join process_cgroups pc using (upid)
-      order by memcgGroup, uid, upid, cgroupKey, key
+      order by memcgGroup, uid, pid, cgroupKey, key
     `);
 
     const it = result.iter({
@@ -129,113 +145,134 @@ export default class implements PerfettoPlugin {
       memcgGroup: STR,
       uid: NUM_NULL,
       upid: NUM_NULL,
+      pid: NUM_NULL,
+      processName: STR_NULL,
       key: STR,
       name: STR_NULL,
       packageName: STR_NULL,
       processCgroups: NUM,
     });
     for (; it.valid(); it.next()) {
-      const {trackId, cgroupKey, level, kind, memcgGroup, uid, upid, key} = it;
-      const parent = this.getParentGroup(ctx, {
-        cgroupKey,
-        level,
-        memcgGroup,
-        uid,
-        upid,
+      const track: MemcgTrack = {
+        trackId: it.trackId,
+        cgroupKey: it.cgroupKey,
+        level: it.level,
+        kind: it.kind,
+        memcgGroup: it.memcgGroup,
+        uid: it.uid,
+        upid: it.upid,
+        pid: it.pid,
+        processName: it.processName,
+        key: it.key,
+        name: it.name,
         packageName: it.packageName,
         processCgroups: it.processCgroups,
-      });
-      if (parent === undefined) {
+      };
+      if (track.level !== 'process') {
+        this.addTrack(ctx, track, this.getCgroupGroup(ctx, track), '/memcg', 0);
         continue;
       }
-
-      let uri: string;
-      let name: string;
-      if (trackId !== null) {
-        uri = `/memcg_${trackId}`;
-        name = it.name ?? key;
-        ctx.tracks.registerTrack({
-          uri,
-          tags: {
-            kinds: [COUNTER_TRACK_KIND],
-            trackIds: [trackId],
-            upid: upid ?? undefined,
-          },
-          renderer: new TraceProcessorCounterTrack({
-            trace: ctx,
-            uri,
-            trackId,
-            trackName: name,
-            unit: kind === 'event' ? undefined : 'B',
-            yMode: kind === 'event' ? 'delta' : 'value',
-          }),
-        });
-      } else {
-        uri = `/memcg_derived_${cgroupKey}_${key}`;
-        name = derivedTrackName(level, memcgGroup, uid, key);
-        // Headroom is NULL while the cgroup is unlimited. Render it as -1,
-        // the same "no limit" convention as the raw limit tracks: dropping the
-        // rows instead would hold the last finite headroom. -1 can only be
-        // the sentinel: memory.current and memory.high are page counters
-        // printed in bytes, so a real headroom is a multiple of the page size.
-        ctx.tracks.registerTrack({
-          uri,
-          renderer: CounterTrack.create({
-            trace: ctx,
-            uri,
-            sqlSource: `
-              select ts, ifnull(value, -1) as value
-              from android_memcg_derived_intervals
-              where cgroup_key = ${cgroupKey} and key = '${key}'
-            `,
-            unit: 'B',
-          }),
-        });
+      // A process cgroup's tracks go both into the process' group (if it has
+      // one) and into the uid tree, as distinct tracks: one node per URI.
+      if (track.upid !== null) {
+        const processGroup = ctx.plugins
+          .getPlugin(ProcessThreadGroupsPlugin)
+          .getGroupForProcess(track.upid);
+        if (processGroup !== undefined) {
+          this.addTrack(
+            ctx,
+            track,
+            track.processCgroups > 1
+              ? this.getProcessCgroupGroup(processGroup, track)
+              : processGroup,
+            '/memcg',
+            PROCESS_TRACK_SORT_ORDER,
+          );
+        }
       }
-      parent.addChildInOrder(
-        new TrackNode({
-          uri,
-          name,
-          sortOrder: level === 'process' ? PROCESS_TRACK_SORT_ORDER : 0,
-        }),
-      );
+      if (track.uid !== null) {
+        this.addTrack(
+          ctx,
+          track,
+          this.getPidGroup(ctx, track, track.uid),
+          '/memcg_uidtree',
+          0,
+        );
+      }
     }
   }
 
-  private getParentGroup(ctx: Trace, cgroup: Cgroup): TrackNode | undefined {
-    const {cgroupKey, level, memcgGroup, uid, upid, packageName} = cgroup;
-    if (level === 'process') {
-      if (upid === null) return undefined;
-      const processGroup = ctx.plugins
-        .getPlugin(ProcessThreadGroupsPlugin)
-        .getGroupForProcess(upid);
-      if (processGroup === undefined || cgroup.processCgroups <= 1) {
-        return processGroup;
-      }
-      return this.getProcessCgroupGroup(processGroup, cgroup);
+  // Registers a track for |track| with a URI starting with |uriPrefix|, and
+  // adds it to |parent|.
+  private addTrack(
+    ctx: Trace,
+    track: MemcgTrack,
+    parent: TrackNode,
+    uriPrefix: string,
+    sortOrder: number,
+  ) {
+    const {trackId, cgroupKey, kind, key, upid} = track;
+    let uri: string;
+    let name: string;
+    if (trackId !== null) {
+      uri = `${uriPrefix}_${trackId}`;
+      name = track.name ?? key;
+      ctx.tracks.registerTrack({
+        uri,
+        tags: {
+          kinds: [COUNTER_TRACK_KIND],
+          trackIds: [trackId],
+          upid: upid ?? undefined,
+        },
+        renderer: new TraceProcessorCounterTrack({
+          trace: ctx,
+          uri,
+          trackId,
+          trackName: name,
+          unit: kind === 'event' ? undefined : 'B',
+          yMode: kind === 'event' ? 'delta' : 'value',
+        }),
+      });
+    } else {
+      uri = `${uriPrefix}_derived_${cgroupKey}_${key}`;
+      name = derivedTrackName(track);
+      // Headroom is NULL while the cgroup is unlimited. Render it as -1,
+      // the same "no limit" convention as the raw limit tracks: dropping the
+      // rows instead would hold the last finite headroom. -1 can only be
+      // the sentinel: memory.current and memory.high are page counters
+      // printed in bytes, so a real headroom is a multiple of the page size.
+      ctx.tracks.registerTrack({
+        uri,
+        renderer: CounterTrack.create({
+          trace: ctx,
+          uri,
+          sqlSource: `
+            select ts, ifnull(value, -1) as value
+            from android_memcg_derived_intervals
+            where cgroup_key = ${cgroupKey} and key = '${key}'
+          `,
+          unit: 'B',
+        }),
+      });
     }
+    parent.addChildInOrder(new TrackNode({uri, name, sortOrder}));
+  }
 
-    const topLevelGroup = this.getTopLevelGroup(ctx, memcgGroup);
-    if (level !== 'uid' || uid === null) {
-      return topLevelGroup;
+  // The node of a uid-level or top-level cgroup.
+  private getCgroupGroup(ctx: Trace, track: MemcgTrack): TrackNode {
+    if (track.level === 'uid' && track.uid !== null) {
+      return this.getUidGroup(ctx, track.memcgGroup, track.uid, track);
     }
-    let uidGroup = this.uidGroups.get(cgroupKey);
-    if (uidGroup === undefined) {
-      const suffix = packageName === null ? '' : ` (${packageName})`;
-      uidGroup = new TrackNode({name: `uid_${uid}${suffix}`, isSummary: true});
-      topLevelGroup.addChildInOrder(uidGroup);
-      this.uidGroups.set(cgroupKey, uidGroup);
-    }
-    return uidGroup;
+    return this.getTopLevelGroup(ctx, track.memcgGroup);
   }
 
   // The node of a process' cgroup in the process' track group, for processes
   // with several cgroups.
   private getProcessCgroupGroup(
     processGroup: TrackNode,
-    cgroup: Cgroup,
+    track: MemcgTrack,
   ): TrackNode {
-    const {cgroupKey, memcgGroup, uid} = cgroup;
+    const {cgroupKey, memcgGroup, uid} = track;
     let group = this.processCgroupGroups.get(cgroupKey);
     if (group === undefined) {
       group = new TrackNode({
@@ -245,6 +282,40 @@ export default class implements PerfettoPlugin {
       });
       processGroup.addChildInOrder(group);
       this.processCgroupGroups.set(cgroupKey, group);
+    }
+    return group;
+  }
+
+  // The pid_<pid> node of a process cgroup, in the node of its uid.
+  private getPidGroup(ctx: Trace, track: MemcgTrack, uid: number): TrackNode {
+    const {cgroupKey, memcgGroup, pid, upid, processName} = track;
+    let group = this.pidGroups.get(cgroupKey);
+    if (group === undefined) {
+      const id = pid !== null ? `pid_${pid}` : `upid_${upid}`;
+      const suffix = processName === null ? '' : ` (${processName})`;
+      group = new TrackNode({name: `${id}${suffix}`, isSummary: true});
+      // Created even if the uid has no tracks of its own (e.g. when only the
+      // cgroups of processes are recorded).
+      this.getUidGroup(ctx, memcgGroup, uid, track).addChildInOrder(group);
+      this.pidGroups.set(cgroupKey, group);
+    }
+    return group;
+  }
+
+  private getUidGroup(
+    ctx: Trace,
+    memcgGroup: string,
+    uid: number,
+    track: MemcgTrack,
+  ): TrackNode {
+    const mapKey = `${memcgGroup}/${uid}`;
+    let group = this.uidGroups.get(mapKey);
+    if (group === undefined) {
+      const {packageName} = track;
+      const suffix = packageName === null ? '' : ` (${packageName})`;
+      group = new TrackNode({name: `uid_${uid}${suffix}`, isSummary: true});
+      this.getTopLevelGroup(ctx, memcgGroup).addChildInOrder(group);
+      this.uidGroups.set(mapKey, group);
     }
     return group;
   }
@@ -273,12 +344,8 @@ export default class implements PerfettoPlugin {
 
 // Mirrors the names trace processor gives to the raw tracks of the same cgroup
 // (memcg.<key>, memcg.<group>.uid_<uid>.<key>, memcg.<group>.<key>).
-function derivedTrackName(
-  level: string,
-  memcgGroup: string,
-  uid: number | null,
-  key: string,
-): string {
+function derivedTrackName(track: MemcgTrack): string {
+  const {level, memcgGroup, uid, key} = track;
   switch (level) {
     case 'process':
       return `memcg.${key}`;
