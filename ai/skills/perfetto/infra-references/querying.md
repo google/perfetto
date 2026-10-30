@@ -2,8 +2,7 @@
 
 How to get data out of a trace (`.pftrace`, `.perfetto-trace`, `.pb`,
 systrace, ftrace text, Chrome JSON) with `trace_processor` and PerfettoSQL.
-`trace_processor` must be on the `PATH` (see `SKILL.md`, or
-`$SKILL_ROOT/environment-references/setup.md`).
+`trace_processor` must be on the `PATH` (see `SKILL.md`).
 
 ## 1. Load once, query many
 

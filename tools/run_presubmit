@@ -978,6 +978,26 @@ def CheckExtensionManifests(changed_files: List[str]) -> List[str]:
   return []
 
 
+def CheckSkillBundle(changed_files: List[str]) -> List[str]:
+  tool_rel_path = 'tools/gen_skill_bundle_unittest.py'
+  tool = os.path.join(REPO_ROOT, tool_rel_path)
+  files_to_check_list = filter_files(
+      changed_files,
+      files_to_check=[
+          'ai/skills/*', 'tools/gen_skill_bundle.py', tool_rel_path,
+          'tools/release/build_ai_agents.py'
+      ])
+  if not files_to_check_list:
+    return []
+  try:
+    run_command([sys.executable, tool], cwd=REPO_ROOT)
+  except FileNotFoundError:
+    return [f'Tool not found: {tool}']
+  except subprocess.CalledProcessError as e:
+    return [f'{tool} failed:\n{e.stdout or ""}\n{e.stderr or ""}'.rstrip()]
+  return []
+
+
 def CheckUiImports(changed_files: List[str]) -> List[str]:
   tool_rel_path = 'tools/check_imports'
   tool = os.path.join(REPO_ROOT, tool_rel_path)
@@ -1091,6 +1111,7 @@ def main():
       (CheckUiImports, [changed_files]),
       (CheckUiRatchet, [changed_files]),
       (CheckExtensionManifests, [changed_files]),
+      (CheckSkillBundle, [changed_files]),
   ]
 
   with ThreadPoolExecutor() as executor:
