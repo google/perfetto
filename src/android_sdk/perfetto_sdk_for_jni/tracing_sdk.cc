@@ -16,8 +16,6 @@
 
 #include "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk.h"
 
-#include <sys/types.h>
-
 #include <cstdarg>
 #include <mutex>
 #include <utility>
@@ -58,11 +56,6 @@ void trace_event(int type,
 
 uint64_t get_process_track_uuid() {
   return PerfettoTeProcessTrackUuid();
-}
-
-uint64_t get_thread_track_uuid(pid_t tid) {
-  // Cating a signed pid_t to unsigned
-  return PerfettoTeProcessTrackUuid() ^ PERFETTO_STATIC_CAST(uint64_t, tid);
 }
 
 Extra::Extra() {}

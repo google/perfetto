@@ -55,6 +55,9 @@ public final class PerfettoTrace {
   /** For fetching the next flow event id in a process. */
   private static final AtomicInteger sFlowEventId = new AtomicInteger();
 
+  // Cache the process track UUID after native initialization to avoid repeated JNI calls.
+  private static volatile long sProcessTrackUuid = 0;
+
   /**
    * Perfetto category a trace event belongs to. Registering a category is not sufficient to capture
    * events within the category, it must also be enabled in the trace config.
@@ -199,9 +202,6 @@ public final class PerfettoTrace {
   @CriticalNative
   private static native long native_get_process_track_uuid();
 
-  @CriticalNative
-  private static native long native_get_thread_track_uuid(long tid);
-
   @FastNative
   private static native void native_activate_trigger(String name, int ttlMs);
 
@@ -337,12 +337,14 @@ public final class PerfettoTrace {
 
   /** Returns the process track uuid that can be used as a parent track uuid. */
   public static long getProcessTrackUuid() {
-    return native_get_process_track_uuid();
+    long uuid = sProcessTrackUuid;
+    return uuid != 0 ? uuid : native_get_process_track_uuid();
   }
 
   /** Given a thread tid, returns the thread track uuid that can be used as a parent track uuid. */
   public static long getThreadTrackUuid(long tid) {
-    return native_get_thread_track_uuid(tid);
+    // Match the C SDK's UUID formula and the signed 32-bit pid_t conversion.
+    return getProcessTrackUuid() ^ (int) tid;
   }
 
   /** Activates a trigger by name {@code triggerName} with expiry in {@code ttlMs}. */
@@ -368,6 +370,7 @@ public final class PerfettoTrace {
       sAttemptedSystemRegistration.set(true);
     }
     native_register(isBackendInProcess);
+    sProcessTrackUuid = native_get_process_track_uuid();
     return true;
   }
 

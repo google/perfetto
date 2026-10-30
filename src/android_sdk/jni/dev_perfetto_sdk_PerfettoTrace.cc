@@ -43,11 +43,6 @@ static jlong dev_perfetto_sdk_PerfettoTrace_get_process_track_uuid(
   return sdk_for_jni::get_process_track_uuid();
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrace_get_thread_track_uuid(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong tid) {
-  return sdk_for_jni::get_thread_track_uuid(tid);
-}
-
 static void dev_perfetto_sdk_PerfettoTrace_activate_trigger(JNIEnv* env,
                                                             jclass,
                                                             jstring name,
@@ -156,8 +151,6 @@ static const JNINativeMethod gCategoryMethods[] = {
 static const JNINativeMethod gTraceMethods[] = {
     {"native_get_process_track_uuid", "()J",
      (void*)dev_perfetto_sdk_PerfettoTrace_get_process_track_uuid},
-    {"native_get_thread_track_uuid", "(J)J",
-     (void*)dev_perfetto_sdk_PerfettoTrace_get_thread_track_uuid},
     {"native_activate_trigger", "(Ljava/lang/String;I)V",
      (void*)dev_perfetto_sdk_PerfettoTrace_activate_trigger},
     {"native_register", "(Z)V", (void*)dev_perfetto_sdk_PerfettoTrace_register},
