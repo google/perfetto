@@ -1,0 +1,178 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-process-graph {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--pf-color-background);
+  color: var(--pf-color-text);
+
+  &:focus {
+    outline: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--pf-color-accent);
+    outline-offset: 2px;
+  }
+}
+
+.pf-process-graph__toolbar {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 8px;
+  background: var(--pf-color-background-secondary);
+  border-bottom: 1px solid var(--pf-color-border);
+  font-size: 11.5px;
+}
+
+.pf-process-graph__toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 5px 8px;
+  flex-wrap: wrap;
+}
+
+.pf-process-graph__toolbar-row--meta {
+  justify-content: space-between;
+}
+
+.pf-process-graph__meta {
+  color: var(--pf-color-text-muted);
+  font-size: 11px;
+}
+
+.pf-process-graph__search {
+  flex: 1 1 115px;
+  min-width: 110px;
+}
+
+.pf-process-graph__control-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--pf-color-text-muted);
+  font-size: 11.5px;
+}
+
+.pf-process-graph__scrubber {
+  flex: 1 1 70px;
+  min-width: 65px;
+  accent-color: var(--pf-color-primary);
+  cursor: pointer;
+}
+
+.pf-process-graph__time-readout {
+  white-space: nowrap;
+  font-family: var(--pf-font-monospace);
+  font-size: 11px;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-process-graph__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pf-process-graph__loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--pf-color-text-muted);
+  font-size: 13px;
+}
+
+.pf-process-graph__inspector {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: var(--pf-color-background-secondary);
+  padding: 8px 10px;
+  font-size: 11.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  > * {
+    flex-shrink: 0;
+  }
+}
+
+.pf-process-graph__inspector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.pf-process-graph__inspector-title {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.pf-process-graph__section-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-process-graph__muted {
+  margin: 0;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-process-graph__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pf-process-graph__peer-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.pf-process-graph__peer-main {
+  flex: 1 1 auto;
+  text-align: left;
+  font-family: var(--pf-font-monospace);
+}
+
+.pf-process-graph__full-btn {
+  width: 100%;
+  text-align: left;
+  font-family: var(--pf-font-monospace);
+}
+
+.pf-process-graph__mono-item {
+  font-family: var(--pf-font-monospace);
+  font-size: 11px;
+  word-break: break-word;
+}
