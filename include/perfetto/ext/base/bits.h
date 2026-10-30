@@ -17,7 +17,6 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_BITS_H_
 #define INCLUDE_PERFETTO_EXT_BASE_BITS_H_
 
-#include <cstddef>
 #include <cstdint>
 
 #include "perfetto/base/build_config.h"
