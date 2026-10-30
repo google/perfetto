@@ -30,9 +30,14 @@ export interface SkillInfo {
   /** When to use the skill. This is what an agent routes on. */
   readonly description: string;
   readonly files: ReadonlyArray<SkillFile>;
+  /** Where the skill comes from, e.g. 'builtin'. */
+  readonly source: string;
 }
 
-/** The skills available to in-UI agents: the skills built into the UI. */
+/**
+ * The skills available to in-UI agents. Skills built into the UI are always
+ * present; other sources can add more.
+ */
 export interface SkillManager {
   /** The index of every available skill, sorted by name. */
   list(): Promise<ReadonlyArray<SkillInfo>>;

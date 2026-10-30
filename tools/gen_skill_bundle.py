@@ -62,6 +62,10 @@ files (such as Python scripts) are not followed.
     For the UI build (see ui/build.mjs):
       <out>/index.json
       <out>/<skill>/<path>
+    With --module <id>, for an extension server (see
+    docs/visualization/extension-server-protocol.md):
+      <out>/modules/<id>/skills
+      <out>/modules/<id>/skill_files/<skill>/<path>
 """
 
 import argparse
@@ -452,7 +456,7 @@ class Skill:
       return ('missing' if not full.exists() else 'not a file'), ''
     return None, full.read_text(encoding='utf-8')
 
-  def index_entry(self) -> dict:
+  def index_entry(self, replaces: Optional[str] = None) -> dict:
     paths = sorted(self.files, key=lambda p: (p != SKILL_FILE, p))
     files = []
     for p in paths:
@@ -463,11 +467,14 @@ class Skill:
       if size > MAX_FILE_BYTES:
         raise SkillError(f'{self.name}: {p} is {size} bytes, over the limit')
       files.append({'path': p, 'bytes': size})
-    return {
+    entry = {
         'name': self.name,
         'description': self.description,
         'files': files,
     }
+    if replaces is not None:
+      entry['replaces'] = replaces
+    return entry
 
 
 def write_tree(skill: Skill, out: Path) -> None:
@@ -497,11 +504,20 @@ def write_tree(skill: Skill, out: Path) -> None:
       (dst / rel).write_bytes(skill.render(rel).encode('utf-8'))
 
 
-def write_skills(skills: List[Skill], index_path: Path, files_dir: Path):
+def write_skills(skills: List[Skill],
+                 index_path: Path,
+                 files_dir: Path,
+                 replaces: Optional[Set[str]] = None):
   names = [s.name for s in skills]
   if len(set(names)) != len(names):
     raise SkillError(f'duplicate skill names: {names}')
-  entries = [s.index_entry() for s in skills]
+  replaces = replaces or set()
+  unknown = replaces - set(names)
+  if unknown:
+    raise SkillError(f'--replaces names no input skill: {sorted(unknown)}')
+  entries = [
+      s.index_entry(s.name if s.name in replaces else None) for s in skills
+  ]
   for skill in skills:
     dst_root = files_dir / skill.name
     if dst_root.exists():
@@ -532,6 +548,17 @@ def main(argv: Optional[List[str]] = None) -> int:
       help='adapter file to use instead of the skill\'s own adapter for '
       '--host (one --skill only)')
   parser.add_argument(
+      '--module',
+      help='with --host ui: write the files of this module of an extension '
+      'server, under modules/<id>/, instead of the files for the UI build')
+  parser.add_argument(
+      '--replaces',
+      action='append',
+      default=[],
+      help='with --module: mark the skill of this name as the '
+      'replacement of the builtin skill of the same name (repeatable). The UI '
+      'honours it only from its embedder-managed server.')
+  parser.add_argument(
       '--drop-report',
       help='write the list of files the host does not get here (one --skill '
       'only)')
@@ -541,6 +568,13 @@ def main(argv: Optional[List[str]] = None) -> int:
   try:
     if (args.adapter or args.drop_report) and len(args.skill) != 1:
       raise SkillError('--adapter and --drop-report need exactly one --skill')
+    if args.host != 'ui' and (args.module or args.replaces):
+      raise SkillError('--module and --replaces need --host ui')
+    if args.replaces and not args.module:
+      raise SkillError('--replaces needs --module')
+    if args.module is not None and (not PATH_SEGMENT_RE.match(args.module) or
+                                    args.module in ('.', '..')):
+      raise SkillError(f'invalid --module "{args.module}"')
     adapter = Path(args.adapter) if args.adapter else None
     skills = [Skill(Path(s), args.host, adapter) for s in args.skill]
     if args.drop_report:
@@ -548,11 +582,15 @@ def main(argv: Optional[List[str]] = None) -> int:
       report.parent.mkdir(parents=True, exist_ok=True)
       report.write_text(skills[0].drop_report())
     out = Path(args.out)
-    if args.host == 'ui':
-      write_skills(skills, out / INDEX_FILE, out)
-    else:
+    if args.host != 'ui':
       for skill in skills:
         write_tree(skill, out)
+    elif args.module is None:
+      write_skills(skills, out / INDEX_FILE, out)
+    else:
+      mod_dir = out / 'modules' / args.module
+      write_skills(skills, mod_dir / 'skills', mod_dir / 'skill_files',
+                   set(args.replaces))
   except SkillError as e:
     print(f'gen_skill_bundle: error: {e}', file=sys.stderr)
     return 1

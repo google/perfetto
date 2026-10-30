@@ -29,8 +29,14 @@ import {Anchor} from '../../widgets/anchor';
 import {CodeSnippet} from '../../widgets/code_snippet';
 import {errResult, okResult, type Result} from '../../base/result';
 import type {AppImpl} from '../../core/app_impl';
+import type {Setting} from '../../public/settings';
+import {
+  type SkillIndex,
+  skillIndexSchema,
+  type SkillSource,
+} from '../../core/skill_manager';
 import {base64Encode, utf8Encode} from '../../base/string_utils';
-import {joinPath} from './url_utils';
+import {joinPath, makeDisplayUrl, sameServerLocation} from './url_utils';
 
 // =============================================================================
 // Helpers
@@ -171,11 +177,12 @@ async function fetchWithCache(
   }
 }
 
-async function fetchJson<T extends z.ZodTypeAny>(
+// Fetches one resource with the server's auth. For SSO auth a 403 may mean
+// the cookie expired: refresh it via an iframe and retry exactly once.
+async function fetchResource(
   server: UserInput,
   path: string,
-  schema: T,
-): Promise<Result<z.infer<T>>> {
+): Promise<Result<{url: string; response: Response}>> {
   const req = buildFetchRequest(server, path);
   let response: Response;
   try {
@@ -208,17 +215,26 @@ async function fetchJson<T extends z.ZodTypeAny>(
   if (!response.ok) {
     return errResult(`Fetch failed: ${req.url} returned ${response.status}`);
   }
+  return okResult({url: req.url, response});
+}
+
+async function fetchJson<T extends z.ZodTypeAny>(
+  server: UserInput,
+  path: string,
+  schema: T,
+): Promise<Result<z.infer<T>>> {
+  const fetched = await fetchResource(server, path);
+  if (!fetched.ok) return errResult(fetched.error);
+  const {url, response} = fetched.value;
   let json: unknown;
   try {
     json = await response.json();
   } catch (e) {
-    return errResult(`Failed to parse JSON from ${req.url}: ${e}`);
+    return errResult(`Failed to parse JSON from ${url}: ${e}`);
   }
   const result = schema.safeParse(json);
   if (!result.success) {
-    return errResult(
-      `Invalid response from ${req.url}: ${result.error.message}`,
-    );
+    return errResult(`Invalid response from ${url}: ${result.error.message}`);
   }
   return okResult(result.data);
 }
@@ -285,6 +301,101 @@ async function loadMacros(
     }
   }
   return okResult(wrapper.value.macros);
+}
+
+async function loadSkillIndex(
+  manifestResult: Result<Manifest>,
+  server: UserInput,
+  module: string,
+): Promise<Result<SkillIndex['skills']>> {
+  if (!manifestResult.ok) {
+    return errResult(manifestResult.error);
+  }
+  const manifest = manifestResult.value;
+  const modPath = modulePath(module, manifest);
+  if (modPath === undefined) {
+    return errResult(`Module '${module}' not found on server`);
+  }
+  if (!manifest.features.find((f) => f.name === 'skills')) {
+    return okResult([]);
+  }
+  const index = await fetchJson(server, `${modPath}/skills`, skillIndexSchema);
+  if (!index.ok) {
+    return errResult(index.error);
+  }
+  return okResult(index.value.skills);
+}
+
+// Returns the saved entry at the embedder's location, if there is one. The UI
+// build manages that server, so an entry that the user added there earlier
+// becomes embedder-managed: only an embedder-managed server can replace a
+// builtin skill.
+export function findEmbedderServer(
+  setting: Setting<ExtensionServer[]>,
+  location: UserInput,
+): ExtensionServer | undefined {
+  const servers = setting.get();
+  const existing = servers.find((s) => sameServerLocation(s, location));
+  if (existing === undefined || existing.origin === 'embedder_managed') {
+    return existing;
+  }
+  console.warn(
+    `Extension server ${makeDisplayUrl(existing)} is now managed by the ` +
+      'embedder',
+  );
+  const adopted: ExtensionServer = {...existing, origin: 'embedder_managed'};
+  setting.set(servers.map((s) => (s === existing ? adopted : s)));
+  return adopted;
+}
+
+// The skills of one server's enabled modules, as one skill source. The
+// indexes are fetched when an agent first lists skills; each file is fetched
+// from modules/{id}/skill_files/{skill}/{path} when the agent reads it.
+export function createServerSkillSource(
+  server: ExtensionServer,
+  manifest: Promise<Result<Manifest>>,
+): SkillSource {
+  const moduleOfSkill = new Map<string, string>();
+  return {
+    id: makeDisplayUrl(server),
+    embedderManaged: server.origin === 'embedder_managed',
+    async loadIndex() {
+      const m = await manifest;
+      if (!m.ok) throw new Error(m.error);
+      const results = await Promise.all(
+        server.enabledModules.map(
+          async (mod) => [mod, await loadSkillIndex(m, server, mod)] as const,
+        ),
+      );
+      const skills: SkillIndex['skills'] = [];
+      for (const [mod, result] of results) {
+        const where = `${makeDisplayUrl(server)} module ${mod}`;
+        if (!result.ok) {
+          console.warn(`Skills: ${where}: ${result.error}`);
+          continue;
+        }
+        for (const skill of result.value) {
+          if (moduleOfSkill.has(skill.name)) {
+            console.warn(`Skills: ${where}: "${skill.name}" is a duplicate`);
+            continue;
+          }
+          moduleOfSkill.set(skill.name, mod);
+          skills.push(skill);
+        }
+      }
+      return {namespace: m.value.namespace, skills};
+    },
+    async fetchFile(skill: string, path: string) {
+      const mod = moduleOfSkill.get(skill);
+      if (mod === undefined) throw new Error(`Unknown skill "${skill}"`);
+      const fetched = await fetchResource(
+        server,
+        `modules/${mod}/skill_files/${skill}/${path}`,
+      );
+      if (!fetched.ok) throw new Error(fetched.error);
+      return fetched.value.response.text();
+    },
+  };
 }
 
 async function loadSqlPackage(
@@ -410,6 +521,8 @@ export function initializeServerFromManifest(
       rs.flatMap((r) => (r.ok ? r.value : [])),
     ),
   );
+
+  ctx.skills.addSource(createServerSkillSource(server, manifest));
 
   return Promise.all([...macrosPerMod, ...sqlPerMod, ...descsPerMod]);
 }

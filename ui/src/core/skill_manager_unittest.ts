@@ -16,6 +16,7 @@ import {
   normalizeSkillPath,
   SKILL_INDEX_TIMEOUT_MS,
   SkillManagerImpl,
+  type LoadedSkillIndex,
   type SkillIndex,
   type SkillSource,
 } from './skill_manager';
@@ -23,9 +24,11 @@ import {
 function makeSource(
   index: SkillIndex,
   files: Record<string, string>,
+  id = 'builtin',
 ): SkillSource & {fetches: string[]} {
   const fetches: string[] = [];
   return {
+    id,
     fetches,
     loadIndex: async () => index,
     fetchFile: async (skill, path) => {
@@ -127,6 +130,7 @@ describe('SkillManagerImpl', () => {
 
   test('lists no skills when the index cannot be loaded', async () => {
     const mgr = new SkillManagerImpl({
+      id: 'builtin',
       loadIndex: async () => {
         throw new Error('offline');
       },
@@ -135,21 +139,88 @@ describe('SkillManagerImpl', () => {
     expect(await mgr.list()).toEqual([]);
   });
 
-  test('lists no skills while the index is late, then lists them', async () => {
+  test('a late source is left out until its index arrives', async () => {
     vi.useFakeTimers();
     try {
-      let arrive = (_: SkillIndex) => {};
-      const mgr = new SkillManagerImpl({
+      let arrive = (_: LoadedSkillIndex) => {};
+      const mgr = new SkillManagerImpl(makeSource(PERFETTO, PERFETTO_FILES));
+      mgr.addSource({
+        id: 'server',
         loadIndex: () => new Promise((resolve) => (arrive = resolve)),
         fetchFile: async () => '',
       });
       const early = mgr.list();
       await vi.advanceTimersByTimeAsync(SKILL_INDEX_TIMEOUT_MS);
-      expect(await early).toEqual([]);
-      arrive(PERFETTO);
-      expect((await mgr.list()).map((s) => s.name)).toEqual(['perfetto']);
+      expect((await early).map((s) => s.name)).toEqual(['perfetto']);
+      arrive({...PERFETTO, namespace: 'com.acme'});
+      expect((await mgr.list()).map((s) => s.name)).toEqual([
+        'com.acme/perfetto',
+        'perfetto',
+      ]);
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  test('lists namespaced sources as <namespace>/<name>', async () => {
+    const mgr = new SkillManagerImpl(makeSource({skills: []}, {}));
+    const src = makeSource(PERFETTO, PERFETTO_FILES, 'server');
+    mgr.addSource({
+      ...src,
+      loadIndex: async () => ({...PERFETTO, namespace: 'com.acme'}),
+    });
+    const list = await mgr.list();
+    expect(list.map((s) => s.name)).toEqual(['com.acme/perfetto']);
+    expect(await mgr.readFile('com.acme/perfetto', 'SKILL.md')).toBe(
+      '# Perfetto\n',
+    );
+    expect(src.fetches).toEqual(['perfetto/SKILL.md']);
+  });
+
+  test('only an embedder-managed source can replace a builtin skill', async () => {
+    const replacing: SkillIndex = {
+      skills: [{...PERFETTO.skills[0]!, replaces: 'perfetto'}],
+    };
+    const serverFiles = {'perfetto/SKILL.md': '# Server build\n'};
+
+    const user = new SkillManagerImpl(makeSource(PERFETTO, PERFETTO_FILES));
+    user.addSource({
+      ...makeSource(replacing, serverFiles, 'user'),
+      loadIndex: async () => ({...replacing, namespace: 'com.acme'}),
+    });
+    expect((await user.list()).map((s) => s.name)).toEqual([
+      'com.acme/perfetto',
+      'perfetto',
+    ]);
+
+    const embedder = new SkillManagerImpl(makeSource(PERFETTO, PERFETTO_FILES));
+    embedder.addSource({
+      ...makeSource(replacing, serverFiles, 'embedder'),
+      embedderManaged: true,
+      loadIndex: async () => ({...replacing, namespace: 'com.meta'}),
+    });
+    const list = await embedder.list();
+    expect(list.map((s) => [s.name, s.source])).toEqual([
+      ['perfetto', 'embedder'],
+    ]);
+    expect(await embedder.readFile('perfetto', 'SKILL.md')).toBe(
+      '# Server build\n',
+    );
+  });
+
+  test('falls back to the builtin skill when the replacing source fails', async () => {
+    const mgr = new SkillManagerImpl(makeSource(PERFETTO, PERFETTO_FILES));
+    mgr.addSource({
+      id: 'embedder',
+      embedderManaged: true,
+      loadIndex: async () => {
+        throw new Error('403');
+      },
+      fetchFile: async () => '',
+    });
+    const list = await mgr.list();
+    expect(list.map((s) => [s.name, s.source])).toEqual([
+      ['perfetto', 'builtin'],
+    ]);
   });
 });

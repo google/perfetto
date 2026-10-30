@@ -283,6 +283,24 @@ class GenSkillBundleTest(unittest.TestCase):
     self.assertEqual(self._main('cli'), 0)
     self.assertEqual(self._main('ui'), 1)
 
+  def test_extension_server_layout(self):
+    self._write('environment-references/ui.md', UI_ADAPTER)
+    self.assertEqual(
+        self._main('ui', '--module', 'default', '--replaces', 'demo'), 0)
+    mod = self.out / 'modules' / 'default'
+    (entry,) = json.loads((mod / 'skills').read_text())['skills']
+    self.assertEqual(entry['replaces'], 'demo')
+    self.assertTrue((mod / 'skill_files/demo/SKILL.md').is_file())
+    self.assertTrue((mod / 'skill_files/demo/workflows/both.md').is_file())
+    # Module ids are path segments of the server URL.
+    for module, rc in [('memory-tools', 0), ('a/b', 1), ('..', 1)]:
+      with self.subTest(module=module):
+        self.assertEqual(self._main('ui', '--module', module), rc)
+    # --module and --replaces are for the UI host, and --replaces needs a
+    # module.
+    self.assertEqual(self._main('cli', '--module', 'default'), 1)
+    self.assertEqual(self._main('ui', '--replaces', 'demo'), 1)
+
   def test_upstream_perfetto_skill_builds(self):
     # A skill change that breaks a host's bundle fails here, before the build.
     skill = ROOT / 'ai/skills/perfetto'

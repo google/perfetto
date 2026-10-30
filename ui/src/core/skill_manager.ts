@@ -30,7 +30,8 @@ const SKILL_FILE = 'SKILL.md';
 const NAME_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const PATH_SEGMENT_RE = /^[A-Za-z0-9_.-]+$/;
 
-// The index format written by tools/gen_skill_bundle.py.
+// The index format written by tools/gen_skill_bundle.py: the builtin
+// ai_skills/index.json and the extension-server modules/{id}/skills file.
 export const skillIndexSchema = z.object({
   skills: z.array(
     z.object({
@@ -39,14 +40,36 @@ export const skillIndexSchema = z.object({
       files: z.array(
         z.object({path: z.string(), bytes: z.number().int().nonnegative()}),
       ),
+      // Extension servers only: the name of a builtin skill that this skill
+      // takes the place of. Honoured only from the embedder-managed server.
+      replaces: z.string().optional(),
     }),
   ),
 });
 export type SkillIndex = z.infer<typeof skillIndexSchema>;
 
+/** An index as loaded by a source. */
+export interface LoadedSkillIndex extends SkillIndex {
+  /**
+   * The source's namespace (e.g. an extension server's 'com.acme'). Skills of
+   * a namespaced source are listed as '<namespace>/<name>'. Builtin skills
+   * have no namespace and keep their bare name.
+   */
+  readonly namespace?: string;
+}
+
 /** A place skills come from: one index plus a way to fetch each file. */
 export interface SkillSource {
-  loadIndex(): Promise<SkillIndex>;
+  /** Shown as SkillInfo.source. */
+  readonly id: string;
+  /**
+   * True for the server that the UI build itself configures (the embedder).
+   * Only such a source may replace a builtin skill: the deployer of a UI
+   * build can ship its own build of a skill, a user-added server cannot.
+   */
+  readonly embedderManaged?: boolean;
+  loadIndex(): Promise<LoadedSkillIndex>;
+  /** `skill` is the name in the source's own index, not the listed id. */
   fetchFile(skill: string, path: string): Promise<string>;
 }
 
@@ -78,12 +101,15 @@ export function stripFrontmatter(text: string): string {
 
 // Drops index entries that break the format rules, so one bad entry cannot
 // take out the others.
-function validEntries(index: SkillIndex): SkillIndex['skills'] {
+function validEntries(
+  index: SkillIndex,
+  sourceId: string,
+): SkillIndex['skills'] {
   const out: SkillIndex['skills'] = [];
   for (const e of index.skills) {
     const problem = entryProblem(e);
     if (problem !== undefined) {
-      console.warn(`Skills: dropping "${e.name}": ${problem}`);
+      console.warn(`Skills: dropping "${e.name}" from ${sourceId}: ${problem}`);
       continue;
     }
     out.push(e);
@@ -106,14 +132,25 @@ function entryProblem(e: SkillIndex['skills'][number]): string | undefined {
 
 interface Entry {
   readonly info: SkillInfo;
+  readonly source: SkillSource;
+  // The skill's name in its source's index (info.name may differ).
+  readonly nameInSource: string;
   readonly paths: ReadonlySet<string>;
+  readonly replacesBuiltin: boolean;
 }
 
 export class SkillManagerImpl implements SkillManager {
-  private index?: Promise<SkillIndex>;
+  private readonly sources: SkillSource[];
+  private readonly indexes = new Map<SkillSource, Promise<LoadedSkillIndex>>();
   private readonly fileCache = new Map<string, Promise<string>>();
 
-  constructor(private readonly source: SkillSource) {}
+  constructor(source: SkillSource) {
+    this.sources = [source];
+  }
+
+  addSource(source: SkillSource): void {
+    this.sources.push(source);
+  }
 
   async list(): Promise<ReadonlyArray<SkillInfo>> {
     const entries = await this.entries();
@@ -127,10 +164,12 @@ export class SkillManagerImpl implements SkillManager {
     if (rel === undefined || !entry.paths.has(rel)) {
       throw new Error(`"${path}" is not a file of skill "${skill}"`);
     }
-    const key = `${skill}\0${rel}`;
+    // Sources are only appended, so a source's position identifies it.
+    const src = this.sources.indexOf(entry.source);
+    const key = `${src}\0${entry.nameInSource}\0${rel}`;
     let text = this.fileCache.get(key);
     if (text === undefined) {
-      text = this.source.fetchFile(skill, rel).then((t) => {
+      text = entry.source.fetchFile(entry.nameInSource, rel).then((t) => {
         if (new TextEncoder().encode(t).byteLength > MAX_SKILL_FILE_BYTES) {
           throw new Error(`${skill}/${rel} is too large`);
         }
@@ -143,46 +182,94 @@ export class SkillManagerImpl implements SkillManager {
     return text;
   }
 
-  // The index is fetched once, on first use.
-  private loadIndex(): Promise<SkillIndex> {
-    if (this.index === undefined) {
-      this.index = this.source.loadIndex().catch((e) => {
-        console.warn(`Skills: cannot load the skill index: ${e}`);
+  // Each source's index is fetched once, on first use.
+  private loadIndex(source: SkillSource): Promise<LoadedSkillIndex> {
+    let index = this.indexes.get(source);
+    if (index === undefined) {
+      index = source.loadIndex().catch((e) => {
+        console.warn(`Skills: cannot load the index of ${source.id}: ${e}`);
         return {skills: []};
       });
+      this.indexes.set(source, index);
     }
-    return withTimeout(this.index, 'the skill index');
+    return withTimeout(index, `the index of ${source.id}`);
   }
 
   private async entries(): Promise<Map<string, Entry>> {
-    const index = await this.loadIndex();
+    const indexes = await Promise.all(
+      this.sources.map((s) => this.loadIndex(s)),
+    );
     const byName = new Map<string, Entry>();
-    for (const e of validEntries(index)) {
-      if (byName.has(e.name)) {
-        console.warn(`Skills: "${e.name}" is a duplicate`);
-        continue;
+    this.sources.forEach((source, i) => {
+      const index = indexes[i]!;
+      for (const e of validEntries(index, source.id)) {
+        const id = listedId(source, index, e);
+        if (id === undefined) continue;
+        const replacesBuiltin =
+          index.namespace !== undefined && id === e.replaces;
+        const existing = byName.get(id);
+        // A replacing skill wins over a builtin one, whatever the source
+        // order; otherwise the first source to list a name keeps it.
+        if (
+          existing !== undefined &&
+          (existing.replacesBuiltin || !replacesBuiltin)
+        ) {
+          console.warn(`Skills: "${id}" from ${source.id} is a duplicate`);
+          continue;
+        }
+        const files: SkillFile[] = e.files.map((f) => ({
+          path: f.path,
+          bytes: f.bytes,
+        }));
+        byName.set(id, {
+          info: {
+            name: id,
+            description: e.description,
+            files,
+            source: source.id,
+          },
+          source,
+          nameInSource: e.name,
+          paths: new Set(files.map((f) => f.path)),
+          replacesBuiltin,
+        });
       }
-      const files: SkillFile[] = e.files.map((f) => ({...f}));
-      byName.set(e.name, {
-        info: {name: e.name, description: e.description, files},
-        paths: new Set(files.map((f) => f.path)),
-      });
-    }
-    const sorted = Array.from(byName.keys()).sort();
-    const limited = sorted.slice(0, MAX_SKILLS);
-    if (sorted.length > MAX_SKILLS) {
+    });
+    // The cap keeps the earlier sources, so the builtin skills stay.
+    const names = Array.from(byName.keys());
+    if (names.length > MAX_SKILLS) {
       console.warn(`Skills: only the first ${MAX_SKILLS} skills are used`);
     }
+    const limited = names.slice(0, MAX_SKILLS).sort();
     return new Map(limited.map((n) => [n, byName.get(n)!]));
   }
 }
 
+// The id under which a source's skill is listed, or undefined to drop it.
+function listedId(
+  source: SkillSource,
+  index: LoadedSkillIndex,
+  e: SkillIndex['skills'][number],
+): string | undefined {
+  if (index.namespace === undefined) return e.name;
+  if (e.replaces !== undefined) {
+    if (source.embedderManaged === true && NAME_RE.test(e.replaces)) {
+      return e.replaces;
+    }
+    console.warn(
+      `Skills: ignoring "replaces" of "${e.name}" from ${source.id}: ` +
+        'only the embedder-managed server can replace a builtin skill',
+    );
+  }
+  return `${index.namespace}/${e.name}`;
+}
+
 async function withTimeout(
-  index: Promise<SkillIndex>,
+  index: Promise<LoadedSkillIndex>,
   what: string,
-): Promise<SkillIndex> {
+): Promise<LoadedSkillIndex> {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<SkillIndex>((resolve) => {
+  const timeout = new Promise<LoadedSkillIndex>((resolve) => {
     timer = setTimeout(() => {
       console.warn(`Skills: ${what} is not ready yet`);
       resolve({skills: []});
@@ -207,6 +294,7 @@ async function fetchOk(url: string): Promise<Response> {
  */
 export function createBuiltinSkillSource(): SkillSource {
   return {
+    id: 'builtin',
     async loadIndex() {
       const resp = await fetch(assetSrc('ai_skills/index.json'));
       // A build without skills (e.g. some test setups) has no index.

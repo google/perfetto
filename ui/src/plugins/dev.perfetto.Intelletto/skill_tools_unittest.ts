@@ -25,6 +25,7 @@ const PERFETTO: SkillInfo = {
     {path: 'workflows/gpu/gpu_info.md', bytes: 20},
     {path: 'workflows/gpu/scripts/gpu_info.sql', bytes: 30},
   ],
+  source: 'builtin',
 };
 
 function fakeSkills(): SkillManager & {reads: string[]} {
