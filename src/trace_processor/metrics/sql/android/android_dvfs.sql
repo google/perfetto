@@ -24,7 +24,7 @@ SELECT
   LEAD(ts, 1, trace_end()) OVER (PARTITION BY track.id ORDER BY ts) - ts AS duration
 FROM counter
 LEFT JOIN track ON counter.track_id = track.id
-WHERE track.name GLOB "* Frequency"
+WHERE track.name GLOB "* Frequency" OR track.type = "linux_device_frequency"
 ORDER BY ts;
 
 DROP VIEW IF EXISTS freq_total_duration;
