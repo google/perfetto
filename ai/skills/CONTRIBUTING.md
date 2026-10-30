@@ -49,7 +49,8 @@ ai/skills/perfetto/
 │   ├── trace_config_reference.md
 │   └── example-configs/
 ├── environment-references/
-│   └── setup.md                 $SKILL_ROOT and the bundled trace_processor
+│   ├── cli.md                   CLI adapter: $SKILL_ROOT, trace_processor
+│   └── ui.md                    UI adapter: the skill inside the Perfetto UI
 └── workflows/
     ├── android_memory/          heap dumps, native heap, allocations + scripts/
     └── gpu/                     occupancy, frequency, compute kernels + scripts/
@@ -74,15 +75,29 @@ to set `$SKILL_ROOT` once.
   `trace_processor_shell`, and check the with/without numbers before
   sending the change.
 
+## Hosts
+
+`tools/gen_skill_bundle.py --host <host>` builds the skill for each host.
+What differs between hosts goes in that host's adapter in
+`environment-references/` (`cli.md`, `ui.md`), which the generator puts
+into `SKILL.md` at `{{environment_setup}}`. A file that needs more than
+`query` lists the actions in its `requires` frontmatter, and a host whose
+adapter lacks one does not get the file (see `drop_reports/`). Point at
+such a file with `related` frontmatter, not with a link in the body. The
+frontmatter is described in `tools/gen_skill_bundle.py`.
+
+When you change the skill, run `python3 tools/gen_skill_bundle_unittest.py`.
+
 ## How it ships
 
 The tree here is a build input, not a drop-in: `SKILL-template.md` is
 named so that skill loaders scanning for `SKILL.md` do not pick up the
 unassembled source, and the `trace_processor` wrapper is not checked in
-alongside it. `tools/release/build_ai_agents.py` renames the router,
-copies in `tools/trace_processor` as `bin/trace_processor`, adds the
-per-agent manifests from [`ai/extensions/`](../extensions/README.md) and
-writes the result to the `ai-agents` branch at each release. Users
+alongside it. `tools/release/build_ai_agents.py` writes the router with
+the CLI adapter in place (`tools/gen_skill_bundle.py`), copies in
+`tools/trace_processor` as `bin/trace_processor`, adds the per-agent
+manifests from [`ai/extensions/`](../extensions/README.md) and writes the
+result to the `ai-agents` branch at each release. Users
 install from that branch; see
 [`docs/getting-started/using-ai.md`](../../docs/getting-started/using-ai.md).
 To try the local tree, `ai/evals/setup_assets.py` bundles it the same way.
