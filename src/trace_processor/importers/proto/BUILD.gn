@@ -223,6 +223,7 @@ source_set("full") {
     ":packet_sequence_state_generation_hdr",
     ":proto_to_args_parser",
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/traced:memcg_field_defs",
     "../../../../include/perfetto/ext/traced:sys_stats_counters",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/config:zero",
