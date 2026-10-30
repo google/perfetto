@@ -48,7 +48,17 @@ SurfaceFlingerLayersParser::SurfaceFlingerLayersParser(WinscopeContext* context)
     : context_{context},
       args_parser_{
           *context->trace_processor_context_->descriptor_pool_,
-          *context->trace_processor_context_->storage->mutable_string_pool()} {}
+          *context->trace_processor_context_->storage->mutable_string_pool()} {
+  // The layer table and the visibility_reason args added in ParseLayer already
+  // carry these.
+  for (const char* field : {"is_visible", "visibility_reason"}) {
+    args_parser_.AddParsingOverrideForField(
+        field,
+        [](const protozero::Field&, util::ProtoToArgsParser::OverrideContext&) {
+          return std::make_optional(base::OkStatus());
+        });
+  }
+}
 
 void SurfaceFlingerLayersParser::Parse(int64_t timestamp,
                                        protozero::ConstBytes blob,
