@@ -296,6 +296,11 @@ class Lowering {
   std::vector<SortKey> QuerySortedBy(
       const std::vector<ColumnId>& columns) const;
 
+  // The direction the rows walk the tree of `node` and `parent` in, if they
+  // are known to walk it.
+  std::optional<TreeDirection> QueryTreeWalk(ColumnId node,
+                                             ColumnId parent) const;
+
   // ---------------------------------------------------------------------------
   // Accessors
   // ---------------------------------------------------------------------------
@@ -446,6 +451,9 @@ class PlanLowering {
   base::StatusOr<std::unique_ptr<PhysicalPlan>> Finish();
 
   const LogicalPlan& plan() const { return bound_.plan; }
+
+  // The first error recorded by Fail, or ok.
+  const base::Status& status() const { return status_; }
 
  private:
   friend class Lowering;

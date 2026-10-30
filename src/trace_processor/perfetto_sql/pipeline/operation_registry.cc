@@ -84,4 +84,8 @@ const OperationRegistration* FindOperationBySyntax(uint32_t syntax) {
   return nullptr;
 }
 
+void RunBoundPasses(BoundPlan* plan, const LoweringContext& context) {
+  ReorderTreeFolds(plan, context);
+}
+
 }  // namespace perfetto::trace_processor::pipeline

@@ -56,6 +56,7 @@
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
@@ -1076,6 +1077,7 @@ PerfettoSqlConnection::LoadPipeline(
   RETURN_IF_ERROR(pipeline::BindDataframeArgs(&plan, args, pool_));
   pipeline::LoweringContext context;
   context.pool = pool_;
+  pipeline::RunBoundPasses(&plan, context);
   return pipeline::Lower(plan, context);
 }
 

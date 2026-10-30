@@ -39,6 +39,7 @@
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
@@ -143,6 +144,7 @@ class PhysicalPlanTest : public ::testing::Test {
                             catalog_));
     RETURN_IF_ERROR(
         BindDataframeArgs(&bound, DataframeArgs(dataframes), &pool_));
+    RunBoundPasses(&bound, {&pool_});
     return Lower(bound, {&pool_});
   }
 
@@ -628,6 +630,60 @@ TEST_F(PhysicalPlanTest, FoldsAfterAGraphTreeReuseItsNumbering) {
   ASSERT_TRUE(retained.ok()) << retained.status().message();
   EXPECT_THAT(*retained,
               ElementsAre(Pair(1, 100), Pair(2, 20), Pair(3, 30), Pair(4, 40)));
+}
+
+// The fold down is written second but reads nothing the fold up computes,
+// so it runs first, on the parent-first rows the GraphTree outputs.
+TEST_F(PhysicalPlanTest, IndependentFoldsRunDownFirst) {
+  Exec("CREATE TABLE objects(id INTEGER, parent_id INTEGER, self INTEGER)");
+  Exec(
+      "INSERT INTO objects VALUES (4, 99, 40), (2, 99, 20), (3, 99, 30), "
+      "(1, 99, 10)");
+  Exec("CREATE TABLE refs(src INTEGER, dst INTEGER)");
+  Exec("INSERT INTO refs VALUES (3, 4), (1, 3), (2, 4), (1, 2)");
+  auto plan = Plan(
+      "GRAPH DOMINATOR TREE NODES objects EDGES refs FROM (SELECT 1 AS id) "
+      "|> TREE ACCUMULATE UP SUM(self) AS retained "
+      "|> TREE ACCUMULATE DOWN COUNT(*) AS depth");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "side: DataframeScan | AssertType(#0 to Int64)\n"
+            "side: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64)\n"
+            "side: DataframeScan | AssertType(#0 to Int64)\n"
+            "main: GraphTree(DOMINATOR; nodes: #0 keeping #0, #1; "
+            "edges: #0 -> #1; seeds: #0) | TreeAccumulateDown(#3, #4; "
+            "COUNT(*)) | TreeChildFirst(#3, #4) | AssertType(#1 to Int64) | "
+            "TreeAccumulateUp(#3, #4; SUM(#1))");
+  auto depth = Run(**plan, "depth");
+  ASSERT_TRUE(depth.ok()) << depth.status().message();
+  EXPECT_THAT(*depth,
+              ElementsAre(Pair(1, 1), Pair(2, 2), Pair(3, 2), Pair(4, 2)));
+  auto retained = Run(**plan, "retained");
+  ASSERT_TRUE(retained.ok()) << retained.status().message();
+  EXPECT_THAT(*retained,
+              ElementsAre(Pair(1, 100), Pair(2, 20), Pair(3, 30), Pair(4, 40)));
+}
+
+// Rows already child-first stay so: the independent fold up moves below the
+// fold down and reuses the walk.
+TEST_F(PhysicalPlanTest, IndependentFoldsKeepAChildFirstWalk) {
+  CreateDataframeTree();
+  auto plan = Plan(
+      "FROM df |> TREE ACCUMULATE UP SUM(self) AS total "
+      "|> TREE ACCUMULATE DOWN SUM(total) AS path "
+      "|> TREE ACCUMULATE UP COUNT(*) AS size");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "main: DataframeScan | TreeNumberNodes(#0, #1) | "
+            "TreeChildFirst(#3, #4) | AssertType(#2 to Int64) | "
+            "TreeAccumulateUp(#3, #4; SUM(#2)) | "
+            "TreeAccumulateUp(#3, #4; COUNT(*)) | TreeParentFirst(#3, #4) | "
+            "TreeAccumulateDown(#3, #4; SUM(#5))");
+  auto size = Run(**plan, "size");
+  ASSERT_TRUE(size.ok()) << size.status().message();
+  EXPECT_THAT(*size,
+              ElementsAre(Pair(0, 4), Pair(1, 2), Pair(2, 1), Pair(3, 1)));
 }
 
 }  // namespace

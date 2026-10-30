@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/tree_accumulate.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -89,6 +90,49 @@ std::optional<uint32_t> TreeAccumulate::Prune(std::vector<bool>* needed) {
   (*needed)[acc.node_column_] = true;
   (*needed)[acc.parent_column_] = true;
   return std::nullopt;
+}
+
+bool TreeAccumulate::CommutesWith(const TreeAccumulate& below) const {
+  if (direction_ == below.direction_ || node_column_ != below.node_column_ ||
+      parent_column_ != below.parent_column_) {
+    return false;
+  }
+  for (const Aggregate& agg : aggregates_) {
+    for (const Aggregate& out : below.aggregates_) {
+      if (agg.reads_column() && agg.column == out.output) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+void ReorderTreeFolds(BoundPlan* plan, const LoweringContext& context) {
+  // A node's inputs come before it, so each fold sees its input reordered.
+  std::vector<PlanNode>& nodes = plan->plan.nodes();
+  for (PlanNode& node : nodes) {
+    if (!node.Is<TreeAccumulate>()) {
+      continue;
+    }
+    PlanNode& below = nodes[node.children()[0]];
+    const auto& fold = node.Cast<TreeAccumulate>();
+    if (!below.Is<TreeAccumulate>() ||
+        !fold.CommutesWith(below.Cast<TreeAccumulate>())) {
+      continue;
+    }
+    // If the rows already walk the tree, the fold in that direction goes
+    // first and reuses the walk.
+    PlanLowering input(*plan, context);
+    input.main().LowerNode(below.children()[0]);
+    if (!input.status().ok()) {
+      continue;
+    }
+    std::optional<TreeDirection> walk =
+        input.main().QueryTreeWalk(fold.node_column_, fold.parent_column_);
+    if (walk && below.Cast<TreeAccumulate>().direction_ != *walk) {
+      node.SwapOperation(&below);
+    }
+  }
 }
 
 void TreeAccumulate::Lower(Lowering* c, const PlanNode& node) const {

@@ -443,6 +443,14 @@ std::vector<SortKey> Lowering::QuerySortedBy(
   return longest;
 }
 
+std::optional<TreeDirection> Lowering::QueryTreeWalk(ColumnId node,
+                                                     ColumnId parent) const {
+  if (!tree_columns_ || tree_node_ != node || tree_parent_ != parent) {
+    return std::nullopt;
+  }
+  return tree_walk_;
+}
+
 const LogicalPlan& Lowering::plan() const {
   return plan_->plan();
 }
