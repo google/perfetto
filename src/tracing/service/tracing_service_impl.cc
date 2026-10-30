@@ -360,6 +360,15 @@ SharedMemoryABI::ShmemMode GetShmemMode(const ClientIdentity& client_identity,
              : SharedMemoryABI::ShmemMode::kShmemEmulation;
 }
 
+void WriteTriggerInfo(const TriggerInfo& info,
+                      protos::pbzero::Trigger* trigger) {
+  trigger->set_trigger_name(info.trigger_name);
+  trigger->set_producer_name(info.producer_name);
+  trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));
+  trigger->set_stop_delay_ms(info.trigger_delay_ms);
+  trigger->set_trigger_mode(static_cast<int32_t>(info.trigger_mode));
+}
+
 }  // namespace
 
 TracingServiceImpl::TracingServiceImpl(
@@ -1986,9 +1995,12 @@ void TracingServiceImpl::ActivateTriggers(
 
       const bool triggers_already_received =
           !tracing_session.received_triggers.empty();
-      const TriggerInfo trigger = {static_cast<uint64_t>(now_ns), iter->name(),
-                                   producer->name_, producer->uid(),
-                                   iter->stop_delay_ms()};
+      const TriggerInfo trigger = {static_cast<uint64_t>(now_ns),
+                                   iter->name(),
+                                   producer->name_,
+                                   producer->uid(),
+                                   iter->stop_delay_ms(),
+                                   trigger_mode};
       MaybeSnapshotClocksIntoRingBuffer(&tracing_session);
       tracing_session.received_triggers.push_back(trigger);
       switch (trigger_mode) {
@@ -2004,6 +2016,8 @@ void TracingServiceImpl::ActivateTriggers(
           MaybeLogUploadEvent(
               tracing_session.config, tracing_session.trace_uuid,
               PerfettoStatsdAtom::kTracedTriggerStartTracing, iter->name());
+
+          tracing_session.authoritative_trigger = trigger;
 
           // We override the trace duration to be the trigger's requested
           // value, this ensures that the trace will end after this amount
@@ -2023,6 +2037,8 @@ void TracingServiceImpl::ActivateTriggers(
           MaybeLogUploadEvent(
               tracing_session.config, tracing_session.trace_uuid,
               PerfettoStatsdAtom::kTracedTriggerStopTracing, iter->name());
+
+          tracing_session.authoritative_trigger = trigger;
 
           // Now that we've seen a trigger we need to stop, flush, and disable
           // this session after the configured |stop_delay_ms|.
@@ -2744,12 +2760,13 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
   if (!tracing_session->did_emit_initial_packets) {
     EmitUuid(tracing_session, &packets);
+    MaybeEmitAuthoritativeTrigger(tracing_session, &packets);
   }
 
-  // All packets emitted above (clock snapshot, trace config, uuid) will not be
-  // compressed, regardless of the config. This is to allow services that
-  // consume the trace on-device to take decisions based on the metadata of the
-  // trace, without having to uncompress.
+  // All packets emitted above (clock snapshot, trace config, uuid,
+  // authoritative trigger) will not be compressed, regardless of the config.
+  // This is to allow services that consume the trace on-device to take
+  // decisions based on the metadata of the trace, without having to uncompress.
   const size_t skip_compression_of_first_n_packets = packets.size();
 
   for (auto& snapshot : tracing_session->clock_snapshot_ring_buffer) {
@@ -4678,17 +4695,27 @@ void TracingServiceImpl::MaybeEmitCloneTrigger(
 
   if (tracing_session->clone_trigger.has_value()) {
     protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-    auto* trigger = packet->set_clone_snapshot_trigger();
     const auto& info = tracing_session->clone_trigger.value();
-    trigger->set_trigger_name(info.trigger_name);
-    trigger->set_producer_name(info.producer_name);
-    trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));
-    trigger->set_stop_delay_ms(info.trigger_delay_ms);
+    WriteTriggerInfo(info, packet->set_clone_snapshot_trigger());
 
     packet->set_timestamp(info.boot_time_ns);
     SetServiceTracePacketHeader(packet.get());
     SerializeAndAppendPacket(packets, packet.SerializeAsArray());
   }
+}
+
+void TracingServiceImpl::MaybeEmitAuthoritativeTrigger(
+    TracingSession* tracing_session,
+    std::vector<TracePacket>* packets) {
+  if (!tracing_session->authoritative_trigger.has_value())
+    return;
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  const auto& info = tracing_session->authoritative_trigger.value();
+  WriteTriggerInfo(info, packet->set_authoritative_trigger());
+
+  packet->set_timestamp(info.boot_time_ns);
+  SetServiceTracePacketHeader(packet.get());
+  SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
 
 void TracingServiceImpl::MaybeEmitReceivedTriggers(
@@ -4700,11 +4727,7 @@ void TracingServiceImpl::MaybeEmitReceivedTriggers(
        i < tracing_session->received_triggers.size(); ++i) {
     const auto& info = tracing_session->received_triggers[i];
     protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-    auto* trigger = packet->set_trigger();
-    trigger->set_trigger_name(info.trigger_name);
-    trigger->set_producer_name(info.producer_name);
-    trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));
-    trigger->set_stop_delay_ms(info.trigger_delay_ms);
+    WriteTriggerInfo(info, packet->set_trigger());
 
     packet->set_timestamp(info.boot_time_ns);
     SetServiceTracePacketHeader(packet.get());
@@ -4878,10 +4901,12 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
   clone_op.weak_consumer = weak_consumer;
   clone_op.skip_trace_filter = args.skip_trace_filter;
   if (!args.clone_trigger_name.empty()) {
-    clone_op.clone_trigger = {
-        args.clone_trigger_boot_time_ns, args.clone_trigger_name,
-        args.clone_trigger_producer_name,
-        args.clone_trigger_trusted_producer_uid, args.clone_trigger_delay_ms};
+    clone_op.clone_trigger = {args.clone_trigger_boot_time_ns,
+                              args.clone_trigger_name,
+                              args.clone_trigger_producer_name,
+                              args.clone_trigger_trusted_producer_uid,
+                              args.clone_trigger_delay_ms,
+                              TraceConfig::TriggerConfig::CLONE_SNAPSHOT};
   }
   if (args.output_file_fd) {
     clone_op.output_file_fd = std::move(args.output_file_fd);
@@ -5118,6 +5143,10 @@ base::Status TracingServiceImpl::FinishCloneSession(
   // 2. Bloating memory (see b/290798988).
   cloned_session->should_emit_stats = true;
   cloned_session->clone_trigger = clone_trigger;
+  // A clone caused by a trigger is attributed to that trigger. Other clones
+  // (e.g. bugreport) inherit the trigger of the source session, if any.
+  cloned_session->authoritative_trigger =
+      clone_trigger.has_value() ? clone_trigger : src->authoritative_trigger;
   cloned_session->received_triggers = std::move(src->received_triggers);
   src->received_triggers.clear();
   src->num_triggers_emitted_into_trace = 0;

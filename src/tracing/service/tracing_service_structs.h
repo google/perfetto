@@ -51,6 +51,8 @@ struct TriggerInfo {
   std::string producer_name;
   uid_t producer_uid = 0;
   uint64_t trigger_delay_ms = 0;
+  TraceConfig::TriggerConfig::TriggerMode trigger_mode =
+      TraceConfig::TriggerConfig::UNSPECIFIED;
 };
 
 struct PendingClone {

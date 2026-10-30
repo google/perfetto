@@ -19120,6 +19120,12 @@ message Trigger {
   optional int32 trusted_producer_uid = 3;
   // The value of stop_delay_ms from the configuration.
   optional uint64 stop_delay_ms = 4;
+  // The effective trigger mode of the session that received the trigger.
+  // See TraceConfig.TriggerConfig.TriggerMode. This can differ from the
+  // TraceConfig: e.g. STOP_TRACING with use_clone_snapshot_if_available=true
+  // is reported as CLONE_SNAPSHOT.
+  // Introduced in v60.
+  optional int32 trigger_mode = 5;
 }
 
 // End of protos/perfetto/trace/trigger.proto
@@ -19185,7 +19191,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 141.
+// Next id: 142.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -19357,6 +19363,17 @@ message TracePacket {
     PixelModemTokenDatabase pixel_modem_token_database = 111;
 
     Trigger clone_snapshot_trigger = 113;
+
+    // Written by the tracing service at most once per trace, together with the
+    // other initial packets that are never compressed. It is the trigger that
+    // caused this trace to be finalized:
+    // - For START_TRACING: the trigger that started the session.
+    // - For STOP_TRACING: the trigger that stopped the session.
+    // - For CLONE_SNAPSHOT: the trigger that caused the clone, which matches
+    //   clone_snapshot_trigger for backward compat reasons.
+    // A clone not caused by a trigger (e.g. bugreport) inherits the one of the
+    // source session, if any. Absent if the trace was not caused by a trigger.
+    Trigger authoritative_trigger = 141;
 
     KernelWakelockData kernel_wakelock_data = 115;
 
