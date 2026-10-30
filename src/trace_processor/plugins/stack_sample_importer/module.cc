@@ -17,23 +17,30 @@
 #include "src/trace_processor/plugins/stack_sample_importer/module.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string_view>
 #include <vector>
 
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -118,6 +125,27 @@ const char* StringifyProfileUnit(protos::pbzero::StackSample::Unit unit) {
       return "count";
   }
   return "";
+}
+
+// Description of the stat of a producer-defined error kind that has no
+// description of its own.
+constexpr char kCustomErrorDescription[] =
+    "A stack sampler could not take a sample, for a reason it defines itself "
+    "(a StackSample error of a producer-defined kind).";
+
+stats::Severity ToStatsSeverity(
+    protos::pbzero::StackSample::ErrorDescriptor::Severity severity) {
+  using ErrorDescriptor = protos::pbzero::StackSample::ErrorDescriptor;
+  switch (severity) {
+    case ErrorDescriptor::Severity::SEVERITY_INFO:
+      return stats::kInfo;
+    case ErrorDescriptor::Severity::SEVERITY_ERROR:
+      return stats::kError;
+    case ErrorDescriptor::Severity::SEVERITY_UNSPECIFIED:
+    case ErrorDescriptor::Severity::SEVERITY_DATA_LOSS:
+      break;
+  }
+  return stats::kDataLoss;
 }
 
 }  // namespace
@@ -418,6 +446,12 @@ void StackSampleModule::ParseStackSample(
     source_id = storage->InternString(defaults->source());
   }
 
+  // The sampler could not take this sample: the error stands in for it.
+  if (sample.has_error() || sample.has_error_iid()) {
+    ParseErrorSample(ts, sequence_state, source_id, sample);
+    return;
+  }
+
   // Task context: attributes the sample to a thread / process / async context.
   std::optional<UniquePid> upid;
   auto intern_task_context = [&](const TaskContext::Decoder& task) {
@@ -496,6 +530,99 @@ void StackSampleModule::ParseStackSample(
   row.counter_set_id =
       context_->profiler_sample_tracker->AddCounterSet(counter_ids);
   context_->profiler_sample_tracker->AddSample(row);
+}
+
+void StackSampleModule::ParseErrorSample(
+    int64_t ts,
+    PacketSequenceStateGeneration* sequence_state,
+    StringId source_id,
+    const protos::pbzero::StackSample::Decoder& sample) {
+  using protos::pbzero::InternedData;
+  using ErrorDescriptor = protos::pbzero::StackSample::ErrorDescriptor;
+  using TaskContext = protos::pbzero::StackSample::TaskContext;
+
+  // The error stands in for the stack, so the sample should not have one. If
+  // it does, the error takes priority and the stack is ignored.
+  if (sample.has_callstack() || sample.has_callstack_iid() ||
+      sample.has_unwind_error() || sample.has_unwind_error_iid()) {
+    context_->stats_tracker->IncrementStats(
+        stats::stack_sample_error_with_callstack);
+  }
+
+  size_t stat_key = stats::stack_sample_error_unknown_kind;
+  if (sample.has_error()) {
+    stat_key = GetErrorStatKey(ErrorDescriptor::Decoder(sample.error()));
+  } else if (InternedMessageView* view = sequence_state->GetInternedMessageView(
+                 InternedData::kStackSampleErrorDescriptorsFieldNumber,
+                 sample.error_iid())) {
+    // Remember the key on the interned entry, so that a producer-defined kind
+    // is looked up by name once rather than on every sample.
+    if (std::optional<uint32_t> cached = view->cached_value()) {
+      stat_key = *cached;
+    } else {
+      stat_key = GetErrorStatKey(*view->GetOrCreateDecoder<ErrorDescriptor>());
+      view->set_cached_value(static_cast<uint32_t>(stat_key));
+    }
+  }
+
+  std::optional<TaskContext::Decoder> inline_task;
+  const TaskContext::Decoder* task = nullptr;
+  if (sample.has_task_context()) {
+    task = &inline_task.emplace(sample.task_context());
+  } else if (sample.has_task_context_iid()) {
+    task = sequence_state->LookupInternedMessage<
+        InternedData::kStackSampleTaskContextsFieldNumber, TaskContext>(
+        sample.task_context_iid());
+  }
+
+  context_->import_logs_tracker->RecordCollectionLog(
+      stat_key, ts, [&](ArgsInserter& inserter) {
+        TraceStorage* storage = context_->storage.get();
+        if (source_id != kNullStringId) {
+          inserter.AddArg(storage->InternString("source"),
+                          Variadic::String(source_id));
+        }
+        if (task && task->has_pid()) {
+          inserter.AddArg(storage->InternString("pid"),
+                          Variadic::Integer(task->pid()));
+        }
+        if (task && task->has_tid()) {
+          inserter.AddArg(storage->InternString("tid"),
+                          Variadic::Integer(task->tid()));
+        }
+      });
+}
+
+size_t StackSampleModule::GetErrorStatKey(
+    const protos::pbzero::StackSample::ErrorDescriptor::Decoder& desc) {
+  using ErrorDescriptor = protos::pbzero::StackSample::ErrorDescriptor;
+  if (desc.has_builtin()) {
+    switch (static_cast<ErrorDescriptor::Builtin>(desc.builtin())) {
+      case ErrorDescriptor::Builtin::BUILTIN_SAMPLE_FAILED:
+        return stats::stack_sample_failed;
+      case ErrorDescriptor::Builtin::BUILTIN_UNWIND_FAILED:
+        return stats::stack_sample_unwind_failed;
+      case ErrorDescriptor::Builtin::BUILTIN_UNSPECIFIED:
+        break;
+    }
+    return stats::stack_sample_error_unknown_kind;
+  }
+  if (desc.name().size == 0) {
+    return stats::stack_sample_error_unknown_kind;
+  }
+  // The prefix groups these stats together and keeps them apart from the ones
+  // in stats.h, whose names have no dots. Names too long for the buffer are
+  // cut short; reverse-domain names like the proto suggests are far shorter.
+  base::StackString<256> name("stack_sample_error.%.*s",
+                              static_cast<int>(desc.name().size),
+                              desc.name().data);
+  std::string_view description =
+      desc.description().size > 0 ? std::string_view(desc.description())
+                                  : std::string_view(kCustomErrorDescription);
+  auto severity = static_cast<ErrorDescriptor::Severity>(desc.severity());
+  return context_->global_stats_tracker->InternDynamicStatDescriptor(
+      name.ToStdStringView(), ToStatsSeverity(severity), stats::kTrace,
+      description);
 }
 
 }  // namespace perfetto::trace_processor::stack_sample_importer

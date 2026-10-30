@@ -1,0 +1,124 @@
+packet {
+  previous_packet_dropped: 1
+  incremental_state_cleared: true
+  trusted_packet_sequence_id: 1
+  timestamp: 500
+  trace_packet_defaults {
+    stack_sample_defaults {
+      source: "python.wall"
+    }
+  }
+  interned_data {
+    stack_sample_error_descriptors {
+      iid: 1
+      name: "com.example.mapping_not_found"
+      severity: SEVERITY_ERROR
+      description: "No mapping for the sampled pc."
+    }
+    stack_sample_error_descriptors {
+      iid: 2
+      builtin: BUILTIN_UNWIND_FAILED
+    }
+  }
+}
+
+# A sample that was taken.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  stack_sample {
+    task_context {
+      pid: 100
+      tid: 101
+    }
+    callstack {
+      frames {
+        function_name: "foo"
+      }
+    }
+  }
+}
+
+# A builtin kind, inline.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2000
+  stack_sample {
+    task_context {
+      pid: 100
+      tid: 101
+    }
+    error {
+      builtin: BUILTIN_SAMPLE_FAILED
+    }
+  }
+}
+
+# A producer-defined kind, interned and used twice.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 3000
+  stack_sample {
+    task_context {
+      pid: 100
+      tid: 102
+    }
+    error_iid: 1
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 4000
+  stack_sample {
+    error_iid: 1
+  }
+}
+
+# An interned builtin kind together with a callstack: the error is kept, the
+# callstack ignored and the sample counted as invalid.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 5000
+  stack_sample {
+    task_context {
+      pid: 100
+      tid: 101
+    }
+    error_iid: 2
+    callstack {
+      frames {
+        function_name: "foo"
+      }
+    }
+  }
+}
+
+# A producer-defined kind without a severity or description.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 6000
+  stack_sample {
+    error {
+      name: "com.example.stack_too_deep"
+    }
+  }
+}
+
+# An error with no kind, and one referring to a missing interned descriptor.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 7000
+  stack_sample {
+    error {
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 8000
+  stack_sample {
+    error_iid: 42
+  }
+}
