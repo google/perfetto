@@ -23,8 +23,6 @@
 #include <optional>
 #include <vector>
 
-#include <unwindstack/Regs.h>
-
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -662,8 +660,7 @@ std::optional<EventConfig> EventConfig::CreateSampling(
     // can be lower than this.
     pe.sample_stack_user = (1u << 16) - 256;
     // PERF_SAMPLE_REGS_USER:
-    pe.sample_regs_user =
-        PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch());
+    pe.sample_regs_user = PerfUserRegsMaskForArch(CurrentCpuArch());
   }
   if (kernel_frames || kernel_unwinds_user_frames) {
     pe.sample_type |= PERF_SAMPLE_CALLCHAIN;
