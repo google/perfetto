@@ -212,15 +212,38 @@
   &__input {
     flex-shrink: 0;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     padding: 0.5rem;
     border-top: 1px solid var(--pf-color-border);
     background-color: var(--pf-color-background-secondary);
     box-sizing: border-box;
     gap: 4px;
+  }
 
-    .pf-text-input {
-      flex: 1;
+  &__textarea {
+    flex: 1;
+    min-width: 0;
+    max-height: 12em;
+    resize: none;
+    overflow-y: auto;
+    box-sizing: border-box;
+    font-family: var(--pf-font-compact);
+    font-size: inherit;
+    line-height: 1.4;
+    color: inherit;
+    padding: 4px 6px;
+    margin: 0;
+    outline: none;
+    background: var(--pf-color-void);
+    border: solid 1px var(--pf-color-border-secondary);
+    border-radius: 4px;
+
+    &:hover {
+      border-color: var(--pf-color-border);
+    }
+
+    &:focus {
+      border-color: var(--pf-color-primary);
     }
   }
 }
