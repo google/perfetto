@@ -162,7 +162,8 @@ message TrackDescriptor {
   //
   // Trace processor will merge events on a thread track with slice-type events
   // from other sources (e.g. ftrace) for the same thread into a single timeline
-  // view.
+  // view. Such shared root tracks do not support custom dimensions; set
+  // `disallow_merging_with_system_tracks` to use dimensions on this descriptor.
   optional ThreadDescriptor thread = 4;
   optional ChromeThreadDescriptor chrome_thread = 7;
 
@@ -176,7 +177,8 @@ message TrackDescriptor {
   optional StateDescriptor state = 18;
 
   // If true, forces Trace Processor to use separate tracks for track events
-  // and system events for the same thread.
+  // and system events for the same thread. Required for custom dimensions on
+  // descriptors with `thread` set.
   //
   // Track events timestamps in Chrome have microsecond resolution, while
   // system events use nanoseconds. It results in broken event nesting when
@@ -389,7 +391,12 @@ message TrackDescriptor {
   // `stage`).
   //
   // Dimensions declared here apply to this track and its `parent_uuid`
-  // descendants. See TrackDimension for the full resolution rules.
+  // descendants. A descriptor with `thread` set must also set
+  // `disallow_merging_with_system_tracks` to declare custom dimensions.
+  // Otherwise its declarations are ignored and trace processor reports
+  // `track_descriptor_shared_thread_custom_dimensions`. Shared thread tracks
+  // omit inherited dimensions, but their children still inherit through the
+  // descriptor hierarchy. See TrackDimension for the full resolution rules.
   //
   // Dimensions are part of the track's identity: every descriptor emitted for
   // this `uuid` must declare the same dimensions, starting with the first one,

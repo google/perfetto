@@ -260,23 +260,34 @@ class TrackCompressor {
       const typename BlueprintT::name_t& name = tracks::BlueprintName(),
       TrackTracker::SetArgsCallback args = {},
       std::function<void(TrackId)> on_new_track = {}) {
-    return TrackFactory{
-        tracks::HashFromBlueprintAndDimensions(bp, dims),
-        TypeToNestingBehaviour(bp.type),
-        [this, dims, bp, name, args = std::move(args),
-         on_new_track = std::move(on_new_track)](const TrackSet& state,
-                                                 uint32_t idx) {
-          auto final_dims = std::tuple_cat(dims, std::make_tuple(idx));
-          TrackId track_id =
-              context_->track_tracker->CreateTrack(bp, final_dims, name, args);
-          if (on_new_track) {
-            on_new_track(track_id);
-          }
-          auto rr = (*context_->storage->mutable_track_table())[track_id];
-          rr.set_track_group_id(state.set_id);
-          return track_id;
+    return MakeTrackFactory(
+        bp, tracks::HashFromBlueprintAndDimensions(bp, dims),
+        [this, dims, bp, name, args = std::move(args)](uint32_t idx) {
+          return context_->track_tracker->CreateTrack(
+              bp, std::tuple_cat(dims, std::make_tuple(idx)), name, args);
         },
-    };
+        std::move(on_new_track));
+  }
+
+  template <typename BlueprintT>
+  TrackFactory CreateTrackFactoryWithDimensions(
+      const BlueprintT& bp,
+      const internal::uncompressed_dimensions_t<BlueprintT>& dims,
+      TrackTracker::AdditionalDimensions additional,
+      const typename BlueprintT::name_t& name = tracks::BlueprintName(),
+      TrackTracker::SetArgsCallback args = {},
+      std::function<void(TrackId)> on_new_track = {}) {
+    uint64_t hash = TrackTracker::HashWithAdditionalDimensions(
+        tracks::HashFromBlueprintAndDimensions(bp, dims), &additional);
+    return MakeTrackFactory(
+        bp, hash,
+        [this, dims, bp, name, args = std::move(args),
+         additional = std::move(additional)](uint32_t idx) {
+          return context_->track_tracker->CreateTrack(
+              bp, std::tuple_cat(dims, std::make_tuple(idx)), name, args,
+              tracks::BlueprintUnit(), &additional);
+        },
+        std::move(on_new_track));
   }
 
   // Starts a new slice which has the given cookie.
@@ -386,6 +397,26 @@ class TrackCompressor {
     uint32_t set_id;
     std::vector<TrackState> tracks;
   };
+
+  template <typename BlueprintT, typename CreateTrack>
+  TrackFactory MakeTrackFactory(const BlueprintT& bp,
+                                uint64_t hash,
+                                CreateTrack create_track,
+                                std::function<void(TrackId)> on_new_track) {
+    return TrackFactory{
+        hash, TypeToNestingBehaviour(bp.type),
+        [this, create_track = std::move(create_track),
+         on_new_track = std::move(on_new_track)](const TrackSet& state,
+                                                 uint32_t idx) {
+          TrackId track_id = create_track(idx);
+          if (on_new_track) {
+            on_new_track(track_id);
+          }
+          auto rr = (*context_->storage->mutable_track_table())[track_id];
+          rr.set_track_group_id(state.set_id);
+          return track_id;
+        }};
+  }
 
   std::pair<TrackId*, uint32_t> BeginInternal(TrackSet&,
                                               NestingBehaviour,

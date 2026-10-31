@@ -45,6 +45,8 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
+#include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
+#include "protos/perfetto/trace/track_event/track_dimension.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 #include "src/trace_processor/local_file_system.h"
@@ -1457,7 +1459,10 @@ TEST_F(TraceProcessorPerfettoExportTest, PerfettoExportRoundTrip) {
   int64_t slice_dur_sum =
       QuerySingleInt(processor_, "SELECT sum(dur) FROM slice");
   int64_t dimension_count =
-      QuerySingleInt(processor_, "SELECT count() FROM track_dimension");
+      QuerySingleInt(processor_,
+                     "SELECT count() FROM track AS t JOIN args AS a "
+                     "ON a.arg_set_id = t.dimension_arg_set_id "
+                     "WHERE a.key GLOB 'custom_dimension.*'");
   const std::string arg_lookup =
       "SELECT extract_arg(a.arg_set_id, a.key) = a.int_value FROM args AS a "
       "WHERE a.int_value IS NOT NULL "
@@ -1479,9 +1484,11 @@ TEST_F(TraceProcessorPerfettoExportTest, PerfettoExportRoundTrip) {
             "{}");
   ASSERT_OK(ParsePerfettoExport(reimport.get(), *tar_));
   EXPECT_EQ(QuerySingleInt(reimport.get(), arg_lookup), 1);
-  EXPECT_EQ(
-      QuerySingleInt(reimport.get(), "SELECT count() FROM track_dimension"),
-      dimension_count);
+  EXPECT_EQ(QuerySingleInt(reimport.get(),
+                           "SELECT count() FROM track AS t JOIN args AS a "
+                           "ON a.arg_set_id = t.dimension_arg_set_id "
+                           "WHERE a.key GLOB 'custom_dimension.*'"),
+            dimension_count);
 
   EXPECT_EQ(QuerySingleInt(reimport.get(), "SELECT count() FROM thread"),
             thread_count);
@@ -1494,6 +1501,87 @@ TEST_F(TraceProcessorPerfettoExportTest, PerfettoExportRoundTrip) {
                 "SELECT name FROM thread WHERE name IS NOT NULL ORDER BY name "
                 "LIMIT 1"),
             first_thread_name);
+}
+
+TEST_F(TraceProcessorIntegrationTest,
+       PerfettoExportRoundTripPreservesCustomDimensions) {
+  protozero::HeapBuffered<protos::pbzero::Trace> trace;
+  auto* descriptor_packet = trace->add_packet();
+  descriptor_packet->set_trusted_packet_sequence_id(1);
+  descriptor_packet->set_incremental_state_cleared(true);
+  descriptor_packet->set_timestamp(1000);
+  auto* descriptor = descriptor_packet->set_track_descriptor();
+  descriptor->set_uuid(42);
+  descriptor->set_name("custom dimension track");
+  descriptor->set_sibling_merge_behavior(
+      protos::pbzero::TrackDescriptor::SIBLING_MERGE_BEHAVIOR_NONE);
+  auto* rank = descriptor->add_dimensions();
+  rank->set_name("rank");
+  rank->set_int_value(7);
+  rank->set_display_name("worker-seven");
+  auto* stage = descriptor->add_dimensions();
+  stage->set_name("stage");
+  stage->set_string_value("parse");
+  stage->set_display_name("front-end");
+  auto* event_packet = trace->add_packet();
+  event_packet->set_trusted_packet_sequence_id(1);
+  event_packet->set_timestamp(2000);
+  auto* event = event_packet->set_track_event();
+  event->set_track_uuid(42);
+  event->set_name("instant");
+  event->set_type(protos::pbzero::TrackEvent::TYPE_INSTANT);
+  trace->Finalize();
+  auto [buffer, size] = trace.SerializeAsUniquePtr();
+  ASSERT_OK(Processor()->Parse(
+      TraceBlobView(TraceBlob::TakeOwnership(std::move(buffer), size))));
+  ASSERT_OK(NotifyEndOfFile());
+
+  auto verify = [&](TraceProcessor* tp) {
+    ASSERT_EQ(QuerySingleInt(tp,
+                             "SELECT count() FROM track AS t JOIN args AS a "
+                             "ON a.arg_set_id = t.dimension_arg_set_id "
+                             "WHERE a.key GLOB 'custom_dimension.*'"),
+              2);
+    EXPECT_EQ(
+        QuerySingleInt(
+            tp,
+            "SELECT extract_arg(dimension_arg_set_id, 'custom_dimension.rank') "
+            "FROM track WHERE name = 'custom dimension track'"),
+        7);
+    EXPECT_EQ(
+        QuerySingleString(tp,
+                          "SELECT extract_arg(dimension_arg_set_id, "
+                          "'custom_dimension.stage') "
+                          "FROM track WHERE name = 'custom dimension track'"),
+        "parse");
+    EXPECT_EQ(
+        QuerySingleString(tp,
+                          "SELECT extract_arg(source_arg_set_id, "
+                          "'custom_dimension_display_name.rank') "
+                          "FROM track WHERE name = 'custom dimension track'"),
+        "worker-seven");
+    EXPECT_EQ(
+        QuerySingleString(tp,
+                          "SELECT extract_arg(source_arg_set_id, "
+                          "'custom_dimension_display_name.stage') "
+                          "FROM track WHERE name = 'custom dimension track'"),
+        "front-end");
+    EXPECT_EQ(
+        QuerySingleInt(
+            tp,
+            "SELECT count() FROM track AS t JOIN args AS a "
+            "ON a.arg_set_id = t.dimension_arg_set_id "
+            "WHERE (a.key = 'custom_dimension.rank' AND a.value_type = 'int') "
+            "OR (a.key = 'custom_dimension.stage' AND a.value_type = "
+            "'string')"),
+        2);
+  };
+  verify(Processor());
+  std::string tar =
+      ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
+  auto reimport = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(ParsePerfettoExport(reimport.get(), tar));
+  verify(reimport.get());
 }
 
 TEST_F(TraceProcessorPerfettoExportTest, PerfettoExportSchemaMismatchRejected) {

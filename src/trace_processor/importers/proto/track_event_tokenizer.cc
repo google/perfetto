@@ -166,6 +166,13 @@ bool ParseTrackDimensions(
         errors->push_back(stats::track_descriptor_invalid_dimension);
       }
     }
+    std::string dimension_name(name.data(), name.size());
+    out.arg_key =
+        context->storage->InternString("custom_dimension." + dimension_name);
+    if (out.display_name) {
+      out.display_arg_key = context->storage->InternString(
+          "custom_dimension_display_name." + dimension_name);
+    }
     reservation->dimensions.push_back(out);
   }
   if (reservation->dimensions.empty()) {
@@ -361,10 +368,16 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
         context_->storage->InternString(track.description());
   }
 
+  bool unsupported_thread_dimensions =
+      track.has_thread() && track.has_dimensions() &&
+      !track.disallow_merging_with_system_tracks();
   std::vector<size_t> dimension_errors;
-  if (track.has_dimensions() &&
-      !ParseTrackDimensions(context_, args.state.get(), track, &reservation,
-                            &dimension_errors)) {
+  if (unsupported_thread_dimensions) {
+    dimension_errors.push_back(
+        stats::track_descriptor_shared_thread_custom_dimensions);
+  } else if (track.has_dimensions() &&
+             !ParseTrackDimensions(context_, args.state.get(), track,
+                                   &reservation, &dimension_errors)) {
     RecordTokenizationErrorWithTrackUuid(
         stats::track_descriptor_invalid_dimension, track.uuid(), args.packet);
     return ModuleResult::Handled();

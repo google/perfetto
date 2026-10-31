@@ -230,5 +230,6 @@ source_set("unittests") {
     "../../storage",
     "../../tables",
     "../../types",
+    "../../util:args_utils",
   ]
 }

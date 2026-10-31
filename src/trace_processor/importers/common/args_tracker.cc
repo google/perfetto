@@ -25,6 +25,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
@@ -203,7 +204,8 @@ void ArgsInserter::Commit() {
   WriteArgSetId(df_, col_, row_, set_id);
 }
 
-ArgSetId ArgsTracker::AddArgSet(const CompactArg* args, uint32_t count) {
+uint64_t ArgsTracker::ComputeArgSetHash(const CompactArg* args,
+                                        uint32_t count) {
   base::MurmurHashCombiner combiner;
   for (uint32_t i = 0; i < count; ++i) {
     const CompactArg& arg = args[i];
@@ -238,10 +240,14 @@ ArgSetId ArgsTracker::AddArgSet(const CompactArg* args, uint32_t count) {
     }
   }
 
+  return combiner.digest();
+}
+
+ArgSetId ArgsTracker::AddArgSet(const CompactArg* args, uint32_t count) {
   auto& arg_table = *storage_->mutable_arg_table();
 
   uint32_t arg_set_id = arg_table.row_count();
-  ArgSetHash digest = combiner.digest();
+  ArgSetHash digest = ComputeArgSetHash(args, count);
   auto [it, inserted] = arg_row_for_hash_.Insert(digest, arg_set_id);
   if (!inserted) {
     // Already inserted.

@@ -16,9 +16,12 @@
 
 #include "src/trace_processor/importers/common/track_tracker.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <utility>
+#include <vector>
 
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -35,13 +38,27 @@ TrackTracker::TrackTracker(TraceProcessorContext* context)
     : context_(context),
       description_key_id_(context->storage->InternString("description")) {}
 
+TrackTracker::AdditionalDimensions TrackTracker::MakeAdditionalDimensions(
+    std::vector<ArgsTracker::CompactArg> args) {
+  std::sort(args.begin(), args.end(), [](const auto& a, const auto& b) {
+    return a.key.raw_id() < b.key.raw_id();
+  });
+  for (size_t i = 1; i < args.size(); ++i) {
+    PERFETTO_CHECK(args[i - 1].key != args[i].key);
+  }
+  uint64_t hash = ArgsTracker::ComputeArgSetHash(
+      args.data(), static_cast<uint32_t>(args.size()));
+  return AdditionalDimensions(std::move(args), hash);
+}
+
 TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
                                StringId name,
                                StringId counter_unit,
                                StringId description,
                                ArgsTracker::CompactArg* d_args,
                                uint32_t d_size,
-                               const SetArgsCallback& args) {
+                               const SetArgsCallback& args,
+                               const AdditionalDimensions* additional) {
   tables::TrackTable::Row row(name);
   const auto* dims = blueprint.dimension_blueprints.data();
   for (uint32_t i = 0; i < d_size; ++i) {
@@ -62,7 +79,17 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
   row.machine_id = context_->machine_id();
   row.type = context_->storage->InternString(
       base::StringView(blueprint.type.data(), blueprint.type.size()));
-  if (d_size > 0) {
+  if (additional && !additional->empty()) {
+    ArgsTracker::CompactArgSet dimensions;
+    for (uint32_t i = 0; i < d_size; ++i) {
+      dimensions.emplace_back(d_args[i]);
+    }
+    for (const auto& arg : additional->args()) {
+      dimensions.emplace_back(arg);
+    }
+    row.dimension_arg_set_id = context_->args_tracker->AddArgSet(
+        dimensions.data(), static_cast<uint32_t>(dimensions.size()));
+  } else if (d_size > 0) {
     row.dimension_arg_set_id =
         context_->args_tracker->AddArgSet(d_args, d_size);
   }
