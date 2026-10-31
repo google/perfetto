@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from python.generators.diff_tests.testing import DataPath
 from python.generators.diff_tests.testing import Path
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
@@ -309,4 +310,82 @@ class HeapGraph(TestSuite):
         out=Csv("""
           "upid","graph_sample_ts","process_uptime","total_heap_size","total_native_alloc_registry_size","total_obj_count","reachable_heap_size","reachable_native_alloc_registry_size","reachable_obj_count","oom_score_adj","anon_rss_and_swap_size","dmabuf_rss_size","art_bytes_allocated","is_out_of_memory_error","oome_failing_allocation_size","oome_remaining_art_free_bytes"
           2,10,"[NULL]",11866,0,5,11866,0,5,-900,4096000,8192000,1234,1,1000,5000
+        """))
+
+  def test_heap_graph_binder_stub(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_binder_stubs.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.binder;
+
+          SELECT
+            id,
+            class_name,
+            interface_name,
+            is_remote_held,
+            is_untracked,
+            remote_only_obj_count,
+            remote_only_size_bytes,
+            dominated_size_bytes
+          FROM android_heap_graph_binder_stub;
+        """,
+        out=Csv("""
+          "id","class_name","interface_name","is_remote_held","is_untracked","remote_only_obj_count","remote_only_size_bytes","dominated_size_bytes"
+          1,"com.example.FooService$1","com.example.IFoo$Stub",1,0,0,0,132
+          4,"com.example.FooService$1","com.example.IFoo$Stub",1,1,3,632,232
+          7,"com.example.BarRecord","com.example.BarRecord",1,1,2,114,114
+        """))
+
+  def test_heap_graph_binder_stub_summary(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_binder_stubs.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.binder;
+
+          SELECT
+            class_name,
+            interface_name,
+            instance_count,
+            untracked_count,
+            remote_only_obj_count,
+            remote_only_size_bytes,
+            dominated_size_bytes,
+            max_instance_dominated_bytes,
+            example_id,
+            is_single_instance
+          FROM android_heap_graph_binder_stub_summary;
+        """,
+        out=Csv("""
+          "class_name","interface_name","instance_count","untracked_count","remote_only_obj_count","remote_only_size_bytes","dominated_size_bytes","max_instance_dominated_bytes","example_id","is_single_instance"
+          "com.example.FooService$1","com.example.IFoo$Stub",2,1,3,632,364,232,4,0
+          "com.example.BarRecord","com.example.BarRecord",1,1,2,114,114,114,7,1
+        """))
+
+  def test_heap_graph_binder_stub_summary_system_server(self):
+    return DiffTestBlueprint(
+        trace=DataPath('system-server-heap-graph-new.pftrace'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.binder;
+
+          SELECT
+            class_name,
+            interface_name,
+            instance_count,
+            untracked_count,
+            remote_only_obj_count,
+            remote_only_size_bytes,
+            dominated_size_bytes,
+            max_instance_dominated_bytes,
+            example_id IS NOT NULL AS has_example_id,
+            is_single_instance
+          FROM android_heap_graph_binder_stub_summary
+          LIMIT 5;
+        """,
+        out=Csv("""
+          "class_name","interface_name","instance_count","untracked_count","remote_only_obj_count","remote_only_size_bytes","dominated_size_bytes","max_instance_dominated_bytes","has_example_id","is_single_instance"
+          "com.android.server.am.ServiceRecord","com.android.server.am.ServiceRecord",131,44,767,51631,156684,5069,1,0
+          "com.android.server.am.PendingIntentRecord","android.content.IIntentSender$Stub",51,40,165,6160,7799,349,1,0
+          "com.android.server.am.ContentProviderConnection","com.android.server.am.ContentProviderConnection",56,22,70,5439,7018,1203,1,0
+          "com.android.server.notification.NotificationManagerService$StatusBarNotificationHolder","android.service.notification.IStatusBarNotificationHolder$Stub",91,91,96,3136,2548,28,1,0
+          "com.android.server.media.MediaSessionRecord$ControllerStub","android.media.session.ISessionController$Stub",3,3,72,2663,2084,720,1,0
         """))
