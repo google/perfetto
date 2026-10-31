@@ -113,7 +113,12 @@ function durationDelta(value: duration, base?: duration): string {
     return 'NULL';
   }
   const delta = value - base;
-  return `${delta > 0 ? '+' : ''}${Duration.humanise(delta)}`;
+  // A delta between two durations can be negative, but humanise() only
+  // formats durations, so format its magnitude and add the sign here.
+  if (delta < 0n) {
+    return `-${Duration.humanise(-delta)}`;
+  }
+  return `${delta > 0n ? '+' : ''}${Duration.humanise(delta)}`;
 }
 
 export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
