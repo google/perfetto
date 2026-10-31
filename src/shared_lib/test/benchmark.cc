@@ -19,6 +19,7 @@
 #include <unistd.h>
 
 #include <memory>
+#include <vector>
 
 #include <benchmark/benchmark.h>
 
@@ -213,6 +214,17 @@ void BM_Shlib_TeNestedThreadTrack(benchmark::State& state) {
   while (state.KeepRunning()) {
     PERFETTO_TE(benchmark_cat, PERFETTO_TE_INSTANT("Event"),
                 PERFETTO_TE_NESTED_TRACKS(PERFETTO_TE_NESTED_TRACK_THREAD()));
+    benchmark::ClobberMemory();
+  }
+}
+
+void BM_Shlib_TeDynamicCategory(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session = StartTrackEventSession();
+
+  while (state.KeepRunning()) {
+    PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY, PERFETTO_TE_INSTANT("Event"),
+                PERFETTO_TE_DYNAMIC_CATEGORY_STRING("dynamic"));
     benchmark::ClobberMemory();
   }
 }
@@ -447,6 +459,7 @@ BENCHMARK(BM_Shlib_TeBasicNoIntern);
 BENCHMARK(BM_Shlib_TeDebugAnnotations);
 BENCHMARK(BM_Shlib_TeCustomProto);
 BENCHMARK(BM_Shlib_TeNestedThreadTrack);
+BENCHMARK(BM_Shlib_TeDynamicCategory);
 BENCHMARK(BM_Shlib_TeLlBasic);
 BENCHMARK(BM_Shlib_TeLlBasicNoIntern);
 BENCHMARK(BM_Shlib_TeLlDebugAnnotations);
