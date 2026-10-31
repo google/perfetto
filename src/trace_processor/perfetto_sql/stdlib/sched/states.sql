@@ -13,14 +13,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- TODO(altimin): `sched_humanly_readable_name` doesn't handle some corner
--- cases which thread_state.ts handles (as complex strings manipulations in
--- SQL are pretty painful), but they are pretty niche.
-
--- Translates a single-letter scheduling state to a human-readable string.
+-- Translates a scheduling state to a human-readable string.
 CREATE PERFETTO FUNCTION sched_state_to_human_readable_string(
-  -- An individual character string representing the scheduling state of the
-  -- kernel thread at the end of the slice.
+  -- A string representing the scheduling state of the kernel thread at the end
+  -- of the slice: either a single character or a composite state reported by
+  -- kernels older than 4.14 (e.g. "DK").
   short_name STRING
 )
 -- Humanly readable string representing the scheduling state of the kernel
@@ -48,6 +45,11 @@ SELECT
     WHEN 'W' THEN 'Waking'
     WHEN 'P' THEN 'Parked'
     WHEN 'N' THEN 'No Load'
+    -- Composite states, only reported by kernels older than 4.14 (see
+    -- TaskState::ToString()): TASK_KILLABLE, TASK_STOPPED and TASK_TRACED.
+    WHEN 'DK' THEN 'Uninterruptible Sleep + Wakekill'
+    WHEN 'TK' THEN 'Stopped + Wakekill'
+    WHEN 'tK' THEN 'Traced + Wakekill'
     -- ETW SPECIFIC STATES
     WHEN 'Stand By' THEN 'Stand By'
     WHEN 'Initialized' THEN 'Initialized'
@@ -57,11 +59,12 @@ SELECT
     ELSE $short_name
   END;
 
--- Translates a single-letter scheduling state and IO wait information to
--- a human-readable string.
+-- Translates a scheduling state and IO wait information to a human-readable
+-- string.
 CREATE PERFETTO FUNCTION sched_state_io_to_human_readable_string(
-  -- An individual character string representing the scheduling state of the
-  -- kernel thread at the end of the slice.
+  -- A string representing the scheduling state of the kernel thread at the end
+  -- of the slice: either a single character or a composite state reported by
+  -- kernels older than 4.14 (e.g. "DK").
   sched_state STRING,
   -- A (posssibly NULL) boolean indicating, if the device was in uninterruptible
   -- sleep, if it was an IO sleep.
