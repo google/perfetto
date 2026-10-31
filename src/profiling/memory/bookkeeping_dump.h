@@ -21,6 +21,7 @@
 #include <functional>
 #include <set>
 
+#include "perfetto/base/time.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/profiling/common/interner.h"
 #include "src/profiling/common/interning_output.h"

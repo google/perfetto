@@ -14,25 +14,30 @@
  * limitations under the License.
  */
 
-#include "src/profiling/common/unwind_support.h"
+#include "src/profiling/unwind/libunwindstack/libunwindstack_engine.h"
 
 #include <cinttypes>
 
 #include <procinfo/process_map.h>
+#include <unistd.h>
+#include <unwindstack/Elf.h>
 #include <unwindstack/MachineArm.h>
 #include <unwindstack/MachineArm64.h>
 #include <unwindstack/MachineRiscv64.h>
 #include <unwindstack/MachineX86.h>
 #include <unwindstack/MachineX86_64.h>
 #include <unwindstack/Maps.h>
-#include <unwindstack/Memory.h>
+#include <unwindstack/Regs.h>
 #include <unwindstack/RegsArm.h>
 #include <unwindstack/RegsArm64.h>
 #include <unwindstack/RegsRiscv64.h>
 #include <unwindstack/RegsX86.h>
 #include <unwindstack/RegsX86_64.h>
+#include <unwindstack/Unwinder.h>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/no_destructor.h"
 
 namespace perfetto {
 namespace profiling {
@@ -173,7 +178,7 @@ bool FDMaps::Parse() {
   unwindstack::SharedString name("");
   std::shared_ptr<unwindstack::MapInfo> prev_map;
   return android::procinfo::ReadMapFileContent(
-      &content[0], [&](const android::procinfo::MapInfo& mapinfo) {
+      content.data(), [&](const android::procinfo::MapInfo& mapinfo) {
         // Mark a device map in /dev/ and not in /dev/ashmem/ specially.
         auto flags = mapinfo.flags;
         if (strncmp(mapinfo.name.c_str(), "/dev/", 5) == 0 &&
@@ -203,7 +208,6 @@ UnwindingMetadata::UnwindingMetadata(base::ScopedFile maps_fd,
 }
 
 void UnwindingMetadata::ReparseMaps() {
-  reparses++;
   fd_maps.Reset();
   fd_maps.Parse();
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
@@ -232,48 +236,213 @@ unwindstack::DexFiles* UnwindingMetadata::GetDexFiles(
 }
 #endif
 
-std::string UnwindingMetadata::GetBuildId(const unwindstack::FrameData& frame) {
-  if (frame.map_info != nullptr && !frame.map_info->name().empty() &&
-      !(frame.map_info->flags() & unwindstack::MAPS_FLAGS_DEVICE_MAP)) {
-    return frame.map_info->GetBuildID();
-  }
+// Implemention of the unwinding interface
 
-  return "";
+LibunwindstackProcessState::LibunwindstackProcessState(base::ScopedFile maps_fd,
+                                                       base::ScopedFile mem_fd)
+    : metadata_(std::move(maps_fd), std::move(mem_fd)) {}
+
+LibunwindstackProcessState::~LibunwindstackProcessState() = default;
+
+void LibunwindstackProcessState::ReparseMaps() {
+  metadata_.ReparseMaps();
 }
 
-std::string StringifyLibUnwindstackError(unwindstack::ErrorCode e) {
+void LibunwindstackProcessState::ResetMaps() {
+  metadata_.fd_maps.Reset();
+}
+
+std::unique_ptr<ProcessUnwindState> ProcessUnwindState::Create(
+    base::ScopedFile maps_fd,
+    base::ScopedFile mem_fd) {
+  return std::make_unique<LibunwindstackProcessState>(std::move(maps_fd),
+                                                      std::move(mem_fd));
+}
+
+LibunwindstackEngine::LibunwindstackEngine() = default;
+LibunwindstackEngine::~LibunwindstackEngine() = default;
+
+UnwindEngine* UnwindEngine::Get() {
+  // NoDestructor: the engine has a virtual dtor, so a plain function-local
+  // static would require an exit-time destructor (-Wexit-time-destructors).
+  static base::NoDestructor<LibunwindstackEngine> engine;
+  return &engine.ref();
+}
+
+namespace {
+
+// |state| is always created by ProcessUnwindState::Create() in this
+// translation unit, so the downcast is a closed-world invariant.
+UnwindingMetadata& MetadataOf(ProcessUnwindState* state) {
+  PERFETTO_DCHECK(state != nullptr);
+  return static_cast<LibunwindstackProcessState*>(state)->metadata();
+}
+
+class LibunwindstackMapping : public UnwoundMapping {
+ public:
+  explicit LibunwindstackMapping(std::shared_ptr<unwindstack::MapInfo> map_info)
+      : map_info_(std::move(map_info)) {}
+
+  std::string map_name() const override { return map_info_->GetFullName(); }
+  uint64_t map_start() const override { return map_info_->start(); }
+  uint64_t map_end() const override { return map_info_->end(); }
+  uint64_t map_offset() const override { return map_info_->offset(); }
+  uint64_t map_start_offset() const override {
+    return map_info_->elf_start_offset();
+  }
+  uint64_t map_load_bias() const override { return map_info_->GetLoadBias(); }
+  std::string build_id() const override {
+    if (!map_info_->name().empty() &&
+        !(map_info_->flags() & unwindstack::MAPS_FLAGS_DEVICE_MAP)) {
+      return map_info_->GetBuildID();
+    }
+    return "";
+  }
+
+ private:
+  std::shared_ptr<unwindstack::MapInfo> map_info_;
+};
+
+inline UnwindErrorCode FromLibunwindStackErrorCode(unwindstack::ErrorCode e) {
   switch (e) {
     case unwindstack::ERROR_NONE:
-      return "NONE";
+      return UnwindErrorCode::kNone;
     case unwindstack::ERROR_MEMORY_INVALID:
-      return "MEMORY_INVALID";
+      return UnwindErrorCode::kMemoryInvalid;
     case unwindstack::ERROR_UNWIND_INFO:
-      return "UNWIND_INFO";
+      return UnwindErrorCode::kInvalidUnwindInfo;
     case unwindstack::ERROR_UNSUPPORTED:
-      return "UNSUPPORTED";
+      return UnwindErrorCode::kUnsupported;
     case unwindstack::ERROR_INVALID_MAP:
-      return "INVALID_MAP";
+      return UnwindErrorCode::kInvalidMap;
     case unwindstack::ERROR_MAX_FRAMES_EXCEEDED:
-      return "MAX_FRAME_EXCEEDED";
+      return UnwindErrorCode::kMaxFramesExceeded;
     case unwindstack::ERROR_REPEATED_FRAME:
-      return "REPEATED_FRAME";
+      return UnwindErrorCode::kRepeatedFrame;
     case unwindstack::ERROR_INVALID_ELF:
-      return "INVALID_ELF";
+      return UnwindErrorCode::kInvalidElf;
     case unwindstack::ERROR_SYSTEM_CALL:
-      return "SYSTEM_CALL";
+      return UnwindErrorCode::kSystemCall;
     case unwindstack::ERROR_THREAD_DOES_NOT_EXIST:
-      return "THREAD_DOES_NOT_EXIST";
+      return UnwindErrorCode::kThreadDoesNotExist;
     case unwindstack::ERROR_THREAD_TIMEOUT:
-      return "THREAD_TIMEOUT";
+      return UnwindErrorCode::kThreadTimeout;
     case unwindstack::ERROR_BAD_ARCH:
-      return "BAD_ARCH";
+      return UnwindErrorCode::kBadArch;
     case unwindstack::ERROR_MAPS_PARSE:
-      return "MAPS_PARSE";
+      return UnwindErrorCode::kMapParseError;
     case unwindstack::ERROR_INVALID_PARAMETER:
-      return "INVALID_PARAMETER";
+      return UnwindErrorCode::kInvalidParam;
     case unwindstack::ERROR_PTRACE_CALL:
-      return "PTRACE_CALL";
+      return UnwindErrorCode::kPtraceCall;
   }
+  return UnwindErrorCode::kUnknownError;
+}
+
+}  // namespace
+
+FrameData LibunwindstackEngine::BuildFrameFromPc(ProcessUnwindState* state,
+                                                 uint64_t pc,
+                                                 bool resolve_names) {
+  UnwindingMetadata& metadata = MetadataOf(state);
+  FrameData frame{};
+  frame.pc = pc;
+  frame.rel_pc = pc;
+
+  std::shared_ptr<unwindstack::MapInfo> map_info = metadata.fd_maps.Find(pc);
+  if (map_info == nullptr) {
+    return frame;
+  }
+
+  const auto arch = unwindstack::Regs::CurrentArch();
+
+  frame.symbol_status =
+      resolve_names ? SymbolStatus::kFailure : SymbolStatus::kNotAttempted;
+
+  unwindstack::Elf* elf = map_info->GetElf(metadata.fd_mem, arch);
+  if (elf != nullptr) {
+    uint64_t relative_pc = elf->GetRelPc(pc, map_info.get());
+    uint64_t pc_adjustment =
+        unwindstack::GetPcAdjustment(relative_pc, elf, arch);
+    frame.rel_pc = relative_pc - pc_adjustment;
+    frame.pc = pc - pc_adjustment;
+
+    unwindstack::SharedString func_name;
+    if (resolve_names && elf->GetFunctionName(frame.rel_pc, &func_name,
+                                              &frame.function_offset)) {
+      frame.function_name = std::string(func_name);
+      frame.symbol_status = SymbolStatus::kResolved;
+    } else {
+      frame.function_offset = 0;
+    }
+  }
+
+  frame.map_info = std::make_shared<LibunwindstackMapping>(std::move(map_info));
+
+  return frame;
+}
+
+UnwindResult LibunwindstackEngine::Unwind(ProcessUnwindState* state,
+                                          const UnwindInputSample& sample,
+                                          const UnwindOptions& options) {
+  UnwindingMetadata& metadata = MetadataOf(state);
+  std::unique_ptr<unwindstack::Regs> regs(ToLibUnwindstackRegs(*sample.regs));
+  if (regs == nullptr) {
+    PERFETTO_DLOG("Unable to construct unwindstack::Regs");
+    return {UnwindErrorCode::kInvalidParam, {}};
+  }
+  std::shared_ptr<unwindstack::Memory> mems =
+      std::make_shared<StackOverlayMemory>(metadata.fd_mem, sample.regs->sp(),
+                                           sample.stack_data,
+                                           sample.stack_size);
+
+  unwindstack::Unwinder unwinder(options.max_frames, &metadata.fd_maps,
+                                 regs.get(), mems);
+  unwinder.SetResolveNames(options.resolve_names);
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  unwinder.SetJitDebug(metadata.GetJitDebug(regs->Arch()));
+  unwinder.SetDexFiles(metadata.GetDexFiles(regs->Arch()));
+#endif
+  unwinder.Unwind(options.skip_initial_maps,
+                  /*map_suffixes_to_ignore=*/nullptr);
+  UnwindErrorCode error_code =
+      FromLibunwindStackErrorCode(unwinder.LastErrorCode());
+  if (error_code == UnwindErrorCode::kNone &&
+      (unwinder.warnings() & unwindstack::WARNING_DEX_PC_NOT_IN_MAP) != 0) {
+    error_code = UnwindErrorCode::kDexPcNotInMap;
+  }
+
+  std::vector<unwindstack::FrameData> raw_frames = unwinder.ConsumeFrames();
+  std::vector<FrameData> frames;
+  frames.reserve(raw_frames.size());
+  const unwindstack::MapInfo* prev_frame_map_info = nullptr;
+  std::shared_ptr<const UnwoundMapping> prev_mapping;
+  for (unwindstack::FrameData& raw_frame : raw_frames) {
+    FrameData& frame = frames.emplace_back();
+    frame.pc = raw_frame.pc;
+    frame.rel_pc = raw_frame.rel_pc;
+    frame.sp = raw_frame.sp;
+    if (!raw_frame.function_name.empty()) {
+      frame.function_name = std::string(raw_frame.function_name);
+      frame.symbol_status = SymbolStatus::kResolved;
+    } else if (options.resolve_names) {
+      frame.symbol_status = SymbolStatus::kFailure;
+    }
+    frame.function_offset = raw_frame.function_offset;
+    if (raw_frame.map_info != nullptr) {
+      // Consecutive frames in a callstack usually belong to the same binary or
+      // DSO. Reuse the wrapper when `MapInfo*` matches the previous frame to
+      // avoid redundant `make_shared` heap allocations per frame.
+      if (raw_frame.map_info.get() != prev_frame_map_info) {
+        prev_frame_map_info = raw_frame.map_info.get();
+        prev_mapping = std::make_shared<LibunwindstackMapping>(
+            std::move(raw_frame.map_info));
+      }
+      frame.map_info = prev_mapping;
+    }
+  }
+
+  return {error_code, std::move(frames)};
 }
 
 }  // namespace profiling
