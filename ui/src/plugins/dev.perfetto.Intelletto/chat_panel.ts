@@ -91,6 +91,18 @@ function autoResize(el: HTMLTextAreaElement) {
   el.style.height = `${el.scrollHeight}px`;
 }
 
+// Look up the configured context window size (in tokens) for a model, if any.
+function getContextWindow(
+  model: ModelPath,
+  gateway: LlmGateway,
+): number | undefined {
+  return gateway
+    .listModels()
+    .find(
+      (m) => m.model.id === model.modelId && m.provider.id === model.providerId,
+    )?.model.contextWindow;
+}
+
 /**
  * The Intelletto chat panel: a pure view over a ChatSession. Renders the
  * transcript, input box, model header, and context strip.
@@ -102,6 +114,24 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
   // the view pinned to the bottom but a user who has scrolled up to read is
   // left alone. Sampled before Mithril patches the DOM (onbeforeupdate).
   private stickToBottom = true;
+
+  // Render the token readout: a percentage of the model's context window when
+  // its size is known, else the raw token count.
+  private renderTokens(
+    totalTokens: number,
+    contextWindow: number | undefined,
+  ): m.Children {
+    const ktok = `${(totalTokens / 1000).toFixed(1)} ktok`;
+    if (contextWindow === undefined) {
+      return m('.pf-intelletto__tokens', ktok);
+    }
+    const pct = (totalTokens / contextWindow) * 100;
+    return m(
+      '.pf-intelletto__tokens',
+      {title: `${ktok} of ${(contextWindow / 1000).toFixed(1)} ktok`},
+      `${pct.toFixed(1)}%`,
+    );
+  }
 
   view({attrs}: m.CVnode<ChatPanelAttrs>): m.Children {
     const {session, selectedModelSetting, gateway} = attrs;
@@ -203,9 +233,9 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
               : 'Ask about your trace...',
           }),
           session.totalTokens !== undefined
-            ? m(
-                '.pf-intelletto__tokens',
-                `${(session.totalTokens / 1000).toFixed(1)} ktok`,
+            ? this.renderTokens(
+                session.totalTokens,
+                getContextWindow(currentModel, gateway),
               )
             : null,
           session.loading
