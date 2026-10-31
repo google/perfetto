@@ -3412,6 +3412,212 @@ class AndroidStdlib(TestSuite):
         5000,-1,200,"EXITED","RECEIVER",2000,21,"[NULL]"
         """))
 
+  def test_android_process_graph_service_connections(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 500
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "com.example.client" }
+            processes { pid: 200 ppid: 1 cmdline: "com.example.server" }
+            processes { pid: 300 ppid: 1 cmdline: "com.example.other" }
+            processes { pid: 1000 ppid: 1 cmdline: "system_server" }
+          }
+        }
+        packet {
+          timestamp: 500
+          track_descriptor {
+            uuid: 10
+            thread { pid: 1000 tid: 1000 thread_name: "system_server" }
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "service_state"
+            name: "service_binding"
+            [com.android.internal.FrameworksBaseTrackEvent.service_state_changed_event] {
+              bind_id: 1
+              caller_pid: 100
+              pid: -1
+              component_name: "com.example.server/.WorkService"
+              intent_action: "com.example.ACTION_WORK"
+              bind_flags_32: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 1500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "service_state"
+            name: "service_connection_added"
+            [com.android.internal.FrameworksBaseTrackEvent.service_state_changed_event] {
+              bind_id: 1
+              pid: 200
+              component_name: "com.example.server/.WorkService"
+              bind_flags_32: 5
+            }
+          }
+        }
+        packet {
+          timestamp: 4000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "service_state"
+            name: "service_connection_removed"
+            [com.android.internal.FrameworksBaseTrackEvent.service_state_changed_event] {
+              bind_id: 1
+              caller_pid: 100
+              pid: 200
+              component_name: "com.example.server/.WorkService"
+            }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "service_state"
+            name: "service_binding"
+            [com.android.internal.FrameworksBaseTrackEvent.service_state_changed_event] {
+              bind_id: 2
+              caller_pid: 100
+              pid: 300
+              component_name: "com.example.other/.ForceStoppedService"
+              bind_flags_32: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 5000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "service_state"
+            name: "service_destroy"
+            [com.android.internal.FrameworksBaseTrackEvent.service_state_changed_event] {
+              pid: -1
+              component_name: "com.example.other/.ForceStoppedService"
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_graph;
+        SELECT
+          sc.ts,
+          sc.dur,
+          sc.bind_id,
+          cp.pid AS client_pid,
+          sp.pid AS server_pid,
+          sc.component_name,
+          sc.bind_flags
+        FROM _android_service_connections AS sc
+        JOIN process AS cp ON cp.upid = sc.client_upid
+        JOIN process AS sp ON sp.upid = sc.server_upid
+        ORDER BY sc.bind_id;
+        """,
+        out=Csv("""
+        "ts","dur","bind_id","client_pid","server_pid","component_name","bind_flags"
+        1000,3000,1,100,200,"com.example.server/.WorkService","AUTO_CREATE,NOT_FOREGROUND"
+        2000,3000,2,100,300,"com.example.other/.ForceStoppedService","AUTO_CREATE"
+        """))
+
+  def test_android_process_graph_provider_connections(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 500
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "com.example.client" }
+            processes { pid: 400 ppid: 1 cmdline: "com.example.provider" }
+            processes { pid: 1000 ppid: 1 cmdline: "system_server" }
+          }
+        }
+        packet {
+          timestamp: 500
+          track_descriptor {
+            uuid: 10
+            thread { pid: 1000 tid: 1000 thread_name: "system_server" }
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "provider_state"
+            name: "provider_acquired"
+            [com.android.internal.FrameworksBaseTrackEvent.provider_state_changed_event] {
+              caller_pid: 100
+              pid: -1
+              authority: "com.example.provider.auth"
+              is_stable: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 1200
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "provider_state"
+            name: "provider_published"
+            [com.android.internal.FrameworksBaseTrackEvent.provider_state_changed_event] {
+              pid: 400
+              authority: "com.example.provider.auth"
+            }
+          }
+        }
+        packet {
+          timestamp: 3500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "provider_state"
+            name: "provider_released"
+            [com.android.internal.FrameworksBaseTrackEvent.provider_state_changed_event] {
+              caller_pid: 100
+              pid: 400
+              authority: "com.example.provider.auth"
+              is_stable: 1
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_graph;
+        SELECT
+          pc.ts,
+          pc.dur,
+          cp.pid AS client_pid,
+          sp.pid AS server_pid,
+          pc.authority,
+          pc.is_stable
+        FROM _android_content_provider_connections AS pc
+        JOIN process AS cp ON cp.upid = pc.client_upid
+        JOIN process AS sp ON sp.upid = pc.server_upid
+        ORDER BY pc.ts;
+        """,
+        out=Csv("""
+        "ts","dur","client_pid","server_pid","authority","is_stable"
+        1000,2500,100,400,"com.example.provider.auth",1
+        """))
+
   def test_is_relevant_notifications_blocking_call(self):
     # Must keep the same slices as android_sysui_notifications_blocking_calls
     # (see test_android_sysui_notifications_blocking_calls).

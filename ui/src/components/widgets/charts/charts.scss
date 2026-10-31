@@ -64,3 +64,19 @@
     font-size: 14px;
   }
 }
+
+.pf-graph-chart {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+
+  &--fill-parent {
+    height: 100%;
+    min-height: 0;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--pf-color-accent);
+    outline-offset: -2px;
+  }
+}
