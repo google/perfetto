@@ -194,6 +194,24 @@ inline constexpr auto kCoolingDeviceCounterBlueprint = tracks::CounterBlueprint(
                                     static_cast<int>(cdev.size()), cdev.data());
     }));
 
+inline constexpr auto kLinuxDeviceFrequencyBlueprint = tracks::CounterBlueprint(
+    "linux_device_frequency",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(kLinuxDeviceDimensionBlueprint),
+    tracks::FnNameBlueprint([](base::StringView dev_name) {
+      // The dev_name as is is prepended with an address (e.g. 17000000a), so
+      // truncate that by searching for "devfreq_". This ensures that in all
+      // cases, the track name is prefixed with "devfreq_", such that track
+      // names will be in the form of "devfreq_bci", "devfreq_dsu", etc.
+      auto position = dev_name.find("devfreq_");
+      if (position == base::StringView::npos) {
+        return base::StackString<255>("devfreq_%.*s", int(dev_name.size()),
+                                      dev_name.data());
+      }
+      base::StringView sub = dev_name.substr(position);
+      return base::StackString<255>("%.*s", int(sub.size()), sub.data());
+    }));
+
 inline constexpr auto kChromeProcessStatsBlueprint = tracks::CounterBlueprint(
     "chrome_process_stats",
     tracks::UnknownUnitBlueprint(),
