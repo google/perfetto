@@ -21,6 +21,7 @@
 #include <optional>
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
@@ -28,7 +29,6 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -124,7 +124,7 @@ TEST(DistinctTest, OnlyTheRowsKeptAreRead) {
   in.SetRowCount(5);
   std::vector<uint32_t> kept = {1, 3, 4};
   in.mutable_selection().Keep(
-      Span<const uint32_t>(kept.data(), kept.data() + kept.size()));
+      base::Span<const uint32_t>(kept.data(), kept.data() + kept.size()));
 
   Distinct op({0});
   std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());

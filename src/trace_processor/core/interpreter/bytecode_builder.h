@@ -21,10 +21,10 @@
 #include <optional>
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/interpreter/bytecode_core.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::interpreter {
 
@@ -64,7 +64,7 @@ class BytecodeBuilder {
   // Result from GetOrCreateScratchRegisters.
   struct ScratchRegisters {
     RwHandle<Slab<uint32_t>> slab;
-    RwHandle<Span<uint32_t>> span;
+    RwHandle<base::Span<uint32_t>> span;
   };
 
   // Gets or creates scratch registers of the given size using best-fit.
@@ -110,7 +110,7 @@ class BytecodeBuilder {
   struct ScratchIndices {
     uint32_t size;
     RwHandle<Slab<uint32_t>> slab;
-    RwHandle<Span<uint32_t>> span;
+    RwHandle<base::Span<uint32_t>> span;
     bool in_use = false;
   };
 

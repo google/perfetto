@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -28,7 +29,6 @@
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
-#include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -60,7 +60,7 @@ class DropOddRows final : public Operator {
     }
     out.CopyFrom(in);
     out.mutable_selection().Keep(
-        Span<const uint32_t>(selected, selected + count));
+        base::Span<const uint32_t>(selected, selected + count));
     return OpResult::kNeedMoreInput;
   }
 
@@ -324,7 +324,7 @@ class DropOddRowsInPlace final : public Transform {
       s.selected[count++] = row;
     }
     batch.mutable_selection().Keep(
-        Span<const uint32_t>(s.selected, s.selected + count));
+        base::Span<const uint32_t>(s.selected, s.selected + count));
     return true;
   }
 

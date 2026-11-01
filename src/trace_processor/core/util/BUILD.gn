@@ -25,7 +25,6 @@ source_set("util") {
     "range.h",
     "slab.h",
     "sort.h",
-    "span.h",
   ]
   deps = [
     "../../../../gn:default_deps",
@@ -45,7 +44,6 @@ perfetto_unittest_source_set("unittests") {
     "ops_unittest.cc",
     "slab_unittest.cc",
     "sort_unittest.cc",
-    "span_unittest.cc",
   ]
   deps = [
     ":util",

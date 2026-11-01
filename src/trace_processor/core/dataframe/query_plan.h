@@ -31,6 +31,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/type_set.h"
 #include "perfetto/public/compiler.h"
@@ -44,7 +45,6 @@
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 
@@ -85,7 +85,7 @@ struct QueryPlanImpl {
     double estimated_cost = 0;
 
     // Register holding the final filtered indices.
-    interpreter::ReadHandle<Span<uint32_t>> output_register;
+    interpreter::ReadHandle<base::Span<uint32_t>> output_register;
 
     // The maximum number of rows it's possible for this query plan to return.
     uint32_t max_row_count = 0;

@@ -24,6 +24,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -35,7 +36,6 @@
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/ops.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -198,9 +198,9 @@ void SortedRows::Sort() {
   order_.resize(rows);
   std::iota(order_.data(), order_.data() + rows, 0u);
   if (layout_.stride()) {
-    Span<uint32_t> order(order_.data(), order_.data() + rows);
+    base::Span<uint32_t> order(order_.data(), order_.data() + rows);
     core::ops::SortRowLayout(
-        Span<const uint8_t>(keys_.data(), keys_.data() + keys_.size()),
+        base::Span<const uint8_t>(keys_.data(), keys_.data() + keys_.size()),
         layout_.stride(), &order);
   }
 }
@@ -208,7 +208,8 @@ void SortedRows::Sort() {
 uint32_t SortedRows::Gather(RowBatch* out, uint32_t at, Context& context) {
   uint32_t count = std::min(kMaxBatchRows, rows_.size() - at);
   const uint32_t* begin = order_.data() + at;
-  return rows_.Gather(out, Span<const uint32_t>(begin, begin + count), context);
+  return rows_.Gather(out, base::Span<const uint32_t>(begin, begin + count),
+                      context);
 }
 
 void SortedRows::Clear() {

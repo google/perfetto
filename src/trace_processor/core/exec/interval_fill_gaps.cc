@@ -26,6 +26,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "src/trace_processor/containers/interval_tree.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -35,7 +36,6 @@
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/interval_gaps.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -204,7 +204,7 @@ void IntervalFillGaps::StartLane(uint32_t lane, uint32_t row, State& s) const {
     tag = s.lane_key;
   }
   const uint32_t background_lane = broadcast_ ? 0 : lane;
-  Span<const Interval> background;
+  base::Span<const Interval> background;
   if (std::optional<uint32_t> i = s.background.Find(background_lane)) {
     s.visited[*i] = true;
     background = s.background.lane(*i).intervals;

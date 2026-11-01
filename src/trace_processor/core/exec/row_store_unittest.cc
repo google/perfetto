@@ -22,13 +22,13 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -62,7 +62,7 @@ void FillBuffer(RowBatch* batch, const std::vector<int64_t>& values) {
 // Gathers `rows` of the store.
 uint32_t Gather(RowStore& store, RowBatch* out, std::vector<uint32_t> rows) {
   return store.Gather(
-      out, Span<const uint32_t>(rows.data(), rows.data() + rows.size()),
+      out, base::Span<const uint32_t>(rows.data(), rows.data() + rows.size()),
       test::TestContext());
 }
 

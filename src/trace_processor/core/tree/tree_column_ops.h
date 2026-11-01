@@ -20,18 +20,18 @@
 #include <cstdint>
 
 #include "perfetto/ext/base/murmur_hash.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/tree/tree.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::tree_ops {
 
 // Extends each row's hash with the column's nullness and value.
 void UpdateRowHashes(const Tree::Column&,
-                     Span<base::MurmurHashCombiner> hashes);
+                     base::Span<base::MurmurHashCombiner> hashes);
 
 // Copies selected rows from a column into a new dense column while preserving
 // its type and nullability.
-Tree::Column Gather(const Tree::Column&, Span<const uint32_t> rows);
+Tree::Column Gather(const Tree::Column&, base::Span<const uint32_t> rows);
 
 }  // namespace perfetto::trace_processor::core::tree_ops
 

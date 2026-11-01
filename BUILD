@@ -1488,6 +1488,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/sd_notify.h",
         "include/perfetto/ext/base/small_set.h",
         "include/perfetto/ext/base/small_vector.h",
+        "include/perfetto/ext/base/span.h",
         "include/perfetto/ext/base/status_macros.h",
         "include/perfetto/ext/base/status_or.h",
         "include/perfetto/ext/base/string_splitter.h",
@@ -2766,7 +2767,6 @@ perfetto_filegroup(
         "src/trace_processor/core/util/range.h",
         "src/trace_processor/core/util/slab.h",
         "src/trace_processor/core/util/sort.h",
-        "src/trace_processor/core/util/span.h",
     ],
 )
 

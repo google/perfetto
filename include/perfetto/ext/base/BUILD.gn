@@ -56,6 +56,7 @@ source_set("base") {
     "scoped_sched_boost.h",
     "small_set.h",
     "small_vector.h",
+    "span.h",
     "status_macros.h",
     "status_or.h",
     "string_splitter.h",

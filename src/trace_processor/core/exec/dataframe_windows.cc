@@ -54,7 +54,7 @@ class DataframeWindows::Expander {
   // As Expand, but writes only the rows `offsets` from `from`, the first of
   // which is 0.
   virtual void ExpandKept(uint32_t from,
-                          Span<const uint32_t> offsets,
+                          base::Span<const uint32_t> offsets,
                           Context& context,
                           ColumnView* view,
                           ColumnBuffer* buffer) = 0;
@@ -110,7 +110,7 @@ class ExpanderImpl final : public DataframeWindows::Expander {
     *view = ColumnView::Reference(type_, values, &chunk.validity);
   }
   void ExpandKept(uint32_t from,
-                  Span<const uint32_t> offsets,
+                  base::Span<const uint32_t> offsets,
                   Context& context,
                   ColumnView* view,
                   ColumnBuffer* buffer) override {
@@ -267,7 +267,7 @@ void DataframeWindows::Init(
 }
 
 void DataframeWindows::FillKept(uint32_t from,
-                                Span<const uint32_t> offsets,
+                                base::Span<const uint32_t> offsets,
                                 RowBatch& out) {
   for (ColumnView& view : lent_) {
     view.set_start(from);

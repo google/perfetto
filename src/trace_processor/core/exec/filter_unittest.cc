@@ -23,6 +23,7 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/op_types.h"
@@ -36,7 +37,6 @@
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -101,7 +101,7 @@ std::vector<int64_t> KeptIn(const RowBatch& batch,
   fetcher.v = std::move(list);
   FilterValue cast[1];
   GetFilterValueListCaster<List>(type)(fetcher, 0, pool, &cast[0]);
-  context.SetFilterValues(Span<const FilterValue>(cast));
+  context.SetFilterValues(base::Span<const FilterValue>(cast));
   RowBatch out;
   out.CopyFrom(batch);
   EXPECT_TRUE(filter.Process(out, *state));
@@ -176,7 +176,7 @@ class FilterTest : public ::testing::Test {
     std::unique_ptr<OperatorState> state = filter.MakeState(context);
     std::vector<FilterValue> cast;
     CastAll(on, values, &cast);
-    context.SetFilterValues(Span<const FilterValue>(cast));
+    context.SetFilterValues(base::Span<const FilterValue>(cast));
     RowBatch batch;
     batch.CopyFrom(in ? *in : batch_);
     EXPECT_TRUE(filter.Process(batch, *state));
@@ -220,7 +220,7 @@ TEST_F(FilterTest, NarrowsTheRowsKeptOfAWindow) {
   RowBatch narrowed;
   narrowed.CopyFrom(batch_);
   uint32_t positions[] = {0, 3, 4};
-  narrowed.mutable_selection().Keep(Span<const uint32_t>(positions));
+  narrowed.mutable_selection().Keep(base::Span<const uint32_t>(positions));
   EXPECT_THAT(Kept({{0, Gt{}}}, ten, &narrowed), ElementsAre(40, 50));
 
   // Rows 1 to 4: 20, null, 40, 50.
@@ -240,7 +240,7 @@ TEST_F(FilterTest, RunsAgainWithNewValues) {
   std::vector<FilterValue> cast;
   auto run = [&](const char* lt, const char* ne) {
     CastAll(on, {lt, ne}, &cast);
-    context.SetFilterValues(Span<const FilterValue>(cast));
+    context.SetFilterValues(base::Span<const FilterValue>(cast));
     RowBatch batch;
     batch.CopyFrom(batch_);
     EXPECT_TRUE(filter.Process(batch, *state));
@@ -263,7 +263,7 @@ TEST(FilterIdTest, ComparesIdsByWhereTheyAre) {
   FilterValue cast[1];
   GetFilterValueCaster<Values>(StorageType{Id{}}, Ge{})(fetcher, 0, pool,
                                                         &cast[0]);
-  context.SetFilterValues(Span<const FilterValue>(cast));
+  context.SetFilterValues(base::Span<const FilterValue>(cast));
   RowBatch batch;
   batch.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, 10));

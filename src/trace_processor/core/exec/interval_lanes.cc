@@ -24,6 +24,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/interval_tree.h"
@@ -32,7 +33,6 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -198,7 +198,9 @@ void LaneKeys::Carry(uint32_t handle) {
   rows_.View(&carried_, handle, 1);
 }
 
-void LaneKeys::Gather(RowBatch* out, Span<const uint32_t> handles, Context& c) {
+void LaneKeys::Gather(RowBatch* out,
+                      base::Span<const uint32_t> handles,
+                      Context& c) {
   rows_.Gather(out, handles, c);
 }
 

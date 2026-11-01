@@ -24,6 +24,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/filter_kernels.h"
@@ -37,7 +38,6 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -94,9 +94,9 @@ void IndexScan::Rewind(OperatorState& state) const {
   state.Cast<State>().searched = false;
 }
 
-Span<const uint32_t> IndexScan::Find(const State& s) const {
-  Span<const uint32_t> entries(permutation_->data(),
-                               permutation_->data() + permutation_->size());
+base::Span<const uint32_t> IndexScan::Find(const State& s) const {
+  base::Span<const uint32_t> entries(
+      permutation_->data(), permutation_->data() + permutation_->size());
   const FilterValue* values = s.context->filter_values().b;
   for (uint32_t i = 0; i < equalities_.size() && !entries.empty(); ++i) {
     const Equality& eq = equalities_[i];
@@ -120,7 +120,7 @@ Span<const uint32_t> IndexScan::Find(const State& s) const {
       entries = filter::SearchIndexEqual(column, cast.value.value, entries);
     }
   }
-  return Span<const uint32_t>(entries.b, entries.e);
+  return base::Span<const uint32_t>(entries.b, entries.e);
 }
 
 bool IndexScan::GetData(RowBatch& out, OperatorState& state) const {

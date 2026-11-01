@@ -26,13 +26,13 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/dataframe_test_utils.h"
 #include "src/trace_processor/core/tree/tree.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::flamechart {
@@ -140,7 +140,7 @@ class FlamechartRunsTest : public ::testing::Test {
       const core::Tree& tree,
       const std::vector<int64_t>& ts,
       const std::vector<int64_t>& leaf_id) {
-    return flamechart::Build(tree, core::MakeSpan(ts), core::MakeSpan(leaf_id),
+    return flamechart::Build(tree, base::MakeSpan(ts), base::MakeSpan(leaf_id),
                              &pool_);
   }
 

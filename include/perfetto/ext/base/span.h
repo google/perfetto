@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_UTIL_SPAN_H_
-#define SRC_TRACE_PROCESSOR_CORE_UTIL_SPAN_H_
+#ifndef INCLUDE_PERFETTO_EXT_BASE_SPAN_H_
+#define INCLUDE_PERFETTO_EXT_BASE_SPAN_H_
 
 #include <array>
 #include <cstddef>
@@ -25,7 +25,7 @@
 
 #include "perfetto/base/logging.h"
 
-namespace perfetto::trace_processor::core {
+namespace perfetto::base {
 
 // Represents a contiguous sequence of elements of an arbitrary type T.
 // Basically a very simple backport of std::span to C++17.
@@ -123,6 +123,6 @@ Span<const uint8_t> AsBytes(Span<T> values) {
   return Span<const uint8_t>(begin, begin + values.size() * sizeof(T));
 }
 
-}  // namespace perfetto::trace_processor::core
+}  // namespace perfetto::base
 
-#endif  // SRC_TRACE_PROCESSOR_CORE_UTIL_SPAN_H_
+#endif  // INCLUDE_PERFETTO_EXT_BASE_SPAN_H_

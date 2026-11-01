@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/util/span.h"
+#include "perfetto/ext/base/span.h"
 
 #include <array>
 #include <cstdint>
 #include <vector>
 
-#include "src/trace_processor/core/util/flex_vector.h"
-#include "src/trace_processor/core/util/slab.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto::trace_processor::core {
+namespace perfetto::base {
 namespace {
 
 TEST(SpanTest, CreatesFromVector) {
@@ -48,22 +46,5 @@ TEST(SpanTest, CreatesFromArray) {
   EXPECT_EQ(values[1], 4u);
 }
 
-TEST(SpanTest, CreatesFromFixedSizeStorage) {
-  auto flex = FlexVector<uint32_t>::CreateFilled(2, 3);
-  EXPECT_THAT(flex.span(), testing::ElementsAre(3u, 3u));
-  flex.mutable_span().b[0] = 4;
-  EXPECT_EQ(flex[0], 4u);
-
-  auto slab = Slab<uint32_t>::Alloc(2);
-  slab[0] = 5;
-  slab[1] = 5;
-  Span<uint32_t> mutable_slab_span = slab;
-  EXPECT_THAT(mutable_slab_span, testing::ElementsAre(5u, 5u));
-  mutable_slab_span[1] = 6;
-  const Slab<uint32_t>& const_slab = slab;
-  Span<const uint32_t> slab_span = const_slab;
-  EXPECT_EQ(slab_span[1], 6u);
-}
-
 }  // namespace
-}  // namespace perfetto::trace_processor::core
+}  // namespace perfetto::base
