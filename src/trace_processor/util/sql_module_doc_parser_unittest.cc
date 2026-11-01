@@ -158,6 +158,30 @@ $x;
   EXPECT_EQ(macro.args[0].description, "The expression.");
 }
 
+TEST(SqlModuleDocParserTest, MacroArgumentDescriptions) {
+  auto m = Parse(R"(
+CREATE PERFETTO MACRO my_macro(
+  -- First expression
+  x Expr,
+  y Expr,
+  -- Last expression
+  -- spanning two lines
+  z Expr
+)
+RETURNS Expr AS $x;
+)");
+  ASSERT_TRUE(m.errors.empty());
+  ASSERT_EQ(m.macros.size(), 1u);
+  const auto& args = m.macros[0].args;
+  ASSERT_EQ(args.size(), 3u);
+  EXPECT_EQ(args[0].name, "x");
+  EXPECT_EQ(args[1].name, "y");
+  EXPECT_EQ(args[2].name, "z");
+  EXPECT_EQ(args[0].description, "First expression");
+  EXPECT_TRUE(args[1].description.empty());
+  EXPECT_EQ(args[2].description, "Last expression spanning two lines");
+}
+
 TEST(SqlModuleDocParserTest, InternalNamesNotExposed) {
   auto m = Parse(R"(
 CREATE PERFETTO TABLE _internal_table(id LONG) AS SELECT 1;
