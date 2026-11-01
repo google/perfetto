@@ -181,9 +181,24 @@ std::vector<Arg> ExtractMacroArgs(SyntaqliteParser* p,
     arg.name = ::perfetto::perfetto_sql::SyntaqliteSpanText(p, item->arg_name);
     arg.type = ::perfetto::perfetto_sql::SyntaqliteSpanText(p, item->arg_type);
 
-    uint32_t c_count = 0;
-    const auto* cs = syntaqlite_node_leading_comments(p, item_id, &c_count);
-    arg.description = JoinLineComments(stmt_ptr, cs, c_count);
+    // Locate the token for the arg name by its source offset, then fetch the
+    // leading comments attached to that token. Using
+    // syntaqlite_node_leading_comments() here would resolve to the first
+    // token of the whole arg list, so every argument would inherit the
+    // description of the first one.
+    uint32_t name_len = 0, name_off = 0;
+    if (syntaqlite_parser_span_text(p, &item->arg_name, &name_len, &name_off)) {
+      uint32_t tok_count = 0;
+      const SyntaqliteParserToken* toks = syntaqlite_result_tokens(p, &tok_count);
+      for (uint32_t ti = 0; ti < tok_count; ti++) {
+        if (toks[ti]._layer_id == 0 && toks[ti].offset == name_off) {
+          uint32_t c_count = 0;
+          const auto* cs = syntaqlite_token_leading_comments(p, ti, &c_count);
+          arg.description = JoinLineComments(stmt_ptr, cs, c_count);
+          break;
+        }
+      }
+    }
 
     result.push_back(std::move(arg));
   }
