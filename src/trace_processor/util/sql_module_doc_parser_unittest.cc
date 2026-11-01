@@ -158,6 +158,27 @@ $x;
   EXPECT_EQ(macro.args[0].description, "The expression.");
 }
 
+TEST(SqlModuleDocParserTest, MacroWithMultipleArgs) {
+  auto m = Parse(R"(
+CREATE PERFETTO MACRO my_macro(
+  -- The first argument.
+  x Expr,
+  -- The second argument.
+  y Expr
+)
+RETURNS Expr AS
+$x;
+)");
+  ASSERT_TRUE(m.errors.empty());
+  ASSERT_EQ(m.macros.size(), 1u);
+  const auto& macro = m.macros[0];
+  ASSERT_EQ(macro.args.size(), 2u);
+  EXPECT_EQ(macro.args[0].name, "x");
+  EXPECT_EQ(macro.args[0].description, "The first argument.");
+  EXPECT_EQ(macro.args[1].name, "y");
+  EXPECT_EQ(macro.args[1].description, "The second argument.");
+}
+
 TEST(SqlModuleDocParserTest, InternalNamesNotExposed) {
   auto m = Parse(R"(
 CREATE PERFETTO TABLE _internal_table(id LONG) AS SELECT 1;
