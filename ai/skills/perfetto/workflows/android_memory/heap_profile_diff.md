@@ -1,3 +1,6 @@
+---
+requires: [multi_trace, python]
+---
 # Diffing Android Java & Native Heap Allocation Profiles
 
 Compares two Android heap allocation profiles (before vs after) captured with
