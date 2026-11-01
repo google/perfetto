@@ -94,6 +94,8 @@ source_set("service") {
       "../../../gn:zstd",
     ]
     sources += [
+      "decode_arena.cc",
+      "decode_arena.h",
       "zstd_frame_codec.cc",
       "zstd_frame_codec.h",
     ]
@@ -231,7 +233,10 @@ perfetto_unittest_source_set("unittests") {
   }
 
   if (enable_perfetto_zstd) {
-    sources += [ "zstd_frame_codec_unittest.cc" ]
+    sources += [
+      "decode_arena_unittest.cc",
+      "zstd_frame_codec_unittest.cc",
+    ]
   }
 
   # These tests rely on test_task_runner.h which

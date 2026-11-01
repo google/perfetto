@@ -129,6 +129,11 @@ class IntrusiveList : private internal::ListOps {
 
   Iterator end() { return Iterator{nullptr}; }
 
+  // Like CircularQueue, this list doesn't bother with const-correctness.
+  Iterator begin() const { return Iterator{front_}; }
+
+  Iterator end() const { return Iterator{nullptr}; }
+
  private:
   static constexpr size_t kNodeOffset = ListTraits::node_offset();
 

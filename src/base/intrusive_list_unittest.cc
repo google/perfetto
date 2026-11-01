@@ -172,6 +172,18 @@ TEST_F(IntrusiveListTest, RangeBasedForLoop) {
   ASSERT_EQ(*looped_persons[2], p3_);
 }
 
+TEST_F(IntrusiveListTest, ConstIteration) {
+  list_.PushFront(p2_);
+  list_.PushFront(p1_);
+
+  const auto& const_list = list_;
+  std::vector<std::string> names;
+  for (const Person& person : const_list)
+    names.push_back(person.name);
+
+  EXPECT_THAT(names, ElementsAre("a", "b"));
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto
