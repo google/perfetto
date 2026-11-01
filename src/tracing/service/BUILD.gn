@@ -46,6 +46,8 @@ source_set("service") {
     "../core",
   ]
   sources = [
+    "block_arena.cc",
+    "block_arena.h",
     "clock.cc",
     "clock.h",
     "dependencies.h",
@@ -94,8 +96,6 @@ source_set("service") {
       "../../../gn:zstd",
     ]
     sources += [
-      "decode_arena.cc",
-      "decode_arena.h",
       "zstd_frame_codec.cc",
       "zstd_frame_codec.h",
     ]
@@ -217,6 +217,7 @@ perfetto_unittest_source_set("unittests") {
   }
 
   sources = [
+    "block_arena_unittest.cc",
     "histogram_unittest.cc",
     "packet_stream_validator_unittest.cc",
     "proto_group_rewriter_reference_for_testing.h",
@@ -233,10 +234,7 @@ perfetto_unittest_source_set("unittests") {
   }
 
   if (enable_perfetto_zstd) {
-    sources += [
-      "decode_arena_unittest.cc",
-      "zstd_frame_codec_unittest.cc",
-    ]
+    sources += [ "zstd_frame_codec_unittest.cc" ]
   }
 
   # These tests rely on test_task_runner.h which

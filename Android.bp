@@ -23704,6 +23704,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_service_service",
     srcs: [
+        "src/tracing/service/block_arena.cc",
         "src/tracing/service/clock.cc",
         "src/tracing/service/metatrace_writer.cc",
         "src/tracing/service/packet_stream_validator.cc",
@@ -23724,6 +23725,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_service_unittests",
     srcs: [
+        "src/tracing/service/block_arena_unittest.cc",
         "src/tracing/service/compressor_unittest.cc",
         "src/tracing/service/histogram_unittest.cc",
         "src/tracing/service/packet_stream_validator_unittest.cc",

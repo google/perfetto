@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/tracing/service/decode_arena.h"
+#include "src/tracing/service/block_arena.h"
 
 #include <string.h>
 
@@ -28,8 +28,8 @@ namespace perfetto {
 namespace internal {
 namespace {
 
-TEST(DecodeArenaTest, BlocksAreReusedAfterReset) {
-  DecodeArena arena(100);
+TEST(BlockArenaTest, BlocksAreReusedAfterReset) {
+  BlockArena arena(100);
   const size_t two_blocks = 200;
   EXPECT_EQ(arena.GetMemoryUsageBytes(), 0u);
 
@@ -41,7 +41,7 @@ TEST(DecodeArenaTest, BlocksAreReusedAfterReset) {
   EXPECT_NE(b.data(), a.data());
   EXPECT_EQ(arena.GetMemoryUsageBytes(), two_blocks);
 
-  auto d = arena.Allocate(50);  // Another ordinary block.
+  auto d = arena.Allocate(50);  // Another block of 100 bytes.
   EXPECT_EQ(arena.GetMemoryUsageBytes(), 300u);
   memset(a.data(), 'a', 60);
   memset(b.data(), 'b', 60);
@@ -49,12 +49,14 @@ TEST(DecodeArenaTest, BlocksAreReusedAfterReset) {
   memset(d.data(), 'd', 50);
   const uint8_t* block_2 = d.data();
 
-  // Keep c's whole block and one free block, so two blocks stay allocated.
-  a.Release();
-  b.Release();
-  d.Release();
+  // Keep c's block and both unused blocks, so three blocks stay allocated.
+  a = {};
+  b = {};
+  d = {};
   arena.Reset();
-  EXPECT_EQ(arena.GetMemoryUsageBytes(), two_blocks);
+  // A second reset must keep the cached blocks available for reuse.
+  arena.Reset();
+  EXPECT_EQ(arena.GetMemoryUsageBytes(), 300u);
   auto reused = arena.Allocate(100);
   EXPECT_EQ(reused.data(), block_2);
   memset(reused.data(), 'e', 100);
@@ -62,9 +64,9 @@ TEST(DecodeArenaTest, BlocksAreReusedAfterReset) {
             std::string(40, 'c'));
 }
 
-TEST(DecodeArenaTest, CompactionPreservesLiveAllocations) {
-  DecodeArena arena(100);
-  DecodeArena::Allocation live;
+TEST(BlockArenaTest, ResetPreservesLiveAllocations) {
+  BlockArena arena(100);
+  BlockArena::Allocation live;
   {
     auto first = arena.Allocate(60);
     live = arena.Allocate(40);
@@ -78,7 +80,6 @@ TEST(DecodeArenaTest, CompactionPreservesLiveAllocations) {
   // Both remaining allocations survive, even though they use different blocks.
   for (int i = 0; i < 2; ++i) {
     arena.Reset();
-    arena.Compact();
     EXPECT_EQ(std::string(reinterpret_cast<char*>(live.data()), 40),
               std::string(40, 'a'));
     EXPECT_EQ(std::string(reinterpret_cast<char*>(other.data()), 100),
@@ -86,9 +87,9 @@ TEST(DecodeArenaTest, CompactionPreservesLiveAllocations) {
   }
 }
 
-TEST(DecodeArenaTest, MovesReleaseReplacedAllocation) {
-  DecodeArena arena(100);
-  DecodeArena::Allocation live;
+TEST(BlockArenaTest, MovesReleaseReplacedAllocation) {
+  BlockArena arena(100);
+  BlockArena::Allocation live;
   {
     auto first = arena.Allocate(300);
     memset(first.data(), 'a', 300);
@@ -97,57 +98,55 @@ TEST(DecodeArenaTest, MovesReleaseReplacedAllocation) {
     live = arena.Allocate(400);
     live = std::move(moved);
     // Replacement releases the 400-byte allocation, but keeps its bytes until
-    // Reset() or Compact().
+    // Reset().
     // Neither moved-from owner holds the 300-byte allocation.
     EXPECT_EQ(arena.GetMemoryUsageBytes(), 300u + 400);
   }
 
-  // Only the oversized allocation in |live| survives Reset() and Compact().
+  // Only the oversized allocation in |live| survives Reset().
   for (int i = 0; i < 2; ++i) {
     arena.Reset();
-    arena.Compact();
     EXPECT_EQ(arena.GetMemoryUsageBytes(), 300u);
     EXPECT_EQ(std::string(reinterpret_cast<char*>(live.data()), 300),
               std::string(300, 'a'));
   }
 
-  live.Release();
+  live = {};
   EXPECT_EQ(arena.GetMemoryUsageBytes(), 300u);
   arena.Reset();
   EXPECT_EQ(arena.GetMemoryUsageBytes(), 0u);
-  arena.Compact();
-  EXPECT_EQ(arena.GetMemoryUsageBytes(), 0u);
 }
 
-TEST(DecodeArenaTest, ReleasedBytesSurviveLaterAllocations) {
-  DecodeArena arena(100);
+TEST(BlockArenaTest, ReleasedBytesSurviveLaterAllocations) {
+  BlockArena arena(100);
   auto first = arena.Allocate(60);
   memset(first.data(), 'a', 60);
   const uint8_t* data = first.data();
-  first.Release();
+  first = {};
 
   // Later allocations can append or acquire a block, but cannot rewind bytes
-  // that this batch still borrows.
+  // that the caller can still use.
   auto tail = arena.Allocate(40);
   EXPECT_EQ(tail.data(), data + 60);
   memset(tail.data(), 'b', 40);
   auto next = arena.Allocate(100);
+  const uint8_t* next_data = next.data();
   memset(next.data(), 'c', 100);
   EXPECT_EQ(std::string(reinterpret_cast<const char*>(data), 60),
             std::string(60, 'a'));
   EXPECT_EQ(std::string(reinterpret_cast<char*>(tail.data()), 40),
             std::string(40, 'b'));
 
-  tail.Release();
-  next.Release();
+  tail = {};
+  next = {};
   arena.Reset();
   auto reused = arena.Allocate(100);
-  EXPECT_EQ(reused.data(), data);
+  EXPECT_EQ(reused.data(), next_data);
 }
 
-TEST(DecodeArenaTest, RetainedBlocksAreBounded) {
-  DecodeArena arena(100);
-  std::vector<DecodeArena::Allocation> live;
+TEST(BlockArenaTest, FreeBlocksAreBounded) {
+  BlockArena arena(100);
+  std::vector<BlockArena::Allocation> live;
   for (int i = 0; i < 4; ++i) {
     live.push_back(arena.Allocate(100));
     memset(live.back().data(), 'a' + i, 100);
@@ -158,25 +157,24 @@ TEST(DecodeArenaTest, RetainedBlocksAreBounded) {
   }
   EXPECT_EQ(arena.GetMemoryUsageBytes(), 800u);
 
-  // Live blocks always stay, and they already exceed the retention target.
+  // Keep two free blocks in addition to the four blocks with allocations in
+  // use.
   arena.Reset();
-  EXPECT_EQ(arena.GetMemoryUsageBytes(), 400u);
+  EXPECT_EQ(arena.GetMemoryUsageBytes(), 600u);
 
-  // So a block that stops being live is freed instead of kept for reuse.
+  // The cache is full, so a block whose allocation is destroyed is freed.
   live.pop_back();
   arena.Reset();
   arena.Reset();
-  EXPECT_EQ(arena.GetMemoryUsageBytes(), 300u);
-  arena.Compact();
-  EXPECT_EQ(arena.GetMemoryUsageBytes(), 300u);  // Only the three live blocks.
+  EXPECT_EQ(arena.GetMemoryUsageBytes(), 500u);
   for (size_t i = 0; i < live.size(); ++i) {
     EXPECT_EQ(std::string(reinterpret_cast<char*>(live[i].data()), 100),
               std::string(100, static_cast<char>('a' + i)));
   }
 
-  // With nothing live, two of the three blocks stay for reuse.
+  // Keep the two cached blocks and free the three newly unused blocks.
   live.clear();
-  EXPECT_EQ(arena.GetMemoryUsageBytes(), 300u);
+  EXPECT_EQ(arena.GetMemoryUsageBytes(), 500u);
   arena.Reset();
   EXPECT_EQ(arena.GetMemoryUsageBytes(), 200u);
 }
