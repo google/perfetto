@@ -357,6 +357,10 @@ export class TraceImpl implements Trace, Disposable {
     return this.app.isInternalUser;
   }
 
+  get skills() {
+    return this.app.skills;
+  }
+
   get perfDebugging() {
     return this.app.perfDebugging;
   }
