@@ -22,8 +22,8 @@
 #include <vector>
 
 #include "perfetto/base/endian.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/util/ops.h"
-#include "src/trace_processor/core/util/span.h"
 
 // ORDER BY one nullable Int64 column, as a dataframe lays it out: a presence
 // byte then the value, big-endian with its sign flipped. Over a million rows
@@ -41,7 +41,7 @@ enum class Order { kShuffled, kSorted, kReversed, kRuns };
 
 // Lays out `value` as a present nullable Int64 key column at `to`.
 void WriteKey(uint64_t value, uint8_t* to) {
-  uint64_t bits = base::HostToBE64(value ^ (static_cast<uint64_t>(1) << 63));
+  uint64_t bits = base::HostToBE(value ^ (static_cast<uint64_t>(1) << 63));
   to[0] = 0xFF;
   memcpy(to + 1, &bits, sizeof(bits));
 }
@@ -83,10 +83,10 @@ void Run(benchmark::State& state,
   std::vector<uint32_t> indices(rows);
   for (auto _ : state) {
     std::iota(indices.begin(), indices.end(), 0u);
-    Span<uint32_t> span(indices.data(), indices.data() + rows);
+    base::Span<uint32_t> span(indices.data(), indices.data() + rows);
     ops::SortRowLayout(
-        Span<const uint8_t>(keys.data(), keys.data() + keys.size()), stride,
-        &span);
+        base::Span<const uint8_t>(keys.data(), keys.data() + keys.size()),
+        stride, &span);
     benchmark::DoNotOptimize(indices.data());
   }
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * rows);

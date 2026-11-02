@@ -24,10 +24,10 @@
 #include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/ops.h"
 #include "src/trace_processor/core/util/sort.h"
-#include "src/trace_processor/core/util/span.h"
 
 // SortRowLayout sorts on the bytes which differ between rows, the first 8 of
 // them packed into one integer per row so that sorting does not read the rows
@@ -88,7 +88,7 @@ int CompareRows(const uint8_t* a, const uint8_t* b, uint32_t stride) {
       // Row bytes are ordered by significance, even when this word spans
       // multiple columns. Convert to host order so an integer comparison
       // gives the same result as comparing those bytes from left to right.
-      return base::BE64ToHost(x) < base::BE64ToHost(y) ? -1 : 1;
+      return base::BEToHost(x) < base::BEToHost(y) ? -1 : 1;
     }
     if (at == stride - 8) {
       return 0;
@@ -283,9 +283,9 @@ void SortTies(KeyedIndex* tokens,
 
 }  // namespace
 
-void SortRowLayout(Span<const uint8_t> row_layout,
+void SortRowLayout(base::Span<const uint8_t> row_layout,
                    uint32_t row_stride,
-                   Span<uint32_t>* indices) {
+                   base::Span<uint32_t>* indices) {
   PERFETTO_DCHECK(indices);
   auto count = static_cast<uint32_t>(indices->size());
   if (count <= 1) {

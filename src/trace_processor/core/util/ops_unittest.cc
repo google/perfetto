@@ -177,10 +177,10 @@ TEST(OpsTest, SortRowLayoutMatchesAStableSort) {
           expected[r] = input[order_of[r]];
         }
         std::vector<uint32_t> indices = input;
-        Span<uint32_t> span(indices.data(), indices.data() + rows);
-        SortRowLayout(
-            Span<const uint8_t>(buffer.data(), buffer.data() + buffer.size()),
-            stride, &span);
+        base::Span<uint32_t> span(indices.data(), indices.data() + rows);
+        SortRowLayout(base::Span<const uint8_t>(buffer.data(),
+                                                buffer.data() + buffer.size()),
+                      stride, &span);
         EXPECT_EQ(indices, expected) << "rows=" << rows << " stride=" << stride
                                      << " order=" << static_cast<int>(order);
       }
