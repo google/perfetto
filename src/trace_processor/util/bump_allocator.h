@@ -51,7 +51,7 @@ class BumpAllocator {
   // The limit on the total number of bits which can be used to represent
   // the chunk id. It leaves room for the sorter to pack an AllocId, a stream
   // index and a flag into the 64 bits next to an event's timestamp.
-  static constexpr uint64_t kMaxIdBits = 46;
+  static constexpr uint64_t kMaxIdBits = 40;
 
   // The limit on the total amount of memory which can be allocated.
   static constexpr uint64_t kAllocLimit = 1ull << kMaxIdBits;
