@@ -319,49 +319,52 @@ class HeapGraph(TestSuite):
           INCLUDE PERFETTO MODULE android.memory.heap_graph.binder;
 
           SELECT
+            graph_sample_ts,
             id,
             class_name,
-            interface_name,
-            is_remote_held,
-            is_untracked,
+            stub_class_name,
+            is_remote_only,
             remote_only_obj_count,
             remote_only_size_bytes,
-            dominated_size_bytes
-          FROM android_heap_graph_binder_stub;
+            remote_only_native_size_bytes
+          FROM android_heap_graph_binder_stub
+          ORDER BY graph_sample_ts, id;
         """,
         out=Csv("""
-          "id","class_name","interface_name","is_remote_held","is_untracked","remote_only_obj_count","remote_only_size_bytes","dominated_size_bytes"
-          1,"com.example.FooService$1","com.example.IFoo$Stub",1,0,0,0,132
-          4,"com.example.FooService$1","com.example.IFoo$Stub",1,1,3,632,232
-          7,"com.example.BarRecord","com.example.BarRecord",1,1,2,114,114
+          "graph_sample_ts","id","class_name","stub_class_name","is_remote_only","remote_only_obj_count","remote_only_size_bytes","remote_only_native_size_bytes"
+          10,1,"com.example.FooService$1","com.example.IFoo$Stub",0,0,0,0
+          10,3,"com.example.GoogleImpl","[NULL]",0,0,0,0
+          10,5,"com.example.FooService$1","com.example.IFoo$Stub",1,2,232,0
+          10,8,"com.example.BarRecord","[NULL]",1,4,530,0
+          10,11,"com.example.DeepFoo","[NULL]",1,1,20,0
+          10,12,"com.example.ChildService$Stub","com.example.IChild$Stub",1,1,24,0
+          10,13,"com.example.ObfService","com.example.IObf$Stub",1,1,36,0
+          20,28,"com.example.FooService$1","com.example.IFoo$Stub",1,2,132,0
+          20,29,"com.example.FooService$1","com.example.IFoo$Stub",1,2,92,0
         """))
 
-  def test_heap_graph_binder_stub_summary(self):
+  # Totals per dump do not depend on how shared objects are split between stubs.
+  def test_heap_graph_binder_stub_system_server_totals(self):
     return DiffTestBlueprint(
-        trace=Path('heap_graph_for_binder_stubs.textproto'),
+        trace=DataPath('system-server-heap-graph-new.pftrace'),
         query="""
           INCLUDE PERFETTO MODULE android.memory.heap_graph.binder;
 
           SELECT
-            class_name,
-            interface_name,
-            instance_count,
-            untracked_count,
-            remote_only_obj_count,
-            remote_only_size_bytes,
-            dominated_size_bytes,
-            max_instance_dominated_bytes,
-            example_id,
-            is_single_instance
-          FROM android_heap_graph_binder_stub_summary;
+            count(*) AS stub_count,
+            sum(is_remote_only) AS remote_only_count,
+            sum(remote_only_obj_count) AS remote_only_obj_count,
+            sum(remote_only_size_bytes) AS remote_only_size_bytes,
+            sum(remote_only_native_size_bytes) AS remote_only_native_size_bytes
+          FROM android_heap_graph_binder_stub;
         """,
         out=Csv("""
-          "class_name","interface_name","instance_count","untracked_count","remote_only_obj_count","remote_only_size_bytes","dominated_size_bytes","max_instance_dominated_bytes","example_id","is_single_instance"
-          "com.example.FooService$1","com.example.IFoo$Stub",2,1,3,632,364,232,4,0
-          "com.example.BarRecord","com.example.BarRecord",1,1,2,114,114,114,7,1
+          "stub_count","remote_only_count","remote_only_obj_count","remote_only_size_bytes","remote_only_native_size_bytes"
+          637,282,1591,108523,0
         """))
 
-  def test_heap_graph_binder_stub_summary_system_server(self):
+  # Whether a stub is remote-only does not depend on traversal order either.
+  def test_heap_graph_binder_stub_system_server_per_class(self):
     return DiffTestBlueprint(
         trace=DataPath('system-server-heap-graph-new.pftrace'),
         query="""
@@ -369,23 +372,23 @@ class HeapGraph(TestSuite):
 
           SELECT
             class_name,
-            interface_name,
-            instance_count,
-            untracked_count,
-            remote_only_obj_count,
-            remote_only_size_bytes,
-            dominated_size_bytes,
-            max_instance_dominated_bytes,
-            example_id IS NOT NULL AS has_example_id,
-            is_single_instance
-          FROM android_heap_graph_binder_stub_summary
-          LIMIT 5;
+            count(*) AS instance_count,
+            sum(is_remote_only) AS remote_only_count
+          FROM android_heap_graph_binder_stub
+          GROUP BY type_id
+          ORDER BY remote_only_count DESC, class_name
+          LIMIT 10;
         """,
         out=Csv("""
-          "class_name","interface_name","instance_count","untracked_count","remote_only_obj_count","remote_only_size_bytes","dominated_size_bytes","max_instance_dominated_bytes","has_example_id","is_single_instance"
-          "com.android.server.am.ServiceRecord","com.android.server.am.ServiceRecord",131,44,767,51631,156684,5069,1,0
-          "com.android.server.am.PendingIntentRecord","android.content.IIntentSender$Stub",51,40,165,6160,7799,349,1,0
-          "com.android.server.am.ContentProviderConnection","com.android.server.am.ContentProviderConnection",56,22,70,5439,7018,1203,1,0
-          "com.android.server.notification.NotificationManagerService$StatusBarNotificationHolder","android.service.notification.IStatusBarNotificationHolder$Stub",91,91,96,3136,2548,28,1,0
-          "com.android.server.media.MediaSessionRecord$ControllerStub","android.media.session.ISessionController$Stub",3,3,72,2663,2084,720,1,0
+          "class_name","instance_count","remote_only_count"
+          "com.android.server.notification.NotificationManagerService$StatusBarNotificationHolder",91,91
+          "com.android.server.am.ServiceRecord",131,44
+          "com.android.server.am.PendingIntentRecord",51,40
+          "com.android.server.job.JobServiceContext$JobCallback",25,24
+          "com.android.server.am.ContentProviderConnection",56,22
+          "android.database.ContentObserver$Transport",4,4
+          "android.os.Binder",11,4
+          "com.android.server.media.MediaSessionRecord$ControllerStub",3,3
+          "android.os.ResultReceiver$MyResultReceiver",2,2
+          "com.android.server.input.InputManagerService$InputMonitorHost",2,2
         """))
