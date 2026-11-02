@@ -130,6 +130,7 @@ const RULES = [
   // engine_bench page; no-op without --enable-engine-bench.
   {r: /ui\/src\/engine_bench\/bench\.html$/, f: copyEngineBenchHtml},
   {r: /ui\/src\/assets\/((.*)[.]png)/, f: copyAssets},
+  {r: /ui\/src\/assets\/((.*)[.]webmanifest)/, f: copyAssets},
   {r: /ui\/src\/assets\/(data_explorer\/base-page\.json)/, f: copyAssets},
   {r: /ui\/src\/assets\/(data_explorer\/examples\/(.*)[.]json)/, f: copyAssets},
   {r: /ui\/src\/assets\/(data_explorer\/node_info\/(.*)[.]md)/, f: copyAssets},
@@ -1012,6 +1013,7 @@ async function startViteDevServer() {
               woff2: 'font/woff2',
               png: 'image/png',
               json: 'application/json',
+              webmanifest: 'application/manifest+json',
               css: 'text/css',
               js: 'application/javascript',
               html: 'text/html',
@@ -1123,6 +1125,9 @@ function startServer() {
         css: 'text/css',
         js: 'application/javascript',
         wasm: 'application/wasm',
+        json: 'application/json',
+        webmanifest: 'application/manifest+json',
+        png: 'image/png',
       };
       const ext = uri.split('.').pop();
       const cType = mimeMap[ext] || 'octect/stream';

@@ -30,6 +30,7 @@ import {UiMain} from './ui_main';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
+import {installFileLaunchHandler} from './file_launch_handler';
 import {HomePage} from './home_page';
 import {postMessageHandler} from './post_message_handler';
 import {Router} from '../core/router';
@@ -461,8 +462,11 @@ function onCssLoaded(app: AppImpl) {
       return;
     }
 
-    // Add support for opening traces from postMessage().
+    // Add support for opening traces from postMessage() and PWA file launches.
     window.addEventListener('message', postMessageHandler, {passive: true});
+    if (!app.embeddedMode) {
+      installFileLaunchHandler();
+    }
 
     // Handles the initial ?local_cache_key=123 or ?s=permalink or ?url=...
     // cases.
