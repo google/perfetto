@@ -43,25 +43,9 @@ namespace ex = core::exec;
 
 const OperationRegistration IntervalFillGaps::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS, &BuildPlan,
-    OperationRegistration::Encoding{6, false, &DecodePlan}};
+    OperationRegistration::Encoding{6, &MakeOperation<IntervalFillGaps>}};
 
 namespace {
-
-// The column named `name`, or nullopt if there is none.
-std::optional<ColumnId> FindColumn(const std::vector<NamedColumn>& columns,
-                                   const std::string& name) {
-  for (const NamedColumn& column : columns) {
-    if (base::CaseInsensitiveEqual(column.name, name)) {
-      return column.id;
-    }
-  }
-  return std::nullopt;
-}
-
-bool IsBounds(const std::string& name) {
-  return base::CaseInsensitiveEqual(name, "ts") ||
-         base::CaseInsensitiveEqual(name, "dur");
-}
 
 // The type of an output column. ts and dur are Int64, since lowering converts
 // them. Other columns get the type both sides convert to. Fillers can make
@@ -88,17 +72,21 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
   const auto* n = Node<SyntaqlitePerfettoIntervalFillGaps>(c->parser(), stage);
 
   IntervalFillGaps fill;
-  ASSIGN_OR_RETURN(fill.ts_, c->Resolve("ts", stage));
-  ASSIGN_OR_RETURN(fill.dur_, c->Resolve("dur", stage));
-  std::vector<std::string> per;
+  NameId ts_name = c->Name("ts");
+  NameId dur_name = c->Name("dur");
+  auto is_bounds = [&](NameId name) {
+    return c->Same(name, ts_name) || c->Same(name, dur_name);
+  };
+  ASSIGN_OR_RETURN(fill.ts_, c->Resolve(ts_name, stage));
+  ASSIGN_OR_RETURN(fill.dur_, c->Resolve(dur_name, stage));
+  std::vector<NameId> per;
   if (syntaqlite_node_is_present(n->per)) {
     const auto* list =
         Node<SyntaqlitePerfettoPerColumnList>(c->parser(), n->per);
     for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
       uint32_t col_id = syntaqlite_list_child_id(list, i);
-      std::string name = SpanText(
-          c->parser(),
-          Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id)->name);
+      NameId name =
+          c->Name(Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id)->name);
       ASSIGN_OR_RETURN(ColumnId key, c->Resolve(name, col_id));
       // A PER column listed again adds nothing to the grouping.
       if (std::find(fill.keys_.begin(), fill.keys_.end(), key) !=
@@ -114,16 +102,16 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
   PlanNodeId input = c->plan().root();
   ASSIGN_OR_RETURN(SourceRelation background,
                    Scan::BuildRelation(c, n->background));
-  std::optional<ColumnId> ts = FindColumn(background.columns, "ts");
-  std::optional<ColumnId> dur = FindColumn(background.columns, "dur");
+  std::optional<ColumnId> ts = c->FindColumn(background.columns, ts_name);
+  std::optional<ColumnId> dur = c->FindColumn(background.columns, dur_name);
   if (!ts || !dur) {
     return c->Expected(n->background, std::string("the background to have a ") +
                                           (ts ? "dur" : "ts") + " column");
   }
   fill.background_ts_ = *ts;
   fill.background_dur_ = *dur;
-  for (const std::string& name : per) {
-    if (std::optional<ColumnId> key = FindColumn(background.columns, name)) {
+  for (NameId name : per) {
+    if (std::optional<ColumnId> key = c->FindColumn(background.columns, name)) {
       fill.background_keys_.push_back(*key);
     }
   }
@@ -143,15 +131,15 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
     Output output;
     output.input = column.column.id;
     bool bounds = column.column.id == fill.ts_ || column.column.id == fill.dur_;
-    if (!column.qualified_only && !bounds && !IsBounds(column.column.name)) {
-      output.background = FindColumn(background.columns, column.column.name);
+    if (!column.qualified_only && !bounds && !is_bounds(column.column.name)) {
+      output.background = c->FindColumn(background.columns, column.column.name);
     }
     std::optional<PlanType> type = OutputType(
         types[output.input].type,
         output.background ? &types[*output.background].type : nullptr, bounds);
     if (!type) {
       return c->Expected(n->background,
-                         "the background's '" + column.column.name +
+                         "the background's '" + c->Text(column.column.name) +
                              "' to hold the same kind of values as the "
                              "input's");
     }
@@ -166,10 +154,10 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
     row.push_back(std::move(out));
   }
   for (const NamedColumn& column : background.columns) {
-    if (!IsBounds(column.name) &&
+    if (!is_bounds(column.name) &&
         std::find(matched.begin(), matched.end(), column.id) == matched.end()) {
       return c->Expected(n->background, "the input to have the background's '" +
-                                            column.name + "'");
+                                            c->Text(column.name) + "'");
     }
   }
   // Aliases still refer to their columns.
@@ -244,7 +232,7 @@ void IntervalFillGaps::Lower(Lowering* c, const PlanNode& node) const {
     const auto& column = c->plan().columns()[output.column];
     lowered.fallback =
         column.type.storage().value_or(core::StorageType{core::Int64{}});
-    lowered.name = column.name;
+    lowered.name = c->plan().names().text(column.name);
     spec.outputs.push_back(std::move(lowered));
   }
   spec.background.source = background.FinishSide();
@@ -267,95 +255,26 @@ std::unique_ptr<PlanOperation> IntervalFillGaps::Clone() const {
   return std::make_unique<IntervalFillGaps>(*this);
 }
 
-// Writes the background's scan inline, then replaces `available` with the
-// output columns.
-void IntervalFillGaps::Write(PlanWriter* c,
-                             const PlanNode& node,
-                             Available* available_columns) const {
-  auto& available = *available_columns;
-  const auto& fill = *this;
-  c->writer().Position(available, fill.ts_);
-  c->writer().Position(available, fill.dur_);
-  c->writer().Size(fill.keys_.size());
-  for (ColumnId key : fill.keys_) {
-    c->writer().Position(available, key);
-  }
-  const PlanNode& child = c->plan().nodes()[node.children()[1]];
-  PERFETTO_CHECK(child.Is<Scan>());
-  Available in;
-  child.operation().Write(c, child, &in);
-  c->writer().Position(in, fill.background_ts_);
-  c->writer().Position(in, fill.background_dur_);
-  c->writer().Size(fill.background_keys_.size());
-  for (ColumnId key : fill.background_keys_) {
-    c->writer().Position(in, key);
-  }
-  // An output's type is derived from its inputs, so only its name is written.
-  c->writer().Size(fill.outputs_.size());
-  for (const Output& output : fill.outputs_) {
-    c->writer().Str(c->plan().columns()[output.column].name);
-    c->writer().Position(available, output.input);
-    c->writer().U8(output.background ? 1 : 0);
-    if (output.background) {
-      c->writer().Position(in, *output.background);
+void IntervalFillGaps::Serialize(PlanCodec& c) {
+  c.Pod(&ts_);
+  c.Pod(&dur_);
+  c.Vec(&keys_);
+  c.Pod(&background_ts_);
+  c.Pod(&background_dur_);
+  c.Vec(&background_keys_);
+  outputs_.resize(c.Count(outputs_.size()));
+  PERFETTO_NO_VECTORIZE_LOOP
+  for (Output& output : outputs_) {
+    c.Pod(&output.column);
+    c.Pod(&output.input);
+    bool from_background = output.background.has_value();
+    c.Pod(&from_background);
+    ColumnId background = output.background.value_or(0);
+    c.Pod(&background);
+    if (from_background) {
+      output.background = background;
     }
   }
-  available.clear();
-  for (const Output& output : fill.outputs_) {
-    available.push_back(output.column);
-  }
-}
-
-void IntervalFillGaps::DecodePlan(PlanReader* c, Available* available_columns) {
-  auto& available = *available_columns;
-  PlanNodeId input = c->plan().root();
-  IntervalFillGaps fill;
-  fill.ts_ = c->reader().Position(available);
-  fill.dur_ = c->reader().Position(available);
-  fill.keys_.resize(c->reader().Count());
-  for (ColumnId& key : fill.keys_) {
-    key = c->reader().Position(available);
-  }
-  Scan scan;
-  Available in = Scan::ReadPayload(c, &scan);
-  if (!c->reader().ok()) {
-    return;
-  }
-  PlanNodeId background = c->AddNode(std::move(scan));
-  fill.background_ts_ = c->reader().Position(in);
-  fill.background_dur_ = c->reader().Position(in);
-  fill.background_keys_.resize(c->reader().Count());
-  if (!fill.background_keys_.empty() &&
-      fill.background_keys_.size() != fill.keys_.size()) {
-    c->reader().Fail();
-    return;
-  }
-  for (ColumnId& key : fill.background_keys_) {
-    key = c->reader().Position(in);
-  }
-  const auto& types = c->plan().columns();
-  fill.outputs_.resize(c->reader().Count());
-  for (Output& output : fill.outputs_) {
-    std::string name = c->reader().Str();
-    output.input = c->reader().Position(available);
-    if (c->reader().U8()) {
-      output.background = c->reader().Position(in);
-    }
-    std::optional<PlanType> type = OutputType(
-        types[output.input].type,
-        output.background ? &types[*output.background].type : nullptr,
-        output.input == fill.ts_ || output.input == fill.dur_);
-    if (!c->reader().ok() || !type) {
-      c->reader().Fail();
-      return;
-    }
-    output.column = c->AddColumn(std::move(name), *type);
-  }
-  available.clear();
-  for (const Output& output : fill.outputs_) {
-    available.push_back(output.column);
-  }
-  c->AddNode(std::move(fill), {input, background});
 }
 
 }  // namespace perfetto::trace_processor::pipeline

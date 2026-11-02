@@ -17,7 +17,17 @@
 -- including how many threads were runnable at a given time and how many threads
 -- where running at a given point in time.
 
-INCLUDE PERFETTO MODULE intervals.overlap;
+-- Each counter below starts at its machine's first interval and drops to 0 in
+-- every gap after that. Unfinished intervals (`dur = -1`) are extended to
+-- `trace_end() + 1`, so they are still counted at `trace_end()`.
+
+CREATE PERFETTO TABLE _sched_runnable_thread_intervals AS
+SELECT ts, iif(dur = -1, trace_end() + 1 - ts, dur) AS dur, thread.machine_id
+FROM thread_state
+JOIN thread USING (utid)
+WHERE
+  state = 'R'
+  AND dur != 0;
 
 -- The count of runnable threads over time.
 CREATE PERFETTO TABLE sched_runnable_thread_count(
@@ -30,19 +40,24 @@ CREATE PERFETTO TABLE sched_runnable_thread_count(
   runnable_thread_count LONG
 )
 AS
-WITH
-  runnable AS (
-    SELECT ts, dur, thread.machine_id
-    FROM thread_state
-    JOIN thread USING (utid)
-    WHERE
-      state = 'R'
-  )
-SELECT ts, group_name AS machine_id, value AS runnable_thread_count
-FROM intervals_overlap_count_by_group!(runnable, ts, dur, machine_id)
-ORDER BY
-  machine_id,
-  ts;
+FROM _sched_runnable_thread_intervals
+|> INTERVAL FLATTEN PER machine_id AGGREGATE COUNT(*) AS c
+|> INTERVAL FILL GAPS WITH (
+  SELECT machine_id, min(ts) AS ts, trace_end() + 1 - min(ts) AS dur, 0 AS c
+  FROM _sched_runnable_thread_intervals
+  GROUP BY
+    machine_id
+) PER machine_id
+|> SELECT ts, machine_id, c AS runnable_thread_count
+|> ORDER BY machine_id, ts;
+
+CREATE PERFETTO TABLE _sched_uninterruptible_sleep_thread_intervals AS
+SELECT ts, iif(dur = -1, trace_end() + 1 - ts, dur) AS dur, thread.machine_id
+FROM thread_state
+JOIN thread USING (utid)
+WHERE
+  state = 'D'
+  AND dur != 0;
 
 -- The count of threads in uninterruptible sleep over time.
 CREATE PERFETTO TABLE sched_uninterruptible_sleep_thread_count(
@@ -55,24 +70,29 @@ CREATE PERFETTO TABLE sched_uninterruptible_sleep_thread_count(
   uninterruptible_sleep_thread_count LONG
 )
 AS
-WITH
-  uninterruptible_sleep AS (
-    SELECT ts, dur, thread.machine_id
-    FROM thread_state
-    JOIN thread USING (utid)
-    WHERE
-      state = 'D'
-  )
-SELECT ts, group_name AS machine_id, value AS uninterruptible_sleep_thread_count
-FROM intervals_overlap_count_by_group!(
-  uninterruptible_sleep,
-  ts,
-  dur,
-  machine_id
-)
-ORDER BY
-  machine_id,
-  ts;
+FROM _sched_uninterruptible_sleep_thread_intervals
+|> INTERVAL FLATTEN PER machine_id AGGREGATE COUNT(*) AS c
+|> INTERVAL FILL GAPS WITH (
+  SELECT machine_id, min(ts) AS ts, trace_end() + 1 - min(ts) AS dur, 0 AS c
+  FROM _sched_uninterruptible_sleep_thread_intervals
+  GROUP BY
+    machine_id
+) PER machine_id
+|> SELECT ts, machine_id, c AS uninterruptible_sleep_thread_count
+|> ORDER BY machine_id, ts;
+
+-- Sched events of running tasks. Threads with is_idle = 1 are the swapper
+-- threads / idle tasks.
+CREATE PERFETTO TABLE _sched_active_cpu_intervals AS
+SELECT
+  sched.ts,
+  iif(sched.dur = -1, trace_end() + 1 - sched.ts, sched.dur) AS dur,
+  cpu.machine_id
+FROM sched
+JOIN cpu USING (ucpu)
+WHERE
+  NOT (utid IN (SELECT utid FROM thread WHERE is_idle))
+  AND sched.dur != 0;
 
 -- The count of active CPUs over time.
 CREATE PERFETTO TABLE sched_active_cpu_count(
@@ -85,18 +105,13 @@ CREATE PERFETTO TABLE sched_active_cpu_count(
   active_cpu_count LONG
 )
 AS
-WITH
-  -- Filter sched events corresponding to running tasks.
-  -- thread(s) with is_idle = 1 are the swapper threads / idle tasks.
-  tasks AS (
-    SELECT sched.ts, sched.dur, cpu.machine_id
-    FROM sched
-    JOIN cpu USING (ucpu)
-    WHERE
-      NOT (utid IN (SELECT utid FROM thread WHERE is_idle))
-  )
-SELECT ts, group_name AS machine_id, value AS active_cpu_count
-FROM intervals_overlap_count_by_group!(tasks, ts, dur, machine_id)
-ORDER BY
-  machine_id,
-  ts;
+FROM _sched_active_cpu_intervals
+|> INTERVAL FLATTEN PER machine_id AGGREGATE COUNT(*) AS c
+|> INTERVAL FILL GAPS WITH (
+  SELECT machine_id, min(ts) AS ts, trace_end() + 1 - min(ts) AS dur, 0 AS c
+  FROM _sched_active_cpu_intervals
+  GROUP BY
+    machine_id
+) PER machine_id
+|> SELECT ts, machine_id, c AS active_cpu_count
+|> ORDER BY machine_id, ts;

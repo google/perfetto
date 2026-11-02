@@ -1799,7 +1799,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         return this.columns.map((col) => {
           const {field} = col;
           const alias = getColumnAlias(col);
-          const value = maybeUndefined(row[alias]);
+          const value = row[alias];
 
           if (value === undefined) {
             return renderMissingCell();

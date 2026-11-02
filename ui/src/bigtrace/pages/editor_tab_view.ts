@@ -208,7 +208,8 @@ async function formatTabQuery(
 }
 
 // ---------------------------------------------------------------------------
-// Editor panel: toolbar (Run/Cancel + limit + Persistent) and the editor.
+// Editor panel: toolbar (Run/Cancel + limit + save-to-table switch) and the
+// editor.
 // ---------------------------------------------------------------------------
 
 function renderEditorPanel(
@@ -288,9 +289,9 @@ function renderRunControls(
 ): m.Children {
   return [
     m(Switch, {
-      label: 'Persistent',
+      label: 'Save results to table',
       title:
-        'ON: results saved to History — reopen later. ' +
+        'ON: results saved to a table you can reopen from History. ' +
         'OFF: results shown inline and discarded when the tab closes.',
       checked: tab.materialize,
       disabled: tab.isLoading,

@@ -647,8 +647,9 @@ export function optimise<T extends KeySet>(eventSet: EventSet<T>): EventSet<T> {
       return new EmptyEventSet(keys);
     }
 
-    if (newParents.length === 1) {
-      return newParents[0]!;
+    const firstParent = newParents[0];
+    if (newParents.length === 1 && firstParent !== undefined) {
+      return firstParent;
     }
 
     // The union of concrete EventSets is a concrete EventSets with all

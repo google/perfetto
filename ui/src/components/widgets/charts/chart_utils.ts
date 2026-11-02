@@ -55,8 +55,11 @@ export function percentile(values: number[], p: number): number {
   const idx = (p / 100) * (sorted.length - 1);
   const lower = Math.floor(idx);
   const upper = Math.ceil(idx);
-  if (lower === upper) return sorted[lower]!;
-  return sorted[lower]! + (sorted[upper]! - sorted[lower]!) * (idx - lower);
+  const vLower = sorted[lower];
+  const vUpper = sorted[upper];
+  if (vLower === undefined || vUpper === undefined) return NaN;
+  if (lower === upper) return vLower;
+  return vLower + (vUpper - vLower) * (idx - lower);
 }
 
 // ---------------------------------------------------------------------------

@@ -1145,7 +1145,7 @@ string_value: "com.google.android.bluetooth"
 }
 row {
 values {
-double_value: 127004948.4009137
+double_value: 127004950.65981548
 }
 dimension {
 string_value: "com.google.android.calendar"
@@ -1417,7 +1417,7 @@ string_value: "com.spotify.music"
 }
 row {
 values {
-double_value: 301912.12689245516
+double_value: 305989.4023058488
 }
 dimension {
 string_value: "getprop"

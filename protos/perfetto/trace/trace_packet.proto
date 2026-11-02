@@ -42,6 +42,7 @@ import "protos/perfetto/trace/chrome/chrome_trigger.proto";
 import "protos/perfetto/trace/chrome/v8.proto";
 import "protos/perfetto/trace/clock_snapshot.proto";
 import "protos/perfetto/trace/linux/journald_event.proto";
+import "protos/perfetto/trace/linux/memcg_stats.proto";
 import "protos/perfetto/trace/etw/etw_event_bundle.proto";
 import "protos/perfetto/trace/filesystem/inode_file_map.proto";
 import "protos/perfetto/trace/ftrace/ftrace_event_bundle.proto";
@@ -113,7 +114,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 140.
+// Next id: 141.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -297,6 +298,10 @@ message TracePacket {
     // Injected into TracePacket by perfetto post-reboot recovery to record
     // recovered trace metadata.
     RecoveredTraceInfo recovered_trace_info = 138;
+
+    // Values of the cgroup v2 memory controller, from the "linux.cgroup" data
+    // source.
+    MemcgStats memcg_stats = 140;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

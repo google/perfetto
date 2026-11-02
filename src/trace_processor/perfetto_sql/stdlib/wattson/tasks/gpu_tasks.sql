@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE android.gpu.work_period;
 
 -- Extract GPU task slices from the work period track.
 CREATE PERFETTO TABLE _gpu_tasks AS
-SELECT s.ts, s.dur, t.uid, t.gpu_id
+SELECT s.ts, s.dur, t.uid
 FROM slice AS s
 JOIN android_gpu_work_period_track AS t
   ON s.track_id = t.id

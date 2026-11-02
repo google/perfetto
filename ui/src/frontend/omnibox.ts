@@ -131,8 +131,8 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       searchTerm,
     ).map((result) => {
       return {
-        segments: result.segments[0]!,
-        sourceSegments: result.item.source ? result.segments[1]! : undefined,
+        segments: result.segments[0],
+        sourceSegments: result.item.source ? result.segments[1] : undefined,
         ...result.item,
       };
     });

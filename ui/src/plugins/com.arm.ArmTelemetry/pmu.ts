@@ -15,7 +15,7 @@
 import './styles.scss';
 import m from 'mithril';
 import {v4} from 'uuid';
-import {assertTrue} from '../../base/assert';
+import {assertTrue, ensureDefined} from '../../base/assert';
 import type {App} from '../../public/app';
 import {Button, type ButtonAttrs} from '../../widgets/button';
 import {Checkbox} from '../../widgets/checkbox';
@@ -907,7 +907,8 @@ class PerfConfiguration implements m.ClassComponent<PerfConfigurationAttrs> {
             throw new Error('Not an input element');
           }
           if (!e.target.files) return;
-          const file = e.target.files[0]!;
+          const file = e.target.files[0];
+          if (file === undefined) return;
           const reader = new FileReader();
           reader.onloadend = () => {
             if (reader.error) {
@@ -1092,7 +1093,9 @@ function tracedPerf(
           name: cpuState.cpuLeader,
           rawEvent: {
             type: cpuPerfType,
-            config: Number(cpuDesc.events[cpuState.cpuLeader]!.code),
+            config: Number(
+              ensureDefined(cpuDesc.events[cpuState.cpuLeader]).code,
+            ),
           },
         };
 
@@ -1103,7 +1106,7 @@ function tracedPerf(
               name: pmu,
               rawEvent: {
                 type: cpuPerfType,
-                config: Number(cpuDesc.events[pmu]!.code),
+                config: Number(ensureDefined(cpuDesc.events[pmu]).code),
               },
             };
           });

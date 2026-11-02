@@ -51,6 +51,14 @@ class IntervalFlatten : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override {
+    out->keeps = StepColumns::Keeps::kNone;
+    DescribeLaneReads(spec_.lanes, out);
+    DescribeAggregateReads(spec_.aggregates, out);
+    // The bounds, the keys, the aggregates and each row's group number.
+    out->added = static_cast<uint32_t>(2 + spec_.lanes.key_columns.size() +
+                                       spec_.aggregates.size() + 1);
+  }
 
   explicit IntervalFlatten(IntervalFlattenSpec);
   ~IntervalFlatten() override;

@@ -25,6 +25,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "src/trace_processor/containers/interval_tree.h"
@@ -189,6 +190,8 @@ class IntervalIntersector {
       Ts max_start = 0;
       Ts min_end = std::numeric_limits<Ts>::max();
       Ts min_inclusive_end = std::numeric_limits<Ts>::max();
+      // Over a few tables, which vector instructions do not speed up.
+      PERFETTO_NO_VECTORIZE_LOOP
       for (size_t i = 0; i < tables_count; ++i) {
         max_start = std::max(max_start, cur[i]->start);
         min_end = std::min(min_end, cur[i]->end);
@@ -197,6 +200,7 @@ class IntervalIntersector {
 
       // All current intervals overlap, so emit their overlap
       if (max_start <= min_inclusive_end) {
+        PERFETTO_NO_VECTORIZE_LOOP
         for (size_t i = 0; i < tables_count; ++i) {
           ids[i] = cur[i]->id;
         }

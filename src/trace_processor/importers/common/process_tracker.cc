@@ -36,7 +36,7 @@
 namespace perfetto::trace_processor {
 
 ProcessTracker::ProcessTracker(TraceProcessorContext* context)
-    : context_(context), args_tracker_(context) {
+    : context_(context) {
   // Reserve utid/upid 0. These are special as embedders (e.g. Perfetto UI)
   // exclude them from certain views (e.g. thread state) under the assumption
   // that they correspond to the idle (swapper) process. When parsing Linux
@@ -750,18 +750,17 @@ void ProcessTracker::SetPidZeroIsUpidZeroIdleProcess() {
                    ThreadNamePriority::kTraceProcessorConstant);
 }
 
-ArgsTracker::BoundInserter& ProcessTracker::AddArgsToProcess(UniquePid upid) {
-  auto [it, inserted] =
-      process_args_.Insert(upid, ArgsTracker::BoundInserter());
+ArgsInserter& ProcessTracker::AddArgsToProcess(UniquePid upid) {
+  auto [it, inserted] = process_args_.Insert(upid, ArgsInserter());
   if (PERFETTO_UNLIKELY(inserted))
-    *it = args_tracker_.AddArgsToProcess(upid);
+    *it = context_->args_tracker->AddArgsToProcess(upid);
   return *it;
 }
 
-ArgsTracker::BoundInserter& ProcessTracker::AddArgsToThread(UniqueTid utid) {
-  auto [it, inserted] = thread_args_.Insert(utid, ArgsTracker::BoundInserter());
+ArgsInserter& ProcessTracker::AddArgsToThread(UniqueTid utid) {
+  auto [it, inserted] = thread_args_.Insert(utid, ArgsInserter());
   if (PERFETTO_UNLIKELY(inserted))
-    *it = args_tracker_.AddArgsToThread(utid);
+    *it = context_->args_tracker->AddArgsToThread(utid);
   return *it;
 }
 

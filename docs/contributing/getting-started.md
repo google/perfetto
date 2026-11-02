@@ -132,9 +132,10 @@ You might want to contribute to the UI, Trace Processor, SDK or various data imp
 
 ### Contact
 
-Our main communication channel is our mailing list: https://groups.google.com/forum/#!forum/perfetto-dev.
-
-You can also reach us on our [Discord channel](https://discord.gg/35ShE3A) but our support there is best effort only.
+The quickest way to reach us is our [Discord server](https://discord.gg/35ShE3A).
+Ask questions in #help, and use #discuss for development and design discussion.
+You can also use our mailing list:
+https://groups.google.com/forum/#!forum/perfetto-dev.
 
 This project follows
 [Google's Open Source Community Guidelines](https://opensource.google/conduct/).

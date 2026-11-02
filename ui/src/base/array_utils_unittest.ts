@@ -20,6 +20,7 @@ import {
   moveArrayItem,
   min,
   max,
+  mapTuple,
 } from './array_utils';
 
 describe('range', () => {
@@ -153,5 +154,19 @@ describe('max', () => {
   it('handles Infinity', () => {
     expect(max([Infinity, 1, 2])).toBe(Infinity);
     expect(max([-Infinity, 1, 2])).toBe(2);
+  });
+});
+
+describe('mapTuple', () => {
+  it('maps each element and preserves length', () => {
+    const result = mapTuple(['a', 'bb', 'ccc'], (s, i) => s.length + i);
+    expect(result).toEqual([1, 3, 5]);
+    // The result is typed as a 3-tuple, so known indices need no assertions.
+    const last: number = result[2];
+    expect(last).toBe(5);
+  });
+
+  it('handles empty tuples', () => {
+    expect(mapTuple([], (x) => x)).toEqual([]);
   });
 });

@@ -746,22 +746,18 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     // Incomplete slices (dur = -1) are dropped by `createIITable` but their
     // descendants are not: only keep slices reachable from a root so that
     // every remaining slice's parent is also present.
-    await trace.engine.query('include perfetto module graphs.search;');
     const nodesTable = disposables.use(
       await createPerfettoTable({
         engine: trace.engine,
         as: `
-          select s.*
-          from graph_reachable_dfs!(
-            (
-              select parent_id as source_node_id, id as dest_node_id
-              from ${iiTable.name}
-              where parent_id is not null
-            ),
-            (select id as node_id from ${iiTable.name} where parent_id is null)
-          ) r
-          join ${iiTable.name} s on s.id = r.node_id
-          order by s.id
+          GRAPH DFS TREE
+            NODES ${iiTable.name}
+            EDGES (
+              SELECT parent_id AS src, id AS dst
+              FROM ${iiTable.name}
+            )
+            FROM (SELECT id FROM ${iiTable.name} WHERE parent_id IS NULL)
+          |> ORDER BY id
         `,
       }),
     );

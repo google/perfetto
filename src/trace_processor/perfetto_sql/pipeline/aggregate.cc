@@ -56,35 +56,8 @@ core::exec::AggregateCall LowerAggregate(Lowering* c, const Aggregate& agg) {
   return call;
 }
 
-void WriteAggregates(PlanWriter* c,
-                     const std::vector<Aggregate>& aggregates,
-                     const Available& available) {
-  c->writer().Size(aggregates.size());
-  for (const Aggregate& agg : aggregates) {
-    c->writer().U8(static_cast<uint8_t>(agg.function));
-    if (agg.reads_column()) {
-      c->writer().Position(available, agg.column);
-    }
-    c->writer().Str(c->plan().columns()[agg.output].name);
-  }
-}
-
-void ReadAggregates(PlanReader* c,
-                    const Available& available,
-                    std::vector<Aggregate>* aggregates) {
-  aggregates->resize(c->reader().Count());
-  for (Aggregate& agg : *aggregates) {
-    uint8_t function = c->reader().U8();
-    if (function > static_cast<uint8_t>(Aggregate::Function::kMax)) {
-      c->reader().Fail();
-      return;
-    }
-    agg.function = static_cast<Aggregate::Function>(function);
-    if (agg.reads_column()) {
-      agg.column = c->reader().Position(available);
-    }
-    agg.output = c->AddColumn(c->reader().Str(), core::Int64{});
-  }
+void SerializeAggregates(PlanCodec& c, std::vector<Aggregate>* aggregates) {
+  c.Vec(aggregates);
 }
 
 }  // namespace perfetto::trace_processor::pipeline

@@ -63,6 +63,7 @@
 #include "src/trace_processor/types/trace_manifest_state.h"
 #include "src/trace_processor/types/trace_processor_context_ptr.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -179,8 +180,7 @@ void InitGlobalState(TraceProcessorContext* context,
   context->reader_registry = Ptr<TraceReaderRegistry>::MakeRoot();
   context->trace_importer_registry =
       context->reader_registry->importer_registry();
-  context->global_args_tracker =
-      Ptr<GlobalArgsTracker>::MakeRoot(context->storage.get());
+  context->args_tracker = Ptr<ArgsTracker>::MakeRoot(context->storage.get());
   context->global_metadata_tracker =
       Ptr<GlobalMetadataTracker>::MakeRoot(context->storage.get());
   context->trace_file_tracker = Ptr<TraceFileTracker>::MakeRoot(context);
@@ -220,7 +220,7 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->sorter = source->sorter.Fork();
   dest->reader_registry = source->reader_registry.Fork();
   dest->trace_importer_registry = dest->reader_registry->importer_registry();
-  dest->global_args_tracker = source->global_args_tracker.Fork();
+  dest->args_tracker = source->args_tracker.Fork();
   dest->global_metadata_tracker = source->global_metadata_tracker.Fork();
   dest->global_stats_tracker = source->global_stats_tracker.Fork();
   dest->trace_file_tracker = source->trace_file_tracker.Fork();

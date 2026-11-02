@@ -29,6 +29,7 @@ from perfetto.batch_trace_processor.api import BatchTraceProcessorConfig
 from perfetto.batch_trace_processor.api import FailureHandling
 from perfetto.batch_trace_processor.api import Metadata
 from perfetto.batch_trace_processor.api import TraceListReference
+from perfetto.common.query_result_iterator import HAS_PYARROW
 from perfetto.trace_processor.protos import ProtoFactory
 from perfetto.trace_processor.api import PLATFORM_DELEGATE
 from perfetto.trace_processor.api import TraceProcessor
@@ -182,6 +183,26 @@ class TestApi(unittest.TestCase):
     self.assertEqual(count, expected_count)
 
     tp.close()
+
+  @unittest.skipUnless(HAS_PYARROW, 'pyarrow not installed')
+  def test_query_as_arrow_table(self):
+    import pyarrow as pa
+    with create_tp(trace=example_android_trace_path()) as tp:
+      # Five root slices, whose parent_id is NULL, then five child slices.
+      sql = ('select * from (select id, ts, dur, name, parent_id from slice '
+             'where parent_id is null order by id limit 5) union all '
+             'select * from (select id, ts, dur, name, parent_id from slice '
+             'where parent_id is not null order by id limit 5)')
+      table = tp.query(sql).as_arrow_table()
+      self.assertEqual(table.schema.field('ts').type, pa.int64())
+      self.assertEqual(table.schema.field('name').type, pa.string())
+      # A column with some NULLs is still typed from its non-NULL values.
+      self.assertEqual(table.schema.field('parent_id').type, pa.int64())
+      expected = tp.query(sql).as_pandas_dataframe()
+      self.assertEqual(table.column('dur').to_pylist(), list(expected['dur']))
+      self.assertEqual(
+          table.column('parent_id').to_pylist(), list(expected['parent_id']))
+      self.assertEqual(pa.table(tp.query(sql)), table)
 
   def test_trace_byteio(self):
     f = io.BytesIO(
@@ -760,6 +781,16 @@ class TestApiUnixSession(unittest.TestCase):
   """Tests TraceProcessor(remote=...) against a real `server unix` session."""
 
   SESSION_NAME = 'test-session'
+  SLICE_COUNT_SPEC = '''metric_spec: {
+      id: "slice_count"
+      value: "cnt"
+      query: {
+        sql {
+          sql: "SELECT COUNT(*) AS cnt FROM slice"
+          column_names: "cnt"
+        }
+      }
+    }'''
 
   @classmethod
   def setUpClass(cls):
@@ -839,6 +870,22 @@ class TestApiUnixSession(unittest.TestCase):
     with TraceProcessor(remote=self.SESSION_NAME) as tp:
       with self.assertRaisesRegex(TraceProcessorException, 'Unknown metric'):
         tp.metric(['no_such_metric'])
+      # The error comes back inside the single reply message, leaving the
+      # connection usable for the next request.
+      self.assertEqual(next(tp.query('select 1 as x')).x, 1)
+
+  def test_trace_summary(self):
+    with TraceProcessor(remote=self.SESSION_NAME) as tp:
+      summary = tp.trace_summary([self.SLICE_COUNT_SPEC], ['slice_count'])
+      bundle = summary.metric_bundles[0]
+      self.assertEqual(bundle.bundle_id, 'slice_count')
+      self.assertEqual([row.values[0].double_value for row in bundle.row],
+                       [20746])
+
+  def test_trace_summary_error_then_recovers(self):
+    with TraceProcessor(remote=self.SESSION_NAME) as tp:
+      with self.assertRaisesRegex(TraceProcessorException, 'no_such_metric'):
+        tp.trace_summary([self.SLICE_COUNT_SPEC], ['no_such_metric'])
       # The error comes back inside the single reply message, leaving the
       # connection usable for the next request.
       self.assertEqual(next(tp.query('select 1 as x')).x, 1)

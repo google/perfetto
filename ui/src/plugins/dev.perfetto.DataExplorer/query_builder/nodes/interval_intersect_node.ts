@@ -244,8 +244,8 @@ export class IntervalIntersectNode implements QueryNode {
     };
     // Initialize connections from inputNodes
     if (inputNodes) {
-      for (let i = 0; i < inputNodes.length; i++) {
-        this.secondaryInputs.connections.set(i, inputNodes[i]!);
+      for (const [i, node] of inputNodes.entries()) {
+        this.secondaryInputs.connections.set(i, node);
       }
     }
     this.nextNodes = [];
@@ -298,8 +298,7 @@ export class IntervalIntersectNode implements QueryNode {
     // Validate partition columns exist in all inputs
     if (this.attrs.partitionColumns && this.attrs.partitionColumns.length > 0) {
       for (const partitionCol of this.attrs.partitionColumns) {
-        for (let i = 0; i < inputNodes.length; i++) {
-          const node = inputNodes[i]!;
+        for (const [i, node] of inputNodes.entries()) {
           const cols = new Set(node.finalCols.map((c) => c.name));
           if (!cols.has(partitionCol)) {
             this.setValidationError(

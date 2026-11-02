@@ -27,15 +27,16 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/containers/interval_tree.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/selection.h"
-#include "src/trace_processor/core/util/span.h"
 
 // The input stage shared by the interval operators. Each reads one or more
 // interval inputs: rows with a ts and dur, grouped into lanes by PER columns
@@ -58,6 +59,17 @@ struct IntervalLaneSpec {
   // Whether a dur of -1 is an interval which never ends.
   bool forever = false;
 };
+
+// Adds the columns an interval input reads to `out`.
+inline void DescribeLaneReads(const IntervalLaneSpec& lanes, StepColumns* out) {
+  out->reads.push_back(lanes.ts_column);
+  out->reads.push_back(lanes.dur_column);
+  out->reads.insert(out->reads.end(), lanes.key_columns.begin(),
+                    lanes.key_columns.end());
+  if (!lanes.key_columns.empty()) {
+    out->reads.push_back(lanes.group_column);
+  }
+}
 
 // An interval input read whole from its own source, keeping
 // `retained_columns` of each row, in this order. Any other column is read
@@ -158,7 +170,7 @@ class LaneReader {
   const IntervalInputName& name() const { return name_; }
 
   // Forgets the last lane read, for a new run.
-  void Reset() { last_group_.reset(); }
+  void Reset() { last_group_ = kNoGroup; }
 
  private:
   const IntervalLaneSpec* spec_;
@@ -167,8 +179,10 @@ class LaneReader {
   const RowBatch* batch_ = nullptr;
   bool shared_ = false;
   std::vector<uint32_t> lanes_;
+  // Group numbers count rows, so none is kNoGroup.
+  static constexpr uint32_t kNoGroup = std::numeric_limits<uint32_t>::max();
   // The input's group number of the last row read, and its shared number.
-  std::optional<uint32_t> last_group_;
+  uint32_t last_group_ = kNoGroup;
   uint32_t last_lane_ = 0;
 
   // Scratch: the first row of each group in the batch, and their numbers.
@@ -184,7 +198,7 @@ class CollectedLanes {
  public:
   struct Lane {
     uint32_t number;
-    Span<const Interval> intervals;
+    base::Span<const Interval> intervals;
     // Whether no two intervals overlap. If so, they can be searched without
     // building a tree.
     bool nonoverlapping;
@@ -195,8 +209,10 @@ class CollectedLanes {
 
   // Reads every batch of the input's source. Lanes are numbered in `shared`
   // if given, as LaneReader::Start() does, and by group number otherwise.
-  // Lanes numbered at or above `limit` are dropped.
+  // Lanes numbered at or above `limit` are dropped. The rows are held in
+  // buffers from `context` where they are packed (see RowStore).
   base::Status Collect(OperatorState& state,
+                       Context& context,
                        GroupTable* shared,
                        uint32_t limit = std::numeric_limits<uint32_t>::max());
 
@@ -260,8 +276,9 @@ class LaneKeys {
       : key_columns_(&key_columns) {}
 
   // Holds the keys of every row of `in`, after those carried by Carry().
-  // Handles from before are invalid.
-  base::Status Hold(const RowBatch& in);
+  // Handles from before are invalid. Keys packed are held in buffers from
+  // `context` (see RowStore).
+  base::Status Hold(const RowBatch& in, Context& context);
 
   // The handle of the keys of row `row` of the batch held.
   uint32_t Of(uint32_t row) const { return first_ + row; }
@@ -271,7 +288,7 @@ class LaneKeys {
   void Carry(uint32_t handle);
 
   // Copies the keys of `handles`, in order, into `out`.
-  void Gather(RowBatch* out, Span<const uint32_t> handles, Context&);
+  void Gather(RowBatch* out, base::Span<const uint32_t> handles, Context&);
 
   void Clear();
 

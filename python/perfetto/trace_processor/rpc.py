@@ -13,6 +13,8 @@
 # limitations under the License.
 
 from typing import List
+from typing import Optional
+from typing import Union
 
 from perfetto.common.exceptions import PerfettoException
 from perfetto.trace_processor.protos import ProtoFactory
@@ -22,7 +24,7 @@ from perfetto.trace_processor.backend import TraceProcessorBackend
 def _not_supported_yet(what: str) -> NotImplementedError:
   return NotImplementedError(
       f'{what} is not supported yet when connected to a trace processor '
-      'session; only query() and metric() are.')
+      'session; only query(), metric() and trace_summary() are.')
 
 
 class TraceProcessorRpc(TraceProcessorBackend):
@@ -79,6 +81,24 @@ class TraceProcessorRpc(TraceProcessorBackend):
     self._check_envelope(rpc_message)
     return rpc_message.metric_result
 
+  def trace_summary(self,
+                    specs: List[Union[str, bytes]],
+                    metric_ids: Optional[List[str]] = None,
+                    metadata_query_id: Optional[str] = None):
+    """Computes a summary of the trace and returns a TraceSummaryResult."""
+    stream = self.protos.TraceProcessorRpcStream()
+    request = self._add_request(
+        stream, self.protos.TraceProcessorRpc.TPM_SUMMARIZE_TRACE)
+    self._fill_trace_summary_args(request.trace_summary_args, specs, metric_ids,
+                                  metadata_query_id)
+    self.transport.send(stream.SerializeToString())
+
+    # Unlike queries, the server answers with exactly one message.
+    rpc_message = self.protos.TraceProcessorRpc()
+    rpc_message.ParseFromString(self._read_payload())
+    self._check_envelope(rpc_message)
+    return rpc_message.trace_summary_result
+
   def close(self):
     self.transport.close()
 
@@ -86,9 +106,6 @@ class TraceProcessorRpc(TraceProcessorBackend):
   # protocol supports them, but they are not implemented over this client yet,
   # so fail with a clear message.
   # TODO(gabiyev): implement these over the RPC protocol in a follow-up.
-
-  def trace_summary(self, specs, metric_ids=None, metadata_query_id=None):
-    raise _not_supported_yet('trace_summary()')
 
   def enable_metatrace(self):
     raise _not_supported_yet('enable_metatrace()')

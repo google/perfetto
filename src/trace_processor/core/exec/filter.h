@@ -35,20 +35,25 @@ namespace perfetto::trace_processor::core::exec {
 // copied: the batch's selection is narrowed.
 //
 // A condition compares a column with one of the run's filter values (see
-// Context::SetFilterValues) by =, !=, <, <=, >, >=, or tests it with IS [NOT]
-// NULL. The values come already cast for the column and comparison, so a
-// Filter only compares.
+// Context::SetFilterValues) by =, !=, <, <=, >, >=, IN or, for a string
+// column, GLOB, or tests it with IS [NOT] NULL. The values come already cast
+// for the column and comparison, so a Filter only compares.
 //
 // A condition means exactly what the same filter on a dataframe means: no
 // comparison is true of a null, and an integer column compared with 2.5 keeps
 // the rows SQL would.
 //
 // Columns must be flat or Id sequences, of the storage type their values were
-// cast for.
+// cast for. IS [NOT] NULL also reads variant columns.
 class Filter final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override {
+    for (const Condition& condition : conditions_) {
+      out->reads.push_back(condition.column);
+    }
+  }
 
   struct Condition {
     uint32_t column = 0;

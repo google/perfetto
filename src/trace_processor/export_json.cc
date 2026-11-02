@@ -50,6 +50,7 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
@@ -1367,6 +1368,11 @@ class JsonExporter {
         continue;
       }
       size_t key = static_cast<size_t>(it.key());
+      // Dynamic stats have no entry in stats.h and are not part of the legacy
+      // JSON shape. See GlobalStatsTracker::InternDynamicStatDescriptor.
+      if (key >= stats::kNumKeys) {
+        continue;
+      }
       if (stats::kTypes[key] == stats::kSingle) {
         single_values[key] = it.value();
       } else {

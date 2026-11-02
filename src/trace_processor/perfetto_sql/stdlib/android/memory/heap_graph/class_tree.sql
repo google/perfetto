@@ -17,38 +17,36 @@ INCLUDE PERFETTO MODULE android.memory.heap_graph.excluded_refs;
 
 INCLUDE PERFETTO MODULE android.memory.heap_graph.helpers;
 
-INCLUDE PERFETTO MODULE graphs.search;
-
--- Converts the heap graph into a tree by performing a BFS on the graph from
--- the roots. This basically ends up with all paths being the shortest path
--- from the root to the node (with lower ids being picked in the case of ties).
--- Root nodes are sorted by class name before traversal to make the output
--- more deterministic.
+-- Converts the heap graph into a tree by a breadth first search from the
+-- roots, so every object's path from a root is a shortest one. Where several
+-- are, the roots are taken in order of class name, which keeps the tree
+-- comparable across heap dumps, and then each object's references in order of
+-- the object referred to.
 CREATE PERFETTO TABLE _heap_graph_object_min_depth_tree AS
-SELECT node_id AS id, parent_node_id AS parent_id
-FROM graph_reachable_bfs!(
-  (
-    SELECT owner_id AS source_node_id, owned_id AS dest_node_id
-    FROM heap_graph_reference AS ref
+GRAPH BFS TREE
+  NODES heap_graph_object
+  EDGES (
+    SELECT owner_id AS src, owned_id AS dst
+    FROM heap_graph_reference
     WHERE
-      ref.id NOT IN _excluded_refs
-      AND ref.owned_id IS NOT NULL
+      id NOT IN _excluded_refs
+      AND owned_id IS NOT NULL
     ORDER BY
-      ref.owned_id
-  ),
-  (
-    SELECT o.id AS node_id
+      owned_id
+  )
+  FROM (
+    SELECT o.id
     FROM heap_graph_object AS o
-    JOIN heap_graph_class AS c ON o.type_id = c.id
+    JOIN heap_graph_class AS c
+      ON o.type_id = c.id
     WHERE
       o.root_type IS NOT NULL
     ORDER BY
       c.name,
       o.id
   )
-)
-ORDER BY
-  id;
+|> ORDER BY id
+|> SELECT id, parent_id;
 
 CREATE PERFETTO TABLE _heap_graph_path_hashes AS
 SELECT * FROM _heap_graph_type_path_hash!(_heap_graph_object_min_depth_tree);
@@ -59,94 +57,6 @@ SELECT * FROM _heap_graph_path_hash_aggregate!(_heap_graph_path_hashes);
 CREATE PERFETTO TABLE _heap_graph_class_tree AS
 SELECT *
 FROM _heap_graph_path_hashes_to_class_tree!(_heap_graph_path_hashes_aggregated);
-
-CREATE PERFETTO MACRO _heap_graph_retained_object_count_agg(
-  path_hashes TableOrSubquery,
-  path_hash_values TableOrSubquery
-)
-RETURNS TableOrSubquery
-AS (
-  SELECT
-    coalesce(c.deobfuscated_name, c.name) AS class_name,
-    o.heap_type,
-    o.root_type,
-    o.reachable,
-    sum(o.self_size) AS total_size,
-    sum(o.native_size) AS total_native_size,
-    count() AS count
-  FROM graph_reachable_bfs
-    !(
-      (
-        SELECT
-          IFNULL(parent_id, id) AS source_node_id,
-          IFNULL(id, parent_id) AS dest_node_id
-        FROM _heap_graph_object_min_depth_tree
-      ),
-      (
-        SELECT o.id AS node_id
-        FROM $path_hashes h
-        JOIN heap_graph_object o
-          ON h.id = o.id
-        JOIN heap_graph_class c
-          ON o.type_id = c.id
-        JOIN $path_hash_values USING(path_hash)
-      )) AS b
-  JOIN heap_graph_object AS o
-    ON b.node_id = o.id
-  JOIN heap_graph_class AS c
-    ON o.type_id = c.id
-  GROUP BY
-    class_name,
-    heap_type,
-    root_type,
-    reachable
-  ORDER BY
-    count DESC
-);
-
-CREATE PERFETTO MACRO _heap_graph_retaining_object_count_agg(
-  path_hashes TableOrSubquery,
-  path_hash_values TableOrSubquery
-)
-RETURNS TableOrSubquery
-AS (
-  SELECT
-    coalesce(c.deobfuscated_name, c.name) AS class_name,
-    o.heap_type,
-    o.root_type,
-    o.reachable,
-    sum(o.self_size) AS total_size,
-    sum(o.native_size) AS total_native_size,
-    count() AS count
-  FROM graph_reachable_bfs
-    !(
-      (
-        SELECT
-          IFNULL(id, parent_id) AS source_node_id,
-          IFNULL(parent_id, id) AS dest_node_id
-        FROM _heap_graph_object_min_depth_tree
-      ),
-      (
-        SELECT o.id AS node_id
-        FROM $path_hashes h
-        JOIN heap_graph_object o
-          ON h.id = o.id
-        JOIN heap_graph_class c
-          ON o.type_id = c.id
-        JOIN $path_hash_values USING(path_hash)
-      )) AS b
-  JOIN heap_graph_object AS o
-    ON b.node_id = o.id
-  JOIN heap_graph_class AS c
-    ON o.type_id = c.id
-  GROUP BY
-    class_name,
-    heap_type,
-    root_type,
-    reachable
-  ORDER BY
-    count DESC
-);
 
 CREATE PERFETTO MACRO _heap_graph_duplicate_objects_agg(
   path_hashes TableOrSubquery

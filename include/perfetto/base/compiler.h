@@ -72,6 +72,14 @@
 #define PERFETTO_RESTRICT
 #endif
 
+// Marks a condition the CPU cannot predict, so the compiler chooses between
+// its outcomes with a conditional move rather than a branch.
+#if defined(__clang__)
+#define PERFETTO_UNPREDICTABLE(x) __builtin_unpredictable(x)
+#else
+#define PERFETTO_UNPREDICTABLE(x) (x)
+#endif
+
 #if defined(__GNUC__) || defined(__clang__)
 #define PERFETTO_DEBUG_FUNCTION_IDENTIFIER() __PRETTY_FUNCTION__
 #elif defined(_MSC_VER)
@@ -167,6 +175,15 @@ extern "C" void __msan_unpoison(void const volatile*, size_t);
 #define PERFETTO_TRIVIAL_ABI __attribute__((trivial_abi))
 #else
 #define PERFETTO_TRIVIAL_ABI
+#endif
+
+// Asks for the loop which follows to be neither vectorized nor unrolled: for a
+// loop vector instructions do not speed up, where they would only add code.
+#if defined(__clang__)
+#define PERFETTO_NO_VECTORIZE_LOOP \
+  _Pragma("clang loop vectorize(disable) unroll(disable)")
+#else
+#define PERFETTO_NO_VECTORIZE_LOOP
 #endif
 
 // Macro for telling -Wimplicit-fallthrough that a fallthrough is intentional.

@@ -98,6 +98,8 @@ jobs:
         run: |
           python3 tools/release/extract_changelog_section.py \
             "${{ steps.version.outputs.version }}" > /tmp/release_body.txt
+          printf '\nQuestions or feedback? Join us on [Discord](https://discord.gg/35ShE3A).\n' \
+            >> /tmp/release_body.txt
           echo "--- Draft release body ---"
           cat /tmp/release_body.txt
 

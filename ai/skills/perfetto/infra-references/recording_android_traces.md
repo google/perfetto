@@ -78,7 +78,7 @@ Track C/C++ memory allocations (malloc/free) to find native leaks.
 Track RSS, Swap, and process stats over time.
 
 *   *Data Source Docs:*
-    [Memory Counters](https://perfetto.dev/docs/data-sources/memory-counters-sys-stats)
+    [Memory Counters](https://perfetto.dev/docs/data-sources/memory-counters)
 
 *Note: To record memory counters, you must use a custom config via
 `record_android_trace` (see Section 4).*

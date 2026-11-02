@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- Of samples sharing a `ts` on one track, the last added gets the duration
+-- and the rest get `dur = 0`.
 CREATE PERFETTO VIEW _all_counters_per_process AS
 SELECT
   ts,
@@ -26,7 +28,7 @@ SELECT
         p.upid = t.upid
     )
     + 1
-  ) OVER (PARTITION BY track_id ORDER BY ts)
+  ) OVER (PARTITION BY track_id ORDER BY ts, c.id)
   - ts AS dur,
   upid,
   value,

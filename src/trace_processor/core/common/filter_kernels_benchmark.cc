@@ -21,6 +21,8 @@
 #include <vector>
 
 #include "src/trace_processor/core/common/filter_kernels.h"
+#include "src/trace_processor/core/common/op_types.h"
+#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/util/range.h"
 
 namespace perfetto::trace_processor::core {
@@ -53,10 +55,10 @@ void BM_SortedEqualRange(benchmark::State& state) {
   auto run = static_cast<uint32_t>(state.range(0));
   std::vector<uint32_t> data = SortedRuns(run);
   std::vector<uint32_t> values = RandomValues(kRows / run - 1);
+  filter::SortedColumn column{Uint32{}, data.data(), nullptr};
   for (auto _ : state) {
     for (uint32_t v : values) {
-      Range range{0, kRows};
-      filter::SortedEqualRange(data.data(), v, nullptr, range);
+      Range range = filter::SearchSorted(column, Eq{}, v, Range{0, kRows});
       benchmark::DoNotOptimize(range);
     }
   }

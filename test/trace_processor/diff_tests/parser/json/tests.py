@@ -1659,6 +1659,63 @@ class JsonParser(TestSuite):
           "Routine Identifier",2000,2000
         """))
 
+  def test_json_explicit_tid_zero_nonzero_pid(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {"name":"thread_name","ph":"M","pid":1,"tid":0,"args":{"name":"T0"}},
+            {"name":"thread_name","ph":"M","pid":1,"tid":1,"args":{"name":"T1"}},
+            {"name":"thread_name","ph":"M","pid":1,"tid":2,"args":{"name":"T2"}},
+            {"name":"OnTid0","ph":"X","pid":1,"tid":0,"ts":10,"dur":5},
+            {"name":"OnTid1","ph":"X","pid":1,"tid":1,"ts":20,"dur":5},
+            {"name":"OnTid2","ph":"X","pid":1,"tid":2,"ts":30,"dur":5},
+            {"name":"NoTid","ph":"X","pid":1,"ts":40,"dur":5}
+          ]
+        '''),
+        query='''
+          SELECT s.name, t.tid, t.name AS thread_name, p.pid
+          FROM slice s
+          JOIN thread_track tt ON s.track_id = tt.id
+          JOIN thread t USING (utid)
+          JOIN process p USING (upid)
+          ORDER BY s.ts
+        ''',
+        out=Csv("""
+          "name","tid","thread_name","pid"
+          "OnTid0",0,"T0",1
+          "OnTid1",1,"T1",1
+          "OnTid2",2,"T2",1
+          "NoTid",1,"T1",1
+        """))
+
+  def test_json_tid_zero_process_events(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {"name":"process_name","ph":"M","pid":1,"tid":0,"args":{"name":"P1"}},
+            {"name":"Async","cat":"c","ph":"b","id":"1","pid":1,"tid":0,"ts":10},
+            {"name":"Async","cat":"c","ph":"e","id":"1","pid":1,"tid":0,"ts":20},
+            {"name":"Ctr","ph":"C","pid":1,"tid":0,"ts":30,"args":{"value":5}}
+          ]
+        '''),
+        query='''
+          SELECT
+            (SELECT count(*)
+             FROM thread t
+             JOIN process p USING (upid)
+             WHERE t.tid = 0 AND p.pid = 1) AS tid_zero_threads,
+            (SELECT name FROM process WHERE pid = 1) AS process_name,
+            (SELECT count(*) FROM slice WHERE name = 'Async') AS async_slices,
+            (SELECT t.name
+             FROM process_counter_track t
+             JOIN process p USING (upid)
+             WHERE p.pid = 1) AS counter_track
+        ''',
+        out=Csv("""
+          "tid_zero_threads","process_name","async_slices","counter_track"
+          0,"P1",1,"Ctr value"
+        """))
+
   def test_json_thread_state(self):
     return DiffTestBlueprint(
         trace=Json('''

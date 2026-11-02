@@ -35,7 +35,9 @@ GroupedSort::~GroupedSort() = default;
 GroupedSort::State::~State() = default;
 
 std::unique_ptr<Breaker::State> GroupedSort::CreateState() const {
-  return std::make_unique<State>();
+  auto state = std::make_unique<State>();
+  state->rows.SetUnread(unread_);
+  return state;
 }
 
 bool GroupedSort::Consume(const RowBatch& in, Breaker::State& state) const {
@@ -53,7 +55,7 @@ bool GroupedSort::Consume(const RowBatch& in, Breaker::State& state) const {
         "GROUPED SORT: group %u must be a column holding one type", *bad + 1);
     return false;
   }
-  base::Status status = s.rows.Append(in, spec_.keys);
+  base::Status status = s.rows.Append(in, spec_.keys, nullptr, *s.context);
   if (!status.ok()) {
     s.status = base::ErrStatus("GROUPED SORT: %s", status.c_message());
     return false;

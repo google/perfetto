@@ -293,8 +293,8 @@ bool TreeNumberNodes::NumberByKey(const RowBatch& in,
 bool TreeNumberNodes::Process(RowBatch& batch, OperatorState& state) const {
   State& s = state.Cast<State>();
   uint32_t count = batch.size();
-  ColumnBuffer nodes = s.context->TakeBuffer();
-  ColumnBuffer parent_nodes = s.context->TakeBuffer();
+  ColumnBuffer nodes = s.context->TakeBuffer(sizeof(uint32_t));
+  ColumnBuffer parent_nodes = s.context->TakeBuffer(sizeof(uint32_t));
   Numbers output{nodes.chunk().Values<uint32_t>(),
                  parent_nodes.chunk().Values<uint32_t>()};
   bool in_order = s.dense && NumberInOrder(batch, count, output, s);

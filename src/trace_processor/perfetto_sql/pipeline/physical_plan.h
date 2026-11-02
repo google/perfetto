@@ -168,6 +168,10 @@ class Lowering {
   // must be declared with the Declare methods.
   void AddOperator(core::exec::Pipeline::Step);
 
+  // Adds `step`, which does not depend on or change the order of rows or the
+  // size of batches.
+  void AddOrderIndependent(core::exec::Pipeline::Step step);
+
   // Creates a new side pipeline.
   Lowering& AddSidePipeline();
 
@@ -239,6 +243,10 @@ class Lowering {
   // returns its position.
   uint32_t DeclareTemporaryColumn();
 
+  // Records that an added operator gave `id` values of `type`, for a column
+  // whose type was not known when the plan was built.
+  void DeclareType(ColumnId id, core::StorageType type);
+
   // Records that rows are sorted by `keys`.
   void DeclareSorted(const std::vector<SortKey>& keys);
 
@@ -265,6 +273,14 @@ class Lowering {
   // Clears all declarations, for an operator that outputs new rows. Every
   // column still used must be declared again.
   void ResetLayout();
+
+  // Records that the rows are a tree walk in `direction`, numbered in the
+  // temporary `columns` from `node` and `parent`, as RequireTreeWalk would
+  // leave them.
+  void DeclareTreeWalk(ColumnId node,
+                       ColumnId parent,
+                       TreeColumns columns,
+                       TreeDirection direction);
 
   // ---------------------------------------------------------------------------
   // Queries: return what is known, change nothing
@@ -325,10 +341,6 @@ class Lowering {
     std::optional<TreeDirection> tree_walk;
   };
 
-  // Adds `step`, which does not depend on or change the order of rows or the
-  // size of batches.
-  void AddOrderIndependent(core::exec::Pipeline::Step step);
-
   // Adds `step`, which depends on the order of rows but does not change the
   // size of batches.
   void AddOrderDependent(core::exec::Pipeline::Step step);
@@ -354,8 +366,10 @@ class Lowering {
   // Converts `side` to `type`. The conversion must be lossless.
   static void Convert(const Side& side, const PlanType& type);
 
-  // Builds the pipeline from the input and operators added so far.
-  std::unique_ptr<core::exec::Pipeline> Build();
+  // Builds the pipeline from the input and operators added so far. `outputs`
+  // are the columns read after the pipeline, or null if any may be.
+  std::unique_ptr<core::exec::Pipeline> Build(
+      const std::vector<uint32_t>* outputs);
 
   // Borrowed for the duration of lowering.
   PlanLowering* plan_;
@@ -402,8 +416,9 @@ class Lowering {
   // Execution graph of this pipeline
   // ---------------------------------------------------------------------------
 
-  // The pipeline's input.
+  // The pipeline's input, and how many columns it produces.
   std::unique_ptr<core::exec::Source> input_;
+  uint32_t source_columns_ = 0;
 
   // The pipeline's operators, in the order they run.
   std::vector<core::exec::Pipeline::Step> operators_;

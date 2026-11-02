@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
@@ -89,7 +90,7 @@ int64_t GProfileBuilder::StringTable::InternString(base::StringView str) {
   if (str.empty()) {
     return kEmptyStringIndex;
   }
-  auto hash = str.Hash();
+  auto hash = base::MurmurHashValue(str);
   auto it = seen_strings_.find(hash);
   if (it != seen_strings_.end()) {
     return it->second;

@@ -159,7 +159,7 @@ describe('fuzzySearch', () => {
     const keyLookups = [
       (x: CommandItem) => x.name,
       (x: CommandItem) => x.source,
-    ];
+    ] as const;
 
     it('matches on primary or secondary keys', () => {
       const nameResults = fuzzySearch(items, keyLookups, 'Table');
@@ -173,10 +173,10 @@ describe('fuzzySearch', () => {
       const results = fuzzySearch(items, keyLookups, 'Data');
       expect(results.length).toBeGreaterThan(0);
       for (const res of results) {
-        expect(res.segments[0]!.map((s) => s.value).join('')).toBe(
+        expect(res.segments[0].map((s) => s.value).join('')).toBe(
           res.item.name,
         );
-        expect(res.segments[1]!.map((s) => s.value).join('')).toBe(
+        expect(res.segments[1].map((s) => s.value).join('')).toBe(
           res.item.source,
         );
       }

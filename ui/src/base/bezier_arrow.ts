@@ -172,25 +172,25 @@ function drawTriangle(
   const cosAngle = Math.cos(angle);
   const sinAngle = Math.sin(angle);
 
-  const transformedPoints = [
-    {x: 0, y: 0},
-    {x: -1, y: -1},
-    {x: 1, y: -1},
-  ].map((point) => {
-    const scaledX = point.x * size;
-    const scaledY = point.y * size;
+  function transformPoint(x: number, y: number): Point2D {
+    const scaledX = x * size;
+    const scaledY = y * size;
     const rotatedX = scaledX * cosAngle - scaledY * sinAngle;
     const rotatedY = scaledX * sinAngle + scaledY * cosAngle;
     return {
       x: rotatedX + pos.x,
       y: rotatedY + pos.y,
     };
-  });
+  }
+
+  const a = transformPoint(0, 0);
+  const b = transformPoint(-1, -1);
+  const c = transformPoint(1, -1);
 
   ctx.beginPath();
-  ctx.moveTo(transformedPoints[0]!.x, transformedPoints[0]!.y);
-  ctx.lineTo(transformedPoints[1]!.x, transformedPoints[1]!.y);
-  ctx.lineTo(transformedPoints[2]!.x, transformedPoints[2]!.y);
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.lineTo(c.x, c.y);
   ctx.closePath();
   ctx.fill();
 }
