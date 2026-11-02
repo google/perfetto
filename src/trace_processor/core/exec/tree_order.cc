@@ -23,6 +23,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/column_view.h"
@@ -32,7 +33,6 @@
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -49,7 +49,9 @@ TreeChildFirst::~TreeChildFirst() = default;
 TreeChildFirst::State::~State() = default;
 
 std::unique_ptr<Breaker::State> TreeChildFirst::CreateState() const {
-  return std::make_unique<State>();
+  auto state = std::make_unique<State>();
+  state->rows.SetUnread(unread_);
+  return state;
 }
 
 bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
@@ -96,7 +98,7 @@ bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
     }
     s.has_row.set(node);
   }
-  s.status = s.rows.Append(in);
+  s.status = s.rows.Append(in, *s.context);
   return s.status.ok();
 }
 
@@ -199,8 +201,8 @@ bool TreeChildFirst::Serve(RowBatch& out, Breaker::State& state) const {
     count = s.rows.View(&out, s.emitted, count);
   } else {
     const uint32_t* begin = s.order.data() + s.emitted;
-    count = s.rows.Gather(&out, Span<const uint32_t>(begin, begin + count),
-                          *s.context);
+    count = s.rows.Gather(
+        &out, base::Span<const uint32_t>(begin, begin + count), *s.context);
   }
   s.emitted += count;
   return true;
@@ -253,6 +255,7 @@ std::unique_ptr<OperatorState> TreeParentFirst::MakeState(
     Context& context) const {
   auto state = std::make_unique<State>();
   state->context = &context;
+  state->held.rows.SetUnread(unread_);
   return state;
 }
 
@@ -274,14 +277,18 @@ PERFETTO_NO_INLINE OpResult TreeParentFirst::LetGo(RowBatch& out,
   auto total = static_cast<uint32_t>(s.letting_go.size());
   uint32_t count = std::min(kMaxBatchRows, total - s.served);
   const uint32_t* begin = s.letting_go.data() + s.served;
-  count = s.held.rows.Gather(&out, Span<const uint32_t>(begin, begin + count),
-                             *s.context);
+  count = s.held.rows.Gather(
+      &out, base::Span<const uint32_t>(begin, begin + count), *s.context);
   s.served += count;
   if (s.served < total) {
     return OpResult::kHaveMoreOutput;
   }
   s.letting_go.clear();
   s.served = 0;
+  if (s.held.let_go == s.held.rows.size()) {
+    // Nothing waits any more, so nothing held is needed.
+    s.held.Clear();
+  }
   return OpResult::kNeedMoreInput;
 }
 
@@ -334,7 +341,7 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
   if (!s.holding.empty()) {
     s.held_batch.CopyFrom(in);
     s.held_batch.mutable_selection().Keep(s.holding.span());
-    s.status = s.held.rows.Append(s.held_batch);
+    s.status = s.held.rows.Append(s.held_batch, *s.context);
     if (!s.status.ok()) {
       return OpResult::kError;
     }

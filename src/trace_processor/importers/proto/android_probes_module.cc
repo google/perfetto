@@ -41,6 +41,7 @@
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 
 #include "protos/perfetto/common/android_energy_consumer_descriptor.pbzero.h"

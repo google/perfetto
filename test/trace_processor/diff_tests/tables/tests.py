@@ -723,13 +723,15 @@ class Tables(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-        SELECT COUNT(DISTINCT extract_arg(arg_set_id, 'utid')) AS utid_count,
-        COUNT(DISTINCT extract_arg(arg_set_id, 'end_utid')) AS end_utid_count
-        FROM counter
+        SELECT COUNT(DISTINCT extract_arg(c.arg_set_id, 'utid')) AS utid_count,
+        COUNT(DISTINCT extract_arg(c.arg_set_id, 'end_utid')) AS end_utid_count
+        FROM counter c
+        JOIN track t ON t.id = c.track_id
+        WHERE t.type = 'atrace_counter'
         """,
         out=Csv("""
         "utid_count","end_utid_count"
-        336,0
+        89,0
         """))
 
   def test_machine(self):

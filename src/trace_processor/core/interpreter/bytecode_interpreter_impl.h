@@ -33,6 +33,7 @@
 #include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
@@ -53,29 +54,10 @@
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::interpreter {
 
 namespace ops {
-
-// Outlined implementation of glob filtering for strings.
-// Returns pointer past last written output index.
-uint32_t* StringFilterGlobImpl(const StringPool* string_pool,
-                               const StringPool::Id* data,
-                               const char* pattern,
-                               const uint32_t* begin,
-                               const uint32_t* end,
-                               uint32_t* output);
-
-// Outlined implementation of regex filtering for strings.
-// Returns pointer past last written output index.
-uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
-                                const StringPool::Id* data,
-                                const char* pattern,
-                                const uint32_t* begin,
-                                const uint32_t* end,
-                                uint32_t* output);
 
 // Handles invalid cast filter value results for filtering operations.
 // If the cast result is invalid, updates the range or span accordingly.
@@ -85,7 +67,8 @@ template <typename T>
 PERFETTO_ALWAYS_INLINE bool HandleInvalidCastFilterValueResult(
     const filter::CastFilterValueResult::Validity& validity,
     T& update) {
-  static_assert(std::is_same_v<T, Range> || std::is_same_v<T, Span<uint32_t>>);
+  static_assert(std::is_same_v<T, Range> ||
+                std::is_same_v<T, base::Span<uint32_t>>);
   if (PERFETTO_UNLIKELY(validity != filter::CastFilterValueResult::kValid)) {
     if (validity == filter::CastFilterValueResult::kNoneMatch) {
       update.e = update.b;
@@ -115,11 +98,11 @@ inline PERFETTO_ALWAYS_INLINE void AllocateIndices(
     // Update the span to point to the needed size of the slab.
     state.WriteToRegister(
         ai.arg<B::dest_span_register>(),
-        Span<uint32_t>{exist_slab->begin(),
-                       exist_slab->begin() + ai.arg<B::size>()});
+        base::Span<uint32_t>{exist_slab->begin(),
+                             exist_slab->begin() + ai.arg<B::size>()});
   } else {
     auto slab = Slab<uint32_t>::Alloc(ai.arg<B::size>());
-    Span<uint32_t> span{slab.begin(), slab.end()};
+    base::Span<uint32_t> span{slab.begin(), slab.end()};
     state.WriteToRegister(ai.arg<B::dest_slab_register>(), std::move(slab));
     state.WriteToRegister(ai.arg<B::dest_span_register>(), span);
   }
@@ -252,7 +235,8 @@ inline PERFETTO_ALWAYS_INLINE void NonStringFilter(
       StorageType::VariantTypeAtIndex<T, filter::CastFilterValueResult::Value>;
   if constexpr (std::is_same_v<T, Id>) {
     update.e = filter::IdentityFilter(
-        source.b, source.e, update.b, base::unchecked_get<M>(value.value).value,
+        0, source.b, source.e, update.b,
+        base::unchecked_get<M>(value.value).value,
         filter::comparators::IntegerOrDoubleComparator<uint32_t, Op>());
   } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
     const auto* data = state.ReadStorageFromRegister<T>(
@@ -262,24 +246,6 @@ inline PERFETTO_ALWAYS_INLINE void NonStringFilter(
         filter::comparators::IntegerOrDoubleComparator<M, Op>());
   } else {
     static_assert(std::is_same_v<T, Id>, "Unsupported type");
-  }
-}
-
-template <typename Op>
-inline PERFETTO_ALWAYS_INLINE uint32_t* FilterStringOp(
-    const StringPool* string_pool,
-    const StringPool::Id* data,
-    const uint32_t* begin,
-    const uint32_t* end,
-    uint32_t* output,
-    const char* val) {
-  if constexpr (std::is_same_v<Op, Glob>) {
-    return StringFilterGlobImpl(string_pool, data, val, begin, end, output);
-  } else if constexpr (std::is_same_v<Op, Regex>) {
-    return StringFilterRegexImpl(string_pool, data, val, begin, end, output);
-  } else {
-    return filter::FilterStringCompare<Op>(string_pool, data, begin, end,
-                                           output, val);
   }
 }
 
@@ -296,8 +262,8 @@ inline PERFETTO_ALWAYS_INLINE void StringFilter(InterpreterState& state,
   const auto& source = state.ReadFromRegister(sf.arg<B::source_register>());
   const StringPool::Id* ptr =
       state.ReadStorageFromRegister<String>(sf.arg<B::storage_register>());
-  update.e = FilterStringOp<Op>(state.string_pool, ptr, source.b, source.e,
-                                update.b, val);
+  update.e = filter::FilterStringCompare<Op>(state.string_pool, ptr, source.b,
+                                             source.e, update.b, val);
 }
 
 // The comparison a search by R answers, writing `bound` of the range.
@@ -357,7 +323,7 @@ inline PERFETTO_ALWAYS_INLINE void LinearFilterEq(
         leq) {
   using B = ::perfetto::trace_processor::core::interpreter::LinearFilterEq<T>;
 
-  Span<uint32_t>& span =
+  base::Span<uint32_t>& span =
       state.ReadFromRegister(leq.template arg<B::update_register>());
   Range range = state.ReadFromRegister(leq.template arg<B::source_register>());
   PERFETTO_DCHECK(range.size() <= span.size());
@@ -418,7 +384,7 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
       state.ReadFromRegister(bytecode.arg<B::filter_value_reg>());
   const auto& source =
       state.ReadFromRegister(bytecode.arg<B::source_register>());
-  Span<uint32_t> dest(source.b, source.e);
+  base::Span<uint32_t> dest(source.b, source.e);
   if (!HandleInvalidCastFilterValueResult(filter_value.validity, dest)) {
     state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
     return;
@@ -430,7 +396,11 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
 
   auto [bv, popcount] = NullsFor(nbv);
   filter::IndexColumn column{T{}, N{}, data, bv, popcount, state.string_pool};
-  dest = filter::SearchIndexEqual(column, filter_value.value, dest);
+  // The search only narrows the range, so the entries are still ours to write.
+  base::Span<const uint32_t> found = filter::SearchIndexEqual(
+      column, filter_value.value, base::Span<const uint32_t>(dest.b, dest.e));
+  dest = base::Span<uint32_t>(const_cast<uint32_t*>(found.b),
+                              const_cast<uint32_t*>(found.e));
   state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
 }
 
@@ -491,14 +461,14 @@ inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
     InterpreterState& state,
     const FilterInBase& bytecode,
     const filter::CastFilterValueListResult& cast_result,
-    Span<uint32_t>& dest) {
+    base::Span<uint32_t>& dest) {
   using B = FilterInBase;
 
   // Id columns have no backing storage and are never indexed.
   if constexpr (std::is_same_v<T, Id>) {
     return false;
   } else {
-    const Span<uint32_t>* index =
+    const base::Span<uint32_t>* index =
         state.MaybeReadFromRegister(bytecode.arg<B::index_register>());
     if (!index) {
       return false;
@@ -522,7 +492,7 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterInRangeScan(
     InterpreterState& state,
     const FilterInBase& bytecode,
     const filter::CastFilterValueListResult& cast_result,
-    Span<uint32_t>& dest) {
+    base::Span<uint32_t>& dest) {
   using B = FilterInBase;
   const auto* data =
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
@@ -564,9 +534,9 @@ inline PERFETTO_ALWAYS_INLINE void FilterIn(InterpreterState& state,
   // Non-indexed path: scan source span with in-place compaction of dest.
   const auto* data =
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
-  const Span<uint32_t>& source =
+  const base::Span<uint32_t>& source =
       state.ReadFromRegister(bytecode.arg<B::source_register>());
-  filter::NonIndexedFilterInScan<T>(cast_result, data, source, dest);
+  filter::NonIndexedFilterInScan<T>(cast_result, data, 0, source, dest);
 }
 
 // ============================================================================
@@ -610,7 +580,7 @@ inline PERFETTO_ALWAYS_INLINE void SpecializedStorageSmallValueEq(
   auto val = base::unchecked_get<ValueType>(cast_result.value);
   const BitVector* bv =
       state.ReadFromRegister(bytecode.arg<B::small_value_bv_register>());
-  const Span<const uint32_t>& popcount =
+  const base::Span<const uint32_t>& popcount =
       state.ReadFromRegister(bytecode.arg<B::small_value_popcount_register>());
 
   filter::SmallValueEqualRange(*bv, popcount.b, val, update);

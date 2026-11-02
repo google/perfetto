@@ -76,7 +76,7 @@ void AndroidProcessStateTracker::RecordUnknownProcess(
   }
   context_->import_logs_tracker->RecordParserLog(
       stats::android_track_event_process_unknown, ts,
-      [&](ArgsTracker::BoundInserter& inserter) {
+      [&](ArgsInserter& inserter) {
         inserter.AddArg(
             context_->storage->InternString("source"),
             Variadic::String(context_->storage->InternString(source)));
@@ -367,8 +367,7 @@ void AndroidProcessStateTracker::AddCapabilityFlagsArgs(
       capability_flags_cache_, ".com.android.internal.ProcessCapabilityEnum",
       static_cast<int64_t>(static_cast<uint32_t>(mask)), &flag_views_);
 
-  ArgsTracker args_tracker(context_);
-  auto inserter = args_tracker.AddArgsTo(process_state_table_, id);
+  auto inserter = context_->args_tracker->AddArgsTo(process_state_table_, id);
   auto emit = [&](size_t i, base::StringView flag) {
     base::StackString<64> key("capability_flags[%zu]", i);
     StringId key_id = context_->storage->InternString(key.string_view());

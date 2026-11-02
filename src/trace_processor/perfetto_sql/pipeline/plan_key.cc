@@ -87,14 +87,12 @@ uint64_t PlanKey::SipHash(uint64_t k0, uint64_t k1, std::string_view data) {
   size_t whole = data.size() & ~size_t{7};
   PERFETTO_NO_VECTORIZE_LOOP
   for (size_t i = 0; i < whole; i += 8) {
-    uint64_t m;
-    memcpy(&m, data.data() + i, sizeof(m));
-    s.Compress(base::LE64ToHost(m));
+    s.Compress(base::LoadLE<uint64_t>(data.data() + i));
   }
   // SipHash reads words little endian.
   uint64_t last = 0;
   memcpy(&last, data.data() + whole, data.size() - whole);
-  s.Compress(base::LE64ToHost(last) | static_cast<uint64_t>(data.size()) << 56);
+  s.Compress(base::LEToHost(last) | static_cast<uint64_t>(data.size()) << 56);
   s.v2 ^= 0xff;
   PERFETTO_NO_VECTORIZE_LOOP
   for (int i = 0; i < 4; ++i) {

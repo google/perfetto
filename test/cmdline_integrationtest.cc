@@ -836,6 +836,11 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(PersistTraceAcrossRebootsConfig)) {
   // we have to manually create the directory for the test session
   base::Mkdir("/data/misc/perfetto-traces/persistent");
 
+  std::string persistent_file =
+      "/data/misc/perfetto-traces/persistent/test_reboot_session.tmp";
+  remove(persistent_file.c_str());
+  ScopedFileRemove remove_on_exit(persistent_file);
+
   protos::gen::TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(128);
   auto* ds = trace_config.add_data_sources();
@@ -857,10 +862,252 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(PersistTraceAcrossRebootsConfig)) {
   StartServiceIfRequiredNoNewExecsAfterThis();
   EXPECT_EQ(0, perfetto_proc.Run(&stderr_)) << stderr_;
 
+  // Normal exit without reboot must clean up the persistent file.
+  EXPECT_FALSE(base::FileExists(persistent_file));
+}
+
+TEST_F(PerfettoCmdlineTest,
+       AndroidOnly(PersistTraceAcrossRebootsSigintCleansUpFile)) {
+  base::Mkdir("/data/misc/perfetto-traces/persistent");
+
   std::string persistent_file =
-      "/data/misc/perfetto-traces/persistent/test_reboot_session.tmp";
+      "/data/misc/perfetto-traces/persistent/test_reboot_sigint.tmp";
+  remove(persistent_file.c_str());
   ScopedFileRemove remove_on_exit(persistent_file);
+
+  protos::gen::TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds = trace_config.add_data_sources();
+  ds->mutable_config()->set_name("android.perfetto.test");
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(10);
+  trace_config.set_persist_trace_across_reboots(true);
+  trace_config.mutable_android_report_config()->set_skip_report(true);
+  trace_config.set_unique_session_name("test_reboot_sigint");
+  trace_config.set_duration_ms(60000);
+
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-c",
+          "-",
+          "--upload",
+      },
+      trace_config.SerializeAsString());
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  std::string perfetto_cmd_stderr;
+  std::thread background_trace([&perfetto_proc, &perfetto_cmd_stderr]() {
+    EXPECT_EQ(0, perfetto_proc.Run(&perfetto_cmd_stderr))
+        << perfetto_cmd_stderr;
+  });
+
+  bool write_into_file_data_ready = false;
+  for (int i = 0; i < 200; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    protos::gen::Trace trace;
+    if (ParseNotEmptyTraceFromFile(persistent_file, trace)) {
+      write_into_file_data_ready = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(write_into_file_data_ready);
+
+  // User cancellation via Ctrl+C (SIGINT) must clean up the persistent file.
+  perfetto_proc.SendSigint();
+  background_trace.join();
+
+  EXPECT_FALSE(base::FileExists(persistent_file));
+}
+
+TEST_F(PerfettoCmdlineTest,
+       AndroidOnly(PersistTraceAcrossRebootsSigtermPreservesFile)) {
+  base::Mkdir("/data/misc/perfetto-traces/persistent");
+
+  std::string persistent_file =
+      "/data/misc/perfetto-traces/persistent/test_reboot_sigterm.tmp";
+  remove(persistent_file.c_str());
+  ScopedFileRemove remove_on_exit(persistent_file);
+
+  protos::gen::TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds = trace_config.add_data_sources();
+  ds->mutable_config()->set_name("android.perfetto.test");
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(10);
+  trace_config.set_persist_trace_across_reboots(true);
+  trace_config.mutable_android_report_config()->set_reporter_service_package(
+      "com.android.test");
+  trace_config.mutable_android_report_config()->set_reporter_service_class(
+      "com.android.test.TestClass");
+  trace_config.set_unique_session_name("test_reboot_sigterm");
+  trace_config.set_duration_ms(60000);
+
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-c",
+          "-",
+          "--upload",
+      },
+      trace_config.SerializeAsString());
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  std::string perfetto_cmd_stderr;
+  std::thread background_trace([&perfetto_proc, &perfetto_cmd_stderr]() {
+    EXPECT_EQ(0, perfetto_proc.Run(&perfetto_cmd_stderr))
+        << perfetto_cmd_stderr;
+  });
+
+  bool write_into_file_data_ready = false;
+  for (int i = 0; i < 200; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    protos::gen::Trace trace;
+    if (ParseNotEmptyTraceFromFile(persistent_file, trace)) {
+      write_into_file_data_ready = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(write_into_file_data_ready);
+
+  // During device shutdown/reboot, init sends SIGTERM to processes. The
+  // persistent file must remain on disk to be recovered after reboot.
+  perfetto_proc.SendSigterm();
+  background_trace.join();
+
   EXPECT_TRUE(base::FileExists(persistent_file));
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+TEST_F(PerfettoCmdlineTest,
+       AndroidOnly(PersistTraceAcrossRebootsServiceDisconnectPreservesFile)) {
+  base::Mkdir("/data/misc/perfetto-traces/persistent");
+
+  std::string persistent_file =
+      "/data/misc/perfetto-traces/persistent/test_reboot_disconnect.tmp";
+  remove(persistent_file.c_str());
+  ScopedFileRemove remove_on_exit(persistent_file);
+
+  protos::gen::TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(10);
+  trace_config.set_persist_trace_across_reboots(true);
+  trace_config.mutable_android_report_config()->set_reporter_service_package(
+      "com.android.test");
+  trace_config.mutable_android_report_config()->set_reporter_service_class(
+      "com.android.test.TestClass");
+  trace_config.set_unique_session_name("test_reboot_disconnect");
+  trace_config.set_duration_ms(60000);
+
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-c",
+          "-",
+          "--upload",
+      },
+      trace_config.SerializeAsString());
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  std::string perfetto_cmd_stderr;
+  std::thread background_trace([&perfetto_proc, &perfetto_cmd_stderr]() {
+    EXPECT_EQ(0, perfetto_proc.Run(&perfetto_cmd_stderr))
+        << perfetto_cmd_stderr;
+  });
+
+  bool write_into_file_data_ready = false;
+  for (int i = 0; i < 200; i++) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    protos::gen::Trace trace;
+    if (ParseNotEmptyTraceFromFile(persistent_file, trace)) {
+      write_into_file_data_ready = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(write_into_file_data_ready);
+
+  // Simulate traced being stopped by init during reboot while perfetto_cmd is
+  // still running.
+  test_helper().RestartService();
+  background_trace.join();
+
+  EXPECT_TRUE(base::FileExists(persistent_file));
+}
+#endif
+
+TEST_F(PerfettoCmdlineTest,
+       AndroidOnly(PersistTraceAcrossRebootsRejectedByTracedCleansUpFile)) {
+  base::Mkdir("/data/misc/perfetto-traces/persistent");
+
+  std::string persistent_file =
+      "/data/misc/perfetto-traces/persistent/test_reboot_rejected.tmp";
+  remove(persistent_file.c_str());
+  ScopedFileRemove remove_on_exit(persistent_file);
+
+  protos::gen::TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds = trace_config.add_data_sources();
+  ds->mutable_config()->set_name("android.perfetto.test");
+  // Out-of-bounds target_buffer causes traced to reject EnableTracing after
+  // perfetto_cmd has already created the persistent file.
+  ds->mutable_config()->set_target_buffer(99);
+  trace_config.set_write_into_file(true);
+  trace_config.set_persist_trace_across_reboots(true);
+  trace_config.mutable_android_report_config()->set_skip_report(true);
+  trace_config.set_unique_session_name("test_reboot_rejected");
+  trace_config.set_duration_ms(200);
+
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-c",
+          "-",
+          "--upload",
+      },
+      trace_config.SerializeAsString());
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  EXPECT_EQ(0, perfetto_proc.Run(&stderr_)) << stderr_;
+  EXPECT_THAT(stderr_, HasSubstr("Service error:"));
+  EXPECT_FALSE(base::FileExists(persistent_file));
+}
+
+TEST_F(
+    PerfettoCmdlineTest,
+    AndroidOnly(PersistTraceAcrossRebootsIndefiniteDurationDoesNotCreateFile)) {
+  base::Mkdir("/data/misc/perfetto-traces/persistent");
+
+  std::string persistent_file =
+      "/data/misc/perfetto-traces/persistent/test_reboot_indefinite.tmp";
+  remove(persistent_file.c_str());
+  ScopedFileRemove remove_on_exit(persistent_file);
+
+  protos::gen::TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds = trace_config.add_data_sources();
+  ds->mutable_config()->set_name("android.perfetto.test");
+  trace_config.set_write_into_file(true);
+  trace_config.set_persist_trace_across_reboots(true);
+  trace_config.mutable_android_report_config()->set_reporter_service_package(
+      "com.android.test");
+  trace_config.set_unique_session_name("test_reboot_indefinite");
+  trace_config.set_duration_ms(0);
+
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-c",
+          "-",
+          "--upload",
+      },
+      trace_config.SerializeAsString());
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  EXPECT_EQ(1, perfetto_proc.Run(&stderr_));
+  EXPECT_THAT(
+      stderr_,
+      HasSubstr(
+          "Can't trace indefinitely when reporting to Android framework"));
+  EXPECT_FALSE(base::FileExists(persistent_file));
 }
 
 TEST_F(PerfettoCmdlineTest,

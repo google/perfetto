@@ -60,6 +60,14 @@ using core::StorageType;
 
 namespace {
 
+bool IsSubpipeline(Compiler* c, const SyntaqlitePerfettoPipeSource& n) {
+  if (!syntaqlite_node_is_present(n.select)) {
+    return false;
+  }
+  const auto* node = Node<SyntaqliteNode>(c->parser(), n.select);
+  return node->tag == SYNTAQLITE_NODE_PERFETTO_PIPELINE;
+}
+
 bool HoldsNoValues(const dataframe::Column& column, uint32_t rows) {
   if (rows == 0) {
     return true;
@@ -140,6 +148,13 @@ base::Status Scan::BuildPlan(Compiler* c, uint32_t from) {
 base::StatusOr<SourceRelation> Scan::BuildRelation(Compiler* c,
                                                    uint32_t source) {
   const auto* n = Node<SyntaqlitePerfettoPipeSource>(c->parser(), source);
+  if (IsSubpipeline(c, *n)) {
+    SourceRelation relation;
+    ASSIGN_OR_RETURN(relation.columns, c->CompileSubpipeline(n->select));
+    RETURN_IF_ERROR(Scan::CheckSourceNames(c, relation.columns, source));
+    relation.node = c->plan().root();
+    return relation;
+  }
   Scan scan;
   if (const dataframe::Dataframe* dataframe =
           Scan::FindDirectDataframe(c, *n)) {

@@ -153,7 +153,37 @@ ColumnId Compiler::AddColumn(NameId name, PlanType type) {
 base::Status Compiler::BuildOperation(uint32_t stage) {
   uint32_t tag = Node<SyntaqliteNode>(p_, stage)->tag;
   const auto* registration = FindOperationBySyntax(tag);
-  PERFETTO_CHECK(registration);
+  if (!registration) {
+    // The grammar can accept a stage before anything lowers it.
+    std::string name;
+    switch (tag) {
+      case SYNTAQLITE_NODE_PERFETTO_INTERVAL_MERGE:
+        name = "INTERVAL MERGE";
+        break;
+      case SYNTAQLITE_NODE_PERFETTO_INTERVALS_FROM_EVENTS:
+        name = "INTERVALS FROM EVENTS";
+        break;
+      case SYNTAQLITE_NODE_PERFETTO_PIPE_JOIN: {
+        const auto* join = Node<SyntaqlitePerfettoPipeJoin>(p_, stage);
+        if (!syntaqlite_node_is_present(join->on_expr) &&
+            !syntaqlite_node_is_present(join->using_columns)) {
+          return source_(stage).AddTraceback(
+              0, base::ErrStatus("JOIN needs ON or USING to say which rows "
+                                 "match; a join of every row with every "
+                                 "other is not supported"));
+        }
+        name = "JOIN";
+        break;
+      }
+      default: {
+        std::string sql = source_(stage).sql();
+        name = sql.substr(0, sql.find_first_of(" \n"));
+        break;
+      }
+    }
+    return source_(stage).AddTraceback(
+        0, base::ErrStatus("%s is not supported yet", name.c_str()));
+  }
   return registration->BuildPlan(this, stage);
 }
 
@@ -371,22 +401,10 @@ base::StatusOr<Aggregate> Compiler::ResolveAggregate(uint32_t expr) {
 
 base::Status Compiler::CompilePipeline(uint32_t pipeline) {
   const auto& n = Node<SyntaqliteNode>(p_, pipeline)->perfetto_pipeline;
-  if (syntaqlite_node_is_present(n.graph)) {
-    switch (Node<SyntaqlitePerfettoGraphTree>(p_, n.graph)->kind) {
-      case SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_BFS:
-        SetOperation("GRAPH BFS TREE");
-        break;
-      case SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_DFS:
-        SetOperation("GRAPH DFS TREE");
-        break;
-      case SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_DOMINATOR:
-        SetOperation("GRAPH DOMINATOR TREE");
-        break;
-    }
-    return Unsupported(n.graph, "this operator");
-  }
   if (syntaqlite_node_is_present(n.intersection)) {
     RETURN_IF_ERROR(BuildOperation(n.intersection));
+  } else if (syntaqlite_node_is_present(n.graph)) {
+    RETURN_IF_ERROR(BuildOperation(n.graph));
   } else {
     RETURN_IF_ERROR(BuildOperation(n.from));
   }
@@ -401,16 +419,29 @@ base::Status Compiler::CompilePipeline(uint32_t pipeline) {
   return base::OkStatus();
 }
 
-LogicalPlan Compiler::Finish() {
-  // The result is the row as a bare name sees it. Columns only an alias
-  // finds, as an intersection's operand columns are, stay behind.
-  plan_.output().clear();
+std::vector<NamedColumn> Compiler::VisibleColumns() const {
+  std::vector<NamedColumn> columns;
   for (const RowColumn& column : scope_.row) {
     if (!column.qualified_only) {
-      plan_.output().push_back(column.column);
+      columns.push_back(column.column);
     }
   }
+  return columns;
+}
+
+LogicalPlan Compiler::Finish() {
+  plan_.output() = VisibleColumns();
   return std::move(plan_);
+}
+
+base::StatusOr<std::vector<NamedColumn>> Compiler::CompileSubpipeline(
+    uint32_t pipeline) {
+  Scope outer = std::exchange(scope_, Scope{});
+  base::Status status = CompilePipeline(pipeline);
+  std::vector<NamedColumn> columns = VisibleColumns();
+  scope_ = std::move(outer);
+  RETURN_IF_ERROR(status);
+  return columns;
 }
 
 base::StatusOr<LogicalPlan> Compile(SyntaqliteParser* p,

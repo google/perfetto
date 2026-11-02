@@ -20,6 +20,7 @@
 #include <sqlite3.h>
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -93,8 +94,14 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
                               const core::exec::ColumnView&,
                               uint32_t);
     struct ColumnReader {
-      const core::exec::ColumnView* view = nullptr;
+      static constexpr uint32_t kNoView = std::numeric_limits<uint32_t>::max();
+      // In the plan's batches, or kNoView for a column the plan does not
+      // output.
+      uint32_t index = kNoView;
       ResultFn result = nullptr;
+      // The view `result` was chosen for.
+      core::exec::ColumnView::Kind kind{};
+      uint32_t type = 0;
     };
     std::unique_ptr<pipeline::PhysicalPlan> plan;
     StringPool* pool = nullptr;

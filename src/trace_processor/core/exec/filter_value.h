@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_FILTER_VALUE_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -51,6 +52,9 @@ struct FilterValue {
   // For a string compared by order: its text, which `value` points to. Its
   // buffer is reused, so only a string longer than any before allocates.
   std::string text;
+  // For IN: the list's values, while `value` says whether any can match. Its
+  // allocations are reused from run to run.
+  filter::CastFilterValueListResult::Ptr list;
 };
 
 namespace internal {
@@ -89,6 +93,25 @@ void CastFilterValueFor(Fetcher& fetcher,
   }
 }
 
+// Casts the IN list `fetcher` iterates at `index` into `out`, for a column of
+// storage type T.
+template <typename T, typename Fetcher>
+void CastFilterValueListFor(Fetcher& fetcher,
+                            uint32_t index,
+                            NonNullOp op,
+                            const StringPool& pool,
+                            FilterValue* out) {
+  auto& list = out->list;
+  if (!list) {
+    list = std::make_unique<filter::CastFilterValueListResult>();
+    list->Init<T>();
+  } else {
+    list->Clear<T>();
+  }
+  filter::CastFilterValueList<T>(index, fetcher, op, &pool, *list);
+  out->value.validity = list->validity;
+}
+
 }  // namespace internal
 
 // Casts a value for one storage type and comparison, picked once, when a plan
@@ -114,11 +137,12 @@ class FilterValueCaster {
 };
 
 // The caster for a column of storage type `type` compared by `op`, one of =,
-// !=, <, <=, >, >=.
+// !=, <, <=, >, >= or, for a string column, GLOB.
 template <typename Fetcher>
 FilterValueCaster<Fetcher> GetFilterValueCaster(StorageType type,
                                                 const Op& op) {
-  PERFETTO_CHECK(op.IsAnyOf<RangeOp>() || op.Is<Eq>() || op.Is<Ne>());
+  PERFETTO_CHECK(op.IsAnyOf<RangeOp>() || op.Is<Eq>() || op.Is<Ne>() ||
+                 (op.Is<Glob>() && type.Is<String>()));
   NonNullOp non_null = *op.TryDowncast<NonNullOp>();
   switch (type.index()) {
     case StorageType::GetTypeIndex<Id>():
@@ -133,6 +157,29 @@ FilterValueCaster<Fetcher> GetFilterValueCaster(StorageType type,
       return {&internal::CastFilterValueFor<Double, Fetcher>, non_null};
     case StorageType::GetTypeIndex<String>():
       return {&internal::CastFilterValueFor<String, Fetcher>, non_null};
+    default:
+      PERFETTO_FATAL("Unsupported storage type");
+  }
+}
+
+// The caster of IN lists for a column of storage type `type`. `Fetcher` must
+// iterate lists (see ValueFetcher::IteratorInit).
+template <typename Fetcher>
+FilterValueCaster<Fetcher> GetFilterValueListCaster(StorageType type) {
+  NonNullOp eq = Eq{};
+  switch (type.index()) {
+    case StorageType::GetTypeIndex<Id>():
+      return {&internal::CastFilterValueListFor<Id, Fetcher>, eq};
+    case StorageType::GetTypeIndex<Uint32>():
+      return {&internal::CastFilterValueListFor<Uint32, Fetcher>, eq};
+    case StorageType::GetTypeIndex<Int32>():
+      return {&internal::CastFilterValueListFor<Int32, Fetcher>, eq};
+    case StorageType::GetTypeIndex<Int64>():
+      return {&internal::CastFilterValueListFor<Int64, Fetcher>, eq};
+    case StorageType::GetTypeIndex<Double>():
+      return {&internal::CastFilterValueListFor<Double, Fetcher>, eq};
+    case StorageType::GetTypeIndex<String>():
+      return {&internal::CastFilterValueListFor<String, Fetcher>, eq};
     default:
       PERFETTO_FATAL("Unsupported storage type");
   }

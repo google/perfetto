@@ -728,3 +728,59 @@ class WattsonStdlib(TestSuite):
             "dsu",367581909643,2521866334,69.819200,-1
             "dsu",361952679578,10225138,0.489700,-1
             """))
+
+  def test_wattson_dsu_devfreq_gapless(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+              release: "6.12.0"
+              machine: "aarch64"
+            }
+            device_tree_compatibles: "google,malibu-grizzly"
+            device_tree_compatibles: "google,malibu"
+          }
+          trusted_uid: 158158
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000
+              pid: 1
+              cpu_frequency {
+                state: 394000
+                cpu_id: 0
+              }
+            }
+            event {
+              timestamp: 3000
+              pid: 1
+              devfreq_frequency {
+                dev_name: "dsu_target"
+                freq: 768000000
+              }
+            }
+            event {
+              timestamp: 5000
+              pid: 1
+              cpu_frequency {
+                state: 533000
+                cpu_id: 0
+              }
+            }
+          }
+        }
+        """),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.cpu.arm_dsu;
+            SELECT ts, dur, dsu_freq FROM _wattson_dsu_frequency ORDER BY ts
+            """),
+        out=Csv("""
+            "ts","dur","dsu_freq"
+            1000,2000,394000000
+            3000,2000,768000000
+            """))

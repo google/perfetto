@@ -52,18 +52,21 @@ Diagram(
 
 - `|>` must be written with no space between `|` and `>`.
 - `TREE`, `ACCUMULATE`, `UP`, `DOWN`, `INTERVAL`, `INTERSECTION`, `FLATTEN`,
-  `FILL`, `GAPS`, `AGGREGATE`, `PER` and `EXTEND` are not reserved, so they can
-  still be used as names in SQL.
+  `FILL`, `GAPS`, `AGGREGATE`, `PER`, `EXTEND`, `GRAPH`, `BFS`, `DFS`,
+  `DOMINATOR`, `NODES` and `EDGES` are not reserved, so they can still be used
+  as names in SQL.
 - An alias always needs `AS`: `FROM slice AS s`, not `FROM slice s`.
 
-A `<source-clause>` is [`FROM`](#from) or
-[`INTERVAL INTERSECTION OF`](#interval-intersection-of). A `<stage>` is one of:
+A `<source-clause>` is [`FROM`](#from),
+[`INTERVAL INTERSECTION OF`](#interval-intersection-of) or
+[`GRAPH ... TREE`](#graph-tree). A `<stage>` is one of:
 
 ```railroad stage
 Diagram(Choice(0,
   Link(Terminal('WHERE'), '#where'),
   Link(Terminal('DISTINCT'), '#distinct'),
   Link(Terminal('ORDER BY'), '#order-by'),
+  Link(Terminal('LIMIT'), '#limit'),
   Link(Terminal('INTERVAL FLATTEN'), '#interval-flatten'),
   Link(Terminal('INTERVAL FILL GAPS'), '#interval-fill-gaps'),
   Link(Terminal('TREE ACCUMULATE'), '#tree-accumulate'),
@@ -186,6 +189,58 @@ a `|> SELECT` naming them through their aliases.
 - **`NULL` in `PER` columns:** Rows holding `NULL` in a `PER` column agree on
   it, as in `GROUP BY`.
 
+### `GRAPH ... TREE` {#graph-tree}
+
+Reduces a graph to a tree over the nodes reachable from a set of seeds:
+
+```railroad
+Diagram(
+  Terminal('GRAPH'), Choice(0, Terminal('BFS'), Terminal('DFS'),
+    Terminal('DOMINATOR')),
+  Terminal('TREE'),
+  Terminal('NODES'), NonTerminal('source'),
+  Terminal('EDGES'), NonTerminal('source'),
+  Terminal('FROM'), NonTerminal('source'))
+```
+
+```sql
+GRAPH DOMINATOR TREE
+  NODES heap_graph_object
+  EDGES (SELECT owner_id AS src, owned_id AS dst FROM heap_graph_reference)
+  FROM (SELECT id FROM heap_graph_object WHERE root_type IS NOT NULL)
+|> TREE ACCUMULATE UP SUM(self_size) AS retained_size
+```
+
+#### Requirements
+
+- `NODES` has an `id` column, `EDGES` has `src` and `dst` columns, and `FROM`
+  has an `id` column. All of them hold integers.
+- No two nodes have the same `id`, and every node has one.
+
+#### Output
+
+One row for each node reachable from the seeds, with every `NODES` column and
+`parent_id`, the `id` of the node's parent in the tree. `parent_id` is `NULL`
+for a root. A `NODES` column named `parent_id` is not carried. Parents come
+before their children. `NODES` can be given an alias, which qualifies its
+columns.
+
+| Kind | Roots | A node's parent |
+| :--- | :--- | :--- |
+| `BFS` | Every seed | The first node searched with an edge to it |
+| `DFS` | Each seed not reached from an earlier one | The node it was reached from |
+| `DOMINATOR` | Every seed | Its immediate dominator |
+
+#### Graph rules
+
+- **Order:** Seeds are searched, and each node's edges followed, in the order
+  their rows arrive. Where a node can be reached from several equally good
+  parents, that order picks one, so sort `FROM` or `EDGES` to choose.
+- **Missing nodes:** An edge or seed whose `id` is not a node, or is `NULL`,
+  is ignored. `NODES` can be a subset of the graph `EDGES` describes.
+- **Dominators:** A node's dominators are the nodes every path to it from the
+  seeds passes through, as though one more node had an edge to every seed.
+
 ---
 
 ## Aggregates
@@ -232,16 +287,30 @@ Diagram(
   Terminal('WHERE'),
   OneOrMore(
     Sequence(
-      NonTerminal('column'), NonTerminal('op'), NonTerminal('number')),
+      NonTerminal('column'),
+      Choice(0,
+        Sequence(NonTerminal('op'), NonTerminal('literal')),
+        Sequence(Terminal('GLOB'), NonTerminal('string')),
+        Sequence(Terminal('IN'), Terminal('('),
+                 OneOrMore(NonTerminal('literal'), Terminal(',')),
+                 Terminal(')')),
+        Sequence(Terminal('BETWEEN'), NonTerminal('literal'), Terminal('AND'),
+                 NonTerminal('literal')),
+        Sequence(Terminal('IS'), Optional(Terminal('NOT')), Terminal('NULL')))),
     Terminal('AND')))
 ```
 
-- `<op>` is one of `=`, `!=`, `<`, `<=`, `>` and `>=`.
-- `<number>` is an integer or floating-point literal.
-- `NULL` never matches. Integers compare with fractions as in SQL.
+- `<op>` is one of `=`, `==`, `!=`, `<>`, `<`, `<=`, `>` and `>=`.
+- `<literal>` is an integer, floating-point or string literal.
+- `GLOB` matches only string columns.
+- `NULL` never matches a comparison, `GLOB` or `IN`. Integers compare with
+  fractions as in SQL, and numbers sort before strings. A string is never
+  converted to a number, so `dur = '5'` matches nothing, as in a filter on a
+  Perfetto table.
 - Keeps all columns and aliases.
-- Not supported yet: `OR`, `NOT`, `IS NULL`, parentheses, strings, functions,
-  arithmetic, and a literal on the left. Filter in the source subquery instead.
+- Not supported yet: `OR`, `NOT`, `NOT IN`, `NOT GLOB`, `LIKE`, `REGEXP`,
+  parentheses, functions, arithmetic, and a literal on the left. Filter in the
+  source subquery instead.
 
 ### `DISTINCT` {#distinct}
 
@@ -275,12 +344,29 @@ Diagram(
 - The first key decides the order and each later key breaks ties. Each defaults
   to `ASC`.
 - A key is a column, which can be qualified. Expressions are not supported yet.
-- Keys must hold numbers. Sorting by a string column is not supported yet.
+- Strings sort by their bytes, as SQLite's default `BINARY` collation does.
 - `NULL`s come first when ascending and last when descending, as in SQLite.
 - Rows equal on every key keep their order.
 - Keeps all columns and aliases.
 - `INTERVAL FLATTEN`, `INTERVAL FILL GAPS`, `TREE ACCUMULATE` and `AGGREGATE`
   arrange rows their own way, so put `ORDER BY` after them.
+
+### `LIMIT` {#limit}
+
+Keeps the first rows, after skipping some:
+
+```railroad
+Diagram(
+  Terminal('LIMIT'), NonTerminal('count'),
+  Optional(Sequence(Terminal('OFFSET'), NonTerminal('skipped'))))
+```
+
+- Skips `<skipped>` rows, then keeps up to `<count>` rows, in the order they
+  arrive. Put it after [`ORDER BY`](#order-by) to keep the first rows of a
+  sort.
+- `<count>` and `<skipped>` are integer literals. As in SQL, a negative count
+  keeps every row and a negative offset skips none.
+- Keeps all columns and aliases.
 
 ### `INTERVAL FLATTEN` {#interval-flatten}
 

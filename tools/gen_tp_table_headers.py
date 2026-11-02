@@ -45,6 +45,16 @@ class Header:
   tables: List[ParsedTable]
 
 
+def write_if_changed(path: str, content: str):
+  # Leaving unchanged headers untouched lets ninja's restat prune rebuilds.
+  if os.path.exists(path):
+    with open(path, 'r', encoding='utf8') as f:
+      if f.read() == content:
+        return
+  with open(path, 'w', encoding='utf8') as out:
+    out.write(content)
+
+
 def main():
   """Main function."""
   parser = argparse.ArgumentParser()
@@ -129,16 +139,15 @@ def main():
     ]
 
     # Generate the forward declaration header first
-    with open(fwd_out_path, 'w', encoding='utf8') as out:
-      out.write(serialize_fwd_header(fwd_ifdef_guard, header.tables, fwd_deps))
-      out.write('\n')
+    write_if_changed(
+        fwd_out_path,
+        serialize_fwd_header(fwd_ifdef_guard, header.tables, fwd_deps) + '\n')
 
     # Generate the full header (includes the fwd header)
-    with open(out_path, 'w', encoding='utf8') as out:
-      out.write(
-          serialize_header(ifdef_guard, header.tables,
-                           sorted(header_relout_deps), fwd_header_path))
-      out.write('\n')
+    write_if_changed(
+        out_path,
+        serialize_header(ifdef_guard, header.tables, fwd_deps, fwd_header_path)
+        + '\n')
 
   # Generate the combined all_tables_fwd.h header
   if all_fwd_header_paths:
@@ -163,6 +172,11 @@ def generate_all_tables_header(args, all_tables: List[ParsedTable],
       for p in sorted(fwd_header_paths)
   ]).replace("\\", "/")
   variant_entries = ', '.join([t.table.class_name for t in all_tables])
+  index_entries = '\n'.join([
+      f'template <> struct TableIndex<{t.table.class_name}> '
+      f'{{ static constexpr size_t kValue = {i}; }};'
+      for i, t in enumerate(all_tables)
+  ])
 
   content = f'''\
 #ifndef {ifdef_guard}
@@ -181,15 +195,19 @@ namespace perfetto::trace_processor::tables {{
 using AllTables = std::variant<{variant_entries}>;
 
 // Count of all tables
-inline constexpr size_t kTableCount = std::variant_size_v<AllTables>;
+inline constexpr size_t kTableCount = {len(all_tables)};
+
+// Index of each table in AllTables, without instantiating the variant.
+template <typename T>
+struct TableIndex;
+{index_entries}
 
 }}  // namespace perfetto::trace_processor::tables
 
 #endif  // {ifdef_guard}
 '''
 
-  with open(out_path, 'w', encoding='utf8') as out:
-    out.write(content)
+  write_if_changed(out_path, content)
 
 
 if __name__ == '__main__':

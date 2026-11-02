@@ -3,11 +3,12 @@ name: perfetto
 description: >-
   Analyze or record Perfetto traces to debug performance problems: slow app
   startup, jank and dropped frames, ANRs, high CPU, battery drain, memory
-  growth and Java/native heap leaks, GPU utilisation, scheduling latency.
-  Use for any trace file (.pftrace, .perfetto-trace, .pb, systrace, ftrace,
-  Chrome JSON) from Android, Linux, Chrome or CUDA/GPU workloads, whether or
-  not the user says "Perfetto". Bundles trace_processor (PerfettoSQL) plus
-  guided workflows for Android memory and GPU analysis.
+  growth, low-memory kills, and Java/native heap leaks, GPU utilisation,
+  scheduling latency. Use for any trace file (.pftrace, .perfetto-trace,
+  .pb, systrace, ftrace, Chrome JSON) from Android, Linux, Chrome or
+  CUDA/GPU workloads, whether or not the user says "Perfetto". Bundles
+  trace_processor (PerfettoSQL) plus guided workflows for Android memory
+  and GPU analysis.
 ---
 
 # Perfetto
@@ -40,7 +41,8 @@ internal, OEM or CI images), use that instead.
    - Android device: [recording_android_traces.md]($SKILL_ROOT/infra-references/recording_android_traces.md)
    - Linux host: [recording_linux_traces.md]($SKILL_ROOT/infra-references/recording_linux_traces.md)
 
-2. **Memory** (heap dumps, leaks, churn)
+2. **Memory** (RSS/swap, graphics & buffers, GC, LMK, heap dumps, profiles)
+   - Memory in a system trace — RSS/swap, Java heap & GC, GPU/graphics/DMA-BUF, memory pressure, LMK (one trace or before/after): [system_trace_memory.md]($SKILL_ROOT/workflows/android_memory/system_trace_memory.md)
    - Leak or retention in one Java heap dump: [heap_dump.md]($SKILL_ROOT/workflows/android_memory/heap_dump.md)
    - Compare two Java heap dumps (before/after diff): [heap_dump_diff.md]($SKILL_ROOT/workflows/android_memory/heap_dump_diff.md)
    - Duplicate objects, caching opportunities: [heap_dump_caching_optimizer.md]($SKILL_ROOT/workflows/android_memory/heap_dump_caching_optimizer.md)

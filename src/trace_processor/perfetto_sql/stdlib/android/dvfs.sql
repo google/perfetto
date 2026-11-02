@@ -36,10 +36,10 @@ SELECT
   )
   - counter.ts AS dur
 FROM counter
-JOIN counter_track
-  ON counter.track_id = counter_track.id
+JOIN counter_track ON counter.track_id = counter_track.id
 WHERE
-  counter_track.name IN (
+  counter_track.type = 'linux_device_frequency'
+  OR counter_track.name IN (
     'domain@0 Frequency',
     'domain@1 Frequency',
     'domain@2 Frequency',

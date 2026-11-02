@@ -22,6 +22,7 @@
 #include <map>
 #include <memory>
 #include <random>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -41,6 +42,7 @@ namespace perfetto::trace_processor {
 namespace {
 
 using ::testing::_;
+using ::testing::ElementsAre;
 using ::testing::InSequence;
 using ::testing::MockFunction;
 using ::testing::NiceMock;
@@ -54,7 +56,7 @@ class MockTraceStorage : public TraceStorage {
  public:
   MockTraceStorage() = default;
 
-  MOCK_METHOD(StringId, InternString, (base::StringView view), (override));
+  MOCK_METHOD(StringId, InternString, (std::string_view view), (override));
 };
 
 template <typename T>
@@ -361,6 +363,29 @@ TEST_F(TraceSorterTest, MultiQueueSorting) {
 
   context_.sorter->ExtractEventsForced();
   EXPECT_TRUE(expectations.empty());
+}
+
+TEST_F(TraceSorterTest, EqualTimestampsAcrossQueuesInArrivalOrder) {
+  std::vector<uint32_t> order;
+  std::vector<std::unique_ptr<TraceSorter::Stream<FtraceEventData>>> streams;
+  for (uint32_t i = 0; i < 2; ++i) {
+    auto sink = std::make_unique<MockSink<FtraceEventData>>();
+    EXPECT_CALL(*sink, MockParse(_, _))
+        .WillRepeatedly([&order](int64_t, FtraceEventData data) {
+          order.push_back(data.cpu);
+        });
+    streams.emplace_back(context_.sorter->CreateStream(std::move(sink)));
+  }
+
+  // The second queue's events arrive first and in between the first's.
+  TraceBlobView tbv(TraceBlob::Allocate(4));
+  streams[1]->Push(10, {tbv.slice_off(0, 1), 0});
+  streams[0]->Push(10, {tbv.slice_off(1, 1), 1});
+  streams[1]->Push(10, {tbv.slice_off(2, 1), 2});
+  streams[0]->Push(10, {tbv.slice_off(3, 1), 3});
+
+  context_.sorter->ExtractEventsForced();
+  EXPECT_THAT(order, ElementsAre(0, 1, 2, 3));
 }
 
 TEST_F(TraceSorterTest, SetSortingMode) {

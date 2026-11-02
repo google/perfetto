@@ -20,10 +20,14 @@ package perfetto.protos;
 
 // A named, typed key/value which is part of a track's identity.
 //
-// Dimensions are the single vocabulary for identifiers which apply to a set of
-// tracks: *well-known* dimensions are synthesized by trace processor, while
-// producers can declare their own *custom* dimensions (`rank`, `shard`,
-// `stage`, ...) on a TrackDescriptor.
+// Producers can declare *custom* dimensions (`rank`, `shard`, `stage`, ...)
+// on a TrackDescriptor. Trace processor exposes their effective values in
+// `track.dimension_arg_set_id` as args with keys `custom_dimension.<name>`.
+// Presentation-only labels are stored in `track.source_arg_set_id` with keys
+// `custom_dimension_display_name.<name>`. When sibling descriptors merge, each
+// resulting track keeps the display labels from the descriptor that first
+// creates it. Built-in dimensions are available through track columns and the
+// other dimension args.
 //
 // Reserved names: the names of the well-known dimensions are reserved and
 // cannot be used for custom dimensions. They are:
@@ -37,6 +41,14 @@ package perfetto.protos;
 // the same thing across data sources. A custom dimension using a reserved name
 // is ignored and trace processor records the
 // `track_descriptor_reserved_dimension_name` import error.
+//
+// A TrackDescriptor with `thread` set must also set
+// `disallow_merging_with_system_tracks` to declare custom dimensions. Otherwise
+// its declarations are ignored and trace processor reports
+// `track_descriptor_shared_thread_custom_dimensions`. Shared thread tracks
+// omit inherited dimensions, but inheritance continues through their
+// descriptors to child tracks. Thread-associated child descriptors without a
+// `thread` field may declare custom dimensions.
 //
 // A dimension has no scope field: it is declared on the track described by the
 // containing TrackDescriptor and applies to that track and its `parent_uuid`

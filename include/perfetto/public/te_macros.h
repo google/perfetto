@@ -21,6 +21,7 @@
 
 #ifdef __cplusplus
 #include <initializer_list>
+#include <utility>
 #endif
 
 #include "perfetto/public/abi/track_event_hl_abi.h"

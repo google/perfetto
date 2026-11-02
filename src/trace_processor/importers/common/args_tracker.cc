@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <new>
@@ -26,10 +25,11 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/importers/common/args_translation_table.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
@@ -64,26 +64,55 @@ void WriteArgSetId(dataframe::Dataframe* df,
 
 }  // namespace
 
-ArgsInserter::ArgsInserter(GlobalArgsTracker* global,
+ArgsTracker::ArgsTracker(TraceStorage* storage) : storage_(storage) {}
+
+ArgsInserter ArgsTracker::AddArgsTo(MetadataId id) {
+  auto* table = storage_->mutable_metadata_table();
+  uint32_t row = (*table)[id].ToRowNumber().row_number();
+  return Bind(&table->dataframe(),
+              tables::MetadataTable::ColumnIndex::int_value, row, id.value);
+}
+
+ArgsInserter ArgsTracker::AddArgsTo(TrackId id) {
+  auto* table = storage_->mutable_track_table();
+  uint32_t row = (*table)[id].ToRowNumber().row_number();
+  return Bind(&table->dataframe(),
+              tables::TrackTable::ColumnIndex::source_arg_set_id, row,
+              id.value);
+}
+
+ArgsInserter ArgsTracker::AddArgsToProcess(UniquePid id) {
+  auto* table = storage_->mutable_process_table();
+  return Bind(&table->dataframe(),
+              tables::ProcessTable::ColumnIndex::arg_set_id, id, id);
+}
+
+ArgsInserter ArgsTracker::AddArgsToThread(UniqueTid id) {
+  auto* table = storage_->mutable_thread_table();
+  return Bind(&table->dataframe(), tables::ThreadTable::ColumnIndex::arg_set_id,
+              id, id);
+}
+
+ArgsInserter::ArgsInserter(ArgsTracker* tracker,
                            dataframe::Dataframe* df,
                            uint32_t col,
                            uint32_t row,
                            uint32_t id)
-    : global_(global),
-      buffer_(global->AcquireArgsBuffer()),
+    : tracker_(tracker),
+      buffer_(tracker->AcquireArgsBuffer()),
       df_(df),
       col_(col),
       row_(row),
       id_(id) {}
 
 ArgsInserter::ArgsInserter(ArgsInserter&& other) noexcept
-    : global_(other.global_),
+    : tracker_(other.tracker_),
       buffer_(other.buffer_),
       df_(other.df_),
       col_(other.col_),
       row_(other.row_),
       id_(other.id_) {
-  other.global_ = nullptr;
+  other.tracker_ = nullptr;
   other.buffer_ = nullptr;
 }
 
@@ -98,10 +127,10 @@ ArgsInserter& ArgsInserter::operator=(ArgsInserter&& other) noexcept {
 }
 
 ArgsInserter::~ArgsInserter() {
-  if (!global_)  // Empty, moved-from, or a test mock: nothing to commit.
+  if (!tracker_)  // Empty, moved-from, or a test mock: nothing to commit.
     return;
   Commit();
-  global_->ReleaseArgsBuffer(buffer_);
+  tracker_->ReleaseArgsBuffer(buffer_);
 }
 
 ArgsInserter& ArgsInserter::AddArg(StringId flat_key,
@@ -153,14 +182,6 @@ ArgsInserter& ArgsInserter::AddArg(StringId flat_key,
   return *this;
 }
 
-bool ArgsInserter::NeedsTranslation(const ArgsTranslationTable& table) const {
-  return std::any_of(buffer_->args.begin(), buffer_->args.end(),
-                     [&table](const CompactArg& arg) {
-                       return table.NeedsTranslation(arg.flat_key, arg.key,
-                                                     arg.value.type);
-                     });
-}
-
 ArgsInserter::CompactArgSet ArgsInserter::ToCompactArgSet() && {
   CompactArgSet compact_args;
   for (const CompactArg& arg : buffer_->args) {
@@ -179,8 +200,95 @@ void ArgsInserter::Commit() {
     return;
   }
   ArgSetId set_id =
-      global_->AddArgSet(args.data(), 0, static_cast<uint32_t>(args.size()));
+      tracker_->AddArgSet(args.data(), static_cast<uint32_t>(args.size()));
   WriteArgSetId(df_, col_, row_, set_id);
+}
+
+uint64_t ArgsTracker::ComputeArgSetHash(const CompactArg* args,
+                                        uint32_t count) {
+  base::MurmurHashCombiner combiner;
+  for (uint32_t i = 0; i < count; ++i) {
+    const CompactArg& arg = args[i];
+    combiner.Combine(arg.key);
+    combiner.Combine(arg.value.type);
+    // We don't hash arg.flat_key because it's a subsequence of arg.key.
+    switch (arg.value.type) {
+      case Variadic::Type::kInt:
+        combiner.Combine(arg.value.int_value);
+        break;
+      case Variadic::Type::kUint:
+        combiner.Combine(arg.value.uint_value);
+        break;
+      case Variadic::Type::kString:
+        combiner.Combine(arg.value.string_value);
+        break;
+      case Variadic::Type::kReal:
+        combiner.Combine(arg.value.real_value);
+        break;
+      case Variadic::Type::kPointer:
+        combiner.Combine(arg.value.pointer_value);
+        break;
+      case Variadic::Type::kBool:
+        combiner.Combine(arg.value.bool_value);
+        break;
+      case Variadic::Type::kJson:
+        combiner.Combine(arg.value.json_value);
+        break;
+      case Variadic::Type::kNull:
+        combiner.Combine(0);
+        break;
+    }
+  }
+
+  return combiner.digest();
+}
+
+ArgSetId ArgsTracker::AddArgSet(const CompactArg* args, uint32_t count) {
+  auto& arg_table = *storage_->mutable_arg_table();
+
+  uint32_t arg_set_id = arg_table.row_count();
+  ArgSetHash digest = ComputeArgSetHash(args, count);
+  auto [it, inserted] = arg_row_for_hash_.Insert(digest, arg_set_id);
+  if (!inserted) {
+    // Already inserted.
+    return *it;
+  }
+
+  for (uint32_t i = 0; i < count; ++i) {
+    const CompactArg& arg = args[i];
+    tables::ArgTable::Row row;
+    row.arg_set_id = arg_set_id;
+    row.flat_key = arg.flat_key;
+    row.key = arg.key;
+    switch (arg.value.type) {
+      case Variadic::Type::kInt:
+        row.int_value = arg.value.int_value;
+        break;
+      case Variadic::Type::kUint:
+        row.int_value = static_cast<int64_t>(arg.value.uint_value);
+        break;
+      case Variadic::Type::kString:
+        row.string_value = arg.value.string_value;
+        break;
+      case Variadic::Type::kReal:
+        row.real_value = arg.value.real_value;
+        break;
+      case Variadic::Type::kPointer:
+        row.int_value = static_cast<int64_t>(arg.value.pointer_value);
+        break;
+      case Variadic::Type::kBool:
+        row.int_value = arg.value.bool_value;
+        break;
+      case Variadic::Type::kJson:
+        row.string_value = arg.value.json_value;
+        break;
+      case Variadic::Type::kNull:
+        break;
+    }
+    row.value_type = storage_->GetIdForVariadicType(arg.value.type);
+    arg_table.Insert(row);
+  }
+  return arg_set_id;
 }
 
 }  // namespace perfetto::trace_processor

@@ -39,6 +39,7 @@
 #include "src/trace_processor/plugins/android_framework_track_event/tables_py.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
@@ -81,7 +82,7 @@ class AndroidTrackEventProcessTableHolder {
     }
     context->import_logs_tracker->RecordParserLog(
         stats::android_track_event_process_unknown, ts,
-        [&](ArgsTracker::BoundInserter& inserter) {
+        [&](ArgsInserter& inserter) {
           inserter.AddArg(
               context->storage->InternString("source"),
               Variadic::String(context->storage->InternString(source)));

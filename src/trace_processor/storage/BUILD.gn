@@ -18,6 +18,7 @@ source_set("storage") {
   sources = [
     "metadata.h",
     "stats.h",
+    "stats_types.h",
     "trace_storage.cc",
     "trace_storage.h",
   ]

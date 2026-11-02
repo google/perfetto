@@ -19,19 +19,19 @@
 #include <cstdint>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/ops.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::tree_ops {
 namespace {
 
 template <typename T>
-void UpdateTypedRowHashes(Span<const T> values,
+void UpdateTypedRowHashes(base::Span<const T> values,
                           const BitVector* non_null,
-                          Span<base::MurmurHashCombiner> hashes) {
+                          base::Span<base::MurmurHashCombiner> hashes) {
   PERFETTO_DCHECK(values.size() == hashes.size());
   PERFETTO_DCHECK(!non_null || non_null->size() == values.size());
   for (uint32_t row = 0; row < values.size(); ++row) {
@@ -44,7 +44,8 @@ void UpdateTypedRowHashes(Span<const T> values,
 }
 
 template <typename T>
-Tree::Column GatherTyped(const Tree::Column& input, Span<const uint32_t> rows) {
+Tree::Column GatherTyped(const Tree::Column& input,
+                         base::Span<const uint32_t> rows) {
   Tree::Column output =
       Tree::Column::Create<T>(static_cast<uint32_t>(rows.size()));
   if (input.null_bv.size() == 0) {
@@ -62,7 +63,7 @@ Tree::Column GatherTyped(const Tree::Column& input, Span<const uint32_t> rows) {
 }  // namespace
 
 void UpdateRowHashes(const Tree::Column& column,
-                     Span<base::MurmurHashCombiner> hashes) {
+                     base::Span<base::MurmurHashCombiner> hashes) {
   const BitVector* non_null =
       column.null_bv.size() > 0 ? &column.null_bv : nullptr;
   switch (column.type.index()) {
@@ -88,7 +89,8 @@ void UpdateRowHashes(const Tree::Column& column,
   }
 }
 
-Tree::Column Gather(const Tree::Column& input, Span<const uint32_t> rows) {
+Tree::Column Gather(const Tree::Column& input,
+                    base::Span<const uint32_t> rows) {
   switch (input.type.index()) {
     case Tree::Column::Type::GetTypeIndex<Int64>():
       return GatherTyped<int64_t>(input, rows);

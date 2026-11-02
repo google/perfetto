@@ -120,8 +120,8 @@ class PrimesImporter : public TraceImporter<PrimesImporter> {
   PrimesImporter() : TraceImporter(MakeDescriptor()) {}
   ~PrimesImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
-    return size > 0 && data[0] == 0x09;
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
+    return {size > 0 && data[0] == 0x09};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

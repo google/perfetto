@@ -37,7 +37,7 @@ void ImportLogsTracker::RecordImportLog(
     size_t stat_key,
     std::optional<int64_t> timestamp,
     std::optional<int64_t> byte_offset,
-    std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
+    std::function<void(ArgsInserter&)> args_callback) {
   context_->stats_tracker->IncrementStats(stat_key);
 
   tables::TraceImportLogsTable::Row row;
@@ -50,16 +50,15 @@ void ImportLogsTracker::RecordImportLog(
       context_->storage->mutable_trace_import_logs_table()->Insert(row).id;
 
   if (args_callback) {
-    ArgsTracker args_tracker(context_);
-    auto bound_inserter = args_tracker.AddArgsTo(id);
-    args_callback(bound_inserter);
+    auto inserter = context_->args_tracker->AddArgsTo(id);
+    args_callback(inserter);
   }
 }
 
 void ImportLogsTracker::RecordTokenizationLog(
     size_t stat_key,
     int64_t byte_offset,
-    std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
+    std::function<void(ArgsInserter&)> args_callback) {
   RecordImportLog(stat_key,
                   /*timestamp=*/std::nullopt, byte_offset,
                   std::move(args_callback));
@@ -68,7 +67,7 @@ void ImportLogsTracker::RecordTokenizationLog(
 void ImportLogsTracker::RecordParserLog(
     size_t stat_key,
     int64_t timestamp,
-    std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
+    std::function<void(ArgsInserter&)> args_callback) {
   RecordImportLog(stat_key, timestamp,
                   /*byte_offset=*/std::nullopt, std::move(args_callback));
 }
@@ -76,21 +75,21 @@ void ImportLogsTracker::RecordParserLog(
 void ImportLogsTracker::RecordCollectionLog(
     size_t stat_key,
     int64_t timestamp,
-    std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
+    std::function<void(ArgsInserter&)> args_callback) {
   RecordImportLog(stat_key, timestamp,
                   /*byte_offset=*/std::nullopt, std::move(args_callback));
 }
 
 void ImportLogsTracker::RecordCollectionLog(
     size_t stat_key,
-    std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
+    std::function<void(ArgsInserter&)> args_callback) {
   RecordImportLog(stat_key, /*timestamp=*/std::nullopt,
                   /*byte_offset=*/std::nullopt, std::move(args_callback));
 }
 
 void ImportLogsTracker::RecordAnalysisLog(
     size_t stat_key,
-    std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
+    std::function<void(ArgsInserter&)> args_callback) {
   RecordImportLog(stat_key,
                   /*timestamp=*/std::nullopt,
                   /*byte_offset=*/std::nullopt, std::move(args_callback));

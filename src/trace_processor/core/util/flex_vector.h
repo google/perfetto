@@ -25,10 +25,10 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core {
 
@@ -126,10 +126,11 @@ class FlexVector {
     while (PERFETTO_UNLIKELY(size_ + count > capacity())) {
       IncreaseCapacity();
     }
-    uint64_t end = size_ + count;
-    for (; size_ < end; ++size_) {
-      slab_[size_] = value;
-    }
+    // Filled through a local pointer and size: a store through `slab_` could
+    // alias `size_`, which would otherwise be written back every element.
+    T* begin = slab_.data() + size_;
+    std::fill(begin, begin + count, value);
+    size_ += count;
   }
 
   // Removes the last element from the vector. Should not be called on an
@@ -199,11 +200,11 @@ class FlexVector {
   PERFETTO_ALWAYS_INLINE const T* data() const { return slab_.data(); }
   PERFETTO_ALWAYS_INLINE uint64_t size() const { return size_; }
   PERFETTO_ALWAYS_INLINE bool empty() const { return size() == 0; }
-  PERFETTO_ALWAYS_INLINE Span<T> mutable_span() {
-    return Span<T>(data(), data() + size());
+  PERFETTO_ALWAYS_INLINE base::Span<T> mutable_span() {
+    return base::Span<T>(data(), data() + size());
   }
-  PERFETTO_ALWAYS_INLINE Span<const T> span() const {
-    return Span<const T>(data(), data() + size());
+  PERFETTO_ALWAYS_INLINE base::Span<const T> span() const {
+    return base::Span<const T>(data(), data() + size());
   }
 
   // Iterators for range-based for loops.

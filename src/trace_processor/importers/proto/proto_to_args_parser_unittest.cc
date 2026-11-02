@@ -1,0 +1,1432 @@
+/*
+ * Copyright (C) 2021 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "src/trace_processor/importers/proto/proto_to_args_parser.h"
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <ios>
+#include <limits>
+#include <map>
+#include <memory>
+#include <optional>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/status.h"
+#include "perfetto/protozero/field.h"
+#include "perfetto/protozero/packed_repeated_fields.h"
+#include "perfetto/protozero/proto_utils.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/base/test//status_matchers.h"
+#include "src/protozero/test/example_proto/test_messages.pbzero.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_builder.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/test_messages.descriptor.h"
+#include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/interned_message_view.h"
+#include "test/gtest_and_gmock.h"
+
+#include "protos/perfetto/common/descriptor.pbzero.h"
+#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
+#include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
+#include "protos/perfetto/trace/track_event/source_location.pbzero.h"
+
+namespace perfetto::trace_processor::util {
+namespace {
+
+constexpr size_t kChunkSize = 42;
+
+// Records each arg as "<flat_key> <key> <value>".
+class ArgsRecorder : public ArgSink {
+ public:
+  ArgsRecorder() {
+    context_.storage.reset(new TraceStorage());
+    context_.machine_tracker.reset(
+        new MachineTracker(&context_, kDefaultMachineId));
+  }
+
+  const std::vector<std::string>& args() const { return args_; }
+
+  void InternMessage(uint32_t field_id, TraceBlobView message) {
+    state_builder_.InternMessage(field_id, std::move(message));
+  }
+
+  const ProtoArgsEnv& env() {
+    env_.seq_state = state_builder_.current_generation().get();
+    return env_;
+  }
+
+  void Add(ArgKey key, Variadic value) override {
+    std::stringstream ss;
+    ss << K(key.flat_key) << " " << K(key.key) << " ";
+    switch (value.type) {
+      case Variadic::kInt:
+        ss << value.int_value;
+        break;
+      case Variadic::kUint:
+        ss << value.uint_value;
+        break;
+      case Variadic::kString:
+        ss << K(value.string_value);
+        break;
+      case Variadic::kReal:
+        ss << value.real_value;
+        break;
+      case Variadic::kPointer:
+        ss << std::hex << value.pointer_value << std::dec;
+        break;
+      case Variadic::kBool:
+        ss << (value.bool_value ? "true" : "false");
+        break;
+      case Variadic::kJson:
+        ss << K(value.json_value);
+        break;
+      case Variadic::kNull:
+        ss << "[NULL]";
+        break;
+    }
+    args_.push_back(ss.str());
+  }
+
+  size_t ArrayIndex(StringId key) override { return array_indices_[key]; }
+
+  size_t IncrementArrayIndex(StringId key) override {
+    return ++array_indices_[key];
+  }
+
+ protected:
+  StringPool string_pool_;
+  ProtoArgsEnv env_;
+  TraceProcessorContext context_;
+
+ private:
+  std::string K(StringPool::Id id) {
+    return string_pool_.Get(id).ToStdString();
+  }
+
+  std::vector<std::string> args_;
+  std::map<StringPool::Id, size_t> array_indices_;
+  PacketSequenceStateBuilder state_builder_{&context_};
+};
+
+class ProtoToArgsParserTest : public ::testing::Test, public ArgsRecorder {
+ protected:
+  template <typename T, typename... Ts>
+  void CreatedPackedVarint(protozero::PackedVarInt& var, T p, Ts... ps) {
+    var.Reset();
+    std::array<T, sizeof...(ps) + 1> list = {p, ps...};
+    for (T v : list) {
+      var.Append(v);
+    }
+  }
+};
+
+TEST_F(ProtoToArgsParserTest, FlatMessageFallbackPreservesValues) {
+  using namespace protozero::test::protos::pbzero;
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+  ProtoToArgsParser parser(pool, string_pool_);
+  for (int i = 1; i <= 3; i++) {
+    protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+    msg->set_field_int32(i);
+    msg->set_field_string(std::string(static_cast<size_t>(i), 'x'));
+    msg->set_small_enum(i % 2 ? SmallEnum::TO_BE : SmallEnum::NOT_TO_BE);
+    auto binary_proto = msg.SerializeAsArray();
+    ASSERT_OK(parser.ParseMessage(
+        protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+        ".protozero.test.protos.EveryField", nullptr, env(), *this));
+  }
+  EXPECT_THAT(
+      args(),
+      testing::ElementsAre(
+          "field_int32 field_int32 1", "field_string field_string x",
+          "small_enum small_enum TO_BE", "field_int32 field_int32 2",
+          "field_string field_string xx", "small_enum small_enum NOT_TO_BE",
+          "field_int32 field_int32 3", "field_string field_string xxx",
+          "small_enum small_enum TO_BE"));
+}
+
+TEST_F(ProtoToArgsParserTest, FlatMessageFallbackHandlesDifferentFields) {
+  using namespace protozero::test::protos::pbzero;
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+  ProtoToArgsParser parser(pool, string_pool_);
+  auto parse = [&](const std::vector<uint8_t>& binary_proto) {
+    ASSERT_OK(parser.ParseMessage(
+        protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+        ".protozero.test.protos.EveryField", nullptr, env(), *this));
+  };
+  for (int i = 1; i <= 2; i++) {
+    protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+    msg->set_field_int32(i);
+    msg->set_field_string("a");
+    parse(msg.SerializeAsArray());
+  }
+  // Same prefix, then an unfamiliar field.
+  {
+    protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+    msg->set_field_int32(3);
+    msg->set_field_string("b");
+    msg->set_field_bool(true);
+    parse(msg.SerializeAsArray());
+  }
+  // A different first field.
+  {
+    protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+    msg->set_field_uint32(4);
+    msg->set_field_int32(5);
+    parse(msg.SerializeAsArray());
+  }
+  // A shorter message.
+  {
+    protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+    msg->set_field_int32(6);
+    parse(msg.SerializeAsArray());
+  }
+  EXPECT_THAT(args(),
+              testing::ElementsAre(
+                  "field_int32 field_int32 1", "field_string field_string a",
+                  "field_int32 field_int32 2", "field_string field_string a",
+                  "field_int32 field_int32 3", "field_string field_string b",
+                  "field_bool field_bool true", "field_uint32 field_uint32 4",
+                  "field_int32 field_int32 5", "field_int32 field_int32 6"));
+}
+
+TEST_F(ProtoToArgsParserTest, FlatMessagesRespectAllowlistAndNesting) {
+  using namespace protozero::test::protos::pbzero;
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+  ProtoToArgsParser parser(pool, string_pool_);
+  std::vector<uint32_t> allowed = {EveryField::kFieldInt32FieldNumber};
+  for (int i = 1; i <= 2; i++) {
+    protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+    msg->set_field_int32(i);
+    msg->set_field_string("skipped");
+    auto binary_proto = msg.SerializeAsArray();
+    ASSERT_OK(parser.ParseMessage(
+        protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+        ".protozero.test.protos.EveryField", &allowed, env(), *this));
+  }
+  std::vector<uint32_t> nested_allowed = {NestedA::kSuperNestedFieldNumber};
+  for (int i = 1; i <= 2; i++) {
+    protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+    msg->set_super_nested()->set_value_c(i);
+    auto binary_proto = msg.SerializeAsArray();
+    ASSERT_OK(parser.ParseMessage(
+        protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+        ".protozero.test.protos.NestedA", &nested_allowed, env(), *this));
+  }
+  EXPECT_THAT(args(),
+              testing::ElementsAre(
+                  "field_int32 field_int32 1", "field_int32 field_int32 2",
+                  "super_nested.value_c super_nested.value_c 1",
+                  "super_nested.value_c super_nested.value_c 2"));
+}
+
+TEST_F(ProtoToArgsParserTest, EnsureTestMessageProtoParses) {
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ProtoToArgsParser parser(pool, string_pool_);
+  EXPECT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+}
+
+TEST_F(ProtoToArgsParserTest, BasicSingleLayerProto) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+  msg->set_field_int32(-1);
+  msg->set_field_int64(-333123456789ll);
+  msg->set_field_uint32(600);
+  msg->set_field_uint64(333123456789ll);
+  msg->set_field_sint32(-5);
+  msg->set_field_sint64(-9000);
+  msg->set_field_fixed32(12345);
+  msg->set_field_fixed64(444123450000ll);
+  msg->set_field_sfixed32(-69999);
+  msg->set_field_sfixed64(-200);
+  msg->set_field_double(0.5555);
+  msg->set_field_bool(true);
+  msg->set_small_enum(SmallEnum::TO_BE);
+  msg->set_signed_enum(SignedEnum::NEGATIVE);
+  msg->set_big_enum(BigEnum::BEGIN);
+  msg->set_nested_enum(EveryField::PONG);
+  msg->set_field_float(3.14f);
+  msg->set_field_string("FizzBuzz");
+  msg->add_repeated_int32(1);
+  msg->add_repeated_int32(-1);
+  msg->add_repeated_int32(100);
+  msg->add_repeated_int32(2000000);
+  msg->set_field_bytes({0, 1, 2});
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.EveryField", nullptr, env(), *this);
+
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+
+  EXPECT_THAT(
+      args(),
+      testing::ElementsAre(
+          "field_int32 field_int32 -1", "field_int64 field_int64 -333123456789",
+          "field_uint32 field_uint32 600",
+          "field_uint64 field_uint64 333123456789",
+          "field_sint32 field_sint32 -5", "field_sint64 field_sint64 -9000",
+          "field_fixed32 field_fixed32 12345",
+          "field_fixed64 field_fixed64 444123450000",
+          "field_sfixed32 field_sfixed32 -69999",
+          "field_sfixed64 field_sfixed64 -200",
+          "field_double field_double 0.5555", "field_bool field_bool true",
+          "small_enum small_enum TO_BE", "signed_enum signed_enum NEGATIVE",
+          "big_enum big_enum BEGIN", "nested_enum nested_enum PONG",
+          "field_float field_float 3.14", "field_string field_string FizzBuzz",
+          "repeated_int32 repeated_int32[0] 1",
+          "repeated_int32 repeated_int32[1] -1",
+          "repeated_int32 repeated_int32[2] 100",
+          "repeated_int32 repeated_int32[3] 2000000",
+          "field_bytes field_bytes AAEC"));
+}
+
+TEST_F(ProtoToArgsParserTest, PackedEncodingWithoutDescriptorPackedFlag) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<protozero::Message> raw{kChunkSize, kChunkSize};
+  protozero::PackedVarInt packed;
+  packed.Append(int32_t{10});
+  packed.Append(int32_t{20});
+  raw->AppendBytes(EveryField::kRepeatedInt32FieldNumber, packed.data(),
+                   packed.size());
+  auto binary_proto = raw.SerializeAsArray();
+
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_OK(parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.EveryField", nullptr, env(), *this));
+  EXPECT_THAT(args(),
+              testing::ElementsAre("repeated_int32 repeated_int32[0] 10",
+                                   "repeated_int32 repeated_int32[1] 20"));
+}
+
+// A single decoded field is parsed as if it were the whole message: keys
+// are the same, a submessage is parsed in full, and a field without a
+// descriptor counts as an unknown extension.
+TEST_F(ProtoToArgsParserTest, ParseMessageField) {
+  using namespace protozero::test::protos::pbzero;
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+  ProtoToArgsParser parser(pool, string_pool_);
+  uint32_t nested_a = *pool.FindDescriptorIdx(".protozero.test.protos.NestedA");
+  uint32_t every_field =
+      *pool.FindDescriptorIdx(".protozero.test.protos.EveryField");
+  int unknown = 0;
+  for (int i = 1; i <= 2; i++) {
+    protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+    msg->set_super_nested()->set_value_c(i);
+    auto binary_proto = msg.SerializeAsArray();
+    protozero::ProtoDecoder decoder(binary_proto.data(), binary_proto.size());
+    protozero::Field field = decoder.ReadField();
+    ASSERT_EQ(field.id(),
+              static_cast<uint32_t>(NestedA::kSuperNestedFieldNumber));
+    ASSERT_OK(
+        parser.ParseMessageField(nested_a, field, env(), *this, &unknown));
+  }
+  protozero::HeapBuffered<EveryField> scalar{kChunkSize, kChunkSize};
+  scalar->set_field_string("s");
+  auto scalar_proto = scalar.SerializeAsArray();
+  protozero::ProtoDecoder scalar_decoder(scalar_proto.data(),
+                                         scalar_proto.size());
+  ASSERT_OK(parser.ParseMessageField(every_field, scalar_decoder.ReadField(),
+                                     env(), *this, &unknown));
+  protozero::Field unknown_field;
+  unknown_field.initialize(
+      9999,
+      static_cast<uint8_t>(protozero::proto_utils::ProtoWireType::kVarInt), 1,
+      0);
+  ASSERT_OK(parser.ParseMessageField(every_field, unknown_field, env(), *this,
+                                     &unknown));
+  EXPECT_EQ(unknown, 1);
+  // Occurrences of a repeated field are numbered across calls that share
+  // an index.
+  protozero::HeapBuffered<EveryField> repeated{kChunkSize, kChunkSize};
+  repeated->add_repeated_int32(10);
+  repeated->add_repeated_int32(20);
+  auto repeated_proto = repeated.SerializeAsArray();
+  protozero::ProtoDecoder repeated_decoder(repeated_proto.data(),
+                                           repeated_proto.size());
+  ProtoToArgsParser::RepeatedFieldIndex index;
+  for (protozero::Field f = repeated_decoder.ReadField(); f.valid();
+       f = repeated_decoder.ReadField()) {
+    ASSERT_OK(parser.ParseMessageField(every_field, f, env(), *this, &unknown,
+                                       &index));
+  }
+  EXPECT_THAT(args(), testing::ElementsAre(
+                          "super_nested.value_c super_nested.value_c 1",
+                          "super_nested.value_c super_nested.value_c 2",
+                          "field_string field_string s",
+                          "repeated_int32 repeated_int32[0] 10",
+                          "repeated_int32 repeated_int32[1] 20"));
+}
+
+TEST_F(ProtoToArgsParserTest, NestedProto) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+  msg->set_super_nested()->set_value_c(3);
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.NestedA", nullptr, env(), *this);
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+  EXPECT_THAT(args(), testing::ElementsAre(
+                          "super_nested.value_c super_nested.value_c 3"));
+}
+
+TEST_F(ProtoToArgsParserTest, CamelCaseFieldsProto) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<CamelCaseFields> msg{kChunkSize, kChunkSize};
+  msg->set_barbaz(true);
+  msg->set_moomoo(true);
+  msg->set___bigbang(true);
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.CamelCaseFields", nullptr, env(), *this);
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+  EXPECT_THAT(args(),
+              testing::ElementsAre("barBaz barBaz true", "MooMoo MooMoo true",
+                                   "__bigBang __bigBang true"));
+}
+
+TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideHandled) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+  msg->set_super_nested()->set_value_c(3);
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  parser.AddParsingOverrideForField(
+      "super_nested.value_c", [](const protozero::Field& field,
+                                 ProtoToArgsParser::OverrideContext& ctx) {
+        EXPECT_EQ(field.type(), protozero::proto_utils::ProtoWireType::kVarInt);
+        ctx.Add(base::StringView("super_nested.value_b.replaced"),
+                Variadic::Integer(field.as_int32()));
+        // We've handled this field by adding the desired args.
+        return base::OkStatus();
+      });
+
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.NestedA", nullptr, env(), *this);
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+  EXPECT_THAT(
+      args(),
+      testing::ElementsAre(
+          "super_nested.value_b.replaced super_nested.value_b.replaced 3"));
+}
+
+TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideSkipped) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+  msg->set_super_nested()->set_value_c(3);
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  int nested_val = 0;
+  parser.AddParsingOverrideForField(
+      "super_nested.value_c",
+      [&nested_val](const protozero::Field& field,
+                    ProtoToArgsParser::OverrideContext&) {
+        ++nested_val;
+        EXPECT_EQ(1, nested_val);
+        EXPECT_EQ(field.type(), protozero::proto_utils::ProtoWireType::kVarInt);
+        return std::nullopt;
+      });
+
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.NestedA", nullptr, env(), *this);
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+  EXPECT_THAT(args(), testing::ElementsAre(
+                          "super_nested.value_c super_nested.value_c 3"));
+}
+
+TEST_F(ProtoToArgsParserTest, LookingUpInternedStateParsingOverride) {
+  using namespace protozero::test::protos::pbzero;
+  // The test proto, we will use |value_c| as the source_location iid.
+  protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+  msg->set_super_nested()->set_value_c(3);
+  auto binary_proto = msg.SerializeAsArray();
+
+  // The interned source location.
+  protozero::HeapBuffered<protos::pbzero::SourceLocation> src_loc{kChunkSize,
+                                                                  kChunkSize};
+  const uint64_t kIid = 3;
+  src_loc->set_iid(kIid);
+  src_loc->set_file_name("test_file_name");
+  // We need to update sequence_state to point to it.
+  auto binary_data = src_loc.SerializeAsArray();
+  std::unique_ptr<uint8_t[]> buffer(new uint8_t[binary_data.size()]);
+  for (size_t i = 0; i < binary_data.size(); ++i) {
+    buffer.get()[i] = binary_data[i];
+  }
+  TraceBlob blob =
+      TraceBlob::TakeOwnership(std::move(buffer), binary_data.size());
+  InternMessage(protos::pbzero::InternedData::kSourceLocationsFieldNumber,
+                TraceBlobView(std::move(blob)));
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  ProtoToArgsParser parser(pool, string_pool_);
+  // Now we override the behaviour of |value_c| so we can expand the iid into
+  // multiple args rows.
+  parser.AddParsingOverrideForField(
+      "super_nested.value_c",
+      [](const protozero::Field& field, ProtoToArgsParser::OverrideContext& ctx)
+          -> std::optional<base::Status> {
+        auto* decoder = ctx.env().GetInternedMessage(
+            protos::pbzero::InternedData::kSourceLocations, field.as_uint64());
+        if (!decoder) {
+          // Lookup failed fall back on default behaviour.
+          return std::nullopt;
+        }
+        ctx.Add(base::StringView("file_name"),
+                Variadic::String(ctx.InternString("file")));
+        ctx.Add(base::StringView("line_number"), Variadic::Integer(2));
+        return base::OkStatus();
+      });
+
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.NestedA", nullptr, env(), *this);
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+  EXPECT_THAT(args(), testing::ElementsAre("file_name file_name file",
+                                           "line_number line_number 2"));
+}
+
+TEST_F(ProtoToArgsParserTest, EmptyMessage) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+  msg->set_super_nested();
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  ProtoToArgsParser parser(pool, string_pool_);
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.NestedA", nullptr, env(), *this);
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+  EXPECT_THAT(args(), testing::ElementsAre("super_nested super_nested [NULL]"));
+}
+
+TEST_F(ProtoToArgsParserTest, WidthAndSignednessOfScalars) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+
+  // Set fields to values with the top bit set, and check that the parser
+  // retains the full value with the correct sign.
+  msg->set_field_int32(-0x80000000ll);
+  msg->set_field_sint32(-0x80000000ll);
+  msg->set_field_sfixed32(-0x80000000ll);
+
+  msg->set_field_uint32(0x80000000ull);
+  msg->set_field_fixed32(0x80000000ull);
+
+  msg->set_field_int64(-0x7FFFFFFFFFFFFFFFll - 1);
+  msg->set_field_sint64(-0x7FFFFFFFFFFFFFFFll - 1);
+  msg->set_field_sfixed64(-0x7FFFFFFFFFFFFFFFll - 1);
+
+  msg->set_field_uint64(0x8000000000000000ull);
+  msg->set_field_fixed64(0x8000000000000000ull);
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.EveryField", nullptr, env(), *this);
+
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+
+  EXPECT_THAT(args(), testing::ElementsAre(
+                          "field_int32 field_int32 -2147483648",
+                          "field_sint32 field_sint32 -2147483648",
+                          "field_sfixed32 field_sfixed32 -2147483648",
+                          "field_uint32 field_uint32 2147483648",
+                          "field_fixed32 field_fixed32 2147483648",
+                          "field_int64 field_int64 -9223372036854775808",
+                          "field_sint64 field_sint64 -9223372036854775808",
+                          "field_sfixed64 field_sfixed64 -9223372036854775808",
+                          "field_uint64 field_uint64 9223372036854775808",
+                          "field_fixed64 field_fixed64 9223372036854775808"));
+}
+
+TEST_F(ProtoToArgsParserTest, PackedFields) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<PackedRepeatedFields> msg{kChunkSize, kChunkSize};
+
+  protozero::PackedVarInt varint;
+  CreatedPackedVarint(varint, 0, std::numeric_limits<int32_t>::min(),
+                      std::numeric_limits<int32_t>::max());
+  msg->set_field_int32(varint);
+
+  CreatedPackedVarint(varint, 0ll, std::numeric_limits<int64_t>::min(),
+                      std::numeric_limits<int64_t>::max());
+  msg->set_field_int64(varint);
+
+  CreatedPackedVarint(varint, 0u, std::numeric_limits<uint32_t>::min(),
+                      std::numeric_limits<uint32_t>::max());
+  msg->set_field_uint32(varint);
+
+  CreatedPackedVarint(varint, 0ull, std::numeric_limits<uint64_t>::min(),
+                      std::numeric_limits<uint64_t>::max());
+  msg->set_field_uint64(varint);
+
+  CreatedPackedVarint(varint, BigEnum::BEGIN, BigEnum::END);
+  msg->set_big_enum(varint);
+
+  protozero::PackedFixedSizeInt<uint32_t> fixed32;
+  fixed32.Append(0);
+  fixed32.Append(std::numeric_limits<uint32_t>::min());
+  fixed32.Append(std::numeric_limits<uint32_t>::max());
+  msg->set_field_fixed32(fixed32);
+
+  protozero::PackedFixedSizeInt<int32_t> sfixed32;
+  sfixed32.Append(0);
+  sfixed32.Append(std::numeric_limits<int32_t>::min());
+  sfixed32.Append(std::numeric_limits<int32_t>::max());
+  msg->set_field_sfixed32(sfixed32);
+
+  protozero::PackedFixedSizeInt<float> pfloat;
+  pfloat.Append(0);
+  pfloat.Append(-4839.349f);
+  pfloat.Append(std::numeric_limits<float>::min());
+  pfloat.Append(std::numeric_limits<float>::max());
+  msg->set_field_float(pfloat);
+
+  protozero::PackedFixedSizeInt<uint64_t> fixed64;
+  fixed64.Append(0);
+  fixed64.Append(std::numeric_limits<uint64_t>::min());
+  fixed64.Append(std::numeric_limits<uint64_t>::max());
+  msg->set_field_fixed64(fixed64);
+
+  protozero::PackedFixedSizeInt<int64_t> sfixed64;
+  sfixed64.Append(0);
+  sfixed64.Append(std::numeric_limits<int64_t>::min());
+  sfixed64.Append(std::numeric_limits<int64_t>::max());
+  msg->set_field_sfixed64(sfixed64);
+
+  protozero::PackedFixedSizeInt<double> pdouble;
+  pdouble.Append(0);
+  pdouble.Append(-48948908.349);
+  pdouble.Append(std::numeric_limits<double>::min());
+  pdouble.Append(std::numeric_limits<double>::max());
+  msg->set_field_double(pdouble);
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.PackedRepeatedFields", nullptr, env(), *this);
+
+  EXPECT_TRUE(status.ok()) << "ParseMessage failed with error: "
+                           << status.message();
+
+  EXPECT_THAT(
+      args(),
+      testing::ElementsAre(
+          "field_int32 field_int32[0] 0",
+          "field_int32 field_int32[1] -2147483648",
+          "field_int32 field_int32[2] 2147483647",
+          "field_int64 field_int64[0] 0",
+          "field_int64 field_int64[1] -9223372036854775808",
+          "field_int64 field_int64[2] 9223372036854775807",
+          "field_uint32 field_uint32[0] 0", "field_uint32 field_uint32[1] 0",
+          "field_uint32 field_uint32[2] 4294967295",
+          "field_uint64 field_uint64[0] 0", "field_uint64 field_uint64[1] 0",
+          "field_uint64 field_uint64[2] 18446744073709551615",
+          "big_enum big_enum[0] BEGIN", "big_enum big_enum[1] END",
+          "field_fixed32 field_fixed32[0] 0",
+          "field_fixed32 field_fixed32[1] 0",
+          "field_fixed32 field_fixed32[2] 4294967295",
+          "field_sfixed32 field_sfixed32[0] 0",
+          "field_sfixed32 field_sfixed32[1] -2147483648",
+          "field_sfixed32 field_sfixed32[2] 2147483647",
+          "field_float field_float[0] 0", "field_float field_float[1] -4839.35",
+          "field_float field_float[2] 1.17549e-38",
+          "field_float field_float[3] 3.40282e+38",
+          "field_fixed64 field_fixed64[0] 0",
+          "field_fixed64 field_fixed64[1] 0",
+          "field_fixed64 field_fixed64[2] 18446744073709551615",
+          "field_sfixed64 field_sfixed64[0] 0",
+          "field_sfixed64 field_sfixed64[1] -9223372036854775808",
+          "field_sfixed64 field_sfixed64[2] 9223372036854775807",
+          "field_double field_double[0] 0",
+          "field_double field_double[1] -4.89489e+07",
+          "field_double field_double[2] 2.22507e-308",
+          "field_double field_double[3] 1.79769e+308"));
+}
+
+TEST_F(ProtoToArgsParserTest, AllowedFieldsOnlyTopLevel) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+  msg->set_super_nested()->set_value_c(42);
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  std::vector<uint32_t> allowed_fields = {
+      NestedA::kSuperNestedFieldNumber,
+  };
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.NestedA", &allowed_fields, env(), *this);
+
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+
+  EXPECT_THAT(args(), testing::ElementsAre(
+                          "super_nested.value_c super_nested.value_c 42"));
+}
+
+TEST_F(ProtoToArgsParserTest, AddsDefaultsNested) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+  msg->set_super_nested();
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.NestedA", nullptr, env(), *this, nullptr,
+      /* add_defaults= */ true);
+
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+
+  EXPECT_THAT(args(), testing::ElementsAre(
+                          "super_nested.value_c super_nested.value_c 0",
+                          "repeated_a repeated_a [NULL]"));
+}
+
+TEST_F(ProtoToArgsParserTest, AddsDefaults) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+  msg->set_field_int32(-1);
+  msg->add_repeated_string("test");
+  msg->add_repeated_sfixed32(1);
+  msg->add_repeated_fixed64(1);
+  msg->set_nested_enum(EveryField::PONG);
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.EveryField", nullptr, env(), *this, nullptr,
+      true);
+
+  EXPECT_TRUE(status.ok()) << "AddsDefaults failed with error: "
+                           << status.message();
+
+  EXPECT_THAT(
+      args(),
+      testing::UnorderedElementsAre(
+          "field_int32 field_int32 -1",  // exists in message
+          "repeated_string repeated_string[0] test",
+          "repeated_sfixed32 repeated_sfixed32[0] 1",
+          "repeated_fixed64 repeated_fixed64[0] 1",
+          "nested_enum nested_enum PONG", "field_bytes field_bytes ",
+          "field_string field_string [NULL]",  // null if no string default
+          "field_nested field_nested [NULL]",  // no defaults for inner fields
+          "field_bool field_bool false",
+          "repeated_int32 repeated_int32 [NULL]",  // null for repeated fields
+          "field_double field_double 0", "field_float field_float 0",
+          "field_sfixed64 field_sfixed64 0", "field_sfixed32 field_sfixed32 0",
+          "field_fixed64 field_fixed64 0", "field_sint64 field_sint64 0",
+          "big_enum big_enum 0", "field_fixed32 field_fixed32 0",
+          "field_sint32 field_sint32 0",
+          "signed_enum signed_enum NEUTRAL",  // translates default enum
+          "small_enum small_enum NOT_TO_BE",
+          "very_negative_enum very_negative_enum DEF",
+          "field_uint64 field_uint64 0", "field_uint32 field_uint32 0",
+          "field_int64 field_int64 0"));
+}
+
+// ===========================================================================
+// DebugAnnotation tests
+// ===========================================================================
+
+base::Status ParseDebugAnnotation(
+    ProtoToArgsParser& parser,
+    protozero::HeapBuffered<protos::pbzero::DebugAnnotation>& msg,
+    const ProtoArgsEnv& env,
+    ArgSink& sink) {
+  std::vector<uint8_t> data = msg.SerializeAsArray();
+  return parser.ParseDebugAnnotation(
+      protozero::ConstBytes{data.data(), data.size()}, env, sink);
+}
+
+class DebugAnnotationParserTest : public ::testing::Test,
+                                  public ArgsRecorder {};
+
+// This test checks that in when an array is nested inside a dict which is
+// nested inside an array which is nested inside a dict, flat keys and non-flat
+// keys are parsed correctly.
+TEST_F(DebugAnnotationParserTest, DeeplyNestedDictsAndArrays) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
+
+  msg->set_name("root");
+  auto* dict1 = msg->add_dict_entries();
+  dict1->set_name("k1");
+  auto* array1 = dict1->add_array_values();
+  auto* dict2 = array1->add_dict_entries();
+  dict2->set_name("k2");
+  auto* array2 = dict2->add_array_values();
+  array2->set_int_value(42);
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  EXPECT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  ProtoToArgsParser args_parser(pool, string_pool_);
+
+  status = ParseDebugAnnotation(args_parser, msg, env(), *this);
+  EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
+                           << status.message();
+
+  EXPECT_THAT(args(), testing::ElementsAre("root.k1.k2 root.k1[0].k2[0] 42"));
+}
+
+// This test checks that array indexes are correctly merged across messages.
+TEST_F(DebugAnnotationParserTest, MergeArrays) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg1;
+  msg1->set_name("root");
+  auto* item1 = msg1->add_array_values();
+  item1->set_int_value(1);
+
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg2;
+  msg2->set_name("root");
+  auto* item2 = msg1->add_array_values();
+  item2->set_int_value(2);
+
+  DescriptorPool pool;
+  ProtoToArgsParser args_parser(pool, string_pool_);
+
+  base::Status status = ParseDebugAnnotation(args_parser, msg1, env(), *this);
+  EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
+                           << status.message();
+
+  status = ParseDebugAnnotation(args_parser, msg2, env(), *this);
+  EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
+                           << status.message();
+
+  EXPECT_THAT(args(), testing::ElementsAre("root root[0] 1", "root root[1] 2"));
+}
+
+// This test checks that nested empty dictionaries / arrays do not cause array
+// index to be incremented.
+TEST_F(DebugAnnotationParserTest, EmptyArrayIndexIsSkipped) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
+  msg->set_name("root");
+
+  msg->add_array_values()->set_int_value(1);
+
+  // Empty item.
+  msg->add_array_values();
+
+  msg->add_array_values()->set_int_value(3);
+
+  // Empty dict.
+  msg->add_array_values()->add_dict_entries()->set_name("key1");
+
+  auto* nested_dict_entry = msg->add_array_values()->add_dict_entries();
+  nested_dict_entry->set_name("key2");
+  nested_dict_entry->set_string_value("value");
+
+  msg->add_array_values()->set_int_value(5);
+
+  DescriptorPool pool;
+  ProtoToArgsParser args_parser(pool, string_pool_);
+
+  base::Status status = ParseDebugAnnotation(args_parser, msg, env(), *this);
+  EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
+                           << status.message();
+
+  EXPECT_THAT(args(), testing::ElementsAre("root root[0] 1", "root root[1] 3",
+                                           "root.key2 root[3].key2 value",
+                                           "root root[4] 5"));
+}
+
+TEST_F(DebugAnnotationParserTest, NestedArrays) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
+  msg->set_name("root");
+  auto* item1 = msg->add_array_values();
+  item1->add_array_values()->set_int_value(1);
+  item1->add_array_values()->set_int_value(2);
+  auto* item2 = msg->add_array_values();
+  item2->add_array_values()->set_int_value(3);
+  item2->add_array_values()->set_int_value(4);
+
+  DescriptorPool pool;
+  ProtoToArgsParser args_parser(pool, string_pool_);
+
+  base::Status status = ParseDebugAnnotation(args_parser, msg, env(), *this);
+  EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
+                           << status.message();
+
+  EXPECT_THAT(args(),
+              testing::ElementsAre("root root[0][0] 1", "root root[0][1] 2",
+                                   "root root[1][0] 3", "root root[1][1] 4"));
+}
+
+TEST_F(DebugAnnotationParserTest, TypedMessageInsideUntyped) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
+  msg->set_name("root");
+
+  protozero::HeapBuffered<protozero::test::protos::pbzero::EveryField> message;
+  message->set_field_string("value");
+
+  msg->set_proto_type_name(message->GetName());
+  msg->set_proto_value(message.SerializeAsString());
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  EXPECT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  ProtoToArgsParser args_parser(pool, string_pool_);
+
+  status = ParseDebugAnnotation(args_parser, msg, env(), *this);
+  EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
+                           << status.message();
+
+  EXPECT_THAT(args(), testing::ElementsAre(
+                          "root.field_string root.field_string value"));
+}
+
+// ParseDebugAnnotation takes no unknown_extensions parameter of its own, so
+// it must not act on one left behind by an earlier, unrelated
+// ParseMessageField call on the same parser instance (as
+// TrackEventEventImporter::ParseTrackEventArgs makes on every event). A
+// proto_value naming a message with undeclared fields must not touch that
+// stale pointer.
+TEST_F(DebugAnnotationParserTest, DoesNotReuseStaleUnknownExtensionsPointer) {
+  DescriptorPool pool;
+  ASSERT_TRUE(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                            kTestMessagesDescriptor.size())
+                  .ok());
+  ProtoToArgsParser args_parser(pool, string_pool_);
+
+  uint32_t every_field =
+      *pool.FindDescriptorIdx(".protozero.test.protos.EveryField");
+  int unknown = 0;
+  protozero::Field unknown_field;
+  unknown_field.initialize(
+      9999,
+      static_cast<uint8_t>(protozero::proto_utils::ProtoWireType::kVarInt), 1,
+      0);
+  ASSERT_TRUE(
+      args_parser
+          .ParseMessageField(every_field, unknown_field, env(), *this, &unknown)
+          .ok());
+  ASSERT_EQ(unknown, 1);
+
+  protozero::HeapBuffered<protozero::Message> inner{kChunkSize, kChunkSize};
+  inner->AppendVarInt(9001, 1);
+  inner->AppendVarInt(9002, 2);
+  inner->AppendVarInt(9003, 3);
+  auto inner_bytes = inner.SerializeAsArray();
+
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
+  msg->set_name("root");
+  msg->set_proto_type_name(".protozero.test.protos.EveryField");
+  msg->set_proto_value(inner_bytes.data(), inner_bytes.size());
+
+  base::Status status = ParseDebugAnnotation(args_parser, msg, env(), *this);
+  EXPECT_TRUE(status.ok()) << status.message();
+  EXPECT_EQ(unknown, 1);
+}
+
+// Verifies that a DebugAnnotation whose proto_value is itself a
+// DebugAnnotation (an arbitrarily deep cycle) is parsed iteratively without
+// consuming C++ stack per level.
+TEST_F(DebugAnnotationParserTest, DeeplyNestedProtoValueCycle) {
+  // Build N nested DebugAnnotation messages, each carrying the next as a
+  // proto_value with proto_type_name = ".perfetto.protos.DebugAnnotation".
+  // The innermost annotation has a leaf int_value so we can verify the cycle
+  // was traversed end-to-end.
+  constexpr int kDepth = 1000;
+  std::vector<std::vector<uint8_t>> serialized;
+  serialized.reserve(kDepth);
+
+  // Innermost annotation: just a name + int value.
+  {
+    protozero::HeapBuffered<protos::pbzero::DebugAnnotation> inner;
+    inner->set_name("leaf");
+    inner->set_int_value(42);
+    serialized.push_back(inner.SerializeAsArray());
+  }
+
+  // Wrap it kDepth-1 times, each wrapper has proto_value = the previous.
+  for (int i = 1; i < kDepth; ++i) {
+    protozero::HeapBuffered<protos::pbzero::DebugAnnotation> outer;
+    outer->set_name("wrap");
+    outer->set_proto_type_name(".perfetto.protos.DebugAnnotation");
+    const std::vector<uint8_t>& prev = serialized.back();
+    outer->set_proto_value(prev.data(), prev.size());
+    serialized.push_back(outer.SerializeAsArray());
+  }
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  ProtoToArgsParser args_parser(pool, string_pool_);
+
+  const std::vector<uint8_t>& outermost = serialized.back();
+  status = args_parser.ParseDebugAnnotation(
+      protozero::ConstBytes{outermost.data(), outermost.size()}, env(), *this);
+  EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error: "
+                           << status.message();
+}
+
+TEST_F(DebugAnnotationParserTest, NestedValueDictMismatchedKeysAndValues) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
+  msg->set_name("root");
+  auto* nested = msg->set_nested_value();
+  nested->set_nested_type(protos::pbzero::DebugAnnotation::NestedValue::DICT);
+  nested->add_dict_keys("k1");
+  nested->add_dict_keys("k2");
+  nested->add_dict_keys("k3");
+  auto* v1 = nested->add_dict_values();
+  v1->set_int_value(1);
+
+  DescriptorPool pool;
+  ProtoToArgsParser args_parser(pool, string_pool_);
+
+  base::Status status = ParseDebugAnnotation(args_parser, msg, env(), *this);
+  EXPECT_FALSE(status.ok());
+}
+
+TEST_F(DebugAnnotationParserTest, NestedValueDictMoreValuesThanKeys) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
+  msg->set_name("root");
+  auto* nested = msg->set_nested_value();
+  nested->set_nested_type(protos::pbzero::DebugAnnotation::NestedValue::DICT);
+  nested->add_dict_keys("k1");
+  auto* v1 = nested->add_dict_values();
+  v1->set_int_value(1);
+  auto* v2 = nested->add_dict_values();
+  v2->set_int_value(2);
+
+  DescriptorPool pool;
+  ProtoToArgsParser args_parser(pool, string_pool_);
+
+  base::Status status = ParseDebugAnnotation(args_parser, msg, env(), *this);
+  EXPECT_FALSE(status.ok());
+}
+
+TEST_F(DebugAnnotationParserTest, NestedValueDictMatchedKeysAndValues) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
+  msg->set_name("root");
+  auto* nested = msg->set_nested_value();
+  nested->set_nested_type(protos::pbzero::DebugAnnotation::NestedValue::DICT);
+  nested->add_dict_keys("k1");
+  nested->add_dict_keys("k2");
+  auto* v1 = nested->add_dict_values();
+  v1->set_int_value(1);
+  auto* v2 = nested->add_dict_values();
+  v2->set_int_value(2);
+
+  DescriptorPool pool;
+  ProtoToArgsParser args_parser(pool, string_pool_);
+
+  base::Status status = ParseDebugAnnotation(args_parser, msg, env(), *this);
+  EXPECT_TRUE(status.ok()) << status.message();
+  EXPECT_THAT(args(),
+              testing::ElementsAre("root.k1 root.k1 1", "root.k2 root.k2 2"));
+}
+
+// A failed parse must not leave stale work items behind for the next call to
+// resume (which would dereference dangling pointers).
+TEST_F(DebugAnnotationParserTest, ErrorClearsPersistentWorkState) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> bad_msg;
+  bad_msg->set_name("bad_root");
+  auto* nested = bad_msg->set_nested_value();
+  nested->set_nested_type(protos::pbzero::DebugAnnotation::NestedValue::DICT);
+  nested->add_dict_keys("k1");
+  nested->add_dict_keys("k2");
+  auto* v1 = nested->add_dict_values();
+  v1->set_int_value(1);
+
+  DescriptorPool pool;
+  ProtoToArgsParser args_parser(pool, string_pool_);
+
+  base::Status status =
+      ParseDebugAnnotation(args_parser, bad_msg, env(), *this);
+  EXPECT_FALSE(status.ok());
+
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> good_msg;
+  good_msg->set_name("good_root");
+  good_msg->set_int_value(42);
+
+  status = ParseDebugAnnotation(args_parser, good_msg, env(), *this);
+  EXPECT_TRUE(status.ok()) << status.message();
+  EXPECT_THAT(args(), testing::ElementsAre("good_root good_root 42"));
+}
+
+TEST_F(DebugAnnotationParserTest, InternedString) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
+  msg->set_name("root");
+
+  protozero::HeapBuffered<protos::pbzero::InternedString> string;
+  string->set_iid(1);
+  string->set_str("foo");
+  std::vector<uint8_t> data_serialized = string.SerializeAsArray();
+
+  InternMessage(
+      protos::pbzero::InternedData::kDebugAnnotationStringValuesFieldNumber,
+      TraceBlobView(
+          TraceBlob::CopyFrom(data_serialized.data(), data_serialized.size())));
+
+  msg->set_string_value_iid(1);
+
+  DescriptorPool pool;
+  ProtoToArgsParser args_parser(pool, string_pool_);
+
+  auto status = ParseDebugAnnotation(args_parser, msg, env(), *this);
+  EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
+                           << status.message();
+
+  EXPECT_THAT(args(), testing::ElementsAre("root root foo"));
+}
+
+namespace {
+// Builds a descriptor set with a FieldOptions carrying the (flags_enum) option,
+// an enum whose values are the flag bits, and a message with an int32 field
+// annotated with it.
+std::vector<uint8_t> BuildFlagsDescriptorSet() {
+  using namespace protos::pbzero;
+  protozero::HeapBuffered<FileDescriptorSet> fds{kChunkSize, kChunkSize};
+
+  auto* opts_file = fds->add_file();
+  opts_file->set_name("descriptor.proto");
+  opts_file->set_package("google.protobuf");
+  auto* opts = opts_file->add_message_type();
+  opts->set_name("FieldOptions");
+  auto* flags_enum = opts->add_field();
+  flags_enum->set_name("flags_enum");
+  flags_enum->set_number(51001);
+  flags_enum->set_type(FieldDescriptorProto::TYPE_STRING);
+  flags_enum->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+
+  auto* file = fds->add_file();
+  file->set_name("test.proto");
+  file->set_package("test");
+  auto* en = file->add_enum_type();
+  en->set_name("Caps");
+  auto add_val = [&](const char* n, int32_t v) {
+    auto* ev = en->add_value();
+    ev->set_name(n);
+    ev->set_number(v);
+  };
+  add_val("CAP_A", 1);
+  add_val("CAP_B", 2);
+  add_val("CAP_C", 4);
+
+  auto* msg = file->add_message_type();
+  msg->set_name("Msg");
+  auto* field = msg->add_field();
+  field->set_name("caps");
+  field->set_number(1);
+  field->set_type(FieldDescriptorProto::TYPE_INT32);
+  field->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  field->set_options()->AppendString(51001, ".test.Caps");
+  return fds.SerializeAsArray();
+}
+}  // namespace
+
+TEST_F(ProtoToArgsParserTest, FlagsFieldExpandsToArgs) {
+  auto fds_bytes = BuildFlagsDescriptorSet();
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size()));
+
+  // caps = 5 (bits 0 and 2 -> CAP_A | CAP_C).
+  protozero::HeapBuffered<protozero::Message> msg_proto{kChunkSize, kChunkSize};
+  msg_proto->AppendVarInt(1, 5);
+  auto binary = msg_proto.SerializeAsArray();
+
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_OK(
+      parser.ParseMessage(protozero::ConstBytes{binary.data(), binary.size()},
+                          ".test.Msg", nullptr, env(), *this));
+
+  EXPECT_THAT(args(),
+              testing::ElementsAre("caps caps[0] CAP_A", "caps caps[1] CAP_C"));
+}
+
+TEST_F(ProtoToArgsParserTest, FlagsFieldSurfacesUnknownBits) {
+  auto fds_bytes = BuildFlagsDescriptorSet();
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size()));
+
+  // caps = 9 (bit 0 -> CAP_A; bit 3 is unknown -> surfaced as 0x8).
+  protozero::HeapBuffered<protozero::Message> msg_proto{kChunkSize, kChunkSize};
+  msg_proto->AppendVarInt(1, 9);
+  auto binary = msg_proto.SerializeAsArray();
+
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_OK(
+      parser.ParseMessage(protozero::ConstBytes{binary.data(), binary.size()},
+                          ".test.Msg", nullptr, env(), *this));
+
+  EXPECT_THAT(args(),
+              testing::ElementsAre("caps caps[0] CAP_A", "caps caps[1] 0x8"));
+}
+
+namespace {
+// Builds a descriptor set with a FieldOptions carrying the (pid) and (tid)
+// options and a message with a "caller_pid" field annotated (pid) and a
+// "caller_tid" field annotated (tid).
+std::vector<uint8_t> BuildPidTidDescriptorSet() {
+  using namespace protos::pbzero;
+  protozero::HeapBuffered<FileDescriptorSet> fds{kChunkSize, kChunkSize};
+
+  auto* opts_file = fds->add_file();
+  opts_file->set_name("descriptor.proto");
+  opts_file->set_package("google.protobuf");
+  auto* opts = opts_file->add_message_type();
+  opts->set_name("FieldOptions");
+  auto add_bool_opt = [&](const char* name, int32_t number) {
+    auto* o = opts->add_field();
+    o->set_name(name);
+    o->set_number(number);
+    o->set_type(FieldDescriptorProto::TYPE_BOOL);
+    o->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  };
+  add_bool_opt("is_pid", 51002);
+  add_bool_opt("is_tid", 51003);
+
+  auto* file = fds->add_file();
+  file->set_name("test.proto");
+  file->set_package("test");
+  auto* msg = file->add_message_type();
+  msg->set_name("Msg");
+  auto add_field = [&](const char* name, int32_t number, uint32_t opt_number) {
+    auto* f = msg->add_field();
+    f->set_name(name);
+    f->set_number(number);
+    f->set_type(FieldDescriptorProto::TYPE_INT32);
+    f->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+    f->set_options()->AppendVarInt(opt_number, 1);
+  };
+  add_field("caller_pid", 1, 51002);
+  add_field("caller_tid", 2, 51003);
+  // "owner" does not end in "pid": exercises the append fallback.
+  add_field("owner", 3, 51002);
+  return fds.SerializeAsArray();
+}
+}  // namespace
+
+TEST_F(ProtoToArgsParserTest, PidTidFieldsEmitCompanionArgs) {
+  auto fds_bytes = BuildPidTidDescriptorSet();
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size()));
+
+  protozero::HeapBuffered<protozero::Message> msg_proto{kChunkSize, kChunkSize};
+  msg_proto->AppendVarInt(1, 4321);
+  msg_proto->AppendVarInt(2, 99);
+  msg_proto->AppendVarInt(3, 7);
+  auto binary = msg_proto.SerializeAsArray();
+
+  context_.global_stats_tracker =
+      std::make_unique<GlobalStatsTracker>(context_.storage.get());
+  context_.args_tracker = std::make_unique<ArgsTracker>(context_.storage.get());
+  context_.trace_state =
+      TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+          TraceProcessorContext::TraceState{TraceId{0}});
+  context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
+  context_.process_tracker = std::make_unique<ProcessTracker>(&context_);
+  UniquePid caller_upid = context_.process_tracker->GetOrCreateProcess(4321);
+  UniqueTid caller_utid = context_.process_tracker->UpdateThread(99, 4321);
+  UniquePid owner_upid = context_.process_tracker->GetOrCreateProcess(7);
+  env_.process_tracker = context_.process_tracker.get();
+
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_OK(
+      parser.ParseMessage(protozero::ConstBytes{binary.data(), binary.size()},
+                          ".test.Msg", nullptr, env(), *this));
+
+  // Each id field emits its raw value plus a companion upid/utid, keyed by
+  // replacing (or appending) the trailing "pid"/"tid".
+  EXPECT_THAT(args(),
+              testing::ElementsAre(
+                  "caller_pid caller_pid 4321",
+                  "caller_upid caller_upid " + std::to_string(caller_upid),
+                  "caller_tid caller_tid 99",
+                  "caller_utid caller_utid " + std::to_string(caller_utid),
+                  "owner owner 7",
+                  "owner_upid owner_upid " + std::to_string(owner_upid)));
+}
+
+TEST_F(ProtoToArgsParserTest, PidTidFieldsWithoutProcessTrackerAreDropped) {
+  auto fds_bytes = BuildPidTidDescriptorSet();
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size()));
+
+  protozero::HeapBuffered<protozero::Message> msg_proto{kChunkSize, kChunkSize};
+  msg_proto->AppendVarInt(1, 4321);
+  auto binary = msg_proto.SerializeAsArray();
+
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_OK(
+      parser.ParseMessage(protozero::ConstBytes{binary.data(), binary.size()},
+                          ".test.Msg", nullptr, env(), *this));
+  EXPECT_THAT(args(), testing::ElementsAre("caller_pid caller_pid 4321"));
+}
+
+}  // namespace
+}  // namespace perfetto::trace_processor::util

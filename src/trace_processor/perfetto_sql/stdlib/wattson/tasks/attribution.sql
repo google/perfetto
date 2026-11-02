@@ -34,7 +34,7 @@ INTERVAL INTERSECTION OF (
   _gpu_active_task_count AS task_count,
   _gpu_estimates_mw AS power
 )
-|> SELECT ts, dur, task.uid, task.gpu_id, task_count.active_tasks, power.gpu_mw;
+|> SELECT ts, dur, task.uid, task_count.active_tasks, power.gpu_mw;
 
 -- Attribute GPU power to each UID based on its active task count.
 -- Formula: attributed_mw = total_gpu_mw / active_tasks
@@ -43,7 +43,6 @@ SELECT
   ts,
   dur,
   uid,
-  gpu_id,
   -- Calculate attributed power (mW) proportionally shared
   iif(active_tasks > 0, gpu_mw / active_tasks, 0.0) AS estimated_mw
 FROM _gpu_tasks_w_power;
