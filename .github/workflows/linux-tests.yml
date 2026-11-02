@@ -151,7 +151,9 @@ jobs:
           TARGET_CPU="$(tools/gn args --short --list=target_cpu out/dist | awk '{print $3}' | sed -e 's/^"//' -e 's/"$//')"
           IS_DEBUG="$(tools/gn args --short --list=is_debug out/dist | awk '{print $3}')"
           if [[ !("$TARGET_CPU" == "x86" || ("$TARGET_CPU" == "" && "$HOST_CPU" == "x86")) && "$IS_DEBUG" == "false" ]]; then
-            BENCHMARK_FUNCTIONAL_TEST_ONLY=true out/dist/perfetto_benchmarks
+            # Most benchmarks ignore the env var, so also cap per-benchmark time.
+            BENCHMARK_FUNCTIONAL_TEST_ONLY=true out/dist/perfetto_benchmarks \
+              --benchmark_min_time=0.001
           fi
 
       - name: Upload artifacts to GCS
