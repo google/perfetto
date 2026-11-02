@@ -16433,6 +16433,7 @@ filegroup {
         "src/base/scoped_sched_boost_unittest.cc",
         "src/base/sd_notify_unittest.cc",
         "src/base/small_vector_unittest.cc",
+        "src/base/span_unittest.cc",
         "src/base/status_or_unittest.cc",
         "src/base/status_unittest.cc",
         "src/base/string_splitter_unittest.cc",
@@ -18308,7 +18309,6 @@ filegroup {
         "src/trace_processor/core/util/ops_unittest.cc",
         "src/trace_processor/core/util/slab_unittest.cc",
         "src/trace_processor/core/util/sort_unittest.cc",
-        "src/trace_processor/core/util/span_unittest.cc",
     ],
 }
 

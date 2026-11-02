@@ -25,6 +25,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/regex.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/variant.h"
@@ -35,7 +36,6 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/range.h"
-#include "src/trace_processor/core/util/span.h"
 #include "src/trace_processor/util/glob.h"
 #include "src/trace_processor/util/sorted_search.h"
 
@@ -177,10 +177,10 @@ Range SearchSortedOf(const SortedColumn& column,
 }
 
 template <typename T, typename N>
-Span<const uint32_t> SearchIndexEqualOf(
+base::Span<const uint32_t> SearchIndexEqualOf(
     const IndexColumn& column,
     const CastFilterValueResult::Value& value,
-    Span<const uint32_t> entries) {
+    base::Span<const uint32_t> entries) {
   using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
   auto [b, e] = IndexEqualRange<T, N>(
       entries.b, entries.e, base::unchecked_get<M>(value),
@@ -190,10 +190,10 @@ Span<const uint32_t> SearchIndexEqualOf(
 }
 
 template <typename T>
-Span<const uint32_t> SearchIndexEqualOf(
+base::Span<const uint32_t> SearchIndexEqualOf(
     const IndexColumn& column,
     const CastFilterValueResult::Value& value,
-    Span<const uint32_t> entries) {
+    base::Span<const uint32_t> entries) {
   switch (column.nullability.index()) {
     case Nullability::GetTypeIndex<NonNull>():
       return SearchIndexEqualOf<T, NonNull>(column, value, entries);
@@ -234,9 +234,10 @@ Range SearchSorted(const SortedColumn& column,
   }
 }
 
-Span<const uint32_t> SearchIndexEqual(const IndexColumn& column,
-                                      const CastFilterValueResult::Value& value,
-                                      Span<const uint32_t> entries) {
+base::Span<const uint32_t> SearchIndexEqual(
+    const IndexColumn& column,
+    const CastFilterValueResult::Value& value,
+    base::Span<const uint32_t> entries) {
   switch (column.type.index()) {
     case StorageType::GetTypeIndex<Uint32>():
       return SearchIndexEqualOf<Uint32>(column, value, entries);

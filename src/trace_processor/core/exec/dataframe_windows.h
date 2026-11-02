@@ -25,13 +25,13 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/range.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -58,7 +58,9 @@ class DataframeWindows {
 
   // Points `out` at the rows `offsets` from `from`, which increase from 0.
   // Only those rows are expanded.
-  void FillKept(uint32_t from, Span<const uint32_t> offsets, RowBatch& out);
+  void FillKept(uint32_t from,
+                base::Span<const uint32_t> offsets,
+                RowBatch& out);
 
   // Fills one window of a column which does not store one value per row.
   // Defined in the .cc: an implementation detail with no callers outside it.
@@ -123,7 +125,7 @@ class RowListReader {
   }
 
   // `rows` must outlive the read.
-  void Start(Span<const uint32_t> rows) {
+  void Start(base::Span<const uint32_t> rows) {
     next_ = rows.b;
     end_ = rows.e;
   }
@@ -145,7 +147,8 @@ class RowListReader {
       offsets_[count++] = offset;
     }
     windows_.FillKept(
-        first, Span<const uint32_t>(offsets_.data(), offsets_.data() + count),
+        first,
+        base::Span<const uint32_t>(offsets_.data(), offsets_.data() + count),
         out);
     return true;
   }

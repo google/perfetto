@@ -26,12 +26,12 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -203,7 +203,7 @@ uint32_t RowStore::View(RowBatch* out, uint32_t offset, uint32_t count) {
 }
 
 uint32_t RowStore::Gather(RowBatch* out,
-                          Span<const uint32_t> rows,
+                          base::Span<const uint32_t> rows,
                           Context& context) {
   out->Reset();
   auto count =

@@ -28,6 +28,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/variant.h"
@@ -41,7 +42,6 @@
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/range.h"
-#include "src/trace_processor/core/util/span.h"
 #include "src/trace_processor/util/sorted_search.h"
 
 // Keeping the rows of a column which compare true with a value already cast
@@ -363,8 +363,8 @@ inline PERFETTO_ALWAYS_INLINE void NonIndexedFilterInScan(
     const CastFilterValueListResult& cast_result,
     const DataType* data,
     uint32_t first_id,
-    const Span<uint32_t>& source,
-    Span<uint32_t>& dest) {
+    const base::Span<uint32_t>& source,
+    base::Span<uint32_t>& dest) {
   using HM =
       StorageType::VariantTypeAtIndex<T,
                                       CastFilterValueListResult::ValueHashMap>;
@@ -564,9 +564,10 @@ struct IndexColumn {
 // The part of `entries`, of an index sorted by `column`, whose rows equal
 // `value` in it: valid, and cast for the column (see filter_value_cast.h).
 // Compiled once, in filter_kernels.cc, as SearchSorted is.
-Span<const uint32_t> SearchIndexEqual(const IndexColumn& column,
-                                      const CastFilterValueResult::Value& value,
-                                      Span<const uint32_t> entries);
+base::Span<const uint32_t> SearchIndexEqual(
+    const IndexColumn& column,
+    const CastFilterValueResult::Value& value,
+    base::Span<const uint32_t> entries);
 
 // The rows of an IN found by binary-searching a sorted index for each of its
 // values, written to `dest` in increasing order. Returns false, writing
@@ -577,12 +578,12 @@ Span<const uint32_t> SearchIndexEqual(const IndexColumn& column,
 template <typename T, typename N>
 [[nodiscard]] inline PERFETTO_ALWAYS_INLINE bool IndexedFilterInBinarySearch(
     const CastFilterValueListResult& cast_result,
-    Span<uint32_t> index,
+    base::Span<uint32_t> index,
     const typename T::cpp_type* data,
     const BitVector* bv,
     const uint32_t* popcount,
     const StringPool* string_pool,
-    Span<uint32_t>& dest) {
+    base::Span<uint32_t>& dest) {
   using VL =
       StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
   const VL& vl = base::unchecked_get<VL>(cast_result.value_list);
@@ -622,7 +623,7 @@ inline PERFETTO_ALWAYS_INLINE void FilterInRangeScan(
     const typename T::cpp_type* data,
     const BitVector* bv,
     const uint32_t* popcount,
-    Span<uint32_t>& dest) {
+    base::Span<uint32_t>& dest) {
   using HM =
       StorageType::VariantTypeAtIndex<T,
                                       CastFilterValueListResult::ValueHashMap>;
@@ -651,7 +652,7 @@ inline PERFETTO_ALWAYS_INLINE void FilterInRangeScan(
 // Copies the rows of `source` which lie in `range` to `out`, in order,
 // returning the end of those written. `out` may be `source.b`.
 inline PERFETTO_ALWAYS_INLINE uint32_t* CopySpanIntersectingRange(
-    Span<const uint32_t> source,
+    base::Span<const uint32_t> source,
     Range range,
     uint32_t* out) {
   for (const uint32_t* it = source.b; it != source.e; ++it) {

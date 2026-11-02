@@ -21,6 +21,7 @@
 #include <memory>
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/filter_kernels.h"
 #include "src/trace_processor/core/dataframe/types.h"
@@ -29,7 +30,6 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -75,7 +75,7 @@ class IndexScan final : public Source {
     bool searched = false;
   };
 
-  Span<const uint32_t> Find(const State& s) const;
+  base::Span<const uint32_t> Find(const State& s) const;
 
   std::vector<std::shared_ptr<const dataframe::Column>> columns_;
   std::shared_ptr<std::vector<uint32_t>> permutation_;

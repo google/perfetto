@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -46,7 +47,6 @@
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sorted_scan.h"
-#include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -396,7 +396,7 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
           }
         }
         std::vector<uint32_t> actual;
-        for (bool ok = cursor.Open(Span<const FilterValue>(
+        for (bool ok = cursor.Open(base::Span<const FilterValue>(
                  cast.data(), cast.data() + cast.size()));
              ok; ok = cursor.Next()) {
           uint32_t row = cursor.Value<uint32_t>(kId);
