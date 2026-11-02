@@ -62,8 +62,11 @@ AndroidProcessStateTracker::AndroidProcessStateTracker(
     : context_(context),
       process_state_table_(process_state_table),
       freezer_state_table_(freezer_state_table),
-      capability_flags_id_(context->storage->InternString("capability_flags")) {
-}
+      capability_flags_id_(context->storage->InternString("capability_flags")),
+      source_key_(context->storage->InternString("source")),
+      pid_key_(context->storage->InternString("pid")),
+      process_name_key_(context->storage->InternString("process_name")),
+      start_seq_id_key_(context->storage->InternString("start_seq_id")) {}
 
 void AndroidProcessStateTracker::RecordUnknownProcess(
     int64_t ts,
@@ -74,22 +77,24 @@ void AndroidProcessStateTracker::RecordUnknownProcess(
   if (!warned_pids_.insert(pid).second && process_name.size == 0) {
     return;
   }
+  StringId source_id = context_->storage->InternString(source);
+  std::optional<StringId> process_name_id;
+  if (process_name.size > 0) {
+    process_name_id = context_->storage->InternString(process_name);
+  }
   context_->import_logs_tracker->RecordParserLog(
       stats::android_track_event_process_unknown, ts,
-      [&](ArgsInserter& inserter) {
-        inserter.AddArg(
-            context_->storage->InternString("source"),
-            Variadic::String(context_->storage->InternString(source)));
-        inserter.AddArg(context_->storage->InternString("pid"),
-                        Variadic::UnsignedInteger(pid));
-        if (process_name.size > 0) {
-          inserter.AddArg(
-              context_->storage->InternString("process_name"),
-              Variadic::String(context_->storage->InternString(process_name)));
+      [source_key = source_key_, pid_key = pid_key_,
+       process_name_key = process_name_key_,
+       start_seq_id_key = start_seq_id_key_, source_id, pid, process_name_id,
+       start_seq_id](ArgsInserter& inserter) {
+        inserter.AddArg(source_key, Variadic::String(source_id));
+        inserter.AddArg(pid_key, Variadic::UnsignedInteger(pid));
+        if (process_name_id) {
+          inserter.AddArg(process_name_key, Variadic::String(*process_name_id));
         }
         if (start_seq_id) {
-          inserter.AddArg(context_->storage->InternString("start_seq_id"),
-                          Variadic::Integer(*start_seq_id));
+          inserter.AddArg(start_seq_id_key, Variadic::Integer(*start_seq_id));
         }
       });
 }

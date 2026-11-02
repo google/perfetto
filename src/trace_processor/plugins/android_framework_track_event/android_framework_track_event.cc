@@ -64,7 +64,11 @@ using AndroidTrackEventProcessTable = tables::AndroidTrackEventProcessTable;
 class AndroidTrackEventProcessTableHolder {
  public:
   explicit AndroidTrackEventProcessTableHolder(StringPool* pool)
-      : table_(pool) {}
+      : table_(pool),
+        source_key_(pool->InternString("source")),
+        pid_key_(pool->InternString("pid")),
+        process_name_key_(pool->InternString("process_name")),
+        start_seq_id_key_(pool->InternString("start_seq_id")) {}
 
   AndroidTrackEventProcessTable& table() { return table_; }
 
@@ -80,22 +84,25 @@ class AndroidTrackEventProcessTableHolder {
     if (!warned_pids_.insert(pid).second) {
       return;
     }
+    StringId source_id = context->storage->InternString(source);
+    std::optional<StringId> process_name_id;
+    if (process_name.size > 0) {
+      process_name_id = context->storage->InternString(process_name);
+    }
     context->import_logs_tracker->RecordParserLog(
         stats::android_track_event_process_unknown, ts,
-        [&](ArgsInserter& inserter) {
-          inserter.AddArg(
-              context->storage->InternString("source"),
-              Variadic::String(context->storage->InternString(source)));
-          inserter.AddArg(context->storage->InternString("pid"),
-                          Variadic::UnsignedInteger(pid));
-          if (process_name.size > 0) {
-            inserter.AddArg(
-                context->storage->InternString("process_name"),
-                Variadic::String(context->storage->InternString(process_name)));
+        [source_key = source_key_, pid_key = pid_key_,
+         process_name_key = process_name_key_,
+         start_seq_id_key = start_seq_id_key_, source_id, pid, process_name_id,
+         start_seq_id](ArgsInserter& inserter) {
+          inserter.AddArg(source_key, Variadic::String(source_id));
+          inserter.AddArg(pid_key, Variadic::UnsignedInteger(pid));
+          if (process_name_id) {
+            inserter.AddArg(process_name_key,
+                            Variadic::String(*process_name_id));
           }
           if (start_seq_id) {
-            inserter.AddArg(context->storage->InternString("start_seq_id"),
-                            Variadic::Integer(*start_seq_id));
+            inserter.AddArg(start_seq_id_key, Variadic::Integer(*start_seq_id));
           }
         });
   }
@@ -149,6 +156,10 @@ class AndroidTrackEventProcessTableHolder {
   base::FlatHashMap<int64_t, AndroidTrackEventProcessTable::Id>
       start_seq_id_to_row_;
   base::FlatSet<uint32_t> warned_pids_;
+  const StringId source_key_;
+  const StringId pid_key_;
+  const StringId process_name_key_;
+  const StringId start_seq_id_key_;
 };
 
 // Records AndroidProcessStartEvent, AndroidBinderDiedEvent and

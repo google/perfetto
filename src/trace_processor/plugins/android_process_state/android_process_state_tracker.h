@@ -119,6 +119,10 @@ class AndroidProcessStateTracker {
   tables::AndroidProcessStateTable* const process_state_table_;
   tables::AndroidFreezerStateTable* const freezer_state_table_;
   const StringId capability_flags_id_;
+  const StringId source_key_;
+  const StringId pid_key_;
+  const StringId process_name_key_;
+  const StringId start_seq_id_key_;
 
   DescriptorPool::CachedDescriptor proc_state_cache_;
   DescriptorPool::CachedDescriptor process_group_cache_;
