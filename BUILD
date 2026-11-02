@@ -567,8 +567,6 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_winscope_importer_winscope_importer",
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_winscope_proto_to_args_with_defaults",
-        ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
-        ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_winscope_surfaceflinger_hierarchy_paths",
         ":src_trace_processor_plugins_zstd_functions_zstd_functions",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_sorter_sorter",
@@ -898,8 +896,6 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_winscope_importer_winscope_importer",
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_winscope_proto_to_args_with_defaults",
-        ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
-        ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_winscope_surfaceflinger_hierarchy_paths",
         ":src_trace_processor_plugins_zstd_functions_zstd_functions",
         ":src_trace_processor_rpc_client",
         ":src_trace_processor_rpc_deserializer",
@@ -5757,28 +5753,6 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/winscope_proto_to_args_with_defaults/winscope_proto_to_args_with_defaults.cc",
         "src/trace_processor/plugins/winscope_proto_to_args_with_defaults/winscope_proto_to_args_with_defaults.h",
-    ],
-)
-
-# GN target: //src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths:tables
-perfetto_cc_tp_tables(
-    name = "src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
-    srcs = [
-        "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/tables.py",
-    ],
-    outs = [
-        "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/all_tables_fwd.h",
-        "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/tables_fwd.h",
-        "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/tables_py.h",
-    ],
-)
-
-# GN target: //src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths:winscope_surfaceflinger_hierarchy_paths
-perfetto_filegroup(
-    name = "src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_winscope_surfaceflinger_hierarchy_paths",
-    srcs = [
-        "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/winscope_surfaceflinger_hierarchy_paths.cc",
-        "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/winscope_surfaceflinger_hierarchy_paths.h",
     ],
 )
 
@@ -12230,8 +12204,6 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_winscope_importer_winscope_importer",
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_winscope_proto_to_args_with_defaults",
-        ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
-        ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_winscope_surfaceflinger_hierarchy_paths",
         ":src_trace_processor_plugins_zstd_functions_zstd_functions",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
@@ -12595,8 +12567,6 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_winscope_importer_winscope_importer",
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
         ":src_trace_processor_plugins_winscope_proto_to_args_with_defaults_winscope_proto_to_args_with_defaults",
-        ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
-        ":src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_winscope_surfaceflinger_hierarchy_paths",
         ":src_trace_processor_plugins_zstd_functions_zstd_functions",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
