@@ -16,6 +16,7 @@
 from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto, Systrace
 from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import ExpectedError
 from python.generators.diff_tests.testing import TestSuite
 
 
@@ -191,3 +192,18 @@ chrome-10830 ( 10830) [000] dNsa. 4213.033672: tracing_mark_write: E|10830
         "ts","name"
         4213033572000,"hex_preempt"
         """))
+
+  # catapult's trace2html (e.g. chromeperf) embeds traces as base64 in
+  # <script id="viewer-data"> blocks. These aren't supported, so the load
+  # should fail with a clear error rather than give an empty trace.
+  def test_catapult_html_load_error(self):
+    return DiffTestBlueprint(
+        trace=Systrace("""<!DOCTYPE html>
+<html>
+<script id="viewer-data" type="text/plain">
+H4sIAAAAAAAAA6tWKkpNTEksSVWyUjI0MDQzMjQ0VaoFAA==
+</script>
+</html>
+"""),
+        query="SELECT 1;",
+        out=ExpectedError("catapult's trace2html"))

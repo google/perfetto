@@ -756,10 +756,11 @@ class FuchsiaImporter : public TraceImporter<FuchsiaImporter> {
   FuchsiaImporter() : TraceImporter(MakeDescriptor()) {}
   ~FuchsiaImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     static constexpr char kMagic[] = {'\x10', '\x00', '\x04', '\x46',
                                       '\x78', '\x54', '\x16', '\x00'};
-    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+    return {size >= sizeof(kMagic) &&
+            memcmp(data, kMagic, sizeof(kMagic)) == 0};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

@@ -1222,12 +1222,12 @@ class Parsing(TestSuite):
         FROM thread_state
         JOIN thread USING (utid)
         WHERE state = 'D'
-        ORDER BY ts;
+        ORDER BY ts, pid;
         """,
         out=Csv("""
         "ts","pid","func"
-        999000,105,"some_fn"
         999000,102,"filemap_fault"
+        999000,105,"some_fn"
         1000000,100,"filemap_fault"
         1001000,101,"[NULL]"
         1002000,103,"[NULL]"

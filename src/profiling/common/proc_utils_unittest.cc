@@ -205,6 +205,22 @@ TEST(ProcUtilsTest, GetUidsInvalidTooFew) {
   EXPECT_EQ(uids, std::nullopt);
 }
 
+TEST(ProcUtilsTest, GetCgroupV2Path) {
+  EXPECT_EQ(GetCgroupV2Path("0::/uid_1000/pid_123"), "/uid_1000/pid_123");
+  EXPECT_EQ(GetCgroupV2Path("3:cpuset:/foreground\n2:cpu:/\n1:blkio:/\n"
+                            "0::/system/uid_1000/pid_1490\n"),
+            "/system/uid_1000/pid_1490");
+  EXPECT_EQ(GetCgroupV2Path("0::/apps/uid_10123/pid_4567 (deleted)\n"),
+            "/apps/uid_10123/pid_4567");
+  EXPECT_EQ(GetCgroupV2Path(""), std::nullopt);
+  EXPECT_EQ(GetCgroupV2Path("1:cpuset:/foreground\n"), std::nullopt);
+}
+
+TEST(ProcUtilsTest, IsProcessFrozen) {
+  EXPECT_FALSE(IsProcessFrozen(getpid()));
+  EXPECT_FALSE(IsProcessFrozen(-1));
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto

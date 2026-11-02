@@ -231,7 +231,7 @@ export function renderHistoryItem(
                 ? 'Results saved to a backend table — reopen to browse them.'
                 : 'Results were shown inline at run time and not saved.',
             },
-            isMaterialized ? 'Persistent' : 'Ephemeral',
+            isMaterialized ? 'Saved to table' : 'Not saved',
           ),
           m(
             'span.pf-bt-history-item-date',

@@ -59,16 +59,16 @@ ColumnView WriteKeys(const GroupTable& groups,
                      StorageType type,
                      ColumnBuffer& buffer) {
   ColumnChunk& chunk = buffer.chunk();
-  void* data = chunk.Values<int64_t>();
   if (type.Is<Uint32>() || type.Is<String>()) {
     // Strings are stored as their interned id.
-    WriteValues(groups, k, first, count, static_cast<uint32_t*>(data));
+    WriteValues(groups, k, first, count, chunk.Values<uint32_t>());
   } else if (type.Is<Int32>()) {
-    WriteValues(groups, k, first, count, static_cast<int32_t*>(data));
+    WriteValues(groups, k, first, count, chunk.Values<int32_t>());
   } else {
     // Int64 values are stored as is and doubles as their bits.
-    WriteValues(groups, k, first, count, static_cast<int64_t*>(data));
+    WriteValues(groups, k, first, count, chunk.Values<int64_t>());
   }
+  void* data = chunk.Values<uint8_t>();
   bool nulls = false;
   for (uint32_t i = 0; i < count && !nulls; ++i) {
     nulls = groups.IsNull(first + i, k);
@@ -188,7 +188,7 @@ bool HashAggregate::Serve(RowBatch& out, Breaker::State& state) const {
   std::iota(s.served_rows.begin(), s.served_rows.end(), s.emitted);
   const uint32_t* rows = s.served_rows.data();
   for (uint32_t k = 0; k < spec_.key_columns.size(); ++k) {
-    ColumnBuffer buffer = s.context->TakeBuffer();
+    ColumnBuffer buffer = s.context->TakeBuffer(ValueWidth(s.key_types[k]));
     ColumnView view =
         WriteKeys(s.groups, k, s.emitted, count, s.key_types[k], buffer);
     out.AddColumn(view, std::move(buffer));

@@ -29,8 +29,6 @@
 
 namespace perfetto::trace_processor::core::dataframe::arrow_internal {
 
-static_assert(PERFETTO_IS_LITTLE_ENDIAN());
-
 // Constants and packed structs below mirror the official Arrow flatbuffer
 // schema. Keeping them together makes the serializer and deserializer use the
 // same wire definitions without depending on the full Arrow library.

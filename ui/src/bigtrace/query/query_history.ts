@@ -38,17 +38,17 @@ const KINDS: ReadonlyArray<{
 }> = [
   {
     key: 'ephemeral',
-    label: 'Ephemeral',
+    label: 'Not saved',
     title:
-      'Queries run with Persistent off — results were shown inline at run ' +
-      'time and not saved. Reopen to see the SQL again or rerun.',
+      'Queries run with "Save results to table" off — results were shown ' +
+      'inline at run time and not saved. Reopen to see the SQL again or rerun.',
   },
   {
     key: 'persistent',
-    label: 'Persistent',
+    label: 'Saved to table',
     title:
-      'Queries run with Persistent on — results saved to a temporary ' +
-      'backend table you can reopen and browse.',
+      'Queries run with "Save results to table" on — results saved to a ' +
+      'temporary backend table you can reopen and browse.',
   },
 ];
 
@@ -151,7 +151,7 @@ export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryCompo
         {title: 'Nothing selected', icon: 'filter_alt_off', fillHeight: true},
         m(
           'div.pf-bt-history-empty-hint',
-          'Tick Ephemeral or Persistent to see queries.',
+          'Tick "Saved to table" or "Not saved" to see queries.',
         ),
       );
     }
@@ -166,9 +166,9 @@ export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryCompo
         m(
           'div.pf-bt-history-empty-hint',
           !ephemeral
-            ? 'Run a query with Persistent on to see it here.'
+            ? 'Run a query with "Save results to table" on to see it here.'
             : !persistent
-              ? 'Run a query with Persistent off to see it here.'
+              ? 'Run a query with "Save results to table" off to see it here.'
               : 'Queries you run show up here.',
         ),
       );

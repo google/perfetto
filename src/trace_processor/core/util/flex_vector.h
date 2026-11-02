@@ -126,10 +126,11 @@ class FlexVector {
     while (PERFETTO_UNLIKELY(size_ + count > capacity())) {
       IncreaseCapacity();
     }
-    uint64_t end = size_ + count;
-    for (; size_ < end; ++size_) {
-      slab_[size_] = value;
-    }
+    // Filled through a local pointer and size: a store through `slab_` could
+    // alias `size_`, which would otherwise be written back every element.
+    T* begin = slab_.data() + size_;
+    std::fill(begin, begin + count, value);
+    size_ += count;
   }
 
   // Removes the last element from the vector. Should not be called on an

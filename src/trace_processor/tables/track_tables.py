@@ -16,7 +16,6 @@
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
-from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppString
@@ -90,45 +89,7 @@ TRACK_TABLE = Table(
         ),
     ])
 
-# The custom dimensions of every track, written when the track event track is
-# created: the ones declared on its own TrackDescriptor plus the ones inherited
-# from its `parent_uuid` ancestors. The well known dimensions (machine, process,
-# thread, cpu, gpu) are derived from the track table by the public
-# `track_dimension` view, which adds them on top of this table.
-TRACK_DIMENSION_TABLE = Table(
-    python_module=__file__,
-    class_name="TrackDimensionTable",
-    sql_name="__intrinsic_track_dimension",
-    columns=[
-        C(
-            "track_id",
-            CppTableId(TRACK_TABLE),
-            cpp_access=CppAccess.READ,
-        ),
-        C(
-            "name",
-            CppString(),
-            cpp_access=CppAccess.READ,
-        ),
-        C(
-            "int_value",
-            CppOptional(CppInt64()),
-            cpp_access=CppAccess.READ,
-        ),
-        C(
-            "string_value",
-            CppOptional(CppString()),
-            cpp_access=CppAccess.READ,
-        ),
-        C(
-            "display_name",
-            CppOptional(CppString()),
-            cpp_access=CppAccess.READ,
-        ),
-    ])
-
 # Keep this list sorted.
 ALL_TABLES = [
-    TRACK_DIMENSION_TABLE,
     TRACK_TABLE,
 ]

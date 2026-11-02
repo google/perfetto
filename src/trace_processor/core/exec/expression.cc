@@ -279,10 +279,10 @@ class Evaluator {
   // A buffer for `out` to hold its values in, with no validity yet.
   template <typename T>
   T* Alloc(Register& out) {
-    return static_cast<T*>(AllocBuffer(out));
+    return static_cast<T*>(AllocBuffer(out, sizeof(T)));
   }
-  PERFETTO_NO_INLINE void* AllocBuffer(Register& out) {
-    out.buffer = context_->TakeBuffer();
+  PERFETTO_NO_INLINE void* AllocBuffer(Register& out, uint32_t width) {
+    out.buffer = context_->TakeBuffer(width);
     out.validity = nullptr;
     out.start = 0;
     uint8_t* values = out.buffer.chunk().Values<uint8_t>();
@@ -436,6 +436,17 @@ struct ComputeState : OperatorState {
 ComputeState::~ComputeState() = default;
 
 }  // namespace
+
+void Compute::DescribeColumns(StepColumns* out) const {
+  for (const ExprProgram& program : programs_) {
+    for (const ExprStep& step : program.steps) {
+      if (step.op == ExprStep::Op::kColumn) {
+        out->reads.push_back(step.a);
+      }
+    }
+  }
+  out->added = static_cast<uint32_t>(programs_.size());
+}
 
 Compute::Compute(std::vector<ExprProgram> programs)
     : programs_(std::move(programs)) {}

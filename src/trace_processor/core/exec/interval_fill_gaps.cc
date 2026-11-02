@@ -175,8 +175,8 @@ bool IntervalFillGaps::EnsureBackgroundRead(State& s) const {
 }
 
 base::Status IntervalFillGaps::ReadBackground(State& s) const {
-  RETURN_IF_ERROR(
-      s.background.Collect(*s.background_state, shared_ ? &s.lanes : nullptr));
+  RETURN_IF_ERROR(s.background.Collect(*s.background_state, *s.context,
+                                       shared_ ? &s.lanes : nullptr));
   for (uint32_t i = 0; i < s.background.size(); ++i) {
     // Intervals are sorted by start, so only the previous one with width can
     // overlap. Zero-width intervals cover nothing.
@@ -216,7 +216,7 @@ base::Status IntervalFillGaps::Cover(const RowBatch& in, State& s) const {
   RETURN_IF_ERROR(s.input.Start(in, shared_ ? &s.lanes : nullptr));
   LaneBatch lanes = s.input.batch();
   if (broadcast_) {
-    RETURN_IF_ERROR(s.keys.Hold(in));
+    RETURN_IF_ERROR(s.keys.Hold(in, *s.context));
     // The open lane's keys are now carried.
     s.lane_key = LaneKeys::kCarried;
     s.gaps.set_lane(s.lane_key);

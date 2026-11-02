@@ -26,6 +26,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/combine_batches.h"
 #include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/empty_source.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
@@ -42,7 +43,7 @@ using testing::ElementsAre;
 
 // A buffer from `context` holding `values`.
 ColumnBuffer Filled(Context& context, const std::vector<int64_t>& values) {
-  ColumnBuffer buffer = context.TakeBuffer();
+  ColumnBuffer buffer = context.TakeBuffer(sizeof(int64_t));
   std::copy(values.begin(), values.end(), buffer.chunk().Values<int64_t>());
   return buffer;
 }
@@ -63,13 +64,13 @@ TEST(ExecutorContractTest, CopiesOfABatchHoldItsBuffers) {
     second.CopyFrom(published);
   }
   // Still held, so not handed out again.
-  EXPECT_NE(&context.TakeBuffer().chunk(), held);
+  EXPECT_NE(&context.TakeBuffer(sizeof(int64_t)).chunk(), held);
   first.Reset();
-  EXPECT_NE(&context.TakeBuffer().chunk(), held);
+  EXPECT_NE(&context.TakeBuffer(sizeof(int64_t)).chunk(), held);
   EXPECT_THAT(test::ReadColumn<int64_t>(second, 0), ElementsAre(10, 20, 30));
   second.Reset();
   // The last copy gone, it is the first handed out again.
-  EXPECT_EQ(&context.TakeBuffer().chunk(), held);
+  EXPECT_EQ(&context.TakeBuffer(sizeof(int64_t)).chunk(), held);
 }
 
 TEST(ExecutorContractTest, SelectionsMatchScalarRows) {
@@ -132,7 +133,7 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
       ColumnView::Reference(StorageType{Double{}}, values.data()));
   input.SetRowCount(4);
   RowStore store;
-  ASSERT_TRUE(store.Append(input).ok());
+  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
   ASSERT_EQ(
       store.Gather(&output, Span<const uint32_t>(rows), test::TestContext()),
       4u);
@@ -154,7 +155,7 @@ TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
                                           nullptr, batch * 128);
     in.AddBorrowedColumn(original);
     in.AddBorrowedColumn(original);
-    ColumnBuffer local = context.TakeBuffer();
+    ColumnBuffer local = context.TakeBuffer(sizeof(int64_t));
     ColumnChunk& chunk = local.chunk();
     chunk.validity = BitVector::CreateWithSize(129);
     for (uint32_t r = 0; r < 129; ++r) {
@@ -173,7 +174,7 @@ TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
                               &chunk.validity, 1),
         local);
     in.SetRowCount(128);
-    ASSERT_TRUE(store.Append(in).ok());
+    ASSERT_TRUE(store.Append(in, context).ok());
   }
   RowBatch retained;
   for (uint32_t count : {63u, 64u, 65u, kMaxBatchRows}) {
@@ -264,6 +265,7 @@ class ContractFilter final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) const override {}
 
   struct State : OperatorState {
     std::vector<uint32_t> selected;
@@ -292,6 +294,7 @@ class FinishProbe final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) const override {}
 
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
@@ -387,6 +390,22 @@ TEST(ExecutorContractTest, SourceFailureDoesNotFinalizeBufferedOperators) {
   uint32_t pulls = source.pulls;
   EXPECT_FALSE(cursor.Next());
   EXPECT_EQ(source.pulls, pulls);
+}
+
+// A plan known to return no rows still finishes its operators, every run.
+TEST(ExecutorContractTest, EmptySourceFinishesOperators) {
+  EmptySource source;
+  std::vector<Pipeline::Step> ops;
+  auto probe = std::make_unique<FinishProbe>();
+  FinishProbe* observed = probe.get();
+  ops.push_back(std::move(probe));
+  Pipeline pipeline(source, std::move(ops));
+  RowCursor cursor(pipeline);
+  for (uint32_t run = 1; run <= 2; ++run) {
+    EXPECT_FALSE(cursor.Open());
+    EXPECT_TRUE(cursor.status().ok());
+    EXPECT_EQ(observed->finishes, run);
+  }
 }
 
 TEST(ExecutorContractTest, CombineBatchesKeepsOrder) {

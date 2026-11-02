@@ -31,10 +31,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/public/compiler.h"
-#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
-#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/bump_allocator.h"
@@ -263,7 +261,10 @@ class TraceSorter {
         }
       }
 
-      min_ts_ = std::min(min_ts_, ts);
+      if (ts < min_ts_) {
+        min_ts_ = ts;
+        min_alloc_id_ = id.alloc_id;
+      }
       PERFETTO_DCHECK(min_ts_ <= max_ts_);
     }
 
@@ -272,6 +273,8 @@ class TraceSorter {
 
     base::CircularQueue<TimestampedEvent> events_;
     int64_t min_ts_ = std::numeric_limits<int64_t>::max();
+    // The first event to arrive at min_ts_.
+    BumpAllocator::AllocId min_alloc_id_{};
     int64_t max_ts_ = 0;
     size_t sort_start_idx_ = 0;
     int64_t sort_min_ts_ = std::numeric_limits<int64_t>::max();
@@ -291,6 +294,7 @@ class TraceSorter {
   // ordered without reading the queues.
   struct QueueHeapEntry {
     int64_t min_ts;
+    BumpAllocator::AllocId min_alloc_id;
     uint32_t queue;
   };
   std::vector<QueueHeapEntry> queue_heap_;
@@ -304,6 +308,8 @@ class TraceSorter {
   SortingMode sorting_mode_ = SortingMode::kDefault;
 
   TraceStorage* storage_;
+  void RecordNegativeTimestampDropped();
+
   GlobalStatsTracker* global_stats_tracker_;
 
   // Buffer for storing tokenized objects while the corresponding events are
@@ -381,8 +387,7 @@ class TraceSorter::Stream {
     // (tokenize-only mode): the UI's merge dialog dry-runs a tokenize-only
     // pass and relies on this stat to warn about misconfigured offsets.
     if (PERFETTO_UNLIKELY(ts < 0)) {
-      sorter_->global_stats_tracker_->IncrementGlobalStats(
-          stats::trace_sorter_negative_timestamp_dropped);
+      sorter_->RecordNegativeTimestampDropped();
       return;
     }
     if (PERFETTO_UNLIKELY(sorter_->event_handling_ == EventHandling::kDrop)) {

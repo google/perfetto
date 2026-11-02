@@ -37,7 +37,7 @@ consumers (OpenCode's `index.json` URL, `tools/agents-install`) read the
 same tree at its full path. Every install gets the identical assembled
 skill, which carries the `trace_processor` wrapper at `bin/` inside the
 skill, so `$SKILL_ROOT/bin/trace_processor` resolves everywhere. See
-[`ai/skills/README.md`](../skills/README.md) for how the bundler
+[`ai/skills/CONTRIBUTING.md`](../skills/CONTRIBUTING.md) for how the bundler
 assembles the single skill.
 
 ## Versioning

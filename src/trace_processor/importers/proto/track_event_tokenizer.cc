@@ -166,6 +166,13 @@ bool ParseTrackDimensions(
         errors->push_back(stats::track_descriptor_invalid_dimension);
       }
     }
+    std::string dimension_name(name.data(), name.size());
+    out.arg_key =
+        context->storage->InternString("custom_dimension." + dimension_name);
+    if (out.display_name) {
+      out.display_arg_key = context->storage->InternString(
+          "custom_dimension_display_name." + dimension_name);
+    }
     reservation->dimensions.push_back(out);
   }
   if (reservation->dimensions.empty()) {
@@ -285,8 +292,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       default:
         context_->import_logs_tracker->RecordTokenizationLog(
             stats::track_descriptor_invalid_child_ordering,
-            args.packet->offset(),
-            [this, &track](ArgsTracker::BoundInserter& inserter) {
+            args.packet->offset(), [this, &track](ArgsInserter& inserter) {
               inserter.AddArg(track_uuid_key_id_,
                               Variadic::UnsignedInteger(track.uuid()));
               inserter.AddArg(child_order_key_id_,
@@ -362,10 +368,16 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
         context_->storage->InternString(track.description());
   }
 
+  bool unsupported_thread_dimensions =
+      track.has_thread() && track.has_dimensions() &&
+      !track.disallow_merging_with_system_tracks();
   std::vector<size_t> dimension_errors;
-  if (track.has_dimensions() &&
-      !ParseTrackDimensions(context_, args.state.get(), track, &reservation,
-                            &dimension_errors)) {
+  if (unsupported_thread_dimensions) {
+    dimension_errors.push_back(
+        stats::track_descriptor_shared_thread_custom_dimensions);
+  } else if (track.has_dimensions() &&
+             !ParseTrackDimensions(context_, args.state.get(), track,
+                                   &reservation, &dimension_errors)) {
     RecordTokenizationErrorWithTrackUuid(
         stats::track_descriptor_invalid_dimension, track.uuid(), args.packet);
     return ModuleResult::Handled();
@@ -393,7 +405,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     if (!thread.has_pid() || !thread.has_tid()) {
       context_->import_logs_tracker->RecordTokenizationLog(
           stats::track_descriptor_thread_missing_pid_tid, args.packet->offset(),
-          [&](ArgsTracker::BoundInserter& inserter) {
+          [&](ArgsInserter& inserter) {
             inserter.AddArg(track_uuid_key_id_,
                             Variadic::UnsignedInteger(track.uuid()));
           });
@@ -431,7 +443,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     if (!process.has_pid()) {
       context_->import_logs_tracker->RecordTokenizationLog(
           stats::track_descriptor_process_missing_pid, args.packet->offset(),
-          [&](ArgsTracker::BoundInserter& inserter) {
+          [&](ArgsInserter& inserter) {
             inserter.AddArg(track_uuid_key_id_,
                             Variadic::UnsignedInteger(track.uuid()));
           });
@@ -899,8 +911,7 @@ void TrackEventTokenizer::RecordTokenizationErrorWithTrackUuid(
     uint64_t track_uuid,
     TraceBlobView* packet) {
   context_->import_logs_tracker->RecordTokenizationLog(
-      stat_key, packet->offset(),
-      [this, track_uuid](ArgsTracker::BoundInserter& inserter) {
+      stat_key, packet->offset(), [this, track_uuid](ArgsInserter& inserter) {
         inserter.AddArg(track_uuid_key_id_,
                         Variadic::UnsignedInteger(track_uuid));
       });
@@ -912,7 +923,7 @@ void TrackEventTokenizer::RecordTokenizationErrorWithSeqId(
     TraceBlobView* packet) {
   context_->import_logs_tracker->RecordTokenizationLog(
       stat_key, packet->offset(),
-      [this, packet_sequence_id](ArgsTracker::BoundInserter& inserter) {
+      [this, packet_sequence_id](ArgsInserter& inserter) {
         inserter.AddArg(packet_sequence_id_key_id_,
                         Variadic::UnsignedInteger(packet_sequence_id));
       });

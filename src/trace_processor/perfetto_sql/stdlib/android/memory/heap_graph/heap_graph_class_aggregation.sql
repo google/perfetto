@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE android.memory.heap_graph.class_classification;
+
 INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;
 
 INCLUDE PERFETTO MODULE graphs.partition;
@@ -22,24 +24,6 @@ CREATE PERFETTO FUNCTION _partition_tree_super_root_fn()
 RETURNS LONG
 AS
 SELECT id + 1 FROM heap_graph_object ORDER BY id DESC LIMIT 1;
-
-CREATE PERFETTO FUNCTION _is_libcore_or_array(obj_name STRING)
-RETURNS BOOL
-AS
-SELECT
-  ($obj_name GLOB 'java.*' AND NOT ($obj_name GLOB 'java.lang.Class<*>'))
-  OR $obj_name GLOB 'j$.*'
-  OR $obj_name GLOB 'int[[]*'
-  OR $obj_name GLOB 'long[[]*'
-  OR $obj_name GLOB 'byte[[]*'
-  OR $obj_name GLOB 'char[[]*'
-  OR $obj_name GLOB 'short[[]*'
-  OR $obj_name GLOB 'float[[]*'
-  OR $obj_name GLOB 'double[[]*'
-  OR $obj_name GLOB 'boolean[[]*'
-  OR $obj_name GLOB 'android.util.*Array*'
-  OR $obj_name GLOB 'kotlinx.coroutines.*'
-  OR $obj_name GLOB 'kotlinx.atomicfu.*';
 
 -- Dominator tree nodes with no ancestor of the same class. Summing the
 -- dominated stats of these nodes per class counts every dominated object once.
@@ -117,8 +101,14 @@ CREATE PERFETTO TABLE android_heap_graph_class_aggregation(
   type_id LONG,
   -- Class name (deobfuscated if available)
   type_name STRING,
-  -- Is type an instance of a libcore object (java.*) or array
+  -- Deprecated: use is_language_runtime, is_container, and is_static_class instead.
   is_libcore_or_array BOOL,
+  -- Whether the class is part of standard Java/Kotlin runtime libraries.
+  is_language_runtime BOOL,
+  -- Whether the class is an array or standard collection/container.
+  is_container BOOL,
+  -- Whether the object is a java.lang.Class<*> singleton.
+  is_static_class BOOL,
   -- Count of class instances
   obj_count LONG,
   -- Size of class instances
@@ -143,11 +133,18 @@ CREATE PERFETTO TABLE android_heap_graph_class_aggregation(
 )
 AS
 SELECT
+  -- core dims
   a.upid,
   a.graph_sample_ts,
   a.type_id,
-  coalesce(cls.deobfuscated_name, cls.name) AS type_name,
-  _is_libcore_or_array(coalesce(cls.deobfuscated_name, cls.name)) AS is_libcore_or_array,
+  cls.type_name,
+  -- properties of the type_name
+  cls.is_language_runtime
+  OR cls.is_container AS is_libcore_or_array,
+  cls.is_language_runtime,
+  cls.is_container,
+  cls.is_static_class,
+  -- metrics
   a.obj_count,
   a.size_bytes,
   a.native_size_bytes,
@@ -158,13 +155,10 @@ SELECT
   coalesce(d.dominated_size_bytes, 0) AS dominated_size_bytes,
   coalesce(d.dominated_native_size_bytes, 0) AS dominated_native_size_bytes
 FROM _heap_graph_class_obj_stats AS a
-JOIN heap_graph_class AS cls
-  ON a.type_id = cls.id
+JOIN _heap_graph_class_classification AS cls ON a.type_id = cls.id
 LEFT JOIN _heap_graph_class_reachable_obj_stats AS r USING (type_id)
 LEFT JOIN _heap_graph_class_dominated_stats AS d USING (type_id)
 ORDER BY
   1,
   2,
-  3,
-  4,
-  5;
+  3;

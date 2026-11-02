@@ -19,11 +19,14 @@ package perfetto.protos;
 import "protos/perfetto/metrics/android/process_metadata.proto";
 
 message JavaHeapClassStats {
-  // Next id: 13
+  // Next id: 16
   message TypeCount {
     reserved 11;
     optional string type_name = 1;
-    optional bool is_libcore_or_array = 12;
+    optional bool is_libcore_or_array = 12 [deprecated = true];
+    optional bool is_language_runtime = 13;
+    optional bool is_container = 14;
+    optional bool is_static_class = 15;
 
     optional int64 obj_count = 2;
     optional int64 size_bytes = 3;

@@ -63,7 +63,7 @@ struct NameBlueprintT {
 struct BlueprintBase {
   std::string_view event_type;
   std::string_view type;
-  base::FnvHasher hasher;
+  uint64_t hash_seed;
   std::array<DimensionBlueprintBase, 8> dimension_blueprints;
 };
 
@@ -119,11 +119,9 @@ struct UnitBlueprintT {
 };
 
 template <typename BlueprintT, typename Dims>
-constexpr uint64_t HashFromBlueprintAndDimensions(const BlueprintT& bp,
-                                                  const Dims& dims) {
-  base::FnvHasher hasher(bp.hasher);
-  std::apply([&](auto&&... args) { ((hasher.Update(args)), ...); }, dims);
-  return hasher.digest();
+uint64_t HashFromBlueprintAndDimensions(const BlueprintT& bp,
+                                        const Dims& dims) {
+  return base::MurmurHashCombine(bp.hash_seed, dims);
 }
 
 }  // namespace perfetto::trace_processor::tracks

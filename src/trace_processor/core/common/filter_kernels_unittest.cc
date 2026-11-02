@@ -235,8 +235,8 @@ void CheckIndexEqual(StorageType type) {
         // Values in the column, and out of its range either way.
         auto value = static_cast<T>(static_cast<int>(rng() % 24) - 2);
         std::vector<uint32_t> index = c.index;
-        Span<uint32_t> entries(index.data(), index.data() + index.size());
-        Span<uint32_t> actual = SearchIndexEqual(
+        Span<const uint32_t> entries(index.data(), index.data() + index.size());
+        Span<const uint32_t> actual = SearchIndexEqual(
             column, CastFilterValueResult::Value(value), entries);
         auto [lb, ub] = std::equal_range(
             index.begin(), index.end(), std::optional<T>(value),
@@ -288,9 +288,9 @@ TEST(SearchIndexEqualTest, String) {
           base::StackString<16>("s%02u", static_cast<uint32_t>(rng() % 22))
               .ToStdString();
       std::vector<uint32_t> copy = index;
-      Span<uint32_t> actual = SearchIndexEqual(
+      Span<const uint32_t> actual = SearchIndexEqual(
           column, CastFilterValueResult::Value(value.c_str()),
-          Span<uint32_t>(copy.data(), copy.data() + copy.size()));
+          Span<const uint32_t>(copy.data(), copy.data() + copy.size()));
       uint32_t expected_b = 0;
       while (expected_b < size && text[index[expected_b]] < value) {
         ++expected_b;

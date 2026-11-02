@@ -464,6 +464,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
+        ":src_trace_processor_importers_proto_proto_to_args_parser",
         ":src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
@@ -600,7 +601,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
-        ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_simple_json_serializer",
@@ -794,6 +794,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
+        ":src_trace_processor_importers_proto_proto_to_args_parser",
         ":src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
@@ -940,7 +941,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
-        ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_simple_json_serializer",
@@ -1485,6 +1485,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/scoped_file.h",
         "include/perfetto/ext/base/scoped_mmap.h",
         "include/perfetto/ext/base/scoped_sched_boost.h",
+        "include/perfetto/ext/base/sd_notify.h",
         "include/perfetto/ext/base/small_set.h",
         "include/perfetto/ext/base/small_vector.h",
         "include/perfetto/ext/base/status_macros.h",
@@ -2094,6 +2095,7 @@ perfetto_cc_library(
 perfetto_cc_library(
     name = "src_base_unix_socket",
     srcs = [
+        "src/base/sd_notify.cc",
         "src/base/unix_socket.cc",
     ],
     hdrs = [
@@ -2635,6 +2637,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/batch_buffer.h",
         "src/trace_processor/core/exec/breaker.cc",
         "src/trace_processor/core/exec/breaker.h",
+        "src/trace_processor/core/exec/buffer_pool.cc",
+        "src/trace_processor/core/exec/buffer_pool.h",
         "src/trace_processor/core/exec/column_chunk.cc",
         "src/trace_processor/core/exec/column_chunk.h",
         "src/trace_processor/core/exec/column_view.h",
@@ -2648,6 +2652,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/dataframe_windows.h",
         "src/trace_processor/core/exec/distinct.cc",
         "src/trace_processor/core/exec/distinct.h",
+        "src/trace_processor/core/exec/empty_source.cc",
+        "src/trace_processor/core/exec/empty_source.h",
         "src/trace_processor/core/exec/expression.cc",
         "src/trace_processor/core/exec/expression.h",
         "src/trace_processor/core/exec/filter.cc",
@@ -2661,6 +2667,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/grouped_sort.h",
         "src/trace_processor/core/exec/hash_aggregate.cc",
         "src/trace_processor/core/exec/hash_aggregate.h",
+        "src/trace_processor/core/exec/index_scan.cc",
+        "src/trace_processor/core/exec/index_scan.h",
         "src/trace_processor/core/exec/interval_fill_gaps.cc",
         "src/trace_processor/core/exec/interval_fill_gaps.h",
         "src/trace_processor/core/exec/interval_flatten.cc",
@@ -2670,6 +2678,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/interval_lanes.cc",
         "src/trace_processor/core/exec/interval_lanes.h",
         "src/trace_processor/core/exec/layout_column.h",
+        "src/trace_processor/core/exec/limit.cc",
+        "src/trace_processor/core/exec/limit.h",
         "src/trace_processor/core/exec/operator.cc",
         "src/trace_processor/core/exec/operator.h",
         "src/trace_processor/core/exec/pipeline.cc",
@@ -2686,6 +2696,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/sort.h",
         "src/trace_processor/core/exec/sorted_rows.cc",
         "src/trace_processor/core/exec/sorted_rows.h",
+        "src/trace_processor/core/exec/sorted_scan.cc",
+        "src/trace_processor/core/exec/sorted_scan.h",
         "src/trace_processor/core/exec/tree_accumulate.cc",
         "src/trace_processor/core/exec/tree_accumulate.h",
         "src/trace_processor/core/exec/tree_number_nodes.cc",
@@ -2863,6 +2875,8 @@ perfetto_filegroup(
     name = "src_trace_processor_importers_common_common",
     srcs = [
         "src/trace_processor/importers/common/address_range.h",
+        "src/trace_processor/importers/common/arg_sink.cc",
+        "src/trace_processor/importers/common/arg_sink.h",
         "src/trace_processor/importers/common/args_tracker.cc",
         "src/trace_processor/importers/common/args_tracker.h",
         "src/trace_processor/importers/common/args_translation_table.cc",
@@ -2882,8 +2896,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/event_tracker.h",
         "src/trace_processor/importers/common/flow_tracker.cc",
         "src/trace_processor/importers/common/flow_tracker.h",
-        "src/trace_processor/importers/common/global_args_tracker.cc",
-        "src/trace_processor/importers/common/global_args_tracker.h",
         "src/trace_processor/importers/common/global_metadata_tracker.cc",
         "src/trace_processor/importers/common/global_metadata_tracker.h",
         "src/trace_processor/importers/common/gpu_tracker.cc",
@@ -3464,8 +3476,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/active_chrome_processes_tracker.h",
         "src/trace_processor/importers/proto/app_wakelock_module.cc",
         "src/trace_processor/importers/proto/app_wakelock_module.h",
-        "src/trace_processor/importers/proto/args_parser.cc",
-        "src/trace_processor/importers/proto/args_parser.h",
         "src/trace_processor/importers/proto/blob_packet_writer.cc",
         "src/trace_processor/importers/proto/blob_packet_writer.h",
         "src/trace_processor/importers/proto/chrome_string_lookup.cc",
@@ -3548,6 +3558,15 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/proto_importer_module.h",
         "src/trace_processor/importers/proto/selective_trace_packet_decoder.h",
         "src/trace_processor/importers/proto/typed_proto_field.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/proto:proto_to_args_parser
+perfetto_filegroup(
+    name = "src_trace_processor_importers_proto_proto_to_args_parser",
+    srcs = [
+        "src/trace_processor/importers/proto/proto_to_args_parser.cc",
+        "src/trace_processor/importers/proto/proto_to_args_parser.h",
     ],
 )
 
@@ -3970,6 +3989,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h",
+        "src/trace_processor/perfetto_sql/pipeline/operations/limit.cc",
+        "src/trace_processor/perfetto_sql/pipeline/operations/limit.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/order_by.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/projection.cc",
@@ -4113,6 +4134,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_memory_heap_graph_heap_graph",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/bitmap.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_classification.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_relationship.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_summary_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_tree.sql",
@@ -5664,6 +5686,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/winscope_importer/android_input_event_parser.cc",
         "src/trace_processor/plugins/winscope_importer/android_input_event_parser.h",
+        "src/trace_processor/plugins/winscope_importer/deinterning_arg_sink.cc",
+        "src/trace_processor/plugins/winscope_importer/deinterning_arg_sink.h",
         "src/trace_processor/plugins/winscope_importer/protolog_message_decoder.cc",
         "src/trace_processor/plugins/winscope_importer/protolog_message_decoder.h",
         "src/trace_processor/plugins/winscope_importer/protolog_parser.cc",
@@ -5683,8 +5707,8 @@ perfetto_filegroup(
         "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_visibility_computation.h",
         "src/trace_processor/plugins/winscope_importer/surfaceflinger_transactions_parser.cc",
         "src/trace_processor/plugins/winscope_importer/surfaceflinger_transactions_parser.h",
-        "src/trace_processor/plugins/winscope_importer/viewcapture_args_parser.cc",
-        "src/trace_processor/plugins/winscope_importer/viewcapture_args_parser.h",
+        "src/trace_processor/plugins/winscope_importer/viewcapture_deinterner.cc",
+        "src/trace_processor/plugins/winscope_importer/viewcapture_deinterner.h",
         "src/trace_processor/plugins/winscope_importer/viewcapture_parser.cc",
         "src/trace_processor/plugins/winscope_importer/viewcapture_parser.h",
         "src/trace_processor/plugins/winscope_importer/viewcapture_rect_computation.cc",
@@ -5961,6 +5985,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/storage/metadata.h",
         "src/trace_processor/storage/stats.h",
+        "src/trace_processor/storage/stats_types.h",
         "src/trace_processor/storage/trace_storage.cc",
         "src/trace_processor/storage/trace_storage.h",
     ],
@@ -6478,15 +6503,6 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/util/proto_profiler.cc",
         "src/trace_processor/util/proto_profiler.h",
-    ],
-)
-
-# GN target: //src/trace_processor/util:proto_to_args_parser
-perfetto_filegroup(
-    name = "src_trace_processor_util_proto_to_args_parser",
-    srcs = [
-        "src/trace_processor/util/proto_to_args_parser.cc",
-        "src/trace_processor/util/proto_to_args_parser.h",
     ],
 )
 
@@ -7233,6 +7249,8 @@ perfetto_filegroup(
         "src/tracing/service/service_ring_buffer_drainer.cc",
         "src/tracing/service/service_ring_buffer_drainer.h",
         "src/tracing/service/trace_buffer.h",
+        "src/tracing/service/trace_buffer_factory.cc",
+        "src/tracing/service/trace_buffer_factory.h",
         "src/tracing/service/trace_buffer_protovms.cc",
         "src/tracing/service/trace_buffer_protovms.h",
         "src/tracing/service/trace_buffer_v1.cc",
@@ -7246,6 +7264,8 @@ perfetto_filegroup(
         "src/tracing/service/tracing_service_session.cc",
         "src/tracing/service/tracing_service_session.h",
         "src/tracing/service/tracing_service_structs.h",
+        "src/tracing/service/zstd_frame_codec.cc",
+        "src/tracing/service/zstd_frame_codec.h",
     ],
 )
 
@@ -12107,6 +12127,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
+        ":src_trace_processor_importers_proto_proto_to_args_parser",
         ":src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
@@ -12242,7 +12263,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
-        ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_simple_json_serializer",
@@ -12472,6 +12492,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
+        ":src_trace_processor_importers_proto_proto_to_args_parser",
         ":src_trace_processor_importers_simpleperf_proto_simpleperf_proto",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
@@ -12607,7 +12628,6 @@ perfetto_cc_binary(
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
-        ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_simple_json_serializer",

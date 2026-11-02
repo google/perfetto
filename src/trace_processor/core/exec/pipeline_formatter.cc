@@ -30,19 +30,23 @@
 #include "src/trace_processor/core/exec/combine_batches.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/distinct.h"
+#include "src/trace_processor/core/exec/empty_source.h"
 #include "src/trace_processor/core/exec/expression.h"
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/graph_tree.h"
 #include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/hash_aggregate.h"
+#include "src/trace_processor/core/exec/index_scan.h"
 #include "src/trace_processor/core/exec/interval_fill_gaps.h"
 #include "src/trace_processor/core/exec/interval_flatten.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
+#include "src/trace_processor/core/exec/limit.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/sort.h"
 #include "src/trace_processor/core/exec/sorted_rows.h"
+#include "src/trace_processor/core/exec/sorted_scan.h"
 #include "src/trace_processor/core/exec/tree_accumulate.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
@@ -64,6 +68,10 @@ std::string OpName(const Op& op) {
       return ">";
     case Op::GetTypeIndex<Ge>():
       return ">=";
+    case Op::GetTypeIndex<In>():
+      return "IN";
+    case Op::GetTypeIndex<Glob>():
+      return "GLOB";
     case Op::GetTypeIndex<IsNull>():
       return "IS NULL";
     case Op::GetTypeIndex<IsNotNull>():
@@ -83,6 +91,17 @@ std::string Columns(const std::vector<uint32_t>& positions) {
     out += (out.empty() ? "" : ", ") + Column(position);
   }
   return out;
+}
+
+// The columns a step holding rows does not hold, if any.
+std::string Unread(const std::vector<bool>& unread) {
+  std::vector<uint32_t> positions;
+  for (uint32_t c = 0; c < unread.size(); ++c) {
+    if (unread[c]) {
+      positions.push_back(c);
+    }
+  }
+  return positions.empty() ? "" : "; drops " + Columns(positions);
 }
 
 std::string Lanes(const IntervalLaneSpec& lanes) {
@@ -201,6 +220,9 @@ std::string PipelineFormatter::SourceString(const Source& source) {
   if (source.Is<DataframeScan>()) {
     return "DataframeScan";
   }
+  if (source.Is<EmptySource>()) {
+    return "EmptySource";
+  }
   if (source.Is<GraphTree>()) {
     const GraphTreeSpec& spec = static_cast<const GraphTree&>(source).spec_;
     const char* kind = spec.kind == GraphTreeSpec::Kind::kBfs   ? "BFS"
@@ -223,6 +245,12 @@ std::string PipelineFormatter::SourceString(const Source& source) {
   }
   if (source.Is<Pipeline>()) {
     return "Pipeline";
+  }
+  if (source.Is<SortedScan>()) {
+    return "SortedScan";
+  }
+  if (source.Is<IndexScan>()) {
+    return "IndexScan";
   }
   return "Source";
 }
@@ -290,15 +318,17 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
     return "CombineBatches";
   }
   if (op.Is<Sort>()) {
-    return "Sort(" + Keys(static_cast<const Sort&>(op).spec_.keys) + ")";
+    const auto& sort = static_cast<const Sort&>(op);
+    return "Sort(" + Keys(sort.spec_.keys) + Unread(sort.unread_) + ")";
   }
   if (op.Is<GroupedSort>()) {
-    const GroupedSortSpec& spec = static_cast<const GroupedSort&>(op).spec_;
+    const auto& sort = static_cast<const GroupedSort&>(op);
+    const GroupedSortSpec& spec = sort.spec_;
     std::string out = "GroupedSort(" + Columns(spec.groups);
     if (!spec.keys.empty()) {
       out += "; " + Keys(spec.keys);
     }
-    return out + ")";
+    return out + Unread(sort.unread_) + ")";
   }
   if (op.Is<HashAggregate>()) {
     const HashAggregateSpec& spec = static_cast<const HashAggregate&>(op).spec_;
@@ -320,15 +350,24 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
     }
     return out + ")";
   }
+  if (op.Is<Limit>()) {
+    const auto& limit = static_cast<const Limit&>(op);
+    std::string out = "Limit(";
+    out += limit.limit_ ? std::to_string(*limit.limit_) : "none";
+    if (limit.offset_) {
+      out += " offset " + std::to_string(limit.offset_);
+    }
+    return out + ")";
+  }
   if (op.Is<TreeChildFirst>()) {
     const auto& order = static_cast<const TreeChildFirst&>(op);
     return "TreeChildFirst(" + Column(order.node_column_) + ", " +
-           Column(order.parent_column_) + ")";
+           Column(order.parent_column_) + Unread(order.unread_) + ")";
   }
   if (op.Is<TreeParentFirst>()) {
     const auto& order = static_cast<const TreeParentFirst&>(op);
     return "TreeParentFirst(" + Column(order.node_column_) + ", " +
-           Column(order.parent_column_) + ")";
+           Column(order.parent_column_) + Unread(order.unread_) + ")";
   }
   return "Operator";
 }

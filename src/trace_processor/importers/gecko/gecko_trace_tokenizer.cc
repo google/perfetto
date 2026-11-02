@@ -967,13 +967,13 @@ class GeckoImporter : public TraceImporter<GeckoImporter> {
   GeckoImporter() : TraceImporter(MakeDescriptor()) {}
   ~GeckoImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     std::string start(reinterpret_cast<const char*>(data),
                       std::min<size_t>(size, kGuessTraceMaxLookahead));
     start.erase(std::remove_if(start.begin(), start.end(), base::IsSpace),
                 start.end());
-    return base::StartsWith(start, "{\"meta\"") ||
-           base::StartsWith(start, "{\"libs\"");
+    return {base::StartsWith(start, "{\"meta\"") ||
+            base::StartsWith(start, "{\"libs\"")};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

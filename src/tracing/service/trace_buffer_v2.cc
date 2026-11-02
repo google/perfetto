@@ -246,9 +246,11 @@ TBChunk* ChunkSeqIterator::NextChunkInSequence() {
   size_t next_chunk_off = chunk_list.at(next_list_idx);      // O(1)
   TBChunk* next_chunk = buf_->GetTBChunkAt(next_chunk_off);  // O(1)
 
-  if (!seq_->is_smb_v2 && last_chunk_id.has_value() &&
-      next_chunk->chunk_id != *last_chunk_id + 1)
-    sequence_gap_detected_ = true;
+  // ReassembleFragmentedPacket() uses this flag to detect missing fragments.
+  // Update it for each pair of chunks so an earlier gap doesn't affect the
+  // packet we are reading.
+  sequence_gap_detected_ = !seq_->is_smb_v2 && last_chunk_id.has_value() &&
+                           next_chunk->chunk_id != *last_chunk_id + 1;
 
   chunk_ = next_chunk;
   list_idx_ = next_list_idx;
@@ -312,21 +314,28 @@ ChunkSeqReader::ChunkSeqReader(TraceBufferV2* buf,
                            : 0,
                        iter_->chunk_id, end_->chunk_id);
 
-  if (seq_->is_smb_v2)
-    return;
+  ReportReadGapBeforeChunk();
+}
 
-  if (seq_->last_chunk_consumed.has_value()) {
-    const auto& last = *seq_->last_chunk_consumed;
-    // Re-admit: an incomplete chunk that was evicted has been re-committed
-    // with strictly more payload. The chunk_id is unchanged, so the +1
-    // successor check below would fire spuriously even though the re-admit
-    // recovered the deferred fragments without losing data. Keep this
-    // predicate in sync with the re-admit acceptance check in
-    // TraceBufferV2::CopyChunkUntrusted.
-    bool readmit = last.was_incomplete && iter_->chunk_id == last.chunk_id;
-    if (!readmit && iter_->chunk_id != last.chunk_id + 1) {
-      AddSeqDataLoss(seq_, DataLossReason::DATA_LOSS_READ_GAP);
-    }
+void ChunkSeqReader::ReportReadGapBeforeChunk() {
+  // Skip the gap check in these three cases.
+  // 1) SMB v2 chunks have no ChunkID and use kChunkLossBefore instead.
+  // 2) We already consumed payload from this chunk, so a new reader must not
+  //    report the same gap again.
+  // 3) There is no last_chunk_consumed, so we have no previous ChunkID to
+  //    compare with iter_->chunk_id.
+  if (seq_->is_smb_v2 || iter_->unread_payload_off() != 0 ||
+      !seq_->last_chunk_consumed.has_value()) {
+    return;
+  }
+
+  const auto& last = *seq_->last_chunk_consumed;
+  // If an incomplete chunk was evicted, CopyChunkUntrusted() accepts it again
+  // when it has more payload. It keeps the same chunk_id, so we must not
+  // report a gap here.
+  bool readmit = last.was_incomplete && iter_->chunk_id == last.chunk_id;
+  if (!readmit && iter_->chunk_id != last.chunk_id + 1) {
+    AddSeqDataLoss(seq_, DataLossReason::DATA_LOSS_READ_GAP);
   }
 }
 
@@ -380,6 +389,7 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         return false;  // There are no more chunks in the sequence.
       iter_ = next_chunk;
       frag_iter_ = FragIterator(next_chunk);
+      ReportReadGapBeforeChunk();
       continue;
     }
 

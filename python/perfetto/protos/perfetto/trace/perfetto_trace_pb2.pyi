@@ -4504,7 +4504,7 @@ class ProcessStatsConfig(_message.Message):
     def __init__(self, quirks: _Optional[_Iterable[_Union[ProcessStatsConfig.Quirks, str]]] = ..., scan_all_processes_on_start: bool = ..., record_thread_names: bool = ..., proc_stats_poll_ms: _Optional[int] = ..., proc_stats_cache_ttl_ms: _Optional[int] = ..., scan_smaps_rollup: bool = ..., record_process_age: bool = ..., record_process_runtime: bool = ..., record_process_dmabuf_rss: bool = ..., resolve_process_fds: bool = ..., skip_main_thread_message: bool = ...) -> None: ...
 
 class HeapprofdConfig(_message.Message):
-    __slots__ = ("sampling_interval_bytes", "adaptive_sampling_shmem_threshold", "adaptive_sampling_max_sampling_interval_bytes", "process_cmdline", "pid", "target_installed_by", "heaps", "exclude_heaps", "stream_allocations", "heap_sampling_intervals", "all_heaps", "all", "min_anonymous_memory_kb", "max_heapprofd_memory_kb", "max_heapprofd_cpu_secs", "skip_symbol_prefix", "continuous_dump_config", "shmem_size_bytes", "block_client", "block_client_timeout_us", "no_startup", "no_running", "dump_at_max", "disable_fork_teardown", "disable_vfork_detection")
+    __slots__ = ("sampling_interval_bytes", "adaptive_sampling_shmem_threshold", "adaptive_sampling_max_sampling_interval_bytes", "process_cmdline", "pid", "target_installed_by", "heaps", "exclude_heaps", "stream_allocations", "heap_sampling_intervals", "all_heaps", "all", "min_anonymous_memory_kb", "skip_frozen_processes", "max_heapprofd_memory_kb", "max_heapprofd_cpu_secs", "skip_symbol_prefix", "continuous_dump_config", "shmem_size_bytes", "block_client", "block_client_timeout_us", "no_startup", "no_running", "dump_at_max", "disable_fork_teardown", "disable_vfork_detection")
     class ContinuousDumpConfig(_message.Message):
         __slots__ = ("dump_phase_ms", "dump_interval_ms")
         DUMP_PHASE_MS_FIELD_NUMBER: _ClassVar[int]
@@ -4525,6 +4525,7 @@ class HeapprofdConfig(_message.Message):
     ALL_HEAPS_FIELD_NUMBER: _ClassVar[int]
     ALL_FIELD_NUMBER: _ClassVar[int]
     MIN_ANONYMOUS_MEMORY_KB_FIELD_NUMBER: _ClassVar[int]
+    SKIP_FROZEN_PROCESSES_FIELD_NUMBER: _ClassVar[int]
     MAX_HEAPPROFD_MEMORY_KB_FIELD_NUMBER: _ClassVar[int]
     MAX_HEAPPROFD_CPU_SECS_FIELD_NUMBER: _ClassVar[int]
     SKIP_SYMBOL_PREFIX_FIELD_NUMBER: _ClassVar[int]
@@ -4550,6 +4551,7 @@ class HeapprofdConfig(_message.Message):
     all_heaps: bool
     all: bool
     min_anonymous_memory_kb: int
+    skip_frozen_processes: bool
     max_heapprofd_memory_kb: int
     max_heapprofd_cpu_secs: int
     skip_symbol_prefix: _containers.RepeatedScalarFieldContainer[str]
@@ -4562,7 +4564,7 @@ class HeapprofdConfig(_message.Message):
     dump_at_max: bool
     disable_fork_teardown: bool
     disable_vfork_detection: bool
-    def __init__(self, sampling_interval_bytes: _Optional[int] = ..., adaptive_sampling_shmem_threshold: _Optional[int] = ..., adaptive_sampling_max_sampling_interval_bytes: _Optional[int] = ..., process_cmdline: _Optional[_Iterable[str]] = ..., pid: _Optional[_Iterable[int]] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., heaps: _Optional[_Iterable[str]] = ..., exclude_heaps: _Optional[_Iterable[str]] = ..., stream_allocations: bool = ..., heap_sampling_intervals: _Optional[_Iterable[int]] = ..., all_heaps: bool = ..., all: bool = ..., min_anonymous_memory_kb: _Optional[int] = ..., max_heapprofd_memory_kb: _Optional[int] = ..., max_heapprofd_cpu_secs: _Optional[int] = ..., skip_symbol_prefix: _Optional[_Iterable[str]] = ..., continuous_dump_config: _Optional[_Union[HeapprofdConfig.ContinuousDumpConfig, _Mapping]] = ..., shmem_size_bytes: _Optional[int] = ..., block_client: bool = ..., block_client_timeout_us: _Optional[int] = ..., no_startup: bool = ..., no_running: bool = ..., dump_at_max: bool = ..., disable_fork_teardown: bool = ..., disable_vfork_detection: bool = ...) -> None: ...
+    def __init__(self, sampling_interval_bytes: _Optional[int] = ..., adaptive_sampling_shmem_threshold: _Optional[int] = ..., adaptive_sampling_max_sampling_interval_bytes: _Optional[int] = ..., process_cmdline: _Optional[_Iterable[str]] = ..., pid: _Optional[_Iterable[int]] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., heaps: _Optional[_Iterable[str]] = ..., exclude_heaps: _Optional[_Iterable[str]] = ..., stream_allocations: bool = ..., heap_sampling_intervals: _Optional[_Iterable[int]] = ..., all_heaps: bool = ..., all: bool = ..., min_anonymous_memory_kb: _Optional[int] = ..., skip_frozen_processes: bool = ..., max_heapprofd_memory_kb: _Optional[int] = ..., max_heapprofd_cpu_secs: _Optional[int] = ..., skip_symbol_prefix: _Optional[_Iterable[str]] = ..., continuous_dump_config: _Optional[_Union[HeapprofdConfig.ContinuousDumpConfig, _Mapping]] = ..., shmem_size_bytes: _Optional[int] = ..., block_client: bool = ..., block_client_timeout_us: _Optional[int] = ..., no_startup: bool = ..., no_running: bool = ..., dump_at_max: bool = ..., disable_fork_teardown: bool = ..., disable_vfork_detection: bool = ...) -> None: ...
 
 class ProcessSmapsConfig(_message.Message):
     __slots__ = ("smaps_config", "scope", "read_period_ms", "max_processes_per_period")
@@ -4657,7 +4659,7 @@ class RedactionRule(_message.Message):
     def __init__(self, pattern: _Optional[str] = ..., match_mode: _Optional[_Union[RedactionRule.MatchMode, str]] = ..., keep_full: bool = ..., replacement_name: _Optional[str] = ..., keep_file_extension: bool = ..., keep_path_elements: _Optional[int] = ...) -> None: ...
 
 class JavaHprofConfig(_message.Message):
-    __slots__ = ("process_cmdline", "pid", "target_installed_by", "continuous_dump_config", "min_anonymous_memory_kb", "min_java_heap_size_kb", "dump_smaps", "smaps_config", "ignored_types", "dump_oome_callstack")
+    __slots__ = ("process_cmdline", "pid", "target_installed_by", "continuous_dump_config", "min_anonymous_memory_kb", "min_java_heap_size_kb", "skip_frozen_processes", "dump_smaps", "smaps_config", "ignored_types", "dump_oome_callstack")
     class ContinuousDumpConfig(_message.Message):
         __slots__ = ("dump_phase_ms", "dump_interval_ms", "scan_pids_only_on_start")
         DUMP_PHASE_MS_FIELD_NUMBER: _ClassVar[int]
@@ -4673,6 +4675,7 @@ class JavaHprofConfig(_message.Message):
     CONTINUOUS_DUMP_CONFIG_FIELD_NUMBER: _ClassVar[int]
     MIN_ANONYMOUS_MEMORY_KB_FIELD_NUMBER: _ClassVar[int]
     MIN_JAVA_HEAP_SIZE_KB_FIELD_NUMBER: _ClassVar[int]
+    SKIP_FROZEN_PROCESSES_FIELD_NUMBER: _ClassVar[int]
     DUMP_SMAPS_FIELD_NUMBER: _ClassVar[int]
     SMAPS_CONFIG_FIELD_NUMBER: _ClassVar[int]
     IGNORED_TYPES_FIELD_NUMBER: _ClassVar[int]
@@ -4683,11 +4686,12 @@ class JavaHprofConfig(_message.Message):
     continuous_dump_config: JavaHprofConfig.ContinuousDumpConfig
     min_anonymous_memory_kb: int
     min_java_heap_size_kb: int
+    skip_frozen_processes: bool
     dump_smaps: bool
     smaps_config: SmapsConfig
     ignored_types: _containers.RepeatedScalarFieldContainer[str]
     dump_oome_callstack: bool
-    def __init__(self, process_cmdline: _Optional[_Iterable[str]] = ..., pid: _Optional[_Iterable[int]] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., continuous_dump_config: _Optional[_Union[JavaHprofConfig.ContinuousDumpConfig, _Mapping]] = ..., min_anonymous_memory_kb: _Optional[int] = ..., min_java_heap_size_kb: _Optional[int] = ..., dump_smaps: bool = ..., smaps_config: _Optional[_Union[SmapsConfig, _Mapping]] = ..., ignored_types: _Optional[_Iterable[str]] = ..., dump_oome_callstack: bool = ...) -> None: ...
+    def __init__(self, process_cmdline: _Optional[_Iterable[str]] = ..., pid: _Optional[_Iterable[int]] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., continuous_dump_config: _Optional[_Union[JavaHprofConfig.ContinuousDumpConfig, _Mapping]] = ..., min_anonymous_memory_kb: _Optional[int] = ..., min_java_heap_size_kb: _Optional[int] = ..., skip_frozen_processes: bool = ..., dump_smaps: bool = ..., smaps_config: _Optional[_Union[SmapsConfig, _Mapping]] = ..., ignored_types: _Optional[_Iterable[str]] = ..., dump_oome_callstack: bool = ...) -> None: ...
 
 class PerfEvents(_message.Message):
     __slots__ = ()
@@ -5270,7 +5274,7 @@ class TraceConfig(_message.Message):
     FFLUSH_DISABLED: TraceConfig.FFlushMode
     FFLUSH_ENABLED: TraceConfig.FFlushMode
     class BufferConfig(_message.Message):
-        __slots__ = ("size_kb", "fill_policy", "transfer_on_clone", "clear_before_clone", "name", "experimental_mode")
+        __slots__ = ("size_kb", "fill_policy", "transfer_on_clone", "clear_before_clone", "name", "experimental_mode", "buffer_type")
         class FillPolicy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
             __slots__ = ()
             UNSPECIFIED: _ClassVar[TraceConfig.BufferConfig.FillPolicy]
@@ -5285,19 +5289,34 @@ class TraceConfig(_message.Message):
             TRACE_BUFFER_V2: _ClassVar[TraceConfig.BufferConfig.ExperimentalMode]
         MODE_UNSPECIFIED: TraceConfig.BufferConfig.ExperimentalMode
         TRACE_BUFFER_V2: TraceConfig.BufferConfig.ExperimentalMode
+        class BufferTypeConfig(_message.Message):
+            __slots__ = ("v1", "v2")
+            class V1(_message.Message):
+                __slots__ = ()
+                def __init__(self) -> None: ...
+            class V2(_message.Message):
+                __slots__ = ()
+                def __init__(self) -> None: ...
+            V1_FIELD_NUMBER: _ClassVar[int]
+            V2_FIELD_NUMBER: _ClassVar[int]
+            v1: TraceConfig.BufferConfig.BufferTypeConfig.V1
+            v2: TraceConfig.BufferConfig.BufferTypeConfig.V2
+            def __init__(self, v1: _Optional[_Union[TraceConfig.BufferConfig.BufferTypeConfig.V1, _Mapping]] = ..., v2: _Optional[_Union[TraceConfig.BufferConfig.BufferTypeConfig.V2, _Mapping]] = ...) -> None: ...
         SIZE_KB_FIELD_NUMBER: _ClassVar[int]
         FILL_POLICY_FIELD_NUMBER: _ClassVar[int]
         TRANSFER_ON_CLONE_FIELD_NUMBER: _ClassVar[int]
         CLEAR_BEFORE_CLONE_FIELD_NUMBER: _ClassVar[int]
         NAME_FIELD_NUMBER: _ClassVar[int]
         EXPERIMENTAL_MODE_FIELD_NUMBER: _ClassVar[int]
+        BUFFER_TYPE_FIELD_NUMBER: _ClassVar[int]
         size_kb: int
         fill_policy: TraceConfig.BufferConfig.FillPolicy
         transfer_on_clone: bool
         clear_before_clone: bool
         name: str
         experimental_mode: TraceConfig.BufferConfig.ExperimentalMode
-        def __init__(self, size_kb: _Optional[int] = ..., fill_policy: _Optional[_Union[TraceConfig.BufferConfig.FillPolicy, str]] = ..., transfer_on_clone: bool = ..., clear_before_clone: bool = ..., name: _Optional[str] = ..., experimental_mode: _Optional[_Union[TraceConfig.BufferConfig.ExperimentalMode, str]] = ...) -> None: ...
+        buffer_type: TraceConfig.BufferConfig.BufferTypeConfig
+        def __init__(self, size_kb: _Optional[int] = ..., fill_policy: _Optional[_Union[TraceConfig.BufferConfig.FillPolicy, str]] = ..., transfer_on_clone: bool = ..., clear_before_clone: bool = ..., name: _Optional[str] = ..., experimental_mode: _Optional[_Union[TraceConfig.BufferConfig.ExperimentalMode, str]] = ..., buffer_type: _Optional[_Union[TraceConfig.BufferConfig.BufferTypeConfig, _Mapping]] = ...) -> None: ...
     class DataSource(_message.Message):
         __slots__ = ("config", "producer_name_filter", "producer_name_regex_filter", "machine_name_filter")
         CONFIG_FIELD_NUMBER: _ClassVar[int]
@@ -5649,8 +5668,17 @@ class TraceStats(_message.Message):
     FINAL_FLUSH_SUCCEEDED: TraceStats.FinalFlushOutcome
     FINAL_FLUSH_FAILED: TraceStats.FinalFlushOutcome
     class BufferStats(_message.Message):
-        __slots__ = ("buffer_size", "bytes_written", "bytes_overwritten", "bytes_read", "padding_bytes_written", "padding_bytes_cleared", "chunks_written", "chunks_rewritten", "chunks_relocated", "chunks_overwritten", "chunks_discarded", "chunks_read", "chunks_committed_out_of_order", "write_wrap_count", "compactions", "compactions_skipped", "patches_succeeded", "patches_failed", "readaheads_succeeded", "readaheads_failed", "abi_violations", "trace_writer_packet_loss", "oversized_packets_dropped")
+        __slots__ = ("buffer_size", "buffer_type", "bytes_written", "bytes_overwritten", "bytes_read", "padding_bytes_written", "padding_bytes_cleared", "chunks_written", "chunks_rewritten", "chunks_relocated", "chunks_overwritten", "chunks_discarded", "chunks_read", "chunks_committed_out_of_order", "write_wrap_count", "compactions", "compactions_skipped", "patches_succeeded", "patches_failed", "readaheads_succeeded", "readaheads_failed", "abi_violations", "trace_writer_packet_loss", "oversized_packets_dropped")
+        class BufferType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+            __slots__ = ()
+            BUFFER_TYPE_UNSPECIFIED: _ClassVar[TraceStats.BufferStats.BufferType]
+            BUFFER_TYPE_V1: _ClassVar[TraceStats.BufferStats.BufferType]
+            BUFFER_TYPE_V2: _ClassVar[TraceStats.BufferStats.BufferType]
+        BUFFER_TYPE_UNSPECIFIED: TraceStats.BufferStats.BufferType
+        BUFFER_TYPE_V1: TraceStats.BufferStats.BufferType
+        BUFFER_TYPE_V2: TraceStats.BufferStats.BufferType
         BUFFER_SIZE_FIELD_NUMBER: _ClassVar[int]
+        BUFFER_TYPE_FIELD_NUMBER: _ClassVar[int]
         BYTES_WRITTEN_FIELD_NUMBER: _ClassVar[int]
         BYTES_OVERWRITTEN_FIELD_NUMBER: _ClassVar[int]
         BYTES_READ_FIELD_NUMBER: _ClassVar[int]
@@ -5674,6 +5702,7 @@ class TraceStats(_message.Message):
         TRACE_WRITER_PACKET_LOSS_FIELD_NUMBER: _ClassVar[int]
         OVERSIZED_PACKETS_DROPPED_FIELD_NUMBER: _ClassVar[int]
         buffer_size: int
+        buffer_type: TraceStats.BufferStats.BufferType
         bytes_written: int
         bytes_overwritten: int
         bytes_read: int
@@ -5696,7 +5725,7 @@ class TraceStats(_message.Message):
         abi_violations: int
         trace_writer_packet_loss: int
         oversized_packets_dropped: int
-        def __init__(self, buffer_size: _Optional[int] = ..., bytes_written: _Optional[int] = ..., bytes_overwritten: _Optional[int] = ..., bytes_read: _Optional[int] = ..., padding_bytes_written: _Optional[int] = ..., padding_bytes_cleared: _Optional[int] = ..., chunks_written: _Optional[int] = ..., chunks_rewritten: _Optional[int] = ..., chunks_relocated: _Optional[int] = ..., chunks_overwritten: _Optional[int] = ..., chunks_discarded: _Optional[int] = ..., chunks_read: _Optional[int] = ..., chunks_committed_out_of_order: _Optional[int] = ..., write_wrap_count: _Optional[int] = ..., compactions: _Optional[int] = ..., compactions_skipped: _Optional[int] = ..., patches_succeeded: _Optional[int] = ..., patches_failed: _Optional[int] = ..., readaheads_succeeded: _Optional[int] = ..., readaheads_failed: _Optional[int] = ..., abi_violations: _Optional[int] = ..., trace_writer_packet_loss: _Optional[int] = ..., oversized_packets_dropped: _Optional[int] = ...) -> None: ...
+        def __init__(self, buffer_size: _Optional[int] = ..., buffer_type: _Optional[_Union[TraceStats.BufferStats.BufferType, str]] = ..., bytes_written: _Optional[int] = ..., bytes_overwritten: _Optional[int] = ..., bytes_read: _Optional[int] = ..., padding_bytes_written: _Optional[int] = ..., padding_bytes_cleared: _Optional[int] = ..., chunks_written: _Optional[int] = ..., chunks_rewritten: _Optional[int] = ..., chunks_relocated: _Optional[int] = ..., chunks_overwritten: _Optional[int] = ..., chunks_discarded: _Optional[int] = ..., chunks_read: _Optional[int] = ..., chunks_committed_out_of_order: _Optional[int] = ..., write_wrap_count: _Optional[int] = ..., compactions: _Optional[int] = ..., compactions_skipped: _Optional[int] = ..., patches_succeeded: _Optional[int] = ..., patches_failed: _Optional[int] = ..., readaheads_succeeded: _Optional[int] = ..., readaheads_failed: _Optional[int] = ..., abi_violations: _Optional[int] = ..., trace_writer_packet_loss: _Optional[int] = ..., oversized_packets_dropped: _Optional[int] = ...) -> None: ...
     class WriterStats(_message.Message):
         __slots__ = ("sequence_id", "buffer", "protocol_abi_versions", "chunk_payload_histogram_counts", "chunk_payload_histogram_sum")
         SEQUENCE_ID_FIELD_NUMBER: _ClassVar[int]

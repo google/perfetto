@@ -20,6 +20,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "test/gtest_and_gmock.h"
 
@@ -202,9 +203,9 @@ TEST(StringViewTest, DeviationsFromStdStringView) {
 
 TEST(StringViewTest, HashCollisions) {
   std::unordered_map<uint64_t, StringView> hashes;
-  std::unordered_set<StringView> sv_set;
+  std::unordered_set<StringView, MurmurHash<StringView>> sv_set;
   auto insert_sv = [&hashes, &sv_set](StringView sv) {
-    hashes.emplace(sv.Hash(), sv);
+    hashes.emplace(MurmurHashValue(sv), sv);
     size_t prev_set_size = sv_set.size();
     sv_set.insert(sv);
     ASSERT_EQ(sv_set.size(), prev_set_size + 1);
@@ -220,7 +221,7 @@ TEST(StringViewTest, HashCollisions) {
     for (size_t i = 1; i <= sizeof(buf); i++) {
       strings.emplace_front(buf, i);
       StringView sv(strings.front());
-      auto other = hashes.find(sv.Hash());
+      auto other = hashes.find(MurmurHashValue(sv));
       if (other == hashes.end()) {
         insert_sv(sv);
         ++last_size;

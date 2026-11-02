@@ -49,7 +49,9 @@ TreeChildFirst::~TreeChildFirst() = default;
 TreeChildFirst::State::~State() = default;
 
 std::unique_ptr<Breaker::State> TreeChildFirst::CreateState() const {
-  return std::make_unique<State>();
+  auto state = std::make_unique<State>();
+  state->rows.SetUnread(unread_);
+  return state;
 }
 
 bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
@@ -96,7 +98,7 @@ bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
     }
     s.has_row.set(node);
   }
-  s.status = s.rows.Append(in);
+  s.status = s.rows.Append(in, *s.context);
   return s.status.ok();
 }
 
@@ -253,6 +255,7 @@ std::unique_ptr<OperatorState> TreeParentFirst::MakeState(
     Context& context) const {
   auto state = std::make_unique<State>();
   state->context = &context;
+  state->held.rows.SetUnread(unread_);
   return state;
 }
 
@@ -282,6 +285,10 @@ PERFETTO_NO_INLINE OpResult TreeParentFirst::LetGo(RowBatch& out,
   }
   s.letting_go.clear();
   s.served = 0;
+  if (s.held.let_go == s.held.rows.size()) {
+    // Nothing waits any more, so nothing held is needed.
+    s.held.Clear();
+  }
   return OpResult::kNeedMoreInput;
 }
 
@@ -334,7 +341,7 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
   if (!s.holding.empty()) {
     s.held_batch.CopyFrom(in);
     s.held_batch.mutable_selection().Keep(s.holding.span());
-    s.status = s.held.rows.Append(s.held_batch);
+    s.status = s.held.rows.Append(s.held_batch, *s.context);
     if (!s.status.ok()) {
       return OpResult::kError;
     }

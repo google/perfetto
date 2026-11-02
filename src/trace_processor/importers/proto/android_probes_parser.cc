@@ -45,6 +45,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
+#include "src/trace_processor/tables/counter_tables_py.h"
 #include "src/trace_processor/tables/log_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
@@ -138,7 +139,6 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context,
                                          AndroidProbesTracker* tracker)
     : context_(context),
       tracker_(tracker),
-      power_rails_args_tracker_(std::make_unique<ArgsTracker>(context)),
       energy_consumer_id_(
           context_->storage->InternString("energy_consumer_id")),
       consumer_type_id_(context_->storage->InternString("consumer_type")),
@@ -187,7 +187,7 @@ void AndroidProbesParser::ParseRailDescriptor(
         tracks::DynamicNameBlueprint());
     const char* friendly_name = MapToFriendlyPowerRailName(desc.rail_name());
     TrackId track;
-    auto args_fn = [this, &desc](ArgsTracker::BoundInserter& inserter) {
+    auto args_fn = [this, &desc](ArgsInserter& inserter) {
       StringId raw_name = context_->storage->InternString(desc.rail_name());
       inserter.AddArg(power_rail_raw_name_id_, Variadic::String(raw_name));
 
@@ -305,7 +305,7 @@ void AndroidProbesParser::ParsePowerRails(int64_t ts,
     auto maybe_counter_id = context_->event_tracker->PushCounter(
         ts, static_cast<double>(desc.energy()), *opt_track);
     if (maybe_counter_id) {
-      power_rails_args_tracker_->AddArgsTo(*maybe_counter_id)
+      context_->args_tracker->AddArgsTo(*maybe_counter_id)
           .AddArg(rail_packet_timestamp_id_,
                   Variadic::UnsignedInteger(trace_packet_ts));
     }
@@ -342,8 +342,7 @@ void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
       tracks::DynamicNameBlueprint());
   TrackId energy_track = context_->track_tracker->InternTrack(
       kGlobalBlueprint, tracks::Dimensions(consumer_id),
-      tracks::DynamicName(descriptor->name),
-      [&](ArgsTracker::BoundInserter& inserter) {
+      tracks::DynamicName(descriptor->name), [&](ArgsInserter& inserter) {
         inserter.AddArg(consumer_type_id_, Variadic::String(descriptor->type));
         inserter.AddArg(ordinal_id_, Variadic::Integer(descriptor->ordinal));
       });
@@ -691,39 +690,38 @@ void AndroidProbesParser::ParseBtTraceEvent(int64_t ts, ConstBytes blob) {
 
   context_->slice_tracker->Scoped(
       ts, track_id, kNullStringId, bt_trace_event_id_, evt.duration(),
-      [&evt, this](ArgsTracker::BoundInserter* inserter) {
+      [&evt, this](ArgsInserter& inserter) {
         if (evt.has_packet_type()) {
           StringId packet_type_str = context_->storage->InternString(
               bluetooth::tracing::pbzero::BluetoothTracePacketType_Name(
                   static_cast<
                       ::bluetooth::tracing::pbzero::BluetoothTracePacketType>(
                       evt.packet_type())));
-          inserter->AddArg(bt_packet_type_id_,
-                           Variadic::String(packet_type_str));
+          inserter.AddArg(bt_packet_type_id_,
+                          Variadic::String(packet_type_str));
         }
         if (evt.has_count()) {
-          inserter->AddArg(bt_count_id_,
-                           Variadic::UnsignedInteger(evt.count()));
+          inserter.AddArg(bt_count_id_, Variadic::UnsignedInteger(evt.count()));
         }
         if (evt.has_length()) {
-          inserter->AddArg(bt_length_id_,
-                           Variadic::UnsignedInteger(evt.length()));
+          inserter.AddArg(bt_length_id_,
+                          Variadic::UnsignedInteger(evt.length()));
         }
         if (evt.has_op_code()) {
-          inserter->AddArg(bt_op_code_id_,
-                           Variadic::UnsignedInteger(evt.op_code()));
+          inserter.AddArg(bt_op_code_id_,
+                          Variadic::UnsignedInteger(evt.op_code()));
         }
         if (evt.has_event_code()) {
-          inserter->AddArg(bt_event_code_id_,
-                           Variadic::UnsignedInteger(evt.event_code()));
+          inserter.AddArg(bt_event_code_id_,
+                          Variadic::UnsignedInteger(evt.event_code()));
         }
         if (evt.has_subevent_code()) {
-          inserter->AddArg(bt_subevent_code_id_,
-                           Variadic::UnsignedInteger(evt.subevent_code()));
+          inserter.AddArg(bt_subevent_code_id_,
+                          Variadic::UnsignedInteger(evt.subevent_code()));
         }
         if (evt.has_connection_handle()) {
-          inserter->AddArg(bt_handle_id_,
-                           Variadic::UnsignedInteger(evt.connection_handle()));
+          inserter.AddArg(bt_handle_id_,
+                          Variadic::UnsignedInteger(evt.connection_handle()));
         }
       });
 }
@@ -791,8 +789,7 @@ void AndroidProbesParser::ParseAndroidAflags(int64_t ts, ConstBytes blob) {
   protos::pbzero::AndroidAflags::Decoder decoder(blob.data, blob.size);
   if (decoder.has_error()) {
     context_->import_logs_tracker->RecordCollectionLog(
-        stats::android_aflags_errors, ts,
-        [&](ArgsTracker::BoundInserter& inserter) {
+        stats::android_aflags_errors, ts, [&](ArgsInserter& inserter) {
           inserter.AddArg(
               context_->storage->InternString("error"),
               Variadic::String(sanitize_and_intern(decoder.error())));

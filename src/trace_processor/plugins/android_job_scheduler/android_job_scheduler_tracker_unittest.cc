@@ -18,6 +18,7 @@
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
 #include "src/trace_processor/importers/proto/android_extension.descriptor.h"
 #include "src/trace_processor/importers/proto/track_event_extension_parser.h"
+#include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/util/descriptors.h"
 
 #include <memory>
@@ -25,10 +26,10 @@
 
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -49,8 +50,7 @@ class AndroidJobSchedulerTrackerTest : public ::testing::Test {
     context.descriptor_pool_.reset(new DescriptorPool());
     context.descriptor_pool_->AddFromFileDescriptorSet(
         kAndroidExtensionDescriptor.data(), kAndroidExtensionDescriptor.size());
-    context.global_args_tracker.reset(
-        new GlobalArgsTracker(context.storage.get()));
+    context.args_tracker.reset(new ArgsTracker(context.storage.get()));
     context.machine_tracker.reset(new MachineTracker(&context, 0));
     context.track_tracker.reset(new TrackTracker(&context));
     context.slice_tracker.reset(new SliceTracker(&context));

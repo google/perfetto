@@ -20,7 +20,8 @@ CREATE PERFETTO VIEW stats(
   id ID,
   -- Stat name (e.g. ftrace_cpu_overrun_begin).
   name STRING,
-  -- Numeric stat key (stats::KeyIDs enum value).
+  -- Numeric stat key: the stats::KeyIDs enum value, or, for a dynamic stat
+  -- whose name is only known at runtime, a value from stats::kNumKeys up.
   key LONG,
   -- Per-stat index for kIndexed stats; NULL for kSingle.
   idx LONG,
