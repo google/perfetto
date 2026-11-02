@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {ensureExists, assertTrue} from '../base/assert';
-import {RegistryError} from '../base/registry';
 import {type time, Time, TimeSpan} from '../base/time';
 import {cacheTrace} from './cache_manager';
 import {
@@ -243,6 +242,13 @@ async function loadTraceIntoEngine(
   // rebuilds it, which resets the flag.
   await engine.query('PERFETTO PRAGMA pipelines = 1;');
 
+  if (await hasDuplicateTracks(engine)) {
+    engine[Symbol.dispose]();
+    throw new Error(
+      'Cannot merge traces captured on the same machine (ERR:dup_machine_traces)',
+    );
+  }
+
   for (const p of await app.sqlPackages()) {
     await engine.registerSqlPackages(p);
   }
@@ -281,23 +287,9 @@ async function loadTraceIntoEngine(
     deserializeAppStatePhase1(serializedAppState, trace);
   }
 
-  try {
-    await app.plugins.onTraceLoad(trace, (id) => {
-      updateStatus(app, `Running plugin: ${id}`);
-    });
-  } catch (e) {
-    if (
-      e instanceof RegistryError &&
-      e.message.includes('already exists') &&
-      (await isSameMachineMultiTrace(engine))
-    ) {
-      app.closeCurrentTrace();
-      throw new Error(
-        'Cannot merge traces captured on the same machine (ERR:dup_machine_traces)',
-      );
-    }
-    throw e;
-  }
+  await app.plugins.onTraceLoad(trace, (id) => {
+    updateStatus(app, `Running plugin: ${id}`);
+  });
 
   // Plugins may call trace.initialPage.suggest(...) during onTraceLoad to
   // request that the app navigate somewhere other than /viewer.
@@ -764,22 +756,17 @@ async function getTracingMetadataTimeBounds(engine: Engine): Promise<TimeSpan> {
   return new TimeSpan(startBound, endBound);
 }
 
-async function isSameMachineMultiTrace(engine: Engine): Promise<boolean> {
-  const res = await engine.tryQuery(`
-    SELECT
-      COUNT(*) AS traceCnt,
-      (SELECT COUNT(*) FROM machine) AS machineCnt
-    FROM __intrinsic_trace_file
-    WHERE is_container = 0
-      AND processing_order IS NOT NULL
-      AND trace_type NOT IN (
-        'perfetto_manifest',
-        'symbols',
-        'arrow',
-        'android_logcat'
-      )
+// Every track within a single trace is uniquely identified by
+// (type, machine_id, dimension_arg_set_id). Duplicate entries only occur when
+// multiple traces are loaded onto the same machine, which breaks plugins that
+// assume track dimensions are unique per machine (e.g. CpuFreq, Gpu).
+async function hasDuplicateTracks(engine: Engine): Promise<boolean> {
+  const res = await engine.query(`
+    SELECT 1
+    FROM track
+    GROUP BY type, machine_id, dimension_arg_set_id
+    HAVING COUNT(*) > 1
+    LIMIT 1
   `);
-  if (!res.ok) return false;
-  const row = res.value.firstRow({traceCnt: NUM, machineCnt: NUM});
-  return row.traceCnt > Math.max(1, row.machineCnt);
+  return res.numRows() > 0;
 }
