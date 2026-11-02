@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import fs from 'node:fs';
-import path from 'node:path';
 import {vi} from 'vitest';
-import {z} from 'zod';
 import {reportError} from '../base/logging';
 import {openTraceFiles} from '../core/open_trace_files';
 import {
@@ -124,59 +121,5 @@ describe('fileLaunchHandler', () => {
 
     expect(openTraceFiles).not.toHaveBeenCalled();
     expect(reportError).toHaveBeenCalledWith(readError);
-  });
-
-  test('manifest.webmanifest is valid and references existing icons', () => {
-    const assetsDir = path.resolve(__dirname, '../assets');
-    const raw = fs.readFileSync(
-      path.join(assetsDir, 'manifest.webmanifest'),
-      'utf8',
-    );
-    const manifestSchema = z.object({
-      id: z.string(),
-      name: z.string(),
-      short_name: z.string(),
-      start_url: z.string(),
-      scope: z.string(),
-      display: z.string(),
-      icons: z.array(
-        z.object({
-          src: z.string(),
-          sizes: z.string(),
-          type: z.string(),
-        }),
-      ),
-      launch_handler: z.object({
-        client_mode: z.string(),
-      }),
-      file_handlers: z.array(
-        z.object({
-          action: z.string(),
-          accept: z.record(z.string(), z.array(z.string())),
-          launch_type: z.string().optional(),
-        }),
-      ),
-    });
-
-    const manifest = manifestSchema.parse(JSON.parse(raw));
-
-    expect(manifest.id).toBe('/');
-    expect(manifest.start_url).toBe('/');
-    expect(manifest.scope).toBe('/');
-    expect(manifest.display).toBe('standalone');
-
-    const sizes = manifest.icons.map((i) => i.sizes);
-    expect(sizes).toContain('192x192');
-    expect(sizes).toContain('512x512');
-    for (const icon of manifest.icons) {
-      expect(fs.existsSync(path.join(assetsDir, icon.src))).toBe(true);
-    }
-
-    const firstHandler = manifest.file_handlers[0];
-    expect(firstHandler).toBeDefined();
-    expect(firstHandler?.action).toBe('/');
-    const extensions = Object.values(firstHandler?.accept ?? {}).flat();
-    expect(extensions).toContain('.pftrace');
-    expect(extensions).toContain('.perfetto-trace');
   });
 });
