@@ -17,6 +17,7 @@ from python.generators.diff_tests.testing import Path
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
+from python.generators.diff_tests.testing import TextProto
 
 
 class SurfaceFlingerLayers(TestSuite):
@@ -150,6 +151,46 @@ class SurfaceFlingerLayers(TestSuite):
         "COUNT(*)"
         3
         20
+        """))
+
+  # Layers are stored in their own rows, so snapshots which only differ in their
+  # layers must share one stored proto. ProtoVM inflates every patch into a
+  # full snapshot, so copying the layers per snapshot exhausts the string pool.
+  def test_snapshot_proto_omits_layers(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          [com.android.internal.FrameworksNativeWinscopeTracePacket.surfaceflinger_layers_snapshot] {
+            elapsed_realtime_nanos: 123
+            layers {
+              layers {
+                id: 1
+              }
+            }
+          }
+        }
+        packet {
+          timestamp: 2000
+          [com.android.internal.FrameworksNativeWinscopeTracePacket.surfaceflinger_layers_snapshot] {
+            elapsed_realtime_nanos: 123
+            layers {
+              layers {
+                id: 2
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          COUNT(*) AS snapshots,
+          COUNT(DISTINCT base64_proto_id) AS protos
+        FROM surfaceflinger_layers_snapshot;
+        """,
+        out=Csv("""
+        "snapshots","protos"
+        2,1
         """))
 
   def test_layer_args(self):

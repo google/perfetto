@@ -226,7 +226,7 @@ SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
             'arg_set_id':
                 'Extra args parsed from the proto message',
             'base64_proto_id':
-                'String id for raw proto message',
+                'String id for raw proto message, without its layers',
             'sequence_id':
                 'Sequence id of the trace packet',
             'has_invalid_elapsed_ts':
@@ -281,10 +281,20 @@ SURFACE_FLINGER_LAYER_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C('layer_id', CppOptional(CppInt64())),
+        C(
+            'layer_id',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('layer_name', CppOptional(CppString())),
         C('is_visible', CppInt64()),
-        C('parent', CppOptional(CppInt64())),
+        C(
+            'parent',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('corner_radius_tl', CppOptional(CppDouble())),
         C('corner_radius_tr', CppOptional(CppDouble())),
         C('corner_radius_bl', CppOptional(CppDouble())),

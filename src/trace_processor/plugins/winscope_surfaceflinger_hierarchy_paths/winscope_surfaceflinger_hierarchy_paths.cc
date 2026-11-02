@@ -20,6 +20,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -27,18 +28,13 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/base64.h"
-#include "perfetto/ext/base/string_view.h"
-#include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_layers.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
-#include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_extractor.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_importer.h"
 #include "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -49,7 +45,7 @@ namespace perfetto::trace_processor::winscope_surfaceflinger_hierarchy_paths {
 
 namespace {
 
-using LayerDecoder = com::android::internal::pbzero::LayerProto::Decoder;
+using LayerTable = tables::SurfaceFlingerLayerTable;
 
 class WinscopeSurfaceFlingerHierarchyPaths : public StaticTableFunction {
  public:
@@ -60,7 +56,6 @@ class WinscopeSurfaceFlingerHierarchyPaths : public StaticTableFunction {
     bool Run(const std::vector<SqlValue>& arguments) override;
 
    private:
-    StringPool* string_pool_ = nullptr;
     const PerfettoSqlConnection* engine_ = nullptr;
     tables::WinscopeSurfaceFlingerHierarchyPathTable table_;
   };
@@ -78,66 +73,82 @@ class WinscopeSurfaceFlingerHierarchyPaths : public StaticTableFunction {
   const PerfettoSqlConnection* engine_ = nullptr;
 };
 
-std::vector<int32_t> GetHierarchyPath(
-    const LayerDecoder& layer_decoder,
-    const std::unordered_map<int32_t, LayerDecoder>& layers_by_id) {
-  std::vector<int32_t> hierarchy_path = {layer_decoder.id()};
-  auto pos = layers_by_id.find(layer_decoder.parent());
-  while (pos != layers_by_id.end()) {
-    const auto& layer_dec = pos->second;
-    auto id = layer_dec.id();
-    auto parent = layer_dec.parent();
+struct Layer {
+  uint32_t snapshot_id;
+  std::optional<int64_t> id;
+  int64_t parent;
+};
+
+Layer ReadLayer(const dataframe::Dataframe& layer_table, uint32_t row) {
+  constexpr auto kSpec = LayerTable::kSpec;
+  return Layer{
+      layer_table.GetCellUnchecked<LayerTable::ColumnIndex::snapshot_id>(kSpec,
+                                                                         row),
+      layer_table.GetCellUnchecked<LayerTable::ColumnIndex::layer_id>(kSpec,
+                                                                      row),
+      // A layer without a parent reads as parent 0, the proto default.
+      layer_table.GetCellUnchecked<LayerTable::ColumnIndex::parent>(kSpec, row)
+          .value_or(0),
+  };
+}
+
+std::vector<int64_t> GetHierarchyPath(
+    const Layer& layer,
+    const std::unordered_map<int64_t, int64_t>& parent_by_id) {
+  std::vector<int64_t> hierarchy_path = {*layer.id};
+  auto pos = parent_by_id.find(layer.parent);
+  while (pos != parent_by_id.end()) {
+    auto id = pos->first;
+    auto parent = pos->second;
     if (id == parent) {
       // handles recursive hierarchies
       break;
     }
     hierarchy_path.push_back(id);
-    pos = layers_by_id.find(parent);
+    pos = parent_by_id.find(parent);
   }
   return hierarchy_path;
 }
 
+// Layer rows are inserted one snapshot at a time, so each snapshot's layers are
+// contiguous.
 base::Status InsertRows(
-    const dataframe::Dataframe& snapshot_table,
-    tables::WinscopeSurfaceFlingerHierarchyPathTable* paths_table,
-    StringPool* string_pool) {
-  constexpr auto kSpec = tables::SurfaceFlingerLayersSnapshotTable::kSpec;
+    const dataframe::Dataframe& layer_table,
+    tables::WinscopeSurfaceFlingerHierarchyPathTable* paths_table) {
+  const uint32_t row_count = layer_table.row_count();
+  uint32_t begin = 0;
+  while (begin < row_count) {
+    const uint32_t snapshot_id = ReadLayer(layer_table, begin).snapshot_id;
 
-  for (uint32_t i = 0; i < snapshot_table.row_count(); ++i) {
-    auto base64_proto_id =
-        snapshot_table
-            .GetCellUnchecked<tables::SurfaceFlingerLayersSnapshotTable::
-                                  ColumnIndex::base64_proto_id>(kSpec, i);
-    PERFETTO_CHECK(base64_proto_id.has_value());
+    std::unordered_map<int64_t, int64_t> parent_by_id;
+    uint32_t end = begin;
+    for (; end < row_count; ++end) {
+      const Layer layer = ReadLayer(layer_table, end);
+      if (layer.snapshot_id != snapshot_id) {
+        break;
+      }
+      if (layer.id) {
+        parent_by_id.emplace(*layer.id, layer.parent);
+      }
+    }
 
-    const auto raw_proto =
-        string_pool->Get(StringPool::Id::Raw(*base64_proto_id));
-    const auto blob = *base::Base64Decode(raw_proto);
-    const auto cb = protozero::ConstBytes{
-        reinterpret_cast<const uint8_t*>(blob.data()), blob.size()};
-    com::android::internal::pbzero::LayersSnapshotProto::Decoder snapshot(cb);
-    com::android::internal::pbzero::LayersProto::Decoder layers(
-        snapshot.layers());
-
-    const auto& layers_by_id =
-        winscope::surfaceflinger_layers::ExtractLayersById(layers);
-
-    for (auto it = layers.layers(); it; ++it) {
-      LayerDecoder layer(*it);
-      if (!layer.has_id()) {
+    for (uint32_t i = begin; i < end; ++i) {
+      const Layer layer = ReadLayer(layer_table, i);
+      if (!layer.id) {
         continue;
       }
-      auto layer_id = static_cast<uint32_t>(layer.id());
+      auto layer_id = static_cast<uint32_t>(*layer.id);
 
-      auto path = GetHierarchyPath(layer, layers_by_id);
+      auto path = GetHierarchyPath(layer, parent_by_id);
       for (auto path_it = path.rbegin(); path_it != path.rend(); ++path_it) {
         tables::WinscopeSurfaceFlingerHierarchyPathTable::Row row;
-        row.snapshot_id = i;
+        row.snapshot_id = snapshot_id;
         row.layer_id = layer_id;
         row.ancestor_id = static_cast<uint32_t>(*path_it);
         paths_table->Insert(row);
       }
     }
+    begin = end;
   }
   return base::OkStatus();
 }
@@ -145,12 +156,12 @@ base::Status InsertRows(
 WinscopeSurfaceFlingerHierarchyPaths::Cursor::Cursor(
     StringPool* string_pool,
     const PerfettoSqlConnection* connection)
-    : string_pool_(string_pool), engine_(connection), table_(string_pool) {}
+    : engine_(connection), table_(string_pool) {}
 
 bool WinscopeSurfaceFlingerHierarchyPaths::Cursor::Run(
     const std::vector<SqlValue>& arguments) {
   PERFETTO_DCHECK(arguments.size() == 0);
-  auto table_name = tables::SurfaceFlingerLayersSnapshotTable::Name();
+  auto table_name = LayerTable::Name();
   const dataframe::Dataframe* static_table_from_connection =
       engine_->GetDataframeOrNull(table_name);
   if (!static_table_from_connection) {
@@ -160,8 +171,7 @@ bool WinscopeSurfaceFlingerHierarchyPaths::Cursor::Run(
 
   table_.Clear();
 
-  base::Status status =
-      InsertRows(*static_table_from_connection, &table_, string_pool_);
+  base::Status status = InsertRows(*static_table_from_connection, &table_);
   if (!status.ok()) {
     return OnFailure(status);
   }

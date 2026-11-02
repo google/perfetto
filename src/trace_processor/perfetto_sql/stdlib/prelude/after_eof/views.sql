@@ -618,8 +618,7 @@ SELECT
   tc.utid,
   coalesce(x.process_priority, 0) AS process_priority
 FROM __intrinsic_profiler_sample AS ps
-LEFT JOIN __intrinsic_profiler_task_context AS tc
-  ON tc.id = ps.task_context_id
+LEFT JOIN __intrinsic_profiler_task_context AS tc ON tc.id = ps.task_context_id
 LEFT JOIN __intrinsic_chrome_stack_sample_extras AS x
   ON x.profiler_sample_id = ps.id
 WHERE
@@ -641,12 +640,10 @@ CREATE PERFETTO VIEW instruments_sample(
 AS
 SELECT ps.id, ps.ts, tc.utid, ps.callsite_id, c.cpu
 FROM __intrinsic_profiler_sample AS ps
-LEFT JOIN __intrinsic_profiler_task_context AS tc
-  ON tc.id = ps.task_context_id
+LEFT JOIN __intrinsic_profiler_task_context AS tc ON tc.id = ps.task_context_id
 LEFT JOIN __intrinsic_profiler_execution_context AS ec
   ON ec.id = ps.execution_context_id
-LEFT JOIN __intrinsic_cpu AS c
-  ON c.id = ec.ucpu
+LEFT JOIN __intrinsic_cpu AS c ON c.id = ec.ucpu
 WHERE
   ps.source = 'instruments';
 
@@ -860,7 +857,7 @@ CREATE PERFETTO VIEW surfaceflinger_layers_snapshot(
   ts TIMESTAMP,
   -- Extra args parsed from the proto message.
   arg_set_id ARGSETID,
-  -- String id for raw proto message.
+  -- String id for raw proto message, without its layers.
   base64_proto_id LONG,
   -- Sequence id of the trace packet.
   sequence_id LONG,
@@ -1028,5 +1025,4 @@ CREATE PERFETTO VIEW _trace_import_logs(
 AS
 SELECT l.id, l.trace_id, l.ts, l.byte_offset, s.severity, s.name, l.arg_set_id
 FROM __intrinsic_trace_import_logs AS l
-JOIN _stat_key_to_severity_and_name AS s
-  ON l.stat_key = s.key;
+JOIN _stat_key_to_severity_and_name AS s ON l.stat_key = s.key;

@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_layers.pbzero.h"
 #include "src/trace_processor/importers/common/arg_sink.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -43,6 +44,25 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::winscope {
+
+namespace {
+
+// Returns a snapshot proto without its layers, which are stored in their own
+// rows. ProtoVM inflates every patch into a full snapshot, so keeping them here
+// would store a copy of every layer per patch.
+std::string CloneSnapshotProtoPruningLayers(protozero::ConstBytes blob) {
+  std::string pruned;
+  protozero::ProtoDecoder decoder(blob);
+  for (auto field = decoder.ReadField(); field; field = decoder.ReadField()) {
+    if (field.id() != com::android::internal::pbzero::LayersSnapshotProto::
+                          kLayersFieldNumber) {
+      field.SerializeAndAppendTo(&pruned);
+    }
+  }
+  return pruned;
+}
+
+}  // namespace
 
 SurfaceFlingerLayersParser::SurfaceFlingerLayersParser(WinscopeContext* context)
     : context_{context},
@@ -124,10 +144,12 @@ const SnapshotId SurfaceFlingerLayersParser::ParseSnapshot(
       blob);
   snapshot.has_invalid_elapsed_ts =
       snapshot_decoder.elapsed_realtime_nanos() == 0;
-  snapshot.base64_proto_id = storage->mutable_string_pool()
-                                 ->InternString(base::StringView(
-                                     base::Base64Encode(blob.data, blob.size)))
-                                 .raw_id();
+  const std::string pruned_proto = CloneSnapshotProtoPruningLayers(blob);
+  snapshot.base64_proto_id =
+      storage->mutable_string_pool()
+          ->InternString(base::StringView(
+              base::Base64Encode(pruned_proto.data(), pruned_proto.size())))
+          .raw_id();
   if (sequence_id) {
     snapshot.sequence_id = *sequence_id;
   }
