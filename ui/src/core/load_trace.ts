@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {ensureExists, assertTrue} from '../base/assert';
+import {RegistryError} from '../base/registry';
 import {type time, Time, TimeSpan} from '../base/time';
 import {cacheTrace} from './cache_manager';
 import {
@@ -280,9 +281,23 @@ async function loadTraceIntoEngine(
     deserializeAppStatePhase1(serializedAppState, trace);
   }
 
-  await app.plugins.onTraceLoad(trace, (id) => {
-    updateStatus(app, `Running plugin: ${id}`);
-  });
+  try {
+    await app.plugins.onTraceLoad(trace, (id) => {
+      updateStatus(app, `Running plugin: ${id}`);
+    });
+  } catch (e) {
+    if (
+      e instanceof RegistryError &&
+      e.message.includes('already exists') &&
+      (await isSameMachineMultiTrace(engine))
+    ) {
+      app.closeCurrentTrace();
+      throw new Error(
+        'Cannot merge traces captured on the same machine (ERR:dup_machine_traces)',
+      );
+    }
+    throw e;
+  }
 
   // Plugins may call trace.initialPage.suggest(...) during onTraceLoad to
   // request that the app navigate somewhere other than /viewer.
@@ -747,4 +762,24 @@ async function getTracingMetadataTimeBounds(engine: Engine): Promise<TimeSpan> {
     it.startBound === null ? Time.MIN : Time.fromRaw(it.startBound);
   const endBound = it.endBound === null ? Time.MAX : Time.fromRaw(it.endBound);
   return new TimeSpan(startBound, endBound);
+}
+
+async function isSameMachineMultiTrace(engine: Engine): Promise<boolean> {
+  const res = await engine.tryQuery(`
+    SELECT
+      COUNT(*) AS traceCnt,
+      (SELECT COUNT(*) FROM machine) AS machineCnt
+    FROM __intrinsic_trace_file
+    WHERE is_container = 0
+      AND processing_order IS NOT NULL
+      AND trace_type NOT IN (
+        'perfetto_manifest',
+        'symbols',
+        'arrow',
+        'android_logcat'
+      )
+  `);
+  if (!res.ok) return false;
+  const row = res.value.firstRow({traceCnt: NUM, machineCnt: NUM});
+  return row.traceCnt > Math.max(1, row.machineCnt);
 }
