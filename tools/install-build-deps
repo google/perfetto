@@ -546,10 +546,13 @@ SYNTAQLITE_DEPS = [
 ]
 
 # Dependencies to build Rust SDK.
+# Update the rustup-init.sh sha256 below when changing this.
+RUSTUP_VERSION = '1.29.2'
 BUILD_DEPS_RUST = [
     Dependency(
-        'buildtools/rustup/rustup-init.sh', 'https://sh.rustup.rs',
-        '6c30b75a75b28a96fd913a037c8581b580080b6ee9b8169a3c0feb1af7fe8caf',
+        'buildtools/rustup/rustup-init.sh',
+        f'https://raw.githubusercontent.com/rust-lang/rustup/{RUSTUP_VERSION}/rustup-init.sh',
+        '9502b514362a21096210d498f143b8cdacda365d3dfcf45e8f5541e089ccafc0',
         'all', 'all'),
 ]
 
@@ -845,6 +848,7 @@ def InstallRustToolchain(force_clean=False):
   env = os.environ.copy()
   env['RUSTUP_HOME'] = RUSTUP_HOME
   env['CARGO_HOME'] = CARGO_HOME
+  env['RUSTUP_VERSION'] = RUSTUP_VERSION
   logging.info(f'Installing rust toolchain using `{" ".join(cmd)}`')
   subprocess.check_call(cmd, cwd=ROOT_DIR, env=env)
 
@@ -862,10 +866,11 @@ def CheckRustToolchain():
   env = os.environ.copy()
   env['RUSTUP_HOME'] = RUSTUP_HOME
   env['CARGO_HOME'] = CARGO_HOME
-  result = subprocess.run([RUSTUP_FILE, "check"],
+  result = subprocess.run([RUSTUP_FILE, "check", "--no-self-update"],
                           capture_output=True,
                           text=True,
-                          check=False)
+                          check=False,
+                          env=env)
   if result.returncode == 0:
     if "update available" not in result.stdout.lower(
     ) and "update available" not in result.stderr.lower():
