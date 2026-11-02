@@ -192,7 +192,6 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
 #include "src/trace_processor/plugins/winscope_importer/winscope_importer.h"
 #include "src/trace_processor/plugins/winscope_proto_to_args_with_defaults/winscope_proto_to_args_with_defaults.h"
-#include "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/winscope_surfaceflinger_hierarchy_paths.h"
 #include "src/trace_processor/plugins/zstd_functions/zstd_functions.h"
 #endif
 
@@ -406,7 +405,6 @@ TraceProcessorImpl::TraceProcessorImpl(
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
   winscope_importer::RegisterPlugin();
   winscope_proto_to_args_with_defaults::RegisterPlugin();
-  winscope_surfaceflinger_hierarchy_paths::RegisterPlugin();
   zstd_functions::RegisterPlugin();
 #endif
 

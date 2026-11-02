@@ -3281,7 +3281,6 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_window_operator_window_operator",
         ":perfetto_src_trace_processor_plugins_winscope_importer_winscope_importer",
         ":perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_winscope_proto_to_args_with_defaults",
-        ":perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_winscope_surfaceflinger_hierarchy_paths",
         ":perfetto_src_trace_processor_plugins_zstd_functions_zstd_functions",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_bindings_bindings",
@@ -3557,7 +3556,6 @@ cc_test {
         "perfetto_src_trace_processor_plugins_wattson_gen_l3_curves",
         "perfetto_src_trace_processor_plugins_wattson_gen_tpu_curves",
         "perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
-        "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
     ],
@@ -21447,44 +21445,6 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths:tables
-genrule {
-    name: "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
-    srcs: [
-        "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/tables.py",
-    ],
-    tools: [
-        "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables_binary",
-    ],
-    cmd: "$(location perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables_binary) --gen-dir=$(genDir) --relative-input-dir=external/perfetto --inputs $(in)",
-    out: [
-        "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/all_tables_fwd.h",
-        "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/tables_fwd.h",
-        "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/tables_py.h",
-    ],
-}
-
-// GN: //src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths:tables
-python_binary_host {
-    name: "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables_binary",
-    srcs: [
-        "python/generators/trace_processor_table/public.py",
-        "python/generators/trace_processor_table/serialize.py",
-        "python/generators/trace_processor_table/util.py",
-        "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/tables.py",
-        "tools/gen_tp_table_headers.py",
-    ],
-    main: "tools/gen_tp_table_headers.py",
-}
-
-// GN: //src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths:winscope_surfaceflinger_hierarchy_paths
-filegroup {
-    name: "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_winscope_surfaceflinger_hierarchy_paths",
-    srcs: [
-        "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/winscope_surfaceflinger_hierarchy_paths.cc",
-    ],
-}
-
 // GN: //src/trace_processor/plugins/zstd_functions:zstd_functions
 filegroup {
     name: "perfetto_src_trace_processor_plugins_zstd_functions_zstd_functions",
@@ -22044,7 +22004,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_window_operator_window_operator",
         ":perfetto_src_trace_processor_plugins_winscope_importer_winscope_importer",
         ":perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_winscope_proto_to_args_with_defaults",
-        ":perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_winscope_surfaceflinger_hierarchy_paths",
         ":perfetto_src_trace_processor_plugins_zstd_functions_zstd_functions",
         ":perfetto_src_trace_processor_rpc_client",
         ":perfetto_src_trace_processor_rpc_deserializer",
@@ -22215,7 +22174,6 @@ cc_library_static {
         "perfetto_src_trace_processor_plugins_wattson_gen_l3_curves",
         "perfetto_src_trace_processor_plugins_wattson_gen_tpu_curves",
         "perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
-        "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
         "perfetto_src_traceconv_gen_cc_android_extension_descriptor",
@@ -22323,7 +22281,6 @@ cc_library_static {
         "perfetto_src_trace_processor_plugins_wattson_gen_l3_curves",
         "perfetto_src_trace_processor_plugins_wattson_gen_tpu_curves",
         "perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
-        "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
         "perfetto_src_traceconv_gen_cc_android_extension_descriptor",
@@ -25181,7 +25138,6 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_winscope_importer_unittests",
         ":perfetto_src_trace_processor_plugins_winscope_importer_winscope_importer",
         ":perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_winscope_proto_to_args_with_defaults",
-        ":perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_winscope_surfaceflinger_hierarchy_paths",
         ":perfetto_src_trace_processor_plugins_zstd_functions_zstd_functions",
         ":perfetto_src_trace_processor_rpc_client",
         ":perfetto_src_trace_processor_rpc_deserializer",
@@ -25580,7 +25536,6 @@ cc_test {
         "perfetto_src_trace_processor_plugins_wattson_gen_l3_curves",
         "perfetto_src_trace_processor_plugins_wattson_gen_tpu_curves",
         "perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
-        "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
         "perfetto_src_traceconv_gen_cc_android_extension_descriptor",
@@ -26345,7 +26300,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_window_operator_window_operator",
         ":perfetto_src_trace_processor_plugins_winscope_importer_winscope_importer",
         ":perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_winscope_proto_to_args_with_defaults",
-        ":perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_winscope_surfaceflinger_hierarchy_paths",
         ":perfetto_src_trace_processor_plugins_zstd_functions_zstd_functions",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_bindings_bindings",
@@ -26502,7 +26456,6 @@ cc_library_static {
         "perfetto_src_trace_processor_plugins_wattson_gen_l3_curves",
         "perfetto_src_trace_processor_plugins_wattson_gen_tpu_curves",
         "perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
-        "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
     ],
@@ -26608,7 +26561,6 @@ cc_library_static {
         "perfetto_src_trace_processor_plugins_wattson_gen_l3_curves",
         "perfetto_src_trace_processor_plugins_wattson_gen_tpu_curves",
         "perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
-        "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
     ],
@@ -27069,7 +27021,6 @@ cc_binary_host {
         ":perfetto_src_trace_processor_plugins_window_operator_window_operator",
         ":perfetto_src_trace_processor_plugins_winscope_importer_winscope_importer",
         ":perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_winscope_proto_to_args_with_defaults",
-        ":perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_winscope_surfaceflinger_hierarchy_paths",
         ":perfetto_src_trace_processor_plugins_zstd_functions_zstd_functions",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_bindings_bindings",
@@ -27235,7 +27186,6 @@ cc_binary_host {
         "perfetto_src_trace_processor_plugins_wattson_gen_l3_curves",
         "perfetto_src_trace_processor_plugins_wattson_gen_tpu_curves",
         "perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
-        "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
         "perfetto_src_traceconv_gen_cc_android_extension_descriptor",
