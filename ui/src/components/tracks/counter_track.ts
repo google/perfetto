@@ -26,7 +26,7 @@ import {
   AtomicTaskQueue,
 } from '../../base/async_memo';
 import {Icons} from '../../base/semantic_icons';
-import type {duration, time} from '../../base/time';
+import {type duration, type time, Time} from '../../base/time';
 import type {TimeScale} from '../../base/time_scale';
 import type {Trace} from '../../public/trace';
 import type {
@@ -57,13 +57,16 @@ interface Limits {
 
 interface MipmapTableResult extends AsyncDisposable {
   readonly tableName: string; // The name of the virtual table containing the mipmap data which can be used in SQL queries.
-  readonly globalLimits: Limits; // Min and max values across the entire trace.
+  readonly globalLimits: Limits; // Min and max values across all samples.
 }
 
 interface DataFrame {
   readonly start: time; // Start time of the dataframe
   readonly end: time; // End time of the dataframe
   readonly limits: Limits; // Min and max values within the dataframe
+  // Global limits of the table this frame was loaded from. While a rebuilt
+  // table's data loads, the previous frame is drawn with its own limits.
+  readonly globalLimits: Limits;
   readonly timestampsRel: Float32Array; // Timestamps relative to dataStart
   readonly timestampsRelNext: Float32Array; // Timestamps of next sample relative to dataStart
   readonly minDisplayValues: Float32Array; // Min value within each bucket
@@ -227,8 +230,14 @@ export interface CounterTrackAttrs {
   /** A unique, reproducible ID for this track. */
   readonly uri: string;
 
-  /** SQL source selecting the necessary data (must expose ts and value). */
-  readonly sqlSource: string;
+  /**
+   * SQL source selecting the necessary data (must expose ts and value).
+   *
+   * Pass a function if the data changes after the track is created. It is
+   * evaluated on every render and returning a different query rebuilds the
+   * track's tables.
+   */
+  readonly sqlSource: string | (() => string);
 
   /** Y-axis display mode: 'value' | 'delta' | 'rate'. Defaults to 'value'. */
   readonly yMode?: YMode;
@@ -276,7 +285,7 @@ export class CounterTrack implements TrackRenderer {
 
   protected readonly trace: Trace;
   protected readonly uri: string;
-  protected readonly sqlSource: string;
+  private readonly getSqlSource: () => string;
   private readonly rangeSharer: RangeSharer;
   private readonly onInitFn?: () => Promise<void>;
 
@@ -320,7 +329,8 @@ export class CounterTrack implements TrackRenderer {
     } = attrs;
     this.trace = trace;
     this.uri = uri;
-    this.sqlSource = sqlSource;
+    this.getSqlSource =
+      typeof sqlSource === 'string' ? () => sqlSource : sqlSource;
     this.yMode = yMode;
     this.yRange = yRange;
     this.yDisplay = yDisplay;
@@ -349,13 +359,15 @@ export class CounterTrack implements TrackRenderer {
    * Async factory: materializes the sqlSource into a Perfetto table first,
    * then creates the track using the table name as its source.
    * Prefer this when the underlying query is expensive to re-evaluate.
+   * A function sqlSource is evaluated once, at materialization time.
    */
   static async createMaterialized(
     attrs: CounterTrackAttrs,
   ): Promise<CounterTrack> {
+    const {sqlSource} = attrs;
     const table = await createPerfettoTable({
       engine: attrs.trace.engine,
-      as: attrs.sqlSource,
+      as: typeof sqlSource === 'string' ? sqlSource : sqlSource(),
     });
     return new CounterTrack({...attrs, sqlSource: table.name});
   }
@@ -657,13 +669,18 @@ export class CounterTrack implements TrackRenderer {
     // Step 1: Get the mipmap table (created once per SQL source + options)
     // Include yMode and yDisplay in key since they affect the value expression
     const {yMode, yDisplay} = this;
+
+    // A sqlSource can change faster than its table builds. Keep rendering the
+    // previous table until the new one is ready.
+    const sqlSource = this.sqlSource;
     const tableResult = this.tableSlot.use({
       key: {
-        sqlSource: this.sqlSource,
+        sqlSource,
         yMode,
         yDisplay,
       },
-      compute: () => this.createMipmapTable(),
+      compute: () => this.createMipmapTable(sqlSource),
+      retainOn: ['sqlSource'],
     });
 
     const table = tableResult.data;
@@ -678,7 +695,9 @@ export class CounterTrack implements TrackRenderer {
     );
     const bounds = this.bufferedBounds.update(visibleSpan, bucketSize);
 
-    // Step 3: Fetch counter data using QuerySlot
+    // Step 3: Fetch counter data using QuerySlot. While the table is being
+    // rebuilt (e.g. after a dynamic sqlSource changed), keep returning the
+    // previous data instead of flashing an empty track.
     const queryStart = bounds.start;
     const queryEnd = bounds.end;
     const dataResult = this.dataSlot.use({
@@ -688,11 +707,12 @@ export class CounterTrack implements TrackRenderer {
         resolution: bounds.resolution,
         yMode,
         yDisplay,
+        tableName: table.tableName,
       },
       compute: async (signal) => {
         return await this.trace.taskTracker.track(
           this.fetchCounterData(
-            table.tableName,
+            table,
             queryStart,
             queryEnd,
             bounds.resolution,
@@ -701,13 +721,13 @@ export class CounterTrack implements TrackRenderer {
           'Loading counters',
         );
       },
-      retainOn: ['start', 'end', 'resolution'],
+      retainOn: ['start', 'end', 'resolution', 'tableName'],
     });
 
     const counters = dataResult.data;
     if (counters === undefined) return undefined;
 
-    return {counters, limits: table.globalLimits};
+    return {counters, limits: counters.globalLimits};
   }
 
   // Compute the range of values to display and range label.
@@ -850,35 +870,40 @@ export class CounterTrack implements TrackRenderer {
   }
 
   // Creates the mipmap table - called declaratively from render via QuerySlot
-  private async createMipmapTable(): Promise<MipmapTableResult> {
+  private async createMipmapTable(
+    sqlSource: string,
+  ): Promise<MipmapTableResult> {
     const table = await createVirtualTable({
       engine: this.engine,
       using: `__intrinsic_counter_mipmap((
         SELECT
           ts,
           ${this.getValueExpression()} AS value
-        FROM (${this.sqlSource})
+        FROM (${sqlSource})
       ))`,
     });
 
-    // Fetch the global limits
+    // Fetch the global limits across all time, as a single bucket. A changed
+    // sqlSource rebuilds the table, which reloads them.
     const limitsQuery = await this.engine.query(`
       SELECT
         min_value AS min,
         max_value AS max
       FROM ${table.name}(
-        trace_start(), trace_end() + 1, trace_dur() + 1
+        ${Time.MIN},
+        ${Time.MAX},
+        ${Time.MAX - Time.MIN}
       );
     `);
 
-    const {min, max} = limitsQuery.firstRow({
+    const limits = limitsQuery.maybeFirstRow({
       min: NUM,
       max: NUM,
     });
 
     return {
       tableName: table.name,
-      globalLimits: {min, max},
+      globalLimits: {min: limits?.min ?? 0, max: limits?.max ?? 0},
       [Symbol.asyncDispose]: async () => {
         await table[Symbol.asyncDispose]();
       },
@@ -887,7 +912,7 @@ export class CounterTrack implements TrackRenderer {
 
   // Fetches counter data for the given bounds - called from QuerySlot
   private async fetchCounterData(
-    tableName: string,
+    table: MipmapTableResult,
     start: time,
     end: time,
     resolution: duration,
@@ -899,7 +924,7 @@ export class CounterTrack implements TrackRenderer {
         max_value AS maxDisplayValue,
         MAX(0, MIN(last_ts - ${start}, ${end} - ${start})) AS tsRel,
         last_value AS lastDisplayValue
-      FROM ${tableName}(
+      FROM ${table.tableName}(
         ${start},
         ${end},
         ${resolution}
@@ -953,11 +978,17 @@ export class CounterTrack implements TrackRenderer {
         min,
         max,
       },
+      globalLimits: table.globalLimits,
     };
   }
 
   protected get engine() {
     return this.trace.engine;
+  }
+
+  // The current SQL source, re-evaluated on every access if it's a function.
+  protected get sqlSource(): string {
+    return this.getSqlSource();
   }
 }
 
