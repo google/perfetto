@@ -142,6 +142,7 @@ from diff_tests.stdlib.prelude.unhex import UnHex
 from diff_tests.stdlib.android.memory import AndroidMemory
 from diff_tests.stdlib.android.network_packets import AndroidNetworkPackets
 from diff_tests.stdlib.android.startups_tests import Startups
+from diff_tests.stdlib.android.chrome_cujs_tests import ChromeCujs
 from diff_tests.stdlib.android.sysui_cujs_test import SystemUICujs
 from diff_tests.stdlib.android.bitmaps import AndroidBitmaps
 from diff_tests.stdlib.android.tests import AndroidStdlib
@@ -389,6 +390,7 @@ def fetch_all_diff_tests(
       IntervalsIntersectDurations,
       StdlibIntervals,
       StdlibMetasql,
+      ChromeCujs,
       SystemUICujs,
       Startups,
       Timestamps,

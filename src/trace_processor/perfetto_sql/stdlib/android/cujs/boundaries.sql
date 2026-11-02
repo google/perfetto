@@ -23,10 +23,16 @@ INCLUDE PERFETTO MODULE android.cujs.relevant_slices;
 -- from the CUJ markers. For backward compatibility (In case the markers don't
 -- exist), We calculate that by extracting the vsync ID from the
 -- `Choreographer#doFrame` slices that are within the CUJ markers.
+--
+-- A CUJ is included if it has `Choreographer#doFrame` slices (the usual case),
+-- or if it carries explicit vsync bounds and its layer was resolved from the
+-- frame timeline (`_android_jank_cuj_frame_timeline_layer`), in which case the
+-- frames are attributed to the process that owns that layer (`upid`).
 CREATE PERFETTO TABLE _android_jank_cuj_vsync_boundary(
   -- CUJ id.
   cuj_id LONG,
-  -- Process id (stored to simplify further queries).
+  -- Process id of the process producing the CUJ's frames (stored to simplify
+  -- further queries). Usually the CUJ's own process.
   upid JOINID(process.id),
   -- Layer id (stored to simplify further queries).
   layer_id LONG,
@@ -38,16 +44,28 @@ CREATE PERFETTO TABLE _android_jank_cuj_vsync_boundary(
 AS
 SELECT
   cuj.cuj_id,
-  cuj.upid, -- also store upid to simplify further queries
+  -- Frames of CUJs without doFrames live in the process owning the resolved layer.
+  CASE
+    WHEN MIN(do_frame.vsync) IS NULL THEN COALESCE(
+      ft_layer.timeline_upid,
+      cuj.upid
+    )
+    ELSE cuj.upid
+  END AS upid,
   cuj.layer_id, -- also store layer_id to simplify further queries
-  IFNULL(cuj.begin_vsync, MIN(vsync)) AS vsync_min,
-  IFNULL(cuj.end_vsync, MAX(vsync)) AS vsync_max
+  IFNULL(cuj.begin_vsync, MIN(do_frame.vsync)) AS vsync_min,
+  IFNULL(cuj.end_vsync, MAX(do_frame.vsync)) AS vsync_max
 FROM android_jank_cuj AS cuj
-JOIN _android_jank_cuj_do_frames USING (cuj_id)
+LEFT JOIN _android_jank_cuj_do_frames AS do_frame USING (cuj_id)
+LEFT JOIN _android_jank_cuj_frame_timeline_layer AS ft_layer USING (cuj_id)
+WHERE
+  do_frame.vsync IS NOT NULL
+  OR ft_layer.layer_name IS NOT NULL
 GROUP BY
   cuj.cuj_id,
   cuj.upid,
-  cuj.layer_id;
+  cuj.layer_id,
+  ft_layer.timeline_upid;
 
 -- Calculates the frame boundaries based on when we *expected* the work on
 -- a given frame to start and when the previous frame finished - not when
@@ -107,9 +125,7 @@ WITH
       ON e.upid = vsync_boundary.upid
       AND e.vsync >= vsync_min
       AND e.vsync <= vsync_max
-    JOIN actual_frame_timeline_slice AS a
-      ON e.upid = a.upid
-      AND e.name = a.name
+    JOIN actual_frame_timeline_slice AS a ON e.upid = a.upid AND e.name = a.name
     GROUP BY
       cuj_id,
       e.vsync,

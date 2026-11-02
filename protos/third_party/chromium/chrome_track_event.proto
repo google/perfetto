@@ -3169,11 +3169,22 @@ message AndroidVsyncIntervalDecision {
   repeated int64 supported_intervals_us = 5 [deprecated = true];
 }
 
+// Android CUJ (Critical User Journey) metadata attached to a J<...> slice so
+// Perfetto's android.cujs stdlib can join the CUJ to SurfaceFlinger frames.
+message AndroidCujMetrics {
+  // AChoreographer frame-timeline vsync id of the first / last damaging
+  // frame of the CUJ (== SurfaceFlinger surface_frame_token).
+  optional int64 begin_vsync_id = 1;
+  optional int64 end_vsync_id = 2;
+  // True if the CUJ was torn down mid-scroll (maps to state 'canceled').
+  optional bool canceled = 3;
+}
+
 message ChromeTrackEvent {
   reserved 1045;
 
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1087
+  // Next ID: 1088
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -3361,5 +3372,7 @@ message ChromeTrackEvent {
 
     optional ChromeExtensionScriptInjection chrome_extension_script_injection =
         1086;
+
+    optional AndroidCujMetrics android_cuj_metrics = 1087;
   }
 }
