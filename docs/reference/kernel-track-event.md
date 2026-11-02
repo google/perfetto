@@ -76,6 +76,10 @@ parts of the `TRACE_EVENT()` declaration. Note that this includes the printk
 specifier, so the textual formatting of the tracepoint can be arbitrary (you
 don't even need to print the perfetto-specific fields).
 
+The convention keeps working if the tracepoint later gets a proto checked into
+perfetto under `protos/perfetto/trace/ftrace/`, as long as the proto keeps the
+same field names.
+
 ## Counters
 
 For representing counter values, grouped by tracks, the well-known fields are:
