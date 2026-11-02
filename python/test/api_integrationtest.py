@@ -781,6 +781,16 @@ class TestApiUnixSession(unittest.TestCase):
   """Tests TraceProcessor(remote=...) against a real `server unix` session."""
 
   SESSION_NAME = 'test-session'
+  SLICE_COUNT_SPEC = '''metric_spec: {
+      id: "slice_count"
+      value: "cnt"
+      query: {
+        sql {
+          sql: "SELECT COUNT(*) AS cnt FROM slice"
+          column_names: "cnt"
+        }
+      }
+    }'''
 
   @classmethod
   def setUpClass(cls):
@@ -860,6 +870,22 @@ class TestApiUnixSession(unittest.TestCase):
     with TraceProcessor(remote=self.SESSION_NAME) as tp:
       with self.assertRaisesRegex(TraceProcessorException, 'Unknown metric'):
         tp.metric(['no_such_metric'])
+      # The error comes back inside the single reply message, leaving the
+      # connection usable for the next request.
+      self.assertEqual(next(tp.query('select 1 as x')).x, 1)
+
+  def test_trace_summary(self):
+    with TraceProcessor(remote=self.SESSION_NAME) as tp:
+      summary = tp.trace_summary([self.SLICE_COUNT_SPEC], ['slice_count'])
+      bundle = summary.metric_bundles[0]
+      self.assertEqual(bundle.bundle_id, 'slice_count')
+      self.assertEqual([row.values[0].double_value for row in bundle.row],
+                       [20746])
+
+  def test_trace_summary_error_then_recovers(self):
+    with TraceProcessor(remote=self.SESSION_NAME) as tp:
+      with self.assertRaisesRegex(TraceProcessorException, 'no_such_metric'):
+        tp.trace_summary([self.SLICE_COUNT_SPEC], ['no_such_metric'])
       # The error comes back inside the single reply message, leaving the
       # connection usable for the next request.
       self.assertEqual(next(tp.query('select 1 as x')).x, 1)
