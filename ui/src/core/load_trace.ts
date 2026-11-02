@@ -248,6 +248,13 @@ async function loadTraceIntoEngine(
 
   const traceDetails = await getTraceInfo(engine, app, traceSource);
   const trace = new TraceImpl(app, engine, traceDetails);
+  updateStatus(app, 'Loading track dimensions');
+  try {
+    await trace.trackDimensionIndex.initialize();
+  } catch (error) {
+    trace[Symbol.dispose]();
+    throw error;
+  }
   app.setActiveTrace(trace);
 
   const hasJsonTrace = traceDetails.traceTypes.includes('json');

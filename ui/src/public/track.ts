@@ -299,9 +299,8 @@ export interface TrackRenderer {
   ): SnapPoint | undefined;
 }
 
-// An set of key/value pairs describing a given track. These are used for
-// selecting tracks to pin/unpin, diplsaying "chips" in the track shell, and
-// (in future) the sorting and grouping of tracks.
+// Semantic key/value pairs describing a track, used for lookup, filtering and
+// grouping. Rendered annotations use the track shell presentation separately.
 // We define a handful of well known fields, and the rest are arbitrary key-
 // value pairs.
 export type TrackTags = Partial<WellKnownTrackTags> & {
@@ -326,6 +325,12 @@ interface WellKnownTrackTags {
   // This index is used by various subsystems to find links between tracks based
   // on the track IDs used by trace processor.
   trackIds: ReadonlyArray<number>;
+
+  // Optional: opt into custom-dimension chips using these TP source tracks.
+  // This is separate from event lookup/navigation via trackIds. Missing or
+  // empty sources mean no dimension chips; virtual tracks can choose sources
+  // different from the event tracks their renderer represents.
+  dimensionSourceTrackIds: ReadonlyArray<number>;
 
   // Optional: The CPU number associated with this track.
   cpu: number;

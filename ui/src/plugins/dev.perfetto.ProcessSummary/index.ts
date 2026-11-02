@@ -20,6 +20,7 @@ import {
   NUM,
   NUM_NULL,
   STR,
+  STR_NULL,
 } from '../../trace_processor/query_result';
 import ThreadPlugin from '../dev.perfetto.Thread';
 import {
@@ -77,7 +78,15 @@ export default class implements PerfettoPlugin {
               flat_key = 'chrome.process_label'
           ), '') as chromeProcessLabels,
           machine_id as machine,
-          IFNULL(machine_cpu_counts.cpu_count, 0) AS cpuCount
+          IFNULL(machine_cpu_counts.cpu_count, 0) AS cpuCount,
+          (
+            SELECT group_concat(id) FROM (
+              SELECT t.id FROM process_track AS t
+              WHERE t.upid = _process_available_info_summary.upid
+                AND extract_arg(t.source_arg_set_id, 'is_root_in_scope') = 1
+              ORDER BY t.id
+            )
+          ) AS dimensionSourceTrackIds
         from _process_available_info_summary
         join process using(upid)
         left join android_process_metadata using(upid)
@@ -99,7 +108,8 @@ export default class implements PerfettoPlugin {
           0 as isBootImageProfiling,
           '' as chromeProcessLabels,
           machine_id as machine,
-          IFNULL(machine_cpu_counts.cpu_count, 0) AS cpuCount
+          IFNULL(machine_cpu_counts.cpu_count, 0) AS cpuCount,
+          NULL AS dimensionSourceTrackIds
         from _thread_available_info_summary
         join thread using (utid)
         LEFT JOIN machine_cpu_counts
@@ -118,6 +128,7 @@ export default class implements PerfettoPlugin {
       chromeProcessLabels: STR,
       machine: NUM,
       cpuCount: NUM,
+      dimensionSourceTrackIds: STR_NULL,
     });
     for (; it.valid(); it.next()) {
       const upid = it.upid;
@@ -129,6 +140,10 @@ export default class implements PerfettoPlugin {
       const isBootImageProfiling = Boolean(it.isBootImageProfiling);
       const subtitle = it.chromeProcessLabels;
       const cpuCount = it.cpuCount;
+      const dimensionSourceTrackIds =
+        it.dimensionSourceTrackIds === null
+          ? []
+          : it.dimensionSourceTrackIds.split(',').map(Number);
 
       // Group by upid if present else by utid.
       const pidForColor = pid ?? tid ?? upid ?? utid ?? 0;
@@ -161,6 +176,7 @@ export default class implements PerfettoPlugin {
         uri,
         tags: {
           kinds: [SLICE_TRACK_SUMMARY_KIND],
+          dimensionSourceTrackIds,
         },
         renderer: track,
       });
