@@ -168,3 +168,48 @@ class SystemUICujs(TestSuite):
         "CreateGraphicsPipeline",19000000,1000000,"ACTION_EXPAND_PANEL","latency",1500
         "flush layers",20000000,500000,"ACTION_EXPAND_PANEL","latency",1501
         """))
+
+  def test_blocking_calls_frame_cuj(self):
+    return DiffTestBlueprint(
+        trace=Path(
+            '../../metrics/android/android_blocking_calls_cuj_per_frame_metric.py'
+        ),
+        query="""
+        INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
+        SELECT
+          bc.cuj_name,
+          bc.process_name,
+          bc.frame_id,
+          bc.layer_id,
+          bc.name,
+          bc.ts,
+          bc.ts_end,
+          bc.dur,
+          bc.blocking_dur,
+          thread.tid
+        FROM _blocking_calls_frame_cuj AS bc
+        JOIN thread USING (utid)
+        ORDER BY bc.ts, bc.name;
+        """,
+        out=Csv("""
+        "cuj_name","process_name","frame_id","layer_id","name","ts","ts_end","dur","blocking_dur","tid"
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"DrawFrames",27000000,28000000,1000000,1000000,1555
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"binder transaction",27000000,27500000,500000,500000,5020
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"CreateGraphicsPipeline",27100000,27900000,800000,800000,1555
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"drawLayer",27100000,27200000,100000,100000,1555
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"drawLayer [TestLayer]",27100000,27200000,100000,100000,1555
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"Texture upload",27200000,27300000,100000,100000,1555
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"flush layers",27300000,27400000,100000,100000,1555
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"flush commands",27400000,27500000,100000,100000,1555
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"binder transaction",27500000,30000000,2500000,2500000,5020
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"queueBuffer",27500000,27600000,100000,100000,1555
+        "BACK_PANEL_ARROW","com.android.systemui",20,0,"animation",30000000,32000000,2000000,2000000,5020
+        "BACK_PANEL_ARROW","com.android.systemui",22,0,"DrawFrames",44000000,45000000,1000000,1000000,1555
+        "BACK_PANEL_ARROW","com.android.systemui",24,0,"DrawFrames",61000000,62000000,1000000,1000000,1555
+        "BACK_PANEL_ARROW","com.android.systemui",24,0,"animation",62000000,64000000,2000000,2000000,5020
+        "BACK_PANEL_ARROW","com.android.systemui",65,2,"DrawFrames",85000000,86000000,1000000,1000000,1555
+        "BACK_PANEL_ARROW","com.android.systemui",65,2,"binder transaction",86000000,88500000,2500000,2500000,5020
+        "CUJ_NAME","com.google.android.apps.nexuslauncher",80,1,"DrawFrames",121000000,122000000,1000000,800000,1655
+        "CUJ_NAME","com.google.android.apps.nexuslauncher",80,1,"animation",127000000,138000000,11000000,11000000,6020
+        "CUJ_NAME","com.google.android.apps.nexuslauncher",82,1,"DrawFrames",142000000,142500000,500000,500000,1655
+        """))

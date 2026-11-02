@@ -116,8 +116,7 @@ SELECT
   s.utid,
   s.upid
 FROM thread_slice AS s
-JOIN _android_critical_blocking_call_names AS n
-  ON s.name = n.raw_name;
+JOIN _android_critical_blocking_call_names AS n ON s.name = n.raw_name;
 
 CREATE PERFETTO TABLE _android_critical_blocking_calls_draw_frames AS
 SELECT utid, id, ts, dur
@@ -168,7 +167,10 @@ SELECT
     OR s.dur = -1,
     s.dur,
     MAX(s.dur - wait_for_buffer_release.dur, 0)
-  ) AS ts_end
+  ) AS ts_end,
+  s.dur AS raw_dur,
+  s.ts + s.dur AS raw_ts_end,
+  s.is_draw_frames
 FROM _android_critical_blocking_call_slices AS s
 LEFT JOIN _wait_for_buffer_release_dur AS wait_for_buffer_release USING (id)
 UNION ALL
@@ -181,7 +183,10 @@ SELECT
   s.process_name,
   s.utid,
   s.upid,
-  s.ts + s.dur AS ts_end
+  s.ts + s.dur AS ts_end,
+  s.dur AS raw_dur,
+  s.ts + s.dur AS raw_ts_end,
+  0 AS is_draw_frames
 FROM _android_critical_blocking_call_slices AS s
 WHERE
   s.is_draw_layer
@@ -196,7 +201,10 @@ SELECT
   tx.client_process AS process_name,
   tx.client_utid AS utid,
   tx.client_upid AS upid,
-  tx.client_ts + tx.client_dur AS ts_end
+  tx.client_ts + tx.client_dur AS ts_end,
+  tx.client_dur AS raw_dur,
+  tx.client_ts + tx.client_dur AS raw_ts_end,
+  0 AS is_draw_frames
 FROM android_binder_txns AS tx
 WHERE
   NOT (aidl_name IS NULL)

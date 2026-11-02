@@ -138,8 +138,9 @@ class BlockingCallMetricHandler implements MetricHandler {
         frame_id
       FROM _blocking_calls_frame_cuj
       WHERE ${this.blockingCallWhereClause(metricData)}
+      GROUP BY frame_id
       -- select frame_id for the metric with the maximum duration.
-      ORDER BY dur DESC
+      ORDER BY SUM(blocking_dur) DESC
       LIMIT 1`);
   }
   private async frameWithMaxDurBlockingCallTrackConfig(

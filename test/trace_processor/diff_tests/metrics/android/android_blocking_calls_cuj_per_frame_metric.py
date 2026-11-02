@@ -476,6 +476,66 @@ def add_ignored_latency_cujs(trace):
       track_name=cuj_2)
 
 
+def add_canceled_jank_cuj_instance(trace, cuj_name):
+  trace.add_async_atrace_for_thread(
+      ts=170_000_000,
+      ts_end=190_000_000,
+      buf=cuj_name,
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID)
+  trace.add_atrace_instant(
+      ts=170_000_001,
+      buf=cuj_name + "#UIThread",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID)
+  trace.add_atrace_instant_for_track(
+      ts=170_000_002,
+      buf="FT#beginVsync#98",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID,
+      track_name=cuj_name)
+  trace.add_atrace_instant_for_track(
+      ts=170_000_010,
+      buf="FT#layerId#0",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID,
+      track_name=cuj_name)
+  trace.add_atrace_instant_for_track(
+      ts=189_000_000,
+      buf="FT#cancel",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID,
+      track_name=cuj_name)
+  trace.add_atrace_instant_for_track(
+      ts=189_000_001,
+      buf="FT#endVsync#102",
+      pid=SYSUI_PID,
+      tid=SYSUI_UI_TID,
+      track_name=cuj_name)
+  trace.add_frame(
+      vsync=100,
+      ts_do_frame=171_000_000,
+      ts_end_do_frame=183_000_000,
+      tid=SYSUI_UI_TID,
+      pid=SYSUI_PID)
+  trace.add_atrace_for_thread(
+      ts=172_000_000,
+      ts_end=173_000_000,
+      buf="DrawFrames 100",
+      tid=SYSUI_RTID,
+      pid=SYSUI_PID)
+  trace.add_atrace_for_thread(
+      ts=172_000_000,
+      ts_end=182_000_000,
+      buf="binder transaction",
+      tid=SYSUI_UI_TID,
+      pid=SYSUI_PID)
+  add_expected_surface_frame_events(
+      ts=172_000_000, dur=16_000_000, token=100, pid=SYSUI_PID)
+  add_actual_surface_frame_events(
+      ts=172_000_000, dur=12_000_000, token=100, layer=LAYER_1, pid=SYSUI_PID)
+
+
 def add_process(trace, package_name, uid, pid):
   trace.add_package_list(ts=0, name=package_name, uid=uid, version_code=1)
   trace.add_process(pid=pid, ppid=pid, cmdline=package_name, uid=uid)
@@ -517,4 +577,6 @@ trace.add_ftrace_packet(cpu=0)
 add_blocking_call_crossing_frame_boundary(trace, SECOND_CUJ)
 trace.add_ftrace_packet(cpu=0)
 add_ignored_latency_cujs(trace)
+trace.add_ftrace_packet(cpu=0)
+add_canceled_jank_cuj_instance(trace, FIRST_CUJ)
 sys.stdout.buffer.write(trace.trace.SerializeToString())

@@ -39,18 +39,21 @@ INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 DROP TABLE IF EXISTS android_blocking_calls_cuj_per_frame_draw_frames;
 CREATE PERFETTO TABLE android_blocking_calls_cuj_per_frame_draw_frames AS
 SELECT
-  frame.frame_id,
+  frame.cuj_id,
   frame.cuj_name,
-  df.upid,
-  p.name AS process_name,
+  frame.upid,
+  frame.process_name,
+  frame.frame_id,
+  frame.layer_id,
   s.ts,
   s.ts + s.dur AS ts_end
 FROM _extended_frame_boundary frame
 JOIN android_frames_draw_frame df
   ON df.frame_id = frame.frame_id
   AND df.render_thread_utid = frame.render_thread_utid
+  AND df.upid = frame.upid
 JOIN slice s ON s.id = df.id
-JOIN process p ON p.upid = df.upid;
+WHERE s.dur > 0;
 
 -- The `hwuiTask` running time overlapping each frame within a CUJ. Materialized
 -- for the same reasons as above: the interval-overlap join against
@@ -58,16 +61,23 @@ JOIN process p ON p.upid = df.upid;
 DROP TABLE IF EXISTS android_blocking_calls_cuj_per_frame_hwui_tasks;
 CREATE PERFETTO TABLE android_blocking_calls_cuj_per_frame_hwui_tasks AS
 SELECT
-  df.frame_id,
+  CAST(NULL AS INTEGER) AS slice_id,
+  'hwuiTask' AS name,
+  MAX(ts.ts, df.ts) AS ts,
+  MIN(ts.ts + ts.dur, df.ts_end) - MAX(ts.ts, df.ts) AS dur,
+  MIN(ts.ts + ts.dur, df.ts_end) AS ts_end,
+  MIN(ts.ts + ts.dur, df.ts_end) - MAX(ts.ts, df.ts) AS blocking_dur,
+  df.cuj_id,
   df.cuj_name,
   df.upid,
   df.process_name,
-  'hwuiTask' AS name,
-  MIN(ts.ts + ts.dur, df.ts_end) - MAX(ts.ts, df.ts) AS dur
+  ts.utid,
+  df.frame_id,
+  df.layer_id
 FROM android_blocking_calls_cuj_per_frame_draw_frames df
 JOIN thread t ON t.upid = df.upid AND t.name GLOB 'hwuiTask*'
 JOIN thread_state ts ON ts.utid = t.utid AND ts.state = 'Running'
-WHERE ts.ts < df.ts_end AND ts.ts + ts.dur > df.ts;
+WHERE ts.dur > 0 AND ts.ts < df.ts_end AND ts.ts + ts.dur > df.ts;
 
 -- Calculate the mean/max values for duration and count for blocking calls per frame.
 DROP TABLE IF EXISTS android_blocking_calls_cuj_per_frame_calls;
@@ -77,24 +87,24 @@ WITH blocking_calls_aggregate_values AS (
   -- call name and frame ID(vsync).
   SELECT
     COUNT(*) AS cnt,
-    SUM(dur) AS total_dur_per_frame_ns,
+    SUM(blocking_dur) AS total_dur_per_frame_ns,
     cuj_name,
     upid,
     process_name,
     name
   FROM _blocking_calls_frame_cuj
-  GROUP BY cuj_name, name, frame_id
+  GROUP BY upid, cuj_name, name, frame_id
 ),
 hwui_tasks_aggregate_values AS (
   SELECT
     1 AS cnt,
-    SUM(dur) AS total_dur_per_frame_ns,
+    SUM(blocking_dur) AS total_dur_per_frame_ns,
     cuj_name,
     upid,
     process_name,
     name
   FROM android_blocking_calls_cuj_per_frame_hwui_tasks
-  GROUP BY cuj_name, name, frame_id
+  GROUP BY upid, cuj_name, name, frame_id
 ),
 all_blocking_calls_aggregate_values AS (
   SELECT * FROM blocking_calls_aggregate_values
@@ -102,27 +112,29 @@ all_blocking_calls_aggregate_values AS (
   SELECT * FROM hwui_tasks_aggregate_values
 ),
 frame_cnt_per_cuj AS (
-  -- Calculate the total number of frames for all CUJs across all instances(eg. multiple
+  -- Calculate the total number of frames for completed CUJs across all instances(eg. multiple
   -- instances for the same CUJ).
   SELECT
     COUNT(*) AS frame_cnt,
-    cuj_name
-  FROM _android_distinct_frames_in_cuj
-  GROUP BY cuj_name
+    df.upid,
+    df.cuj_name
+  FROM _android_distinct_frames_in_cuj df
+  JOIN android_sysui_jank_cujs USING (cuj_id)
+  GROUP BY df.upid, df.cuj_name
 )
 SELECT
     cast_double!(SUM(cnt)) / frame_cnt AS mean_cnt_per_frame,
     MAX(cnt) AS max_cnt_per_frame,
     SUM(total_dur_per_frame_ns) / frame_cnt AS mean_dur_per_frame_ns,
     MAX(total_dur_per_frame_ns) AS max_dur_per_frame_ns,
-    name,
-    upid,
+    bc.name,
+    bc.upid,
     bc.cuj_name,
-    process_name
+    bc.process_name
 FROM all_blocking_calls_aggregate_values bc
 JOIN frame_cnt_per_cuj fc
-USING(cuj_name)
-GROUP BY bc.cuj_name, name;
+USING(upid, cuj_name)
+GROUP BY bc.upid, bc.cuj_name, bc.name;
 
 DROP VIEW IF EXISTS android_blocking_calls_cuj_per_frame_metric_output;
 CREATE PERFETTO VIEW android_blocking_calls_cuj_per_frame_metric_output AS
