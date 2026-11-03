@@ -31,8 +31,9 @@ Code: `/src/trace_processor/perfetto_sql/pipeline/`
    [`FROM`](#from)).
 4. **Lower.** When SQLite runs that statement, the plan is read back
    (`DeserializePlan`), the SQL sources are bound as dataframes
-   (`BindDataframeArgs`), and `Lower` turns it into a `PhysicalPlan` of
-   executor operators. A table read directly is checked to be the one the plan
+   (`BindDataframeArgs`), the bound passes rewrite it (see
+   [Bound passes](#bound-passes)), and `Lower` turns it into a
+   `PhysicalPlan` of executor operators. A table read directly is checked to be the one the plan
    was compiled against.
 5. **Run.** A `RowCursor` pulls batches through the operators and SQLite reads
    them row by row.
@@ -41,12 +42,20 @@ Each `PlanOperation` lowers itself through `Lowering`. Operators state what
 they need, such as a column of a given type (`RequireType`), rows grouped by
 some keys and sorted by `ts` (`RequireIntervalLanes`), or a tree order
 (`RequireTreeWalk`). `Lowering` adds a conversion, sort or grouping only when
-the rows are not already that way. Operators also declare what they produce,
-such as sorted columns, so later stages can skip work.
+the rows are not already that way. What an operation produces, such as sorted
+columns, is stated by its `Derive`, so later stages can skip work.
 
 An operator with more than one input, such as `INTERVAL INTERSECTION OF`, reads
 each extra input through a side pipeline (`AddSidePipeline`) lowered the same
 way.
+
+`PlanOperation::Derive` describes, without lowering, what each node outputs
+(`OutputProperties`): where each column is, the layouts the rows are sorted or
+grouped in, the tree they are numbered as and the direction they walk it, and
+the group number columns they carry. Each operation says this once, from what
+its inputs output. `Lower` adds the operators which make it so, and once a node
+is lowered its pipeline is as derived. Column types are the exception, as
+`Lowering` decides conversions as it goes.
 
 ### Batches
 
@@ -70,6 +79,20 @@ sources and marks the columns that are read:
 - `INTERVAL FILL GAPS` drops outputs nobody reads.
 - `WHERE`, `ORDER BY` and `DISTINCT` keep the columns they compare, and
   `AGGREGATE` keeps its keys.
+
+### Bound passes
+
+Some choices need what binding finds: how a table is sorted or indexed, or
+the order an input's rows will arrive in. Compiling cannot make them, as it
+only sees names and shapes, and lowering cannot either, as it adds steps one
+operation at a time and never moves operations.
+
+Binding records what it finds in `Bindings`, beside the plan, and leaves the
+plan as it was written. `RunBoundPasses` then runs passes which may reorder,
+merge or drop nodes, using those facts. Each pass is defined beside the
+operation it rewrites. One sweep from the inputs up runs the rewrites and
+derives what each node outputs, so a rewrite at a node sees everything below it
+as final, and nothing above it has been derived yet.
 
 ---
 
@@ -300,6 +323,10 @@ and `AGGREGATE` do:
 - Two `UP` stages in a row, or two `DOWN` stages, reuse the first stage's row
   order.
 - Switching between `UP` and `DOWN` keeps the numbers and reorders the rows.
+- Two stages in opposite directions, where the later reads nothing the earlier
+  computes, run in whichever order the rows already walk the tree, so only one
+  of them reorders the rows (`ReorderTreeFold`). A `GRAPH ... TREE` outputs
+  its rows parent-first, so on it a `DOWN` written after an `UP` runs first.
 
 ---
 
@@ -369,6 +396,24 @@ if any literal is one. `IS [NOT] NULL` reads any column, including one carrying
 a type per row. `BETWEEN` is two comparisons. `Filter` compares with the same
 kernels as the dataframe's own filters and narrows each batch's selection, so
 nothing is copied.
+
+A bound pass (`SearchScans`) moves into each scan a `WHERE` reads directly the
+conditions the scan can answer by searching, choosing as the dataframe's own
+planner does (`SortedFilterStrategy`, `GetBestIndexForFilterSpecs`):
+
+- If a condition can match no row, such as a string the pool does not hold,
+  the scan becomes an `EmptySource`.
+- Otherwise conditions on sorted columns without nulls become a `SortedScan`:
+  binary searches, or the SetId and small-value lookups, which narrow the rows
+  to a range kept in table order.
+- Otherwise equalities on an index's leading columns become an `IndexScan`,
+  which reads rows in index order, so no table order is assumed after it. The
+  table's indexes are found when the plan is loaded, as its columns are, so an
+  index made after a pipeline was written is still used.
+
+A `Filter` after the scan tests the rest, and a `WHERE` left with nothing to
+test is dropped. Only conditions on columns read as the table stores them are
+searched; one converted first is left to the `Filter`.
 
 ---
 

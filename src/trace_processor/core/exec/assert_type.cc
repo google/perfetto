@@ -175,10 +175,6 @@ base::Status AssertType::status(const OperatorState& state) const {
   return state.Cast<const State>().status;
 }
 
-void AssertType::State::Reset() {
-  status = base::OkStatus();
-}
-
 bool AssertType::Widen(const ColumnView& column,
                        const Selection& selection,
                        ColumnChunk& chunk,

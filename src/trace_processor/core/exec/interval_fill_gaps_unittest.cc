@@ -208,7 +208,7 @@ TEST(IntervalFillGapsTest, FillsEveryLaneAcrossBatches) {
   auto state = op.MakeState(test::TestContext());
   for (uint32_t chunk : {1u, 17u, kMaxBatchRows}) {
     SCOPED_TRACE(chunk);
-    state->Reset();
+    state->EndRun();
     EXPECT_EQ(RunFill(op, *state, input, chunk), expected);
   }
 }

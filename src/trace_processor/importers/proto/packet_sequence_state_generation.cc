@@ -65,9 +65,12 @@ StringPool::Id PacketSequenceStateGeneration::InternAndCacheStringValue(
 
 // static
 RefPtr<PacketSequenceStateGeneration>
-PacketSequenceStateGeneration::CreateFirst(TraceProcessorContext* context) {
+PacketSequenceStateGeneration::CreateFirst(
+    TraceProcessorContext* context,
+    uint32_t trusted_packet_sequence_id) {
   return RefPtr<PacketSequenceStateGeneration>(
       new PacketSequenceStateGeneration(
+          trusted_packet_sequence_id,
           RefPtr<IncrementalState>(new IncrementalState(context)),
           /* trace_packet_defaults */ std::nullopt,
           /* is_incremental_state_valid */ false));
@@ -82,6 +85,7 @@ PacketSequenceStateGeneration::OnPacketLoss() {
   // the new generation.
   return RefPtr<PacketSequenceStateGeneration>(
       new PacketSequenceStateGeneration(
+          trusted_packet_sequence_id_,
           IncrementalState::CreateAfterPacketLoss(*incremental_state_),
           trace_packet_defaults_,
           /* is_incremental_state_valid */ false));
@@ -94,6 +98,7 @@ PacketSequenceStateGeneration::OnIncrementalStateCleared() {
   // persistent thread descriptor forward.
   return RefPtr<PacketSequenceStateGeneration>(
       new PacketSequenceStateGeneration(
+          trusted_packet_sequence_id_,
           IncrementalState::CreateSuccessor(
               incremental_state_->context_,
               incremental_state_->thread_descriptor()),
@@ -108,7 +113,7 @@ PacketSequenceStateGeneration::OnNewTracePacketDefaults(
   // the existing IncrementalState (same interned data, same CustomStates).
   return RefPtr<PacketSequenceStateGeneration>(
       new PacketSequenceStateGeneration(
-          incremental_state_,
+          trusted_packet_sequence_id_, incremental_state_,
           InternedMessageView(std::move(trace_packet_defaults)),
           is_incremental_state_valid_));
 }

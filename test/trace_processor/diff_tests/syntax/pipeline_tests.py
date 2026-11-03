@@ -609,6 +609,51 @@ class PerfettoPipeline(TestSuite):
         36,36,4537,4537,0
         """))
 
+  # A WHERE on a table searches its sorted columns, looks up an index, or
+  # reads nothing when no row can match: each must match SQL.
+  def test_where_searches_match_sql(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE s AS SELECT id, ts, dur, track_id, name FROM slice;
+        CREATE PERFETTO INDEX s_track ON s(track_id);
+
+        CREATE PERFETTO TABLE p_id AS FROM s |> WHERE id = 500 |> SELECT id;
+        CREATE PERFETTO TABLE p_ts AS
+        FROM s |> WHERE ts >= 1035866000000000 AND ts < 1035867000000000 AND dur > 0
+        |> SELECT id;
+        CREATE PERFETTO TABLE p_track AS FROM s |> WHERE track_id = 7 AND dur > 1000 |> SELECT id;
+        CREATE PERFETTO TABLE p_none AS FROM s |> WHERE name = 'absent' AND dur > 0 |> SELECT id;
+
+        CREATE PERFETTO TABLE e_id AS SELECT id FROM s WHERE id = 500;
+        CREATE PERFETTO TABLE e_ts AS SELECT id FROM s
+        WHERE ts >= 1035866000000000 AND ts < 1035867000000000 AND dur > 0;
+        CREATE PERFETTO TABLE e_track AS SELECT id FROM s WHERE track_id = 7 AND dur > 1000;
+        CREATE PERFETTO TABLE e_none AS SELECT id FROM s WHERE name = 'absent' AND dur > 0;
+
+        SELECT
+          (SELECT count(*) FROM p_id) AS id_rows,
+          (SELECT count(*) FROM p_ts) AS ts_rows,
+          (SELECT count(*) FROM p_track) AS track_rows,
+          (SELECT count(*) FROM p_none) AS none_rows,
+          (SELECT count(*) FROM (SELECT * FROM p_id EXCEPT SELECT * FROM e_id))
+          + (SELECT count(*) FROM (SELECT * FROM e_id EXCEPT SELECT * FROM p_id))
+          + (SELECT count(*) FROM (SELECT * FROM p_ts EXCEPT SELECT * FROM e_ts))
+          + (SELECT count(*) FROM (SELECT * FROM e_ts EXCEPT SELECT * FROM p_ts))
+          + (SELECT count(*) FROM (SELECT * FROM p_track EXCEPT SELECT * FROM e_track))
+          + (SELECT count(*) FROM (SELECT * FROM e_track EXCEPT SELECT * FROM p_track))
+          + (SELECT count(*) FROM (SELECT * FROM p_none EXCEPT SELECT * FROM e_none))
+          + (SELECT count(*) FROM (SELECT * FROM e_none EXCEPT SELECT * FROM p_none))
+            AS mismatches,
+          (SELECT count(*) FROM e_ts) AS expected_ts_rows,
+          (SELECT count(*) FROM e_track) AS expected_track_rows;
+        """,
+        out=Csv("""
+        "id_rows","ts_rows","track_rows","none_rows","mismatches","expected_ts_rows","expected_track_rows"
+        1,11815,26670,0,0,11815,26670
+        """))
+
   # DISTINCT compares the columns a bare name finds, so two rows of `a`
   # meeting `b` over one region give one row.
   def test_distinct_after_intersection(self):

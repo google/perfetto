@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
@@ -273,6 +274,13 @@ class Evaluator {
   }
 
   const Register& result() const { return regs_.back(); }
+
+  // Ends a run (see RunHeld): the registers let go of their buffers.
+  void EndRun() {
+    for (Register& reg : regs_) {
+      reg = Register();
+    }
+  }
   ExprType result_type() const { return program_->steps.back().type; }
 
  private:
@@ -430,8 +438,8 @@ class Evaluator {
 
 struct ComputeState : OperatorState {
   ~ComputeState() override;
-  std::vector<Evaluator> evaluators;
-  base::Status status = base::OkStatus();
+  Held<RunEach<Evaluator>> evaluators{this};
+  Held<base::Status> status{this};
 };
 ComputeState::~ComputeState() = default;
 

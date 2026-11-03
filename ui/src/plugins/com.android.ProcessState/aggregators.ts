@@ -47,6 +47,11 @@ export function processTrackUri(upid: number): string {
   return `com.android.ProcessState#process.${upid}`;
 }
 
+/** Track URI for a single process's freezer timeline. */
+export function freezerTrackUri(upid: number): string {
+  return `${processTrackUri(upid)}.freezer`;
+}
+
 // Which slice of the interval table the selection refers to. Selecting
 // per-process tracks scopes by process; selecting the concurrency counters
 // scopes by state, which is what makes "drag over the CACHED_EMPTY counter and

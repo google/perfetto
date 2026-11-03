@@ -39,11 +39,6 @@ Distinct::~Distinct() = default;
 
 Distinct::State::~State() = default;
 
-void Distinct::State::Reset() {
-  keys.Clear();
-  status = base::OkStatus();
-}
-
 std::unique_ptr<OperatorState> Distinct::MakeState(Context&) const {
   return std::make_unique<State>();
 }

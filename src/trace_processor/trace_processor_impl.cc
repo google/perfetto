@@ -549,7 +549,8 @@ TraceProcessorImpl::TraceProcessorImpl(
     // implicitly commits after each statement.
     PerfettoSqlConnection::Transaction txn(engine_.get());
     for (const auto& file_to_sql :
-         SqlBundle(sql_metrics::kAmalgamatedSqlMetrics)) {
+         SqlBundle(sql_metrics::kAmalgamatedSqlMetrics.data(),
+                   sql_metrics::kAmalgamatedSqlMetrics.size())) {
       if (base::StartsWithAny(file_to_sql.path, sanitized_extension_paths))
         continue;
       RegisterMetricImpl(file_to_sql.path, std::string(file_to_sql.sql_view()));
@@ -1063,6 +1064,8 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
 
   auto connection = PerfettoSqlConnection::CreateConnectionToNewDatabase(
       storage->mutable_string_pool(), config.enable_extra_checks);
+  connection->sqlite_connection()->SetAttachReadEnabled(
+      config.enable_sql_file_access);
 
   PerfettoSqlConnection::Initializer init;
   init.static_tables.reserve(plugin_dataframes.size());

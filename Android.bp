@@ -18315,6 +18315,8 @@ filegroup {
     name: "perfetto_src_trace_processor_core_util_util",
     srcs: [
         "src/trace_processor/core/util/ops.cc",
+        "src/trace_processor/core/util/row_layout_sort.cc",
+        "src/trace_processor/core/util/sort.cc",
     ],
 }
 
@@ -19503,6 +19505,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/pipeline/compiler.cc",
         "src/trace_processor/perfetto_sql/pipeline/expression.cc",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.cc",
+        "src/trace_processor/perfetto_sql/pipeline/output_properties.cc",
         "src/trace_processor/perfetto_sql/pipeline/physical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.cc",
         "src/trace_processor/perfetto_sql/pipeline/plan_key.cc",
@@ -19639,6 +19642,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/stdlib/android/lock_held.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/dmabuf.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/dmabuf_spans.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/binder.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/bitmap.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_classification.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_relationship.sql",

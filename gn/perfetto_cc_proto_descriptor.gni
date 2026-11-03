@@ -17,7 +17,8 @@ import("perfetto_cpp_blob_header.gni")
 
 # Thin wrapper around perfetto_cpp_blob_header that emits a
 # {descriptor_name}.h header containing the bytes of a proto descriptor file
-# (file produced by protoc, or a path on disk) as a constexpr std::array.
+# (file produced by protoc, or a path on disk) as packed words with
+# byte-oriented data() and size() accessors.
 #
 # The C++ symbol name is derived from the descriptor file basename: e.g.
 # 'test_messages.descriptor' produces a `kTestMessagesDescriptor` array.

@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_GENERIC_FTRACE_TRACKER_H_
 
 #include <cstdint>
+#include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/proto_decoder.h"
@@ -83,9 +84,18 @@ class GenericFtraceTracker {
   // malformed trace.
   GenericEvent* GetEvent(uint32_t pb_field_id);
 
+  // Returns false if |MaybeParseAsTrackEvent| would be a no-op for the event.
+  bool MaybeTrackEvent(uint32_t pb_field_id) const {
+    if (IsGenericFtraceEvent(pb_field_id))
+      return true;
+    return pb_field_id < compiled_track_events_.size() &&
+           compiled_track_events_[pb_field_id];
+  }
+
   // If the event matches the kernel track event convention, parses the event
-  // into slice/counter tables. Precondition: |AddDescriptor| was called for
-  // this event.
+  // into slice/counter tables. Works both for generic events (precondition:
+  // |AddDescriptor| was called for this event) and for events with a
+  // compile-time proto in protos/perfetto/trace/ftrace.
   void MaybeParseAsTrackEvent(uint32_t pb_field_id,
                               int64_t ts,
                               uint32_t tid,
@@ -113,6 +123,9 @@ class GenericFtraceTracker {
   // remembers the description for later parsing with |MaybeParseAsTrackEvent|.
   void MatchTrackEventTemplate(uint32_t pb_field_id, const GenericEvent& event);
 
+  // Runs |MatchTrackEventTemplate| on the compile-time descriptor of the event.
+  void MatchCompiledEvent(uint32_t pb_field_id);
+
   TraceProcessorContext* const context_;
   // keyed by proto field id inside the FtraceEvent proto
   base::FlatHashMap<uint32_t, GenericEvent> events_;
@@ -125,6 +138,9 @@ class GenericFtraceTracker {
   const StringId counter_value_;
   const StringId scope_tgid_;
   const StringId scope_cpu_;
+
+  // keyed by proto field id of compile-time events, true if a track event
+  std::vector<bool> compiled_track_events_;
 };
 
 }  // namespace perfetto::trace_processor

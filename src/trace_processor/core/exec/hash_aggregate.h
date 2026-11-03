@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_HASH_AGGREGATE_H_
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_HASH_AGGREGATE_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -26,6 +27,7 @@
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/group_table.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
@@ -65,30 +67,32 @@ class HashAggregate : public Breaker {
 
   struct State : Breaker::State {
     ~State() override;
-    void Reset() override;
 
-    GroupTable groups;
+    // With no keys, the aggregate state of the single group: zero again once
+    // a run ends.
+    struct Total : FlexVector<int64_t> {
+      void EndRun() { std::fill(begin(), end(), 0); }
+    };
 
-    // With no keys, the aggregate state of the single group.
-    FlexVector<int64_t> total;
-
-    // Whether any input row was read.
-    bool consumed = false;
-
-    AggregateInputLoader input;
-
-    // For each aggregate, which groups have seen a non-null value.
-    std::vector<SeenBytes> seen;
-
+    // The groups, and each one's aggregate states.
+    Held<GroupTable> groups{this};
+    Held<Total> total{this};
     // The type of each key column, taken from the first batch. The key values
     // are stored in the group table.
-    std::vector<StorageType> key_types;
+    Held<std::vector<StorageType>> key_types{this};
+    // For each aggregate, which groups have seen a non-null value.
+    Held<RunEach<SeenBytes>> seen{this};
+    // Whether any input row was read.
+    RunValue<bool> consumed{this, false};
 
-    // The group of each row of the current batch.
-    FlexVector<uint32_t> row_groups;
+    // The groups served.
+    RunValue<uint32_t> emitted{this};
 
-    uint32_t emitted = 0;
-    FlexVector<uint32_t> served_rows;
+    // Scratch for one call: each input row's group, the aggregates' inputs,
+    // and the groups served.
+    CallScratch<FlexVector<uint32_t>> row_groups;
+    CallScratch<AggregateInputLoader> input;
+    CallScratch<FlexVector<uint32_t>> served_rows;
   };
 
   std::unique_ptr<Breaker::State> CreateState() const override;
