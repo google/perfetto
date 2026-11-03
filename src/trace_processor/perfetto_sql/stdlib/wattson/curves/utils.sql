@@ -31,10 +31,8 @@ INCLUDE PERFETTO MODULE wattson.utils;
 CREATE PERFETTO TABLE _filtered_curves_1d_raw AS
 SELECT cp.policy, freq_khz, active, idle0, idle1, static
 FROM _device_curves_1d AS dc
-JOIN _wattson_device AS device
-  ON dc.device = device.name
-JOIN _dev_cpu_policy_map AS cp
-  ON dc.policy = cp.policy;
+JOIN _wattson_device AS device ON dc.device = device.name
+JOIN _dev_cpu_policy_map AS cp ON dc.policy = cp.policy;
 
 CREATE PERFETTO TABLE _filtered_curves_1d AS
 SELECT policy, freq_khz, -1 AS idle, active AS curve_value, static
@@ -59,8 +57,7 @@ SELECT
   dc.static,
   dc.interconnect
 FROM _device_curves_2d AS dc
-JOIN _wattson_device AS device
-  ON dc.device = device.name;
+JOIN _wattson_device AS device ON dc.device = device.name;
 
 CREATE PERFETTO TABLE _filtered_curves_2d AS
 SELECT freq_khz, dep_policy, dep_freq, -1 AS idle, static, active AS curve_value
@@ -83,8 +80,7 @@ CREATE PERFETTO INDEX freq_2d ON _filtered_curves_2d(
 CREATE PERFETTO TABLE _filtered_curves_l3 AS
 SELECT dc.freq_khz, dc.dep_policy, dc.dep_freq, dc.l3_hit, dc.l3_miss
 FROM _device_curves_l3 AS dc
-JOIN _wattson_device AS device
-  ON dc.device = device.name;
+JOIN _wattson_device AS device ON dc.device = device.name;
 
 CREATE PERFETTO INDEX freq_l3 ON _filtered_curves_l3(
   freq_khz,
@@ -96,8 +92,7 @@ CREATE PERFETTO INDEX freq_l3 ON _filtered_curves_l3(
 CREATE PERFETTO TABLE _gpu_filtered_curves_raw AS
 SELECT freq_khz, active, idle1, idle2
 FROM _gpu_device_curves AS dc
-JOIN _wattson_device AS device
-  ON dc.device = device.name;
+JOIN _wattson_device AS device ON dc.device = device.name;
 
 CREATE PERFETTO TABLE _gpu_filtered_curves AS
 SELECT freq_khz, 2 AS idle, active AS curve_value FROM _gpu_filtered_curves_raw
@@ -112,8 +107,7 @@ CREATE PERFETTO INDEX gpu_freq ON _gpu_filtered_curves(freq_khz, idle);
 CREATE PERFETTO TABLE _tpu_filtered_curves AS
 SELECT cluster, freq, requests, active
 FROM _tpu_device_curves AS dc
-JOIN _wattson_device AS device
-  ON dc.device = device.name;
+JOIN _wattson_device AS device ON dc.device = device.name;
 
 CREATE PERFETTO INDEX tpu_curves ON _tpu_filtered_curves(
   cluster,
@@ -125,8 +119,7 @@ CREATE PERFETTO INDEX tpu_curves ON _tpu_filtered_curves(
 CREATE PERFETTO TABLE _filtered_curves_dsu_1d AS
 SELECT dc.freq_khz AS dsu_freq, dc.active AS power
 FROM _device_curves_1d AS dc
-JOIN _wattson_device AS device
-  ON dc.device = device.name
+JOIN _wattson_device AS device ON dc.device = device.name
 WHERE
   dc.policy = _dsu_dep!();
 
@@ -199,8 +192,7 @@ WITH
   dep_cpus AS (
     SELECT DISTINCT m.cpu AS dep_cpu, m.policy AS dep_policy
     FROM _filtered_curves_2d_raw AS c
-    JOIN _dev_cpu_policy_map AS m
-      ON c.dep_policy = m.policy
+    JOIN _dev_cpu_policy_map AS m ON c.dep_policy = m.policy
   )
 SELECT b.cpu, d.dep_cpu
 FROM base_cpus AS b
