@@ -331,6 +331,7 @@ std::unique_ptr<PerfettoSqlConnection> PerfettoSqlConnection::Fork() {
       new PerfettoSqlConnection(database_, enable_extra_checks_));
   // A fork carries on with the settings of the connection it came from.
   fork->pipelines_enabled_ = pipelines_enabled_;
+  fork->connection_->SetAttachReadEnabled(connection_->attach_read_enabled());
   return fork;
 }
 
