@@ -109,6 +109,11 @@ class StackSampleModule : public ProtoImporterModule {
 
   TraceProcessorContext* const context_;
 
+  // Arg keys of the import log recorded for each error sample.
+  const StringId source_key_id_;
+  const StringId pid_key_id_;
+  const StringId tid_key_id_;
+
   // One profiler session per packet sequence emitting StackSample packets.
   base::FlatHashMap<uint32_t, tables::ProfilerSessionTable::Id> sessions_;
 

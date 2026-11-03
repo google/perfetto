@@ -152,7 +152,11 @@ stats::Severity ToStatsSeverity(
 
 StackSampleModule::StackSampleModule(ProtoImporterModuleContext* module_context,
                                      TraceProcessorContext* context)
-    : ProtoImporterModule(module_context), context_(context) {
+    : ProtoImporterModule(module_context),
+      context_(context),
+      source_key_id_(context->storage->InternString("source")),
+      pid_key_id_(context->storage->InternString("pid")),
+      tid_key_id_(context->storage->InternString("tid")) {
   RegisterForField(TracePacket::kStackSampleFieldNumber);
 }
 
@@ -577,18 +581,14 @@ void StackSampleModule::ParseErrorSample(
 
   context_->import_logs_tracker->RecordCollectionLog(
       stat_key, ts, [&](ArgsInserter& inserter) {
-        TraceStorage* storage = context_->storage.get();
         if (source_id != kNullStringId) {
-          inserter.AddArg(storage->InternString("source"),
-                          Variadic::String(source_id));
+          inserter.AddArg(source_key_id_, Variadic::String(source_id));
         }
         if (task && task->has_pid()) {
-          inserter.AddArg(storage->InternString("pid"),
-                          Variadic::Integer(task->pid()));
+          inserter.AddArg(pid_key_id_, Variadic::Integer(task->pid()));
         }
         if (task && task->has_tid()) {
-          inserter.AddArg(storage->InternString("tid"),
-                          Variadic::Integer(task->tid()));
+          inserter.AddArg(tid_key_id_, Variadic::Integer(task->tid()));
         }
       });
 }
