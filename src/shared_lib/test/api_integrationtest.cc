@@ -17,6 +17,8 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -2138,6 +2140,54 @@ class SharedLibTrackEventEncodingTest
     return builder.Build();
   }
 };
+
+// The SDK caches the encoding of simple events. Reusing a name buffer for a
+// different string must not reuse the old encoding.
+TEST_P(SharedLibTrackEventEncodingTest, TrackEventHlReusedNameBuffer) {
+  auto tracing_session = StartSession();
+
+  char name[16] = "first";
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(name));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(name));
+  memcpy(name, "second", sizeof("second"));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(name));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(name));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  std::map<uint64_t, std::string> interned_names;
+  std::vector<std::string> event_names;
+  for (struct PerfettoPbDecoderField packet :
+       IdFieldView(data, perfetto_protos_Trace_packet_field_number)) {
+    for (struct PerfettoPbDecoderField interned : IdFieldView(
+             packet, perfetto_protos_TracePacket_interned_data_field_number)) {
+      for (struct PerfettoPbDecoderField event_name :
+           IdFieldView(interned,
+                       perfetto_protos_InternedData_event_names_field_number)) {
+        uint64_t iid = 0;
+        std::string str;
+        for (struct PerfettoPbDecoderField f : IdFieldView(
+                 event_name, perfetto_protos_EventName_iid_field_number)) {
+          iid = f.value.integer64;
+        }
+        for (struct PerfettoPbDecoderField f : IdFieldView(
+                 event_name, perfetto_protos_EventName_name_field_number)) {
+          str.assign(reinterpret_cast<const char*>(f.value.delimited.start),
+                     f.value.delimited.len);
+        }
+        interned_names[iid] = str;
+      }
+    }
+    for (struct PerfettoPbDecoderField track_event : IdFieldView(
+             packet, perfetto_protos_TracePacket_track_event_field_number)) {
+      for (struct PerfettoPbDecoderField f : IdFieldView(
+               track_event, perfetto_protos_TrackEvent_name_iid_field_number)) {
+        event_names.push_back(interned_names[f.value.integer64]);
+      }
+    }
+  }
+  EXPECT_THAT(event_names, ElementsAre("first", "first", "second", "second"));
+}
 
 TEST_P(SharedLibTrackEventEncodingTest, TrackEventHlInstant) {
   auto tracing_session = StartSession();
