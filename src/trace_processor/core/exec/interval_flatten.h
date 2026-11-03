@@ -161,11 +161,12 @@ class IntervalFlatten : public Operator {
     Held<RunEach<ColumnBuffer>> outputs{this};
     Held<RowBatch> served_keys{this};
 
-    // Scratch for one call.
     // The input rows added since the last aggregation (all from the input of
-    // this call), and their slots.
-    CallScratch<FlexVector<uint32_t>> rows;
-    CallScratch<FlexVector<uint32_t>> row_slots;
+    // this call), and their slots. An error can leave them unaggregated.
+    Held<FlexVector<uint32_t>> rows{this};
+    Held<FlexVector<uint32_t>> row_slots{this};
+
+    // Scratch for one call.
     CallScratch<AggregateInputLoader> input;
   };
 

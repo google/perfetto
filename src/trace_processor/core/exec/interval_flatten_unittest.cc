@@ -152,6 +152,34 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
   }
 }
 
+TEST(IntervalFlattenTest, ErrorLeavesNoRowsForTheNextRun) {
+  IntervalFlattenSpec spec;
+  spec.lanes.ts_column = 0;
+  spec.lanes.dur_column = 1;
+  spec.aggregates = {{AggregateCall::Function::kCountStar, 0}};
+  IntervalFlatten op(spec);
+  auto state = op.MakeState(test::TestContext());
+  RowBatch in, out;
+  auto fill = [&](const std::vector<int64_t>& ts,
+                  const std::vector<int64_t>& dur) {
+    in.Reset();
+    test::AddCopy(test::TestContext(), ts, nullptr, &in);
+    test::AddCopy(test::TestContext(), dur, nullptr, &in);
+    in.SetRowCount(static_cast<uint32_t>(ts.size()));
+  };
+
+  // The second row's negative duration fails with the first still unaggregated.
+  fill({0, 1}, {10, -1});
+  ASSERT_EQ(op.Execute(in, out, *state), OpResult::kError);
+  state->EndRun();
+
+  fill({0}, {10});
+  ASSERT_NE(op.Execute(in, out, *state), OpResult::kError);
+  ASSERT_NE(op.Finish(out, *state), OpResult::kError);
+  ASSERT_EQ(out.size(), 1u);
+  EXPECT_EQ(out.Value<int64_t>(2, 0), 1);
+}
+
 TEST(IntervalFlattenTest, RunningTotalsMatchTheTree) {
   // COUNT(*) and SUM alone are computed as running totals; adding MIN, which
   // can't subtract, computes them with the tree. Overlapping intervals of

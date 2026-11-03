@@ -63,7 +63,8 @@ struct StepColumns {
 //     held when the step's stream ends: the step has served its last batch,
 //     or no more will be pulled from it, and again before a source is
 //     restarted (see Restart()). A step never clears its own state; a source
-//     only restarts its read position in Rewind().
+//     only restarts its read position in Rewind(). A rewound state behaves
+//     exactly as a new one does.
 //  4. A batch a step outputs never points into its state: its columns are in
 //     buffers from the run's Context, or borrow storage which outlives the
 //     run (see RowBatch). So a state's run can end while batches it output

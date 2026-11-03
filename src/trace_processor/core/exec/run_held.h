@@ -141,8 +141,9 @@ class Held<base::Status> final : public base::Status {
 };
 
 // Storage a step uses within one call only, kept between calls for its
-// capacity alone (rule 2 of OperatorState): each call writes whatever it then
-// reads, and it is bounded by a batch, so a run leaves nothing in it to end.
+// capacity alone (rule 2 of OperatorState), and never cleared for it, even by
+// a rewind. A call must not depend on what an earlier call left, including
+// that it is empty: write it, or clear it, before reading it.
 template <typename T>
 class CallScratch final : public T {
  public:
