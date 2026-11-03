@@ -163,18 +163,17 @@ static const JNINativeMethod gTraceMethods[] = {
      (void*)dev_perfetto_sdk_PerfettoTrace_stop_session}};
 
 int register_dev_perfetto_sdk_PerfettoTrace(JNIEnv* env) {
-  int res = jniRegisterNativeMethods(
+  bool ok = true;
+  ok &= PerfettoRegisterNativeMethods(
       env, TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrace"),
       gTraceMethods, NELEM(gTraceMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register perfetto native methods.");
 
-  res = jniRegisterNativeMethods(
+  ok &= PerfettoRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrace$Category"),
       gCategoryMethods, NELEM(gCategoryMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register category native methods.");
 
-  return 0;
+  return ok ? 0 : -1;
 }
 
 }  // namespace jni
@@ -193,9 +192,24 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
     return JNI_ERR;
   }
 
-  perfetto::jni::register_dev_perfetto_sdk_PerfettoTrace(env);
-  perfetto::jni::register_dev_perfetto_sdk_PerfettoTrackEventExtra(env);
-  perfetto::jni::register_dev_perfetto_sdk_PerfettoNativeMemoryCleaner(env);
+  // Registration failures must never abort the process: in the ART static
+  // integration this runs during runtime startup of every process (including
+  // zygote), so an abort would bootloop the device. Instead, attempt every
+  // registration (so all failures get logged) and report the failure via the
+  // return value. Callers handle that gracefully: libcore logs and skips
+  // Perfetto JNI, while System.loadLibrary() throws UnsatisfiedLinkError.
+  bool ok = true;
+  ok &= perfetto::jni::register_dev_perfetto_sdk_PerfettoTrace(env) == 0;
+  ok &= perfetto::jni::register_dev_perfetto_sdk_PerfettoTrackEventExtra(env) ==
+        0;
+  ok &= perfetto::jni::register_dev_perfetto_sdk_PerfettoNativeMemoryCleaner(
+            env) == 0;
+  if (!ok) {
+    __android_log_print(ANDROID_LOG_ERROR, "PerfettoJNI",
+                        "Perfetto JNI registration failed; Perfetto Java SDK "
+                        "tracing will be unavailable.");
+    return JNI_ERR;
+  }
 
   return JNI_VERSION_1_6;
 }
