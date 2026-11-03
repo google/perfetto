@@ -391,7 +391,7 @@ void SearchScans(BoundPlan* bound, const LoweringContext& context) {
 
     // A scan converts no column, so only conditions on columns of a known
     // type, read as the table stores them, have values to search with.
-    std::vector<uint32_t> of;
+    std::vector<uint32_t> predicate_indices;
     std::vector<ex::FilterValue> values;
     for (uint32_t i = 0; i < where.predicates_.size(); ++i) {
       const WherePredicate& p = where.predicates_[i];
@@ -401,13 +401,13 @@ void SearchScans(BoundPlan* bound, const LoweringContext& context) {
           (p.op.Is<core::Glob>() && !type->Is<core::String>())) {
         continue;
       }
-      of.push_back(i);
+      predicate_indices.push_back(i);
       values.push_back(CastWhereLiterals(p, where.literals_, where.strings_,
                                          *type, *context.pool));
     }
     std::vector<Scan::Condition> conditions;
-    for (uint32_t j = 0; j < of.size(); ++j) {
-      const WherePredicate& p = where.predicates_[of[j]];
+    for (uint32_t j = 0; j < predicate_indices.size(); ++j) {
+      const WherePredicate& p = where.predicates_[predicate_indices[j]];
       conditions.push_back({p.column, p.op, &values[j]});
     }
     std::optional<Scan::SearchPlan> searched =
@@ -422,8 +422,8 @@ void SearchScans(BoundPlan* bound, const LoweringContext& context) {
     search.index = searched->index;
     std::vector<bool> moved(where.predicates_.size(), false);
     for (uint32_t j : searched->answered) {
-      WherePredicate p = where.predicates_[of[j]];
-      moved[of[j]] = true;
+      WherePredicate p = where.predicates_[predicate_indices[j]];
+      moved[predicate_indices[j]] = true;
       auto first = static_cast<uint32_t>(search.literals.size());
       for (uint32_t k = 0; k < p.literal_count; ++k) {
         WhereLiteral literal = where.literals_[p.first_literal + k];

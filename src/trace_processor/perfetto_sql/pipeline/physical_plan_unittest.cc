@@ -441,6 +441,20 @@ TEST_F(PhysicalPlanTest, WhereLooksUpAnIndex) {
   EXPECT_THAT(*rows, ElementsAre(Pair(2, 9), Pair(4, 9)));
 }
 
+// An index can be searched on its leading columns alone, whether or not the
+// scan reads the others.
+TEST_F(PhysicalPlanTest, WhereLooksUpAnIndexWithUnreadColumns) {
+  catalog_.AddTable("ix", {"id", "k", "v"},
+                    {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  catalog_.AddIndex("ix", {1, 2});
+  auto plan = Plan("FROM ix |> WHERE k = 7 |> SELECT id, id AS w");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan), "main: IndexScan");
+  auto rows = Run(**plan, "w");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(0, 0), Pair(2, 2), Pair(4, 4)));
+}
+
 // A condition no row can match leaves nothing to read.
 TEST_F(PhysicalPlanTest, WhereNoRowCanMatchReadsNothing) {
   catalog_.AddTable("ix", {"id", "k", "v"}, {{0, 7, 1}, {1, 5, 9}});

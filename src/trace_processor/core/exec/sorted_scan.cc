@@ -107,6 +107,11 @@ Range SortedScan::Find(const Context& context) const {
               sorted.column, sorted.op,
               CastFilterValueResult::Value(pool_->Get(cast.string_id).c_str()),
               range);
+        } else if (sorted.column.type.Is<String>()) {
+          // `value` points into `text`, and goes stale if the value is moved.
+          range = filter::SearchSorted(
+              sorted.column, sorted.op,
+              CastFilterValueResult::Value(cast.text.c_str()), range);
         } else {
           range = filter::SearchSorted(sorted.column, sorted.op,
                                        cast.value.value, range);

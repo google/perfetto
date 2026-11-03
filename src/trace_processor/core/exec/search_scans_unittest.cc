@@ -395,9 +395,14 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
             (*exec->casters[i])(fetcher, i, pool_, &cast[i]);
           }
         }
+        // Whoever casts values can move them afterwards, as lowering does.
+        std::vector<FilterValue> moved;
+        for (FilterValue& value : cast) {
+          moved.push_back(std::move(value));
+        }
         std::vector<uint32_t> actual;
         for (bool ok = cursor.Open(base::Span<const FilterValue>(
-                 cast.data(), cast.data() + cast.size()));
+                 moved.data(), moved.data() + moved.size()));
              ok; ok = cursor.Next()) {
           uint32_t row = cursor.Value<uint32_t>(kId);
           actual.push_back(row);

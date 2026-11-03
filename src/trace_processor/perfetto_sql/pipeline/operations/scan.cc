@@ -586,17 +586,8 @@ base::Status Scan::ResolveDataframes(const LogicalPlan&,
     bound.columns.push_back(dataframe->shared_column(column.index));
   }
   bound.row_count = dataframe->row_count();
-  // An index is only searchable on columns the scan reads.
   for (const dataframe::Index& index : dataframe->indexes()) {
-    bool read = std::all_of(
-        index.columns().begin(), index.columns().end(), [&](uint32_t i) {
-          return std::any_of(
-              data->read.begin(), data->read.end(),
-              [i](const ScanDataframeColumn& c) { return c.index == i; });
-        });
-    if (read) {
-      bound.indexes.push_back(index.Copy());
-    }
+    bound.indexes.push_back(index.Copy());
   }
   bindings->dataframes[self] = std::move(bound);
   return base::OkStatus();
