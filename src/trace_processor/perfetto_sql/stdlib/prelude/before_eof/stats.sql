@@ -23,13 +23,15 @@ CREATE PERFETTO VIEW stats(
   -- Numeric stat key: the stats::KeyIDs enum value, or, for a dynamic stat
   -- whose name is only known at runtime, a value from stats::kNumKeys up.
   key LONG,
-  -- Per-stat index for kIndexed stats; NULL for kSingle.
+  -- Per-stat index for indexed and indexed-histogram stats;
+  -- NULL for single stats.
   idx LONG,
   -- "info" | "notice" | "data_loss" | "error".
   severity STRING,
   -- "trace" (recorded on-device) or "analysis" (TP).
   source STRING,
-  -- Stat value.
+  -- Stat value. For indexed-histogram stats this is the total sample count
+  -- across all buckets; per-bucket counts are in `stats_histogram_bucket`.
   value LONG,
   -- Human-readable description.
   description STRING,
@@ -51,3 +53,21 @@ SELECT
   machine_id,
   trace_id
 FROM __intrinsic_stats;
+
+-- Buckets of histogram stats. One row per bucket of a histogram stat row in
+-- the `stats` table (i.e. per (stat, idx) pair).
+CREATE PERFETTO VIEW stats_histogram_bucket(
+  -- Unique identifier for this bucket.
+  id ID,
+  -- The histogram stat this bucket belongs to.
+  stat_id JOINID(stats.id),
+  -- Inclusive lower bound of the bucket.
+  lower_bound LONG,
+  -- Exclusive upper bound of the bucket.
+  upper_bound LONG,
+  -- Number of samples in [lower_bound, upper_bound).
+  count LONG
+)
+AS
+SELECT id, stat_id, lower_bound, upper_bound, count
+FROM __intrinsic_histogram_bucket;
