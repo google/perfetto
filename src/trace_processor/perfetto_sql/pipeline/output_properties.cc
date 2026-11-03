@@ -71,10 +71,9 @@ bool OutputProperties::IsArranged(const std::vector<ColumnId>& keys,
                              keys.end())) {
       continue;
     }
-    std::vector<SortKey> rest(sorted.begin() + static_cast<ptrdiff_t>(next),
-                              sorted.end());
-    if (rest.size() >= wanted.size() &&
-        std::equal(wanted.begin(), wanted.end(), rest.begin(),
+    if (sorted.size() - next >= wanted.size() &&
+        std::equal(wanted.begin(), wanted.end(),
+                   sorted.begin() + static_cast<ptrdiff_t>(next),
                    [](const SortKey& a, const SortKey& b) {
                      return a.column == b.column &&
                             a.descending == b.descending;
