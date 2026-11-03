@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_TRACING_TRACE_WRITER_BASE_H_
 #define INCLUDE_PERFETTO_TRACING_TRACE_WRITER_BASE_H_
 
+#include <cstddef>
 #include <cstdint>
 #include "perfetto/base/export.h"
 #include "perfetto/protozero/message_handle.h"
@@ -69,6 +70,10 @@ class PERFETTO_EXPORT_COMPONENT TraceWriterBase {
   // packet is finished when the next NewTracePacket() is called. It is still
   // useful, because the next NewTracePacket may not happen for a while.
   virtual void FinishTracePacket() = 0;
+
+  // Writes a complete TracePacket, already encoded in |data|. Writers can
+  // override it to skip the protozero message.
+  virtual void WriteRawPacket(const uint8_t* data, size_t size);
 
   // Commits the data pending for the current chunk. This can be called
   // only if the handle returned by NewTracePacket() has been destroyed (i.e. we

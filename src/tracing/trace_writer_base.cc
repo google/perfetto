@@ -16,6 +16,8 @@
 
 #include "perfetto/tracing/trace_writer_base.h"
 
+#include "perfetto/protozero/scattered_stream_writer.h"
+
 namespace perfetto {
 
 // This destructor needs to be defined in a dedicated translation unit and
@@ -24,5 +26,11 @@ namespace perfetto {
 // (src/public:common) that is linked also by other part of the codebase.
 
 TraceWriterBase::~TraceWriterBase() = default;
+
+void TraceWriterBase::WriteRawPacket(const uint8_t* data, size_t size) {
+  auto handle = NewTracePacket();
+  handle.TakeStreamWriter()->WriteBytes(data, size);
+  FinishTracePacket();
+}
 
 }  // namespace perfetto

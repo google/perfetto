@@ -406,6 +406,12 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
   return protozero::ContiguousMemoryRange{payload_begin, cur_chunk_.end()};
 }
 
+void TraceWriterImpl::WriteRawPacket(const uint8_t* data, size_t size) {
+  // Unlike TakeStreamWriter(), finalizing through the handle lets
+  // FinishTracePacket() skip resetting the packet.
+  NewTracePacket()->AppendRawProtoBytes(data, size);
+}
+
 void TraceWriterImpl::FinishTracePacket() {
   // If we hit this, this trace writer was created in a different process. This
   // likely means that the process forked while tracing was active, and the

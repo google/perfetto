@@ -360,6 +360,31 @@ TEST_P(TraceWriterImplTest, NewTracePacketTakeWriter) {
   }
 }
 
+TEST_P(TraceWriterImplTest, WriteRawPacket) {
+  const BufferID kBufId = 42;
+  std::unique_ptr<TraceWriter> writer =
+      arbiter_->CreateTraceWriter(kBufId, BufferExhaustedPolicy::kStall);
+  const size_t kNumPackets = 32;
+  for (size_t i = 0; i < kNumPackets; i++) {
+    std::string raw_proto_bytes =
+        std::string("RAW_PROTO_BYTES_") + std::to_string(i);
+    writer->WriteRawPacket(
+        reinterpret_cast<const uint8_t*>(raw_proto_bytes.data()),
+        raw_proto_bytes.size());
+  }
+  writer.reset();
+
+  std::vector<std::string> packets = GetPacketsFromShmemAndPatches();
+  ASSERT_THAT(packets, SizeIs(kNumPackets));
+  for (size_t i = 0; i < kNumPackets; i++) {
+    std::string expected = "RAW_PROTO_BYTES_" + std::to_string(i);
+    if (i == 0) {
+      expected = kFirstPacketOnSequenceFlagPrefix + expected;
+    }
+    EXPECT_EQ(packets[i], expected);
+  }
+}
+
 #if defined(GTEST_HAS_DEATH_TEST)
 using TraceWriterImplDeathTest = TraceWriterImplTest;
 INSTANTIATE_TEST_SUITE_P(PageSize,
