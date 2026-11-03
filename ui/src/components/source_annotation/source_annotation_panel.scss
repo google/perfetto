@@ -1,0 +1,93 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-source-annotation {
+  &__count {
+    font-variant-numeric: tabular-nums;
+
+    // Shade counts by their share of the hottest row in the listing.
+    &--heat-1 {
+      background: color-mix(in srgb, var(--pf-color-accent) 12%, transparent);
+    }
+    &--heat-2 {
+      background: color-mix(in srgb, var(--pf-color-accent) 28%, transparent);
+    }
+    &--heat-3 {
+      background: color-mix(in srgb, var(--pf-color-accent) 45%, transparent);
+    }
+    &--heat-4 {
+      background: color-mix(in srgb, var(--pf-color-accent) 65%, transparent);
+    }
+  }
+
+  &__line-number {
+    color: var(--pf-color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__address,
+  &__bytes {
+    font-family: var(--pf-font-monospace);
+    color: var(--pf-color-text-muted);
+  }
+
+  &__code {
+    font-family: var(--pf-font-monospace);
+    white-space: pre;
+  }
+
+  // Branch arrow gutter of the assembly view, see jump_arrows.ts.
+  &__jumps {
+    line-height: 0;
+  }
+
+  &__gutter {
+    display: block;
+  }
+
+  &__arc {
+    fill: none;
+    stroke: var(--pf-color-text-muted);
+    stroke-width: 1.5;
+
+    &--loop {
+      stroke: var(--pf-color-accent);
+    }
+  }
+
+  // Syntax tokens, see highlight.ts.
+  &__syntax {
+    &--keyword,
+    &--mnemonic {
+      color: var(--pf-color-primary);
+      font-weight: 500;
+    }
+    &--type {
+      color: var(--pf-color-accent);
+    }
+    &--string {
+      color: var(--pf-color-success);
+    }
+    &--number {
+      color: var(--pf-color-warning);
+    }
+    &--comment {
+      color: var(--pf-color-text-muted);
+      font-style: italic;
+    }
+    &--register {
+      color: var(--pf-color-accent);
+    }
+  }
+}
