@@ -155,6 +155,20 @@ class GlobalStatsTracker {
                                  std::optional<MachineId> machine_id,
                                  std::optional<TraceId> trace_id);
 
+  // Finds or inserts the kIndexedHistogram row for (key, index, machine_id,
+  // trace_id) and sets the count of the bucket matching
+  // [lower_bound, upper_bound) to `count`, replacing any previous count. The
+  // stat's value is kept equal to the sum of its bucket counts. Replacing
+  // (rather than accumulating) suits producers that emit cumulative
+  // histograms, where each emission supersedes the previous one.
+  void SetIndexedHistogramBucket(std::optional<MachineId> machine_id,
+                                 std::optional<TraceId> trace_id,
+                                 size_t key,
+                                 int index,
+                                 int64_t lower_bound,
+                                 int64_t upper_bound,
+                                 int64_t count);
+
  private:
   // Describes a stat: an entry of stats.h, or a dynamic stat descriptor.
   struct StatDescriptor {
@@ -182,6 +196,23 @@ class GlobalStatsTracker {
     friend H PerfettoHashValue(H h, const StatsEntry& value) {
       return H::Combine(std::move(h), value.key, value.index, value.machine_id,
                         value.trace_id);
+    }
+  };
+
+  struct HistogramBucketEntry {
+    tables::StatsTable_Id stat_id;
+    int64_t lower_bound;
+    int64_t upper_bound;
+
+    bool operator==(const HistogramBucketEntry& other) const {
+      return stat_id == other.stat_id && lower_bound == other.lower_bound &&
+             upper_bound == other.upper_bound;
+    }
+
+    template <typename H>
+    friend H PerfettoHashValue(H h, const HistogramBucketEntry& value) {
+      return H::Combine(std::move(h), value.stat_id.value, value.lower_bound,
+                        value.upper_bound);
     }
   };
 
@@ -228,6 +259,8 @@ class GlobalStatsTracker {
   std::array<StringId, stats::kNumSources> source_ids_;
 
   base::FlatHashMap<StatsEntry, tables::StatsTable_Id> id_by_entry_;
+  base::FlatHashMap<HistogramBucketEntry, tables::HistogramBucketTable_Id>
+      bucket_id_by_entry_;
 };
 
 }  // namespace perfetto::trace_processor
