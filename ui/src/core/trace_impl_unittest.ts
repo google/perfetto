@@ -14,8 +14,11 @@
 
 import {createFakeTraceImpl} from './fake_trace_impl';
 
-// Change detector: the timeline reads traceInfo.end on each use, rather than
-// caching it. If this behavior changes on purpose, delete this test.
+// Change detector for com.google.LiveStream, an out-of-tree plugin managed by
+// xldrx@. It shows running jobs as a growing trace. The plugin grows the trace
+// by writing traceInfo.end, which needs the timeline to read it on each use,
+// not cache it. If this changes on purpose, delete this test and tell us, so
+// the plugin can adapt.
 test('the timeline reads the trace end on each use', () => {
   const trace = createFakeTraceImpl();
   const end = trace.traceInfo.end;

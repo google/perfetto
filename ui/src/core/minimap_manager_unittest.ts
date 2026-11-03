@@ -16,8 +16,11 @@ import {Time} from '../base/time';
 import type {MinimapRow} from '../public/minimap';
 import {MinimapManagerImpl} from './minimap_manager';
 
-// Change detector: the minimap manager keeps the rows its provider returned,
-// not a copy. If this behavior changes on purpose, delete this test.
+// Change detector for com.google.LiveStream, an out-of-tree plugin managed by
+// xldrx@. It shows running jobs as a growing trace. The core loads the minimap
+// once, so the plugin updates its provider's rows in place, which needs the
+// minimap manager to keep them, not a copy. If this changes on purpose, delete
+// this test and tell us, so the plugin can adapt.
 test('keeps the rows that the provider returned', async () => {
   const rows: MinimapRow[] = [];
   const minimap = new MinimapManagerImpl();
