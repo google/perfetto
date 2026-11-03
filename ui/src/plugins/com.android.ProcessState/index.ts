@@ -24,7 +24,7 @@ import {CounterTrack} from '../../components/tracks/counter_track';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
-import type {TrackRenderer} from '../../public/track';
+import type {Track, TrackRenderer} from '../../public/track';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {
@@ -37,6 +37,8 @@ import {
 } from '../../trace_processor/query_result';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import {
+  type BreakdownCallback,
+  freezerTrackUri,
   ProcessExitsAggregator,
   ProcessStartsAggregator,
   ProcessStateResidencyAggregator,
@@ -125,8 +127,9 @@ const TAG_CAPABILITY_TRACK = 'android_process_capability';
 export default class ProcessState implements PerfettoPlugin {
   static readonly id = 'com.android.ProcessState';
   static readonly description =
-    'Visualizes Android framework process states: per-state concurrency ' +
-    'counters, and per-process state, freezer, and capability timelines.';
+    'Visualizes Android framework process states: per-state and freezer ' +
+    'concurrency counters, and per-process state, freezer, and capability ' +
+    'timelines.';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -139,25 +142,45 @@ export default class ProcessState implements PerfettoPlugin {
       INCLUDE PERFETTO MODULE android.freezer;
     `);
 
+    const {byProcess, processesWithGroup, processesWithFreezer} =
+      await this.createProcessTracks(ctx);
+    const {byState, countTracks} = await this.createConcurrencyTracks(
+      ctx,
+      processesWithGroup,
+      processesWithFreezer,
+    );
+
+    const showBreakdown: BreakdownCallback = (state, start, end) => {
+      countTracks.get(state)?.showBreakdownForRange(start, end);
+    };
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new ProcessStateResidencyAggregator(ctx)),
+      createAggregationTab(
+        ctx,
+        new ProcessStateResidencyAggregator(ctx, showBreakdown),
+      ),
     );
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new ProcessStateTransitionsAggregator(ctx)),
+      createAggregationTab(
+        ctx,
+        new ProcessStateTransitionsAggregator(ctx, showBreakdown),
+      ),
     );
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new ProcessStartsAggregator(ctx)),
+      createAggregationTab(
+        ctx,
+        new ProcessStartsAggregator(ctx, showBreakdown),
+      ),
     );
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new ProcessExitsAggregator(ctx)),
+      createAggregationTab(ctx, new ProcessExitsAggregator(ctx, showBreakdown)),
     );
 
     const group = new TrackNode({
       name: 'Process states',
       isSummary: true,
     });
-    group.addChildLast(await this.createConcurrencyTracks(ctx));
-    group.addChildLast(await this.createProcessTracks(ctx));
+    group.addChildLast(byState);
+    group.addChildLast(byProcess);
     ctx.defaultWorkspace.addChildInOrder(group);
   }
 
@@ -172,12 +195,21 @@ export default class ProcessState implements PerfettoPlugin {
   }
 
   // One counter per proc state, showing how many processes were in that state
-  // at any point in time. Ordered by declaration order in the proto.
-  private async createConcurrencyTracks(ctx: Trace): Promise<TrackNode> {
-    const summary = new TrackNode({
+  // at any point in time, ordered by declaration order in the proto, then one
+  // per freezer state.
+  private async createConcurrencyTracks(
+    ctx: Trace,
+    processesWithGroup: ReadonlySet<number>,
+    processesWithFreezer: ReadonlySet<number>,
+  ): Promise<{
+    byState: TrackNode;
+    countTracks: ReadonlyMap<string, ProcessStateCountTrack>;
+  }> {
+    const byState = new TrackNode({
       name: 'By state',
       isSummary: true,
     });
+    const countTracks = new Map<string, ProcessStateCountTrack>();
 
     // States entered and left within the same timestamp never reach a
     // concurrency of 1, so they would only ever render a flat zero track.
@@ -194,16 +226,105 @@ export default class ProcessState implements PerfettoPlugin {
     for (const it = states.iter({state: STR}); it.valid(); it.next()) {
       const {state} = it;
       const uri = `${ProcessState.id}#count.${state}`;
+      const node = new TrackNode({uri, name: state});
+      const renderer = new ProcessStateCountTrack(ctx, uri, node, {
+        state,
+        label: `in ${state}`,
+        concurrencyTable: '_android_process_state_concurrency',
+        intervalsTable: '_android_process_state_intervals',
+        trackUri: processTrackUri,
+        createBreakdownNode: (upid, pid, name) => {
+          const hasGroup = processesWithGroup.has(upid);
+          const childUri = `${uri}.process.${upid}`;
+          this.ensureBreakdownTrack(ctx, {
+            uri: childUri,
+            renderer: this.createProcessStateTrack(ctx, childUri, upid, {
+              ownerUri: hasGroup ? processTrackUri(upid) : undefined,
+            }),
+            tags: {type: TAG_PROCESS_TRACK, upid},
+            description: `Framework process state of ${name} (${pid}) over time.`,
+          });
+          const child = new TrackNode({
+            uri: childUri,
+            name: `${name} ${pid}`,
+            removable: true,
+          });
+          if (processesWithFreezer.has(upid)) {
+            const childFreezerUri = `${childUri}.freezer`;
+            this.ensureBreakdownTrack(ctx, {
+              uri: childFreezerUri,
+              renderer: this.createFreezerTrack(ctx, childFreezerUri, upid, {
+                ownerUri: hasGroup ? freezerTrackUri(upid) : undefined,
+              }),
+              tags: {type: TAG_FREEZER_TRACK, upid},
+              description: `Freezer state of ${name} (${pid}) over time.`,
+            });
+            child.addChildLast(
+              new TrackNode({uri: childFreezerUri, name: 'Freezer'}),
+            );
+          }
+          return child;
+        },
+      });
       ctx.tracks.registerTrack({
         uri,
-        renderer: new ProcessStateCountTrack(ctx, uri, state),
+        renderer,
         tags: {type: TAG_COUNT_TRACK, state},
         description: `Number of processes concurrently in ${state}.`,
       });
-      summary.addChildLast(new TrackNode({uri, name: state}));
+      countTracks.set(state, renderer);
+      byState.addChildLast(node);
     }
 
-    return summary;
+    const freezerStates = await ctx.engine.query(`
+      SELECT state
+      FROM _android_freezer_concurrency
+      GROUP BY state
+      HAVING max(concurrency) > 0
+      ORDER BY state
+    `);
+
+    for (const it = freezerStates.iter({state: STR}); it.valid(); it.next()) {
+      const {state} = it;
+      const uri = `${ProcessState.id}#count.${state}`;
+      const node = new TrackNode({uri, name: state});
+      const renderer = new ProcessStateCountTrack(ctx, uri, node, {
+        state,
+        label: state.toLowerCase(),
+        concurrencyTable: '_android_freezer_concurrency',
+        intervalsTable: '_android_freezer_intervals',
+        trackUri: freezerTrackUri,
+        createBreakdownNode: (upid, pid, name) => {
+          const childUri = `${uri}.process.${upid}`;
+          this.ensureBreakdownTrack(ctx, {
+            uri: childUri,
+            renderer: this.createFreezerTrack(ctx, childUri, upid, {
+              ownerUri:
+                processesWithGroup.has(upid) && processesWithFreezer.has(upid)
+                  ? freezerTrackUri(upid)
+                  : undefined,
+            }),
+            tags: {type: TAG_FREEZER_TRACK, upid},
+            description: `Freezer state of ${name} (${pid}) over time.`,
+          });
+          return new TrackNode({
+            uri: childUri,
+            name: `${name} ${pid}`,
+            removable: true,
+          });
+        },
+      });
+      ctx.tracks.registerTrack({
+        uri,
+        renderer,
+        // Untagged: the aggregators cover framework states only.
+        description: `Number of processes concurrently ${state.toLowerCase()}.`,
+      });
+      countTracks.set(state, renderer);
+      byState.addChildLast(node);
+    }
+
+    return {byState, countTracks};
   }
 
   // One timeline per process, with its freezer and capability timelines as
@@ -211,8 +332,14 @@ export default class ProcessState implements PerfettoPlugin {
   // processes of a respawning app sit next to each other - that adjacency is
   // the only thing tying an app's lifetimes together, since each restart gets
   // its own upid.
-  private async createProcessTracks(ctx: Trace): Promise<TrackNode> {
+  private async createProcessTracks(ctx: Trace): Promise<{
+    byProcess: TrackNode;
+    processesWithGroup: ReadonlySet<number>;
+    processesWithFreezer: ReadonlySet<number>;
+  }> {
     const byProcess = new TrackNode({name: 'By process', isSummary: true});
+    const processesWithGroup = new Set<number>();
+    const processesWithFreezer = new Set<number>();
     const groups = ctx.plugins.getPlugin(ProcessThreadGroupsPlugin);
 
     const processes = await ctx.engine.query(`
@@ -259,41 +386,16 @@ export default class ProcessState implements PerfettoPlugin {
       const name = it.name ?? `${pid}`;
       const uri = processTrackUri(upid);
       const processGroup = groups.getGroupForProcess(upid);
+      if (processGroup !== undefined) {
+        processesWithGroup.add(upid);
+      }
       const overviewUri = this.registerProcessTrack(ctx, processGroup, {
         uri,
         tag: TAG_PROCESS_TRACK,
         upid,
         description: `Framework process state of ${name} (${pid}) over time.`,
-        create: (trackUri, ownerUri) =>
-          SliceTrack.create({
-            trace: ctx,
-            uri: trackUri,
-            dataset: new SourceDataset({
-              schema: PROCESS_STATE_SCHEMA,
-              src: '_android_process_state_intervals',
-              filter: {col: 'upid', eq: upid},
-            }),
-            sliceLayout: COMPACT_SLICES,
-            sliceName: (row) => row.state,
-            colorizer: (row) => {
-              if (row.state === 'NONEXISTENT') return SLATE;
-              if (row.state === 'EXITED') return GRAY;
-              return getColorForSlice(row.state);
-            },
-            detailsPanel: (row) => {
-              const schema =
-                row.state === 'NONEXISTENT'
-                  ? NONEXISTENT_SCHEMA
-                  : row.state === 'EXITED'
-                    ? EXITED_SCHEMA
-                    : BASE_SCHEMA;
-              return new ProcessStateDetailsPanel(ctx, schema, row, ownerUri);
-            },
-            rootTableName:
-              ownerUri === undefined
-                ? '_android_process_state_intervals'
-                : undefined,
-          }),
+        create: (trackUri, opts) =>
+          this.createProcessStateTrack(ctx, trackUri, upid, opts),
       });
       const overviewNode = new TrackNode({
         uri: overviewUri,
@@ -306,7 +408,8 @@ export default class ProcessState implements PerfettoPlugin {
       });
 
       if (hasFreezer) {
-        const freezerUri = `${uri}.freezer`;
+        processesWithFreezer.add(upid);
+        const freezerUri = freezerTrackUri(upid);
         const overviewFreezerUri = this.registerProcessTrack(
           ctx,
           processGroup,
@@ -315,30 +418,8 @@ export default class ProcessState implements PerfettoPlugin {
             tag: TAG_FREEZER_TRACK,
             upid,
             description: `Freezer state of ${name} (${pid}) over time.`,
-            create: (trackUri, ownerUri) =>
-              SliceTrack.create({
-                trace: ctx,
-                uri: trackUri,
-                dataset: new SourceDataset({
-                  schema: FREEZER_SCHEMA,
-                  src: '_android_freezer_intervals',
-                  filter: {col: 'upid', eq: upid},
-                }),
-                sliceLayout: COMPACT_SLICES,
-                sliceName: (row) => row.state,
-                colorizer: (row) => getColorForSlice(row.state),
-                detailsPanel: (row) =>
-                  new ProcessStateDetailsPanel(
-                    ctx,
-                    FREEZER_SCHEMA,
-                    row,
-                    ownerUri,
-                  ),
-                rootTableName:
-                  ownerUri === undefined
-                    ? '_android_freezer_intervals'
-                    : undefined,
-              }),
+            create: (trackUri, opts) =>
+              this.createFreezerTrack(ctx, trackUri, upid, opts),
           },
         );
         overviewNode.addChildLast(
@@ -391,7 +472,7 @@ export default class ProcessState implements PerfettoPlugin {
               tag: TAG_CAPABILITY_TRACK,
               upid,
               description: `Intervals where ${capability} is enabled for ${name} (${pid}).`,
-              create: (trackUri, ownerUri) =>
+              create: (trackUri, opts) =>
                 SliceTrack.create({
                   trace: ctx,
                   uri: trackUri,
@@ -412,12 +493,11 @@ export default class ProcessState implements PerfettoPlugin {
                       ctx,
                       CAPABILITY_SCHEMA,
                       row,
-                      ownerUri,
+                      opts.ownerUri,
                     ),
-                  rootTableName:
-                    ownerUri === undefined
-                      ? '_android_process_capability_intervals'
-                      : undefined,
+                  rootTableName: opts.isOwner
+                    ? '_android_process_capability_intervals'
+                    : undefined,
                 }),
             },
           );
@@ -437,7 +517,72 @@ export default class ProcessState implements PerfettoPlugin {
       processGroup?.addChildInOrder(groupNode);
     }
 
-    return byProcess;
+    return {byProcess, processesWithGroup, processesWithFreezer};
+  }
+
+  private createProcessStateTrack(
+    ctx: Trace,
+    trackUri: string,
+    upid: number,
+    opts: {isOwner?: boolean; ownerUri?: string},
+  ): TrackRenderer {
+    return SliceTrack.create({
+      trace: ctx,
+      uri: trackUri,
+      dataset: new SourceDataset({
+        schema: PROCESS_STATE_SCHEMA,
+        src: '_android_process_state_intervals',
+        filter: {col: 'upid', eq: upid},
+      }),
+      sliceLayout: COMPACT_SLICES,
+      sliceName: (row) => row.state,
+      colorizer: (row) => {
+        if (row.state === 'NONEXISTENT') return SLATE;
+        if (row.state === 'EXITED') return GRAY;
+        return getColorForSlice(row.state);
+      },
+      detailsPanel: (row) => {
+        const schema =
+          row.state === 'NONEXISTENT'
+            ? NONEXISTENT_SCHEMA
+            : row.state === 'EXITED'
+              ? EXITED_SCHEMA
+              : BASE_SCHEMA;
+        return new ProcessStateDetailsPanel(ctx, schema, row, opts.ownerUri);
+      },
+      rootTableName: opts.isOwner
+        ? '_android_process_state_intervals'
+        : undefined,
+    });
+  }
+
+  private createFreezerTrack(
+    ctx: Trace,
+    trackUri: string,
+    upid: number,
+    opts: {isOwner?: boolean; ownerUri?: string},
+  ): TrackRenderer {
+    return SliceTrack.create({
+      trace: ctx,
+      uri: trackUri,
+      dataset: new SourceDataset({
+        schema: FREEZER_SCHEMA,
+        src: '_android_freezer_intervals',
+        filter: {col: 'upid', eq: upid},
+      }),
+      sliceLayout: COMPACT_SLICES,
+      sliceName: (row) => row.state,
+      colorizer: (row) => getColorForSlice(row.state),
+      detailsPanel: (row) =>
+        new ProcessStateDetailsPanel(ctx, FREEZER_SCHEMA, row, opts.ownerUri),
+      rootTableName: opts.isOwner ? '_android_freezer_intervals' : undefined,
+    });
+  }
+
+  private ensureBreakdownTrack(ctx: Trace, track: Track): void {
+    if (ctx.tracks.getTrack(track.uri) === undefined) {
+      ctx.tracks.registerTrack(track);
+    }
   }
 
   // Registers a process-scoped track. The process group owns it when there is
@@ -452,7 +597,10 @@ export default class ProcessState implements PerfettoPlugin {
       tag: string;
       upid: number;
       description: string;
-      create: (trackUri: string, ownerUri?: string) => TrackRenderer;
+      create: (
+        trackUri: string,
+        opts: {isOwner?: boolean; ownerUri?: string},
+      ) => TrackRenderer;
     },
   ): string {
     const {uri, tag, upid, description, create} = track;
@@ -461,7 +609,7 @@ export default class ProcessState implements PerfettoPlugin {
       const isOwner = trackUri === uri;
       ctx.tracks.registerTrack({
         uri: trackUri,
-        renderer: create(trackUri, isOwner ? undefined : uri),
+        renderer: create(trackUri, isOwner ? {isOwner: true} : {ownerUri: uri}),
         tags: {type: tag, upid},
         description,
       });

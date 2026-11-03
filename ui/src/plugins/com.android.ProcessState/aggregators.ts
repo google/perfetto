@@ -28,13 +28,16 @@ import type {
   ColumnDef,
 } from '../../components/widgets/datagrid/datagrid_schema';
 import {Icons} from '../../base/semantic_icons';
-import {Duration, Time} from '../../base/time';
+import {Duration, Time, type time} from '../../base/time';
 import type {AreaSelection} from '../../public/selection';
 import type {Trace} from '../../public/trace';
 import type {Engine} from '../../trace_processor/engine';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {sqliteString} from '../../base/string_utils';
 import {Anchor} from '../../widgets/anchor';
+import {Button} from '../../widgets/button';
+
+export type BreakdownCallback = (state: string, start: time, end: time) => void;
 
 /** Track tag `type` of the per-process proc-state timelines. */
 export const TAG_PROCESS_TRACK = 'android_process_state';
@@ -45,6 +48,11 @@ export const TAG_COUNT_TRACK = 'android_process_state_count';
 /** Track URI for a single process's proc-state timeline. */
 export function processTrackUri(upid: number): string {
   return `com.android.ProcessState#process.${upid}`;
+}
+
+/** Track URI for a single process's freezer timeline. */
+export function freezerTrackUri(upid: number): string {
+  return `${processTrackUri(upid)}.freezer`;
 }
 
 // Which slice of the interval table the selection refers to. Selecting
@@ -189,11 +197,44 @@ function sliceIdColumn(trace: Trace): ColumnDef {
   };
 }
 
+function renderBreakdownControl(
+  trace: Trace,
+  onShowBreakdown?: BreakdownCallback,
+): m.Children {
+  if (onShowBreakdown === undefined) {
+    return undefined;
+  }
+  const sel = trace.selection.selection;
+  if (sel.kind !== 'area') {
+    return undefined;
+  }
+  const scope = probeScope(sel);
+  if (scope?.states.length !== 1) {
+    return undefined;
+  }
+  const [state] = scope.states;
+  if (state === undefined) {
+    return undefined;
+  }
+  return m(Button, {
+    label: `Show ${state} process tracks`,
+    icon: Icons.UnfoldMore,
+    onclick: () => onShowBreakdown(state, sel.start, sel.end),
+  });
+}
+
 /** How long each process spent in each proc state over the selection. */
 export class ProcessStateResidencyAggregator implements Aggregator {
   readonly id = 'android_process_state_residency';
 
-  constructor(private readonly trace: Trace) {}
+  constructor(
+    private readonly trace: Trace,
+    private readonly onShowBreakdown?: BreakdownCallback,
+  ) {}
+
+  renderTopbarControls(): m.Children {
+    return renderBreakdownControl(this.trace, this.onShowBreakdown);
+  }
 
   probe(area: AreaSelection) {
     const scope = probeScope(area);
@@ -259,7 +300,14 @@ export class ProcessStateResidencyAggregator implements Aggregator {
 export class ProcessStateTransitionsAggregator implements Aggregator {
   readonly id = 'android_process_state_transitions';
 
-  constructor(private readonly trace: Trace) {}
+  constructor(
+    private readonly trace: Trace,
+    private readonly onShowBreakdown?: BreakdownCallback,
+  ) {}
+
+  renderTopbarControls(): m.Children {
+    return renderBreakdownControl(this.trace, this.onShowBreakdown);
+  }
 
   probe(area: AreaSelection) {
     const scope = probeScope(area);
@@ -337,7 +385,14 @@ export class ProcessStateTransitionsAggregator implements Aggregator {
 export class ProcessStartsAggregator implements Aggregator {
   readonly id = 'android_process_starts';
 
-  constructor(private readonly trace: Trace) {}
+  constructor(
+    private readonly trace: Trace,
+    private readonly onShowBreakdown?: BreakdownCallback,
+  ) {}
+
+  renderTopbarControls(): m.Children {
+    return renderBreakdownControl(this.trace, this.onShowBreakdown);
+  }
 
   probe(area: AreaSelection) {
     const scope = probeScope(area);
@@ -413,7 +468,14 @@ export class ProcessStartsAggregator implements Aggregator {
 export class ProcessExitsAggregator implements Aggregator {
   readonly id = 'android_process_exits';
 
-  constructor(private readonly trace: Trace) {}
+  constructor(
+    private readonly trace: Trace,
+    private readonly onShowBreakdown?: BreakdownCallback,
+  ) {}
+
+  renderTopbarControls(): m.Children {
+    return renderBreakdownControl(this.trace, this.onShowBreakdown);
+  }
 
   probe(area: AreaSelection) {
     const scope = probeScope(area);
