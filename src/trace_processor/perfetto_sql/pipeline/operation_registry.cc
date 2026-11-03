@@ -84,4 +84,15 @@ const OperationRegistration* FindOperationBySyntax(uint32_t syntax) {
   return nullptr;
 }
 
+void RunBoundPasses(BoundPlan* bound, const LoweringContext&) {
+  std::vector<PlanNode>& nodes = bound->plan.nodes();
+  bound->outputs.resize(nodes.size());
+  // A node's inputs come before it, so a rewrite at a node sees all that is
+  // below it as final, and nothing above it has been derived yet.
+  for (PlanNodeId id = 0; id < nodes.size(); ++id) {
+    ReorderTreeFold(bound, id);
+    bound->outputs[id] = nodes[id].operation().Derive(*bound, id);
+  }
+}
+
 }  // namespace perfetto::trace_processor::pipeline

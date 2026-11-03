@@ -92,13 +92,4 @@ BoundPlan::BoundPlan(LogicalPlan p) : plan(std::move(p)) {
   }
 }
 
-void DeriveOutputs(BoundPlan* bound) {
-  const std::vector<PlanNode>& nodes = bound->plan.nodes();
-  bound->outputs.resize(nodes.size());
-  // A node's inputs come before it.
-  for (PlanNodeId id = 0; id < nodes.size(); ++id) {
-    bound->outputs[id] = nodes[id].operation().Derive(*bound, id);
-  }
-}
-
 }  // namespace perfetto::trace_processor::pipeline
