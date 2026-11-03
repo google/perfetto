@@ -303,6 +303,9 @@ def extract_referenced_entities(sql_file: str) -> Set[str]:
         r'\bFROM\s+([a-zA-Z_][a-zA-Z0-9_]*)\b',
         r'\bJOIN\s+([a-zA-Z_][a-zA-Z0-9_]*)\b',
         r'\bIN\s+([a-zA-Z_][a-zA-Z0-9_]*)\b',  # IN table_name or NOT IN table_name
+        # GRAPH ... TREE operands named directly (NODES t / EDGES t).
+        r'\bNODES\s+([a-zA-Z_][a-zA-Z0-9_]*)\b',
+        r'\bEDGES\s+([a-zA-Z_][a-zA-Z0-9_]*)\b',
         r'\b([a-zA-Z_][a-zA-Z0-9_!]*)\s*\(',
     ]
 
