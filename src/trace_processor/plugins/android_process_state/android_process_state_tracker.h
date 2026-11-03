@@ -24,8 +24,8 @@
 #include <string_view>
 #include <vector>
 
-#include "perfetto/base/flat_set.h"
 #include "perfetto/protozero/field.h"
+#include "src/trace_processor/plugins/android_framework_track_event/unknown_process_logger.h"
 #include "src/trace_processor/plugins/android_process_state/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/descriptors.h"
@@ -109,20 +109,11 @@ class AndroidProcessStateTracker {
   void AddCapabilityFlagsArgs(tables::AndroidProcessStateTable::Id id,
                               int32_t mask);
 
-  void RecordUnknownProcess(int64_t ts,
-                            const char* source,
-                            uint32_t pid,
-                            protozero::ConstChars process_name = {},
-                            std::optional<int64_t> start_seq_id = std::nullopt);
-
   TraceProcessorContext* const context_;
   tables::AndroidProcessStateTable* const process_state_table_;
   tables::AndroidFreezerStateTable* const freezer_state_table_;
   const StringId capability_flags_id_;
-  const StringId source_key_;
-  const StringId pid_key_;
-  const StringId process_name_key_;
-  const StringId start_seq_id_key_;
+  android_framework_track_event::UnknownProcessLogger unknown_process_logger_;
 
   DescriptorPool::CachedDescriptor proc_state_cache_;
   DescriptorPool::CachedDescriptor process_group_cache_;
@@ -137,8 +128,6 @@ class AndroidProcessStateTracker {
   std::map<UniquePid, ProcessStateValues> process_dump_;
   // Map of upid -> final freezer state from the trace-stop dump snapshot.
   std::map<UniquePid, FreezerStateValues> freezer_dump_;
-
-  base::FlatSet<uint32_t> warned_pids_;
 };
 
 }  // namespace perfetto::trace_processor::android_process_state

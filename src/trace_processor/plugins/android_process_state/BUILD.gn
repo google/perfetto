@@ -51,5 +51,6 @@ source_set("android_process_state") {
     "../../tables",
     "../../types",
     "../../util:descriptors",
+    "../android_framework_track_event:unknown_process_logger",
   ]
 }

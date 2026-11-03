@@ -27,9 +27,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
@@ -63,41 +61,7 @@ AndroidProcessStateTracker::AndroidProcessStateTracker(
       process_state_table_(process_state_table),
       freezer_state_table_(freezer_state_table),
       capability_flags_id_(context->storage->InternString("capability_flags")),
-      source_key_(context->storage->InternString("source")),
-      pid_key_(context->storage->InternString("pid")),
-      process_name_key_(context->storage->InternString("process_name")),
-      start_seq_id_key_(context->storage->InternString("start_seq_id")) {}
-
-void AndroidProcessStateTracker::RecordUnknownProcess(
-    int64_t ts,
-    const char* source,
-    uint32_t pid,
-    protozero::ConstChars process_name,
-    std::optional<int64_t> start_seq_id) {
-  if (!warned_pids_.insert(pid).second && process_name.size == 0) {
-    return;
-  }
-  StringId source_id = context_->storage->InternString(source);
-  std::optional<StringId> process_name_id;
-  if (process_name.size > 0) {
-    process_name_id = context_->storage->InternString(process_name);
-  }
-  context_->import_logs_tracker->RecordParserLog(
-      stats::android_track_event_process_unknown, ts,
-      [source_key = source_key_, pid_key = pid_key_,
-       process_name_key = process_name_key_,
-       start_seq_id_key = start_seq_id_key_, source_id, pid, process_name_id,
-       start_seq_id](ArgsInserter& inserter) {
-        inserter.AddArg(source_key, Variadic::String(source_id));
-        inserter.AddArg(pid_key, Variadic::UnsignedInteger(pid));
-        if (process_name_id) {
-          inserter.AddArg(process_name_key, Variadic::String(*process_name_id));
-        }
-        if (start_seq_id) {
-          inserter.AddArg(start_seq_id_key, Variadic::Integer(*start_seq_id));
-        }
-      });
-}
+      unknown_process_logger_(context) {}
 
 // The track-event stream only emits delta transitions (prev -> cur). To
 // reconstruct each process's state at the start of the trace, we record the
@@ -124,8 +88,8 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   std::optional<UniquePid> opt_upid =
       context_->process_tracker->GetProcessOrNull(static_cast<uint32_t>(pid));
   if (!opt_upid) {
-    RecordUnknownProcess(ts, "process_state_changed",
-                         static_cast<uint32_t>(pid));
+    unknown_process_logger_.Record(ts, "process_state_changed",
+                                   static_cast<uint32_t>(pid));
     return;
   }
   UniquePid upid = *opt_upid;
@@ -200,11 +164,11 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
         context_->process_tracker->GetProcessOrNull(
             static_cast<uint32_t>(rec.pid()));
     if (!opt_upid) {
-      RecordUnknownProcess(ts, "process_dump", static_cast<uint32_t>(rec.pid()),
-                           rec.process_name(),
-                           rec.has_start_seq_id()
-                               ? std::make_optional(rec.start_seq_id())
-                               : std::nullopt);
+      unknown_process_logger_.Record(
+          ts, "process_dump", static_cast<uint32_t>(rec.pid()),
+          rec.process_name(),
+          rec.has_start_seq_id() ? std::make_optional(rec.start_seq_id())
+                                 : std::nullopt);
       continue;
     }
     ProcessStateValues v;
@@ -239,7 +203,8 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
       context_->process_tracker->GetProcessOrNull(
           static_cast<uint32_t>(evt.pid()));
   if (!opt_upid) {
-    RecordUnknownProcess(ts, "freezer_event", static_cast<uint32_t>(evt.pid()));
+    unknown_process_logger_.Record(ts, "freezer_event",
+                                   static_cast<uint32_t>(evt.pid()));
     return;
   }
   tables::AndroidFreezerStateTable::Row row;
@@ -273,8 +238,8 @@ void AndroidProcessStateTracker::ParseFreezerDump(int64_t ts,
         context_->process_tracker->GetProcessOrNull(
             static_cast<uint32_t>(rec.pid()));
     if (!opt_upid) {
-      RecordUnknownProcess(ts, "freezer_dump",
-                           static_cast<uint32_t>(rec.pid()));
+      unknown_process_logger_.Record(ts, "freezer_dump",
+                                     static_cast<uint32_t>(rec.pid()));
       continue;
     }
     FreezerStateValues v;

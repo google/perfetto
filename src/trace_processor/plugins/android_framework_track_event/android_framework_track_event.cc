@@ -23,7 +23,6 @@
 #include <vector>
 
 #include "perfetto/base/compiler.h"
-#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
@@ -31,17 +30,14 @@
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
-#include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event_extension_parser.h"
 #include "src/trace_processor/plugins/android_framework_track_event/tables_py.h"
-#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/plugins/android_framework_track_event/unknown_process_logger.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto::trace_processor::android_framework_track_event {
@@ -64,48 +60,9 @@ using AndroidTrackEventProcessTable = tables::AndroidTrackEventProcessTable;
 class AndroidTrackEventProcessTableHolder {
  public:
   explicit AndroidTrackEventProcessTableHolder(StringPool* pool)
-      : table_(pool),
-        source_key_(pool->InternString("source")),
-        pid_key_(pool->InternString("pid")),
-        process_name_key_(pool->InternString("process_name")),
-        start_seq_id_key_(pool->InternString("start_seq_id")) {}
+      : table_(pool) {}
 
   AndroidTrackEventProcessTable& table() { return table_; }
-
-  // Records a notice (at most once per pid) when a death event references a
-  // process that was neither in DUMP_REASON_START nor created by a
-  // process_start_event.
-  void RecordUnknownProcess(TraceProcessorContext* context,
-                            int64_t ts,
-                            const char* source,
-                            uint32_t pid,
-                            protozero::ConstChars process_name,
-                            std::optional<int64_t> start_seq_id) {
-    if (!warned_pids_.insert(pid).second) {
-      return;
-    }
-    StringId source_id = context->storage->InternString(source);
-    std::optional<StringId> process_name_id;
-    if (process_name.size > 0) {
-      process_name_id = context->storage->InternString(process_name);
-    }
-    context->import_logs_tracker->RecordParserLog(
-        stats::android_track_event_process_unknown, ts,
-        [source_key = source_key_, pid_key = pid_key_,
-         process_name_key = process_name_key_,
-         start_seq_id_key = start_seq_id_key_, source_id, pid, process_name_id,
-         start_seq_id](ArgsInserter& inserter) {
-          inserter.AddArg(source_key, Variadic::String(source_id));
-          inserter.AddArg(pid_key, Variadic::UnsignedInteger(pid));
-          if (process_name_id) {
-            inserter.AddArg(process_name_key,
-                            Variadic::String(*process_name_id));
-          }
-          if (start_seq_id) {
-            inserter.AddArg(start_seq_id_key, Variadic::Integer(*start_seq_id));
-          }
-        });
-  }
 
   // Returns the row for |upid|, inserting one if needed.
   AndroidTrackEventProcessTable::RowReference GetOrInsertRow(UniquePid upid) {
@@ -155,11 +112,6 @@ class AndroidTrackEventProcessTableHolder {
   // identifies the process after it has died and its pid has been reused.
   base::FlatHashMap<int64_t, AndroidTrackEventProcessTable::Id>
       start_seq_id_to_row_;
-  base::FlatSet<uint32_t> warned_pids_;
-  const StringId source_key_;
-  const StringId pid_key_;
-  const StringId process_name_key_;
-  const StringId start_seq_id_key_;
 };
 
 // Records AndroidProcessStartEvent, AndroidBinderDiedEvent and
@@ -171,6 +123,7 @@ class Parser : public TrackEventExtensionParser {
          AndroidTrackEventProcessTableHolder* table)
       : TrackEventExtensionParser(extension_parser_context),
         trace_context_(context),
+        unknown_process_logger_(context),
         table_(table) {
     RegisterTrackEventExtension(FBTE::kProcessStartEventFieldNumber);
     RegisterTrackEventExtension(FBTE::kBinderDiedEventFieldNumber);
@@ -285,8 +238,8 @@ class Parser : public TrackEventExtensionParser {
     std::optional<UniquePid> upid =
         trace_context_->process_tracker->GetProcessOrNull(pid);
     if (!upid) {
-      table_->RecordUnknownProcess(trace_context_, ts, source, pid,
-                                   process_name, start_seq_id);
+      unknown_process_logger_.Record(ts, source, pid, process_name,
+                                     start_seq_id);
       return std::nullopt;
     }
     auto row = table_->GetOrInsertRow(*upid);
@@ -373,6 +326,7 @@ class Parser : public TrackEventExtensionParser {
   }
 
   TraceProcessorContext* trace_context_;
+  UnknownProcessLogger unknown_process_logger_;
   DescriptorPool::CachedDescriptor trigger_type_cache_;
   DescriptorPool::CachedDescriptor hosting_type_cache_;
   DescriptorPool::CachedDescriptor exit_reason_cache_;

@@ -22,6 +22,21 @@ perfetto_tp_tables("tables") {
   deps = [ "../../tables:tables_python" ]
 }
 
+source_set("unknown_process_logger") {
+  sources = [
+    "unknown_process_logger.cc",
+    "unknown_process_logger.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../base",
+    "../../../protozero",
+    "../../importers/common",
+    "../../storage",
+    "../../types",
+  ]
+}
+
 source_set("android_framework_track_event") {
   sources = [
     "android_framework_track_event.cc",
@@ -29,6 +44,7 @@ source_set("android_framework_track_event") {
   ]
   deps = [
     ":tables",
+    ":unknown_process_logger",
     "../../../../gn:default_deps",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_track_event_zero",
