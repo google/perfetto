@@ -55,7 +55,7 @@ SELECT ref.owner_id AS src, ref.owned_id AS dst
 FROM heap_graph_object AS o
 CROSS JOIN heap_graph_reference AS ref USING (reference_set_id)
 WHERE
-  o.reachable
+  o.reachable = 1
   AND o.reference_set_id IS NOT NULL
   AND ref.owned_id IS NOT NULL
   AND NOT (o.type_id IN _ref_type_ids
