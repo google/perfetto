@@ -61,15 +61,14 @@ instead of
 ### Adapters
 
 Each host has one adapter file in `environment-references/`. Its frontmatter
-names the host and lists the actions it provides, and its body tells the agent
-how to perform them in that environment.
+lists the actions it provides, and its body tells the agent how to perform them
+in that environment.
 
 `environment-references/cli.md` is the coding agent adapter (replacing
 `setup.md`):
 
 ````markdown
 ---
-host: cli
 provides: [query, multi_trace, python, record, write_file]
 ---
 Do this once per session. Set `$SKILL_ROOT` to the absolute path of the
@@ -88,7 +87,6 @@ trace_processor --version
 
 ```markdown
 ---
-host: ui
 provides: [query]
 ---
 You run inside the Perfetto UI, on the one trace the user has open. It is
@@ -107,12 +105,12 @@ that differs between hosts.
 
 Adapters don't have to live in this repo. Google-internal, OEM and CI
 environments often mandate their own `trace_processor` and setup, and today
-`setup.md` can only tell the agent to "prefer that team-specific setup". Such
-an environment passes its own adapter file to the generator
-(`--adapter <path>`) and gets the shared content with its setup in place of
-ours, without forking any content. A custom `trace_processor` build can also
-carry its adapter through the platform interface so that installing from that
-binary picks it up.
+`setup.md` can only tell the agent to "prefer that team-specific setup". Because
+the generator takes the adapter as a file path (`--adapter <path>`), an
+external environment can pass its own adapter file and get the shared content
+with its setup in place of ours, without forking any content. A custom
+`trace_processor` build can also carry its adapter through the platform
+interface so that installing from that binary picks it up.
 
 ### Files declare what they need
 
@@ -171,21 +169,25 @@ the surrounding section to be split out.
 
 ### Generator
 
-`tools/gen_skill_bundle.py` builds the bundle for one host:
+`tools/gen_skill_bundle.py` builds the bundle for a given adapter file:
 
 ```sh
-# In-tree host (reads environment-references/ui.md):
-tools/gen_skill_bundle.py --host ui --layout index --out out/ui-skills \
+# In-tree UI adapter:
+tools/gen_skill_bundle.py \
+  --adapter ai/skills/perfetto/environment-references/ui.md \
+  --layout index \
+  --out out/ui-skills \
   --drop-report ai/skills/drop_reports/ui.txt
 
 # Out-of-tree adapter:
-tools/gen_skill_bundle.py --adapter /path/to/google3.md --layout tree \
+tools/gen_skill_bundle.py \
+  --adapter /path/to/google3.md \
+  --layout tree \
   --out out/g3-skills
 ```
 
-`--host <name>` is shorthand for the in-tree adapter
-`environment-references/<name>.md`, while `--adapter <path>` takes an adapter
-file directly for out-of-tree hosts.
+`--adapter <path>` points to the adapter file, whether it lives in
+`environment-references/` or outside the repo.
 
 `--layout` picks the output format:
 
