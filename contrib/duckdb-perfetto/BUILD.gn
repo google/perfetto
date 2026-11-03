@@ -1,0 +1,106 @@
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+declare_args() {
+  # A (sparse) checkout of the DuckDB source tree matching the DuckDB version
+  # the extension will be loaded into. Fetched by build.sh.
+  duckdb_source_dir = "third_party/duckdb"
+}
+
+group("root") {
+  deps = [ ":perfetto_duckdb" ]
+}
+
+# DuckDB's internal C++ headers. Included as system headers so that their
+# warnings don't drown ours.
+config("duckdb_headers") {
+  _dirs = [
+    "src/include",
+    "third_party/fmt/include",
+    "third_party/fsst",
+    "third_party/re2",
+    "third_party/utf8proc/include",
+    "third_party/yyjson/include",
+  ]
+  cflags = []
+  foreach(d, _dirs) {
+    cflags += [
+      "-isystem",
+      rebase_path("$duckdb_source_dir/$d", root_build_dir),
+    ]
+  }
+  defines = [ "DUCKDB_BUILD_LOADABLE_EXTENSION" ]
+}
+
+# DuckDB's C++ API requires exceptions and RTTI, and the classes we derive
+# from must keep default visibility for exceptions and dynamic casts to work
+# across the extension/host boundary.
+config("duckdb_cxx") {
+  cflags_cc = [
+    "-fexceptions",
+    "-frtti",
+  ]
+}
+
+# Everything that talks to TraceProcessor. No DuckDB dependency, built with
+# Perfetto's usual flags.
+source_set("trace_session") {
+  sources = [
+    "src/trace_session.cc",
+    "src/trace_session.h",
+  ]
+  public_deps = [
+    "../../include/perfetto/base",
+    "../../include/perfetto/ext/base",
+    "../../include/perfetto/trace_processor",
+  ]
+  deps = [
+    "../../gn:default_deps",
+    "../../src/trace_processor:lib",
+  ]
+}
+
+# The only code which includes DuckDB headers.
+source_set("duckdb_glue") {
+  sources = [ "src/perfetto_extension.cc" ]
+
+  # These must match the labels in default_configs exactly, so they can't be
+  # relative.
+  configs -= [
+    "//gn/standalone:no_exceptions",  # nogncheck
+    "//gn/standalone:rtti_cflags",  # nogncheck
+    "//gn/standalone:visibility_hidden",  # nogncheck
+  ]
+  configs += [
+    ":duckdb_headers",
+    ":duckdb_cxx",
+  ]
+  deps = [
+    ":trace_session",
+    "../../gn:default_deps",
+  ]
+}
+
+# The raw shared library. build.sh appends the DuckDB extension metadata
+# footer to produce perfetto.duckdb_extension. DuckDB symbols are resolved
+# against the host process at load time.
+shared_library("perfetto_duckdb") {
+  deps = [
+    ":duckdb_glue",
+    "../../gn:default_deps",
+  ]
+  if (is_mac) {
+    ldflags = [ "-Wl,-undefined,dynamic_lookup" ]
+  }
+}
