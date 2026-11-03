@@ -488,6 +488,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
         ":src_trace_processor_plugins_android_framework_track_event_tables",
+        ":src_trace_processor_plugins_android_framework_track_event_unknown_process_logger",
         ":src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":src_trace_processor_plugins_android_process_state_android_process_state",
         ":src_trace_processor_plugins_android_process_state_tables",
@@ -819,6 +820,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
         ":src_trace_processor_plugins_android_framework_track_event_tables",
+        ":src_trace_processor_plugins_android_framework_track_event_unknown_process_logger",
         ":src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":src_trace_processor_plugins_android_process_state_android_process_state",
         ":src_trace_processor_plugins_android_process_state_tables",
@@ -4759,6 +4761,15 @@ perfetto_cc_tp_tables(
         "src/trace_processor/plugins/android_framework_track_event/all_tables_fwd.h",
         "src/trace_processor/plugins/android_framework_track_event/tables_fwd.h",
         "src/trace_processor/plugins/android_framework_track_event/tables_py.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/android_framework_track_event:unknown_process_logger
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_android_framework_track_event_unknown_process_logger",
+    srcs = [
+        "src/trace_processor/plugins/android_framework_track_event/unknown_process_logger.cc",
+        "src/trace_processor/plugins/android_framework_track_event/unknown_process_logger.h",
     ],
 )
 
@@ -12151,6 +12162,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
         ":src_trace_processor_plugins_android_framework_track_event_tables",
+        ":src_trace_processor_plugins_android_framework_track_event_unknown_process_logger",
         ":src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":src_trace_processor_plugins_android_process_state_android_process_state",
         ":src_trace_processor_plugins_android_process_state_tables",
@@ -12516,6 +12528,7 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
         ":src_trace_processor_plugins_android_framework_track_event_tables",
+        ":src_trace_processor_plugins_android_framework_track_event_unknown_process_logger",
         ":src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":src_trace_processor_plugins_android_process_state_android_process_state",
         ":src_trace_processor_plugins_android_process_state_tables",
