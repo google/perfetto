@@ -104,10 +104,11 @@ GRAPH DFS TREE
 -- reachable from the process's own roots are not nodes, so they drop out, and
 -- the forest roots (parent_id IS NULL) are exactly the remote-only stubs. Each
 -- object belongs to the closest stub; ties go to the stub first in order of
--- class name, which keeps the split comparable across heap dumps, then id. As
--- in `_heap_graph_object_min_depth_tree`, each object's references are taken
--- in order of the object referred to, so the split is stable.
-CREATE PERFETTO TABLE _heap_graph_binder_remote_only_tree AS
+-- (deobfuscated) class name, which keeps the split comparable across heap
+-- dumps, then id. As in `_heap_graph_object_min_depth_tree`, each object's
+-- references are taken in order of the object referred to, so the split is
+-- stable.
+CREATE PERFETTO TABLE _heap_graph_binder_remote_only_by_stub AS
 GRAPH BFS TREE
   NODES (
     SELECT id, self_size, native_size
@@ -120,7 +121,7 @@ GRAPH BFS TREE
     SELECT r.id
     FROM _heap_graph_binder_roots AS r
     JOIN heap_graph_object AS o ON o.id = r.id
-    JOIN heap_graph_class AS c ON c.id = o.type_id
+    JOIN _heap_graph_binder_class AS c ON c.id = o.type_id
     ORDER BY
       c.name,
       r.id
@@ -129,22 +130,13 @@ GRAPH BFS TREE
   COUNT(*) AS remote_only_obj_count,
   SUM(self_size) AS remote_only_size_bytes,
   SUM(native_size) AS remote_only_native_size_bytes
+|> WHERE parent_id IS NULL
+|> ORDER BY id
 |> SELECT
   id,
-  parent_id,
   remote_only_obj_count,
   remote_only_size_bytes,
   remote_only_native_size_bytes;
-
-CREATE PERFETTO TABLE _heap_graph_binder_remote_only_by_stub AS
-SELECT
-  id,
-  remote_only_obj_count,
-  remote_only_size_bytes,
-  remote_only_native_size_bytes
-FROM _heap_graph_binder_remote_only_tree
-WHERE
-  parent_id IS NULL;
 
 -- `android.os.Binder` objects held by a JNI global reference
 -- (`ROOT_JNI_GLOBAL`) in ART heap dumps. For Binder objects this is typically
