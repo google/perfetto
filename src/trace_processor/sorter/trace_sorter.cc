@@ -43,6 +43,7 @@ TraceSorter::TraceSorter(TraceProcessorContext* context,
     : sorting_mode_(sorting_mode),
       storage_(context->storage.get()),
       global_stats_tracker_(context->global_stats_tracker.get()),
+      token_buffer_(context->config.analyze_trace_proto_content),
       event_handling_(event_handling) {}
 
 TraceSorter::~TraceSorter() {

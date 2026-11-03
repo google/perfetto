@@ -107,7 +107,8 @@ TEST_F(TraceSorterTest, TestFtrace) {
 }
 
 TEST_F(TraceSorterTest, TestTracePacket) {
-  auto state = PacketSequenceStateGeneration::CreateFirst(&context_);
+  auto state = PacketSequenceStateGeneration::CreateFirst(
+      &context_, /*trusted_packet_sequence_id=*/1);
   TraceBlobView view = test_buffer_.slice_off(0, 1);
 
   auto sink = std::make_unique<MockSink<TracePacketData>>();
@@ -120,7 +121,8 @@ TEST_F(TraceSorterTest, TestTracePacket) {
 }
 
 TEST_F(TraceSorterTest, Ordering) {
-  auto state = PacketSequenceStateGeneration::CreateFirst(&context_);
+  auto state = PacketSequenceStateGeneration::CreateFirst(
+      &context_, /*trusted_packet_sequence_id=*/1);
   TraceBlobView view_1 = test_buffer_.slice_off(0, 1);
   TraceBlobView view_2 = test_buffer_.slice_off(0, 2);
   TraceBlobView view_3 = test_buffer_.slice_off(0, 3);
@@ -150,7 +152,8 @@ TEST_F(TraceSorterTest, Ordering) {
 TEST_F(TraceSorterTest, IncrementalExtraction) {
   CreateSorter(false);
 
-  auto state = PacketSequenceStateGeneration::CreateFirst(&context_);
+  auto state = PacketSequenceStateGeneration::CreateFirst(
+      &context_, /*trusted_packet_sequence_id=*/1);
 
   TraceBlobView view_1 = test_buffer_.slice_off(0, 1);
   TraceBlobView view_2 = test_buffer_.slice_off(0, 2);
@@ -216,7 +219,8 @@ TEST_F(TraceSorterTest, IncrementalExtraction) {
 TEST_F(TraceSorterTest, OutOfOrder) {
   CreateSorter(false);
 
-  auto state = PacketSequenceStateGeneration::CreateFirst(&context_);
+  auto state = PacketSequenceStateGeneration::CreateFirst(
+      &context_, /*trusted_packet_sequence_id=*/1);
 
   TraceBlobView view_1 = test_buffer_.slice_off(0, 1);
   TraceBlobView view_2 = test_buffer_.slice_off(0, 2);
@@ -391,7 +395,8 @@ TEST_F(TraceSorterTest, EqualTimestampsAcrossQueuesInArrivalOrder) {
 TEST_F(TraceSorterTest, SetSortingMode) {
   CreateSorter(false);
 
-  auto state = PacketSequenceStateGeneration::CreateFirst(&context_);
+  auto state = PacketSequenceStateGeneration::CreateFirst(
+      &context_, /*trusted_packet_sequence_id=*/1);
 
   TraceBlobView view_1 = test_buffer_.slice_off(0, 1);
   TraceBlobView view_2 = test_buffer_.slice_off(0, 2);
@@ -429,7 +434,8 @@ TEST_F(TraceSorterTest, SetSortingMode) {
 TEST_F(TraceSorterTest, SetSortingModeAfterExtraction) {
   CreateSorter(false);
 
-  auto state = PacketSequenceStateGeneration::CreateFirst(&context_);
+  auto state = PacketSequenceStateGeneration::CreateFirst(
+      &context_, /*trusted_packet_sequence_id=*/1);
 
   TraceBlobView view_1 = test_buffer_.slice_off(0, 1);
   TraceBlobView view_2 = test_buffer_.slice_off(0, 2);
