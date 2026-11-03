@@ -6,25 +6,28 @@
 
 ## Problem
 
-`ai/skills/perfetto/` is written for one host: a coding agent with a shell.
-Other hosts now reuse it:
+`ai/skills/perfetto/` is written for one host: a coding agent with a shell,
+Python, a filesystem, and a local `trace_processor` binary. Other hosts now
+want to use the same workflows:
 
-| Host | How it gets the content |
-| --- | --- |
-| Coding agents | `ai-agents` release branch, marketplaces, `agents-install` |
-| Perfetto UI (#8266) | `gen_ui_skills.py` slices files on comment markers |
-| google3 | The coding agent content, with its own `trace_processor` setup |
-| Android CLI | Copies selected pieces in by hand |
+| Host | What it can do | How it gets the content today |
+| --- | --- | --- |
+| Coding agents (`cli`) | Query traces, load multiple traces, run Python, record traces, write files | `ai-agents` release branch, marketplaces, `agents-install` |
+| Perfetto UI (`ui`) | Query the single trace open in the UI | Not supported yet |
+| google3 | Same as coding agents, with an internal `trace_processor` setup | The coding agent bundle |
+| Android CLI | A subset of workflows | Copies selected pieces in by hand |
 
-Host-specific instructions are spread through the shared content: shell
-commands, `$SKILL_ROOT`, Python scripts, loading two traces at once,
-recording, writing report files. Each new host either edits every file to
-mark what it can't do or makes another copy. #8266 adds 24 marked regions
-to the skill files to support the UI alone.
+Host-specific assumptions are spread through the skill files: shell commands,
+`$SKILL_ROOT`, Python scripts, loading two traces at once, recording, and
+writing report files. A host like the UI cannot run Python, record traces, or
+load a second trace; a host like google3 can run all of those, but sets up
+`trace_processor` differently.
 
-We want one body of content, from which each host gets the subset it can run.
-Adding a host should not require editing the content, and nothing should be
-copied by hand.
+We want one shared source tree and a script that builds a skill bundle for each
+host. Each workflow declares what capabilities it depends on, each host
+declares what it provides, and the script bundles only the workflows that host
+can run with links that make sense inside that bundle. Adding a host should not
+require editing the shared content, and nothing should be copied by hand.
 
 ## Decision
 
@@ -34,136 +37,204 @@ Pending
 
 ### Actions
 
-Shared content is written against a small set of named actions instead of
-host commands. The initial set:
+We represent host capabilities as short tags called actions. The initial set:
 
-* `query`: run SQL, or a shipped `.sql` file, on the loaded trace.
+* `query`: run SQL, or a shipped `.sql` file, on a loaded trace.
 * `multi_trace`: hold two or more traces loaded at once.
 * `python`: run a shipped Python script.
 * `record`: record a new trace from a device or host.
 * `write_file`: write a report to the user's working directory.
 
-`query` is the baseline every host provides. A workflow says "run
-`scripts/triage_dominator_path.sql`", not
+Actions are open tags, not a fixed list in the generator. They only need to be
+granular enough to separate what different hosts can do. If we later add
+workflows that drive UI tracks or views directly, those files can depend on a
+`ui` action without changing the generator.
+
+Action names only appear in frontmatter. In the body of a workflow, steps are
+written in plain prose rather than shell commands or special syntax, and the
+agent matches them to the instructions in its host adapter. For example, a
+workflow says "run
+`$SKILL_ROOT/workflows/android_memory/scripts/triage_dominator_path.sql`"
+instead of
 `trace_processor query --remote SESSION --query-file $SKILL_ROOT/...`.
 
 ### Adapters
 
-Each host provides one adapter file in `environment-references/`, which says
-how to perform each action it supports and lists them in frontmatter:
+Each host has one adapter file in `environment-references/`. Its frontmatter
+names the host and lists the actions it provides, and its body tells the agent
+how to perform them in that environment.
 
-```yaml
+`environment-references/cli.md` is the coding agent adapter (replacing
+`setup.md`):
+
+````markdown
+---
+host: cli
+provides: [query, multi_trace, python, record, write_file]
+---
+Do this once per session. Set `$SKILL_ROOT` to the absolute path of the
+directory containing this `SKILL.md`, and put the bundled `trace_processor` on
+the `PATH`:
+
+```sh
+export SKILL_ROOT="/absolute/path/to/skills/perfetto"
+chmod +x "$SKILL_ROOT/bin/trace_processor"
+export PATH="$SKILL_ROOT/bin:$PATH"
+trace_processor --version
+```
+````
+
+`environment-references/ui.md` is the UI adapter:
+
+```markdown
 ---
 host: ui
 provides: [query]
 ---
+You run inside the Perfetto UI, on the one trace the user has open. It is
+already loaded in trace_processor.
+
+- Run inline PerfettoSQL with `run_query`. State (`INCLUDE PERFETTO MODULE`,
+  `CREATE PERFETTO TABLE`) persists between calls.
+- Run a shipped `.sql` file (`$SKILL_ROOT/<path>`) with `run_skill_sql`.
+- Read another file of this skill with `read_skill_file`.
+- Answer in the chat.
 ```
 
-`setup.md` becomes the coding agent adapter. #8266's `ui.md` is the UI
-adapter. google3 and Android CLI each add one. The adapter is the only file
+The generator places the adapter's body into `SKILL-template.md` at
+`{{environment_setup}}` when building `SKILL.md`. The adapter is the only file
 that differs between hosts.
 
 Adapters don't have to live in this repo. Google-internal, OEM and CI
 environments often mandate their own `trace_processor` and setup, and today
 `setup.md` can only tell the agent to "prefer that team-specific setup". Such
-an environment passes its own adapter to the generator
+an environment passes its own adapter file to the generator
 (`--adapter <path>`) and gets the shared content with its setup in place of
 ours, without forking any content. A custom `trace_processor` build can also
-carry its adapter through the platform interface, as #5772 prototyped with
-`GetExtraAiAgents()`, so that installing from that binary picks it up.
+carry its adapter through the platform interface so that installing from that
+binary picks it up.
 
 ### Files declare what they need
 
-Each content file lists the actions it needs beyond `query`:
+Each content file lists in frontmatter every action it needs:
 
 ```yaml
 ---
-requires: [multi_trace, python]
+requires: [query, multi_trace, python]
 ---
 ```
 
 The whole file is the unit of inclusion. A host gets a file only if its
-adapter provides everything the file requires. Nothing is trimmed from inside
-a file, so there are no markers.
+adapter provides everything the file requires. Frontmatter is stripped in the
+output, and nothing is trimmed from inside a file.
 
 If part of a workflow should reach a host that lacks an action, it goes in its
-own file. For example, the "Recording the missing signals" section of
-`system_trace_memory.md` moves to its own file with `requires: [record]`, and
-the UI keeps the rest of the workflow.
+own file. For example, in `system_trace_memory.md`, the "Recording the missing
+signals" section moves to `recording_memory_signals.md` (`requires: [record]`)
+and the two-trace comparison section moves to `system_trace_memory_compare.md`
+(`requires: [query, multi_trace]`). `system_trace_memory.md` only needs `query`,
+so the UI keeps the single-trace workflow.
 
 Features a host can't support are dropped, not reimplemented. A host gains a
-workflow by implementing the action it needs. The content does not change.
+workflow by implementing the action it needs. The content does not change. And
+if workflows for one host diverge over time (for example, UI workflows that
+drive UI tracks alongside the shared SQL workflows), the same `requires`
+mechanism keeps the shared core together and routes host-specific workflows
+only to the hosts that support them.
 
 ### Links
 
-Of #8266's markers inside a file, 10 of 16 wrap a link to another workflow,
-usually a diff workflow. These links move into frontmatter:
+Workflows often point to follow-up workflows that need more capabilities, such
+as a diff workflow for comparing two traces. Putting those links in frontmatter
+lets the generator drop them when the target file is excluded:
 
 ```yaml
 ---
+requires: [query]
 related:
   - path: heap_dump_diff.md
     when: Two dumps (before/after)
 ---
 ```
 
-The generator renders a "Related workflows" section from the entries that
-survive for the host. The router (`SKILL.md`) is generated the same way from
-each workflow's frontmatter. A link in the body of a file to a file the host
-dropped fails the build, as it already does in #8266.
+The generator renders a "Related workflows" section at the bottom of the file
+from the entries that survive for the host. In the router
+(`SKILL-template.md`), any line that links to a dropped file is removed, along
+with any numbered section that has no surviving lines.
+
+In all other files, a link in the body to a file the host dropped fails the
+build instead of being stripped. Body links sit inside prose that assumes the
+target workflow exists (for example, "if you have a second trace, follow the
+diff workflow to compare them"); stripping the link alone leaves dangling
+instructions behind. Failing the build forces the link to move to `related` or
+the surrounding section to be split out.
 
 ### Generator
 
-`tools/gen_ui_skills.py` is generalised into
-`tools/gen_skill_bundle.py --host <host>`. For each host it outputs:
+`tools/gen_skill_bundle.py` builds the bundle for one host:
 
-* the included files, with `$SKILL_ROOT` paths rewritten for the host
-* `index.json`
-* a drop report listing each dropped file and the action it was missing
+```sh
+# In-tree host (reads environment-references/ui.md):
+tools/gen_skill_bundle.py --host ui --layout index --out out/ui-skills \
+  --drop-report ai/skills/drop_reports/ui.txt
 
-The drop report is checked in, so changing which files a host receives shows
-up in review.
+# Out-of-tree adapter:
+tools/gen_skill_bundle.py --adapter /path/to/google3.md --layout tree \
+  --out out/g3-skills
+```
 
-The generator is the only supported way to embed the skill. Each host
+`--host <name>` is shorthand for the in-tree adapter
+`environment-references/<name>.md`, while `--adapter <path>` takes an adapter
+file directly for out-of-tree hosts.
+
+`--layout` picks the output format:
+
+* `tree`: the full skill directory tree with `SKILL.md`, for hosts with a
+  filesystem (such as `cli`).
+* `index`: only the reachable `.md` and `.sql` files plus an `index.json`
+  manifest, for hosts like `ui` that have no filesystem and fetch files one at
+  a time through tools.
+
+`--drop-report <path>` writes each dropped file and the action the host was
+missing. Drop reports for in-tree hosts are checked into
+`ai/skills/drop_reports/`, so changing which files a host receives shows up in
+review.
+
+The generator is the only supported way to package the skill. Each host
 generates its bundle from the same commit as the `trace_processor` it runs:
 the UI at UI build time, google3 at import, coding agents at release.
 Android CLI pins a released bundle.
 
 ### Applied to `android_memory/`
 
-| File | `requires` | Coding agent | UI |
+| File | `requires` | Coding agent (`cli`) | UI (`ui`) |
 | --- | --- | --- | --- |
-| `heap_dump.md` | none | yes | yes |
-| `heap_dump_caching_optimizer.md` | none | yes | yes |
-| `native_heap.md` | none | yes | yes |
-| `java_allocation_profile.md` | none | yes | yes |
-| `system_trace_memory.md` | none | yes | yes |
-| `system_trace_memory_compare.md` (split out) | `multi_trace` | yes | no |
+| `heap_dump.md` | `query` | yes | yes |
+| `heap_dump_caching_optimizer.md` | `query` | yes | yes |
+| `native_heap.md` | `query` | yes | yes |
+| `java_allocation_profile.md` | `query` | yes | yes |
+| `system_trace_memory.md` | `query` | yes | yes |
+| `system_trace_memory_compare.md` (split out) | `query`, `multi_trace` | yes | no |
 | `recording_memory_signals.md` (split out) | `record` | yes | no |
-| `heap_dump_diff.md` | `multi_trace`, `python` | yes | no |
-| `heap_profile_diff.md` | `multi_trace`, `python` | yes | no |
-| `heap_dump_cluster.md` | `python` | yes | no |
-
-## Prototype
-
-Rebase #8266 onto this design for `android_memory/` and the router: replace
-the markers with `requires` and `related`, make the two splits above, and
-compare the generated UI bundle and drop report against #8266's output. Then
-run the evals for both hosts.
+| `heap_dump_diff.md` | `query`, `multi_trace`, `python` | yes | no |
+| `heap_profile_diff.md` | `query`, `multi_trace`, `python` | yes | no |
+| `heap_dump_cluster.md` | `query`, `python` | yes | no |
 
 ## Alternatives considered
 
-### Comment markers (#8266)
+### Comment markers
 
-Pro:
-
-* Already implemented.
+Wrap host-specific sections inside markdown files with HTML comments (for
+example, `<!-- host:cli:begin -->` ... `<!-- host:cli:end -->`) and strip
+marked regions per host.
 
 Con:
 
-* The structure of the skill is hidden in comments inside the prose.
+* The structure of the skill is hidden in comments inside the prose, and
+  removing a region from the middle of a paragraph leaves dangling references
+  or broken grammar.
 * Markers name hosts, so adding a host means visiting every marker.
-* Coding agents see the raw markers.
+* Hosts that read the raw files see the markers.
 
 ### Every action as an MCP tool
 
@@ -195,8 +266,7 @@ Con:
 
 ## Open questions
 
-* Is the action list enough for google3 and Android CLI? We haven't checked
-  what they take from the skill today.
+* Is the action list enough for google3 and Android CLI?
 * Should the Python workflows be rewritten in SQL so more hosts can run them?
 * How do we run evals per host? A host can include a workflow and still do
   badly on it if its adapter's version of an action is weak.
