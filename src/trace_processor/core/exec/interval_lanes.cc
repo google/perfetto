@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/exec/group_table.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -174,6 +175,14 @@ PERFETTO_ALWAYS_INLINE void CollectedLanes::Add(uint32_t number,
   range.end++;
 }
 
+void CollectedLanes::EndRun() {
+  reader_.Reset();
+  EndRunOf(&intervals_);
+  EndRunOf(&ranges_);
+  EndRunOf(&by_number_);
+  rows_.EndRun();
+}
+
 void CollectedLanes::Clear() {
   reader_.Reset();
   intervals_.clear();
@@ -202,6 +211,11 @@ void LaneKeys::Gather(RowBatch* out,
                       base::Span<const uint32_t> handles,
                       Context& c) {
   rows_.Gather(out, handles, c);
+}
+
+void LaneKeys::EndRun() {
+  Clear();
+  rows_.EndRun();
 }
 
 void LaneKeys::Clear() {
@@ -233,6 +247,10 @@ void BoundsColumns::AddTsTo(RowBatch* out) const {
 
 void BoundsColumns::AddDurTo(RowBatch* out) const {
   out->AddColumn(ColumnView::Reference(StorageType{Int64{}}, dur), dur_buffer_);
+}
+
+void BoundsColumns::EndRun() {
+  Clear();
 }
 
 void BoundsColumns::Clear() {

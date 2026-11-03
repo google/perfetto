@@ -85,10 +85,10 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
   auto state = op.MakeState(test::TestContext());
   // Refill the same vectors for each input batch, published in a buffer each,
   // as a source refilling its storage would. Retained group keys must survive
-  // this, and Reset must discard a previous execution's state.
+  // this.
   for (uint32_t chunk : {1u, 17u, kMaxBatchRows}) {
     SCOPED_TRACE(chunk);
-    state->Reset();
+    state->EndRun();
     std::vector<int64_t> ts(chunk), dur(chunk), key(chunk), weight(chunk);
     std::vector<uint32_t> groups(chunk);
     auto key_valid = BitVector::CreateWithSize(chunk);
@@ -150,6 +150,34 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
     EXPECT_EQ(op.Finish(out, *state), OpResult::kNeedMoreInput);
     EXPECT_EQ(out.size(), 0u);
   }
+}
+
+TEST(IntervalFlattenTest, ErrorLeavesNoRowsForTheNextRun) {
+  IntervalFlattenSpec spec;
+  spec.lanes.ts_column = 0;
+  spec.lanes.dur_column = 1;
+  spec.aggregates = {{AggregateCall::Function::kCountStar, 0}};
+  IntervalFlatten op(spec);
+  auto state = op.MakeState(test::TestContext());
+  RowBatch in, out;
+  auto fill = [&](const std::vector<int64_t>& ts,
+                  const std::vector<int64_t>& dur) {
+    in.Reset();
+    test::AddCopy(test::TestContext(), ts, nullptr, &in);
+    test::AddCopy(test::TestContext(), dur, nullptr, &in);
+    in.SetRowCount(static_cast<uint32_t>(ts.size()));
+  };
+
+  // The second row's negative duration fails with the first still unaggregated.
+  fill({0, 1}, {10, -1});
+  ASSERT_EQ(op.Execute(in, out, *state), OpResult::kError);
+  state->EndRun();
+
+  fill({0}, {10});
+  ASSERT_NE(op.Execute(in, out, *state), OpResult::kError);
+  ASSERT_NE(op.Finish(out, *state), OpResult::kError);
+  ASSERT_EQ(out.size(), 1u);
+  EXPECT_EQ(out.Value<int64_t>(2, 0), 1);
 }
 
 TEST(IntervalFlattenTest, RunningTotalsMatchTheTree) {

@@ -79,6 +79,12 @@ class IntervalGaps {
     gaps_.clear();
   }
 
+  // Clear(), letting go of the gaps' storage.
+  void EndRun() {
+    in_lane_ = false;
+    std::vector<Gap>().swap(gaps_);
+  }
+
   bool in_lane() const { return in_lane_; }
 
   // The gaps found, in the order found. The caller removes those it uses.
