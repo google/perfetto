@@ -17,7 +17,7 @@
 #include "src/tracing/service/block_arena.h"
 
 #include <algorithm>
-#include <memory>
+#include <iterator>
 #include <new>
 #include <utility>
 
@@ -34,18 +34,18 @@ BlockArena::BlockArena(size_t block_size) : block_size_(block_size) {
 BlockArena::Allocation BlockArena::Allocate(size_t size) {
   PERFETTO_DCHECK(size > 0);
 
-  // Append only to the newest block. Older tails are usually too small to fit
-  // a request, and Reset() reclaims any extra block at the next cycle anyway.
-  Block* block = active_blocks_.empty() ? nullptr : active_blocks_.back().get();
+  // If the newest block has enough space, use it.
+  // Otherwise, either reuse a free block or allocate a new one.
+  // We don't use any older active blocks to keep the logic simple.
+  Block* block = active_blocks_.empty() ? nullptr : &active_blocks_.back();
   if (!block || size > block->capacity - block->used_size) {
     if (size <= block_size_ && !free_blocks_.empty()) {
-      active_blocks_.push_back(std::move(free_blocks_.back()));
-      free_blocks_.pop_back();
+      active_blocks_.splice(active_blocks_.end(), free_blocks_,
+                            std::prev(free_blocks_.end()));
     } else {
-      active_blocks_.push_back(
-          std::make_unique<Block>(std::max(block_size_, size)));
+      active_blocks_.emplace_back(std::max(block_size_, size));
     }
-    block = active_blocks_.back().get();
+    block = &active_blocks_.back();
   }
 
   uint8_t* data_begin = block->data.get() + block->used_size;
@@ -55,31 +55,30 @@ BlockArena::Allocation BlockArena::Allocate(size_t size) {
 }
 
 void BlockArena::Reset() {
-  for (auto& block : active_blocks_) {
+  for (auto next = active_blocks_.begin(); next != active_blocks_.end();) {
+    // Advance before this block is deleted or moved to |free_blocks_|.
+    auto block = next++;
+
     if (block->num_live_allocations != 0)
       continue;
 
-    // Keep blocks of |block_size_| bytes for reuse while the cache has room.
+    // If this block has the standard |block_size_| capacity and the free list
+    // has room, keep it for reuse to minimize future allocations.
     if (block->capacity == block_size_ &&
         free_blocks_.size() < kMaxFreeBlocks) {
       block->used_size = 0;
       PERFETTO_ASAN_POISON(block->data.get(), block->capacity);
-      free_blocks_.push_back(std::move(block));
+      free_blocks_.splice(free_blocks_.end(), active_blocks_, block);
     } else {
-      block.reset();
+      active_blocks_.erase(block);
     }
   }
-
-  // Drop moved and deleted null entries.
-  active_blocks_.erase(
-      std::remove(active_blocks_.begin(), active_blocks_.end(), nullptr),
-      active_blocks_.end());
 }
 
 size_t BlockArena::GetMemoryUsageBytes() const {
   size_t bytes = free_blocks_.size() * block_size_;
-  for (const auto& block : active_blocks_)
-    bytes += block->capacity;
+  for (const Block& block : active_blocks_)
+    bytes += block.capacity;
   return bytes;
 }
 

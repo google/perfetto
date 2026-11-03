@@ -20,8 +20,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <list>
 #include <memory>
-#include <vector>
 
 namespace perfetto {
 namespace internal {
@@ -88,15 +88,11 @@ class BlockArena {
     Block(Block&&) = delete;
     Block& operator=(Block&&) = delete;
 
-    std::unique_ptr<uint8_t[]> data;
+    const std::unique_ptr<uint8_t[]> data;
     const size_t capacity;
     size_t used_size = 0;
     size_t num_live_allocations = 0;
   };
-
-  // Allocation needs a stable Block*, so the lists hold unique_ptrs and the
-  // Blocks never move.
-  using BlockList = std::vector<std::unique_ptr<Block>>;
 
   // Keep up to two free blocks of |block_size_| bytes for reuse across cycles.
   static constexpr size_t kMaxFreeBlocks = 2;
@@ -105,10 +101,10 @@ class BlockArena {
   const size_t block_size_;
 
   // Blocks used in this cycle and older blocks with allocations in use.
-  BlockList active_blocks_;
+  std::list<Block> active_blocks_;
 
   // Empty blocks of |block_size_| bytes kept for reuse.
-  BlockList free_blocks_;
+  std::list<Block> free_blocks_;
 };
 
 }  // namespace internal
