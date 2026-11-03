@@ -26,9 +26,10 @@
 //   ATTACH 'x.pftrace' AS t (TYPE perfetto);       read-only catalog over TP
 //   FROM t.slice WHERE ...                         projection + filter
 //                                                  pushdown into TP
-//   FROM perfetto_query(source, sql)               PerfettoSQL executed
-//                                                  entirely inside TP; also
-//                                                  the bulk entry point
+//   FROM PERFETTO(t) ( <PerfettoSQL> )             block executed entirely
+//                                                  inside TP
+//   FROM perfetto_query(source, sql)               what blocks desugar to;
+//                                                  also the bulk entry point
 //                                                  (paths, globs, lists)
 
 #include <glob.h>
@@ -54,6 +55,9 @@
 #include "duckdb/parser/parsed_data/attach_info.hpp"
 #include "duckdb/parser/parsed_data/create_schema_info.hpp"
 #include "duckdb/parser/parsed_data/create_table_info.hpp"
+#include "duckdb/parser/parser.hpp"
+#include "duckdb/parser/parser_extension.hpp"
+#include "duckdb/parser/simplified_token.hpp"
 #include "duckdb/planner/expression/bound_columnref_expression.hpp"
 #include "duckdb/planner/expression/bound_comparison_expression.hpp"
 #include "duckdb/planner/expression/bound_constant_expression.hpp"
@@ -65,15 +69,19 @@
 #include "duckdb/transaction/transaction.hpp"
 #include "duckdb/transaction/transaction_manager.hpp"
 
+#include "contrib/duckdb-perfetto/src/block_rewriter.h"
 #include "contrib/duckdb-perfetto/src/trace_session.h"
 
 namespace duckdb {
 namespace perfetto_ext {
 namespace {
 
+using ::perfetto::duckdb_ext::BlockRewriter;
 using ::perfetto::duckdb_ext::ColumnInfo;
 using ::perfetto::duckdb_ext::ColumnType;
 using ::perfetto::duckdb_ext::Cursor;
+using ::perfetto::duckdb_ext::OuterToken;
+using ::perfetto::duckdb_ext::RewriteResult;
 using ::perfetto::duckdb_ext::RowSink;
 using ::perfetto::duckdb_ext::Trace;
 using ::perfetto::trace_processor::SqlValue;
@@ -196,8 +204,8 @@ std::shared_ptr<Trace> LoadTraceOrThrow(const std::string& path) {
 
 [[noreturn]] void ThrowReadOnly() {
   throw BinderException(
-      "perfetto databases are read-only; create PerfettoSQL tables with "
-      "perfetto_query() instead");
+      "perfetto databases are read-only; create PerfettoSQL tables from a "
+      "PERFETTO block instead");
 }
 
 std::unique_ptr<Cursor> OpenCursorOrThrow(std::shared_ptr<Trace> trace,
@@ -283,8 +291,8 @@ bool SameColumns(const std::vector<ColumnInfo>& a,
 }
 
 // The single schema ("main") of a perfetto catalog. Table entries are created
-// lazily from TP's own catalog, so tables created later through
-// perfetto_query() (e.g. by INCLUDE PERFETTO MODULE) show up automatically.
+// lazily from TP's own catalog, so tables created later inside PERFETTO
+// blocks (e.g. by INCLUDE PERFETTO MODULE) show up automatically.
 class PerfettoSchemaEntry : public SchemaCatalogEntry {
  public:
   PerfettoSchemaEntry(Catalog& catalog,
@@ -310,7 +318,7 @@ class PerfettoSchemaEntry : public SchemaCatalogEntry {
                                                std::move(*cols));
     auto* ptr = entry.get();
     if (it != entries_.end()) {
-      // The table changed shape (e.g. re-created by perfetto_query()). Plans
+      // The table changed shape (e.g. re-created by a PERFETTO block). Plans
       // may still reference the old entry, so keep it alive.
       stale_.push_back(std::move(it->second));
       it->second = std::move(entry);
@@ -757,7 +765,8 @@ TableFunction PerfettoScanFunction() {
 }
 
 // ---------------------------------------------------------------------------
-// perfetto_query(source, sql): runs PerfettoSQL inside TP.
+// perfetto_query(source, sql): runs PerfettoSQL inside TP. PERFETTO blocks
+// desugar to this.
 // ---------------------------------------------------------------------------
 
 struct Source {
@@ -935,6 +944,71 @@ void QueryFunction(ClientContext&,
   }
 }
 
+// ---------------------------------------------------------------------------
+// Parser: PERFETTO(t) ( <PerfettoSQL> )
+// ---------------------------------------------------------------------------
+
+// The outer query is DuckDB SQL, so it is tokenized by DuckDB itself.
+std::vector<OuterToken> TokenizeDuckDbSql(const std::string& sql) {
+  std::vector<OuterToken> res;
+  for (const SimplifiedToken& t : Parser::Tokenize(sql)) {
+    OuterToken::Kind kind;
+    switch (t.type) {
+      case SimplifiedTokenType::SIMPLIFIED_TOKEN_IDENTIFIER:
+      case SimplifiedTokenType::SIMPLIFIED_TOKEN_KEYWORD:
+        kind = OuterToken::Kind::kWord;
+        break;
+      case SimplifiedTokenType::SIMPLIFIED_TOKEN_OPERATOR:
+        kind = OuterToken::Kind::kOperator;
+        break;
+      case SimplifiedTokenType::SIMPLIFIED_TOKEN_COMMENT:
+        continue;
+      default:
+        kind = OuterToken::Kind::kLiteral;
+        break;
+    }
+    res.push_back({t.start, kind});
+  }
+  return res;
+}
+
+// Uses parser_override (rather than the fallback parse_function) because the
+// fallback only sees statements after DuckDB has split the input on ';',
+// which would cut multi-statement PerfettoSQL blocks in half.
+struct PerfettoParserInfo : public ParserExtensionInfo {
+  BlockRewriter rewriter;
+};
+
+class PerfettoParserExtension : public ParserExtension {
+ public:
+  PerfettoParserExtension() {
+    parser_override = Override;
+    parser_info = make_shared_ptr<PerfettoParserInfo>();
+  }
+
+  static ParserOverrideResult Override(ParserExtensionInfo* info,
+                                       const string& query,
+                                       ParserOptions& options) {
+    auto& rewriter = static_cast<PerfettoParserInfo*>(info)->rewriter;
+    RewriteResult r = rewriter.Rewrite(query, TokenizeDuckDbSql);
+    if (r.status == RewriteResult::kNoBlocks)
+      return ParserOverrideResult();
+    if (r.status == RewriteResult::kError) {
+      ParserException e(optional_idx(r.error_offset), "%s", r.error);
+      return ParserOverrideResult(e);
+    }
+    try {
+      // The rewritten query contains no blocks, so this recursive parse falls
+      // straight through to DuckDB's own parser.
+      Parser parser(options);
+      parser.ParseQuery(r.query);
+      return ParserOverrideResult(std::move(parser.statements));
+    } catch (std::exception& e) {
+      return ParserOverrideResult(e);
+    }
+  }
+};
+
 void LoadInternal(ExtensionLoader& loader) {
   auto& config = DBConfig::GetConfig(loader.GetDatabaseInstance());
 
@@ -942,6 +1016,13 @@ void LoadInternal(ExtensionLoader& loader) {
   storage->attach = PerfettoAttach;
   storage->create_transaction_manager = PerfettoCreateTransactionManager;
   StorageExtension::Register(config, kCatalogType, std::move(storage));
+
+  ParserExtension::Register(config, PerfettoParserExtension());
+  // parser_override hooks are ignored unless this is enabled. "strict" (as
+  // opposed to "fallback") surfaces our errors (e.g. an unterminated block)
+  // instead of DuckDB's generic syntax error; queries without blocks still
+  // fall through to DuckDB's parser.
+  config.SetOptionByName("allow_parser_override_extension", Value("strict"));
 
   TableFunction query("perfetto_query",
                       {LogicalType::ANY, LogicalType::VARCHAR}, QueryFunction,

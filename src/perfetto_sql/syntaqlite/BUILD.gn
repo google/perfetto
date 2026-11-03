@@ -44,6 +44,9 @@ source_set("syntaqlite") {
     "../../trace_processor/perfetto_sql/tokenizer",
     "../../trace_processor/util:sql_module_doc_parser",
     "../analysis:*",
+
+    # Prototype DuckDB extension (DNM).
+    "../../../contrib/duckdb-perfetto:*",
   ]
 }
 
