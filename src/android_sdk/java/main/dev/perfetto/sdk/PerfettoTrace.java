@@ -60,6 +60,10 @@ public final class PerfettoTrace {
    * events within the category, it must also be enabled in the trace config.
    */
   public static class Category implements PerfettoTrackEventExtra.PerfettoPointer {
+    static {
+      PerfettoNativeLibrary.load();
+    }
+
     private final String mName;
     private final List<String> mTags;
     private volatile long mPtr;

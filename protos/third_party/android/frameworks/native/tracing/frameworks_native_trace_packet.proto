@@ -389,9 +389,30 @@ message FrameTimelineEvent {
   }
 }
 
+// Emitted once per composite queued to a virtual display's output surface
+// (e.g. a display-video mirror feeding a MediaCodec input surface). Ties the
+// pacing vsync id of that composite to the present time stamped on the queued
+// buffer. present_time_us normally equals the encoded frame's
+// presentationTimeUs, unless the encoder adjusts timestamps (e.g. time offset,
+// time-lapse or repeated frames).
+message VirtualDisplayComposite {
+  // SurfaceFlinger's id for the virtual display. Distinguishes packets from
+  // concurrently active virtual displays.
+  optional uint64 display_id = 1;
+  // The pacing vsync id (frame-timeline token) for this composite. See
+  // CompositionRefreshArgs::pacingVsyncId.
+  optional int64 vsync_id = 2;
+  // The queued buffer's CLOCK_MONOTONIC timestamp, in microseconds. Only used
+  // as the key to match the encoder's presentationTimeUs, so it is not
+  // converted to BOOTTIME (the encoder sees the monotonic value). The packet
+  // timestamp is BOOTTIME and places the event on the timeline.
+  optional int64 present_time_us = 3;
+}
+
 message FrameworksNativeTracePacket {
   extend perfetto.protos.TracePacket {
     optional FrameTimelineEvent frame_timeline_event = 76;
     optional EvdevEvent evdev_event = 121;
+    optional VirtualDisplayComposite virtual_display_composite = 1100;
   }
 }

@@ -17,6 +17,39 @@ from python.generators.diff_tests.testing import Path
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
+from python.generators.diff_tests.testing import TextProto
+
+# Two snapshots whose non-layer fields are identical but whose layers differ.
+# Layer 1 is the same in both snapshots; layer 2 only exists in the second one.
+_SNAPSHOTS_DIFFERING_ONLY_IN_LAYERS = TextProto(r"""
+packet {
+  timestamp: 1000
+  trusted_packet_sequence_id: 2
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.surfaceflinger_layers_snapshot] {
+    elapsed_realtime_nanos: 1000
+    where: "visibleRegionsDirty"
+    layers {
+      layers { id: 1 name: "layer1" z: 1 }
+    }
+    displays { id: 1 layer_stack: 0 size { w: 10 h: 10 } }
+    vsync_id: 1
+  }
+}
+packet {
+  timestamp: 2000
+  trusted_packet_sequence_id: 2
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.surfaceflinger_layers_snapshot] {
+    elapsed_realtime_nanos: 1000
+    where: "visibleRegionsDirty"
+    layers {
+      layers { id: 1 name: "layer1" z: 1 }
+      layers { id: 2 name: "layer2" parent: 1 }
+    }
+    displays { id: 1 layer_stack: 0 size { w: 10 h: 10 } }
+    vsync_id: 1
+  }
+}
+""")
 
 
 class SurfaceFlingerLayers(TestSuite):
@@ -300,4 +333,54 @@ class SurfaceFlingerLayers(TestSuite):
         7,0,5,1,0,0.000000,0.000000,5.000000,5.000000,2.000000,2.000000,1.000000,1.000000
         8,1,2,1,0,0.000000,0.000000,5.000000,5.000000,0.000000,0.000000,2.000000,2.000000
         9,2,1,1,0,0.000000,10.000000,0.000000,0.000000,0.000000,0.000000,5.000000,10.000000
+        """))
+
+  def test_snapshot_proto_excludes_layers(self):
+    # Layers are interned per-row in surfaceflinger_layer, so the snapshot's
+    # raw proto must not also embed them.
+    return DiffTestBlueprint(
+        trace=_SNAPSHOTS_DIFFERING_ONLY_IN_LAYERS,
+        query="""
+        SELECT
+          (SELECT COUNT(*) FROM surfaceflinger_layers_snapshot) AS snapshots,
+          (SELECT COUNT(DISTINCT base64_proto_id)
+            FROM surfaceflinger_layers_snapshot) AS distinct_snapshot_protos,
+          (SELECT COUNT(*) FROM surfaceflinger_layer) AS layers,
+          (SELECT COUNT(DISTINCT base64_proto_id)
+            FROM surfaceflinger_layer) AS distinct_layer_protos;
+        """,
+        out=Csv("""
+        "snapshots","distinct_snapshot_protos","layers","distinct_layer_protos"
+        2,1,3,2
+        """))
+
+  def test_layer_args_with_defaults_with_pruned_snapshot_proto(self):
+    # Layer args with defaults are computed from each layer's own raw proto, so
+    # they are unaffected by pruning layers from the snapshot proto.
+    return DiffTestBlueprint(
+        trace=_SNAPSHOTS_DIFFERING_ONLY_IN_LAYERS,
+        query="""
+        SELECT sfl.snapshot_id, sfl.layer_id, args.key, args.int_value,
+          args.string_value
+        FROM surfaceflinger_layer AS sfl
+        JOIN __intrinsic_winscope_proto_to_args_with_defaults(
+            'surfaceflinger_layer') AS args
+          ON sfl.base64_proto_id = args.base64_proto_id
+        WHERE args.key IN ('id', 'name', 'parent', 'z')
+        ORDER BY sfl.snapshot_id, sfl.layer_id, args.key;
+        """,
+        out=Csv("""
+        "snapshot_id","layer_id","key","int_value","string_value"
+        0,1,"id",1,"[NULL]"
+        0,1,"name","[NULL]","layer1"
+        0,1,"parent",0,"[NULL]"
+        0,1,"z",1,"[NULL]"
+        1,1,"id",1,"[NULL]"
+        1,1,"name","[NULL]","layer1"
+        1,1,"parent",0,"[NULL]"
+        1,1,"z",1,"[NULL]"
+        1,2,"id",2,"[NULL]"
+        1,2,"name","[NULL]","layer2"
+        1,2,"parent",1,"[NULL]"
+        1,2,"z",0,"[NULL]"
         """))

@@ -24,10 +24,23 @@ package perfetto.protos;
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 25.
+  // Next id: 26.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
+
+    // Introduced in: perfetto v60.
+    // Supported on: Android 27Q1+.
+    enum BufferType {
+      BUFFER_TYPE_UNSPECIFIED = 0;
+      BUFFER_TYPE_V1 = 1;
+      BUFFER_TYPE_V2 = 2;
+    }
+    // Reports the implementation actually used, which can differ from the
+    // requested type because the service skips unsupported implementations.
+    // Older services do not set this field, so an absent value means the type
+    // was not reported.
+    optional BufferType buffer_type = 25;
 
     // Num. bytes written into the circular buffer, including chunk headers.
     optional uint64 bytes_written = 1;

@@ -23,11 +23,11 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -45,7 +45,7 @@ class RowCursor {
 
   // Rewinds and moves to the first row, the run's filters comparing with
   // `filter_values` (see Context::SetFilterValues).
-  bool Open(Span<const FilterValue> filter_values = {}) {
+  bool Open(base::Span<const FilterValue> filter_values = {}) {
     context_.SetFilterValues(filter_values);
     source_.Rewind(*state_);
     batch_ = nullptr;

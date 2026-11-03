@@ -32,7 +32,7 @@ namespace perfetto::trace_processor::strace_importer {
 
 namespace {
 
-void AddArgs(ArgsTracker::BoundInserter* inserter,
+void AddArgs(ArgsInserter* inserter,
              StringId args_key,
              std::optional<StringId> args_id,
              StringId ret_key,
@@ -59,8 +59,8 @@ void StraceTraceParser::Parse(int64_t ts, StraceEvent evt) {
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(evt.tid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
 
-  auto args_cb = [&](ArgsTracker::BoundInserter* inserter) {
-    AddArgs(inserter, args_key_id_, evt.args_id, ret_key_id_,
+  auto args_cb = [&](ArgsInserter& inserter) {
+    AddArgs(&inserter, args_key_id_, evt.args_id, ret_key_id_,
             evt.return_value_id);
   };
 

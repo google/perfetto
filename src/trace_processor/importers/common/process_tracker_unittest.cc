@@ -22,7 +22,6 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
@@ -42,8 +41,7 @@ class ProcessTrackerTest : public ::testing::Test {
     context.storage = std::make_unique<TraceStorage>();
     context.global_stats_tracker =
         std::make_unique<GlobalStatsTracker>(context.storage.get());
-    context.global_args_tracker =
-        std::make_unique<GlobalArgsTracker>(context.storage.get());
+    context.args_tracker = std::make_unique<ArgsTracker>(context.storage.get());
     context.machine_tracker =
         std::make_unique<MachineTracker>(&context, kDefaultMachineId);
     context.trace_state =
@@ -624,6 +622,72 @@ TEST_F(ProcessTrackerTest, TidZeroResolvesToSwapperAfterIdleDeclared) {
             context.process_tracker->swapper_utid());
 }
 
+// A pid 0 process and thread from an earlier file are replaced by the swapper.
+TEST_F(ProcessTrackerTest, IdleDeclaredAfterPidZeroProcess) {
+  context.process_tracker->GetOrCreateProcess(/*pid=*/0);
+  UniqueTid earlier = *context.process_tracker->GetThreadOrNull(0);
+  ASSERT_NE(earlier, context.process_tracker->swapper_utid());
+
+  context.process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+  ASSERT_EQ(context.process_tracker->GetThreadOrNull(0),
+            context.process_tracker->swapper_utid());
+  ASSERT_EQ(context.process_tracker->GetOrCreateProcess(0),
+            context.process_tracker->swapper_upid());
+  ASSERT_FALSE(context.process_tracker->IsThreadAlive(earlier));
+  ASSERT_FALSE(context.storage->thread_table()[earlier].name().has_value());
+}
+
+// A pid 0 process with no tid 0 thread must not leave the swapper looking dead.
+TEST_F(ProcessTrackerTest, IdleDeclaredAfterPidZeroProcessWithoutThread) {
+  context.process_tracker->GetOrCreateProcessWithoutMainThread(/*pid=*/0);
+
+  context.process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+  ASSERT_EQ(context.process_tracker->GetThreadOrNull(0),
+            context.process_tracker->swapper_utid());
+  ASSERT_TRUE(context.process_tracker->IsThreadAlive(
+      context.process_tracker->swapper_utid()));
+}
+
+// A tid 0 thread of another process is kept, and tid 0 returns to the swapper
+// when a later file declares the idle process again.
+TEST_F(ProcessTrackerTest, IdleRedeclaredKeepsOtherProcessTidZero) {
+  context.process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+  UniqueTid other = context.process_tracker->UpdateThread(/*tid=*/0, /*pid=*/5);
+  ASSERT_NE(other, context.process_tracker->swapper_utid());
+  ASSERT_EQ(context.process_tracker->GetThreadOrNull(0), other);
+
+  context.process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+  ASSERT_EQ(context.process_tracker->GetThreadOrNull(0),
+            context.process_tracker->swapper_utid());
+  ASSERT_EQ(context.process_tracker->UpdateThread(/*tid=*/0, /*pid=*/5), other);
+}
+
+// Threads associated before either has a process both get the process,
+// whichever of them gets it first, and the association carries through a chain.
+TEST_F(ProcessTrackerTest, PendingAssociationsResolveWhenParentKnown) {
+  auto* procs = context.process_tracker.get();
+  auto& threads = context.storage->thread_table();
+
+  UniqueTid first = procs->GetOrCreateThread(/*tid=*/10);
+  UniqueTid second = procs->GetOrCreateThread(/*tid=*/11);
+  UniqueTid third = procs->GetOrCreateThread(/*tid=*/12);
+  procs->AssociateThreads(first, second, /*associate_main_threads=*/true);
+  procs->AssociateThreads(second, third, /*associate_main_threads=*/true);
+  ASSERT_FALSE(threads[first].upid().has_value());
+
+  procs->UpdateThread(/*tid=*/10, /*pid=*/100);
+  UniquePid upid = procs->GetOrCreateProcess(/*pid=*/100);
+  ASSERT_EQ(threads[first].upid(), upid);
+  ASSERT_EQ(threads[second].upid(), upid);
+  ASSERT_EQ(threads[third].upid(), upid);
+
+  UniqueTid fourth = procs->GetOrCreateThread(/*tid=*/20);
+  UniqueTid fifth = procs->GetOrCreateThread(/*tid=*/21);
+  procs->AssociateThreads(fourth, fifth, /*associate_main_threads=*/true);
+  procs->UpdateThread(/*tid=*/21, /*pid=*/200);
+  ASSERT_EQ(threads[fourth].upid(), procs->GetOrCreateProcess(/*pid=*/200));
+}
+
 // IsThreadAlive returns false once a thread's own end_ts is set, false once its
 // process ends, and false once its process pid is recycled; true otherwise.
 TEST_F(ProcessTrackerTest, IsThreadAliveTruthTable) {
@@ -644,7 +708,7 @@ TEST_F(ProcessTrackerTest, IsThreadAliveTruthTable) {
   ASSERT_FALSE(context.process_tracker->IsThreadAlive(worker));
 }
 
-TEST_F(ProcessTrackerTest, ReaffirmedThreadUpdatesLiveTid) {
+TEST_F(ProcessTrackerTest, ReaffirmedThreadBecomesBareLookupResult) {
   // 1. Process A (pid 100) has thread tid 500.
   context.process_tracker->StartNewProcess(std::nullopt, std::nullopt,
                                            /*pid=*/100, kNullStringId,

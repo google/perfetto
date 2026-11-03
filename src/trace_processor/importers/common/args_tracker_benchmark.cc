@@ -21,7 +21,6 @@
 
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -31,7 +30,7 @@ namespace perfetto::trace_processor {
 namespace {
 
 // Benchmarks the args tracker commit path: AddArgsTo -> AddArg* -> commit (on
-// inserter destruction) -> GlobalArgsTracker::AddArgSet (dedup + materialize
+// inserter destruction) -> ArgsTracker::AddArgSet (dedup + materialize
 // into __intrinsic_args).
 // This is the ~13-18% of trace-load self-time the args rewrite targets, so it
 // is the metric to track that rewrite against. Each iteration commits one
@@ -45,8 +44,7 @@ void BM_ArgsTrackerCommit(benchmark::State& state) {
 
   TraceProcessorContext context;
   context.storage = std::make_unique<TraceStorage>();
-  context.global_args_tracker =
-      std::make_unique<GlobalArgsTracker>(context.storage.get());
+  context.args_tracker = std::make_unique<ArgsTracker>(context.storage.get());
   auto* storage = context.storage.get();
 
   // Pre-intern the keys once (parsers do this; keys never vary per set).
@@ -76,8 +74,7 @@ void BM_ArgsTrackerCommit(benchmark::State& state) {
     auto id = storage->mutable_ftrace_event_table()->Insert(row).id;
 
     {
-      ArgsTracker tracker(&context);
-      auto inserter = tracker.AddArgsTo(id);
+      auto inserter = context.args_tracker->AddArgsTo(id);
       inserter.AddArg(k_prev_comm, k_prev_comm, Variadic::String(prev_comm));
       inserter.AddArg(k_prev_pid, k_prev_pid, Variadic::Integer(v));
       inserter.AddArg(k_prev_prio, k_prev_prio, Variadic::Integer(120));

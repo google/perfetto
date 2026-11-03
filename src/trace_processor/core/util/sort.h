@@ -37,12 +37,8 @@ inline uint32_t GetRadix(const uint8_t* key, size_t byte_offset) {
     return key[byte_offset];
   }
   if constexpr (kRadixBits == 16) {
-    uint16_t radix;
-    memcpy(&radix, key + byte_offset, sizeof(uint16_t));
-    // This is important: the input to `RadixSort` is always in big-endian
-    // format, so if we need to extract a 16-bit radix, we must convert it
-    // to host byte order.
-    return ::perfetto::base::BE16ToHost(radix);
+    // The input to `RadixSort` is always in big-endian format.
+    return ::perfetto::base::LoadBE<uint16_t>(key + byte_offset);
   }
 }
 

@@ -385,6 +385,11 @@ class PerfettoPipeline(TestSuite):
         |> ORDER BY depth DESC, parent_id, dur DESC, id
         |> SELECT id;
 
+        CREATE PERFETTO TABLE by_name AS
+        FROM slice
+        |> ORDER BY name DESC, id
+        |> SELECT id;
+
         SELECT
           (SELECT count(*) FROM by_many) AS rows,
           (
@@ -403,6 +408,14 @@ class PerfettoPipeline(TestSuite):
                   ORDER BY depth DESC, parent_id, dur DESC, id
                 ) AS n,
                 id
+              FROM slice
+            ) AS s USING (n)
+            WHERE p.id != s.id
+          ) + (
+            SELECT count(*)
+            FROM (SELECT row_number() OVER () AS n, id FROM by_name) AS p
+            JOIN (
+              SELECT row_number() OVER (ORDER BY name DESC, id) AS n, id
               FROM slice
             ) AS s USING (n)
             WHERE p.id != s.id
@@ -454,6 +467,74 @@ class PerfettoPipeline(TestSuite):
         """,
         out=ExpectedError('aggregate AVG is not supported yet'))
 
+  # JOIN, INTERVAL MERGE and INTERVALS FROM EVENTS parse, but nothing lowers
+  # them yet.
+  def test_join_is_not_supported_yet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 1 AS id) |> LEFT JOIN (SELECT 1 AS id) AS t USING (id);
+        """,
+        out=ExpectedError('JOIN is not supported yet'))
+
+  def test_join_needs_on_or_using(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 1 AS id) |> JOIN (SELECT 1 AS id) AS t;
+        """,
+        out=ExpectedError('JOIN needs ON or USING'))
+
+  def test_interval_merge_is_not_supported_yet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 0 AS ts, 1 AS dur)
+        |> INTERVAL MERGE OVERLAPPING AGGREGATE COUNT(*) AS n;
+        """,
+        out=ExpectedError('INTERVAL MERGE is not supported yet'))
+
+  def test_intervals_from_events_is_not_supported_yet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 0 AS ts, 1 AS cpu)
+        |> INTERVALS FROM EVENTS PER cpu CLOSING LAST AT (10);
+        """,
+        out=ExpectedError('INTERVALS FROM EVENTS is not supported yet'))
+
+  # Must match SQL's LIMIT and OFFSET after an ORDER BY, which the LIMIT
+  # keeps in front of it.
+  def test_limit_matches_sql(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE piped AS
+        FROM (SELECT id, dur FROM slice)
+        |> WHERE dur > 0
+        |> ORDER BY dur DESC, id
+        |> LIMIT 5 OFFSET 2
+        |> SELECT id;
+
+        CREATE PERFETTO TABLE expected AS
+        SELECT id FROM slice WHERE dur > 0 ORDER BY dur DESC, id
+        LIMIT 5 OFFSET 2;
+
+        SELECT
+          (SELECT group_concat(id) FROM piped)
+            = (SELECT group_concat(id) FROM expected) AS same_order,
+          (SELECT count(*) FROM piped) AS rows;
+        """,
+        out=Csv("""
+        "same_order","rows"
+        1,5
+        """))
+
   # Must match SQL's WHERE and DISTINCT, including comparing an integer
   # column with a fraction.
   def test_where_and_distinct_match_sql(self):
@@ -482,6 +563,50 @@ class PerfettoPipeline(TestSuite):
         out=Csv("""
         "rows","expected_rows","mismatches"
         126,126,0
+        """))
+
+  # Must match SQL's WHERE on strings, GLOB, IN and IS NOT NULL.
+  def test_where_strings_match_sql(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE piped AS
+        FROM (SELECT id, name, category, depth FROM slice)
+        |> WHERE name GLOB 'Graphics.*' AND name != 'Graphics.Pipeline'
+            AND category IS NOT NULL AND depth IN (0, 1)
+        |> SELECT id;
+        CREATE PERFETTO TABLE piped_in AS
+        FROM (SELECT id, name FROM slice)
+        |> WHERE name IN ('PipelineReporter', 'LatencyInfo.Flow', 'absent')
+        |> SELECT id;
+
+        CREATE PERFETTO TABLE expected AS
+        SELECT id FROM slice
+        WHERE name GLOB 'Graphics.*' AND name != 'Graphics.Pipeline'
+          AND category IS NOT NULL AND depth IN (0, 1);
+        CREATE PERFETTO TABLE expected_in AS
+        SELECT id FROM slice
+        WHERE name IN ('PipelineReporter', 'LatencyInfo.Flow', 'absent');
+
+        SELECT
+          (SELECT count(*) FROM piped) AS rows,
+          (SELECT count(*) FROM expected) AS expected_rows,
+          (SELECT count(*) FROM piped_in) AS in_rows,
+          (SELECT count(*) FROM expected_in) AS expected_in_rows,
+          (SELECT count(*) FROM (
+            SELECT * FROM piped EXCEPT SELECT * FROM expected))
+          + (SELECT count(*) FROM (
+            SELECT * FROM expected EXCEPT SELECT * FROM piped))
+          + (SELECT count(*) FROM (
+            SELECT * FROM piped_in EXCEPT SELECT * FROM expected_in))
+          + (SELECT count(*) FROM (
+            SELECT * FROM expected_in EXCEPT SELECT * FROM piped_in))
+            AS mismatches;
+        """,
+        out=Csv("""
+        "rows","expected_rows","in_rows","expected_in_rows","mismatches"
+        36,36,4537,4537,0
         """))
 
   # DISTINCT compares the columns a bare name finds, so two rows of `a`

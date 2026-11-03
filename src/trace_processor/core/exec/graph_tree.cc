@@ -186,7 +186,7 @@ base::Status GraphTree::Build(State& s) const {
       s.id_of_node.push_back(id);
     }
     s.retained.Project(s.batch, spec_.retained_columns);
-    RETURN_IF_ERROR(s.rows.Append(s.retained));
+    RETURN_IF_ERROR(s.rows.Append(s.retained, *s.context));
   }
   RETURN_IF_ERROR(spec_.nodes->status(*s.nodes_state));
 
@@ -287,9 +287,9 @@ bool GraphTree::GetData(RowBatch& out, OperatorState& state) const {
     return false;
   }
 
-  ColumnBuffer parent_ids = s.context->TakeBuffer();
-  ColumnBuffer numbers = s.context->TakeBuffer();
-  ColumnBuffer parent_numbers = s.context->TakeBuffer();
+  ColumnBuffer parent_ids = s.context->TakeBuffer(sizeof(int64_t));
+  ColumnBuffer numbers = s.context->TakeBuffer(sizeof(uint32_t));
+  ColumnBuffer parent_numbers = s.context->TakeBuffer(sizeof(uint32_t));
   ColumnChunk& parent_id_chunk = parent_ids.chunk();
   auto* parent_id = parent_id_chunk.Values<int64_t>();
   parent_id_chunk.validity.resize(kMaxBatchRows);

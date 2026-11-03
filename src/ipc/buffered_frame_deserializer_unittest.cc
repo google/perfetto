@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <string>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 #include "test/gtest_and_gmock.h"
@@ -68,7 +69,7 @@ std::vector<char> GetSimpleFrame(size_t size) {
   char* enc_buf = encoded_frame.data();
 
   std::string payload = frame.SerializeAsString();
-  memcpy(enc_buf, base::AssumeLittleEndian(&payload_size), kHeaderSize);
+  base::StoreLE(enc_buf, payload_size);
   memcpy(enc_buf + kHeaderSize, payload.data(), payload.size());
   PERFETTO_CHECK(encoded_frame.size() == size);
   return encoded_frame;
@@ -137,8 +138,7 @@ TEST(BufferedFrameDeserializerTest, FragmentedFrameIsCorrectlyDeserialized) {
   uint32_t payload_size = static_cast<uint32_t>(payload.size());
   serialized_frame.resize(kHeaderSize + payload_size);
   memcpy(serialized_frame.data() + kHeaderSize, payload.data(), payload_size);
-  memcpy(serialized_frame.data(), base::AssumeLittleEndian(&payload_size),
-         kHeaderSize);
+  base::StoreLE(serialized_frame.data(), payload_size);
 
   std::vector<char> simple_frame = GetSimpleFrame(32);
   std::vector<char> frame_chunk1(serialized_frame.begin(),
@@ -249,7 +249,7 @@ TEST(BufferedFrameDeserializerTest, RejectVeryLargeFrames) {
   BufferedFrameDeserializer bfd;
   BufferedFrameDeserializer::ReceiveBuffer rbuf = bfd.BeginReceive();
   const uint32_t kBigSize = std::numeric_limits<uint32_t>::max() - 2;
-  memcpy(rbuf.data, base::AssumeLittleEndian(&kBigSize), kHeaderSize);
+  base::StoreLE(rbuf.data, kBigSize);
   memcpy(rbuf.data + kHeaderSize, "some initial payload", 20);
   ASSERT_FALSE(bfd.EndReceive(kHeaderSize + 20));
 }

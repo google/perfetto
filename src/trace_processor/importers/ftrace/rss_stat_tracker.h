@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
@@ -50,7 +51,14 @@ class RssStatTracker {
                                            bool is_curr,
                                            uint32_t pid);
 
+  bool IsRacyCurrEvent(int64_t mm_id, UniqueTid owner_utid, UniqueTid utid);
+
   base::FlatHashMap<int64_t, UniqueTid> mm_id_to_utid_;
+  // Indexed by utid: the mm most recently reported by the thread with
+  // curr=true or kNoMmId if none. mm ids are uint32 in the trace so can never
+  // be negative.
+  static constexpr int64_t kNoMmId = -1;
+  std::vector<int64_t> utid_to_curr_mm_id_;
   TraceProcessorContext* const context_;
 };
 

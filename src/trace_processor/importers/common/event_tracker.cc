@@ -25,6 +25,8 @@
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/counter_tables_py.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
@@ -40,11 +42,10 @@ void EventTracker::PushProcessCounterForThread(ProcessCounterForThread pcounter,
                                                double value,
                                                UniqueTid utid) {
   const auto& counter = context_->storage->counter_table();
-  auto opt_id = PushCounter(timestamp, value, kInvalidTrackId,
-                            [this, utid](ArgsTracker::BoundInserter* inserter) {
-                              inserter->AddArg(thread_arg_key_,
-                                               Variadic::UnsignedInteger(utid));
-                            });
+  auto opt_id = PushCounter(
+      timestamp, value, kInvalidTrackId, [this, utid](ArgsInserter& inserter) {
+        inserter.AddArg(thread_arg_key_, Variadic::UnsignedInteger(utid));
+      });
   if (opt_id) {
     PendingUpidResolutionCounter pending;
     pending.row = counter[*opt_id].ToRowNumber().row_number();
@@ -68,9 +69,8 @@ std::optional<CounterId> EventTracker::PushCounter(
     const SetArgsCallback& args_callback) {
   auto maybe_counter_id = PushCounter(timestamp, value, track_id);
   if (maybe_counter_id) {
-    ArgsTracker args_tracker(context_);
-    auto inserter = args_tracker.AddArgsTo(*maybe_counter_id);
-    args_callback(&inserter);
+    auto inserter = context_->args_tracker->AddArgsTo(*maybe_counter_id);
+    args_callback(inserter);
   }
   return maybe_counter_id;
 }

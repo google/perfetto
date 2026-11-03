@@ -73,7 +73,7 @@ struct RowLayoutKey {
 
 template <typename T>
 uint32_t EstimateDistinctCount(base::FlatHashMap<int64_t, uint32_t>* counts,
-                               Span<const T> values) {
+                               base::Span<const T> values) {
   const uint64_t total = values.size();
   if (total == 0) {
     return 0;
@@ -112,9 +112,9 @@ uint32_t EstimateDistinctCount(base::FlatHashMap<int64_t, uint32_t>* counts,
   return static_cast<uint32_t>(result);
 }
 
-void DistinctRows(Span<const uint8_t> row_layout,
+void DistinctRows(base::Span<const uint8_t> row_layout,
                   uint32_t row_stride,
-                  Span<uint32_t>* indices) {
+                  base::Span<uint32_t>* indices) {
   PERFETTO_DCHECK(indices);
   if (indices->empty()) {
     return;
@@ -134,9 +134,9 @@ void DistinctRows(Span<const uint8_t> row_layout,
   indices->e = output;
 }
 
-void SortRowLayout(Span<const uint8_t> row_layout,
+void SortRowLayout(base::Span<const uint8_t> row_layout,
                    uint32_t row_stride,
-                   Span<uint32_t>* indices) {
+                   base::Span<uint32_t>* indices) {
   PERFETTO_DCHECK(indices);
   const uint32_t rows = static_cast<uint32_t>(indices->size());
   if (rows <= 1) {
@@ -169,7 +169,7 @@ void SortRowLayout(Span<const uint8_t> row_layout,
 
 #define PERFETTO_INSTANTIATE_DISTINCT(type)      \
   template uint32_t EstimateDistinctCount<type>( \
-      base::FlatHashMap<int64_t, uint32_t>*, Span<const type>);
+      base::FlatHashMap<int64_t, uint32_t>*, base::Span<const type>);
 PERFETTO_INSTANTIATE_DISTINCT(uint32_t)
 PERFETTO_INSTANTIATE_DISTINCT(int32_t)
 PERFETTO_INSTANTIATE_DISTINCT(int64_t)

@@ -258,11 +258,12 @@ constexpr std::array<std::string_view, 8> kTokensAllowedInMacro{
 
 bool IsTokenAllowedInMacro(const std::string& str) {
   base::StringView view = base::StringView{str};
-  return std::any_of(kTokensAllowedInMacro.begin(), kTokensAllowedInMacro.end(),
-                     [&view](const auto& allowed_token) {
-                       return view.CaseInsensitiveEq(base::StringView{
-                           allowed_token.data(), allowed_token.size()});
-                     });
+  return std::any_of(
+      kTokensAllowedInMacro.begin(), kTokensAllowedInMacro.end(),
+      [&view](const auto& allowed_token) {
+        return base::CaseInsensitiveEqual(
+            view, base::StringView{allowed_token.data(), allowed_token.size()});
+      });
 }
 
 std::string GetTokenNamesAllowedInMacro() {
@@ -1414,7 +1415,7 @@ base::Status PerfettoSqlConnection::ExecuteCreateFunction(
           state->prototype.function_name.c_str());
     }
 
-    if (!base::StringView(name).StartsWith("$")) {
+    if (!base::StartsWith(base::StringView(name), "$")) {
       return base::ErrStatus(
           "%s: invalid parameter name %s used in the SQL definition of "
           "the view function: all parameters must be prefixed with '$' not "

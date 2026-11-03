@@ -26,6 +26,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "src/trace_processor/containers/interval_tree.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -35,7 +36,6 @@
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/interval_gaps.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -175,8 +175,8 @@ bool IntervalFillGaps::EnsureBackgroundRead(State& s) const {
 }
 
 base::Status IntervalFillGaps::ReadBackground(State& s) const {
-  RETURN_IF_ERROR(
-      s.background.Collect(*s.background_state, shared_ ? &s.lanes : nullptr));
+  RETURN_IF_ERROR(s.background.Collect(*s.background_state, *s.context,
+                                       shared_ ? &s.lanes : nullptr));
   for (uint32_t i = 0; i < s.background.size(); ++i) {
     // Intervals are sorted by start, so only the previous one with width can
     // overlap. Zero-width intervals cover nothing.
@@ -204,7 +204,7 @@ void IntervalFillGaps::StartLane(uint32_t lane, uint32_t row, State& s) const {
     tag = s.lane_key;
   }
   const uint32_t background_lane = broadcast_ ? 0 : lane;
-  Span<const Interval> background;
+  base::Span<const Interval> background;
   if (std::optional<uint32_t> i = s.background.Find(background_lane)) {
     s.visited[*i] = true;
     background = s.background.lane(*i).intervals;
@@ -216,7 +216,7 @@ base::Status IntervalFillGaps::Cover(const RowBatch& in, State& s) const {
   RETURN_IF_ERROR(s.input.Start(in, shared_ ? &s.lanes : nullptr));
   LaneBatch lanes = s.input.batch();
   if (broadcast_) {
-    RETURN_IF_ERROR(s.keys.Hold(in));
+    RETURN_IF_ERROR(s.keys.Hold(in, *s.context));
     // The open lane's keys are now carried.
     s.lane_key = LaneKeys::kCarried;
     s.gaps.set_lane(s.lane_key);

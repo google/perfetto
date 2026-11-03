@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_PARSER_H_
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "perfetto/protozero/field.h"
@@ -25,9 +26,9 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/proto/active_chrome_processes_tracker.h"
 #include "src/trace_processor/importers/proto/chrome_string_lookup.h"
+#include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/importers/proto/track_event_extension_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 namespace Json {
 class Value;
@@ -54,7 +55,9 @@ class TrackEventParser {
                             uint32_t packet_sequence_id);
   UniquePid ParseProcessDescriptor(int64_t packet_timestamp,
                                    protozero::ConstBytes);
-  UniqueTid ParseThreadDescriptor(protozero::ConstBytes, bool);
+  UniqueTid ParseThreadDescriptor(protozero::ConstBytes,
+                                  bool,
+                                  std::optional<UniqueTid> resolved);
 
   void ParseTrackEvent(int64_t ts,
                        const TrackEventData* event_data,

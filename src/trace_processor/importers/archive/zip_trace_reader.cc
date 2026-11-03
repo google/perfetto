@@ -87,9 +87,12 @@ base::Status ZipTraceReader::OnPushDataToSorter() {
     RETURN_IF_ERROR(files[i].Decompress(&buffer));
     TraceBlobView data(TraceBlob::CopyFrom(buffer.data(), buffer.size()));
     const auto& importers = *context_->trace_importer_registry;
-    TraceImporterId type = importers.Guess(data.data(), data.size());
-    ArchiveEntry entry{zip_file.name(), i, type,
-                       ArchiveEntry::ComputePriority(type, importers)};
+    TraceImporterRegistry::GuessResult guess =
+        importers.Guess(data.data(), data.size());
+    ArchiveEntry entry{
+        zip_file.name(), i, guess.id,
+        ArchiveEntry::ComputeTraceTypePriority(guess.id, importers),
+        guess.content_priority};
     ordered_files.emplace(entry, File{id, std::move(data)});
   }
 
@@ -123,9 +126,10 @@ class ZipImporter : public TraceImporter<ZipImporter> {
   ZipImporter() : TraceImporter(MakeDescriptor()) {}
   ~ZipImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     static constexpr char kMagic[] = {'P', 'K', '\x03', '\x04'};
-    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+    return {size >= sizeof(kMagic) &&
+            memcmp(data, kMagic, sizeof(kMagic)) == 0};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

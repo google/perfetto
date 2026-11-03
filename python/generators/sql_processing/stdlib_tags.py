@@ -94,6 +94,7 @@ MODULE_TAGS = {
     # Android - Memory
     'android.memory.heap_graph.dominator_tree': ['android', 'memory'],
     'android.memory.heap_graph.helpers': ['android', 'memory'],
+    'android.memory.heap_graph.class_classification': ['android', 'memory'],
     'android.memory.heap_graph.excluded_refs': ['android', 'memory'],
     'android.memory.heap_graph.dominator_class_tree': ['android', 'memory'],
     'android.memory.heap_graph.class_relationship': ['android', 'memory'],

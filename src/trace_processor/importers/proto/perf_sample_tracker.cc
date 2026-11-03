@@ -227,8 +227,7 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
   TrackId timebase_track_id = context_->track_tracker->InternTrack(
       tracks::kPerfCpuCounterBlueprint,
       tracks::Dimensions(cpu, session_id.value, name),
-      tracks::DynamicName(name_id),
-      [this](ArgsTracker::BoundInserter& inserter) {
+      tracks::DynamicName(name_id), [this](ArgsInserter& inserter) {
         inserter.AddArg(is_timebase_id_, Variadic::Boolean(true));
       });
 
@@ -243,7 +242,7 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
           tracks::kPerfCpuCounterBlueprint,
           tracks::Dimensions(cpu, session_id.value, follower_name),
           tracks::DynamicName(follower_name_id),
-          [this](ArgsTracker::BoundInserter& inserter) {
+          [this](ArgsInserter& inserter) {
             inserter.AddArg(is_timebase_id_, Variadic::Boolean(false));
           }));
     }

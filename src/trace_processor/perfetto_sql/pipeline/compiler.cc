@@ -153,7 +153,37 @@ ColumnId Compiler::AddColumn(NameId name, PlanType type) {
 base::Status Compiler::BuildOperation(uint32_t stage) {
   uint32_t tag = Node<SyntaqliteNode>(p_, stage)->tag;
   const auto* registration = FindOperationBySyntax(tag);
-  PERFETTO_CHECK(registration);
+  if (!registration) {
+    // The grammar can accept a stage before anything lowers it.
+    std::string name;
+    switch (tag) {
+      case SYNTAQLITE_NODE_PERFETTO_INTERVAL_MERGE:
+        name = "INTERVAL MERGE";
+        break;
+      case SYNTAQLITE_NODE_PERFETTO_INTERVALS_FROM_EVENTS:
+        name = "INTERVALS FROM EVENTS";
+        break;
+      case SYNTAQLITE_NODE_PERFETTO_PIPE_JOIN: {
+        const auto* join = Node<SyntaqlitePerfettoPipeJoin>(p_, stage);
+        if (!syntaqlite_node_is_present(join->on_expr) &&
+            !syntaqlite_node_is_present(join->using_columns)) {
+          return source_(stage).AddTraceback(
+              0, base::ErrStatus("JOIN needs ON or USING to say which rows "
+                                 "match; a join of every row with every "
+                                 "other is not supported"));
+        }
+        name = "JOIN";
+        break;
+      }
+      default: {
+        std::string sql = source_(stage).sql();
+        name = sql.substr(0, sql.find_first_of(" \n"));
+        break;
+      }
+    }
+    return source_(stage).AddTraceback(
+        0, base::ErrStatus("%s is not supported yet", name.c_str()));
+  }
   return registration->BuildPlan(this, stage);
 }
 

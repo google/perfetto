@@ -23,13 +23,13 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -199,7 +199,8 @@ TEST_F(ExpressionTest, Doubles) {
 TEST_F(ExpressionTest, NarrowedBatch) {
   // Keep rows 1, 3 and 4 only: a selection which is not a prefix.
   uint32_t rows[] = {1, 3, 4};
-  batch_.mutable_selection().KeepRows(Span<const uint32_t>(rows, rows + 3));
+  batch_.mutable_selection().KeepRows(
+      base::Span<const uint32_t>(rows, rows + 3));
   Builder b;
   b.Binary(Op::kSub, b.Column(1), b.Column(0));
   EXPECT_THAT(Run(b.Take()), ElementsAre(19, 37, 46));
@@ -209,7 +210,8 @@ TEST_F(ExpressionTest, NarrowedBatch) {
 TEST_F(ExpressionTest, DroppedRowsDoNotOverflow) {
   numbers_[0] = std::numeric_limits<int64_t>::max();
   uint32_t rows[] = {1, 3, 4};
-  batch_.mutable_selection().KeepRows(Span<const uint32_t>(rows, rows + 3));
+  batch_.mutable_selection().KeepRows(
+      base::Span<const uint32_t>(rows, rows + 3));
   Builder b;
   b.Binary(Op::kMul, b.Column(1), b.Int(2));
   EXPECT_THAT(Run(b.Take()), ElementsAre(40, 80, 100));

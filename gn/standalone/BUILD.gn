@@ -269,9 +269,14 @@ config("default") {
   libs = []
 
   if ((is_android || is_linux || is_qnx) && !is_wasm) {
+    if (current_cpu == "ppc64") {
+      _max_page_size = "65536"
+    } else {
+      _max_page_size = "16384"
+    }
     ldflags += [
       "-Wl,--build-id",
-      "-Wl,-z,max-page-size=16384",
+      "-Wl,-z,max-page-size=$_max_page_size",
     ]
   }
 

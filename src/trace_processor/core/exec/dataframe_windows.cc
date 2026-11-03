@@ -21,6 +21,7 @@
 #include <memory>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -31,6 +32,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/slab.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -42,15 +44,20 @@ class DataframeWindows::Expander {
   virtual ~Expander();
 
   // Sets `view` to rows [from, from + count), laid out densely from zero, in
-  // a buffer taken from `context` into `buffer`. `from` is where the last
-  // call ended.
+  // a buffer taken from `context` into `buffer`.
   virtual void Expand(uint32_t from,
                       uint32_t count,
                       Context& context,
                       ColumnView* view,
                       ColumnBuffer* buffer) = 0;
 
-  virtual void Rewind() = 0;
+  // As Expand, but writes only the rows `offsets` from `from`, the first of
+  // which is 0.
+  virtual void ExpandKept(uint32_t from,
+                          base::Span<const uint32_t> offsets,
+                          Context& context,
+                          ColumnView* view,
+                          ColumnBuffer* buffer) = 0;
 };
 
 DataframeWindows::Expander::~Expander() = default;
@@ -73,8 +80,12 @@ class ExpanderImpl final : public DataframeWindows::Expander {
               Context& context,
               ColumnView* view,
               ColumnBuffer* buffer) override {
-    PERFETTO_DCHECK(from == next_);
-    *buffer = context.TakeBuffer();
+    if (count == 1 && packed_) {
+      LendOne(from, view, buffer);
+      return;
+    }
+    Skip(from);
+    *buffer = context.TakeBuffer(kWidth);
     ColumnChunk& chunk = buffer->chunk();
     uint8_t* values = chunk.Values<uint8_t>();
     chunk.SizeValidity();
@@ -98,19 +109,80 @@ class ExpanderImpl final : public DataframeWindows::Expander {
     next_ = from + count;
     *view = ColumnView::Reference(type_, values, &chunk.validity);
   }
-
-  void Rewind() override {
-    consumed_ = 0;
-    next_ = 0;
+  void ExpandKept(uint32_t from,
+                  base::Span<const uint32_t> offsets,
+                  Context& context,
+                  ColumnView* view,
+                  ColumnBuffer* buffer) override {
+    if (offsets.size() == 1 && packed_) {
+      LendOne(from, view, buffer);
+      return;
+    }
+    *buffer = context.TakeBuffer(kWidth);
+    ColumnChunk& chunk = buffer->chunk();
+    uint8_t* values = chunk.Values<uint8_t>();
+    chunk.SizeValidity();
+    chunk.validity.ClearAllBits();
+    for (const uint32_t* it = offsets.b; it != offsets.e; ++it) {
+      uint32_t row = from + *it;
+      uint8_t* value = values + uint64_t{*it} * kWidth;
+      if (!bits_->is_set(row)) {
+        memset(value, 0, kWidth);
+        continue;
+      }
+      uint32_t slot = SlotOf(row);
+      if (packed_) {
+        memcpy(value, packed_ + uint64_t{slot} * kWidth, kWidth);
+      } else {
+        memcpy(value, &slot, sizeof(slot));
+      }
+      chunk.validity.set(*it);
+    }
+    *view = ColumnView::Reference(type_, values, &chunk.validity);
   }
 
  private:
+  // Lends `row`'s value where it lies, or a null: one row needs no buffer.
+  void LendOne(uint32_t row, ColumnView* view, ColumnBuffer* buffer) {
+    *buffer = ColumnBuffer();
+    if (!bits_->is_set(row)) {
+      *view = ColumnView::Reference(type_, packed_, &one_null_);
+      return;
+    }
+    Skip(row);
+    *view = ColumnView::Reference(type_, packed_ + uint64_t{consumed_} * kWidth,
+                                  nullptr);
+    ++consumed_;
+    ++next_;
+  }
+
+  void Skip(uint32_t row) {
+    if (row == next_) {
+      return;
+    }
+    consumed_ = SlotOf(row);
+    next_ = row;
+  }
+
+  // How many packed values are before `row`: O(1) once the prefix popcount
+  // is built.
+  uint32_t SlotOf(uint32_t row) {
+    if (PERFETTO_UNLIKELY(!popcount_.size())) {
+      popcount_ = bits_->PrefixPopcount();
+    }
+    return popcount_[row / 64] +
+           static_cast<uint32_t>(bits_->count_set_bits_until_in_word(row));
+  }
+
   StorageType type_;
   const uint8_t* packed_;
   const BitVector* bits_;
   // How many of the packed values are before `next_`.
   uint32_t consumed_ = 0;
   uint32_t next_ = 0;
+  // Built on the first SlotOf().
+  Slab<uint32_t> popcount_;
+  BitVector one_null_ = BitVector::CreateWithSize(1);
 };
 
 // The expander for a column of `type` whose values are `width` bytes.
@@ -194,6 +266,21 @@ void DataframeWindows::Init(
   }
 }
 
+void DataframeWindows::FillKept(uint32_t from,
+                                base::Span<const uint32_t> offsets,
+                                RowBatch& out) {
+  for (ColumnView& view : lent_) {
+    view.set_start(from);
+  }
+  for (Expanded& e : expanded_) {
+    e.expander->ExpandKept(from, offsets, *context_, &lent_[e.column],
+                           &buffers_[e.column]);
+  }
+  out.SetColumns(lent_, buffers_);
+  out.SetRowCount(*(offsets.e - 1) + 1);
+  out.mutable_selection().KeepRows(offsets);
+}
+
 void DataframeWindows::Fill(uint32_t from, uint32_t count, RowBatch& out) {
   // Only the windows move: the views stay as they were lent.
   for (ColumnView& view : lent_) {
@@ -205,12 +292,6 @@ void DataframeWindows::Fill(uint32_t from, uint32_t count, RowBatch& out) {
   }
   out.SetColumns(lent_, buffers_);
   out.SetRowCount(count);
-}
-
-void DataframeWindows::Rewind() {
-  for (Expanded& e : expanded_) {
-    e.expander->Rewind();
-  }
 }
 
 }  // namespace perfetto::trace_processor::core::exec

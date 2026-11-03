@@ -19,6 +19,8 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/breaker.h"
@@ -49,6 +51,12 @@ class TreeChildFirst : public Breaker {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override {
+    out->reads = {node_column_, parent_column_};
+  }
+  void SetUnreadColumns(std::vector<bool> unread) override {
+    unread_ = std::move(unread);
+  }
 
   TreeChildFirst(uint32_t node_column, uint32_t parent_column);
   ~TreeChildFirst() override;
@@ -86,6 +94,8 @@ class TreeChildFirst : public Breaker {
 
   uint32_t node_column_;
   uint32_t parent_column_;
+  // Input columns no later step reads (see Operator::SetUnreadColumns).
+  std::vector<bool> unread_;
 };
 
 // TREE ORDER PARENT FIRST: puts tree rows into an order where every parent
@@ -106,6 +116,12 @@ class TreeParentFirst : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override {
+    out->reads = {node_column_, parent_column_};
+  }
+  void SetUnreadColumns(std::vector<bool> unread) override {
+    unread_ = std::move(unread);
+  }
 
   TreeParentFirst(uint32_t node_column, uint32_t parent_column);
   ~TreeParentFirst() override;
@@ -176,6 +192,8 @@ class TreeParentFirst : public Operator {
 
   uint32_t node_column_;
   uint32_t parent_column_;
+  // Input columns no later step reads (see Operator::SetUnreadColumns).
+  std::vector<bool> unread_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

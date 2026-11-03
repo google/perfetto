@@ -266,11 +266,10 @@ TEST_F(PhysicalPlanTest, RowsAlreadyInOrderAreNotSortedAgain) {
       plan("FROM t |> ORDER BY cpu |> AGGREGATE COUNT(*) AS n GROUP BY "
            "cpu |> ORDER BY cpu"),
       "main: DataframeScan | Sort(#0) | HashAggregate(keys: #0; COUNT(*))");
-  EXPECT_EQ(
-      plan("FROM t |> ORDER BY ts |> AGGREGATE COUNT(*) AS n GROUP BY "
-           "cpu |> ORDER BY cpu"),
-      "main: DataframeScan | Sort(#0) | HashAggregate(keys: #1; COUNT(*)) | "
-      "Sort(#0)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY ts |> AGGREGATE COUNT(*) AS n GROUP BY "
+                 "cpu |> ORDER BY cpu"),
+            "main: DataframeScan | Sort(#0; drops #0) | "
+            "HashAggregate(keys: #1; COUNT(*)) | Sort(#0)");
 }
 
 // Small batches are combined only after a step that may output them, and only
@@ -288,7 +287,22 @@ TEST_F(PhysicalPlanTest, OnlySmallBatchesAreCombined) {
                  "|> ORDER BY c"),
             "main: DataframeScan | AssertType(#0 to Int64) | "
             "AssertType(#1 to Int64) | Sort(#0) | "
-            "IntervalFlatten(#0, #1; COUNT(*)) | CombineBatches | Sort(#2)");
+            "IntervalFlatten(#0, #1; COUNT(*)) | CombineBatches | "
+            "Sort(#2; drops #3)");
+}
+
+// A step which holds rows holds only the columns read after it: the others
+// read back as nulls.
+TEST_F(PhysicalPlanTest, ReordersHoldOnlyColumnsReadAfterThem) {
+  Exec("CREATE TABLE t(id INTEGER, ts INTEGER, n INTEGER)");
+  Exec("INSERT INTO t VALUES (1, 50, 2), (2, 60, 1), (3, 70, 3)");
+  auto plan = Plan("FROM t |> ORDER BY n |> SELECT id, ts");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "main: DataframeScan | Sort(#2; drops #2)");
+  auto rows = Run(**plan, "ts");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(1, 50), Pair(2, 60), Pair(3, 70)));
 }
 
 // DISTINCT compares only the columns of the row at that stage: `id`, dropped
@@ -329,6 +343,43 @@ TEST_F(PhysicalPlanTest, WhereKeepsRowsMatchingEveryComparison) {
   }
   ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
   EXPECT_THAT(values, ElementsAre(5, 7));
+}
+
+// WHERE also compares strings, matches GLOB patterns, keeps the rows whose
+// value an IN list holds and tests for nulls.
+TEST_F(PhysicalPlanTest, WhereComparesStringsListsAndNulls) {
+  Exec("CREATE TABLE t(id INTEGER, name TEXT, v INTEGER)");
+  Exec(
+      "INSERT INTO t VALUES (1, 'foo', 10), (2, 'bar', NULL), (3, NULL, 30), "
+      "(4, 'it''s', 40), (5, 'food', 50)");
+  auto ids = [this](const std::string& condition) {
+    auto plan = Plan("FROM t |> WHERE " + condition + " |> SELECT id");
+    PERFETTO_CHECK(plan.ok());
+    uint32_t id_column = (*plan)->columns()[0].index;
+    std::vector<int64_t> out;
+    RowCursor cursor((*plan)->source());
+    for (bool row = cursor.Open((*plan)->filter_values()); row;
+         row = cursor.Next()) {
+      out.push_back(*IntAt(cursor, id_column));
+    }
+    PERFETTO_CHECK(cursor.status().ok());
+    return out;
+  };
+  EXPECT_THAT(ids("name = 'foo'"), ElementsAre(1));
+  EXPECT_THAT(ids("name == 'it''s'"), ElementsAre(4));
+  EXPECT_THAT(ids("name <> 'foo'"), ElementsAre(2, 4, 5));
+  EXPECT_THAT(ids("name = 'absent'"), ElementsAre());
+  EXPECT_THAT(ids("name != 'absent'"), ElementsAre(1, 2, 4, 5));
+  EXPECT_THAT(ids("name < 'foo'"), ElementsAre(2));
+  EXPECT_THAT(ids("name GLOB 'fo*'"), ElementsAre(1, 5));
+  EXPECT_THAT(ids("name IN ('bar', 'food', 'absent')"), ElementsAre(2, 5));
+  EXPECT_THAT(ids("v IN (10, 40.0, 99)"), ElementsAre(1, 4));
+  EXPECT_THAT(ids("name IS NULL"), ElementsAre(3));
+  EXPECT_THAT(ids("v IS NOT NULL AND v NOTNULL"), ElementsAre(1, 3, 4, 5));
+  EXPECT_THAT(ids("v BETWEEN 20 AND 45"), ElementsAre(3, 4));
+  // Numbers sort before strings, as in SQL.
+  EXPECT_THAT(ids("name > 5"), ElementsAre(1, 2, 4, 5));
+  EXPECT_THAT(ids("v = 'foo'"), ElementsAre());
 }
 
 // Each operand is grouped by its PER keys and sorted by ts within each group,

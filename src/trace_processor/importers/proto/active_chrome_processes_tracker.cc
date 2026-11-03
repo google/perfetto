@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/proto/active_chrome_processes_tracker.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 
 namespace perfetto {
 namespace trace_processor {

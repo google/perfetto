@@ -23,6 +23,7 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/op_types.h"
@@ -34,8 +35,8 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -63,6 +64,49 @@ struct Values : ValueFetcher {
 
   std::vector<Value> v;
 };
+
+// Hands one IN list to the casters, as SQLite iterates the values of an IN.
+struct List : ValueFetcher {
+  using Type = size_t;
+  static constexpr Type kNull = Values::kNull;
+  static constexpr Type kInt64 = Values::kInt64;
+  static constexpr Type kDouble = Values::kDouble;
+  static constexpr Type kString = Values::kString;
+
+  int64_t GetInt64Value(uint32_t) const { return std::get<int64_t>(v[at]); }
+  double GetDoubleValue(uint32_t) const { return std::get<double>(v[at]); }
+  const char* GetStringValue(uint32_t) const {
+    return std::get<const char*>(v[at]);
+  }
+  Type GetValueType(uint32_t) const { return v[at].index(); }
+  bool IteratorInit(uint32_t) {
+    at = 0;
+    return !v.empty();
+  }
+  bool IteratorNext(uint32_t) { return ++at < v.size(); }
+
+  std::vector<Value> v;
+  size_t at = 0;
+};
+
+// The values of column 1 in the rows of `batch` whose column 0 is in `list`.
+std::vector<int64_t> KeptIn(const RowBatch& batch,
+                            StorageType type,
+                            std::vector<Value> list,
+                            const StringPool& pool) {
+  Filter filter({{0, In{}, 0}}, &pool);
+  Context context;
+  std::unique_ptr<OperatorState> state = filter.MakeState(context);
+  List fetcher;
+  fetcher.v = std::move(list);
+  FilterValue cast[1];
+  GetFilterValueListCaster<List>(type)(fetcher, 0, pool, &cast[0]);
+  context.SetFilterValues(base::Span<const FilterValue>(cast));
+  RowBatch out;
+  out.CopyFrom(batch);
+  EXPECT_TRUE(filter.Process(out, *state));
+  return test::ReadColumn<int64_t>(out, 1);
+}
 
 // Most of Filter's meaning is the interpreter's casts and kernels, checked end
 // to end by diff tests. These cover what those can't easily reach: batches
@@ -132,7 +176,7 @@ class FilterTest : public ::testing::Test {
     std::unique_ptr<OperatorState> state = filter.MakeState(context);
     std::vector<FilterValue> cast;
     CastAll(on, values, &cast);
-    context.SetFilterValues(Span<const FilterValue>(cast));
+    context.SetFilterValues(base::Span<const FilterValue>(cast));
     RowBatch batch;
     batch.CopyFrom(in ? *in : batch_);
     EXPECT_TRUE(filter.Process(batch, *state));
@@ -160,6 +204,8 @@ TEST_F(FilterTest, KeepsTheRowsEveryConditionHoldsFor) {
   EXPECT_THAT(Kept({{1, Eq{}}}, a), ElementsAre(20, 40));
   EXPECT_THAT(Kept({{1, Ne{}}}, a), ElementsAre(10, 0, 50));
   EXPECT_THAT(Kept({{1, Gt{}}}, {"b"}), ElementsAre(0, 50));
+  EXPECT_THAT(Kept({{1, Glob{}}}, {"[ab]"}), ElementsAre(10, 20, 40));
+  EXPECT_THAT(Kept({{1, Glob{}}}, {"a"}), ElementsAre(20, 40));
 
   // Every condition must hold, each with its own value.
   EXPECT_THAT(Kept({{1, Eq{}, 0}, {0, Gt{}, 1}}, {"a", int64_t{20}}),
@@ -174,7 +220,7 @@ TEST_F(FilterTest, NarrowsTheRowsKeptOfAWindow) {
   RowBatch narrowed;
   narrowed.CopyFrom(batch_);
   uint32_t positions[] = {0, 3, 4};
-  narrowed.mutable_selection().Keep(Span<const uint32_t>(positions));
+  narrowed.mutable_selection().Keep(base::Span<const uint32_t>(positions));
   EXPECT_THAT(Kept({{0, Gt{}}}, ten, &narrowed), ElementsAre(40, 50));
 
   // Rows 1 to 4: 20, null, 40, 50.
@@ -194,7 +240,7 @@ TEST_F(FilterTest, RunsAgainWithNewValues) {
   std::vector<FilterValue> cast;
   auto run = [&](const char* lt, const char* ne) {
     CastAll(on, {lt, ne}, &cast);
-    context.SetFilterValues(Span<const FilterValue>(cast));
+    context.SetFilterValues(base::Span<const FilterValue>(cast));
     RowBatch batch;
     batch.CopyFrom(batch_);
     EXPECT_TRUE(filter.Process(batch, *state));
@@ -217,13 +263,83 @@ TEST(FilterIdTest, ComparesIdsByWhereTheyAre) {
   FilterValue cast[1];
   GetFilterValueCaster<Values>(StorageType{Id{}}, Ge{})(fetcher, 0, pool,
                                                         &cast[0]);
-  context.SetFilterValues(Span<const FilterValue>(cast));
+  context.SetFilterValues(base::Span<const FilterValue>(cast));
   RowBatch batch;
   batch.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, 10));
   batch.SetRowCount(4);
   ASSERT_TRUE(filter.Process(batch, *state));
   EXPECT_THAT(test::ReadColumn<uint32_t>(batch, 0), ElementsAre(12u, 13u));
+}
+
+// IN keeps the rows whose value is listed, and never a null. Ids are read from
+// where the window starts, whether the list is dense or not.
+TEST(FilterInTest, KeepsTheRowsWhoseValueIsListed) {
+  StringPool pool;
+  int64_t numbers[] = {10, 20, 0, 40, 50};
+  auto validity = BitVector::CreateWithSize(5);
+  std::vector<StringPool::Id> strings;
+  for (uint32_t i = 0; i < 5; ++i) {
+    if (i != 2) {
+      validity.set(i);
+    }
+  }
+  for (const char* s : {"b", "a", "c", "a", "d"}) {
+    strings.push_back(pool.InternString(s));
+  }
+  auto batch = [&](ColumnView first) {
+    RowBatch b;
+    b.AddBorrowedColumn(first);
+    b.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Int64{}}, numbers, &validity));
+    b.SetRowCount(5);
+    return b;
+  };
+
+  RowBatch by_number =
+      batch(ColumnView::Reference(StorageType{Int64{}}, numbers, &validity));
+  EXPECT_THAT(KeptIn(by_number, StorageType{Int64{}},
+                     {int64_t{40}, nullptr, int64_t{0}, 20.0}, pool),
+              ElementsAre(20, 40));
+
+  RowBatch by_string = batch(
+      ColumnView::Reference(StorageType{String{}}, strings.data(), nullptr));
+  EXPECT_THAT(KeptIn(by_string, StorageType{String{}}, {"a", "zz"}, pool),
+              ElementsAre(20, 40));
+
+  RowBatch dense =
+      batch(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, 2));
+  EXPECT_THAT(KeptIn(dense, StorageType{Id{}}, {int64_t{3}, int64_t{5}}, pool),
+              ElementsAre(20, 40));
+  RowBatch sparse =
+      batch(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, 1000));
+  EXPECT_THAT(KeptIn(sparse, StorageType{Id{}},
+                     {int64_t{1001}, int64_t{1003}, int64_t{7}}, pool),
+              ElementsAre(20, 40));
+}
+
+// IS [NOT] NULL also reads a column carrying a type per row, from where its
+// window starts.
+TEST(FilterNullTest, ReadsVariantColumns) {
+  StringPool pool;
+  Variant variants[] = {Variant::Int64(9), Variant::Null(), Variant::Int64(1),
+                        Variant::String(pool.InternString("a")),
+                        Variant::Null()};
+  int64_t numbers[] = {10, 20, 30, 40};
+  auto kept = [&](Op op) {
+    Filter filter({{0, op}}, &pool);
+    Context context;
+    std::unique_ptr<OperatorState> state = filter.MakeState(context);
+    RowBatch batch;
+    batch.AddBorrowedColumn(ColumnView::Variants(variants, 1));
+    batch.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Int64{}}, numbers, nullptr));
+    batch.SetRowCount(4);
+    PERFETTO_CHECK(filter.Process(batch, *state));
+    return test::ReadColumn<int64_t>(batch, 1);
+  };
+  EXPECT_THAT(kept(IsNull{}), ElementsAre(10, 40));
+  EXPECT_THAT(kept(IsNotNull{}), ElementsAre(20, 30));
 }
 
 }  // namespace

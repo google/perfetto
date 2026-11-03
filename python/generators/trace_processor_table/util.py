@@ -123,7 +123,7 @@ def parse_type_with_cols(table: Table, cols: List[Column],
 
   if isinstance(col_type, CppTableId):
     return ParsedType(
-        f'{col_type.table.class_name}::Id', id_table=col_type.table)
+        f'{col_type.table.class_name}_Id', id_table=col_type.table)
 
   if isinstance(col_type, CppSelfTableId):
     return ParsedType(

@@ -45,6 +45,7 @@ struct ConstChars {
   static constexpr bool kHashable = true;
   std::string ToStdString() const { return {data, size}; }
   std::string_view ToStdStringView() const { return {data, size}; }
+  operator std::string_view() const { return {data, size}; }
 
   const char* data;
   size_t size;

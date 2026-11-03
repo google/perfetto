@@ -2532,7 +2532,7 @@ message ProcessStatsConfig {
 // Begin of protos/perfetto/config/profiling/heapprofd_config.proto
 
 // Configuration for go/heapprofd.
-// Next id: 28
+// Next id: 29
 message HeapprofdConfig {
   message ContinuousDumpConfig {
     // ms to wait before first dump.
@@ -2652,6 +2652,17 @@ message HeapprofdConfig {
   // Do not profile processes whose anon RSS + swap < given value.
   // Introduced in Android 11.
   optional uint32 min_anonymous_memory_kb = 15;
+
+  // Android: If true, do not profile already-started processes that are
+  // frozen (e.g. cached apps frozen by the Android app freezer). Such frozen
+  // processes are prevented from running, so enqueuing a profiling signal is
+  // often wasteful.
+  // This is an opt-in rather than the default to match legacy behaviour. One
+  // case where you might leave the option unset is when you're setting up
+  // profiling for a frozen app that is about to be unfrozen.
+  //
+  // Added in perfetto v59.
+  optional bool skip_frozen_processes = 28;
 
   // Stop profile if heapprofd memory usage goes beyond the given value.
   // Introduced in Android 11.
@@ -2952,6 +2963,18 @@ message JavaHprofConfig {
 
   // Do not profile processes whose Java heap size < given value.
   optional uint32 min_java_heap_size_kb = 9;
+
+  // Android: If true, do not dump processes that are frozen (e.g. cached apps
+  // frozen by the Android app freezer). Such frozen processes are prevented
+  // from running, so enqueuing a dump signal is often wasteful. The state is
+  // checked right before each dump, so with continuous dumps, a process that
+  // gets unfrozen is still dumped at the next interval.
+  // This is an opt-in rather than the default to match legacy behaviour. One
+  // case where you might leave the option unset is when you're setting up a
+  // dump of a frozen app that is about to be unfrozen.
+  //
+  // Added in perfetto v59.
+  optional bool skip_frozen_processes = 11;
 
   // Include the process' /proc/self/smaps.
   // This only shows maps that:
@@ -5536,6 +5559,7 @@ message DataSourceConfig {
 //
 // Next id: 51.
 message TraceConfig {
+  // Next id: 10.
   message BufferConfig {
     optional uint32 size_kb = 1;
 
@@ -5583,9 +5607,11 @@ message TraceConfig {
     // configure which buffer a data source writes to.
     optional string name = 7;
 
-    // When true, uses the experimental TraceBufferV2 implementation for this
-    // buffer. This is for testing purposes only and may be removed in future
-    // versions.
+    // Deprecated: use |buffer_type| instead.
+    // Kept for backwards compatibility because older builds do not understand
+    // |buffer_type| and field configs use it to validate TRACE_BUFFER_V2. Set
+    // it alongside |buffer_type| to select the buffer type on older builds.
+    // TODO(sashwinbalaji): Remove this in 27Q2.
     enum ExperimentalMode {
       // Use the default V1 implementation.
       MODE_UNSPECIFIED = 0;
@@ -5597,7 +5623,23 @@ message TraceConfig {
       // V2 against V1.
       reserved 2;
     }
-    optional ExperimentalMode experimental_mode = 8;
+    optional ExperimentalMode experimental_mode = 8 [deprecated = true];
+
+    // Selects the trace buffer implementation, ignoring |experimental_mode|.
+    // The service picks the supported type with the highest field number, or V1
+    // if none is supported.
+    // If allocating the picked type fails, tracing fails without a fallback.
+    //
+    // Introduced in: perfetto v60.
+    // Supported on: Android 27Q1+.
+    message BufferTypeConfig {
+      message V1 {}
+      message V2 {}
+
+      optional V1 v1 = 1;
+      optional V2 v2 = 2;
+    }
+    optional BufferTypeConfig buffer_type = 9;
   }
   repeated BufferConfig buffers = 1;
 
@@ -6607,10 +6649,23 @@ message SystemInfo {
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 25.
+  // Next id: 26.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
+
+    // Introduced in: perfetto v60.
+    // Supported on: Android 27Q1+.
+    enum BufferType {
+      BUFFER_TYPE_UNSPECIFIED = 0;
+      BUFFER_TYPE_V1 = 1;
+      BUFFER_TYPE_V2 = 2;
+    }
+    // Reports the implementation actually used, which can differ from the
+    // requested type because the service skips unsupported implementations.
+    // Older services do not set this field, so an absent value means the type
+    // was not reported.
+    optional BufferType buffer_type = 25;
 
     // Num. bytes written into the circular buffer, including chunk headers.
     optional uint64 bytes_written = 1;
@@ -18526,10 +18581,14 @@ message StateDescriptor {}
 
 // A named, typed key/value which is part of a track's identity.
 //
-// Dimensions are the single vocabulary for identifiers which apply to a set of
-// tracks: *well-known* dimensions are synthesized by trace processor, while
-// producers can declare their own *custom* dimensions (`rank`, `shard`,
-// `stage`, ...) on a TrackDescriptor.
+// Producers can declare *custom* dimensions (`rank`, `shard`, `stage`, ...)
+// on a TrackDescriptor. Trace processor exposes their effective values in
+// `track.dimension_arg_set_id` as args with keys `custom_dimension.<name>`.
+// Presentation-only labels are stored in `track.source_arg_set_id` with keys
+// `custom_dimension_display_name.<name>`. When sibling descriptors merge, each
+// resulting track keeps the display labels from the descriptor that first
+// creates it. Built-in dimensions are available through track columns and the
+// other dimension args.
 //
 // Reserved names: the names of the well-known dimensions are reserved and
 // cannot be used for custom dimensions. They are:
@@ -18543,6 +18602,14 @@ message StateDescriptor {}
 // the same thing across data sources. A custom dimension using a reserved name
 // is ignored and trace processor records the
 // `track_descriptor_reserved_dimension_name` import error.
+//
+// A TrackDescriptor with `thread` set must also set
+// `disallow_merging_with_system_tracks` to declare custom dimensions. Otherwise
+// its declarations are ignored and trace processor reports
+// `track_descriptor_shared_thread_custom_dimensions`. Shared thread tracks
+// omit inherited dimensions, but inheritance continues through their
+// descriptors to child tracks. Thread-associated child descriptors without a
+// `thread` field may declare custom dimensions.
 //
 // A dimension has no scope field: it is declared on the track described by the
 // containing TrackDescriptor and applies to that track and its `parent_uuid`
@@ -18740,7 +18807,8 @@ message TrackDescriptor {
   //
   // Trace processor will merge events on a thread track with slice-type events
   // from other sources (e.g. ftrace) for the same thread into a single timeline
-  // view.
+  // view. Such shared root tracks do not support custom dimensions; set
+  // `disallow_merging_with_system_tracks` to use dimensions on this descriptor.
   optional ThreadDescriptor thread = 4;
   optional ChromeThreadDescriptor chrome_thread = 7;
 
@@ -18754,7 +18822,8 @@ message TrackDescriptor {
   optional StateDescriptor state = 18;
 
   // If true, forces Trace Processor to use separate tracks for track events
-  // and system events for the same thread.
+  // and system events for the same thread. Required for custom dimensions on
+  // descriptors with `thread` set.
   //
   // Track events timestamps in Chrome have microsecond resolution, while
   // system events use nanoseconds. It results in broken event nesting when
@@ -18967,7 +19036,12 @@ message TrackDescriptor {
   // `stage`).
   //
   // Dimensions declared here apply to this track and its `parent_uuid`
-  // descendants. See TrackDimension for the full resolution rules.
+  // descendants. A descriptor with `thread` set must also set
+  // `disallow_merging_with_system_tracks` to declare custom dimensions.
+  // Otherwise its declarations are ignored and trace processor reports
+  // `track_descriptor_shared_thread_custom_dimensions`. Shared thread tracks
+  // omit inherited dimensions, but their children still inherit through the
+  // descriptor hierarchy. See TrackDimension for the full resolution rules.
   //
   // Dimensions are part of the track's identity: every descriptor emitted for
   // this `uuid` must declare the same dimensions, starting with the first one,

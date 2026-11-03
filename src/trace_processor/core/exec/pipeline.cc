@@ -249,8 +249,10 @@ RowBatch* Pipeline::StartNext(uint32_t segment, State& s) const {
       return nullptr;
     }
     start.continuation = has_input && result == OpResult::kHaveMoreOutput;
-    if (!has_input && result != OpResult::kHaveMoreOutput)
+    if (result == OpResult::kFinished ||
+        (!has_input && result != OpResult::kHaveMoreOutput)) {
       start.finished = true;
+    }
     if (start.out.size()) {
       return &start.out;
     }

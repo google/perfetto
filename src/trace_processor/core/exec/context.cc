@@ -17,7 +17,6 @@
 #include "src/trace_processor/core/exec/context.h"
 
 #include <cstring>
-#include <memory>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -31,23 +30,12 @@ Context::Context() = default;
 
 Context::~Context() {
   nulls_ = ColumnBuffer();
-#if PERFETTO_DCHECK_IS_ON()
-  for (const auto& block : blocks_) {
-    PERFETTO_DCHECK(block->references == 0);
-  }
-#endif
-}
-
-ColumnBuffer::Block* Context::NewBlock() {
-  blocks_.push_back(std::make_unique<ColumnBuffer::Block>());
-  ColumnBuffer::Block* block = blocks_.back().get();
-  block->context = this;
-  return block;
 }
 
 const ColumnBuffer& Context::NullBuffer() {
   if (PERFETTO_UNLIKELY(!nulls_)) {
-    nulls_ = TakeBuffer();
+    // Shared by columns of every type, so as wide as the widest.
+    nulls_ = TakeBuffer(ColumnChunk::kMaxValueSize);
     ColumnChunk& chunk = nulls_.chunk();
     memset(chunk.Values<uint8_t>(), 0,
            kMaxBatchRows * ColumnChunk::kMaxValueSize);
