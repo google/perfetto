@@ -204,16 +204,12 @@ inline protozero::ContiguousMemoryRange TraceWriterV2Impl::BeginPacketFragment(
 protozero::ContiguousMemoryRange TraceWriterV2Impl::BeginPacketFragmentSlowPath(
     SharedRingBufferWriter::FragmentRange range,
     bool continues_from_prev) {
+  PERFETTO_DCHECK(range.result !=
+                      SharedRingBufferWriter::BeginFragmentResult::kSuccess ||
+                  in_drop_mode_);
   std::optional<base::TimeMillis> stall_deadline;
-  for (;;) {
-    if (range.result == SharedRingBufferWriter::BeginFragmentResult::kSuccess) {
-      fragment_begin_ = range.begin;
-      if (PERFETTO_UNLIKELY(in_drop_mode_)) {
-        in_drop_mode_ = false;
-        ReportDroppedPackets();
-      }
-      return {range.begin, range.end};
-    }
+  while (range.result !=
+         SharedRingBufferWriter::BeginFragmentResult::kSuccess) {
     // Every valid chunk size holds kMinFragmentPayloadSize.
     PERFETTO_DCHECK(range.result !=
                     SharedRingBufferWriter::BeginFragmentResult::kTooLarge);
@@ -228,6 +224,12 @@ protozero::ContiguousMemoryRange TraceWriterV2Impl::BeginPacketFragmentSlowPath(
     range = ring_buffer_writer_.BeginFragment(kMinFragmentPayloadSize,
                                               continues_from_prev);
   }
+  fragment_begin_ = range.begin;
+  if (PERFETTO_UNLIKELY(in_drop_mode_)) {
+    in_drop_mode_ = false;
+    ReportDroppedPackets();
+  }
+  return {range.begin, range.end};
 }
 
 inline void TraceWriterV2Impl::EndPacketFragment(bool continues_on_next) {
