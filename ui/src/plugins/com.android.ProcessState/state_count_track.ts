@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {sqliteString} from '../../base/string_utils';
-import {Duration, Time} from '../../base/time';
+import {Duration, Time, type time} from '../../base/time';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import {Timestamp} from '../../components/widgets/timestamp';
@@ -23,8 +23,15 @@ import type {TrackEventDetailsPanel} from '../../public/details_panel';
 import type {TrackEventSelection} from '../../public/selection';
 import type {Trace} from '../../public/trace';
 import type {TrackMouseEvent} from '../../public/track';
-import {LONG, NUM, type Row} from '../../trace_processor/query_result';
+import type {TrackNode} from '../../public/workspace';
+import {
+  LONG,
+  NUM,
+  STR_NULL,
+  type Row,
+} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
+import {Button} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {durationCellRenderer} from './aggregators';
 
@@ -36,13 +43,21 @@ export interface CountSource {
   readonly concurrencyTable: string;
   readonly intervalsTable: string;
   readonly trackUri: (upid: number) => string;
+  readonly createBreakdownNode: (
+    upid: number,
+    pid: number,
+    name: string,
+  ) => TrackNode;
 }
 
 /** Concurrency counter for one state; clicking it lists the processes in it. */
 export class ProcessStateCountTrack extends CounterTrack {
+  private breakdownRequestId = 0;
+
   constructor(
     trace: Trace,
     uri: string,
+    private readonly node: TrackNode,
     private readonly source: CountSource,
   ) {
     super({
@@ -54,6 +69,98 @@ export class ProcessStateCountTrack extends CounterTrack {
         WHERE state = ${sqliteString(source.state)}
       `,
     });
+  }
+
+  showBreakdownForRange(start: time, end: time): Promise<void> {
+    if (start >= end) {
+      return this.showBreakdownAtInstant(start);
+    }
+    return this.showBreakdownWhere(
+      `i.ts < ${end} AND (i.dur < 0 OR i.ts + i.dur > ${start})`,
+    );
+  }
+
+  showBreakdownAtInstant(ts: time): Promise<void> {
+    return this.showBreakdownWhere(
+      `i.ts <= ${ts} AND (i.dur < 0 OR i.ts + i.dur > ${ts})`,
+    );
+  }
+
+  clearBreakdown(): void {
+    ++this.breakdownRequestId;
+    // TrackNode.clear() skips ancestor URI map cleanup and unpinning.
+    for (const child of [...this.node.children]) {
+      child.remove();
+    }
+    this.node.collapse();
+  }
+
+  private async showBreakdownWhere(timeFilter: string): Promise<void> {
+    const requestId = ++this.breakdownRequestId;
+    const result = await this.engine.query(`
+      SELECT i.upid, i.pid, i.process_name AS name
+      FROM ${this.source.intervalsTable} AS i
+      LEFT JOIN android_process_metadata AS m USING (upid)
+      WHERE i.state = ${sqliteString(this.source.state)}
+        AND (${timeFilter})
+      GROUP BY i.upid
+      ORDER BY m.uid NULLS LAST, min(i.ts), i.pid
+    `);
+    if (requestId !== this.breakdownRequestId) {
+      return;
+    }
+
+    for (const child of [...this.node.children]) {
+      child.remove();
+    }
+    for (
+      const it = result.iter({upid: NUM, pid: NUM, name: STR_NULL});
+      it.valid();
+      it.next()
+    ) {
+      this.node.addChildLast(
+        this.source.createBreakdownNode(
+          it.upid,
+          it.pid,
+          it.name ?? `${it.pid}`,
+        ),
+      );
+    }
+    if (this.node.hasChildren) {
+      this.node.expand();
+    } else {
+      this.node.collapse();
+    }
+  }
+
+  getTrackShellButtons(): m.Children {
+    const sel = this.trace.selection.selection;
+    return [
+      sel.kind === 'area' &&
+        sel.trackUris.includes(this.uri) &&
+        m(Button, {
+          compact: true,
+          icon: Icons.UnfoldMore,
+          title: 'Show process tracks for selection',
+          onclick: () => this.showBreakdownForRange(sel.start, sel.end),
+        }),
+      sel.kind === 'track_event' &&
+        sel.trackUri === this.uri &&
+        m(Button, {
+          compact: true,
+          icon: Icons.UnfoldMore,
+          title: 'Show process tracks at selected point',
+          onclick: () => this.showBreakdownAtInstant(sel.ts),
+        }),
+      this.node.hasChildren &&
+        m(Button, {
+          className: 'pf-visible-on-hover',
+          compact: true,
+          icon: Icons.Close,
+          title: 'Clear process tracks',
+          onclick: () => this.clearBreakdown(),
+        }),
+    ];
   }
 
   onMouseClick({x, timescale}: TrackMouseEvent): boolean {
@@ -83,19 +190,24 @@ export class ProcessStateCountTrack extends CounterTrack {
   }
 
   detailsPanel(): TrackEventDetailsPanel {
-    return new ProcessesInStatePanel(this.trace, this.source);
+    return new ProcessesInStatePanel(this.trace, this.source, (ts) =>
+      this.showBreakdownAtInstant(ts),
+    );
   }
 }
 
 class ProcessesInStatePanel implements TrackEventDetailsPanel {
   private rows: Row[] = [];
+  private selTs?: time;
 
   constructor(
     private readonly trace: Trace,
     private readonly source: CountSource,
+    private readonly onShowBreakdown: (ts: time) => void,
   ) {}
 
   async load(sel: TrackEventSelection) {
+    this.selTs = sel.ts;
     const result = await this.trace.engine.query(`
       SELECT id, upid, process_name, pid, ts, iif(dur < 0, trace_end() - ts, dur) AS dur
       FROM ${this.source.intervalsTable}
@@ -112,11 +224,21 @@ class ProcessesInStatePanel implements TrackEventDetailsPanel {
   }
 
   render() {
-    const trace = this.trace;
+    const {trace, selTs} = this;
     return m(
       DetailsShell,
       {
         title: `${this.rows.length} processes ${this.source.label}`,
+        buttons: m(Button, {
+          label: 'Show process tracks',
+          icon: Icons.UnfoldMore,
+          disabled: this.rows.length === 0 || selTs === undefined,
+          onclick: () => {
+            if (selTs !== undefined) {
+              this.onShowBreakdown(selTs);
+            }
+          },
+        }),
         fillHeight: true,
       },
       m(DataGrid, {
