@@ -68,6 +68,84 @@ message ModuleSymbols {
   repeated AddressSymbols address_symbols = 3;
 }
 
+// Contents of a source file referenced by symbolized frames.
+//
+// Emitted when a trace is bundled with symbols (`trace_processor bundle`) so
+// that source code can be shown alongside profiling data without access to
+// the original source tree.
+message SourceFile {
+  // Path of the file exactly as it appears in the debug info, i.e. the same
+  // string as Line.source_file_name and Frame.source_path_iid. This is the key
+  // used to join the contents to symbolized frames.
+  optional string path = 1;
+
+  // Raw contents of the file.
+  optional bytes contents = 2;
+}
+
+// Disassembly of functions in a module.
+//
+// Emitted when a trace is bundled with symbols (`trace_processor bundle`) for
+// functions that contain sampled addresses. Keyed by (path, build_id) in the
+// same way as ModuleSymbols.
+message ModuleDisassembly {
+  // Fully qualified path to the mapping.
+  // E.g. /system/lib64/libc.so.
+  optional string path = 1;
+
+  // .note.gnu.build-id on Linux (not hex encoded).
+  // uuid on MacOS.
+  // Module GUID on Windows.
+  optional string build_id = 2;
+
+  message Instruction {
+    // Address of the instruction relative to the start of the module. Uses the
+    // same convention as AddressSymbols.address and Frame.rel_pc.
+    optional uint64 address = 1;
+
+    // Raw encoded bytes of the instruction.
+    optional bytes bytes = 2;
+
+    // Rendered mnemonic and operands, e.g. "mov rax, qword ptr [rbp - 8]".
+    optional string text = 3;
+
+    // For direct branches and calls, the module-relative address of the target
+    // instruction. Unset for instructions which do not transfer control or
+    // whose target is not statically known.
+    optional uint64 target_address = 4;
+
+    // For branches and calls whose target lies outside this function, the
+    // name of the target symbol if known.
+    optional string target_symbol = 5;
+
+    // Index into ModuleDisassembly.source_files of the source file this
+    // instruction was generated from, together with the line number. Unset
+    // when the module has no line information.
+    optional uint32 source_file_index = 6;
+    optional uint32 line_number = 7;
+  }
+
+  message Function {
+    // Symbol name of the function.
+    optional string name = 1;
+
+    // Module-relative address of the first instruction of the function.
+    optional uint64 start_address = 2;
+
+    // Size of the function's code in bytes.
+    optional uint64 size = 3;
+
+    // Instructions in address order.
+    repeated Instruction instructions = 4;
+  }
+  repeated Function functions = 3;
+
+  // Source file paths referenced by Instruction.source_file_index. Paths use
+  // the same form as Line.source_file_name so they can be joined against
+  // SourceFile.path.
+  repeated string source_files = 4;
+}
+
 message Mapping {
   // Interning key.
   // Starts from 1, 0 is the same as "not set".
