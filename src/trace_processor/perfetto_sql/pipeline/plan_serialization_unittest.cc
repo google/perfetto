@@ -85,7 +85,7 @@ class PlanSerializationTest : public ::testing::Test {
     return SerializePlan(Compile(sql), key_);
   }
 
-  base::StatusOr<LogicalPlan> Deserialize(const std::string& bytes) {
+  base::StatusOr<BoundPlan> Deserialize(const std::string& bytes) {
     return DeserializePlan(bytes, key_, catalog_);
   }
 
@@ -125,7 +125,7 @@ TEST_F(PlanSerializationTest, PlansRoundTrip) {
     auto read = Deserialize(Serialize(sql));
     ASSERT_TRUE(read.ok()) << sql << ": " << read.status().message();
     ASSERT_TRUE(
-        BindDataframeArgs(*read, DataframeArgs(dataframes_), &pool_).ok())
+        BindDataframeArgs(&*read, DataframeArgs(dataframes_), &pool_).ok())
         << sql;
     EXPECT_TRUE(Lower(*read, {&pool_}).ok()) << sql;
   }
