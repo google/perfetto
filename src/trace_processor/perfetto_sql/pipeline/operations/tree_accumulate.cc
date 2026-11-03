@@ -91,6 +91,17 @@ std::optional<uint32_t> TreeAccumulate::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
+OutputProperties TreeAccumulate::Derive(const BoundPlan& bound,
+                                        PlanNodeId self) const {
+  OutputProperties out = bound.outputs[bound.plan.nodes()[self].children()[0]];
+  out.RequireTreeWalk(node_column_, parent_column_, direction_);
+  out.CloseOpenSort();
+  for (const Aggregate& agg : aggregates_) {
+    out.AddColumn(agg.output);
+  }
+  return out;
+}
+
 void TreeAccumulate::Lower(Lowering* c, const PlanNode& node) const {
   const auto& acc = *this;
   c->LowerNode(node.children()[0]);
@@ -106,9 +117,6 @@ void TreeAccumulate::Lower(Lowering* c, const PlanNode& node) const {
     c->AddOperator(std::make_unique<ex::TreeAccumulateUp>(std::move(spec)));
   } else {
     c->AddOperator(std::make_unique<ex::TreeAccumulateDown>(std::move(spec)));
-  }
-  for (const Aggregate& agg : acc.aggregates_) {
-    c->DeclareColumn(agg.output);
   }
 }
 

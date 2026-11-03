@@ -4028,6 +4028,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.h",
         "src/trace_processor/perfetto_sql/pipeline/operation_registry.h",
+        "src/trace_processor/perfetto_sql/pipeline/output_properties.cc",
+        "src/trace_processor/perfetto_sql/pipeline/output_properties.h",
         "src/trace_processor/perfetto_sql/pipeline/physical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/physical_plan.h",
         "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.cc",

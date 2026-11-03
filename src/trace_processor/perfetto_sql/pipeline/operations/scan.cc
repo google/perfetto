@@ -380,22 +380,29 @@ std::optional<uint32_t> Scan::Prune(std::vector<bool>* needed) {
   }
 }
 
+OutputProperties Scan::Derive(const BoundPlan& bound, PlanNodeId self) const {
+  OutputProperties out = OutputProperties::Empty(bound.plan.columns().size());
+  for (const NamedColumn& column : columns_) {
+    out.AddColumn(column.id);
+  }
+  // A dataframe is read in order, so a column it keeps sorted ascends.
+  const std::optional<Bindings::Dataframe>& data =
+      bound.bindings.dataframes[self];
+  for (uint32_t i = 0; data && i < columns_.size(); ++i) {
+    if (!data->columns[i]->sort_state.Is<core::Unsorted>()) {
+      out.arrangements.push_back({{}, {{columns_[i].id, false}}});
+    }
+  }
+  return out;
+}
+
 void Scan::Lower(Lowering* c, const PlanNode& node) const {
   PERFETTO_DCHECK(!c->has_source());
   // SQL is moved out into dataframe arguments, and every scan is bound to a
   // dataframe, before a plan is run.
   const Bindings::Dataframe& data = c->QueryDataframe(node);
-  for (const NamedColumn& column : columns_) {
-    c->DeclareColumn(column.id);
-  }
   c->SetSource(
       std::make_unique<ex::DataframeScan>(data.columns, data.row_count));
-  // A dataframe is read in order, so a column it keeps sorted ascends.
-  for (uint32_t i = 0; i < columns_.size(); ++i) {
-    if (!data.columns[i]->sort_state.Is<core::Unsorted>()) {
-      c->DeclareSorted({{columns_[i].id, false}});
-    }
-  }
 }
 
 const OperationRegistration& Scan::registration() const {

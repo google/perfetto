@@ -30,6 +30,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/output_properties.h"
 
 namespace perfetto::trace_processor::pipeline {
 
@@ -124,6 +125,8 @@ class PlanLowering;
 //  - Require...: makes the rows or columns meet a condition. Adds operators
 //    only if needed.
 //  - Declare...: records what an added operator produces. Adds no operators.
+//    Column layout and row order are not declared: once a node is lowered, the
+//    pipeline is as PlanOperation::Derive says.
 //  - Query...: returns what is currently known. Changes nothing.
 //
 // A ColumnId identifies a logical column. QueryPosition returns its position
@@ -229,72 +232,30 @@ class Lowering {
 
   // Orders rows as a tree walk in `direction`, and returns the positions of
   // the node number columns. The numbering is reused while `node` and
-  // `parent` are the columns it was made from, until ResetLayout.
+  // `parent` are the columns it was made from, until the rows change.
   TreeColumns RequireTreeWalk(ColumnId node, ColumnId parent, TreeDirection);
 
   // ---------------------------------------------------------------------------
   // Declarations: record what an added operator produces
   // ---------------------------------------------------------------------------
 
-  // Assigns the next batch column to a logical column.
-  void DeclareColumn(ColumnId id);
-
-  // Reserves the next batch column for a value with no logical column, and
-  // returns its position.
-  uint32_t DeclareTemporaryColumn();
-
   // Records that an added operator gave `id` values of `type`, for a column
   // whose type was not known when the plan was built.
   void DeclareType(ColumnId id, core::StorageType type);
-
-  // Records that rows are sorted by `keys`.
-  void DeclareSorted(const std::vector<SortKey>& keys);
-
-  // Records that rows are grouped by `keys`.
-  void DeclareGrouped(const std::vector<ColumnId>& keys);
-
-  // Records that rows are grouped by `keys` and each group is sorted by
-  // `sorted_by`.
-  void DeclareSortedWithinGroups(const std::vector<ColumnId>& keys,
-                                 const std::vector<SortKey>& sorted_by);
-
-  // Records that an added operator may output small batches, for example
-  // because it drops rows. Batches are assumed to be full otherwise.
-  void DeclareSmallBatches();
-
-  // Records that an added operator drops rows. A tree numbered before may
-  // now name parents which are gone, so the next tree walk numbers it again.
-  void DeclareRowsDropped();
-
-  // Records that the column at `position` holds group numbers for `keys`.
-  void DeclareGroupNumbers(const std::vector<ColumnId>& keys,
-                           uint32_t position);
-
-  // Clears all declarations, for an operator that outputs new rows. Every
-  // column still used must be declared again.
-  void ResetLayout();
-
-  // Records that the rows are a tree walk in `direction`, numbered in the
-  // temporary `columns` from `node` and `parent`, as RequireTreeWalk would
-  // leave them.
-  void DeclareTreeWalk(ColumnId node,
-                       ColumnId parent,
-                       TreeColumns columns,
-                       TreeDirection direction);
 
   // ---------------------------------------------------------------------------
   // Queries: return what is known, change nothing
   // ---------------------------------------------------------------------------
 
-  // The batch position of a column declared with DeclareColumn.
+  // The positions of the node number columns of the tree the rows are numbered
+  // as.
+  TreeColumns QueryTreeColumns() const;
+
+  // The batch position of a column.
   uint32_t QueryPosition(ColumnId id) const;
 
   // The type of a column, after any conversion added so far.
   PlanType QueryType(ColumnId id) const;
-
-  // The longest prefix of the known sort order that uses only `columns`.
-  std::vector<SortKey> QuerySortedBy(
-      const std::vector<ColumnId>& columns) const;
 
   // ---------------------------------------------------------------------------
   // Accessors
@@ -309,41 +270,6 @@ class Lowering {
  private:
   friend class PlanLowering;
 
-  // A known layout of the rows.
-  struct Arrangement {
-    // The columns the rows are grouped by. Empty means one group.
-    std::vector<ColumnId> grouped_by;
-
-    // The keys each group is sorted by.
-    std::vector<SortKey> sorted_by;
-  };
-
-  // A column holding group numbers.
-  struct GroupNumbers {
-    // The columns the groups are formed by.
-    std::vector<ColumnId> keys;
-
-    // The position of the group number column.
-    uint32_t position;
-  };
-
-  // Whether rows are known to be grouped by `keys` and sorted by `sorted_by`
-  // within each group. Sorting by some keys first also groups by them. For
-  // example, rows sorted by (cpu, ts) are grouped by cpu and sorted by ts in
-  // each group.
-  bool IsArranged(const std::vector<ColumnId>& keys,
-                  const std::vector<SortKey>& sorted_by) const;
-
-  // A Sort that no later step depends on yet, so it can still be removed.
-  struct OpenSort {
-    // Where the Sort is in `operators_`.
-    size_t index;
-    // What was known about the row order before the Sort. Restored if the
-    // Sort is removed.
-    std::vector<Arrangement> arrangements;
-    std::optional<TreeDirection> tree_walk;
-  };
-
   // Adds `step`, which depends on the order of rows but does not change the
   // size of batches.
   void AddOrderDependent(core::exec::Pipeline::Step step);
@@ -352,14 +278,15 @@ class Lowering {
   // batches.
   void AddBreaker(core::exec::Pipeline::Step breaker);
 
-  // Adds a Sort, after which the rows are in `arrangements`. If the rows are
-  // sorted again before any step reads this order, the Sort is removed.
-  void AddSort(core::exec::Pipeline::Step sort,
-               std::vector<Arrangement> arrangements);
-
   // Removes the open Sort, if there is one. Returns whether a Sort was
   // removed.
   bool DropOpenSort();
+
+  // Removes the open Sort from `operators_`, once `output_` has undone it.
+  void EraseOpenSort();
+
+  // Keeps the open Sort, if there is one, as a later step now reads its order.
+  void CloseOpenSort();
 
   // Adds a GroupedSort that groups by `keys` and sorts each group by
   // `sorted_by`. The GroupedSort also adds a group number column.
@@ -381,39 +308,11 @@ class Lowering {
   // Layout and order of this pipeline
   // ---------------------------------------------------------------------------
 
-  // Number of columns in the current batch, including temporary columns.
-  uint32_t column_count_ = 0;
+  // What is known about the current batches.
+  OutputProperties output_;
 
-  // The batch position of each logical column. Only valid for declared
-  // columns.
-  std::vector<uint32_t> positions_;
-
-  // Every layout known to hold for the current rows. Replaced when a Sort,
-  // GroupedSort or tree walk is added.
-  std::vector<Arrangement> arrangements_;
-
-  // The tree walk order of the rows, if they are in one. Replaced at the same
-  // times as `arrangements_`.
-  std::optional<TreeDirection> tree_walk_;
-
-  // The most recent Sort, if it can still be removed.
-  std::optional<OpenSort> open_sort_;
-
-  // Whether batches are known to be full, so no combining is needed. True
-  // until a step declares small batches.
-  bool full_batches_ = true;
-
-  // The tree node number columns, if the tree is numbered. They stay valid
-  // when rows are reordered, until ResetLayout, DeclareRowsDropped or a walk
-  // of another tree.
-  std::optional<TreeColumns> tree_columns_;
-  // The id and parent columns `tree_columns_` were numbered from.
-  ColumnId tree_node_ = 0;
-  ColumnId tree_parent_ = 0;
-
-  // The group number columns. They stay valid when rows are reordered, until
-  // ResetLayout.
-  std::vector<GroupNumbers> group_numbers_;
+  // Where the most recent Sort is in `operators_`, if it can still be removed.
+  std::optional<size_t> open_sort_;
 
   // ---------------------------------------------------------------------------
   // Execution graph of this pipeline
@@ -421,7 +320,7 @@ class Lowering {
 
   // The pipeline's input, and how many columns it produces.
   std::unique_ptr<core::exec::Source> input_;
-  uint32_t source_columns_ = 0;
+  std::optional<uint32_t> source_columns_;
 
   // The pipeline's operators, in the order they run.
   std::vector<core::exec::Pipeline::Step> operators_;

@@ -347,6 +347,12 @@ std::optional<uint32_t> Where::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
+OutputProperties Where::Derive(const BoundPlan& bound, PlanNodeId self) const {
+  OutputProperties out = bound.outputs[bound.plan.nodes()[self].children()[0]];
+  out.DropRows();
+  return out;
+}
+
 void Where::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerNode(node.children()[0]);
   std::vector<ex::Filter::Condition> conditions;
@@ -383,8 +389,6 @@ void Where::Lower(Lowering* c, const PlanNode& node) const {
   }
   c->AddOperator(
       std::make_unique<ex::Filter>(std::move(conditions), c->context().pool));
-  c->DeclareSmallBatches();
-  c->DeclareRowsDropped();
 }
 
 const OperationRegistration& Where::registration() const {

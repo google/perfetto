@@ -192,6 +192,18 @@ std::optional<uint32_t> IntervalFillGaps::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
+OutputProperties IntervalFillGaps::Derive(const BoundPlan& bound,
+                                          PlanNodeId) const {
+  // The output has a new layout and no known order. Filler batches can be
+  // small.
+  OutputProperties out = OutputProperties::Empty(bound.plan.columns().size());
+  for (const Output& output : outputs_) {
+    out.AddColumn(output.column);
+  }
+  out.full_batches = false;
+  return out;
+}
+
 void IntervalFillGaps::Lower(Lowering* c, const PlanNode& node) const {
   const auto& fill = *this;
   c->LowerNode(node.children()[0]);
@@ -237,14 +249,6 @@ void IntervalFillGaps::Lower(Lowering* c, const PlanNode& node) const {
   }
   spec.background.source = background.FinishSide();
   c->AddOperator(std::make_unique<ex::IntervalFillGaps>(std::move(spec)));
-
-  // The output has a new layout and no known order. Filler batches can be
-  // small.
-  c->ResetLayout();
-  for (const Output& output : fill.outputs_) {
-    c->DeclareColumn(output.column);
-  }
-  c->DeclareSmallBatches();
 }
 
 const OperationRegistration& IntervalFillGaps::registration() const {

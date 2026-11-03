@@ -43,6 +43,8 @@ source_set("plan") {
     "logical_plan.cc",
     "logical_plan.h",
     "operation_registry.h",
+    "output_properties.cc",
+    "output_properties.h",
     "physical_plan.cc",
     "physical_plan.h",
     "pipeline_sql.cc",
