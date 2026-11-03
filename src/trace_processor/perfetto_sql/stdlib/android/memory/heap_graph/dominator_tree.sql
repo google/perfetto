@@ -41,19 +41,7 @@ CREATE PERFETTO TABLE heap_graph_dominator_tree(
 AS
 GRAPH DOMINATOR TREE
   NODES (SELECT id, self_size, native_size FROM heap_graph_object)
-  EDGES (
-    -- Edges out of reachable objects, minus the referent of weak, phantom and
-    -- finalizer references.
-    SELECT ref.owner_id AS src, ref.owned_id AS dst
-    FROM heap_graph_object AS o
-    CROSS JOIN heap_graph_reference AS ref USING (reference_set_id)
-    WHERE
-      o.reachable
-      AND o.reference_set_id IS NOT NULL
-      AND ref.owned_id IS NOT NULL
-      AND NOT (o.type_id IN _ref_type_ids
-      AND ref.field_name = 'java.lang.ref.Reference.referent')
-  )
+  EDGES (SELECT src, dst FROM _heap_graph_strong_edges)
   FROM (SELECT id FROM heap_graph_object WHERE root_type IS NOT NULL)
 |> TREE ACCUMULATE UP
   COUNT(*) AS dominated_obj_count,
