@@ -166,6 +166,9 @@ class PlanNode {
   PlanOperation& operation() { return *operation_; }
   const PlanOperation& operation() const { return *operation_; }
 
+  // Swaps the operations of this node and `other`, each keeping its children.
+  void SwapOperation(PlanNode* other) { operation_.swap(other->operation_); }
+
  private:
   std::vector<PlanNodeId> children_;
   std::unique_ptr<PlanOperation> operation_;
@@ -262,12 +265,9 @@ struct BoundPlan {
 
   LogicalPlan plan;
   Bindings bindings;
-  // What is known about each node's output, by node (see DeriveOutputs).
+  // What is known about each node's output, by node (see RunBoundPasses).
   std::vector<OutputProperties> outputs;
 };
-
-// Fills in `bound->outputs`. Every dataframe the plan reads must be bound.
-void DeriveOutputs(BoundPlan* bound);
 
 }  // namespace perfetto::trace_processor::pipeline
 
