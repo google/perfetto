@@ -42,9 +42,59 @@ export const TAG_PROCESS_TRACK = 'android_process_state';
 /** Track tag `type` of the per-state concurrency counters. */
 export const TAG_COUNT_TRACK = 'android_process_state_count';
 
+/** Track tag `type` of the per-process incoming binding tracks. */
+export const TAG_BOUND_BY_TRACK = 'android_bound_by';
+
+/** Track tag `type` of the per-process outgoing binding tracks. */
+export const TAG_BINDS_TO_TRACK = 'android_binds_to';
+
 /** Track URI for a single process's proc-state timeline. */
 export function processTrackUri(upid: number): string {
   return `com.android.ProcessState#process.${upid}`;
+}
+
+export function boundByTrackUri(serverUpid: number): string {
+  return `${processTrackUri(serverUpid)}.bound_by`;
+}
+
+export function boundByPeerTrackUri(
+  serverUpid: number,
+  clientUpid: number,
+): string {
+  return `${boundByTrackUri(serverUpid)}.${clientUpid}`;
+}
+
+export function bindsToTrackUri(clientUpid: number): string {
+  return `${processTrackUri(clientUpid)}.binds_to`;
+}
+
+export function bindsToPeerTrackUri(
+  clientUpid: number,
+  serverUpid: number,
+): string {
+  return `${bindsToTrackUri(clientUpid)}.${serverUpid}`;
+}
+
+export function providerBoundByTrackUri(serverUpid: number): string {
+  return `${processTrackUri(serverUpid)}.provider_bound_by`;
+}
+
+export function providerBoundByPeerTrackUri(
+  serverUpid: number,
+  clientUpid: number,
+): string {
+  return `${providerBoundByTrackUri(serverUpid)}.${clientUpid}`;
+}
+
+export function providerBindsToTrackUri(clientUpid: number): string {
+  return `${processTrackUri(clientUpid)}.provider_binds_to`;
+}
+
+export function providerBindsToPeerTrackUri(
+  clientUpid: number,
+  serverUpid: number,
+): string {
+  return `${providerBindsToTrackUri(clientUpid)}.${serverUpid}`;
 }
 
 // Which slice of the interval table the selection refers to. Selecting

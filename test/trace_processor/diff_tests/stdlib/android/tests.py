@@ -3412,6 +3412,308 @@ class AndroidStdlib(TestSuite):
         5000,-1,200,"EXITED","RECEIVER",2000,21,"[NULL]"
         """))
 
+  def test_android_process_bindings_service_connections(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 500
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "com.example.client" }
+            processes { pid: 200 ppid: 1 cmdline: "com.example.server" }
+            processes { pid: 300 ppid: 1 cmdline: "com.example.other" }
+            processes { pid: 1000 ppid: 1 cmdline: "system_server" }
+          }
+        }
+        packet {
+          timestamp: 500
+          track_descriptor {
+            uuid: 10
+            thread { pid: 1000 tid: 1000 thread_name: "system_server" }
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "service_state"
+            name: "service_binding"
+            [com.android.internal.FrameworksBaseTrackEvent.service_state_changed_event] {
+              bind_id: 1
+              caller_pid: 100
+              pid: -1
+              component_name: "com.example.server/.WorkService"
+              intent_action: "com.example.ACTION_WORK"
+              bind_flags_32: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 1500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "service_state"
+            name: "service_connection_added"
+            [com.android.internal.FrameworksBaseTrackEvent.service_state_changed_event] {
+              bind_id: 1
+              pid: 200
+              component_name: "com.example.server/.WorkService"
+              bind_flags_32: 5
+            }
+          }
+        }
+        packet {
+          timestamp: 4000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "service_state"
+            name: "service_connection_removed"
+            [com.android.internal.FrameworksBaseTrackEvent.service_state_changed_event] {
+              bind_id: 1
+              caller_pid: 100
+              pid: 200
+              component_name: "com.example.server/.WorkService"
+              bind_flags_32: 5
+            }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "service_state"
+            name: "service_binding"
+            [com.android.internal.FrameworksBaseTrackEvent.service_state_changed_event] {
+              bind_id: 2
+              caller_pid: 100
+              pid: 300
+              component_name: "com.example.other/.ForceStoppedService"
+              bind_flags_32: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 5000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "service_state"
+            name: "service_destroy"
+            [com.android.internal.FrameworksBaseTrackEvent.service_state_changed_event] {
+              pid: -1
+              component_name: "com.example.other/.ForceStoppedService"
+            }
+          }
+        }
+        packet {
+          timestamp: 6000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "service_state"
+            name: "service_binding"
+            [com.android.internal.FrameworksBaseTrackEvent.service_state_changed_event] {
+              bind_id: 3
+              caller_pid: 100
+              pid: 200
+              component_name: "com.example.server/.OpenService"
+              bind_flags_32: 1
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_bindings;
+        SELECT
+          b.ts,
+          b.dur,
+          b.binding_kind,
+          b.client_pid,
+          b.server_pid,
+          b.target,
+          b.bind_flags
+        FROM _android_process_bindings AS b
+        ORDER BY b.id;
+        """,
+        out=Csv("""
+        "ts","dur","binding_kind","client_pid","server_pid","target","bind_flags"
+        1000,3000,"service",100,200,"com.example.server/.WorkService","AUTO_CREATE,NOT_FOREGROUND"
+        2000,3000,"service",100,300,"com.example.other/.ForceStoppedService","AUTO_CREATE"
+        6000,-1,"service",100,200,"com.example.server/.OpenService","AUTO_CREATE"
+        """))
+
+  def test_android_process_bindings_provider_and_counts(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 500
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "com.example.client" }
+            processes { pid: 400 ppid: 1 cmdline: "com.example.provider" }
+            processes { pid: 1000 ppid: 1 cmdline: "system_server" }
+          }
+        }
+        packet {
+          timestamp: 500
+          track_descriptor {
+            uuid: 10
+            thread { pid: 1000 tid: 1000 thread_name: "system_server" }
+          }
+        }
+        packet {
+          timestamp: 500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            name: "trace_begin"
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "provider_state"
+            name: "provider_acquired"
+            [com.android.internal.FrameworksBaseTrackEvent.provider_state_changed_event] {
+              caller_pid: 100
+              pid: -1
+              authority: "com.example.provider.auth"
+              is_stable: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 1200
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "provider_state"
+            name: "provider_published"
+            [com.android.internal.FrameworksBaseTrackEvent.provider_state_changed_event] {
+              pid: 400
+              authority: "com.example.provider.auth"
+            }
+          }
+        }
+        packet {
+          timestamp: 3500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "provider_state"
+            name: "provider_released"
+            [com.android.internal.FrameworksBaseTrackEvent.provider_state_changed_event] {
+              caller_pid: 100
+              pid: 400
+              authority: "com.example.provider.auth"
+              is_stable: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 5000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "provider_state"
+            name: "provider_acquired"
+            [com.android.internal.FrameworksBaseTrackEvent.provider_state_changed_event] {
+              caller_pid: 100
+              pid: 400
+              authority: "com.example.provider.auth"
+              is_stable: 0
+            }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "service_state"
+            name: "service_binding"
+            [com.android.internal.FrameworksBaseTrackEvent.service_state_changed_event] {
+              bind_id: 10
+              caller_pid: 100
+              pid: 400
+              component_name: "com.example.provider/.SyncService"
+              bind_flags_32: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 6000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            categories: "service_state"
+            name: "service_connection_removed"
+            [com.android.internal.FrameworksBaseTrackEvent.service_state_changed_event] {
+              bind_id: 10
+              caller_pid: 100
+              pid: 400
+              component_name: "com.example.provider/.SyncService"
+              bind_flags_32: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 7000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            name: "trace_end_marker"
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_bindings;
+        SELECT
+          c.ts,
+          c.binding_kind,
+          c.direction,
+          p.pid,
+          c.count
+        FROM _android_process_binding_counts AS c
+        JOIN process AS p USING (upid)
+        ORDER BY c.binding_kind, c.direction, p.pid, c.ts;
+        """,
+        out=Csv("""
+        "ts","binding_kind","direction","pid","count"
+        500,"provider","binds_to",100,0
+        1000,"provider","binds_to",100,1
+        3500,"provider","binds_to",100,0
+        5000,"provider","binds_to",100,1
+        500,"provider","bound_by",400,0
+        1000,"provider","bound_by",400,1
+        3500,"provider","bound_by",400,0
+        5000,"provider","bound_by",400,1
+        500,"service","binds_to",100,0
+        2000,"service","binds_to",100,1
+        6000,"service","binds_to",100,0
+        500,"service","bound_by",400,0
+        2000,"service","bound_by",400,1
+        6000,"service","bound_by",400,0
+        """))
+
   def test_is_relevant_notifications_blocking_call(self):
     # Must keep the same slices as android_sysui_notifications_blocking_calls
     # (see test_android_sysui_notifications_blocking_calls).
