@@ -127,6 +127,7 @@ TEST_F(PlanSerializationTest, PlansRoundTrip) {
     ASSERT_TRUE(
         BindDataframeArgs(&*read, DataframeArgs(dataframes_), &pool_).ok())
         << sql;
+    DeriveOutputs(&*read);
     EXPECT_TRUE(Lower(*read, {&pool_}).ok()) << sql;
   }
 }

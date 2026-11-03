@@ -41,12 +41,20 @@ Each `PlanOperation` lowers itself through `Lowering`. Operators state what
 they need, such as a column of a given type (`RequireType`), rows grouped by
 some keys and sorted by `ts` (`RequireIntervalLanes`), or a tree order
 (`RequireTreeWalk`). `Lowering` adds a conversion, sort or grouping only when
-the rows are not already that way. Operators also declare what they produce,
-such as sorted columns, so later stages can skip work.
+the rows are not already that way. What an operation produces, such as sorted
+columns, is stated by its `Derive`, so later stages can skip work.
 
 An operator with more than one input, such as `INTERVAL INTERSECTION OF`, reads
 each extra input through a side pipeline (`AddSidePipeline`) lowered the same
 way.
+
+`PlanOperation::Derive` describes, without lowering, what each node outputs
+(`OutputProperties`): where each column is, the layouts the rows are sorted or
+grouped in, the tree they are numbered as and the direction they walk it, and
+the group number columns they carry. Each operation says this once, from what
+its inputs output. `Lower` adds the operators which make it so, and once a node
+is lowered its pipeline is as derived. Column types are the exception, as
+`Lowering` decides conversions as it goes.
 
 ### Batches
 

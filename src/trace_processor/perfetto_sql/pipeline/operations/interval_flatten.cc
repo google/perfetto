@@ -112,6 +112,28 @@ std::optional<uint32_t> IntervalFlatten::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
+OutputProperties IntervalFlatten::Derive(const BoundPlan& bound,
+                                         PlanNodeId) const {
+  // Its rows are the segments, laid out afresh. Segments are output as each one
+  // ends, so batches can be small.
+  OutputProperties out = OutputProperties::Empty(bound.plan.columns().size());
+  out.AddColumn(out_ts_);
+  out.AddColumn(out_dur_);
+  for (ColumnId key : keys_) {
+    out.AddColumn(key);
+  }
+  for (const Aggregate& agg : aggregates_) {
+    out.AddColumn(agg.output);
+  }
+  uint32_t groups = out.AddTemporaryColumn();
+  out.arrangements.push_back({keys_, {{out_ts_, false}}});
+  if (!keys_.empty()) {
+    out.group_numbers.push_back({keys_, groups});
+  }
+  out.full_batches = false;
+  return out;
+}
+
 void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
   const auto& flatten = *this;
   c->LowerNode(node.children()[0]);
@@ -124,24 +146,6 @@ void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
   }
   c->RequireFullBatches();
   c->AddOperator(std::make_unique<ex::IntervalFlatten>(std::move(spec)));
-
-  // Its rows are the segments, laid out afresh.
-  c->ResetLayout();
-  c->DeclareColumn(flatten.out_ts_);
-  c->DeclareColumn(flatten.out_dur_);
-  for (ColumnId key : flatten.keys_) {
-    c->DeclareColumn(key);
-  }
-  for (const Aggregate& agg : flatten.aggregates_) {
-    c->DeclareColumn(agg.output);
-  }
-  uint32_t groups = c->DeclareTemporaryColumn();
-  c->DeclareSortedWithinGroups(flatten.keys_, {{flatten.out_ts_, false}});
-  if (!flatten.keys_.empty()) {
-    c->DeclareGroupNumbers(flatten.keys_, groups);
-  }
-  // Segments are output as each one ends, so batches can be small.
-  c->DeclareSmallBatches();
 }
 
 const OperationRegistration& IntervalFlatten::registration() const {

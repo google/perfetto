@@ -56,6 +56,15 @@ std::optional<uint32_t> Compute::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
+OutputProperties Compute::Derive(const BoundPlan& bound,
+                                 PlanNodeId self) const {
+  OutputProperties out = bound.outputs[bound.plan.nodes()[self].children()[0]];
+  for (const Item& item : items_) {
+    out.AddColumn(item.output);
+  }
+  return out;
+}
+
 void Compute::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerNode(node.children()[0]);
   std::vector<ex::ExprProgram> programs;
@@ -67,7 +76,6 @@ void Compute::Lower(Lowering* c, const PlanNode& node) const {
   }
   c->AddOrderIndependent(std::make_unique<ex::Compute>(std::move(programs)));
   for (size_t i = 0; i < items_.size(); ++i) {
-    c->DeclareColumn(items_[i].output);
     c->DeclareType(items_[i].output, types[i]);
   }
 }

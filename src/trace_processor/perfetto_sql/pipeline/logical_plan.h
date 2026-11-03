@@ -27,6 +27,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
+#include "src/trace_processor/perfetto_sql/pipeline/output_properties.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
 namespace perfetto::trace_processor {
@@ -42,6 +43,7 @@ namespace perfetto::trace_processor::pipeline {
 struct Bindings;
 class Catalog;
 class Lowering;
+struct BoundPlan;
 class PlanCodec;
 class PlanKey;
 class LogicalPlan;
@@ -94,6 +96,11 @@ class PlanOperation {
       const std::vector<const core::dataframe::Dataframe*>&,
       StringPool*,
       Bindings* bindings) const;
+
+  // What is known about this node's output, from what is known about its
+  // inputs in `bound.outputs`. Lower leaves its pipeline in this state.
+  virtual OutputProperties Derive(const BoundPlan& bound,
+                                  PlanNodeId self) const = 0;
 
   // Builds execution steps, including child traversal. Intersection attaches
   // independent operand pipelines; other stages lower their single input.
@@ -223,8 +230,7 @@ class LogicalPlan {
   // in output bindings. Physical temporaries do not get SQL names or IDs.
   std::vector<PlanColumn> columns_;
   std::vector<PlanNode> nodes_;
-  // The node whose rows are the plan's rows. Pruning can leave unreachable
-  // nodes in the vector so that node IDs remain stable.
+  // The node whose rows are the plan's rows.
   PlanNodeId root_ = 0;
   // Visible result columns, in order. Internal columns have no binding here.
   std::vector<NamedColumn> output_;
@@ -256,7 +262,12 @@ struct BoundPlan {
 
   LogicalPlan plan;
   Bindings bindings;
+  // What is known about each node's output, by node (see DeriveOutputs).
+  std::vector<OutputProperties> outputs;
 };
+
+// Fills in `bound->outputs`. Every dataframe the plan reads must be bound.
+void DeriveOutputs(BoundPlan* bound);
 
 }  // namespace perfetto::trace_processor::pipeline
 

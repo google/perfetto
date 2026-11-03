@@ -143,6 +143,7 @@ class PhysicalPlanTest : public ::testing::Test {
                             catalog_));
     RETURN_IF_ERROR(
         BindDataframeArgs(&bound, DataframeArgs(dataframes), &pool_));
+    DeriveOutputs(&bound);
     return Lower(bound, {&pool_});
   }
 
@@ -202,12 +203,38 @@ TEST_F(PhysicalPlanTest, PruningACopyLeavesTheOriginalResultsIntact) {
 
   auto bound = ResolveCompiledPlan(*original, catalog_);
   ASSERT_TRUE(bound.ok()) << bound.status().message();
+  DeriveOutputs(&*bound);
   auto physical = Lower(*bound, {&pool_});
   ASSERT_TRUE(physical.ok()) << physical.status().message();
   auto rows = Run(**physical, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
+}
+
+// Each node's output is described from its inputs': a table read in order
+// keeps its sorted columns sorted, and a fold leaves the rows walking the tree
+// in its direction.
+TEST_F(PhysicalPlanTest, OutputsAreDerivedFromInputs) {
+  CreateDataframeTree();
+  auto plan = Compile(
+      "FROM df |> ORDER BY id |> TREE ACCUMULATE UP SUM(self) AS total");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  auto bound = ResolveCompiledPlan(std::move(*plan), catalog_);
+  ASSERT_TRUE(bound.ok()) << bound.status().message();
+  DeriveOutputs(&*bound);
+  const LogicalPlan& logical = bound->plan;
+  const PlanNode& fold = logical.nodes()[logical.root()];
+  const PlanNode& sort = logical.nodes()[fold.children()[0]];
+  const OutputProperties& sorted = bound->outputs[logical.IdOf(sort)];
+  ASSERT_EQ(sorted.arrangements.size(), 1u);
+  EXPECT_TRUE(sorted.arrangements[0].grouped_by.empty());
+  ASSERT_EQ(sorted.arrangements[0].sorted_by.size(), 1u);
+  EXPECT_FALSE(sorted.tree);
+  const OutputProperties& folded = bound->outputs[logical.root()];
+  EXPECT_TRUE(folded.arrangements.empty());
+  ASSERT_TRUE(folded.tree);
+  EXPECT_EQ(folded.tree->walk, TreeDirection::kUp);
 }
 
 TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
@@ -585,6 +612,7 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
   PlanKey key(0, 0);
   auto read = DeserializePlan(SerializePlan(moved.plan, key), key, catalog_);
   ASSERT_TRUE(read.ok()) << read.status().message();
+  DeriveOutputs(&*read);
   auto lowered = Lower(*read, {&pool_});
   ASSERT_TRUE(lowered.ok()) << lowered.status().message();
   EXPECT_THAT(Names(**lowered),
