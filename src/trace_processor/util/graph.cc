@@ -208,10 +208,9 @@ class Dominators {
       for (uint32_t i = graph_.offsets[node]; i < graph_.offsets[node + 1];
            ++i) {
         uint32_t target = number_[graph_.targets[i]];
-        if (target != kNone) {
-          successors.push_back(target);
-          ++predecessor_offsets_[target + 1];
-        }
+        PERFETTO_DCHECK(target != kNone);
+        successors.push_back(target);
+        ++predecessor_offsets_[target + 1];
       }
       successor_ends[v] = static_cast<uint32_t>(successors.size());
     }
