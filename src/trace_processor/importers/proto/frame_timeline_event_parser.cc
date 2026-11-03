@@ -92,6 +92,8 @@ StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
   if (jank_type &
       FrameTimelineEvent::JANK_DISPLAY_POWER_MODE_CHANGE_IN_PROGRESS)
     jank_reasons.emplace_back("PowerModeChange in progress");
+  if (jank_type & FrameTimelineEvent::JANK_DEQUEUE_BUFFER_DELAY)
+    jank_reasons.emplace_back("DequeueBuffer Delay");
 
   std::string jank_str(
       std::accumulate(jank_reasons.begin(), jank_reasons.end(), std::string(),
@@ -113,7 +115,8 @@ bool DisplayFrameJanky(int32_t jank_type) {
       FrameTimelineEvent::JANK_PREDICTION_ERROR |
       FrameTimelineEvent::JANK_DISPLAY_HAL |
       FrameTimelineEvent::JANK_SF_CPU_DEADLINE_MISSED |
-      FrameTimelineEvent::JANK_SF_GPU_DEADLINE_MISSED;
+      FrameTimelineEvent::JANK_SF_GPU_DEADLINE_MISSED |
+      FrameTimelineEvent::JANK_DEQUEUE_BUFFER_DELAY;
   return (jank_type & display_frame_jank_bitmask) != 0;
 }
 
