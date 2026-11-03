@@ -34,7 +34,7 @@ UnknownProcessLogger::UnknownProcessLogger(TraceProcessorContext* context)
 
 void UnknownProcessLogger::Record(int64_t ts,
                                   const char* source,
-                                  uint32_t pid,
+                                  int64_t pid,
                                   protozero::ConstChars process_name,
                                   std::optional<int64_t> start_seq_id) {
   if (!warned_pids_.insert(pid).second) {
@@ -46,8 +46,7 @@ void UnknownProcessLogger::Record(int64_t ts,
       [&](ArgsInserter& inserter) {
         inserter.AddArg(storage->InternString("source"),
                         Variadic::String(storage->InternString(source)));
-        inserter.AddArg(storage->InternString("pid"),
-                        Variadic::UnsignedInteger(pid));
+        inserter.AddArg(storage->InternString("pid"), Variadic::Integer(pid));
         if (process_name.size > 0) {
           inserter.AddArg(
               storage->InternString("process_name"),

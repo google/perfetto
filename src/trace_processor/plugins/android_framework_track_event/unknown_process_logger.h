@@ -46,13 +46,13 @@ class UnknownProcessLogger {
   // |process_name| and |start_seq_id| are recorded when available.
   void Record(int64_t ts,
               const char* source,
-              uint32_t pid,
+              int64_t pid,
               protozero::ConstChars process_name = {},
               std::optional<int64_t> start_seq_id = std::nullopt);
 
  private:
   TraceProcessorContext* const context_;
-  base::FlatSet<uint32_t> warned_pids_;
+  base::FlatSet<int64_t> warned_pids_;
 };
 
 }  // namespace perfetto::trace_processor::android_framework_track_event
