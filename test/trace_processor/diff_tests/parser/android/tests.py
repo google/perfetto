@@ -789,6 +789,7 @@ class AndroidParser(TestSuite):
           [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
             dump_reason: DUMP_REASON_START
             record { pid: 100 process_name: "com.example.known" start_seq_id: 1 }
+            record { pid: 150 process_name: "com.example.ended" start_seq_id: 5 }
           }
         }
         packet {
@@ -804,6 +805,19 @@ class AndroidParser(TestSuite):
             }
           }
         }
+        # Ends the known pid 150: later events for it have no live process.
+        packet {
+          timestamp: 1200
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 150
+            }
+          }
+        }
+        # Same pid as the binder_died above: deduplicated.
         packet {
           timestamp: 2000
           trusted_packet_sequence_id: 1
@@ -814,6 +828,20 @@ class AndroidParser(TestSuite):
               pid: 200
               process_name: "com.example.died"
               start_seq_id: 2
+              reason: APP_EXIT_REASON_CRASH
+            }
+          }
+        }
+        packet {
+          timestamp: 2100
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_died"
+            [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+              pid: 250
+              process_name: "com.example.process_died"
+              start_seq_id: 3
               reason: APP_EXIT_REASON_CRASH
             }
           }
@@ -830,6 +858,44 @@ class AndroidParser(TestSuite):
             }
           }
         }
+        # Same pid as above: deduplicated.
+        packet {
+          timestamp: 2300
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 300
+              cur_proc_state: PROCESS_STATE_CACHED_ACTIVITY
+            }
+          }
+        }
+        # Invalid pids: ignored without a notice.
+        packet {
+          timestamp: 2400
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 0
+              cur_proc_state: PROCESS_STATE_TOP
+            }
+          }
+        }
+        packet {
+          timestamp: 2450
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "freezer_event"
+            [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+              pid: -1
+              unfreeze_reason: UFR_PING
+            }
+          }
+        }
         packet {
           timestamp: 2500
           trusted_packet_sequence_id: 1
@@ -842,11 +908,25 @@ class AndroidParser(TestSuite):
             }
           }
         }
+        # pid 150 was known but has ended.
+        packet {
+          timestamp: 2600
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "freezer_event"
+            [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+              pid: 150
+              unfreeze_reason: UFR_PING
+            }
+          }
+        }
         packet {
           timestamp: 3000
           [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
             dump_reason: DUMP_REASON_END
             record { pid: 100 proc_state: 1002 }
+            record { pid: 300 proc_state: 1002 }
             record {
               pid: 400
               process_name: "com.example.end_dump"
@@ -855,11 +935,15 @@ class AndroidParser(TestSuite):
             }
           }
         }
+        # pid 200 was already reported by android_framework_track_event: dedup
+        # is per importer, so android_process_state reports it again.
         packet {
           timestamp: 4000
           [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
             record { pid: 100 unfreeze_reason: UFR_PING }
+            record { pid: 200 unfreeze_reason: UFR_PING }
             record { pid: 500 unfreeze_reason: UFR_PING }
+            record { pid: -1 unfreeze_reason: UFR_PING }
           }
         }
         """),
@@ -879,8 +963,11 @@ class AndroidParser(TestSuite):
         out=Csv("""
           "ts","severity","name","source","pid","process_name","start_seq_id"
           1000,"notice","android_track_event_process_unknown","binder_died",200,"com.example.died",2
+          2100,"notice","android_track_event_process_unknown","process_died",250,"com.example.process_died",3
           2200,"notice","android_track_event_process_unknown","process_state_changed",300,"[NULL]","[NULL]"
           2500,"notice","android_track_event_process_unknown","freezer_event",350,"[NULL]","[NULL]"
+          2600,"notice","android_track_event_process_unknown","freezer_event",150,"[NULL]","[NULL]"
           3000,"notice","android_track_event_process_unknown","process_dump",400,"com.example.end_dump",4
+          4000,"notice","android_track_event_process_unknown","freezer_dump",200,"[NULL]","[NULL]"
           4000,"notice","android_track_event_process_unknown","freezer_dump",500,"[NULL]","[NULL]"
         """))

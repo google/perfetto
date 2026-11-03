@@ -29,12 +29,18 @@ class TraceProcessorContext;
 
 namespace perfetto::trace_processor::android_framework_track_event {
 
-// Records an android_track_event_process_unknown notice, at most once per pid,
-// when an Android framework event or state dump references a process that was
-// neither in DUMP_REASON_START nor created by a process_start_event.
+// Records an android_track_event_process_unknown notice when an Android
+// framework event or state dump references a pid with no live process in
+// ProcessTracker (never seen, or already ended), so the event is ignored.
+//
+// The notice is recorded at most once per pid: the first event for a pid wins,
+// so a later event carrying |process_name| or |start_seq_id| for the same pid
+// does not add them.
 class UnknownProcessLogger {
  public:
   explicit UnknownProcessLogger(TraceProcessorContext* context);
+  UnknownProcessLogger(const UnknownProcessLogger&) = delete;
+  UnknownProcessLogger& operator=(const UnknownProcessLogger&) = delete;
 
   // |source| identifies the event or dump which referenced |pid|.
   // |process_name| and |start_seq_id| are recorded when available.

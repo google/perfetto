@@ -217,7 +217,9 @@ class Parser : public TrackEventExtensionParser {
   // Returns the row of the process a death event refers to, identified by
   // |start_seq_id| and cross-checked against |pid|. Falls back to the live
   // process for |pid| when the event has no start_seq_id or it is unknown.
-  // Returns nullopt if the process is unknown or the two values disagree.
+  // Returns nullopt if the process is unknown or the two values disagree, and
+  // records an unknown-process notice (with |ts|, |source| and |process_name|)
+  // when no live process exists for |pid|.
   //
   // start_seq_id check comes first because AndroidProcessDiedEvent can arrive
   // up to ~15s after AndroidBinderDiedEvent, when the pid has already been
