@@ -1078,8 +1078,8 @@ PerfettoSqlConnection::LoadPipeline(
   RETURN_IF_ERROR(pipeline::BindDataframeArgs(&plan, args, pool_));
   pipeline::LoweringContext context;
   context.pool = pool_;
-  pipeline::RunBoundPasses(&plan, context);
-  return pipeline::Lower(plan, context);
+  RETURN_IF_ERROR(pipeline::RunBoundPasses(&plan, context));
+  return pipeline::Lower(&plan, context);
 }
 
 base::Status PerfettoSqlConnection::ExecuteCreateView(

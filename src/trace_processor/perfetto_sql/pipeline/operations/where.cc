@@ -349,13 +349,7 @@ std::optional<uint32_t> Where::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
-OutputProperties Where::Derive(const BoundPlan& bound, PlanNodeId self) const {
-  OutputProperties out = bound.outputs[bound.plan.nodes()[self].children()[0]];
-  out.DropRows();
-  return out;
-}
-
-core::exec::FilterValue CastWhereLiterals(
+static core::exec::FilterValue CastWhereLiterals(
     const WherePredicate& p,
     const std::vector<WhereLiteral>& literals,
     const std::vector<std::string>& strings,
@@ -374,105 +368,116 @@ core::exec::FilterValue CastWhereLiterals(
   return value;
 }
 
-void SearchScans(BoundPlan* bound, const LoweringContext& context) {
+InputNeeds Where::Needs(uint32_t) const {
+  // Filter reads only columns of one type, but for IS [NOT] NULL. A column of
+  // no known type carries a type per row, so it is converted to the literals'
+  // type. GLOB matches only strings.
+  InputNeeds needs;
+  for (const WherePredicate& p : predicates_) {
+    if (std::optional<core::StorageType> wanted =
+            TypeForLiterals(p, literals_)) {
+      needs.types_first.push_back({p.column, *wanted, !p.op.Is<core::Glob>()});
+    }
+  }
+  return needs;
+}
+
+OutputProperties Where::Derive(DeriveContext& c) const {
+  OutputProperties out = c.input(0);
+  out.DropRows();
+  // A rewrite may have cast some already.
+  std::vector<std::optional<ex::FilterValue>>& values = c.filter_values();
+  values.resize(predicates_.size());
+  for (uint32_t i = 0; i < predicates_.size(); ++i) {
+    const WherePredicate& p = predicates_[i];
+    std::optional<core::StorageType> type = out.TypeOf(p.column).storage();
+    if (!values[i] && type && !p.op.IsAnyOf<core::NullOp>()) {
+      values[i] =
+          CastWhereLiterals(p, literals_, strings_, *type, *c.context().pool);
+    }
+  }
+  return out;
+}
+
+void Where::Rewrite(BoundPlan* bound,
+                    PlanNodeId self,
+                    const LoweringContext& context) const {
   LogicalPlan& plan = bound->plan;
-  for (uint32_t id = 0; id < plan.nodes().size(); ++id) {
-    PlanNode& node = plan.nodes()[id];
-    if (!node.Is<Where>()) {
-      continue;
-    }
-    PlanNodeId scan_id = node.children()[0];
-    PlanNode& below = plan.nodes()[scan_id];
-    if (!below.Is<Scan>() || below.Cast<Scan>().has_search()) {
-      continue;
-    }
-    auto& where = node.Cast<Where>();
-    auto& scan = below.Cast<Scan>();
+  PlanNode& node = plan.nodes()[self];
+  PlanNodeId scan_id = node.children()[0];
+  PlanNode& below = plan.nodes()[scan_id];
+  if (!below.Is<Scan>() || below.Cast<Scan>().has_search()) {
+    return;
+  }
+  auto& where = node.Cast<Where>();
+  auto& scan = below.Cast<Scan>();
 
-    // A scan converts no column, so only conditions on columns of a known
-    // type, read as the table stores them, have values to search with.
-    std::vector<uint32_t> predicate_indices;
-    std::vector<ex::FilterValue> values;
-    for (uint32_t i = 0; i < where.predicates_.size(); ++i) {
-      const WherePredicate& p = where.predicates_[i];
-      std::optional<core::StorageType> type =
-          bound->bindings.types[p.column].storage();
-      if (!type || p.op.IsAnyOf<core::NullOp>() ||
-          (p.op.Is<core::Glob>() && !type->Is<core::String>())) {
-        continue;
-      }
-      predicate_indices.push_back(i);
-      values.push_back(CastWhereLiterals(p, where.literals_, where.strings_,
-                                         *type, *context.pool));
-    }
-    std::vector<Scan::Condition> conditions;
-    for (uint32_t j = 0; j < predicate_indices.size(); ++j) {
-      const WherePredicate& p = where.predicates_[predicate_indices[j]];
-      conditions.push_back({p.column, p.op, &values[j]});
-    }
-    std::optional<Scan::SearchPlan> searched =
-        scan.PlanSearch(conditions, *bound->bindings.dataframes[scan_id]);
-    if (!searched) {
+  // A scan converts no column, so only conditions on columns of a known type,
+  // read as the table stores them, have values to search with. They are what
+  // these conditions test whether or not the scan answers them.
+  std::vector<std::optional<ex::FilterValue>> values(where.predicates_.size());
+  std::vector<uint32_t> predicate_indices;
+  std::vector<Scan::Condition> conditions;
+  for (uint32_t i = 0; i < where.predicates_.size(); ++i) {
+    const WherePredicate& p = where.predicates_[i];
+    std::optional<core::StorageType> type =
+        bound->planned[scan_id].output.TypeOf(p.column).storage();
+    if (!type || p.op.IsAnyOf<core::NullOp>() ||
+        (p.op.Is<core::Glob>() && !type->Is<core::String>())) {
       continue;
     }
+    values[i] = CastWhereLiterals(p, where.literals_, where.strings_, *type,
+                                  *context.pool);
+    predicate_indices.push_back(i);
+    conditions.push_back({p.column, p.op, &*values[i]});
+  }
+  std::optional<Scan::SearchPlan> searched =
+      scan.PlanSearch(conditions, *bound->bindings.dataframes[scan_id]);
+  if (!searched) {
+    bound->planned[self].filter_values = std::move(values);
+    return;
+  }
 
-    // The answered conditions move into the scan with their literals.
-    ScanSearch search;
-    search.kind = searched->kind;
-    search.index = searched->index;
-    std::vector<bool> moved(where.predicates_.size(), false);
-    for (uint32_t j : searched->answered) {
-      WherePredicate p = where.predicates_[predicate_indices[j]];
-      moved[predicate_indices[j]] = true;
-      auto first = static_cast<uint32_t>(search.literals.size());
-      for (uint32_t k = 0; k < p.literal_count; ++k) {
-        WhereLiteral literal = where.literals_[p.first_literal + k];
-        if (literal.type == WhereLiteral::Type::kString) {
-          search.strings.push_back(
-              where.strings_[static_cast<size_t>(literal.int_value)]);
-          literal.int_value = static_cast<int64_t>(search.strings.size() - 1);
-        }
-        search.literals.push_back(literal);
-      }
-      p.first_literal = first;
-      search.predicates.push_back(p);
+  // The answered conditions move into the scan with their values.
+  ScanSearch search;
+  search.kind = searched->kind;
+  search.index = searched->index;
+  std::vector<std::optional<ex::FilterValue>>& scan_values =
+      bound->planned[scan_id].filter_values;
+  std::vector<bool> moved(where.predicates_.size(), false);
+  for (uint32_t j : searched->answered) {
+    uint32_t i = predicate_indices[j];
+    moved[i] = true;
+    search.predicates.push_back(where.predicates_[i]);
+    scan_values.push_back(std::move(values[i]));
+  }
+  scan.SetSearch(std::move(search));
+  PlanNodeInputs(bound, scan_id, context);
+  std::vector<WherePredicate> kept;
+  std::vector<std::optional<ex::FilterValue>> kept_values;
+  for (uint32_t i = 0; i < where.predicates_.size(); ++i) {
+    if (!moved[i]) {
+      kept.push_back(where.predicates_[i]);
+      kept_values.push_back(std::move(values[i]));
     }
-    scan.SetSearch(std::move(search));
-    std::vector<WherePredicate> kept;
-    for (uint32_t i = 0; i < where.predicates_.size(); ++i) {
-      if (!moved[i]) {
-        kept.push_back(where.predicates_[i]);
-      }
-    }
-    where.predicates_ = std::move(kept);
-    if (where.predicates_.empty()) {
-      plan.Bypass(id);
-    }
+  }
+  where.predicates_ = std::move(kept);
+  bound->planned[self].filter_values = std::move(kept_values);
+  if (where.predicates_.empty()) {
+    plan.Bypass(self);
   }
 }
 
 void Where::Lower(Lowering* c, const PlanNode& node) const {
-  c->LowerNode(node.children()[0]);
+  c->LowerInput(node, 0);
   std::vector<ex::Filter::Condition> conditions;
   conditions.reserve(predicates_.size());
-  for (const WherePredicate& p : predicates_) {
+  for (uint32_t i = 0; i < predicates_.size(); ++i) {
     ex::Filter::Condition condition;
-    condition.column = c->QueryPosition(p.column);
-    condition.op = p.op;
-    // Filter reads only columns of one type, but for IS [NOT] NULL. A column
-    // of no known type carries a type per row, so it is converted to the
-    // literals' type. GLOB matches only strings.
-    std::optional<core::StorageType> type = c->QueryType(p.column).storage();
-    if (!type || p.op.Is<core::Glob>()) {
-      std::optional<core::StorageType> wanted = TypeForLiterals(p, literals_);
-      if (wanted) {
-        type = wanted;
-        c->RequireType(p.column, *type);
-      }
-    }
-    if (type && !p.op.IsAnyOf<core::NullOp>()) {
-      condition.value = c->AddFilterValue(
-          CastWhereLiterals(p, literals_, strings_, *type, *c->context().pool));
+    condition.column = c->QueryPosition(predicates_[i].column);
+    condition.op = predicates_[i].op;
+    if (std::optional<uint32_t> value = c->TakeFilterValue(node, i)) {
+      condition.value = *value;
     }
     conditions.push_back(condition);
   }
