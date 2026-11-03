@@ -527,9 +527,13 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
     }
   }
 
-  if (obj.native_allocation_registry_size.has_value()) {
+  if (obj.cleaner_thunk_dynamic_native_size.has_value()) {
+    sequence_state.dynamic_native_size_by_thunk_id[owner_id] =
+        *obj.cleaner_thunk_dynamic_native_size;
+  } else if (obj.native_allocation_registry_size.has_value()) {
     sequence_state.nar_size_by_obj_id[owner_id] =
-        *obj.native_allocation_registry_size;
+        GetSizeFromNativeAllocationRegistry(
+            *obj.native_allocation_registry_size);
   }
 
   bool has_bitmap_fields =
@@ -900,6 +904,7 @@ void HeapGraphTracker::PopulateNativeSize(const SequenceState& seq) {
   //                v
   // +----------------------------------------------------+
   // | libcore.util.NativeAllocationRegistry$CleanerThunk |
+  // |         (optional dynamic_native_size)             |
   // +----------------------------------------------------+
   //   |
   //   | .this$0
@@ -909,7 +914,8 @@ void HeapGraphTracker::PopulateNativeSize(const SequenceState& seq) {
   // |                       .size                        |
   // +----------------------------------------------------+
   //
-  // `.size` should be attributed as the native size of Object
+  // If the CleanerThunk carries a per-instance dynamic_native_size, attribute
+  // that to Object; otherwise fall back to the registry's static `.size`.
 
   auto& objects_tbl = *storage_->mutable_heap_graph_object_table();
 
@@ -953,13 +959,18 @@ void HeapGraphTracker::PopulateNativeSize(const SequenceState& seq) {
       continue;
     }
 
-    auto nar_size_it = seq.nar_size_by_obj_id.find(*this0);
-    if (nar_size_it == seq.nar_size_by_obj_id.end()) {
-      continue;
+    int64_t native_size = 0;
+    auto dyn_it = seq.dynamic_native_size_by_thunk_id.find(cleaner.thunk);
+    if (dyn_it != seq.dynamic_native_size_by_thunk_id.end()) {
+      native_size = dyn_it->second;
+    } else {
+      auto nar_size_it = seq.nar_size_by_obj_id.find(*this0);
+      if (nar_size_it == seq.nar_size_by_obj_id.end()) {
+        continue;
+      }
+      native_size = nar_size_it->second;
     }
 
-    int64_t native_size =
-        GetSizeFromNativeAllocationRegistry(nar_size_it->second);
     auto referent_row_ref = objects_tbl[cleaner.referent];
     int64_t total_native_size = referent_row_ref.native_size() + native_size;
     referent_row_ref.set_native_size(total_native_size);

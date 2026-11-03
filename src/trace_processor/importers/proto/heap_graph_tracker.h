@@ -75,6 +75,10 @@ class HeapGraphTracker : public Destructible {
     // this is the value of its `size` field.
     std::optional<int64_t> native_allocation_registry_size;
 
+    // The dynamic native size returned by
+    // `NativeAllocationRegistry.sizeFunction`.
+    std::optional<int64_t> cleaner_thunk_dynamic_native_size;
+
     // Bitmap-specific fields
     std::optional<int64_t> bitmap_id;
     std::optional<int64_t> bitmap_source_id;
@@ -218,9 +222,13 @@ class HeapGraphTracker : public Destructible {
     std::map<tables::HeapGraphClassTable::Id,
              std::vector<tables::HeapGraphObjectTable::RowNumber>>
         deferred_size_objects_for_type_;
-    // Contains the value of the "size" field for each
+    // Normalized static "size" field for each
     // "libcore.util.NativeAllocationRegistry" object.
     std::map<tables::HeapGraphObjectTable::Id, int64_t> nar_size_by_obj_id;
+    // Per-instance dynamic native size (in bytes) for each
+    // "libcore.util.NativeAllocationRegistry$CleanerThunk" object.
+    std::map<tables::HeapGraphObjectTable::Id, int64_t>
+        dynamic_native_size_by_thunk_id;
     bool truncated = false;
     std::optional<int64_t> heap_size;
   };

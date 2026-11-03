@@ -66,81 +66,106 @@ TEST(HeapGraphTrackerTest, PackageFromLocationApp) {
   EXPECT_EQ(PackageFromLocation(&tracker, inmem_dex), "com.perfetto.example");
 }
 
-TEST(HeapGraphTrackerTest, PopulateNativeSize) {
-  constexpr uint64_t kSeqId = 1;
-  constexpr UniquePid kPid = 1;
-  constexpr int64_t kTimestamp = 1;
-
-  TraceProcessorContext context;
-  context.storage = std::make_unique<TraceStorage>();
-  context.machine_tracker =
-      std::make_unique<MachineTracker>(&context, kDefaultMachineId);
-  context.process_tracker = std::make_unique<ProcessTracker>(&context);
-  context.process_tracker->GetOrCreateProcess(kPid);
-
-  context.global_stats_tracker =
-      std::make_unique<GlobalStatsTracker>(context.storage.get());
-  context.trace_state =
-      TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
-          TraceProcessorContext::TraceState{TraceId{0}});
-  context.stats_tracker = std::make_unique<StatsTracker>(&context);
-  HeapGraphTracker tracker(context.storage.get(),
-                           context.global_stats_tracker.get());
-
-  constexpr uint64_t kLocation = 0;
-  tracker.AddInternedLocationName(kSeqId, kLocation,
-                                  context.storage->InternString("location"));
+struct NativeSizeTestEnv {
+  static constexpr uint64_t kSeqId = 1;
+  static constexpr UniquePid kPid = 1;
+  static constexpr int64_t kTimestamp = 1;
+  static constexpr uint64_t kLocation = 0;
 
   enum Fields : uint8_t { kReferent = 1, kThunk, kThis0, kNext };
-
-  tracker.AddInternedFieldName(kSeqId, kReferent,
-                               "java.lang.ref.Reference.referent");
-  tracker.AddInternedFieldName(kSeqId, kThunk, "sun.misc.Cleaner.thunk");
-  tracker.AddInternedFieldName(
-      kSeqId, kThis0,
-      "libcore.util.NativeAllocationRegistry$CleanerThunk.this$0");
-  tracker.AddInternedFieldName(kSeqId, kNext, "sun.misc.Cleaner.next");
-
   enum Types : uint8_t {
-    kTypeBitmap = 1,
+    kTypeReferent = 1,
     kTypeCleaner,
     kTypeCleanerThunk,
     kTypeNativeAllocationRegistry,
   };
 
-  tracker.AddInternedType(
-      kSeqId, kTypeBitmap,
-      context.storage->InternString("android.graphics.Bitmap"), kLocation,
-      /*object_size=*/0,
-      /*field_name_ids=*/{}, /*superclass_id=*/0,
-      /*classloader_id=*/0, /*no_fields=*/false,
-      ::com::android::art::tracing::pbzero::HeapGraphType::KIND_NORMAL);
+  TraceProcessorContext context;
+  std::unique_ptr<HeapGraphTracker> tracker;
 
-  tracker.AddInternedType(
-      kSeqId, kTypeCleaner, context.storage->InternString("sun.misc.Cleaner"),
-      kLocation, /*object_size=*/0,
-      /*field_name_ids=*/{kReferent, kThunk, kNext},
-      /*superclass_id=*/0,
-      /*classloader_id=*/0, /*no_fields=*/false,
-      ::com::android::art::tracing::pbzero::HeapGraphType::KIND_NORMAL);
+  explicit NativeSizeTestEnv(const char* referent_class_name) {
+    context.storage = std::make_unique<TraceStorage>();
+    context.machine_tracker =
+        std::make_unique<MachineTracker>(&context, kDefaultMachineId);
+    context.process_tracker = std::make_unique<ProcessTracker>(&context);
+    context.process_tracker->GetOrCreateProcess(kPid);
+    context.global_stats_tracker =
+        std::make_unique<GlobalStatsTracker>(context.storage.get());
+    context.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId{0}});
+    context.stats_tracker = std::make_unique<StatsTracker>(&context);
+    tracker = std::make_unique<HeapGraphTracker>(
+        context.storage.get(), context.global_stats_tracker.get());
 
-  tracker.AddInternedType(
-      kSeqId, kTypeCleanerThunk,
-      context.storage->InternString(
-          "libcore.util.NativeAllocationRegistry$CleanerThunk"),
-      kLocation, /*object_size=*/0,
-      /*field_name_ids=*/{kThis0}, /*superclass_id=*/0,
-      /*classloader_id=*/0, /*no_fields=*/false,
-      ::com::android::art::tracing::pbzero::HeapGraphType::KIND_NORMAL);
+    tracker->AddInternedLocationName(kSeqId, kLocation,
+                                     context.storage->InternString("location"));
+    tracker->AddInternedFieldName(kSeqId, kReferent,
+                                  "java.lang.ref.Reference.referent");
+    tracker->AddInternedFieldName(kSeqId, kThunk, "sun.misc.Cleaner.thunk");
+    tracker->AddInternedFieldName(
+        kSeqId, kThis0,
+        "libcore.util.NativeAllocationRegistry$CleanerThunk.this$0");
+    tracker->AddInternedFieldName(kSeqId, kNext, "sun.misc.Cleaner.next");
 
-  tracker.AddInternedType(
-      kSeqId, kTypeNativeAllocationRegistry,
-      context.storage->InternString("libcore.util.NativeAllocationRegistry"),
-      kLocation, /*object_size=*/0,
-      /*field_name_ids=*/{}, /*superclass_id=*/0,
-      /*classloader_id=*/0, /*no_fields=*/false,
-      ::com::android::art::tracing::pbzero::HeapGraphType::KIND_NORMAL);
+    using Kind = ::com::android::art::tracing::pbzero::HeapGraphType;
+    tracker->AddInternedType(
+        kSeqId, kTypeReferent,
+        context.storage->InternString(referent_class_name), kLocation,
+        /*object_size=*/0, /*field_name_ids=*/{}, /*superclass_id=*/0,
+        /*classloader_id=*/0, /*no_fields=*/false, Kind::KIND_NORMAL);
+    tracker->AddInternedType(
+        kSeqId, kTypeCleaner, context.storage->InternString("sun.misc.Cleaner"),
+        kLocation,
+        /*object_size=*/0, /*field_name_ids=*/{kReferent, kThunk, kNext},
+        /*superclass_id=*/0, /*classloader_id=*/0, /*no_fields=*/false,
+        Kind::KIND_NORMAL);
+    tracker->AddInternedType(
+        kSeqId, kTypeCleanerThunk,
+        context.storage->InternString(
+            "libcore.util.NativeAllocationRegistry$CleanerThunk"),
+        kLocation, /*object_size=*/0, /*field_name_ids=*/{kThis0},
+        /*superclass_id=*/0, /*classloader_id=*/0, /*no_fields=*/false,
+        Kind::KIND_NORMAL);
+    tracker->AddInternedType(
+        kSeqId, kTypeNativeAllocationRegistry,
+        context.storage->InternString("libcore.util.NativeAllocationRegistry"),
+        kLocation, /*object_size=*/0, /*field_name_ids=*/{},
+        /*superclass_id=*/0, /*classloader_id=*/0, /*no_fields=*/false,
+        Kind::KIND_NORMAL);
+  }
 
+  void AddRegisteredObject(uint64_t referent_id,
+                           uint64_t cleaner_id,
+                           uint64_t thunk_id,
+                           uint64_t nar_id,
+                           std::optional<int64_t> dynamic_size = std::nullopt) {
+    {
+      HeapGraphTracker::SourceObject obj;
+      obj.object_id = referent_id;
+      obj.type_id = kTypeReferent;
+      tracker->AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+    }
+    {
+      HeapGraphTracker::SourceObject obj;
+      obj.object_id = cleaner_id;
+      obj.type_id = kTypeCleaner;
+      obj.referred_objects = {referent_id, thunk_id, 0};
+      tracker->AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+    }
+    {
+      HeapGraphTracker::SourceObject obj;
+      obj.object_id = thunk_id;
+      obj.type_id = kTypeCleanerThunk;
+      obj.referred_objects = {nar_id};
+      obj.cleaner_thunk_dynamic_native_size = dynamic_size;
+      tracker->AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+    }
+  }
+};
+
+TEST(HeapGraphTrackerTest, PopulateNativeSize) {
+  NativeSizeTestEnv env("android.graphics.Bitmap");
   enum Objects : uint8_t {
     kObjBitmap = 1,
     kObjCleaner,
@@ -148,63 +173,94 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
     kObjNativeAllocationRegistry,
   };
 
-  {
-    HeapGraphTracker::SourceObject obj;
-    obj.object_id = kObjBitmap;
-    obj.type_id = kTypeBitmap;
-
-    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
-  }
-
-  {
-    HeapGraphTracker::SourceObject obj;
-    obj.object_id = kObjCleaner;
-    obj.type_id = kTypeCleaner;
-    obj.referred_objects = {kObjBitmap, kObjThunk, 0};
-
-    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
-  }
-
-  {
-    HeapGraphTracker::SourceObject obj;
-    obj.object_id = kObjThunk;
-    obj.type_id = kTypeCleanerThunk;
-    obj.referred_objects = {kObjNativeAllocationRegistry};
-
-    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
-  }
-
+  env.AddRegisteredObject(kObjBitmap, kObjCleaner, kObjThunk,
+                          kObjNativeAllocationRegistry);
   {
     HeapGraphTracker::SourceObject obj;
     obj.object_id = kObjNativeAllocationRegistry;
-    obj.type_id = kTypeNativeAllocationRegistry;
-
+    obj.type_id = NativeSizeTestEnv::kTypeNativeAllocationRegistry;
     // NativeAllocationRegistry.size least significant bit is used to encode the
     // source of the allocation (1: malloc, 0: other).
     obj.native_allocation_registry_size = 24242 | 1;
-
-    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+    env.tracker->AddObject(NativeSizeTestEnv::kSeqId, NativeSizeTestEnv::kPid,
+                           NativeSizeTestEnv::kTimestamp, std::move(obj));
   }
 
-  tracker.FinalizeProfile(kSeqId);
+  env.tracker->FinalizeProfile(NativeSizeTestEnv::kSeqId);
 
-  const auto& objs_table = context.storage->heap_graph_object_table();
-  const auto& class_table = context.storage->heap_graph_class_table();
+  const auto& objs_table = env.context.storage->heap_graph_object_table();
+  const auto& class_table = env.context.storage->heap_graph_class_table();
   size_t count_bitmaps = 0;
   for (auto it = objs_table.IterateRows(); it; ++it) {
     auto class_row = class_table[it.type_id()];
-    ASSERT_TRUE(true);
-    if (context.storage->string_pool().Get(class_row.name()) ==
+    if (env.context.storage->string_pool().Get(class_row.name()) ==
         "android.graphics.Bitmap") {
       EXPECT_EQ(it.native_size(), 24242);
       count_bitmaps++;
     } else {
       EXPECT_EQ(it.native_size(), 0)
-          << context.storage->string_pool().Get(class_row.name()).c_str()
+          << env.context.storage->string_pool().Get(class_row.name()).c_str()
           << " has non zero native_size";
     }
   }
   EXPECT_EQ(count_bitmaps, 1u);
+}
+
+TEST(HeapGraphTrackerTest, PopulateDynamicNativeSize) {
+  NativeSizeTestEnv env("android.os.Parcel");
+  enum Objects : uint8_t {
+    kObjNativeAllocationRegistry = 1,
+    kObjParcelDynamicOdd,
+    kObjCleanerDynamicOdd,
+    kObjThunkDynamicOdd,
+    kObjParcelDynamicZero,
+    kObjCleanerDynamicZero,
+    kObjThunkDynamicZero,
+    kObjParcelFallbackStatic,
+    kObjCleanerFallbackStatic,
+    kObjThunkFallbackStatic,
+  };
+
+  {
+    HeapGraphTracker::SourceObject obj;
+    obj.object_id = kObjNativeAllocationRegistry;
+    obj.type_id = NativeSizeTestEnv::kTypeNativeAllocationRegistry;
+    obj.native_allocation_registry_size = 24242 | 1;
+    env.tracker->AddObject(NativeSizeTestEnv::kSeqId, NativeSizeTestEnv::kPid,
+                           NativeSizeTestEnv::kTimestamp, std::move(obj));
+  }
+  // 1. Dynamic native size is a raw byte count (bit 0 is not an IS_MALLOCED
+  //    flag, so odd values like 12345 are preserved).
+  env.AddRegisteredObject(kObjParcelDynamicOdd, kObjCleanerDynamicOdd,
+                          kObjThunkDynamicOdd, kObjNativeAllocationRegistry,
+                          /*dynamic_size=*/12345);
+  // 2. A dynamic size of 0 overrides the registry's non-zero static size.
+  env.AddRegisteredObject(kObjParcelDynamicZero, kObjCleanerDynamicZero,
+                          kObjThunkDynamicZero, kObjNativeAllocationRegistry,
+                          /*dynamic_size=*/0);
+  // 3. A thunk without a dynamic size on the same registry falls back to the
+  //    registry's static size (24242).
+  env.AddRegisteredObject(kObjParcelFallbackStatic, kObjCleanerFallbackStatic,
+                          kObjThunkFallbackStatic, kObjNativeAllocationRegistry,
+                          /*dynamic_size=*/std::nullopt);
+
+  env.tracker->FinalizeProfile(NativeSizeTestEnv::kSeqId);
+
+  const auto& objs_table = env.context.storage->heap_graph_object_table();
+  const auto& class_table = env.context.storage->heap_graph_class_table();
+  std::vector<int64_t> parcel_sizes;
+  for (auto it = objs_table.IterateRows(); it; ++it) {
+    auto class_row = class_table[it.type_id()];
+    if (env.context.storage->string_pool().Get(class_row.name()) ==
+        "android.os.Parcel") {
+      parcel_sizes.push_back(it.native_size());
+    } else {
+      EXPECT_EQ(it.native_size(), 0)
+          << env.context.storage->string_pool().Get(class_row.name()).c_str()
+          << " has non zero native_size";
+    }
+  }
+  EXPECT_THAT(parcel_sizes, UnorderedElementsAre(12345, 0, 24242));
 }
 
 constexpr char kArray[] = "X[]";

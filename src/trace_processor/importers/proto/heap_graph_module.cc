@@ -161,6 +161,10 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
       obj.native_allocation_registry_size =
           object.native_allocation_registry_size_field();
     }
+    if (object.has_cleaner_thunk_dynamic_native_size_field()) {
+      obj.cleaner_thunk_dynamic_native_size =
+          object.cleaner_thunk_dynamic_native_size_field();
+    }
 
     if (object.has_bitmap_id_field()) {
       obj.bitmap_id = object.bitmap_id_field();
