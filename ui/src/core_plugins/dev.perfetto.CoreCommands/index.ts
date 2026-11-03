@@ -548,6 +548,7 @@ export default class CoreCommands implements PerfettoPlugin {
             {format: TF.Seconds, name: 'Seconds'},
             {format: TF.Milliseconds, name: 'Milliseconds'},
             {format: TF.Microseconds, name: 'Microseconds'},
+            {format: TF.Compact, name: 'Compact'},
             {format: TF.TraceNs, name: 'Trace nanoseconds'},
             {
               format: TF.TraceNsLocale,
