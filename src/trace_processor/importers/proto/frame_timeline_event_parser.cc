@@ -110,13 +110,12 @@ bool IsSfJankType(int32_t jank_type) {
       jank_type == FrameTimelineEvent::JANK_NONE)
     return false;
 
-  int32_t sf_jank_bitmask =
-      FrameTimelineEvent::JANK_SF_SCHEDULING |
-      FrameTimelineEvent::JANK_PREDICTION_ERROR |
-      FrameTimelineEvent::JANK_DISPLAY_HAL |
-      FrameTimelineEvent::JANK_SF_CPU_DEADLINE_MISSED |
-      FrameTimelineEvent::JANK_SF_GPU_DEADLINE_MISSED |
-      FrameTimelineEvent::JANK_DEQUEUE_BUFFER_DELAY;
+  int32_t sf_jank_bitmask = FrameTimelineEvent::JANK_SF_SCHEDULING |
+                            FrameTimelineEvent::JANK_PREDICTION_ERROR |
+                            FrameTimelineEvent::JANK_DISPLAY_HAL |
+                            FrameTimelineEvent::JANK_SF_CPU_DEADLINE_MISSED |
+                            FrameTimelineEvent::JANK_SF_GPU_DEADLINE_MISSED |
+                            FrameTimelineEvent::JANK_DEQUEUE_BUFFER_DELAY;
   return (jank_type & sf_jank_bitmask) != 0;
 }
 
@@ -127,10 +126,9 @@ bool IsAppJankType(int32_t jank_type) {
       jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON)
     return false;
 
-  int32_t app_jank_bitmask =
-      FrameTimelineEvent::JANK_APP_DEADLINE_MISSED |
-      FrameTimelineEvent ::JANK_APP_RESYNCED_JITTER |
-      FrameTimelineEvent::JANK_UNKNOWN;
+  int32_t app_jank_bitmask = FrameTimelineEvent::JANK_APP_DEADLINE_MISSED |
+                             FrameTimelineEvent ::JANK_APP_RESYNCED_JITTER |
+                             FrameTimelineEvent::JANK_UNKNOWN;
   return (jank_type & app_jank_bitmask) != 0;
 }
 
