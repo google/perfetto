@@ -144,8 +144,8 @@ class PhysicalPlanTest : public ::testing::Test {
                             catalog_));
     RETURN_IF_ERROR(
         BindDataframeArgs(&bound, DataframeArgs(dataframes), &pool_));
-    RunBoundPasses(&bound, {&pool_});
-    return Lower(bound, {&pool_});
+    RETURN_IF_ERROR(RunBoundPasses(&bound, {&pool_}));
+    return Lower(&bound, {&pool_});
   }
 
   std::vector<std::string> Names(const PhysicalPlan& plan) {
@@ -204,10 +204,9 @@ TEST_F(PhysicalPlanTest, PruningACopyLeavesTheOriginalResultsIntact) {
 
   auto bound = ResolveCompiledPlan(*original, catalog_);
   ASSERT_TRUE(bound.ok()) << bound.status().message();
-  RunBoundPasses(&*bound, {&pool_});
-  auto physical = Lower(*bound, {&pool_});
-  ASSERT_TRUE(physical.ok()) << physical.status().message();
-  auto rows = Run(**physical, "total");
+  ASSERT_TRUE(RunBoundPasses(&*bound, {&pool_}).ok());
+  std::unique_ptr<PhysicalPlan> physical = Lower(&*bound, {&pool_});
+  auto rows = Run(*physical, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
@@ -223,16 +222,16 @@ TEST_F(PhysicalPlanTest, OutputsAreDerivedFromInputs) {
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   auto bound = ResolveCompiledPlan(std::move(*plan), catalog_);
   ASSERT_TRUE(bound.ok()) << bound.status().message();
-  RunBoundPasses(&*bound, {&pool_});
+  ASSERT_TRUE(RunBoundPasses(&*bound, {&pool_}).ok());
   const LogicalPlan& logical = bound->plan;
   const PlanNode& fold = logical.nodes()[logical.root()];
   const PlanNode& sort = logical.nodes()[fold.children()[0]];
-  const OutputProperties& sorted = bound->outputs[logical.IdOf(sort)];
+  const OutputProperties& sorted = bound->planned[logical.IdOf(sort)].output;
   ASSERT_EQ(sorted.arrangements.size(), 1u);
   EXPECT_TRUE(sorted.arrangements[0].grouped_by.empty());
   ASSERT_EQ(sorted.arrangements[0].sorted_by.size(), 1u);
   EXPECT_FALSE(sorted.tree);
-  const OutputProperties& folded = bound->outputs[logical.root()];
+  const OutputProperties& folded = bound->planned[logical.root()].output;
   EXPECT_TRUE(folded.arrangements.empty());
   ASSERT_TRUE(folded.tree);
   EXPECT_EQ(folded.tree->walk, TreeDirection::kUp);
@@ -455,6 +454,21 @@ TEST_F(PhysicalPlanTest, WhereLooksUpAnIndexWithUnreadColumns) {
   EXPECT_THAT(*rows, ElementsAre(Pair(0, 0), Pair(2, 2), Pair(4, 4)));
 }
 
+// A condition the scan cannot answer stays in the WHERE, and does not stop it
+// answering the others.
+TEST_F(PhysicalPlanTest, WhereSearchesAroundAConditionItCannotAnswer) {
+  catalog_.AddTable("ix", {"id", "k", "v"},
+                    {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  catalog_.AddIndex("ix", {1});
+  auto plan = Plan("FROM ix |> WHERE v IS NOT NULL AND k = 7 |> SELECT id, v");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "main: IndexScan | Filter(#2 IS NOT NULL)");
+  auto rows = Run(**plan, "v");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(0, 1), Pair(2, 9), Pair(4, 9)));
+}
+
 // A condition no row can match leaves nothing to read.
 TEST_F(PhysicalPlanTest, WhereNoRowCanMatchReadsNothing) {
   catalog_.AddTable("ix", {"id", "k", "v"}, {{0, 7, 1}, {1, 5, 9}});
@@ -664,12 +678,11 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
   PlanKey key(0, 0);
   auto read = DeserializePlan(SerializePlan(moved.plan, key), key, catalog_);
   ASSERT_TRUE(read.ok()) << read.status().message();
-  RunBoundPasses(&*read, {&pool_});
-  auto lowered = Lower(*read, {&pool_});
-  ASSERT_TRUE(lowered.ok()) << lowered.status().message();
-  EXPECT_THAT(Names(**lowered),
+  ASSERT_TRUE(RunBoundPasses(&*read, {&pool_}).ok());
+  std::unique_ptr<PhysicalPlan> lowered = Lower(&*read, {&pool_});
+  EXPECT_THAT(Names(*lowered),
               ElementsAre("id", "parent_id", "own", "copy", "total"));
-  auto rows = Run(**lowered, "copy");
+  auto rows = Run(*lowered, "copy");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 10), Pair(1, 20), Pair(2, 30), Pair(3, 40)));

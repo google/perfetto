@@ -75,20 +75,6 @@ static_assert(sizeof(WherePredicate) == 16);
 template <>
 inline constexpr bool kCopiedAsBytes<WherePredicate> = true;
 
-// Casts the literals `p` compares with for a column of storage `type`, as the
-// dataframe's filters cast them. `literals` and `strings` hold them.
-core::exec::FilterValue CastWhereLiterals(
-    const WherePredicate& p,
-    const std::vector<WhereLiteral>& literals,
-    const std::vector<std::string>& strings,
-    core::StorageType type,
-    const StringPool& pool);
-
-// Lets each scan a WHERE reads directly answer what conditions it can by
-// searching its dataframe (see Scan::PlanSearch). Those conditions move into
-// the scan, and a WHERE left with none is dropped.
-void SearchScans(BoundPlan* plan, const LoweringContext& context);
-
 // `|> WHERE condition`. The condition must be a conjunction (AND) of
 // predicates (see WherePredicate); anything else is unsupported.
 class Where : public PlanOperation {
@@ -102,13 +88,18 @@ class Where : public PlanOperation {
   // PlanOperation implementation. Dispatch goes through the base interface.
   std::unique_ptr<PlanOperation> Clone() const override;
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
-  OutputProperties Derive(const BoundPlan&, PlanNodeId self) const override;
+  // Moves the conditions a scan directly below can answer into it, so it finds
+  // the rows by searching its dataframe instead of testing every row. A WHERE
+  // left with nothing to test is dropped.
+  void Rewrite(BoundPlan*,
+               PlanNodeId self,
+               const LoweringContext&) const override;
+  InputNeeds Needs(uint32_t input) const override;
+  OutputProperties Derive(DeriveContext&) const override;
   void Lower(Lowering*, const PlanNode&) const override;
   void Serialize(PlanCodec&) override;
 
   static base::Status BuildPlan(Compiler*, uint32_t);
-
-  friend void SearchScans(BoundPlan*, const LoweringContext&);
 
   const OperationRegistration& registration() const override;
 

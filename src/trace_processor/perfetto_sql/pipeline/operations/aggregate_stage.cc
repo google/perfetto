@@ -107,20 +107,24 @@ std::optional<uint32_t> AggregateStage::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
-OutputProperties AggregateStage::Derive(const BoundPlan& bound,
-                                        PlanNodeId self) const {
-  // The output has one row per group, with a new layout. Groups are output in
-  // the order first seen, so if the input is sorted by the keys, the output is
-  // too.
-  OutputProperties out = OutputProperties::Empty(bound.plan.columns().size());
+InputNeeds AggregateStage::Needs(uint32_t) const {
+  InputNeeds needs;
+  AddAggregateNeeds(aggregates_, &needs);
+  needs.full_batches = true;
+  return needs;
+}
+
+OutputProperties AggregateStage::Derive(DeriveContext& c) const {
+  // The output has one row per group. Groups are output in the order first
+  // seen, so if the input is sorted by the keys, the output is too.
+  OutputProperties out;
   for (ColumnId key : keys_) {
-    out.AddColumn(key);
+    out.columns.push_back(c.ColumnOf(key));
   }
   for (const Aggregate& agg : aggregates_) {
-    out.AddColumn(agg.output);
+    out.columns.push_back(c.ColumnOf(agg.output));
   }
-  std::vector<SortKey> sorted =
-      bound.outputs[bound.plan.nodes()[self].children()[0]].SortedBy(keys_);
+  std::vector<SortKey> sorted = c.input(0).SortedBy(keys_);
   if (!sorted.empty()) {
     out.arrangements.push_back({{}, std::move(sorted)});
   }
@@ -128,7 +132,7 @@ OutputProperties AggregateStage::Derive(const BoundPlan& bound,
 }
 
 void AggregateStage::Lower(Lowering* c, const PlanNode& node) const {
-  c->LowerNode(node.children()[0]);
+  c->LowerInput(node, 0);
   ex::HashAggregateSpec spec;
   for (ColumnId key : keys_) {
     spec.key_columns.push_back(c->QueryPosition(key));
@@ -136,7 +140,6 @@ void AggregateStage::Lower(Lowering* c, const PlanNode& node) const {
   for (const Aggregate& agg : aggregates_) {
     spec.aggregates.push_back(LowerAggregate(c, agg));
   }
-  c->RequireFullBatches();
   c->AddOperator(std::make_unique<ex::HashAggregate>(std::move(spec)));
 }
 
