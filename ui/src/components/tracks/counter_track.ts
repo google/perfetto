@@ -950,12 +950,15 @@ export class CounterTrack implements TrackRenderer {
 
     if (signal.isCancelled) throw TASK_CANCELLED;
 
-    const cols = queryRes.decodeColumns({
-      tsRel: NUM,
-      minDisplayValue: NUM,
-      maxDisplayValue: NUM,
-      lastDisplayValue: NUM,
-    });
+    const cols = queryRes.decodeColumns(
+      {
+        tsRel: NUM,
+        minDisplayValue: NUM,
+        maxDisplayValue: NUM,
+        lastDisplayValue: NUM,
+      },
+      {nullAsNaN: true},
+    );
     const tsRelCol = cols.tsRel;
     const minCol = cols.minDisplayValue;
     const maxCol = cols.maxDisplayValue;
