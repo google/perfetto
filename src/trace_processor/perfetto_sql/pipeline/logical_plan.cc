@@ -86,6 +86,7 @@ base::Status PlanOperation::BindDataframeArgs(
 
 BoundPlan::BoundPlan(LogicalPlan p) : plan(std::move(p)) {
   bindings.dataframes.resize(plan.nodes().size());
+  bindings.types.reserve(plan.columns().size());
   for (const PlanColumn& column : plan.columns()) {
     bindings.types.push_back(column.type);
   }

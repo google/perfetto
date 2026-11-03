@@ -596,11 +596,11 @@ std::unique_ptr<ex::Pipeline> Lowering::Build(
   return std::make_unique<ex::Pipeline>(*input_, std::move(operators_));
 }
 
-PlanLowering::PlanLowering(const BoundPlan& plan,
+PlanLowering::PlanLowering(const BoundPlan& bound,
                            const LoweringContext& context)
-    : bound_(plan),
+    : bound_(bound),
       context_(context),
-      converted_(plan.plan.columns().size()),
+      converted_(bound.plan.columns().size()),
       out_(std::make_unique<PhysicalPlan>()) {
   pipelines_.push_back(std::make_unique<Lowering>(this));
 }
@@ -638,10 +638,10 @@ PhysicalPlan::PhysicalPlan() = default;
 PhysicalPlan::~PhysicalPlan() = default;
 
 base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(
-    const BoundPlan& plan,
+    const BoundPlan& bound,
     const LoweringContext& context) {
-  PlanLowering lowering(plan, context);
-  lowering.main().LowerNode(plan.plan.root());
+  PlanLowering lowering(bound, context);
+  lowering.main().LowerNode(bound.plan.root());
   return lowering.Finish();
 }
 

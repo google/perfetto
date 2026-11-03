@@ -430,7 +430,7 @@ class Lowering {
 // State shared by all pipelines while lowering a plan.
 class PlanLowering {
  public:
-  PlanLowering(const BoundPlan& plan, const LoweringContext& context);
+  PlanLowering(const BoundPlan& bound, const LoweringContext& context);
   PlanLowering(const PlanLowering&) = delete;
   PlanLowering& operator=(const PlanLowering&) = delete;
   ~PlanLowering();

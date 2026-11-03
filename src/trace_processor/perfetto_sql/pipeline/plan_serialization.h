@@ -66,7 +66,7 @@ base::StatusOr<BoundPlan> ResolveCompiledPlan(LogicalPlan, const Catalog&);
 // Anyone can pass dataframes to a plan in SQL, so each must have the columns
 // the plan reads from it.
 base::Status BindDataframeArgs(
-    BoundPlan* plan,
+    BoundPlan* bound,
     const std::vector<const dataframe::Dataframe*>& args,
     StringPool* pool);
 
