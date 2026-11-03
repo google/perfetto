@@ -1064,6 +1064,8 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
 
   auto connection = PerfettoSqlConnection::CreateConnectionToNewDatabase(
       storage->mutable_string_pool(), config.enable_extra_checks);
+  connection->sqlite_connection()->SetAttachReadEnabled(
+      config.enable_sql_file_access);
 
   PerfettoSqlConnection::Initializer init;
   init.static_tables.reserve(plugin_dataframes.size());

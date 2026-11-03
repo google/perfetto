@@ -1,0 +1,568 @@
+packet {
+  process_tree {
+    processes {
+      pid: 1
+      ppid: 0
+      cmdline: "init"
+      uid: 0
+    }
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "system_server"
+      uid: 1000
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  # Class hierarchy (linked via java.lang.Class.superClass on Class<T> objects):
+  #   java.lang.Object
+  #     <- android.os.Binder
+  #          <- com.example.IFoo$Stub
+  #               <- com.example.FooService$1
+  #          <- com.example.BarRecord
+  #          <- com.example.MidBar
+  #               <- com.example.DeepFoo                (Foo extends Bar extends Binder)
+  #          <- com.example.IBase$Stub
+  #               <- com.example.IChild$Stub          ($Stub extending $Stub)
+  #                    <- com.example.ChildService$Stub (implementation named *$Stub)
+  #          <- com.google.android.aidl.BaseStub
+  #               <- com.example.GoogleImpl
+  #          <- b (deobfuscated: com.example.IObf$Stub)
+  #               <- a (deobfuscated: com.example.ObfService)
+  #
+  # Instance objects:
+  #   0x01 ServiceHolder (ROOT_STICKY_CLASS, 16B)
+  #     --strong--> 0x02 FooService$1 (ROOT_JNI_GLOBAL, 32B) -> 0x06 Payload (100B)
+  #     --strong--> 0x05 WeakReference (24B) --referent--> 0x03 FooService$1
+  #   0x03 FooService$1 (ROOT_JNI_GLOBAL, remote-only, 32B)
+  #     --strong--> 0x07 Payload (200B, exclusive to 0x03)
+  #     --strong--> 0x08 Payload (400B, shared with 0x04)
+  #   0x04 BarRecord (ROOT_JNI_GLOBAL, remote-only, 64B)
+  #     --strong--> 0x08 Payload (400B, shared with 0x03)
+  #     --strong--> 0x09 Payload (50B, exclusive to 0x04)
+  #     --strong--> 0x0A android.os.Binder (16B, not a root)
+  #   0x0B DeepFoo (ROOT_JNI_GLOBAL, remote-only, 20B)
+  #   0x0C ChildService$Stub (ROOT_JNI_GLOBAL, remote-only, 24B)
+  #   0x0D GoogleImpl (ROOT_JNI_GLOBAL, also held by 0x01, 28B)
+  #   0x0E a / ObfService (ROOT_JNI_GLOBAL, remote-only, 36B)
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+    pid: 2
+    roots {
+      root_type: ROOT_STICKY_CLASS
+      object_ids: 0x01
+    }
+    roots {
+      root_type: ROOT_JNI_GLOBAL
+      object_ids: 0x02
+      object_ids: 0x03
+      object_ids: 0x04
+      object_ids: 0x0B
+      object_ids: 0x0C
+      object_ids: 0x0D
+      object_ids: 0x0E
+    }
+    objects {
+      id: 0x01
+      type_id: 7
+      self_size: 16
+      reference_field_id: 1
+      reference_field_id: 1
+      reference_field_id: 1
+      reference_object_id: 0x02
+      reference_object_id: 0x05
+      reference_object_id: 0x0D
+    }
+    objects {
+      id: 0x02
+      type_id: 4
+      self_size: 32
+      reference_field_id: 1
+      reference_object_id: 0x06
+    }
+    objects {
+      id: 0x03
+      type_id: 4
+      self_size: 32
+      reference_field_id: 1
+      reference_field_id: 1
+      reference_object_id: 0x07
+      reference_object_id: 0x08
+    }
+    objects {
+      id: 0x04
+      type_id: 5
+      self_size: 64
+      reference_field_id: 1
+      reference_field_id: 1
+      reference_field_id: 1
+      reference_object_id: 0x08
+      reference_object_id: 0x09
+      reference_object_id: 0x0A
+    }
+    objects {
+      id: 0x05
+      type_id: 8
+      self_size: 24
+      reference_field_id: 2
+      reference_object_id: 0x03
+    }
+    objects {
+      id: 0x06
+      type_id: 6
+      self_size: 100
+    }
+    objects {
+      id: 0x07
+      type_id: 6
+      self_size: 200
+    }
+    objects {
+      id: 0x08
+      type_id: 6
+      self_size: 400
+    }
+    objects {
+      id: 0x09
+      type_id: 6
+      self_size: 50
+    }
+    objects {
+      id: 0x0A
+      type_id: 2
+      self_size: 16
+    }
+    objects {
+      id: 0x0B
+      type_id: 22
+      self_size: 20
+    }
+    objects {
+      id: 0x0C
+      type_id: 25
+      self_size: 24
+    }
+    objects {
+      id: 0x0D
+      type_id: 27
+      self_size: 28
+    }
+    objects {
+      id: 0x0E
+      type_id: 29
+      self_size: 36
+    }
+    # Class objects encoding superclass chain via java.lang.Class.superClass
+    objects {
+      id: 0x11
+      type_id: 11
+      self_size: 40
+    }
+    objects {
+      id: 0x12
+      type_id: 12
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x11
+    }
+    objects {
+      id: 0x13
+      type_id: 13
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x12
+    }
+    objects {
+      id: 0x14
+      type_id: 14
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x13
+    }
+    objects {
+      id: 0x15
+      type_id: 15
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x12
+    }
+    objects {
+      id: 0x31
+      type_id: 41
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x12
+    }
+    objects {
+      id: 0x32
+      type_id: 42
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x31
+    }
+    objects {
+      id: 0x33
+      type_id: 43
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x12
+    }
+    objects {
+      id: 0x34
+      type_id: 44
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x33
+    }
+    objects {
+      id: 0x35
+      type_id: 45
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x34
+    }
+    objects {
+      id: 0x36
+      type_id: 46
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x12
+    }
+    objects {
+      id: 0x37
+      type_id: 47
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x36
+    }
+    objects {
+      id: 0x38
+      type_id: 48
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x12
+    }
+    objects {
+      id: 0x39
+      type_id: 49
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x38
+    }
+    types {
+      id: 1
+      location_id: 1
+      class_name: "java.lang.Object"
+    }
+    types {
+      id: 2
+      location_id: 1
+      class_name: "android.os.Binder"
+    }
+    types {
+      id: 3
+      location_id: 1
+      class_name: "com.example.IFoo$Stub"
+    }
+    types {
+      id: 4
+      location_id: 1
+      class_name: "com.example.FooService$1"
+    }
+    types {
+      id: 5
+      location_id: 1
+      class_name: "com.example.BarRecord"
+    }
+    types {
+      id: 6
+      location_id: 1
+      class_name: "com.example.Payload"
+    }
+    types {
+      id: 7
+      location_id: 1
+      class_name: "com.example.ServiceHolder"
+    }
+    types {
+      id: 8
+      location_id: 1
+      class_name: "java.lang.ref.WeakReference"
+      kind: KIND_WEAK_REFERENCE
+    }
+    types {
+      id: 11
+      location_id: 1
+      class_name: "java.lang.Class<java.lang.Object>"
+    }
+    types {
+      id: 12
+      location_id: 1
+      class_name: "java.lang.Class<android.os.Binder>"
+    }
+    types {
+      id: 13
+      location_id: 1
+      class_name: "java.lang.Class<com.example.IFoo$Stub>"
+    }
+    types {
+      id: 14
+      location_id: 1
+      class_name: "java.lang.Class<com.example.FooService$1>"
+    }
+    types {
+      id: 15
+      location_id: 1
+      class_name: "java.lang.Class<com.example.BarRecord>"
+    }
+    types {
+      id: 21
+      location_id: 1
+      class_name: "com.example.MidBar"
+    }
+    types {
+      id: 22
+      location_id: 1
+      class_name: "com.example.DeepFoo"
+    }
+    types {
+      id: 23
+      location_id: 1
+      class_name: "com.example.IBase$Stub"
+    }
+    types {
+      id: 24
+      location_id: 1
+      class_name: "com.example.IChild$Stub"
+    }
+    types {
+      id: 25
+      location_id: 1
+      class_name: "com.example.ChildService$Stub"
+    }
+    types {
+      id: 26
+      location_id: 1
+      class_name: "com.google.android.aidl.BaseStub"
+    }
+    types {
+      id: 27
+      location_id: 1
+      class_name: "com.example.GoogleImpl"
+    }
+    types {
+      id: 28
+      location_id: 1
+      class_name: "b"
+    }
+    types {
+      id: 29
+      location_id: 1
+      class_name: "a"
+    }
+    types {
+      id: 41
+      location_id: 1
+      class_name: "java.lang.Class<com.example.MidBar>"
+    }
+    types {
+      id: 42
+      location_id: 1
+      class_name: "java.lang.Class<com.example.DeepFoo>"
+    }
+    types {
+      id: 43
+      location_id: 1
+      class_name: "java.lang.Class<com.example.IBase$Stub>"
+    }
+    types {
+      id: 44
+      location_id: 1
+      class_name: "java.lang.Class<com.example.IChild$Stub>"
+    }
+    types {
+      id: 45
+      location_id: 1
+      class_name: "java.lang.Class<com.example.ChildService$Stub>"
+    }
+    types {
+      id: 46
+      location_id: 1
+      class_name: "java.lang.Class<com.google.android.aidl.BaseStub>"
+    }
+    types {
+      id: 47
+      location_id: 1
+      class_name: "java.lang.Class<com.example.GoogleImpl>"
+    }
+    types {
+      id: 48
+      location_id: 1
+      class_name: "java.lang.Class<b>"
+    }
+    types {
+      id: 49
+      location_id: 1
+      class_name: "java.lang.Class<a>"
+    }
+    field_names {
+      iid: 1
+      str: "com.example.Holder.ref"
+    }
+    field_names {
+      iid: 2
+      str: "java.lang.ref.Reference.referent"
+    }
+    field_names {
+      iid: 3
+      str: "java.lang.Class.superClass"
+    }
+    location_names {
+      iid: 1
+      str: "l1"
+    }
+    continued: false
+    index: 0
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 20
+  # Second heap dump of the same process. Both stubs are remote-only, and 0x01
+  # also references 0x02: each stays its own remote-only root.
+  #   0x01 FooService$1 (ROOT_JNI_GLOBAL, 32B) -> 0x02, 0x03 Payload (100B)
+  #   0x02 FooService$1 (ROOT_JNI_GLOBAL, 32B) -> 0x04 Payload (60B)
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+    pid: 2
+    roots {
+      root_type: ROOT_JNI_GLOBAL
+      object_ids: 0x01
+      object_ids: 0x02
+    }
+    objects {
+      id: 0x01
+      type_id: 4
+      self_size: 32
+      reference_field_id: 1
+      reference_field_id: 1
+      reference_object_id: 0x02
+      reference_object_id: 0x03
+    }
+    objects {
+      id: 0x02
+      type_id: 4
+      self_size: 32
+      reference_field_id: 1
+      reference_object_id: 0x04
+    }
+    objects {
+      id: 0x03
+      type_id: 6
+      self_size: 100
+    }
+    objects {
+      id: 0x04
+      type_id: 6
+      self_size: 60
+    }
+    objects {
+      id: 0x11
+      type_id: 11
+      self_size: 40
+    }
+    objects {
+      id: 0x12
+      type_id: 12
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x11
+    }
+    objects {
+      id: 0x13
+      type_id: 13
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x12
+    }
+    objects {
+      id: 0x14
+      type_id: 14
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x13
+    }
+    types {
+      id: 1
+      location_id: 1
+      class_name: "java.lang.Object"
+    }
+    types {
+      id: 2
+      location_id: 1
+      class_name: "android.os.Binder"
+    }
+    types {
+      id: 3
+      location_id: 1
+      class_name: "com.example.IFoo$Stub"
+    }
+    types {
+      id: 4
+      location_id: 1
+      class_name: "com.example.FooService$1"
+    }
+    types {
+      id: 6
+      location_id: 1
+      class_name: "com.example.Payload"
+    }
+    types {
+      id: 11
+      location_id: 1
+      class_name: "java.lang.Class<java.lang.Object>"
+    }
+    types {
+      id: 12
+      location_id: 1
+      class_name: "java.lang.Class<android.os.Binder>"
+    }
+    types {
+      id: 13
+      location_id: 1
+      class_name: "java.lang.Class<com.example.IFoo$Stub>"
+    }
+    types {
+      id: 14
+      location_id: 1
+      class_name: "java.lang.Class<com.example.FooService$1>"
+    }
+    field_names {
+      iid: 1
+      str: "com.example.Holder.ref"
+    }
+    field_names {
+      iid: 3
+      str: "java.lang.Class.superClass"
+    }
+    location_names {
+      iid: 1
+      str: "l1"
+    }
+    continued: false
+    index: 0
+  }
+}
+packet {
+  deobfuscation_mapping {
+    obfuscated_classes {
+      obfuscated_name: "a"
+      deobfuscated_name: "com.example.ObfService"
+    }
+    obfuscated_classes {
+      obfuscated_name: "b"
+      deobfuscated_name: "com.example.IObf$Stub"
+    }
+  }
+}

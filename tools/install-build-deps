@@ -28,6 +28,7 @@ import zipfile
 import bz2
 
 from collections import namedtuple
+from multiprocessing.pool import ThreadPool
 from platform import system, machine
 
 
@@ -680,7 +681,9 @@ def MkdirRecursive(path):
   for part in path.split('/'):
     cwd = os.path.join(cwd, part)
     if not os.path.exists(cwd):
-      os.makedirs(cwd)
+      # exist_ok: git deps are checked out concurrently and may race to create
+      # the same parent directory.
+      os.makedirs(cwd, exist_ok=True)
     else:
       assert (os.path.isdir(cwd))
 
@@ -1063,19 +1066,34 @@ def Main():
   for old_dir in CLEANUP_OLD_DIRS:
     RmtreeIfExists(os.path.join(ROOT_DIR, old_dir))
 
-  for dep in deps:
+  def MatchesFilters(dep):
     target_arch = args.build_arch
     matches_os = dep.target_os == 'all' or target_os == dep.target_os
     matches_arch = dep.target_arch == 'all' or target_arch == dep.target_arch
     if not matches_os or not matches_arch:
-      continue
+      return False
     if args.filter and not any(f in dep.target_folder for f in args.filter):
+      return False
+    return True
+
+  deps = [dep for dep in deps if MatchesFilters(dep)]
+
+  # Git deps are independent of each other and their checkout time is dominated
+  # by network latency, so check them out concurrently while the archive deps
+  # below are processed.
+  def CheckoutGitDep(dep):
+    return CheckoutGitRepo(
+        os.path.join(ROOT_DIR, dep.target_folder), dep.source_url, dep.checksum,
+        args.check_only)
+
+  git_pool = ThreadPool(8)
+  git_results = git_pool.map_async(
+      CheckoutGitDep, [d for d in deps if d.source_url.endswith('.git')])
+
+  for dep in deps:
+    if dep.source_url.endswith('.git'):
       continue
     local_path = os.path.join(ROOT_DIR, dep.target_folder)
-    if dep.source_url.endswith('.git'):
-      deps_updated |= CheckoutGitRepo(local_path, dep.source_url, dep.checksum,
-                                      args.check_only)
-      continue
     is_compressed = any(
         [local_path.endswith(ext) for ext in ['.zip', '.tgz', '.tbz2']])
     compressed_target_dir = os.path.splitext(
@@ -1148,6 +1166,11 @@ def Main():
       with open(compressed_dir_stamp, 'w') as stamp_file:
         stamp_file.write(dep.checksum)
       os.remove(local_path)
+
+  git_pool.close()
+  # get() re-raises the first exception from a failed checkout.
+  deps_updated |= any(git_results.get())
+  git_pool.join()
 
   if args.ui:
     # Needs to happen after nodejs is installed above.
