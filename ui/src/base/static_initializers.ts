@@ -27,6 +27,15 @@
 
 import {enableMapSet, enablePatches, setAutoFreeze} from 'immer';
 import protobuf from 'protobufjs/minimal';
+import {z} from 'zod';
+
+function initializeZod() {
+  // Disable JIT compilation in Zod. Under CSP Level 3 'wasm-unsafe-eval',
+  // JavaScript `new Function` / `eval` is forbidden. Setting this globally
+  // configures Zod to use its safe tree-walking parser and skips Zod's internal
+  // `allowsEval` probe (`new Function("")`), avoiding CSP violation reports.
+  z.config({jitless: true});
+}
 
 function initializeImmer() {
   enablePatches();
@@ -57,6 +66,7 @@ function initialize() {
   if (isInitialized) {
     throw new Error('initialize() should be called exactly once');
   }
+  initializeZod();
   initializeImmer();
   initializeProtobuf();
   isInitialized = true;
