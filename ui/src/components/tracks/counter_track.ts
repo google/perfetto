@@ -69,6 +69,7 @@ interface DataFrame {
   readonly minDisplayValues: Float32Array; // Min value within each bucket
   readonly maxDisplayValues: Float32Array; // Max value within each bucket
   readonly lastDisplayValues: Float32Array; // Final value within each bucket
+  readonly lastDisplayValuesF64: Float64Array; // Full-precision final value within each bucket
 }
 
 interface HoverState {
@@ -632,10 +633,14 @@ export class CounterTrack implements TrackRenderer {
     const [left, right] = searchSegment(data.timestampsRel, relNs);
     if (left === -1) return undefined;
 
+    const tsRel = data.timestampsRel[left];
+    const lastDisplayValue = data.lastDisplayValuesF64[left];
+    if (tsRel === undefined || lastDisplayValue === undefined) return undefined;
+
     return {
-      tsRel: data.timestampsRel[left]!,
+      tsRel,
       tsEndRel: right === -1 ? undefined : data.timestampsRel[right],
-      lastDisplayValue: data.lastDisplayValues[left]!,
+      lastDisplayValue,
     };
   }
 
@@ -949,6 +954,7 @@ export class CounterTrack implements TrackRenderer {
       minDisplayValues,
       maxDisplayValues,
       lastDisplayValues,
+      lastDisplayValuesF64: lastCol,
       limits: {
         min,
         max,
