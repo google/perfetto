@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/plugins/android_framework_track_event/unknown_process_logger.h"
+#include "src/trace_processor/importers/android/unknown_process_logger.h"
 
 #include <cstdint>
 #include <optional>
@@ -27,7 +27,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
-namespace perfetto::trace_processor::android_framework_track_event {
+namespace perfetto::trace_processor {
 
 UnknownProcessLogger::UnknownProcessLogger(TraceProcessorContext* context)
     : context_(context) {}
@@ -59,4 +59,4 @@ void UnknownProcessLogger::Record(int64_t ts,
       });
 }
 
-}  // namespace perfetto::trace_processor::android_framework_track_event
+}  // namespace perfetto::trace_processor

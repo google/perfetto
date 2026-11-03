@@ -817,7 +817,7 @@ class AndroidParser(TestSuite):
             }
           }
         }
-        # Same pid as the binder_died above: deduplicated.
+        # Same pid (200) as the first binder_died: deduplicated.
         packet {
           timestamp: 2000
           trusted_packet_sequence_id: 1
@@ -921,12 +921,20 @@ class AndroidParser(TestSuite):
             }
           }
         }
+        # pid 100 is live. pid 300 was already reported by process_state_changed
+        # without a name: the first event wins, so the name and start_seq_id
+        # here are not added.
         packet {
           timestamp: 3000
           [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
             dump_reason: DUMP_REASON_END
             record { pid: 100 proc_state: 1002 }
-            record { pid: 300 proc_state: 1002 }
+            record {
+              pid: 300
+              process_name: "com.example.late_name"
+              start_seq_id: 30
+              proc_state: 1002
+            }
             record {
               pid: 400
               process_name: "com.example.end_dump"

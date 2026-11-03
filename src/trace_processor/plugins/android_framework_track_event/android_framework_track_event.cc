@@ -30,11 +30,11 @@
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
+#include "src/trace_processor/importers/android/unknown_process_logger.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event_extension_parser.h"
 #include "src/trace_processor/plugins/android_framework_track_event/tables_py.h"
-#include "src/trace_processor/plugins/android_framework_track_event/unknown_process_logger.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -217,9 +217,10 @@ class Parser : public TrackEventExtensionParser {
   // Returns the row of the process a death event refers to, identified by
   // |start_seq_id| and cross-checked against |pid|. Falls back to the live
   // process for |pid| when the event has no start_seq_id or it is unknown.
-  // Returns nullopt if the process is unknown or the two values disagree, and
-  // records an unknown-process notice (with |ts|, |source| and |process_name|)
-  // when no live process exists for |pid|.
+  // Returns nullopt if the process is unknown or the two values disagree. On
+  // the |pid| fallback, records an unknown-process notice (with |ts|,
+  // |source|, |process_name| and |start_seq_id|) when no live process exists
+  // for |pid|.
   //
   // start_seq_id check comes first because AndroidProcessDiedEvent can arrive
   // up to ~15s after AndroidBinderDiedEvent, when the pid has already been

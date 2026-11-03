@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PLUGINS_ANDROID_FRAMEWORK_TRACK_EVENT_UNKNOWN_PROCESS_LOGGER_H_
-#define SRC_TRACE_PROCESSOR_PLUGINS_ANDROID_FRAMEWORK_TRACK_EVENT_UNKNOWN_PROCESS_LOGGER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_UNKNOWN_PROCESS_LOGGER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_UNKNOWN_PROCESS_LOGGER_H_
 
 #include <cstdint>
 #include <optional>
@@ -24,10 +24,8 @@
 #include "perfetto/protozero/field.h"
 
 namespace perfetto::trace_processor {
-class TraceProcessorContext;
-}  // namespace perfetto::trace_processor
 
-namespace perfetto::trace_processor::android_framework_track_event {
+class TraceProcessorContext;
 
 // Records an android_track_event_process_unknown notice when an Android
 // framework event or state dump references a pid with no live process in
@@ -55,6 +53,6 @@ class UnknownProcessLogger {
   base::FlatSet<int64_t> warned_pids_;
 };
 
-}  // namespace perfetto::trace_processor::android_framework_track_event
+}  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_PLUGINS_ANDROID_FRAMEWORK_TRACK_EVENT_UNKNOWN_PROCESS_LOGGER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_UNKNOWN_PROCESS_LOGGER_H_

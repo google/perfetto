@@ -3159,6 +3159,7 @@ cc_test {
         ":perfetto_src_trace_processor_core_tree_tree",
         ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
+        ":perfetto_src_trace_processor_importers_android_android",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_log_event",
@@ -3217,7 +3218,6 @@ cc_test {
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
-        ":perfetto_src_trace_processor_plugins_android_framework_track_event_unknown_process_logger",
         ":perfetto_src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
         ":perfetto_src_trace_processor_plugins_args_args",
@@ -18368,6 +18368,14 @@ genrule {
     ],
 }
 
+// GN: //src/trace_processor/importers/android:android
+filegroup {
+    name: "perfetto_src_trace_processor_importers_android_android",
+    srcs: [
+        "src/trace_processor/importers/android/unknown_process_logger.cc",
+    ],
+}
+
 // GN: //src/trace_processor/importers/android_bugreport:android_bugreport
 filegroup {
     name: "perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
@@ -20154,14 +20162,6 @@ python_binary_host {
     main: "tools/gen_tp_table_headers.py",
 }
 
-// GN: //src/trace_processor/plugins/android_framework_track_event:unknown_process_logger
-filegroup {
-    name: "perfetto_src_trace_processor_plugins_android_framework_track_event_unknown_process_logger",
-    srcs: [
-        "src/trace_processor/plugins/android_framework_track_event/unknown_process_logger.cc",
-    ],
-}
-
 // GN: //src/trace_processor/plugins/android_job_scheduler:android_job_scheduler
 filegroup {
     name: "perfetto_src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
@@ -21930,6 +21930,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_core_tree_tree",
         ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
+        ":perfetto_src_trace_processor_importers_android_android",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_log_event",
@@ -21989,7 +21990,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
-        ":perfetto_src_trace_processor_plugins_android_framework_track_event_unknown_process_logger",
         ":perfetto_src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
         ":perfetto_src_trace_processor_plugins_args_args",
@@ -25036,6 +25036,7 @@ cc_test {
         ":perfetto_src_trace_processor_core_util_unittests",
         ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
+        ":perfetto_src_trace_processor_importers_android_android",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_log_event",
@@ -25115,7 +25116,6 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_ancestor_unittests",
         ":perfetto_src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
-        ":perfetto_src_trace_processor_plugins_android_framework_track_event_unknown_process_logger",
         ":perfetto_src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":perfetto_src_trace_processor_plugins_android_job_scheduler_unittests",
         ":perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
@@ -26234,6 +26234,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_core_tree_tree",
         ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
+        ":perfetto_src_trace_processor_importers_android_android",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_log_event",
@@ -26292,7 +26293,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
-        ":perfetto_src_trace_processor_plugins_android_framework_track_event_unknown_process_logger",
         ":perfetto_src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
         ":perfetto_src_trace_processor_plugins_args_args",
@@ -26959,6 +26959,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_core_tree_tree",
         ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
+        ":perfetto_src_trace_processor_importers_android_android",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_log_event",
@@ -27017,7 +27018,6 @@ cc_binary_host {
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
-        ":perfetto_src_trace_processor_plugins_android_framework_track_event_unknown_process_logger",
         ":perfetto_src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
         ":perfetto_src_trace_processor_plugins_args_args",

@@ -25,7 +25,7 @@
 #include <vector>
 
 #include "perfetto/protozero/field.h"
-#include "src/trace_processor/plugins/android_framework_track_event/unknown_process_logger.h"
+#include "src/trace_processor/importers/android/unknown_process_logger.h"
 #include "src/trace_processor/plugins/android_process_state/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/descriptors.h"
@@ -113,7 +113,7 @@ class AndroidProcessStateTracker {
   tables::AndroidProcessStateTable* const process_state_table_;
   tables::AndroidFreezerStateTable* const freezer_state_table_;
   const StringId capability_flags_id_;
-  android_framework_track_event::UnknownProcessLogger unknown_process_logger_;
+  UnknownProcessLogger unknown_process_logger_;
 
   DescriptorPool::CachedDescriptor proc_state_cache_;
   DescriptorPool::CachedDescriptor process_group_cache_;
