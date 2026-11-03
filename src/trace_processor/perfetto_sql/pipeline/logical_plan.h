@@ -230,8 +230,7 @@ class LogicalPlan {
   // in output bindings. Physical temporaries do not get SQL names or IDs.
   std::vector<PlanColumn> columns_;
   std::vector<PlanNode> nodes_;
-  // The node whose rows are the plan's rows. Pruning can leave unreachable
-  // nodes in the vector so that node IDs remain stable.
+  // The node whose rows are the plan's rows.
   PlanNodeId root_ = 0;
   // Visible result columns, in order. Internal columns have no binding here.
   std::vector<NamedColumn> output_;
