@@ -895,6 +895,84 @@ class Profiling(TestSuite):
         "python.wall",4
         """))
 
+  def test_stack_sample_error_stats(self):
+    return DiffTestBlueprint(
+        trace=Path('stack_sample_errors.textproto'),
+        query="""
+        -- Each error counts towards the stat of its kind. The sample with both
+        -- an error and a callstack is also counted as invalid.
+        SELECT name, severity, source, value
+        FROM stats
+        WHERE name GLOB 'stack_sample*' AND value > 0
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","severity","source","value"
+        "stack_sample_error.com.example.mapping_not_found","error","trace",2
+        "stack_sample_error.com.example.stack_too_deep","data_loss","trace",1
+        "stack_sample_error_unknown_kind","data_loss","trace",2
+        "stack_sample_error_with_callstack","error","analysis",1
+        "stack_sample_failed","data_loss","trace",1
+        "stack_sample_unwind_failed","data_loss","trace",1
+        """))
+
+  def test_stack_sample_error_custom_description(self):
+    return DiffTestBlueprint(
+        trace=Path('stack_sample_errors.textproto'),
+        query="""
+        -- Producer-defined kinds are described by their ErrorDescriptor, or by
+        -- a generic description if it has none.
+        SELECT name, description
+        FROM stats
+        WHERE name GLOB 'stack_sample_error.*'
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","description"
+        "stack_sample_error.com.example.mapping_not_found","No mapping for the sampled pc."
+        "stack_sample_error.com.example.stack_too_deep","A stack sampler could not take a sample, for a reason it defines itself (a StackSample error of a producer-defined kind)."
+        """))
+
+  def test_stack_sample_error_import_logs(self):
+    return DiffTestBlueprint(
+        trace=Path('stack_sample_errors.textproto'),
+        query="""
+        -- Each error is logged with the timestamp, source and task of the
+        -- sample it stands in for.
+        SELECT
+          ts,
+          name,
+          severity,
+          EXTRACT_ARG(arg_set_id, 'source') AS source,
+          EXTRACT_ARG(arg_set_id, 'pid') AS pid,
+          EXTRACT_ARG(arg_set_id, 'tid') AS tid
+        FROM _trace_import_logs
+        WHERE name GLOB 'stack_sample*'
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","name","severity","source","pid","tid"
+        2000,"stack_sample_failed","data_loss","python.wall",100,101
+        3000,"stack_sample_error.com.example.mapping_not_found","error","python.wall",100,102
+        4000,"stack_sample_error.com.example.mapping_not_found","error","python.wall","[NULL]","[NULL]"
+        5000,"stack_sample_unwind_failed","data_loss","python.wall",100,101
+        6000,"stack_sample_error.com.example.stack_too_deep","data_loss","python.wall","[NULL]","[NULL]"
+        7000,"stack_sample_error_unknown_kind","data_loss","python.wall","[NULL]","[NULL]"
+        8000,"stack_sample_error_unknown_kind","data_loss","python.wall","[NULL]","[NULL]"
+        """))
+
+  def test_stack_sample_error_no_sample(self):
+    return DiffTestBlueprint(
+        trace=Path('stack_sample_errors.textproto'),
+        query="""
+        -- Only the sample that was taken gets a row: errors do not.
+        SELECT ts FROM stack_sample ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts"
+        1000
+        """))
+
   def test_cpu_profiling_samples_timebase_filter(self):
     return DiffTestBlueprint(
         trace=TextProto(R"""

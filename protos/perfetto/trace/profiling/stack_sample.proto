@@ -170,6 +170,66 @@ message StackSample {
     optional Scope scope = 7;
   }
 
+  // Describes a kind of error that stopped a sampler from taking a sample.
+  // Set `builtin` for the kinds trace processor knows about, or `name` to
+  // define your own.
+  message ErrorDescriptor {
+    // Error kinds known to trace processor. Append-only: never renumber or
+    // repurpose an existing value.
+    enum Builtin {
+      BUILTIN_UNSPECIFIED = 0;
+
+      // The sampler could not take the sample at all, e.g. it could not read
+      // the registers or the stack of the task.
+      BUILTIN_SAMPLE_FAILED = 1;
+
+      // The sample was taken but its stack could not be unwound, so there are
+      // no frames to report.
+      BUILTIN_UNWIND_FAILED = 2;
+    }
+
+    // How serious errors of a producer-defined kind are. Append-only: never
+    // renumber or repurpose an existing value.
+    enum Severity {
+      // Treated as SEVERITY_DATA_LOSS.
+      SEVERITY_UNSPECIFIED = 0;
+
+      // Worth knowing about, but no data is missing.
+      SEVERITY_INFO = 1;
+
+      // Data is missing from the trace, e.g. samples that were not taken.
+      SEVERITY_DATA_LOSS = 2;
+
+      // Something went wrong that makes the data unreliable.
+      SEVERITY_ERROR = 3;
+    }
+
+    // Interning key, used when this descriptor is emitted via
+    // InternedData.stack_sample_error_descriptors and referenced by
+    // StackSample.error_iid. Starts from 1; 0 is the same as "not set".
+    optional uint64 iid = 1;
+
+    // The kind of error: one known to trace processor, or one defined by the
+    // producer.
+    oneof kind {
+      // A kind known to trace processor.
+      Builtin builtin = 2;
+
+      // A producer-defined kind. Namespace it with a reverse-domain prefix,
+      // e.g. "com.example.profiler.mapping_not_found", so it does not collide
+      // with kinds defined by other producers.
+      string name = 3;
+    }
+
+    // How serious errors of a producer-defined kind are. Ignored for builtin
+    // kinds, which have a fixed severity. Absent means SEVERITY_DATA_LOSS.
+    optional Severity severity = 4;
+
+    // Free-form description of a producer-defined kind: what went wrong and
+    // what it means for the data. Ignored for builtin kinds.
+    optional string description = 5;
+  }
+
   // The task (thread / process / async context) this sample is attributed to.
   // Give it inline via `task_context` or reference an interned TaskContext via
   // `task_context_iid`.
@@ -243,6 +303,20 @@ message StackSample {
   repeated CounterDescriptor follower_descriptors = 12;
   repeated uint64 follower_descriptor_iids = 13 [packed = true];
   repeated uint64 follower_weights = 14 [packed = true];
+
+  // Set when the sampler could not take this sample: the error stands in for
+  // it. The timestamp and the task context still apply, but the sample must
+  // not have a callstack or an unwind error; trace processor ignores them, and
+  // every other field, when an error is set. Give it inline via `error` or
+  // reference an interned ErrorDescriptor via `error_iid`.
+  oneof error_field {
+    // Inline error descriptor.
+    ErrorDescriptor error = 15;
+
+    // Interned error descriptor, referencing
+    // InternedData.stack_sample_error_descriptors.
+    uint64 error_iid = 16;
+  }
 }
 
 // Per-sequence defaults for StackSample. Lets a producer declare the source and

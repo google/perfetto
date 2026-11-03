@@ -250,6 +250,23 @@ namespace perfetto::trace_processor::stats {
   F(flow_end_without_start,               kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(flow_invalid_id,                      kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(flow_without_direction,               kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
+  F(stack_sample_error_unknown_kind,      kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "A stack sampler could not take a sample, but the kind of error is "     \
+      "unknown: the StackSample error has no kind, has a builtin kind "        \
+      "newer than this trace processor, or refers to an interned "             \
+      "descriptor that is missing."),                                          \
+  F(stack_sample_error_with_callstack,    kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+      "A StackSample had both an error and a callstack (or an unwind "         \
+      "error). An error means the sample could not be taken, so this is a "    \
+      "bug in the producer. The error was kept and the callstack ignored."),   \
+  F(stack_sample_failed,                  kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "A stack sampler could not take a sample at all (a StackSample with "    \
+      "the BUILTIN_SAMPLE_FAILED error). The import logs have the time of "    \
+      "each one."),                                                            \
+  F(stack_sample_unwind_failed,           kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "A stack sampler took a sample but could not unwind its stack (a "       \
+      "StackSample with the BUILTIN_UNWIND_FAILED error). The import logs "    \
+      "have the time of each one."),                                           \
   F(stackprofile_empty_callstack,         kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
       "Callstack had no frames. Ignored"),                                     \
   F(stackprofile_invalid_string_id,       kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
