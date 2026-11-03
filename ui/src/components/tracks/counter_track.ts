@@ -647,7 +647,13 @@ export class CounterTrack implements TrackRenderer {
 
     const tsRel = data.timestampsRel[left];
     const lastDisplayValue = data.lastDisplayValuesF64[left];
-    if (tsRel === undefined || lastDisplayValue === undefined) return undefined;
+    if (
+      tsRel === undefined ||
+      lastDisplayValue === undefined ||
+      Number.isNaN(lastDisplayValue)
+    ) {
+      return undefined;
+    }
 
     return {
       tsRel,
