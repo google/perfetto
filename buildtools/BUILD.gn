@@ -146,6 +146,7 @@ config("abseil_config") {
       "-Wno-double-promotion",
       "-Wno-thread-safety-negative",
       "-Wno-used-but-marked-unused",
+      "-Wno-deprecated-declarations",
     ]
   }
   if (is_gcc) {

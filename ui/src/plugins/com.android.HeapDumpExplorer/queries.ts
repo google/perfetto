@@ -1312,18 +1312,18 @@ export async function getClassHierarchy(
   startClassId: number,
 ): Promise<readonly string[]> {
   const res = await engine.query(`
-    INCLUDE PERFETTO MODULE graphs.search;
-
-    SELECT
-      dfs.node_id AS class_id,
-      dfs.parent_node_id AS child_class_id,
-      coalesce(c.deobfuscated_name, c.name) AS name
-    FROM graph_reachable_dfs!(
-      (SELECT id AS source_node_id, superclass_id AS dest_node_id
-       FROM heap_graph_class WHERE superclass_id IS NOT NULL),
-      (SELECT ${startClassId} AS node_id)
-    ) AS dfs
-    JOIN heap_graph_class c ON c.id = dfs.node_id
+    GRAPH DFS TREE
+      NODES (
+        SELECT id, coalesce(deobfuscated_name, name) AS name
+        FROM heap_graph_class
+      )
+      EDGES (
+        SELECT id AS src, superclass_id AS dst
+        FROM heap_graph_class
+        WHERE superclass_id IS NOT NULL
+      )
+      FROM (SELECT ${startClassId} AS id)
+    |> SELECT id AS class_id, parent_id AS child_class_id, name
   `);
 
   type Row = {classId: number; childClassId: number | null; className: string};
@@ -1369,18 +1369,30 @@ export async function getSubclassNames(
   rootName: string,
 ): Promise<readonly string[]> {
   const res = await engine.query(`
-    INCLUDE PERFETTO MODULE graphs.search;
-    SELECT DISTINCT coalesce(c.deobfuscated_name, c.name) AS name
-    FROM graph_reachable_dfs!(
-      (SELECT superclass_id AS source_node_id, id AS dest_node_id
-       FROM heap_graph_class WHERE superclass_id IS NOT NULL),
-      (SELECT id AS node_id FROM heap_graph_class
-       WHERE coalesce(deobfuscated_name, name) = '${sqlEsc(rootName)}'
-       LIMIT 1)
-    ) AS dfs
-    JOIN heap_graph_class c ON c.id = dfs.node_id
-    JOIN heap_graph_object o ON o.type_id = c.id
-    WHERE ${dumpFilterSql(activeDump, 'o')}
+    GRAPH DFS TREE
+      NODES (
+        SELECT
+          c.id,
+          coalesce(c.deobfuscated_name, c.name) AS name,
+          c.id IN (
+            SELECT o.type_id FROM heap_graph_object o
+            WHERE ${dumpFilterSql(activeDump, 'o')}
+          ) AS in_dump
+        FROM heap_graph_class c
+      )
+      EDGES (
+        SELECT superclass_id AS src, id AS dst
+        FROM heap_graph_class
+        WHERE superclass_id IS NOT NULL
+      )
+      FROM (
+        SELECT id FROM heap_graph_class
+        WHERE coalesce(deobfuscated_name, name) = '${sqlEsc(rootName)}'
+        LIMIT 1
+      )
+    |> WHERE in_dump = 1
+    |> SELECT name
+    |> DISTINCT
   `);
   const names: string[] = [];
   for (const it = res.iter({name: STR}); it.valid(); it.next()) {

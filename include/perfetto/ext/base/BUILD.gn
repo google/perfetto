@@ -56,6 +56,7 @@ source_set("base") {
     "scoped_sched_boost.h",
     "small_set.h",
     "small_vector.h",
+    "span.h",
     "status_macros.h",
     "status_or.h",
     "string_splitter.h",
@@ -82,7 +83,10 @@ source_set("base") {
     "weak_runner.h",
   ]
   if (enable_perfetto_ipc) {
-    sources += [ "unix_socket.h" ]
+    sources += [
+      "sd_notify.h",
+      "unix_socket.h",
+    ]
   }
   if (perfetto_build_with_android) {
     libs = [ "perfetto_flags_c_lib" ]

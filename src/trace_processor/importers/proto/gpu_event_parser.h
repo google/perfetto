@@ -188,13 +188,13 @@ class GpuEventParser {
 
   void ParseExtraComputeArg(PacketSequenceStateGeneration* sequence_state,
                             protozero::ConstBytes bytes,
-                            ArgsTracker::BoundInserter* inserter);
+                            ArgsInserter* inserter);
   void ParseComputeKernel(PacketSequenceStateGeneration* sequence_state,
                           uint64_t kernel_iid,
-                          ArgsTracker::BoundInserter* inserter);
+                          ArgsInserter* inserter);
   void ParseComputeKernelLaunch(PacketSequenceStateGeneration* sequence_state,
                                 protozero::ConstBytes bytes,
-                                ArgsTracker::BoundInserter* inserter);
+                                ArgsInserter* inserter);
 
   void InternGpuContext(
       uint64_t context_id,

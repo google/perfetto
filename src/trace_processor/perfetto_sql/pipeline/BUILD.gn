@@ -23,6 +23,7 @@ source_set("pipeline") {
   deps = [
     ":plan",
     "../../../../gn:default_deps",
+    "../../../base",
     "operations",
   ]
 }
@@ -37,6 +38,8 @@ source_set("plan") {
     "column_pruning.h",
     "compiler.cc",
     "compiler.h",
+    "expression.cc",
+    "expression.h",
     "logical_plan.cc",
     "logical_plan.h",
     "operation_registry.h",

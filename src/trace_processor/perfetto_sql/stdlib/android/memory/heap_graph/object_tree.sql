@@ -15,25 +15,21 @@
 
 INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
 
-CREATE PERFETTO TABLE _heap_graph_object_tree_cumulatives AS
+-- The cumulative size, native size and object count of every object in the
+-- heap graph: the totals over the object and everything below it in the min
+-- depth tree. Objects which are not part of the tree only count themselves.
+CREATE PERFETTO TABLE _heap_graph_object_tree_aggregation AS
 FROM (
-  SELECT o.id, t.parent_id, o.self_size, o.native_size, 1 AS self_count
+  SELECT o.id, t.parent_id, o.self_size, o.native_size
   FROM heap_graph_object AS o
   LEFT JOIN _heap_graph_object_min_depth_tree AS t USING (id)
 )
 |> TREE ACCUMULATE UP
   SUM(self_size) AS cumulative_size,
   SUM(native_size) AS cumulative_native_size,
-  SUM(self_count) AS cumulative_count;
-
--- The cumulative size, native size and object count of every object in the
--- heap graph: the totals over the object and everything below it in the min
--- depth tree. Objects which are not part of the tree only count themselves.
-CREATE PERFETTO TABLE _heap_graph_object_tree_aggregation AS
-SELECT id, cumulative_size, cumulative_native_size, cumulative_count
-FROM _heap_graph_object_tree_cumulatives
-ORDER BY
-  id;
+  COUNT(*) AS cumulative_count
+|> SELECT id, cumulative_size, cumulative_native_size, cumulative_count
+|> ORDER BY id;
 
 -- Returns object references with cumulative size information.
 CREATE PERFETTO MACRO _heap_graph_object_references_agg(

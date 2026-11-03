@@ -82,6 +82,47 @@ const char kSystemTraceEventsFooter[] =
     "\\n<...>-12345 (-----) [000] ...1 0.000000: tracing_mark_write: "
     "trace_event_clock_sync: parent_ts=0\\n\"";
 
+// Escapes contents of an already-open JSON string, without adding quotes.
+void AppendEscapedJsonStringContents(const base::StringView& value,
+                                     base::DynamicStringWriter* writer) {
+  static constexpr char kHexDigits[] = "0123456789abcdef";
+  for (size_t i = 0; i < value.size(); ++i) {
+    const unsigned char c = static_cast<unsigned char>(value.at(i));
+    switch (c) {
+      case '\n':
+        writer->AppendLiteral("\\n");
+        break;
+      case '\f':
+        writer->AppendLiteral("\\f");
+        break;
+      case '\b':
+        writer->AppendLiteral("\\b");
+        break;
+      case '\r':
+        writer->AppendLiteral("\\r");
+        break;
+      case '\t':
+        writer->AppendLiteral("\\t");
+        break;
+      case '\\':
+        writer->AppendLiteral("\\\\");
+        break;
+      case '"':
+        writer->AppendLiteral("\\\"");
+        break;
+      default:
+        if (c < 0x20) {
+          writer->AppendLiteral("\\u00");
+          writer->AppendChar(kHexDigits[c >> 4]);
+          writer->AppendChar(kHexDigits[c & 0x0f]);
+        } else {
+          writer->AppendChar(static_cast<char>(c));
+        }
+        break;
+    }
+  }
+}
+
 inline void FormatProcess(uint32_t pid,
                           uint32_t ppid,
                           const base::StringView& name,
@@ -91,7 +132,7 @@ inline void FormatProcess(uint32_t pid,
   writer->AppendLiteral("     ");
   writer->AppendInt(ppid);
   writer->AppendLiteral("   00000   000 null 0000000000 S ");
-  writer->AppendString(name);
+  AppendEscapedJsonStringContents(name, writer);
   writer->AppendLiteral("         null");
 }
 
@@ -107,7 +148,7 @@ inline void FormatThread(uint32_t tid,
   if (name.empty()) {
     writer->AppendLiteral("<...>");
   } else {
-    writer->AppendString(name);
+    AppendEscapedJsonStringContents(name, writer);
   }
 }
 
@@ -186,37 +227,8 @@ int ExtractRawEvents(TraceWriter* trace_writer,
                                         base::DynamicStringWriter* writer) {
     const char* line = it->Get(0 /* col */).string_value;
     if (wrapped_in_json) {
-      for (uint32_t i = 0; line[i] != '\0'; i++) {
-        char c = line[i];
-        switch (c) {
-          case '\n':
-            writer->AppendLiteral("\\n");
-            break;
-          case '\f':
-            writer->AppendLiteral("\\f");
-            break;
-          case '\b':
-            writer->AppendLiteral("\\b");
-            break;
-          case '\r':
-            writer->AppendLiteral("\\r");
-            break;
-          case '\t':
-            writer->AppendLiteral("\\t");
-            break;
-          case '\\':
-            writer->AppendLiteral("\\\\");
-            break;
-          case '"':
-            writer->AppendLiteral("\\\"");
-            break;
-          default:
-            writer->AppendChar(c);
-            break;
-        }
-      }
-      writer->AppendChar('\\');
-      writer->AppendChar('n');
+      AppendEscapedJsonStringContents(base::StringView(line), writer);
+      writer->AppendLiteral("\\n");
     } else {
       writer->AppendString(line);
       writer->AppendChar('\n');

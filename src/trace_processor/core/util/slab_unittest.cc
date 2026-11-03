@@ -170,5 +170,17 @@ TEST(SlabTest, DifferentDataTypes) {
   }
 }
 
+TEST(SlabTest, ConvertsToSpan) {
+  auto slab = Slab<uint32_t>::Alloc(2);
+  slab[0] = 5;
+  slab[1] = 5;
+  base::Span<uint32_t> mutable_slab_span = slab;
+  EXPECT_THAT(mutable_slab_span, testing::ElementsAre(5u, 5u));
+  mutable_slab_span[1] = 6;
+  const Slab<uint32_t>& const_slab = slab;
+  base::Span<const uint32_t> slab_span = const_slab;
+  EXPECT_EQ(slab_span[1], 6u);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core

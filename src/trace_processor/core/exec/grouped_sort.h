@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "src/trace_processor/core/exec/breaker.h"
@@ -53,6 +54,17 @@ class GroupedSort : public Breaker {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override {
+    out->reads = spec_.groups;
+    for (const SortKey& key : spec_.keys) {
+      out->reads.push_back(key.column);
+    }
+    // Each row's group number.
+    out->added = 1;
+  }
+  void SetUnreadColumns(std::vector<bool> unread) override {
+    unread_ = std::move(unread);
+  }
 
   explicit GroupedSort(GroupedSortSpec);
   ~GroupedSort() override;
@@ -83,6 +95,8 @@ class GroupedSort : public Breaker {
   bool Serve(RowBatch& out, Breaker::State& state) const override;
 
   GroupedSortSpec spec_;
+  // Input columns no later step reads (see Operator::SetUnreadColumns).
+  std::vector<bool> unread_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

@@ -107,8 +107,7 @@ void ProtoContentAnalyzer::OnEventsFullyExtracted() {
                 .id;
         if (!previous_path_id.has_value()) {
           // Add annotations to the current row as an args set.
-          ArgsTracker args_tracker(context_);
-          auto inserter = args_tracker.AddArgsTo(path_id);
+          auto inserter = context_->args_tracker->AddArgsTo(path_id);
           for (auto& annotation : annotated_map.key()) {
             inserter.AddArg(annotation.first,
                             Variadic::String(annotation.second));

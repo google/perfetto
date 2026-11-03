@@ -51,7 +51,12 @@ class RowLayout {
   static_assert(sizeof(Slot) <= 8);
 
   RowLayout() = default;
-  explicit RowLayout(const std::vector<Column>& columns) {
+  explicit RowLayout(const std::vector<Column>& columns) { Assign(columns); }
+
+  // Lays out `columns` instead, reusing the storage already allocated.
+  void Assign(const std::vector<Column>& columns) {
+    slots_.clear();
+    stride_ = 0;
     for (const Column& column : columns) {
       slots_.push_back({static_cast<uint16_t>(stride_), 0, column.nullable,
                         column.descending});
@@ -124,14 +129,14 @@ class RowLayout {
   // The inspiration behind these functions comes from:
   // https://arrow.apache.org/blog/2022/11/07/multi-column-sorts-in-arrow-rust-part-2/
   PERFETTO_ALWAYS_INLINE static uint32_t Encode(uint32_t x) {
-    return base::HostToBE32(x);
+    return base::HostToBE(x);
   }
   PERFETTO_ALWAYS_INLINE static uint32_t Encode(int32_t x) {
-    return base::HostToBE32(
+    return base::HostToBE(
         static_cast<uint32_t>(x ^ static_cast<int32_t>(0x80000000)));
   }
   PERFETTO_ALWAYS_INLINE static uint64_t Encode(int64_t x) {
-    return base::HostToBE64(
+    return base::HostToBE(
         static_cast<uint64_t>(x ^ static_cast<int64_t>(0x8000000000000000)));
   }
   PERFETTO_ALWAYS_INLINE static uint64_t Encode(double x) {

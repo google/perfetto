@@ -68,8 +68,9 @@ class Pipeline final : public Source {
     // The step starting the segment, or -1 for the source.
     int32_t start = -1;
     const Operator* start_op = nullptr;
-    std::vector<uint32_t> transforms;
-    std::vector<const Transform*> transform_ops;
+    // Its transforms: the steps [first, end).
+    uint32_t first = 0;
+    uint32_t end = 0;
   };
 
   struct State : OperatorState {

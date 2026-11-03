@@ -64,6 +64,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_InodeFileMap);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InternedData);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InterruptInfo);
 PERFETTO_PB_MSG_DECL(perfetto_protos_KernelWakelockData);
+PERFETTO_PB_MSG_DECL(perfetto_protos_MemcgStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_MemoryTrackerSnapshot);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ModuleSymbols);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PackagesList);
@@ -583,6 +584,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_RecoveredTraceInfo,
                   recovered_trace_info,
                   138);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_MemcgStats,
+                  memcg_stats,
+                  140);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_TestEvent,

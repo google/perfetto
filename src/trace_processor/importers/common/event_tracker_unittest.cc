@@ -21,7 +21,6 @@
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -30,6 +29,7 @@
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/counter_tables_py.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor {
@@ -50,8 +50,7 @@ class EventTrackerTest : public ::testing::Test {
         TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
             TraceProcessorContext::TraceState{TraceId{0}});
     context.stats_tracker = std::make_unique<StatsTracker>(&context);
-    context.global_args_tracker =
-        std::make_unique<GlobalArgsTracker>(context.storage.get());
+    context.args_tracker = std::make_unique<ArgsTracker>(context.storage.get());
     context.process_tracker = std::make_unique<ProcessTracker>(&context);
     context.event_tracker = std::make_unique<EventTracker>(&context);
     context.track_tracker = std::make_unique<TrackTracker>(&context);

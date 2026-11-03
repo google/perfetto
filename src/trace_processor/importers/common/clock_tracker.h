@@ -148,19 +148,15 @@ class ClockTracker {
   // Used as fallback when no timestamp_clock_id is specified.
   void SetTraceDefaultClock(ClockId clock_id);
 
-  // Registers a deferred clock edge, flushed on the first ToTraceTime call.
-  // With all defaults this is the plain identity-to-trace-time edge every trace
-  // file registers for its source clock: if |from| cannot already reach trace
-  // time through the graph, a zero-offset edge is injected (bridged via this
-  // file's machine-canonical node so isolated files still resolve).
-  // A perfetto_manifest clock pin passes a non-zero |from_ts|/|to_ts| offset
-  // and/or an explicit |to| target (omitted means trace time); that edge is
-  // injected directly from this file's (qualified) |from| clock to |to|.
-  // All timestamps must be non-negative.
-  void AddDeferredClockSync(ClockId from,
-                            int64_t from_ts = 0,
-                            std::optional<ClockId> to = std::nullopt,
-                            int64_t to_ts = 0);
+  // Makes the first ToTraceTime call bridge this file's source clock to trace
+  // time: the trace default clock if one is set by then, otherwise |fallback|.
+  // |fallback| is still bridged if this file's own snapshots relate the
+  // default clock to it, as another file may have set up trace time through
+  // it, unless only the default clock already reaches trace time. If the
+  // bridged clock cannot already reach trace time through the graph, a
+  // zero-offset edge is injected (bridged via this file's machine-canonical
+  // node so isolated files still resolve).
+  void AddDeferredClockSync(ClockId fallback);
 
   // Returns the trace default clock, if one has been set.
   const std::optional<ClockId>& trace_default_clock() const {
@@ -241,16 +237,9 @@ class ClockTracker {
   // is specified.
   std::optional<ClockId> trace_default_clock_;
 
-  // Edge registered via AddDeferredClockSync, flushed (and cleared) on the
-  // first ToTraceTime call. |to| == nullopt means the trace time clock,
-  // resolved at flush time.
-  struct DeferredSync {
-    ClockId from;
-    int64_t from_ts;
-    std::optional<ClockId> to;
-    int64_t to_ts;
-  };
-  std::optional<DeferredSync> deferred_clock_sync_;
+  // Fallback clock registered via AddDeferredClockSync, flushed (and cleared)
+  // on the first ToTraceTime call.
+  std::optional<ClockId> deferred_clock_sync_;
 };
 
 class ClockSynchronizerListenerImpl : public ClockSynchronizerListener {

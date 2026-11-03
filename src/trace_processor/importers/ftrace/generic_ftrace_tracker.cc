@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/ftrace/generic_ftrace_tracker.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
 
@@ -196,8 +197,8 @@ void GenericFtraceTracker::MatchTrackEventTemplate(uint32_t pb_field_id,
     } else if (field.name == scope_cpu_ && IsSimpleVarint(field.type)) {
       info.scope_field_id = field_id;
       info.scope_type = KernelTrackEvent::kCpu;
-    } else if (context_->storage->GetString(field.name)
-                   .StartsWith(kScopeFieldNamePrefix) &&
+    } else if (base::StartsWith(context_->storage->GetString(field.name),
+                                kScopeFieldNamePrefix) &&
                IsSimpleVarint(field.type)) {
       info.scope_field_id = field_id;
       info.scope_type = KernelTrackEvent::kCustom;

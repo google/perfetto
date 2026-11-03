@@ -18,8 +18,8 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_INTERVAL_FILL_GAPS_H_
 
 #include <cstdint>
+#include <limits>
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -38,10 +38,13 @@ struct IntervalFillGapsSpec {
   //  - the lane's PER value, if it is a PER column;
   //  - null.
   struct Output {
+    static constexpr uint32_t kNone = std::numeric_limits<uint32_t>::max();
+
     // Column index in the input.
     uint32_t input = 0;
-    // Index in the background's retained columns, if it has this column.
-    std::optional<uint32_t> background;
+    // Index in the background's retained columns, or kNone if it does not have
+    // this column.
+    uint32_t background = kNone;
     // Type of the null column used if no input batch was seen.
     StorageType fallback{Int64{}};
     // Column name, used in error messages.
@@ -77,6 +80,13 @@ class IntervalFillGaps : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override {
+    out->keeps = StepColumns::Keeps::kNone;
+    DescribeLaneReads(spec_.input, out);
+    out->reads.insert(out->reads.end(), input_columns_.begin(),
+                      input_columns_.end());
+    out->added = static_cast<uint32_t>(spec_.outputs.size());
+  }
 
   explicit IntervalFillGaps(IntervalFillGapsSpec);
   ~IntervalFillGaps() override;

@@ -24,6 +24,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/interval_tree.h"
@@ -32,7 +33,6 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -80,7 +80,7 @@ base::Status LaneReader::Start(const RowBatch& in, GroupTable* shared) {
   // A lane's rows arrive together, so only the first row of each lane is
   // looked up in the shared table.
   first_rows_.clear();
-  std::optional<uint32_t> last = last_group_;
+  uint32_t last = last_group_;
   for (uint32_t row = 0; row < in.size(); ++row) {
     uint32_t group = in.Value<uint32_t>(spec_->group_column, row);
     if (group != last) {
@@ -113,6 +113,7 @@ base::Status LaneReader::Start(const RowBatch& in, GroupTable* shared) {
 }
 
 base::Status CollectedLanes::Collect(OperatorState& state,
+                                     Context& context,
                                      GroupTable* shared,
                                      uint32_t limit) {
   const Source& source = *input_->source;
@@ -138,7 +139,7 @@ base::Status CollectedLanes::Collect(OperatorState& state,
                            first_row + row});
     }
     retained_.Project(batch_, input_->retained_columns);
-    RETURN_IF_ERROR(rows_.Append(retained_));
+    RETURN_IF_ERROR(rows_.Append(retained_, context));
   }
   RETURN_IF_ERROR(source.status(state));
   by_number_.clear();
@@ -181,23 +182,25 @@ void CollectedLanes::Clear() {
   rows_.Clear();
 }
 
-base::Status LaneKeys::Hold(const RowBatch& in) {
+base::Status LaneKeys::Hold(const RowBatch& in, Context& context) {
   rows_.Clear();
   // The open lane's keys may be in buffers the previous batch has since
   // given back for reuse, so they were kept by Carry().
   if (carried_.size()) {
-    RETURN_IF_ERROR(rows_.Append(carried_));
+    RETURN_IF_ERROR(rows_.Append(carried_, context));
   }
   first_ = rows_.size();
   retained_.Project(in, *key_columns_);
-  return rows_.Append(retained_);
+  return rows_.Append(retained_, context);
 }
 
 void LaneKeys::Carry(uint32_t handle) {
   rows_.View(&carried_, handle, 1);
 }
 
-void LaneKeys::Gather(RowBatch* out, Span<const uint32_t> handles, Context& c) {
+void LaneKeys::Gather(RowBatch* out,
+                      base::Span<const uint32_t> handles,
+                      Context& c) {
   rows_.Gather(out, handles, c);
 }
 
@@ -209,8 +212,8 @@ void LaneKeys::Clear() {
 }
 
 void BoundsColumns::Take(Context& context) {
-  ts_buffer_ = context.TakeBuffer();
-  dur_buffer_ = context.TakeBuffer();
+  ts_buffer_ = context.TakeBuffer(sizeof(int64_t));
+  dur_buffer_ = context.TakeBuffer(sizeof(int64_t));
   ts = ts_buffer_.chunk().Values<int64_t>();
   dur = dur_buffer_.chunk().Values<int64_t>();
 }

@@ -166,6 +166,13 @@ bool ParseTrackDimensions(
         errors->push_back(stats::track_descriptor_invalid_dimension);
       }
     }
+    std::string dimension_name(name.data(), name.size());
+    out.arg_key =
+        context->storage->InternString("custom_dimension." + dimension_name);
+    if (out.display_name) {
+      out.display_arg_key = context->storage->InternString(
+          "custom_dimension_display_name." + dimension_name);
+    }
     reservation->dimensions.push_back(out);
   }
   if (reservation->dimensions.empty()) {
@@ -206,6 +213,19 @@ class V8Sink : public TraceSorter::Sink<LegacyV8CpuProfileEvent, V8Sink> {
   LegacyV8CpuProfileTracker* tracker_;
 };
 
+// Builds the TrackEventData for |event|, the TrackEvent field of |packet|.
+// The rest of the packet is only kept for the content analyzer.
+TrackEventData NewTrackEventData(
+    TraceBlobView packet,
+    protozero::ConstBytes event,
+    const RefPtr<PacketSequenceStateGeneration>& state,
+    bool keep_packet) {
+  TraceBlobView event_view = packet.slice(event.data, event.size);
+  return TrackEventData(
+      std::move(event_view), state,
+      keep_packet ? std::make_optional(std::move(packet)) : std::nullopt);
+}
+
 }  // namespace
 
 TrackEventTokenizer::TrackEventTokenizer(
@@ -213,6 +233,7 @@ TrackEventTokenizer::TrackEventTokenizer(
     TraceProcessorContext* context,
     TrackEventTracker* track_event_tracker)
     : context_(context),
+      keep_track_event_packets_(context->config.analyze_trace_proto_content),
       track_event_tracker_(track_event_tracker),
       module_context_(module_context),
       v8_tracker_(std::make_unique<LegacyV8CpuProfileTracker>(context)),
@@ -285,8 +306,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       default:
         context_->import_logs_tracker->RecordTokenizationLog(
             stats::track_descriptor_invalid_child_ordering,
-            args.packet->offset(),
-            [this, &track](ArgsTracker::BoundInserter& inserter) {
+            args.packet->offset(), [this, &track](ArgsInserter& inserter) {
               inserter.AddArg(track_uuid_key_id_,
                               Variadic::UnsignedInteger(track.uuid()));
               inserter.AddArg(child_order_key_id_,
@@ -362,10 +382,16 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
         context_->storage->InternString(track.description());
   }
 
+  bool unsupported_thread_dimensions =
+      track.has_thread() && track.has_dimensions() &&
+      !track.disallow_merging_with_system_tracks();
   std::vector<size_t> dimension_errors;
-  if (track.has_dimensions() &&
-      !ParseTrackDimensions(context_, args.state.get(), track, &reservation,
-                            &dimension_errors)) {
+  if (unsupported_thread_dimensions) {
+    dimension_errors.push_back(
+        stats::track_descriptor_shared_thread_custom_dimensions);
+  } else if (track.has_dimensions() &&
+             !ParseTrackDimensions(context_, args.state.get(), track,
+                                   &reservation, &dimension_errors)) {
     RecordTokenizationErrorWithTrackUuid(
         stats::track_descriptor_invalid_dimension, track.uuid(), args.packet);
     return ModuleResult::Handled();
@@ -393,7 +419,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     if (!thread.has_pid() || !thread.has_tid()) {
       context_->import_logs_tracker->RecordTokenizationLog(
           stats::track_descriptor_thread_missing_pid_tid, args.packet->offset(),
-          [&](ArgsTracker::BoundInserter& inserter) {
+          [&](ArgsInserter& inserter) {
             inserter.AddArg(track_uuid_key_id_,
                             Variadic::UnsignedInteger(track.uuid()));
           });
@@ -431,7 +457,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     if (!process.has_pid()) {
       context_->import_logs_tracker->RecordTokenizationLog(
           stats::track_descriptor_process_missing_pid, args.packet->offset(),
-          [&](ArgsTracker::BoundInserter& inserter) {
+          [&](ArgsInserter& inserter) {
             inserter.AddArg(track_uuid_key_id_,
                             Variadic::UnsignedInteger(track.uuid()));
           });
@@ -578,8 +604,9 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     return ModuleResult::Handled();
   }
 
-  protos::pbzero::TrackEvent::Decoder event(
-      args.field.Cast<protos::pbzero::TracePacket::kTrackEvent>());
+  protozero::ConstBytes event_bytes =
+      args.field.Cast<protos::pbzero::TracePacket::kTrackEvent>();
+  protos::pbzero::TrackEvent::Decoder event(event_bytes);
   const bool legacy = event.HasAnyField(kLegacyTrackEventFields.data(), 1);
   const bool needs_processing = legacy || event.has_extra_counter_values() ||
                                 event.has_extra_double_counter_values() ||
@@ -587,7 +614,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
                                 event.type() == TrackEvent::TYPE_STATE;
   if (!needs_processing && args.decoder.has_timestamp() && args.ts >= 0) {
     module_context_->track_event_stream->Push(
-        args.ts, TrackEventData(std::move(*args.packet), args.state));
+        args.ts, NewTrackEventData(std::move(*args.packet), event_bytes,
+                                   args.state, keep_track_event_packets_));
     return ModuleResult::Handled();
   }
   protos::pbzero::TrackEventDefaults::Decoder* defaults =
@@ -595,7 +623,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
 
   int64_t timestamp;
   bool timestamp_needs_clock_conversion = false;
-  TrackEventData data(std::move(*args.packet), args.state);
+  TrackEventData data = NewTrackEventData(
+      args.packet->copy(), event_bytes, args.state, keep_track_event_packets_);
   // The sequence-local state is only needed for deltas.
   TrackEventSequenceState* track_event =
       legacy ? args.state->GetCustomState<TrackEventSequenceState>() : nullptr;
@@ -610,8 +639,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     if (!track_event->timestamps_valid()) {
       RecordTokenizationErrorWithSeqId(
           stats::track_event_skipped_timestamp_delta_without_valid_state,
-          args.decoder.trusted_packet_sequence_id(),
-          &data.trace_packet_data.packet);
+          args.decoder.trusted_packet_sequence_id(), args.packet);
       return ModuleResult::Handled();
     }
     timestamp = track_event->IncrementAndGetTrackEventTimeNs(
@@ -626,8 +654,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     timestamp = args.ts;
   } else {
     context_->import_logs_tracker->RecordTokenizationLog(
-        stats::track_event_missing_timestamp,
-        data.trace_packet_data.packet.offset());
+        stats::track_event_missing_timestamp, args.packet->offset());
     return ModuleResult::Handled();
   }
 
@@ -635,8 +662,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   // offset could otherwise make them overflow back to positive.
   if (PERFETTO_UNLIKELY(timestamp < 0)) {
     context_->import_logs_tracker->RecordTokenizationLog(
-        stats::track_event_invalid_timestamp,
-        data.trace_packet_data.packet.offset());
+        stats::track_event_invalid_timestamp, args.packet->offset());
     return ModuleResult::Handled();
   }
 
@@ -653,8 +679,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   if (PERFETTO_UNLIKELY(legacy && event.has_legacy_event())) {
     protos::pbzero::TrackEvent::LegacyEvent::Decoder leg(event.legacy_event());
     if (PERFETTO_UNLIKELY(leg.phase() == 'P')) {
-      base::Status status = TokenizeLegacySampleEvent(
-          event, leg, *data.trace_packet_data.sequence_state);
+      base::Status status = TokenizeLegacySampleEvent(event, leg, *args.state);
       if (!status.ok()) {
         context_->stats_tracker->IncrementStats(
             stats::legacy_v8_cpu_profile_invalid_sample);
@@ -668,8 +693,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     if (!track_event->timestamps_valid()) {
       RecordTokenizationErrorWithSeqId(
           stats::track_event_skipped_thread_time_delta_without_valid_state,
-          args.decoder.trusted_packet_sequence_id(),
-          &data.trace_packet_data.packet);
+          args.decoder.trusted_packet_sequence_id(), args.packet);
       return ModuleResult::Handled();
     }
     data.thread_timestamp = track_event->IncrementAndGetTrackEventThreadTimeNs(
@@ -687,8 +711,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
       RecordTokenizationErrorWithSeqId(
           stats::
               track_event_skipped_thread_instruction_delta_without_valid_state,
-          args.decoder.trusted_packet_sequence_id(),
-          &data.trace_packet_data.packet);
+          args.decoder.trusted_packet_sequence_id(), args.packet);
       return ModuleResult::Handled();
     }
     data.thread_instruction_count =
@@ -708,14 +731,13 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
       track_uuid = defaults->track_uuid();
     } else {
       RecordTokenizationLog(stats::track_event_counter_missing_track_uuid,
-                            &data.trace_packet_data.packet);
+                            args.packet);
       return ModuleResult::Handled();
     }
 
     if (!event.has_counter_value() && !event.has_double_counter_value()) {
       RecordTokenizationErrorWithTrackUuid(
-          stats::track_event_counter_missing_value, track_uuid,
-          &data.trace_packet_data.packet);
+          stats::track_event_counter_missing_value, track_uuid, args.packet);
       return ModuleResult::Handled();
     }
 
@@ -732,7 +754,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     if (!value) {
       RecordTokenizationErrorWithTrackUuid(
           stats::track_event_counter_invalid_track_uuid, track_uuid,
-          &data.trace_packet_data.packet);
+          args.packet);
       return ModuleResult::Handled();
     }
 
@@ -742,7 +764,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   if (event.type() == protos::pbzero::TrackEvent::TYPE_STATE) {
     if (!event.has_track_uuid() && (!defaults || !defaults->has_track_uuid())) {
       RecordTokenizationLog(stats::track_event_state_missing_track_uuid,
-                            &data.trace_packet_data.packet);
+                            args.packet);
       return ModuleResult::Handled();
     }
   }
@@ -755,7 +777,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
           *args.state, data, index, event.extra_counter_values(),
           event.extra_counter_track_uuids(),
           defaults ? defaults->extra_counter_track_uuids() : kEmptyIterator,
-          seq_id, &data.trace_packet_data.packet)) {
+          seq_id, args.packet)) {
     return ModuleResult::Handled();
   }
   if (PERFETTO_UNLIKELY(event.has_extra_double_counter_values()) &&
@@ -764,7 +786,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
           event.extra_double_counter_track_uuids(),
           defaults ? defaults->extra_double_counter_track_uuids()
                    : kEmptyIterator,
-          seq_id, &data.trace_packet_data.packet)) {
+          seq_id, args.packet)) {
     return ModuleResult::Handled();
   }
   module_context_->track_event_stream->Push(timestamp, std::move(data));
@@ -899,8 +921,7 @@ void TrackEventTokenizer::RecordTokenizationErrorWithTrackUuid(
     uint64_t track_uuid,
     TraceBlobView* packet) {
   context_->import_logs_tracker->RecordTokenizationLog(
-      stat_key, packet->offset(),
-      [this, track_uuid](ArgsTracker::BoundInserter& inserter) {
+      stat_key, packet->offset(), [this, track_uuid](ArgsInserter& inserter) {
         inserter.AddArg(track_uuid_key_id_,
                         Variadic::UnsignedInteger(track_uuid));
       });
@@ -912,7 +933,7 @@ void TrackEventTokenizer::RecordTokenizationErrorWithSeqId(
     TraceBlobView* packet) {
   context_->import_logs_tracker->RecordTokenizationLog(
       stat_key, packet->offset(),
-      [this, packet_sequence_id](ArgsTracker::BoundInserter& inserter) {
+      [this, packet_sequence_id](ArgsInserter& inserter) {
         inserter.AddArg(packet_sequence_id_key_id_,
                         Variadic::UnsignedInteger(packet_sequence_id));
       });

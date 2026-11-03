@@ -41,6 +41,7 @@
 #include "src/trace_processor/tables/slice_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/state_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/trace_proto_tables_py.h"  // IWYU pragma: keep
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/tables/v8_tables_py.h"        // IWYU pragma: keep
 #include "src/trace_processor/tables/winscope_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -208,7 +209,6 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_sched_slice_table(), {{"utid"}});
     AddDataframe(out, s->mutable_thread_state_table());
     AddDataframe(out, s->mutable_track_table());
-    AddDataframe(out, s->mutable_track_dimension_table(), {{"track_id"}});
     AddDataframe(out, s->mutable_counter_table());
     AddDataframe(out, s->mutable_android_network_packets_table());
     AddDataframe(out, s->mutable_metadata_table());

@@ -39,7 +39,7 @@ class GuessTraceTypeTest : public ::testing::Test {
   }
 
   TraceImporterId Guess(const uint8_t* data, size_t size) {
-    return registry_.Guess(data, size);
+    return registry_.Guess(data, size).id;
   }
 
   TraceImporterRegistry registry_;

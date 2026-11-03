@@ -160,6 +160,7 @@ export class ThreadSliceAggregator implements Aggregator {
             SELECT
               json_object('id', id, 'trackId', track_id) as id_with_lineage,
               name,
+              category,
               ts,
               dur,
               self_dur,
@@ -199,6 +200,7 @@ export class ThreadSliceAggregator implements Aggregator {
           parent_id: NUM,
           arg_set_id: NUM,
           name: STR_NULL,
+          category: STR_NULL,
           track_id: NUM,
           depth: NUM,
         },
@@ -227,6 +229,7 @@ export class ThreadSliceAggregator implements Aggregator {
         SELECT
           slice.id AS id,
           slice.name as name,
+          slice.category AS category,
           ts,
           dur,
           dur - COALESCE(child_dur, 0) AS self_dur,

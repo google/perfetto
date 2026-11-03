@@ -38,8 +38,8 @@ class PerfTextImporter : public TraceImporter<PerfTextImporter> {
  public:
   PerfTextImporter() : TraceImporter(MakeDescriptor()) {}
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
-    return IsPerfTextFormatTrace(data, size);
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
+    return {IsPerfTextFormatTrace(data, size)};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

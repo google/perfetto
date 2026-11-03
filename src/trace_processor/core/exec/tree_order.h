@@ -19,6 +19,8 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/breaker.h"
@@ -49,6 +51,12 @@ class TreeChildFirst : public Breaker {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override {
+    out->reads = {node_column_, parent_column_};
+  }
+  void SetUnreadColumns(std::vector<bool> unread) override {
+    unread_ = std::move(unread);
+  }
 
   TreeChildFirst(uint32_t node_column, uint32_t parent_column);
   ~TreeChildFirst() override;
@@ -67,11 +75,9 @@ class TreeChildFirst : public Breaker {
     bool parent_first = true;
     bool child_first = true;
 
-    // The node and parent of each row in order of arrival, and each node's
-    // row: what a sort needs.
+    // The node and parent of each row in order of arrival: what a sort needs.
     FlexVector<uint32_t> nodes;
     FlexVector<uint32_t> parents;
-    FlexVector<uint32_t> row_of_node;
 
     RowStore rows;
     // The order to emit the rows in. Empty means in arrival order.
@@ -88,6 +94,8 @@ class TreeChildFirst : public Breaker {
 
   uint32_t node_column_;
   uint32_t parent_column_;
+  // Input columns no later step reads (see Operator::SetUnreadColumns).
+  std::vector<bool> unread_;
 };
 
 // TREE ORDER PARENT FIRST: puts tree rows into an order where every parent
@@ -108,6 +116,12 @@ class TreeParentFirst : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override {
+    out->reads = {node_column_, parent_column_};
+  }
+  void SetUnreadColumns(std::vector<bool> unread) override {
+    unread_ = std::move(unread);
+  }
 
   TreeParentFirst(uint32_t node_column, uint32_t parent_column);
   ~TreeParentFirst() override;
@@ -129,12 +143,12 @@ class TreeParentFirst : public Operator {
 
     // What is known about each node number.
     struct Nodes {
-      BitVector has_row;
       // The node's row is out, or is on its way out in `letting_go`.
       BitVector out;
       // The first row of `held` waiting on this node, or kNoNode.
       FlexVector<uint32_t> first_waiting;
 
+      // Grows to at least `count` nodes, ahead of need.
       void Grow(uint32_t count);
       void Clear();
     };
@@ -178,6 +192,8 @@ class TreeParentFirst : public Operator {
 
   uint32_t node_column_;
   uint32_t parent_column_;
+  // Input columns no later step reads (see Operator::SetUnreadColumns).
+  std::vector<bool> unread_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

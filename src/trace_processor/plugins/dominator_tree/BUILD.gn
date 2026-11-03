@@ -38,5 +38,6 @@ source_set("dominator_tree") {
     "../../sqlite",
     "../../storage",
     "../../types",
+    "../../util:graph",
   ]
 }

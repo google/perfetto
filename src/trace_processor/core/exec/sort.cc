@@ -30,12 +30,14 @@ Sort::~Sort() = default;
 Sort::State::~State() = default;
 
 std::unique_ptr<Breaker::State> Sort::CreateState() const {
-  return std::make_unique<State>();
+  auto state = std::make_unique<State>();
+  state->rows.SetUnread(unread_);
+  return state;
 }
 
 bool Sort::Consume(const RowBatch& in, Breaker::State& state) const {
   auto& s = static_cast<State&>(state);
-  base::Status status = s.rows.Append(in, spec_.keys);
+  base::Status status = s.rows.Append(in, spec_.keys, spec_.pool, *s.context);
   if (!status.ok()) {
     s.status = base::ErrStatus("SORT: %s", status.c_message());
     return false;

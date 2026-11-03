@@ -190,7 +190,7 @@ export class Agent {
         if (signal?.aborted) return;
         const {result, isError} = await this.runTool(call, loaded);
         yield {type: 'toolresult', name: call.name, isError, result};
-        results.push({name: call.name, result, isError});
+        results.push({id: call.id, name: call.name, result, isError});
       }
       this.history.push({role: 'tool-result', results});
     }

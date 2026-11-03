@@ -128,6 +128,12 @@ class Compiler {
   // Sets the output to the current row and transfers the completed plan.
   LogicalPlan Finish();
 
+  // Compiles the pipeline at `pipeline` into this plan in a scope of its own,
+  // so its aliases do not leak out. Returns the columns a bare name finds in
+  // its result; its root is the plan's root.
+  base::StatusOr<std::vector<NamedColumn>> CompileSubpipeline(
+      uint32_t pipeline);
+
   // ---------------------------------------------------------------------------
   // Logical plan construction
   // ---------------------------------------------------------------------------
@@ -259,6 +265,10 @@ class Compiler {
 
   // How a user could write a reference to `column`, to tell candidates apart.
   std::string Origin(const RowColumn& column) const;
+
+  // The row as a bare name sees it. Columns only an alias finds, as an
+  // intersection's operand columns are, stay behind.
+  std::vector<NamedColumn> VisibleColumns() const;
 
   // ---------------------------------------------------------------------------
   // Shared compiler state

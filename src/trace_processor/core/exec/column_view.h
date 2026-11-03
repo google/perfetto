@@ -85,10 +85,13 @@ class ColumnView {
   template <typename T>
   PERFETTO_ALWAYS_INLINE T At(uint32_t row) const {
     uint32_t index = start_ + row;
-    if constexpr (std::is_arithmetic_v<T>) {
+    // Only Id columns are sequences, and they are read as uint32_t.
+    if constexpr (std::is_same_v<T, uint32_t>) {
       if (kind_ == Kind::kSequence) {
-        return static_cast<T>(index);
+        return index;
       }
+    } else {
+      PERFETTO_DCHECK(kind_ != Kind::kSequence);
     }
     return static_cast<const T*>(data_)[index];
   }

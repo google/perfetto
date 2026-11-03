@@ -380,8 +380,7 @@ base::Status DescriptorPool::AddNestedProtoDescriptors(
                                               merge_existing_messages));
   }
   for (auto ext_it = decoder.extension(); ext_it; ++ext_it) {
-    extensions->push_back(
-        {package_name, proto_descriptor.full_name(), *ext_it});
+    extensions->push_back({package_name, full_name, *ext_it});
   }
   return base::OkStatus();
 }
@@ -605,6 +604,12 @@ base::Status DescriptorPool::ResolveUninterpretedOption(
     protos::pbzero::UninterpretedOption::NamePart::Decoder name_part(*it);
     const auto* option_field_desc =
         field_options_desc.FindFieldByName(name_part.name_part().ToStdString());
+    if (!option_field_desc) {
+      return base::ErrStatus("Unknown option %s for field %s in message %s",
+                             name_part.name_part().ToStdString().c_str(),
+                             field_desc.name().c_str(),
+                             proto_desc.full_name().c_str());
+    }
 
     // It's not immediately clear how options with multiple names should
     // be parsed. This likely requires digging into protobuf compiler

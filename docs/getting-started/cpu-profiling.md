@@ -266,7 +266,7 @@ Prerequisites:
   host machine.
 - A device running Android 15+, connected to the host machine using USB with
   ADB authorised.
-- A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
+- A [_Profileable_ or _Debuggable_](https://developer.android.com/guide/topics/manifest/profileable-element)
   app. If you are running on a "user" build of Android (as opposed to
   "userdebug" or "eng"), your app needs to be marked as profileable or
   debuggable in its manifest.

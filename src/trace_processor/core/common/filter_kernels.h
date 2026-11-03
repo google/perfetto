@@ -28,6 +28,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/variant.h"
@@ -41,7 +42,6 @@
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/range.h"
-#include "src/trace_processor/core/util/span.h"
 #include "src/trace_processor/util/sorted_search.h"
 
 // Keeping the rows of a column which compare true with a value already cast
@@ -161,10 +161,12 @@ template <typename Comparator, typename ValueType, typename DataType>
   return o_write;
 }
 
-// Similar to Filter but operates directly on the identity values
-// (indices) rather than dereferencing through a data array.
+// As Filter, for an Id column, which stores no values: the value at index `i`
+// is `first_id + i`. The interpreter's indices are rows of the whole column,
+// so it passes 0; a window onto the column passes the row it starts at.
 template <typename Comparator, typename ValueType>
 [[nodiscard]] PERFETTO_ALWAYS_INLINE uint32_t* IdentityFilter(
+    uint32_t first_id,
     const uint32_t* begin,
     const uint32_t* end,
     uint32_t* output,
@@ -176,7 +178,7 @@ template <typename Comparator, typename ValueType>
     // The choice of a branchy implemntation is intentional: this seems faster
     // than trying to do something branchless, likely because the compiler is
     // helping us with branch prediction.
-    if (comparator(*it, value)) {
+    if (comparator(first_id + *it, value)) {
       *o_write++ = *o_read;
     }
   }
@@ -215,8 +217,25 @@ inline PERFETTO_ALWAYS_INLINE uint32_t* StringFilterNe(
                 id->raw_id(), std::not_equal_to<>());
 }
 
-// Applies an equality or ordering comparison of strings: the operators every
-// string comparison supports.
+// Keeps the strings which match the GLOB `pattern`. Compiled once, in
+// filter_kernels.cc, as it is too large to be worth inlining.
+uint32_t* StringFilterGlob(const StringPool* string_pool,
+                           const StringPool::Id* data,
+                           const char* pattern,
+                           const uint32_t* begin,
+                           const uint32_t* end,
+                           uint32_t* output);
+
+// Keeps the strings which the regular expression `pattern` matches part of.
+// Nothing matches a pattern which does not compile.
+uint32_t* StringFilterRegex(const StringPool* string_pool,
+                            const StringPool::Id* data,
+                            const char* pattern,
+                            const uint32_t* begin,
+                            const uint32_t* end,
+                            uint32_t* output);
+
+// Applies any string operator: an equality, an ordering, GLOB or REGEXP.
 template <typename Op>
 inline PERFETTO_ALWAYS_INLINE uint32_t* FilterStringCompare(
     const StringPool* string_pool,
@@ -229,6 +248,10 @@ inline PERFETTO_ALWAYS_INLINE uint32_t* FilterStringCompare(
     return StringFilterEq(string_pool, data, begin, end, output, val);
   } else if constexpr (std::is_same_v<Op, Ne>) {
     return StringFilterNe(string_pool, data, begin, end, output, val);
+  } else if constexpr (std::is_same_v<Op, Glob>) {
+    return StringFilterGlob(string_pool, data, val, begin, end, output);
+  } else if constexpr (std::is_same_v<Op, Regex>) {
+    return StringFilterRegex(string_pool, data, val, begin, end, output);
   } else {
     return Filter(data, begin, end, output, NullTermStringView(val),
                   comparators::StringComparator<Op>{string_pool});
@@ -240,6 +263,7 @@ inline PERFETTO_ALWAYS_INLINE uint32_t* FilterStringCompare(
 template <typename T, typename DataType>
 [[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t* FilterInBitVector(
     const DataType* data,
+    uint32_t first_id,
     const uint32_t* source_begin,
     const uint32_t* source_end,
     uint32_t* dest,
@@ -252,8 +276,9 @@ template <typename T, typename DataType>
   };
   if constexpr (std::is_same_v<T, Id>) {
     base::ignore_result(data);
-    return IdentityFilter(source_begin, source_end, dest, bv, Cmp());
+    return IdentityFilter(first_id, source_begin, source_end, dest, bv, Cmp());
   } else {
+    base::ignore_result(first_id);
     return Filter(data, source_begin, source_end, dest, bv, Cmp());
   }
 }
@@ -263,6 +288,7 @@ template <typename T, typename DataType>
 template <typename T, typename DataType, typename VL>
 [[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t* FilterInLinearScan(
     const DataType* data,
+    uint32_t first_id,
     const uint32_t* source_begin,
     const uint32_t* source_end,
     uint32_t* dest,
@@ -281,8 +307,9 @@ template <typename T, typename DataType, typename VL>
         return false;
       }
     };
-    return IdentityFilter(source_begin, source_end, dest, vl, Cmp());
+    return IdentityFilter(first_id, source_begin, source_end, dest, vl, Cmp());
   } else {
+    base::ignore_result(first_id);
     using D = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
     struct Cmp {
       PERFETTO_ALWAYS_INLINE bool operator()(
@@ -303,6 +330,7 @@ template <typename T, typename DataType, typename VL>
 template <typename T, typename DataType, typename HM>
 [[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t* FilterInHashMap(
     const DataType* data,
+    uint32_t first_id,
     const uint32_t* source_begin,
     const uint32_t* source_end,
     uint32_t* dest,
@@ -313,8 +341,9 @@ template <typename T, typename DataType, typename HM>
         return h.Find(CastFilterValueResult::Id{lhs}) != nullptr;
       }
     };
-    return IdentityFilter(source_begin, source_end, dest, hm, Cmp());
+    return IdentityFilter(first_id, source_begin, source_end, dest, hm, Cmp());
   } else {
+    base::ignore_result(first_id);
     using D = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
     struct Cmp {
       PERFETTO_ALWAYS_INLINE bool operator()(D lhs, const HM& h) const {
@@ -327,13 +356,15 @@ template <typename T, typename DataType, typename HM>
 
 // Scan path for FilterIn when no index is present. The source span and dest
 // span are walked in lockstep: source[i] is the storage index for dest[i].
-// Matching dest entries are compacted in-place.
+// Matching dest entries are compacted in-place. `first_id` is as for
+// IdentityFilter, and unused unless T is Id.
 template <typename T, typename DataType>
 inline PERFETTO_ALWAYS_INLINE void NonIndexedFilterInScan(
     const CastFilterValueListResult& cast_result,
     const DataType* data,
-    const Span<uint32_t>& source,
-    Span<uint32_t>& dest) {
+    uint32_t first_id,
+    const base::Span<uint32_t>& source,
+    base::Span<uint32_t>& dest) {
   using HM =
       StorageType::VariantTypeAtIndex<T,
                                       CastFilterValueListResult::ValueHashMap>;
@@ -341,18 +372,19 @@ inline PERFETTO_ALWAYS_INLINE void NonIndexedFilterInScan(
       StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
   if constexpr (std::is_same_v<T, Id> || std::is_same_v<T, Uint32>) {
     if (cast_result.bit_vector.size() > 0) {
-      dest.e = FilterInBitVector<T>(data, source.b, source.e, dest.b,
+      dest.e = FilterInBitVector<T>(data, first_id, source.b, source.e, dest.b,
                                     cast_result.bit_vector);
       return;
     }
   }
   const auto& vl = base::unchecked_get<VL>(cast_result.value_list);
   if (!vl.empty() && vl.size() <= kFilterInKeyScanThreshold) {
-    dest.e = FilterInLinearScan<T>(data, source.b, source.e, dest.b, vl);
+    dest.e =
+        FilterInLinearScan<T>(data, first_id, source.b, source.e, dest.b, vl);
     return;
   }
   const auto& hm = base::unchecked_get<HM>(cast_result.hash_map);
-  dest.e = FilterInHashMap<T>(data, source.b, source.e, dest.b, hm);
+  dest.e = FilterInHashMap<T>(data, first_id, source.b, source.e, dest.b, hm);
 }
 
 // -----------------------------------------------------------------------------
@@ -480,14 +512,14 @@ IndexToStorageIndex(uint32_t index,
 // pre-resolved string_pool->Get result) or the raw value for other types.
 // This avoids repeated string_pool->Get calls inside the comparators.
 template <typename T, typename N, typename Resolved>
-inline PERFETTO_ALWAYS_INLINE std::pair<uint32_t*, uint32_t*> IndexEqualRange(
-    uint32_t* begin,
-    uint32_t* end,
-    const Resolved& target,
-    const typename T::cpp_type* data,
-    const BitVector* bv,
-    const uint32_t* popcount,
-    const StringPool* string_pool) {
+inline PERFETTO_ALWAYS_INLINE std::pair<const uint32_t*, const uint32_t*>
+IndexEqualRange(const uint32_t* begin,
+                const uint32_t* end,
+                const Resolved& target,
+                const typename T::cpp_type* data,
+                const BitVector* bv,
+                const uint32_t* popcount,
+                const StringPool* string_pool) {
   auto* lb = LowerBound<kCheapCompare<T>>(
       begin, end, target, [&](uint32_t idx, const Resolved&) {
         uint32_t si = IndexToStorageIndex<N>(idx, bv, popcount);
@@ -532,9 +564,10 @@ struct IndexColumn {
 // The part of `entries`, of an index sorted by `column`, whose rows equal
 // `value` in it: valid, and cast for the column (see filter_value_cast.h).
 // Compiled once, in filter_kernels.cc, as SearchSorted is.
-Span<uint32_t> SearchIndexEqual(const IndexColumn& column,
-                                const CastFilterValueResult::Value& value,
-                                Span<uint32_t> entries);
+base::Span<const uint32_t> SearchIndexEqual(
+    const IndexColumn& column,
+    const CastFilterValueResult::Value& value,
+    base::Span<const uint32_t> entries);
 
 // The rows of an IN found by binary-searching a sorted index for each of its
 // values, written to `dest` in increasing order. Returns false, writing
@@ -545,12 +578,12 @@ Span<uint32_t> SearchIndexEqual(const IndexColumn& column,
 template <typename T, typename N>
 [[nodiscard]] inline PERFETTO_ALWAYS_INLINE bool IndexedFilterInBinarySearch(
     const CastFilterValueListResult& cast_result,
-    Span<uint32_t> index,
+    base::Span<uint32_t> index,
     const typename T::cpp_type* data,
     const BitVector* bv,
     const uint32_t* popcount,
     const StringPool* string_pool,
-    Span<uint32_t>& dest) {
+    base::Span<uint32_t>& dest) {
   using VL =
       StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
   const VL& vl = base::unchecked_get<VL>(cast_result.value_list);
@@ -561,7 +594,7 @@ template <typename T, typename N>
   for (const auto& cmp_val : vl) {
     // For String columns, resolve StringPool::Id to NullTermStringView
     // once per value to avoid repeated lookups in the comparators.
-    std::pair<uint32_t*, uint32_t*> range;
+    std::pair<const uint32_t*, const uint32_t*> range;
     if constexpr (std::is_same_v<T, String>) {
       auto target = string_pool->Get(cmp_val);
       range = IndexEqualRange<T, N>(index.b, index.e, target, data, bv,
@@ -590,7 +623,7 @@ inline PERFETTO_ALWAYS_INLINE void FilterInRangeScan(
     const typename T::cpp_type* data,
     const BitVector* bv,
     const uint32_t* popcount,
-    Span<uint32_t>& dest) {
+    base::Span<uint32_t>& dest) {
   using HM =
       StorageType::VariantTypeAtIndex<T,
                                       CastFilterValueListResult::ValueHashMap>;
@@ -619,7 +652,7 @@ inline PERFETTO_ALWAYS_INLINE void FilterInRangeScan(
 // Copies the rows of `source` which lie in `range` to `out`, in order,
 // returning the end of those written. `out` may be `source.b`.
 inline PERFETTO_ALWAYS_INLINE uint32_t* CopySpanIntersectingRange(
-    Span<const uint32_t> source,
+    base::Span<const uint32_t> source,
     Range range,
     uint32_t* out) {
   for (const uint32_t* it = source.b; it != source.e; ++it) {

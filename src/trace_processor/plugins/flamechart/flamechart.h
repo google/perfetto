@@ -19,11 +19,11 @@
 
 #include <cstdint>
 
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/tree/tree.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::flamechart {
 
@@ -62,8 +62,8 @@ namespace perfetto::trace_processor::flamechart {
 // updates counts at every depth, so time is O(sum of sample stack depths).
 // Memory is O(maximum stack depth) plus the emitted output.
 base::StatusOr<dataframe::Dataframe> Build(const core::Tree& tree,
-                                           core::Span<const int64_t> ts,
-                                           core::Span<const int64_t> leaf_id,
+                                           base::Span<const int64_t> ts,
+                                           base::Span<const int64_t> leaf_id,
                                            StringPool* pool);
 
 }  // namespace perfetto::trace_processor::flamechart

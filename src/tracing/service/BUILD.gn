@@ -59,6 +59,8 @@ source_set("service") {
     "service_ring_buffer_drainer.cc",
     "service_ring_buffer_drainer.h",
     "trace_buffer.h",
+    "trace_buffer_factory.cc",
+    "trace_buffer_factory.h",
     "trace_buffer_protovms.cc",
     "trace_buffer_protovms.h",
     "trace_buffer_v1.cc",
@@ -87,7 +89,14 @@ source_set("service") {
     deps += [ ":zlib_compressor" ]
   }
   if (enable_perfetto_zstd) {
-    deps += [ ":zstd_compressor" ]
+    deps += [
+      ":zstd_compressor",
+      "../../../gn:zstd",
+    ]
+    sources += [
+      "zstd_frame_codec.cc",
+      "zstd_frame_codec.h",
+    ]
   }
 }
 
@@ -211,6 +220,7 @@ perfetto_unittest_source_set("unittests") {
     "proto_group_rewriter_reference_for_testing.h",
     "proto_group_rewriter_unittest.cc",
     "service_ring_buffer_drainer_unittest.cc",
+    "trace_buffer_factory_unittest.cc",
     "trace_buffer_v1_unittest.cc",
     "trace_buffer_v2_unittest.cc",
   ]
@@ -218,6 +228,10 @@ perfetto_unittest_source_set("unittests") {
   if (enable_perfetto_zlib || enable_perfetto_zstd) {
     deps += [ ":packet_compressor_common" ]
     sources += [ "compressor_unittest.cc" ]
+  }
+
+  if (enable_perfetto_zstd) {
+    sources += [ "zstd_frame_codec_unittest.cc" ]
   }
 
   # These tests rely on test_task_runner.h which
