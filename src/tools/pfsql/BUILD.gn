@@ -26,15 +26,12 @@ perfetto_host_executable("pfsql") {
     ":source_tree",
     "../../../gn:default_deps",
     "../../base",
-    "../../trace_processor/util:json_value",
     "../../trace_processor/util:simple_json_serializer",
   ]
 }
 
 source_set("source_tree") {
   sources = [
-    "program.cc",
-    "program.h",
     "source_tree.cc",
     "source_tree.h",
   ]
@@ -42,7 +39,6 @@ source_set("source_tree") {
     "../../../gn:default_deps",
     "../../base",
     "../../perfetto_sql:intrinsic_macro_expansion",
-    "../../perfetto_sql/analysis",
     "../../perfetto_sql/syntaqlite",
   ]
   assert_no_deps = [ "../../trace_processor/*" ]
@@ -50,10 +46,7 @@ source_set("source_tree") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [
-    "program_unittest.cc",
-    "source_tree_unittest.cc",
-  ]
+  sources = [ "source_tree_unittest.cc" ]
   deps = [
     ":source_tree",
     "../../../gn:default_deps",

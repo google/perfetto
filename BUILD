@@ -313,13 +313,10 @@ perfetto_cc_binary(
         ":include_perfetto_ext_base_base",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",
-        ":src_perfetto_sql_analysis_analysis",
         ":src_perfetto_sql_intrinsic_macro_expansion",
         ":src_perfetto_sql_syntaqlite_syntaqlite",
         ":src_tools_pfsql_source_tree",
-        ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
-        ":src_trace_processor_util_json_value",
         ":src_trace_processor_util_simple_json_serializer",
         "src/tools/pfsql/main.cc",
     ],
@@ -2525,8 +2522,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_tools_pfsql_source_tree",
     srcs = [
-        "src/tools/pfsql/program.cc",
-        "src/tools/pfsql/program.h",
         "src/tools/pfsql/source_tree.cc",
         "src/tools/pfsql/source_tree.h",
     ],
