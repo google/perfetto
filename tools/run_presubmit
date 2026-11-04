@@ -699,6 +699,24 @@ def CheckBannedCpp(changed_files: List[str]) -> List[str]:
   return errors
 
 
+def BuildPfsql() -> str:
+  out_dir = os.environ.get('OUT') or os.path.join('out', 'presubmits')
+  out_dir = os.path.join(REPO_ROOT, out_dir)
+  if not os.path.isfile(os.path.join(out_dir, 'build.ninja')):
+    run_command([
+        sys.executable,
+        os.path.join(REPO_ROOT, 'tools', 'gn'), 'gen', '--args=is_debug=false',
+        out_dir
+    ],
+                cwd=REPO_ROOT)
+  run_command([
+      sys.executable,
+      os.path.join(REPO_ROOT, 'tools', 'ninja'), '-C', out_dir, 'pfsql'
+  ],
+              cwd=REPO_ROOT)
+  return os.path.join(out_dir, 'pfsql')
+
+
 def CheckSqlModules(changed_files: List[str]) -> List[str]:
   if sys.platform == 'win32':
     return []
@@ -708,7 +726,8 @@ def CheckSqlModules(changed_files: List[str]) -> List[str]:
   files_to_check_list = filter_files(
       changed_files,
       files_to_check=[
-          'src/trace_processor/perfetto_sql/stdlib/*.sql', tool_rel_path
+          'src/trace_processor/perfetto_sql/stdlib/*.sql', 'src/perfetto_sql/*',
+          'src/tools/pfsql/*', tool_rel_path
       ])
   if not files_to_check_list:
     return []
@@ -721,7 +740,8 @@ def CheckSqlModules(changed_files: List[str]) -> List[str]:
 
   try:
     run_command([
-        sys.executable, tool, '--check-includes', '--check-new-packages',
+        sys.executable, tool, '--pfsql-binary',
+        BuildPfsql(), '--check-includes', '--check-new-packages',
         '--check-layering'
     ],
                 cwd=REPO_ROOT)
