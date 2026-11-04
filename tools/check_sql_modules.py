@@ -26,18 +26,20 @@ import os
 import re
 import sys
 from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import List, Set, Dict, Tuple
+from typing import List
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.sql_processing.stdlib_parser import parse_all_modules, format_entities
+import check_sql_modules_legacy
+from python.generators.sql_processing.pfsql import parse_modules
+from python.generators.sql_processing.stdlib_parser import parse_all_modules
 from python.generators.sql_processing.utils import check_banned_patterns
 from python.generators.sql_processing.utils import is_internal
 
 # Package name constants
 PKG_PRELUDE = "prelude"
+PKG_DEPRECATED = "deprecated"
 
 # Frozen set of allowed top-level public packages.
 #
@@ -124,440 +126,86 @@ ALLOWED_LAYERING_EXCEPTIONS = frozenset({
 })
 
 
-@dataclass
-class ModuleInfo:
-  """Information about a module for include checking."""
-  name: str
-  includes: List[str] = field(default_factory=list)
-  entities: List[Dict] = field(default_factory=list)
-  prelude_imports: List[str] = field(default_factory=list)
-  silent_imports: List[str] = field(default_factory=list)
-  unused_imports: List[str] = field(default_factory=list)
-  used_entities_by_include: Dict[str, Set[str]] = field(default_factory=dict)
-
-
-def extract_referenced_entities(sql_file: str) -> Set[str]:
-  """Extract all entity references from a SQL file.
-
-  This uses regex-based parsing which has limitations:
-  - May miss some references in complex SQL
-  - May produce false positives in edge cases
-  - Does not handle all SQL comment styles perfectly
-
-  Returns:
-    Set of entity names referenced in the file, or empty set on error.
-  """
-  # Common SQL built-in functions that should be filtered out
-  SQL_BUILTINS = {
-      'COUNT', 'SUM', 'AVG', 'MAX', 'MIN', 'ABS', 'CAST', 'COALESCE', 'IFNULL',
-      'NULLIF', 'SUBSTR', 'LENGTH', 'UPPER', 'LOWER', 'TRIM', 'REPLACE',
-      'ROUND', 'FLOOR', 'CEIL', 'DATETIME', 'DATE', 'TIME', 'STRFTIME',
-      'JULIANDAY', 'LAG', 'LEAD', 'ROW_NUMBER', 'RANK', 'DENSE_RANK', 'NTILE',
-      'FIRST_VALUE', 'LAST_VALUE', 'NTH_VALUE', 'GROUP_CONCAT', 'JSON_EXTRACT',
-      'JSON_ARRAY', 'JSON_OBJECT', 'PRINTF', 'CHAR', 'UNICODE', 'QUOTE',
-      'RANDOMBLOB', 'ZEROBLOB', 'HEX', 'UNHEX', 'TYPEOF', 'SQLITE_VERSION',
-      'TOTAL_CHANGES', 'CHANGES', 'LAST_INSERT_ROWID'
-  }
-
-  # Perfetto SQL type names and common SQL keywords to filter out
-  SQL_TYPES_AND_KEYWORDS = {
-      # Perfetto SQL types
-      'TABLEORSUBQUERY',
-      'COLUMNNAME',
-      'EXPR',
-      'STRING',
-      'LONG',
-      'INT',
-      'BOOL',
-      'DOUBLE',
-      'TIMESTAMP',
-      'DURATION',
-      'ARGSETID',
-      'ID',
-      'JOINID',
-      # SQL keywords
-      'SELECT',
-      'FROM',
-      'WHERE',
-      'JOIN',
-      'LEFT',
-      'RIGHT',
-      'INNER',
-      'OUTER',
-      'ON',
-      'USING',
-      'GROUP',
-      'BY',
-      'ORDER',
-      'HAVING',
-      'LIMIT',
-      'OFFSET',
-      'AS',
-      'ASC',
-      'DESC',
-      'AND',
-      'OR',
-      'NOT',
-      'IN',
-      'IS',
-      'NULL',
-      'TRUE',
-      'FALSE',
-      'CASE',
-      'WHEN',
-      'THEN',
-      'ELSE',
-      'END',
-      'WITH',
-      'PARTITION',
-      'PARTITIONED',
-      'OVER',
-      'RETURNS',
-      'CREATE',
-      'DROP',
-      'INSERT',
-      'UPDATE',
-      'DELETE',
-      'CROSS'
-  }
-
-  references = set()
-
-  try:
-    with open(sql_file, 'r', encoding='utf-8') as f:
-      content = f.read()
-
-    # Remove both single-line (--) and multi-line (/* */) comments
-    # First, remove multi-line comments
-    content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
-
-    # Then remove single-line comments while preserving string literals
-    lines = []
-    for line in content.split('\n'):
-      comment_pos = -1
-      in_string = False
-      string_char = None
-      for i, char in enumerate(line):
-        if char in ('"', "'") and (i == 0 or line[i - 1] != '\\'):
-          if not in_string:
-            in_string = True
-            string_char = char
-          elif char == string_char:
-            in_string = False
-            string_char = None
-        elif char == '-' and i < len(line) - 1 and line[
-            i + 1] == '-' and not in_string:
-          comment_pos = i
-          break
-      if comment_pos >= 0:
-        line = line[:comment_pos]
-      lines.append(line)
-    content = '\n'.join(lines)
-
-    # Extract entity references (tables, views, functions, macros)
-    # Look for identifiers that are likely entities
-
-    # Handle SPAN_JOIN and SPAN_OUTER_JOIN specially (extracts multiple tables)
-    span_join_pattern = r'\bSPAN_(?:OUTER_)?JOIN\s*\(([^)]+)\)'
-    for match in re.finditer(span_join_pattern, content, re.IGNORECASE):
-      span_content = match.group(1)
-      # Extract table names (identifiers before PARTITIONED, before comma, or at end)
-      # Pattern: identifier followed by PARTITIONED, comma, or end of content
-      table_pattern = r'\b([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:PARTITIONED|,|$)'
-      for table_match in re.finditer(table_pattern, span_content,
-                                     re.IGNORECASE):
-        entity = table_match.group(1)
-        # Filter out keywords like PARTITIONED itself
-        if entity.upper() not in SQL_BUILTINS and entity.upper(
-        ) != 'PARTITIONED':
-          references.add(entity)
-
-    # Handle INTERVAL INTERSECTION OF (rel AS a, rel AS b, ...): a relation
-    # named directly as an operand is a table reference. Operands which are
-    # subqueries are covered by the FROM and JOIN patterns below.
-    isect_pattern = r'\bINTERVAL\s+INTERSECTION\s+OF\s*\('
-    for match in re.finditer(isect_pattern, content, re.IGNORECASE):
-      # Keep only the operator's own level, so a comma or AS inside a
-      # subquery operand is not read as naming an operand.
-      depth = 1
-      pos = match.end()
-      operands = ''
-      while pos < len(content):
-        char = content[pos]
-        pos += 1
-        if char == '(':
-          depth += 1
-        elif char == ')':
-          depth -= 1
-          if depth == 0:
-            break
-        elif depth == 1:
-          operands += char
-      operand_pattern = (r'(?:^|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s+AS\s+'
-                         r'[a-zA-Z_][a-zA-Z0-9_]*\s*(?=,|$)')
-      for operand in re.finditer(operand_pattern, operands, re.IGNORECASE):
-        references.add(operand.group(1))
-
-    # Other patterns
-    patterns = [
-        r'\bFROM\s+([a-zA-Z_][a-zA-Z0-9_]*)\b',
-        r'\bJOIN\s+([a-zA-Z_][a-zA-Z0-9_]*)\b',
-        r'\bIN\s+([a-zA-Z_][a-zA-Z0-9_]*)\b',  # IN table_name or NOT IN table_name
-        r'\b([a-zA-Z_][a-zA-Z0-9_!]*)\s*\(',
-    ]
-
-    for pattern in patterns:
-      matches = re.finditer(pattern, content, re.IGNORECASE)
-      for match in matches:
-        entity = match.group(1)
-        # Filter out SQL built-in functions
-        if entity.upper() not in SQL_BUILTINS:
-          # Strip trailing '!' from macro invocations (macros are defined without '!' but invoked with it)
-          entity_normalized = entity.rstrip('!')
-          references.add(entity_normalized)
-
-    # Extract table arguments from macro calls
-    # Pattern: macro_name!(arg1, arg2, ...) where args could be table references
-    macro_call_pattern = r'\b([a-zA-Z_][a-zA-Z0-9_]*!)\s*\('
-    for match in re.finditer(macro_call_pattern, content):
-      # Find matching closing paren
-      start_pos = match.end()
-      paren_depth = 1
-      pos = start_pos
-      while pos < len(content) and paren_depth > 0:
-        if content[pos] == '(':
-          paren_depth += 1
-        elif content[pos] == ')':
-          paren_depth -= 1
-        pos += 1
-
-      if paren_depth == 0:
-        args_str = content[start_pos:pos - 1]
-        # Split by commas (simple split, doesn't handle nested parens perfectly)
-        # Extract simple identifiers that could be table references
-        for arg in args_str.split(','):
-          arg = arg.strip()
-          # Match simple identifier: not starting with $, not containing dots or SELECT
-          if re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', arg):
-            # Filter out keywords and types
-            if (arg.upper() not in SQL_BUILTINS and
-                arg.upper() not in SQL_TYPES_AND_KEYWORDS):
-              references.add(arg)
-
-  except IOError as e:
-    sys.stderr.write(f"Warning: Failed to read {sql_file}: {e}\n")
-    return set()
-  except Exception as e:
-    sys.stderr.write(
-        f"Warning: Failed to extract entities from {sql_file}: {e}\n")
-    return set()
-
-  return references
-
-
-def check_includes(modules: List[Tuple], quiet: bool = False) -> int:
+def check_includes(all_modules: List[dict],
+                   modules: List[dict],
+                   quiet: bool = False) -> int:
   """Check that modules properly declare their dependencies.
 
   Args:
-    modules: List of tuples (abs_path, rel_path, module_name, parsed_module)
+    all_modules: Every module of the stdlib from `pfsql parse`
+    modules: The modules to check
     quiet: If True, suppress detailed output
 
   Returns:
     Number of modules with include errors.
   """
-  # Get entity information
-  entities_data = format_entities(modules)
-  modules_by_name = {}
-  entity_to_module = entities_data['entity_to_module']
+  defining_module = {}
+  for module in all_modules:
+    for symbol in module['symbols']:
+      defining_module.setdefault(symbol['name'], module['module'])
 
-  # Build modules_by_name from the parsed data
-  for module_name, module_data in entities_data['modules'].items():
-    module_info = ModuleInfo(
-        name=module_name,
-        includes=module_data['includes'],
-        entities=module_data['entities'])
-    modules_by_name[module_name] = module_info
+  modules_with_errors = 0
+  for module in modules:
+    # Prelude modules are exempt: they provide core functionality that is
+    # automatically available to all modules.
+    is_prelude = module['module'].startswith(f'{PKG_PRELUDE}.')
 
-  # Build modules_by_file for reference analysis
-  modules_by_file = {}
-  for abs_path, _, module_name, _ in modules:
-    modules_by_file[abs_path] = modules_by_name.get(module_name)
+    own_symbols = {s['name'] for s in module['symbols']}
+    references = set(module['references'])
+    for symbol in module['symbols']:
+      references.update(symbol['references'])
 
-  # ANALYSIS PASS: Analyze usages and compute dependencies
-  for abs_path, module_info in modules_by_file.items():
-    if not module_info:
+    used_modules = defaultdict(set)
+    for name in references - own_symbols:
+      target = defining_module.get(name)
+      if target and not target.startswith(f'{PKG_PRELUDE}.'):
+        used_modules[target].add(name)
+
+    includes = module['includes']
+    unused_imports = [] if is_prelude else sorted(
+        set(includes) - set(used_modules))
+    silent_imports = [] if is_prelude else sorted(
+        f'{name} (from {target})' for target, names in used_modules.items()
+        if target not in includes for name in names)
+    errors = module['errors']
+    if not (unused_imports or silent_imports or errors):
       continue
+    modules_with_errors += 1
 
-    # Extract all entity references in this module
-    references = extract_referenced_entities(abs_path)
-
-    # Get entities defined in this module (skip self-references)
-    # Extract just the names from the entity dicts
-    own_entities = {e['name'] for e in module_info.entities}
-
-    # Build map of included module -> entities it provides
-    included_entities_by_module = {}
-    for included_module_name in module_info.includes:
-      if included_module_name in modules_by_name:
-        # Extract all entity names (both public and internal)
-        # Using internal entities from an included module is allowed
-        all_entities = {
-            e['name'] for e in modules_by_name[included_module_name].entities
-        }
-        included_entities_by_module[included_module_name] = all_entities
-
-    # Track which entities from each include are actually used
-    used_entities_by_include = defaultdict(set)
-
-    # Track imports that are used but not declared
-    prelude_imports = []
-    silent_imports = []
-
-    # Analyze each reference
-    for ref in references:
-      # Skip self-references
-      if ref in own_entities:
-        continue
-
-      # Check if from an explicitly included module
-      is_from_included_module = False
-      for included_module_name, entities in included_entities_by_module.items():
-        if ref in entities:
-          used_entities_by_include[included_module_name].add(ref)
-          is_from_included_module = True
-          break
-
-      if is_from_included_module:
-        continue
-
-      # Find which module defines this entity
-      defining_module = entity_to_module.get(ref)
-      if not defining_module:
-        continue
-
-      # It's an implicit import
-      if defining_module.startswith(f'{PKG_PRELUDE}.'):
-        prelude_imports.append(f"{ref} (from {defining_module})")
-      else:
-        silent_imports.append(f"{ref} (from {defining_module})")
-
-    # Find unused imports
-    unused_imports = [
-        inc for inc in module_info.includes
-        if inc not in used_entities_by_include
-    ]
-
-    # Store results
-    module_info.prelude_imports = sorted(list(set(prelude_imports)))
-    module_info.silent_imports = sorted(list(set(silent_imports)))
-    module_info.unused_imports = sorted(unused_imports)
-    module_info.used_entities_by_include = {
-        inc: sorted(list(entities))
-        for inc, entities in used_entities_by_include.items()
-    }
-
-  # Count modules with errors (excluding prelude modules)
-  # Prelude modules are exempt because they provide core functionality
-  # that is automatically available to all modules
-  modules_with_errors = []
-  for module_name in sorted(modules_by_name.keys()):
-    module = modules_by_name[module_name]
-    if module_name.startswith(f'{PKG_PRELUDE}.'):
-      continue
-    if module.unused_imports or module.silent_imports:
-      modules_with_errors.append(module_name)
-
-  if not quiet:
-    if modules_with_errors:
-      print(
-          f"\nFound {len(modules_with_errors)} module(s) with include errors:\n"
-      )
-    else:
-      print(f"\nNo include errors found in any modules!")
-      return 0
-
-  for module_name in sorted(modules_by_name.keys()):
-    module = modules_by_name[module_name]
-
-    # Skip prelude modules
-    if module_name.startswith(f'{PKG_PRELUDE}.'):
-      continue
-
-    # Only show modules with errors
-    if not (module.unused_imports or module.silent_imports):
-      continue
-
-    print(f"Module: {module.name}")
-
-    if module.unused_imports:
-      print(f"  Unused imports ({len(module.unused_imports)}):")
-      for imp in sorted(module.unused_imports):
-        print(f"    - {imp}")
-
-    if module.silent_imports:
-      print(f"  Silent imports ({len(module.silent_imports)}):")
-      for imp in sorted(module.silent_imports):
-        print(f"    - {imp}")
-
+    print(f"Module: {module['module']}")
+    for title, items in (('Unused imports', unused_imports),
+                         ('Silent imports', silent_imports), ('Errors',
+                                                              errors)):
+      if items:
+        print(f"  {title} ({len(items)}):")
+        for item in items:
+          print(f"    - {item}")
     print()
 
-  return len(modules_with_errors)
+  if not quiet and not modules_with_errors:
+    print("\nNo include errors found in any modules!")
+  return modules_with_errors
 
 
-def has_public_artifacts(parsed) -> bool:
-  """Check if a parsed module has any public artifacts.
-
-  Args:
-    parsed: Parsed module object
-
-  Returns:
-    True if the module has any public tables, views, functions, table functions,
-    or macros (artifacts not prefixed with '_').
-  """
-  # Check tables/views
-  for table in parsed.table_views:
-    if not is_internal(table.name):
-      return True
-
-  # Check functions
-  for func in parsed.functions:
-    if not is_internal(func.name):
-      return True
-
-  # Check table functions
-  for func in parsed.table_functions:
-    if not is_internal(func.name):
-      return True
-
-  # Check macros
-  for macro in parsed.macros:
-    if not is_internal(macro.name):
-      return True
-
-  return False
-
-
-def check_new_packages(modules: List[Tuple], quiet: bool = False) -> int:
+def check_new_packages(modules: List[dict], quiet: bool = False) -> int:
   """Check that no new top-level public packages have been added.
 
   This check ensures that all top-level packages with public artifacts are
   in the allowed list. New packages should be placed under the 'std' folder.
 
   Args:
-    modules: List of tuples (abs_path, rel_path, module_name, parsed_module)
+    modules: Modules from `pfsql parse`
     quiet: If True, suppress detailed output
 
   Returns:
     Number of disallowed new packages found.
   """
-  # Find all packages with public artifacts
-  packages_with_public = set()
-
-  for _, _, module_name, parsed in modules:
-    if has_public_artifacts(parsed):
-      # Extract top-level package name
-      package = module_name.split('.')[0]
-      packages_with_public.add(package)
+  packages_with_public = {
+      module['module'].split('.')[0]
+      for module in modules
+      if any(not is_internal(s['name']) for s in module['symbols'])
+  }
+  packages_with_public.discard(PKG_DEPRECATED)
 
   # Find packages not in the allowed list
   disallowed_packages = packages_with_public - ALLOWED_TOPLEVEL_PUBLIC_PACKAGES
@@ -583,7 +231,7 @@ def check_new_packages(modules: List[Tuple], quiet: bool = False) -> int:
   return len(disallowed_packages)
 
 
-def check_layering(modules: List[Tuple], quiet: bool = False) -> int:
+def check_layering(modules: List[dict], quiet: bool = False) -> int:
   """Check that generic packages do not depend on platform-specific ones.
 
   A generic package (e.g. intervals, graphs, slices) is a building block meant
@@ -593,22 +241,19 @@ def check_layering(modules: List[Tuple], quiet: bool = False) -> int:
   chains.
 
   Args:
-    modules: List of tuples (abs_path, rel_path, module_name, parsed_module)
+    modules: Modules from `pfsql parse`
     quiet: If True, suppress detailed output
 
   Returns:
     Number of layering violations found.
   """
-  entities_data = format_entities(modules)
-
   violations = []
-  for module_name, module_data in entities_data['modules'].items():
-    src_pkg = module_name.split('.')[0]
-    if src_pkg not in GENERIC_PACKAGES:
+  for module in modules:
+    module_name = module['module']
+    if module_name.split('.')[0] not in GENERIC_PACKAGES:
       continue
-    for included in module_data['includes']:
-      dst_pkg = included.split('.')[0]
-      if dst_pkg not in PLATFORM_SPECIFIC_PACKAGES:
+    for included in module['includes']:
+      if included.split('.')[0] not in PLATFORM_SPECIFIC_PACKAGES:
         continue
       if (module_name, included) in ALLOWED_LAYERING_EXCEPTIONS:
         continue
@@ -635,8 +280,17 @@ def check_layering(modules: List[Tuple], quiet: bool = False) -> int:
 
 
 def main() -> int:
+  # Chromium doesn't pass the flag yet and has no pfsql binary.
+  if not any(arg.split('=')[0] == '--pfsql-binary' for arg in sys.argv[1:]):
+    return check_sql_modules_legacy.main()
+
   parser = argparse.ArgumentParser(
       description="Check stdlib modules for banned patterns and documentation")
+  parser.add_argument(
+      '--pfsql-binary',
+      required=True,
+      help='Path to a pfsql binary built from this checkout, to read the SQL with'
+  )
   parser.add_argument(
       '--stdlib-sources',
       default=os.path.join(ROOT_DIR, "src", "trace_processor", "perfetto_sql",
@@ -709,20 +363,20 @@ def main() -> int:
 
     all_errors += len(errors)
 
-  # Check includes if requested
   include_errors = 0
-  if args.check_includes:
-    include_errors = check_includes(modules, quiet=not args.verbose)
-
-  # Check for new top-level public packages if requested
   new_package_errors = 0
-  if args.check_new_packages:
-    new_package_errors = check_new_packages(modules, quiet=not args.verbose)
-
-  # Check package layering if requested
   layering_errors = 0
-  if args.check_layering:
-    layering_errors = check_layering(modules, quiet=not args.verbose)
+  if args.check_includes or args.check_new_packages or args.check_layering:
+    all_parsed = parse_modules(args.stdlib_sources, args.pfsql_binary)
+    pattern = re.compile(args.name_filter) if args.name_filter else None
+    parsed = [m for m in all_parsed if not pattern or pattern.match(m['path'])]
+    quiet = not args.verbose
+    if args.check_includes:
+      include_errors = check_includes(all_parsed, parsed, quiet)
+    if args.check_new_packages:
+      new_package_errors = check_new_packages(parsed, quiet)
+    if args.check_layering:
+      layering_errors = check_layering(parsed, quiet)
 
   total_errors = all_errors + include_errors + new_package_errors + layering_errors
   return 0 if not total_errors else 1
