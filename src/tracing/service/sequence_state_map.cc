@@ -17,6 +17,7 @@
 #include "src/tracing/service/sequence_state_map.h"
 
 #include <algorithm>
+#include <new>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -39,8 +40,12 @@ SequenceState::SequenceState(const TraceBuffer::PacketSequenceProperties& props,
     : properties(props),
       chunks(/*initial_capacity=*/64),
       is_smb_v2(abi == kProtocolAbiV2) {}
+
 SequenceState::SequenceState(const SequenceState&) noexcept = default;
-SequenceState::~SequenceState() = default;
+
+SequenceState::~SequenceState() {
+  PERFETTO_CHECK(lease_count_ == 0);
+}
 
 void SequenceState::AddDataLoss(uint32_t reasons) {
   PERFETTO_DCHECK(reasons != 0);
@@ -48,16 +53,59 @@ void SequenceState::AddDataLoss(uint32_t reasons) {
   data_loss_reasons_ |= DataLossReason::DATA_LOSS_PRESENT | reasons;
 }
 
+void SequenceState::AddBundleLoss(uint32_t reasons) {
+  PERFETTO_DCHECK(reasons != 0);
+  bundle_loss_reasons_ |= DataLossReason::DATA_LOSS_PRESENT | reasons;
+}
+
+SequenceState::Lease SequenceState::AcquireLease() {
+  ++lease_count_;
+  return Lease(this);
+}
+
+void SequenceState::ReleaseLease() {
+  PERFETTO_CHECK(lease_count_ > 0);
+  --lease_count_;
+  if (lease_count_ == 0) {
+    // No bundle is left, so this writer's next packet comes from its chunks.
+    data_loss_reasons_ |= std::exchange(bundle_loss_reasons_, 0u);
+  }
+}
+
+SequenceState::Lease::~Lease() {
+  if (state_)
+    state_->ReleaseLease();
+}
+
+SequenceState::Lease::Lease(Lease&& other) noexcept
+    : state_(std::exchange(other.state_, nullptr)) {}
+
+SequenceState::Lease& SequenceState::Lease::operator=(Lease&& other) noexcept {
+  if (this != &other) {
+    this->~Lease();
+    new (this) Lease(std::move(other));
+  }
+  return *this;
+}
+
 // +---------------------------------------------------------------------------+
 // | SequenceStateMap |
 // +---------------------------------------------------------------------------+
 
 SequenceStateMap::SequenceStateMap() = default;
-SequenceStateMap::SequenceStateMap(const SequenceStateMap&) = default;
+SequenceStateMap::SequenceStateMap(const SequenceStateMap& src)
+    : sequences_(src.sequences_),
+      inserts_since_prune_(src.inserts_since_prune_),
+      use_counter_(src.use_counter_) {
+  for (auto& [key, sequence] : sequences_)
+    sequence.lease_count_ = 0;
+}
+
 SequenceStateMap::~SequenceStateMap() = default;
 
-// When a sequence has 0 chunks we could delete it straight away. However doing
-// do would remove also the last_chunk_consumed used to detect data losses.
+// When a sequence has 0 chunks and no leases we could delete it straight away.
+// However doing do would remove also the last_chunk_consumed used to detect
+// data losses.
 // Here we have to balance the tradeoff between:
 // - Bounding memory usage: if we have a lot of writer threads, we can't just
 //   keeping growing the SequenceStates without bounds.

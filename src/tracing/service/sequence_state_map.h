@@ -25,6 +25,7 @@
 #include <utility>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "src/tracing/service/trace_buffer.h"
@@ -38,7 +39,7 @@ namespace internal {
 // +---------------------------------------------------------------------------+
 // | SequenceState                                                             |
 // +---------------------------------------------------------------------------+
-// Holds the state for each sequence that has TBCHunk(s) in the buffer.
+// Holds the state for each sequence with TBCHunk(s) in the buffer or leases.
 // Remember that this class must be copyable for CloneReadOnly(). Don't hold
 // onto any pointers in here.
 // SequenceState(s) are not deleted aggressively to preserve the
@@ -47,8 +48,31 @@ namespace internal {
 // detection with memory bloats.
 class SequenceState {
  public:
+  // Protects a SequenceState from pruning while the lease is alive.
+  // SequenceState::AcquireLease() is the only way to get a lease on a sequence.
+  // The map owns the state, so destroy the lease before the map.
+  class Lease {
+   public:
+    Lease() = default;
+    ~Lease();
+    Lease(Lease&& other) noexcept;
+    Lease& operator=(Lease&& other) noexcept;
+    Lease(const Lease&) = delete;
+    Lease& operator=(const Lease&) = delete;
+
+    SequenceState& operator*() const { return *state_; }
+    SequenceState* operator->() const { return state_; }
+
+   private:
+    friend class SequenceState;
+    explicit Lease(SequenceState* state) : state_(state) {}
+
+    SequenceState* state_ = nullptr;
+  };
+
   SequenceState(const TraceBuffer::PacketSequenceProperties&,
                 ProtocolAbiVersion);
+
   SequenceState(const SequenceState&) noexcept;
   SequenceState& operator=(const SequenceState&) = delete;
   ~SequenceState();
@@ -58,6 +82,15 @@ class SequenceState {
 
   // Returns the |data_loss_reasons_| bitmask and clears it.
   uint32_t TakeDataLoss() { return std::exchange(data_loss_reasons_, 0u); }
+
+  // Keeps this sequence until the lease ends.
+  PERFETTO_WARN_UNUSED_RESULT Lease AcquireLease();
+
+  // Adds nonzero |reasons| to the |bundle_loss_reasons_| bitmask.
+  void AddBundleLoss(uint32_t reasons);
+
+  // Returns the |bundle_loss_reasons_| bitmask and clears it.
+  uint32_t TakeBundleLoss() { return std::exchange(bundle_loss_reasons_, 0u); }
 
   const TraceBuffer::PacketSequenceProperties properties;
 
@@ -113,11 +146,20 @@ class SequenceState {
  private:
   friend class SequenceStateMap;
 
-  bool CanBePruned() const { return chunks.empty(); }
+  bool CanBePruned() const { return chunks.empty() && lease_count_ == 0; }
+
+  void ReleaseLease();
 
   // Pending DataLossReason bitmask, OR-ed until TakeDataLoss() resets it.
   // Every nonzero value has DATA_LOSS_PRESENT set.
   uint32_t data_loss_reasons_ = 0;
+
+  // Loss from stored bundles, reported by this sequence's next decoded bundle.
+  // The last lease moves it to |data_loss_reasons_| if no bundle is left.
+  uint32_t bundle_loss_reasons_ = 0;
+
+  // Number of live leases.
+  uint32_t lease_count_ = 0;
 
   // Used by SequenceStateMap::MaybePrune() to keep the latest
   // kPrunableSequencesToKeep objects around.
@@ -129,11 +171,13 @@ class SequenceState {
 // | SequenceStateMap |
 // +---------------------------------------------------------------------------+
 // Tracks every sequence of a trace buffer.
-// A sequence stays while it has chunks and is prunable when it has none.
+// A sequence stays while it has chunks or leases and is prunable when it has
+// neither.
 // A SequenceState pointer stays valid until MaybePrune() deletes that sequence.
 class SequenceStateMap {
  public:
   SequenceStateMap();
+  // A copy has no leases, since each lease points at a sequence in the source.
   explicit SequenceStateMap(const SequenceStateMap&);
   SequenceStateMap& operator=(const SequenceStateMap&) = delete;
   ~SequenceStateMap();
@@ -148,8 +192,15 @@ class SequenceStateMap {
     return &it->second;
   }
 
-  // Returns the sequence, adding it with no chunks if it is new and updates the
-  // last_use_ counter.
+  // Same as Find(), for a sequence that must be present.
+  SequenceState& FindOrDie(ProducerAndWriterID key) {
+    SequenceState* sequence = Find(key);
+    PERFETTO_CHECK(sequence);
+    return *sequence;
+  }
+
+  // Returns the sequence, adding it with no chunks and no leases if it is new
+  // and updates the last_use_ counter.
   SequenceState* FindOrInsert(
       ProducerAndWriterID key,
       const TraceBuffer::PacketSequenceProperties& properties,
