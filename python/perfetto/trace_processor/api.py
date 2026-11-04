@@ -332,6 +332,8 @@ class TraceProcessor:
       output_path: Path to write the export to.
       export_format: Either `arrow_tar`, `perfetto` or `sqlite`.
     """
+    if export_format not in ('arrow_tar', 'perfetto', 'sqlite'):
+      raise ValueError(f'Unknown export format: {export_format}')
     with open(output_path, 'wb') as f:
       self._backend.export(f, export_format)
 
