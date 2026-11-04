@@ -270,6 +270,9 @@ export interface CounterTrackAttrs {
   /** Optional key to share y-axis range with other tracks. */
   readonly yRangeSharingKey?: string;
 
+  /** Optional end timestamp past which the counter stops rendering. */
+  readonly endTs?: time;
+
   /** Optional lifecycle callback, called once before the first render. */
   onInit?(): Promise<void>;
 }
@@ -298,6 +301,7 @@ export class CounterTrack implements TrackRenderer {
   private chartHeightSize: ChartHeightSize;
 
   // Immutable display options (set from attrs)
+  private readonly endTs?: time;
   private readonly _unit?: string;
   private readonly _rateUnit?: string;
   private readonly yOverrideMaximum?: number;
@@ -326,6 +330,7 @@ export class CounterTrack implements TrackRenderer {
       yOverrideMaximum,
       yOverrideMinimum,
       yRangeSharingKey,
+      endTs,
       onInit,
     } = attrs;
     this.trace = trace;
@@ -342,6 +347,7 @@ export class CounterTrack implements TrackRenderer {
     this.yOverrideMaximum = yOverrideMaximum;
     this.yOverrideMinimum = yOverrideMinimum;
     this.yRangeSharingKey = yRangeSharingKey;
+    this.endTs = endTs;
     this.rangeSharer = RangeSharer.getRangeSharer(trace);
     this.onInitFn = onInit;
   }
@@ -525,7 +531,7 @@ export class CounterTrack implements TrackRenderer {
     }
 
     const hover = this.hover;
-    if (hover !== undefined) {
+    if (hover !== undefined && count >= 1) {
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
       ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
@@ -584,16 +590,6 @@ export class CounterTrack implements TrackRenderer {
       );
     }
 
-    // TODO(hjd): Refactor this into checkerboardExcept
-    {
-      const counterEndPx = Infinity;
-      // Grey out RHS.
-      if (counterEndPx < endPx) {
-        ctx.fillStyle = '#0000001f';
-        ctx.fillRect(counterEndPx, 0, endPx - counterEndPx, this.getHeight());
-      }
-    }
-
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
     const loadedBounds = this.bufferedBounds.bounds;
@@ -640,8 +636,13 @@ export class CounterTrack implements TrackRenderer {
     const data = this.dataframe;
     if (!data) return undefined;
 
+    const time = timescale.pxToHpTime(pos.x).toTime();
+    if (this.endTs !== undefined && time >= this.endTs) {
+      return undefined;
+    }
+
     // Convert the screen position to a relative NS offset matching timestampsRel.
-    const relNs = Number(timescale.pxToHpTime(pos.x).toTime() - data.start);
+    const relNs = Number(time - data.start);
     const [left, right] = searchSegment(data.timestampsRel, relNs);
     if (left === -1) return undefined;
 
@@ -651,7 +652,12 @@ export class CounterTrack implements TrackRenderer {
 
     return {
       tsRel,
-      tsEndRel: right === -1 ? undefined : data.timestampsRel[right],
+      tsEndRel:
+        right === -1
+          ? this.endTs !== undefined && this.endTs < data.end
+            ? data.timestampsRelNext[left]
+            : undefined
+          : data.timestampsRel[right],
       lastDisplayValue,
     };
   }
@@ -935,15 +941,35 @@ export class CounterTrack implements TrackRenderer {
     resolution: duration,
     signal: CancellationSignal,
   ): Promise<DataFrame> {
+    const effectiveEnd =
+      this.endTs !== undefined ? Time.min(end, this.endTs) : end;
+    if (effectiveEnd <= start) {
+      return {
+        start,
+        end,
+        timestampsRel: new Float32Array(0),
+        timestampsRelNext: new Float32Array(0),
+        minDisplayValues: new Float32Array(0),
+        maxDisplayValues: new Float32Array(0),
+        lastDisplayValues: new Float32Array(0),
+        lastDisplayValuesF64: new Float64Array(0),
+        limits: {
+          min: 0,
+          max: 0,
+        },
+        globalLimits: table.globalLimits,
+      };
+    }
+
     const queryRes = await this.engine.query(`
       SELECT
         min_value AS minDisplayValue,
         max_value AS maxDisplayValue,
-        MAX(0, MIN(last_ts - ${start}, ${end} - ${start})) AS tsRel,
+        MAX(0, MIN(last_ts - ${start}, ${effectiveEnd} - ${start})) AS tsRel,
         last_value AS lastDisplayValue
       FROM ${table.tableName}(
         ${start},
-        ${end},
+        ${effectiveEnd},
         ${resolution}
       );
     `);
@@ -974,13 +1000,13 @@ export class CounterTrack implements TrackRenderer {
       max = Math.max(max, maxCol[row]!);
     }
 
-    // timestampsRelNext[i] = timestampsRel[i+1], last element = end - start.
+    // timestampsRelNext[i] = timestampsRel[i+1], last element = effectiveEnd - start.
     const timestampsRelNext = new Float32Array(numRows);
     if (numRows > 1) {
       timestampsRelNext.set(timestampsRel.subarray(1));
     }
     if (numRows > 0) {
-      timestampsRelNext[numRows - 1] = Number(end - start);
+      timestampsRelNext[numRows - 1] = Number(effectiveEnd - start);
     }
 
     return {
