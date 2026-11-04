@@ -338,6 +338,163 @@ list PerfettoPipeColumnList {
   fmt { for_each(sep: "," line) { child(_item) } }
 }
 
+enum PerfettoTreeFindDirection { ANCESTOR DESCENDANT }
+
+// `[LEFT] TREE FIND rel AS alias NEAREST ANCESTOR | DESCENDANT [OR SELF] WHERE
+// expr [ORDER BY ...]`. Without a keyword the join type is INNER. Any join type
+// parses in LEFT's place and the compiler rejects the others. Only DESCENDANT
+// parses with an ORDER BY.
+node PerfettoTreeFind {
+  join_type: inline JoinType
+  operand: index PerfettoPipeSource
+  direction: inline PerfettoTreeFindDirection
+  or_self: inline Bool
+  condition: index Expr
+  order: index PerfettoPipeOrderTermList
+
+  fmt {
+    group {
+      switch(join_type) {
+        COMMA { }
+        INNER { }
+        LEFT { "LEFT" space }
+        RIGHT { "RIGHT" space }
+        FULL { "FULL" space }
+        CROSS { "CROSS" space }
+        NATURAL_INNER { "NATURAL" space }
+        NATURAL_LEFT { "NATURAL" "LEFT" space }
+        NATURAL_RIGHT { "NATURAL" "RIGHT" space }
+        NATURAL_FULL { "NATURAL" "FULL" space }
+        NATURAL_CROSS { "NATURAL" "CROSS" space }
+      }
+      "TREE" "FIND" space child(operand)
+      nest {
+        line "NEAREST" space
+        enum_display(direction, {
+          ANCESTOR="ANCESTOR"
+          DESCENDANT="DESCENDANT"
+        })
+        if_flag(or_self) { space "OR" "SELF" }
+        line "WHERE" space child(condition)
+        if_set(order) { line "ORDER" "BY" space child(order) }
+      }
+    }
+  }
+}
+
+enum PerfettoTreeFoldKind { CONTRACT ABSORB }
+
+// `TREE CONTRACT | ABSORB AT rel AGGREGATE ...`
+node PerfettoTreeFold {
+  kind: inline PerfettoTreeFoldKind
+  selection: index PerfettoPipeSource
+  aggregates: index PerfettoAggregateList
+
+  fmt {
+    group {
+      "TREE" space enum_display(kind, { CONTRACT="CONTRACT" ABSORB="ABSORB" })
+      space "AT" space child(selection)
+      nest { line "AGGREGATE" space child(aggregates) }
+    }
+  }
+}
+
+// `TREE PRUNE AT rel`
+node PerfettoTreePrune {
+  selection: index PerfettoPipeSource
+
+  fmt { group { "TREE" "PRUNE" "AT" space child(selection) } }
+}
+
+// `TREE REPARENT TO NEAREST ANCESTOR IN rel`
+node PerfettoTreeReparent {
+  markers: index PerfettoPipeSource
+
+  fmt {
+    group {
+      "TREE" "REPARENT" "TO" "NEAREST" "ANCESTOR" "IN" space child(markers)
+    }
+  }
+}
+
+// `TREE KEY PATHS BY col, ... AS (key, parent_key)`
+node PerfettoTreeKeyPaths {
+  columns: index PerfettoPipeColumnList
+  key_name: inline SyntaqliteTextSpan
+  parent_key_name: inline SyntaqliteTextSpan
+
+  fmt {
+    group {
+      "TREE" "KEY" "PATHS" space "BY" nest { line child(columns) }
+      line "AS" space "(" span(key_name) "," space span(parent_key_name) ")"
+    }
+  }
+}
+
+// `TREE MERGE [CONSECUTIVE] SIBLINGS BY col, ... AGGREGATE ...`
+node PerfettoTreeMergeSiblings {
+  consecutive: inline Bool
+  columns: index PerfettoPipeColumnList
+  aggregates: index PerfettoAggregateList
+
+  fmt {
+    group {
+      "TREE" "MERGE"
+      if_flag(consecutive) { space "CONSECUTIVE" }
+      space "SIBLINGS" space "BY" nest { line child(columns) }
+      nest { line "AGGREGATE" space child(aggregates) }
+    }
+  }
+}
+
+// `TREE MERGE INTO PARENT BY col, ... [INDIRECT] AGGREGATE ...`
+node PerfettoTreeMergeIntoParent {
+  columns: index PerfettoPipeColumnList
+  indirect: inline Bool
+  aggregates: index PerfettoAggregateList
+
+  fmt {
+    group {
+      "TREE" "MERGE" "INTO" "PARENT" space "BY" nest { line child(columns) }
+      if_flag(indirect) { space "INDIRECT" }
+      nest { line "AGGREGATE" space child(aggregates) }
+    }
+  }
+}
+
+// `TREE INVERT`
+node PerfettoTreeInvert {
+  fmt { "TREE" "INVERT" }
+}
+
+enum PerfettoTreeChargeEnd { LEAF ROOT }
+
+// `TREE EXPAND UP | DOWN rel BY col, ... [ORDER BY col, ...]
+// [CHARGE col, ... TO LEAF | ROOT]`
+node PerfettoTreeExpand {
+  direction: inline PerfettoTreeDirection
+  inserted: index PerfettoPipeSource
+  keys: index PerfettoPipeColumnList
+  order: index PerfettoPipeColumnList
+  charge: index PerfettoPipeColumnList
+  charge_end: inline PerfettoTreeChargeEnd
+
+  fmt {
+    group {
+      "TREE" "EXPAND" space enum_display(direction, { UP="UP" DOWN="DOWN" })
+      space child(inserted)
+      nest {
+        line "BY" space child(keys)
+        if_set(order) { line "ORDER" "BY" space child(order) }
+        if_set(charge) {
+          line "CHARGE" space child(charge) space "TO" space
+          enum_display(charge_end, { LEAF="LEAF" ROOT="ROOT" })
+        }
+      }
+    }
+  }
+}
+
 // A bare column name, as listed by DROP or a star's EXCEPT.
 node PerfettoPipeName {
   name: inline SyntaqliteTextSpan
@@ -546,6 +703,15 @@ abstract PerfettoPipeStage {
   PerfettoPipeDistinct
   PerfettoPipeLimit
   PerfettoTreeAccumulate
+  PerfettoTreeFind
+  PerfettoTreeFold
+  PerfettoTreePrune
+  PerfettoTreeReparent
+  PerfettoTreeKeyPaths
+  PerfettoTreeMergeSiblings
+  PerfettoTreeMergeIntoParent
+  PerfettoTreeInvert
+  PerfettoTreeExpand
   PerfettoIntervalFlatten
   PerfettoIntervalFillGaps
   PerfettoIntervalMerge
