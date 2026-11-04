@@ -99,6 +99,7 @@ class PlanSerializationTest : public ::testing::Test {
 
 const char* const kPipelines[] = {
     "FROM df |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id, total",
+    "FROM df |> TREE KEY PATHS BY self AS (key, parent_key) |> SELECT id, key",
     "FROM df |> TREE ACCUMULATE DOWN SUM(self) AS a, SUM(id) AS b",
     "FROM (SELECT ts, dur, cpu FROM spans WHERE dur > 1)",
     "INTERVAL INTERSECTION OF (spans AS a, spans AS b) PER cpu",

@@ -681,6 +681,22 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
 // pipeline with its ids as Int64. The rows come out numbered and parent first,
 // so a fold down needs nothing more and a fold up only reverses them. Every
 // object's parent_id is junk which the tree's own replaces.
+TEST_F(PhysicalPlanTest, KeyPathsAfterAGraphTreeNeedsNoReordering) {
+  Exec("CREATE TABLE objects(id INTEGER, parent_id INTEGER, self INTEGER)");
+  Exec(
+      "INSERT INTO objects VALUES (4, 99, 40), (2, 99, 20), (3, 99, 30), "
+      "(1, 99, 10)");
+  Exec("CREATE TABLE refs(src INTEGER, dst INTEGER)");
+  Exec("INSERT INTO refs VALUES (3, 4), (1, 3), (2, 4), (1, 2)");
+  auto plan = Plan(
+      "GRAPH DOMINATOR TREE NODES objects EDGES refs FROM (SELECT 1 AS id) "
+      "|> TREE KEY PATHS BY self AS (key, parent_key)");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  std::string text = PhysicalPlanToString(**plan);
+  EXPECT_NE(text.find("TreeKeyPaths"), std::string::npos) << text;
+  EXPECT_EQ(text.find("TreeParentFirst"), std::string::npos) << text;
+}
+
 TEST_F(PhysicalPlanTest, FoldsAfterAGraphTreeReuseItsNumbering) {
   Exec("CREATE TABLE objects(id INTEGER, parent_id INTEGER, self INTEGER)");
   Exec(

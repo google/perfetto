@@ -42,6 +42,8 @@ source_set("operations") {
     "scan.h",
     "tree_accumulate.cc",
     "tree_accumulate.h",
+    "tree_key_paths.cc",
+    "tree_key_paths.h",
     "where.cc",
     "where.h",
   ]
