@@ -70,6 +70,7 @@ Diagram(Choice(0,
   Link(Terminal('INTERVAL FLATTEN'), '#interval-flatten'),
   Link(Terminal('INTERVAL FILL GAPS'), '#interval-fill-gaps'),
   Link(Terminal('TREE ACCUMULATE'), '#tree-accumulate'),
+  Link(Terminal('TREE KEY PATHS'), '#tree-key-paths'),
   Link(Terminal('AGGREGATE'), '#aggregate'),
   Link(Terminal('SELECT'), '#select'),
   Link(Terminal('EXTEND'), '#extend'),
@@ -488,6 +489,40 @@ Diagram(
 - **Errors:** Two rows with one `id`, a row which is its own parent, and a
   `parent_id` with no row of that `id`. These are only checked if a later stage
   reads one of the aggregates; otherwise the stage is skipped.
+
+### `TREE KEY PATHS` {#tree-key-paths}
+
+Gives each node a key for its root-to-node path of some columns:
+
+```railroad
+Diagram(
+  Terminal('TREE'), Terminal('KEY'), Terminal('PATHS'), Terminal('BY'),
+  OneOrMore(NonTerminal('column'), Terminal(',')),
+  Terminal('AS'), Terminal('('), NonTerminal('key'), Terminal(','),
+  NonTerminal('parent-key'), Terminal(')'))
+```
+
+- **Tree:** Bare `id` and `parent_id`. Roots have `parent_id IS NULL`.
+- **Keys:** Two nodes get the same key when their parents have the same key and
+  they agree on the columns. Roots are keyed by the columns alone. `NULL`s are
+  equal to each other.
+- **Values:** Keys are integers counting from 0, in the order paths are first
+  seen. Their values are not stable across queries, so only use them to compare
+  rows of one stage's output.
+- **Output:** Every input column, then the key and the parent's key, which is
+  `NULL` for a root. Rows come out parents first. Aliases are kept but do not
+  include the new columns.
+- **Errors:** The same as `TREE ACCUMULATE`, also only checked if a later stage
+  reads a key. A column changing type between rows.
+
+To build a tree with one node per distinct path, aggregate by the keys:
+
+```
+FROM callstacks
+|> TREE KEY PATHS BY name AS (node_id, parent_node_id)
+|> AGGREGATE SUM(self_weight) AS self_weight
+   GROUP BY node_id, parent_node_id, name;
+```
 
 ### `AGGREGATE` {#aggregate}
 
