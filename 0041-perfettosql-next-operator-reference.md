@@ -527,13 +527,13 @@ The tree operators are RFC-0020's tree functions re-expressed as pipe stages.
 `tree_propagate_up/down`; `TREE MERGE SIBLINGS` is
 `tree_merge_siblings[_ordered]`; `TREE MERGE INTO PARENT` is
 `tree_merge_into_parent`; `TREE INVERT` is `tree_invert`. `CONTRACT`, `ABSORB`,
-`PRUNE`, `REPARENT`, `FLATTEN RECURSION`, `KEY SIBLINGS`, and `EXPAND` are new.
+`PRUNE`, `REPARENT`, `FLATTEN RECURSION`, `KEY PATHS`, and `EXPAND` are new.
 
 ### 6.1 Structure and weight
 
 The **filters** (§6.2), **reshapes** (§6.3), and **reparent** (§6.4) may act on
 a filtered working set, naming the full structure with `OVER rel`.
-**`KEY SIBLINGS`** and the **folds** (§6.5-6.6), **`ACCUMULATE`** (§6.8), and
+**`KEY PATHS`** and the **folds** (§6.5-6.6), **`ACCUMULATE`** (§6.8), and
 **`EXPAND`** (§6.9) require the complete tree in the pipe.
 
 ```
@@ -604,7 +604,7 @@ partition-by-group.
 becomes its parent's sibling, keeping its own subtree. The rule applies
 repeatedly, so a chain `A → A → A` becomes three siblings, and a same-key child
 of a root becomes a root. The recursive nodes end up as siblings with the same
-key, so a following `KEY SIBLINGS` or `MERGE SIBLINGS` on the same `cols` (§6.5)
+key, so a following `KEY PATHS` or `MERGE SIBLINGS` on the same `cols` (§6.5)
 puts them in one group.
 
 ```
@@ -613,18 +613,19 @@ FROM callstacks
 |> TREE MERGE SIBLINGS BY name AGGREGATE SUM(self_weight) AS self_weight
 ```
 
-### 6.5 Key and merge siblings
+### 6.5 Key paths and merge siblings
 
 ```
-stage := "|>" "TREE KEY SIBLINGS BY" cols "AS" "(" name "," name ")"
+stage := "|>" "TREE KEY PATHS BY" cols "AS" "(" name "," name ")"
        | "|>" "TREE MERGE SIBLINGS BY" cols [ "ORDERED" ] agg_clause ;
 ```
 
 Both stages key every node by its root-to-node path of `cols`: two nodes get the
 same key when their parents have the same key and they agree on `cols`. Roots
-are keyed by `cols` alone.
+are keyed by `cols` alone. Nodes with the same key need not be siblings in the
+input: the children of two same-key parents can share a key.
 
-`KEY SIBLINGS BY cols AS (key, parent_key)` is row-preserving. It adds two
+`KEY PATHS BY cols AS (key, parent_key)` is row-preserving. It adds two
 properties to every node: its own key as `key` and its parent's key as
 `parent_key`, null for a root. Keys are dense ids scoped to the stage's output.
 The key is an ordinary column: later stages can filter on it, join on it, or
@@ -645,7 +646,7 @@ FROM callstacks
 CREATE PERFETTO TABLE heap_object_nodes AS
 GRAPH BFS TREE NODES heap_objects EDGES heap_refs FROM gc_roots
 |> TREE FLATTEN RECURSION BY class_name
-|> TREE KEY SIBLINGS BY class_name, heap_type AS (node_id, parent_node_id);
+|> TREE KEY PATHS BY class_name, heap_type AS (node_id, parent_node_id);
 
 -- The class tree. The objects behind one of its nodes are the rows of
 -- heap_object_nodes with that node_id.
@@ -775,7 +776,7 @@ GRAPH DOMINATOR TREE NODES heap_objects EDGES heap_refs FROM gc_roots
 | `TREE PRUNE`                            | tree reshape     | drop node and its subtree                         |
 | `TREE REPARENT`                         | tree reparent    | reparent to nearest marker ancestor               |
 | `TREE FLATTEN RECURSION`                | tree reparent    | same-key child becomes its parent's sibling       |
-| `TREE KEY SIBLINGS`                     | tree key         | tag each node with its path key                   |
+| `TREE KEY PATHS`                        | tree key         | tag each node with its path key                   |
 | `TREE MERGE SIBLINGS`                   | tree fold        | unify by path key (build a flamegraph)            |
 | `TREE MERGE INTO PARENT`                | tree merge       | collapse recursion                                |
 | `TREE INVERT`                           | tree reorient    | flip leaves ↔ roots                               |
