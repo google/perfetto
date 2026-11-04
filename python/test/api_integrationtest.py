@@ -738,6 +738,23 @@ class TestApi(unittest.TestCase):
       }
       self.assertEqual(tp.metadata, expected_metadata)
 
+  def test_export_invalid_format_preserves_destination(self):
+    with tempfile.TemporaryDirectory() as directory:
+      with TraceProcessor(remote='127.0.0.1:1') as tp:
+        for exists in (False, True):
+          with self.subTest(exists=exists):
+            path = os.path.join(directory, str(exists))
+            if exists:
+              with open(path, 'wb') as f:
+                f.write(b'existing data')
+            with self.assertRaisesRegex(ValueError, 'Unknown export format'):
+              tp.export(path, 'invalid')
+            if exists:
+              with open(path, 'rb') as f:
+                self.assertEqual(f.read(), b'existing data')
+            else:
+              self.assertFalse(os.path.exists(path))
+
   def test_export_perfetto(self):
     import json
     import tarfile
