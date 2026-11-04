@@ -28,6 +28,7 @@ struct Column {
   std::string name;
   std::string type;
   std::string description;
+  bool is_variadic = false;
 };
 
 // Represents an argument to a function or macro.
@@ -37,6 +38,7 @@ struct Arg {
   std::string name;
   std::string type;
   std::string description;
+  bool is_variadic = false;
 };
 
 // Represents a table or view defined in a stdlib module.
@@ -45,6 +47,9 @@ struct TableOrView {
   // "TABLE" or "VIEW".
   std::string type;
   std::string description;
+  // `description` with its line breaks kept, for callers rendering it.
+  std::string raw_description;
+  bool or_replace = false;
   bool exposed = true;
   std::vector<Column> columns;
 };
@@ -53,6 +58,9 @@ struct TableOrView {
 struct Function {
   std::string name;
   std::string description;
+  // `description` with its line breaks kept, for callers rendering it.
+  std::string raw_description;
+  bool or_replace = false;
   bool exposed = true;
   bool is_table_function = false;
   std::string return_type;
@@ -66,6 +74,9 @@ struct Function {
 struct Macro {
   std::string name;
   std::string description;
+  // `description` with its line breaks kept, for callers rendering it.
+  std::string raw_description;
+  bool or_replace = false;
   bool exposed = true;
   std::string return_type;
   std::string return_description;

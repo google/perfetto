@@ -33,9 +33,28 @@ enum class SymbolKind {
 
 const char* SymbolKindName(SymbolKind);
 
+// The statement which created a table or view.
+enum class SymbolForm {
+  kPerfetto,
+  kVirtual,
+  kPlain,
+};
+
+const char* SymbolFormName(SymbolForm);
+
+// A statement which modifies the database rather than defining a symbol.
+struct Mutation {
+  // "drop" or "insert".
+  std::string kind;
+  // What is dropped: "table", "view", "index" or "trigger". Empty for inserts.
+  std::string object_type;
+  std::string name;
+};
+
 struct Symbol {
   std::string name;
   SymbolKind kind;
+  SymbolForm form;
   // Sorted names this symbol's definition refers to, including those defined
   // nowhere in the tree. Macros are not expanded: references in a macro's body
   // belong to the macro and references in its arguments belong to the caller.
@@ -44,11 +63,16 @@ struct Symbol {
 
 struct Module {
   std::string name;
+  // Relative to the tree the module was found in.
   std::string path;
+  std::string absolute_path;
   std::vector<std::string> includes;
   std::vector<Symbol> symbols;
   // References from statements which define no symbol.
   std::vector<std::string> references;
+  std::vector<Mutation> mutations;
+  // Whether the LIKE operator appears anywhere in the module.
+  bool uses_like = false;
   std::vector<std::string> errors;
 };
 

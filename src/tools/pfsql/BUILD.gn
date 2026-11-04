@@ -27,6 +27,7 @@ perfetto_host_executable("pfsql") {
     "../../../gn:default_deps",
     "../../base",
     "../../trace_processor/util:simple_json_serializer",
+    "../../trace_processor/util:sql_module_doc_parser",
   ]
 }
 

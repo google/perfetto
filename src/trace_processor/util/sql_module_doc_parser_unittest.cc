@@ -63,6 +63,29 @@ TEST(SqlModuleDocParserTest, Includes) {
   EXPECT_THAT(m.includes, testing::ElementsAre("foo.bar", "baz.*"));
 }
 
+TEST(SqlModuleDocParserTest, RawDescriptionKeepsLineBreaks) {
+  auto m = Parse(
+      "-- First line.\n"
+      "--   Indented line.\n"
+      "CREATE OR REPLACE PERFETTO TABLE t AS SELECT 1 AS id;");
+
+  ASSERT_EQ(m.table_views.size(), 1u);
+  EXPECT_EQ(m.table_views[0].description, "First line. Indented line.");
+  EXPECT_EQ(m.table_views[0].raw_description, "First line.\n   Indented line.");
+  EXPECT_TRUE(m.table_views[0].or_replace);
+}
+
+TEST(SqlModuleDocParserTest, VariadicArg) {
+  auto m = Parse(
+      "CREATE PERFETTO FUNCTION f(a LONG, b LONG...) RETURNS LONG AS SELECT "
+      "1;");
+
+  ASSERT_EQ(m.functions.size(), 1u);
+  ASSERT_EQ(m.functions[0].args.size(), 2u);
+  EXPECT_FALSE(m.functions[0].args[0].is_variadic);
+  EXPECT_TRUE(m.functions[0].args[1].is_variadic);
+}
+
 TEST(SqlModuleDocParserTest, View) {
   auto m = Parse(R"(
 -- A sample view.
