@@ -17,35 +17,47 @@
 #ifndef SRC_TOOLS_PFSQL_SOURCE_TREE_H_
 #define SRC_TOOLS_PFSQL_SOURCE_TREE_H_
 
-#include <memory>
 #include <string>
+#include <vector>
 
 #include "perfetto/ext/base/status_or.h"
-#include "src/tools/pfsql/program.h"
 
 namespace perfetto::pfsql {
 
-// Builds a semantic Program from one or more trees of PerfettoSQL modules.
-// This is the source-loading frontend: it owns parsing and macro expansion,
-// while Program contains the parser-independent analysis result.
-class SourceTreeAnalyzer {
- public:
-  SourceTreeAnalyzer();
-  ~SourceTreeAnalyzer();
-
-  SourceTreeAnalyzer(const SourceTreeAnalyzer&) = delete;
-  SourceTreeAnalyzer& operator=(const SourceTreeAnalyzer&) = delete;
-
-  // All trees share one module namespace. The first tree wins when the same
-  // module path occurs in more than one tree.
-  void AddTree(std::string root);
-
-  base::StatusOr<Program> Analyze();
-
- private:
-  class Impl;
-  std::unique_ptr<Impl> impl_;
+enum class SymbolKind {
+  kTable,
+  kView,
+  kFunction,
+  kMacro,
 };
+
+const char* SymbolKindName(SymbolKind);
+
+struct Symbol {
+  std::string name;
+  SymbolKind kind;
+  // Sorted names this symbol's definition refers to, including those defined
+  // nowhere in the tree. Macros are not expanded: references in a macro's body
+  // belong to the macro and references in its arguments belong to the caller.
+  std::vector<std::string> references;
+};
+
+struct Module {
+  std::string name;
+  std::string path;
+  std::vector<std::string> includes;
+  std::vector<Symbol> symbols;
+  // References from statements which define no symbol.
+  std::vector<std::string> references;
+  std::vector<std::string> errors;
+};
+
+// Parses every `.sql` file under `roots`, sorted by module name. All trees
+// share one module namespace and the first tree wins when the same module path
+// occurs in more than one. This only reports what the SQL says: deciding what
+// is allowed is up to the caller.
+base::StatusOr<std::vector<Module>> ParseSourceTrees(
+    const std::vector<std::string>& roots);
 
 }  // namespace perfetto::pfsql
 

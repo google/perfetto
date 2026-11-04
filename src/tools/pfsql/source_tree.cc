@@ -39,6 +39,15 @@ namespace {
 
 namespace sql = ::perfetto::perfetto_sql;
 
+// These stand in for what is not expanded: every macro call and `$variable`.
+// Identifiers parse in all the positions either can appear in.
+constexpr std::string_view kMacroCallStub = "__pfsql_macro_call";
+constexpr std::string_view kVariableStub = "__pfsql_variable";
+
+bool IsStub(std::string_view name) {
+  return name.substr(0, 8) == "__pfsql_";
+}
+
 class NameSet {
  public:
   bool Insert(std::string name) {
@@ -72,8 +81,7 @@ std::string ModuleNameFromRelPath(const std::string& rel) {
   return r;
 }
 
-// Raw references collected from a single definition before ProgramBuilder
-// resolves them into graph edges.
+// References collected from a single definition.
 struct RawRefs {
   NameSet relation_refs;
   NameSet function_refs;
@@ -94,6 +102,8 @@ struct ScratchModule {
   std::vector<ScratchSymbol> symbols;
   std::vector<std::string> includes;
   std::vector<std::string> errors;
+  // References from statements which define no symbol.
+  RawRefs refs;
 };
 
 struct DiscoveredFile {
@@ -104,22 +114,14 @@ struct DiscoveredFile {
 
 struct MacroDef {
   std::string body;
+  std::string return_type;
   std::vector<std::string> param_names;
-  std::vector<const char*> param_name_ptrs;
-  std::vector<SyntaqliteLength> param_name_lens;
+  std::vector<std::string> param_types;
 };
 
 class MacroRegistry {
  public:
   void Add(std::string name, MacroDef def) {
-    def.param_name_ptrs.clear();
-    def.param_name_lens.clear();
-    def.param_name_ptrs.reserve(def.param_names.size());
-    def.param_name_lens.reserve(def.param_names.size());
-    for (const auto& p : def.param_names) {
-      def.param_name_ptrs.push_back(p.data());
-      def.param_name_lens.push_back(static_cast<SyntaqliteLength>(p.size()));
-    }
     defs_.Insert(std::move(name), std::move(def));
   }
   const MacroDef* Lookup(std::string_view name) const {
@@ -132,48 +134,6 @@ class MacroRegistry {
   sql::IntrinsicMacroExpander intrinsics_;
 };
 
-int MacroLookupCb(void* user_data,
-                  SyntaqliteParser* parser,
-                  const char* name,
-                  SyntaqliteLength name_len,
-                  const SyntaqliteToken* args,
-                  uint32_t arg_count) {
-  auto* reg = static_cast<MacroRegistry*>(user_data);
-  std::string_view nm(name, name_len);
-
-  // 1) Try the real C++-implemented intrinsic macros first — same expander
-  // the runtime preprocessor uses, so expansions are byte-exact.
-  switch (reg->intrinsics().TryExpand(nm, args, arg_count)) {
-    case sql::ExpandStatus::kExpanded: {
-      std::string_view body = reg->intrinsics().body();
-      syntaqlite_macro_expansion_set_result(
-          parser, body.data(), static_cast<SyntaqliteLength>(body.size()), 0,
-          0);
-      return SYNTAQLITE_MACRO_LOOKUP_OK;
-    }
-    case sql::ExpandStatus::kExpansionFailed:
-      return SYNTAQLITE_MACRO_LOOKUP_ERROR;
-    case sql::ExpandStatus::kNotIntrinsic:
-      break;
-  }
-
-  // 2) Fall through to the user macro registry built from `.sql` sources.
-  if (const MacroDef* def = reg->Lookup(nm)) {
-    int rc = syntaqlite_macro_expansion_expand_and_set_result(
-        parser, def->body.data(),
-        static_cast<SyntaqliteLength>(def->body.size()),
-        def->param_name_ptrs.empty() ? nullptr : def->param_name_ptrs.data(),
-        def->param_name_lens.empty() ? nullptr : def->param_name_lens.data(),
-        static_cast<uint32_t>(def->param_names.size()),
-        // Some macros embed runtime `$table` placeholders (resolved at execute
-        // time by the table-pointer scan machinery, not by syntaqlite) — let
-        // them pass through verbatim instead of failing the expansion.
-        SYNTAQLITE_EXPAND_PASSTHROUGH_UNKNOWN);
-    return rc < 0 ? SYNTAQLITE_MACRO_LOOKUP_ERROR : SYNTAQLITE_MACRO_LOOKUP_OK;
-  }
-  return SYNTAQLITE_MACRO_LOOKUP_NOT_FOUND;
-}
-
 struct ParserDeleter {
   void operator()(SyntaqliteParser* p) const { syntaqlite_parser_destroy(p); }
 };
@@ -185,26 +145,33 @@ std::string SpanString(SyntaqliteParser* p, SyntaqliteTextSpan span) {
   return std::string(base::TrimWhitespace(sql::SyntaqliteSpanText(p, span)));
 }
 
-ScopedParser MakeParser(MacroRegistry* registry_for_lookup) {
+// Reads a span as the tokenizer saw it, so a name inside a macro body is that
+// name and not the macro's call site.
+std::string ExpandedSpanString(SyntaqliteParser* p, SyntaqliteTextSpan span) {
+  SyntaqliteLength len = 0;
+  const char* text = syntaqlite_parser_span_expanded_text(p, &span, &len);
+  return text ? std::string(base::TrimWhitespace(std::string_view(text, len)))
+              : std::string();
+}
+
+ScopedParser MakeParser() {
   ScopedParser p(syntaqlite_parser_create_perfetto(nullptr));
   PERFETTO_CHECK(p != nullptr);
   syntaqlite_parser_set_macro_fallback(p.get(), 1);
-  if (registry_for_lookup) {
-    syntaqlite_parser_set_macro_lookup(p.get(), &MacroLookupCb,
-                                       registry_for_lookup);
-  }
   return p;
 }
 
-void ExtractMacroParamNames(SyntaqliteParser* p,
-                            uint32_t arg_list_id,
-                            std::vector<std::string>& out) {
+void ExtractMacroParams(SyntaqliteParser* p,
+                        uint32_t arg_list_id,
+                        std::vector<std::string>& names,
+                        std::vector<std::string>& types) {
   if (!syntaqlite_node_is_present(arg_list_id))
     return;
   const auto* list = static_cast<const SyntaqlitePerfettoMacroArgList*>(
       syntaqlite_parser_node(p, arg_list_id));
   uint32_t count = syntaqlite_list_count(list);
-  out.reserve(count);
+  names.reserve(count);
+  types.reserve(count);
   for (uint32_t i = 0; i < count; ++i) {
     uint32_t id = syntaqlite_list_child_id(list, i);
     if (!syntaqlite_node_is_present(id))
@@ -213,25 +180,28 @@ void ExtractMacroParamNames(SyntaqliteParser* p,
         syntaqlite_parser_node(p, id));
     if (!item)
       continue;
-    out.emplace_back(SpanString(p, item->arg_name));
+    names.emplace_back(SpanString(p, item->arg_name));
+    types.emplace_back(base::ToLower(SpanString(p, item->arg_type)));
   }
 }
 
 // Walk every node in the current statement's arena and harvest references
 // into `out`. CTE-local names are filtered out via a scratch set.
-void CollectStatementRefs(SyntaqliteParser* p, RawRefs& out) {
-  NameSet cte_locals;
+void CollectStatementRefs(SyntaqliteParser* p,
+                          RawRefs& out,
+                          NameSet& cte_locals,
+                          bool column_refs_are_relations = false) {
   uint32_t n = syntaqlite_parser_node_count(p);
-  for (uint32_t id = 1; id < n; ++id) {
+  for (uint32_t id = 0; id < n; ++id) {
     if (!syntaqlite_node_is_present(id))
       continue;
     const auto* node =
         static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(p, id));
     if (node && node->tag == SYNTAQLITE_NODE_CTE_DEFINITION) {
-      cte_locals.Insert(SpanString(p, node->cte_definition.cte_name));
+      cte_locals.Insert(ExpandedSpanString(p, node->cte_definition.cte_name));
     }
   }
-  for (uint32_t id = 1; id < n; ++id) {
+  for (uint32_t id = 0; id < n; ++id) {
     if (!syntaqlite_node_is_present(id))
       continue;
     const auto* node =
@@ -240,15 +210,50 @@ void CollectStatementRefs(SyntaqliteParser* p, RawRefs& out) {
       continue;
     switch (static_cast<int>(node->tag)) {
       case SYNTAQLITE_NODE_TABLE_REF: {
-        std::string name = SpanString(p, node->table_ref.table_name);
-        auto bang = name.find('!');
-        if (bang != std::string::npos) {
-          out.macro_invocations.Insert(name.substr(0, bang));
-          break;
-        }
+        std::string name = ExpandedSpanString(p, node->table_ref.table_name);
         if (name.empty() || cte_locals.Contains(name))
           break;
         out.relation_refs.Insert(std::move(name));
+        break;
+      }
+      case SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE: {
+        std::string name =
+            ExpandedSpanString(p, node->perfetto_pipe_source.table_name);
+        if (!name.empty() && !cte_locals.Contains(name))
+          out.relation_refs.Insert(std::move(name));
+        break;
+      }
+      case SYNTAQLITE_NODE_CREATE_PERFETTO_INDEX_STMT:
+        out.relation_refs.Insert(
+            ExpandedSpanString(p, node->create_perfetto_index_stmt.table_name));
+        break;
+      case SYNTAQLITE_NODE_CREATE_PERFETTO_DELEGATING_FUNCTION_STMT:
+        out.function_refs.Insert(ExpandedSpanString(
+            p, node->create_perfetto_delegating_function_stmt.delegate_to));
+        break;
+      case SYNTAQLITE_NODE_CREATE_VIRTUAL_TABLE_STMT: {
+        const auto& vtab = node->create_virtual_table_stmt;
+        if (!base::StartsWith(
+                base::ToUpper(ExpandedSpanString(p, vtab.module_name)),
+                "SPAN_")) {
+          break;
+        }
+        // The grammar keeps module arguments as raw text: `t PARTITIONED c, u`.
+        for (const std::string& arg :
+             base::SplitString(ExpandedSpanString(p, vtab.module_args), ",")) {
+          std::vector<std::string> words =
+              base::SplitString(std::string(base::TrimWhitespace(arg)), " ");
+          if (!words.empty())
+            out.relation_refs.Insert(words[0]);
+        }
+        break;
+      }
+      case SYNTAQLITE_NODE_COLUMN_REF: {
+        if (!column_refs_are_relations)
+          break;
+        std::string name = ExpandedSpanString(p, node->column_ref.column);
+        if (!name.empty() && !cte_locals.Contains(name))
+          out.relation_refs.Insert(std::move(name));
         break;
       }
       case SYNTAQLITE_NODE_FUNCTION_CALL:
@@ -260,14 +265,9 @@ void CollectStatementRefs(SyntaqliteParser* p, RawRefs& out) {
                 : (node->tag == SYNTAQLITE_NODE_AGGREGATE_FUNCTION_CALL
                        ? node->aggregate_function_call.func_name
                        : node->ordered_set_function_call.func_name);
-        std::string name = SpanString(p, span);
+        std::string name = ExpandedSpanString(p, span);
         if (name.empty())
           break;
-        auto bang = name.find('!');
-        if (bang != std::string::npos) {
-          out.macro_invocations.Insert(name.substr(0, bang));
-          break;
-        }
         out.function_refs.Insert(std::move(name));
         break;
       }
@@ -275,13 +275,210 @@ void CollectStatementRefs(SyntaqliteParser* p, RawRefs& out) {
         break;
     }
   }
-  uint32_t rw_count = syntaqlite_result_rewrite_count(p);
-  for (uint32_t i = 0; i < rw_count; ++i) {
-    SyntaqliteRewrite rw = syntaqlite_result_rewrite_at(p, i);
-    if (rw.name && rw.name_len > 0)
-      out.macro_invocations.Insert(std::string(rw.name, rw.name_len));
-  }
 }
+
+struct MacroCall {
+  std::string name;
+  std::vector<std::string> args;
+};
+
+// The macro lookup state of one parse.
+struct MacroLookup {
+  MacroRegistry* registry;
+  std::vector<MacroCall>* calls;
+};
+
+int MacroLookupCb(void* user_data,
+                  SyntaqliteParser* parser,
+                  const char* name,
+                  SyntaqliteLength name_len,
+                  const SyntaqliteToken* args,
+                  uint32_t arg_count) {
+  auto* lookup = static_cast<MacroLookup*>(user_data);
+  std::string_view nm(name, name_len);
+
+  // Intrinsics paste their arguments together, so only their expansion shows
+  // what those arguments mean. They need a literal list to expand, which a
+  // `$variable` is not: those fall through and their arguments stay visible.
+  std::string_view stub = kMacroCallStub;
+  switch (lookup->registry->intrinsics().TryExpand(nm, args, arg_count)) {
+    case sql::ExpandStatus::kExpanded: {
+      std::string_view body = lookup->registry->intrinsics().body();
+      syntaqlite_macro_expansion_set_result(
+          parser, body.data(), static_cast<SyntaqliteLength>(body.size()), 0,
+          0);
+      return SYNTAQLITE_MACRO_LOOKUP_OK;
+    }
+    case sql::ExpandStatus::kExpansionFailed:
+      // Prefix forms expand to `, a, b`, attaching to what precedes them.
+      if (base::EndsWith(nm, "_prefix"))
+        stub = {};
+      break;
+    case sql::ExpandStatus::kNotIntrinsic:
+      break;
+  }
+
+  MacroCall call;
+  call.name = std::string(nm);
+  for (uint32_t i = 0; i < arg_count; ++i) {
+    call.args.emplace_back(args[i].text, args[i].length);
+  }
+  lookup->calls->push_back(std::move(call));
+  syntaqlite_macro_expansion_set_result(
+      parser, stub.data(), static_cast<SyntaqliteLength>(stub.size()), 0, 0);
+  return SYNTAQLITE_MACRO_LOOKUP_OK;
+}
+
+// Replaces each `$variable` with an identifier. `FROM $t` is not valid SQL
+// until a macro parameter or runtime placeholder is substituted.
+std::string StubVariables(std::string_view sql) {
+  SyntaqliteTokenizer* tok = syntaqlite_tokenizer_create_perfetto(nullptr);
+  PERFETTO_CHECK(tok != nullptr);
+  syntaqlite_tokenizer_reset(tok, sql.data(),
+                             static_cast<uint32_t>(sql.size()));
+  std::string out;
+  size_t copied = 0;
+  SyntaqliteToken token;
+  while (syntaqlite_tokenizer_next(tok, &token)) {
+    if (token.type != SYNTAQLITE_TK_VARIABLE || token.text[0] != '$')
+      continue;
+    auto offset = static_cast<size_t>(token.text - sql.data());
+    out.append(sql.substr(copied, offset - copied));
+    out.append(kVariableStub);
+    copied = offset + token.length;
+  }
+  out.append(sql.substr(copied));
+  syntaqlite_tokenizer_destroy(tok);
+  return out;
+}
+
+bool IsIdentifier(std::string_view s) {
+  if (s.empty() || (s[0] >= '0' && s[0] <= '9'))
+    return false;
+  return std::all_of(s.begin(), s.end(), [](char c) {
+    return c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') ||
+           (c >= 'A' && c <= 'Z');
+  });
+}
+
+// Collects the references of everything a statement's macro calls were handed,
+// following calls nested in their arguments.
+class RefCollector {
+ public:
+  RefCollector(MacroRegistry& registry, RawRefs& out)
+      : registry_(registry), out_(out) {}
+
+  void FlushCalls() {
+    while (!calls_.empty()) {
+      MacroCall call = std::move(calls_.back());
+      calls_.pop_back();
+      out_.macro_invocations.Insert(call.name);
+      const MacroDef* def = registry_.Lookup(call.name);
+      for (size_t i = 0; i < call.args.size(); ++i) {
+        // A forwarded parameter or macro the registry doesn't know about says
+        // nothing of how its arguments are used, so assume they name relations.
+        std::string type = def && i < def->param_types.size()
+                               ? def->param_types[i]
+                               : std::string("tableorsubquery");
+        CollectArg(call.args[i], type);
+      }
+    }
+  }
+
+  // Returns false if the body parses in none of the positions a macro can
+  // expand in.
+  bool CollectMacroBody(const MacroDef& def) {
+    return TryWrappers(StubVariables(def.body), def.return_type,
+                       /*column_refs_are_relations=*/false);
+  }
+
+  std::vector<MacroCall>& calls() { return calls_; }
+  NameSet& cte_locals() { return cte_locals_; }
+  const std::vector<std::string>& unparsed_args() const {
+    return unparsed_args_;
+  }
+
+ private:
+  void CollectArg(const std::string& arg, const std::string& type) {
+    std::string_view trimmed = base::TrimWhitespace(std::string_view(arg));
+    if (trimmed.empty() || trimmed == "()")
+      return;
+    bool names_relation = type == "tableorsubquery";
+    bool names_relations = type == "_tablenamelist";
+    if (IsIdentifier(trimmed)) {
+      if ((names_relation || names_relations) &&
+          !cte_locals_.Contains(trimmed)) {
+        out_.relation_refs.Insert(std::string(trimmed));
+      }
+      return;
+    }
+    if (!TryWrappers(StubVariables(trimmed), type, names_relations)) {
+      unparsed_args_.emplace_back(trimmed);
+    }
+  }
+
+  // Parses `sql` in the position its type says it expands in, then in the
+  // others: a forwarded argument's real type is unknown here.
+  bool TryWrappers(const std::string& sql,
+                   const std::string& type,
+                   bool column_refs_are_relations) {
+    const std::string table = "SELECT * FROM " + sql + ";";
+    const std::string expr = "SELECT " + sql + ";";
+    const std::string fragment = "SELECT " + sql + " FROM __pfsql_from;";
+    std::vector<const std::string*> wrappers;
+    if (type == "tableorsubquery") {
+      wrappers = {&table, &expr, &fragment};
+    } else if (type == "_projectionfragment") {
+      wrappers = {&fragment, &expr, &table};
+    } else {
+      wrappers = {&expr, &fragment, &table};
+    }
+    for (const std::string* wrapper : wrappers) {
+      if (TryParse(*wrapper, column_refs_are_relations))
+        return true;
+    }
+    return false;
+  }
+
+  bool TryParse(const std::string& sql, bool column_refs_are_relations) {
+    std::vector<MacroCall> calls;
+    MacroLookup lookup{&registry_, &calls};
+    ScopedParser owned = MakeParser();
+    SyntaqliteParser* p = owned.get();
+    syntaqlite_parser_set_macro_lookup(p, &MacroLookupCb, &lookup);
+    syntaqlite_parser_reset(p, sql.data(), static_cast<uint32_t>(sql.size()));
+    RawRefs refs;
+    for (;;) {
+      int32_t rc = syntaqlite_parser_next(p);
+      if (rc == SYNTAQLITE_PARSE_DONE)
+        break;
+      if (rc == SYNTAQLITE_PARSE_ERROR)
+        return false;
+      CollectStatementRefs(p, refs, cte_locals_, column_refs_are_relations);
+    }
+    Merge(refs);
+    for (MacroCall& call : calls) {
+      calls_.push_back(std::move(call));
+    }
+    FlushCalls();
+    return true;
+  }
+
+  void Merge(const RawRefs& refs) {
+    for (auto it = refs.relation_refs.GetIterator(); it; ++it)
+      out_.relation_refs.Insert(it.key());
+    for (auto it = refs.function_refs.GetIterator(); it; ++it)
+      out_.function_refs.Insert(it.key());
+    for (auto it = refs.macro_invocations.GetIterator(); it; ++it)
+      out_.macro_invocations.Insert(it.key());
+  }
+
+  MacroRegistry& registry_;
+  RawRefs& out_;
+  std::vector<MacroCall> calls_;
+  NameSet cte_locals_;
+  std::vector<std::string> unparsed_args_;
+};
 
 base::Status DiscoverTree(const std::string& root,
                           std::vector<DiscoveredFile>& out) {
@@ -313,7 +510,7 @@ void PassA(const DiscoveredFile& f, ScratchModule& m, MacroRegistry& registry) {
     m.errors.push_back("failed to read file");
     return;
   }
-  ScopedParser owned = MakeParser(/*registry_for_lookup=*/nullptr);
+  ScopedParser owned = MakeParser();
   SyntaqliteParser* p = owned.get();
   syntaqlite_parser_reset(p, sql.data(), static_cast<uint32_t>(sql.size()));
 
@@ -323,8 +520,7 @@ void PassA(const DiscoveredFile& f, ScratchModule& m, MacroRegistry& registry) {
       break;
     if (rc == SYNTAQLITE_PARSE_ERROR) {
       const char* msg = syntaqlite_result_error_msg(p);
-      m.errors.push_back(msg ? std::string("passA: ") + msg
-                             : std::string("passA: unknown parse error"));
+      m.errors.push_back(msg ? msg : "unknown parse error");
       continue;
     }
     uint32_t root = syntaqlite_result_root(p);
@@ -341,6 +537,14 @@ void PassA(const DiscoveredFile& f, ScratchModule& m, MacroRegistry& registry) {
       m.symbols.push_back(std::move(s));
     };
     switch (static_cast<int>(node->tag)) {
+      case SYNTAQLITE_NODE_CREATE_TABLE_STMT:
+        push_symbol(SpanString(p, node->create_table_stmt.table_name),
+                    SymbolKind::kTable);
+        break;
+      case SYNTAQLITE_NODE_CREATE_VIRTUAL_TABLE_STMT:
+        push_symbol(SpanString(p, node->create_virtual_table_stmt.table_name),
+                    SymbolKind::kTable);
+        break;
       case SYNTAQLITE_NODE_INCLUDE_PERFETTO_MODULE_STMT:
         m.includes.push_back(
             SpanString(p, node->include_perfetto_module_stmt.module_name));
@@ -371,7 +575,8 @@ void PassA(const DiscoveredFile& f, ScratchModule& m, MacroRegistry& registry) {
         push_symbol(name, SymbolKind::kMacro);
         MacroDef def;
         def.body = SpanString(p, n.body);
-        ExtractMacroParamNames(p, n.args, def.param_names);
+        def.return_type = base::ToLower(SpanString(p, n.return_type));
+        ExtractMacroParams(p, n.args, def.param_names, def.param_types);
         registry.Add(std::move(name), std::move(def));
         break;
       }
@@ -381,18 +586,21 @@ void PassA(const DiscoveredFile& f, ScratchModule& m, MacroRegistry& registry) {
   }
 }
 
-// Pass B: re-parse with the macro lookup callback so invocations expand and
-// references inside macro bodies flow into the AST. For each defining
-// statement, attach its arena's refs to the matching ScratchSymbol (matched
-// by source-order index).
+// Pass B: collects the references of each symbol. Macros are not expanded:
+// calls are recorded and their arguments analyzed as SQL of their own, while
+// each macro's body is analyzed on behalf of that macro. Statements are matched
+// by source-order index against the symbols collected in pass A.
 void PassB(const DiscoveredFile& f, MacroRegistry& registry, ScratchModule& m) {
   std::string sql;
   if (!base::ReadFile(f.tree_root + "/" + f.rel_path, &sql)) {
-    m.errors.push_back("failed to read file (passB)");
+    m.errors.push_back("failed to read file");
     return;
   }
-  ScopedParser owned = MakeParser(&registry);
+  std::vector<MacroCall> calls;
+  MacroLookup lookup{&registry, &calls};
+  ScopedParser owned = MakeParser();
   SyntaqliteParser* p = owned.get();
+  syntaqlite_parser_set_macro_lookup(p, &MacroLookupCb, &lookup);
   syntaqlite_parser_reset(p, sql.data(), static_cast<uint32_t>(sql.size()));
 
   size_t sym_idx = 0;
@@ -401,95 +609,89 @@ void PassB(const DiscoveredFile& f, MacroRegistry& registry, ScratchModule& m) {
     if (rc == SYNTAQLITE_PARSE_DONE)
       break;
     if (rc == SYNTAQLITE_PARSE_ERROR) {
-      const char* msg = syntaqlite_result_error_msg(p);
-      m.errors.push_back(msg ? std::string("passB: ") + msg
-                             : std::string("passB: unknown parse error"));
+      // Already reported by pass A, which parses the same text.
+      calls.clear();
       continue;
     }
     uint32_t root = syntaqlite_result_root(p);
-    if (!syntaqlite_node_is_present(root))
+    const auto* node = syntaqlite_node_is_present(root)
+                           ? static_cast<const SyntaqliteNode*>(
+                                 syntaqlite_parser_node(p, root))
+                           : nullptr;
+    if (!node) {
+      calls.clear();
       continue;
-    const auto* node =
-        static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(p, root));
-    if (!node)
-      continue;
+    }
+
+    RawRefs* refs = &m.refs;
     switch (static_cast<int>(node->tag)) {
       case SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT:
       case SYNTAQLITE_NODE_CREATE_PERFETTO_VIEW_STMT:
       case SYNTAQLITE_NODE_CREATE_PERFETTO_FUNCTION_STMT:
-        // The bodies of these have refs we care about. Match by source-order
-        // index against the symbols we collected in pass A.
-        if (sym_idx < m.symbols.size())
-          CollectStatementRefs(p, m.symbols[sym_idx].refs);
-        ++sym_idx;
-        break;
       case SYNTAQLITE_NODE_CREATE_PERFETTO_DELEGATING_FUNCTION_STMT:
       case SYNTAQLITE_NODE_CREATE_PERFETTO_MACRO_STMT:
-        // No body refs to collect; still advance the symbol cursor so later
-        // entries stay aligned with pass A's order.
+      case SYNTAQLITE_NODE_CREATE_TABLE_STMT:
+      case SYNTAQLITE_NODE_CREATE_VIRTUAL_TABLE_STMT:
+        if (sym_idx < m.symbols.size())
+          refs = &m.symbols[sym_idx].refs;
         ++sym_idx;
         break;
       default:
         break;
     }
+
+    RefCollector collector(registry, *refs);
+    collector.calls().swap(calls);
+    CollectStatementRefs(p, *refs, collector.cte_locals());
+    collector.FlushCalls();
+    if (node->tag == SYNTAQLITE_NODE_CREATE_PERFETTO_MACRO_STMT) {
+      std::string name =
+          SpanString(p, node->create_perfetto_macro_stmt.macro_name);
+      const MacroDef* def = registry.Lookup(name);
+      if (def && !collector.CollectMacroBody(*def)) {
+        m.errors.push_back("failed to parse body of macro " + name);
+      }
+    }
+    for (const std::string& arg : collector.unparsed_args()) {
+      m.errors.push_back("failed to parse macro argument: " + arg);
+    }
   }
 }
 
-// Two modules defining the same name is a bug — the runtime engine would
-// reject it. Surface it loudly by appending an error to every involved
-// module's errors list. Resolution itself uses first-defined-wins (which
-// is deterministic given the sorted file order), but any collision entry
-// here means the source needs fixing.
-void FlagSymbolCollisions(std::vector<ScratchModule>& modules) {
-  // name → indices into |modules| that define it.
-  base::FlatHashMap<std::string, std::vector<size_t>> definers_by_name;
-  for (size_t i = 0; i < modules.size(); ++i) {
-    for (const auto& s : modules[i].symbols) {
-      auto* v = definers_by_name.Find(s.name);
-      if (!v) {
-        definers_by_name.Insert(s.name, std::vector<size_t>{});
-        v = definers_by_name.Find(s.name);
-      }
-      v->push_back(i);
+std::vector<std::string> SortedReferences(const RawRefs& refs) {
+  std::vector<std::string> names;
+  for (const NameSet* set :
+       {&refs.relation_refs, &refs.function_refs, &refs.macro_invocations}) {
+    for (auto it = set->GetIterator(); it; ++it) {
+      if (!IsStub(it.key()))
+        names.push_back(it.key());
     }
   }
-  for (auto it = definers_by_name.GetIterator(); it; ++it) {
-    const auto& defining_indices = it.value();
-    if (defining_indices.size() < 2)
-      continue;
-    for (size_t i : defining_indices) {
-      std::string msg =
-          "symbol collision: '" + it.key() + "' is also defined in";
-      bool first = true;
-      for (size_t j : defining_indices) {
-        if (j == i)
-          continue;
-        msg += first ? " " : ", ";
-        msg += modules[j].module;
-        first = false;
-      }
-      modules[i].errors.push_back(std::move(msg));
-    }
-  }
+  std::sort(names.begin(), names.end());
+  names.erase(std::unique(names.begin(), names.end()), names.end());
+  return names;
 }
 
 }  // namespace
 
-class SourceTreeAnalyzer::Impl {
- public:
-  std::vector<std::string> tree_roots;
-};
-
-SourceTreeAnalyzer::SourceTreeAnalyzer() : impl_(std::make_unique<Impl>()) {}
-SourceTreeAnalyzer::~SourceTreeAnalyzer() = default;
-
-void SourceTreeAnalyzer::AddTree(std::string root) {
-  impl_->tree_roots.push_back(std::move(root));
+const char* SymbolKindName(SymbolKind kind) {
+  switch (kind) {
+    case SymbolKind::kTable:
+      return "table";
+    case SymbolKind::kView:
+      return "view";
+    case SymbolKind::kFunction:
+      return "function";
+    case SymbolKind::kMacro:
+      return "macro";
+  }
+  PERFETTO_FATAL("Unknown PerfettoSQL symbol kind");
 }
 
-base::StatusOr<Program> SourceTreeAnalyzer::Analyze() {
+base::StatusOr<std::vector<Module>> ParseSourceTrees(
+    const std::vector<std::string>& roots) {
   std::vector<DiscoveredFile> files;
-  for (const std::string& root : impl_->tree_roots) {
+  for (const std::string& root : roots) {
     RETURN_IF_ERROR(DiscoverTree(root, files));
   }
   std::sort(files.begin(), files.end(),
@@ -511,35 +713,24 @@ base::StatusOr<Program> SourceTreeAnalyzer::Analyze() {
   for (size_t i = 0; i < files.size(); ++i)
     PassA(files[i], scratch[i], registry);
 
-  FlagSymbolCollisions(scratch);
-
-  for (size_t i = 0; i < files.size(); ++i)
+  std::vector<Module> modules;
+  modules.reserve(scratch.size());
+  for (size_t i = 0; i < files.size(); ++i) {
     PassB(files[i], registry, scratch[i]);
-
-  ProgramBuilder builder;
-  for (const ScratchModule& module : scratch) {
-    ModuleId module_id = builder.AddModule(module.module, module.path);
-    for (const std::string& include : module.includes) {
-      builder.AddDeclaredInclude(module_id, include);
+    ScratchModule& m = scratch[i];
+    Module module;
+    module.name = std::move(m.module);
+    module.path = std::move(m.path);
+    module.includes = std::move(m.includes);
+    module.references = SortedReferences(m.refs);
+    module.errors = std::move(m.errors);
+    for (ScratchSymbol& symbol : m.symbols) {
+      module.symbols.push_back(
+          {std::move(symbol.name), symbol.kind, SortedReferences(symbol.refs)});
     }
-    for (const std::string& error : module.errors) {
-      builder.AddDiagnostic(module_id, error);
-    }
-    for (const ScratchSymbol& symbol : module.symbols) {
-      SymbolId symbol_id =
-          builder.AddSymbol(module_id, symbol.name, symbol.kind);
-      for (auto it = symbol.refs.relation_refs.GetIterator(); it; ++it) {
-        builder.AddReference(symbol_id, it.key(), ReferenceKind::kRelation);
-      }
-      for (auto it = symbol.refs.function_refs.GetIterator(); it; ++it) {
-        builder.AddReference(symbol_id, it.key(), ReferenceKind::kFunction);
-      }
-      for (auto it = symbol.refs.macro_invocations.GetIterator(); it; ++it) {
-        builder.AddReference(symbol_id, it.key(), ReferenceKind::kMacro);
-      }
-    }
+    modules.push_back(std::move(module));
   }
-  return builder.Build();
+  return modules;
 }
 
 }  // namespace perfetto::pfsql

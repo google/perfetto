@@ -18091,7 +18091,6 @@ filegroup {
 filegroup {
     name: "perfetto_src_tools_pfsql_source_tree",
     srcs: [
-        "src/tools/pfsql/program.cc",
         "src/tools/pfsql/source_tree.cc",
     ],
 }
@@ -18100,7 +18099,6 @@ filegroup {
 filegroup {
     name: "perfetto_src_tools_pfsql_unittests",
     srcs: [
-        "src/tools/pfsql/program_unittest.cc",
         "src/tools/pfsql/source_tree_unittest.cc",
     ],
 }
