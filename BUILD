@@ -318,6 +318,7 @@ perfetto_cc_binary(
         ":src_tools_pfsql_source_tree",
         ":src_trace_processor_util_json_serializer",
         ":src_trace_processor_util_simple_json_serializer",
+        ":src_trace_processor_util_sql_module_doc_parser",
         "src/tools/pfsql/main.cc",
     ],
     deps = [
