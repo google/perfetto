@@ -20,13 +20,13 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <string>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/filter_value.h"
+#include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
@@ -41,21 +41,6 @@ class Lowering;
 class PlanNode;
 struct BoundPlan;
 struct LoweringContext;
-
-// A literal a WHERE condition compares with: a number or a string.
-struct WhereLiteral {
-  enum class Type : uint8_t { kInt64, kDouble, kString };
-
-  Type type = Type::kInt64;
-  // Explicit, so a plan's literals can be copied as bytes.
-  uint8_t pad_[7] = {};
-  // The integer, or for a string its index in the WHERE's strings.
-  int64_t int_value = 0;
-  double double_value = 0;
-};
-static_assert(sizeof(WhereLiteral) == 24);
-template <>
-inline constexpr bool kCopiedAsBytes<WhereLiteral> = true;
 
 // A test of one column: `column OP literal` for OP one of =, !=, <, <=, >, >=
 // or GLOB, `column IN (literal, ...)`, or `column IS [NOT] NULL`. A WHERE
@@ -104,8 +89,7 @@ class Where : public PlanOperation {
   const OperationRegistration& registration() const override;
 
   std::vector<WherePredicate> predicates_;
-  std::vector<WhereLiteral> literals_;
-  std::vector<std::string> strings_;
+  std::vector<Literal> literals_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline
