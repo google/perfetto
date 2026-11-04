@@ -17,6 +17,7 @@
 #include "src/trace_processor/util/graph.h"
 
 #include <cstdint>
+#include <random>
 #include <vector>
 
 #include "test/gtest_and_gmock.h"
@@ -57,6 +58,81 @@ TEST(DominatorTreeTest, PaperExample) {
   EXPECT_THAT(tree.order, ElementsAre(R, A, D, L, H, E, K, I, B, C, F, G, J));
   EXPECT_THAT(tree.parent,
               ElementsAre(kNone, R, R, R, R, R, C, C, R, R, G, R, D));
+}
+
+// Whether `to` is reached from `from` without passing through `removed`.
+bool Reaches(const Digraph& graph,
+             uint32_t from,
+             uint32_t to,
+             uint32_t removed) {
+  if (from == removed) {
+    return false;
+  }
+  std::vector<bool> seen(graph.node_count());
+  std::vector<uint32_t> stack{from};
+  seen[from] = true;
+  while (!stack.empty()) {
+    uint32_t v = stack.back();
+    stack.pop_back();
+    if (v == to) {
+      return true;
+    }
+    for (uint32_t i = graph.offsets[v]; i < graph.offsets[v + 1]; ++i) {
+      uint32_t t = graph.targets[i];
+      if (t != removed && !seen[t]) {
+        seen[t] = true;
+        stack.push_back(t);
+      }
+    }
+  }
+  return false;
+}
+
+// Checks every immediate dominator against the definition, on small random
+// graphs: d dominates w if w is not reached once d is removed.
+TEST(DominatorTreeTest, MatchesTheDefinitionOnRandomGraphs) {
+  std::minstd_rand rng(1);
+  for (int round = 0; round < 500; ++round) {
+    uint32_t count = 1 + rng() % 12;
+    std::vector<uint32_t> sources;
+    std::vector<uint32_t> targets;
+    for (uint32_t e = rng() % (3 * count); e > 0; --e) {
+      sources.push_back(static_cast<uint32_t>(rng() % count));
+      targets.push_back(static_cast<uint32_t>(rng() % count));
+    }
+    Digraph graph = Digraph::FromEdges(count, sources, targets);
+    GraphTree tree = DominatorTree(graph, 0);
+    EXPECT_EQ(tree.order, DepthFirstSearch(graph, {0}).order);
+
+    for (uint32_t w = 0; w < count; ++w) {
+      if (w == 0 || !Reaches(graph, 0, w, kNone)) {
+        EXPECT_EQ(tree.parent[w], kNone);
+        continue;
+      }
+      // The immediate dominator is the strict dominator which every other
+      // one dominates.
+      std::vector<uint32_t> dominators;
+      for (uint32_t d = 0; d < count; ++d) {
+        if (d != w && !Reaches(graph, 0, w, d)) {
+          dominators.push_back(d);
+        }
+      }
+      uint32_t immediate = kNone;
+      for (uint32_t d : dominators) {
+        bool closest = true;
+        for (uint32_t other : dominators) {
+          if (other != d && Reaches(graph, 0, d, other)) {
+            closest = false;
+          }
+        }
+        if (closest) {
+          immediate = d;
+        }
+      }
+      EXPECT_EQ(tree.parent[w], immediate)
+          << "round " << round << " node " << w;
+    }
+  }
 }
 
 }  // namespace

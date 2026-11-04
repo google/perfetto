@@ -89,6 +89,12 @@ std::optional<uint32_t> Limit::Prune(std::vector<bool>*) {
   return std::nullopt;
 }
 
+OutputProperties Limit::Derive(const BoundPlan& bound, PlanNodeId self) const {
+  OutputProperties out = bound.outputs[bound.plan.nodes()[self].children()[0]];
+  out.DropRows();
+  return out;
+}
+
 void Limit::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerNode(node.children()[0]);
   std::optional<uint32_t> count;
@@ -98,8 +104,6 @@ void Limit::Lower(Lowering* c, const PlanNode& node) const {
   // Rows kept stay in their input order, so any known arrangement survives.
   c->AddOperator(
       std::make_unique<ex::Limit>(count, Clamp(std::max<int64_t>(offset_, 0))));
-  c->DeclareSmallBatches();
-  c->DeclareRowsDropped();
 }
 
 const OperationRegistration& Limit::registration() const {

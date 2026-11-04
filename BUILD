@@ -2687,6 +2687,7 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/row_cursor.h",
         "src/trace_processor/core/exec/row_store.cc",
         "src/trace_processor/core/exec/row_store.h",
+        "src/trace_processor/core/exec/run_held.h",
         "src/trace_processor/core/exec/selection.cc",
         "src/trace_processor/core/exec/selection.h",
         "src/trace_processor/core/exec/sort.cc",
@@ -4027,6 +4028,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.h",
         "src/trace_processor/perfetto_sql/pipeline/operation_registry.h",
+        "src/trace_processor/perfetto_sql/pipeline/output_properties.cc",
+        "src/trace_processor/perfetto_sql/pipeline/output_properties.h",
         "src/trace_processor/perfetto_sql/pipeline/physical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/physical_plan.h",
         "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.cc",
@@ -4131,6 +4134,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_memory_heap_graph_heap_graph",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/binder.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/bitmap.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_classification.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_relationship.sql",
@@ -9617,6 +9621,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/ftrace/google_irm_trace.proto",
         "protos/perfetto/trace/ftrace/gpu_mem.proto",
         "protos/perfetto/trace/ftrace/gpu_scheduler.proto",
+        "protos/perfetto/trace/ftrace/gti.proto",
         "protos/perfetto/trace/ftrace/hyp.proto",
         "protos/perfetto/trace/ftrace/hypervisor.proto",
         "protos/perfetto/trace/ftrace/i2c.proto",

@@ -107,6 +107,26 @@ std::optional<uint32_t> AggregateStage::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
+OutputProperties AggregateStage::Derive(const BoundPlan& bound,
+                                        PlanNodeId self) const {
+  // The output has one row per group, with a new layout. Groups are output in
+  // the order first seen, so if the input is sorted by the keys, the output is
+  // too.
+  OutputProperties out = OutputProperties::Empty(bound.plan.columns().size());
+  for (ColumnId key : keys_) {
+    out.AddColumn(key);
+  }
+  for (const Aggregate& agg : aggregates_) {
+    out.AddColumn(agg.output);
+  }
+  std::vector<SortKey> sorted =
+      bound.outputs[bound.plan.nodes()[self].children()[0]].SortedBy(keys_);
+  if (!sorted.empty()) {
+    out.arrangements.push_back({{}, std::move(sorted)});
+  }
+  return out;
+}
+
 void AggregateStage::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerNode(node.children()[0]);
   ex::HashAggregateSpec spec;
@@ -116,23 +136,8 @@ void AggregateStage::Lower(Lowering* c, const PlanNode& node) const {
   for (const Aggregate& agg : aggregates_) {
     spec.aggregates.push_back(LowerAggregate(c, agg));
   }
-  // Groups are output in the order first seen, so if the input is sorted by
-  // the keys, the output is too.
-  std::vector<SortKey> sorted = c->QuerySortedBy(keys_);
   c->RequireFullBatches();
   c->AddOperator(std::make_unique<ex::HashAggregate>(std::move(spec)));
-
-  // The output has one row per group, with a new layout.
-  c->ResetLayout();
-  for (ColumnId key : keys_) {
-    c->DeclareColumn(key);
-  }
-  for (const Aggregate& agg : aggregates_) {
-    c->DeclareColumn(agg.output);
-  }
-  if (!sorted.empty()) {
-    c->DeclareSorted(sorted);
-  }
 }
 
 const OperationRegistration& AggregateStage::registration() const {

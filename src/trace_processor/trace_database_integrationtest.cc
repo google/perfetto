@@ -384,6 +384,35 @@ TEST(TraceProcessorCustomConfigTest,
   EXPECT_EQ(contents, std::string("\0\1\2\xff", 4));
 }
 
+TEST(TraceProcessorCustomConfigTest, AttachRequiresSqlFileAccess) {
+  auto processor = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("ATTACH DATABASE ':memory:' AS aux");
+  EXPECT_FALSE(it.Next());
+  EXPECT_THAT(it.Status(), IsError());
+  EXPECT_THAT(it.Status().message(), HasSubstr("not authorized"));
+}
+
+TEST(TraceProcessorCustomConfigTest, VacuumIntoAlwaysDenied) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  std::string target = temp_dir.path() + "/vacuum_target.db";
+  std::replace(target.begin(), target.end(), '\\', '/');
+  ASSERT_EQ(target.find('\''), std::string::npos);
+
+  for (bool allow_file_access : {false, true}) {
+    Config config;
+    config.enable_sql_file_access = allow_file_access;
+    auto processor = TraceProcessor::CreateInstance(config);
+    ASSERT_OK(processor->NotifyEndOfFile());
+
+    auto it = processor->ExecuteQuery("VACUUM INTO 'file:" + target + "'");
+    EXPECT_FALSE(it.Next());
+    EXPECT_THAT(it.Status(), IsError());
+    EXPECT_THAT(it.Status().message(), HasSubstr("authorization denied"));
+    EXPECT_FALSE(base::FileExists(target));
+  }
+}
+
 namespace {
 base::Status ParseTraceString(TraceProcessor* processor, const std::string& s) {
   std::unique_ptr<uint8_t[]> buf(new uint8_t[s.size()]);

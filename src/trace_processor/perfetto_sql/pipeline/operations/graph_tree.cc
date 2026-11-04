@@ -123,6 +123,19 @@ std::optional<uint32_t> GraphTree::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
+OutputProperties GraphTree::Derive(const BoundPlan& bound, PlanNodeId) const {
+  OutputProperties out = OutputProperties::Empty(bound.plan.columns().size());
+  for (ColumnId id : carried_) {
+    out.AddColumn(id);
+  }
+  out.AddColumn(parent_);
+  uint32_t node_position = out.AddTemporaryColumn();
+  uint32_t parent_position = out.AddTemporaryColumn();
+  out.tree = OutputProperties::Tree{node_, parent_, TreeDirection::kDown,
+                                    node_position, parent_position};
+  return out;
+}
+
 void GraphTree::Lower(Lowering* c, const PlanNode& node) const {
   const auto& children = node.children();
   PERFETTO_DCHECK(!c->has_source());
@@ -154,15 +167,7 @@ void GraphTree::Lower(Lowering* c, const PlanNode& node) const {
   spec.seed_column = seeds.QueryPosition(seed_);
   spec.seeds = seeds.FinishSide();
 
-  for (ColumnId id : carried_) {
-    c->DeclareColumn(id);
-  }
-  c->DeclareColumn(parent_);
-  Lowering::TreeColumns numbers;
-  numbers.node = c->DeclareTemporaryColumn();
-  numbers.parent = c->DeclareTemporaryColumn();
   c->SetSource(std::make_unique<ex::GraphTree>(std::move(spec)));
-  c->DeclareTreeWalk(node_, parent_, numbers, TreeDirection::kDown);
 }
 
 const OperationRegistration& GraphTree::registration() const {

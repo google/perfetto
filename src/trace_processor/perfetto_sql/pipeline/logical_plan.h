@@ -26,7 +26,9 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
+#include "src/trace_processor/perfetto_sql/pipeline/output_properties.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
 namespace perfetto::trace_processor {
@@ -38,8 +40,10 @@ class Dataframe;
 
 namespace perfetto::trace_processor::pipeline {
 
+struct Bindings;
 class Catalog;
 class Lowering;
+struct BoundPlan;
 class PlanCodec;
 class PlanKey;
 class LogicalPlan;
@@ -73,17 +77,30 @@ class PlanOperation {
   virtual void MoveSqlSourcesToDataframeArgs(const NameTable&,
                                              std::vector<std::string>*);
 
-  // Resolves named dataframes against the catalog after decoding a plan,
-  // checking each against the stamp `key` gave it when the plan was written.
-  virtual base::Status ResolveDataframes(LogicalPlan*,
+  // Binding, which records what it finds in `bindings` for node `self`,
+  // holding this operation, and leaves the plan as it is.
+  //
+  // Resolves named dataframes against the catalog. A plan read back is
+  // checked against the stamp `key` gave each when it was written; a plan
+  // compiled in this process passes no key.
+  virtual base::Status ResolveDataframes(const LogicalPlan&,
+                                         PlanNodeId self,
                                          const Catalog&,
-                                         const PlanKey& key);
+                                         const PlanKey* key,
+                                         Bindings* bindings) const;
 
-  // Attaches runtime dataframe arguments before lowering the decoded plan.
+  // Attaches the dataframes a plan is passed when it runs.
   virtual base::Status BindDataframeArgs(
-      LogicalPlan*,
+      const LogicalPlan&,
+      PlanNodeId self,
       const std::vector<const core::dataframe::Dataframe*>&,
-      StringPool*);
+      StringPool*,
+      Bindings* bindings) const;
+
+  // What is known about this node's output, from what is known about its
+  // inputs in `bound.outputs`. Lower leaves its pipeline in this state.
+  virtual OutputProperties Derive(const BoundPlan& bound,
+                                  PlanNodeId self) const = 0;
 
   // Builds execution steps, including child traversal. Intersection attaches
   // independent operand pipelines; other stages lower their single input.
@@ -149,6 +166,9 @@ class PlanNode {
   PlanOperation& operation() { return *operation_; }
   const PlanOperation& operation() const { return *operation_; }
 
+  // Swaps the operations of this node and `other`, each keeping its children.
+  void SwapOperation(PlanNode* other) { operation_.swap(other->operation_); }
+
  private:
   std::vector<PlanNodeId> children_;
   std::unique_ptr<PlanOperation> operation_;
@@ -195,23 +215,64 @@ class LogicalPlan {
   PlanNodeId root() const { return root_; }
   void SetRoot(PlanNodeId root) { root_ = root; }
 
+  // Drops `node` from the plan: whatever read it reads its first input
+  // instead. The node stays in nodes(), unread, so IDs do not change.
+  void Bypass(PlanNodeId node);
+
   std::vector<NamedColumn>& output() { return output_; }
   const std::vector<NamedColumn>& output() const { return output_; }
 
   NameTable& names() { return names_; }
   const NameTable& names() const { return names_; }
 
+  // The ID of `node`, which must be one of nodes().
+  PlanNodeId IdOf(const PlanNode& node) const {
+    PERFETTO_DCHECK(&node >= nodes_.data() &&
+                    &node < nodes_.data() + nodes_.size());
+    return static_cast<PlanNodeId>(&node - nodes_.data());
+  }
+
  private:
   // Defining SQL names are stable diagnostic labels, independent of aliases
   // in output bindings. Physical temporaries do not get SQL names or IDs.
   std::vector<PlanColumn> columns_;
   std::vector<PlanNode> nodes_;
-  // The node whose rows are the plan's rows. Pruning can leave unreachable
-  // nodes in the vector so that node IDs remain stable.
+  // The node whose rows are the plan's rows.
   PlanNodeId root_ = 0;
   // Visible result columns, in order. Internal columns have no binding here.
   std::vector<NamedColumn> output_;
   NameTable names_;
+};
+
+// What binding a plan found for it, kept beside the plan so the plan stays as
+// it was written: the dataframe each scan reads and the type of each column.
+struct Bindings {
+  // A dataframe a scan reads.
+  struct Dataframe {
+    // By scan column, the dataframe column it reads.
+    std::vector<std::shared_ptr<const core::dataframe::Column>> columns;
+    uint32_t row_count = 0;
+    // The dataframe's indexes on columns the scan reads.
+    std::vector<core::dataframe::Index> indexes;
+  };
+
+  // By node, the dataframe a scan reads. Unset for any other node.
+  std::vector<std::optional<Dataframe>> dataframes;
+
+  // By column, its type: the one it was written with, unless a dataframe
+  // passed to the plan decides it.
+  std::vector<PlanType> types;
+};
+
+// A plan and what binding it found.
+struct BoundPlan {
+  // `plan` with nothing bound yet.
+  explicit BoundPlan(LogicalPlan plan);
+
+  LogicalPlan plan;
+  Bindings bindings;
+  // What is known about each node's output, by node (see RunBoundPasses).
+  std::vector<OutputProperties> outputs;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

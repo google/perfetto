@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
+#include "src/trace_processor/core/exec/run_held.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -88,6 +89,11 @@ uint8_t* SeenBytes::For(uint32_t groups, bool nulls) {
   bytes_.push_back_multiple(0, groups - bytes_.size());
   groups_ = groups;
   return bytes_.data();
+}
+
+void SeenBytes::EndRun() {
+  Clear();
+  EndRunOf(&bytes_);
 }
 
 void SeenBytes::Clear() {

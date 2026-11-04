@@ -157,6 +157,38 @@ std::optional<uint32_t> IntervalIntersect::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
+OutputProperties IntervalIntersect::Derive(const BoundPlan& bound,
+                                           PlanNodeId) const {
+  // The region's bounds come first, then each operand's carried columns in
+  // turn.
+  OutputProperties out = OutputProperties::Empty(bound.plan.columns().size());
+  out.AddColumn(ts_);
+  out.AddColumn(dur_);
+  for (const Operand& operand : operands_) {
+    for (ColumnId id : operand.carried) {
+      out.AddColumn(id);
+    }
+  }
+  // The output is grouped by the keys, if every key is carried to the output by
+  // some operand.
+  size_t key_count = operands_.empty() ? 0 : operands_[0].keys.size();
+  std::vector<ColumnId> carried_keys;
+  for (size_t k = 0; k < key_count; ++k) {
+    for (const Operand& operand : operands_) {
+      const auto& carried = operand.carried;
+      if (std::find(carried.begin(), carried.end(), operand.keys[k]) !=
+          carried.end()) {
+        carried_keys.push_back(operand.keys[k]);
+        break;
+      }
+    }
+  }
+  if (key_count > 0 && carried_keys.size() == key_count) {
+    out.arrangements.push_back({carried_keys, {}});
+  }
+  return out;
+}
+
 void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
   // Each operand runs as its own pipeline, so the intersection lowers
   // its children itself.
@@ -165,10 +197,6 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
 
   PERFETTO_DCHECK(!c->has_source());
   PERFETTO_DCHECK(isect.operands_.size() == children.size());
-  // The region's bounds come first, then each operand's carried columns in
-  // turn.
-  c->DeclareColumn(isect.ts_);
-  c->DeclareColumn(isect.dur_);
 
   // Each operand is read from its own side pipeline.
   std::vector<Lowering*> sides;
@@ -202,28 +230,8 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
     }
     lowered.source = side.FinishSide();
     inputs.push_back(std::move(lowered));
-
-    for (ColumnId id : operand.carried) {
-      c->DeclareColumn(id);
-    }
   }
 
-  // The output is grouped by the keys. This can only be declared if every
-  // key is carried to the output by some operand.
-  std::vector<ColumnId> carried_keys;
-  for (size_t k = 0; k < key_count; ++k) {
-    for (const IntervalIntersect::Operand& operand : isect.operands_) {
-      const auto& carried = operand.carried;
-      if (std::find(carried.begin(), carried.end(), operand.keys[k]) !=
-          carried.end()) {
-        carried_keys.push_back(operand.keys[k]);
-        break;
-      }
-    }
-  }
-  if (key_count > 0 && carried_keys.size() == key_count) {
-    c->DeclareGrouped(carried_keys);
-  }
   c->SetSource(std::make_unique<ex::IntervalIntersect>(std::move(inputs)));
 }
 
