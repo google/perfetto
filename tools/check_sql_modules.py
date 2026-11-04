@@ -34,7 +34,7 @@ sys.path.append(os.path.join(ROOT_DIR))
 import check_sql_modules_legacy
 from python.generators.sql_processing.pfsql import parse_modules
 from python.generators.sql_processing.stdlib_parser import parse_all_modules
-from python.generators.sql_processing.utils import check_banned_patterns
+from python.generators.sql_processing.utils import check_banned_usage
 from python.generators.sql_processing.utils import is_internal
 
 # Package name constants
@@ -325,13 +325,15 @@ def main() -> int:
 
   args = parser.parse_args()
 
-  # Parse all modules once with internal artifacts included
-  # We need internal artifacts for dependency checking, but will filter them
-  # out when checking schemas (internal artifacts don't need schemas)
+  # Internal artifacts are needed for dependency checking.
+  all_parsed = parse_modules(args.stdlib_sources, args.pfsql_binary)
   modules = parse_all_modules(
       stdlib_path=args.stdlib_sources,
+      pfsql_binary=args.pfsql_binary,
       include_internal=True,
-      name_filter=args.name_filter)
+      name_filter=args.name_filter,
+      pfsql_modules=all_parsed)
+  parsed_by_name = {m['module']: m for m in all_parsed}
 
   if args.verbose:
     for abs_path, rel_path, _, parsed in modules:
@@ -346,14 +348,8 @@ def main() -> int:
             f"{len(parsed.macros)} macros.")
 
   all_errors = 0
-  for abs_path, rel_path, _, parsed in modules:
-    errors = []
-
-    # Read SQL content
-    with open(abs_path, 'r', encoding='utf-8') as f:
-      sql = f.read()
-
-    errors += check_banned_patterns(parsed, sql)
+  for abs_path, _, module_name, parsed in modules:
+    errors = check_banned_usage(parsed, parsed_by_name[module_name])
 
     if errors:
       sys.stderr.write(f"\nFound {len(errors)} errors in file "
@@ -366,17 +362,15 @@ def main() -> int:
   include_errors = 0
   new_package_errors = 0
   layering_errors = 0
-  if args.check_includes or args.check_new_packages or args.check_layering:
-    all_parsed = parse_modules(args.stdlib_sources, args.pfsql_binary)
-    pattern = re.compile(args.name_filter) if args.name_filter else None
-    parsed = [m for m in all_parsed if not pattern or pattern.match(m['path'])]
-    quiet = not args.verbose
-    if args.check_includes:
-      include_errors = check_includes(all_parsed, parsed, quiet)
-    if args.check_new_packages:
-      new_package_errors = check_new_packages(parsed, quiet)
-    if args.check_layering:
-      layering_errors = check_layering(parsed, quiet)
+  pattern = re.compile(args.name_filter) if args.name_filter else None
+  parsed = [m for m in all_parsed if not pattern or pattern.match(m['path'])]
+  quiet = not args.verbose
+  if args.check_includes:
+    include_errors = check_includes(all_parsed, parsed, quiet)
+  if args.check_new_packages:
+    new_package_errors = check_new_packages(parsed, quiet)
+  if args.check_layering:
+    layering_errors = check_layering(parsed, quiet)
 
   total_errors = all_errors + include_errors + new_package_errors + layering_errors
   return 0 if not total_errors else 1

@@ -13,14 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Regex based parsing. Delete this once Chromium and google3 use pfsql.
+
 from dataclasses import dataclass
 from re import Match
 from typing import List, Optional, Tuple
 
-from python.generators.sql_processing.utils import ObjKind
-from python.generators.sql_processing.utils import extract_comment
-from python.generators.sql_processing.utils import match_pattern
-from python.generators.sql_processing.utils import PATTERN_BY_KIND
+from python.generators.sql_processing.utils_legacy import ObjKind
+from python.generators.sql_processing.utils_legacy import extract_comment
+from python.generators.sql_processing.utils_legacy import match_pattern
+from python.generators.sql_processing.utils_legacy import PATTERN_BY_KIND
 
 
 class DocsExtractor:
