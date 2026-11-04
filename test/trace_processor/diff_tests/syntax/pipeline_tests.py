@@ -1677,6 +1677,74 @@ class PerfettoPipeline(TestSuite):
         74228,0,0
         """))
 
+  # A string literal is a value like any other: later stages can compare, group
+  # and sort by it, including a string no table holds.
+  def test_computed_string_literals(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 1 AS id UNION ALL SELECT 2;
+        FROM t
+        |> EXTEND 'only in this query' AS s, 'it''s' AS q, '' AS empty
+        |> WHERE s = 'only in this query'
+        |> ORDER BY id DESC;
+        """,
+        out=Csv("""
+        "id","s","q","empty"
+        2,"only in this query","it's",""
+        1,"only in this query","it's",""
+        """))
+
+  def test_computed_string_literal_groups(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 1 AS id UNION ALL SELECT 2;
+        CREATE PERFETTO TABLE p AS
+        FROM t |> EXTEND 'a' AS s |> AGGREGATE COUNT(*) AS n GROUP BY s;
+        SELECT * FROM p;
+        """,
+        out=Csv("""
+        "s","n"
+        "a",2
+        """))
+
+  def test_computed_number_literals_are_unchanged(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 1 AS id;
+        FROM t
+        |> EXTEND 0x10 AS h, -5 AS n, 2.5 AS d, -2.5 AS e, -0x8000000000000000 AS m;
+        """,
+        out=Csv("""
+        "id","h","n","d","e","m"
+        1,16,-5,2.500000,-2.500000,-9223372036854775808
+        """))
+
+  def test_computed_string_refuses_arithmetic(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 1 AS id;
+        FROM t |> EXTEND 'a' + 1 AS s;
+        """,
+        out=ExpectedError('numbers, not strings, in arithmetic'))
+
+  def test_computed_string_refuses_negation(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 1 AS id;
+        FROM t |> EXTEND -'a' AS s;
+        """,
+        out=ExpectedError('a negated string'))
+
   # A computed column's type is only known once the source's is, so later
   # stages must see it then.
   def test_computed_columns_feed_later_stages(self):

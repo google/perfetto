@@ -90,8 +90,9 @@ class PhysicalPlan {
 // What lowering needs from whoever runs the plan. Everything here must outlive
 // every run of the plan.
 struct LoweringContext {
-  // Holds the strings of the columns a Filter reads.
-  const StringPool* pool = nullptr;
+  // Holds the strings of the columns read, and takes the strings of literals
+  // which expressions output.
+  StringPool* pool = nullptr;
 };
 
 // Builds executor nodes from a bound plan. Establishes tree numbering, row

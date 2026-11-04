@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -26,9 +27,12 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
@@ -66,48 +70,13 @@ ex::ExprStep Node2(Op op, uint32_t a, uint32_t b) {
 // Compiling
 // -----------------------------------------------------------------------------
 
-base::Status CompileLiteral(Compiler* c,
-                            uint32_t at,
-                            const SyntaqliteLiteral& literal,
-                            Expr* e) {
+// Appends a constant holding `literal`.
+uint32_t PushConstant(Expr* e, Literal literal) {
   ex::ExprStep node;
   node.op = Op::kConstant;
-  std::string text = SpanText(c->parser(), literal.source);
-  switch (static_cast<int>(literal.literal_type)) {
-    case SYNTAQLITE_LITERAL_TYPE_INTEGER: {
-      std::optional<int64_t> value = base::StringToInt64(text);
-      if (!value && base::StartsWith(base::ToLower(text), "0x")) {
-        std::optional<uint64_t> bits = base::StringToUInt64(text.substr(2), 16);
-        if (bits) {
-          value = static_cast<int64_t>(*bits);
-        }
-      }
-      if (!value) {
-        // SQLite reads it as a double instead.
-        return c->Unsupported(at, "an integer literal too large for 64 bits");
-      }
-      node.int_value = *value;
-      break;
-    }
-    case SYNTAQLITE_LITERAL_TYPE_FLOAT: {
-      std::optional<double> value = base::StringToDouble(text);
-      if (!value) {
-        return c->Expected(at, "a number");
-      }
-      node.type = Type::kDouble;
-      node.double_value = *value;
-      break;
-    }
-    case SYNTAQLITE_LITERAL_TYPE_NULL:
-      node.op = Op::kNull;
-      break;
-    case SYNTAQLITE_LITERAL_TYPE_STRING:
-      return c->Unsupported(at, "a string literal");
-    default:
-      return c->Unsupported(at, "this literal");
-  }
-  Push(e, node);
-  return base::OkStatus();
+  node.a = static_cast<uint32_t>(e->literals.size());
+  e->literals.push_back(std::move(literal));
+  return Push(e, node);
 }
 
 std::optional<Op> BinaryOp(SyntaqliteBinaryOp op) {
@@ -142,8 +111,17 @@ base::Status Compile(Compiler* c, uint32_t at, uint32_t depth, Expr* e) {
       Push(e, read);
       return base::OkStatus();
     }
-    case SYNTAQLITE_NODE_LITERAL:
-      return CompileLiteral(c, at, node->literal, e);
+    case SYNTAQLITE_NODE_LITERAL: {
+      if (node->literal.literal_type == SYNTAQLITE_LITERAL_TYPE_NULL) {
+        ex::ExprStep null;
+        null.op = Op::kNull;
+        Push(e, null);
+        return base::OkStatus();
+      }
+      ASSIGN_OR_RETURN(Literal literal, CompileLiteral(c, at));
+      PushConstant(e, std::move(literal));
+      return base::OkStatus();
+    }
     case SYNTAQLITE_NODE_PAREN_EXPR:
       return Compile(c, node->paren_expr.expr, depth + 1, e);
     case SYNTAQLITE_NODE_UNARY_EXPR: {
@@ -158,19 +136,22 @@ base::Status Compile(Compiler* c, uint32_t at, uint32_t depth, Expr* e) {
       }
       ex::ExprStep& operand = e->nodes.back();
       if (operand.op == Op::kConstant) {
+        Literal& literal = e->literals[operand.a];
+        if (literal.is_string()) {
+          return c->Unsupported(at, "a negated string");
+        }
         // Folded, so the smallest integer can be written.
-        operand.int_value = static_cast<int64_t>(
-            0ull - static_cast<uint64_t>(operand.int_value));
-        operand.double_value = -operand.double_value;
+        literal.int_value = static_cast<int64_t>(
+            0ull - static_cast<uint64_t>(literal.int_value));
+        literal.double_value = -literal.double_value;
         return base::OkStatus();
       }
       // As in SQLite, -x is x * -1: an integer overflows only at INT64_MIN,
       // and a double zero becomes -0.0.
       auto x = static_cast<uint32_t>(e->nodes.size() - 1);
-      ex::ExprStep minus_one;
-      minus_one.op = Op::kConstant;
+      Literal minus_one;
       minus_one.int_value = -1;
-      Push(e, Node2(Op::kMul, x, Push(e, minus_one)));
+      Push(e, Node2(Op::kMul, x, PushConstant(e, std::move(minus_one))));
       return base::OkStatus();
     }
     case SYNTAQLITE_NODE_BINARY_EXPR: {
@@ -235,11 +216,14 @@ core::StorageType StorageOf(Kind kind) {
 class Typer {
  public:
   explicit Typer(const LogicalPlan& plan) : plan_(&plan) {}
-  Typer(const OutputProperties& rows, ex::ExprProgram* program)
-      : rows_(&rows), program_(program) {}
+  Typer(const OutputProperties& rows,
+        ex::ExprProgram* program,
+        StringPool* pool)
+      : rows_(&rows), program_(program), pool_(pool) {}
 
   // The kind of the expression's result.
   base::StatusOr<Kind> Run(const Expr& e) {
+    expr_ = &e;
     for (const ex::ExprStep& node : e.nodes) {
       uint32_t reg = 0;
       ASSIGN_OR_RETURN(Kind kind, Type(node, &reg));
@@ -292,10 +276,24 @@ class Typer {
       return kind;
     }
     if (node.op == Op::kConstant) {
+      const Literal& literal = expr_->literals[node.a];
       if (rows_) {
-        *reg = Add(node);
+        ex::ExprStep step;
+        step.op = Op::kConstant;
+        step.int_value = literal.int_value;
+        step.double_value = literal.double_value;
+        if (literal.is_string()) {
+          step.type = Type::kString;
+          step.int_value =
+              pool_->InternString(base::StringView(literal.text)).raw_id();
+        } else if (literal.is_double()) {
+          step.type = Type::kDouble;
+        }
+        *reg = Add(step);
       }
-      return node.type == Type::kDouble ? Kind::kDouble : Kind::kInt64;
+      return literal.is_string()   ? Kind::kString
+             : literal.is_double() ? Kind::kDouble
+                                   : Kind::kInt64;
     }
     if (node.op == Op::kNull) {
       return Kind::kNull;
@@ -330,6 +328,8 @@ class Typer {
   const LogicalPlan* plan_ = nullptr;
   const OutputProperties* rows_ = nullptr;
   ex::ExprProgram* program_ = nullptr;
+  StringPool* pool_ = nullptr;
+  const Expr* expr_ = nullptr;
   // By node, its kind and the register holding it.
   std::vector<Kind> kinds_;
   std::vector<uint32_t> regs_;
@@ -358,9 +358,10 @@ void MarkExprColumns(const Expr& e, std::vector<bool>* needed) {
 }
 
 base::StatusOr<TypedExpr> TypeExpr(const OutputProperties& rows,
-                                   const Expr& e) {
+                                   const Expr& e,
+                                   StringPool* pool) {
   TypedExpr typed;
-  Typer typer(rows, &typed.program);
+  Typer typer(rows, &typed.program, pool);
   base::StatusOr<Kind> kind = typer.Run(e);
   if (!kind.ok()) {
     return base::ErrStatus("expected %s", kind.status().c_message());
@@ -388,6 +389,10 @@ void SerializeExpr(PlanCodec& c, Expr* e) {
     c.Pod(&node.b);
     c.Pod(&node.int_value);
     c.Pod(&node.double_value);
+  }
+  e->literals.resize(c.Count(e->literals.size()));
+  for (Literal& literal : e->literals) {
+    SerializeLiteral(c, &literal);
   }
 }
 
