@@ -40,9 +40,13 @@ CREATE PERFETTO TABLE heap_graph_dominator_tree(
 )
 AS
 GRAPH DOMINATOR TREE
-  NODES (SELECT id, self_size, native_size FROM heap_graph_object)
-  EDGES (SELECT src, dst FROM _heap_graph_strong_edges)
-  FROM (SELECT id FROM heap_graph_object WHERE root_type IS NOT NULL)
+  NODES heap_graph_object
+  EDGES _heap_graph_strong_edges
+  FROM (
+    FROM heap_graph_object
+    |> WHERE root_type IS NOT NULL
+    |> SELECT id
+  )
 |> TREE ACCUMULATE UP
   COUNT(*) AS dominated_obj_count,
   SUM(self_size) AS dominated_size_bytes,

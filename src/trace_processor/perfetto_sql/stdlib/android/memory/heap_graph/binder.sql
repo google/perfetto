@@ -69,10 +69,6 @@ FROM _heap_graph_binder_class AS c
 LEFT JOIN _heap_graph_binder_class_stub AS s ON s.id = c.parent_id
 LEFT JOIN _heap_graph_binder_class AS stub ON stub.id = s.stub_class_id;
 
--- Materialized copy of `_heap_graph_strong_edges`: both walks below read it.
-CREATE PERFETTO TABLE _heap_graph_binder_edges AS
-SELECT src, dst FROM _heap_graph_strong_edges;
-
 -- `android.os.Binder` objects held by a JNI global reference
 -- (`ROOT_JNI_GLOBAL`).
 CREATE PERFETTO TABLE _heap_graph_binder_roots AS
@@ -132,13 +128,13 @@ GRAPH BFS TREE
   NODES (
     GRAPH DFS TREE
       NODES _heap_graph_binder_candidate
-      EDGES _heap_graph_binder_edges
+      EDGES _heap_graph_strong_edges
       FROM _heap_graph_binder_seed
     |> TREE ACCUMULATE DOWN MIN(not_own_root) AS remote_only
     |> WHERE remote_only = 1
     |> SELECT id, self_size, native_size
   )
-  EDGES _heap_graph_binder_edges
+  EDGES _heap_graph_strong_edges
   FROM _heap_graph_binder_stub_seed
 |> TREE ACCUMULATE UP
   COUNT(*) AS remote_only_obj_count,
