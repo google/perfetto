@@ -176,6 +176,14 @@ int register_dev_perfetto_sdk_PerfettoTrace(JNIEnv* env) {
   return ok ? 0 : -1;
 }
 
+void unregister_dev_perfetto_sdk_PerfettoTrace(JNIEnv* env) {
+  PerfettoUnregisterNativeMethods(
+      env, TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrace"));
+  PerfettoUnregisterNativeMethods(
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrace$Category"));
+}
+
 }  // namespace jni
 }  // namespace perfetto
 
@@ -205,6 +213,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
   ok &= perfetto::jni::register_dev_perfetto_sdk_PerfettoNativeMemoryCleaner(
             env) == 0;
   if (!ok) {
+    perfetto::jni::unregister_dev_perfetto_sdk_PerfettoTrace(env);
     __android_log_print(ANDROID_LOG_ERROR, "PerfettoJNI",
                         "Perfetto JNI registration failed; Perfetto Java SDK "
                         "tracing will be unavailable.");

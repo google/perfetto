@@ -106,4 +106,17 @@ inline bool PerfettoRegisterNativeMethods(JNIEnv* env,
   return true;
 }
 
+// Unregisters native methods from |class_name| without throwing or asserting.
+inline void PerfettoUnregisterNativeMethods(JNIEnv* env,
+                                            const char* class_name) {
+  jclass clazz = env->FindClass(class_name);
+  if (clazz == nullptr) {
+    env->ExceptionClear();
+    return;
+  }
+  env->UnregisterNatives(clazz);
+  env->ExceptionClear();
+  env->DeleteLocalRef(clazz);
+}
+
 #endif  // SRC_ANDROID_SDK_JNI_MACROS_H_
