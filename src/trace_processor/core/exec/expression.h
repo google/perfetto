@@ -22,6 +22,8 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -48,6 +50,10 @@ struct ExprStep {
     kMul,
     kDiv,
     kMod,
+    // Whether `a` meets `test`, as 0 or 1, as a Filter would decide it. `b` is
+    // the index of the run's filter value compared with, which IS [NOT] NULL
+    // has none of. Null where `a` is, but for IS [NOT] NULL.
+    kCondition,
   };
 
   Op op = Op::kColumn;
@@ -58,6 +64,7 @@ struct ExprStep {
   uint32_t b = 0;
   int64_t int_value = 0;
   double double_value = 0;
+  core::Op test{Eq{}};
 };
 
 // A typed expression, flattened so that each step reads only steps before
@@ -83,7 +90,8 @@ class Compute final : public Transform {
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns* out) const override;
 
-  explicit Compute(std::vector<ExprProgram> programs);
+  // `pool` holds the strings of the columns read, and must outlive this.
+  Compute(std::vector<ExprProgram> programs, const StringPool* pool);
   ~Compute() override;
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
@@ -94,6 +102,7 @@ class Compute final : public Transform {
   friend class PipelineFormatter;
 
   std::vector<ExprProgram> programs_;
+  const StringPool* pool_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

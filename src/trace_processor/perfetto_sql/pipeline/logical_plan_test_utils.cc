@@ -179,6 +179,8 @@ std::string LogicalPlanFormatter::ExprString(const Expr& e, uint32_t i) {
     case Op::kMod:
       op = "%";
       break;
+    case Op::kCondition:
+      return "(" + ExprString(e, node.a) + " condition)";
     case Op::kToDouble:
       PERFETTO_FATAL("Not a logical expression");
   }

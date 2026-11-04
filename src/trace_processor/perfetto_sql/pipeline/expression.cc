@@ -27,8 +27,10 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
@@ -127,6 +129,28 @@ std::optional<Op> BinaryOp(SyntaqliteBinaryOp op) {
   }
 }
 
+base::Status Compile(Compiler* c, uint32_t at, uint32_t depth, Expr* e);
+
+// Appends the nodes of `operand` and of testing it by `test` against the
+// literal at `literal`.
+base::Status CompileCondition(Compiler* c,
+                              uint32_t operand,
+                              core::Op test,
+                              uint32_t literal,
+                              uint32_t depth,
+                              Expr* e) {
+  RETURN_IF_ERROR(Compile(c, operand, depth + 1, e));
+  ex::ExprStep condition;
+  condition.op = Op::kCondition;
+  condition.a = static_cast<uint32_t>(e->nodes.size() - 1);
+  condition.b = static_cast<uint32_t>(e->literals.size());
+  condition.test = test;
+  RETURN_IF_ERROR(
+      CompileConditionLiteral(c, literal, &e->literals, &e->strings));
+  Push(e, condition);
+  return base::OkStatus();
+}
+
 // Appends the nodes of the expression at `at`, its result last.
 base::Status Compile(Compiler* c, uint32_t at, uint32_t depth, Expr* e) {
   if (depth > kMaxDepth) {
@@ -173,8 +197,32 @@ base::Status Compile(Compiler* c, uint32_t at, uint32_t depth, Expr* e) {
       Push(e, Node2(Op::kMul, x, Push(e, minus_one)));
       return base::OkStatus();
     }
+    case SYNTAQLITE_NODE_LIKE_EXPR: {
+      const SyntaqliteLikeExpr& n = node->like_expr;
+      if (n.keyword != SYNTAQLITE_LIKE_KEYWORD_GLOB) {
+        return c->Unsupported(at, "this operator");
+      }
+      if (n.negated) {
+        return c->Unsupported(at, "NOT GLOB");
+      }
+      return CompileCondition(c, n.operand, core::Glob{}, n.pattern, depth, e);
+    }
+    case SYNTAQLITE_NODE_IS_EXPR: {
+      const SyntaqliteIsExpr& n = node->is_expr;
+      ASSIGN_OR_RETURN(core::Op test, NullTestOp(c, at, n));
+      RETURN_IF_ERROR(Compile(c, n.left, depth + 1, e));
+      ex::ExprStep condition;
+      condition.op = Op::kCondition;
+      condition.a = static_cast<uint32_t>(e->nodes.size() - 1);
+      condition.test = test;
+      Push(e, condition);
+      return base::OkStatus();
+    }
     case SYNTAQLITE_NODE_BINARY_EXPR: {
       const SyntaqliteBinaryExpr& n = node->binary_expr;
+      if (std::optional<core::Op> test = ComparisonOp(n.op)) {
+        return CompileCondition(c, n.left, *test, n.right, depth, e);
+      }
       std::optional<Op> op = BinaryOp(n.op);
       if (!op) {
         return c->Unsupported(at, "this operator");
@@ -235,11 +283,12 @@ core::StorageType StorageOf(Kind kind) {
 class Typer {
  public:
   explicit Typer(const LogicalPlan& plan) : plan_(&plan) {}
-  Typer(const OutputProperties& rows, ex::ExprProgram* program)
-      : rows_(&rows), program_(program) {}
+  Typer(const OutputProperties& rows, TypedExpr* typed, const StringPool& pool)
+      : rows_(&rows), program_(&typed->program), typed_(typed), pool_(&pool) {}
 
   // The kind of the expression's result.
   base::StatusOr<Kind> Run(const Expr& e) {
+    expr_ = &e;
     for (const ex::ExprStep& node : e.nodes) {
       uint32_t reg = 0;
       ASSIGN_OR_RETURN(Kind kind, Type(node, &reg));
@@ -300,6 +349,9 @@ class Typer {
     if (node.op == Op::kNull) {
       return Kind::kNull;
     }
+    if (node.op == Op::kCondition) {
+      return TypeCondition(node, reg);
+    }
     PERFETTO_DCHECK(IsArithmetic(node.op));
     Kind a = kinds_[node.a];
     Kind b = kinds_[node.b];
@@ -327,9 +379,54 @@ class Typer {
     return kind;
   }
 
+  base::StatusOr<Kind> TypeCondition(const ex::ExprStep& node, uint32_t* reg) {
+    Kind a = kinds_[node.a];
+    ex::ExprStep step = node;
+    step.type = Type::kInt64;
+    if (node.test.IsAnyOf<core::NullOp>()) {
+      if (rows_) {
+        step.a = Materialize(node.a, a == Kind::kNull ? Kind::kInt64 : a);
+        *reg = Add(step);
+      }
+      return Kind::kInt64;
+    }
+    const ConditionLiteral& literal = expr_->literals[node.b];
+    if (node.test.Is<core::Glob>()) {
+      if (literal.type != ConditionLiteral::Type::kString) {
+        return base::ErrStatus("a string as the pattern of GLOB");
+      }
+      if (a == Kind::kInt64 || a == Kind::kDouble) {
+        return base::ErrStatus("a string to match with GLOB");
+      }
+    }
+    // A comparison with NULL is NULL.
+    if (a == Kind::kNull) {
+      return Kind::kNull;
+    }
+    if (a == Kind::kUnknown) {
+      return Kind::kInt64;
+    }
+    std::optional<std::string> mismatch =
+        LiteralMismatch(node.test, &literal, 1, StorageOf(a));
+    if (mismatch) {
+      return base::ErrStatus("%s", mismatch->c_str());
+    }
+    if (rows_) {
+      step.a = regs_[node.a];
+      step.b = static_cast<uint32_t>(typed_->filter_values.size());
+      typed_->filter_values.push_back(CastConditionLiterals(
+          node.test, &literal, 1, expr_->strings, StorageOf(a), *pool_));
+      *reg = Add(step);
+    }
+    return Kind::kInt64;
+  }
+
   const LogicalPlan* plan_ = nullptr;
   const OutputProperties* rows_ = nullptr;
   ex::ExprProgram* program_ = nullptr;
+  TypedExpr* typed_ = nullptr;
+  const StringPool* pool_ = nullptr;
+  const Expr* expr_ = nullptr;
   // By node, its kind and the register holding it.
   std::vector<Kind> kinds_;
   std::vector<uint32_t> regs_;
@@ -358,9 +455,10 @@ void MarkExprColumns(const Expr& e, std::vector<bool>* needed) {
 }
 
 base::StatusOr<TypedExpr> TypeExpr(const OutputProperties& rows,
-                                   const Expr& e) {
+                                   const Expr& e,
+                                   const StringPool& pool) {
   TypedExpr typed;
-  Typer typer(rows, &typed.program);
+  Typer typer(rows, &typed, pool);
   base::StatusOr<Kind> kind = typer.Run(e);
   if (!kind.ok()) {
     return base::ErrStatus("expected %s", kind.status().c_message());
@@ -388,6 +486,12 @@ void SerializeExpr(PlanCodec& c, Expr* e) {
     c.Pod(&node.b);
     c.Pod(&node.int_value);
     c.Pod(&node.double_value);
+    c.Pod(&node.test);
+  }
+  c.Vec(&e->literals);
+  e->strings.resize(c.Count(e->strings.size()));
+  for (std::string& text : e->strings) {
+    c.Str(&text);
   }
 }
 

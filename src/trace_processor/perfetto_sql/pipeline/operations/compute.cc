@@ -59,11 +59,23 @@ std::optional<uint32_t> Compute::Prune(std::vector<bool>* needed) {
 OutputProperties Compute::Derive(DeriveContext& c) const {
   OutputProperties out = c.input(0);
   std::vector<ex::ExprProgram> programs;
+  std::vector<std::optional<ex::FilterValue>>& values = c.filter_values();
+  values.clear();
   for (const Item& item : items_) {
-    base::StatusOr<TypedExpr> typed = TypeExpr(c.input(0), item.expr);
+    base::StatusOr<TypedExpr> typed =
+        TypeExpr(c.input(0), item.expr, *c.context().pool);
     if (!typed.ok()) {
       c.Fail(typed.status());
       return out;
+    }
+    // A program's conditions index its own values: make them this node's.
+    for (ex::ExprStep& step : typed->program.steps) {
+      if (step.op == ex::ExprStep::Op::kCondition) {
+        step.b += static_cast<uint32_t>(values.size());
+      }
+    }
+    for (ex::FilterValue& value : typed->filter_values) {
+      values.push_back(std::move(value));
     }
     programs.push_back(std::move(typed->program));
     OutputProperties::Column column = c.ColumnOf(item.output);
@@ -76,7 +88,17 @@ OutputProperties Compute::Derive(DeriveContext& c) const {
 
 void Compute::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerInput(node, 0);
-  c->AddOperator(std::make_unique<ex::Compute>(c->QueryPrograms(node)));
+  std::vector<ex::ExprProgram> programs = c->QueryPrograms(node);
+  for (ex::ExprProgram& program : programs) {
+    for (ex::ExprStep& step : program.steps) {
+      if (step.op == ex::ExprStep::Op::kCondition &&
+          !step.test.IsAnyOf<core::NullOp>()) {
+        step.b = *c->TakeFilterValue(node, step.b);
+      }
+    }
+  }
+  c->AddOperator(
+      std::make_unique<ex::Compute>(std::move(programs), c->context().pool));
 }
 
 const OperationRegistration& Compute::registration() const {

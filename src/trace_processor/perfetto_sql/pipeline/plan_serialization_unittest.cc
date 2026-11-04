@@ -113,6 +113,8 @@ const char* const kPipelines[] = {
     "FROM df |> WHERE self > 0 AND id < 10",
     "FROM (SELECT 'x' AS s, 1 AS id) |> WHERE s != 'a''b' AND s IN ('x', 'y')",
     "FROM df |> WHERE id IN (1, 2.5) AND id NOTNULL",
+    "FROM df |> EXTEND self > 5 AS a, id IS NULL AS b, self + 1 = 2.5 AS c",
+    "FROM (SELECT 'x' AS s) |> EXTEND s = 'a''b' AS a, s GLOB 'x*' AS b",
     "FROM spans |> AGGREGATE COUNT(*) AS n, SUM(dur) AS d GROUP BY cpu AS c",
     "FROM spans |> AGGREGATE MAX(dur) AS m |> SELECT m",
     R"(GRAPH DOMINATOR TREE NODES df EDGES (SELECT parent_id AS src, id AS dst

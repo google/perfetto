@@ -276,6 +276,25 @@ Diagram(Choice(0,
 
 ---
 
+## Expressions {#expressions}
+
+`SELECT`, `EXTEND` and `SET` can compute values from:
+
+- Columns, number literals and `NULL`.
+- `+`, `-`, `*`, `/` and `%`. Any null operand gives null, and division or
+  remainder by zero gives null, as in SQLite. An integer overflow fails the query
+  where SQLite would answer with a double.
+- `<expr> <op> <literal>`, where `<op>` is one of `=`, `==`, `!=`, `<>`, `<`,
+  `<=`, `>` and `>=`, and `<expr> GLOB <string>`. These give 0, 1, or null if
+  `<expr>` is null, and mean what they mean in [`WHERE`](#where), including that
+  comparing a string with a number is an error.
+- `<expr> IS [NOT] NULL`, which gives 0 or 1.
+
+Not supported yet: comparing two expressions, a literal on the left, `AND`, `OR`,
+`NOT`, `IN`, `BETWEEN` and calling functions.
+
+---
+
 ## Stages
 
 ### `WHERE` {#where}
@@ -532,8 +551,8 @@ Diagram(Choice(0,
   NonTerminal('star')))
 ```
 
-- **A column.** Without `AS`, it keeps its name. Other expressions parse, but
-  fail with `a computed column is not supported yet`.
+- **A column.** Without `AS`, it keeps its name.
+- **An expression** (see [Expressions](#expressions)) with `AS` and a name.
 - **A `<star>`:**
 
 ```railroad star
@@ -627,8 +646,8 @@ Diagram(
 ```
 
 - Each `<target>` must be one column found by bare name, listed once.
-- Each `<column>` is looked up in the row before the stage. So `|> SET x = y, y = x` swaps the values of `x` and `y`. Other
-  expressions fail with `a computed column is not supported yet`.
+- Each `<column>` is looked up in the row before the stage. So `|> SET x = y, y = x` swaps the values of `x` and `y`. It can
+  also be an [expression](#expressions).
 - Aliases keep the old values. An alias with the same name as a target is
   removed.
 

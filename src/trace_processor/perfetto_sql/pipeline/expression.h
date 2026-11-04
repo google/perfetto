@@ -18,13 +18,19 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_EXPRESSION_H_
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/expression.h"
+#include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
+
+namespace perfetto::trace_processor {
+class StringPool;
+}  // namespace perfetto::trace_processor
 
 namespace perfetto::trace_processor::pipeline {
 
@@ -33,7 +39,8 @@ struct OutputProperties;
 class PlanCodec;
 
 // A scalar expression over the columns of a row, as a stage computes it:
-// column references, number literals, NULL and arithmetic.
+// column references, number literals, NULL, arithmetic, and conditions which
+// test a value against a literal.
 //
 // It has the shape of the executor's program: nodes in post-order, each
 // reading only nodes before it, the last being the result. A kColumn node's
@@ -46,6 +53,10 @@ class PlanCodec;
 // fails the query where SQLite would answer with a double.
 struct Expr {
   std::vector<core::exec::ExprStep> nodes;
+  // What a kCondition node's `b` indexes while it is in `nodes`, and the text
+  // of their strings.
+  std::vector<ConditionLiteral> literals;
+  std::vector<std::string> strings;
 };
 
 // Compiles the expression at AST node `expr` against the row in scope.
@@ -63,11 +74,15 @@ void MarkExprColumns(const Expr&, std::vector<bool>* needed);
 struct TypedExpr {
   core::exec::ExprProgram program;
   core::StorageType type = core::Int64{};
+  // What the program's conditions compare with: their `b` indexes these.
+  std::vector<core::exec::FilterValue> filter_values;
 };
 
 // Builds the executor's program for `expr`, with columns at their positions in
-// `rows`, and the type it computes.
-base::StatusOr<TypedExpr> TypeExpr(const OutputProperties& rows, const Expr&);
+// `rows`, and the type it computes. `pool` holds the strings of those rows.
+base::StatusOr<TypedExpr> TypeExpr(const OutputProperties& rows,
+                                   const Expr&,
+                                   const StringPool& pool);
 
 // Writes or reads `expr`.
 void SerializeExpr(PlanCodec&, Expr* expr);
