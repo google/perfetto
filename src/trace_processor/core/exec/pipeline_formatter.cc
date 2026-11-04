@@ -211,6 +211,13 @@ std::string StepString(const ExprProgram& program, uint32_t i) {
       return binary(">");
     case ExprOp::kGe:
       return binary(">=");
+    case ExprOp::kCoalesce:
+      return "coalesce(" + StepString(program, step.a) + ", " +
+             StepString(program, step.b) + ")";
+    case ExprOp::kIif:
+      return "iif(" + StepString(program, step.a) + ", " +
+             StepString(program, step.b) + ", " + StepString(program, step.c) +
+             ")";
     case ExprOp::kGlob:
       return "(" + StepString(program, step.a) + " GLOB '" +
              program.patterns[step.b] + "')";

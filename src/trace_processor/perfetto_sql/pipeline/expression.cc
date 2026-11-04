@@ -145,6 +145,54 @@ std::optional<Op> BinaryOp(SyntaqliteBinaryOp op) {
   }
 }
 
+base::Status Compile(Compiler* c, uint32_t at, uint32_t depth, Expr* e);
+
+// Appends the nodes of the coalesce, ifnull or iif at `at`.
+base::Status CompileFunction(Compiler* c,
+                             uint32_t at,
+                             const SyntaqliteFunctionCall& n,
+                             uint32_t depth,
+                             Expr* e) {
+  std::string name = base::ToLower(SpanText(c->parser(), n.func_name));
+  bool iif = name == "iif";
+  bool ifnull = name == "ifnull";
+  if (!iif && !ifnull && name != "coalesce") {
+    return c->Unsupported(at, "calling this function");
+  }
+  if (n.flags.bits.distinct || n.flags.bits.star ||
+      syntaqlite_node_is_present(n.filter_clause) ||
+      syntaqlite_node_is_present(n.over_clause) ||
+      !syntaqlite_node_is_present(n.args)) {
+    return c->Unsupported(at, "this form of " + name);
+  }
+  const auto& args = Node<SyntaqliteNode>(c->parser(), n.args)->expr_list;
+  if (iif && args.count != 3) {
+    return c->Expected(at, "iif to have 3 arguments");
+  }
+  if (ifnull && args.count != 2) {
+    return c->Expected(at, "ifnull to have 2 arguments");
+  }
+  if (args.count < 2) {
+    return c->Expected(at, "coalesce to have at least 2 arguments");
+  }
+  std::vector<uint32_t> values;
+  for (uint32_t i = 0; i < args.count; ++i) {
+    RETURN_IF_ERROR(Compile(c, args.children[i], depth + 1, e));
+    values.push_back(static_cast<uint32_t>(e->nodes.size() - 1));
+  }
+  if (iif) {
+    ex::ExprStep node = Node2(Op::kIif, values[0], values[1]);
+    node.c = values[2];
+    Push(e, node);
+    return base::OkStatus();
+  }
+  uint32_t rest = values.back();
+  for (uint32_t i = args.count - 1; i-- > 0;) {
+    rest = Push(e, Node2(Op::kCoalesce, values[i], rest));
+  }
+  return base::OkStatus();
+}
+
 // Appends the nodes of the expression at `at`, its result last.
 base::Status Compile(Compiler* c, uint32_t at, uint32_t depth, Expr* e) {
   if (depth > kMaxDepth) {
@@ -247,7 +295,7 @@ base::Status Compile(Compiler* c, uint32_t at, uint32_t depth, Expr* e) {
       return base::OkStatus();
     }
     case SYNTAQLITE_NODE_FUNCTION_CALL:
-      return c->Unsupported(at, "calling functions");
+      return CompileFunction(c, at, node->function_call, depth, e);
     default:
       return c->Unsupported(at, "this expression");
   }
@@ -306,6 +354,7 @@ class Typer {
     for (const ex::ExprStep& node : e.nodes) {
       uint32_t reg = 0;
       ASSIGN_OR_RETURN(Kind kind, Type(node, &reg));
+      can_fail_.push_back(CanFail(node, kind));
       kinds_.push_back(kind);
       regs_.push_back(reg);
     }
@@ -382,6 +431,12 @@ class Typer {
     }
     if (node.op == Op::kGlob) {
       return TypeGlob(node, reg);
+    }
+    if (node.op == Op::kCoalesce) {
+      return TypeChoice(node, "coalesce", node.a, node.b, reg);
+    }
+    if (node.op == Op::kIif) {
+      return TypeChoice(node, "iif", node.b, node.c, reg);
     }
     if (node.op == Op::kIsNull || node.op == Op::kIsNotNull) {
       if (rows_) {
@@ -484,6 +539,85 @@ class Typer {
     return Add(step);
   }
 
+  // Whether computing `node` can fail: only integer arithmetic can.
+  bool CanFail(const ex::ExprStep& node, Kind kind) const {
+    if (IsArithmetic(node.op)) {
+      return kind == Kind::kInt64 || can_fail_[node.a] || can_fail_[node.b];
+    }
+    if (IsComparison(node.op)) {
+      return can_fail_[node.a] || can_fail_[node.b];
+    }
+    bool reads_a = node.op == Op::kGlob || node.op == Op::kIsNull ||
+                   node.op == Op::kIsNotNull || node.op == Op::kCoalesce ||
+                   node.op == Op::kIif;
+    return reads_a && can_fail_[node.a];
+  }
+
+  static const char* KindName(Kind kind) {
+    return kind == Kind::kDouble   ? "double"
+           : kind == Kind::kString ? "string"
+                                   : "integer";
+  }
+
+  // A coalesce or iif, choosing between nodes `x` and `y`. Every step runs for
+  // every row, so one only some rows choose must not be able to fail.
+  base::StatusOr<Kind> TypeChoice(const ex::ExprStep& node,
+                                  const char* name,
+                                  uint32_t x,
+                                  uint32_t y,
+                                  uint32_t* reg) {
+    bool iif = node.op == Op::kIif;
+    if ((iif && can_fail_[x]) || can_fail_[y]) {
+      return base::ErrStatus(
+          "no integer arithmetic in the arguments of %s which only some rows "
+          "use, as it could overflow on the others",
+          name);
+    }
+    if (iif && kinds_[node.a] == Kind::kString) {
+      return base::ErrStatus("a number as the condition of iif");
+    }
+    Kind a = kinds_[x];
+    Kind b = kinds_[y];
+    if (a != Kind::kNull && b != Kind::kNull && a != Kind::kUnknown &&
+        b != Kind::kUnknown && a != b) {
+      return base::ErrStatus(
+          "the arguments of %s to have one type, but got %s and %s", name,
+          KindName(a), KindName(b));
+    }
+    Kind kind = a == Kind::kNull || a == Kind::kUnknown ? b : a;
+    if (!rows_) {
+      return kind;
+    }
+    // A result which is only ever NULL is a column of Int64 nulls.
+    Kind typed = kind == Kind::kNull ? Kind::kInt64 : kind;
+    ex::ExprStep step;
+    step.op = node.op;
+    step.type = TypeOf(typed);
+    if (iif) {
+      step.a = AddCondition(node.a);
+      step.b = Materialize(x, typed);
+      step.c = Materialize(y, typed);
+    } else {
+      step.a = Materialize(x, typed);
+      step.b = Materialize(y, typed);
+    }
+    *reg = Add(step);
+    return kind;
+  }
+
+  // The register holding node `i` as an integer condition. A double is true
+  // unless it is zero.
+  uint32_t AddCondition(uint32_t i) {
+    if (kinds_[i] != Kind::kDouble) {
+      return Materialize(i, Kind::kInt64);
+    }
+    ex::ExprStep zero;
+    zero.op = Op::kConstant;
+    zero.type = Type::kDouble;
+    ex::ExprStep step = Node2(Op::kNe, regs_[i], Add(zero));
+    return Add(step);
+  }
+
   base::StatusOr<Kind> TypeGlob(const ex::ExprStep& node, uint32_t* reg) {
     Kind a = kinds_[node.a];
     if (IsNumber(a)) {
@@ -513,6 +647,8 @@ class Typer {
   ex::ExprProgram* program_ = nullptr;
   StringPool* pool_ = nullptr;
   const Expr* expr_ = nullptr;
+  // By node, whether computing it can fail.
+  std::vector<bool> can_fail_;
   // By node, its kind and the register holding it.
   std::vector<Kind> kinds_;
   std::vector<uint32_t> regs_;
@@ -593,6 +729,7 @@ void SerializeExpr(PlanCodec& c, Expr* e) {
     c.Pod(&node.type);
     c.Pod(&node.a);
     c.Pod(&node.b);
+    c.Pod(&node.c);
     c.Pod(&node.int_value);
     c.Pod(&node.double_value);
   }
