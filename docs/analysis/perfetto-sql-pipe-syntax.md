@@ -290,6 +290,10 @@ Diagram(Choice(0,
   a floating-point literal, as in [`WHERE`](#where). Comparing it with another
   floating-point value is an error, as is comparing a string with a number.
 
+- `<expr> GLOB <string>`, which gives 0 or 1, or null if `<expr>` is. The pattern
+  must be a string literal, and `<expr>` a string.
+- `<expr> IS [NOT] NULL`, which gives 0 or 1.
+
 Anything else, such as `AND` or calling a function, is not supported yet.
 
 ---
