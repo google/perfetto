@@ -25,6 +25,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -180,7 +181,8 @@ struct SequenceState {
 
   // Used by DeleteStaleEmptySequences() to keep the latest kKeepLastEmptySeq
   // objects around.
-  uint64_t age_for_gc = 0;
+  // Set from TraceBuffer.seq_use_counter_.
+  uint64_t last_use = 0;
 
   // Snapshot of the last chunk that was erased (consumed or evicted) in this
   // sequence. Used to detect gaps between consecutive chunks and to decide
@@ -655,7 +657,10 @@ class TraceBufferV2 : public TraceBuffer {
   // Can return nullptr for padding chunks (or in case of programming errors).
   SequenceState* GetSeqForChunk(const TBChunk* chunk) {
     auto it = sequences_.find(chunk->pri_wri_id);
-    return it == sequences_.end() ? nullptr : &it->second;
+    if (PERFETTO_UNLIKELY(it == sequences_.end()))
+      return nullptr;
+    it->second.last_use = ++seq_use_counter_;
+    return &it->second;
   }
 
   size_t OffsetOf(const TBChunk* chunk) {
@@ -709,16 +714,18 @@ class TraceBufferV2 : public TraceBuffer {
   // BufIterator.
   std::unordered_map<ProducerAndWriterID, SequenceState> sequences_;
 
-  // COUNT(sequences_) WHERE sequence.chunks.empty().
-  // This is maintained best effort and needs revalidation against sequences_.
-  size_t empty_sequences_ = 0;
+  // Writes start the GC of empty sequences when |sequences_| exceeds this size.
+  // Initially kKeepLastEmptySeq + kNewSequencesPerGc, and after each GC the
+  // remaining sequence count + kNewSequencesPerGc.
+  size_t seq_gc_threshold_ = 0;
 
   // A generation counter incremented every time BeginRead() is called.
   uint64_t read_generation_ = 0;
 
-  // A monotonic counter incremented every time a SequenceState becomes empty.
-  // This is used to sort SequenceState by least-recently cleared.
-  uint64_t seq_age_ = 0;
+  // A monotonic counter incremented every time a SequenceState is looked up or
+  // created.
+  // This is used to sort SequenceState by least-recently used.
+  uint64_t seq_use_counter_ = 0;
 
   // This buffer is a read-only snapshot obtained via Clone(). If this is true,
   // appending chunks, patching or recording loss will CHECK().

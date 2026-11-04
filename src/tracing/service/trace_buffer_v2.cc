@@ -91,8 +91,8 @@ int ChunkIdCompare(ChunkID a, ChunkID b) {
 // The number of the latest empty SequenceState(s) to keep around.
 constexpr size_t kKeepLastEmptySeq = 1024;
 
-// The threshold when we start scanning and deleting the oldest sequences.
-constexpr size_t kEmptySequencesGcTreshold = kKeepLastEmptySeq + 128;
+// |sequences_| must grow by more than this before the next GC.
+constexpr size_t kNewSequencesPerGc = 128;
 
 // Controls how much spare capacity compaction retains so later writes can
 // reuse pages and avoid page faults.
@@ -273,10 +273,6 @@ void ChunkSeqIterator::EraseCurrentChunk() {
   // to keep in sync the SequenceState.chunks with our list_idx_.
   PERFETTO_CHECK(list_idx_ == 0 && *chunk_list.begin() == chunk_off);
   chunk_list.pop_front();
-  if (chunk_list.empty()) {
-    seq_->age_for_gc = ++buf_->seq_age_;
-    ++buf_->empty_sequences_;
-  }
 
   // list_idx_ points to the current index, but we just deleted it.
   // Point it to -1, so the next time that is incremented it goes back to the
@@ -648,6 +644,7 @@ bool TraceBufferV2::Initialize(size_t size) {
   size_ = size;
   wr_ = 0;
   used_size_ = 0;
+  seq_gc_threshold_ = kKeepLastEmptySeq + kNewSequencesPerGc;
   stats_.set_buffer_size(size);
   return true;
 }
@@ -981,6 +978,7 @@ void TraceBufferV2::CopyChunkUntrusted(
   }
 
   SequenceState& seq = seq_it->second;
+  seq.last_use = ++seq_use_counter_;
   // A sequence uses one input format. SMB v1 and SMB v2 writers share one
   // WriterID space per producer, so an SMB v2 sequence with this key
   // belongs to another writer. Leave that writer's sequence unchanged.
@@ -1165,10 +1163,6 @@ void TraceBufferV2::CopyChunkUntrusted(
   }
   chunk_list.InsertAfter(insert_pos, wr_);
   has_data_ = true;
-  if (chunk_list.size() == 1 && !seq_is_new) {
-    PERFETTO_DCHECK(empty_sequences_ > 0);
-    --empty_sequences_;
-  }
 
   TRACE_BUFFER_V2_DLOG(" END OF CopyChunkUntrusted(%zu) @ wr=%zu", src_size,
                        wr_);
@@ -1182,7 +1176,7 @@ void TraceBufferV2::CopyChunkUntrusted(
   // We purge SequenceStates(s) only here, because other parts of the readback
   // code (BeginRead()/ReadNextTracePacket()) need to cache SequenceState*
   // pointers via seq_iter_ acros invocations.
-  if (empty_sequences_ > kEmptySequencesGcTreshold)
+  if (sequences_.size() > seq_gc_threshold_)
     DeleteStaleEmptySequences();
 }
 
@@ -1265,10 +1259,9 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
       seq_key, SequenceState(sequence.producer_id_trusted, sequence.writer_id,
                              sequence.client_identity_trusted));
   SequenceState& seq = seq_it->second;
+  seq.last_use = ++seq_use_counter_;
   if (seq_is_new) {
     seq.is_smb_v2 = true;
-    seq.age_for_gc = ++seq_age_;
-    ++empty_sequences_;
   } else if (!seq.is_smb_v2) {
     // As in CopyChunkUntrusted(), a sequence uses one input format. The SMB
     // sequence belongs to another writer, so no loss is recorded on it.
@@ -1310,14 +1303,8 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
                   total_payload);
 
   // Append after eviction, which can remove earlier chunks from this sequence.
-  auto& chunk_list = seq.chunks;
-  bool was_empty = chunk_list.empty();
-  chunk_list.emplace_back(wr_);
+  seq.chunks.emplace_back(wr_);
   has_data_ = true;
-  if (was_empty) {
-    PERFETTO_DCHECK(empty_sequences_ > 0);
-    --empty_sequences_;
-  }
 
   wr_ += tbchunk_outer_size;
   PERFETTO_DCHECK(wr_ <= size_ && wr_ <= used_size_);
@@ -1325,7 +1312,7 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
   stats_.set_chunks_written(stats_.chunks_written() + 1);
   stats_.set_bytes_written(stats_.bytes_written() + tbchunk_outer_size);
 
-  if (empty_sequences_ > kEmptySequencesGcTreshold)
+  if (sequences_.size() > seq_gc_threshold_)
     DeleteStaleEmptySequences();
 
   return true;
@@ -1338,7 +1325,10 @@ void TraceBufferV2::RecordChunkV2DataLoss(ProducerID producer_id,
   // SMB v1 and SMB v2 writers share one WriterID space per producer. An SMB v1
   // sequence with this key therefore belongs to another writer.
   auto seq_it = sequences_.find(MkProducerAndWriterID(producer_id, writer_id));
-  if (seq_it != sequences_.end() && seq_it->second.is_smb_v2)
+  if (PERFETTO_UNLIKELY(seq_it == sequences_.end()))
+    return;
+  seq_it->second.last_use = ++seq_use_counter_;
+  if (seq_it->second.is_smb_v2)
     seq_it->second.pending_chunk_v2_data_loss = true;
 }
 
@@ -1483,6 +1473,8 @@ bool TraceBufferV2::TryPatchChunkContents(ProducerID producer_id,
 
   ProducerAndWriterID seq_key = MkProducerAndWriterID(producer_id, writer_id);
   auto seq_it = sequences_.find(seq_key);
+  if (seq_it != sequences_.end())
+    seq_it->second.last_use = ++seq_use_counter_;
   if (seq_it == sequences_.end() || seq_it->second.is_smb_v2) {
     stats_.set_patches_failed(stats_.patches_failed() + 1);
     return false;
@@ -1553,16 +1545,18 @@ void TraceBufferV2::DiscardWrite() {
 // - Bounding memory usage: if we have a lot of writer threads, we can't just
 //   keeping growing the SequenceStates without bounds.
 // - Retaining our ability to detect data losses for sporadic writers.
-// Here the decision is to keep the last 1024 (kKeepLastEmptySeq) empty
+// Here the decision is to keep the last used 1024 (kKeepLastEmptySeq) empty
 // sequences and delete anything older. We have some hysteresis and start the GC
-// process only after hitting 1024+128 (kEmptySequencesGcTreshold) empty seqs.
-// This is to avoid thrashing with a sort every time one sequence becomes empty.
+// process only after |sequences_| grew by more than 128 (kNewSequencesPerGc)
+// since the last GC.
+// This is to avoid thrashing with a GC every time a new sequence arrives.
 // Also we have to defer the deletion of SequenceState outside of
 // ReadNextTracePacket() calls, as that caches SequenceState* pointers in
 // chunk_seq_reader_. This is called only at the end of CopyChunkUntrusted()
 // and CopyChunkV2Untrusted().
 void TraceBufferV2::DeleteStaleEmptySequences() {
-  // Build a vector of iterators; sort it; delete the first size() - kThreshold.
+  // Build a vector of iterators; sort it; delete the first
+  // size() - kKeepLastEmptySeq.
   using SeqIterator = decltype(sequences_)::iterator;
   std::vector<SeqIterator> empty_seqs;
   empty_seqs.reserve(sequences_.size());
@@ -1570,13 +1564,16 @@ void TraceBufferV2::DeleteStaleEmptySequences() {
     if (it->second.chunks.empty())
       empty_seqs.emplace_back(it);
   }
-  static_assert(kEmptySequencesGcTreshold >= kKeepLastEmptySeq);
-  if (empty_seqs.size() < kEmptySequencesGcTreshold)
+
+  if (empty_seqs.size() <= kKeepLastEmptySeq) {
+    // Wait for more new sequences before looking again.
+    seq_gc_threshold_ = sequences_.size() + kNewSequencesPerGc;
     return;
+  }
 
   std::sort(empty_seqs.begin(), empty_seqs.end(),
             [](const SeqIterator& a, const SeqIterator& b) {
-              return a->second.age_for_gc < b->second.age_for_gc;
+              return a->second.last_use < b->second.last_use;
             });
 
   // TODO(sashwinbalaji): Pruning an SMB v2 sequence discards its
@@ -1584,11 +1581,11 @@ void TraceBufferV2::DeleteStaleEmptySequences() {
   // reported. SMB sequences have the same limit: pruning discards
   // last_chunk_consumed. Revisit if field traces show missed loss for writers
   // that write rarely while many others churn.
-  size_t n_oldest = empty_seqs.size() - kKeepLastEmptySeq;
+  const size_t n_oldest = empty_seqs.size() - kKeepLastEmptySeq;
   for (size_t i = 0; i < n_oldest; ++i) {
     sequences_.erase(empty_seqs[i]);
   }
-  empty_sequences_ = kKeepLastEmptySeq;
+  seq_gc_threshold_ = sequences_.size() + kNewSequencesPerGc;
 
   // This is not really required in the current implementation and is here just
   // to spot bugs while refactoring the code in future. This function is

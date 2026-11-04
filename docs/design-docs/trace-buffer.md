@@ -455,9 +455,10 @@ The lifetime of a `SequenceState` has a subtle tradeoff:
 * The problem here lies in the fact that `SequenceState` holds the
   `last_chunk_consumed` which is used to detect gaps in the chunk ids .
 
-TraceBufferV2 balances this using a lazy sweeping approach: it allows the most
-recently deleted `SequenceState`s to stay alive, up to
-`kKeepLastEmptySeq = 1024`. See `DeleteStaleEmptySequences()`.
+TraceBufferV2 balances this using a lazy sweeping approach: once the sequence
+map has grown enough, it deletes the least recently used empty `SequenceState`s
+and keeps the latest `kKeepLastEmptySeq = 1024`. See
+`DeleteStaleEmptySequences()`.
 
 ### FragIterator
 

@@ -56,7 +56,17 @@ class TraceBufferV2Test : public testing::Test {
       SharedMemoryABI::ChunkHeader::kChunkNeedsPatching;
 
   size_t sequence_count() { return trace_buffer()->sequences_.size(); }
-  size_t empty_sequence_count() { return trace_buffer()->empty_sequences_; }
+  size_t empty_sequence_count() {
+    size_t count = 0;
+    for (const auto& [_, seq] : trace_buffer()->sequences_) {
+      if (seq.chunks.empty())
+        count++;
+    }
+    return count;
+  }
+  bool has_sequence(ProducerID p, WriterID w) {
+    return trace_buffer()->sequences_.count(MkProducerAndWriterID(p, w)) > 0;
+  }
 
   void TearDown() override {
     // Test that the used_size() logic works and that all the data after that
@@ -4521,6 +4531,7 @@ TEST_F(TraceBufferV2Test, V2Loss_EmptySmbV2StateIsBounded) {
   }
   EXPECT_LE(empty_sequence_count(), 1152u);
   EXPECT_LT(sequence_count(), 1999u);
+  EXPECT_FALSE(has_sequence(1, 1));
 
   ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, 1), &frag,
                                                    1, false, false));
@@ -4549,6 +4560,98 @@ TEST_F(TraceBufferV2Test, V2Loss_RejectedWritersCreateNoState) {
   // Only writer 1, which stored data, has sequence state.
   EXPECT_EQ(sequence_count(), 1u);
   EXPECT_EQ(empty_sequence_count(), 0u);
+}
+
+// The GC runs only after |sequences_| grows, however many sequences are empty.
+TEST_F(TraceBufferV2Test, EmptySequences_GcOnlyWhenTableGrows) {
+  // Big enough to keep every unread chunk of this test without an overwrite.
+  ResetBuffer(64 * 1024);
+  auto packet = MakeSimpleGroupPacket(1, 42);
+  auto frag = MakeFragView(packet);
+  auto v2_props = MakeV2SeqProps(1, 1);
+  WriterID next_writer = 2;
+  auto add_smb_writers = [&](size_t count) {
+    for (size_t i = 0; i < count; i++) {
+      CreateChunk(ProducerID(1), next_writer++, ChunkID(0))
+          .AddPacket(32 - 16, 'a')
+          .CopyIntoTraceBuffer();
+    }
+  };
+  auto read_all = [&] {
+    trace_buffer()->BeginRead();
+    while (!ReadPacket().empty()) {
+    }
+  };
+
+  // The 1153rd sequence starts the first GC, which deletes nothing because
+  // every sequence has a chunk.
+  ASSERT_TRUE(
+      trace_buffer()->CopyChunkV2Untrusted(v2_props, &frag, 1, false, false));
+  add_smb_writers(1152);
+  ASSERT_EQ(sequence_count(), 1153u);
+  read_all();
+  ASSERT_EQ(empty_sequence_count(), 1153u);
+
+  // All sequences are empty, but writes from known writers don't start a GC.
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(1))
+      .AddPacket(32 - 16, 'a')
+      .CopyIntoTraceBuffer();
+  ASSERT_TRUE(
+      trace_buffer()->CopyChunkV2Untrusted(v2_props, &frag, 1, false, false));
+  EXPECT_EQ(sequence_count(), 1153u);
+
+  // The 129th new sequence starts the GC.
+  // It keeps 1024 empty sequences and the 131 with chunks.
+  add_smb_writers(128);
+  EXPECT_EQ(sequence_count(), 1281u);
+  add_smb_writers(1);
+  EXPECT_EQ(empty_sequence_count(), 1024u);
+  EXPECT_EQ(sequence_count(), 1155u);
+
+  // The next GC again needs 129 new sequences, counted from what this GC left.
+  read_all();
+  add_smb_writers(128);
+  EXPECT_EQ(sequence_count(), 1283u);
+  add_smb_writers(1);
+  EXPECT_EQ(empty_sequence_count(), 1024u);
+  EXPECT_EQ(sequence_count(), 1153u);
+}
+
+// The GC deletes the least recently used empty sequences first.
+TEST_F(TraceBufferV2Test, EmptySequences_DeleteLeastRecentlyUsedFirst) {
+  // Big enough to keep every unread chunk of this test without an overwrite.
+  ResetBuffer(64 * 1024);
+  auto packet = MakeSimpleGroupPacket(1, 42);
+  auto frag = MakeFragView(packet);
+  auto add_writer = [&](WriterID writer) {
+    ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, writer),
+                                                     &frag, 1, false, false));
+  };
+
+  // 1152 sequences aren't enough to start a GC.
+  for (WriterID writer = 1; writer <= 1152; ++writer)
+    add_writer(writer);
+  trace_buffer()->BeginRead();
+  while (!ReadPacket().empty()) {
+  }
+  ASSERT_EQ(empty_sequence_count(), 1152u);
+
+  // Reads used the writers in order, so writer 1 is the least recently used.
+  // The calls below look up writers 1 to 3, so they become the most recent.
+  // The patch and the SMB write fail, but their lookups still count.
+  trace_buffer()->RecordChunkV2DataLoss(1, 1);
+  EXPECT_FALSE(TryPatchChunkContents(1, 2, 0, {}));
+  CreateChunk(ProducerID(1), WriterID(3), ChunkID(0))
+      .AddPacket(32 - 16, 'a')
+      .CopyIntoTraceBuffer();
+
+  // The 1153rd sequence starts the GC.
+  // It deletes the 128 least recently used, which are writers 4 to 131.
+  add_writer(1153);
+  for (WriterID writer = 1; writer <= 1153; ++writer) {
+    const bool deleted = writer >= 4 && writer <= 131;
+    EXPECT_EQ(has_sequence(1, writer), !deleted) << "writer " << writer;
+  }
 }
 
 TEST_F(TraceBufferV2Test, V2Admission_SizeOverflowAndNullPayload) {
