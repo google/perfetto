@@ -555,6 +555,176 @@ packet {
   }
 }
 packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 30
+  # Third heap dump of the same process, with objects tied between stubs.
+  #   0x01 FooService$1 (ROOT_JNI_GLOBAL, 32B) -> 0x03, 0x07
+  #   0x02 FooService$1 (ROOT_JNI_GLOBAL, 32B) -> 0x03
+  #   0x04 BarRecord (ROOT_JNI_GLOBAL, 64B) -> 0x05
+  #   0x03 Payload (100B, tied between the two FooService$1)
+  #   0x05 Payload (10B) -> 0x06
+  #   0x07 Payload (20B) -> 0x06
+  #   0x06 Payload (1000B, tied between FooService$1 and BarRecord)
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+    pid: 2
+    roots {
+      root_type: ROOT_JNI_GLOBAL
+      object_ids: 0x01
+      object_ids: 0x02
+      object_ids: 0x04
+    }
+    objects {
+      id: 0x01
+      type_id: 4
+      self_size: 32
+      reference_field_id: 1
+      reference_field_id: 1
+      reference_object_id: 0x03
+      reference_object_id: 0x07
+    }
+    objects {
+      id: 0x02
+      type_id: 4
+      self_size: 32
+      reference_field_id: 1
+      reference_object_id: 0x03
+    }
+    objects {
+      id: 0x03
+      type_id: 6
+      self_size: 100
+    }
+    objects {
+      id: 0x04
+      type_id: 5
+      self_size: 64
+      reference_field_id: 1
+      reference_object_id: 0x05
+    }
+    objects {
+      id: 0x05
+      type_id: 6
+      self_size: 10
+      reference_field_id: 1
+      reference_object_id: 0x06
+    }
+    objects {
+      id: 0x06
+      type_id: 6
+      self_size: 1000
+    }
+    objects {
+      id: 0x07
+      type_id: 6
+      self_size: 20
+      reference_field_id: 1
+      reference_object_id: 0x06
+    }
+    objects {
+      id: 0x11
+      type_id: 11
+      self_size: 40
+    }
+    objects {
+      id: 0x12
+      type_id: 12
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x11
+    }
+    objects {
+      id: 0x13
+      type_id: 13
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x12
+    }
+    objects {
+      id: 0x14
+      type_id: 14
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x13
+    }
+    objects {
+      id: 0x15
+      type_id: 15
+      self_size: 40
+      reference_field_id: 3
+      reference_object_id: 0x12
+    }
+    types {
+      id: 1
+      location_id: 1
+      class_name: "java.lang.Object"
+    }
+    types {
+      id: 2
+      location_id: 1
+      class_name: "android.os.Binder"
+    }
+    types {
+      id: 3
+      location_id: 1
+      class_name: "com.example.IFoo$Stub"
+    }
+    types {
+      id: 4
+      location_id: 1
+      class_name: "com.example.FooService$1"
+    }
+    types {
+      id: 5
+      location_id: 1
+      class_name: "com.example.BarRecord"
+    }
+    types {
+      id: 6
+      location_id: 1
+      class_name: "com.example.Payload"
+    }
+    types {
+      id: 11
+      location_id: 1
+      class_name: "java.lang.Class<java.lang.Object>"
+    }
+    types {
+      id: 12
+      location_id: 1
+      class_name: "java.lang.Class<android.os.Binder>"
+    }
+    types {
+      id: 13
+      location_id: 1
+      class_name: "java.lang.Class<com.example.IFoo$Stub>"
+    }
+    types {
+      id: 14
+      location_id: 1
+      class_name: "java.lang.Class<com.example.FooService$1>"
+    }
+    types {
+      id: 15
+      location_id: 1
+      class_name: "java.lang.Class<com.example.BarRecord>"
+    }
+    field_names {
+      iid: 1
+      str: "com.example.Holder.ref"
+    }
+    field_names {
+      iid: 3
+      str: "java.lang.Class.superClass"
+    }
+    location_names {
+      iid: 1
+      str: "l1"
+    }
+    continued: false
+    index: 0
+  }
+}
+packet {
   deobfuscation_mapping {
     obfuscated_classes {
       obfuscated_name: "a"
