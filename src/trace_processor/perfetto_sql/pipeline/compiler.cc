@@ -185,9 +185,6 @@ base::Status Compiler::BuildOperation(uint32_t stage) {
       case SYNTAQLITE_NODE_PERFETTO_TREE_REPARENT:
         name = "TREE REPARENT";
         break;
-      case SYNTAQLITE_NODE_PERFETTO_TREE_KEY_PATHS:
-        name = "TREE KEY PATHS";
-        break;
       case SYNTAQLITE_NODE_PERFETTO_TREE_MERGE_SIBLINGS:
         name = "TREE MERGE SIBLINGS";
         break;

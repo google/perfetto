@@ -47,6 +47,74 @@ class PerfettoPipeline(TestSuite):
         "root",10,100,10
         """))
 
+  def test_tree_key_paths(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE tree AS
+        SELECT 0 AS id, NULL AS parent_id, 'root' AS name, 'x' AS tag, 1 AS w
+        UNION ALL SELECT 1, 0, 'a', 'x', 2
+        UNION ALL SELECT 2, 0, 'a', 'x', 3
+        UNION ALL SELECT 3, 1, 'b', NULL, 4
+        UNION ALL SELECT 4, 2, 'b', NULL, 5
+        UNION ALL SELECT 5, 2, 'b', 'y', 6
+        UNION ALL SELECT 6, NULL, 'root', 'x', 7;
+
+        CREATE PERFETTO TABLE nodes AS
+        FROM tree
+        |> TREE KEY PATHS BY name, tag AS (node_id, parent_node_id)
+        |> AGGREGATE SUM(w) AS w, COUNT(*) AS objects
+           GROUP BY node_id, parent_node_id, name, tag;
+
+        SELECT n.name, n.tag, p.name AS parent, n.w, n.objects
+        FROM nodes n LEFT JOIN nodes p ON n.parent_node_id = p.node_id
+        ORDER BY n.w;
+        """,
+        out=Csv("""
+        "name","tag","parent","w","objects"
+        "a","x","root",5,2
+        "b","y","a",6,1
+        "root","x","[NULL]",8,2
+        "b","[NULL]","a",9,2
+        """))
+
+  def test_tree_key_paths_ids_are_dense(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE tree AS
+        WITH RECURSIVE n(id) AS (SELECT 1 UNION ALL SELECT id + 1 FROM n WHERE id < 5000)
+        SELECT id, IIF(id = 1, NULL, id - 1) AS parent_id, id % 2 AS k FROM n;
+
+        FROM tree
+        |> TREE KEY PATHS BY k AS (node_id, parent_node_id)
+        |> AGGREGATE MIN(node_id) AS lo, MAX(node_id) AS hi, COUNT(*) AS nodes,
+           MAX(parent_node_id) AS max_parent;
+        """,
+        out=Csv("""
+        "lo","hi","nodes","max_parent"
+        0,4999,5000,4998
+        """))
+
+  def test_tree_key_paths_output(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE tree AS SELECT 0 AS id, NULL AS parent_id, 1 AS k;
+        CREATE PERFETTO TABLE nodes AS
+        FROM tree
+        |> TREE KEY PATHS BY k AS (a, b)
+        |> SELECT id, a, b;
+        SELECT id, a, b FROM nodes;
+        """,
+        out=Csv("""
+        "id","a","b"
+        0,0,"[NULL]"
+        """))
+
   # A stage walks the tree its own id and parent_id describe, even when an
   # earlier stage walked another.
   def test_tree_accumulate_after_the_tree_changes(self):

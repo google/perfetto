@@ -836,8 +836,6 @@ TEST_F(PerfettoSqlParserTest, StagesNotSupportedYet) {
             "TREE ABSORB"},
            {"TREE PRUNE AT t", "TREE PRUNE"},
            {"TREE REPARENT TO NEAREST ANCESTOR IN t", "TREE REPARENT"},
-           {"TREE KEY PATHS BY a AS (k, p)", "TREE KEY PATHS"},
-           {"TREE KEY PATHS BY a, s.b AS (k, p)", "TREE KEY PATHS"},
            {"TREE MERGE SIBLINGS BY a AGGREGATE SUM(b) AS b",
             "TREE MERGE SIBLINGS"},
            {"TREE MERGE CONSECUTIVE SIBLINGS BY a, b AGGREGATE SUM(c) AS c",
