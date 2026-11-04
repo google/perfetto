@@ -20,23 +20,20 @@ INCLUDE PERFETTO MODULE android.memory.heap_graph.excluded_refs;
 CREATE PERFETTO TABLE _heap_graph_binder_class AS
 GRAPH DFS TREE
   NODES (
-    SELECT
-      id,
-      coalesce(deobfuscated_name, name, '') AS name,
-      coalesce(deobfuscated_name, name, '') GLOB '*$Stub' AS is_stub
     FROM heap_graph_class
+    |> SELECT id, coalesce(deobfuscated_name, name, '') AS name
+    |> EXTEND name GLOB '*$Stub' AS is_stub
   )
   EDGES (
-    SELECT superclass_id AS src, id AS dst
     FROM heap_graph_class
-    WHERE
-      superclass_id IS NOT NULL
+    |> WHERE superclass_id IS NOT NULL
+    |> SELECT superclass_id AS src, id AS dst
   )
   FROM (
-    SELECT id
     FROM heap_graph_class
-    WHERE
-      coalesce(deobfuscated_name, name, '') = 'android.os.Binder'
+    |> SELECT id, coalesce(deobfuscated_name, name, '') AS name
+    |> WHERE name = 'android.os.Binder'
+    |> SELECT id
   )
 |> SELECT id, parent_id, name, is_stub;
 
@@ -45,11 +42,11 @@ GRAPH DFS TREE
 -- closest stub. NULL when there is no stub.
 CREATE PERFETTO TABLE _heap_graph_binder_class_stub AS
 FROM (
-  SELECT
+  FROM _heap_graph_binder_class
+  |> SELECT
     id,
     iif(is_stub, NULL, parent_id) AS parent_id,
     iif(is_stub, id, NULL) AS stub_id
-  FROM _heap_graph_binder_class
 )
 |> TREE ACCUMULATE DOWN MAX(stub_id) AS stub_class_id
 |> SELECT id, stub_class_id;
