@@ -244,6 +244,7 @@ WITH
       -- freeze carries the time spent unfrozen, an unfreeze the time spent
       -- frozen.
       iif(unfreeze_reason IS NULL, unfrozen_dur_ms, frozen_dur_ms) AS prev_state_dur_ms,
+      iif(unfreeze_reason IS NULL, unfrozen_start_ns, frozen_start_ns) AS prev_state_start_ns,
       lag(ts) OVER (PARTITION BY upid ORDER BY ts) AS prev_ts,
       lead(ts) OVER (PARTITION BY upid ORDER BY ts) AS next_ts
     FROM __intrinsic_android_freezer_state
@@ -272,9 +273,23 @@ WITH
     -- trace start; before it the state is unknown.
     SELECT
       e.upid,
-      max(l.birth, coalesce(e.ts - e.prev_state_dur_ms * 1000000, l.birth)) AS ts,
+      max(
+        l.birth,
+        coalesce(
+          e.prev_state_start_ns,
+          e.ts - e.prev_state_dur_ms * 1000000,
+          l.birth
+        )
+      ) AS ts,
       e.ts
-      - max(l.birth, coalesce(e.ts - e.prev_state_dur_ms * 1000000, l.birth)) AS dur,
+      - max(
+        l.birth,
+        coalesce(
+          e.prev_state_start_ns,
+          e.ts - e.prev_state_dur_ms * 1000000,
+          l.birth
+        )
+      ) AS dur,
       iif(e.state = 'FROZEN', 'UNFROZEN', 'FROZEN') AS state
     FROM events AS e
     JOIN lifetimes AS l USING (upid)
@@ -284,8 +299,16 @@ WITH
     -- Processes without events kept their trace-stop state throughout.
     SELECT
       s.upid,
-      l.birth AS ts,
-      iif(l.death IS NULL, -1, l.death - l.birth) AS dur,
+      max(l.birth, coalesce(s.frozen_start_ns, s.unfrozen_start_ns, l.birth)) AS ts,
+      iif(
+        l.death IS NULL,
+        -1,
+        l.death
+        - max(
+          l.birth,
+          coalesce(s.frozen_start_ns, s.unfrozen_start_ns, l.birth)
+        )
+      ) AS dur,
       iif(s.unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state
     FROM __intrinsic_android_freezer_state AS s
     JOIN lifetimes AS l USING (upid)

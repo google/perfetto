@@ -153,6 +153,112 @@ class Freezer(TestSuite):
         4000000000,-1,800,"UNFROZEN"
         """))
 
+  def test_android_freezer_intervals_start_times(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000000000
+          process_tree {
+            processes { pid: 600 ppid: 1 cmdline: "proc600" }
+            processes { pid: 700 ppid: 1 cmdline: "proc700" }
+            processes { pid: 800 ppid: 1 cmdline: "proc800" }
+            processes { pid: 900 ppid: 1 cmdline: "proc900" }
+          }
+        }
+        packet {
+          timestamp: 1000000000
+          track_descriptor {
+            uuid: 2
+            thread { pid: 100 tid: 100 thread_name: "system_server" }
+          }
+        }
+        packet {
+          timestamp: 1000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "trace_begin"
+          }
+        }
+        # pid 600: unfreeze at 5s with frozen_start_ns = 3.5s.
+        # Its preceding FROZEN state starts at 3.5s (dur = 1.5s).
+        packet {
+          timestamp: 5000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "unfreeze"
+            [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+              pid: 600
+              uid: 10006
+              frozen_start_ns: 3500000000
+              unfreeze_reason: UFR_ACTIVITY
+            }
+          }
+        }
+        # pid 700: freeze at 6s with unfrozen_start_ns = 4.5s.
+        # Its preceding UNFROZEN state starts at 4.5s (dur = 1.5s).
+        packet {
+          timestamp: 6000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "freeze"
+            [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+              pid: 700
+              uid: 10007
+              unfrozen_start_ns: 4500000000
+            }
+          }
+        }
+        # Trace stop snapshot at 7s:
+        # pid 800: unfrozen, no delta events, unfrozen_start_ns = 3s.
+        # pid 900: frozen, no delta events, frozen_start_ns = 4s.
+        packet {
+          timestamp: 7000000000
+          [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
+            record {
+              pid: 800
+              uid: 10008
+              unfrozen_start_ns: 3000000000
+              unfreeze_reason: UFR_NONE
+            }
+            record {
+              pid: 900
+              uid: 10009
+              frozen_start_ns: 4000000000
+            }
+          }
+        }
+        packet {
+          timestamp: 7000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "end"
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.freezer;
+        SELECT ts, dur, pid, state
+        FROM _android_freezer_intervals
+        ORDER BY pid, ts;
+        """,
+        out=Csv("""
+        "ts","dur","pid","state"
+        3500000000,1500000000,600,"FROZEN"
+        5000000000,-1,600,"UNFROZEN"
+        4500000000,1500000000,700,"UNFROZEN"
+        6000000000,-1,700,"FROZEN"
+        3000000000,-1,800,"UNFROZEN"
+        4000000000,-1,900,"FROZEN"
+        """))
+
   def test_android_freezer_concurrency(self):
     return DiffTestBlueprint(
         trace=Path('freezer_intervals.textproto'),
