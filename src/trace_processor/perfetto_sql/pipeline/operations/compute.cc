@@ -67,7 +67,9 @@ OutputProperties Compute::Derive(DeriveContext& c) const {
       return out;
     }
     programs.push_back(std::move(typed->program));
-    out.columns.push_back({item.output, typed->type});
+    OutputProperties::Column column = c.ColumnOf(item.output);
+    column.type = typed->type;
+    out.columns.push_back(std::move(column));
   }
   c.SetPrograms(std::move(programs));
   return out;

@@ -70,6 +70,8 @@ struct OutputProperties {
   struct Column {
     ColumnId id = 0;
     PlanType type;
+    // It was bound as holding only nulls, whatever it has since converted to.
+    bool all_null = false;
   };
 
   // The most recent sort, while nothing has read its order, and what was known

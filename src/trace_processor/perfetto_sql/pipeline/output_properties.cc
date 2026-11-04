@@ -82,12 +82,13 @@ class InputPlanner {
 
   void Convert(ColumnId column, const PlanType& type) {
     const PlanType& from = out_.rows.TypeOf(column);
+    bool all_null = out_.rows.columns[*out_.rows.PositionOf(column)].all_null;
     if (!type.storage() ||
         (from.storage() && *from.storage() == *type.storage())) {
       return;
     }
     out_.steps.push_back(
-        input_step::Convert{column, *type.storage(), from.is_null()});
+        input_step::Convert{column, *type.storage(), all_null});
     out_.rows.SetType(column, *type.storage());
   }
 
@@ -391,10 +392,11 @@ const OutputProperties& DeriveContext::input(uint32_t i) const {
 OutputProperties::Column DeriveContext::ColumnOf(ColumnId id) const {
   for (const PlannedInput& input : bound_->planned[self_].inputs) {
     if (input.rows.PositionOf(id)) {
-      return {id, input.rows.TypeOf(id)};
+      return input.rows.columns[*input.rows.PositionOf(id)];
     }
   }
-  return {id, bound_->bindings.types[id]};
+  const PlanType& type = bound_->bindings.types[id];
+  return {id, type, type.is_null()};
 }
 
 OutputProperties::Column DeriveContext::NewColumn() {

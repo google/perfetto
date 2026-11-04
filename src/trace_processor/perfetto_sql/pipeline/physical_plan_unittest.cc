@@ -469,6 +469,28 @@ TEST_F(PhysicalPlanTest, WhereSearchesAroundAConditionItCannotAnswer) {
   EXPECT_THAT(*rows, ElementsAre(Pair(0, 1), Pair(2, 9), Pair(4, 9)));
 }
 
+// A column holding only nulls needs no check of its values, however many types
+// it is made to hold: here Int64 for the filter, then Double for the other
+// side.
+TEST_F(PhysicalPlanTest, AllNullColumnConvertedTwiceStaysNull) {
+  Exec("CREATE TABLE a(ts INTEGER, dur INTEGER, k)");
+  Exec("INSERT INTO a VALUES (0, 10, NULL)");
+  Exec("CREATE TABLE b(ts INTEGER, dur INTEGER, k REAL)");
+  Exec("INSERT INTO b VALUES (5, 10, 1.5)");
+  auto plan = Plan(
+      "INTERVAL INTERSECTION OF ((FROM a |> WHERE k = 1) AS p, b AS q) PER k "
+      "|> SELECT ts, dur");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "side: DataframeScan | NullColumn(#2 as Int64) | Filter(#2 = ?0) | "
+            "NullColumn(#2 as Double) | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | CombineBatches | GroupedSort(#2)\n"
+            "side: DataframeScan | AssertType(#0 to Int64) | AssertType(#1 to "
+            "Int64) | GroupedSort(#2)\n"
+            "main: IntervalIntersect(#0, #1, keys: #2, groups: #3; #0, #1, "
+            "keys: #2, groups: #3)");
+}
+
 // A condition no row can match leaves nothing to read.
 TEST_F(PhysicalPlanTest, WhereNoRowCanMatchReadsNothing) {
   catalog_.AddTable("ix", {"id", "k", "v"}, {{0, 7, 1}, {1, 5, 9}});
