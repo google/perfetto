@@ -535,6 +535,118 @@ class PerfettoPipeline(TestSuite):
         1,5
         """))
 
+  # A string is never a number: comparing the two is a mistake to report rather
+  # than a filter which keeps no rows, or every row.
+  def test_where_refuses_a_string_for_a_number_column(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 'x' AS s;
+        FROM t |> WHERE n = '5';
+        """,
+        out=ExpectedError(
+            'expected a number to compare with a numeric column, but got a string'
+        ))
+
+  def test_where_refuses_an_order_against_a_string_for_a_number_column(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 'x' AS s;
+        FROM t |> WHERE n < 'a';
+        """,
+        out=ExpectedError(
+            'expected a number to compare with a numeric column, but got a string'
+        ))
+
+  def test_where_refuses_a_number_for_a_string_column(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 'x' AS s;
+        FROM t |> WHERE s = 5;
+        """,
+        out=ExpectedError(
+            'expected a string to compare with a string column, but got a number'
+        ))
+
+  def test_where_refuses_a_string_in_an_in_list_for_a_number_column(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 'x' AS s;
+        FROM t |> WHERE n IN (5, 'a');
+        """,
+        out=ExpectedError(
+            'expected a number to compare with a numeric column, but got a string'
+        ))
+
+  # The type of a SQL source's column is only known once it has run.
+  def test_where_refuses_a_string_for_a_number_column_of_sql(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 5 AS n) |> WHERE n = '5';
+        """,
+        out=ExpectedError(
+            'expected a number to compare with a numeric column, but got a string'
+        ))
+
+  def test_where_refuses_a_string_for_a_computed_number(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 'x' AS s;
+        FROM t |> EXTEND n + 1 AS m |> WHERE m = 'a';
+        """,
+        out=ExpectedError(
+            'expected a number to compare with a numeric column, but got a string'
+        ))
+
+  # A condition on an indexed column must not be answered by searching instead.
+  def test_where_refuses_a_string_for_an_indexed_number_column(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 'x' AS s;
+        CREATE PERFETTO INDEX t_n ON t(n);
+        FROM t |> WHERE n = '5' AND s = 'x';
+        """,
+        out=ExpectedError(
+            'expected a number to compare with a numeric column, but got a string'
+        ))
+
+  # What a comparison with a literal of the column's kind does is unchanged, as
+  # are GLOB and IS NULL, which do not compare values.
+  def test_where_keeps_conditions_of_the_column_kind(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 5 AS n, 'x' AS s UNION ALL SELECT 7, NULL;
+        CREATE PERFETTO TABLE a AS FROM t |> WHERE n = 5 AND s = 'x';
+        CREATE PERFETTO TABLE b AS FROM t |> WHERE n > 5.5;
+        CREATE PERFETTO TABLE c AS FROM t |> WHERE s GLOB 'x*';
+        CREATE PERFETTO TABLE d AS FROM t |> WHERE s IS NULL;
+        SELECT
+          (SELECT count(*) FROM a) AS a,
+          (SELECT count(*) FROM b) AS b,
+          (SELECT count(*) FROM c) AS c,
+          (SELECT count(*) FROM d) AS d;
+        """,
+        out=Csv("""
+        "a","b","c","d"
+        1,1,1,1
+        """))
+
   # Must match SQL's WHERE and DISTINCT, including comparing an integer
   # column with a fraction.
   def test_where_and_distinct_match_sql(self):

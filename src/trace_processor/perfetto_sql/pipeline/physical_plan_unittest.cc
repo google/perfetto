@@ -384,9 +384,20 @@ TEST_F(PhysicalPlanTest, WhereComparesStringsListsAndNulls) {
   EXPECT_THAT(ids("name IS NULL"), ElementsAre(3));
   EXPECT_THAT(ids("v IS NOT NULL AND v NOTNULL"), ElementsAre(1, 3, 4, 5));
   EXPECT_THAT(ids("v BETWEEN 20 AND 45"), ElementsAre(3, 4));
-  // Numbers sort before strings, as in SQL.
-  EXPECT_THAT(ids("name > 5"), ElementsAre(1, 2, 4, 5));
-  EXPECT_THAT(ids("v = 'foo'"), ElementsAre());
+}
+
+// A string is never a number, so comparing the two is refused.
+TEST_F(PhysicalPlanTest, WhereRefusesStringsMeetingNumbers) {
+  Exec("CREATE TABLE t(id INTEGER, name TEXT, v INTEGER)");
+  Exec("INSERT INTO t VALUES (1, 'foo', 10)");
+  auto plan = Plan("FROM t |> WHERE name > 5");
+  ASSERT_FALSE(plan.ok());
+  EXPECT_THAT(plan.status().message(),
+              HasSubstr("a string to compare with a string column"));
+  plan = Plan("FROM t |> WHERE v = 'foo'");
+  ASSERT_FALSE(plan.ok());
+  EXPECT_THAT(plan.status().message(),
+              HasSubstr("a number to compare with a numeric column"));
 }
 
 // WHERE on a table's sorted columns searches them instead of testing each row;
