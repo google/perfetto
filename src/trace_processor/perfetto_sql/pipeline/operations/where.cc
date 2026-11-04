@@ -35,6 +35,7 @@
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
@@ -44,71 +45,9 @@ namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 namespace {
 
-// Hands a WHERE predicate's literals to the shared filter value casts, so they
-// mean for each column type what any other filter value means. A scalar is the
-// first literal; IN iterates them all.
-struct LiteralFetcher : core::ValueFetcher {
-  static constexpr Type kInt64 = 0;
-  static constexpr Type kDouble = 1;
-  static constexpr Type kString = 2;
-  static constexpr Type kNull = 3;
-
-  LiteralFetcher(const WhereLiteral* l,
-                 uint32_t n,
-                 const std::vector<std::string>& s)
-      : literals(l), count(n), strings(s) {}
-
-  Type GetValueType(uint32_t) const {
-    switch (literals[at].type) {
-      case WhereLiteral::Type::kInt64:
-        return kInt64;
-      case WhereLiteral::Type::kDouble:
-        return kDouble;
-      case WhereLiteral::Type::kString:
-        return kString;
-    }
-    PERFETTO_FATAL("Unknown literal type");
-  }
-  int64_t GetInt64Value(uint32_t) const { return literals[at].int_value; }
-  double GetDoubleValue(uint32_t) const { return literals[at].double_value; }
-  const char* GetStringValue(uint32_t) const {
-    return strings[static_cast<size_t>(literals[at].int_value)].c_str();
-  }
-  bool IteratorInit(uint32_t) {
-    at = 0;
-    return count != 0;
-  }
-  bool IteratorNext(uint32_t) { return ++at < count; }
-
-  const WhereLiteral* literals;
-  uint32_t count;
-  const std::vector<std::string>& strings;
-  uint32_t at = 0;
-};
-
-// What `p` should compare with to suit a column of storage `type`, if a literal
-// of it is a string where the column holds numbers, or the other way around.
-// GLOB and IS [NOT] NULL do not compare values.
-std::optional<std::string> LiteralMismatch(
-    const WherePredicate& p,
-    const std::vector<WhereLiteral>& literals,
-    core::StorageType type) {
-  if (p.op.IsAnyOf<core::NullOp>() || p.op.Is<core::Glob>()) {
-    return std::nullopt;
-  }
-  bool string_column = type.Is<core::String>();
-  for (uint32_t i = 0; i < p.literal_count; ++i) {
-    bool string_literal =
-        literals[p.first_literal + i].type == WhereLiteral::Type::kString;
-    if (string_column != string_literal) {
-      return std::string(string_column ? "a string to compare with a string "
-                                         "column, but got a number"
-                                       : "a number to compare with a numeric "
-                                         "column, but got a string");
-    }
-  }
-  return std::nullopt;
-}
+static constexpr char kOperators[] =
+    "an operator other than =, !=, <, <=, >, >=, GLOB, IN, BETWEEN and "
+    "IS [NOT] NULL";
 
 // Parses a WHERE condition into the predicates, literals and strings of a
 // Where.
@@ -116,7 +55,7 @@ class Parser {
  public:
   Parser(Compiler* c,
          std::vector<WherePredicate>* predicates,
-         std::vector<WhereLiteral>* literals,
+         std::vector<ConditionLiteral>* literals,
          std::vector<std::string>* strings)
       : c_(c),
         predicates_(predicates),
@@ -183,30 +122,8 @@ class Parser {
   }
 
   base::Status Is(uint32_t expr, const SyntaqliteIsExpr& node) {
-    bool null;
-    switch (static_cast<int>(node.op)) {
-      case SYNTAQLITE_IS_OP_IS_NULL:
-        null = true;
-        break;
-      case SYNTAQLITE_IS_OP_NOT_NULL:
-      case SYNTAQLITE_IS_OP_NOT_NULL_SPACED:
-        null = false;
-        break;
-      case SYNTAQLITE_IS_OP_IS:
-      case SYNTAQLITE_IS_OP_IS_NOT: {
-        const auto* right = Node<SyntaqliteNode>(c_->parser(), node.right);
-        if (right->tag != SYNTAQLITE_NODE_LITERAL ||
-            right->literal.literal_type != SYNTAQLITE_LITERAL_TYPE_NULL) {
-          return c_->Unsupported(expr, "IS other than IS [NOT] NULL");
-        }
-        null = node.op == SYNTAQLITE_IS_OP_IS;
-        break;
-      }
-      default:
-        return c_->Unsupported(expr, "IS other than IS [NOT] NULL");
-    }
+    ASSIGN_OR_RETURN(core::Op op, NullTestOp(c_, expr, node));
     ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.left));
-    core::Op op = null ? core::Op(core::IsNull{}) : core::Op(core::IsNotNull{});
     return Add(expr, column, op, {});
   }
 
@@ -229,12 +146,13 @@ class Parser {
     predicate.first_literal = static_cast<uint32_t>(literals_->size());
     predicate.literal_count = static_cast<uint32_t>(exprs.size());
     for (uint32_t expr : exprs) {
-      RETURN_IF_ERROR(Literal(expr));
+      RETURN_IF_ERROR(CompileConditionLiteral(c_, expr, literals_, strings_));
     }
     if (std::optional<core::StorageType> type =
             c_->plan().columns()[column].type.storage()) {
-      std::optional<std::string> mismatch =
-          LiteralMismatch(predicate, *literals_, *type);
+      std::optional<std::string> mismatch = LiteralMismatch(
+          predicate.op, literals_->data() + predicate.first_literal,
+          predicate.literal_count, *type);
       if (mismatch) {
         return c_->Expected(at, *mismatch);
       }
@@ -243,92 +161,9 @@ class Parser {
     return base::OkStatus();
   }
 
-  // Reads a number literal, optionally negated, or a string literal.
-  base::Status Literal(uint32_t expr) {
-    SyntaqliteParser* p = c_->parser();
-    const auto* node = Node<SyntaqliteNode>(p, expr);
-    bool negate = false;
-    if (node->tag == SYNTAQLITE_NODE_UNARY_EXPR &&
-        node->unary_expr.op == SYNTAQLITE_UNARY_OP_MINUS) {
-      negate = true;
-      node = Node<SyntaqliteNode>(p, node->unary_expr.operand);
-    }
-    if (node->tag != SYNTAQLITE_NODE_LITERAL) {
-      return c_->Unsupported(expr, "a value other than a literal");
-    }
-    const SyntaqliteLiteral& literal = node->literal;
-    std::string text = SpanText(p, literal.source);
-    WhereLiteral out;
-    switch (static_cast<int>(literal.literal_type)) {
-      case SYNTAQLITE_LITERAL_TYPE_INTEGER: {
-        std::optional<int64_t> value = base::StringToInt64(text);
-        if (!value) {
-          return c_->Unsupported(expr,
-                                 "a number which does not fit an integer");
-        }
-        out.type = WhereLiteral::Type::kInt64;
-        out.int_value = negate ? -*value : *value;
-        break;
-      }
-      case SYNTAQLITE_LITERAL_TYPE_FLOAT: {
-        std::optional<double> value = base::StringToDouble(text);
-        if (!value) {
-          return c_->Unsupported(expr, "a malformed number");
-        }
-        out.type = WhereLiteral::Type::kDouble;
-        out.double_value = negate ? -*value : *value;
-        break;
-      }
-      case SYNTAQLITE_LITERAL_TYPE_STRING:
-        if (negate) {
-          return c_->Unsupported(expr, "a negated string");
-        }
-        out.type = WhereLiteral::Type::kString;
-        out.int_value = static_cast<int64_t>(strings_->size());
-        strings_->push_back(StringLiteralText(text));
-        break;
-      default:
-        return c_->Unsupported(expr, "a literal other than a number or string");
-    }
-    literals_->push_back(out);
-    return base::OkStatus();
-  }
-
-  static std::optional<core::Op> ComparisonOp(SyntaqliteBinaryOp op) {
-    switch (static_cast<int>(op)) {
-      case SYNTAQLITE_BINARY_OP_EQ:
-      case SYNTAQLITE_BINARY_OP_EQ_DOUBLE:
-        return core::Eq{};
-      case SYNTAQLITE_BINARY_OP_NE:
-      case SYNTAQLITE_BINARY_OP_NE_ANGLE:
-        return core::Ne{};
-      case SYNTAQLITE_BINARY_OP_LT:
-        return core::Lt{};
-      case SYNTAQLITE_BINARY_OP_LE:
-        return core::Le{};
-      case SYNTAQLITE_BINARY_OP_GT:
-        return core::Gt{};
-      case SYNTAQLITE_BINARY_OP_GE:
-        return core::Ge{};
-      default:
-        return std::nullopt;
-    }
-  }
-
-  // The text of 'it''s' is it's: the span keeps the quotes and doubles them.
-  static std::string StringLiteralText(const std::string& source) {
-    PERFETTO_CHECK(source.size() >= 2 && source.front() == '\'' &&
-                   source.back() == '\'');
-    return base::ReplaceAll(source.substr(1, source.size() - 2), "''", "'");
-  }
-
-  static constexpr char kOperators[] =
-      "an operator other than =, !=, <, <=, >, >=, GLOB, IN, BETWEEN and "
-      "IS [NOT] NULL";
-
   Compiler* c_;
   std::vector<WherePredicate>* predicates_;
-  std::vector<WhereLiteral>* literals_;
+  std::vector<ConditionLiteral>* literals_;
   std::vector<std::string>* strings_;
 };
 
@@ -337,7 +172,7 @@ class Parser {
 // string by type. None for IS [NOT] NULL, which reads any column.
 std::optional<core::StorageType> TypeForLiterals(
     const WherePredicate& p,
-    const std::vector<WhereLiteral>& literals) {
+    const std::vector<ConditionLiteral>& literals) {
   if (p.op.IsAnyOf<core::NullOp>()) {
     return std::nullopt;
   }
@@ -347,35 +182,16 @@ std::optional<core::StorageType> TypeForLiterals(
   core::StorageType type = core::Int64{};
   for (uint32_t i = 0; i < p.literal_count; ++i) {
     switch (literals[p.first_literal + i].type) {
-      case WhereLiteral::Type::kString:
+      case ConditionLiteral::Type::kString:
         return core::String{};
-      case WhereLiteral::Type::kDouble:
+      case ConditionLiteral::Type::kDouble:
         type = core::Double{};
         break;
-      case WhereLiteral::Type::kInt64:
+      case ConditionLiteral::Type::kInt64:
         break;
     }
   }
   return type;
-}
-
-core::exec::FilterValue CastWhereLiterals(
-    const WherePredicate& p,
-    const std::vector<WhereLiteral>& literals,
-    const std::vector<std::string>& strings,
-    core::StorageType type,
-    const StringPool& pool) {
-  LiteralFetcher fetcher(literals.data() + p.first_literal, p.literal_count,
-                         strings);
-  ex::FilterValue value;
-  if (p.op.Is<core::In>()) {
-    ex::GetFilterValueListCaster<LiteralFetcher>(type)(fetcher, 0, pool,
-                                                       &value);
-  } else {
-    ex::GetFilterValueCaster<LiteralFetcher>(type, p.op)(fetcher, 0, pool,
-                                                         &value);
-  }
-  return value;
 }
 
 }  // namespace
@@ -425,16 +241,17 @@ OutputProperties Where::Derive(DeriveContext& c) const {
     const WherePredicate& p = predicates_[i];
     std::optional<core::StorageType> type = out.TypeOf(p.column).storage();
     if (type) {
-      std::optional<std::string> mismatch =
-          LiteralMismatch(p, literals_, *type);
+      std::optional<std::string> mismatch = LiteralMismatch(
+          p.op, literals_.data() + p.first_literal, p.literal_count, *type);
       if (mismatch) {
         c.Fail(base::ErrStatus("WHERE: expected %s", mismatch->c_str()));
         return out;
       }
     }
     if (!values[i] && type && !p.op.IsAnyOf<core::NullOp>()) {
-      values[i] =
-          CastWhereLiterals(p, literals_, strings_, *type, *c.context().pool);
+      values[i] = CastConditionLiterals(
+          p.op, literals_.data() + p.first_literal, p.literal_count, strings_,
+          *type, *c.context().pool);
     }
   }
   return out;
@@ -465,11 +282,13 @@ void Where::Rewrite(BoundPlan* bound,
         bound->planned[scan_id].output.TypeOf(p.column).storage();
     if (!type || p.op.IsAnyOf<core::NullOp>() ||
         (p.op.Is<core::Glob>() && !type->Is<core::String>()) ||
-        LiteralMismatch(p, where.literals_, *type)) {
+        LiteralMismatch(p.op, where.literals_.data() + p.first_literal,
+                        p.literal_count, *type)) {
       continue;
     }
-    values[i] = CastWhereLiterals(p, where.literals_, where.strings_, *type,
-                                  *context.pool);
+    values[i] = CastConditionLiterals(
+        p.op, where.literals_.data() + p.first_literal, p.literal_count,
+        where.strings_, *type, *context.pool);
     predicate_indices.push_back(i);
     conditions.push_back({p.column, p.op, &*values[i]});
   }
