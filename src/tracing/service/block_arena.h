@@ -63,7 +63,7 @@ class BlockArena {
   BlockArena(BlockArena&&) = delete;
   BlockArena& operator=(BlockArena&&) = delete;
 
-  // Returns |size| uninitialized bytes.
+  // Returns |size| uninitialized bytes, with no alignment guarantee.
   // A request larger than |block_size_| gets its own block of |size| bytes.
   Allocation Allocate(size_t size);
 
@@ -94,10 +94,10 @@ class BlockArena {
     size_t num_live_allocations = 0;
   };
 
-  // Keep up to two free blocks of |block_size_| bytes for reuse across cycles.
   static constexpr size_t kMaxFreeBlocks = 2;
 
-  // Capacity of blocks that can be cached for reuse.
+  // Capacity of a new block, unless the request is larger.
+  // Only blocks of this capacity are cached for reuse.
   const size_t block_size_;
 
   // Blocks used in this cycle and older blocks with allocations in use.

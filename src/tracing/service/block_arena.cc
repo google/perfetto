@@ -34,8 +34,6 @@ BlockArena::BlockArena(size_t block_size) : block_size_(block_size) {
 BlockArena::Allocation BlockArena::Allocate(size_t size) {
   PERFETTO_DCHECK(size > 0);
 
-  // If the newest block has enough space, use it.
-  // Otherwise, either reuse a free block or allocate a new one.
   // We don't use any older active blocks to keep the logic simple.
   Block* block = active_blocks_.empty() ? nullptr : &active_blocks_.back();
   if (!block || size > block->capacity - block->used_size) {
@@ -62,8 +60,6 @@ void BlockArena::Reset() {
     if (block->num_live_allocations != 0)
       continue;
 
-    // If this block has the standard |block_size_| capacity and the free list
-    // has room, keep it for reuse to minimize future allocations.
     if (block->capacity == block_size_ &&
         free_blocks_.size() < kMaxFreeBlocks) {
       block->used_size = 0;
@@ -107,7 +103,9 @@ BlockArena::Allocation& BlockArena::Allocation::operator=(
 }
 
 BlockArena::Block::Block(size_t block_capacity)
-    : data(new uint8_t[block_capacity]), capacity(block_capacity) {}
+    : data(new uint8_t[block_capacity]), capacity(block_capacity) {
+  PERFETTO_ASAN_POISON(data.get(), capacity);
+}
 
 BlockArena::Block::~Block() {
   // A live Allocation would access this block when it's destroyed.
