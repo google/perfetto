@@ -211,6 +211,13 @@ std::string StepString(const ExprProgram& program, uint32_t i) {
       return binary(">");
     case ExprOp::kGe:
       return binary(">=");
+    case ExprOp::kGlob:
+      return "(" + StepString(program, step.a) + " GLOB '" +
+             program.patterns[step.b] + "')";
+    case ExprOp::kIsNull:
+      return "(" + StepString(program, step.a) + " IS NULL)";
+    case ExprOp::kIsNotNull:
+      return "(" + StepString(program, step.a) + " IS NOT NULL)";
     case ExprOp::kConstantWherePresent:
       return "if_present(" + StepString(program, step.a) + ", " +
              std::to_string(step.int_value) + ")";

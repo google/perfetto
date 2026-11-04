@@ -203,6 +203,36 @@ base::Status Compile(Compiler* c, uint32_t at, uint32_t depth, Expr* e) {
       Push(e, Node2(Op::kMul, x, PushConstant(e, std::move(minus_one))));
       return base::OkStatus();
     }
+    case SYNTAQLITE_NODE_LIKE_EXPR: {
+      const SyntaqliteLikeExpr& n = node->like_expr;
+      if (n.keyword != SYNTAQLITE_LIKE_KEYWORD_GLOB) {
+        return c->Unsupported(at, "this operator");
+      }
+      if (n.negated) {
+        return c->Unsupported(at, "NOT GLOB");
+      }
+      RETURN_IF_ERROR(Compile(c, n.operand, depth + 1, e));
+      auto operand = static_cast<uint32_t>(e->nodes.size() - 1);
+      ASSIGN_OR_RETURN(Literal pattern, CompileLiteral(c, n.pattern));
+      if (!pattern.is_string()) {
+        return c->Expected(n.pattern, "a string as the pattern of GLOB");
+      }
+      auto index = static_cast<uint32_t>(e->literals.size());
+      e->literals.push_back(std::move(pattern));
+      Push(e, Node2(Op::kGlob, operand, index));
+      return base::OkStatus();
+    }
+    case SYNTAQLITE_NODE_IS_EXPR: {
+      const SyntaqliteIsExpr& n = node->is_expr;
+      ASSIGN_OR_RETURN(bool null, CompileIsNull(c, at, n));
+      RETURN_IF_ERROR(Compile(c, n.left, depth + 1, e));
+      auto operand = static_cast<uint32_t>(e->nodes.size() - 1);
+      ex::ExprStep test;
+      test.op = null ? Op::kIsNull : Op::kIsNotNull;
+      test.a = operand;
+      Push(e, test);
+      return base::OkStatus();
+    }
     case SYNTAQLITE_NODE_BINARY_EXPR: {
       const SyntaqliteBinaryExpr& n = node->binary_expr;
       std::optional<Op> op = BinaryOp(n.op);
@@ -350,6 +380,20 @@ class Typer {
     if (IsComparison(node.op)) {
       return TypeComparison(node, reg);
     }
+    if (node.op == Op::kGlob) {
+      return TypeGlob(node, reg);
+    }
+    if (node.op == Op::kIsNull || node.op == Op::kIsNotNull) {
+      if (rows_) {
+        ex::ExprStep step = node;
+        step.type = Type::kInt64;
+        step.a =
+            Materialize(node.a, kinds_[node.a] == Kind::kNull ? Kind::kInt64
+                                                              : kinds_[node.a]);
+        *reg = Add(step);
+      }
+      return Kind::kInt64;
+    }
     PERFETTO_DCHECK(IsArithmetic(node.op));
     Kind a = kinds_[node.a];
     Kind b = kinds_[node.b];
@@ -440,6 +484,26 @@ class Typer {
     return Add(step);
   }
 
+  base::StatusOr<Kind> TypeGlob(const ex::ExprStep& node, uint32_t* reg) {
+    Kind a = kinds_[node.a];
+    if (IsNumber(a)) {
+      return base::ErrStatus("a string to match with GLOB");
+    }
+    // Matching NULL is NULL.
+    if (a == Kind::kNull) {
+      return Kind::kNull;
+    }
+    if (rows_) {
+      ex::ExprStep step = node;
+      step.type = Type::kInt64;
+      step.a = regs_[node.a];
+      step.b = static_cast<uint32_t>(program_->patterns.size());
+      program_->patterns.push_back(expr_->literals[node.b].text);
+      *reg = Add(step);
+    }
+    return Kind::kInt64;
+  }
+
   static bool IsNumber(Kind kind) {
     return kind == Kind::kInt64 || kind == Kind::kDouble;
   }
@@ -455,6 +519,29 @@ class Typer {
 };
 
 }  // namespace
+
+base::StatusOr<bool> CompileIsNull(Compiler* c,
+                                   uint32_t expr,
+                                   const SyntaqliteIsExpr& node) {
+  switch (static_cast<int>(node.op)) {
+    case SYNTAQLITE_IS_OP_IS_NULL:
+      return true;
+    case SYNTAQLITE_IS_OP_NOT_NULL:
+    case SYNTAQLITE_IS_OP_NOT_NULL_SPACED:
+      return false;
+    case SYNTAQLITE_IS_OP_IS:
+    case SYNTAQLITE_IS_OP_IS_NOT: {
+      const auto* right = Node<SyntaqliteNode>(c->parser(), node.right);
+      if (right->tag != SYNTAQLITE_NODE_LITERAL ||
+          right->literal.literal_type != SYNTAQLITE_LITERAL_TYPE_NULL) {
+        return c->Unsupported(expr, "IS other than IS [NOT] NULL");
+      }
+      return node.op == SYNTAQLITE_IS_OP_IS;
+    }
+    default:
+      return c->Unsupported(expr, "IS other than IS [NOT] NULL");
+  }
+}
 
 base::Status CompileExpr(Compiler* c, uint32_t expr, Expr* out) {
   return Compile(c, expr, 0, out);

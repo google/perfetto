@@ -35,6 +35,7 @@
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/expression.h"
 #include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
@@ -139,28 +140,7 @@ class Parser {
   }
 
   base::Status Is(uint32_t expr, const SyntaqliteIsExpr& node) {
-    bool null;
-    switch (static_cast<int>(node.op)) {
-      case SYNTAQLITE_IS_OP_IS_NULL:
-        null = true;
-        break;
-      case SYNTAQLITE_IS_OP_NOT_NULL:
-      case SYNTAQLITE_IS_OP_NOT_NULL_SPACED:
-        null = false;
-        break;
-      case SYNTAQLITE_IS_OP_IS:
-      case SYNTAQLITE_IS_OP_IS_NOT: {
-        const auto* right = Node<SyntaqliteNode>(c_->parser(), node.right);
-        if (right->tag != SYNTAQLITE_NODE_LITERAL ||
-            right->literal.literal_type != SYNTAQLITE_LITERAL_TYPE_NULL) {
-          return c_->Unsupported(expr, "IS other than IS [NOT] NULL");
-        }
-        null = node.op == SYNTAQLITE_IS_OP_IS;
-        break;
-      }
-      default:
-        return c_->Unsupported(expr, "IS other than IS [NOT] NULL");
-    }
+    ASSIGN_OR_RETURN(bool null, CompileIsNull(c_, expr, node));
     ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.left));
     core::Op op = null ? core::Op(core::IsNull{}) : core::Op(core::IsNotNull{});
     return Add(expr, column, op, {});
