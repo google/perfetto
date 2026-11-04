@@ -91,6 +91,8 @@ source_set("exec") {
     "top_k.h",
     "tree_accumulate.cc",
     "tree_accumulate.h",
+    "tree_key_paths.cc",
+    "tree_key_paths.h",
     "tree_number_nodes.cc",
     "tree_number_nodes.h",
     "tree_order.cc",
@@ -155,6 +157,7 @@ perfetto_unittest_source_set("unittests") {
     "sort_unittest.cc",
     "top_k_unittest.cc",
     "tree_accumulate_unittest.cc",
+    "tree_key_paths_unittest.cc",
     "tree_number_nodes_unittest.cc",
     "tree_order_unittest.cc",
   ]
