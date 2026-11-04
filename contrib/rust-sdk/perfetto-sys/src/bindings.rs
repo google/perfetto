@@ -154,6 +154,14 @@ pub type PerfettoDsFlushReason = ::std::os::raw::c_uint;
 unsafe extern "C" {
     pub fn PerfettoDsOnFlushArgsGetReason(args: *mut PerfettoDsOnFlushArgs) -> u64;
 }
+pub const PerfettoDsFlushCloneTarget_PERFETTO_DS_FLUSH_CLONE_TARGET_UNKNOWN:
+    PerfettoDsFlushCloneTarget = 0;
+pub const PerfettoDsFlushCloneTarget_PERFETTO_DS_FLUSH_CLONE_TARGET_BUGREPORT:
+    PerfettoDsFlushCloneTarget = 1;
+pub type PerfettoDsFlushCloneTarget = ::std::os::raw::c_uint;
+unsafe extern "C" {
+    pub fn PerfettoDsOnFlushArgsGetCloneTarget(args: *mut PerfettoDsOnFlushArgs) -> u64;
+}
 pub type PerfettoDsOnFlushCb = ::std::option::Option<
     unsafe extern "C" fn(
         arg1: *mut PerfettoDsImpl,
