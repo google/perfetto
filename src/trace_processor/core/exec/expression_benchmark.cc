@@ -225,12 +225,14 @@ uint32_t Apply(ExprProgram* program,
                Op op,
                ExprType type,
                uint32_t a,
-               uint32_t b = 0) {
+               uint32_t b = 0,
+               uint32_t c = 0) {
   ExprStep step;
   step.op = op;
   step.type = type;
   step.a = a;
   step.b = b;
+  step.c = c;
   program->steps.push_back(step);
   return static_cast<uint32_t>(program->steps.size() - 1);
 }
@@ -370,6 +372,66 @@ void BM_ExprIsNullNoNulls(benchmark::State& state) {
   RunNullTest(state, Op::kIsNull, false);
 }
 BENCHMARK(BM_ExprIsNullNoNulls);
+
+void RunCoalesce(benchmark::State& state,
+                 ExprType type,
+                 uint32_t a,
+                 uint32_t b,
+                 bool nulls) {
+  ExprProgram p;
+  uint32_t x = Read(&p, a, type);
+  uint32_t y = Read(&p, b, type);
+  Apply(&p, Op::kCoalesce, type, x, y);
+  RunProgram(state, std::move(p), nulls);
+}
+
+void BM_ExprCoalesceInt(benchmark::State& state) {
+  RunCoalesce(state, ExprType::kInt64, kIntA, kIntB, true);
+}
+BENCHMARK(BM_ExprCoalesceInt);
+
+void BM_ExprCoalesceString(benchmark::State& state) {
+  RunCoalesce(state, ExprType::kString, kStringA, kStringB, true);
+}
+BENCHMARK(BM_ExprCoalesceString);
+
+void BM_ExprCoalesceNoNulls(benchmark::State& state) {
+  RunCoalesce(state, ExprType::kInt64, kIntA, kIntB, false);
+}
+BENCHMARK(BM_ExprCoalesceNoNulls);
+
+void RunIif(benchmark::State& state,
+            ExprType type,
+            uint32_t a,
+            uint32_t b,
+            bool nulls) {
+  ExprProgram p;
+  uint32_t c = Read(&p, kIntA, ExprType::kInt64);
+  uint32_t x = Read(&p, a, type);
+  uint32_t y = Read(&p, b, type);
+  Apply(&p, Op::kIif, type, c, x, y);
+  RunProgram(state, std::move(p), nulls);
+}
+
+void BM_ExprIifInt(benchmark::State& state) {
+  RunIif(state, ExprType::kInt64, kIntA, kIntB, false);
+}
+BENCHMARK(BM_ExprIifInt);
+
+void BM_ExprIifIntNullable(benchmark::State& state) {
+  RunIif(state, ExprType::kInt64, kIntA, kIntB, true);
+}
+BENCHMARK(BM_ExprIifIntNullable);
+
+void BM_ExprIifString(benchmark::State& state) {
+  RunIif(state, ExprType::kString, kStringA, kStringB, false);
+}
+BENCHMARK(BM_ExprIifString);
+
+void BM_ExprIifStringNullable(benchmark::State& state) {
+  RunIif(state, ExprType::kString, kStringA, kStringB, true);
+}
+BENCHMARK(BM_ExprIifStringNullable);
 
 }  // namespace
 }  // namespace perfetto::trace_processor::core::exec

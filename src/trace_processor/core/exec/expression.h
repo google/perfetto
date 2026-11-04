@@ -68,6 +68,11 @@ struct ExprStep {
     // Whether `a` is null or not, as 0 or 1.
     kIsNull,
     kIsNotNull,
+    // `a` unless it is null, else `b`.
+    kCoalesce,
+    // `b` where `a` is present and not zero, else `c`. `b` and `c` are computed
+    // for every row, so must not be able to fail.
+    kIif,
   };
 
   Op op = Op::kColumn;
@@ -76,6 +81,7 @@ struct ExprStep {
   // The registers read, or for kColumn the batch column.
   uint32_t a = 0;
   uint32_t b = 0;
+  uint32_t c = 0;
   int64_t int_value = 0;
   double double_value = 0;
 };
