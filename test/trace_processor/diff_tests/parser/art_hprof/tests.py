@@ -303,3 +303,20 @@ class ArtHprofParser(TestSuite):
           "null_blob","null_json"
           1,1
         '''))
+
+  def test_art_hprof_native_size(self):
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT c.name, o.native_size
+          FROM heap_graph_object o
+          JOIN heap_graph_class c ON o.type_id = c.id
+          WHERE o.native_size > 0
+          ORDER BY o.native_size DESC, c.name
+        """,
+        out=Csv('''
+          "name","native_size"
+          "java.lang.Object",50000
+          "java.lang.Object",50000
+          "com.android.icu.charset.CharsetEncoderICU",98
+        '''))
