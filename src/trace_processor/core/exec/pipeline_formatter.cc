@@ -48,6 +48,7 @@
 #include "src/trace_processor/core/exec/sorted_rows.h"
 #include "src/trace_processor/core/exec/sorted_scan.h"
 #include "src/trace_processor/core/exec/tree_accumulate.h"
+#include "src/trace_processor/core/exec/tree_key_paths.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
 
@@ -309,6 +310,15 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
     return "TreeAccumulateDown(" + Column(down.spec_.node_column) + ", " +
            Column(down.spec_.parent_column) + "; " +
            Aggregates(down.spec_.aggregates) + ")";
+  }
+  if (transform.Is<TreeKeyPaths>()) {
+    const auto& paths = static_cast<const TreeKeyPaths&>(transform);
+    std::string out = "TreeKeyPaths(" + Column(paths.spec_.node_column) + ", " +
+                      Column(paths.spec_.parent_column);
+    for (uint32_t column : paths.spec_.key_columns) {
+      out += ", " + Column(column);
+    }
+    return out + ")";
   }
   return "Transform";
 }

@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/tree_accumulate.h"
+#include "src/trace_processor/core/exec/tree_key_paths.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 
 // What each step costs run through a pipeline, as a plan runs it: over many
@@ -146,6 +147,17 @@ void BM_StepsTreeAccumulateUp(benchmark::State& state) {
   });
 }
 BENCHMARK(BM_StepsTreeAccumulateUp)->Apply(Sizes);
+
+void BM_StepsTreeKeyPaths(benchmark::State& state) {
+  Run(state, false, [] {
+    std::vector<Pipeline::Step> steps;
+    steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
+    steps.push_back(std::make_unique<TreeKeyPaths>(
+        TreeKeyPathsSpec{kNode, kParentNode, {kValue}}));
+    return steps;
+  });
+}
+BENCHMARK(BM_StepsTreeKeyPaths)->Apply(Sizes);
 
 // A column already of the type asserted passes through unchanged.
 void BM_StepsAssertTypeAsIs(benchmark::State& state) {
