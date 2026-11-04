@@ -3543,6 +3543,127 @@ class AndroidStdlib(TestSuite):
         5000,-1,200,"EXITED","RECEIVER",2000,21,"[NULL]"
         """))
 
+  def test_android_process_state_intervals_start_times(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          track_descriptor {
+            uuid: 1
+            thread { pid: 100 tid: 100 thread_name: "main" }
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            name: "trace_begin"
+          }
+        }
+        packet {
+          timestamp: 1000
+          [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+            dump_reason: DUMP_REASON_START
+            record { pid: 100 uid: 10010 process_name: "app100" start_seq_id: 1 }
+            record { pid: 200 uid: 10020 process_name: "app200" start_seq_id: 2 }
+            record { pid: 300 uid: 10030 process_name: "app300" start_seq_id: 3 }
+          }
+        }
+        # pid 100: changed state at 3000, with prev_proc_state_start_ns = 2500.
+        # Its initial state was TOP starting at 2500.
+        packet {
+          timestamp: 3000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 100
+              uid: 10010
+              prev_proc_state: PROCESS_STATE_TOP
+              cur_proc_state: PROCESS_STATE_CACHED_EMPTY
+              prev_proc_state_start_ns: 2500
+              reason: 3
+              seq_id: 1
+            }
+          }
+        }
+        # pid 200: dies at 4000 with process_state_died carrying prev_proc_state_start_ns = 2000.
+        packet {
+          timestamp: 4000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            name: "process_state_died"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_died_event] {
+              pid: 200
+              uid: 10020
+              prev_proc_state: PROCESS_STATE_FOREGROUND_SERVICE
+              prev_proc_state_start_ns: 2000
+            }
+          }
+        }
+        packet {
+          timestamp: 4001
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 200
+              uid: 10020
+              start_seq_id: 2
+            }
+          }
+        }
+        # Trace end snapshot at 5000:
+        # pid 100 is in CACHED_EMPTY (1018).
+        # pid 300 had no deltas, but has proc_state_start_ns = 1500 (IMPORTANT_FOREGROUND = 1005).
+        packet {
+          timestamp: 5000
+          [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+            dump_reason: DUMP_REASON_END
+            record {
+              pid: 100
+              uid: 10010
+              proc_state: 1018
+              proc_state_start_ns: 3000
+            }
+            record {
+              pid: 300
+              uid: 10030
+              proc_state: 1005
+              proc_state_start_ns: 1500
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_state;
+        SELECT
+          ts,
+          dur,
+          pid,
+          state,
+          prev_state,
+          prev_state_duration
+        FROM _android_process_state_intervals
+        ORDER BY pid, ts;
+        """,
+        out=Csv("""
+        "ts","dur","pid","state","prev_state","prev_state_duration"
+        2500,500,100,"TOP","[NULL]","[NULL]"
+        3000,-1,100,"CACHED_EMPTY","TOP",500
+        2000,2001,200,"FOREGROUND_SERVICE","[NULL]","[NULL]"
+        4001,-1,200,"EXITED","FOREGROUND_SERVICE",2001
+        1500,-1,300,"IMPORTANT_FOREGROUND","[NULL]","[NULL]"
+        """))
+
   def test_android_process_capability_intervals(self):
     # pid 200: LOCATION|CAMERA (3) from its start, drops CAMERA (1), repeats
     # the same mask, regains CAMERA (3), dies. pid 300: gains MICROPHONE (4)
