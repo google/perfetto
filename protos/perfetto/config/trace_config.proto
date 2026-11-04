@@ -839,19 +839,19 @@ message TraceConfig {
     // Configures the priority of traces based on the trigger name. The priority
     // is used by PerfettoUploader to determine the order in which traces
     // should be uploaded/evicted.
-    message TriggerPriority {
+    message TracePriority {
       // Default priority value for traces from this config when no trigger rule
       // matches (higher value = higher priority). Treated as INT_MIN if unset.
       optional int32 default_priority = 1;
 
-      message PriorityRule {
+      message Rule {
         optional string trigger_name = 1;
-        optional int32 trigger_priority = 2;
+        optional int32 priority = 2;
       }
-      // Evaluated in order; the first matching rule wins.
-      repeated PriorityRule priority_rules = 2;
+
+      repeated Rule rules = 2;
     }
-    optional TriggerPriority trigger_priority = 5;
+    optional TracePriority trace_priority = 5;
   }
   optional AndroidReportConfig android_report_config = 34;
 
