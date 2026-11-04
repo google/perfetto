@@ -177,9 +177,19 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         timeline.pan(tDelta);
         raf.scheduleCanvasRedraw();
       },
+      onPanKey: (direction) => {
+        const {areaSelectionEditor} = attrs.trace;
+        if (!areaSelectionEditor.isEditing) return false;
+        areaSelectionEditor.step(direction);
+        return true;
+      },
       onZoomed: (zoomedPositionPx: number, zoomRatio: number) => {
         if (!this.timelineBounds) return;
-        const timeline = attrs.trace.timeline;
+        const {timeline, areaSelectionEditor} = attrs.trace;
+        if (areaSelectionEditor.isEditing) {
+          areaSelectionEditor.zoom(1 - zoomRatio);
+          return;
+        }
         const zoomPx = zoomedPositionPx - this.timelineBounds.left;
         const centerPoint = zoomPx / this.timelineBounds.width;
         timeline.zoom(1 - zoomRatio, centerPoint);

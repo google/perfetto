@@ -15,6 +15,7 @@
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {HighPrecisionTime} from '../base/high_precision_time';
 import {assertUnreachable} from '../base/assert';
+import {EvtSource} from '../base/events';
 import {Time, type time, timezoneOffsetMap} from '../base/time';
 import type {Setting} from '../public/settings';
 import {
@@ -31,6 +32,11 @@ import {raf} from './raf_scheduler';
 // zoomed, expressed as a fraction of the visible width. This gutter makes it
 // easier to select content sitting right at the edges of the trace.
 export const GUTTER_FRACTION = 0.01;
+
+export interface VisibleWindowChange {
+  // The window that was asked for, before clamping to the trace bounds.
+  readonly requested: HighPrecisionTimeSpan;
+}
 
 /**
  * State that is shared between several frontend components, but not the
@@ -64,6 +70,10 @@ export class TimelineImpl implements Timeline {
   // it's really only a concept of the viewer page and should be moved there
   // instead.
   selectedSpan?: {start: time; end: time};
+
+  // Fired on every visible window update, even if clamping left the window
+  // unchanged.
+  readonly onVisibleWindowChanged = new EvtSource<VisibleWindowChange>();
 
   get highlightedSliceId() {
     return this._highlightedSliceId;
@@ -349,11 +359,17 @@ export class TimelineImpl implements Timeline {
 
   // Set visible window using a high precision time span
   setVisibleWindow(ts: HighPrecisionTimeSpan) {
-    this._visibleWindow = this.clampToGutter(
-      ts.clampDuration(this.MIN_DURATION),
-    );
+    const requested = ts.clampDuration(this.MIN_DURATION);
+    this.updateVisibleWindow(this.clampToGutter(requested), requested);
+  }
 
+  private updateVisibleWindow(
+    ts: HighPrecisionTimeSpan,
+    requested: HighPrecisionTimeSpan = ts,
+  ) {
+    this._visibleWindow = ts;
     raf.scheduleCanvasRedraw();
+    this.onVisibleWindowChanged.notify({requested});
   }
 
   // Get the bounds of the visible window as a high-precision time span
@@ -506,8 +522,7 @@ export class TimelineImpl implements Timeline {
     const newDuration =
       this._animationStartWindow.duration + durationDelta * eased;
 
-    this._visibleWindow = new HighPrecisionTimeSpan(newStart, newDuration);
-    raf.scheduleCanvasRedraw();
+    this.updateVisibleWindow(new HighPrecisionTimeSpan(newStart, newDuration));
 
     if (progress >= 1) {
       // Animation complete - clean up state

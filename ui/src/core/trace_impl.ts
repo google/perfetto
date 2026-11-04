@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {DisposableStack} from '../base/disposable_stack';
+import {TimeSpan} from '../base/time';
 import {TimelineImpl} from './timeline';
 import type {Command} from '../public/commands';
 import type {Storage, StorageDescriptor, Trace} from '../public/trace';
@@ -23,6 +24,7 @@ import {NoteManagerImpl} from './note_manager';
 import type {OmniboxManagerImpl} from './omnibox_manager';
 import {SearchManagerImpl} from './search_manager';
 import {SelectionManagerImpl} from './selection_manager';
+import {AreaSelectionEditor} from './area_selection_editor';
 import type {SidebarManagerImpl} from './sidebar_manager';
 import {TabManagerImpl} from './tab_manager';
 import {TrackManagerImpl} from './track_manager';
@@ -69,6 +71,7 @@ export class TraceImpl implements Trace, Disposable {
   readonly engine: Engine;
   readonly search: SearchManagerImpl;
   readonly selection: SelectionManagerImpl;
+  readonly areaSelectionEditor: AreaSelectionEditor;
   readonly tabs = new TabManagerImpl();
   readonly timeline: TimelineImpl;
   readonly traceInfo: TraceInfoImpl;
@@ -122,6 +125,24 @@ export class TraceImpl implements Trace, Disposable {
       this.notes,
       this.scrollHelper,
       this.onSelectionChange.bind(this),
+    );
+
+    this.areaSelectionEditor = new AreaSelectionEditor(
+      this.timeline,
+      this.selection,
+      new TimeSpan(traceInfo.start, traceInfo.end),
+    );
+    this.trash.use(
+      this.timeline.onVisibleWindowChanged.addListener(({requested}) =>
+        this.areaSelectionEditor.onVisibleWindowChanged(requested),
+      ),
+    );
+    this.trash.use(
+      this.tabs.onTabPanelStateChanged.addListener(() => {
+        if (!this.tabs.isCurrentSelectionTabVisible) {
+          this.areaSelectionEditor.stopEditing();
+        }
+      }),
     );
 
     this.notes.onNoteDeleted = (noteId) => {
@@ -203,6 +224,7 @@ export class TraceImpl implements Trace, Disposable {
   // This method wires up changes to selection to side effects on search and
   // tabs. This is to avoid entangling too many dependencies between managers.
   private onSelectionChange(selection: Selection, opts: SelectionOpts) {
+    this.areaSelectionEditor.onSelectionChanged(selection);
     const {clearSearch = true, switchToCurrentSelectionTab = true} = opts;
     if (clearSearch) {
       this.search.reset();
