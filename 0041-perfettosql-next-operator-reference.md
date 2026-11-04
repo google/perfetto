@@ -60,8 +60,8 @@ user-synthesized.
 
 A `slice` row is at once an interval (`ts`/`dur`) and a tree node
 (`id`/`parent_id`), so interval and tree operators compose on the same rows.
-Most tree operators require the complete tree in the pipe; the filters,
-reshapes, and reparent may act on a filtered working set (§6.1).
+Operators that transform a tree require the complete tree in the pipe;
+`TREE FIND` reads the rows in the pipe and takes the tree as its operand (§6.1).
 
 **Graphs reduce to trees.** A graph's only role is to be reduced to a tree (§7),
 carrying node payload onto the result, after which the tree operators take over.
@@ -216,10 +216,10 @@ and query syntax, engine is SQLite. Each is a stage `|> OPERATOR …`, except
 | `LIMIT n [ OFFSET m ]`                         | take a prefix of rows                           |
 | `JOIN rel ON expr` / `USING (cols)`            | value join                                      |
 | `UNION` / `INTERSECT` / `EXCEPT` `[ ALL ] (…)` | set operations                                  |
-| `WINDOW expr AS name`                          | window functions (also inline via `OVER`)       |
 
 `AGGREGATE` and `OVER` are SQLite aggregation, distinct from the closed
-`agg_clause` (§3) of the collapsing analysis operators.
+`agg_clause` (§3) of the collapsing analysis operators. Window functions are
+written inline in `SELECT` and `EXTEND`; there is no window stage.
 
 `AGGREGATE … GROUP BY cols` outputs the `GROUP BY` columns first (in order),
 then the named aggregates (in order), the GoogleSQL-pipe contract. So a
@@ -523,22 +523,37 @@ FROM slice
 ## 6. Tree operators
 
 The tree operators are RFC-0020's tree functions re-expressed as pipe stages.
-`TREE KEEP IF` is `tree_filter`; `TREE ACCUMULATE UP/DOWN` is
-`tree_propagate_up/down`; `TREE MERGE SIBLINGS` is
-`tree_merge_siblings[_ordered]`; `TREE MERGE INTO PARENT` is
-`tree_merge_into_parent`; `TREE INVERT` is `tree_invert`. `CONTRACT`, `ABSORB`,
+`TREE ACCUMULATE UP/DOWN` is `tree_propagate_up/down`; `TREE MERGE SIBLINGS` is
+`tree_merge_siblings`; `TREE MERGE CONSECUTIVE SIBLINGS` is
+`tree_merge_siblings_ordered`; `TREE MERGE INTO PARENT` is
+`tree_merge_into_parent`; `TREE INVERT` is `tree_invert`; `tree_filter` is
+`TREE REPARENT` followed by `WHERE` (§6.1). `FIND`, `CONTRACT`, `ABSORB`,
 `PRUNE`, `REPARENT`, `FLATTEN RECURSION`, `KEY PATHS`, and `EXPAND` are new.
 
-### 6.1 Structure and weight
+### 6.1 Transforms and finds
 
-The **filters** (§6.2), **reshapes** (§6.3), and **reparent** (§6.4) may act on
-a filtered working set, naming the full structure with `OVER rel`.
-**`KEY PATHS`** and the **folds** (§6.5-6.6), **`ACCUMULATE`** (§6.8), and
-**`EXPAND`** (§6.9) require the complete tree in the pipe.
+Tree operators come in two kinds.
+
+**Transforms** output a tree: the reshapes (§6.3), reparent (§6.4), `KEY PATHS`
+and the folds (§6.5-6.6), `INVERT` (§6.7), `ACCUMULATE` (§6.8), and `EXPAND`
+(§6.9). The complete tree is in the pipe, and any relation argument is a
+selection of its nodes. A `parent_id` with no row of that `id` is an error.
+
+**Finds** use the tree as a means to an end and output the rows they were given:
+`TREE FIND` (§6.2). The pipe holds the rows of interest, usually filtered, and
+the tree is the operand, as the operand is for `INTERVAL FIND`.
+
+To remove nodes and keep a complete tree, reparent onto the nodes being kept,
+then filter:
 
 ```
-over_clause := "OVER" rel ;
+FROM slice
+|> TREE REPARENT TO NEAREST ANCESTOR IN (FROM slice |> WHERE name GLOB 'foo*')
+|> WHERE name GLOB 'foo*'
 ```
+
+`TREE CONTRACT` removes nodes the same way and charges their measures to the
+parent.
 
 **Measures and properties.** Columns named in a fold's `agg_clause` are
 **measures**: they relocate to the operator's destination (parent, self, or
@@ -549,28 +564,53 @@ merge target) and combine by the stated agg. Every unnamed column is a
 never split apart, so any operation that fans a measure out happens at
 construction, before aggregation.
 
-### 6.2 Filters
+### 6.2 Find
 
 ```
-structural_rel := ( "ANCESTOR" | "DESCENDANT" ) "OF" rel ;
-stage := "|>" "TREE" ( "KEEP" | "DROP" ) "IF" structural_rel [ over_clause ] ;
+stage := "|>" [ "LEFT" ] "TREE FIND" rel "AS" alias
+         ( "NEAREST ANCESTOR" [ "OR SELF" ] "WHERE" expr
+         | "NEAREST DESCENDANT" [ "OR SELF" ] "WHERE" expr [ "ORDER BY" cols ] ) ;
 ```
 
-The structural semijoin / antijoin. `rel` is a **set of rows** (often a filtered
-set), not a predicate. `KEEP IF DESCENDANT OF sel` keeps subtrees under `sel`
-(focus); `KEEP IF ANCESTOR OF sel` keeps paths to `sel`;
-`DROP IF DESCENDANT OF sel` prunes them.
+Attaches the nearest ancestor or descendant of each row in the pipe for which
+`expr` holds, the tree twin of `INTERVAL FIND`. `rel` is the complete tree, and
+rows in the pipe are located in it by `id`. `expr` reads the candidate through
+`alias`. `OR SELF` also considers the row itself. At most one node matches, so
+rows never multiply; `LEFT` yields nulls when none does.
+
+A node can have several nearest descendants, at the same distance. `ORDER BY`
+picks the first of them; without it, or if it also ties, which one is picked is
+unspecified. A node has one nearest ancestor, so `ANCESTOR` takes no `ORDER BY`.
+
+Finding is also how rows are kept or dropped by their position in a tree:
 
 ```
-FROM slice
-|> TREE KEEP IF DESCENDANT OF (SELECT id FROM slice WHERE name = 'doFrame')
+-- Slices at or below a doFrame.
+FROM slice AS s
+|> TREE FIND slice AS a NEAREST ANCESTOR OR SELF WHERE a.name = 'doFrame'
+
+-- Slices on the path to a doFrame.
+FROM slice AS s
+|> TREE FIND slice AS d NEAREST DESCENDANT OR SELF WHERE d.name = 'doFrame'
+
+-- Long slices with no doFrame above them.
+FROM slice AS s
+|> WHERE dur > 1000
+|> LEFT TREE FIND slice AS a NEAREST ANCESTOR WHERE a.name = 'doFrame'
+|> WHERE a.id IS NULL
+
+-- For each binder transaction, its longest nearest lock contention slice.
+FROM slice AS s
+|> WHERE name = 'binder transaction'
+|> TREE FIND slice AS d NEAREST DESCENDANT
+   WHERE d.name GLOB 'Lock contention*' ORDER BY d.dur DESC
 ```
 
 ### 6.3 Reshapes
 
 ```
-stage := "|>" "TREE" ( "CONTRACT" | "ABSORB" ) "AT" rel [ over_clause ] agg_clause
-       | "|>" "TREE PRUNE AT" rel [ over_clause ] ;
+stage := "|>" "TREE" ( "CONTRACT" | "ABSORB" ) "AT" rel agg_clause
+       | "|>" "TREE PRUNE AT" rel ;
 ```
 
 `AT rel` selects the nodes (by `id`). `CONTRACT` removes each, reparents its
@@ -588,8 +628,8 @@ FROM slice
 ### 6.4 Reparent
 
 ```
-stage := "|>" "TREE REPARENT TO NEAREST ANCESTOR IN" rel [ over_clause ]
-       | "|>" "TREE FLATTEN RECURSION BY" cols [ over_clause ] ;
+stage := "|>" "TREE REPARENT TO NEAREST ANCESTOR IN" rel
+       | "|>" "TREE FLATTEN RECURSION BY" cols ;
 ```
 
 Row-preserving: every node survives with its payload and only `parent_id`
@@ -617,7 +657,7 @@ FROM callstacks
 
 ```
 stage := "|>" "TREE KEY PATHS BY" cols "AS" "(" name "," name ")"
-       | "|>" "TREE MERGE SIBLINGS BY" cols [ "ORDERED" ] agg_clause ;
+       | "|>" "TREE MERGE" [ "CONSECUTIVE" ] "SIBLINGS BY" cols agg_clause ;
 ```
 
 Both stages key every node by its root-to-node path of `cols`: two nodes get the
@@ -633,7 +673,8 @@ aggregate by it.
 
 `MERGE SIBLINGS BY cols` unifies nodes with the same key, combining payloads via
 `agg_clause`, taking a tree of callstacks to a tree keyed by name path (a
-flamegraph). `ORDERED` unifies only _consecutive_ same-key runs.
+flamegraph). `CONSECUTIVE` unifies only adjacent same-key runs, as in `INTERVAL
+MERGE CONSECUTIVE`.
 
 ```
 FROM callstacks
@@ -693,7 +734,7 @@ FROM slice
 ### 6.9 Tree expansion
 
 ```
-stage := "|>" "TREE EXPAND" ( "UP" | "DOWN" ) rel "BY" cols [ "ORDERED BY" cols ]
+stage := "|>" "TREE EXPAND" ( "UP" | "DOWN" ) rel "BY" cols [ "ORDER BY" cols ]
          [ "CHARGE" cols "TO" ( "LEAF" | "ROOT" ) ] ;
 ```
 
@@ -716,7 +757,7 @@ FROM stack_profile_callsite
 |> FORK AS callsites
 |> … build the callstack tree …
 |> TREE EXPAND DOWN (FROM callsites |> … derive inline frames …)
-   BY callsite_id ORDERED BY inline_depth CHARGE self TO LEAF
+   BY callsite_id ORDER BY inline_depth CHARGE self TO LEAF
 ```
 
 ---
@@ -771,7 +812,7 @@ GRAPH DOMINATOR TREE NODES heap_objects EDGES heap_refs FROM gc_roots
 | `INTERVAL JOIN`                         | interval match   | attach matched; multiplies                        |
 | `INTERVAL FIND`                         | interval match   | attach the one nearest                            |
 | `INTERVAL KEEP IF` / `DROP IF`          | interval match   | semijoin / antijoin                               |
-| `TREE KEEP IF` / `DROP IF`              | tree filter      | focus / prune                                     |
+| `TREE FIND`                             | tree match       | attach the one nearest ancestor / descendant      |
 | `TREE CONTRACT` / `ABSORB`              | tree reshape     | fold a node up / fold its subtree in              |
 | `TREE PRUNE`                            | tree reshape     | drop node and its subtree                         |
 | `TREE REPARENT`                         | tree reparent    | reparent to nearest marker ancestor               |
@@ -790,9 +831,6 @@ GRAPH DOMINATOR TREE NODES heap_objects EDGES heap_refs FROM gc_roots
 
 - **Weighted / longest path** (e.g. scheduling critical path), currently a
   specialized stdlib primitive, not a `GRAPH … TREE` operator.
-- **Recovering the full structure** from a filtered set of nodes (§6.1).
-- **Structural `FIND`**, attach the nearest descendant/ancestor matching a set
-  onto a node (the tree twin of `INTERVAL FIND`).
 - **Property propagation** across grafted or joined trees.
 - **Interval `OVERLAY`**, priority/z-order compositing (a higher lane replaces a
   lower one on overlap, both survive outside); `MERGE` cannot hole-punch. The
