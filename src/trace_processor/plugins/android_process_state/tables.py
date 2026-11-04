@@ -58,7 +58,7 @@ ANDROID_PROCESS_STATE_TABLE = Table(
                 'For initial backfill rows: trace time at which the process '
                 'entered the initial proc_state, converted from the '
                 'CLOCK_BOOTTIME prev_proc_state_start_ns of the earliest change '
-                'event or, for processes without change events, '
+                'or died event or, for processes without such events, '
                 'proc_state_start_ns of the trace-stop snapshot. NULL if unknown '
                 '(e.g. not reported or not convertible) and for change rows, '
                 'whose start is ts.',
@@ -102,6 +102,11 @@ ANDROID_FREEZER_STATE_TABLE = Table(
         C('unfreeze_reason',
           CppOptional(CppString()),
           cpp_access=CppAccess.READ),
+        C('unfrozen_start_ts',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ),
+        C('frozen_start_ts', CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ),
         C('is_initial', CppUint32(), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
@@ -118,6 +123,16 @@ ANDROID_FREEZER_STATE_TABLE = Table(
                 'Time since last frozen in milliseconds.',
             'unfreeze_reason':
                 'Reason for unfreezing.',
+            'unfrozen_start_ts':
+                'Trace time at which the process was last unfrozen, converted '
+                'from CLOCK_BOOTTIME unfrozen_start_ns. Set on freeze events '
+                'and on initial rows of processes unfrozen at trace stop. NULL '
+                'if unknown (not reported, 0 or not convertible).',
+            'frozen_start_ts':
+                'Trace time at which the process was last frozen, converted '
+                'from CLOCK_BOOTTIME frozen_start_ns. Set on unfreeze events '
+                'and on initial rows of processes frozen at trace stop. NULL '
+                'if unknown (not reported, 0 or not convertible).',
             'is_initial':
                 '1 for synthesized initial state row, 0 for track event.',
         },

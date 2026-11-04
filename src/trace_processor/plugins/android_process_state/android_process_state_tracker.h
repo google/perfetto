@@ -54,6 +54,8 @@ class AndroidProcessStateTracker {
 
   // A process_state_changed_event TrackEvent extension at |ts|.
   void ParseProcessStateChange(int64_t ts, protozero::ConstBytes bytes);
+  // A process_state_died_event TrackEvent extension at |ts|.
+  void ParseProcessStateDied(int64_t ts, protozero::ConstBytes bytes);
   // An AndroidProcessState dump TracePacket at |ts|.
   void ParseProcessStateDump(int64_t ts, protozero::ConstBytes bytes);
 
@@ -82,6 +84,9 @@ class AndroidProcessStateTracker {
   struct FreezerStateValues {
     UniquePid upid = 0;
     std::optional<int32_t> unfreeze_reason;
+    // Trace time at which the process was last unfrozen / frozen.
+    std::optional<int64_t> unfrozen_start_ts;
+    std::optional<int64_t> frozen_start_ts;
   };
 
   // Tracks the state before the first observed change (prev_*) for a process,
@@ -90,11 +95,6 @@ class AndroidProcessStateTracker {
     int64_t ts = std::numeric_limits<int64_t>::max();
     ProcessStateValues values;
   };
-
-  // Converts a CLOCK_BOOTTIME timestamp written by system_server (e.g.
-  // proc_state_start_ns) to trace time. Returns std::nullopt if the
-  // conversion fails (the clock tracker records a stat in that case).
-  std::optional<int64_t> BoottimeToTraceTime(int64_t boottime_ns);
 
   // Records the pre-change state (prev_*) from the earliest delta track event
   // seen for a process to establish its baseline at trace start.

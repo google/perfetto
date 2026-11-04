@@ -594,6 +594,82 @@ class AndroidParser(TestSuite):
           3000,200,"PROCESS_STATE_CACHED_EMPTY",0,"[NULL]"
         """))
 
+  def test_android_process_state_died(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_died.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.proc_state,
+          t.oom_score,
+          t.capability_flags,
+          t.is_initial,
+          t.state_start_ts
+        FROM __intrinsic_android_process_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","proc_state","oom_score","capability_flags","is_initial","state_start_ts"
+          "[NULL]",100,"PROCESS_STATE_TOP",0,1,1,"[NULL]"
+          1500,100,"PROCESS_STATE_CACHED_EMPTY",900,0,0,"[NULL]"
+          "[NULL]",200,"PROCESS_STATE_FOREGROUND_SERVICE",200,4,1,1000
+          "[NULL]",300,"PROCESS_STATE_SERVICE",500,0,1,"[NULL]"
+          "[NULL]",400,"PROCESS_STATE_SERVICE",500,"[NULL]",1,700
+          2000,400,"PROCESS_STATE_RECEIVER",200,"[NULL]",0,"[NULL]"
+          "[NULL]",500,"PROCESS_STATE_CACHED_EMPTY",999,0,1,1300
+        """))
+
+  def test_android_process_state_died_unknown_pid(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_died.textproto'),
+        query="""
+        SELECT
+          ts,
+          severity,
+          name,
+          extract_arg(arg_set_id, 'source') AS source,
+          extract_arg(arg_set_id, 'pid') AS pid
+        FROM _trace_import_logs
+        WHERE name = 'android_track_event_process_unknown'
+        ORDER BY ts, pid;
+        """,
+        out=Csv("""
+          "ts","severity","name","source","pid"
+          5500,"notice","android_track_event_process_unknown","process_state_died",999
+        """))
+
+  def test_android_freezer_state_start_times(self):
+    return DiffTestBlueprint(
+        trace=Path('freezer_start_times.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.unfrozen_dur_ms,
+          t.frozen_dur_ms,
+          t.unfreeze_reason,
+          t.unfrozen_start_ts,
+          t.frozen_start_ts,
+          t.is_initial
+        FROM __intrinsic_android_freezer_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","unfrozen_dur_ms","frozen_dur_ms","unfreeze_reason","unfrozen_start_ts","frozen_start_ts","is_initial"
+          4500000000,600,"[NULL]",1500,"UFR_ACTIVITY","[NULL]",3000000000,0
+          5500000000,700,1500,"[NULL]","[NULL]",4000000000,"[NULL]",0
+          "[NULL]",800,"[NULL]","[NULL]","UFR_NONE",2500000000,"[NULL]",1
+          "[NULL]",900,"[NULL]","[NULL]","[NULL]","[NULL]",3500000000,1
+          "[NULL]",1000,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",1
+          5500000000,1100,2000,"[NULL]","[NULL]","[NULL]","[NULL]",0
+          "[NULL]",1200,"[NULL]","[NULL]","UFR_NONE",6499500000,"[NULL]",1
+          "[NULL]",1300,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",1
+          5500000000,1400,1000,"[NULL]","[NULL]",5500000001,"[NULL]",0
+        """))
+
   def test_android_freezer_state(self):
     return DiffTestBlueprint(
         trace=Path('android_process_state.textproto'),

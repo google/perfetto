@@ -42,8 +42,9 @@ class AndroidProcessStateModule : public ProtoImporterModule {
   AndroidProcessStateTracker* const tracker_;
 };
 
-// Receives the per-process AndroidProcessStateChangedEvent and
-// AndroidFreezerEvent deltas (TrackEvent extension fields).
+// Receives the per-process AndroidProcessStateChangedEvent,
+// AndroidProcessStateDiedEvent and AndroidFreezerEvent deltas (TrackEvent
+// extension fields).
 class AndroidProcessStateExtensionParser : public TrackEventExtensionParser {
  public:
   AndroidProcessStateExtensionParser(TrackEventExtensionParserContext* context,
