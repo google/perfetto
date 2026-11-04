@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/literal.h"
@@ -50,6 +51,40 @@ constexpr uint32_t kMaxDepth = 256;
 bool IsArithmetic(Op op) {
   return op == Op::kAdd || op == Op::kSub || op == Op::kMul || op == Op::kDiv ||
          op == Op::kMod;
+}
+
+bool IsComparison(Op op) {
+  return op == Op::kEq || op == Op::kNe || op == Op::kLt || op == Op::kLe ||
+         op == Op::kGt || op == Op::kGe;
+}
+
+// The comparison which holds of `x y` when `op` holds of `y x`.
+Op Flipped(Op op) {
+  return op == Op::kLt   ? Op::kGt
+         : op == Op::kLe ? Op::kGe
+         : op == Op::kGt ? Op::kLt
+         : op == Op::kGe ? Op::kLe
+                         : op;
+}
+
+core::Op CoreComparison(Op op) {
+  if (op == Op::kEq) {
+    return core::Eq{};
+  }
+  if (op == Op::kNe) {
+    return core::Ne{};
+  }
+  if (op == Op::kLt) {
+    return core::Lt{};
+  }
+  if (op == Op::kLe) {
+    return core::Le{};
+  }
+  if (op == Op::kGt) {
+    return core::Gt{};
+  }
+  PERFETTO_DCHECK(op == Op::kGe);
+  return core::Ge{};
 }
 
 // Appends a node and returns its index.
@@ -91,6 +126,20 @@ std::optional<Op> BinaryOp(SyntaqliteBinaryOp op) {
       return Op::kDiv;
     case SYNTAQLITE_BINARY_OP_REM:
       return Op::kMod;
+    case SYNTAQLITE_BINARY_OP_EQ:
+    case SYNTAQLITE_BINARY_OP_EQ_DOUBLE:
+      return Op::kEq;
+    case SYNTAQLITE_BINARY_OP_NE:
+    case SYNTAQLITE_BINARY_OP_NE_ANGLE:
+      return Op::kNe;
+    case SYNTAQLITE_BINARY_OP_LT:
+      return Op::kLt;
+    case SYNTAQLITE_BINARY_OP_LE:
+      return Op::kLe;
+    case SYNTAQLITE_BINARY_OP_GT:
+      return Op::kGt;
+    case SYNTAQLITE_BINARY_OP_GE:
+      return Op::kGe;
     default:
       return std::nullopt;
   }
@@ -298,6 +347,9 @@ class Typer {
     if (node.op == Op::kNull) {
       return Kind::kNull;
     }
+    if (IsComparison(node.op)) {
+      return TypeComparison(node, reg);
+    }
     PERFETTO_DCHECK(IsArithmetic(node.op));
     Kind a = kinds_[node.a];
     Kind b = kinds_[node.b];
@@ -323,6 +375,73 @@ class Typer {
       *reg = Add(step);
     }
     return kind;
+  }
+
+  base::StatusOr<Kind> TypeComparison(const ex::ExprStep& node, uint32_t* reg) {
+    Kind a = kinds_[node.a];
+    Kind b = kinds_[node.b];
+    if ((a == Kind::kString && IsNumber(b)) ||
+        (b == Kind::kString && IsNumber(a))) {
+      return base::ErrStatus(
+          "values of one kind to compare, but got a number and a string");
+    }
+    // A comparison with NULL is NULL.
+    if (a == Kind::kNull || b == Kind::kNull) {
+      return Kind::kNull;
+    }
+    if (a == Kind::kUnknown || b == Kind::kUnknown) {
+      return Kind::kInt64;
+    }
+    if (a != b) {
+      const ex::ExprStep* left = &expr_->nodes[node.a];
+      const ex::ExprStep* right = &expr_->nodes[node.b];
+      if (right->op != Op::kConstant && left->op != Op::kConstant) {
+        return base::ErrStatus(
+            "values of one type to compare, but got an integer and a double: "
+            "multiply the integer by 1.0 to compare it as a double");
+      }
+      if (rows_) {
+        *reg = right->op == Op::kConstant
+                   ? AddLiteralComparison(node.op, node.a, *right)
+                   : AddLiteralComparison(Flipped(node.op), node.b, *left);
+      }
+      return Kind::kInt64;
+    }
+    if (rows_) {
+      ex::ExprStep step = Node2(node.op, regs_[node.a], regs_[node.b]);
+      step.type = Type::kInt64;
+      *reg = Add(step);
+    }
+    return Kind::kInt64;
+  }
+
+  // Adds the steps comparing node `value` with a number literal of the other
+  // type.
+  uint32_t AddLiteralComparison(Op op,
+                                uint32_t value,
+                                const ex::ExprStep& constant) {
+    bool double_value = kinds_[value] == Kind::kDouble;
+    ResolvedComparison resolved = ResolveLiteralComparison(
+        CoreComparison(op), expr_->literals[constant.a], double_value);
+    if (resolved.kind != ResolvedComparison::Kind::kCompare) {
+      ex::ExprStep step;
+      step.op = Op::kConstantWherePresent;
+      step.a = regs_[value];
+      step.int_value = resolved.kind == ResolvedComparison::Kind::kAlwaysTrue;
+      return Add(step);
+    }
+    ex::ExprStep literal;
+    literal.op = Op::kConstant;
+    literal.type = double_value ? Type::kDouble : Type::kInt64;
+    literal.int_value = resolved.literal.int_value;
+    literal.double_value = resolved.literal.double_value;
+    ex::ExprStep step = Node2(op, regs_[value], Add(literal));
+    step.type = Type::kInt64;
+    return Add(step);
+  }
+
+  static bool IsNumber(Kind kind) {
+    return kind == Kind::kInt64 || kind == Kind::kDouble;
   }
 
   const LogicalPlan* plan_ = nullptr;

@@ -181,7 +181,26 @@ std::string LogicalPlanFormatter::ExprString(const Expr& e, uint32_t i) {
     case Op::kMod:
       op = "%";
       break;
+    case Op::kEq:
+      op = "=";
+      break;
+    case Op::kNe:
+      op = "!=";
+      break;
+    case Op::kLt:
+      op = "<";
+      break;
+    case Op::kLe:
+      op = "<=";
+      break;
+    case Op::kGt:
+      op = ">";
+      break;
+    case Op::kGe:
+      op = ">=";
+      break;
     case Op::kToDouble:
+    case Op::kConstantWherePresent:
       PERFETTO_FATAL("Not a logical expression");
   }
   return "(" + ExprString(e, node.a) + " " + op + " " + ExprString(e, node.b) +
