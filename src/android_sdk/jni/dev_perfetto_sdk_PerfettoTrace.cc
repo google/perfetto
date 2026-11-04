@@ -164,14 +164,18 @@ static const JNINativeMethod gTraceMethods[] = {
 
 int register_dev_perfetto_sdk_PerfettoTrace(JNIEnv* env) {
   bool ok = true;
-  ok &= PerfettoRegisterNativeMethods(
+  bool res = PerfettoRegisterNativeMethods(
       env, TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrace"),
       gTraceMethods, NELEM(gTraceMethods));
+  LOG_ERROR_IF(!res, "Unable to register perfetto native methods.");
+  ok &= res;
 
-  ok &= PerfettoRegisterNativeMethods(
+  res = PerfettoRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrace$Category"),
       gCategoryMethods, NELEM(gCategoryMethods));
+  LOG_ERROR_IF(!res, "Unable to register category native methods.");
+  ok &= res;
 
   return ok ? 0 : -1;
 }

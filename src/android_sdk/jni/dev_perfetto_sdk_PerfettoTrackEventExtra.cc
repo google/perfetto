@@ -804,76 +804,100 @@ static const JNINativeMethod gCounterMethods[] = {
 
 int register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
   bool ok = true;
-  ok &= PerfettoRegisterNativeMethods(
+  bool res = PerfettoRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME(
           "dev/perfetto/sdk/PerfettoTrackEventExtra$Arg"),
       gArgMethods, NELEM(gArgMethods));
+  LOG_ERROR_IF(!res, "Unable to register arg native methods.");
+  ok &= res;
 
-  ok &= PerfettoRegisterNativeMethods(
+  res = PerfettoRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME(
           "dev/perfetto/sdk/PerfettoTrackEventExtra$Field"),
       gFieldMethods, NELEM(gFieldMethods));
+  LOG_ERROR_IF(!res, "Unable to register field native methods.");
+  ok &= res;
 
-  ok &= PerfettoRegisterNativeMethods(
+  res = PerfettoRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME(
           "dev/perfetto/sdk/PerfettoTrackEventExtra$FieldNested"),
       gFieldNestedMethods, NELEM(gFieldNestedMethods));
+  LOG_ERROR_IF(!res, "Unable to register field nested native methods.");
+  ok &= res;
 
-  ok &= PerfettoRegisterNativeMethods(
+  res = PerfettoRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrackEventExtra"),
       gExtraMethods, NELEM(gExtraMethods));
+  LOG_ERROR_IF(!res, "Unable to register extra native methods.");
+  ok &= res;
 
-  ok &= PerfettoRegisterNativeMethods(
+  res = PerfettoRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME(
           "dev/perfetto/sdk/PerfettoTrackEventExtra$Proto"),
       gProtoMethods, NELEM(gProtoMethods));
+  LOG_ERROR_IF(!res, "Unable to register proto native methods.");
+  ok &= res;
 
-  ok &= PerfettoRegisterNativeMethods(
+  res = PerfettoRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME(
           "dev/perfetto/sdk/PerfettoTrackEventExtra$Flow"),
       gFlowMethods, NELEM(gFlowMethods));
+  LOG_ERROR_IF(!res, "Unable to register flow native methods.");
+  ok &= res;
 
-  ok &= PerfettoRegisterNativeMethods(
+  res = PerfettoRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME(
           "dev/perfetto/sdk/PerfettoTrackEventExtra$NamedTrack"),
       gNamedTrackMethods, NELEM(gNamedTrackMethods));
+  LOG_ERROR_IF(!res, "Unable to register named track native methods.");
+  ok &= res;
 
-  ok &= PerfettoRegisterNativeMethods(
+  res = PerfettoRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME(
           "dev/perfetto/sdk/PerfettoTrackEventExtra$NestedTracks"),
       gNestedTracksMethods, NELEM(gNestedTracksMethods));
+  LOG_ERROR_IF(!res, "Unable to register nested tracks native methods.");
+  ok &= res;
 
-  ok &= PerfettoRegisterNativeMethods(
+  res = PerfettoRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME(
           "dev/perfetto/sdk/PerfettoTrackEventExtra$CounterTrack"),
       gCounterTrackMethods, NELEM(gCounterTrackMethods));
+  LOG_ERROR_IF(!res, "Unable to register counter track native methods.");
+  ok &= res;
 
-  ok &= PerfettoRegisterNativeMethods(
+  res = PerfettoRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME(
           "dev/perfetto/sdk/PerfettoTrackEventExtra$StateTrack"),
       gStateTrackMethods, NELEM(gStateTrackMethods));
+  LOG_ERROR_IF(!res, "Unable to register state track native methods.");
+  ok &= res;
 
-  ok &= PerfettoRegisterNativeMethods(
+  res = PerfettoRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME(
           "dev/perfetto/sdk/PerfettoTrackEventExtra$Counter"),
       gCounterMethods, NELEM(gCounterMethods));
+  LOG_ERROR_IF(!res, "Unable to register counter native methods.");
+  ok &= res;
 
-  ok &= PerfettoRegisterNativeMethods(
+  res = PerfettoRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME(
           "dev/perfetto/sdk/PerfettoTrackEventExtra$CorrelationId"),
       gCorrelationIdMethods, NELEM(gCorrelationIdMethods));
+  LOG_ERROR_IF(!res, "Unable to register correlation id native methods.");
+  ok &= res;
 
   return ok ? 0 : -1;
 }

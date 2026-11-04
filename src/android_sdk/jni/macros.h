@@ -73,6 +73,12 @@ static_assert(IsValidJavaPackage(TO_STRING(PERFETTO_JNI_JARJAR_PREFIX)));
 #define TO_MAYBE_JAR_JAR_CLASS_NAME(className) className
 #endif
 
+#ifndef LOG_ERROR_IF
+#define LOG_ERROR_IF(cond, fmt) \
+  if (cond)                     \
+    __android_log_print(ANDROID_LOG_ERROR, "PerfettoJNI", fmt);
+#endif
+
 // Registers |methods| on |class_name| without ever aborting the process.
 //
 // Unlike jniRegisterNativeMethods() (which calls __android_log_assert on any

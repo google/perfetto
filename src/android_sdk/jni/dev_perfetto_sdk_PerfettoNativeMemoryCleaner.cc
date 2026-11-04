@@ -46,6 +46,8 @@ int register_dev_perfetto_sdk_PerfettoNativeMemoryCleaner(JNIEnv* env) {
       TO_MAYBE_JAR_JAR_CLASS_NAME(
           "dev/perfetto/sdk/PerfettoNativeMemoryCleaner"),
       gNativeMemoryCleanerMethods, NELEM(gNativeMemoryCleanerMethods));
+  LOG_ERROR_IF(
+      !ok, "Unable to register PerfettoNativeMemoryCleaner native methods.");
   return ok ? 0 : -1;
 }
 
