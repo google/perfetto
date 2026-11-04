@@ -1066,6 +1066,32 @@ def Main():
   for old_dir in CLEANUP_OLD_DIRS:
     RmtreeIfExists(os.path.join(ROOT_DIR, old_dir))
 
+  cur_python_interpreter = sys.executable
+
+  def IsTestDataSynced():
+    return 0 == subprocess.call([
+        cur_python_interpreter, TEST_DATA_SCRIPT, 'status', '--quiet',
+        '--ignore-new'
+    ])
+
+  def DownloadTestData():
+    cmd = [cur_python_interpreter, TEST_DATA_SCRIPT, 'download', '--overwrite']
+    if not sys.stdout.isatty():
+      cmd += ['--verbose']  # For CI bots
+    subprocess.check_call(cmd)
+
+  # The python venv and the test data don't depend on any of the deps below and
+  # their install time is dominated by network latency, so install them in the
+  # background. They are waited for at the end of Main().
+  background = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+  background_tasks = []
+  if not args.check_only:
+    if not args.no_dev_tools and not CheckPythonVenv():
+      background_tasks.append(
+          background.submit(InstallPythonVenv, public_pypi=args.public_pypi))
+    if not IsTestDataSynced():
+      background_tasks.append(background.submit(DownloadTestData))
+
   def MatchesFilters(dep):
     target_arch = args.build_arch
     matches_os = dep.target_os == 'all' or target_os == dep.target_os
@@ -1185,13 +1211,8 @@ def Main():
     else:
       InstallNodeModules(force_clean=nodejs_updated, public_npm=args.public_npm)
 
-  if not args.no_dev_tools:
-    # Check the python venv
-    venv_needs_update = not CheckPythonVenv()
-    if args.check_only:
-      deps_updated |= venv_needs_update
-    elif venv_needs_update:
-      InstallPythonVenv(public_pypi=args.public_pypi)
+  if not args.no_dev_tools and args.check_only:
+    deps_updated |= not CheckPythonVenv()
 
   if args.rust:
     if args.check_only:
@@ -1210,12 +1231,8 @@ def Main():
         tools_hook_path = os.path.join(ROOT_DIR, 'tools', 'run_presubmit')
         os.symlink(tools_hook_path, git_hook_path)
 
-  cur_python_interpreter = sys.executable
-  test_data_synced = 0 == subprocess.call([
-      cur_python_interpreter, TEST_DATA_SCRIPT, 'status', '--quiet',
-      '--ignore-new'
-  ])
   if args.check_only:
+    test_data_synced = IsTestDataSynced()
     if not deps_updated and test_data_synced:
       with open(args.check_only, 'w') as f:
         f.write('OK')  # The content is irrelevant, just keep GN happy.
@@ -1228,11 +1245,12 @@ def Main():
       print('//test/data/ is out of sync. `tools/test_data status` for details')
     return 1
 
-  if not test_data_synced:
-    cmd = [cur_python_interpreter, TEST_DATA_SCRIPT, 'download', '--overwrite']
-    if not sys.stdout.isatty():
-      cmd += ['--verbose']  # For CI bots
-    subprocess.check_call(cmd)
+  # Wait for the venv and test data installs started at the beginning.
+  # result() re-raises any failure (including the SystemExit raised by
+  # InstallPythonVenv() on failure).
+  for task in background_tasks:
+    task.result()
+  background.shutdown()
 
   if deps_updated:
     # Stale binary files may be compiled against old sysroot headers that aren't
