@@ -630,6 +630,20 @@ class TestApi(unittest.TestCase):
                   ['metric_one', 'metric_two'])
     tp.close()
 
+  def test_metadata_without_loaded_trace(self):
+    # Remote processors do not resolve a local trace URI.
+    with TraceProcessor(remote='127.0.0.1:1') as first:
+      with TraceProcessor(addr='127.0.0.1:1') as second:
+        self.assertEqual(first.metadata, {})
+        self.assertEqual(second.metadata, {})
+        first.metadata['source'] = 'first'
+        self.assertEqual(second.metadata, {})
+
+  def test_metadata_without_loaded_local_trace(self):
+    config = TraceProcessorConfig(bin_path=os.environ["SHELL_PATH"])
+    with TraceProcessor(config=config) as tp:
+      self.assertEqual(tp.metadata, {})
+
   def test_metadata_from_path(self):
     # When loading a trace directly from a path, metadata should be empty
     with create_tp(trace=example_android_trace_path()) as tp:
