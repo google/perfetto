@@ -434,11 +434,11 @@ class Evaluator {
   // Sets `out` present where `a` and, if given, `b` are, and for a division
   // where `b` is not zero. Leaves `out` without validity if it would hold
   // every row.
-  void Validity(const Register& a,
-                const Register* b,
-                bool division,
-                bool doubles,
-                Register& out) const {
+  PERFETTO_NO_INLINE void Validity(const Register& a,
+                                   const Register* b,
+                                   bool division,
+                                   bool doubles,
+                                   Register& out) const {
     if (!division && !a.validity && !(b && b->validity)) {
       return;
     }
@@ -481,9 +481,9 @@ class Evaluator {
     }
   }
 
-  void LoadColumn(const ColumnView& column,
-                  const ColumnBuffer& buffer,
-                  Register& out) {
+  PERFETTO_NO_INLINE void LoadColumn(const ColumnView& column,
+                                     const ColumnBuffer& buffer,
+                                     Register& out) {
     PERFETTO_CHECK(column.kind() != ColumnView::Kind::kVariant);
     StorageType type = column.type();
     if (column.kind() == ColumnView::Kind::kFlat &&
@@ -512,9 +512,9 @@ class Evaluator {
   }
 
   // False if an integer result did not fit at a row the batch keeps.
-  bool Arithmetic(const ExprStep& step,
-                  const Selection& selection,
-                  Register& out) {
+  PERFETTO_NO_INLINE bool Arithmetic(const ExprStep& step,
+                                     const Selection& selection,
+                                     Register& out) {
     const Register& a = regs_[step.a];
     const Register& b = regs_[step.b];
     bool division = step.op == Op::kDiv || step.op == Op::kMod;
@@ -535,10 +535,10 @@ class Evaluator {
   }
 
   // Equal strings are one string in the pool, so only an ordering reads them.
-  void CompareStrings(Op op,
-                      const Register& a,
-                      const Register& b,
-                      int64_t* o) const {
+  PERFETTO_NO_INLINE void CompareStrings(Op op,
+                                         const Register& a,
+                                         const Register& b,
+                                         int64_t* o) const {
     static_assert(sizeof(StringPool::Id) == sizeof(uint32_t));
     const StringPool::Id* x = a.Values<StringPool::Id>();
     const StringPool::Id* y = b.Values<StringPool::Id>();
@@ -560,7 +560,7 @@ class Evaluator {
 
   // Each string is matched once, as matching costs more than finding the
   // earlier result, unless a batch shows that strings do not tend to repeat.
-  void Glob(const ExprStep& step, Register& out) {
+  PERFETTO_NO_INLINE void Glob(const ExprStep& step, Register& out) {
     const Register& a = regs_[step.a];
     int64_t* o = Alloc<int64_t>(out);
     Validity(a, nullptr, false, false, out);
@@ -591,7 +591,7 @@ class Evaluator {
 
   // Everything is computed as Eq, Lt or Le: a > b is b < a, a >= b is b <= a
   // and a != b is the opposite of a == b, which holds for doubles too.
-  void Compare(const ExprStep& step, Register& out) {
+  PERFETTO_NO_INLINE void Compare(const ExprStep& step, Register& out) {
     bool swap = step.op == Op::kGt || step.op == Op::kGe;
     const Register& a = regs_[swap ? step.b : step.a];
     const Register& b = regs_[swap ? step.a : step.b];
@@ -618,11 +618,11 @@ class Evaluator {
   }
 
   // Sets the values of `out` from `x` where `take_x` is 1, else from `y`.
-  void BlendValues(ExprType type,
-                   const Register& x,
-                   const Register& y,
-                   const int64_t* take_x,
-                   Register& out) {
+  PERFETTO_NO_INLINE void BlendValues(ExprType type,
+                                      const Register& x,
+                                      const Register& y,
+                                      const int64_t* take_x,
+                                      Register& out) {
     switch (type) {
       case ExprType::kInt64:
         return Blend(x.Values<int64_t>(), y.Values<int64_t>(), take_x,
@@ -641,7 +641,7 @@ class Evaluator {
     PERFETTO_FATAL("For GCC");
   }
 
-  void Coalesce(const ExprStep& step, Register& out) {
+  PERFETTO_NO_INLINE void Coalesce(const ExprStep& step, Register& out) {
     const Register& a = regs_[step.a];
     const Register& b = regs_[step.b];
     if (!a.validity) {
@@ -660,7 +660,7 @@ class Evaluator {
     }
   }
 
-  void Iif(const ExprStep& step, Register& out) {
+  PERFETTO_NO_INLINE void Iif(const ExprStep& step, Register& out) {
     const Register& a = regs_[step.a];
     const Register& x = regs_[step.b];
     const Register& y = regs_[step.c];
@@ -691,6 +691,30 @@ class Evaluator {
       uint64_t y_valid =
           y.validity ? y.validity->ReadBits(y.start + r, n) : all;
       v->OrBits(r, (from_x & x_valid) | (~from_x & all & y_valid), n);
+    }
+  }
+
+  PERFETTO_NO_INLINE void NullTest(const ExprStep& step, Register& out) {
+    const Register& a = regs_[step.a];
+    int64_t* o = Alloc<int64_t>(out);
+    if (a.validity) {
+      BitsToBools(*a.validity, a.start, o, rows_);
+    } else {
+      for (uint32_t r = 0; r < rows_; ++r) {
+        o[r] = 1;
+      }
+    }
+    if (step.op == Op::kIsNull) {
+      FlipBools(o, rows_);
+    }
+  }
+
+  PERFETTO_NO_INLINE void ConstantWherePresent(const ExprStep& step,
+                                               Register& out) {
+    int64_t* o = Alloc<int64_t>(out);
+    Validity(regs_[step.a], nullptr, false, false, out);
+    for (uint32_t r = 0; r < rows_; ++r) {
+      o[r] = step.int_value;
     }
   }
 
@@ -735,29 +759,12 @@ class Evaluator {
         Iif(step, out);
         return true;
       case Op::kIsNull:
-      case Op::kIsNotNull: {
-        const Register& a = regs_[step.a];
-        int64_t* o = Alloc<int64_t>(out);
-        if (a.validity) {
-          BitsToBools(*a.validity, a.start, o, rows_);
-        } else {
-          for (uint32_t r = 0; r < rows_; ++r) {
-            o[r] = 1;
-          }
-        }
-        if (step.op == Op::kIsNull) {
-          FlipBools(o, rows_);
-        }
+      case Op::kIsNotNull:
+        NullTest(step, out);
         return true;
-      }
-      case Op::kConstantWherePresent: {
-        int64_t* o = Alloc<int64_t>(out);
-        Validity(regs_[step.a], nullptr, false, false, out);
-        for (uint32_t r = 0; r < rows_; ++r) {
-          o[r] = step.int_value;
-        }
+      case Op::kConstantWherePresent:
+        ConstantWherePresent(step, out);
         return true;
-      }
     }
     PERFETTO_FATAL("For GCC");
   }
