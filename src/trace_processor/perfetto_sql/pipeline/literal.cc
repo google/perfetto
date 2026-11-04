@@ -101,6 +101,12 @@ base::StatusOr<Literal> CompileLiteral(Compiler* c, uint32_t expr) {
   switch (static_cast<int>(literal.literal_type)) {
     case SYNTAQLITE_LITERAL_TYPE_INTEGER: {
       std::optional<int64_t> value = base::StringToInt64(text);
+      if (!value && base::StartsWith(base::ToLower(text), "0x")) {
+        std::optional<uint64_t> bits = base::StringToUInt64(text.substr(2), 16);
+        if (bits) {
+          value = static_cast<int64_t>(*bits);
+        }
+      }
       if (!value) {
         return c->Unsupported(expr, "a number which does not fit an integer");
       }
