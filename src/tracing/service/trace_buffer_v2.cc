@@ -596,7 +596,7 @@ std::unique_ptr<TraceBufferV2> TraceBufferV2::Create(size_t size_in_bytes,
   // efficiency.
   static_assert(sizeof(TBChunk) == 16);
   static_assert(alignof(TBChunk) == 4);
-  // CloneReadOnly() and MaybeCompact() copy chunks as raw bytes.
+  // CloneReadOnly() and CompactChunks() copy chunks as raw bytes.
   static_assert(std::is_trivially_copyable_v<TBChunk>);
   std::unique_ptr<TraceBufferV2> trace_buffer(new TraceBufferV2(pol));
   if (!trace_buffer->Initialize(size_in_bytes))
@@ -711,11 +711,19 @@ bool TraceBufferV2::ReadNextTracePacket(
 }
 
 void TraceBufferV2::MaybeCompact() {
-  TRACE_BUFFER_V2_DLOG("MaybeCompact(), wr_=%zu", wr_);
-  chunk_seq_reader_.reset();
-  if (overwrite_policy_ != kOverwrite || read_only_) {
+  // Standalone kDiscard buffers must not regain space after reads.
+  if (overwrite_policy_ != kOverwrite) {
+    chunk_seq_reader_.reset();
     return;
   }
+  CompactChunks();
+}
+
+void TraceBufferV2::CompactChunks() {
+  TRACE_BUFFER_V2_DLOG("CompactChunks(), wr_=%zu", wr_);
+  chunk_seq_reader_.reset();
+  if (read_only_)
+    return;
 
   // The read cycle is complete, so usually only a few chunks remain.
   size_t num_chunks = 0;
@@ -872,8 +880,10 @@ void TraceBufferV2::CopyChunkUntrusted(
 
   PERFETTO_CHECK(!read_only_);
 
-  if (PERFETTO_UNLIKELY(discard_writes_))
-    return DiscardWrite();
+  if (PERFETTO_UNLIKELY(discard_writes_)) {
+    stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
+    return;
+  }
 
   // Only ABI flags may come from the producer. In particular, loss markers
   // and the incomplete-chunk flag are set by the service.
@@ -976,8 +986,9 @@ void TraceBufferV2::CopyChunkUntrusted(
                            chunk_id, previously_consumed_payload);
     } else if (cmp <= 0) {
       // Older or same chunk with no new data to recover.
+      // A scrape can copy a completed chunk before its commit arrives.
+      // TBv3 bundling or a standalone read can consume that copy first.
       stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
-      PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
       return;
     }
   }
@@ -1057,8 +1068,8 @@ void TraceBufferV2::CopyChunkUntrusted(
 
     // Only a ring buffer laps, so only there can the stale copy be overwritten.
     // On kDiscard, routing the commit through the write path below could also
-    // hit the end-of-buffer DiscardWrite(), dropping the very fragments we are
-    // recovering and sealing the buffer for good.
+    // hit the end of the buffer, dropping the very fragments we are recovering
+    // and sealing the buffer for good.
     const bool buffer_can_lap = overwrite_policy_ == kOverwrite;
 
     const bool should_relocate_chunk =
@@ -1095,7 +1106,7 @@ void TraceBufferV2::CopyChunkUntrusted(
   }  // if (recommit_chunk)
 
   if (!MakeSpaceToWrite(tbchunk_outer_size))
-    return DiscardWrite();
+    return;
 
   // |insert_pos| is invalid if any chunk was removed from this sequence since
   // it was computed: either by MakeSpaceToWrite() above, or by the
@@ -1172,7 +1183,7 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
   };
 
   if (PERFETTO_UNLIKELY(discard_writes_)) {
-    DiscardWrite();
+    stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
     return reject();
   }
 
@@ -1229,10 +1240,8 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
     return reject_abi_violation();
   }
 
-  if (!MakeSpaceToWrite(tbchunk_outer_size)) {
-    DiscardWrite();
+  if (!MakeSpaceToWrite(tbchunk_outer_size))
     return reject();
-  }
 
   TBChunk* chunk = CreateTBChunk(wr_, total_payload);
   chunk->pri_wri_id = seq_key;
@@ -1306,6 +1315,12 @@ TraceBufferV2::TBChunk* TraceBufferV2::CreateTBChunk(size_t off, size_t size) {
   return new (chunk) TBChunk(off, size);
 }
 
+bool TraceBufferV2::WriteWouldWrapOrOverwrite(size_t payload_size) const {
+  if (TBChunk::OuterSize(payload_size) > size_to_end())
+    return true;
+  return overwrite_policy_ == kOverwrite && wr_ < used_size_;
+}
+
 bool TraceBufferV2::MakeSpaceToWrite(size_t size) {
   PERFETTO_DCHECK(size <= size_);
 
@@ -1313,8 +1328,11 @@ bool TraceBufferV2::MakeSpaceToWrite(size_t size) {
   // In discard mode, reaching the end stops all further writes.
   const size_t tail_size = size_to_end();
   if (PERFETTO_UNLIKELY(size > tail_size)) {
-    if (overwrite_policy_ == kDiscard)
+    if (overwrite_policy_ == kDiscard) {
+      StopAcceptingWrites();
+      stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
       return false;
+    }
     // A previous write can land exactly at the end, leaving no tail to clear.
     if (tail_size > 0)
       DeleteNextChunksFor(tail_size);
@@ -1354,7 +1372,7 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
   // This loop erases all the existing chunks in the clear range.
   for (size_t off = wr_, next_off = 0; off < clear_end; off = next_off) {
     if (PERFETTO_UNLIKELY(off >= used_size_)) {
-      // This happens on the first round of writing, or after MaybeCompact()
+      // This happens on the first round of writing, or after CompactChunks()
       // shrinks |used_size_|, when there are no chunks in this range.
       // There is nothing to delete here, easy.
       break;
@@ -1488,12 +1506,13 @@ bool TraceBufferV2::TryPatchChunkContents(ProducerID producer_id,
   return true;
 }
 
-void TraceBufferV2::DiscardWrite() {
+void TraceBufferV2::StopAcceptingWrites() {
   PERFETTO_DCHECK(overwrite_policy_ == kDiscard);
   discard_writes_ = true;
-  stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
-  TRACE_BUFFER_V2_DLOG("  discarding write");
+  TRACE_BUFFER_V2_DLOG("  stopping writes");
 }
+
+void TraceBufferV2::OnWriteCheckpoint() {}
 
 // We have to defer the deletion of SequenceState outside of
 // ReadNextTracePacket() calls, as that caches SequenceState* pointers in

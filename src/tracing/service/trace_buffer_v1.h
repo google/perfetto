@@ -222,6 +222,9 @@ class TraceBufferV1 : public TraceBuffer {
 
   void RecordAbiViolation() override;
 
+  // No-op because TraceBufferV1 does no work at the end of a write cycle.
+  void OnWriteCheckpoint() override;
+
   // To read the contents of the buffer the caller needs to:
   //   BeginRead()
   //   while (ReadNextTracePacket(packet_fragments)) { ... }
