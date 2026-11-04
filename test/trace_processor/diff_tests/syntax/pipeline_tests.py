@@ -1824,6 +1824,58 @@ class PerfettoPipeline(TestSuite):
         """,
         out=ExpectedError('values of one type to compare'))
 
+  def test_computed_glob_and_is_null_match_sqlite(self):
+    query = """
+        id, s GLOB 'f*' AS a, s GLOB '*o' AS b, s GLOB '[a-f]?r' AS c,
+        s GLOB 'absent' AS d, s GLOB '*' AS e, 'foo' GLOB 'f*' AS f,
+        s IS NULL AS g, s IS NOT NULL AS h, s NOTNULL AS i, s ISNULL AS j,
+        n IS NULL AS k, n + 1 IS NULL AS l, NULL IS NULL AS m, n / 0 IS NULL AS o,
+        n > 5 IS NOT NULL AS p, d IS NULL AS q, (s GLOB 'f*') + 1 AS r
+        """
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query=f"""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 1 AS id, 'foo' AS s, 5 AS n, 2.5 AS d
+        UNION ALL SELECT 2, NULL, NULL, NULL
+        UNION ALL SELECT 3, 'bar', 7, 0.5
+        UNION ALL SELECT 4, '', 0, 0.0;
+
+        CREATE PERFETTO TABLE plain AS SELECT {query} FROM t;
+        CREATE PERFETTO TABLE piped AS FROM t |> SELECT {query};
+
+        SELECT
+          (SELECT count(*) FROM piped) AS n,
+          (SELECT count(*) FROM (SELECT * FROM piped EXCEPT SELECT * FROM plain))
+          + (SELECT count(*) FROM (SELECT * FROM plain EXCEPT SELECT * FROM piped))
+            AS mismatches;
+        """,
+        out=Csv("""
+        "n","mismatches"
+        4,0
+        """))
+
+  def test_computed_glob_refuses_a_number(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n;
+        FROM t |> EXTEND n GLOB 'x' AS a;
+        """,
+        out=ExpectedError('expected a string to match with GLOB'))
+
+  def test_computed_glob_needs_a_string_pattern(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 'a' AS s;
+        FROM t |> EXTEND s GLOB 5 AS a;
+        """,
+        out=ExpectedError('a string as the pattern of GLOB'))
+
   # A computed column's type is only known once the source's is, so later
   # stages must see it then.
   def test_computed_columns_feed_later_stages(self):

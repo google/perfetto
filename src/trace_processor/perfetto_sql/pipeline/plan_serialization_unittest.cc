@@ -112,6 +112,8 @@ const char* const kPipelines[] = {
     "FROM df |> ORDER BY self |> LIMIT 3 OFFSET 1 |> SELECT id",
     "FROM df |> EXTEND 'a''b' AS s, 2.5 AS d, -1 AS n |> SELECT s, d, n",
     "FROM df |> EXTEND self > 5 AS a, 2.5 < id AS b, self != id AS c",
+    "FROM df |> EXTEND self IS NULL AS a, id NOTNULL AS b",
+    "FROM (SELECT 'x' AS s) |> EXTEND s GLOB 'x*' AS a",
     "FROM df |> WHERE self > 0 AND id < 10",
     "FROM (SELECT 'x' AS s, 1 AS id) |> WHERE s != 'a''b' AND s IN ('x', 'y')",
     "FROM df |> WHERE id IN (1, 2.5) AND id NOTNULL",
