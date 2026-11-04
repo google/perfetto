@@ -195,6 +195,8 @@ bool IntArithmetic(Op op,
     case Op::kGlob:
     case Op::kIsNull:
     case Op::kIsNotNull:
+    case Op::kCoalesce:
+    case Op::kIif:
       break;
   }
   PERFETTO_FATAL("Not arithmetic");
@@ -245,6 +247,8 @@ void DoubleArithmetic(Op op,
     case Op::kGlob:
     case Op::kIsNull:
     case Op::kIsNotNull:
+    case Op::kCoalesce:
+    case Op::kIif:
       break;
   }
   PERFETTO_FATAL("Not double arithmetic");
@@ -285,6 +289,35 @@ PERFETTO_NO_INLINE void BitsToBools(const BitVector& bits,
     for (uint32_t i = 0; i < n; ++i) {
       o[r + i] = static_cast<int64_t>((word >> i) & 1);
     }
+  }
+}
+
+// Sets each row of `o` from `x` where `take_x` is 1, else from `y`.
+template <typename T>
+PERFETTO_NO_INLINE void Blend(const T* x,
+                              const T* y,
+                              const int64_t* take_x,
+                              T* o,
+                              uint32_t rows) {
+  for (uint32_t r = 0; r < rows; ++r) {
+    T a = x[r];
+    T b = y[r];
+    o[r] = take_x[r] ? a : b;
+  }
+}
+
+PERFETTO_NO_INLINE void NonZero(const int64_t* x, int64_t* o, uint32_t rows) {
+  for (uint32_t r = 0; r < rows; ++r) {
+    o[r] = x[r] != 0;
+  }
+}
+
+// Clears each 1 of `o` where `x` is zero.
+PERFETTO_NO_INLINE void AndNonZero(const int64_t* x,
+                                   int64_t* o,
+                                   uint32_t rows) {
+  for (uint32_t r = 0; r < rows; ++r) {
+    o[r] &= x[r] != 0;
   }
 }
 
@@ -584,6 +617,83 @@ class Evaluator {
     }
   }
 
+  // Sets the values of `out` from `x` where `take_x` is 1, else from `y`.
+  PERFETTO_NO_INLINE void BlendValues(ExprType type,
+                                      const Register& x,
+                                      const Register& y,
+                                      const int64_t* take_x,
+                                      Register& out) {
+    switch (type) {
+      case ExprType::kInt64:
+        return Blend(x.Values<int64_t>(), y.Values<int64_t>(), take_x,
+                     Alloc<int64_t>(out), rows_);
+      case ExprType::kDouble:
+        return Blend(x.Values<double>(), y.Values<double>(), take_x,
+                     Alloc<double>(out), rows_);
+      case ExprType::kString:
+        static_assert(sizeof(StringPool::Id) == sizeof(uint32_t));
+        return Blend(
+            reinterpret_cast<const uint32_t*>(x.Values<StringPool::Id>()),
+            reinterpret_cast<const uint32_t*>(y.Values<StringPool::Id>()),
+            take_x, reinterpret_cast<uint32_t*>(Alloc<StringPool::Id>(out)),
+            rows_);
+    }
+    PERFETTO_FATAL("For GCC");
+  }
+
+  PERFETTO_NO_INLINE void Coalesce(const ExprStep& step, Register& out) {
+    const Register& a = regs_[step.a];
+    const Register& b = regs_[step.b];
+    if (!a.validity) {
+      out = a;
+      return;
+    }
+    Register take_a;
+    int64_t* take = Alloc<int64_t>(take_a);
+    BitsToBools(*a.validity, a.start, take, rows_);
+    BlendValues(step.type, a, b, take, out);
+    if (b.validity) {
+      BitVector* v = AllocValidity(out);
+      v->FillBits(0, rows_, false);
+      v->OrBitsFrom(0, *a.validity, a.start, rows_);
+      v->OrBitsFrom(0, *b.validity, b.start, rows_);
+    }
+  }
+
+  PERFETTO_NO_INLINE void Iif(const ExprStep& step, Register& out) {
+    const Register& a = regs_[step.a];
+    const Register& x = regs_[step.b];
+    const Register& y = regs_[step.c];
+    Register take_x;
+    int64_t* take = Alloc<int64_t>(take_x);
+    const int64_t* condition = a.Values<int64_t>();
+    if (a.validity) {
+      BitsToBools(*a.validity, a.start, take, rows_);
+      AndNonZero(condition, take, rows_);
+    } else {
+      NonZero(condition, take, rows_);
+    }
+    BlendValues(step.type, x, y, take, out);
+    if (!x.validity && !y.validity) {
+      return;
+    }
+    BitVector* v = AllocValidity(out);
+    v->FillBits(0, rows_, false);
+    for (uint32_t r = 0; r < rows_; r += 64) {
+      uint32_t n = std::min(64u, rows_ - r);
+      uint64_t all = n == 64 ? ~uint64_t{0} : (uint64_t{1} << n) - 1;
+      uint64_t from_x = 0;
+      for (uint32_t i = 0; i < n; ++i) {
+        from_x |= static_cast<uint64_t>(take[r + i]) << i;
+      }
+      uint64_t x_valid =
+          x.validity ? x.validity->ReadBits(x.start + r, n) : all;
+      uint64_t y_valid =
+          y.validity ? y.validity->ReadBits(y.start + r, n) : all;
+      v->OrBits(r, (from_x & x_valid) | (~from_x & all & y_valid), n);
+    }
+  }
+
   PERFETTO_NO_INLINE void NullTest(const ExprStep& step, Register& out) {
     const Register& a = regs_[step.a];
     int64_t* o = Alloc<int64_t>(out);
@@ -641,6 +751,12 @@ class Evaluator {
         return true;
       case Op::kGlob:
         Glob(step, out);
+        return true;
+      case Op::kCoalesce:
+        Coalesce(step, out);
+        return true;
+      case Op::kIif:
+        Iif(step, out);
         return true;
       case Op::kIsNull:
       case Op::kIsNotNull:
