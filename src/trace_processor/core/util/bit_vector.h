@@ -330,6 +330,26 @@ struct BitVector {
   }
 
   // ANDs `src` bits [from, from + count) into bits [at, at + count).
+  // Set bits [0, count) to, or AND them with, `src` bits from `from`, which
+  // must start a word. Faster than AndBitsFrom as whole words are read, but the
+  // bits of the last word from `count` on may change too.
+  void CopyWordsFrom(const BitVector& src, uint64_t from, uint64_t count) {
+    PERFETTO_DCHECK(from % 64 == 0 && count <= size_ &&
+                    from + count <= src.size_);
+    memcpy(words_.data(), src.words_.data() + from / 64,
+           ((count + 63) / 64) * sizeof(uint64_t));
+  }
+  void AndWordsFrom(const BitVector& src, uint64_t from, uint64_t count) {
+    PERFETTO_DCHECK(from % 64 == 0 && count <= size_ &&
+                    from + count <= src.size_);
+    uint64_t* words = words_.data();
+    const uint64_t* src_words = src.words_.data() + from / 64;
+    uint64_t n = (count + 63) / 64;
+    for (uint64_t i = 0; i < n; ++i) {
+      words[i] &= src_words[i];
+    }
+  }
+
   void AndBitsFrom(uint64_t at,
                    const BitVector& src,
                    uint64_t from,
