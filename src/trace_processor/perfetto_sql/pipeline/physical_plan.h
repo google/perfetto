@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -179,9 +178,8 @@ class Lowering {
   // What is known of the rows of the input just lowered.
   const OutputProperties& QueryRows() const { return *rows_; }
 
-  // Where an interval operator finds the input just lowered, whose rows meet
-  // its needs: Int64 `ts` and `dur`, grouped by `keys` with group numbers, and
-  // sorted by `ts` within each group.
+  // Where an interval operator finds the input just lowered (see
+  // IntervalLaneNeeds).
   core::exec::IntervalLaneSpec QueryIntervalLanes(
       ColumnId ts,
       ColumnId dur,
@@ -189,9 +187,6 @@ class Lowering {
 
   // The batch position of a column.
   uint32_t QueryPosition(ColumnId id) const;
-
-  // The type of a column, after any conversion added so far.
-  PlanType QueryType(ColumnId id) const;
 
   // ---------------------------------------------------------------------------
   // Accessors

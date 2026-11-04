@@ -29,7 +29,6 @@
 namespace perfetto::trace_processor::pipeline {
 
 class Compiler;
-struct BoundPlan;
 struct OutputProperties;
 class PlanCodec;
 
@@ -68,9 +67,7 @@ struct TypedExpr {
 
 // Builds the executor's program for `expr`, with columns at their positions in
 // `rows`, and the type it computes.
-base::StatusOr<TypedExpr> TypeExpr(const BoundPlan&,
-                                   const OutputProperties& rows,
-                                   const Expr&);
+base::StatusOr<TypedExpr> TypeExpr(const OutputProperties& rows, const Expr&);
 
 // Writes or reads `expr`.
 void SerializeExpr(PlanCodec&, Expr* expr);

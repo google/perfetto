@@ -234,11 +234,9 @@ core::StorageType StorageOf(Kind kind) {
 // before every column's type is known. An error is what was expected instead.
 class Typer {
  public:
-  explicit Typer(const LogicalPlan& plan) : plan_(plan) {}
-  Typer(const BoundPlan& bound,
-        const OutputProperties& rows,
-        ex::ExprProgram* program)
-      : plan_(bound.plan), rows_(&rows), program_(program) {}
+  explicit Typer(const LogicalPlan& plan) : plan_(&plan) {}
+  Typer(const OutputProperties& rows, ex::ExprProgram* program)
+      : rows_(&rows), program_(program) {}
 
   // The kind of the expression's result.
   base::StatusOr<Kind> Run(const Expr& e) {
@@ -279,7 +277,7 @@ class Typer {
     if (node.op == Op::kColumn) {
       ColumnId column = node.a;
       Kind kind =
-          KindOf(rows_ ? rows_->TypeOf(column) : plan_.columns()[column].type);
+          KindOf(rows_ ? rows_->TypeOf(column) : plan_->columns()[column].type);
       if (!rows_ || kind == Kind::kNull) {
         return kind;
       }
@@ -329,7 +327,7 @@ class Typer {
     return kind;
   }
 
-  const LogicalPlan& plan_;
+  const LogicalPlan* plan_ = nullptr;
   const OutputProperties* rows_ = nullptr;
   ex::ExprProgram* program_ = nullptr;
   // By node, its kind and the register holding it.
@@ -359,11 +357,10 @@ void MarkExprColumns(const Expr& e, std::vector<bool>* needed) {
   }
 }
 
-base::StatusOr<TypedExpr> TypeExpr(const BoundPlan& bound,
-                                   const OutputProperties& rows,
+base::StatusOr<TypedExpr> TypeExpr(const OutputProperties& rows,
                                    const Expr& e) {
   TypedExpr typed;
-  Typer typer(bound, rows, &typed.program);
+  Typer typer(rows, &typed.program);
   base::StatusOr<Kind> kind = typer.Run(e);
   if (!kind.ok()) {
     return base::ErrStatus("expected %s", kind.status().c_message());
