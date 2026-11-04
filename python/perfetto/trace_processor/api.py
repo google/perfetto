@@ -200,6 +200,7 @@ class TraceProcessor:
           "--allow-sql-file-access.")
 
     self.config = config
+    self._metadata: Dict[str, str] = {}
     self.platform_delegate = PLATFORM_DELEGATE()
     self.protos = ProtoFactory(self.platform_delegate)
     self.resolver_registry = config.resolver_registry or \
