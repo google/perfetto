@@ -339,7 +339,7 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_sequence_packet_loss,      kIndexed, kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
       "The number of groups of consecutive packets lost in each sequence for " \
       "this buffer"),                                                          \
-  F(traced_buf_incremental_sequences_dropped, kIndexed, kDataLoss, kAnalysis, Scope::kMachineAndTrace,  \
+  F(traced_buf_incremental_sequences_dropped, kIndexed, kInfo,     kAnalysis, Scope::kMachineAndTrace,  \
       "For a given buffer, indicates the number of sequences where all the "   \
       "packets on that sequence were dropped due to lack of a valid "          \
       "incremental state (i.e. interned data). This is usually a strong sign " \
