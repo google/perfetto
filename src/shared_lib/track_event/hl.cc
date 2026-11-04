@@ -16,8 +16,10 @@
 
 #include "perfetto/public/abi/track_event_hl_abi.h"
 
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "src/shared_lib/track_event/ds.h"
+#include "src/shared_lib/track_event/hl.h"
 #include "src/shared_lib/track_event/serialization.h"
 
 namespace perfetto::shlib {
@@ -47,7 +49,8 @@ protos::pbzero::TrackEvent::Type EventType(int32_t type) {
   return Type::TYPE_UNSPECIFIED;
 }
 
-// Appends the fields described by `fields` to `msg`.
+// Appends the fields described by `fields` to `msg`. If `incr` is nullptr,
+// interned fields are not supported.
 void AppendHlProtoFields(TrackEventIncrementalState* incr,
                          protozero::Message* msg,
                          PerfettoTeHlProtoField* const* fields) {
@@ -61,7 +64,8 @@ void AppendHlProtoFields(TrackEventIncrementalState* incr,
       case PERFETTO_TE_HL_PROTO_TYPE_CSTR_INTERNED: {
         auto field = reinterpret_cast<PerfettoTeHlProtoFieldCstrInterned*>(*p);
         PERFETTO_DCHECK(field->interned_type_id != 0);
-        if (field->interned_type_id) {
+        PERFETTO_DCHECK(incr);
+        if (field->interned_type_id && incr) {
           const char* str = field->str;
           size_t len = strlen(field->str);
           auto res = incr->iids.FindOrAssign(
@@ -119,6 +123,11 @@ void AppendHlProtoFields(TrackEventIncrementalState* incr,
   }
 }
 
+// Writes the fields of `event`. `raw_fields` are appended verbatim.
+//
+// If `incr` is nullptr, only writes the fields that don't depend on the
+// sequence: no category (`cat` is ignored) and no interning (interned proto
+// fields are not supported).
 void WriteTrackEvent(TrackEventIncrementalState* incr,
                      protos::pbzero::TrackEvent* event,
                      PerfettoTeCategoryImpl* cat,
@@ -127,12 +136,14 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
                      const PerfettoTeHlExtra* const* extra_data,
                      std::optional<uint64_t> track_uuid,
                      const PerfettoTeCategoryDescriptor* dynamic_cat,
-                     bool use_interning) {
+                     bool use_interning,
+                     protozero::ConstBytes raw_fields) {
   if (type != protos::pbzero::TrackEvent::TYPE_UNSPECIFIED) {
     event->set_type(type);
   }
 
-  if (!dynamic_cat && type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
+  if (incr && !dynamic_cat &&
+      type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
       type != protos::pbzero::TrackEvent::TYPE_COUNTER) {
     uint64_t iid = cat->cat_iid;
     auto res = incr->iids.FindOrAssign(
@@ -236,7 +247,9 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
         arg_name = arg.name;
       }
 
-      if (arg_name != nullptr) {
+      if (arg_name != nullptr && !incr) {
+        dbg->set_name(arg_name);
+      } else if (arg_name != nullptr) {
         const void* str = arg_name;
         size_t len = strlen(arg_name);
         auto res = incr->iids.FindOrAssign(
@@ -291,6 +304,10 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
               .fields;
       AppendHlProtoFields(incr, event, fields);
     }
+  }
+
+  if (raw_fields.size) {
+    event->AppendRawProtoBytes(raw_fields.data, raw_fields.size);
   }
 }
 
@@ -411,7 +428,8 @@ void InstanceOp(internal::DataSourceType* ds,
                 struct PerfettoTeCategoryImpl* cat,
                 protos::pbzero::TrackEvent::Type type,
                 const char* name,
-                struct PerfettoTeHlExtra* const* extra_data) {
+                struct PerfettoTeHlExtra* const* extra_data,
+                protozero::ConstBytes raw_fields) {
   if (!ii->instance) {
     return;
   }
@@ -562,7 +580,7 @@ void InstanceOp(internal::DataSourceType* ds,
         protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
     auto* track_event = packet->set_track_event();
     WriteTrackEvent(incr_state, track_event, cat, type, name, extra_data,
-                    track_uuid, dynamic_cat, use_interning);
+                    track_uuid, dynamic_cat, use_interning, raw_fields);
     track_event->Finalize();
 
     if (!incr_state->serialized_interned_data.empty()) {
@@ -579,13 +597,18 @@ void InstanceOp(internal::DataSourceType* ds,
   }
 }
 
+}  // namespace
+
 void TeHlEmit(struct PerfettoTeCategoryImpl* cat,
               int32_t type,
               const char* name,
-              struct PerfettoTeHlExtra* const* extra_data) {
+              struct PerfettoTeHlExtra* const* extra_data,
+              uint32_t instance_mask,
+              protozero::ConstBytes raw_fields) {
   uint32_t cached_instances =
       perfetto::shlib::TracePointTraits::GetActiveInstances({cat})->load(
-          std::memory_order_relaxed);
+          std::memory_order_relaxed) &
+      instance_mask;
   if (!cached_instances) {
     return;
   }
@@ -610,17 +633,29 @@ void TeHlEmit(struct PerfettoTeCategoryImpl* cat,
            &ii, tls_state, {cat})) {
     perfetto::shlib::InstanceOp(ds, &ii, tls_state, cat,
                                 perfetto::shlib::EventType(type), name,
-                                extra_data);
+                                extra_data, raw_fields);
   }
   ds->TraceEpilogue(tls_state);
 }
 
-}  // namespace
+std::vector<uint8_t> SerializeTeHlEventFields(
+    const char* name,
+    struct PerfettoTeHlExtra* const* extra_data) {
+  protozero::HeapBuffered<protos::pbzero::TrackEvent> event;
+  WriteTrackEvent(/*incr=*/nullptr, event.get(), /*cat=*/nullptr,
+                  protos::pbzero::TrackEvent::TYPE_UNSPECIFIED, name,
+                  extra_data, /*track_uuid=*/std::nullopt,
+                  /*dynamic_cat=*/nullptr, /*use_interning=*/false,
+                  /*raw_fields=*/{});
+  return event.SerializeAsArray();
+}
+
 }  // namespace perfetto::shlib
 
 void PerfettoTeHlEmitImpl(struct PerfettoTeCategoryImpl* cat,
                           int32_t type,
                           const char* name,
                           struct PerfettoTeHlExtra* const* extra_data) {
-  perfetto::shlib::TeHlEmit(cat, type, name, extra_data);
+  perfetto::shlib::TeHlEmit(cat, type, name, extra_data, ~0u,
+                            /*raw_fields=*/{});
 }

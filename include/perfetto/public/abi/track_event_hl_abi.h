@@ -427,6 +427,22 @@ PERFETTO_SDK_EXPORT void PerfettoTeHlEmitImpl(
     const char* name,
     struct PerfettoTeHlExtra* const* extra_data);
 
+// Sets the state of the persistent state track `track` to `value` (a non NULL
+// string), starting now or at the PERFETTO_TE_HL_EXTRA_TYPE_TIMESTAMP in
+// `extra_data`. This works even if the category of `track` is disabled.
+//
+// On all the data source instances where the category of `track` is enabled,
+// emits the previous state (with the timestamp it started at) and the new
+// state.
+//
+// The value, the debug args and the (non interned) proto fields in
+// `extra_data` are copied and persisted with the state. The other extras are
+// only used for the new state event.
+PERFETTO_SDK_EXPORT void PerfettoTePersistentStateTrackImplSet(
+    struct PerfettoTePersistentStateTrackImpl* track,
+    const char* value,
+    struct PerfettoTeHlExtra* const* extra_data);
+
 #ifdef __cplusplus
 }
 #endif

@@ -25,6 +25,11 @@ Unreleased:
   SDK:
     * Android Java SDK: events started while another event is being built on
       the same thread are no longer dropped.
+    * C SDK: added persistent state tracks
+      (`PerfettoTePersistentStateTrack`, `PERFETTO_TE_PERSISTENT_STATE()`),
+      whose current state (with its args) is remembered by Perfetto and
+      emitted when tracing starts, stops or is cloned, so that it's visible
+      for the whole trace even if it doesn't change.
   Misc:
     * Added s390x cross-compilation support.
 
