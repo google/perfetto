@@ -1677,6 +1677,111 @@ class PerfettoPipeline(TestSuite):
         74228,0,0
         """))
 
+  # A condition must match what SQLite computes for the same SQL, nulls included.
+  def test_computed_conditions_match_sqlite(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 1 AS id, 5 AS n, 2.5 AS d, 'foo' AS s
+        UNION ALL SELECT 2, NULL, 3.5, NULL
+        UNION ALL SELECT 3, 7, NULL, 'bar';
+
+        CREATE PERFETTO TABLE piped AS
+        FROM t
+        |> EXTEND n > 5 AS a, n = 5.5 AS b, d <= 2.5 AS c, s = 'foo' AS e,
+                  s = 'absent' AS f, s != 'absent' AS g, s > 'c' AS h,
+                  s GLOB 'f*' AS i, s IS NULL AS j, n IS NOT NULL AS k,
+                  n + 1 > 6 AS l, (n > 5) + 1 AS m
+        |> SELECT id, a, b, c, e, f, g, h, i, j, k, l, m;
+
+        CREATE PERFETTO TABLE plain AS
+        SELECT id, n > 5 AS a, n = 5.5 AS b, d <= 2.5 AS c, s = 'foo' AS e,
+          s = 'absent' AS f, s != 'absent' AS g, s > 'c' AS h,
+          s GLOB 'f*' AS i, s IS NULL AS j, n IS NOT NULL AS k,
+          n + 1 > 6 AS l, (n > 5) + 1 AS m
+        FROM t;
+
+        SELECT
+          p.*,
+          (SELECT count(*) FROM (
+            SELECT * FROM piped EXCEPT SELECT * FROM plain)) AS mismatches
+        FROM piped AS p
+        ORDER BY id;
+        """,
+        out=Csv("""
+        "id","a","b","c","e","f","g","h","i","j","k","l","m","mismatches"
+        1,0,0,1,1,0,1,1,1,0,1,0,1,0
+        2,"[NULL]","[NULL]",0,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",1,0,"[NULL]","[NULL]",0
+        3,1,0,"[NULL]",0,0,1,0,0,0,1,1,2,0
+        """))
+
+  # Only the rows a WHERE before it keeps are tested, and a later WHERE can read
+  # the result.
+  def test_computed_conditions_after_and_before_where(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 1 AS id, 'foo' AS s UNION ALL SELECT 2, 'bar'
+        UNION ALL SELECT 3, 'food';
+        FROM t
+        |> WHERE id > 1
+        |> EXTEND s GLOB 'fo*' AS is_foo
+        |> WHERE is_foo = 1
+        |> SELECT id, is_foo;
+        """,
+        out=Csv("""
+        "id","is_foo"
+        3,1
+        """))
+
+  def test_computed_comparison_refuses_a_string_for_a_number(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 'x' AS s;
+        FROM t |> EXTEND n = '5' AS a;
+        """,
+        out=ExpectedError(
+            'expected a number to compare with a numeric column, but got a string'
+        ))
+
+  def test_computed_comparison_refuses_a_number_for_a_string(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 'x' AS s;
+        FROM t |> EXTEND s > 5 AS a;
+        """,
+        out=ExpectedError(
+            'expected a string to compare with a string column, but got a number'
+        ))
+
+  def test_computed_glob_refuses_a_number(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n;
+        FROM t |> EXTEND n GLOB 'x' AS a;
+        """,
+        out=ExpectedError('expected a string to match with GLOB'))
+
+  def test_computed_comparison_needs_a_literal(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 6 AS m;
+        FROM t |> EXTEND n > m AS a;
+        """,
+        out=ExpectedError('a value other than a literal is not supported yet'))
+
   # A computed column's type is only known once the source's is, so later
   # stages must see it then.
   def test_computed_columns_feed_later_stages(self):

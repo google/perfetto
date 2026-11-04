@@ -40,6 +40,8 @@ source_set("plan") {
     "compiler.h",
     "expression.cc",
     "expression.h",
+    "literal.cc",
+    "literal.h",
     "logical_plan.cc",
     "logical_plan.h",
     "operation_registry.h",

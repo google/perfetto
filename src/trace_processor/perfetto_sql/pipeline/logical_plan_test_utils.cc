@@ -179,6 +179,8 @@ std::string LogicalPlanFormatter::ExprString(const Expr& e, uint32_t i) {
     case Op::kMod:
       op = "%";
       break;
+    case Op::kCondition:
+      return "(" + ExprString(e, node.a) + " condition)";
     case Op::kToDouble:
       PERFETTO_FATAL("Not a logical expression");
   }
@@ -346,15 +348,15 @@ std::string LogicalPlanFormatter::WhereString(const Where& where) {
     out += (i ? ", #" : "#") + std::to_string(p.column) + " " + OpString(p.op);
     std::vector<std::string> literals;
     for (uint32_t j = 0; j < p.literal_count; ++j) {
-      const WhereLiteral& l = where.literals_[p.first_literal + j];
+      const ConditionLiteral& l = where.literals_[p.first_literal + j];
       switch (l.type) {
-        case WhereLiteral::Type::kInt64:
+        case ConditionLiteral::Type::kInt64:
           literals.push_back(std::to_string(l.int_value));
           break;
-        case WhereLiteral::Type::kDouble:
+        case ConditionLiteral::Type::kDouble:
           literals.push_back(std::to_string(l.double_value));
           break;
-        case WhereLiteral::Type::kString:
+        case ConditionLiteral::Type::kString:
           literals.push_back(
               "'" + where.strings_[static_cast<size_t>(l.int_value)] + "'");
           break;

@@ -42,6 +42,8 @@ source_set("exec") {
     "distinct.h",
     "empty_source.cc",
     "empty_source.h",
+    "condition.cc",
+    "condition.h",
     "expression.cc",
     "expression.h",
     "filter.cc",

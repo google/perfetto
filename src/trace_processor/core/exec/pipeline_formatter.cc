@@ -196,6 +196,8 @@ std::string StepString(const ExprProgram& program, uint32_t i) {
       return binary("/");
     case ExprOp::kMod:
       return binary("%");
+    case ExprOp::kCondition:
+      return "(" + StepString(program, step.a) + " " + OpName(step.test) + ")";
   }
   PERFETTO_FATAL("For GCC");
 }

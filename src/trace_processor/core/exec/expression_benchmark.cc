@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
@@ -101,7 +102,8 @@ void RunBinary(benchmark::State& state,
   program.steps.push_back(step);
   std::vector<ExprProgram> programs;
   programs.push_back(std::move(program));
-  Compute compute(std::move(programs));
+  StringPool pool;
+  Compute compute(std::move(programs), &pool);
 
   Context context;
   auto op_state = compute.MakeState(context);

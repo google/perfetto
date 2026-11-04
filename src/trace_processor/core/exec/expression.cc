@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/condition.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -177,6 +178,7 @@ bool IntArithmetic(Op op,
     case Op::kConstant:
     case Op::kNull:
     case Op::kToDouble:
+    case Op::kCondition:
       break;
   }
   PERFETTO_FATAL("Not arithmetic");
@@ -217,6 +219,7 @@ void DoubleArithmetic(Op op,
     case Op::kConstant:
     case Op::kNull:
     case Op::kToDouble:
+    case Op::kCondition:
       break;
   }
   PERFETTO_FATAL("Not double arithmetic");
@@ -237,8 +240,10 @@ StorageType StorageFor(ExprType type) {
 // Runs one program over batches, keeping a register per step.
 class Evaluator {
  public:
-  Evaluator(const ExprProgram& program, Context& context)
-      : program_(&program), context_(&context) {
+  Evaluator(const ExprProgram& program,
+            Context& context,
+            const StringPool* pool)
+      : program_(&program), context_(&context), pool_(pool) {
     regs_.resize(program.steps.size());
     constants_.resize(program.steps.size());
     for (uint32_t i = 0; i < program.steps.size(); ++i) {
@@ -400,6 +405,32 @@ class Evaluator {
            !KeptRowFails(step.op, x, y, out, selection);
   }
 
+  // Tests `a` with the code a Filter runs, then notes which rows held.
+  void Condition(const ExprStep& step,
+                 const Selection& selection,
+                 Register& out) {
+    const Register& a = regs_[step.a];
+    int64_t* o = Alloc<int64_t>(out);
+    memset(o, 0, rows_ * sizeof(int64_t));
+    ColumnView column = ColumnView::Reference(
+        StorageFor(program_->steps[step.a].type), a.data, a.validity, a.start);
+    uint32_t* rows = condition_rows_.data();
+    ConditionRows r{rows, selection.size()};
+    for (uint32_t i = 0; i < r.count; ++i) {
+      rows[i] = selection[i];
+    }
+    if (step.test.IsAnyOf<NullOp>()) {
+      KeepNulls(column, step.test.Is<IsNull>(), r);
+    } else {
+      Validity(a, nullptr, false, false, out);
+      ApplyCondition(step.test, context_->filter_values().b[step.b], column,
+                     *pool_, r);
+    }
+    for (uint32_t i = 0; i < r.count; ++i) {
+      o[rows[i]] = 1;
+    }
+  }
+
   // False if the step failed.
   bool RunStep(const ExprStep& step, const RowBatch& batch, Register& out) {
     switch (step.op) {
@@ -423,15 +454,21 @@ class Evaluator {
       case Op::kDiv:
       case Op::kMod:
         return Arithmetic(step, batch.selection(), out);
+      case Op::kCondition:
+        Condition(step, batch.selection(), out);
+        return true;
     }
     PERFETTO_FATAL("For GCC");
   }
 
   const ExprProgram* program_;
   Context* context_;
+  const StringPool* pool_;
   std::vector<Register> regs_;
   // By step, the register of each constant step, filled for every row once.
   std::vector<Register> constants_;
+  // The rows a condition keeps.
+  std::array<uint32_t, kMaxBatchRows> condition_rows_;
   // The number of rows of the batch being run.
   uint32_t rows_ = 0;
 };
@@ -456,15 +493,15 @@ void Compute::DescribeColumns(StepColumns* out) const {
   out->added = static_cast<uint32_t>(programs_.size());
 }
 
-Compute::Compute(std::vector<ExprProgram> programs)
-    : programs_(std::move(programs)) {}
+Compute::Compute(std::vector<ExprProgram> programs, const StringPool* pool)
+    : programs_(std::move(programs)), pool_(pool) {}
 Compute::~Compute() = default;
 
 std::unique_ptr<OperatorState> Compute::MakeState(Context& context) const {
   auto state = std::make_unique<ComputeState>();
   state->evaluators.reserve(programs_.size());
   for (const ExprProgram& program : programs_) {
-    state->evaluators.emplace_back(program, context);
+    state->evaluators.emplace_back(program, context, pool_);
   }
   return state;
 }
