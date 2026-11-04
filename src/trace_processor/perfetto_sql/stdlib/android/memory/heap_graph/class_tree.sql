@@ -29,16 +29,17 @@ GRAPH BFS TREE
     SELECT owner_id AS src, owned_id AS dst
     FROM heap_graph_reference
     WHERE
-      id NOT IN _excluded_refs
-      AND owned_id IS NOT NULL
+      owned_id IS NOT NULL
+      -- Only a referent can be excluded, and checking the field is much cheaper.
+      AND (field_name != 'java.lang.ref.Reference.referent'
+      OR id NOT IN _excluded_refs)
     ORDER BY
       owned_id
   )
   FROM (
     SELECT o.id
     FROM heap_graph_object AS o
-    JOIN heap_graph_class AS c
-      ON o.type_id = c.id
+    JOIN heap_graph_class AS c ON o.type_id = c.id
     WHERE
       o.root_type IS NOT NULL
     ORDER BY
