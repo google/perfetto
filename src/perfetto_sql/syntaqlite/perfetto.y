@@ -25,7 +25,8 @@
           TREE ACCUMULATE UP DOWN INTERVAL INTERSECTION PER EXTEND FLATTEN
           AGGREGATE FILL GAPS GRAPH BFS DFS DOMINATOR NODES EDGES MERGE
           OVERLAPPING CONSECUTIVE INTERVALS EVENTS STOP KEEPING OPEN CLOSING
-          AT.
+          AT PATHS SIBLINGS PARENT INDIRECT INVERT EXPAND CHARGE LEAF ROOT FIND
+          NEAREST ANCESTOR DESCENDANT SELF CONTRACT ABSORB PRUNE REPARENT.
 
 // ---------- Helper nonterminals ----------
 
@@ -390,6 +391,52 @@ perfetto_pipe_group_list(A) ::= perfetto_pipe_group_list(L) COMMA
 perfetto_pipe_group_by(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
 perfetto_pipe_group_by(A) ::= GROUP BY perfetto_pipe_group_list(L). { A = L; }
 
+// The columns of a tree stage, which are not renamed.
+%type perfetto_tree_columns {uint32_t}
+perfetto_tree_columns(A) ::= perfetto_pipe_column(X). {
+    A = synq_parse_perfetto_pipe_column_list(pCtx, SYNTAQLITE_NULL_NODE, X);
+}
+perfetto_tree_columns(A) ::= perfetto_tree_columns(L) COMMA
+                             perfetto_pipe_column(X). {
+    A = synq_parse_perfetto_pipe_column_list(pCtx, L, X);
+}
+
+%type perfetto_tree_or_self {int}
+perfetto_tree_or_self(A) ::= .        { A = 0; }
+perfetto_tree_or_self(A) ::= OR SELF. { A = 1; }
+
+%type perfetto_tree_find_order {uint32_t}
+perfetto_tree_find_order(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
+perfetto_tree_find_order(A) ::= ORDER BY perfetto_pipe_order_list(L). {
+    A = L;
+}
+
+%type perfetto_tree_fold_kind {int}
+perfetto_tree_fold_kind(A) ::= CONTRACT. {
+    A = SYNTAQLITE_PERFETTO_TREE_FOLD_KIND_CONTRACT;
+}
+perfetto_tree_fold_kind(A) ::= ABSORB. {
+    A = SYNTAQLITE_PERFETTO_TREE_FOLD_KIND_ABSORB;
+}
+
+%type perfetto_tree_indirect {int}
+perfetto_tree_indirect(A) ::= .         { A = 0; }
+perfetto_tree_indirect(A) ::= INDIRECT. { A = 1; }
+
+%type perfetto_tree_expand_order {uint32_t}
+perfetto_tree_expand_order(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
+perfetto_tree_expand_order(A) ::= ORDER BY perfetto_tree_columns(L). {
+    A = L;
+}
+
+%type perfetto_tree_charge_end {int}
+perfetto_tree_charge_end(A) ::= LEAF. {
+    A = SYNTAQLITE_PERFETTO_TREE_CHARGE_END_LEAF;
+}
+perfetto_tree_charge_end(A) ::= ROOT. {
+    A = SYNTAQLITE_PERFETTO_TREE_CHARGE_END_ROOT;
+}
+
 %type perfetto_pipe_stage {uint32_t}
 perfetto_pipe_stage(A) ::= WHERE expr(E). {
     A = synq_parse_perfetto_pipe_where(pCtx, E);
@@ -480,6 +527,88 @@ perfetto_pipe_stage(A) ::= TREE ACCUMULATE perfetto_tree_direction(D)
                            perfetto_aggregate_list(L). {
     A = synq_parse_perfetto_tree_accumulate(pCtx,
         (SyntaqlitePerfettoTreeDirection)D, L);
+}
+
+perfetto_pipe_stage(A) ::= TREE FIND perfetto_pipe_source(S) NEAREST ANCESTOR
+                           perfetto_tree_or_self(R) WHERE expr(E). {
+    A = synq_parse_perfetto_tree_find(pCtx, SYNTAQLITE_JOIN_TYPE_INNER, S,
+        SYNTAQLITE_PERFETTO_TREE_FIND_DIRECTION_ANCESTOR, (SyntaqliteBool)R, E,
+        SYNTAQLITE_NULL_NODE);
+}
+perfetto_pipe_stage(A) ::= JOIN_KW(J) TREE FIND perfetto_pipe_source(S)
+                           NEAREST ANCESTOR perfetto_tree_or_self(R)
+                           WHERE expr(E). {
+    A = synq_parse_perfetto_tree_find(pCtx,
+        synq_join_operator(pCtx, &J, NULL, NULL).join_type, S,
+        SYNTAQLITE_PERFETTO_TREE_FIND_DIRECTION_ANCESTOR, (SyntaqliteBool)R, E,
+        SYNTAQLITE_NULL_NODE);
+}
+perfetto_pipe_stage(A) ::= TREE FIND perfetto_pipe_source(S) NEAREST DESCENDANT
+                           perfetto_tree_or_self(R) WHERE expr(E)
+                           perfetto_tree_find_order(O). {
+    A = synq_parse_perfetto_tree_find(pCtx, SYNTAQLITE_JOIN_TYPE_INNER, S,
+        SYNTAQLITE_PERFETTO_TREE_FIND_DIRECTION_DESCENDANT, (SyntaqliteBool)R, E,
+        O);
+}
+perfetto_pipe_stage(A) ::= JOIN_KW(J) TREE FIND perfetto_pipe_source(S)
+                           NEAREST DESCENDANT perfetto_tree_or_self(R)
+                           WHERE expr(E) perfetto_tree_find_order(O). {
+    A = synq_parse_perfetto_tree_find(pCtx,
+        synq_join_operator(pCtx, &J, NULL, NULL).join_type, S,
+        SYNTAQLITE_PERFETTO_TREE_FIND_DIRECTION_DESCENDANT, (SyntaqliteBool)R, E,
+        O);
+}
+perfetto_pipe_stage(A) ::= TREE perfetto_tree_fold_kind(K) AT
+                           perfetto_pipe_source(S)
+                           AGGREGATE perfetto_aggregate_list(L). {
+    A = synq_parse_perfetto_tree_fold(pCtx, (SyntaqlitePerfettoTreeFoldKind)K,
+        S, L);
+}
+perfetto_pipe_stage(A) ::= TREE PRUNE AT perfetto_pipe_source(S). {
+    A = synq_parse_perfetto_tree_prune(pCtx, S);
+}
+perfetto_pipe_stage(A) ::= TREE REPARENT TO NEAREST ANCESTOR IN
+                           perfetto_pipe_source(S). {
+    A = synq_parse_perfetto_tree_reparent(pCtx, S);
+}
+perfetto_pipe_stage(A) ::= TREE KEY PATHS BY perfetto_tree_columns(L)
+                           AS LP nm(K) COMMA nm(P) RP. {
+    A = synq_parse_perfetto_tree_key_paths(pCtx, L, synq_span_dequote(pCtx, K),
+        synq_span_dequote(pCtx, P));
+}
+perfetto_pipe_stage(A) ::= TREE MERGE SIBLINGS BY perfetto_tree_columns(C)
+                           AGGREGATE perfetto_aggregate_list(L). {
+    A = synq_parse_perfetto_tree_merge_siblings(pCtx, SYNTAQLITE_BOOL_FALSE, C, L);
+}
+perfetto_pipe_stage(A) ::= TREE MERGE CONSECUTIVE SIBLINGS BY
+                           perfetto_tree_columns(C)
+                           AGGREGATE perfetto_aggregate_list(L). {
+    A = synq_parse_perfetto_tree_merge_siblings(pCtx, SYNTAQLITE_BOOL_TRUE, C, L);
+}
+perfetto_pipe_stage(A) ::= TREE MERGE INTO PARENT BY perfetto_tree_columns(C)
+                           perfetto_tree_indirect(I)
+                           AGGREGATE perfetto_aggregate_list(L). {
+    A = synq_parse_perfetto_tree_merge_into_parent(pCtx, C,
+        (SyntaqliteBool)I, L);
+}
+perfetto_pipe_stage(A) ::= TREE INVERT. {
+    A = synq_parse_perfetto_tree_invert(pCtx);
+}
+perfetto_pipe_stage(A) ::= TREE EXPAND perfetto_tree_direction(D)
+                           perfetto_pipe_source(S) BY perfetto_tree_columns(K)
+                           perfetto_tree_expand_order(R). {
+    A = synq_parse_perfetto_tree_expand(pCtx,
+        (SyntaqlitePerfettoTreeDirection)D, S, K, R, SYNTAQLITE_NULL_NODE,
+        SYNTAQLITE_PERFETTO_TREE_CHARGE_END_LEAF);
+}
+perfetto_pipe_stage(A) ::= TREE EXPAND perfetto_tree_direction(D)
+                           perfetto_pipe_source(S) BY perfetto_tree_columns(K)
+                           perfetto_tree_expand_order(R)
+                           CHARGE perfetto_tree_columns(C)
+                           TO perfetto_tree_charge_end(E). {
+    A = synq_parse_perfetto_tree_expand(pCtx,
+        (SyntaqlitePerfettoTreeDirection)D, S, K, R, C,
+        (SyntaqlitePerfettoTreeChargeEnd)E);
 }
 
 %type perfetto_pipe_stage_list {uint32_t}

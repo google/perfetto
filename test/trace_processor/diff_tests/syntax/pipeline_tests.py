@@ -497,6 +497,16 @@ class PerfettoPipeline(TestSuite):
         """,
         out=ExpectedError('INTERVAL MERGE is not supported yet'))
 
+  def test_tree_merge_siblings_is_not_supported_yet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 0 AS id, NULL AS parent_id, 1 AS a)
+        |> TREE MERGE SIBLINGS BY a AGGREGATE COUNT(*) AS n;
+        """,
+        out=ExpectedError('TREE MERGE SIBLINGS is not supported yet'))
+
   def test_intervals_from_events_is_not_supported_yet(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
