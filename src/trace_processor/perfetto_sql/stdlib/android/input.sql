@@ -198,6 +198,27 @@ SELECT * FROM _input_event_frame_intersections
 UNION ALL
 SELECT * FROM _input_event_frame_speculative_matches;
 
+CREATE PERFETTO TABLE _frame_timeline_input_event_to_frame AS
+SELECT
+  printf('0x%x', args.int_value & 0xffffffff) AS input_event_id,
+  app.surface_frame_token AS frame_id,
+  app.ts AS frame_ts,
+  app.upid,
+  min(sf.ts + sf.dur) AS present_time
+FROM actual_frame_timeline_slice AS app
+JOIN args
+  ON app.arg_set_id = args.arg_set_id
+  AND args.flat_key = 'input_timeline_info.input_event_id'
+LEFT JOIN actual_frame_timeline_slice AS sf
+  ON sf.display_frame_token = app.display_frame_token
+  AND sf.surface_frame_token IS NULL
+WHERE
+  app.surface_frame_token IS NOT NULL
+  AND app.present_type != 'Dropped Frame'
+GROUP BY
+  args.int_value,
+  app.upid;
+
 CREATE PERFETTO TABLE _input_event_id_to_android_frame AS
 SELECT
   dev.extracted_input_event_id AS input_event_id,
@@ -208,16 +229,19 @@ SELECT
   dev.utid,
   dev.upid,
   dev.process_name,
-  af.frame_id,
-  af.do_frame_ts AS frame_ts,
+  coalesce(ft.frame_id, af.frame_id) AS frame_id,
+  coalesce(ft.frame_ts, af.do_frame_ts) AS frame_ts,
   map.event_channel,
-  CAST(assoc.is_speculative_match AS BOOL) AS is_speculative_match
+  CAST(iif(ft.frame_id IS NOT NULL, 0, assoc.is_speculative_match) AS BOOL) AS is_speculative_match
 FROM _input_event_frame_association AS assoc
 JOIN _clean_android_frames AS af ON assoc.do_frame_id_key = af.do_frame_id
 JOIN _clean_deliver_events AS dev ON assoc.event_id_key = dev.id
 JOIN _event_seq_to_input_event_id AS map
   ON dev.extracted_input_event_id = map.input_event_id
-  AND map.process_name = dev.process_name;
+  AND map.process_name = dev.process_name
+LEFT JOIN _frame_timeline_input_event_to_frame AS ft
+  ON ft.input_event_id = dev.extracted_input_event_id
+  AND ft.upid = dev.upid;
 
 CREATE PERFETTO TABLE _app_frame_to_surface_flinger_frame AS
 SELECT
@@ -239,20 +263,27 @@ CREATE PERFETTO TABLE _first_non_dropped_frame_after_input AS
 SELECT
   _input_read_time.input_event_id,
   _input_read_time.read_time,
-  (
-    SELECT surface_flinger_ts + surface_flinger_dur
-    FROM _app_frame_to_surface_flinger_frame AS sf_frames
-    WHERE
-      sf_frames.app_ts >= _input_event_id_to_android_frame.frame_ts
-      -- App frame should belong to the process the input is delivered to.
-      AND sf_frames.upid = _input_event_id_to_android_frame.upid
-    LIMIT 1
+  coalesce(
+    ft.present_time,
+    (
+      SELECT surface_flinger_ts + surface_flinger_dur
+      FROM _app_frame_to_surface_flinger_frame AS sf_frames
+      WHERE
+        sf_frames.app_ts >= _input_event_id_to_android_frame.frame_ts
+        -- App frame should belong to the process the input is delivered to.
+        AND sf_frames.upid = _input_event_id_to_android_frame.upid
+      LIMIT 1
+    )
   ) AS present_time,
-  _input_event_id_to_android_frame.frame_id,
+  coalesce(ft.frame_id, _input_event_id_to_android_frame.frame_id) AS frame_id,
   event_seq,
   event_action,
   _input_event_id_to_android_frame.event_time,
-  _input_event_id_to_android_frame.is_speculative_match
+  iif(
+    ft.frame_id IS NOT NULL,
+    CAST(0 AS BOOL),
+    _input_event_id_to_android_frame.is_speculative_match
+  ) AS is_speculative_match
 FROM _input_event_id_to_android_frame
 RIGHT JOIN _event_seq_to_input_event_id
   ON _input_event_id_to_android_frame.input_event_id
@@ -261,7 +292,9 @@ RIGHT JOIN _event_seq_to_input_event_id
   = _event_seq_to_input_event_id.event_channel
 JOIN _input_read_time
   ON _input_read_time.input_event_id
-  = _event_seq_to_input_event_id.input_event_id;
+  = _event_seq_to_input_event_id.input_event_id
+LEFT JOIN _frame_timeline_input_event_to_frame AS ft
+  ON ft.input_event_id = _event_seq_to_input_event_id.input_event_id;
 
 -- TODO: consider all cases
 CREATE PERFETTO FUNCTION _normalize_event_channel(event_channel STRING)
@@ -305,6 +338,8 @@ CREATE PERFETTO TABLE android_input_events(
   total_latency_dur DURATION,
   -- Duration from input read to frame present time. Null if an input event has no associated frame event.
   end_to_end_latency_dur DURATION,
+  -- Duration from input event_time (or frame_event_time) to frame present time. Null if an input event has no associated frame event.
+  event_to_present_latency_dur DURATION,
   -- Tid of thread receiving the input event.
   tid LONG,
   -- Name of thread receiving the input event.
@@ -398,6 +433,7 @@ SELECT
   finish_ack.ts - finish.ts AS ack_latency_dur,
   finish_ack.ts - dispatch.ts AS total_latency_dur,
   frame.present_time - frame.read_time AS end_to_end_latency_dur,
+  frame.present_time - coalesce(read_time.event_time, frame.event_time) AS event_to_present_latency_dur,
   finish.tid AS tid,
   finish.thread_name AS thread_name,
   finish.upid AS upid,

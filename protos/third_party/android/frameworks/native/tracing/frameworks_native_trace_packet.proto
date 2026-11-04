@@ -229,6 +229,19 @@ message FrameTimelineEvent {
     PREDICTION_UNKNOWN = 3;
   };
 
+  // Input event timeline metadata associated with a SurfaceFrame.
+  message InputTimelineInfo {
+    optional int32 input_event_id = 1;
+    optional int64 event_time_nanos = 2;
+    optional int64 expected_deadline_nanos = 3;
+    // Whether this input event missed its expected frame deadline.
+    optional bool is_janky = 4;
+    // Token of the SurfaceFrame that this input event was expected to hit.
+    // Matches the enclosing SurfaceFrame's token when on time, or the earlier
+    // expected SurfaceFrame's token when the input event missed its deadline.
+    optional int64 expected_surface_frame_token = 5;
+  };
+
   // Indicates the start of expected timeline slice for SurfaceFrames.
   message ExpectedSurfaceFrameStart {
     // Cookie used to correlate between the start and end messages of the same
@@ -309,6 +322,14 @@ message FrameTimelineEvent {
 
     // animation time (ms) used when drawing this frame.
     optional float animation_time_millis = 20;
+
+    // Input events associated with this frame.
+    repeated InputTimelineInfo input_timeline_info = 21;
+
+    // Input-to-present latency (ms) for this frame, measured from the oldest
+    // input event's event_time_nanos in input_timeline_info to the frame's
+    // actual present time. Only set for presented frames with input events.
+    optional float input_latency_millis = 22;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.

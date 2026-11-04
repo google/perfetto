@@ -70,6 +70,8 @@ const JANK_TYPE_DESCRIPTIONS: Record<string, string> = {
     'The frame was not presented on time due to a display mode change (refresh rate or resolution).',
   'PowerModeChange in progress':
     'The frame was not presented on time due to an active display power state transition.',
+  'Missed Expected Deadline':
+    'The frame missed the expected deadline computed for this input event.',
   'Unknown Jank': 'The frame was not presented on time due to unknown reasons.',
 };
 
@@ -189,6 +191,86 @@ export function createActualFramesTrack(
       new ThreadSliceDetailsPanel(trace, {
         topSections: [new VideoFrameLinkSection(trace)],
       }),
+  });
+}
+
+export function createInputFramesTrack(
+  trace: Trace,
+  uri: string,
+  maxDepth: number,
+  trackIds: ReadonlyArray<number>,
+) {
+  return SliceTrack.create({
+    trace,
+    uri,
+    dataset: new SourceDataset({
+      src: `
+        select
+          id,
+          name,
+          ts,
+          dur,
+          ifnull(extract_arg(arg_set_id, 'Jank type'), 'None') as jank_type,
+          extract_arg(arg_set_id, 'Jank tag') as jank_tag,
+          'Full' as jank_severity_type,
+          arg_set_id,
+          track_id
+        from slice
+        where track_id in (${trackIds.join(',')})
+      `,
+      schema: {
+        id: NUM,
+        name: STR,
+        ts: LONG,
+        dur: LONG,
+        jank_type: STR,
+        jank_tag: STR_NULL,
+        jank_severity_type: STR_NULL,
+        arg_set_id: NUM,
+        track_id: NUM,
+      },
+    }),
+    tooltip: (slice) => {
+      const row = slice.row;
+      const tag = row.jank_tag;
+      const jankType = row.jank_type;
+
+      if (tag && tag !== 'No Jank' && tag !== 'None') {
+        const elements: m.Vnode[] = [];
+        elements.push(
+          m('div', {class: 'pf-actual-frames-tooltip__header'}, tag),
+        );
+
+        if (jankType && jankType !== 'None' && jankType !== 'Unspecified') {
+          const reasons = jankType
+            .split(',')
+            .map((r) => r.trim())
+            .filter(Boolean);
+          for (const reason of reasons) {
+            const desc = JANK_TYPE_DESCRIPTIONS[reason];
+            elements.push(
+              m('div', {class: 'pf-actual-frames-tooltip__reason'}, [
+                m(
+                  'span',
+                  {class: 'pf-actual-frames-tooltip__reason-name'},
+                  `${reason}: `,
+                ),
+                m('span', desc || 'Input processing delay.'),
+              ]),
+            );
+          }
+        }
+
+        return elements;
+      }
+      return undefined;
+    },
+    colorizer: (row) => {
+      return getColorSchemeForJank(row.jank_tag, row.jank_severity_type);
+    },
+    initialMaxDepth: maxDepth,
+    rootTableName: 'slice',
+    detailsPanel: () => new ThreadSliceDetailsPanel(trace),
   });
 }
 
