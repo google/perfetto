@@ -16803,9 +16803,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_perfetto_sql_analysis_analysis",
     srcs: [
-        "src/perfetto_sql/analysis/program.cc",
         "src/perfetto_sql/analysis/relation.cc",
-        "src/perfetto_sql/analysis/source_tree.cc",
     ],
 }
 
@@ -16813,9 +16811,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_perfetto_sql_analysis_unittests",
     srcs: [
-        "src/perfetto_sql/analysis/program_unittest.cc",
         "src/perfetto_sql/analysis/relation_unittest.cc",
-        "src/perfetto_sql/analysis/source_tree_unittest.cc",
     ],
 }
 
@@ -18088,6 +18084,24 @@ filegroup {
     name: "perfetto_src_shared_lib_track_event_unittests",
     srcs: [
         "src/shared_lib/track_event/intern_map_unittest.cc",
+    ],
+}
+
+// GN: //src/tools/pfsql:source_tree
+filegroup {
+    name: "perfetto_src_tools_pfsql_source_tree",
+    srcs: [
+        "src/tools/pfsql/program.cc",
+        "src/tools/pfsql/source_tree.cc",
+    ],
+}
+
+// GN: //src/tools/pfsql:unittests
+filegroup {
+    name: "perfetto_src_tools_pfsql_unittests",
+    srcs: [
+        "src/tools/pfsql/program_unittest.cc",
+        "src/tools/pfsql/source_tree_unittest.cc",
     ],
 }
 
@@ -24982,6 +24996,8 @@ cc_test {
         ":perfetto_src_shared_lib_track_event_intern_map",
         ":perfetto_src_shared_lib_track_event_track_event",
         ":perfetto_src_shared_lib_track_event_unittests",
+        ":perfetto_src_tools_pfsql_source_tree",
+        ":perfetto_src_tools_pfsql_unittests",
         ":perfetto_src_tools_tracing_proto_extensions_lib",
         ":perfetto_src_tools_tracing_proto_extensions_unittests",
         ":perfetto_src_trace_processor_containers_containers",

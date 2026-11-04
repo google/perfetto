@@ -14,6 +14,7 @@
 
 import("../../../gn/perfetto.gni")
 import("../../../gn/perfetto_host_executable.gni")
+import("../../../gn/test.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
@@ -22,10 +23,42 @@ assert(enable_perfetto_trace_processor_sqlite)
 perfetto_host_executable("pfsql") {
   sources = [ "main.cc" ]
   deps = [
+    ":source_tree",
     "../../../gn:default_deps",
     "../../base",
-    "../../perfetto_sql/analysis",
     "../../trace_processor/util:json_value",
     "../../trace_processor/util:simple_json_serializer",
+  ]
+}
+
+source_set("source_tree") {
+  sources = [
+    "program.cc",
+    "program.h",
+    "source_tree.cc",
+    "source_tree.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+    "../../perfetto_sql:intrinsic_macro_expansion",
+    "../../perfetto_sql/analysis",
+    "../../perfetto_sql/syntaqlite",
+  ]
+  assert_no_deps = [ "../../trace_processor/*" ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [
+    "program_unittest.cc",
+    "source_tree_unittest.cc",
+  ]
+  deps = [
+    ":source_tree",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+    "../../../include/perfetto/ext/base",
+    "../../base:test_support",
   ]
 }

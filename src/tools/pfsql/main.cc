@@ -32,7 +32,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/getopt.h"
-#include "src/perfetto_sql/analysis/source_tree.h"
+#include "src/tools/pfsql/source_tree.h"
 #include "src/trace_processor/util/json_value.h"
 #include "src/trace_processor/util/simple_json_serializer.h"
 
@@ -40,7 +40,6 @@ namespace perfetto::pfsql {
 namespace {
 
 namespace json = trace_processor::json;
-namespace analysis = ::perfetto::perfetto_sql::analysis;
 
 // ---------- lineage subcommand ----------
 
@@ -54,7 +53,7 @@ std::string ResolvePath(const std::string& base_dir, const std::string& p) {
 }
 
 base::Status LoadConfig(const std::string& config_path,
-                        analysis::SourceTreeAnalyzer& analyzer) {
+                        SourceTreeAnalyzer& analyzer) {
   std::string text;
   if (!base::ReadFile(config_path, &text))
     return base::ErrStatus("failed to read config %s", config_path.c_str());
@@ -85,7 +84,7 @@ base::Status LoadConfig(const std::string& config_path,
 
 struct SymbolRef {
   std::string_view name;
-  analysis::SymbolKind kind;
+  SymbolKind kind;
 };
 
 using SymbolRefsByModule =
@@ -114,12 +113,12 @@ bool IsPrelude(std::string_view module) {
          module.substr(0, prefix.size()) == prefix;
 }
 
-SymbolRefsByModule UsesByModule(const analysis::Program& program,
-                                const analysis::Symbol& symbol,
+SymbolRefsByModule UsesByModule(const Program& program,
+                                const Symbol& symbol,
                                 bool prelude) {
   SymbolRefsByModule out;
-  for (const analysis::SymbolReference& reference : symbol.references) {
-    const analysis::Symbol& target = program.symbol(reference.symbol_id);
+  for (const SymbolReference& reference : symbol.references) {
+    const Symbol& target = program.symbol(reference.symbol_id);
     std::string_view module = program.module(target.module_id).name;
     if (IsPrelude(module) != prelude) {
       continue;
@@ -135,11 +134,11 @@ SymbolRefsByModule UsesByModule(const analysis::Program& program,
   return out;
 }
 
-std::vector<std::string_view> MissingIncludes(const analysis::Program& program,
-                                              const analysis::Module& module) {
+std::vector<std::string_view> MissingIncludes(const Program& program,
+                                              const Module& module) {
   std::vector<std::string_view> touched;
-  for (analysis::SymbolId symbol_id : module.symbol_ids) {
-    for (const analysis::SymbolReference& reference :
+  for (SymbolId symbol_id : module.symbol_ids) {
+    for (const SymbolReference& reference :
          program.symbol(symbol_id).references) {
       std::string_view target_module =
           program.module(program.symbol(reference.symbol_id).module_id).name;
@@ -158,11 +157,10 @@ std::vector<std::string_view> MissingIncludes(const analysis::Program& program,
   return SortedUniqueStrings(std::move(touched));
 }
 
-std::vector<std::string_view> UnresolvedNames(const analysis::Symbol& symbol) {
+std::vector<std::string_view> UnresolvedNames(const Symbol& symbol) {
   std::vector<std::string_view> out;
   out.reserve(symbol.unresolved_references.size());
-  for (const analysis::UnresolvedReference& reference :
-       symbol.unresolved_references) {
+  for (const UnresolvedReference& reference : symbol.unresolved_references) {
     out.push_back(reference.name);
   }
   std::sort(out.begin(), out.end());
@@ -170,7 +168,7 @@ std::vector<std::string_view> UnresolvedNames(const analysis::Symbol& symbol) {
   return out;
 }
 
-std::string EmitLineageJson(const analysis::Program& program) {
+std::string EmitLineageJson(const Program& program) {
   auto write_strings = [](const auto& items) {
     return [&items](json::JsonArraySerializer& a) {
       for (const auto& s : items)
@@ -185,7 +183,7 @@ std::string EmitLineageJson(const analysis::Program& program) {
           for (const auto& u : *kv.second) {
             a.AppendDict([&u](json::JsonDictSerializer& e) {
               e.AddString("name", u.name);
-              e.AddString("kind", analysis::SymbolKindName(u.kind));
+              e.AddString("kind", SymbolKindName(u.kind));
             });
           }
         });
@@ -196,15 +194,15 @@ std::string EmitLineageJson(const analysis::Program& program) {
   std::string out = json::SerializeJson([&](json::JsonValueSerializer&& w) {
     std::move(w).WriteDict([&](json::JsonDictSerializer& root) {
       root.AddArray("modules", [&](json::JsonArraySerializer& arr) {
-        for (const analysis::Module& m : program.modules()) {
+        for (const Module& m : program.modules()) {
           arr.AppendDict([&](json::JsonDictSerializer& mod) {
             mod.AddString("module", m.name);
             mod.AddString("path", m.path);
             mod.AddArray("declared_includes",
                          write_strings(m.declared_includes));
             mod.AddArray("symbols", [&](json::JsonArraySerializer& syms) {
-              for (analysis::SymbolId symbol_id : m.symbol_ids) {
-                const analysis::Symbol& s = program.symbol(symbol_id);
+              for (SymbolId symbol_id : m.symbol_ids) {
+                const Symbol& s = program.symbol(symbol_id);
                 SymbolRefsByModule uses =
                     UsesByModule(program, s, /*prelude=*/false);
                 SymbolRefsByModule implicit_uses =
@@ -212,7 +210,7 @@ std::string EmitLineageJson(const analysis::Program& program) {
                 std::vector<std::string_view> unresolved = UnresolvedNames(s);
                 syms.AppendDict([&](json::JsonDictSerializer& sd) {
                   sd.AddString("name", s.name);
-                  sd.AddString("kind", analysis::SymbolKindName(s.kind));
+                  sd.AddString("kind", SymbolKindName(s.kind));
                   sd.AddDict("uses", write_use_map(uses));
                   sd.AddDict("implicit_uses", write_use_map(implicit_uses));
                   sd.AddArray("intrinsics_or_external",
@@ -309,7 +307,7 @@ int RunLineage(int argc, char** argv) {
     return 1;
   }
 
-  analysis::SourceTreeAnalyzer analyzer;
+  SourceTreeAnalyzer analyzer;
   if (have_config) {
     if (auto st = LoadConfig(config_path, analyzer); !st.ok()) {
       fprintf(stderr, "%s\n", st.c_message());
@@ -319,7 +317,7 @@ int RunLineage(int argc, char** argv) {
     for (const auto& p : tree_paths)
       analyzer.AddTree(p);
   }
-  base::StatusOr<analysis::Program> program = analyzer.Analyze();
+  base::StatusOr<Program> program = analyzer.Analyze();
   if (!program.ok()) {
     fprintf(stderr, "pfsql lineage: %s\n", program.status().c_message());
     return 1;

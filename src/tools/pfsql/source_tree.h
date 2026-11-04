@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PERFETTO_SQL_ANALYSIS_SOURCE_TREE_H_
-#define SRC_PERFETTO_SQL_ANALYSIS_SOURCE_TREE_H_
+#ifndef SRC_TOOLS_PFSQL_SOURCE_TREE_H_
+#define SRC_TOOLS_PFSQL_SOURCE_TREE_H_
 
 #include <memory>
 #include <string>
 
 #include "perfetto/ext/base/status_or.h"
-#include "src/perfetto_sql/analysis/program.h"
+#include "src/tools/pfsql/program.h"
 
-namespace perfetto::perfetto_sql::analysis {
+namespace perfetto::pfsql {
 
 // Builds a semantic Program from one or more trees of PerfettoSQL modules.
 // This is the source-loading frontend: it owns parsing and macro expansion,
@@ -47,6 +47,6 @@ class SourceTreeAnalyzer {
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace perfetto::perfetto_sql::analysis
+}  // namespace perfetto::pfsql
 
-#endif  // SRC_PERFETTO_SQL_ANALYSIS_SOURCE_TREE_H_
+#endif  // SRC_TOOLS_PFSQL_SOURCE_TREE_H_

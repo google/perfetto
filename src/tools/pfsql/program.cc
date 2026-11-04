@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/perfetto_sql/analysis/program.h"
+#include "src/tools/pfsql/program.h"
 
 #include <cstddef>
 #include <memory>
@@ -26,7 +26,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/perfetto_sql/analysis/string_arena.h"
 
-namespace perfetto::perfetto_sql::analysis {
+namespace perfetto::pfsql {
 namespace {
 
 struct PendingReference {
@@ -142,7 +142,7 @@ class Program::Storage {
   }
 
  private:
-  internal::StringArena strings_;
+  perfetto_sql::analysis::internal::StringArena strings_;
   std::vector<Module> modules_;
   std::vector<Symbol> symbols_;
   base::FlatHashMap<std::string, ModuleId> module_by_name_;
@@ -237,4 +237,4 @@ Program ProgramBuilder::Build() {
                                                     std::move(impl_->symbols)));
 }
 
-}  // namespace perfetto::perfetto_sql::analysis
+}  // namespace perfetto::pfsql
