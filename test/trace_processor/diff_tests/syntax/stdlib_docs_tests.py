@@ -62,6 +62,20 @@ class StdlibDocs(TestSuite):
         "VIEW",1
         """))
 
+  def test_stdlib_module_includes(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        SELECT package, included_module
+        FROM __intrinsic_stdlib_module_includes
+        WHERE module = 'android.memory.heap_graph.dominator_tree'
+        ORDER BY included_module;
+        """,
+        out=Csv("""
+        "package","included_module"
+        "android","android.memory.heap_graph.excluded_refs"
+        """))
+
   def test_stdlib_objects_self_join(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),

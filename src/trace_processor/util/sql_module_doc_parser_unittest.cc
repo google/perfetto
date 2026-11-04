@@ -54,6 +54,15 @@ CREATE PERFETTO TABLE my_table(
   EXPECT_EQ(tv.columns[1].description, "The name.");
 }
 
+TEST(SqlModuleDocParserTest, Includes) {
+  auto m = Parse(
+      "INCLUDE PERFETTO MODULE foo.bar;\n"
+      "CREATE PERFETTO TABLE t AS SELECT 1 AS id;\n"
+      "INCLUDE PERFETTO MODULE baz.*;\n");
+
+  EXPECT_THAT(m.includes, testing::ElementsAre("foo.bar", "baz.*"));
+}
+
 TEST(SqlModuleDocParserTest, View) {
   auto m = Parse(R"(
 -- A sample view.

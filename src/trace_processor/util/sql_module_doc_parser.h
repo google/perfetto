@@ -77,6 +77,9 @@ struct ParsedModule {
   std::vector<TableOrView> table_views;
   std::vector<Function> functions;
   std::vector<Macro> macros;
+  // The keys of INCLUDE PERFETTO MODULE statements as written, so wildcards are
+  // not expanded.
+  std::vector<std::string> includes;
   // Parse errors encountered (non-fatal). Each entry describes what went wrong.
   std::vector<std::string> errors;
 };
