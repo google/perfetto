@@ -150,6 +150,14 @@ class TestApi(unittest.TestCase):
         expected_regex='.*Trace Processor RPC API version:.*'):
       TraceProcessor(trace=io.BytesIO(b''), config=config)
 
+  def test_startup_does_not_leave_status_temp_file(self):
+    config = TraceProcessorConfig(bin_path=os.environ["SHELL_PATH"])
+    with tempfile.TemporaryDirectory() as directory:
+      with mock.patch.object(tempfile, 'tempdir', directory):
+        with TraceProcessor(config=config):
+          pass
+        self.assertEqual(os.listdir(directory), [])
+
   def test_close_stops_shell(self):
     tp = create_tp(trace=example_android_trace_path())
     shell = tp.subprocess
