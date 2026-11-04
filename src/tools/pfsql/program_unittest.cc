@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include "src/perfetto_sql/analysis/program.h"
+#include "src/tools/pfsql/program.h"
 
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto::perfetto_sql::analysis {
+namespace perfetto::pfsql {
 namespace {
 
 TEST(ProgramTest, OwnsNamesAndResolvesReferences) {
@@ -62,4 +62,4 @@ TEST(ProgramTest, IgnoresReferencesWithinAModule) {
 }
 
 }  // namespace
-}  // namespace perfetto::perfetto_sql::analysis
+}  // namespace perfetto::pfsql

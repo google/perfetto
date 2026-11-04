@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "src/perfetto_sql/analysis/source_tree.h"
+#include "src/tools/pfsql/source_tree.h"
 
 #include <optional>
 
 #include "src/base/test/tmp_dir_tree.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto::perfetto_sql::analysis {
+namespace perfetto::pfsql {
 namespace {
 
 TEST(SourceTreeAnalyzerTest, BuildsCrossModuleGraph) {
@@ -60,4 +60,4 @@ TEST(SourceTreeAnalyzerTest, ReportsTreeDiscoveryFailure) {
 }
 
 }  // namespace
-}  // namespace perfetto::perfetto_sql::analysis
+}  // namespace perfetto::pfsql

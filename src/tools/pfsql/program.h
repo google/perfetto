@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PERFETTO_SQL_ANALYSIS_PROGRAM_H_
-#define SRC_PERFETTO_SQL_ANALYSIS_PROGRAM_H_
+#ifndef SRC_TOOLS_PFSQL_PROGRAM_H_
+#define SRC_TOOLS_PFSQL_PROGRAM_H_
 
 #include <cstdint>
 #include <memory>
@@ -24,7 +24,7 @@
 #include <string_view>
 #include <vector>
 
-namespace perfetto::perfetto_sql::analysis {
+namespace perfetto::pfsql {
 
 struct ModuleId {
   uint32_t value;
@@ -134,6 +134,6 @@ class ProgramBuilder {
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace perfetto::perfetto_sql::analysis
+}  // namespace perfetto::pfsql
 
-#endif  // SRC_PERFETTO_SQL_ANALYSIS_PROGRAM_H_
+#endif  // SRC_TOOLS_PFSQL_PROGRAM_H_

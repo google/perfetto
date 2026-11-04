@@ -316,6 +316,7 @@ perfetto_cc_binary(
         ":src_perfetto_sql_analysis_analysis",
         ":src_perfetto_sql_intrinsic_macro_expansion",
         ":src_perfetto_sql_syntaqlite_syntaqlite",
+        ":src_tools_pfsql_source_tree",
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
         ":src_trace_processor_util_json_value",
@@ -2227,12 +2228,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_perfetto_sql_analysis_analysis",
     srcs = [
-        "src/perfetto_sql/analysis/program.cc",
-        "src/perfetto_sql/analysis/program.h",
         "src/perfetto_sql/analysis/relation.cc",
         "src/perfetto_sql/analysis/relation.h",
-        "src/perfetto_sql/analysis/source_tree.cc",
-        "src/perfetto_sql/analysis/source_tree.h",
         "src/perfetto_sql/analysis/string_arena.h",
     ],
 )
@@ -2521,6 +2518,17 @@ perfetto_filegroup(
         "src/shared_lib/producer.cc",
         "src/shared_lib/thread_utils.cc",
         "src/shared_lib/tracing_session.cc",
+    ],
+)
+
+# GN target: //src/tools/pfsql:source_tree
+perfetto_filegroup(
+    name = "src_tools_pfsql_source_tree",
+    srcs = [
+        "src/tools/pfsql/program.cc",
+        "src/tools/pfsql/program.h",
+        "src/tools/pfsql/source_tree.cc",
+        "src/tools/pfsql/source_tree.h",
     ],
 )
 

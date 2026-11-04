@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/perfetto_sql/analysis/source_tree.h"
+#include "src/tools/pfsql/source_tree.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -34,7 +34,7 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/perfetto_sql/syntaqlite/utils.h"
 
-namespace perfetto::perfetto_sql::analysis {
+namespace perfetto::pfsql {
 namespace {
 
 namespace sql = ::perfetto::perfetto_sql;
@@ -542,4 +542,4 @@ base::StatusOr<Program> SourceTreeAnalyzer::Analyze() {
   return builder.Build();
 }
 
-}  // namespace perfetto::perfetto_sql::analysis
+}  // namespace perfetto::pfsql
