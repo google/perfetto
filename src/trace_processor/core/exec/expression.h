@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -49,6 +50,16 @@ struct ExprStep {
     kMul,
     kDiv,
     kMod,
+    // Compares `a` and `b`, which are of one type, as 0 or 1. Null if either
+    // is.
+    kEq,
+    kNe,
+    kLt,
+    kLe,
+    kGt,
+    kGe,
+    // `int_value` where `a` is present, else null.
+    kConstantWherePresent,
   };
 
   Op op = Op::kColumn;
@@ -84,7 +95,8 @@ class Compute final : public Transform {
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns* out) const override;
 
-  explicit Compute(std::vector<ExprProgram> programs);
+  // `pool` holds the strings the programs read, and must outlive this.
+  Compute(std::vector<ExprProgram> programs, const StringPool* pool);
   ~Compute() override;
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
@@ -95,6 +107,7 @@ class Compute final : public Transform {
   friend class PipelineFormatter;
 
   std::vector<ExprProgram> programs_;
+  const StringPool* pool_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

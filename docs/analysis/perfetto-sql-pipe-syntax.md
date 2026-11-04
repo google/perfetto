@@ -285,7 +285,12 @@ Diagram(Choice(0,
   or remainder by zero gives null, as in SQLite. An integer overflow fails the
   query where SQLite would answer with a double.
 
-Anything else, such as a comparison or calling a function, is not supported yet.
+- `=`, `==`, `!=`, `<>`, `<`, `<=`, `>` and `>=`, which give 0 or 1, or null if
+  either side is. Strings compare by their bytes. An integer can be compared with
+  a floating-point literal, as in [`WHERE`](#where). Comparing it with another
+  floating-point value is an error, as is comparing a string with a number.
+
+Anything else, such as `AND` or calling a function, is not supported yet.
 
 ---
 

@@ -199,6 +199,21 @@ std::string StepString(const ExprProgram& program, uint32_t i) {
       return binary("/");
     case ExprOp::kMod:
       return binary("%");
+    case ExprOp::kEq:
+      return binary("=");
+    case ExprOp::kNe:
+      return binary("!=");
+    case ExprOp::kLt:
+      return binary("<");
+    case ExprOp::kLe:
+      return binary("<=");
+    case ExprOp::kGt:
+      return binary(">");
+    case ExprOp::kGe:
+      return binary(">=");
+    case ExprOp::kConstantWherePresent:
+      return "if_present(" + StepString(program, step.a) + ", " +
+             std::to_string(step.int_value) + ")";
   }
   PERFETTO_FATAL("For GCC");
 }
