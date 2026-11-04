@@ -23,9 +23,12 @@ set -exu
 cd /workspace/
 git rev-parse HEAD
 
-# Install only NodeJS and pnpm; the docs build is pure node + python, so it
-# needs neither gn/ninja nor any of the C++ toolchains.
-tools/install-build-deps --ui --filter=nodejs --filter=pnpm
+# Besides NodeJS and pnpm, the docs build only needs what it takes to compile
+# pfsql, which gen_stdlib_docs_md.py reads the stdlib with.
+tools/install-build-deps --ui --filter=nodejs --filter=pnpm --filter=clang \
+    --filter=gn --filter=ninja --filter=libcxx --filter=libcxxabi \
+    --filter=libunwind
+tools/gn gen out/presubmits --args='is_debug=false skip_buildtools_check=true'
 
 # The deploy script takes care of building by invoking ./build internally.
 infra/perfetto.dev/deploy

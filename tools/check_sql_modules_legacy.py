@@ -35,9 +35,9 @@ from typing import List, Set, Dict, Tuple
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.sql_processing.stdlib_parser import parse_all_modules, format_entities
-from python.generators.sql_processing.utils import check_banned_patterns
-from python.generators.sql_processing.utils import is_internal
+from python.generators.sql_processing.stdlib_parser_legacy import parse_all_modules, format_entities
+from python.generators.sql_processing.utils_legacy import check_banned_patterns
+from python.generators.sql_processing.utils_legacy import is_internal
 
 # Package name constants
 PKG_PRELUDE = "prelude"
