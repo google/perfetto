@@ -81,6 +81,7 @@ message HeapGraphType {
   optional uint64 classloader_id = 8;
 }
 
+// Next id: 17
 message HeapGraphObject {
   oneof identifier {
     uint64 id = 1;
@@ -131,6 +132,10 @@ message HeapGraphObject {
   // the corresponding objects registered with the native allocation registry.
   // N.B. this can be an approximation.
   optional int64 native_allocation_registry_size_field = 8;
+
+  // Dynamic native allocation size estimate (in bytes) returned by the
+  // NativeAllocationRegistry.sizeFunction when present.
+  optional int64 cleaner_thunk_dynamic_native_size_field = 16;
 
   // Bitmap-specific field captures, only applicable to objects of this type.
   // `android.graphics.Bitmap.mId`: Used for storage type and deduplication.
