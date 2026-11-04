@@ -42,7 +42,6 @@ function fakeTab(over: Partial<BigTraceEditorTab> = {}): BigTraceEditorTab {
   return {
     editorText: 'select 1',
     limit: 1000,
-    materialize: false,
     querySettings: [],
     traceFilters: [],
     traceMetadataColumns: null,
@@ -173,7 +172,6 @@ describe('presetFromTab', () => {
     const tab = fakeTab({
       editorText: 'select count(*) from slice',
       limit: 10000,
-      materialize: true,
       traceOrderBy: 'size_bytes desc',
       traceFilters: [{field: 'file_name', op: 'glob', value: '*.pftrace'}],
       querySettings: [
@@ -196,14 +194,13 @@ describe('presetFromTab', () => {
       {field: 'file_name', op: 'glob', value: '*.pftrace'},
     ]);
     // Trace selection only: the source setting (global default merged in),
-    // and neither the option, the row limit nor the mode.
+    // and neither the option nor the row limit.
     const byId = new Map(
       (p.settings ?? []).map((s) => [s.settingId, s.values]),
     );
     expect(byId.get('trace_directory')).toEqual(['/global']);
     expect(byId.has('warn')).toBe(false);
     expect(p.limit).toBeUndefined();
-    expect(p.materialized).toBeUndefined();
   });
 
   test('null metadata columns ship as the empty list', () => {

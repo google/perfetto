@@ -66,8 +66,10 @@ export class QueryRunner {
     if (!query) return;
 
     tab.activeRequest?.abort();
+    this.poller.stop(tab);
 
     tab.isLoading = true;
+    tab.dataSource = undefined;
     tab.queryResult = undefined;
     tab.lastProcessedRows = 0;
     tab.clientStartTime = Date.now();
@@ -132,33 +134,21 @@ export class QueryRunner {
       traceOrderBy,
       traceLimit: tab.traceLimit,
       experimentFilter: toExperimentFilterSpec(tab.experimentFilter),
-      tableTtlDays: tab.materialize ? tab.tableTtlDays : undefined,
+      tableTtlDays: tab.tableTtlDays,
     };
 
     const wallStartMs = performance.now();
 
     try {
-      if (tab.materialize) {
-        await this.runAsync(
-          tab,
-          query,
-          queryClient,
-          settings,
-          executeOptions,
-          requestController.signal,
-          wallStartMs,
-        );
-      } else {
-        await this.runSync(
-          tab,
-          query,
-          queryClient,
-          settings,
-          executeOptions,
-          requestController.signal,
-          wallStartMs,
-        );
-      }
+      await this.runAsync(
+        tab,
+        query,
+        queryClient,
+        settings,
+        executeOptions,
+        requestController.signal,
+        wallStartMs,
+      );
     } catch (e) {
       if (e instanceof QueryCancelledError) {
         tab.isLoading = false;
@@ -169,21 +159,17 @@ export class QueryRunner {
         error: e instanceof Error ? e.message : String(e),
         durationMs: performance.now() - wallStartMs,
       });
+      tab.dataSource = new InMemoryDataSource([]);
       tab.isLoading = false;
     } finally {
       cancelForward();
       tab.activeRequest = undefined;
     }
 
-    if (tab.queryResult !== undefined && !tab.materialize) {
-      tab.dataSource = new InMemoryDataSource(tab.queryResult.rows);
-      tab.isLoading = false;
-      this.cb.onHistoryChanged();
-    }
     this.redraw();
   }
 
-  // Aborts the local request and, for materialized queries, the remote run too.
+  // Aborts the local request and cancels the remote run on the backend.
   async cancel(tab: BigTraceEditorTab): Promise<void> {
     this.redraw();
 
@@ -193,10 +179,11 @@ export class QueryRunner {
 
     if (tab.execution && tab.execution.status === 'IN_PROGRESS') {
       tab.execution.status = 'CANCELLED';
+      tab.execution.phase = undefined;
       tab.execution.endTime = Date.now();
     }
 
-    if (tab.materialize && queryUuid && tab.queryClient) {
+    if (queryUuid && tab.queryClient) {
       try {
         await tab.queryClient.cancelQuery(queryUuid);
       } catch (e) {
@@ -204,6 +191,10 @@ export class QueryRunner {
       }
     }
 
+    if (!tab.dataSource) {
+      tab.dataSource = new InMemoryDataSource([]);
+    }
+    tab.queryResult ??= makeQueryResponse(tab.editorText);
     tab.activeRequest = undefined;
     tab.isLoading = false;
     this.cb.onHistoryChanged();
@@ -224,21 +215,6 @@ export class QueryRunner {
     // a no-op once loaded.
     await bigTraceSettingsStorage.loadSettings();
 
-    if (
-      !tab.dataSource ||
-      (tab.materialize && !(tab.dataSource instanceof BigtraceAsyncDataSource))
-    ) {
-      tab.dataSource = tab.materialize
-        ? new BigtraceAsyncDataSource(
-            tab.queryUuid,
-            queryClient,
-            () => tab.execution?.processedRows ?? 0,
-            tab.lifecycle.signal,
-            () => tab.execution?.schema,
-          )
-        : new InMemoryDataSource([]);
-    }
-
     let details: RawQueryExecution;
     try {
       details = await queryClient.getQueryExecution(
@@ -251,6 +227,7 @@ export class QueryRunner {
         return;
       }
       console.error('Failed to fetch query details on open:', e);
+      tab.dataSource ??= new InMemoryDataSource([]);
       this.poller.start(tab);
       return;
     }
@@ -264,6 +241,7 @@ export class QueryRunner {
       exec.tableName = details.tableName;
     }
     exec.status = details.status ?? 'N/A';
+    exec.phase = details.phase;
     exec.processedRows = details.processedRows ?? 0;
     exec.processedTraces = details.processedTraces ?? 0;
     exec.totalTraces = details.totalTraces ?? 0;
@@ -331,26 +309,41 @@ export class QueryRunner {
         statementWithOutputCount: 1,
       });
     } else {
-      if (tab.materialize) {
-        tab.queryResult.totalRowCount = exec.processedRows;
-      }
+      tab.queryResult.totalRowCount = exec.processedRows;
       tab.queryResult.lastStatementSql = tab.editorText;
       tab.queryResult.query = tab.editorText;
     }
 
-    if (!isTerminal) {
-      this.poller.start(tab);
-    } else if (
-      (exec.status === 'SUCCESS' || exec.status === 'CANCELLED') &&
-      tab.dataSource instanceof BigtraceAsyncDataSource &&
-      (details.tableName ?? '') !== '' &&
-      exec.processedRows > 0
+    const hasTable = (details.tableName ?? '') !== '';
+    if (
+      !isTerminal ||
+      ((exec.status === 'SUCCESS' || exec.status === 'CANCELLED') && hasTable)
     ) {
-      await tab.dataSource.ensureResultsLoaded();
-    } else if (exec.status === 'FAILED') {
-      tab.queryResult.error =
-        details.errorMessage ??
-        'Query failed without a specific error message.';
+      let asyncDs: BigtraceAsyncDataSource;
+      if (tab.dataSource instanceof BigtraceAsyncDataSource) {
+        asyncDs = tab.dataSource;
+      } else {
+        asyncDs = new BigtraceAsyncDataSource(
+          tab.queryUuid,
+          queryClient,
+          () => tab.execution?.processedRows ?? 0,
+          tab.lifecycle.signal,
+          () => tab.execution?.schema,
+        );
+        tab.dataSource = asyncDs;
+      }
+      if (!isTerminal) {
+        this.poller.start(tab);
+      } else if (exec.processedRows > 0) {
+        await asyncDs.ensureResultsLoaded();
+      }
+    } else {
+      tab.dataSource = new InMemoryDataSource([]);
+      if (exec.status === 'FAILED') {
+        tab.queryResult.error =
+          details.errorMessage ??
+          'Query failed without a specific error message.';
+      }
     }
     this.redraw();
   }
@@ -388,26 +381,11 @@ export class QueryRunner {
     tab.queryUuid = data.queryUuid;
     tab.execution = queryStore.getOrCreate(tab.queryUuid, {
       perfettoSql: query,
+      status: 'IN_PROGRESS',
+      phase: 'PREVIEW',
+      startTime: Date.now(),
     });
 
-    try {
-      const details = await client.getQueryExecution(
-        tab.queryUuid,
-        tab.lifecycle.signal,
-      );
-      const serverStartMs = isoToEpochMs(details?.startTime);
-      queryStore.update(tab.queryUuid, {
-        ...(serverStartMs !== undefined ? {startTime: serverStartMs} : {}),
-        ...(details?.schema !== undefined ? {schema: details.schema} : {}),
-        ...(details?.tableName !== undefined
-          ? {tableName: details.tableName}
-          : {}),
-      });
-    } catch (e) {
-      console.error('Failed to fetch query details after executeAsync:', e);
-    }
-
-    this.poller.start(tab);
     tab.dataSource = new BigtraceAsyncDataSource(
       tab.queryUuid,
       client,
@@ -415,45 +393,9 @@ export class QueryRunner {
       tab.lifecycle.signal,
       () => tab.execution?.schema,
     );
+    this.poller.start(tab);
     tab.queryResult = makeQueryResponse(query, {
       durationMs: performance.now() - wallStartMs,
     });
-  }
-
-  private async runSync(
-    tab: BigTraceEditorTab,
-    query: string,
-    client: BigtraceQueryClient,
-    settings: ReadonlyArray<SettingFilter>,
-    options: ExecuteOptions,
-    signal: AbortSignal,
-    wallStartMs: number,
-  ): Promise<void> {
-    const result = await client.executeSync(
-      query,
-      tab.limit,
-      settings,
-      signal,
-      options,
-    );
-    if (result.queryUuid === undefined || result.queryUuid === '') {
-      throw new Error('Backend did not return a queryUuid for sync execute');
-    }
-    tab.queryUuid = result.queryUuid;
-    tab.execution = queryStore.getOrCreate(tab.queryUuid, {
-      perfettoSql: query,
-    });
-    tab.queryResult = makeQueryResponse(query, {
-      rows: [...result.rows],
-      columns: [...result.columns],
-      schema: result.schema,
-      totalRowCount: result.rows.length,
-      durationMs: performance.now() - wallStartMs,
-      statementWithOutputCount: 1,
-    });
-    queryStore.update(tab.queryUuid, {
-      processedRows: result.rows.length,
-    });
-    tab.isLoading = false;
   }
 }

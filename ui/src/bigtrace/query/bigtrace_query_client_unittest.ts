@@ -321,7 +321,7 @@ describe('BigtraceQueryClient execute trace-selection snapshot', () => {
   test('ships trace_metadata_columns / trace_order_by when set', async () => {
     const fetchMock = captureFetch();
     const client = new BigtraceQueryClient('http://example/');
-    await client.executeSync('select 1', 100, [], undefined, {
+    await client.executeAsync('select 1', 100, [], undefined, {
       traceMetadataColumns: ['device_name', 'android_id'],
       traceOrderBy: 'size_bytes desc',
     });

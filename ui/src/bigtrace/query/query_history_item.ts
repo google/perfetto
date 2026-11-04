@@ -37,7 +37,6 @@ import {
 export type OpenQueryFn = (
   query: string,
   uuid: string,
-  materialize: boolean,
   forceNew?: boolean,
   limit?: number,
   startTime?: number,
@@ -121,8 +120,6 @@ export function renderHistoryItem(
   index: number,
   openQuery?: OpenQueryFn,
 ): m.Children {
-  // One mixed list, so the kind comes from the entry itself.
-  const isMaterialized = entry.materialized === true;
   const queryText = entry.perfettoSql || '';
   const uuid = entry.uuid;
   const startTime = entry.startTime;
@@ -140,7 +137,7 @@ export function renderHistoryItem(
 
   const openThis = () => {
     if (openQuery && uuid) {
-      openQuery(queryText, uuid, isMaterialized, false, entry.limit, startTime);
+      openQuery(queryText, uuid, false, entry.limit, startTime);
     }
   };
 
@@ -222,16 +219,7 @@ export function renderHistoryItem(
             {
               class: `pf-bt-status-${entry.status.toLowerCase().replace(/_/g, '-')}`,
             },
-            statusDisplayLabel(entry.status),
-          ),
-          m(
-            'span.pf-bt-history-item-kind',
-            {
-              title: isMaterialized
-                ? 'Results saved to a backend table — reopen to browse them.'
-                : 'Results were shown inline at run time and not saved.',
-            },
-            isMaterialized ? 'Saved to table' : 'Not saved',
+            statusDisplayLabel(entry.status, entry.phase),
           ),
           m(
             'span.pf-bt-history-item-date',
@@ -241,35 +229,32 @@ export function renderHistoryItem(
         ]),
       ],
     ),
-    // Materialized only: a banded strip between the header and the SQL pre.
-    isMaterialized &&
+    m(
+      'div.pf-bt-history-item-details',
+      {
+        className: rows === 0 ? 'pf-bt-history-item-details--empty' : undefined,
+      },
       m(
-        'div.pf-bt-history-item-details',
+        'a.pf-bt-history-item-table-link',
         {
-          className:
-            rows === 0 ? 'pf-bt-history-item-details--empty' : undefined,
+          class:
+            rows === 0 || link === undefined || link === ''
+              ? 'pf-bt-history-item-table-link--disabled'
+              : 'pf-bt-history-item-table-link--active',
+          href: link || '#',
+          target: '_blank',
+          title:
+            rows === 0
+              ? 'No table created for empty results'
+              : entry.tableName || 'View Table',
         },
-        m(
-          'a.pf-bt-history-item-table-link',
-          {
-            class:
-              rows === 0 || link === undefined || link === ''
-                ? 'pf-bt-history-item-table-link--disabled'
-                : 'pf-bt-history-item-table-link--active',
-            href: link || '#',
-            target: '_blank',
-            title:
-              rows === 0
-                ? 'No table created for empty results'
-                : entry.tableName || 'View Table',
-          },
-          entry.tableName || '—',
-        ),
-        m(
-          'span.pf-bt-history-item-rows-value',
-          `${formatCompact(rows)} ${rows === 1 ? 'row' : 'rows'}`,
-        ),
+        entry.tableName || '—',
       ),
+      m(
+        'span.pf-bt-history-item-rows-value',
+        `${formatCompact(rows)} ${rows === 1 ? 'row' : 'rows'}`,
+      ),
+    ),
     // /query_executions clips perfettoSql; first expand fetches the full text.
     m(ClampedQuery, {
       queryText,

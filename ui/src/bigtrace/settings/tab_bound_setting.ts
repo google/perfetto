@@ -53,12 +53,10 @@ export interface SettingsBindings {
   // Called when the trace-list data source reports a fresh filteredTotalRows
   // (traces the current filter selects). undefined = count not yet known.
   readonly onTraceMatchCount?: (count: number | undefined) => void;
-  // The run's row cap and mode. They live in the editor toolbar; the form
-  // mirrors them so a preset's setup is visible in full where it's applied.
+  // The run's row cap. Lives in the editor toolbar; the form mirrors it so a
+  // preset's setup is visible in full where it's applied.
   readonly getRowLimit: () => number;
   readonly setRowLimit: (limit: number) => void;
-  readonly getMaterialize: () => boolean;
-  readonly setMaterialize: (materialize: boolean) => void;
   // The trace fan-out cap — a top-level request field like the row limit,
   // edited in the query-settings modal.
   readonly getTraceLimit: () => number;

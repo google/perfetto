@@ -27,7 +27,9 @@ export interface PollingCallbacks {
   readonly onHistoryChanged: () => void;
 }
 
-// Owns the poll-until-terminal loop for async (materialized) queries.
+// Owns the poll-until-terminal loop for async BigTrace queries, refreshing the
+// F1 table data source when the Phase 1 preview table is published and again
+// when Phase 2 finishes replacing it with the full table.
 export class PollingController {
   constructor(private readonly cb: PollingCallbacks) {}
 
@@ -49,7 +51,7 @@ export class PollingController {
         if (tab.pollGeneration !== generation || !tab.isLoading) return;
 
         if (status !== undefined && status !== null) {
-          this.applyStatus(tab, status);
+          this.applyStatus(tab, status, generation);
         }
 
         const isTerminal =
@@ -57,7 +59,7 @@ export class PollingController {
           status.status !== undefined &&
           TERMINAL_STATUSES.has(status.status);
         if (isTerminal) {
-          await this.finalize(tab, status!);
+          await this.finalize(tab, status!, generation);
         } else if (tab.pollInterval !== undefined) {
           tab.isLoading = true;
           tab.pollInterval = window.setTimeout(poll, POLL_INTERVAL_MS);
@@ -105,25 +107,70 @@ export class PollingController {
 
   // ----- Internals -----
 
-  // Progress only — the poll never pulls result rows. A page fetch costs a
-  // full count over the result table under the same lock the worker writes
-  // through, so doing it every 3s would fight the query it is reporting on.
-  // The status bar's refresh button (lit while processedRows is ahead of
-  // lastProcessedRows) is how a partial result gets asked for.
-  private applyStatus(tab: BigTraceEditorTab, status: RawQueryExecution): void {
+  private applyStatus(
+    tab: BigTraceEditorTab,
+    status: RawQueryExecution,
+    generation: number,
+  ): void {
     if (!tab.queryUuid) return;
+    const newRows = status.processedRows ?? 0;
     queryStore.update(tab.queryUuid, {
-      processedRows: status.processedRows ?? 0,
+      processedRows: newRows,
       processedTraces: status.processedTraces ?? 0,
       totalTraces: status.totalTraces ?? 0,
       status: status.status ?? 'N/A',
+      phase: status.phase,
     });
+    // When Phase 1 publishes the preview table (`processedRows > 0` while still
+    // in progress), refresh the data source once so the preview rows appear.
+    // Terminal transitions refresh in `finalize()` after `getQueryExecution`.
+    if (
+      !TERMINAL_STATUSES.has(status.status ?? '') &&
+      newRows > 0 &&
+      newRows !== tab.lastProcessedRows &&
+      tab.dataSource instanceof BigtraceAsyncDataSource
+    ) {
+      void tab.dataSource.refresh();
+      if (tab.execution?.tableName === undefined) {
+        void this.fetchPreviewDetails(tab, generation);
+      }
+      tab.lastProcessedRows = newRows;
+    }
     this.cb.redraw();
+  }
+
+  private async fetchPreviewDetails(
+    tab: BigTraceEditorTab,
+    generation: number,
+  ): Promise<void> {
+    if (!tab.queryClient || !tab.queryUuid) return;
+    const queryUuid = tab.queryUuid;
+    try {
+      const details = await tab.queryClient.getQueryExecution(
+        queryUuid,
+        tab.lifecycle.signal,
+      );
+      if (tab.pollGeneration !== generation || tab.queryUuid !== queryUuid) {
+        return;
+      }
+      const startMs = isoToEpochMs(details.startTime);
+      queryStore.update(queryUuid, {
+        ...(startMs !== undefined ? {startTime: startMs} : {}),
+        ...(details.schema !== undefined ? {schema: details.schema} : {}),
+        ...(details.tableName !== undefined
+          ? {tableName: details.tableName}
+          : {}),
+      });
+      this.cb.redraw();
+    } catch (e: unknown) {
+      console.error('Failed to fetch preview query execution details:', e);
+    }
   }
 
   private async finalize(
     tab: BigTraceEditorTab,
     status: RawQueryExecution,
+    generation: number,
   ): Promise<void> {
     tab.pollInterval = undefined;
 
@@ -154,36 +201,47 @@ export class PollingController {
       this.cb.redraw();
     }
 
-    // Fetch full execution details for timing + error message.
-    void tab.queryClient
-      ?.getQueryExecution(tab.queryUuid!, tab.lifecycle.signal)
-      .then((details: RawQueryExecution) => {
+    // Fetch full execution details for timing, tableName, schema, and errors.
+    if (tab.queryClient && tab.queryUuid) {
+      try {
+        const details = await tab.queryClient.getQueryExecution(
+          tab.queryUuid,
+          tab.lifecycle.signal,
+        );
+        if (tab.pollGeneration !== generation) return;
+        const startMs = isoToEpochMs(details.startTime);
         const endMs = isoToEpochMs(details.endTime);
         if (tab.queryUuid) {
           queryStore.update(tab.queryUuid, {
+            ...(startMs !== undefined ? {startTime: startMs} : {}),
             ...(endMs !== undefined ? {endTime: endMs} : {}),
             ...(details.schema !== undefined ? {schema: details.schema} : {}),
             ...(details.tableName !== undefined
               ? {tableName: details.tableName}
               : {}),
+            phase: details.phase,
           });
         }
         if (isFailed && tab.queryResult !== undefined) {
           tab.queryResult.error = details.errorMessage || 'Query failed';
         }
-        this.cb.redraw();
-      })
-      .catch((e: unknown) => {
+      } catch (e: unknown) {
         console.error('Failed to fetch query execution details:', e);
         if (isFailed && tab.queryResult !== undefined) {
           tab.queryResult.error = `Failed to fetch error details: ${e instanceof Error ? e.message : String(e)}`;
-          this.cb.redraw();
         }
-      });
-
-    if (isSuccess && tab.dataSource instanceof BigtraceAsyncDataSource) {
-      tab.dataSource.refresh();
-      tab.lastProcessedRows = tab.execution?.processedRows ?? 0;
+      }
     }
+
+    const rows = tab.execution?.processedRows ?? status.processedRows ?? 0;
+    if (
+      isSuccess &&
+      rows > 0 &&
+      tab.dataSource instanceof BigtraceAsyncDataSource
+    ) {
+      void tab.dataSource.refresh();
+      tab.lastProcessedRows = rows;
+    }
+    this.cb.redraw();
   }
 }

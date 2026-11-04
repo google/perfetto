@@ -15,23 +15,23 @@
 import {beforeEach, describe, expect, test} from 'vitest';
 import {z} from 'zod';
 import {
-  applyModeDefaults,
   applyPresetSetup,
   closeSettings,
   coerceDateFilter,
-  isTraceSelectionSetting,
-  parseTraceUuids,
-  setTraceUuidsActive,
-  TRACE_UUIDS_SETTING_ID,
-  traceUuidsActive,
+  DEFAULT_ROW_LIMIT,
   DEFAULT_TABLE_TTL_DAYS,
+  DEFAULT_TRACE_LIMIT,
   disabledSettingsFromSnapshot,
   effectiveTabSettings,
-  MODE_DEFAULTS,
+  isTraceSelectionSetting,
   openSettings,
+  parseTraceUuids,
   QueryTabsState,
   restoreTabConfig,
+  setTraceUuidsActive,
   snapshotTabConfig,
+  TRACE_UUIDS_SETTING_ID,
+  traceUuidsActive,
   type BigTraceEditorTab,
 } from './query_tabs_state';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
@@ -57,10 +57,9 @@ function reg(
 
 function fakeTab(over: Partial<BigTraceEditorTab>): BigTraceEditorTab {
   return {
-    limit: MODE_DEFAULTS.ephemeral.rowLimit,
-    traceLimit: MODE_DEFAULTS.ephemeral.traceLimit,
+    limit: DEFAULT_ROW_LIMIT,
+    traceLimit: DEFAULT_TRACE_LIMIT,
     tableTtlDays: DEFAULT_TABLE_TTL_DAYS,
-    materialize: false,
     querySettings: [],
     traceFilters: [],
     traceMetadataColumns: [],
@@ -181,27 +180,21 @@ describe('boolean settings have no enable/disable concept', () => {
   });
 });
 
-describe('per-mode row and trace limits', () => {
+describe('default row, trace, and table lifetime limits', () => {
   beforeEach(() => {
     localStorage.clear();
     bigTraceSettingsStorage.clear();
   });
 
-  test('a new ephemeral tab gets the quick-look caps', () => {
-    const tabs = new QueryTabsState();
-    const tab = tabs.addNewTab(undefined, '', undefined, undefined, false);
-    expect(tab.limit).toBe(MODE_DEFAULTS.ephemeral.rowLimit);
-    expect(tab.traceLimit).toBe(MODE_DEFAULTS.ephemeral.traceLimit);
-  });
-
-  test('a new persistent tab gets the full-sweep caps', () => {
+  test('a new tab gets the default row, trace, and table lifetime caps', () => {
     const tabs = new QueryTabsState();
     const tab = tabs.addNewTab(undefined, '', undefined, undefined, true);
-    expect(tab.limit).toBe(MODE_DEFAULTS.persistent.rowLimit);
-    expect(tab.traceLimit).toBe(MODE_DEFAULTS.persistent.traceLimit);
+    expect(tab.limit).toBe(DEFAULT_ROW_LIMIT);
+    expect(tab.traceLimit).toBe(DEFAULT_TRACE_LIMIT);
+    expect(tab.tableTtlDays).toBe(DEFAULT_TABLE_TTL_DAYS);
   });
 
-  test('caller-supplied caps win over the mode defaults', () => {
+  test('caller-supplied caps win over defaults', () => {
     const tabs = new QueryTabsState();
     const tab = tabs.addNewTab(
       undefined,
@@ -210,39 +203,10 @@ describe('per-mode row and trace limits', () => {
       undefined,
       true,
       undefined,
-      undefined,
       77,
     );
     expect(tab.limit).toBe(42);
     expect(tab.traceLimit).toBe(77);
-  });
-
-  test('switching mode moves caps the user never touched', () => {
-    const tab = fakeTab({materialize: false});
-    applyModeDefaults(tab, true);
-    expect(tab.materialize).toBe(true);
-    expect(tab.limit).toBe(MODE_DEFAULTS.persistent.rowLimit);
-    expect(tab.traceLimit).toBe(MODE_DEFAULTS.persistent.traceLimit);
-    applyModeDefaults(tab, false);
-    expect(tab.limit).toBe(MODE_DEFAULTS.ephemeral.rowLimit);
-    expect(tab.traceLimit).toBe(MODE_DEFAULTS.ephemeral.traceLimit);
-  });
-
-  test('switching mode leaves hand-edited caps alone', () => {
-    const tab = fakeTab({materialize: false, limit: 7});
-    tab.traceLimit = 25;
-    applyModeDefaults(tab, true);
-    expect(tab.limit).toBe(7);
-    expect(tab.traceLimit).toBe(25);
-  });
-
-  test('a cap that matches the new mode default still moves with the mode', () => {
-    // Explicitly set to the ephemeral default, then switch: it reads as
-    // untouched, which is the documented trade-off of the equality check.
-    const tab = fakeTab({materialize: false});
-    tab.traceLimit = MODE_DEFAULTS.ephemeral.traceLimit;
-    applyModeDefaults(tab, true);
-    expect(tab.traceLimit).toBe(MODE_DEFAULTS.persistent.traceLimit);
   });
 
   test('the trace cap and the table lifetime round-trip through storage', () => {
@@ -264,17 +228,6 @@ describe('per-mode row and trace limits', () => {
     expect(restored.limit).toBe(0);
     expect(restored.traceLimit).toBe(0);
     expect(restored.tableTtlDays).toBe(45);
-  });
-});
-
-describe('table lifetime (TTL)', () => {
-  test('switching mode leaves the lifetime alone', () => {
-    const tab = fakeTab({materialize: false});
-    tab.tableTtlDays = 7;
-    applyModeDefaults(tab, true);
-    expect(tab.tableTtlDays).toBe(7);
-    applyModeDefaults(tab, false);
-    expect(tab.tableTtlDays).toBe(7);
   });
 });
 
@@ -313,7 +266,7 @@ describe('cloneTab', () => {
     expect(clone.editorText).toBe('select * from slice');
     expect(clone.limit).toBe(src.limit);
     expect(clone.traceLimit).toBe(src.traceLimit);
-    expect(clone.materialize).toBe(true);
+    expect(clone.tableTtlDays).toBe(src.tableTtlDays);
     expect(clone.configured).toBe(true);
     expect(clone.traceFilters).toEqual(src.traceFilters);
     expect(clone.traceMetadataColumns).toEqual(['device_name']);
@@ -386,7 +339,6 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
     return fakeTab({
       configured: true,
       editorText: 'select 1',
-      materialize: true,
       limit: 500,
       tableTtlDays: 45,
       traceFilters: [{field: 'file_name', op: 'glob', value: '*.pftrace'}],
@@ -424,7 +376,6 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
     tab.limit = 10;
     tab.traceLimit = 11;
     tab.tableTtlDays = 12;
-    tab.materialize = false;
     tab.experimentFilter = {
       experimentId: 999,
       controlId: 888,

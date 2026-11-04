@@ -18,35 +18,13 @@ import {Spinner} from '../../widgets/spinner';
 import {Tabs} from '../../widgets/tabs';
 import {TERMINAL_STATUSES} from '../query/query_store';
 import type {BigTraceEditorTab, QueryTabsState} from './query_tabs_state';
-import {renderStatusBox, formatDurationS} from './status_box';
+import {renderStatusBox} from './status_box';
 import {renderResultsGrid} from './results_grid';
 
-// Owns a 1s setInterval so the elapsed timer ticks smoothly while loading.
-class RunningQuerySpinner implements m.ClassComponent<{
-  startMs: number;
-  showDuration: boolean;
-}> {
-  private timer: number | null = null;
-
-  oncreate(): void {
-    this.timer = window.setInterval(() => m.redraw(), 1000);
-  }
-
-  onremove(): void {
-    if (this.timer !== null) {
-      window.clearInterval(this.timer);
-      this.timer = null;
-    }
-  }
-
-  view({
-    attrs: {startMs, showDuration},
-  }: m.Vnode<{startMs: number; showDuration: boolean}>): m.Children {
-    const title = showDuration
-      ? `Running query… ${formatDurationS(Math.max(0, Date.now() - startMs))}`
-      : 'Running query…';
+class RunningQuerySpinner implements m.ClassComponent {
+  view(): m.Children {
     return m('.pf-empty-state.pf-empty-state--fill-height', [
-      m('.pf-empty-state__title', title),
+      m('.pf-empty-state__title', 'Running query…'),
       m('.pf-empty-state__content', m(Spinner)),
     ]);
   }
@@ -57,11 +35,7 @@ export function renderResultsPanel(
   tabsState: QueryTabsState,
 ): m.Children {
   const status = renderStatusBox(tab);
-  const renderSpinner = () =>
-    m(RunningQuerySpinner, {
-      startMs: tab.clientStartTime ?? Date.now(),
-      showDuration: !tab.materialize,
-    });
+  const renderSpinner = () => m(RunningQuerySpinner);
 
   if (!tab.dataSource || !tab.queryResult) {
     return m(
@@ -78,42 +52,36 @@ export function renderResultsPanel(
   }
 
   const processedRows = tab.execution?.processedRows ?? 0;
-
-  const isSyncReopenNoRerun =
-    !tab.materialize &&
-    Boolean(tab.queryUuid) &&
-    tab.queryResult.rows.length === 0 &&
-    !tab.queryResult.error;
-
   const isTerminalStatus =
     tab.execution?.status !== undefined &&
     TERMINAL_STATUSES.has(tab.execution.status);
-  const isAsyncTableCleared =
-    tab.materialize &&
-    Boolean(tab.queryUuid) &&
-    !tab.execution?.tableName &&
-    !tab.queryResult.error &&
-    isTerminalStatus;
+  const hasTable = (tab.execution?.tableName ?? '') !== '';
+  const hasRowsToShow = processedRows > 0 || tab.queryResult.rows.length > 0;
 
-  const hasRowsToShow = tab.materialize
-    ? processedRows > 0
-    : tab.queryResult.rows.length > 0;
+  const isCancelledWithoutRows =
+    isTerminalStatus &&
+    tab.execution?.status === 'CANCELLED' &&
+    !hasTable &&
+    !hasRowsToShow &&
+    !tab.queryResult.error;
+  const isTableExpired =
+    isTerminalStatus &&
+    !hasTable &&
+    !tab.queryResult.error &&
+    processedRows > 0;
 
   const hasError = tab.queryResult.error !== undefined;
 
   let tableContent: m.Children;
-  if (isSyncReopenNoRerun) {
+  if (isCancelledWithoutRows) {
     tableContent = m(EmptyState, {
-      title: 'Re-run the query to see results',
+      title: 'Query was cancelled',
       icon: 'refresh',
       fillHeight: true,
     });
-  } else if (isAsyncTableCleared) {
+  } else if (isTableExpired) {
     tableContent = m(EmptyState, {
-      title:
-        tab.execution?.status === 'CANCELLED'
-          ? 'Query was cancelled'
-          : 'Results no longer available',
+      title: 'Results no longer available',
       icon: 'refresh',
       fillHeight: true,
     });

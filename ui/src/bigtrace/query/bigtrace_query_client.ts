@@ -148,7 +148,7 @@ export interface TracePreset {
   // alone (an empty editor when starting from it).
   readonly perfettoSql: string;
   // Optional; the UI fills defaults when a minimal backend omits them
-  // (generic icon; empty settings/filters/columns; limit 1000; materialized).
+  // (generic icon; empty settings/filters/columns).
   readonly icon?: string;
   // Wire shape mirrors the execute body's `settings`: snake-cased `settingId`,
   // always-string `values`. Mapped to SettingFilter when applied to a tab.
@@ -164,7 +164,6 @@ export interface TracePreset {
   // resolves from the catalog when the preset is applied.
   readonly experimentFilter?: ExperimentFilterSpec;
   readonly limit?: number;
-  readonly materialized?: boolean;
 }
 
 // Request aborted via AbortSignal — treat as cancellation, not an error.
@@ -204,23 +203,6 @@ export class BigtraceQueryClient {
   constructor(private readonly endpoint: string) {}
 
   // ----- Query execution -----
-
-  async executeSync(
-    query: string,
-    limit: number,
-    settings: ReadonlyArray<SettingFilter>,
-    signal?: AbortSignal,
-    options?: ExecuteOptions,
-  ): Promise<QueryResultPage> {
-    return this.executeAt(
-      '/execute_bigtrace_query',
-      query,
-      limit,
-      settings,
-      signal,
-      options,
-    );
-  }
 
   async executeAsync(
     query: string,

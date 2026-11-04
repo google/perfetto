@@ -24,7 +24,8 @@ import {presetNameConflict} from './preset_dialogs';
 import {
   applyPresetSetup,
   applyPresetToTab,
-  MODE_DEFAULTS,
+  DEFAULT_ROW_LIMIT,
+  DEFAULT_TRACE_LIMIT,
   openSettings,
   type BigTraceEditorTab,
 } from './query_tabs_state';
@@ -51,9 +52,8 @@ function fakeTab(over: Partial<BigTraceEditorTab> = {}): BigTraceEditorTab {
   return {
     title: 'Query 1',
     editorText: '',
-    limit: MODE_DEFAULTS.ephemeral.rowLimit,
-    traceLimit: MODE_DEFAULTS.ephemeral.traceLimit,
-    materialize: false,
+    limit: DEFAULT_ROW_LIMIT,
+    traceLimit: DEFAULT_TRACE_LIMIT,
     configured: false,
     querySettings: [],
     traceFilters: [],
@@ -128,9 +128,8 @@ describe('applyPresetToTab', () => {
         traceFilters: [{field: 'device_name', op: 'is not null'}],
         traceMetadataColumns: ['device_name'],
         traceOrderBy: 'size_bytes desc',
-        // A stale catalog entry may still carry these; they are ignored.
+        // A stale catalog entry may still carry limit; it is ignored.
         limit: 42,
-        materialized: true,
       }),
     );
     expect(tab.configured).toBe(false);
@@ -142,9 +141,8 @@ describe('applyPresetToTab', () => {
     ]);
     expect(tab.traceMetadataColumns).toEqual(['device_name']);
     expect(tab.traceOrderBy).toBe('size_bytes desc');
-    // Caps and mode are not a preset's to set.
-    expect(tab.limit).toBe(MODE_DEFAULTS.ephemeral.rowLimit);
-    expect(tab.materialize).toBe(false);
+    // Caps are not a preset's to set.
+    expect(tab.limit).toBe(DEFAULT_ROW_LIMIT);
   });
 
   test('applyPresetSetup takes the trace selection, nothing else', () => {
@@ -164,7 +162,6 @@ describe('applyPresetToTab', () => {
         traceMetadataColumns: ['device_name'],
         traceOrderBy: 'size_bytes desc',
         limit: 42,
-        materialized: true,
       }),
     );
     // The query and its title are the user's.
@@ -176,19 +173,17 @@ describe('applyPresetToTab', () => {
     ]);
     expect(tab.traceMetadataColumns).toEqual(['device_name']);
     expect(tab.traceOrderBy).toBe('size_bytes desc');
-    // Caps and mode stay the tab's own.
-    expect(tab.limit).toBe(MODE_DEFAULTS.ephemeral.rowLimit);
-    expect(tab.materialize).toBe(false);
+    // Caps stay the tab's own.
+    expect(tab.limit).toBe(DEFAULT_ROW_LIMIT);
     // Still inside Settings: provisional until Apply.
     expect(tab.settingsSession).toBeDefined();
   });
 
-  test('mode and caps never follow a preset', () => {
-    const tab = fakeTab({materialize: false});
+  test('caps never follow a preset', () => {
+    const tab = fakeTab();
     tab.limit = 77;
     tab.traceLimit = 88;
-    applyPresetToTab(tab, preset({materialized: true, limit: 42}));
-    expect(tab.materialize).toBe(false);
+    applyPresetToTab(tab, preset({limit: 42}));
     expect(tab.limit).toBe(77);
     expect(tab.traceLimit).toBe(88);
   });

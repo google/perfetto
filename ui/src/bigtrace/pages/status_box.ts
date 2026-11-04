@@ -34,13 +34,16 @@ export function formatDurationS(ms: number): string {
 }
 
 export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
-  if (!tab.materialize || !tab.queryUuid) return false;
+  if (!tab.queryUuid) return false;
 
   const isTerminal =
     tab.execution?.status !== undefined &&
     TERMINAL_STATUSES.has(tab.execution.status);
   const processedRows = tab.execution?.processedRows ?? 0;
-  const hasNewData = !isTerminal && processedRows > tab.lastProcessedRows;
+  const hasNewData =
+    !isTerminal &&
+    tab.dataSource instanceof BigtraceAsyncDataSource &&
+    processedRows > tab.lastProcessedRows;
 
   let durationMs = 0;
   if (
@@ -60,6 +63,7 @@ export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
   }
 
   const status = tab.execution?.status ?? 'UNKNOWN';
+  const phase = tab.execution?.phase;
   const processedTraces = tab.execution?.processedTraces ?? 0;
   const totalTraces = tab.execution?.totalTraces ?? 0;
   const durationStr = formatDurationS(durationMs);
@@ -83,7 +87,7 @@ export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
     m(
       'span.pf-bt-status-bar-pill',
       {className: `pf-bt-status-${status.toLowerCase().replace(/_/g, '-')}`},
-      statusDisplayLabel(status),
+      statusDisplayLabel(status, phase),
     ),
     m(
       'span.pf-bt-status-bar-duration',
@@ -188,6 +192,7 @@ async function refreshAsyncStatus(tab: BigTraceEditorTab): Promise<void> {
         processedTraces: status.processedTraces ?? 0,
         totalTraces: status.totalTraces ?? 0,
         status: status.status ?? 'N/A',
+        phase: status.phase,
       });
     }
   } catch (e) {

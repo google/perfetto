@@ -19,10 +19,13 @@ export const TERMINAL_STATUSES: ReadonlySet<string> = new Set([
   'CANCELLED',
 ]);
 
-// UI-display label for a wire status. IN_PROGRESS shows as "Running" (shorter,
-// no underscore); transient UNKNOWN reads as "Starting".
-export function statusDisplayLabel(status: string): string {
-  if (status === 'IN_PROGRESS') return 'Running';
+// UI-display label for a wire status. IN_PROGRESS shows as "Running" (or
+// "Building table" once Phase 1 published its preview); transient UNKNOWN reads
+// as "Starting".
+export function statusDisplayLabel(status: string, phase?: string): string {
+  if (status === 'IN_PROGRESS') {
+    return phase === 'FULL_TABLE' ? 'Building table' : 'Running';
+  }
   if (status === 'UNKNOWN') return 'Starting';
   const s = status.replace(/_/g, ' ');
   return s.charAt(0) + s.slice(1).toLowerCase();
@@ -73,6 +76,7 @@ import type {BigtraceColumnSchema} from './column_types';
 export interface QueryExecution {
   uuid: string;
   status: string;
+  phase?: string;
   startTime?: number;
   endTime?: number;
   processedRows: number;
@@ -81,7 +85,6 @@ export interface QueryExecution {
   error?: string;
   perfettoSql?: string;
   limit?: number;
-  materialized?: boolean;
   tableName?: string;
   tableLink?: string;
   schema?: ReadonlyArray<BigtraceColumnSchema>;
@@ -167,7 +170,6 @@ export class QueryStore {
     if (patch.tableName !== undefined) obj.tableName = patch.tableName;
     if (patch.perfettoSql !== undefined) obj.perfettoSql = patch.perfettoSql;
     if (patch.limit !== undefined) obj.limit = patch.limit;
-    if (patch.materialized !== undefined) obj.materialized = patch.materialized;
     if (patch.schema !== undefined) obj.schema = patch.schema;
   }
 }

@@ -59,9 +59,8 @@ export function presetMatches(
 // Whether the setup — everything but the query — is consistent with what the
 // preset describes: its selection, and every setting it names at that value.
 // Settings it doesn't name are free, so a preset still matches after the user
-// adds what it left out (a trace source, say). `materialized` and `limit` are
-// run-time controls rather than configuration, so they're deliberately not
-// compared.
+// adds what it left out (a trace source, say). `limit` is a run-time control
+// rather than configuration, so it is deliberately not compared.
 export function setupMatches(
   preset: TracePreset,
   current: Omit<PresetComparable, 'sql'>,

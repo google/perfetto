@@ -31,7 +31,6 @@ import type {
   QueryResponse,
   QueryTabsState,
 } from './query_tabs_state';
-import {formatDurationS} from './status_box';
 
 // Per-tab results sort. DataGrid carries sort on the Column object, so
 // controlled-mode `columns` must splice it back each render or a header click
@@ -199,23 +198,20 @@ function renderDataGrid(
         ? 'Query returned no rows'
         : 'No rows match the visible columns',
     toolbarItemsLeft: [
-      m('span.pf-bt-results-summary', renderResultsSummary(tab, queryResult)),
+      m('span.pf-bt-results-summary', renderResultsSummary(tab)),
     ],
   });
 }
 
-function renderResultsSummary(
-  tab: BigTraceEditorTab,
-  queryResult: QueryResponse,
-): string {
-  if (!tab.materialize) {
-    const durationStr = formatDurationS(Math.max(0, queryResult.durationMs));
-    return `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${durationStr}`;
-  }
+function renderResultsSummary(tab: BigTraceEditorTab): string {
   const asyncDs =
     tab.dataSource instanceof BigtraceAsyncDataSource
       ? tab.dataSource
       : undefined;
   const count = asyncDs?.filteredTotalRows ?? tab.execution?.processedRows ?? 0;
-  return `Showing ${Number(count).toLocaleString()} rows`;
+  const formatted = Number(count).toLocaleString();
+  if (tab.isLoading && tab.execution?.phase === 'FULL_TABLE') {
+    return `Previewing ${formatted} rows (building full table…)`;
+  }
+  return `Showing ${formatted} rows`;
 }

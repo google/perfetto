@@ -536,20 +536,11 @@
   flex-shrink: 0;
 }
 
-// Ephemeral / Persistent marker — the list mixes both kinds.
-.pf-bt-history-item-kind {
-  flex-shrink: 0;
-  font-size: var(--pf-font-size-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  opacity: 0.75;
-}
-
 .pf-bt-history-item-date {
   text-align: right;
 }
 
-// Materialized-only band between the meta header and the SQL pre.
+// Row count and table link strip between the meta header and the SQL pre.
 .pf-bt-history-item-details {
   background: var(--pf-color-background-secondary);
   padding: 4px 8px;

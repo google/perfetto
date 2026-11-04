@@ -27,6 +27,7 @@ import type {SettingFilter} from '../settings/settings_types';
 export interface RawQueryExecution {
   readonly queryUuid?: string;
   readonly status?: string;
+  readonly phase?: string;
   readonly startTime?: string;
   readonly endTime?: string;
   readonly processedRows?: number;
@@ -37,7 +38,6 @@ export interface RawQueryExecution {
   readonly perfettoSql?: string;
   readonly limit?: number;
   readonly traceLimit?: number;
-  readonly materialized?: boolean;
   readonly tableName?: string;
   readonly tableLink?: string;
   readonly schema?: ReadonlyArray<BigtraceColumnSchema>;
@@ -109,18 +109,6 @@ export class QueryHistoryStorage {
     return mapped;
   }
 
-  async getMaterializedHistory(): Promise<QueryExecution[]> {
-    return (await this.getAllHistory()).filter(
-      (item) => item.materialized === true,
-    );
-  }
-
-  async getNonMaterializedHistory(): Promise<QueryExecution[]> {
-    return (await this.getAllHistory()).filter(
-      (item) => item.materialized !== true,
-    );
-  }
-
   // Takes the query's table with it; see deleteQueryExecution.
   async deleteQuery(uuid: string): Promise<void> {
     await this.client().deleteQueryExecution(uuid);
@@ -139,6 +127,7 @@ function toQueryExecution(raw: RawQueryExecution): QueryExecution {
   return {
     uuid: raw.queryUuid ?? '',
     status: raw.status ?? 'UNKNOWN',
+    phase: raw.phase,
     startTime: isoToEpochMs(raw.startTime),
     endTime: isoToEpochMs(raw.endTime),
     processedRows: raw.processedRows ?? 0,
@@ -147,7 +136,6 @@ function toQueryExecution(raw: RawQueryExecution): QueryExecution {
     error: raw.error ?? raw.errorMessage,
     perfettoSql: raw.perfettoSql,
     limit: raw.limit,
-    materialized: raw.materialized,
     tableName: raw.tableName,
     tableLink: raw.tableLink,
     schema: raw.schema,
