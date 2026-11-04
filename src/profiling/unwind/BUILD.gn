@@ -48,17 +48,37 @@ source_set("unwind_engine") {
   ]
 }
 
+_use_libunwind = perfetto_unwinder_backend == "libunwind" && is_linux &&
+                 !is_android && current_cpu == "x64"
+
+group("unwind_backend") {
+  if (_use_libunwind) {
+    public_deps = [ "libunwind" ]
+  } else {
+    public_deps = [ "libunwindstack" ]
+  }
+}
+
+group("unittests") {
+  testonly = true
+  if (_use_libunwind) {
+    public_deps = [ "libunwind:unittests" ]
+  } else {
+    public_deps = [ "libunwindstack:unittests" ]
+  }
+}
+
 if (enable_perfetto_benchmarks && enable_perfetto_traced_perf &&
     enable_perfetto_heapprofd) {
   source_set("benchmarks") {
     testonly = true
     deps = [
+      ":unwind_backend",
       ":unwind_engine",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
       "../../../src/base",
       "../perf:unwinding",
-      "libunwindstack",
     ]
     sources = [ "unwind_benchmark.cc" ]
   }
