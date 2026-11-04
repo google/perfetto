@@ -402,6 +402,8 @@ And as a final dose of humility: one of my favorite synthetic benchmark wins (co
 
 ## Try it on your app today
 
+The six changes in the table above that passed on-device benchmarking have all landed in Google Play services and are now rolling out to the fleet behind experiment flags. Once those rollouts finish ramping to production, I'll see how much they move that 272 MiB p90 (and 522 MiB p99) kernel page-cache footprint in the wild, and when I have the numbers I just might go back and update this blog post.
+
 Whether you are maintaining a single-process app with one Room database or a massive multi-module app with dozens of SQLite databases sharing a process, don't guess where your database bottlenecks are, and don't blindly chase every static lint warning without measuring its real-world cost first:
 
 * **Check the updated guide:** Read the refreshed [Best practices for SQLite performance](https://developer.android.com/topic/performance/sqlite-performance-best-practices) on [developer.android.com](https://developer.android.com), including the new sections on [managing connections, statement caches, and memory](https://developer.android.com/topic/performance/sqlite-performance-best-practices#connections-memory), [dumpsys meminfo](https://developer.android.com/topic/performance/sqlite-performance-best-practices#dumpsys-meminfo), [dumpsys dbinfo](https://developer.android.com/topic/performance/sqlite-performance-best-practices#dumpsys-dbinfo), and [Perfetto tracing](https://developer.android.com/topic/performance/sqlite-performance-best-practices#perfetto-tracing).
