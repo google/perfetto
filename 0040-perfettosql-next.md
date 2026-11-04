@@ -300,9 +300,7 @@ this:
 ```sql
 SELECT s.id, s.name, SUM(dur * freq.freq) AS cpu_cycles
 FROM thread_slice AS s
-TREE KEEP IF DESCENDANT OF (
-  SELECT id FROM thread_slice WHERE name = 'doFrame'
-)
+TREE FIND thread_slice AS a NEAREST ANCESTOR OR SELF WHERE a.name = 'doFrame'
 INTERVAL SPLIT thread_state AS st PER utid
 WHERE st.state = 'Running'
 INTERVAL SPLIT cpu_frequency_counters AS freq PER cpu
@@ -337,9 +335,7 @@ The composition example now has an unambiguous order:
 
 ```sql
 FROM thread_slice AS s
-|> TREE KEEP IF DESCENDANT OF (
-     SELECT id FROM thread_slice WHERE name = 'doFrame'
-   )
+|> TREE FIND thread_slice AS a NEAREST ANCESTOR OR SELF WHERE a.name = 'doFrame'
 |> INTERVAL SPLIT thread_state AS st PER utid
 |> WHERE st.state = 'Running'
 |> INTERVAL SPLIT cpu_frequency_counters AS freq PER cpu
@@ -356,7 +352,7 @@ frequency changes. The final relational stage calculates CPU cycles for each
 surviving slice.
 
 Familiar relational operations (`WHERE`, `SELECT`, `EXTEND`,
-`AGGREGATE ... GROUP BY`, `JOIN`, `ORDER BY`, `WINDOW`) retain their plain SQL
+`AGGREGATE ... GROUP BY`, `JOIN`, `ORDER BY`) retain their plain SQL
 semantics. The analysis operators use the same pipeline.
 
 ### Language integration
