@@ -17015,7 +17015,7 @@ class InlineCallstack(_message.Message):
     def __init__(self, frames: _Optional[_Iterable[_Union[InlineCallstack.Frame, _Mapping]]] = ...) -> None: ...
 
 class StackSample(_message.Message):
-    __slots__ = ("task_context", "task_context_iid", "execution_context", "execution_context_iid", "callstack", "callstack_iid", "unwind_error", "unwind_error_iid", "primary_descriptor", "primary_descriptor_iid", "primary_weight", "follower_descriptors", "follower_descriptor_iids", "follower_weights")
+    __slots__ = ("task_context", "task_context_iid", "execution_context", "execution_context_iid", "callstack", "callstack_iid", "unwind_error", "unwind_error_iid", "primary_descriptor", "primary_descriptor_iid", "primary_weight", "follower_descriptors", "follower_descriptor_iids", "follower_weights", "error", "error_iid")
     class Mode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         MODE_UNKNOWN: _ClassVar[StackSample.Mode]
@@ -17108,6 +17108,37 @@ class StackSample(_message.Message):
         description: str
         scope: StackSample.CounterDescriptor.Scope
         def __init__(self, iid: _Optional[int] = ..., name: _Optional[str] = ..., unit: _Optional[_Union[StackSample.Unit, str]] = ..., unit_str: _Optional[str] = ..., unit_multiplier: _Optional[int] = ..., description: _Optional[str] = ..., scope: _Optional[_Union[StackSample.CounterDescriptor.Scope, str]] = ...) -> None: ...
+    class ErrorDescriptor(_message.Message):
+        __slots__ = ("iid", "builtin", "name", "severity", "description")
+        class Builtin(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+            __slots__ = ()
+            BUILTIN_UNSPECIFIED: _ClassVar[StackSample.ErrorDescriptor.Builtin]
+            BUILTIN_SAMPLE_FAILED: _ClassVar[StackSample.ErrorDescriptor.Builtin]
+            BUILTIN_UNWIND_FAILED: _ClassVar[StackSample.ErrorDescriptor.Builtin]
+        BUILTIN_UNSPECIFIED: StackSample.ErrorDescriptor.Builtin
+        BUILTIN_SAMPLE_FAILED: StackSample.ErrorDescriptor.Builtin
+        BUILTIN_UNWIND_FAILED: StackSample.ErrorDescriptor.Builtin
+        class Severity(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+            __slots__ = ()
+            SEVERITY_UNSPECIFIED: _ClassVar[StackSample.ErrorDescriptor.Severity]
+            SEVERITY_INFO: _ClassVar[StackSample.ErrorDescriptor.Severity]
+            SEVERITY_DATA_LOSS: _ClassVar[StackSample.ErrorDescriptor.Severity]
+            SEVERITY_ERROR: _ClassVar[StackSample.ErrorDescriptor.Severity]
+        SEVERITY_UNSPECIFIED: StackSample.ErrorDescriptor.Severity
+        SEVERITY_INFO: StackSample.ErrorDescriptor.Severity
+        SEVERITY_DATA_LOSS: StackSample.ErrorDescriptor.Severity
+        SEVERITY_ERROR: StackSample.ErrorDescriptor.Severity
+        IID_FIELD_NUMBER: _ClassVar[int]
+        BUILTIN_FIELD_NUMBER: _ClassVar[int]
+        NAME_FIELD_NUMBER: _ClassVar[int]
+        SEVERITY_FIELD_NUMBER: _ClassVar[int]
+        DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
+        iid: int
+        builtin: StackSample.ErrorDescriptor.Builtin
+        name: str
+        severity: StackSample.ErrorDescriptor.Severity
+        description: str
+        def __init__(self, iid: _Optional[int] = ..., builtin: _Optional[_Union[StackSample.ErrorDescriptor.Builtin, str]] = ..., name: _Optional[str] = ..., severity: _Optional[_Union[StackSample.ErrorDescriptor.Severity, str]] = ..., description: _Optional[str] = ...) -> None: ...
     TASK_CONTEXT_FIELD_NUMBER: _ClassVar[int]
     TASK_CONTEXT_IID_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_CONTEXT_FIELD_NUMBER: _ClassVar[int]
@@ -17122,6 +17153,8 @@ class StackSample(_message.Message):
     FOLLOWER_DESCRIPTORS_FIELD_NUMBER: _ClassVar[int]
     FOLLOWER_DESCRIPTOR_IIDS_FIELD_NUMBER: _ClassVar[int]
     FOLLOWER_WEIGHTS_FIELD_NUMBER: _ClassVar[int]
+    ERROR_FIELD_NUMBER: _ClassVar[int]
+    ERROR_IID_FIELD_NUMBER: _ClassVar[int]
     task_context: StackSample.TaskContext
     task_context_iid: int
     execution_context: StackSample.ExecutionContext
@@ -17136,7 +17169,9 @@ class StackSample(_message.Message):
     follower_descriptors: _containers.RepeatedCompositeFieldContainer[StackSample.CounterDescriptor]
     follower_descriptor_iids: _containers.RepeatedScalarFieldContainer[int]
     follower_weights: _containers.RepeatedScalarFieldContainer[int]
-    def __init__(self, task_context: _Optional[_Union[StackSample.TaskContext, _Mapping]] = ..., task_context_iid: _Optional[int] = ..., execution_context: _Optional[_Union[StackSample.ExecutionContext, _Mapping]] = ..., execution_context_iid: _Optional[int] = ..., callstack: _Optional[_Union[InlineCallstack, _Mapping]] = ..., callstack_iid: _Optional[int] = ..., unwind_error: _Optional[str] = ..., unwind_error_iid: _Optional[int] = ..., primary_descriptor: _Optional[_Union[StackSample.CounterDescriptor, _Mapping]] = ..., primary_descriptor_iid: _Optional[int] = ..., primary_weight: _Optional[int] = ..., follower_descriptors: _Optional[_Iterable[_Union[StackSample.CounterDescriptor, _Mapping]]] = ..., follower_descriptor_iids: _Optional[_Iterable[int]] = ..., follower_weights: _Optional[_Iterable[int]] = ...) -> None: ...
+    error: StackSample.ErrorDescriptor
+    error_iid: int
+    def __init__(self, task_context: _Optional[_Union[StackSample.TaskContext, _Mapping]] = ..., task_context_iid: _Optional[int] = ..., execution_context: _Optional[_Union[StackSample.ExecutionContext, _Mapping]] = ..., execution_context_iid: _Optional[int] = ..., callstack: _Optional[_Union[InlineCallstack, _Mapping]] = ..., callstack_iid: _Optional[int] = ..., unwind_error: _Optional[str] = ..., unwind_error_iid: _Optional[int] = ..., primary_descriptor: _Optional[_Union[StackSample.CounterDescriptor, _Mapping]] = ..., primary_descriptor_iid: _Optional[int] = ..., primary_weight: _Optional[int] = ..., follower_descriptors: _Optional[_Iterable[_Union[StackSample.CounterDescriptor, _Mapping]]] = ..., follower_descriptor_iids: _Optional[_Iterable[int]] = ..., follower_weights: _Optional[_Iterable[int]] = ..., error: _Optional[_Union[StackSample.ErrorDescriptor, _Mapping]] = ..., error_iid: _Optional[int] = ...) -> None: ...
 
 class StackSampleDefaults(_message.Message):
     __slots__ = ("source", "primary_descriptor", "follower_descriptors")
@@ -18230,7 +18265,7 @@ class EventName(_message.Message):
     def __init__(self, iid: _Optional[int] = ..., name: _Optional[str] = ...) -> None: ...
 
 class InternedData(_message.Message):
-    __slots__ = ("event_categories", "event_names", "debug_annotation_names", "debug_annotation_value_type_names", "debug_annotation_string_values", "correlation_id_str", "track_dimension_strings", "build_ids", "mapping_paths", "source_paths", "function_names", "mappings", "frames", "callstacks", "stack_sample_task_contexts", "stack_sample_execution_contexts", "stack_sample_counter_descriptors", "stack_sample_async_context_descriptors", "source_locations", "unsymbolized_source_locations", "log_message_body", "histogram_names", "vulkan_memory_keys", "graphics_contexts", "gpu_specifications", "gpu_counter_descriptors", "kernel_symbols", "v8_js_function_name", "v8_js_function", "v8_js_script", "v8_wasm_script", "v8_isolate")
+    __slots__ = ("event_categories", "event_names", "debug_annotation_names", "debug_annotation_value_type_names", "debug_annotation_string_values", "correlation_id_str", "track_dimension_strings", "build_ids", "mapping_paths", "source_paths", "function_names", "mappings", "frames", "callstacks", "stack_sample_task_contexts", "stack_sample_execution_contexts", "stack_sample_counter_descriptors", "stack_sample_async_context_descriptors", "stack_sample_error_descriptors", "source_locations", "unsymbolized_source_locations", "log_message_body", "histogram_names", "vulkan_memory_keys", "graphics_contexts", "gpu_specifications", "gpu_counter_descriptors", "kernel_symbols", "v8_js_function_name", "v8_js_function", "v8_js_script", "v8_wasm_script", "v8_isolate")
     Extensions: _python_message._ExtensionDict
     EVENT_CATEGORIES_FIELD_NUMBER: _ClassVar[int]
     EVENT_NAMES_FIELD_NUMBER: _ClassVar[int]
@@ -18250,6 +18285,7 @@ class InternedData(_message.Message):
     STACK_SAMPLE_EXECUTION_CONTEXTS_FIELD_NUMBER: _ClassVar[int]
     STACK_SAMPLE_COUNTER_DESCRIPTORS_FIELD_NUMBER: _ClassVar[int]
     STACK_SAMPLE_ASYNC_CONTEXT_DESCRIPTORS_FIELD_NUMBER: _ClassVar[int]
+    STACK_SAMPLE_ERROR_DESCRIPTORS_FIELD_NUMBER: _ClassVar[int]
     SOURCE_LOCATIONS_FIELD_NUMBER: _ClassVar[int]
     UNSYMBOLIZED_SOURCE_LOCATIONS_FIELD_NUMBER: _ClassVar[int]
     LOG_MESSAGE_BODY_FIELD_NUMBER: _ClassVar[int]
@@ -18282,6 +18318,7 @@ class InternedData(_message.Message):
     stack_sample_execution_contexts: _containers.RepeatedCompositeFieldContainer[StackSample.ExecutionContext]
     stack_sample_counter_descriptors: _containers.RepeatedCompositeFieldContainer[StackSample.CounterDescriptor]
     stack_sample_async_context_descriptors: _containers.RepeatedCompositeFieldContainer[StackSample.AsyncContextDescriptor]
+    stack_sample_error_descriptors: _containers.RepeatedCompositeFieldContainer[StackSample.ErrorDescriptor]
     source_locations: _containers.RepeatedCompositeFieldContainer[SourceLocation]
     unsymbolized_source_locations: _containers.RepeatedCompositeFieldContainer[UnsymbolizedSourceLocation]
     log_message_body: _containers.RepeatedCompositeFieldContainer[LogMessageBody]
@@ -18296,7 +18333,7 @@ class InternedData(_message.Message):
     v8_js_script: _containers.RepeatedCompositeFieldContainer[InternedV8JsScript]
     v8_wasm_script: _containers.RepeatedCompositeFieldContainer[InternedV8WasmScript]
     v8_isolate: _containers.RepeatedCompositeFieldContainer[InternedV8Isolate]
-    def __init__(self, event_categories: _Optional[_Iterable[_Union[EventCategory, _Mapping]]] = ..., event_names: _Optional[_Iterable[_Union[EventName, _Mapping]]] = ..., debug_annotation_names: _Optional[_Iterable[_Union[DebugAnnotationName, _Mapping]]] = ..., debug_annotation_value_type_names: _Optional[_Iterable[_Union[DebugAnnotationValueTypeName, _Mapping]]] = ..., debug_annotation_string_values: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., correlation_id_str: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., track_dimension_strings: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., build_ids: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mapping_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., source_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., function_names: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mappings: _Optional[_Iterable[_Union[Mapping, _Mapping]]] = ..., frames: _Optional[_Iterable[_Union[Frame, _Mapping]]] = ..., callstacks: _Optional[_Iterable[_Union[Callstack, _Mapping]]] = ..., stack_sample_task_contexts: _Optional[_Iterable[_Union[StackSample.TaskContext, _Mapping]]] = ..., stack_sample_execution_contexts: _Optional[_Iterable[_Union[StackSample.ExecutionContext, _Mapping]]] = ..., stack_sample_counter_descriptors: _Optional[_Iterable[_Union[StackSample.CounterDescriptor, _Mapping]]] = ..., stack_sample_async_context_descriptors: _Optional[_Iterable[_Union[StackSample.AsyncContextDescriptor, _Mapping]]] = ..., source_locations: _Optional[_Iterable[_Union[SourceLocation, _Mapping]]] = ..., unsymbolized_source_locations: _Optional[_Iterable[_Union[UnsymbolizedSourceLocation, _Mapping]]] = ..., log_message_body: _Optional[_Iterable[_Union[LogMessageBody, _Mapping]]] = ..., histogram_names: _Optional[_Iterable[_Union[HistogramName, _Mapping]]] = ..., vulkan_memory_keys: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., graphics_contexts: _Optional[_Iterable[_Union[InternedGraphicsContext, _Mapping]]] = ..., gpu_specifications: _Optional[_Iterable[_Union[InternedGpuRenderStageSpecification, _Mapping]]] = ..., gpu_counter_descriptors: _Optional[_Iterable[_Union[InternedGpuCounterDescriptor, _Mapping]]] = ..., kernel_symbols: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., v8_js_function_name: _Optional[_Iterable[_Union[InternedV8String, _Mapping]]] = ..., v8_js_function: _Optional[_Iterable[_Union[InternedV8JsFunction, _Mapping]]] = ..., v8_js_script: _Optional[_Iterable[_Union[InternedV8JsScript, _Mapping]]] = ..., v8_wasm_script: _Optional[_Iterable[_Union[InternedV8WasmScript, _Mapping]]] = ..., v8_isolate: _Optional[_Iterable[_Union[InternedV8Isolate, _Mapping]]] = ...) -> None: ...
+    def __init__(self, event_categories: _Optional[_Iterable[_Union[EventCategory, _Mapping]]] = ..., event_names: _Optional[_Iterable[_Union[EventName, _Mapping]]] = ..., debug_annotation_names: _Optional[_Iterable[_Union[DebugAnnotationName, _Mapping]]] = ..., debug_annotation_value_type_names: _Optional[_Iterable[_Union[DebugAnnotationValueTypeName, _Mapping]]] = ..., debug_annotation_string_values: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., correlation_id_str: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., track_dimension_strings: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., build_ids: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mapping_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., source_paths: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., function_names: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., mappings: _Optional[_Iterable[_Union[Mapping, _Mapping]]] = ..., frames: _Optional[_Iterable[_Union[Frame, _Mapping]]] = ..., callstacks: _Optional[_Iterable[_Union[Callstack, _Mapping]]] = ..., stack_sample_task_contexts: _Optional[_Iterable[_Union[StackSample.TaskContext, _Mapping]]] = ..., stack_sample_execution_contexts: _Optional[_Iterable[_Union[StackSample.ExecutionContext, _Mapping]]] = ..., stack_sample_counter_descriptors: _Optional[_Iterable[_Union[StackSample.CounterDescriptor, _Mapping]]] = ..., stack_sample_async_context_descriptors: _Optional[_Iterable[_Union[StackSample.AsyncContextDescriptor, _Mapping]]] = ..., stack_sample_error_descriptors: _Optional[_Iterable[_Union[StackSample.ErrorDescriptor, _Mapping]]] = ..., source_locations: _Optional[_Iterable[_Union[SourceLocation, _Mapping]]] = ..., unsymbolized_source_locations: _Optional[_Iterable[_Union[UnsymbolizedSourceLocation, _Mapping]]] = ..., log_message_body: _Optional[_Iterable[_Union[LogMessageBody, _Mapping]]] = ..., histogram_names: _Optional[_Iterable[_Union[HistogramName, _Mapping]]] = ..., vulkan_memory_keys: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., graphics_contexts: _Optional[_Iterable[_Union[InternedGraphicsContext, _Mapping]]] = ..., gpu_specifications: _Optional[_Iterable[_Union[InternedGpuRenderStageSpecification, _Mapping]]] = ..., gpu_counter_descriptors: _Optional[_Iterable[_Union[InternedGpuCounterDescriptor, _Mapping]]] = ..., kernel_symbols: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., v8_js_function_name: _Optional[_Iterable[_Union[InternedV8String, _Mapping]]] = ..., v8_js_function: _Optional[_Iterable[_Union[InternedV8JsFunction, _Mapping]]] = ..., v8_js_script: _Optional[_Iterable[_Union[InternedV8JsScript, _Mapping]]] = ..., v8_wasm_script: _Optional[_Iterable[_Union[InternedV8WasmScript, _Mapping]]] = ..., v8_isolate: _Optional[_Iterable[_Union[InternedV8Isolate, _Mapping]]] = ...) -> None: ...
 
 class SystemdJournaldEvent(_message.Message):
     __slots__ = ("pid", "tid", "uid", "gid", "prio", "tag", "message", "comm", "exe", "systemd_unit", "hostname", "transport", "num_total", "num_failed")
