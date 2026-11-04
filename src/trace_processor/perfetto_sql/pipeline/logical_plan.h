@@ -98,15 +98,13 @@ class PlanOperation {
       StringPool*,
       Bindings* bindings) const;
 
-  // Rewrites the plan at node `self`, the operation's own, knowing how the rows
-  // of everything below it arrive. May change that node and what is below it,
-  // planning again whatever it changes below.
+  // Rewrites the plan at node `self`. May change it and what is below it, which
+  // it must plan again.
   virtual void Rewrite(BoundPlan*,
                        PlanNodeId self,
                        const LoweringContext&) const;
 
-  // What this operation needs of the rows of input `input`. The sweep over the
-  // plan works out the steps this takes, which lowering the input runs.
+  // What this operation needs of the rows of input `input`.
   virtual InputNeeds Needs(uint32_t input) const;
 
   // Columns of its inputs which must end up with one type.

@@ -81,15 +81,15 @@ class InputPlanner {
   const OutputProperties& rows() const { return out_.rows; }
 
   void Convert(ColumnId column, const PlanType& type) {
-    const PlanType& from = out_.rows.TypeOf(column);
-    bool all_null = out_.rows.columns[*out_.rows.PositionOf(column)].all_null;
+    OutputProperties& rows = out_.rows;
+    OutputProperties::Column& from = rows.columns[*rows.PositionOf(column)];
     if (!type.storage() ||
-        (from.storage() && *from.storage() == *type.storage())) {
+        (from.type.storage() && *from.type.storage() == *type.storage())) {
       return;
     }
     out_.steps.push_back(
-        input_step::Convert{column, *type.storage(), all_null});
-    out_.rows.SetType(column, *type.storage());
+        input_step::Convert{column, *type.storage(), from.all_null});
+    from.type = type;
   }
 
   void Meet(const InputNeeds& needs) {
@@ -362,12 +362,6 @@ const PlanType& OutputProperties::TypeOf(ColumnId column) const {
   return columns[*position].type;
 }
 
-void OutputProperties::SetType(ColumnId column, core::StorageType type) {
-  std::optional<uint32_t> position = PositionOf(column);
-  PERFETTO_CHECK(position);
-  columns[*position].type = type;
-}
-
 std::optional<ColumnId> OutputProperties::GroupNumbersOf(
     const std::vector<ColumnId>& keys) const {
   for (const GroupNumbers& numbers : group_numbers) {
@@ -429,7 +423,7 @@ InputNeeds IntervalLaneNeeds(ColumnId ts,
 
 void PlanNodeInputs(BoundPlan* bound,
                     PlanNodeId id,
-                    const LoweringContext& lowering) {
+                    const LoweringContext& context) {
   bound->planned[id].new_columns_used = 0;
   const PlanNode& node = bound->plan.nodes()[id];
   const PlanOperation& op = node.operation();
@@ -464,8 +458,8 @@ void PlanNodeInputs(BoundPlan* bound,
     inputs.push_back(planners[i].Take());
   }
   bound->planned[id].inputs = std::move(inputs);
-  DeriveContext context(bound, id, lowering);
-  OutputProperties output = op.Derive(context);
+  DeriveContext derive(bound, id, context);
+  OutputProperties output = op.Derive(derive);
   bound->planned[id].output = std::move(output);
 }
 

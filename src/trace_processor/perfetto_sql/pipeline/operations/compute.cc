@@ -60,8 +60,7 @@ OutputProperties Compute::Derive(DeriveContext& c) const {
   OutputProperties out = c.input(0);
   std::vector<ex::ExprProgram> programs;
   for (const Item& item : items_) {
-    base::StatusOr<TypedExpr> typed =
-        TypeExpr(c.bound(), c.input(0), item.expr);
+    base::StatusOr<TypedExpr> typed = TypeExpr(c.input(0), item.expr);
     if (!typed.ok()) {
       c.Fail(typed.status());
       return out;

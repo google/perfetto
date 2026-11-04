@@ -326,6 +326,25 @@ std::optional<core::StorageType> TypeForLiterals(
   return type;
 }
 
+core::exec::FilterValue CastWhereLiterals(
+    const WherePredicate& p,
+    const std::vector<WhereLiteral>& literals,
+    const std::vector<std::string>& strings,
+    core::StorageType type,
+    const StringPool& pool) {
+  LiteralFetcher fetcher(literals.data() + p.first_literal, p.literal_count,
+                         strings);
+  ex::FilterValue value;
+  if (p.op.Is<core::In>()) {
+    ex::GetFilterValueListCaster<LiteralFetcher>(type)(fetcher, 0, pool,
+                                                       &value);
+  } else {
+    ex::GetFilterValueCaster<LiteralFetcher>(type, p.op)(fetcher, 0, pool,
+                                                         &value);
+  }
+  return value;
+}
+
 }  // namespace
 
 const OperationRegistration Where::kRegistration{
@@ -347,25 +366,6 @@ std::optional<uint32_t> Where::Prune(std::vector<bool>* needed) {
     (*needed)[p.column] = true;
   }
   return std::nullopt;
-}
-
-static core::exec::FilterValue CastWhereLiterals(
-    const WherePredicate& p,
-    const std::vector<WhereLiteral>& literals,
-    const std::vector<std::string>& strings,
-    core::StorageType type,
-    const StringPool& pool) {
-  LiteralFetcher fetcher(literals.data() + p.first_literal, p.literal_count,
-                         strings);
-  ex::FilterValue value;
-  if (p.op.Is<core::In>()) {
-    ex::GetFilterValueListCaster<LiteralFetcher>(type)(fetcher, 0, pool,
-                                                       &value);
-  } else {
-    ex::GetFilterValueCaster<LiteralFetcher>(type, p.op)(fetcher, 0, pool,
-                                                         &value);
-  }
-  return value;
 }
 
 InputNeeds Where::Needs(uint32_t) const {

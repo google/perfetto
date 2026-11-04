@@ -90,9 +90,6 @@ struct OutputProperties {
   // The type of `column`, which the batches must have.
   const PlanType& TypeOf(ColumnId column) const;
 
-  // Records that `column` has been made to hold `type`.
-  void SetType(ColumnId column, core::StorageType type);
-
   // Whether the rows are grouped by `keys` and sorted by `sorted_by` within
   // each group. Sorting by some keys first also groups by them. For example,
   // rows sorted by (cpu, ts) are grouped by cpu and sorted by ts in each group.
@@ -218,8 +215,7 @@ struct PlannedNode {
   OutputProperties output;
   // The programs of the expressions it computes, if any.
   std::vector<core::exec::ExprProgram> programs;
-  // The values of the conditions it tests, by condition, until lowering takes
-  // them. A condition with no value has none.
+  // By condition, the value it tests with, if any, until lowering takes it.
   std::vector<std::optional<core::exec::FilterValue>> filter_values;
   // The columns it added to the plan, which planning it again reuses.
   std::vector<ColumnId> new_columns;

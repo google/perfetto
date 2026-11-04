@@ -190,8 +190,8 @@ operands after the first. Everything else is found by its bare name too.
 
 Code: `/src/trace_processor/core/exec/interval_flatten.cc`
 
-Input is grouped by the `PER` keys and sorted by `ts` within each group,
-as its needs ask, which adds a sort only if needed.
+Input is grouped by the `PER` keys and sorted by `ts` within each group, with a
+sort added only if needed.
 `IntervalFlatten` then streams through the sorted rows.
 
 A min-heap tracks when active intervals end. Each interval keeps its row's
@@ -220,7 +220,7 @@ still decides the rows.
 Code: `/src/trace_processor/core/exec/interval_fill_gaps.cc`
 
 The background is a side pipeline, read whole before the input. Both are
-grouped by the `PER` keys and sorted by `ts` as its needs ask,
+grouped by the `PER` keys and sorted by `ts`,
 and columns shared by the two are converted to one type.
 
 `IntervalFillGaps` streams through the input, outputs every row unchanged, and

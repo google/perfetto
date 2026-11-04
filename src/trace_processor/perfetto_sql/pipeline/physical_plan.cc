@@ -16,10 +16,8 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -28,8 +26,6 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/assert_type.h"
 #include "src/trace_processor/core/exec/combine_batches.h"
@@ -288,10 +284,6 @@ uint32_t Lowering::QueryPosition(ColumnId id) const {
   std::optional<uint32_t> position = rows_->PositionOf(id);
   PERFETTO_DCHECK(position);
   return *position;
-}
-
-PlanType Lowering::QueryType(ColumnId id) const {
-  return rows_->TypeOf(id);
 }
 
 const LogicalPlan& Lowering::plan() const {
