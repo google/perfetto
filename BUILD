@@ -4041,6 +4041,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/compiler.h",
         "src/trace_processor/perfetto_sql/pipeline/expression.cc",
         "src/trace_processor/perfetto_sql/pipeline/expression.h",
+        "src/trace_processor/perfetto_sql/pipeline/literal.cc",
+        "src/trace_processor/perfetto_sql/pipeline/literal.h",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.h",
         "src/trace_processor/perfetto_sql/pipeline/operation_registry.h",

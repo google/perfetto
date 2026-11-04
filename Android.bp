@@ -19529,6 +19529,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/pipeline/column_pruning.cc",
         "src/trace_processor/perfetto_sql/pipeline/compiler.cc",
         "src/trace_processor/perfetto_sql/pipeline/expression.cc",
+        "src/trace_processor/perfetto_sql/pipeline/literal.cc",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/output_properties.cc",
         "src/trace_processor/perfetto_sql/pipeline/physical_plan.cc",
