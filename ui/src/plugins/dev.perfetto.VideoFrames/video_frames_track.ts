@@ -14,7 +14,7 @@
 
 import './video_frames.scss';
 import m from 'mithril';
-import {AsyncMemo} from '../../base/async_memo';
+import {AsyncMemo, TASK_CANCELLED} from '../../base/async_memo';
 import {materialColorScheme} from '../../components/colorizer';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {Trace} from '../../public/trace';
@@ -29,16 +29,17 @@ export function createVideoFramesTrack(
   displayId: number,
   player: VideoFramePlayer,
 ) {
-  // dur spans each frame to the next (last frame: 0). is_config rows are
-  // decoder setup, not displayable, so excluded. Frames before the first key
-  // frame can't be decoded (no key frame to seed the decoder, e.g. a ring
-  // buffer whose GOP start was overwritten), so start the track at the first
-  // key frame.
+  // dur spans each frame to the next. Frames are only emitted when the screen
+  // changes, so the last frame stays on screen until the end of the trace.
+  // is_config rows are decoder setup, not displayable, so excluded. Frames
+  // before the first key frame can't be decoded (no key frame to seed the
+  // decoder, e.g. a ring buffer whose GOP start was overwritten), so start the
+  // track at the first key frame.
   const src = `
     SELECT
       id,
       ts,
-      COALESCE(LEAD(ts) OVER (ORDER BY ts) - ts, 0) AS dur,
+      COALESCE(LEAD(ts) OVER (ORDER BY ts), trace_end()) - ts AS dur,
       0 AS depth,
       -- When the frame is aligned to a SurfaceFlinger composite, name it by
       -- that vsync id; otherwise fall back to the frame number.
@@ -80,7 +81,10 @@ export function createVideoFramesTrack(
         // Keep the previous frame on screen while the next decodes, so
         // sweeping the cursor doesn't blink back to 'Loading...'.
         retainOn: ['id'],
-        compute: () => player.decodeFrameImage(data.id),
+        compute: async (signal) => {
+          const url = await player.decodeFrameImage(data.id, signal);
+          return signal.isCancelled ? TASK_CANCELLED : url;
+        },
       });
       if (image.data) {
         return [m('img.pf-video-frame-tooltip__img', {src: image.data})];
