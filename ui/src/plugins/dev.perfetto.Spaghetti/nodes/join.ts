@@ -15,7 +15,11 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {moveArrayItem} from '../../../base/array_utils';
-import type {NodeManifest, RenderContext, IrContext} from '../node_types';
+import type {
+  LogicalOpContext,
+  NodeManifest,
+  RenderContext,
+} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Row} from '../components/row';
 import {Stack} from '../components/stack';
@@ -258,28 +262,25 @@ export const manifest: NodeManifest<JoinConfig> = {
   }),
   render,
   isValid,
-  emitIr(config: JoinConfig, ctx: IrContext) {
-    const leftRef = ctx.getInputRef('left');
-    const rightRef = ctx.getInputRef('right');
-    if (!leftRef) return undefined;
-    if (!rightRef) return {sql: `SELECT *\nFROM ${leftRef}`};
+  toLogicalOp(config: JoinConfig, ctx: LogicalOpContext) {
+    const left = ctx.getInputNodeId('left');
+    const right = ctx.getInputNodeId('right');
+    if (!left) return undefined;
+    if (!right) return {kind: 'passthrough', input: left};
     const leftCols = ctx.getInputColumns('left');
-
-    const selectCols: [string, ...string[]] = ['l.*'];
-    const aliases = getExtendColumnAliases(
+    const rightColumns = getExtendColumnAliases(
       config,
       (leftCols ?? []).map((c) => c.name),
-    );
-    for (const a of aliases) {
-      const expr = `r.${a.column}`;
-      selectCols.push(a.alias !== a.column ? `${expr} AS ${a.alias}` : expr);
-    }
-    const selectClause =
-      selectCols.length > 1 ? '\n  ' + selectCols.join(',\n  ') : selectCols[0];
-    const joinKw =
-      (config.joinType ?? 'LEFT') === 'INNER' ? 'JOIN' : 'LEFT JOIN';
-    const condition = `ON l.${config.leftColumn} = r.${config.rightColumn}`;
-    const sql = `SELECT ${selectClause}\nFROM ${leftRef} AS l\n${joinKw} ${rightRef} AS r ${condition}`;
-    return {sql};
+    ).filter((c) => c.column !== '');
+
+    return {
+      kind: 'join',
+      left,
+      right,
+      joinType: config.joinType ?? 'LEFT',
+      leftColumn: config.leftColumn,
+      rightColumn: config.rightColumn,
+      rightColumns,
+    };
   },
 };

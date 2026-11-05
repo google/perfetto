@@ -17,10 +17,11 @@ import {z} from 'zod';
 import {moveArrayItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
+  LogicalOpContext,
   NodeManifest,
   RenderContext,
-  SqlStatement,
 } from '../node_types';
+import type {LogicalOp} from '../logical_ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {TextInput} from '../../../widgets/text_input';
 import type {ColumnDef} from '../graph_utils';
@@ -179,16 +180,19 @@ function isValid(config: ExtendConfig): boolean {
   return config.entries.every((e) => !e.alias || e.expression);
 }
 
-function tryFold(stmt: SqlStatement, config: ExtendConfig): boolean {
-  // Can't append columns to a grouped query.
-  if (stmt.groupBy) return false;
-  const exprParts = config.entries
-    .filter((e) => e.expression)
-    .map((e) => `${e.expression} AS ${entryAlias(e)}`);
-  if (exprParts.length > 0) {
-    stmt.columns = [stmt.columns, ...exprParts].join(', ');
-  }
-  return true;
+function toLogicalOp(
+  config: ExtendConfig,
+  ctx: LogicalOpContext,
+): LogicalOp | undefined {
+  const input = ctx.getInputNodeId('input');
+  if (!input) return undefined;
+  return {
+    kind: 'extend',
+    input,
+    expressions: config.entries
+      .filter((e) => e.expression !== '')
+      .map((e) => ({expression: e.expression, alias: entryAlias(e)})),
+  };
 }
 
 export const manifest: NodeManifest<ExtendConfig> = {
@@ -201,5 +205,5 @@ export const manifest: NodeManifest<ExtendConfig> = {
   render,
   getOutputColumns,
   isValid,
-  tryFold,
+  toLogicalOp,
 };

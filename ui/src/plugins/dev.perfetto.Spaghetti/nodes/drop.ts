@@ -16,10 +16,11 @@ import m from 'mithril';
 import {z} from 'zod';
 import type {
   ColumnContext,
-  IrContext,
+  LogicalOpContext,
   NodeManifest,
   RenderContext,
 } from '../node_types';
+import type {LogicalOp} from '../logical_ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Row} from '../components/row';
 import {Stack} from '../components/stack';
@@ -112,23 +113,26 @@ function isValid(): boolean {
   return true;
 }
 
-function emitIr(config: DropConfig, ctx: IrContext) {
-  const ref = ctx.getInputRef('input');
-  if (!ref) return undefined;
+function toLogicalOp(
+  config: DropConfig,
+  ctx: LogicalOpContext,
+): LogicalOp | undefined {
+  const input = ctx.getInputNodeId('input');
+  if (!input) return undefined;
 
-  const dropped = new Set(config.columns.filter((c) => c));
+  const dropColumns = config.columns.filter((c) => c !== '');
+  const dropped = new Set(dropColumns);
   const inputColumns = ctx.getInputColumns('input');
+  const remainingColumns = inputColumns
+    ?.filter((c) => !dropped.has(c.name))
+    .map((c) => c.name);
 
-  // Without knowing the input columns (or with nothing to drop) we can't
-  // expand the keep-list, so pass everything through.
-  const kept =
-    inputColumns?.filter((c) => !dropped.has(c.name)).map((c) => c.name) ?? [];
-  if (dropped.size === 0 || kept.length === 0) {
-    return {sql: `SELECT *\nFROM ${ref}`};
-  }
-
-  const selectClause = kept.length > 1 ? '\n  ' + kept.join(',\n  ') : kept[0];
-  return {sql: `SELECT ${selectClause}\nFROM ${ref}`};
+  return {
+    kind: 'drop',
+    input,
+    dropColumns,
+    remainingColumns,
+  };
 }
 
 export const manifest: NodeManifest<DropConfig> = {
@@ -141,5 +145,5 @@ export const manifest: NodeManifest<DropConfig> = {
   render,
   getOutputColumns,
   isValid,
-  emitIr,
+  toLogicalOp,
 };

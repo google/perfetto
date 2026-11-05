@@ -15,23 +15,10 @@
 import type m from 'mithril';
 import type {z} from 'zod';
 import type {Trace} from '../../public/trace';
-import type {ColumnDef} from './graph_utils';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import type {Port} from './graph_model';
-
-// ---------------------------------------------------------------------------
-// SQL statement (used by tryFold in node manifests).
-// ---------------------------------------------------------------------------
-
-export interface SqlStatement {
-  distinct?: boolean;
-  columns: string;
-  from: string;
-  where?: string;
-  groupBy?: string;
-  orderBy?: string;
-  limit?: number;
-}
+import type {ColumnDef} from './graph_utils';
+import type {LogicalOp} from './logical_ir';
 
 // ---------------------------------------------------------------------------
 // Render context bag — each render function picks what it needs.
@@ -53,16 +40,18 @@ export interface RenderContext {
 }
 
 // ---------------------------------------------------------------------------
-// IR context — passed to emitIr for standalone SQL emission.
+// Logical op context — passed to toLogicalOp to emit language-agnostic IR.
 // ---------------------------------------------------------------------------
 
-export interface IrContext {
+export interface LogicalOpContext {
   /** Effective input ports for this node instance. */
   readonly inputPorts: ReadonlyArray<Port>;
-  /** Get the SQL reference (table name or CTE hash) for an input by port name. */
-  getInputRef(portName: string): string;
+  /** Get the upstream node ID connected to an input port by name. */
+  getInputNodeId(portName: string): string | undefined;
   /** Get the output columns of an input by port name. */
   getInputColumns(portName: string): ColumnDef[] | undefined;
+  /** SQL modules for table/module metadata resolution. */
+  readonly sqlModules: SqlModules | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -100,6 +89,7 @@ export interface ColumnContext {
 // Node manifest: single source of truth for each node type.
 // ---------------------------------------------------------------------------
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface NodeManifest<C extends object = any> {
   // Visual / graph metadatas
   readonly title: string;
@@ -129,17 +119,8 @@ export interface NodeManifest<C extends object = any> {
   /** Compute output columns (optional — absent means pass-through). */
   getOutputColumns?(config: C, ctx: ColumnContext): ColumnDef[] | undefined;
 
-  /** Try to fold this node into the current SQL statement (optional). */
-  tryFold?(stmt: SqlStatement, config: C): boolean;
-
-  /**
-   * Emit standalone SQL for nodes that can't fold (e.g. from, join, union).
-   * Returns {sql, includes} or undefined to fall back to generic fold logic.
-   */
-  emitIr?(
-    config: C,
-    ctx: IrContext,
-  ): {sql: string; includes?: string[]} | undefined;
+  /** Lower this node's config and input wiring into a declarative LogicalOp. */
+  toLogicalOp(config: C, ctx: LogicalOpContext): LogicalOp | undefined;
 
   /**
    * Optional: render custom content in the details panel instead of the

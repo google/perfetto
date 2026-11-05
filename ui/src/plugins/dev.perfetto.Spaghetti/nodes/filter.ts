@@ -22,27 +22,23 @@ import {TextInput} from '../../../widgets/text_input';
 import {Row} from '../components/row';
 import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
-import type {NodeManifest, RenderContext, SqlStatement} from '../node_types';
+import {
+  FILTER_OPS,
+  type FilterConjunction,
+  type FilterOp,
+  isUnaryFilterOp,
+  type LogicalOp,
+} from '../logical_ir';
+import type {
+  LogicalOpContext,
+  NodeManifest,
+  RenderContext,
+} from '../node_types';
 
-export const FILTER_OPS = [
-  '=',
-  '!=',
-  '>',
-  '>=',
-  '<',
-  '<=',
-  'LIKE',
-  'NOT LIKE',
-  'GLOB',
-  'IS NULL',
-  'IS NOT NULL',
-] as const;
+export {FILTER_OPS};
+export type {FilterConjunction, FilterOp};
 
 const FilterOpSchema = z.enum(FILTER_OPS);
-
-export type FilterOp = z.infer<typeof FilterOpSchema>;
-
-const UNARY_OPS: Set<FilterOp> = new Set(['IS NULL', 'IS NOT NULL']);
 
 const FilterConditionSchema = z.object({
   column: z.string(),
@@ -54,46 +50,12 @@ export type FilterCondition = z.infer<typeof FilterConditionSchema>;
 
 const FilterConjunctionSchema = z.enum(['AND', 'OR']);
 
-export type FilterConjunction = z.infer<typeof FilterConjunctionSchema>;
-
 const FilterConfigSchema = z.object({
   conditions: z.array(FilterConditionSchema),
   conjunction: FilterConjunctionSchema.optional(),
 });
 
 export type FilterConfig = z.infer<typeof FilterConfigSchema>;
-
-// Returns true if the value should be emitted as-is (numeric literal, SQL
-// NULL keyword, or already quoted/parenthesised by the user).
-function isRawValue(value: string): boolean {
-  if (value === '') return true;
-  if (/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(value)) return true; // number
-  if (/^null$/i.test(value)) return true; // NULL
-  if (value.startsWith("'") || value.startsWith('"')) return true; // already quoted
-  if (value.startsWith('(')) return true; // e.g. (1,2,3)
-  return false;
-}
-
-function quoteValue(value: string): string {
-  if (isRawValue(value)) return value;
-  // Escape any single quotes inside the value then wrap in single quotes.
-  return `'${value.replace(/'/g, "''")}'`;
-}
-
-export function conditionsToSql(
-  conditions: FilterCondition[],
-  conjunction: FilterConjunction = 'AND',
-): string {
-  const parts = conditions
-    .filter((c) => c.column)
-    .map((c) => {
-      if (UNARY_OPS.has(c.op)) {
-        return `${c.column} ${c.op}`;
-      }
-      return `${c.column} ${c.op} ${quoteValue(c.value)}`;
-    });
-  return parts.join(` ${conjunction} `);
-}
 
 function FilterNodeContent(): m.Component<{
   config: FilterConfig;
@@ -200,7 +162,7 @@ function FilterNodeContent(): m.Component<{
                   },
                   FILTER_OPS.map((op) => m('option', {value: op}, op)),
                 ),
-                ...(!UNARY_OPS.has(cond.op)
+                ...(!isUnaryFilterOp(cond.op)
                   ? [
                       m(TextInput, {
                         placeholder: 'value',
@@ -247,30 +209,27 @@ function renderFilterNode(
   return m(FilterNodeContent, {config, updateConfig, ctx});
 }
 
-const UNARY_FILTER_OPS: Set<FilterOp> = new Set(['IS NULL', 'IS NOT NULL']);
-
 function isValid(config: FilterConfig): boolean {
   if (config.conditions.length === 0) return true;
   return config.conditions.every((c) => {
     if (!c.column) return true;
-    if (UNARY_FILTER_OPS.has(c.op)) return true;
+    if (isUnaryFilterOp(c.op)) return true;
     return c.value !== '';
   });
 }
 
-function tryFold(stmt: SqlStatement, config: FilterConfig): boolean {
-  if (
-    stmt.groupBy !== undefined ||
-    stmt.orderBy !== undefined ||
-    stmt.limit !== undefined
-  ) {
-    return false;
-  }
-  const expr = conditionsToSql(config.conditions, config.conjunction);
-  if (expr) {
-    stmt.where = stmt.where ? `(${stmt.where}) AND (${expr})` : expr;
-  }
-  return true;
+function toLogicalOp(
+  config: FilterConfig,
+  ctx: LogicalOpContext,
+): LogicalOp | undefined {
+  const input = ctx.getInputNodeId('input');
+  if (!input) return undefined;
+  return {
+    kind: 'filter',
+    input,
+    conditions: config.conditions.filter((c) => c.column !== ''),
+    conjunction: config.conjunction ?? 'AND',
+  };
 }
 
 export const manifest: NodeManifest<FilterConfig> = {
@@ -286,5 +245,5 @@ export const manifest: NodeManifest<FilterConfig> = {
   render: renderFilterNode,
   isValid,
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
-  tryFold,
+  toLogicalOp,
 };

@@ -31,7 +31,15 @@ export const manifest: NodeManifest<FromConfig> = {
   schema: FromConfigSchema,
   defaultConfig: () => ({table: 'slice'}),
   isValid: (config) => config.table !== '',
-  emitIr: (config) => ({sql: `SELECT *\nFROM ${config.table}`}),
+  toLogicalOp(config, ctx) {
+    if (!config.table) return undefined;
+    const mod = ctx.sqlModules?.getModuleForTable(config.table);
+    const includes =
+      mod && !mod.includeKey.startsWith('prelude')
+        ? [mod.includeKey]
+        : undefined;
+    return {kind: 'scan', table: config.table, includes};
+  },
   getOutputColumns(config, ctx) {
     if (!config.table || !ctx.sqlModules) return undefined;
     const table = ctx.sqlModules.getTable(config.table);
