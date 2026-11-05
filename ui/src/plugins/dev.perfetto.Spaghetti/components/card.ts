@@ -28,8 +28,8 @@ export function Card(): m.Component<CardAttrs> {
       return m('.pf-spag-card', [
         m('.pf-spag-card-header', [
           m('span.pf-spag-card-title', title),
-          meta && m('span.pf-spag-card-meta', meta),
-          badges && m('.pf-spag-card-badges', badges),
+          Boolean(meta) && m('span.pf-spag-card-meta', meta),
+          Boolean(badges) && m('.pf-spag-card-badges', badges),
         ]),
         m('pre.pf-spag-card-body', content),
       ]);
