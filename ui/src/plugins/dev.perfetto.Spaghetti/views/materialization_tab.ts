@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {EmptyState} from '../../../widgets/empty_state';
 import type {IrEntry} from '../ir';
 import type {EntryReport} from '../materialization';
 import {Card} from '../components/card';
@@ -54,14 +55,30 @@ function renderIrBlock(
 export class IrTab implements m.ClassComponent<IrTabAttrs> {
   view({attrs}: m.Vnode<IrTabAttrs>) {
     const {irEntries, reportByHash, activeNodeId} = attrs;
+    if (irEntries.length === 0) {
+      if (activeNodeId) {
+        return m(
+          EmptyState,
+          {
+            icon: 'warning',
+            fillHeight: true,
+            title: 'Incomplete query',
+          },
+          'Fill in all required fields to inspect materialization steps.',
+        );
+      }
+      return m(
+        EmptyState,
+        {
+          fillHeight: true,
+          title: 'No node selected',
+        },
+        'Click on a node to inspect its materialization steps.',
+      );
+    }
     return m(
       '.pf-spag-materialization-tab',
-      irEntries.length > 0
-        ? irEntries.map((e) => renderIrBlock(e, reportByHash))
-        : m(
-            'span.pf-spag-materialization-tab-empty',
-            activeNodeId ? 'No IR available' : 'Select a node',
-          ),
+      irEntries.map((e) => renderIrBlock(e, reportByHash)),
     );
   }
 }

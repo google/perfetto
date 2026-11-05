@@ -13,6 +13,17 @@
 // limitations under the License.
 
 import './nodegraph.scss';
+import m from 'mithril';
+import {Button, ButtonGroup, ButtonVariant} from './button';
+import {Icon} from './icon';
+import {PopupMenu} from './menu';
+import {classNames} from '../base/classnames';
+import {elementIsEditable} from '../base/dom_utils';
+import {checkHotkey} from '../base/hotkeys';
+import {Icons} from '../base/semantic_icons';
+import {assertExists, ensureExists} from '../base/assert';
+import {shortUuid} from '../base/uuid';
+
 /**
  * A component for displaying and interacting with a node-based graph.
  *
@@ -48,14 +59,6 @@ import './nodegraph.scss';
  * });
  * ```
  */
-import m from 'mithril';
-import {Button, ButtonGroup, ButtonVariant} from './button';
-import {Icon} from './icon';
-import {PopupMenu} from './menu';
-import {classNames} from '../base/classnames';
-import {Icons} from '../base/semantic_icons';
-import {assertExists, ensureExists} from '../base/assert';
-import {shortUuid} from '../base/uuid';
 
 // Default height estimate for labels (used for box selection calculations)
 const DEFAULT_LABEL_MIN_HEIGHT = 30;
@@ -1846,7 +1849,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             if (!selectedNodeIds?.has(id) && onNodeSelect !== undefined) {
               onNodeSelect(id);
             }
-            if (canvasElement) {
+            const onInteractive = Boolean(
+              (e.target as HTMLElement).closest(
+                'input, textarea, select, button, a, [contenteditable="true"]',
+              ),
+            );
+            if (canvasElement && !onInteractive) {
               canvasElement.focus();
             }
             return;
@@ -1986,7 +1994,9 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               '.pf-node-content',
               {
                 onkeydown: (e: KeyboardEvent) => {
-                  e.stopPropagation();
+                  if (elementIsEditable(e.target)) {
+                    e.stopPropagation();
+                  }
                 },
               },
               content,
@@ -2465,13 +2475,14 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             }
           },
           onkeydown: (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+            if (elementIsEditable(e.target)) return;
+            if (checkHotkey('Mod+C', e)) {
               vnode.attrs.onCopy?.();
               e.preventDefault();
-            } else if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+            } else if (checkHotkey('Mod+V', e)) {
               vnode.attrs.onPaste?.();
               e.preventDefault();
-            } else if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
+            } else if (checkHotkey('Mod+X', e)) {
               vnode.attrs.onCut?.();
               e.preventDefault();
             } else if (e.key === 'Escape') {

@@ -14,6 +14,7 @@
 
 import {z} from 'zod';
 import {ensureDefined} from '../../base/assert';
+import {shortUuid} from '../../base/uuid';
 import type {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import {manifest as filterNode} from './nodes/filter';
@@ -255,6 +256,84 @@ export function chainTail(node: NodeData): NodeData {
   return cur;
 }
 
+// Trim trailing nulls from an inputs array so length reflects actual wiring.
+export function trimInputs(inputs: (string | null)[]): (string | null)[] {
+  let end = inputs.length;
+  while (end > 0 && inputs[end - 1] === null) end--;
+  return inputs.slice(0, end);
+}
+
+// Remove a single node (root or docked anywhere in a chain) from `nodes` in
+// place:
+// - Root with `.next`: promotes `root.next` to a RootNodeData at `(root.x, root.y)`.
+// - Root without `.next`: removes the root from `nodes`.
+// - Docked node (`parent.next === target`): splices `target` out via
+//   `parent.next = target.next`, and rewires any downstream port inputs that
+//   referenced `target.id` to `parent.id`.
+// Returns true if `nodeId` was found and removed.
+export function removeNodeFromGraph(
+  nodes: RootNodeData[],
+  nodeId: string,
+): boolean {
+  let dockedParent: NodeData | undefined;
+  let found = false;
+
+  for (let i = 0; i < nodes.length; i++) {
+    const root = nodes[i];
+    if (root === undefined) continue;
+    if (root.id === nodeId) {
+      if (root.next !== undefined) {
+        nodes[i] = {
+          ...root.next,
+          x: root.x,
+          y: root.y,
+        };
+      } else {
+        nodes.splice(i, 1);
+      }
+      found = true;
+      break;
+    }
+
+    let cur: NodeData = root;
+    while (cur.next !== undefined) {
+      if (cur.next.id === nodeId) {
+        dockedParent = cur;
+        cur.next = cur.next.next;
+        found = true;
+        break;
+      }
+      cur = cur.next;
+    }
+    if (found) break;
+  }
+
+  if (!found) return false;
+
+  const replacementId = dockedParent?.id ?? null;
+  for (const node of Object.values(flattenNodes(nodes).nodes)) {
+    if (!node.inputs) continue;
+    let changed = false;
+    for (let i = 0; i < node.inputs.length; i++) {
+      if (node.inputs[i] === nodeId) {
+        const redundantDockedPort0 =
+          replacementId !== null &&
+          dockedParent?.next?.id === node.id &&
+          i === 0;
+        const selfLoop = replacementId === node.id;
+        node.inputs[i] =
+          redundantDockedPort0 || selfLoop ? null : replacementId;
+        changed = true;
+      }
+    }
+    if (changed) {
+      node.inputs = trimInputs(node.inputs);
+    }
+  }
+
+  return true;
+}
+
 // O(1) docked-parent lookup via the pre-built index.
 export function findDockedParent(
   index: GraphIndex,
@@ -366,4 +445,121 @@ export function collectUpstream(
   }
 
   order.push(node);
+}
+
+// Extract every contiguous run of selected nodes across all chains as
+// RootNodeData entries suitable for clipboard serialization.
+// Wires between selected nodes are preserved; wires to unselected nodes are
+// cleared so pasting does not create unexpected cross-canvas links.
+export function extractNodesForCopy(
+  nodes: readonly RootNodeData[],
+  selectedNodeIds: ReadonlySet<string>,
+): RootNodeData[] {
+  if (selectedNodeIds.size === 0) return [];
+
+  const result: RootNodeData[] = [];
+  const copiedIds = new Set<string>();
+
+  function cloneSingleNode(node: NodeData): NodeData {
+    copiedIds.add(node.id);
+    return {
+      id: node.id,
+      type: node.type,
+      config: structuredClone(node.config),
+      collapsed: node.collapsed,
+      inputs: node.inputs ? [...node.inputs] : undefined,
+    };
+  }
+
+  for (const root of nodes) {
+    let cur: NodeData | undefined = root;
+    let depth = 0;
+    let prevSelected = false;
+    let activeTail: NodeData | undefined;
+
+    while (cur !== undefined) {
+      const isSelected = selectedNodeIds.has(cur.id);
+      if (isSelected) {
+        const cloned = cloneSingleNode(cur);
+        if (!prevSelected || activeTail === undefined) {
+          const rootCopy: RootNodeData = {
+            ...cloned,
+            x: root.x,
+            y: root.y + depth * 60,
+          };
+          result.push(rootCopy);
+          activeTail = rootCopy;
+        } else {
+          activeTail.next = cloned;
+          activeTail = cloned;
+        }
+      } else {
+        activeTail = undefined;
+      }
+      prevSelected = isSelected;
+      cur = cur.next;
+      depth++;
+    }
+  }
+
+  function pruneExternalInputs(node: NodeData): void {
+    if (node.inputs) {
+      const filtered = trimInputs(
+        node.inputs.map((id) => (id !== null && copiedIds.has(id) ? id : null)),
+      );
+      node.inputs = filtered.length > 0 ? filtered : undefined;
+    }
+    if (node.next) pruneExternalInputs(node.next);
+  }
+  for (const root of result) pruneExternalInputs(root);
+
+  return result;
+}
+
+// Instantiate copied RootNodeData entries with fresh IDs, remapped internal
+// wires, and a positional offset.
+export function instantiateCopiedNodes(
+  copiedNodes: readonly RootNodeData[],
+  offset: {readonly dx: number; readonly dy: number},
+): RootNodeData[] {
+  const oldToNew = new Map<string, string>();
+
+  for (const entry of copiedNodes) {
+    let cur: NodeData | undefined = entry;
+    while (cur !== undefined) {
+      oldToNew.set(cur.id, shortUuid());
+      cur = cur.next;
+    }
+  }
+
+  function remapChain(node: NodeData): NodeData {
+    const newId = ensureDefined(
+      oldToNew.get(node.id),
+      'copied node id must be mapped',
+    );
+    const remappedInputs = node.inputs
+      ? trimInputs(
+          node.inputs.map((id) =>
+            id !== null ? (oldToNew.get(id) ?? null) : null,
+          ),
+        )
+      : undefined;
+    return {
+      id: newId,
+      type: node.type,
+      config: structuredClone(node.config),
+      collapsed: node.collapsed,
+      inputs:
+        remappedInputs && remappedInputs.length > 0
+          ? remappedInputs
+          : undefined,
+      next: node.next ? remapChain(node.next) : undefined,
+    };
+  }
+
+  return copiedNodes.map((entry) => ({
+    ...remapChain(entry),
+    x: entry.x + offset.dx,
+    y: entry.y + offset.dy,
+  }));
 }

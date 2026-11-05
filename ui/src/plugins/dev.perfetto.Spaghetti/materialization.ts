@@ -142,6 +142,12 @@ export class MaterializationService {
   // Node IDs whose pulse is fading out after materialization completed.
   private _fadingOutNodeIds = new Set<string>();
 
+  // Pending fade-out cleanup timers keyed by node ID.
+  private fadeTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  // When true, sleeps for 10x each entry's execution time to emulate slow loads.
+  emulateSlowLoads = false;
+
   private disposed = false;
 
   constructor(engine: Engine, options?: MaterializationOptions) {
@@ -335,6 +341,7 @@ export class MaterializationService {
       this._dataSource = undefined;
       this._materializedTable = undefined;
       // On error, clear all indicators immediately.
+      this.clearFadeTimers();
       this._materializingNodeIds.clear();
       this._fadingOutNodeIds.clear();
       m.redraw();
@@ -377,6 +384,12 @@ export class MaterializationService {
 
       // Mark nodes as materializing and trigger a redraw.
       for (const nid of entry.nodeIds) {
+        const prevTimer = this.fadeTimers.get(nid);
+        if (prevTimer !== undefined) {
+          clearTimeout(prevTimer);
+          this.fadeTimers.delete(nid);
+        }
+        this._fadingOutNodeIds.delete(nid);
         this._materializingNodeIds.add(nid);
       }
       m.redraw();
@@ -399,6 +412,11 @@ export class MaterializationService {
       await this.engine.query(
         `DROP TABLE IF EXISTS ${entry.hash};\n${createSql}`,
       );
+      const queryTimeMs = performance.now() - start;
+      if (this.emulateSlowLoads && !this.disposed) {
+        await new Promise<void>((r) => setTimeout(r, queryTimeMs * 10));
+      }
+      if (this.disposed) return;
       const timeMs = performance.now() - start;
       const now = performance.now();
 
@@ -406,15 +424,17 @@ export class MaterializationService {
       for (const nid of entry.nodeIds) {
         this._materializingNodeIds.delete(nid);
         this._fadingOutNodeIds.add(nid);
+        const prevTimer = this.fadeTimers.get(nid);
+        if (prevTimer !== undefined) clearTimeout(prevTimer);
+        this.fadeTimers.set(
+          nid,
+          setTimeout(() => {
+            this.fadeTimers.delete(nid);
+            this._fadingOutNodeIds.delete(nid);
+            m.redraw();
+          }, 900),
+        );
       }
-      // Clear fading state after the CSS fade-out animation completes.
-      const fadingIds = [...entry.nodeIds];
-      setTimeout(() => {
-        for (const nid of fadingIds) {
-          this._fadingOutNodeIds.delete(nid);
-        }
-        m.redraw();
-      }, 600);
 
       this.cache.set(entry.hash, {
         hash: entry.hash,
@@ -511,9 +531,17 @@ export class MaterializationService {
     await this.dropTables(hashes);
   }
 
+  private clearFadeTimers(): void {
+    for (const timer of this.fadeTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.fadeTimers.clear();
+  }
+
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    this.clearFadeTimers();
     this._dataSource?.dispose();
     this._dataSource = undefined;
     await this.limiter.schedule(async () => {

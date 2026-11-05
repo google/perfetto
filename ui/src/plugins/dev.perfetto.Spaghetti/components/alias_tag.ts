@@ -24,30 +24,54 @@ export function AliasTag(): m.Component<{
   placeholder: string;
   onChange: (value: string) => void;
 }> {
-  let editing = false;
+  let pendingFocus = false;
+  let isFocused = false;
 
   return {
     view({attrs: {alias, placeholder, onChange}}) {
-      if (editing || alias) {
-        return m('.pf-spag-alias-tag', [
-          m('span', {style: {opacity: 0.5, fontSize: '11px'}}, 'as'),
-          m(TextInput, {
-            placeholder,
-            value: alias,
-            autofocus: editing && !alias,
-            onChange: (value: string) => onChange(value),
-            onblur: () => {
-              if (!alias) editing = false;
+      if (pendingFocus || isFocused || alias !== '') {
+        return m(
+          '.pf-spag-alias-tag',
+          {
+            onpointerdown: (e: PointerEvent) => {
+              if (!(e.target instanceof HTMLInputElement)) {
+                e.preventDefault();
+                const input = (e.currentTarget as HTMLElement).querySelector(
+                  'input',
+                );
+                input?.focus();
+              }
             },
-          }),
-        ]);
+          },
+          [
+            m('span', {style: {opacity: 0.5, fontSize: '11px'}}, 'as'),
+            m(TextInput, {
+              placeholder,
+              value: alias,
+              autofocus: pendingFocus,
+              onChange: (value: string) => onChange(value),
+              onfocus: () => {
+                isFocused = true;
+                pendingFocus = false;
+              },
+              onblur: (e: FocusEvent) => {
+                const value = (e.target as HTMLInputElement).value;
+                isFocused = false;
+                pendingFocus = false;
+                if (value !== alias) {
+                  onChange(value);
+                }
+              },
+            }),
+          ],
+        );
       }
       return m(Button, {
         icon: 'shoppingmode',
         className: 'pf-spag-alias-btn',
         title: 'Add alias',
         onclick: () => {
-          editing = true;
+          pendingFocus = true;
         },
       });
     },

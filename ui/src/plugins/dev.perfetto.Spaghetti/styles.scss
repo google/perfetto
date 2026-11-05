@@ -99,3 +99,228 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+// Scrollable node list inside the Add Node popup menu (rendered in a Portal).
+.pf-spag-add-menu-list {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  max-height: min(420px, 65vh);
+  overflow-y: auto;
+}
+
+.pf-spag-add-menu-empty {
+  padding: 8px 12px;
+  font-size: var(--pf-font-size-xs);
+  color: var(--pf-color-text-muted);
+  text-align: center;
+}
+
+// ============================================================================
+// Node materialization loading animations (selectable from toolbar dropdown)
+// ============================================================================
+
+@property --pf-spag-beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes pf-spag-beam-spin {
+  to {
+    --pf-spag-beam-angle: 360deg;
+  }
+}
+
+@keyframes pf-spag-beam-fade {
+  0% {
+    --pf-spag-beam-angle: 0deg;
+    opacity: 0.95;
+  }
+  100% {
+    --pf-spag-beam-angle: 260deg;
+    opacity: 0;
+  }
+}
+
+// 1. Border Beam (default): traveling conic-gradient comet along node perimeter
+.pf-spag--loading-beam {
+  .pf-node.pf-materializing::after,
+  .pf-node.pf-materializing-fade-out::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    padding: 2px;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 3;
+    background: conic-gradient(
+      from var(--pf-spag-beam-angle),
+      transparent 48%,
+      hsla(var(--pf-node-hue, 210), 85%, 60%, 0.35) 75%,
+      hsla(var(--pf-node-hue, 210), 95%, 72%, 1) 96%,
+      transparent 100%
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    filter: drop-shadow(0 0 6px hsla(var(--pf-node-hue, 210), 90%, 62%, 0.65));
+  }
+
+  .pf-node.pf-materializing::after {
+    animation: pf-spag-beam-spin 1s linear infinite;
+  }
+
+  .pf-node.pf-materializing-fade-out::after {
+    animation: pf-spag-beam-fade 0.85s ease-out forwards;
+  }
+}
+
+// 2. Header Bar (default): 1px indeterminate bar along bottom of node header
+@keyframes pf-spag-header-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(225%);
+  }
+}
+
+@keyframes pf-spag-header-bar-complete {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.pf-spag--loading-shimmer {
+  .pf-node.pf-materializing .pf-node-header,
+  .pf-node.pf-materializing-fade-out .pf-node-header {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .pf-node.pf-materializing .pf-node-header::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 45%;
+    height: 1px;
+    pointer-events: none;
+    will-change: transform;
+    background: hsla(var(--pf-node-hue, 210), 95%, 68%, 1);
+    animation: pf-spag-header-bar 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  .pf-node.pf-materializing-fade-out .pf-node-header::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    pointer-events: none;
+    background: hsla(var(--pf-node-hue, 210), 95%, 68%, 1);
+    animation: pf-spag-header-bar-complete 0.8s ease-out forwards;
+  }
+}
+
+// 3. Breathing Halo: dual-layer soft hue pulse without clashing selection ring
+@keyframes pf-spag-halo-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px hsla(var(--pf-node-hue, 210), 80%, 60%, 0.55),
+      0 0 10px 1px hsla(var(--pf-node-hue, 210), 80%, 58%, 0.3);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px hsla(var(--pf-node-hue, 210), 90%, 66%, 0.9),
+      0 0 18px 4px hsla(var(--pf-node-hue, 210), 85%, 60%, 0.55);
+  }
+}
+
+@keyframes pf-spag-halo-fade {
+  0% {
+    box-shadow:
+      0 0 0 2px hsla(var(--pf-node-hue, 210), 85%, 64%, 0.75),
+      0 0 14px 3px hsla(var(--pf-node-hue, 210), 80%, 58%, 0.45);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 hsla(var(--pf-node-hue, 210), 85%, 64%, 0),
+      0 0 0 0 hsla(var(--pf-node-hue, 210), 80%, 58%, 0);
+  }
+}
+
+.pf-spag--loading-pulse {
+  .pf-node.pf-materializing {
+    outline-color: transparent;
+    border-color: hsla(var(--pf-node-hue, 210), 85%, 62%, 0.9);
+    z-index: 2;
+    animation: pf-spag-halo-breathe 1.1s ease-in-out infinite;
+  }
+
+  .pf-node.pf-materializing-fade-out {
+    z-index: 2;
+    animation: pf-spag-halo-fade 0.85s ease-out forwards;
+  }
+}
+
+// 4. Data Scanline: luminous horizontal scan sweeping downward across the node
+@keyframes pf-spag-scanline-sweep {
+  0% {
+    background-position: 0 -100%;
+  }
+  100% {
+    background-position: 0 200%;
+  }
+}
+
+@keyframes pf-spag-scanline-fade {
+  0% {
+    background-position: 0 0%;
+    opacity: 0.9;
+  }
+  100% {
+    background-position: 0 160%;
+    opacity: 0;
+  }
+}
+
+.pf-spag--loading-scanline {
+  .pf-node.pf-materializing::after,
+  .pf-node.pf-materializing-fade-out::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 3;
+    background-image: linear-gradient(
+      180deg,
+      transparent 0%,
+      hsla(var(--pf-node-hue, 210), 90%, 62%, 0.14) 42%,
+      hsla(var(--pf-node-hue, 210), 95%, 70%, 0.55) 50%,
+      transparent 54%
+    );
+    background-size: 100% 65%;
+    background-repeat: no-repeat;
+  }
+
+  .pf-node.pf-materializing::after {
+    animation: pf-spag-scanline-sweep 0.95s linear infinite;
+  }
+
+  .pf-node.pf-materializing-fade-out::after {
+    animation: pf-spag-scanline-fade 0.8s ease-out forwards;
+  }
+}
