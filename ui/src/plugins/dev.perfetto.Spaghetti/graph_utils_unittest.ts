@@ -12,10 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type {RootNodeData} from './graph_model';
 import {
   deserializeStore,
+  extractNodesForCopy,
   fnvHash,
   getManifest,
+  instantiateCopiedNodes,
+  removeNodeFromGraph,
   serializeStore,
 } from './graph_utils';
 
@@ -194,5 +198,175 @@ describe('deserializeStore', () => {
         }),
       ),
     ).toThrow();
+  });
+});
+
+describe('removeNodeFromGraph', () => {
+  function makeStack(): RootNodeData[] {
+    return [
+      {
+        id: 'n1',
+        type: 'from',
+        x: 120,
+        y: 240,
+        config: {table: 'slice'},
+        next: {
+          id: 'n2',
+          type: 'filter',
+          config: {conditions: [], conjunction: 'AND'},
+          next: {
+            id: 'n3',
+            type: 'limit',
+            config: {limitCount: '50'},
+          },
+        },
+      },
+      {
+        id: 'j1',
+        type: 'join',
+        x: 500,
+        y: 240,
+        inputs: ['n3', 'other'],
+        config: {
+          joinType: 'INNER',
+          leftCol: 'id',
+          rightCol: 'id',
+          rightAssignments: [],
+        },
+      },
+    ];
+  }
+
+  it('splices out a node from the middle of a stack', () => {
+    const nodes = makeStack();
+    expect(removeNodeFromGraph(nodes, 'n2')).toBe(true);
+    expect(nodes[0]?.id).toBe('n1');
+    expect(nodes[0]?.next?.id).toBe('n3');
+    expect(nodes[0]?.next?.next).toBeUndefined();
+    expect(nodes[1]?.inputs).toEqual(['n3', 'other']);
+  });
+
+  it('removes a tail node from a stack and rewires downstream consumers to its docked parent', () => {
+    const nodes = makeStack();
+    expect(removeNodeFromGraph(nodes, 'n3')).toBe(true);
+    expect(nodes[0]?.id).toBe('n1');
+    expect(nodes[0]?.next?.id).toBe('n2');
+    expect(nodes[0]?.next?.next).toBeUndefined();
+    expect(nodes[1]?.inputs).toEqual(['n2', 'other']);
+  });
+
+  it('promotes the next node in place when deleting the root of a stack', () => {
+    const nodes = makeStack();
+    expect(removeNodeFromGraph(nodes, 'n1')).toBe(true);
+    expect(nodes).toHaveLength(2);
+    expect(nodes[0]).toMatchObject({
+      id: 'n2',
+      type: 'filter',
+      x: 120,
+      y: 240,
+    });
+    expect(nodes[0]?.next?.id).toBe('n3');
+  });
+
+  it('removes a standalone root node and clears wired inputs pointing to it', () => {
+    const nodes: RootNodeData[] = [
+      {id: 'src', type: 'from', x: 0, y: 0, config: {table: 'slice'}},
+      {
+        id: 'flt',
+        type: 'filter',
+        x: 200,
+        y: 0,
+        inputs: ['src'],
+        config: {conditions: [], conjunction: 'AND'},
+      },
+    ];
+    expect(removeNodeFromGraph(nodes, 'src')).toBe(true);
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]?.id).toBe('flt');
+    expect(nodes[0]?.inputs).toEqual([]);
+  });
+});
+
+describe('extractNodesForCopy and instantiateCopiedNodes', () => {
+  it('copies a single docked node out of the middle of a stack', () => {
+    const nodes: RootNodeData[] = [
+      {
+        id: 'n1',
+        type: 'from',
+        x: 100,
+        y: 200,
+        config: {table: 'slice'},
+        next: {
+          id: 'n2',
+          type: 'filter',
+          config: {conditions: [], conjunction: 'AND'},
+          next: {
+            id: 'n3',
+            type: 'select',
+            config: {entries: [], expressions: []},
+          },
+        },
+      },
+    ];
+
+    const copied = extractNodesForCopy(nodes, new Set(['n2']));
+    expect(copied).toHaveLength(1);
+    expect(copied[0]).toMatchObject({
+      id: 'n2',
+      type: 'filter',
+      x: 100,
+      y: 260,
+    });
+    expect(copied[0]?.next).toBeUndefined();
+
+    const pasted = instantiateCopiedNodes(copied, {dx: 40, dy: 40});
+    expect(pasted).toHaveLength(1);
+    expect(pasted[0]?.id).not.toBe('n2');
+    expect(pasted[0]?.x).toBe(140);
+    expect(pasted[0]?.y).toBe(300);
+  });
+
+  it('preserves contiguous docked selections and internal wires while stripping external wires', () => {
+    const nodes: RootNodeData[] = [
+      {id: 'ext', type: 'from', x: 0, y: 0, config: {table: 'thread'}},
+      {
+        id: 'n1',
+        type: 'from',
+        x: 100,
+        y: 100,
+        config: {table: 'slice'},
+        next: {
+          id: 'n2',
+          type: 'filter',
+          config: {conditions: [], conjunction: 'AND'},
+        },
+      },
+      {
+        id: 'join1',
+        type: 'join',
+        x: 350,
+        y: 150,
+        inputs: ['n2', 'ext'],
+        config: {
+          joinType: 'INNER',
+          leftCol: 'id',
+          rightCol: 'id',
+          rightAssignments: [],
+        },
+      },
+    ];
+
+    const copied = extractNodesForCopy(nodes, new Set(['n1', 'n2', 'join1']));
+    expect(copied).toHaveLength(2);
+    expect(copied[0]?.id).toBe('n1');
+    expect(copied[0]?.next?.id).toBe('n2');
+    // Internal wire to 'n2' is preserved; external wire to 'ext' is trimmed.
+    expect(copied[1]?.inputs).toEqual(['n2']);
+
+    const pasted = instantiateCopiedNodes(copied, {dx: 40, dy: 40});
+    const newChainTailId = pasted[0]?.next?.id;
+    expect(newChainTailId).toBeDefined();
+    expect(newChainTailId).not.toBe('n2');
+    expect(pasted[1]?.inputs).toEqual([newChainTailId]);
   });
 });

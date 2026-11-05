@@ -20,7 +20,7 @@
 
   .pf-spag-delete {
     margin-right: -6px;
-    color: var(--pf-color-text-muted);
+    opacity: 0.5;
   }
 
   &.pf-dragging {
@@ -68,7 +68,7 @@
     margin-left: -6px;
     font-size: 16px;
     align-self: center;
-    color: var(--pf-color-text-muted);
+    opacity: 0.5;
 
     &:active {
       cursor: grabbing;

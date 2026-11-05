@@ -13,30 +13,5 @@
 // limitations under the License.
 
 .pf-spag-sql-tab {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-
-  .pf-spag-sql-tab-toolbar {
-    display: flex;
-    justify-content: flex-end;
-    padding: 4px 8px 0;
-    gap: 4px;
-  }
-
-  pre {
-    margin: 0;
-    padding: 8px;
-    overflow: auto;
-    flex: 1;
-    font-family: var(--pf-font-monospace, monospace);
-    font-size: 12px;
-    white-space: pre-wrap;
-    word-break: break-word;
-
-    &.pf-empty {
-      opacity: 0.5;
-    }
-  }
+  padding: 8px;
 }
