@@ -836,22 +836,8 @@ message TraceConfig {
     // manifest permissions even though SELinux permissions are worked around).
     optional bool use_pipe_in_framework_for_testing = 4;
 
-    // Configures the priority of traces based on the trigger name. The priority
-    // is used by PerfettoUploader to determine the order in which traces
-    // should be uploaded/evicted.
-    message TracePriority {
-      // Default priority value for traces from this config when no trigger rule
-      // matches (higher value = higher priority). Treated as INT_MIN if unset.
-      optional int32 default_priority = 1;
-
-      message Rule {
-        optional string trigger_name = 1;
-        optional int32 priority = 2;
-      }
-
-      repeated Rule rules = 2;
-    }
-    optional TracePriority trace_priority = 5;
+    // Reserved for Google-internal extension: TracePriority trace_priority
+    extensions 5;
   }
   optional AndroidReportConfig android_report_config = 34;
 
