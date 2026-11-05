@@ -401,11 +401,13 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
 
   function emitStandalone(
     nodeId: string,
-    sql: string,
     inputIds: readonly string[],
+    buildSql: () => string,
     extraIncludes?: readonly string[],
-  ): void {
+  ): boolean {
     emitCurrent();
+    if (inputIds.some((id) => resolveRef(id) === '')) return false;
+    const sql = buildSql();
     const deps = resolveDeps(inputIds);
     const includes = collectIncludes(inputIds);
     if (extraIncludes) {
@@ -414,6 +416,7 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
     const hash = emitEntry(sql, deps, includes, [nodeId]);
     nodeIncludes.set(nodeId, includes);
     emittedAs.set(nodeId, hash);
+    return true;
   }
 
   function emitFoldable(nodeId: string, op: FoldableOp): boolean {
@@ -462,49 +465,67 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
       }
 
       case 'time_range': {
-        emitStandalone(nodeId, emitTimeRangeSql(op), []);
+        emitStandalone(nodeId, [], () => emitTimeRangeSql(op));
         break;
       }
 
       case 'drop': {
-        const ref = resolveRef(op.input);
-        if (ref === '') return [];
-        emitStandalone(nodeId, emitDropSql(op, ref), [op.input]);
+        if (
+          !emitStandalone(nodeId, [op.input], () =>
+            emitDropSql(op, resolveRef(op.input)),
+          )
+        ) {
+          return [];
+        }
         break;
       }
 
       case 'join': {
-        const leftRef = resolveRef(op.left);
-        const rightRef = resolveRef(op.right);
-        if (leftRef === '' || rightRef === '') return [];
-        emitStandalone(nodeId, emitJoinSql(op, leftRef, rightRef), [
-          op.left,
-          op.right,
-        ]);
+        if (
+          !emitStandalone(nodeId, [op.left, op.right], () =>
+            emitJoinSql(op, resolveRef(op.left), resolveRef(op.right)),
+          )
+        ) {
+          return [];
+        }
         break;
       }
 
       case 'union': {
-        const refs = op.inputs.map(resolveRef);
-        if (refs.length === 0 || refs.some((r) => r === '')) return [];
-        emitStandalone(nodeId, emitUnionSql(op, refs), op.inputs);
+        if (op.inputs.length === 0) return [];
+        if (
+          !emitStandalone(nodeId, op.inputs, () =>
+            emitUnionSql(op, op.inputs.map(resolveRef)),
+          )
+        ) {
+          return [];
+        }
         break;
       }
 
       case 'interval_intersect': {
         const inputIds = op.inputs.map((inp) => inp.nodeId);
-        const refs = inputIds.map(resolveRef);
-        if (refs.length === 0 || refs.some((r) => r === '')) return [];
-        emitStandalone(nodeId, emitIntervalIntersectSql(op, refs), inputIds, [
-          'intervals.intersect',
-        ]);
+        if (inputIds.length === 0) return [];
+        if (
+          !emitStandalone(
+            nodeId,
+            inputIds,
+            () => emitIntervalIntersectSql(op, inputIds.map(resolveRef)),
+            ['intervals.intersect'],
+          )
+        ) {
+          return [];
+        }
         break;
       }
 
       case 'raw_sql': {
         const inputIds = op.inputs.map((inp) => inp.nodeId);
-        if (inputIds.some((id) => resolveRef(id) === '')) return [];
-        emitStandalone(nodeId, emitRawSql(op, resolveRef), inputIds);
+        if (
+          !emitStandalone(nodeId, inputIds, () => emitRawSql(op, resolveRef))
+        ) {
+          return [];
+        }
         break;
       }
 
