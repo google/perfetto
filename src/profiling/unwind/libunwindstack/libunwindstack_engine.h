@@ -14,26 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_COMMON_UNWIND_SUPPORT_H_
-#define SRC_PROFILING_COMMON_UNWIND_SUPPORT_H_
+#ifndef SRC_PROFILING_UNWIND_LIBUNWINDSTACK_LIBUNWINDSTACK_ENGINE_H_
+#define SRC_PROFILING_UNWIND_LIBUNWINDSTACK_LIBUNWINDSTACK_ENGINE_H_
 
 // defines PERFETTO_BUILDFLAG
 #include "perfetto/base/build_config.h"
 
 #include <memory>
-#include <string>
 
 #include <unwindstack/Maps.h>
-#include <unwindstack/Unwinder.h>
+#include <unwindstack/Memory.h>
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #include <unwindstack/DexFiles.h>
 #include <unwindstack/JitDebug.h>
 #endif
 
-#include "perfetto/base/logging.h"
-#include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/unwind/cpu_registers.h"
+#include "src/profiling/unwind/unwind_engine.h"
+#include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
@@ -115,22 +114,44 @@ struct UnwindingMetadata {
   unwindstack::DexFiles* GetDexFiles(unwindstack::ArchEnum arch);
 #endif
 
-  std::string GetBuildId(const unwindstack::FrameData& frame);
-
   FDMaps fd_maps;
   // The API of libunwindstack expects shared_ptr for Memory.
   std::shared_ptr<unwindstack::Memory> fd_mem;
-  uint64_t reparses = 0;
-  base::TimeMillis last_maps_reparse_time{0};
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
   std::unique_ptr<unwindstack::JitDebug> jit_debug;
   std::unique_ptr<unwindstack::DexFiles> dex_files;
 #endif
 };
 
-std::string StringifyLibUnwindstackError(unwindstack::ErrorCode);
+class LibunwindstackProcessState : public ProcessUnwindState {
+ public:
+  LibunwindstackProcessState(base::ScopedFile maps_fd, base::ScopedFile mem_fd);
+  ~LibunwindstackProcessState() override;
+
+  void ReparseMaps() override;
+  void ResetMaps() override;
+
+  UnwindingMetadata& metadata() { return metadata_; }
+
+ private:
+  UnwindingMetadata metadata_;
+};
+
+class LibunwindstackEngine : public UnwindEngine {
+ public:
+  LibunwindstackEngine();
+  ~LibunwindstackEngine() override;
+
+  FrameData BuildFrameFromPc(ProcessUnwindState* state,
+                             uint64_t pc,
+                             bool resolve_names = true) override;
+
+  UnwindResult Unwind(ProcessUnwindState* state,
+                      const UnwindInputSample& sample,
+                      const UnwindOptions& options = {}) override;
+};
 
 }  // namespace profiling
 }  // namespace perfetto
 
-#endif  // SRC_PROFILING_COMMON_UNWIND_SUPPORT_H_
+#endif  // SRC_PROFILING_UNWIND_LIBUNWINDSTACK_LIBUNWINDSTACK_ENGINE_H_
