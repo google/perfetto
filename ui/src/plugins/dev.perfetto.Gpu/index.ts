@@ -211,7 +211,7 @@ export default class GpuPlugin implements PerfettoPlugin {
       tracks.push({
         id: it.id,
         gpu: new Gpu(
-          it.ugpu ?? it.gpuId,
+          it.ugpu ?? it.id,
           it.gpuId,
           it.machineId,
           it.gpuName ?? undefined,
@@ -235,7 +235,7 @@ export default class GpuPlugin implements PerfettoPlugin {
     }
 
     for (const {id, gpu} of tracks) {
-      const uri = `/gpu_frequency_${gpu.ugpu}`;
+      const uri = `/gpu_frequency_${gpu.ugpu}_${id}`;
       const name = `${gpu.displayName} Frequency${gpu.maybeMachineLabel()}`;
       ctx.tracks.registerTrack({
         uri,
@@ -554,7 +554,7 @@ export default class GpuPlugin implements PerfettoPlugin {
         let groupNode = this.groups.get(key);
         if (!groupNode) {
           groupNode = new TrackNode({
-            uri: `/gpu_group_${customGroup.groupId}`,
+            uri: `/gpu_group_${scopeId ?? 'default'}_${customGroup.groupId}`,
             isSummary: true,
             name: customGroup.groupName,
             collapsed: true,
