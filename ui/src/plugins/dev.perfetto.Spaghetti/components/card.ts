@@ -40,7 +40,7 @@ export function Card(): m.Component<CardAttrs> {
 export namespace Card {
   export const Badge: m.Component<{
     readonly label: string;
-    readonly variant?: 'hit' | 'miss' | 'hits';
+    readonly variant?: 'hit' | 'miss' | 'hits' | 'live' | 'orphan';
   }> = {
     view({attrs}) {
       const variantClass = attrs.variant

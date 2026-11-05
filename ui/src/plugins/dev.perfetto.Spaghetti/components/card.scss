@@ -56,7 +56,8 @@
     letter-spacing: 0.04em;
 
     &--hit,
-    &--hits {
+    &--hits,
+    &--live {
       background: color-mix(
         in srgb,
         var(--pf-color-success, #4a8) 20%,
@@ -65,7 +66,8 @@
       color: var(--pf-color-success, #4a8);
     }
 
-    &--miss {
+    &--miss,
+    &--orphan {
       background: color-mix(
         in srgb,
         var(--pf-color-warning, #c90) 20%,
