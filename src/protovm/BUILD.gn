@@ -31,6 +31,8 @@ perfetto_component("protovm") {
     "owned_ptr.h",
     "parser.cc",
     "parser.h",
+    "program.cc",
+    "program.h",
     "ro_cursor.cc",
     "ro_cursor.h",
     "rw_proto.cc",
