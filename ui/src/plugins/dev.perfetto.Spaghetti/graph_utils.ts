@@ -25,13 +25,16 @@ import {manifest as extendNode} from './nodes/extend';
 import {manifest as dropNode} from './nodes/drop';
 import {manifest as renameNode} from './nodes/rename';
 import {manifest as setNode} from './nodes/set';
+import {manifest as asNode} from './nodes/as';
 import {manifest as distinctNode} from './nodes/distinct';
 import {manifest as groupByNode} from './nodes/groupby';
 import {manifest as joinNode} from './nodes/join';
 import {manifest as extractArgNode} from './nodes/extract_arg';
 import {manifest as intervalIntersectNode} from './nodes/interval_intersect';
 import {manifest as intervalFlattenNode} from './nodes/interval_flatten';
+import {manifest as intervalMergeNode} from './nodes/interval_merge';
 import {manifest as intervalFillGapsNode} from './nodes/interval_fill_gaps';
+import {manifest as intervalsFromEventsNode} from './nodes/intervals_from_events';
 import {manifest as treeAccumulateNode} from './nodes/tree_accumulate';
 import {manifest as graphTreeNode} from './nodes/graph_tree';
 import {manifest as limitNode} from './nodes/limit';
@@ -56,6 +59,7 @@ const NODE_REGISTRY: Record<string, NodeManifest> = {
   drop: dropNode,
   rename: renameNode,
   set: setNode,
+  as: asNode,
   distinct: distinctNode,
   filter: filterNode,
   sort: sortNode,
@@ -65,7 +69,9 @@ const NODE_REGISTRY: Record<string, NodeManifest> = {
   extract_arg: extractArgNode,
   interval_intersect: intervalIntersectNode,
   interval_flatten: intervalFlattenNode,
+  interval_merge: intervalMergeNode,
   interval_fill_gaps: intervalFillGapsNode,
+  intervals_from_events: intervalsFromEventsNode,
   tree_accumulate: treeAccumulateNode,
   graph_tree: graphTreeNode,
   union: unionNode,

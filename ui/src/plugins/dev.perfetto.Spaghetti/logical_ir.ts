@@ -187,6 +187,12 @@ export interface SetOp {
   readonly inputColumns: readonly string[] | undefined;
 }
 
+export interface AsOp {
+  readonly kind: 'as';
+  readonly input: string;
+  readonly alias: string;
+}
+
 export interface DistinctOp {
   readonly kind: 'distinct';
   readonly input: string;
@@ -252,6 +258,30 @@ export interface IntervalFillGapsOp {
   readonly backgroundColumns: readonly string[] | undefined;
 }
 
+export type IntervalMergeKind = 'OVERLAPPING' | 'CONSECUTIVE';
+
+export interface IntervalMergeOp {
+  readonly kind: 'interval_merge';
+  readonly input: string;
+  readonly mergeKind: IntervalMergeKind;
+  readonly keyColumns: readonly string[];
+  readonly partitionColumns: readonly string[];
+  readonly aggregations: readonly PipelineAggregationSpec[];
+  readonly filterNegativeDur: boolean;
+}
+
+export type EventsLastMode = 'KEEP_OPEN' | 'CLOSE_AT';
+
+export interface IntervalsFromEventsOp {
+  readonly kind: 'intervals_from_events';
+  readonly input: string;
+  readonly stop: string | undefined;
+  readonly partitionColumns: readonly string[];
+  readonly lastMode: EventsLastMode;
+  readonly closeAtExpr: string;
+  readonly inputColumns: readonly string[] | undefined;
+}
+
 export interface TreeAccumulateOp {
   readonly kind: 'tree_accumulate';
   readonly input: string;
@@ -293,6 +323,7 @@ export type LogicalOp =
   | DropOp
   | RenameOp
   | SetOp
+  | AsOp
   | DistinctOp
   | AggregateOp
   | SortOp
@@ -302,6 +333,8 @@ export type LogicalOp =
   | IntervalIntersectOp
   | IntervalFlattenOp
   | IntervalFillGapsOp
+  | IntervalMergeOp
+  | IntervalsFromEventsOp
   | TreeAccumulateOp
   | GraphTreeOp
   | RawSqlOp;
@@ -334,13 +367,17 @@ export function getLogicalOpInputs(op: LogicalOp): readonly string[] {
     case 'drop':
     case 'rename':
     case 'set':
+    case 'as':
     case 'distinct':
     case 'aggregate':
     case 'sort':
     case 'limit':
     case 'interval_flatten':
+    case 'interval_merge':
     case 'tree_accumulate':
       return [op.input];
+    case 'intervals_from_events':
+      return op.stop !== undefined ? [op.input, op.stop] : [op.input];
     case 'join':
       return [op.left, op.right];
     case 'interval_fill_gaps':

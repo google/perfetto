@@ -15,6 +15,7 @@
 import {assertUnreachable} from '../../base/assert';
 import {
   type AggregateOp,
+  type AsOp,
   type DistinctOp,
   type DropOp,
   type ExtendOp,
@@ -26,6 +27,8 @@ import {
   type IntervalFillGapsOp,
   type IntervalFlattenOp,
   type IntervalIntersectOp,
+  type IntervalMergeOp,
+  type IntervalsFromEventsOp,
   type JoinOp,
   type LimitOp,
   type LogicalNode,
@@ -69,11 +72,13 @@ type PipeStageOp =
   | DropOp
   | RenameOp
   | SetOp
+  | AsOp
   | DistinctOp
   | AggregateOp
   | SortOp
   | LimitOp
   | IntervalFlattenOp
+  | IntervalMergeOp
   | TreeAccumulateOp;
 
 function formatPipelineAggs(aggs: readonly PipelineAggregationSpec[]): string {
@@ -176,6 +181,11 @@ function appendStageOp(stmt: PipeStatement, op: PipeStageOp): void {
       return;
     }
 
+    case 'as': {
+      stmt.stages.push(`AS ${op.alias}`);
+      return;
+    }
+
     case 'distinct': {
       stmt.stages.push('DISTINCT');
       return;
@@ -232,6 +242,31 @@ function appendStageOp(stmt: PipeStatement, op: PipeStageOp): void {
       } else {
         stmt.stages.push(
           `INTERVAL FLATTEN${perClause} AGGREGATE ${formatPipelineAggs(op.aggregations)}`,
+        );
+      }
+      return;
+    }
+
+    case 'interval_merge': {
+      if (op.filterNegativeDur) {
+        stmt.stages.push('WHERE dur >= 0');
+      }
+      const byClause =
+        op.mergeKind === 'CONSECUTIVE' && op.keyColumns.length > 0
+          ? ` BY ${op.keyColumns.join(', ')}`
+          : '';
+      const perClause =
+        op.partitionColumns.length > 0
+          ? ` PER ${op.partitionColumns.join(', ')}`
+          : '';
+      if (op.aggregations.length === 0) {
+        stmt.stages.push(
+          `INTERVAL MERGE ${op.mergeKind}${byClause}${perClause} AGGREGATE COUNT(*) AS _pf_cnt`,
+        );
+        stmt.stages.push('DROP _pf_cnt');
+      } else {
+        stmt.stages.push(
+          `INTERVAL MERGE ${op.mergeKind}${byClause}${perClause} AGGREGATE ${formatPipelineAggs(op.aggregations)}`,
         );
       }
       return;
@@ -385,6 +420,26 @@ function appendFillGapsStage(
       ? ` PER ${op.partitionColumns.join(', ')}`
       : '';
   stmt.stages.push(`INTERVAL FILL GAPS WITH ${bgSource}${perSuffix}`);
+}
+
+function appendIntervalsFromEventsStage(
+  stmt: PipeStatement,
+  op: IntervalsFromEventsOp,
+  stopRef: string | undefined,
+): void {
+  const perClause =
+    op.partitionColumns.length > 0
+      ? ` PER ${op.partitionColumns.join(', ')}`
+      : '';
+  const stopClause =
+    stopRef !== undefined && stopRef !== '' ? ` STOP ${stopRef}` : '';
+  const lastClause =
+    op.lastMode === 'KEEP_OPEN'
+      ? ' KEEPING LAST OPEN'
+      : ` CLOSING LAST AT (${op.closeAtExpr})`;
+  stmt.stages.push(
+    `INTERVALS FROM EVENTS${perClause}${stopClause}${lastClause}`,
+  );
 }
 
 function makeGraphTreePipe(
@@ -669,6 +724,45 @@ export function lowerToPipe(plan: LogicalPlan): IrEntry[] {
         break;
       }
 
+      case 'intervals_from_events': {
+        const inSingleRef = (nodeById.get(op.input)?.refCount ?? 0) <= 1;
+        const allInputs =
+          op.stop !== undefined ? [op.input, op.stop] : [op.input];
+        const canFold =
+          op.input === currentTailId &&
+          op.stop !== currentTailId &&
+          inSingleRef &&
+          current !== undefined &&
+          (op.stop === undefined || resolveRef(op.stop) !== '');
+
+        if (canFold && current !== undefined) {
+          const stopRef =
+            op.stop !== undefined ? resolveRef(op.stop) : undefined;
+          appendIntervalsFromEventsStage(current, op, stopRef);
+          currentTailId = nodeId;
+          currentNodeIds.push(nodeId);
+          if (op.stop !== undefined) {
+            addDep(resolveDep(op.stop));
+          }
+          for (const inc of collectIncludes(allInputs)) {
+            currentIncludes.add(inc);
+          }
+          nodeIncludes.set(nodeId, currentIncludes);
+          break;
+        }
+
+        emitCurrent();
+        const inRef = resolveRef(op.input);
+        const stopRef = op.stop !== undefined ? resolveRef(op.stop) : undefined;
+        if (inRef === '' || (op.stop !== undefined && stopRef === '')) {
+          return [];
+        }
+        const stmt: PipeStatement = {source: inRef, stages: []};
+        appendIntervalsFromEventsStage(stmt, op, stopRef);
+        startPipeline(nodeId, stmt, allInputs);
+        break;
+      }
+
       case 'graph_tree': {
         emitCurrent();
         const nodesRef = resolveRef(op.nodes);
@@ -704,11 +798,13 @@ export function lowerToPipe(plan: LogicalPlan): IrEntry[] {
       case 'drop':
       case 'rename':
       case 'set':
+      case 'as':
       case 'distinct':
       case 'aggregate':
       case 'sort':
       case 'limit':
       case 'interval_flatten':
+      case 'interval_merge':
       case 'tree_accumulate': {
         if (!emitStage(nodeId, op)) return [];
         break;

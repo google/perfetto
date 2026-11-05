@@ -369,6 +369,9 @@ export class MaterializationService {
 
     // Materialize all entries. The hash IS the table name.
     for (const entry of entries) {
+      if (entry.error !== undefined) {
+        throw new Error(entry.error);
+      }
       const cached = this.cache.get(entry.hash);
       if (cached) {
         cached.lastHitAt = performance.now();
