@@ -291,8 +291,6 @@ class TracingServiceImpl : public TracingService {
   void SetServiceTracePacketHeader(protos::pbzero::TracePacket*);
   void MaybeEmitRemoteSystemInfo(std::vector<TracePacket>*);
   void MaybeEmitCloneTrigger(TracingSession*, std::vector<TracePacket>*);
-  void MaybeEmitAuthoritativeTrigger(TracingSession*,
-                                     std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitRemoteClockSync(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitProtoVmInstances(TracingSession*, std::vector<TracePacket>*);

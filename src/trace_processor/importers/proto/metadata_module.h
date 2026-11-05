@@ -47,7 +47,6 @@ class MetadataModule : public ProtoImporterModule {
     kNone,
     kTraceTrigger,
     kCloneSnapshot,
-    kAuthoritative,
   };
 
   void ParseTrigger(int64_t ts, ConstBytes, TraceTriggerPacketType);
