@@ -42,7 +42,6 @@ using google::protobuf::FileDescriptor;
 using google::protobuf::compiler::GeneratorContext;
 using google::protobuf::io::Printer;
 using google::protobuf::io::ZeroCopyOutputStream;
-using perfetto::base::ReplaceAll;
 using perfetto::base::SplitString;
 using perfetto::base::StripChars;
 using perfetto::base::StripPrefix;
@@ -165,7 +164,6 @@ class GeneratorJob {
         return result;
       };
 
-      std::string namespaces = ReplaceAll(package, ".", "::");
       name = get_full_namespace() + "::" + name;
     }
 
