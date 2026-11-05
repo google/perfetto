@@ -21,18 +21,73 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+import re
 import sys
 from typing import Dict, Tuple, List
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.sql_processing.utils_legacy import check_banned_create_view_as
-from python.generators.sql_processing.utils_legacy import check_banned_words
-from python.generators.sql_processing.utils_legacy import match_pattern
-from python.generators.sql_processing.utils_legacy import DROP_TABLE_VIEW_PATTERN
-from python.generators.sql_processing.utils_legacy import CREATE_TABLE_VIEW_PATTERN
-from python.generators.sql_processing.utils_legacy import CREATE_TABLE_AS_PATTERN
+_NAME = r'[a-zA-Z_\d\{\}]+'
+_WS = r'\s*'
+_COMMENT = r' --[^\n]*\n'
+_COMMENTS = rf'(?:{_COMMENT})*'
+_TYPE = r'[_a-zA-Z\(\)\.]+(?:\.\.\.)?'
+_ARG = rf'{_COMMENTS} {_NAME} {_TYPE}'
+_ARGS = rf'(?:{_ARG})?(?: ,{_ARG})*'
+
+
+def _update_pattern(pattern: str) -> str:
+  return pattern.replace(' ', _WS)
+
+
+CREATE_TABLE_VIEW_PATTERN = _update_pattern(
+    fr'^CREATE (OR REPLACE)? (VIRTUAL|PERFETTO)?'
+    fr' (TABLE|VIEW) (?:IF NOT EXISTS)?'
+    fr' ({_NAME}) (?: \( ({_ARGS}) \) )? (?:AS|USING)? .*')
+CREATE_TABLE_AS_PATTERN = _update_pattern(fr'^CREATE TABLE ({_NAME}) AS')
+CREATE_VIEW_AS_PATTERN = _update_pattern(fr'^CREATE VIEW ({_NAME}) AS')
+DROP_TABLE_VIEW_PATTERN = _update_pattern(
+    fr'^DROP (VIEW|TABLE|INDEX) (?:IF EXISTS)? ({_NAME});$')
+
+
+def match_pattern(pattern: str, file_str: str) -> Dict[int, object]:
+  line_number_to_matches = {}
+  for match in re.finditer(pattern, file_str, re.MULTILINE | re.IGNORECASE):
+    line_id = file_str[:match.start()].count('\n')
+    line_number_to_matches[line_id] = match.groups()
+  return line_number_to_matches
+
+
+def check_banned_create_view_as(sql: str) -> List[str]:
+  errors = []
+  for _, matches in match_pattern(CREATE_VIEW_AS_PATTERN, sql).items():
+    name = matches[0]
+    errors.append(f"CREATE VIEW '{name}' is deprecated. "
+                  "Use CREATE PERFETTO VIEW instead.")
+  return errors
+
+
+def check_banned_words(sql: str) -> List[str]:
+  lines = [l.strip() for l in sql.split('\n')]
+  errors = []
+  for line in lines:
+    if line.startswith('--'):
+      continue
+    if 'like' in line.casefold():
+      errors.append('LIKE is banned in trace processor metrics and stdlib. '
+                    'Prefer GLOB instead.\n')
+      continue
+    if 'create_function' in line.casefold():
+      errors.append('CREATE_FUNCTION is deprecated in trace processor. '
+                    'Use CREATE PERFETTO FUNCTION instead.')
+    if 'create_view_function' in line.casefold():
+      errors.append('CREATE_VIEW_FUNCTION is deprecated in trace processor. '
+                    'Use CREATE PERFETTO FUNCTION $name RETURNS TABLE instead.')
+    if 'import(' in line.casefold():
+      errors.append('SELECT IMPORT is deprecated in trace processor. '
+                    'Use INCLUDE PERFETTO MODULE instead.')
+  return errors
 
 
 def check_if_create_table_allowlisted(
