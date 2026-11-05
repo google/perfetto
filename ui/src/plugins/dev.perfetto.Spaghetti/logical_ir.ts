@@ -70,6 +70,26 @@ export interface AggregationSpec {
   readonly alias: string;
 }
 
+// Aggregate functions supported natively by PerfettoSQL Next pipeline stages
+// (`INTERVAL FLATTEN`, `TREE ACCUMULATE`, etc.).
+export type PipelineAggFunc = 'COUNT' | 'SUM' | 'MIN' | 'MAX';
+
+export interface PipelineAggregationSpec {
+  readonly func: PipelineAggFunc;
+  readonly column: string;
+  readonly alias: string;
+}
+
+export interface RenameMapping {
+  readonly from: string;
+  readonly to: string;
+}
+
+export interface SetAssignment {
+  readonly column: string;
+  readonly expression: string;
+}
+
 export interface SortKey {
   readonly column: string;
   readonly order: 'ASC' | 'DESC';
@@ -151,6 +171,27 @@ export interface DropOp {
   readonly remainingColumns: readonly string[] | undefined;
 }
 
+export interface RenameOp {
+  readonly kind: 'rename';
+  readonly input: string;
+  readonly renames: readonly RenameMapping[];
+  // Upstream column names in order when schema is known (used by SQLite SQL).
+  readonly inputColumns: readonly string[] | undefined;
+}
+
+export interface SetOp {
+  readonly kind: 'set';
+  readonly input: string;
+  readonly assignments: readonly SetAssignment[];
+  // Upstream column names in order when schema is known (used by SQLite SQL).
+  readonly inputColumns: readonly string[] | undefined;
+}
+
+export interface DistinctOp {
+  readonly kind: 'distinct';
+  readonly input: string;
+}
+
 export interface AggregateOp {
   readonly kind: 'aggregate';
   readonly input: string;
@@ -168,6 +209,7 @@ export interface LimitOp {
   readonly kind: 'limit';
   readonly input: string;
   readonly count: number;
+  readonly offset?: number;
 }
 
 export interface JoinOp {
@@ -193,6 +235,47 @@ export interface IntervalIntersectOp {
   readonly filterNegativeDur: boolean;
 }
 
+export interface IntervalFlattenOp {
+  readonly kind: 'interval_flatten';
+  readonly input: string;
+  readonly partitionColumns: readonly string[];
+  readonly aggregations: readonly PipelineAggregationSpec[];
+  readonly filterNegativeDur: boolean;
+}
+
+export interface IntervalFillGapsOp {
+  readonly kind: 'interval_fill_gaps';
+  readonly input: string;
+  readonly background: string;
+  readonly partitionColumns: readonly string[];
+  readonly inputColumns: readonly string[] | undefined;
+  readonly backgroundColumns: readonly string[] | undefined;
+}
+
+export interface TreeAccumulateOp {
+  readonly kind: 'tree_accumulate';
+  readonly input: string;
+  readonly direction: 'UP' | 'DOWN';
+  readonly idColumn: string;
+  readonly parentIdColumn: string;
+  readonly aggregations: readonly PipelineAggregationSpec[];
+}
+
+export type GraphTreeKind = 'BFS' | 'DFS' | 'DOMINATOR';
+
+export interface GraphTreeOp {
+  readonly kind: 'graph_tree';
+  readonly treeKind: GraphTreeKind;
+  readonly nodes: string;
+  readonly edges: string;
+  readonly roots: string;
+  readonly nodeIdColumn: string;
+  readonly sourceColumn: string;
+  readonly destColumn: string;
+  readonly rootIdColumn: string;
+  readonly nodeColumns: readonly string[] | undefined;
+}
+
 export interface RawSqlOp {
   readonly kind: 'raw_sql';
   readonly sql: string;
@@ -208,12 +291,19 @@ export type LogicalOp =
   | ExtendOp
   | ExtractArgOp
   | DropOp
+  | RenameOp
+  | SetOp
+  | DistinctOp
   | AggregateOp
   | SortOp
   | LimitOp
   | JoinOp
   | UnionOp
   | IntervalIntersectOp
+  | IntervalFlattenOp
+  | IntervalFillGapsOp
+  | TreeAccumulateOp
+  | GraphTreeOp
   | RawSqlOp;
 
 export interface LogicalNode {
@@ -242,12 +332,21 @@ export function getLogicalOpInputs(op: LogicalOp): readonly string[] {
     case 'extend':
     case 'extract_arg':
     case 'drop':
+    case 'rename':
+    case 'set':
+    case 'distinct':
     case 'aggregate':
     case 'sort':
     case 'limit':
+    case 'interval_flatten':
+    case 'tree_accumulate':
       return [op.input];
     case 'join':
       return [op.left, op.right];
+    case 'interval_fill_gaps':
+      return [op.input, op.background];
+    case 'graph_tree':
+      return [op.nodes, op.edges, op.roots];
     case 'union':
       return op.inputs;
     case 'interval_intersect':
