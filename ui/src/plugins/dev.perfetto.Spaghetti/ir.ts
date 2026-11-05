@@ -334,6 +334,24 @@ export function buildIR(
   return entries;
 }
 
+// Collect all content-addressable IR hashes reachable from any valid node
+// currently in the graph. Iterating every node ID (not just chain tails)
+// ensures both folded chains and intermediate nodes' hashes are preserved.
+export function collectLiveHashes(
+  index: GraphIndex,
+  sqlModules: SqlModules | undefined,
+): Set<string> {
+  const live = new Set<string>();
+  for (const nodeId of Object.keys(index.nodes)) {
+    const entries = buildIR(index, nodeId, sqlModules);
+    if (!entries) continue;
+    for (const e of entries) {
+      live.add(e.hash);
+    }
+  }
+  return live;
+}
+
 // --- Display SQL ---
 
 // Format IR entries as a SQL query with CTEs.
