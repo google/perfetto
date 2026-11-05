@@ -43,6 +43,7 @@ import {
 // and event callbacks). Connections are NOT stored in the graph model —
 // they are derived from node.inputs arrays on each render.
 import {Popup} from '../../../widgets/popup';
+import {RadioGroup} from '../../../widgets/radio_group';
 import {Stack} from '../components/stack';
 import {SplitPanel} from '../../../widgets/split_panel';
 import {Tabs} from '../../../widgets/tabs';
@@ -65,7 +66,12 @@ import {
   serializeStore,
   type GraphIndex,
 } from '../graph_utils';
-import {buildIR} from '../ir';
+import {
+  buildDisplayPipeSql,
+  buildDisplaySql,
+  buildIR,
+  type SqlDialect,
+} from '../ir';
 import {MaterializationService} from '../materialization';
 import type {DetailsContext, RenderContext} from '../node_types';
 import {CacheTab} from './cache_tab';
@@ -107,6 +113,9 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
   // Pinned node: when set, results panel always shows this node's query
   let pinnedNodeId: string | undefined;
+
+  // Target dialect used when materializing nodes in Trace Processor.
+  let materializationDialect: SqlDialect = 'sql';
 
   // O(1) root lookup via cached index. Rebuild only happens when store changes.
   function getActiveNodes(): Record<string, RootNodeData> {
@@ -622,6 +631,21 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       toolbarItems.push(
         m('div', {style: {flex: '1'}}),
         m(
+          RadioGroup,
+          {
+            intent: Intent.Primary,
+            selectedValue: materializationDialect,
+            title: 'Query backend used for materialization',
+            onValueChange: (value: string) => {
+              materializationDialect = value === 'pipe' ? 'pipe' : 'sql';
+            },
+          },
+          [
+            m(RadioGroup.Button, {value: 'sql'}, 'SQL'),
+            m(RadioGroup.Button, {value: 'pipe'}, 'PerfettoSQL Next'),
+          ],
+        ),
+        m(
           Popup,
           {
             trigger: m(Button, {
@@ -886,9 +910,13 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
       // Schedule materialization on every render — the AsyncLimiter
       // ensures only the latest invocation actually runs.
-      matService.scheduleUpdate(store, activeNodeId, sqlModules);
+      matService.scheduleUpdate(
+        store,
+        activeNodeId,
+        sqlModules,
+        materializationDialect,
+      );
 
-      const displaySql = matService.displaySql;
       const dataSource = matService.dataSource;
       const matError = matService.error;
       const queryReport = matService.queryReport;
@@ -899,14 +927,26 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         ? getOutputColumnsForNode(flatNodes, activeNodeId, sqlModules)
         : undefined;
 
+      // Build IR entries for both dialects (pure functions of the graph).
+      const sqlIrEntries = activeNodeId
+        ? (buildIR(flatNodes, activeNodeId, sqlModules, 'sql') ?? [])
+        : [];
+      const pipeIrEntries = activeNodeId
+        ? (buildIR(flatNodes, activeNodeId, sqlModules, 'pipe') ?? [])
+        : [];
+
+      const displaySql = buildDisplaySql(sqlIrEntries);
+      const displayPipeSql = buildDisplayPipeSql(pipeIrEntries);
+
       const sqlText = activeNodeId
         ? (displaySql ?? 'Incomplete query — fill in all required fields')
         : 'Select a node to preview its SQL';
+      const pipeSqlText = activeNodeId
+        ? (displayPipeSql ?? 'Incomplete query — fill in all required fields')
+        : 'Select a node to preview its PerfettoSQL Next query';
 
-      // Build IR entries for the IR tab (pure function of graph, always fresh).
-      const irEntries = activeNodeId
-        ? (buildIR(flatNodes, activeNodeId, sqlModules) ?? [])
-        : [];
+      const irEntries =
+        materializationDialect === 'pipe' ? pipeIrEntries : sqlIrEntries;
 
       // Index report entries by hash for O(1) lookup per IR block.
       const reportByHash = new Map(
@@ -935,6 +975,14 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               key: 'sql',
               title: 'SQL',
               content: m(SqlTab, {displaySql, sqlText}),
+            },
+            {
+              key: 'pipe',
+              title: 'PerfettoSQL Next',
+              content: m(SqlTab, {
+                displaySql: displayPipeSql,
+                sqlText: pipeSqlText,
+              }),
             },
             {
               key: 'columns',
@@ -1091,7 +1139,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         ? activeManifest.renderDetails(activeNode!.config, detailsCtx)
         : dataSource
           ? m(DataGrid, {
-              key: displaySql,
+              key: `${matService.activeDialect}:${matService.displaySql ?? ''}`,
               data: dataSource,
               schema: datagridSchema,
               fillHeight: true,

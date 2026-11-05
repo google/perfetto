@@ -320,4 +320,48 @@ describe('MaterializationService cache policy', () => {
     expect(readEndIdx).toBeGreaterThanOrEqual(0);
     expect(dropIdx).toBeGreaterThan(readEndIdx);
   });
+
+  it('materializes PerfettoSQL Next pipelines with CREATE PERFETTO TABLE and switches dialects cleanly', async () => {
+    const {engine, queries} = makeFakeEngine();
+    const service = new MaterializationService(engine, {maxOrphans: 4});
+
+    const store: NodeQueryBuilderStore = {
+      nodes: [makeFilterChain('f1', 'flt1', '250')],
+      labels: [],
+    };
+
+    // Materialize in Standard SQL mode first.
+    await service.scheduleUpdate(store, 'flt1', undefined, 'sql');
+    const sqlHash = ensureDefined(service.materializedTable);
+    expect(service.activeDialect).toBe('sql');
+    expect(
+      queries.some((q) =>
+        q.includes(`CREATE TABLE ${sqlHash} AS SELECT *\nFROM slice`),
+      ),
+    ).toBe(true);
+
+    // Switch to PerfettoSQL Next mode -> materializes via CREATE PERFETTO TABLE.
+    await service.scheduleUpdate(store, 'flt1', undefined, 'pipe');
+    const pipeHash = ensureDefined(service.materializedTable);
+    expect(service.activeDialect).toBe('pipe');
+    expect(pipeHash).not.toBe(sqlHash);
+    expect(
+      queries.some((q) =>
+        q.includes(
+          `CREATE PERFETTO TABLE ${pipeHash} AS\nFROM slice\n|> WHERE dur > 250`,
+        ),
+      ),
+    ).toBe(true);
+
+    // Switch back to Standard SQL -> warm cache hit without re-running DDL.
+    const queryCountBeforeSwitchBack = queries.length;
+    await service.scheduleUpdate(store, 'flt1', undefined, 'sql');
+    expect(service.materializedTable).toBe(sqlHash);
+    expect(service.queryReport?.entries[0]?.cacheHit).toBe(true);
+    expect(
+      queries
+        .slice(queryCountBeforeSwitchBack)
+        .some((q) => q.includes(`CREATE TABLE ${sqlHash}`)),
+    ).toBe(false);
+  });
 });

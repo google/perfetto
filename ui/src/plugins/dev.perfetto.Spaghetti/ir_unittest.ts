@@ -15,7 +15,13 @@
 import {ensureDefined} from '../../base/assert';
 import type {NodeData, RootNodeData} from './graph_model';
 import {flattenNodes} from './graph_utils';
-import {buildDisplaySql, buildIR, buildLogicalPlan, type IrEntry} from './ir';
+import {
+  buildDisplayPipeSql,
+  buildDisplaySql,
+  buildIR,
+  buildLogicalPlan,
+  type IrEntry,
+} from './ir';
 
 // Helper to build a graph index from root nodes.
 function makeNodes(nodeList: RootNodeData[]) {
@@ -447,5 +453,167 @@ describe('buildDisplaySql', () => {
     const sortSql = ensureDefined(buildDisplaySql(sortEntries));
     expect(sortSql).toContain('WHERE dur > 1000');
     expect(sortSql).toContain('ORDER BY dur DESC');
+  });
+});
+
+describe('PerfettoSQL Next (pipe) backend', () => {
+  it('composes groupby -> filter -> drop -> sort -> limit into a single pipeline', () => {
+    const limit: NodeData = {
+      type: 'limit',
+      id: 'lim1',
+      config: {limitCount: '25'},
+    };
+    const sort: NodeData = {
+      type: 'sort',
+      id: 'srt1',
+      next: limit,
+      config: {
+        sortColumn: 'name',
+        sortOrder: 'ASC',
+        conditions: [{column: 'name', order: 'ASC'}],
+      },
+    };
+    const drop: NodeData = {
+      type: 'drop',
+      id: 'drp1',
+      next: sort,
+      config: {columns: ['cnt']},
+    };
+    const havingFilter: NodeData = {
+      type: 'filter',
+      id: 'flt2',
+      next: drop,
+      config: {
+        conditions: [{column: 'cnt', op: '>', value: '5'}],
+      },
+    };
+    const groupby: NodeData = {
+      type: 'groupby',
+      id: 'gb1',
+      next: havingFilter,
+      config: {
+        groupColumns: ['name'],
+        aggregations: [{func: 'COUNT', column: '*', alias: 'cnt'}],
+      },
+    };
+    const preFilter: NodeData = {
+      type: 'filter',
+      id: 'flt1',
+      next: groupby,
+      config: {
+        conditions: [{column: 'dur', op: '>', value: '1000'}],
+      },
+    };
+    const from: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      next: preFilter,
+      config: {table: 'slice'},
+    };
+
+    const index = makeNodes([from]);
+    const pipeEntries = ensureDefined(
+      buildIR(index, 'lim1', undefined, 'pipe'),
+    );
+    // Unlike Standard SQL (which needs multiple CTEs), PerfettoSQL Next folds
+    // the entire linear pipeline into a single entry!
+    expect(pipeEntries.length).toBe(1);
+
+    const display = ensureDefined(buildDisplayPipeSql(pipeEntries));
+    expect(display).toBe(
+      [
+        'FROM slice',
+        '|> WHERE dur > 1000',
+        '|> AGGREGATE COUNT(*) AS cnt GROUP BY name',
+        '|> WHERE cnt > 5',
+        '|> DROP cnt',
+        '|> ORDER BY name ASC',
+        '|> LIMIT 25',
+      ].join('\n'),
+    );
+  });
+
+  it('lowers interval_intersect to native INTERVAL INTERSECTION OF without stdlib include', () => {
+    const left: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      config: {table: 'slice'},
+    };
+    const right: RootNodeData = {
+      type: 'from',
+      id: 'f2',
+      x: 100,
+      y: 0,
+      config: {table: 'sched'},
+    };
+    const ii: RootNodeData = {
+      type: 'interval_intersect',
+      id: 'ii1',
+      x: 200,
+      y: 0,
+      inputs: ['f1', 'f2'],
+      config: {
+        numInputs: 2,
+        partitionColumns: ['utid'],
+        filterNegativeDur: true,
+      },
+    };
+
+    const entries = ensureDefined(
+      buildIR(makeNodes([left, right, ii]), 'ii1', undefined, 'pipe'),
+    );
+    expect(entries.length).toBe(1);
+    const e0 = ensureDefined(entries[0]);
+    expect(e0.includes).toEqual([]);
+    expect(e0.sql).toContain('INTERVAL INTERSECTION OF (');
+    expect(e0.sql).toContain('(FROM slice |> WHERE dur >= 0) AS t1');
+    expect(e0.sql).toContain('(FROM sched |> WHERE dur >= 0) AS t2');
+    expect(e0.sql).toContain(') PER utid');
+    expect(e0.sql).toContain('|> SELECT ts, dur, t1.id AS id_0, t2.id AS id_1');
+  });
+
+  it('formats multi-entry diamond DAGs using CREATE OR REPLACE PERFETTO TABLE', () => {
+    const sharedFilter: NodeData = {
+      type: 'filter',
+      id: 'flt1',
+      config: {
+        conditions: [{column: 'dur', op: '>', value: '0'}],
+      },
+    };
+    const from: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      next: sharedFilter,
+      config: {table: 'slice'},
+    };
+    const ii: RootNodeData = {
+      type: 'interval_intersect',
+      id: 'ii1',
+      x: 200,
+      y: 0,
+      inputs: ['flt1', 'flt1'],
+      config: {
+        numInputs: 2,
+        partitionColumns: [],
+        filterNegativeDur: false,
+      },
+    };
+
+    const entries = ensureDefined(
+      buildIR(makeNodes([from, ii]), 'ii1', undefined, 'pipe'),
+    );
+    expect(entries.length).toBe(2);
+    const display = ensureDefined(buildDisplayPipeSql(entries));
+    expect(display).toContain(
+      'CREATE OR REPLACE PERFETTO TABLE step_1 AS\nFROM slice\n|> WHERE dur > 0;',
+    );
+    expect(display).toContain('step_1 AS t1');
+    expect(display).toContain('step_1 AS t2');
   });
 });
