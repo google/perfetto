@@ -107,6 +107,18 @@ perfetto_cc_library(
     linkstatic = True,
 )
 
+# GN target: //src/perfetto_sql/syntaqlite:perfetto_fmt_dialect
+perfetto_cc_library(
+    name = "perfetto_fmt_dialect",
+    srcs = [
+        "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.c",
+    ],
+    hdrs = [
+        "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h",
+    ],
+    linkstatic = True,
+)
+
 # GN target: //src/protozero/protoc_plugin:cppgen_plugin
 perfetto_cc_binary(
     name = "cppgen_plugin",
