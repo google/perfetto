@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/base/compiler.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
@@ -30,6 +31,7 @@
 #include "src/trace_processor/plugins/wattson/gpu_curves.h"
 #include "src/trace_processor/plugins/wattson/l3_curves.h"
 #include "src/trace_processor/plugins/wattson/table_function.h"
+#include "src/trace_processor/plugins/wattson/tables_py.h"
 #include "src/trace_processor/plugins/wattson/tpu_curves.h"
 #include "src/trace_processor/plugins/wattson/wattson.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -62,11 +64,60 @@ DataframeSpec MakeSpec(
   return spec;
 }
 
+struct WattsonExternalTables {
+  explicit WattsonExternalTables(StringPool* pool)
+      : device_info(pool),
+        cpu_cluster(pool),
+        idle_state_map(pool),
+        curves_cpu_1d(pool),
+        curves_cpu_2d(pool),
+        curves_l3(pool),
+        curves_gpu(pool),
+        curves_tpu(pool) {}
+
+  tables::WattsonExternalDeviceInfoTable device_info;
+  tables::WattsonExternalCpuClusterTable cpu_cluster;
+  tables::WattsonExternalIdleStateMapTable idle_state_map;
+  tables::WattsonExternalCurvesCpu1DTable curves_cpu_1d;
+  tables::WattsonExternalCurvesCpu2DTable curves_cpu_2d;
+  tables::WattsonExternalCurvesL3Table curves_l3;
+  tables::WattsonExternalCurvesGpuTable curves_gpu;
+  tables::WattsonExternalCurvesTpuTable curves_tpu;
+};
+
 }  // namespace
 
 class WattsonPlugin : public Plugin<WattsonPlugin> {
  public:
   ~WattsonPlugin() override;
+
+  void RegisterDataframes(std::vector<PluginDataframe>& out) override {
+    EnsureTables();
+    out.push_back({&tables_->device_info.dataframe(),
+                   tables::WattsonExternalDeviceInfoTable::Name(),
+                   {}});
+    out.push_back({&tables_->cpu_cluster.dataframe(),
+                   tables::WattsonExternalCpuClusterTable::Name(),
+                   {}});
+    out.push_back({&tables_->idle_state_map.dataframe(),
+                   tables::WattsonExternalIdleStateMapTable::Name(),
+                   {}});
+    out.push_back({&tables_->curves_cpu_1d.dataframe(),
+                   tables::WattsonExternalCurvesCpu1DTable::Name(),
+                   {}});
+    out.push_back({&tables_->curves_cpu_2d.dataframe(),
+                   tables::WattsonExternalCurvesCpu2DTable::Name(),
+                   {}});
+    out.push_back({&tables_->curves_l3.dataframe(),
+                   tables::WattsonExternalCurvesL3Table::Name(),
+                   {}});
+    out.push_back({&tables_->curves_gpu.dataframe(),
+                   tables::WattsonExternalCurvesGpuTable::Name(),
+                   {}});
+    out.push_back({&tables_->curves_tpu.dataframe(),
+                   tables::WattsonExternalCurvesTpuTable::Name(),
+                   {}});
+  }
 
   void RegisterStaticTableFunctions(
       PerfettoSqlConnection*,
@@ -121,6 +172,16 @@ class WattsonPlugin : public Plugin<WattsonPlugin> {
                   {"active", kDouble}}),
         kTpuCurvesData.data(), kTpuCurvesData.size()));
   }
+
+ private:
+  void EnsureTables() {
+    if (!tables_) {
+      tables_ = std::make_unique<WattsonExternalTables>(
+          trace_context_->storage->mutable_string_pool());
+    }
+  }
+
+  std::unique_ptr<WattsonExternalTables> tables_;
 };
 
 WattsonPlugin::~WattsonPlugin() = default;

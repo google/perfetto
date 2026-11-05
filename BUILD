@@ -562,6 +562,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_utils_functions_utils_functions",
         ":src_trace_processor_plugins_video_frame_importer_tables",
         ":src_trace_processor_plugins_video_frame_importer_video_frame_importer",
+        ":src_trace_processor_plugins_wattson_tables",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
         ":src_trace_processor_plugins_winscope_importer_winscope_importer",
@@ -892,6 +893,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_utils_functions_utils_functions",
         ":src_trace_processor_plugins_video_frame_importer_tables",
         ":src_trace_processor_plugins_video_frame_importer_video_frame_importer",
+        ":src_trace_processor_plugins_wattson_tables",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
         ":src_trace_processor_plugins_winscope_importer_winscope_importer",
@@ -5661,6 +5663,19 @@ perfetto_cpp_blob_header(
         "perfetto::trace_processor::wattson",
         "--curve-type",
         "tpu",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/wattson:tables
+perfetto_cc_tp_tables(
+    name = "src_trace_processor_plugins_wattson_tables",
+    srcs = [
+        "src/trace_processor/plugins/wattson/tables.py",
+    ],
+    outs = [
+        "src/trace_processor/plugins/wattson/all_tables_fwd.h",
+        "src/trace_processor/plugins/wattson/tables_fwd.h",
+        "src/trace_processor/plugins/wattson/tables_py.h",
     ],
 )
 
@@ -12232,6 +12247,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_utils_functions_utils_functions",
         ":src_trace_processor_plugins_video_frame_importer_tables",
         ":src_trace_processor_plugins_video_frame_importer_video_frame_importer",
+        ":src_trace_processor_plugins_wattson_tables",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
         ":src_trace_processor_plugins_winscope_importer_winscope_importer",
@@ -12596,6 +12612,7 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_utils_functions_utils_functions",
         ":src_trace_processor_plugins_video_frame_importer_tables",
         ":src_trace_processor_plugins_video_frame_importer_video_frame_importer",
+        ":src_trace_processor_plugins_wattson_tables",
         ":src_trace_processor_plugins_wattson_wattson",
         ":src_trace_processor_plugins_window_operator_window_operator",
         ":src_trace_processor_plugins_winscope_importer_winscope_importer",
