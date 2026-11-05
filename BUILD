@@ -4004,6 +4004,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/operations/scan.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.h",
+        "src/trace_processor/perfetto_sql/pipeline/operations/tree_key_paths.cc",
+        "src/trace_processor/perfetto_sql/pipeline/operations/tree_key_paths.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/where.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/where.h",
     ],

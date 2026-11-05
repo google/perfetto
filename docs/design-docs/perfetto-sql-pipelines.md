@@ -331,6 +331,25 @@ and `AGGREGATE` do:
 
 ---
 
+## `TREE KEY PATHS`
+
+Code: `/src/trace_processor/core/exec/tree_key_paths.cc`
+
+A `TREE KEY PATHS` stage lowers to `TreeNumberNodes`, `TreeParentFirst` unless
+the rows already walk the tree that way, and `TreeKeyPaths`, which streams:
+
+- A batched `GroupTable` numbers the distinct values of the key columns. This
+  needs nothing from the tree, so it handles several columns, `NULL`s and
+  strings at once.
+- Rows then go one at a time, since a child's key needs its parent's and the
+  parent can be earlier in the same batch. A row's key is looked up in a
+  `FlatHashMap` by its parent's key and its value number, packed in 64 bits.
+  Rows being parent first means the parent's key is known.
+
+Memory grows with the number of nodes and paths. No rows are held.
+
+---
+
 ## `GRAPH ... TREE`
 
 Code:
