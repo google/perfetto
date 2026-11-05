@@ -18,9 +18,24 @@ import {AtomicTaskQueue} from '../../base/async_memo';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
 import type {Engine} from '../../trace_processor/engine';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
-import {buildDisplaySql, buildIR, type IrEntry} from './ir';
 import type {NodeQueryBuilderStore} from './graph_model';
-import {flattenNodes} from './graph_utils';
+import {flattenNodes, type GraphIndex} from './graph_utils';
+import {
+  buildDisplaySql,
+  buildIR,
+  collectLiveHashes,
+  type IrEntry,
+} from './ir';
+
+// Default cap on stale/orphaned tables retained for undo & mid-edit recovery.
+// Live tables (belonging to any valid node currently in the graph) are never
+// evicted regardless of graph size.
+const DEFAULT_MAX_ORPHANS = 16;
+
+export interface MaterializationOptions {
+  readonly maxOrphans?: number;
+  readonly taskQueue?: AtomicTaskQueue;
+}
 
 // Per-entry report from the most recent materialization cycle.
 export interface EntryReport {
@@ -37,14 +52,26 @@ export interface QueryReport {
   readonly totalTimeMs: number;
 }
 
-// Per-entry metadata in the cache.
-export interface CacheEntry {
+// Internal mutable cache record.
+interface StoredCacheEntry {
   readonly hash: string;
   readonly sql: string;
   readonly createdAt: number; // performance.now() timestamp
   readonly materializeTimeMs: number;
   lastHitAt: number; // performance.now() timestamp of last cache hit
   hitCount: number;
+}
+
+// Per-entry metadata in the cache.
+export interface CacheEntry {
+  readonly hash: string;
+  readonly sql: string;
+  readonly createdAt: number; // performance.now() timestamp
+  readonly materializeTimeMs: number;
+  readonly lastHitAt: number; // performance.now() timestamp of last cache hit
+  readonly hitCount: number;
+  // True when at least one valid node currently in the graph emits this hash.
+  readonly isLive: boolean;
 }
 
 // Materialization service for the query builder.
@@ -54,14 +81,41 @@ export interface CacheEntry {
 // materialized tables. No SQL rewriting needed — the IR's SQL already
 // references deps by their hash.
 //
+// Cache management uses a two-pool policy:
+// 1. Live hashes (reachable from any valid node currently in the graph) and
+//    the active materialized table are pinned and never evicted.
+// 2. Orphaned hashes (left behind by edits or node deletions) are bounded by
+//    a small LRU cap (`maxOrphans`), with `DROP TABLE` serialized on the same
+//    `AtomicTaskQueue` as `SQLDataSource` so drops never race DataGrid reads.
+//
 // All work is serialized through a single AsyncLimiter.
 export class MaterializationService {
   private readonly limiter = new AsyncLimiter();
   private readonly engine: Engine;
-  private readonly taskQueue = new AtomicTaskQueue();
+  private readonly taskQueue: AtomicTaskQueue;
+  private readonly maxOrphans: number;
 
   // Cache: hash -> metadata (hash IS the table name).
-  private cache = new Map<string, CacheEntry>();
+  private cache = new Map<string, StoredCacheEntry>();
+
+  // Memoized graph flatten + live hash set keyed by store & sqlModules refs.
+  private lastStore: NodeQueryBuilderStore | undefined;
+  private lastSqlModules: SqlModules | undefined;
+  private lastIndex: GraphIndex = {nodes: {}, childToParent: new Map()};
+  private liveHashes: ReadonlySet<string> = new Set();
+
+  // Coalesced pending work flags so AsyncLimiter never drops a clear/prune
+  // when a Mithril redraw immediately schedules another update behind it.
+  private latestUpdate:
+    | {
+        readonly store: NodeQueryBuilderStore;
+        readonly activeNodeId: string | undefined;
+        readonly sqlModules: SqlModules | undefined;
+      }
+    | undefined;
+  private pendingUpdate = false;
+  private pendingClearAll = false;
+  private pendingPruneOrphans = false;
 
   // The display SQL for the user to see.
   private _displaySql: string | undefined;
@@ -86,8 +140,10 @@ export class MaterializationService {
 
   private disposed = false;
 
-  constructor(engine: Engine) {
+  constructor(engine: Engine, options?: MaterializationOptions) {
     this.engine = engine;
+    this.maxOrphans = options?.maxOrphans ?? DEFAULT_MAX_ORPHANS;
+    this.taskQueue = options?.taskQueue ?? new AtomicTaskQueue();
   }
 
   get dataSource(): SQLDataSource | undefined {
@@ -111,7 +167,10 @@ export class MaterializationService {
   }
 
   get cacheEntries(): readonly CacheEntry[] {
-    return Array.from(this.cache.values());
+    return Array.from(this.cache.values(), (entry) => ({
+      ...entry,
+      isLive: this.liveHashes.has(entry.hash),
+    }));
   }
 
   get materializingNodeIds(): ReadonlySet<string> {
@@ -127,13 +186,81 @@ export class MaterializationService {
     store: NodeQueryBuilderStore,
     activeNodeId: string | undefined,
     sqlModules: SqlModules | undefined,
-  ): void {
+  ): Promise<void> {
+    if (this.disposed) return Promise.resolve();
+    this.updateGraphState(store, sqlModules);
+    this.latestUpdate = {store, activeNodeId, sqlModules};
+    this.pendingUpdate = true;
+    return this.scheduleWork();
+  }
+
+  // Drop all orphaned cache entries immediately while preserving live tables.
+  pruneOrphans(): Promise<void> {
+    if (this.disposed) return Promise.resolve();
+    this.pendingPruneOrphans = true;
+    return this.scheduleWork();
+  }
+
+  // Clear the cache and force re-materialization on next update.
+  clearCache(): Promise<void> {
+    if (this.disposed) return Promise.resolve();
+    this.pendingClearAll = true;
+    return this.scheduleWork();
+  }
+
+  private async scheduleWork(): Promise<void> {
     if (this.disposed) return;
 
-    this.limiter.schedule(async () => {
+    await this.limiter.schedule(async () => {
       if (this.disposed) return;
+
+      if (this.pendingClearAll) {
+        this.pendingClearAll = false;
+        this.pendingPruneOrphans = false;
+        this.clearActiveOutput();
+        this._queryReport = undefined;
+        await this.dropAll();
+        m.redraw();
+      } else if (this.pendingPruneOrphans) {
+        this.pendingPruneOrphans = false;
+        if (this.latestUpdate) {
+          this.updateGraphState(
+            this.latestUpdate.store,
+            this.latestUpdate.sqlModules,
+          );
+        }
+        const evicted = await this.evictOrphans(0);
+        if (evicted > 0) {
+          m.redraw();
+        }
+      }
+
+      if (this.disposed || !this.pendingUpdate || !this.latestUpdate) return;
+      this.pendingUpdate = false;
+      const {store, activeNodeId, sqlModules} = this.latestUpdate;
       await this.doUpdate(store, activeNodeId, sqlModules);
     });
+  }
+
+  private updateGraphState(
+    store: NodeQueryBuilderStore,
+    sqlModules: SqlModules | undefined,
+  ): GraphIndex {
+    if (store !== this.lastStore || sqlModules !== this.lastSqlModules) {
+      this.lastStore = store;
+      this.lastSqlModules = sqlModules;
+      this.lastIndex = flattenNodes(store.nodes);
+      this.liveHashes = collectLiveHashes(this.lastIndex, sqlModules);
+    }
+    return this.lastIndex;
+  }
+
+  private clearActiveOutput(): void {
+    this._dataSource?.dispose();
+    this._dataSource = undefined;
+    this._materializedTable = undefined;
+    this._displaySql = undefined;
+    this._error = undefined;
   }
 
   private async doUpdate(
@@ -141,41 +268,36 @@ export class MaterializationService {
     activeNodeId: string | undefined,
     sqlModules: SqlModules | undefined,
   ): Promise<void> {
+    const index = this.updateGraphState(store, sqlModules);
+
     if (!activeNodeId) {
-      this._dataSource?.dispose();
-      this._dataSource = undefined;
-      this._materializedTable = undefined;
-      this._displaySql = undefined;
-      this._error = undefined;
+      this.clearActiveOutput();
+      const evicted = await this.evictOrphans(this.maxOrphans);
+      if (evicted > 0) m.redraw();
       return;
     }
 
-    const entries = buildIR(
-      flattenNodes(store.nodes),
-      activeNodeId,
-      sqlModules,
-    );
+    const entries = buildIR(index, activeNodeId, sqlModules);
     if (!entries || entries.length === 0) {
-      this._dataSource?.dispose();
-      this._dataSource = undefined;
-      this._materializedTable = undefined;
-      this._displaySql = undefined;
-      this._error = undefined;
+      this.clearActiveOutput();
+      const evicted = await this.evictOrphans(this.maxOrphans);
+      if (evicted > 0) m.redraw();
       return;
     }
 
     const displaySql = buildDisplaySql(entries);
     if (!displaySql) {
-      this._dataSource?.dispose();
-      this._dataSource = undefined;
-      this._materializedTable = undefined;
-      this._displaySql = undefined;
-      this._error = undefined;
+      this.clearActiveOutput();
+      const evicted = await this.evictOrphans(this.maxOrphans);
+      if (evicted > 0) m.redraw();
       return;
     }
 
-    // Nothing changed — skip entirely.
+    // Active node's SQL didn't change, though other branches may have been
+    // edited or deleted — still enforce the orphan cap.
     if (displaySql === this._displaySql) {
+      const evicted = await this.evictOrphans(this.maxOrphans);
+      if (evicted > 0) m.redraw();
       return;
     }
 
@@ -196,6 +318,9 @@ export class MaterializationService {
       this._fadingOutNodeIds.clear();
       m.redraw();
     }
+
+    const evicted = await this.evictOrphans(this.maxOrphans);
+    if (evicted > 0) m.redraw();
   }
 
   private async materializeEntries(entries: IrEntry[]): Promise<void> {
@@ -297,30 +422,73 @@ export class MaterializationService {
     });
   }
 
-  private async dropAll(): Promise<void> {
-    for (const [hash] of this.cache) {
-      await this.engine.tryQuery(`DROP TABLE IF EXISTS ${hash}`);
-    }
-    this.cache.clear();
+  private isProtected(hash: string): boolean {
+    return this.liveHashes.has(hash) || hash === this._materializedTable;
   }
 
-  // Clear the cache and force re-materialization on next update.
-  clearCache(): void {
-    this.limiter.schedule(async () => {
-      if (this.disposed) return;
-      await this.dropAll();
-      this._dataSource?.dispose();
-      this._dataSource = undefined;
-      this._materializedTable = undefined;
-      this._displaySql = undefined;
-      this._queryReport = undefined;
+  private async evictOrphans(maxOrphans: number): Promise<number> {
+    const orphans: StoredCacheEntry[] = [];
+    for (const entry of this.cache.values()) {
+      if (!this.isProtected(entry.hash)) {
+        orphans.push(entry);
+      }
+    }
+
+    if (orphans.length <= maxOrphans) {
+      return 0;
+    }
+
+    // Evict least-recently-hit orphans first; break ties by creation time.
+    orphans.sort(
+      (a, b) => a.lastHitAt - b.lastHitAt || a.createdAt - b.createdAt,
+    );
+
+    const victims = orphans.slice(0, orphans.length - maxOrphans);
+    for (const victim of victims) {
+      this.cache.delete(victim.hash);
+    }
+    const hashes = victims.map((v) => v.hash);
+    await this.dropTables(hashes);
+    return hashes.length;
+  }
+
+  // Run table drops through `taskQueue` so any in-flight `SQLDataSource`
+  // query finishes before SQLite drops the underlying table.
+  private runOnTaskQueue(fn: () => Promise<void>): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      this.taskQueue.schedule({}, async () => {
+        try {
+          await fn();
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
     });
+  }
+
+  private async dropTables(hashes: readonly string[]): Promise<void> {
+    if (hashes.length === 0) return;
+    await this.runOnTaskQueue(async () => {
+      for (const hash of hashes) {
+        await this.engine.tryQuery(`DROP TABLE IF EXISTS ${hash}`);
+      }
+    });
+  }
+
+  private async dropAll(): Promise<void> {
+    const hashes = Array.from(this.cache.keys());
+    this.cache.clear();
+    await this.dropTables(hashes);
   }
 
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
     this._dataSource?.dispose();
-    await this.dropAll();
+    this._dataSource = undefined;
+    await this.limiter.schedule(async () => {
+      await this.dropAll();
+    });
   }
 }

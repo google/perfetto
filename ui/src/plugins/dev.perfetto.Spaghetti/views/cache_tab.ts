@@ -20,6 +20,7 @@ import './cache_tab.scss';
 
 export interface CacheTabAttrs {
   readonly cacheEntries: readonly CacheEntry[];
+  readonly onPruneOrphans: () => void;
   readonly onClearCache: () => void;
 }
 
@@ -31,13 +32,24 @@ function formatTimestamp(perfNow: number): string {
 
 export class CacheTab implements m.ClassComponent<CacheTabAttrs> {
   view({attrs}: m.Vnode<CacheTabAttrs>) {
-    const {cacheEntries, onClearCache} = attrs;
+    const {cacheEntries, onPruneOrphans, onClearCache} = attrs;
+    const orphanCount = cacheEntries.filter((e) => !e.isLive).length;
     return m(
       '.pf-spag-cache-tab',
       cacheEntries.length > 0
         ? [
             m(
               '.pf-spag-cache-tab-toolbar',
+              m(Button, {
+                variant: ButtonVariant.Filled,
+                icon: 'cleaning_services',
+                label:
+                  orphanCount > 0
+                    ? `Prune orphans (${orphanCount})`
+                    : 'Prune orphans',
+                disabled: orphanCount === 0,
+                onclick: onPruneOrphans,
+              }),
               m(Button, {
                 variant: ButtonVariant.Filled,
                 icon: 'delete_sweep',
@@ -53,6 +65,10 @@ export class CacheTab implements m.ClassComponent<CacheTabAttrs> {
                   content: entry.sql,
                   meta: `created ${formatTimestamp(entry.createdAt)} · last hit ${formatTimestamp(entry.lastHitAt)}`,
                   badges: [
+                    m(Card.Badge, {
+                      variant: entry.isLive ? 'live' : 'orphan',
+                      label: entry.isLive ? 'LIVE' : 'ORPHAN',
+                    }),
                     m(Card.Badge, {
                       variant: 'hits',
                       label: `${entry.hitCount} ${entry.hitCount === 1 ? 'hit' : 'hits'}`,

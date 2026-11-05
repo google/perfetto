@@ -951,6 +951,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               title: `Cache (${cacheEntries.length})`,
               content: m(CacheTab, {
                 cacheEntries,
+                onPruneOrphans: () => matService?.pruneOrphans(),
                 onClearCache: () => matService?.clearCache(),
               }),
             },
