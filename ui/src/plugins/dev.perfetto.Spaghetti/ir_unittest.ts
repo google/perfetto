@@ -927,4 +927,193 @@ describe('PerfettoSQL Next (pipe) backend', () => {
     expect(sqlDisplay).toContain('WITH RECURSIVE');
     expect(sqlDisplay).toContain('SUM(v.self_size) AS retained_size');
   });
+
+  it('lowers as stage in both dialects', () => {
+    const root: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      config: {table: 'slice'},
+      next: {
+        type: 'as',
+        id: 'as1',
+        config: {alias: 's'},
+        next: {
+          type: 'extend',
+          id: 'ext1',
+          config: {
+            entries: [{expression: 's.ts + s.dur', alias: 'ts_end'}],
+          },
+        },
+      },
+    };
+
+    const index = makeNodes([root]);
+
+    const pipeEntries = ensureDefined(
+      buildIR(index, 'ext1', undefined, 'pipe'),
+    );
+    expect(buildDisplayPipeSql(pipeEntries)).toBe(
+      ['FROM slice', '|> AS s', '|> EXTEND s.ts + s.dur AS ts_end'].join('\n'),
+    );
+
+    const sqlEntries = ensureDefined(buildIR(index, 'ext1', undefined, 'sql'));
+    expect(buildDisplaySql(sqlEntries)).toContain('s.ts + s.dur AS ts_end');
+    expect(buildDisplaySql(sqlEntries)).toContain('FROM slice AS s');
+  });
+
+  it('lowers interval_merge (OVERLAPPING and CONSECUTIVE) in both dialects', () => {
+    const overlappingRoot: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      config: {table: 'slice'},
+      next: {
+        type: 'interval_merge',
+        id: 'im1',
+        config: {
+          mergeKind: 'OVERLAPPING',
+          keyColumns: [],
+          partitionColumns: ['track_id'],
+          aggregations: [{func: 'COUNT', column: '*', alias: 'slice_cnt'}],
+          filterNegativeDur: true,
+        },
+      },
+    };
+
+    const ovIndex = makeNodes([overlappingRoot]);
+    const ovPipe = ensureDefined(buildIR(ovIndex, 'im1', undefined, 'pipe'));
+    expect(buildDisplayPipeSql(ovPipe)).toBe(
+      [
+        'FROM slice',
+        '|> WHERE dur >= 0',
+        '|> INTERVAL MERGE OVERLAPPING PER track_id AGGREGATE COUNT(*) AS slice_cnt',
+      ].join('\n'),
+    );
+
+    const ovSql = ensureDefined(buildIR(ovIndex, 'im1', undefined, 'sql'));
+    const ovSqlText = ensureDefined(buildDisplaySql(ovSql));
+    expect(ovSqlText).toContain('MAX(ts + dur) OVER (PARTITION BY track_id');
+    expect(ovSqlText).toContain('COUNT(*) AS slice_cnt');
+
+    const consecutiveRoot: RootNodeData = {
+      type: 'from',
+      id: 'f2',
+      x: 0,
+      y: 0,
+      config: {table: 'sched'},
+      next: {
+        type: 'interval_merge',
+        id: 'im2',
+        config: {
+          mergeKind: 'CONSECUTIVE',
+          keyColumns: ['utid', 'end_state'],
+          partitionColumns: ['cpu'],
+          aggregations: [],
+          filterNegativeDur: false,
+        },
+      },
+    };
+
+    const consIndex = makeNodes([consecutiveRoot]);
+    const consPipe = ensureDefined(
+      buildIR(consIndex, 'im2', undefined, 'pipe'),
+    );
+    expect(buildDisplayPipeSql(consPipe)).toBe(
+      [
+        'FROM sched',
+        '|> INTERVAL MERGE CONSECUTIVE BY utid, end_state PER cpu AGGREGATE COUNT(*) AS _pf_cnt',
+        '|> DROP _pf_cnt',
+      ].join('\n'),
+    );
+
+    const consSql = ensureDefined(buildIR(consIndex, 'im2', undefined, 'sql'));
+    const consSqlText = ensureDefined(buildDisplaySql(consSql));
+    expect(consSqlText).toContain('LAG(ts + dur) OVER (PARTITION BY cpu');
+    expect(consSqlText).toContain('GROUP BY cpu, _grp, utid, end_state');
+  });
+
+  it('lowers intervals_from_events in pipe mode and trivial/unsupported sql modes', () => {
+    const simpleRoot: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      config: {table: 'counter'},
+      next: {
+        type: 'intervals_from_events',
+        id: 'ife1',
+        config: {
+          partitionColumns: ['track_id'],
+          lastMode: 'CLOSE_AT',
+          closeAtExpr: 'trace_end()',
+        },
+      },
+    };
+
+    const simpleIndex = makeNodes([simpleRoot]);
+    const simplePipe = ensureDefined(
+      buildIR(simpleIndex, 'ife1', undefined, 'pipe'),
+    );
+    expect(buildDisplayPipeSql(simplePipe)).toBe(
+      [
+        'FROM counter',
+        '|> INTERVALS FROM EVENTS PER track_id CLOSING LAST AT (trace_end())',
+      ].join('\n'),
+    );
+
+    const simpleSql = ensureDefined(
+      buildIR(simpleIndex, 'ife1', undefined, 'sql'),
+    );
+    expect(ensureDefined(simpleSql[0]).error).toBeUndefined();
+    expect(ensureDefined(buildDisplaySql(simpleSql))).toContain(
+      'COALESCE(LEAD(ts) OVER (PARTITION BY track_id ORDER BY ts), (trace_end())) - ts AS dur',
+    );
+
+    // With STOP connected: pipe emits `STOP <ref>`, while SQL marks the entry unsupported.
+    const stopRoot: RootNodeData = {
+      type: 'from',
+      id: 'stop1',
+      x: 200,
+      y: 0,
+      config: {table: 'process'},
+    };
+    const withStopRoot: RootNodeData = {
+      type: 'from',
+      id: 'ev1',
+      x: 0,
+      y: 0,
+      config: {table: 'counter'},
+      next: {
+        type: 'intervals_from_events',
+        id: 'ife2',
+        inputs: [null, 'stop1'],
+        config: {
+          partitionColumns: ['track_id'],
+          lastMode: 'KEEP_OPEN',
+          closeAtExpr: 'trace_end()',
+        },
+      },
+    };
+
+    const stopIndex = makeNodes([stopRoot, withStopRoot]);
+    const stopPipe = ensureDefined(
+      buildIR(stopIndex, 'ife2', undefined, 'pipe'),
+    );
+    expect(ensureDefined(buildDisplayPipeSql(stopPipe))).toBe(
+      [
+        'FROM counter',
+        '|> INTERVALS FROM EVENTS PER track_id STOP process KEEPING LAST OPEN',
+      ].join('\n'),
+    );
+
+    const stopSql = ensureDefined(buildIR(stopIndex, 'ife2', undefined, 'sql'));
+    const lastEntry = ensureDefined(stopSql[stopSql.length - 1]);
+    expect(lastEntry.error).toContain('only supported in PerfettoSQL Next');
+    expect(buildDisplaySql(stopSql)).toContain(
+      '-- Unsupported in Standard SQL: Intervals From Events with a Stop input is only supported in PerfettoSQL Next mode.',
+    );
+  });
 });

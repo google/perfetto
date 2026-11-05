@@ -16,6 +16,7 @@ import {assertUnreachable} from '../../base/assert';
 import {fnvHash} from './graph_utils';
 import {
   type AggregateOp,
+  type AsOp,
   type DistinctOp,
   type DropOp,
   type ExtendOp,
@@ -27,6 +28,8 @@ import {
   type IntervalFillGapsOp,
   type IntervalFlattenOp,
   type IntervalIntersectOp,
+  type IntervalMergeOp,
+  type IntervalsFromEventsOp,
   type JoinOp,
   type LimitOp,
   type LogicalNode,
@@ -55,6 +58,8 @@ export interface IrEntry {
   readonly includes: readonly string[];
   // The node IDs that were folded into this entry.
   readonly nodeIds: readonly string[];
+  // Optional error message if this step cannot be materialized in the target dialect.
+  readonly error?: string;
 }
 
 export function computeIrHash(
@@ -84,6 +89,7 @@ type FoldableOp =
   | ProjectOp
   | ExtendOp
   | ExtractArgOp
+  | AsOp
   | DistinctOp
   | AggregateOp
   | SortOp
@@ -201,6 +207,22 @@ function tryFoldOp(stmt: SqlStatement, op: FoldableOp): boolean {
       if (exprParts.length > 0) {
         stmt.columns = [stmt.columns, ...exprParts].join(', ');
       }
+      return true;
+    }
+
+    case 'as': {
+      if (
+        stmt.columns !== '*' ||
+        stmt.distinct !== undefined ||
+        stmt.where !== undefined ||
+        stmt.groupBy !== undefined ||
+        stmt.orderBy !== undefined ||
+        stmt.limit !== undefined ||
+        stmt.from.includes(' AS ')
+      ) {
+        return false;
+      }
+      stmt.from = `${stmt.from} AS ${op.alias}`;
       return true;
     }
 
@@ -478,6 +500,101 @@ function emitIntervalFillGapsSql(
   ].join('\n');
 }
 
+function emitIntervalMergeSql(op: IntervalMergeOp, ref: string): string {
+  const uniquePer = [...new Set(op.partitionColumns)];
+  const partBy =
+    uniquePer.length > 0 ? `PARTITION BY ${uniquePer.join(', ')} ` : '';
+  const whereClause = op.filterNegativeDur
+    ? 'WHERE ts IS NOT NULL AND dur >= 0'
+    : 'WHERE ts IS NOT NULL';
+  const aggExprs = op.aggregations.map((a) =>
+    a.func === 'COUNT'
+      ? `COUNT(*) AS ${a.alias}`
+      : `${a.func}(${a.column}) AS ${a.alias}`,
+  );
+
+  if (op.mergeKind === 'OVERLAPPING') {
+    const groupCols = [...uniquePer, '_grp'];
+    const outCols: string[] = [
+      'MIN(ts) AS ts',
+      'MAX(ts + dur) - MIN(ts) AS dur',
+      ...op.partitionColumns,
+      ...aggExprs,
+    ];
+    return [
+      'WITH',
+      `  _bounds AS (\n    SELECT\n      *,\n      MAX(ts + dur) OVER (${partBy}ORDER BY ts, dur ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS _max_end\n    FROM ${ref}\n    ${whereClause}\n  ),`,
+      `  _groups AS (\n    SELECT\n      *,\n      SUM(IIF(_max_end IS NULL OR ts > _max_end, 1, 0)) OVER (${partBy}ORDER BY ts, dur ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS _grp\n    FROM _bounds\n  )`,
+      `SELECT\n  ${outCols.join(',\n  ')}\nFROM _groups\nGROUP BY ${groupCols.join(', ')}`,
+    ].join('\n');
+  }
+
+  const uniqueKeys = [...new Set(op.keyColumns)];
+  const prevKeys = uniqueKeys.map(
+    (k, idx) =>
+      `,\n      LAG(${k}) OVER (${partBy}ORDER BY ts, dur) AS _prev_k${idx}`,
+  );
+  const keySame = uniqueKeys
+    .map((k, idx) => `${k} IS _prev_k${idx}`)
+    .join(' AND ');
+  const newGrpCond = `_prev_end IS NULL OR ts != _prev_end${keySame !== '' ? ` OR NOT (${keySame})` : ''}`;
+  const groupCols = [
+    ...uniquePer,
+    '_grp',
+    ...uniqueKeys.filter((k) => !uniquePer.includes(k)),
+  ];
+  const outCols: string[] = [
+    'MIN(ts) AS ts',
+    'MAX(ts + dur) - MIN(ts) AS dur',
+    ...op.partitionColumns,
+    ...op.keyColumns.filter((k) => !op.partitionColumns.includes(k)),
+    ...aggExprs,
+  ];
+  return [
+    'WITH',
+    `  _prev AS (\n    SELECT\n      *,\n      LAG(ts + dur) OVER (${partBy}ORDER BY ts, dur) AS _prev_end${prevKeys.join('')}\n    FROM ${ref}\n    ${whereClause}\n  ),`,
+    `  _groups AS (\n    SELECT\n      *,\n      SUM(IIF(${newGrpCond}, 1, 0)) OVER (${partBy}ORDER BY ts, dur ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS _grp\n    FROM _prev\n  )`,
+    `SELECT\n  ${outCols.join(',\n  ')}\nFROM _groups\nGROUP BY ${groupCols.join(', ')}`,
+  ].join('\n');
+}
+
+function emitIntervalsFromEventsSql(
+  op: IntervalsFromEventsOp,
+  ref: string,
+): string {
+  const uniquePer = [...new Set(op.partitionColumns)];
+  const partBy =
+    uniquePer.length > 0 ? `PARTITION BY ${uniquePer.join(', ')} ` : '';
+  const nextTs = `LEAD(ts) OVER (${partBy}ORDER BY ts)`;
+  const durExpr =
+    op.lastMode === 'KEEP_OPEN'
+      ? `COALESCE(${nextTs} - ts, -1) AS dur`
+      : `COALESCE(${nextTs}, (${op.closeAtExpr})) - ts AS dur`;
+  const cols = op.inputColumns;
+  if (cols !== undefined && cols.length > 0) {
+    const projected: string[] = [];
+    const hasDur = cols.includes('dur');
+    let insertedDur = false;
+    for (const col of cols) {
+      if (col === 'dur') {
+        projected.push(durExpr);
+        insertedDur = true;
+      } else {
+        projected.push(col);
+        if (col === 'ts' && !hasDur && !insertedDur) {
+          projected.push(durExpr);
+          insertedDur = true;
+        }
+      }
+    }
+    if (!insertedDur) {
+      projected.push(durExpr);
+    }
+    return `SELECT\n  ${projected.join(',\n  ')}\nFROM ${ref}\nWHERE ts IS NOT NULL`;
+  }
+  return `SELECT\n  *,\n  ${durExpr}\nFROM ${ref}\nWHERE ts IS NOT NULL`;
+}
+
 function emitTreeAccumulateSql(op: TreeAccumulateOp, ref: string): string {
   if (op.aggregations.length === 0) {
     return `SELECT *\nFROM ${ref}`;
@@ -651,6 +768,7 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
     deps: readonly string[],
     includes: ReadonlySet<string>,
     nodeIds: readonly string[],
+    error?: string,
   ): string {
     const hash = computeIrHash(sql, deps);
     if (!entryByHash.has(hash)) {
@@ -661,6 +779,7 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
         deps: [...deps],
         includes: [...includes],
         nodeIds: [...nodeIds],
+        ...(error !== undefined ? {error} : {}),
       });
     }
     return hash;
@@ -716,6 +835,22 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
       for (const inc of extraIncludes) includes.add(inc);
     }
     const hash = emitEntry(sql, deps, includes, [nodeId]);
+    nodeIncludes.set(nodeId, includes);
+    emittedAs.set(nodeId, hash);
+    return true;
+  }
+
+  function emitUnsupported(
+    nodeId: string,
+    inputIds: readonly string[],
+    reason: string,
+  ): boolean {
+    emitCurrent();
+    if (inputIds.some((id) => resolveRef(id) === '')) return false;
+    const deps = resolveDeps(inputIds);
+    const includes = collectIncludes(inputIds);
+    const sql = `-- Unsupported in Standard SQL: ${reason}`;
+    const hash = emitEntry(sql, deps, includes, [nodeId], reason);
     nodeIncludes.set(nodeId, includes);
     emittedAs.set(nodeId, hash);
     return true;
@@ -869,6 +1004,40 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
         break;
       }
 
+      case 'interval_merge': {
+        if (
+          !emitStandalone(nodeId, [op.input], () =>
+            emitIntervalMergeSql(op, resolveRef(op.input)),
+          )
+        ) {
+          return [];
+        }
+        break;
+      }
+
+      case 'intervals_from_events': {
+        if (op.stop !== undefined) {
+          if (
+            !emitUnsupported(
+              nodeId,
+              [op.input, op.stop],
+              'Intervals From Events with a Stop input is only supported in PerfettoSQL Next mode.',
+            )
+          ) {
+            return [];
+          }
+          break;
+        }
+        if (
+          !emitStandalone(nodeId, [op.input], () =>
+            emitIntervalsFromEventsSql(op, resolveRef(op.input)),
+          )
+        ) {
+          return [];
+        }
+        break;
+      }
+
       case 'tree_accumulate': {
         if (
           !emitStandalone(nodeId, [op.input], () =>
@@ -919,6 +1088,7 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
       case 'project':
       case 'extend':
       case 'extract_arg':
+      case 'as':
       case 'distinct':
       case 'aggregate':
       case 'sort':
@@ -953,6 +1123,11 @@ export function buildDisplaySql(
   entries: readonly IrEntry[],
 ): string | undefined {
   if (entries.length === 0) return undefined;
+
+  const errEntry = entries.find((e) => e.error !== undefined);
+  if (errEntry?.error !== undefined) {
+    return `-- Unsupported in Standard SQL: ${errEntry.error}`;
+  }
 
   const allIncludes = new Set<string>();
   for (const e of entries) {

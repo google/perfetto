@@ -364,4 +364,47 @@ describe('MaterializationService cache policy', () => {
         .some((q) => q.includes(`CREATE TABLE ${sqlHash}`)),
     ).toBe(false);
   });
+
+  it('surfaces materialization error when a node is unsupported in Standard SQL mode', async () => {
+    const {engine, queries} = makeFakeEngine();
+    const service = new MaterializationService(engine, {maxOrphans: 4});
+
+    const stopRoot: RootNodeData = {
+      type: 'from',
+      id: 'stop1',
+      x: 200,
+      y: 0,
+      config: {table: 'process'},
+    };
+    const evRoot: RootNodeData = {
+      type: 'from',
+      id: 'ev1',
+      x: 0,
+      y: 0,
+      config: {table: 'counter'},
+      next: {
+        type: 'intervals_from_events',
+        id: 'ife1',
+        inputs: [null, 'stop1'],
+        config: {
+          partitionColumns: ['track_id'],
+          lastMode: 'KEEP_OPEN',
+          closeAtExpr: 'trace_end()',
+        },
+      },
+    };
+    const store: NodeQueryBuilderStore = {
+      nodes: [stopRoot, evRoot],
+      labels: [],
+    };
+
+    await service.scheduleUpdate(store, 'ife1', undefined, 'sql');
+    expect(service.materializedTable).toBeUndefined();
+    expect(service.error).toBe(
+      'Intervals From Events with a Stop input is only supported in PerfettoSQL Next mode.',
+    );
+    expect(queries.some((q) => q.includes('Unsupported in Standard SQL'))).toBe(
+      false,
+    );
+  });
 });

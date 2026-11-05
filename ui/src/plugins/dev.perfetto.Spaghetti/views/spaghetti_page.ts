@@ -1234,7 +1234,7 @@ const NODE_CATEGORIES: readonly NodeCategory[] = [
   },
   {
     title: 'Columns',
-    types: ['select', 'extend', 'set', 'rename', 'drop', 'extract_arg'],
+    types: ['select', 'extend', 'set', 'rename', 'drop', 'as', 'extract_arg'],
   },
   {
     title: 'Rows',
@@ -1246,7 +1246,13 @@ const NODE_CATEGORIES: readonly NodeCategory[] = [
   },
   {
     title: 'Intervals',
-    types: ['interval_intersect', 'interval_flatten', 'interval_fill_gaps'],
+    types: [
+      'interval_intersect',
+      'interval_flatten',
+      'interval_merge',
+      'interval_fill_gaps',
+      'intervals_from_events',
+    ],
   },
   {
     title: 'Graphs & Trees',
