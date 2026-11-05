@@ -15,7 +15,12 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {moveArrayItem} from '../../../base/array_utils';
-import type {NodeManifest, RenderContext, SqlStatement} from '../node_types';
+import type {
+  LogicalOpContext,
+  NodeManifest,
+  RenderContext,
+} from '../node_types';
+import type {LogicalOp} from '../logical_ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Row} from '../components/row';
 import {Stack} from '../components/stack';
@@ -193,14 +198,17 @@ function isValid(config: SortConfig): boolean {
   );
 }
 
-function tryFold(stmt: SqlStatement, config: SortConfig): boolean {
-  if (stmt.orderBy !== undefined || stmt.limit !== undefined) return false;
-  const sortConds = getSortConditions(config);
-  const orderBy = sortConditionsToSql(sortConds);
-  if (orderBy) {
-    stmt.orderBy = orderBy;
-  }
-  return true;
+function toLogicalOp(
+  config: SortConfig,
+  ctx: LogicalOpContext,
+): LogicalOp | undefined {
+  const input = ctx.getInputNodeId('input');
+  if (!input) return undefined;
+  return {
+    kind: 'sort',
+    input,
+    keys: getSortConditions(config).filter((c) => c.column !== ''),
+  };
 }
 
 export const manifest: NodeManifest<SortConfig> = {
@@ -213,5 +221,5 @@ export const manifest: NodeManifest<SortConfig> = {
   render: renderSortNode,
   isValid,
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
-  tryFold,
+  toLogicalOp,
 };

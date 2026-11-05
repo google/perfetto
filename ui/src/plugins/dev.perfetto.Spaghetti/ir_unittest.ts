@@ -14,15 +14,68 @@
 
 import {ensureDefined} from '../../base/assert';
 import type {NodeData, RootNodeData} from './graph_model';
-import {buildIR, buildDisplaySql, type IrEntry} from './ir';
 import {flattenNodes} from './graph_utils';
+import {buildDisplaySql, buildIR, buildLogicalPlan, type IrEntry} from './ir';
 
 // Helper to build a graph index from root nodes.
 function makeNodes(nodeList: RootNodeData[]) {
   return flattenNodes(nodeList);
 }
 
-describe('buildIR', () => {
+describe('buildLogicalPlan', () => {
+  it('emits language-agnostic ops and computes refCount on diamond DAGs', () => {
+    const filter: NodeData = {
+      type: 'filter',
+      id: 'flt1',
+      config: {
+        conditions: [{column: 'dur', op: '>', value: '0'}],
+      },
+    };
+    const from: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      next: filter,
+      config: {table: 'slice'},
+    };
+    const union: RootNodeData = {
+      type: 'union',
+      id: 'u1',
+      x: 100,
+      y: 0,
+      inputs: ['flt1', 'flt1'],
+      config: {distinct: false, numInputs: 2},
+    };
+
+    const plan = ensureDefined(
+      buildLogicalPlan(makeNodes([from, union]), 'u1', undefined),
+    );
+    expect(plan.targetNodeId).toBe('u1');
+    expect(plan.nodes.map((n) => [n.nodeId, n.op.kind, n.refCount])).toEqual([
+      ['f1', 'scan', 1],
+      ['flt1', 'filter', 2],
+      ['u1', 'union', 0],
+    ]);
+  });
+
+  it('returns undefined when required upstream input is unconnected', () => {
+    const filter: RootNodeData = {
+      type: 'filter',
+      id: 'flt1',
+      x: 0,
+      y: 0,
+      config: {
+        conditions: [{column: 'dur', op: '>', value: '100'}],
+      },
+    };
+    expect(
+      buildLogicalPlan(makeNodes([filter]), 'flt1', undefined),
+    ).toBeUndefined();
+  });
+});
+
+describe('buildIR (Standard SQL backend)', () => {
   it('returns undefined for nonexistent node', () => {
     const nodes = makeNodes([]);
     expect(buildIR(nodes, 'missing', undefined)).toBeUndefined();
@@ -49,7 +102,6 @@ describe('buildIR', () => {
       type: 'filter',
       id: 'flt1',
       config: {
-        filterExpression: '',
         conditions: [{column: 'dur', op: '>', value: '1000'}],
       },
     };
@@ -76,7 +128,6 @@ describe('buildIR', () => {
       type: 'filter',
       id: 'flt1',
       config: {
-        filterExpression: '',
         conditions: [{column: 'dur', op: '>', value: '100'}],
       },
     };
@@ -84,7 +135,13 @@ describe('buildIR', () => {
       type: 'select',
       id: 's1',
       next: filter,
-      config: {columns: {name: true, dur: true, ts: false}, expressions: []},
+      config: {
+        entries: [
+          {column: 'name', alias: ''},
+          {column: 'dur', alias: ''},
+        ],
+        expressions: [],
+      },
     };
     const from: RootNodeData = {
       type: 'from',
@@ -99,7 +156,7 @@ describe('buildIR', () => {
     // select + filter should fold into one entry
     expect(entries.length).toBe(1);
     const e0 = ensureDefined(entries[0]);
-    expect(e0.sql).toContain('SELECT name, dur');
+    expect(e0.sql).toContain('name,\n  dur');
     expect(e0.sql).toContain('WHERE dur > 100');
   });
 
@@ -108,7 +165,6 @@ describe('buildIR', () => {
       type: 'filter',
       id: 'flt1',
       config: {
-        filterExpression: '',
         conditions: [{column: 'cnt', op: '>', value: '5'}],
       },
     };
@@ -141,12 +197,49 @@ describe('buildIR', () => {
     expect(e1.sql).toContain('WHERE cnt > 5');
   });
 
+  it('lowers interval_intersect with stdlib module include', () => {
+    const left: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      config: {table: 'slice'},
+    };
+    const right: RootNodeData = {
+      type: 'from',
+      id: 'f2',
+      x: 100,
+      y: 0,
+      config: {table: 'sched'},
+    };
+    const ii: RootNodeData = {
+      type: 'interval_intersect',
+      id: 'ii1',
+      x: 200,
+      y: 0,
+      inputs: ['f1', 'f2'],
+      config: {
+        numInputs: 2,
+        partitionColumns: ['utid'],
+        filterNegativeDur: true,
+      },
+    };
+
+    const entries = ensureDefined(
+      buildIR(makeNodes([left, right, ii]), 'ii1', undefined),
+    );
+    expect(entries.length).toBe(1);
+    const e0 = ensureDefined(entries[0]);
+    expect(e0.includes).toContain('intervals.intersect');
+    expect(e0.sql).toContain('_interval_intersect!');
+    expect(e0.sql).toContain('(utid)');
+  });
+
   it('computes stable hashes based on content and deps', () => {
     const filter: NodeData = {
       type: 'filter',
       id: 'flt1',
       config: {
-        filterExpression: '',
         conditions: [{column: 'dur', op: '>', value: '1000'}],
       },
     };
@@ -170,7 +263,6 @@ describe('buildIR', () => {
       type: 'filter',
       id: 'flt1',
       config: {
-        filterExpression: '',
         conditions: [{column: 'dur', op: '>', value: '1000'}],
       },
     };
@@ -178,7 +270,6 @@ describe('buildIR', () => {
       type: 'filter',
       id: 'flt1',
       config: {
-        filterExpression: '',
         conditions: [{column: 'dur', op: '>', value: '2000'}],
       },
     };
@@ -215,7 +306,6 @@ describe('buildIR', () => {
         type: 'filter',
         id: 'flt1',
         config: {
-          filterExpression: '',
           conditions: [{column: 'dur', op: '>', value: '1000'}],
         },
       };
@@ -237,7 +327,7 @@ describe('buildIR', () => {
     const filter: NodeData = {
       type: 'filter',
       id: 'flt1',
-      config: {filterExpression: '', conditions: []},
+      config: {conditions: []},
     };
     const from: RootNodeData = {
       type: 'from',
@@ -269,7 +359,6 @@ describe('buildDisplaySql', () => {
       type: 'filter',
       id: 'flt1',
       config: {
-        filterExpression: '',
         conditions: [{column: 'dur', op: '>', value: '1000'}],
       },
     };
@@ -282,7 +371,7 @@ describe('buildDisplaySql', () => {
       config: {table: 'slice'},
     };
     const entries = getEntries([from], 'flt1');
-    const sql = buildDisplaySql(entries)!;
+    const sql = ensureDefined(buildDisplaySql(entries));
     expect(sql).toContain('SELECT *');
     expect(sql).toContain('FROM slice');
     expect(sql).toContain('WHERE dur > 1000');
@@ -290,12 +379,11 @@ describe('buildDisplaySql', () => {
     expect(sql).not.toContain('WITH');
   });
 
-  it('generates WITH clause for multi-entry chains', () => {
+  it('generates WITH clause with readable step names for multi-entry chains', () => {
     const filter: NodeData = {
       type: 'filter',
       id: 'flt1',
       config: {
-        filterExpression: '',
         conditions: [{column: 'cnt', op: '>', value: '5'}],
       },
     };
@@ -317,9 +405,10 @@ describe('buildDisplaySql', () => {
       config: {table: 'slice'},
     };
     const entries = getEntries([from], 'flt1');
-    const sql = buildDisplaySql(entries)!;
+    const sql = ensureDefined(buildDisplaySql(entries));
     expect(sql).toContain('WITH');
-    expect(sql).toContain('_qb_');
+    expect(sql).toContain('step_1 AS (');
+    expect(sql).toContain('FROM step_1');
     expect(sql).toContain('GROUP BY name');
     expect(sql).toContain('WHERE cnt > 5');
   });
@@ -335,7 +424,6 @@ describe('buildDisplaySql', () => {
       id: 'flt1',
       next: sort,
       config: {
-        filterExpression: '',
         conditions: [{column: 'dur', op: '>', value: '1000'}],
       },
     };
@@ -350,13 +438,13 @@ describe('buildDisplaySql', () => {
 
     // Clicking on filter: build IR from filter upstream only
     const filterEntries = getEntries([from], 'flt1');
-    const filterSql = buildDisplaySql(filterEntries)!;
+    const filterSql = ensureDefined(buildDisplaySql(filterEntries));
     expect(filterSql).toContain('WHERE dur > 1000');
     expect(filterSql).not.toContain('ORDER BY');
 
     // Clicking on sort: build IR from sort upstream (includes filter)
     const sortEntries = getEntries([from], 'srt1');
-    const sortSql = buildDisplaySql(sortEntries)!;
+    const sortSql = ensureDefined(buildDisplaySql(sortEntries));
     expect(sortSql).toContain('WHERE dur > 1000');
     expect(sortSql).toContain('ORDER BY dur DESC');
   });

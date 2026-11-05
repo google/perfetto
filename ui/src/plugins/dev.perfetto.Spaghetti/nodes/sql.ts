@@ -20,6 +20,7 @@ import {Select} from '../../../widgets/select';
 import {Row} from '../components/row';
 import {Stack} from '../components/stack';
 import './sql.scss';
+import type {RawSqlInput} from '../logical_ir';
 import type {NodeManifest, RenderContext} from '../node_types';
 import type {ColumnDef} from '../graph_utils';
 import type {SimpleTypeKind} from '../../../trace_processor/perfetto_sql_type';
@@ -81,26 +82,17 @@ export const manifest: NodeManifest<SqlConfig> = {
     inputPorts: [],
   }),
   isValid: (config) => config.sql.trim() !== '',
-  emitIr(config, ctx) {
+  toLogicalOp(config, ctx) {
     const {inputPorts = []} = config;
     if (config.sql.trim() === '') return undefined;
-    const withClauses: string[] = [];
+    const inputs: RawSqlInput[] = [];
     for (const [i, port] of ctx.inputPorts.entries()) {
-      const ref = ctx.getInputRef(port.name);
-      if (!ref) continue;
+      const nodeId = ctx.getInputNodeId(port.name);
+      if (nodeId === undefined) continue;
       const alias = inputPorts[i]?.trim() || `input_${i}`;
-      withClauses.push(`${alias} AS (\n  SELECT * FROM ${ref}\n)`);
+      inputs.push({nodeId, alias});
     }
-    if (withClauses.length === 0) {
-      return {sql: `${config.sql}`};
-    }
-    const trimmed = config.sql.trimStart();
-    const withMatch = trimmed.match(/^with\s/i);
-    const body = withMatch ? trimmed.slice(withMatch[0].length) : trimmed;
-    const separator = withMatch ? ',\n' : '\n';
-    return {
-      sql: `WITH ${withClauses.join(',\n')}${separator}${body}`,
-    };
+    return {kind: 'raw_sql', sql: config.sql, inputs};
   },
   getOutputColumns(config) {
     const {columns = []} = config;

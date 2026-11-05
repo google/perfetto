@@ -302,13 +302,14 @@ export const manifest: NodeManifest<ChartConfig> = {
     }
     return undefined;
   },
-  emitIr(_config, ctx) {
-    const refs = ctx.inputPorts
-      .map((p) => ctx.getInputRef(p.name))
-      .filter((r) => r !== '');
-    if (refs.length === 0) return undefined;
-    if (refs.length === 1) return {sql: `SELECT *\nFROM ${refs[0]}`};
-    return {sql: refs.map((r) => `SELECT *\nFROM ${r}`).join('\nUNION ALL\n')};
+  toLogicalOp(_config, ctx) {
+    const inputs = ctx.inputPorts
+      .map((p) => ctx.getInputNodeId(p.name))
+      .filter((id): id is string => id !== undefined);
+    const first = inputs[0];
+    if (first === undefined) return undefined;
+    if (inputs.length === 1) return {kind: 'passthrough', input: first};
+    return {kind: 'union', inputs, distinct: false};
   },
   render(config, updateConfig, ctx) {
     const n = config.numInputs;

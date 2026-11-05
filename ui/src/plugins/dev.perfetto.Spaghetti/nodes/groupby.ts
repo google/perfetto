@@ -17,10 +17,11 @@ import {z} from 'zod';
 import {moveArrayItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
+  LogicalOpContext,
   NodeManifest,
   RenderContext,
-  SqlStatement,
 } from '../node_types';
+import type {LogicalOp} from '../logical_ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Select} from '../../../widgets/select';
 import {Row} from '../components/row';
@@ -307,23 +308,20 @@ function isValid(config: GroupByConfig): boolean {
   return hasGroup;
 }
 
-function tryFold(stmt: SqlStatement, config: GroupByConfig): boolean {
-  if (
-    stmt.columns !== '*' ||
-    stmt.groupBy !== undefined ||
-    stmt.orderBy !== undefined ||
-    stmt.limit !== undefined
-  ) {
-    return false;
-  }
-  const groupCols = config.groupColumns.filter((c) => c);
-  const aggExprs = config.aggregations
-    .filter((a) => a.column)
-    .map((a) => `${a.func}(${a.column}) AS ${aggAlias(a)}`);
-  const selectParts = [...groupCols, ...aggExprs];
-  if (selectParts.length > 0) stmt.columns = selectParts.join(', ');
-  if (groupCols.length > 0) stmt.groupBy = groupCols.join(', ');
-  return true;
+function toLogicalOp(
+  config: GroupByConfig,
+  ctx: LogicalOpContext,
+): LogicalOp | undefined {
+  const input = ctx.getInputNodeId('input');
+  if (!input) return undefined;
+  return {
+    kind: 'aggregate',
+    input,
+    groupColumns: config.groupColumns.filter((c) => c !== ''),
+    aggregations: config.aggregations
+      .filter((a) => a.column !== '')
+      .map((a) => ({func: a.func, column: a.column, alias: aggAlias(a)})),
+  };
 }
 
 export const manifest: NodeManifest<GroupByConfig> = {
@@ -336,5 +334,5 @@ export const manifest: NodeManifest<GroupByConfig> = {
   render,
   getOutputColumns,
   isValid,
-  tryFold,
+  toLogicalOp,
 };

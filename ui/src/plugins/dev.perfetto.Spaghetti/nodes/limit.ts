@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import type {NodeManifest, SqlStatement} from '../node_types';
+import type {LogicalOpContext, NodeManifest} from '../node_types';
 import {TextInput} from '../../../widgets/text_input';
 import {Stack} from '../components/stack';
 
@@ -34,10 +34,14 @@ export const manifest: NodeManifest<LimitConfig> = {
   isValid: (config) =>
     config.limitCount !== '' && /^\d+$/.test(config.limitCount),
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
-  tryFold(stmt: SqlStatement, config: LimitConfig) {
-    if (stmt.limit !== undefined) return false;
-    stmt.limit = parseInt(config.limitCount) || 100;
-    return true;
+  toLogicalOp(config: LimitConfig, ctx: LogicalOpContext) {
+    const input = ctx.getInputNodeId('input');
+    if (!input) return undefined;
+    return {
+      kind: 'limit',
+      input,
+      count: parseInt(config.limitCount, 10) || 100,
+    };
   },
   render(config, updateConfig) {
     return m(

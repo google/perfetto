@@ -17,10 +17,11 @@ import {z} from 'zod';
 import {moveArrayItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
+  LogicalOpContext,
   NodeManifest,
   RenderContext,
-  SqlStatement,
 } from '../node_types';
+import type {LogicalOp} from '../logical_ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {TextInput} from '../../../widgets/text_input';
 import {Row} from '../components/row';
@@ -310,27 +311,27 @@ function isValid(config: SelectConfig): boolean {
   return expressions.every((e) => !e.alias || e.expression);
 }
 
-function tryFold(stmt: SqlStatement, config: SelectConfig): boolean {
+function toLogicalOp(
+  config: SelectConfig,
+  ctx: LogicalOpContext,
+): LogicalOp | undefined {
+  const input = ctx.getInputNodeId('input');
+  if (!input) return undefined;
   const entries = config.entries ?? [];
   const expressions = config.expressions ?? [];
-  if (stmt.columns !== '*') return false;
-  const entryParts = entries
-    .filter((e) => e.column)
-    .map((e) => (e.alias ? `${e.column} AS ${e.alias}` : e.column));
-  const exprParts = expressions
-    .filter((e) => e.expression)
-    .map((e) => `${e.expression} AS ${exprAlias(e)}`);
-
-  // No explicit columns: keep * and append expressions on top.
-  if (entryParts.length === 0) {
-    if (exprParts.length > 0) {
-      stmt.columns = `*, ${exprParts.join(', ')}`;
-    }
-    return true;
-  }
-
-  stmt.columns = [...entryParts, ...exprParts].join(', ');
-  return true;
+  return {
+    kind: 'project',
+    input,
+    columns: entries
+      .filter((e) => e.column !== '')
+      .map((e) => ({
+        column: e.column,
+        alias: e.alias !== '' ? e.alias : undefined,
+      })),
+    expressions: expressions
+      .filter((e) => e.expression !== '')
+      .map((e) => ({expression: e.expression, alias: exprAlias(e)})),
+  };
 }
 
 export const manifest: NodeManifest<SelectConfig> = {
@@ -345,5 +346,5 @@ export const manifest: NodeManifest<SelectConfig> = {
   },
   getOutputColumns,
   isValid,
-  tryFold,
+  toLogicalOp,
 };

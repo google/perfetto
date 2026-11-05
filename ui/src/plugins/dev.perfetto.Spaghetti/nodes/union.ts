@@ -73,12 +73,11 @@ export const manifest: NodeManifest<UnionConfig> = {
       }),
     ]);
   },
-  emitIr(config, ctx) {
-    const refs = ctx.inputPorts
-      .map((p) => ctx.getInputRef(p.name))
-      .filter((r) => r !== '');
-    if (refs.length === 0) return undefined;
-    const kw = config.distinct ? 'UNION' : 'UNION ALL';
-    return {sql: refs.map((r) => `SELECT *\nFROM ${r}`).join(`\n${kw}\n`)};
+  toLogicalOp(config, ctx) {
+    const inputs = ctx.inputPorts
+      .map((p) => ctx.getInputNodeId(p.name))
+      .filter((id): id is string => id !== undefined);
+    if (inputs.length === 0) return undefined;
+    return {kind: 'union', inputs, distinct: config.distinct};
   },
 };

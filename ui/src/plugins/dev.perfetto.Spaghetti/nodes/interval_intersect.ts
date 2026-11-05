@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {Checkbox} from '../../../widgets/checkbox';
+import type {IntervalIntersectInput} from '../logical_ir';
 import type {NodeManifest, RenderContext} from '../node_types';
 import {Row} from '../components/row';
 import {Stack} from '../components/stack';
@@ -206,60 +207,35 @@ export const manifest: NodeManifest<IntervalIntersectConfig> = {
     }
     return result;
   },
-  emitIr(config, ctx) {
-    const connectedPorts = ctx.inputPorts.filter(
-      (p) => ctx.getInputRef(p.name) !== '',
-    );
-    if (connectedPorts.length === 0) return undefined;
-    const refs = connectedPorts.map((p) => ctx.getInputRef(p.name));
-    const inputCols = connectedPorts.map((p) => ctx.getInputColumns(p.name));
-    const sourceCols = getSourceColumnsForInputs(
-      inputCols,
-      connectedPorts.length,
-    );
-
-    const partitionCols = config.partitionColumns.filter((c) => c);
-    const partitionClause =
-      partitionCols.length > 0 ? partitionCols.join(', ') : '';
-
-    const args = refs.map((ref) =>
-      config.filterNegativeDur ? `(SELECT * FROM ${ref} WHERE dur >= 0)` : ref,
-    );
-
-    const n = connectedPorts.length;
-    const selectParts = ['ii.ts', 'ii.dur'];
-    for (let i = 0; i < n; i++) {
-      selectParts.push(`ii.id_${i}`);
-    }
-    const tableAliases = refs.map((_, i) => `t${i + 1}`);
-    for (const [i, cols] of sourceCols.entries()) {
-      for (const col of cols) {
-        const expr = `t${i + 1}.${col.name}`;
-        selectParts.push(
-          col.alias !== col.name ? `${expr} AS ${col.alias}` : expr,
-        );
+  toLogicalOp(config, ctx) {
+    const connected: Array<{
+      readonly portName: string;
+      readonly nodeId: string;
+    }> = [];
+    for (const p of ctx.inputPorts) {
+      const nodeId = ctx.getInputNodeId(p.name);
+      if (nodeId !== undefined) {
+        connected.push({portName: p.name, nodeId});
       }
     }
+    if (connected.length === 0) return undefined;
+    const inputCols = connected.map((c) => ctx.getInputColumns(c.portName));
+    const sourceCols = getSourceColumnsForInputs(inputCols, connected.length);
 
-    const hasSourceCols = sourceCols.some((cols) => cols.length > 0);
-    const argsStr = args.join(',\n   ');
+    const inputs: IntervalIntersectInput[] = connected.map((c, i) => ({
+      nodeId: c.nodeId,
+      columns: (sourceCols[i] ?? []).map((col) => ({
+        name: col.name,
+        alias: col.alias,
+      })),
+    }));
 
-    let sql: string;
-    if (hasSourceCols) {
-      const joins = refs
-        .map(
-          (ref, i) =>
-            `JOIN ${ref} ${tableAliases[i]} ON ii.id_${i} = ${tableAliases[i]}.id`,
-        )
-        .join('\n');
-      sql =
-        `SELECT\n${selectParts.map((s) => `  ${s}`).join(',\n')}` +
-        `\nFROM _interval_intersect!(\n  (${argsStr}),\n  (${partitionClause})\n) ii` +
-        `\n${joins}`;
-    } else {
-      sql = `SELECT *\nFROM _interval_intersect!(\n  (${argsStr}),\n  (${partitionClause})\n)`;
-    }
-    return {sql, includes: ['intervals.intersect']};
+    return {
+      kind: 'interval_intersect',
+      inputs,
+      partitionColumns: config.partitionColumns.filter((c) => c !== ''),
+      filterNegativeDur: config.filterNegativeDur,
+    };
   },
   render(config, updateConfig, ctx) {
     return m(IntervalIntersectContent, {config, updateConfig, ctx});
