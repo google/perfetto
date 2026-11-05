@@ -17,6 +17,9 @@
 #ifndef SRC_PROTOVM_TEST_SAMPLE_PROGRAMS_H_
 #define SRC_PROTOVM_TEST_SAMPLE_PROGRAMS_H_
 
+#include <cstdint>
+#include <limits>
+
 #include "protos/perfetto/protovm/vm_program.pb.h"
 
 #include "src/protovm/test/protos/incremental_trace.pb.h"
@@ -60,6 +63,63 @@ class SamplePrograms {
       auto* component = select->add_relative_path();
       component->set_field_id(3);
     }
+
+    return program;
+  }
+
+  static perfetto::protos::VmProgram Select_InlinedPathComponent() {
+    // ProgramDecoder inlines the path component into the select instruction
+    // when possible (single path component and field id fits in 16 bits).
+    perfetto::protos::VmProgram program{};
+    {
+      auto* proto_select = program.add_instructions()->mutable_select();
+      proto_select->set_cursor(perfetto::protos::VM_CURSOR_SRC);
+      proto_select->add_relative_path()->set_field_id(10);
+    }
+    {
+      auto* proto_select = program.add_instructions()->mutable_select();
+      proto_select->set_cursor(perfetto::protos::VM_CURSOR_DST);
+      proto_select->set_create_if_not_exist(true);
+      auto* component = proto_select->add_relative_path();
+      component->set_field_id(11);
+      component->set_is_repeated(true);
+    }
+    return program;
+  }
+
+  static perfetto::protos::VmProgram
+  Select_NotInlinedPathComponentWhenFieldIdExceedsUint16Max() {
+    perfetto::protos::VmProgram program{};
+    {
+      auto* proto_select = program.add_instructions()->mutable_select();
+      proto_select->add_relative_path()->set_field_id(
+          static_cast<uint32_t>(std::numeric_limits<uint16_t>::max()) + 1);
+    }
+    {
+      auto* proto_select = program.add_instructions()->mutable_select();
+      auto* component = proto_select->add_relative_path();
+      component->set_field_id(
+          static_cast<uint32_t>(std::numeric_limits<uint16_t>::max()) + 2);
+      component->set_is_repeated(true);
+    }
+    return program;
+  }
+
+  static perfetto::protos::VmProgram Select_FusedPathComponents() {
+    perfetto::protos::VmProgram program{};
+    auto* proto_select = program.add_instructions()->mutable_select();
+
+    // proto path components = [..., field_id, array_index, ...]
+    //  -> decoded/fused into the same PathComponent
+    proto_select->add_relative_path()->set_field_id(1);
+    proto_select->add_relative_path()->set_array_index(10);
+
+    // proto path components = [..., field_id, map_key_field_id, ...]
+    //  -> decoded/fused into the same PathComponent
+    proto_select->add_relative_path()->set_field_id(2);
+    auto* map_key = proto_select->add_relative_path();
+    map_key->set_map_key_field_id(3);
+    map_key->set_register_to_match(4);
 
     return program;
   }
