@@ -75,8 +75,10 @@ function IntervalIntersectContent(): m.Component<{
                 onReorder: (fromIdx: number, toIdx: number) => {
                   const updated = [...config.partitionColumns];
                   const [moved] = updated.splice(fromIdx, 1);
-                  updated.splice(toIdx, 0, moved);
-                  updateConfig({partitionColumns: updated});
+                  if (moved !== undefined) {
+                    updated.splice(toIdx, 0, moved);
+                    updateConfig({partitionColumns: updated});
+                  }
                 },
               },
               [
@@ -230,9 +232,9 @@ export const manifest: NodeManifest<IntervalIntersectConfig> = {
       selectParts.push(`ii.id_${i}`);
     }
     const tableAliases = refs.map((_, i) => `t${i + 1}`);
-    for (let i = 0; i < n; i++) {
-      for (const col of sourceCols[i]) {
-        const expr = `${tableAliases[i]}.${col.name}`;
+    for (const [i, cols] of sourceCols.entries()) {
+      for (const col of cols) {
+        const expr = `t${i + 1}.${col.name}`;
         selectParts.push(
           col.alias !== col.name ? `${expr} AS ${col.alias}` : expr,
         );

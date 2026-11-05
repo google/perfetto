@@ -1420,7 +1420,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
     const numLayers = Math.max(0, ...Array.from(layerOf.values())) + 1;
     const layers: string[][] = Array.from({length: numLayers}, () => []);
-    nodes.forEach((n) => layers[layerOf.get(n.id)!].push(n.id));
+    for (const n of nodes) {
+      const layerIdx = layerOf.get(n.id);
+      if (layerIdx !== undefined) {
+        layers[layerIdx]?.push(n.id);
+      }
+    }
 
     // Step 2: Crossing minimization — barycenter heuristic, alternating
     // forward/backward sweeps.
@@ -1449,13 +1454,14 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         forward ? i : numLayers - 1 - i,
       );
       for (const li of indices) {
-        if (layers[li].length <= 1) continue;
-        layers[li].sort(
+        const layer = layers[li];
+        if (!layer || layer.length <= 1) continue;
+        layer.sort(
           (a, b) =>
             barycenter(a, forward ? 'forward' : 'backward') -
             barycenter(b, forward ? 'forward' : 'backward'),
         );
-        layers[li].forEach((id, i) => orderMap.set(id, i));
+        layer.forEach((id, i) => orderMap.set(id, i));
       }
     }
 
@@ -1473,47 +1479,42 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     }
 
     // Per-layer: max node width and total column height.
-    const layerWidths = layers.map((layerNodes) => {
-      let maxW = 0;
+    const layerMetrics = layers.map((layerNodes) => {
+      let width = 0;
       layerNodes.forEach((id) => {
         const node = nodes.find((n) => n.id === id);
         if (!node) return;
         getChain(node).forEach((cn) => {
-          maxW = Math.max(maxW, getNodeDimensions(cn.id).width);
+          width = Math.max(width, getNodeDimensions(cn.id).width);
         });
       });
-      return maxW;
-    });
-
-    const layerTotalHeights = layers.map((layerNodes) =>
-      layerNodes.reduce(
+      const totalHeight = layerNodes.reduce(
         (total, id, i) => total + chainHeight(id) + (i > 0 ? nodeSpacing : 0),
         0,
-      ),
-    );
-
-    const maxTotalHeight = Math.max(0, ...layerTotalHeights);
-
-    // Compute x start per layer.
-    const layerX: number[] = [];
-    let currentX = 50;
-    layers.forEach((_, li) => {
-      layerX[li] = currentX;
-      currentX += layerWidths[li] + layerSpacing;
+      );
+      return {layerNodes, width, totalHeight};
     });
 
+    const maxTotalHeight = Math.max(
+      0,
+      ...layerMetrics.map((m) => m.totalHeight),
+    );
+
     // Place nodes: each layer is vertically centered around the tallest layer.
-    layers.forEach((layerNodes, li) => {
-      const startY = 50 + (maxTotalHeight - layerTotalHeights[li]) / 2;
+    let currentX = 50;
+    for (const {layerNodes, width, totalHeight} of layerMetrics) {
+      const layerX = currentX;
+      currentX += width + layerSpacing;
+      const startY = 50 + (maxTotalHeight - totalHeight) / 2;
       let currentY = startY;
       layerNodes.forEach((nodeId) => {
         const node = nodes.find((n) => n.id === nodeId);
         if (node) {
-          onNodeMove(node.id, layerX[li], currentY);
+          onNodeMove(node.id, layerX, currentY);
           currentY += chainHeight(nodeId) + nodeSpacing;
         }
       });
-    });
+    }
 
     m.redraw();
   }

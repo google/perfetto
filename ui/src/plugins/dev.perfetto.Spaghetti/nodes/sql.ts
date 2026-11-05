@@ -85,8 +85,7 @@ export const manifest: NodeManifest<SqlConfig> = {
     const {inputPorts = []} = config;
     if (config.sql.trim() === '') return undefined;
     const withClauses: string[] = [];
-    for (let i = 0; i < ctx.inputPorts.length; i++) {
-      const port = ctx.inputPorts[i];
+    for (const [i, port] of ctx.inputPorts.entries()) {
       const ref = ctx.getInputRef(port.name);
       if (!ref) continue;
       const alias = inputPorts[i]?.trim() || `input_${i}`;
