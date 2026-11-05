@@ -22,10 +22,17 @@ import {manifest as timeRangeNode} from './nodes/time_range';
 import {manifest as selectNode} from './nodes/select';
 import {manifest as extendNode} from './nodes/extend';
 import {manifest as dropNode} from './nodes/drop';
+import {manifest as renameNode} from './nodes/rename';
+import {manifest as setNode} from './nodes/set';
+import {manifest as distinctNode} from './nodes/distinct';
 import {manifest as groupByNode} from './nodes/groupby';
 import {manifest as joinNode} from './nodes/join';
 import {manifest as extractArgNode} from './nodes/extract_arg';
 import {manifest as intervalIntersectNode} from './nodes/interval_intersect';
+import {manifest as intervalFlattenNode} from './nodes/interval_flatten';
+import {manifest as intervalFillGapsNode} from './nodes/interval_fill_gaps';
+import {manifest as treeAccumulateNode} from './nodes/tree_accumulate';
+import {manifest as graphTreeNode} from './nodes/graph_tree';
 import {manifest as limitNode} from './nodes/limit';
 import {manifest as sortNode} from './nodes/sort';
 import {manifest as unionNode} from './nodes/union';
@@ -46,6 +53,9 @@ const NODE_REGISTRY: Record<string, NodeManifest> = {
   select: selectNode,
   extend: extendNode,
   drop: dropNode,
+  rename: renameNode,
+  set: setNode,
+  distinct: distinctNode,
   filter: filterNode,
   sort: sortNode,
   limit: limitNode,
@@ -53,6 +63,10 @@ const NODE_REGISTRY: Record<string, NodeManifest> = {
   join: joinNode,
   extract_arg: extractArgNode,
   interval_intersect: intervalIntersectNode,
+  interval_flatten: intervalFlattenNode,
+  interval_fill_gaps: intervalFillGapsNode,
+  tree_accumulate: treeAccumulateNode,
+  graph_tree: graphTreeNode,
   union: unionNode,
   chart: chartNode,
   sql: sqlNode,

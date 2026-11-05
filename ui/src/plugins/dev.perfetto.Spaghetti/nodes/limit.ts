@@ -20,6 +20,7 @@ import {Stack} from '../components/stack';
 
 const LimitConfigSchema = z.object({
   limitCount: z.string(),
+  offset: z.string().optional(),
 });
 
 export type LimitConfig = z.infer<typeof LimitConfigSchema>;
@@ -30,27 +31,40 @@ export const manifest: NodeManifest<LimitConfig> = {
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 60,
   schema: LimitConfigSchema,
-  defaultConfig: () => ({limitCount: '100'}),
+  defaultConfig: () => ({limitCount: '100', offset: ''}),
   isValid: (config) =>
-    config.limitCount !== '' && /^\d+$/.test(config.limitCount),
+    config.limitCount !== '' &&
+    /^\d+$/.test(config.limitCount) &&
+    (config.offset === undefined ||
+      config.offset === '' ||
+      /^\d+$/.test(config.offset)),
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
   toLogicalOp(config: LimitConfig, ctx: LogicalOpContext) {
     const input = ctx.getInputNodeId('input');
     if (!input) return undefined;
+    const parsedOffset =
+      config.offset !== undefined && config.offset !== ''
+        ? parseInt(config.offset, 10)
+        : 0;
     return {
       kind: 'limit',
       input,
       count: parseInt(config.limitCount, 10) || 100,
+      ...(parsedOffset > 0 ? {offset: parsedOffset} : {}),
     };
   },
   render(config, updateConfig) {
-    return m(
-      Stack,
+    return m(Stack, [
       m(TextInput, {
         placeholder: 'Row count...',
         value: config.limitCount,
         onChange: (value: string) => updateConfig({limitCount: value}),
       }),
-    );
+      m(TextInput, {
+        placeholder: 'Offset (optional)...',
+        value: config.offset ?? '',
+        onChange: (value: string) => updateConfig({offset: value}),
+      }),
+    ]);
   },
 };

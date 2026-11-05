@@ -16,12 +16,16 @@ import {assertUnreachable} from '../../base/assert';
 import {fnvHash} from './graph_utils';
 import {
   type AggregateOp,
+  type DistinctOp,
   type DropOp,
   type ExtendOp,
   type ExtractArgOp,
   type FilterLogicalOp,
   formatExtractArgExpr,
   formatFilterConditions,
+  type GraphTreeOp,
+  type IntervalFillGapsOp,
+  type IntervalFlattenOp,
   type IntervalIntersectOp,
   type JoinOp,
   type LimitOp,
@@ -30,8 +34,11 @@ import {
   type PassthroughOp,
   type ProjectOp,
   type RawSqlOp,
+  type RenameOp,
+  type SetOp,
   type SortOp,
   type TimeRangeOp,
+  type TreeAccumulateOp,
   type UnionOp,
 } from './logical_ir';
 
@@ -68,6 +75,7 @@ interface SqlStatement {
   groupBy?: string;
   orderBy?: string;
   limit?: number;
+  offset?: number;
 }
 
 type FoldableOp =
@@ -76,6 +84,7 @@ type FoldableOp =
   | ProjectOp
   | ExtendOp
   | ExtractArgOp
+  | DistinctOp
   | AggregateOp
   | SortOp
   | LimitOp;
@@ -114,7 +123,13 @@ function statementToSql(s: SqlStatement): string {
   if (s.orderBy !== undefined && s.orderBy !== '') {
     parts.push(`ORDER BY ${s.orderBy}`);
   }
-  if (s.limit !== undefined) parts.push(`LIMIT ${s.limit}`);
+  if (s.limit !== undefined) {
+    parts.push(
+      s.offset !== undefined && s.offset > 0
+        ? `LIMIT ${s.limit} OFFSET ${s.offset}`
+        : `LIMIT ${s.limit}`,
+    );
+  }
   return parts.join('\n');
 }
 
@@ -125,6 +140,7 @@ function tryFoldOp(stmt: SqlStatement, op: FoldableOp): boolean {
 
     case 'filter': {
       if (
+        stmt.distinct !== undefined ||
         stmt.groupBy !== undefined ||
         stmt.orderBy !== undefined ||
         stmt.limit !== undefined
@@ -142,7 +158,7 @@ function tryFoldOp(stmt: SqlStatement, op: FoldableOp): boolean {
     }
 
     case 'project': {
-      if (stmt.columns !== '*') return false;
+      if (stmt.columns !== '*' || stmt.distinct !== undefined) return false;
       const entryParts = op.columns.map((c) =>
         c.alias !== undefined && c.alias !== ''
           ? `${c.column} AS ${c.alias}`
@@ -162,7 +178,9 @@ function tryFoldOp(stmt: SqlStatement, op: FoldableOp): boolean {
     }
 
     case 'extend': {
-      if (stmt.groupBy !== undefined) return false;
+      if (stmt.groupBy !== undefined || stmt.distinct !== undefined) {
+        return false;
+      }
       const exprParts = op.expressions.map(
         (e) => `${e.expression} AS ${e.alias}`,
       );
@@ -173,7 +191,9 @@ function tryFoldOp(stmt: SqlStatement, op: FoldableOp): boolean {
     }
 
     case 'extract_arg': {
-      if (stmt.groupBy !== undefined) return false;
+      if (stmt.groupBy !== undefined || stmt.distinct !== undefined) {
+        return false;
+      }
       const exprParts = op.extractions.map(
         (e) =>
           `${formatExtractArgExpr(op.argSetIdCol, e.argName)} AS ${e.alias}`,
@@ -184,9 +204,22 @@ function tryFoldOp(stmt: SqlStatement, op: FoldableOp): boolean {
       return true;
     }
 
+    case 'distinct': {
+      if (
+        stmt.distinct !== undefined ||
+        stmt.orderBy !== undefined ||
+        stmt.limit !== undefined
+      ) {
+        return false;
+      }
+      stmt.distinct = true;
+      return true;
+    }
+
     case 'aggregate': {
       if (
         stmt.columns !== '*' ||
+        stmt.distinct !== undefined ||
         stmt.groupBy !== undefined ||
         stmt.orderBy !== undefined ||
         stmt.limit !== undefined
@@ -216,6 +249,9 @@ function tryFoldOp(stmt: SqlStatement, op: FoldableOp): boolean {
     case 'limit': {
       if (stmt.limit !== undefined) return false;
       stmt.limit = op.count;
+      if (op.offset !== undefined && op.offset > 0) {
+        stmt.offset = op.offset;
+      }
       return true;
     }
 
@@ -237,6 +273,272 @@ function emitDropSql(op: DropOp, ref: string): string {
   }
   const selectClause = kept.length > 1 ? '\n  ' + kept.join(',\n  ') : kept[0];
   return `SELECT ${selectClause}\nFROM ${ref}`;
+}
+
+function emitRenameSql(op: RenameOp, ref: string): string {
+  const cols = op.inputColumns ?? [];
+  if (op.renames.length === 0 || cols.length === 0) {
+    return `SELECT *\nFROM ${ref}`;
+  }
+  const renameMap = new Map(op.renames.map((r) => [r.from, r.to]));
+  const projected = cols.map((col) => {
+    const target = renameMap.get(col);
+    return target !== undefined && target !== col ? `${col} AS ${target}` : col;
+  });
+  const selectClause =
+    projected.length > 1 ? '\n  ' + projected.join(',\n  ') : projected[0];
+  return `SELECT ${selectClause}\nFROM ${ref}`;
+}
+
+function emitSetSql(op: SetOp, ref: string): string {
+  if (op.assignments.length === 0) {
+    return `SELECT *\nFROM ${ref}`;
+  }
+  const assignMap = new Map(
+    op.assignments.map((a) => [a.column, a.expression]),
+  );
+  const cols = op.inputColumns ?? [];
+  if (cols.length > 0) {
+    const projected = cols.map((col) => {
+      const expr = assignMap.get(col);
+      return expr !== undefined ? `${expr} AS ${col}` : col;
+    });
+    const selectClause =
+      projected.length > 1 ? '\n  ' + projected.join(',\n  ') : projected[0];
+    return `SELECT ${selectClause}\nFROM ${ref}`;
+  }
+  const appended = op.assignments
+    .map((a) => `${a.expression} AS ${a.column}`)
+    .join(', ');
+  return `SELECT *, ${appended}\nFROM ${ref}`;
+}
+
+function emitIntervalFlattenSql(op: IntervalFlattenOp, ref: string): string {
+  const uniquePer = [...new Set(op.partitionColumns)];
+  const perPrefix = uniquePer.length > 0 ? `${uniquePer.join(', ')}, ` : '';
+  const partBy =
+    uniquePer.length > 0 ? `PARTITION BY ${uniquePer.join(', ')} ` : '';
+  const hasMinMax = op.aggregations.some(
+    (a) => a.func === 'MIN' || a.func === 'MAX',
+  );
+
+  if (!hasMinMax) {
+    const sumAggs = op.aggregations
+      .map((a, idx) => ({a, idx}))
+      .filter((x) => x.a.func === 'SUM');
+
+    const startExtras = sumAggs.map(
+      ({a, idx}) =>
+        `, IIF(${a.column} IS NOT NULL, ${a.column}, 0) AS _s${idx}, IIF(${a.column} IS NOT NULL, 1, 0) AS _c${idx}`,
+    );
+    const endExtras = sumAggs.map(
+      ({a, idx}) =>
+        `, -IIF(${a.column} IS NOT NULL, ${a.column}, 0) AS _s${idx}, -IIF(${a.column} IS NOT NULL, 1, 0) AS _c${idx}`,
+    );
+    const mergedExtras = sumAggs.map(
+      ({idx}) => `, SUM(_s${idx}) AS _s${idx}, SUM(_c${idx}) AS _c${idx}`,
+    );
+    const windowSpec = `${partBy}ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`;
+    const segExtras = sumAggs.map(
+      ({idx}) =>
+        `,\n      SUM(_s${idx}) OVER (${windowSpec}) AS _rs${idx},\n      SUM(_c${idx}) OVER (${windowSpec}) AS _rc${idx}`,
+    );
+
+    const outCols: string[] = ['ts', 'dur', ...op.partitionColumns];
+    for (const [idx, a] of op.aggregations.entries()) {
+      if (a.func === 'COUNT') {
+        outCols.push(`_active AS ${a.alias}`);
+      } else {
+        outCols.push(`IIF(_rc${idx} > 0, _rs${idx}, NULL) AS ${a.alias}`);
+      }
+    }
+
+    return [
+      'WITH',
+      `  _src AS (\n    SELECT * FROM ${ref} WHERE ts IS NOT NULL AND dur > 0\n  ),`,
+      `  _events AS (\n    SELECT ${perPrefix}ts, 1 AS _delta${startExtras.join('')} FROM _src\n    UNION ALL\n    SELECT ${perPrefix}ts + dur AS ts, -1 AS _delta${endExtras.join('')} FROM _src\n  ),`,
+      `  _merged AS (\n    SELECT ${perPrefix}ts, SUM(_delta) AS _delta${mergedExtras.join('')}\n    FROM _events\n    GROUP BY ${perPrefix}ts\n  ),`,
+      `  _segs AS (\n    SELECT\n      ts,\n      LEAD(ts) OVER (${partBy}ORDER BY ts) - ts AS dur,\n      ${perPrefix}SUM(_delta) OVER (${windowSpec}) AS _active${segExtras.join('')}\n    FROM _merged\n  )`,
+      `SELECT\n  ${outCols.join(',\n  ')}\nFROM _segs\nWHERE _active > 0 AND dur > 0`,
+    ].join('\n');
+  }
+
+  const windowSpec = `${partBy}ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`;
+  const joinConds = [
+    ...uniquePer.map((p) => `s.${p} IS r.${p}`),
+    'r.ts <= s.ts',
+    'r.ts + r.dur >= s.ts + s.dur',
+  ].join(' AND ');
+  const outCols: string[] = [
+    's.ts',
+    's.dur',
+    ...op.partitionColumns.map((p) => `s.${p}`),
+    ...op.aggregations.map((a) =>
+      a.func === 'COUNT'
+        ? `COUNT(*) AS ${a.alias}`
+        : `${a.func}(r.${a.column}) AS ${a.alias}`,
+    ),
+  ];
+
+  return [
+    'WITH',
+    `  _src AS (\n    SELECT * FROM ${ref} WHERE ts IS NOT NULL AND dur > 0\n  ),`,
+    `  _events AS (\n    SELECT ${perPrefix}ts, 1 AS _delta FROM _src\n    UNION ALL\n    SELECT ${perPrefix}ts + dur AS ts, -1 AS _delta FROM _src\n  ),`,
+    `  _merged AS (\n    SELECT ${perPrefix}ts, SUM(_delta) AS _delta\n    FROM _events\n    GROUP BY ${perPrefix}ts\n  ),`,
+    `  _segs AS (\n    SELECT\n      ROW_NUMBER() OVER () AS _seg_id,\n      ts,\n      LEAD(ts) OVER (${partBy}ORDER BY ts) - ts AS dur,\n      ${perPrefix}SUM(_delta) OVER (${windowSpec}) AS _active\n    FROM _merged\n  )`,
+    `SELECT\n  ${outCols.join(',\n  ')}\nFROM _segs AS s\nJOIN _src AS r ON ${joinConds}\nWHERE s._active > 0 AND s.dur > 0\nGROUP BY s._seg_id`,
+  ].join('\n');
+}
+
+function emitIntervalFillGapsSql(
+  op: IntervalFillGapsOp,
+  fgRef: string,
+  bgRef: string,
+): string {
+  const uniquePer = [...new Set(op.partitionColumns)];
+  const perPrefix = uniquePer.length > 0 ? `${uniquePer.join(', ')}, ` : '';
+  const partBy =
+    uniquePer.length > 0 ? `PARTITION BY ${uniquePer.join(', ')} ` : '';
+  const partOnly =
+    uniquePer.length > 0 ? `PARTITION BY ${uniquePer.join(', ')}` : '';
+
+  const bgCols = op.backgroundColumns ?? [];
+  const bgColSet = new Set(bgCols);
+  const bgHasPer =
+    uniquePer.length === 0 ||
+    (op.backgroundColumns !== undefined &&
+      uniquePer.every((p) => bgColSet.has(p)));
+
+  const ctes: string[] = [];
+  if (bgHasPer) {
+    ctes.push(
+      `  _bg AS (\n    SELECT * FROM ${bgRef} WHERE ts IS NOT NULL AND dur > 0\n  )`,
+    );
+  } else {
+    const bgExtra = bgCols.filter(
+      (c) => c !== 'ts' && c !== 'dur' && !uniquePer.includes(c),
+    );
+    const bgProj = [
+      ...uniquePer.map((p) => `l.${p}`),
+      'b.ts',
+      'b.dur',
+      ...bgExtra.map((c) => `b.${c}`),
+    ].join(', ');
+    ctes.push(
+      `  _lanes AS (\n    SELECT DISTINCT ${uniquePer.join(', ')} FROM ${fgRef}\n  )`,
+      `  _bg AS (\n    SELECT ${bgProj}\n    FROM _lanes AS l\n    CROSS JOIN (SELECT * FROM ${bgRef} WHERE ts IS NOT NULL AND dur > 0) AS b\n  )`,
+    );
+  }
+
+  const maxInt64 = '9223372036854775807';
+  const notExistsWhere =
+    uniquePer.length > 0
+      ? ` WHERE ${uniquePer.map((p) => `i.${p} IS b.${p}`).join(' AND ')}`
+      : '';
+
+  ctes.push(
+    `  _fg_valid AS (\n    SELECT\n      ${perPrefix}ts AS _s,\n      IIF(dur = -1, ${maxInt64}, ts + dur) AS _e\n    FROM ${fgRef}\n    WHERE ts IS NOT NULL AND (dur > 0 OR dur = -1)\n  )`,
+    `  _fg_max AS (\n    SELECT\n      *,\n      MAX(_e) OVER (${partBy}ORDER BY _s ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS _prev_max\n    FROM _fg_valid\n  )`,
+    `  _fg_grp AS (\n    SELECT\n      *,\n      SUM(IIF(_prev_max IS NULL OR _s > _prev_max, 1, 0)) OVER (${partBy}ORDER BY _s ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS _isl\n    FROM _fg_max\n  )`,
+    `  _islands AS (\n    SELECT\n      ${perPrefix}MIN(_s) AS _s,\n      MAX(_e) AS _e,\n      ROW_NUMBER() OVER (${partBy}ORDER BY MIN(_s)) AS _rn,\n      COUNT(*) OVER (${partOnly}) AS _cnt\n    FROM _fg_grp\n    GROUP BY ${perPrefix}_isl\n  )`,
+    `  _isl_prev AS (\n    SELECT\n      *,\n      LAG(_e) OVER (${partBy}ORDER BY _s) AS _prev_e\n    FROM _islands\n  )`,
+    [
+      '  _gaps AS (',
+      `    SELECT ${perPrefix}COALESCE(_prev_e, 0) AS _gs, _s AS _ge FROM _isl_prev WHERE _s > COALESCE(_prev_e, 0)`,
+      '    UNION ALL',
+      `    SELECT ${perPrefix}_e AS _gs, ${maxInt64} AS _ge FROM _isl_prev WHERE _rn = _cnt AND _e < ${maxInt64}`,
+      '    UNION ALL',
+      `    SELECT DISTINCT ${uniquePer.map((p) => `b.${p}, `).join('')}0 AS _gs, ${maxInt64} AS _ge FROM _bg AS b WHERE NOT EXISTS (SELECT 1 FROM _islands AS i${notExistsWhere})`,
+      '  )',
+    ].join('\n'),
+  );
+
+  const outSchema = op.inputColumns ?? ['ts', 'dur', ...uniquePer];
+  const availableOnBg = new Set([...bgCols, ...uniquePer]);
+  const fillerProj = outSchema.map((col) => {
+    if (col === 'ts') return 'MAX(g._gs, b.ts) AS ts';
+    if (col === 'dur') {
+      return 'MIN(g._ge, b.ts + b.dur) - MAX(g._gs, b.ts) AS dur';
+    }
+    if (availableOnBg.has(col)) return `b.${col} AS ${col}`;
+    return `NULL AS ${col}`;
+  });
+
+  const joinCond =
+    uniquePer.length > 0
+      ? `ON ${uniquePer.map((p) => `b.${p} IS g.${p}`).join(' AND ')}\n`
+      : '';
+
+  return [
+    'WITH',
+    ctes.join(',\n'),
+    `SELECT *\nFROM ${fgRef}`,
+    'UNION ALL',
+    `SELECT\n  ${fillerProj.join(',\n  ')}\nFROM _bg AS b\nJOIN _gaps AS g ${joinCond}WHERE MIN(g._ge, b.ts + b.dur) > MAX(g._gs, b.ts)`,
+  ].join('\n');
+}
+
+function emitTreeAccumulateSql(op: TreeAccumulateOp, ref: string): string {
+  if (op.aggregations.length === 0) {
+    return `SELECT *\nFROM ${ref}`;
+  }
+  const keyExpr = op.direction === 'UP' ? 'c._anchor' : 'c._member';
+  const valJoinKey = op.direction === 'UP' ? 'c._member' : 'c._anchor';
+  const aggExprs = op.aggregations.map((a) =>
+    a.func === 'COUNT'
+      ? `COUNT(*) AS ${a.alias}`
+      : `${a.func}(v.${a.column}) AS ${a.alias}`,
+  );
+  const outerCols = op.aggregations.map((a) => `_agg.${a.alias}`);
+
+  return [
+    'WITH RECURSIVE',
+    `  _closure(_anchor, _member) AS (\n    SELECT ${op.idColumn}, ${op.idColumn} FROM ${ref}\n    UNION ALL\n    SELECT c._anchor, child.${op.idColumn}\n    FROM _closure AS c\n    JOIN ${ref} AS child ON child.${op.parentIdColumn} = c._member\n  ),`,
+    `  _agg AS (\n    SELECT\n      ${keyExpr} AS _key_id,\n      ${aggExprs.join(',\n      ')}\n    FROM _closure AS c\n    JOIN ${ref} AS v ON v.${op.idColumn} = ${valJoinKey}\n    GROUP BY ${keyExpr}\n  )`,
+    `SELECT\n  src.*,\n  ${outerCols.join(',\n  ')}\nFROM ${ref} AS src\nLEFT JOIN _agg ON src.${op.idColumn} = _agg._key_id`,
+  ].join('\n');
+}
+
+function emitGraphTreeSql(
+  op: GraphTreeOp,
+  nodesRef: string,
+  edgesRef: string,
+  rootsRef: string,
+): string {
+  const carried =
+    op.nodeColumns && op.nodeColumns.length > 0
+      ? op.nodeColumns
+          .filter((c) => c !== 'parent_id')
+          .map((c) =>
+            c === op.nodeIdColumn && op.nodeIdColumn !== 'id'
+              ? `n.${c} AS id`
+              : `n.${c}`,
+          )
+      : ['n.*'];
+
+  const edgesSubq = `SELECT ${op.sourceColumn} AS source_node_id, ${op.destColumn} AS dest_node_id FROM ${edgesRef} WHERE ${op.sourceColumn} IS NOT NULL AND ${op.destColumn} IS NOT NULL`;
+  const rootsSubq = `SELECT ${op.rootIdColumn} AS node_id FROM ${rootsRef} WHERE ${op.rootIdColumn} IS NOT NULL`;
+
+  if (op.treeKind === 'BFS' || op.treeKind === 'DFS') {
+    const macro =
+      op.treeKind === 'BFS' ? 'graph_reachable_bfs!' : 'graph_reachable_dfs!';
+    return [
+      `SELECT\n  ${[...carried, '_tree.parent_node_id AS parent_id'].join(',\n  ')}`,
+      `FROM ${nodesRef} AS n`,
+      `JOIN ${macro}(\n  (${edgesSubq}),\n  (${rootsSubq})\n) AS _tree ON n.${op.nodeIdColumn} = _tree.node_id`,
+    ].join('\n');
+  }
+
+  return [
+    'WITH',
+    `  _edges AS (\n    ${edgesSubq}\n  ),`,
+    `  _roots AS (\n    ${rootsSubq}\n  ),`,
+    '  _reach AS (\n    SELECT node_id FROM graph_reachable_dfs!(_edges, _roots)\n  ),',
+    `  _super AS (\n    SELECT COALESCE(MAX(${op.nodeIdColumn}), 0) + 1 AS root_id FROM ${nodesRef}\n  ),`,
+    '  _flow AS (\n    SELECT e.source_node_id, e.dest_node_id\n    FROM _edges AS e\n    JOIN _reach AS r ON e.source_node_id = r.node_id\n    UNION ALL\n    SELECT (SELECT root_id FROM _super) AS source_node_id, node_id AS dest_node_id\n    FROM _roots\n  ),',
+    '  _dom AS (\n    SELECT\n      node_id,\n      IIF(dominator_node_id = (SELECT root_id FROM _super), NULL, dominator_node_id) AS parent_id\n    FROM graph_dominator_tree!(_flow, (SELECT root_id FROM _super))\n    WHERE node_id != (SELECT root_id FROM _super)\n  )',
+    `SELECT\n  ${[...carried, '_dom.parent_id'].join(',\n  ')}\nFROM ${nodesRef} AS n\nJOIN _dom ON n.${op.nodeIdColumn} = _dom.node_id`,
+  ].join('\n');
 }
 
 function emitJoinSql(op: JoinOp, leftRef: string, rightRef: string): string {
@@ -480,6 +782,28 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
         break;
       }
 
+      case 'rename': {
+        if (
+          !emitStandalone(nodeId, [op.input], () =>
+            emitRenameSql(op, resolveRef(op.input)),
+          )
+        ) {
+          return [];
+        }
+        break;
+      }
+
+      case 'set': {
+        if (
+          !emitStandalone(nodeId, [op.input], () =>
+            emitSetSql(op, resolveRef(op.input)),
+          )
+        ) {
+          return [];
+        }
+        break;
+      }
+
       case 'join': {
         if (
           !emitStandalone(nodeId, [op.left, op.right], () =>
@@ -519,6 +843,67 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
         break;
       }
 
+      case 'interval_flatten': {
+        if (
+          !emitStandalone(nodeId, [op.input], () =>
+            emitIntervalFlattenSql(op, resolveRef(op.input)),
+          )
+        ) {
+          return [];
+        }
+        break;
+      }
+
+      case 'interval_fill_gaps': {
+        if (
+          !emitStandalone(nodeId, [op.input, op.background], () =>
+            emitIntervalFillGapsSql(
+              op,
+              resolveRef(op.input),
+              resolveRef(op.background),
+            ),
+          )
+        ) {
+          return [];
+        }
+        break;
+      }
+
+      case 'tree_accumulate': {
+        if (
+          !emitStandalone(nodeId, [op.input], () =>
+            emitTreeAccumulateSql(op, resolveRef(op.input)),
+          )
+        ) {
+          return [];
+        }
+        break;
+      }
+
+      case 'graph_tree': {
+        const graphIncludes =
+          op.treeKind === 'DOMINATOR'
+            ? ['graphs.search', 'graphs.dominator_tree']
+            : ['graphs.search'];
+        if (
+          !emitStandalone(
+            nodeId,
+            [op.nodes, op.edges, op.roots],
+            () =>
+              emitGraphTreeSql(
+                op,
+                resolveRef(op.nodes),
+                resolveRef(op.edges),
+                resolveRef(op.roots),
+              ),
+            graphIncludes,
+          )
+        ) {
+          return [];
+        }
+        break;
+      }
+
       case 'raw_sql': {
         const inputIds = op.inputs.map((inp) => inp.nodeId);
         if (
@@ -534,6 +919,7 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
       case 'project':
       case 'extend':
       case 'extract_arg':
+      case 'distinct':
       case 'aggregate':
       case 'sort':
       case 'limit': {

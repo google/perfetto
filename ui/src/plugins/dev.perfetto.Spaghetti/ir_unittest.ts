@@ -691,4 +691,240 @@ describe('PerfettoSQL Next (pipe) backend', () => {
     expect(display).toContain('step_1 AS t1');
     expect(display).toContain('step_1 AS t2');
   });
+
+  it('lowers distinct, rename, set, and limit offset in both dialects', () => {
+    const root: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      config: {table: 'slice'},
+      next: {
+        type: 'select',
+        id: 'sel1',
+        config: {
+          entries: [
+            {column: 'id', alias: ''},
+            {column: 'dur', alias: ''},
+          ],
+          expressions: [],
+        },
+        next: {
+          type: 'set',
+          id: 'set1',
+          config: {
+            entries: [{column: 'dur', expression: 'dur / 1000'}],
+          },
+          next: {
+            type: 'rename',
+            id: 'ren1',
+            config: {
+              entries: [{column: 'dur', alias: 'dur_us'}],
+            },
+            next: {
+              type: 'distinct',
+              id: 'dist1',
+              config: {},
+              next: {
+                type: 'limit',
+                id: 'lim1',
+                config: {limitCount: '10', offset: '5'},
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const index = makeNodes([root]);
+
+    const pipeEntries = ensureDefined(
+      buildIR(index, 'lim1', undefined, 'pipe'),
+    );
+    expect(pipeEntries.length).toBe(1);
+    expect(buildDisplayPipeSql(pipeEntries)).toBe(
+      [
+        'FROM slice',
+        '|> SELECT id, dur',
+        '|> SET dur = dur / 1000',
+        '|> RENAME dur AS dur_us',
+        '|> DISTINCT',
+        '|> LIMIT 10 OFFSET 5',
+      ].join('\n'),
+    );
+
+    const sqlEntries = ensureDefined(buildIR(index, 'lim1', undefined, 'sql'));
+    const displaySql = ensureDefined(buildDisplaySql(sqlEntries));
+    expect(displaySql).toContain('dur / 1000 AS dur');
+    expect(displaySql).toContain('dur AS dur_us');
+    expect(displaySql).toContain('SELECT DISTINCT *');
+    expect(displaySql).toContain('LIMIT 10 OFFSET 5');
+  });
+
+  it('lowers interval_flatten in both dialects', () => {
+    const root: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      config: {table: 'slice'},
+      next: {
+        type: 'interval_flatten',
+        id: 'flat1',
+        config: {
+          partitionColumns: ['track_id'],
+          aggregations: [
+            {func: 'COUNT', column: '*', alias: 'depth_cnt'},
+            {func: 'SUM', column: 'dur', alias: 'total_dur'},
+          ],
+          filterNegativeDur: true,
+        },
+      },
+    };
+
+    const index = makeNodes([root]);
+
+    const pipeEntries = ensureDefined(
+      buildIR(index, 'flat1', undefined, 'pipe'),
+    );
+    expect(pipeEntries.length).toBe(1);
+    expect(buildDisplayPipeSql(pipeEntries)).toBe(
+      [
+        'FROM slice',
+        '|> WHERE dur >= 0',
+        '|> INTERVAL FLATTEN PER track_id AGGREGATE COUNT(*) AS depth_cnt, SUM(dur) AS total_dur',
+      ].join('\n'),
+    );
+
+    const sqlEntries = ensureDefined(buildIR(index, 'flat1', undefined, 'sql'));
+    expect(sqlEntries.length).toBe(1);
+    const sqlText = ensureDefined(sqlEntries[0]).sql;
+    expect(sqlText).toContain('PARTITION BY track_id');
+    expect(sqlText).toContain('_active AS depth_cnt');
+    expect(sqlText).toContain('AS total_dur');
+  });
+
+  it('lowers interval_fill_gaps and narrows extra background columns in pipe mode', () => {
+    const bg: RootNodeData = {
+      type: 'time_range',
+      id: 'tr1',
+      x: 0,
+      y: 0,
+      config: {ts: '0', dur: '1000'},
+    };
+    const fg: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 200,
+      y: 0,
+      config: {table: 'sched'},
+      next: {
+        type: 'select',
+        id: 'sel1',
+        config: {
+          entries: [
+            {column: 'ts', alias: ''},
+            {column: 'dur', alias: ''},
+            {column: 'cpu', alias: ''},
+          ],
+          expressions: [],
+        },
+        next: {
+          type: 'interval_fill_gaps',
+          id: 'fg1',
+          inputs: [null, 'tr1'],
+          config: {partitionColumns: ['cpu']},
+        },
+      },
+    };
+
+    const index = makeNodes([bg, fg]);
+
+    const pipeEntries = ensureDefined(buildIR(index, 'fg1', undefined, 'pipe'));
+    const pipeDisplay = ensureDefined(buildDisplayPipeSql(pipeEntries));
+    // `time_range` exposes `(id, ts, dur)` while `sel1` only has `(ts, dur, cpu)`,
+    // so the pipe backend narrows the background to `(FROM step_2 |> SELECT ts, dur)`.
+    expect(pipeDisplay).toContain(
+      '|> INTERVAL FILL GAPS WITH (FROM step_2 |> SELECT ts, dur) PER cpu',
+    );
+
+    const sqlEntries = ensureDefined(buildIR(index, 'fg1', undefined, 'sql'));
+    const sqlDisplay = ensureDefined(buildDisplaySql(sqlEntries));
+    expect(sqlDisplay).toContain('_islands AS (');
+    expect(sqlDisplay).toContain('_gaps AS (');
+    expect(sqlDisplay).toContain('b.cpu AS cpu');
+  });
+
+  it('lowers graph_tree + tree_accumulate pipeline in both dialects', () => {
+    const nodesRoot: RootNodeData = {
+      type: 'from',
+      id: 'n1',
+      x: 0,
+      y: 0,
+      config: {table: 'heap_graph_object'},
+      next: {
+        type: 'graph_tree',
+        id: 'gt1',
+        inputs: [null, 'e1', 'r1'],
+        config: {
+          kind: 'DOMINATOR',
+          nodeIdColumn: 'id',
+          sourceColumn: 'owner_id',
+          destColumn: 'owned_id',
+          rootIdColumn: 'id',
+        },
+        next: {
+          type: 'tree_accumulate',
+          id: 'ta1',
+          config: {
+            direction: 'UP',
+            idColumn: 'id',
+            parentIdColumn: 'parent_id',
+            aggregations: [
+              {func: 'SUM', column: 'self_size', alias: 'retained_size'},
+            ],
+          },
+        },
+      },
+    };
+    const edgesRoot: RootNodeData = {
+      type: 'from',
+      id: 'e1',
+      x: 200,
+      y: 0,
+      config: {table: 'heap_graph_reference'},
+    };
+    const rootsRoot: RootNodeData = {
+      type: 'from',
+      id: 'r1',
+      x: 400,
+      y: 0,
+      config: {table: 'heap_roots'},
+    };
+
+    const index = makeNodes([nodesRoot, edgesRoot, rootsRoot]);
+
+    const pipeEntries = ensureDefined(buildIR(index, 'ta1', undefined, 'pipe'));
+    expect(pipeEntries.length).toBe(1);
+    expect(buildDisplayPipeSql(pipeEntries)).toBe(
+      [
+        'GRAPH DOMINATOR TREE',
+        '  NODES heap_graph_object',
+        '  EDGES (FROM heap_graph_reference |> SELECT owner_id AS src, owned_id AS dst)',
+        '  FROM heap_roots',
+        '|> TREE ACCUMULATE UP SUM(self_size) AS retained_size',
+      ].join('\n'),
+    );
+
+    const sqlEntries = ensureDefined(buildIR(index, 'ta1', undefined, 'sql'));
+    expect(sqlEntries.length).toBe(2);
+    const sqlDisplay = ensureDefined(buildDisplaySql(sqlEntries));
+    expect(sqlDisplay).toContain('INCLUDE PERFETTO MODULE graphs.search;');
+    expect(sqlDisplay).toContain(
+      'INCLUDE PERFETTO MODULE graphs.dominator_tree;',
+    );
+    expect(sqlDisplay).toContain('graph_dominator_tree!');
+    expect(sqlDisplay).toContain('WITH RECURSIVE');
+    expect(sqlDisplay).toContain('SUM(v.self_size) AS retained_size');
+  });
 });
