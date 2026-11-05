@@ -285,6 +285,7 @@ export class MaterializationService {
 
     // DataGrid reads from the final materialized table.
     const lastEntry = entries[entries.length - 1];
+    if (!lastEntry) return;
     const finalSql = `SELECT * FROM ${lastEntry.hash}`;
 
     this._materializedTable = lastEntry.hash;

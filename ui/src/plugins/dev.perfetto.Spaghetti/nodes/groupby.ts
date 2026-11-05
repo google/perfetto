@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
+import {moveArrayItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
   NodeManifest,
@@ -102,12 +103,10 @@ function GroupByContent(): m.Component<{
                   const data = e.dataTransfer!.getData('text/plain');
                   if (!data.startsWith('group:')) return;
                   const fromIdx = parseInt(data.slice(6));
-                  let toIdx = isBottom ? i + 1 : i;
+                  const toIdx = isBottom ? i + 1 : i;
                   if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
                     const updated = [...config.groupColumns];
-                    const [moved] = updated.splice(fromIdx, 1);
-                    if (fromIdx < toIdx) toIdx--;
-                    updated.splice(toIdx, 0, moved);
+                    moveArrayItem(updated, fromIdx, toIdx);
                     updateConfig({groupColumns: updated});
                   }
                 },
@@ -191,12 +190,10 @@ function GroupByContent(): m.Component<{
                   const data = e.dataTransfer!.getData('text/plain');
                   if (!data.startsWith('agg:')) return;
                   const fromIdx = parseInt(data.slice(4));
-                  let toIdx = isBottom ? i + 1 : i;
+                  const toIdx = isBottom ? i + 1 : i;
                   if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
                     const newAggs = [...config.aggregations];
-                    const [moved] = newAggs.splice(fromIdx, 1);
-                    if (fromIdx < toIdx) toIdx--;
-                    newAggs.splice(toIdx, 0, moved);
+                    moveArrayItem(newAggs, fromIdx, toIdx);
                     updateConfig({aggregations: newAggs});
                   }
                 },

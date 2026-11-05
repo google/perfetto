@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
+import {moveArrayItem} from '../../../base/array_utils';
 import type {NodeManifest, RenderContext, IrContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Row} from '../components/row';
@@ -150,12 +151,10 @@ function JoinNodeContent(): m.Component<{
                   const fromIdx = parseInt(
                     e.dataTransfer!.getData('text/plain'),
                   );
-                  let toIdx = isBottom ? i + 1 : i;
+                  const toIdx = isBottom ? i + 1 : i;
                   if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
                     const updated = [...columns];
-                    const [moved] = updated.splice(fromIdx, 1);
-                    if (fromIdx < toIdx) toIdx--;
-                    updated.splice(toIdx, 0, moved);
+                    moveArrayItem(updated, fromIdx, toIdx);
                     updateConfig({columns: updated});
                   }
                 },
@@ -266,7 +265,7 @@ export const manifest: NodeManifest<JoinConfig> = {
     if (!rightRef) return {sql: `SELECT *\nFROM ${leftRef}`};
     const leftCols = ctx.getInputColumns('left');
 
-    const selectCols: string[] = ['l.*'];
+    const selectCols: [string, ...string[]] = ['l.*'];
     const aliases = getExtendColumnAliases(
       config,
       (leftCols ?? []).map((c) => c.name),
@@ -275,12 +274,8 @@ export const manifest: NodeManifest<JoinConfig> = {
       const expr = `r.${a.column}`;
       selectCols.push(a.alias !== a.column ? `${expr} AS ${a.alias}` : expr);
     }
-    let selectClause: string;
-    if (selectCols.length > 1) {
-      selectClause = '\n  ' + selectCols.join(',\n  ');
-    } else {
-      selectClause = selectCols[0];
-    }
+    const selectClause =
+      selectCols.length > 1 ? '\n  ' + selectCols.join(',\n  ') : selectCols[0];
     const joinKw =
       (config.joinType ?? 'LEFT') === 'INNER' ? 'JOIN' : 'LEFT JOIN';
     const condition = `ON l.${config.leftColumn} = r.${config.rightColumn}`;
