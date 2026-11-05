@@ -22,6 +22,7 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Section} from '../../widgets/section';
+import {TrackDimensionsSection} from './track_dimensions_section';
 import {Tree} from '../../widgets/tree';
 import {hasArgs} from './args';
 import {
@@ -236,9 +237,14 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private readonly trace: Trace;
   private readonly attrs: ThreadSliceDetailsPanelAttrs;
 
+  // Dimension details follow the selected event, not the UI track which may
+  // multiplex several trace processor tracks.
+  private readonly dimensions: TrackDimensionsSection;
+
   constructor(trace: Trace, attrs?: ThreadSliceDetailsPanelAttrs) {
     this.trace = trace;
     this.attrs = attrs ?? {};
+    this.dimensions = new TrackDimensionsSection(trace);
   }
 
   async load(selection: TrackEventSelection) {
@@ -262,14 +268,11 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     // Load additional sections
     const sectionsToLoad = [
       ...(this.attrs.topSections ?? []),
+      this.dimensions,
       ...(this.attrs.leftSections ?? []),
       ...(this.attrs.rightSections ?? []),
     ];
-    if (sectionsToLoad.length > 0) {
-      await Promise.all(
-        sectionsToLoad.map((section) => section.load(selection)),
-      );
-    }
+    await Promise.all(sectionsToLoad.map((section) => section.load(selection)));
   }
 
   render() {
@@ -285,9 +288,12 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     const additionalLeft = this.attrs.leftSections?.map((section) =>
       section.render(),
     );
-    const additionalRight = this.attrs.rightSections?.map((section) =>
-      section.render(),
-    );
+    // Sections with nothing to show render to null/undefined: drop them so an
+    // empty right hand side is still omitted.
+    const additionalRight = [
+      ...(this.attrs.rightSections?.map((section) => section.render()) ?? []),
+      this.dimensions.render(),
+    ].filter((section) => section !== null && section !== undefined);
 
     return m(
       DetailsShell,
@@ -304,7 +310,11 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
           renderDetails(this.trace, slice, this.breakdownByThreadState),
           additionalLeft,
         ),
-        this.renderRhs(this.trace, slice, additionalRight),
+        this.renderRhs(
+          this.trace,
+          slice,
+          additionalRight.length > 0 ? additionalRight : undefined,
+        ),
       ),
     );
   }

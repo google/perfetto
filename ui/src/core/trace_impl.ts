@@ -26,6 +26,7 @@ import {SelectionManagerImpl} from './selection_manager';
 import type {SidebarManagerImpl} from './sidebar_manager';
 import {TabManagerImpl} from './tab_manager';
 import {TrackManagerImpl} from './track_manager';
+import {TrackDimensionIndex} from './track_dimension_index';
 import {WorkspaceManagerImpl} from './workspace_manager';
 import type {SidebarMenuItem} from '../public/sidebar';
 import {ScrollHelper} from './scroll_helper';
@@ -73,6 +74,7 @@ export class TraceImpl implements Trace, Disposable {
   readonly timeline: TimelineImpl;
   readonly traceInfo: TraceInfoImpl;
   readonly tracks = new TrackManagerImpl();
+  readonly trackDimensionIndex: TrackDimensionIndex;
   readonly workspaces = new WorkspaceManagerImpl();
   readonly notes = new NoteManagerImpl();
   readonly scrollHelper: ScrollHelper;
@@ -100,6 +102,7 @@ export class TraceImpl implements Trace, Disposable {
   constructor(app: AppImpl, engine: EngineBase, traceInfo: TraceInfoImpl) {
     this.app = app;
     this.engine = engine;
+    this.trackDimensionIndex = new TrackDimensionIndex(engine);
     this.trash.use(engine);
     this.traceInfo = traceInfo;
 
