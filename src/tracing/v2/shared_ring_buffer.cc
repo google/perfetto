@@ -43,10 +43,8 @@ static_assert(kMaxFragmentSizeVarIntBytes ==
 // The supported CPU/ABI set provides atomic observation of that 32-bit half
 // during the 64-bit CAS.
 const uint32_t* ReadPosFutexAddress(const std::atomic<uint64_t>* rw_positions) {
-  static_assert(PERFETTO_IS_LITTLE_ENDIAN(),
-                "The low-word futex requires read_pos to be the first four "
-                "bytes of rw_positions");
-  return reinterpret_cast<const uint32_t*>(rw_positions);
+  return reinterpret_cast<const uint32_t*>(
+      reinterpret_cast<const uint8_t*>(rw_positions) + kReadPosByteOffset);
 }
 
 // Callers validate untrusted layouts with NumChunksForRingBufferLayout()
