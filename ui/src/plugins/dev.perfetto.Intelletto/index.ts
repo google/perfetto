@@ -23,10 +23,12 @@ import LlmPlugin from '../dev.perfetto.Llm';
 import type {ModelPath} from '../dev.perfetto.Llm/gateway';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import DataExplorerPlugin from '../dev.perfetto.DataExplorer';
-import type {
-  ContextProviderRegistration,
-  IntellettoToolRegistrar,
-  ToolRegistration,
+import {
+  INTELLETTO_OPEN_COMMAND_ID,
+  INTELLETTO_SIDE_PANEL_URI,
+  type ContextProviderRegistration,
+  type IntellettoToolRegistrar,
+  type ToolRegistration,
 } from './api';
 import {ChatPanel} from './chat_panel';
 import {ChatSession} from './chat_session';
@@ -37,7 +39,8 @@ import {registerTimelineTools} from './timeline_tools';
 import {ToolRegistry} from './tools';
 import {registerWebMCPTools} from './webmcp';
 
-const SIDE_PANEL_URI = 'dev.perfetto.Intelletto#Chat';
+// (Side-panel URI and open-command id live in ./api so other plugins can open
+// the assistant without importing - and dependency-cycling - this module.)
 
 /**
  * The assistant plugin. Trace-scoped: one instance (and one tool registry) per
@@ -121,24 +124,35 @@ export default class IntellettoPlugin
     this.context.registerContextProvider(provider);
   }
 
+  // One chat session per trace - the conversation is scoped to the open trace
+  // and kept in memory only (re-created on the next trace load). Created
+  // lazily so context providers registered by dependent plugins are in by the
+  // time the system prompt is assembled.
+  private getOrCreateSession(): ChatSession {
+    this.session ??= new ChatSession(
+      LlmPlugin.gateway,
+      this.tools,
+      this.context,
+    );
+    return this.session;
+  }
+
   /** Register the chat side panel and the open-assistant command for a trace. */
   async onTraceLoad(trace: Trace): Promise<void> {
     const gateway = LlmPlugin.gateway;
 
-    // One chat session per trace - the conversation is scoped to the open
-    // trace and kept in memory only (re-created on the next trace load). It
-    // reads the shared registries, so tools registered by other plugins
-    // (before or after the panel is first opened) are all visible to the
-    // agent.
+    // The session reads the shared registries, so tools registered by other
+    // plugins (before or after the panel is first opened) are all visible to
+    // the agent.
     trace.sidePanel.registerTab({
-      uri: SIDE_PANEL_URI,
+      uri: INTELLETTO_SIDE_PANEL_URI,
       title: 'Intelletto',
       icon: 'psychology',
       render: () => {
-        this.session ??= new ChatSession(gateway, this.tools, this.context);
+        const session = this.getOrCreateSession();
         return m(ChatPanel, {
           gateway,
-          session: this.session,
+          session,
           context: this.context,
           selectedModelSetting: IntellettoPlugin.selectedModelSetting,
           onNewSession: () => {
@@ -150,9 +164,20 @@ export default class IntellettoPlugin
     });
 
     trace.commands.registerCommand({
-      id: 'dev.perfetto.Intelletto#Open',
+      id: INTELLETTO_OPEN_COMMAND_ID,
       name: 'Intelletto: Open assistant',
-      callback: () => trace.sidePanel.showTab(SIDE_PANEL_URI),
+      callback: (initialPrompt?: unknown) => {
+        // Optional seed for the chat input, e.g. from the Query page's "Ask
+        // Intelletto" button. Prefill only - the user reviews and sends it.
+        // Never clobber text the user already typed or a turn in flight.
+        if (typeof initialPrompt === 'string' && initialPrompt.trim() !== '') {
+          const session = this.getOrCreateSession();
+          if (!session.loading && session.input.trim() === '') {
+            session.input = initialPrompt;
+          }
+        }
+        trace.sidePanel.showTab(INTELLETTO_SIDE_PANEL_URI);
+      },
       defaultHotkey: 'Mod+Shift+A',
     });
 
