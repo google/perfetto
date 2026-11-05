@@ -15,22 +15,30 @@
 import {assertUnreachable} from '../../base/assert';
 import {
   type AggregateOp,
+  type DistinctOp,
   type DropOp,
   type ExtendOp,
   type ExtractArgOp,
   type FilterLogicalOp,
   formatExtractArgExpr,
   formatFilterConditions,
+  type GraphTreeOp,
+  type IntervalFillGapsOp,
+  type IntervalFlattenOp,
   type IntervalIntersectOp,
   type JoinOp,
   type LimitOp,
   type LogicalNode,
   type LogicalPlan,
   type PassthroughOp,
+  type PipelineAggregationSpec,
   type ProjectOp,
   type RawSqlOp,
+  type RenameOp,
+  type SetOp,
   type SortOp,
   type TimeRangeOp,
+  type TreeAccumulateOp,
   type UnionOp,
 } from './logical_ir';
 import {computeIrHash, type IrEntry} from './sql_backend';
@@ -59,9 +67,22 @@ type PipeStageOp =
   | ExtendOp
   | ExtractArgOp
   | DropOp
+  | RenameOp
+  | SetOp
+  | DistinctOp
   | AggregateOp
   | SortOp
-  | LimitOp;
+  | LimitOp
+  | IntervalFlattenOp
+  | TreeAccumulateOp;
+
+function formatPipelineAggs(aggs: readonly PipelineAggregationSpec[]): string {
+  return aggs
+    .map(
+      (a) => `${a.func}(${a.func === 'COUNT' ? '*' : a.column}) AS ${a.alias}`,
+    )
+    .join(', ');
+}
 
 function computePipeIrHash(sql: string, deps: readonly string[]): string {
   return computeIrHash(`pipe:${sql}`, deps);
@@ -139,6 +160,27 @@ function appendStageOp(stmt: PipeStatement, op: PipeStageOp): void {
       return;
     }
 
+    case 'rename': {
+      if (op.renames.length === 0) return;
+      const items = op.renames.map((r) => `${r.from} AS ${r.to}`).join(', ');
+      stmt.stages.push(`RENAME ${items}`);
+      return;
+    }
+
+    case 'set': {
+      if (op.assignments.length === 0) return;
+      const items = op.assignments
+        .map((a) => `${a.column} = ${a.expression}`)
+        .join(', ');
+      stmt.stages.push(`SET ${items}`);
+      return;
+    }
+
+    case 'distinct': {
+      stmt.stages.push('DISTINCT');
+      return;
+    }
+
     case 'aggregate': {
       if (op.aggregations.length === 0) {
         if (op.groupColumns.length > 0) {
@@ -166,7 +208,56 @@ function appendStageOp(stmt: PipeStatement, op: PipeStageOp): void {
     }
 
     case 'limit': {
-      stmt.stages.push(`LIMIT ${op.count}`);
+      stmt.stages.push(
+        op.offset !== undefined && op.offset > 0
+          ? `LIMIT ${op.count} OFFSET ${op.offset}`
+          : `LIMIT ${op.count}`,
+      );
+      return;
+    }
+
+    case 'interval_flatten': {
+      if (op.filterNegativeDur) {
+        stmt.stages.push('WHERE dur >= 0');
+      }
+      const perClause =
+        op.partitionColumns.length > 0
+          ? ` PER ${op.partitionColumns.join(', ')}`
+          : '';
+      if (op.aggregations.length === 0) {
+        stmt.stages.push(
+          `INTERVAL FLATTEN${perClause} AGGREGATE COUNT(*) AS _pf_cnt`,
+        );
+        stmt.stages.push('DROP _pf_cnt');
+      } else {
+        stmt.stages.push(
+          `INTERVAL FLATTEN${perClause} AGGREGATE ${formatPipelineAggs(op.aggregations)}`,
+        );
+      }
+      return;
+    }
+
+    case 'tree_accumulate': {
+      if (op.aggregations.length === 0) return;
+      const renamesIn: string[] = [];
+      const renamesOut: string[] = [];
+      if (op.idColumn !== 'id') {
+        renamesIn.push(`${op.idColumn} AS id`);
+        renamesOut.push(`id AS ${op.idColumn}`);
+      }
+      if (op.parentIdColumn !== 'parent_id') {
+        renamesIn.push(`${op.parentIdColumn} AS parent_id`);
+        renamesOut.push(`parent_id AS ${op.parentIdColumn}`);
+      }
+      if (renamesIn.length > 0) {
+        stmt.stages.push(`RENAME ${renamesIn.join(', ')}`);
+      }
+      stmt.stages.push(
+        `TREE ACCUMULATE ${op.direction} ${formatPipelineAggs(op.aggregations)}`,
+      );
+      if (renamesOut.length > 0) {
+        stmt.stages.push(`RENAME ${renamesOut.join(', ')}`);
+      }
       return;
     }
 
@@ -265,6 +356,64 @@ function makeIntervalIntersectPipe(
     source,
     rawSourceClause: true,
     stages: [`SELECT ${selectParts.join(', ')}`],
+  };
+}
+
+function appendFillGapsStage(
+  stmt: PipeStatement,
+  op: IntervalFillGapsOp,
+  bgRef: string,
+): void {
+  let bgSource = bgRef;
+  if (op.inputColumns !== undefined && op.backgroundColumns !== undefined) {
+    const inputSet = new Set(op.inputColumns);
+    const uniquePer = [...new Set(op.partitionColumns)];
+    const bgHasAllPer =
+      uniquePer.length > 0 &&
+      uniquePer.every((p) => op.backgroundColumns?.includes(p));
+    const kept = op.backgroundColumns.filter(
+      (c) =>
+        inputSet.has(c) &&
+        (uniquePer.length === 0 || bgHasAllPer || !uniquePer.includes(c)),
+    );
+    if (kept.length > 0 && kept.length < op.backgroundColumns.length) {
+      bgSource = `(FROM ${bgRef} |> SELECT ${kept.join(', ')})`;
+    }
+  }
+  const perSuffix =
+    op.partitionColumns.length > 0
+      ? ` PER ${op.partitionColumns.join(', ')}`
+      : '';
+  stmt.stages.push(`INTERVAL FILL GAPS WITH ${bgSource}${perSuffix}`);
+}
+
+function makeGraphTreePipe(
+  op: GraphTreeOp,
+  nodesRef: string,
+  edgesRef: string,
+  rootsRef: string,
+): PipeStatement {
+  const nodesSrc =
+    op.nodeIdColumn === 'id'
+      ? nodesRef
+      : `(FROM ${nodesRef} |> RENAME ${op.nodeIdColumn} AS id)`;
+  const edgesSrc =
+    op.sourceColumn === 'src' && op.destColumn === 'dst'
+      ? edgesRef
+      : `(FROM ${edgesRef} |> SELECT ${op.sourceColumn} AS src, ${op.destColumn} AS dst)`;
+  const rootsSrc =
+    op.rootIdColumn === 'id'
+      ? rootsRef
+      : `(FROM ${rootsRef} |> SELECT ${op.rootIdColumn} AS id)`;
+  return {
+    source: [
+      `GRAPH ${op.treeKind} TREE`,
+      `  NODES ${nodesSrc}`,
+      `  EDGES ${edgesSrc}`,
+      `  FROM ${rootsSrc}`,
+    ].join('\n'),
+    rawSourceClause: true,
+    stages: [],
   };
 }
 
@@ -487,6 +636,53 @@ export function lowerToPipe(plan: LogicalPlan): IrEntry[] {
         break;
       }
 
+      case 'interval_fill_gaps': {
+        const fgIsCurrentTail =
+          op.input === currentTailId && op.background !== currentTailId;
+        const fgSingleRef = (nodeById.get(op.input)?.refCount ?? 0) <= 1;
+        const bgRefIfFolded = resolveRef(op.background);
+
+        if (
+          fgIsCurrentTail &&
+          fgSingleRef &&
+          current !== undefined &&
+          bgRefIfFolded !== ''
+        ) {
+          appendFillGapsStage(current, op, bgRefIfFolded);
+          currentTailId = nodeId;
+          currentNodeIds.push(nodeId);
+          addDep(resolveDep(op.background));
+          for (const inc of collectIncludes([op.input, op.background])) {
+            currentIncludes.add(inc);
+          }
+          nodeIncludes.set(nodeId, currentIncludes);
+          break;
+        }
+
+        emitCurrent();
+        const fgRef = resolveRef(op.input);
+        const bgRef = resolveRef(op.background);
+        if (fgRef === '' || bgRef === '') return [];
+        const stmt: PipeStatement = {source: fgRef, stages: []};
+        appendFillGapsStage(stmt, op, bgRef);
+        startPipeline(nodeId, stmt, [op.input, op.background]);
+        break;
+      }
+
+      case 'graph_tree': {
+        emitCurrent();
+        const nodesRef = resolveRef(op.nodes);
+        const edgesRef = resolveRef(op.edges);
+        const rootsRef = resolveRef(op.roots);
+        if (nodesRef === '' || edgesRef === '' || rootsRef === '') return [];
+        startPipeline(
+          nodeId,
+          makeGraphTreePipe(op, nodesRef, edgesRef, rootsRef),
+          [op.nodes, op.edges, op.roots],
+        );
+        break;
+      }
+
       case 'raw_sql': {
         emitCurrent();
         const inputIds = op.inputs.map((inp) => inp.nodeId);
@@ -506,9 +702,14 @@ export function lowerToPipe(plan: LogicalPlan): IrEntry[] {
       case 'extend':
       case 'extract_arg':
       case 'drop':
+      case 'rename':
+      case 'set':
+      case 'distinct':
       case 'aggregate':
       case 'sort':
-      case 'limit': {
+      case 'limit':
+      case 'interval_flatten':
+      case 'tree_accumulate': {
         if (!emitStage(nodeId, op)) return [];
         break;
       }
