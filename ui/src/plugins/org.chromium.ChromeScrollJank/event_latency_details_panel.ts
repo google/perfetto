@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {BigintMath} from '../../base/bigint_math';
 import {Duration, type duration, Time, type time} from '../../base/time';
 import {hasArgs} from '../../components/details/args';
 import {renderDetails} from '../../components/details/slice_details';
@@ -115,10 +116,8 @@ function durationDelta(value: duration, base?: duration): string {
   const delta = value - base;
   // A delta between two durations can be negative, but humanise() only
   // formats durations, so format its magnitude and add the sign here.
-  if (delta < 0n) {
-    return `-${Duration.humanise(-delta)}`;
-  }
-  return `${delta > 0n ? '+' : ''}${Duration.humanise(delta)}`;
+  const sign = delta > 0n ? '+' : delta < 0n ? '-' : '';
+  return sign + Duration.humanise(BigintMath.abs(delta));
 }
 
 export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
