@@ -67,12 +67,14 @@ class NameSet {
 };
 
 // "slices/with_context.sql" → "slices.with_context".
+// "slices/with_context.pf.sql" → "slices.with_context".
 std::string ModuleNameFromRelPath(const std::string& rel) {
   std::string r = rel;
-  constexpr std::string_view kSuffix = ".sql";
-  if (r.size() >= kSuffix.size() &&
-      std::string_view(r).substr(r.size() - kSuffix.size()) == kSuffix) {
-    r.resize(r.size() - kSuffix.size());
+  for (std::string_view suffix : {".pf.sql", ".sql"}) {
+    if (base::EndsWith(r, suffix)) {
+      r.resize(r.size() - suffix.size());
+      break;
+    }
   }
   for (char& c : r) {
     if (c == '/')

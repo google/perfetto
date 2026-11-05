@@ -37,8 +37,8 @@ def get_module_name(rel_path: str) -> str:
   Returns:
     Module name (e.g., "slices.stack")
   """
-  # Remove .sql extension
-  path_without_ext = rel_path.removesuffix('.sql')
+  # Remove .pf.sql or .sql extension
+  path_without_ext = rel_path.removesuffix('.pf.sql').removesuffix('.sql')
   # Convert path separators to dots for module name
   module_name = path_without_ext.replace(os.sep, '.')
   return module_name
