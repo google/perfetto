@@ -7244,6 +7244,8 @@ perfetto_filegroup(
         "src/tracing/service/packet_stream_validator.h",
         "src/tracing/service/random.cc",
         "src/tracing/service/random.h",
+        "src/tracing/service/sequence_state_map.cc",
+        "src/tracing/service/sequence_state_map.h",
         "src/tracing/service/service_ring_buffer_drainer.cc",
         "src/tracing/service/service_ring_buffer_drainer.h",
         "src/tracing/service/trace_buffer.h",
