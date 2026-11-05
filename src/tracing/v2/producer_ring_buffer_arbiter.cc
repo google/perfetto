@@ -100,6 +100,10 @@ uint32_t ComputeDrainOccupancyThreshold(uint32_t num_chunks,
 // static
 bool ProducerRingBufferArbiter::ShouldUseTracingV2(
     const DataSourceConfig& config) {
+#if !PERFETTO_IS_LITTLE_ENDIAN()
+  base::ignore_result(config);
+  return false;
+#else
   if (!config.supports_tracing_v2())
     return false;
   const uint32_t probability =
@@ -116,6 +120,7 @@ bool ProducerRingBufferArbiter::ShouldUseTracingV2(
       reinterpret_cast<uintptr_t>(
           &ProducerRingBufferArbiter::ShouldUseTracingV2));
   return session_sample % 100 < probability;
+#endif
 }
 
 // static
