@@ -528,7 +528,7 @@ The tree operators are RFC-0020's tree functions re-expressed as pipe stages.
 `tree_merge_siblings_ordered`; `TREE MERGE INTO PARENT` is
 `tree_merge_into_parent`; `TREE INVERT` is `tree_invert`; `tree_filter` is
 `TREE REPARENT` followed by `WHERE` (§6.1). `FIND`, `CONTRACT`, `ABSORB`,
-`PRUNE`, `REPARENT`, `FLATTEN RECURSION`, `KEY PATHS`, and `EXPAND` are new.
+`PRUNE`, `REPARENT`, `KEY PATHS`, and `EXPAND` are new.
 
 ### 6.1 Transforms and finds
 
@@ -628,30 +628,13 @@ FROM slice
 ### 6.4 Reparent
 
 ```
-stage := "|>" "TREE REPARENT TO NEAREST ANCESTOR IN" rel
-       | "|>" "TREE FLATTEN RECURSION BY" cols ;
+stage := "|>" "TREE REPARENT TO NEAREST ANCESTOR IN" rel ;
 ```
 
 Row-preserving: every node survives with its payload and only `parent_id`
-changes.
-
-`REPARENT TO NEAREST ANCESTOR IN rel`: each node's parent becomes its nearest
-strict ancestor that is in `rel`, the marker set, yielding a forest with one
-subtree per marker. Passing the boundary markers of a key column recovers a
-partition-by-group.
-
-`FLATTEN RECURSION BY cols`: a node that agrees with its parent on `cols`
-becomes its parent's sibling, keeping its own subtree. The rule applies
-repeatedly, so a chain `A → A → A` becomes three siblings, and a same-key child
-of a root becomes a root. The recursive nodes end up as siblings with the same
-key, so a following `KEY PATHS` or `MERGE SIBLINGS` on the same `cols` (§6.5)
-puts them in one group.
-
-```
-FROM callstacks
-|> TREE FLATTEN RECURSION BY name
-|> TREE MERGE SIBLINGS BY name AGGREGATE SUM(self_weight) AS self_weight
-```
+changes. Each node's parent becomes its nearest strict ancestor that is in
+`rel`, the marker set, yielding a forest with one subtree per marker. Passing the
+boundary markers of a key column recovers a partition-by-group.
 
 ### 6.5 Key paths and merge siblings
 
@@ -683,18 +666,44 @@ FROM callstacks
 ```
 
 ```
--- Each heap object tagged with its node in the class tree.
-CREATE PERFETTO TABLE heap_object_nodes AS
+-- Each heap object tagged with its path of classes.
+CREATE PERFETTO TABLE heap_object_paths AS
 GRAPH BFS TREE NODES heap_objects EDGES heap_refs FROM gc_roots
-|> TREE FLATTEN RECURSION BY class_name
+|> TREE KEY PATHS BY class_name, heap_type AS (path_id, parent_path_id);
+
+-- One row per path.
+CREATE PERFETTO TABLE heap_paths AS
+FROM heap_object_paths
+|> AGGREGATE SUM(self_size) AS self_size, COUNT(*) AS self_count
+   GROUP BY path_id AS id, parent_path_id AS parent_id, class_name, heap_type;
+
+-- The paths which start a recursive run: their class differs from their
+-- parent's.
+CREATE PERFETTO TABLE heap_run_starts AS
+FROM heap_paths AS c
+|> LEFT JOIN heap_paths AS p ON p.id = c.parent_id
+|> WHERE p.id IS NULL OR p.class_name != c.class_name
+|> SELECT c.id;
+
+-- Every path now hangs off the start of a run.
+CREATE PERFETTO TABLE heap_runs AS
+FROM heap_paths
+|> TREE REPARENT TO NEAREST ANCESTOR IN heap_run_starts;
+
+-- The starts of runs form a complete tree. Keying it names the class tree's
+-- nodes.
+CREATE PERFETTO TABLE heap_class_nodes AS
+FROM heap_runs
+|> JOIN heap_run_starts USING (id)
 |> TREE KEY PATHS BY class_name, heap_type AS (node_id, parent_node_id);
 
--- The class tree. The objects behind one of its nodes are the rows of
--- heap_object_nodes with that node_id.
+-- The class tree. A path which doesn't start a run belongs to its run's node.
 CREATE PERFETTO TABLE heap_class_tree AS
-FROM heap_object_nodes
-|> AGGREGATE SUM(self_size) AS self_size, COUNT(*) AS self_count
-   GROUP BY node_id, parent_node_id, class_name, heap_type;
+FROM heap_runs AS r
+|> LEFT JOIN heap_class_nodes AS own ON own.id = r.id
+|> JOIN heap_class_nodes AS n ON n.id = coalesce(own.id, r.parent_id)
+|> AGGREGATE SUM(r.self_size) AS self_size, SUM(r.self_count) AS self_count
+   GROUP BY n.node_id, n.parent_node_id, n.class_name, n.heap_type;
 ```
 
 ### 6.6 Merge into parent
@@ -705,6 +714,15 @@ stage := "|>" "TREE MERGE INTO PARENT BY" cols [ "INDIRECT" ] agg_clause ;
 
 Collapses a node into a same-key parent, combining payloads via `agg_clause`.
 `INDIRECT` also folds intermediary frames between two occurrences.
+
+Collapsing can leave same-key siblings, so a following `MERGE SIBLINGS` (§6.5)
+unifies them: `A → A → B` next to `A → B` leaves two `B`s under one `A`.
+
+```
+FROM callstacks
+|> TREE MERGE INTO PARENT BY name AGGREGATE SUM(self_weight) AS self_weight
+|> TREE MERGE SIBLINGS BY name AGGREGATE SUM(self_weight) AS self_weight
+```
 
 ### 6.7 Invert
 
@@ -816,7 +834,6 @@ GRAPH DOMINATOR TREE NODES heap_objects EDGES heap_refs FROM gc_roots
 | `TREE CONTRACT` / `ABSORB`              | tree reshape     | fold a node up / fold its subtree in              |
 | `TREE PRUNE`                            | tree reshape     | drop node and its subtree                         |
 | `TREE REPARENT`                         | tree reparent    | reparent to nearest marker ancestor               |
-| `TREE FLATTEN RECURSION`                | tree reparent    | same-key child becomes its parent's sibling       |
 | `TREE KEY PATHS`                        | tree key         | tag each node with its path key                   |
 | `TREE MERGE SIBLINGS`                   | tree fold        | unify by path key (build a flamegraph)            |
 | `TREE MERGE INTO PARENT`                | tree merge       | collapse recursion                                |
@@ -832,6 +849,9 @@ GRAPH DOMINATOR TREE NODES heap_objects EDGES heap_refs FROM gc_roots
 - **Weighted / longest path** (e.g. scheduling critical path), currently a
   specialized stdlib primitive, not a `GRAPH … TREE` operator.
 - **Property propagation** across grafted or joined trees.
+- **From a fold's output back to its input**, such as the rows behind one node
+  of a flamegraph built with `MERGE SIBLINGS`. A tree built with `KEY PATHS`, like
+  the class tree in §6.5, keeps this through its keys.
 - **Interval `OVERLAY`**, priority/z-order compositing (a higher lane replaces a
   lower one on overlap, both survive outside); `MERGE` cannot hole-punch. The
   two-layer case, a stream over a background, is `FILL GAPS` (§5.2).
