@@ -1375,14 +1375,15 @@ class JsonExporter {
       }
       if (stats::kTypes[key] == stats::kSingle) {
         single_values[key] = it.value();
-      } else if (stats::kTypes[key] == stats::kIndexed) {
+      } else {
+        PERFETTO_DCHECK(stats::kTypes[key] == stats::kIndexed);
         indexed_values[key][static_cast<int>(*it.idx())] = it.value();
       }
     }
     for (size_t key = 0; key < stats::kNumKeys; key++) {
       if (stats::kTypes[key] == stats::kSingle) {
         writer_.SetStats(stats::kNames[key], single_values[key]);
-      } else if (stats::kTypes[key] == stats::kIndexed) {
+      } else {
         writer_.SetStats(stats::kNames[key], indexed_values[key]);
       }
     }

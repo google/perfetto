@@ -1089,13 +1089,6 @@ class TraceStorage {
     return mutable_table<tables::WinscopeTransformTable>();
   }
 
-  const tables::HistogramBucketTable& histogram_bucket_table() const {
-    return table<tables::HistogramBucketTable>();
-  }
-  tables::HistogramBucketTable* mutable_histogram_bucket_table() {
-    return mutable_table<tables::HistogramBucketTable>();
-  }
-
   const tables::ExperimentalProtoPathTable& experimental_proto_path_table()
       const {
     return table<tables::ExperimentalProtoPathTable>();

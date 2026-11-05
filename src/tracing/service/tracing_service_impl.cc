@@ -1993,8 +1993,6 @@ void TracingServiceImpl::ActivateTriggers(
                                          tracing_session.trace_uuid.msb());
       trigger_mode = GetTriggerMode(tracing_session.config);
 
-      const bool triggers_already_received =
-          !tracing_session.received_triggers.empty();
       const TriggerInfo trigger = {static_cast<uint64_t>(now_ns),
                                    iter->name(),
                                    producer->name_,
@@ -2030,7 +2028,7 @@ void TracingServiceImpl::ActivateTriggers(
           // when we've already hit the first trigger we've already Posted the
           // task to FlushAndDisable. So all future triggers will just break
           // out.
-          if (triggers_already_received)
+          if (tracing_session.authoritative_trigger.has_value())
             break;
 
           trigger_activated = true;
