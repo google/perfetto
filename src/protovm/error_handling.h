@@ -19,6 +19,7 @@
 
 #include <cstdarg>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <new>
 #include <string>
@@ -103,6 +104,31 @@ void LogStacktraceMessage(Stacktrace& stacktrace,
   PROTOVM_RETURN_IF_NOT_OK(                                      \
       PROTOVM_INTERNAL_MACRO_CONCAT(status_or, __LINE__));       \
   lhs = std::move(PROTOVM_INTERNAL_MACRO_CONCAT(status_or, __LINE__).value())
+
+#define PROTOVM_CHECKED_CAST_RANGE(lhs, expr, min_val, max_val, fmt, ...)      \
+  do {                                                                         \
+    using DstType = std::remove_reference_t<decltype(lhs)>;                    \
+    auto PROTOVM_INTERNAL_MACRO_CONCAT(val_, __LINE__) = (expr);               \
+    if (static_cast<uint64_t>(PROTOVM_INTERNAL_MACRO_CONCAT(val_, __LINE__)) < \
+            static_cast<uint64_t>(min_val) ||                                  \
+        static_cast<uint64_t>(PROTOVM_INTERNAL_MACRO_CONCAT(val_, __LINE__)) > \
+            static_cast<uint64_t>(max_val)) {                                  \
+      PROTOVM_ABORT(fmt, ##__VA_ARGS__);                                       \
+    }                                                                          \
+    lhs = static_cast<DstType>(PROTOVM_INTERNAL_MACRO_CONCAT(val_, __LINE__)); \
+  } while (0)
+
+#define PROTOVM_CHECKED_CAST(lhs, expr, fmt, ...)                              \
+  do {                                                                         \
+    using DstType = std::remove_reference_t<decltype(lhs)>;                    \
+    static_assert(std::is_integral_v<DstType> && std::is_unsigned_v<DstType>); \
+    auto PROTOVM_INTERNAL_MACRO_CONCAT(val_, __LINE__) = (expr);               \
+    if (static_cast<uint64_t>(PROTOVM_INTERNAL_MACRO_CONCAT(val_, __LINE__)) > \
+        static_cast<uint64_t>(std::numeric_limits<DstType>::max())) {          \
+      PROTOVM_ABORT(fmt, ##__VA_ARGS__);                                       \
+    }                                                                          \
+    lhs = static_cast<DstType>(PROTOVM_INTERNAL_MACRO_CONCAT(val_, __LINE__)); \
+  } while (0)
 
 enum class Status : uint8_t {
   kOk,
