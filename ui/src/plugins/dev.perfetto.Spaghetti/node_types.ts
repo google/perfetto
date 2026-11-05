@@ -89,8 +89,7 @@ export interface ColumnContext {
 // Node manifest: single source of truth for each node type.
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface NodeManifest<C extends object = any> {
+export interface NodeManifest<C extends object = object> {
   // Visual / graph metadatas
   readonly title: string;
   readonly icon: string;
@@ -99,7 +98,7 @@ export interface NodeManifest<C extends object = any> {
   readonly hue: number;
 
   /** Zod schema used to validate and parse serialized node configs. */
-  readonly schema: z.ZodType<C>;
+  readonly schema: z.ZodType<C, unknown>;
 
   getInputs?(config: C): Port[];
 

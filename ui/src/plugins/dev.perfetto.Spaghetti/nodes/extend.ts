@@ -177,7 +177,7 @@ function getOutputColumns(
 }
 
 function isValid(config: ExtendConfig): boolean {
-  return config.entries.every((e) => !e.alias || e.expression);
+  return config.entries.every((e) => e.alias === '' || e.expression !== '');
 }
 
 function toLogicalOp(

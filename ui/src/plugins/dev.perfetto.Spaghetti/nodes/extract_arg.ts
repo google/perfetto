@@ -189,7 +189,7 @@ function getOutputColumns(
 }
 
 function isValid(config: ExtractArgConfig): boolean {
-  return config.extractions.every((e) => !e.argName || e.argName);
+  return config.extractions.every((e) => e.alias === '' || e.argName !== '');
 }
 
 function toLogicalOp(
