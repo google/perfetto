@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
+import {moveArrayItem} from '../../../base/array_utils';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {RadioGroup} from '../../../widgets/radio_group';
 import {Select} from '../../../widgets/select';
@@ -164,12 +165,10 @@ function FilterNodeContent(): m.Component<{
                   const fromIdx = parseInt(
                     e.dataTransfer!.getData('text/plain'),
                   );
-                  let toIdx = isBottom ? i + 1 : i;
+                  const toIdx = isBottom ? i + 1 : i;
                   if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
                     const newConds = [...conditions];
-                    const [moved] = newConds.splice(fromIdx, 1);
-                    if (fromIdx < toIdx) toIdx--;
-                    newConds.splice(toIdx, 0, moved);
+                    moveArrayItem(newConds, fromIdx, toIdx);
                     updateConfig({conditions: newConds});
                   }
                 },

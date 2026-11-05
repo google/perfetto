@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {z} from 'zod';
+import {ensureDefined} from '../../base/assert';
 import type {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import {manifest as filterNode} from './nodes/filter';
@@ -57,10 +58,14 @@ const NODE_REGISTRY: Record<string, NodeManifest> = {
   sql: sqlNode,
 };
 
-export function getManifest(type: string): NodeManifest {
+function tryGetManifest(type: string): NodeManifest | undefined {
   return Object.prototype.hasOwnProperty.call(NODE_REGISTRY, type)
     ? NODE_REGISTRY[type]
-    : undefined!;
+    : undefined;
+}
+
+export function getManifest(type: string): NodeManifest {
+  return ensureDefined(tryGetManifest(type), `Unknown node type: ${type}`);
 }
 
 function parseNodeConfig(
@@ -68,7 +73,7 @@ function parseNodeConfig(
   config: unknown,
   ctx: z.RefinementCtx,
 ): object | typeof z.NEVER {
-  const manifest = getManifest(type);
+  const manifest = tryGetManifest(type);
   if (!manifest) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -200,8 +205,8 @@ export function fnvHash(s: string): string {
 // Check if a single node's configuration is valid for SQL generation.
 // Validates both graph connectivity (all required ports satisfied) and config.
 export function isNodeValid(node: NodeData): boolean {
-  const manifest = NODE_REGISTRY[node.type];
-  return manifest.isValid(node.config);
+  const manifest = tryGetManifest(node.type);
+  return manifest !== undefined && manifest.isValid(node.config);
 }
 
 // Flat index over the graph. Built once from the root node array.
@@ -280,9 +285,9 @@ export function getOutputColumnsForNode(
   const dockedParent = findDockedParent(index, nodeId);
   const connected = findConnectedInputs(index, nodeId);
   const ports = getManifestInputs(manifest, node);
-  for (let i = 0; i < ports.length; i++) {
+  for (const [i, port] of ports.entries()) {
     const input = i === 0 && dockedParent ? dockedParent : connected.get(i);
-    if (input) portInputs.set(ports[i].name, input);
+    if (input) portInputs.set(port.name, input);
   }
 
   const ctx: ColumnContext = {
@@ -334,7 +339,8 @@ export function collectUpstream(
 
   // Visit all inputs: port 0 can be satisfied by a docked parent,
   // remaining ports use the node's inputs array.
-  const manifest = NODE_REGISTRY[node.type];
+  const manifest = tryGetManifest(node.type);
+  if (!manifest) return;
   const ports = getManifestInputs(manifest, node);
   const connected = findConnectedInputs(index, nodeId);
   const dockedParent = findDockedParent(index, nodeId);

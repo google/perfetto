@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
+import {moveArrayItem} from '../../../base/array_utils';
 import type {NodeManifest, RenderContext, SqlStatement} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Row} from '../components/row';
@@ -69,10 +70,11 @@ function SortNodeContent(): m.Component<{
       const conditions = getSortConditions(config);
 
       const updateConditions = (newConditions: SortCondition[]) => {
+        const first = newConditions[0];
         updateConfig({
           conditions: newConditions,
-          sortColumn: newConditions.length > 0 ? newConditions[0].column : '',
-          sortOrder: newConditions.length > 0 ? newConditions[0].order : 'ASC',
+          sortColumn: first ? first.column : '',
+          sortOrder: first ? first.order : 'ASC',
         });
       };
 
@@ -121,12 +123,10 @@ function SortNodeContent(): m.Component<{
                   const fromIdx = parseInt(
                     e.dataTransfer!.getData('text/plain'),
                   );
-                  let toIdx = isBottom ? i + 1 : i;
+                  const toIdx = isBottom ? i + 1 : i;
                   if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
                     const updated = [...conditions];
-                    const [moved] = updated.splice(fromIdx, 1);
-                    if (fromIdx < toIdx) toIdx--;
-                    updated.splice(toIdx, 0, moved);
+                    moveArrayItem(updated, fromIdx, toIdx);
                     updateConditions(updated);
                   }
                 },

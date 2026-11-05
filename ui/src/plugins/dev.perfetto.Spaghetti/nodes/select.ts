@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
+import {moveArrayItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
   NodeManifest,
@@ -126,12 +127,10 @@ function SelectNodeContent(): m.Component<{
                   const data = e.dataTransfer!.getData('text/plain');
                   if (!data.startsWith('entry:')) return;
                   const fromIdx = parseInt(data.slice(6));
-                  let toIdx = isBottom ? i + 1 : i;
+                  const toIdx = isBottom ? i + 1 : i;
                   if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
                     const updated = [...entries];
-                    const [moved] = updated.splice(fromIdx, 1);
-                    if (fromIdx < toIdx) toIdx--;
-                    updated.splice(toIdx, 0, moved);
+                    moveArrayItem(updated, fromIdx, toIdx);
                     updateConfig({entries: updated});
                   }
                 },
@@ -224,12 +223,10 @@ function SelectNodeContent(): m.Component<{
                   const data = e.dataTransfer!.getData('text/plain');
                   if (!data.startsWith('expr:')) return;
                   const fromIdx = parseInt(data.slice(5));
-                  let toIdx = isBottom ? i + 1 : i;
+                  const toIdx = isBottom ? i + 1 : i;
                   if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
                     const updated = [...expressions];
-                    const [moved] = updated.splice(fromIdx, 1);
-                    if (fromIdx < toIdx) toIdx--;
-                    updated.splice(toIdx, 0, moved);
+                    moveArrayItem(updated, fromIdx, toIdx);
                     updateConfig({expressions: updated});
                   }
                 },

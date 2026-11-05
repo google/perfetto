@@ -200,18 +200,20 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
   };
 
   const undo = () => {
-    if (historyIndex > 0) {
+    const prev = history[historyIndex - 1];
+    if (prev !== undefined) {
       historyIndex--;
-      store = history[historyIndex];
+      store = prev;
       rebuildIndex();
       saveGraph();
     }
   };
 
   const redo = () => {
-    if (historyIndex < history.length - 1) {
+    const next = history[historyIndex + 1];
+    if (next !== undefined) {
       historyIndex++;
-      store = history[historyIndex];
+      store = next;
       rebuildIndex();
       saveGraph();
     }
@@ -431,10 +433,10 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
     const parent = findDockedParent(flatNodes, nodeData.id);
     const connected = findConnectedInputs(flatNodes, nodeData.id);
     const ports = getManifestInputs(manifest, nodeData);
-    for (let i = 0; i < ports.length; i++) {
+    for (const [i, port] of ports.entries()) {
       const input = i === 0 && parent ? parent : connected.get(i);
       if (input) {
-        portInputs.set(ports[i].name, input);
+        portInputs.set(port.name, input);
       }
     }
 

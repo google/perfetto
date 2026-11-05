@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from '../../base/assert';
 import type {NodeData, RootNodeData} from './graph_model';
 import {buildIR, buildDisplaySql, type IrEntry} from './ir';
 import {flattenNodes} from './graph_utils';
@@ -36,11 +37,11 @@ describe('buildIR', () => {
       config: {table: 'slice'},
     };
     const nodes = makeNodes([from]);
-    const entries = buildIR(nodes, 'f1', undefined);
-    expect(entries).toBeDefined();
-    expect(entries!.length).toBe(1);
-    expect(entries![0].sql).toBe('SELECT *\nFROM slice');
-    expect(entries![0].deps.length).toBe(0);
+    const entries = ensureDefined(buildIR(nodes, 'f1', undefined));
+    expect(entries.length).toBe(1);
+    const e0 = ensureDefined(entries[0]);
+    expect(e0.sql).toBe('SELECT *\nFROM slice');
+    expect(e0.deps.length).toBe(0);
   });
 
   it('creates one IR entry for from -> filter chain', () => {
@@ -61,13 +62,13 @@ describe('buildIR', () => {
       config: {table: 'slice'},
     };
     const nodes = makeNodes([from]);
-    const entries = buildIR(nodes, 'flt1', undefined);
-    expect(entries).toBeDefined();
-    expect(entries!.length).toBe(1);
-    expect(entries![0].sql).toContain('WHERE dur > 1000');
-    expect(entries![0].sql).toContain('FROM slice');
-    expect(entries![0].deps.length).toBe(0); // from node = no dep
-    expect(entries![0].hash).toMatch(/^_qb_[0-9a-f]{8}$/);
+    const entries = ensureDefined(buildIR(nodes, 'flt1', undefined));
+    expect(entries.length).toBe(1);
+    const e0 = ensureDefined(entries[0]);
+    expect(e0.sql).toContain('WHERE dur > 1000');
+    expect(e0.sql).toContain('FROM slice');
+    expect(e0.deps.length).toBe(0); // from node = no dep
+    expect(e0.hash).toMatch(/^_qb_[0-9a-f]{8}$/);
   });
 
   it('folds select into the same statement as filter when possible', () => {
@@ -94,12 +95,12 @@ describe('buildIR', () => {
       config: {table: 'slice'},
     };
     const nodes = makeNodes([from]);
-    const entries = buildIR(nodes, 'flt1', undefined);
-    expect(entries).toBeDefined();
+    const entries = ensureDefined(buildIR(nodes, 'flt1', undefined));
     // select + filter should fold into one entry
-    expect(entries!.length).toBe(1);
-    expect(entries![0].sql).toContain('SELECT name, dur');
-    expect(entries![0].sql).toContain('WHERE dur > 100');
+    expect(entries.length).toBe(1);
+    const e0 = ensureDefined(entries[0]);
+    expect(e0.sql).toContain('SELECT name, dur');
+    expect(e0.sql).toContain('WHERE dur > 100');
   });
 
   it('creates separate entries when folding is not possible', () => {
@@ -129,14 +130,15 @@ describe('buildIR', () => {
       config: {table: 'slice'},
     };
     const nodes = makeNodes([from]);
-    const entries = buildIR(nodes, 'flt1', undefined);
-    expect(entries).toBeDefined();
-    expect(entries!.length).toBe(2);
+    const entries = ensureDefined(buildIR(nodes, 'flt1', undefined));
+    expect(entries.length).toBe(2);
+    const e0 = ensureDefined(entries[0]);
+    const e1 = ensureDefined(entries[1]);
     // First entry is the groupby
-    expect(entries![0].sql).toContain('GROUP BY name');
+    expect(e0.sql).toContain('GROUP BY name');
     // Second entry is filter, depends on groupby hash
-    expect(entries![1].deps).toContain(entries![0].hash);
-    expect(entries![1].sql).toContain('WHERE cnt > 5');
+    expect(e1.deps).toContain(e0.hash);
+    expect(e1.sql).toContain('WHERE cnt > 5');
   });
 
   it('computes stable hashes based on content and deps', () => {
@@ -158,9 +160,9 @@ describe('buildIR', () => {
     };
     const nodes = makeNodes([from]);
 
-    const e1 = buildIR(nodes, 'flt1', undefined)!;
-    const e2 = buildIR(nodes, 'flt1', undefined)!;
-    expect(e1[0].hash).toBe(e2[0].hash);
+    const e1 = ensureDefined(buildIR(nodes, 'flt1', undefined));
+    const e2 = ensureDefined(buildIR(nodes, 'flt1', undefined));
+    expect(ensureDefined(e1[0]).hash).toBe(ensureDefined(e2[0]).hash);
   });
 
   it('hash changes when filter value changes', () => {
@@ -202,9 +204,9 @@ describe('buildIR', () => {
       },
     ]);
 
-    const e1 = buildIR(nodes1, 'flt1', undefined)!;
-    const e2 = buildIR(nodes2, 'flt1', undefined)!;
-    expect(e1[0].hash).not.toBe(e2[0].hash);
+    const e1 = ensureDefined(buildIR(nodes1, 'flt1', undefined));
+    const e2 = ensureDefined(buildIR(nodes2, 'flt1', undefined));
+    expect(ensureDefined(e1[0]).hash).not.toBe(ensureDefined(e2[0]).hash);
   });
 
   it('hash changes when upstream from table changes', () => {
@@ -224,11 +226,11 @@ describe('buildIR', () => {
 
     const g1 = makeGraph('slice');
     const g2 = makeGraph('sched');
-    const e1 = buildIR(g1, 'flt1', undefined)!;
-    const e2 = buildIR(g2, 'flt1', undefined)!;
+    const e1 = ensureDefined(buildIR(g1, 'flt1', undefined));
+    const e2 = ensureDefined(buildIR(g2, 'flt1', undefined));
 
     // The SQL differs (FROM slice vs FROM sched), so hashes differ.
-    expect(e1[0].hash).not.toBe(e2[0].hash);
+    expect(ensureDefined(e1[0]).hash).not.toBe(ensureDefined(e2[0]).hash);
   });
 
   it('returns undefined when a node is invalid', () => {

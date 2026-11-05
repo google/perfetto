@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
+import {moveArrayItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
   NodeManifest,
@@ -110,12 +111,10 @@ function ExtractArgContent(): m.Component<{
                   const fromIdx = parseInt(
                     e.dataTransfer!.getData('text/plain'),
                   );
-                  let toIdx = isBottom ? i + 1 : i;
+                  const toIdx = isBottom ? i + 1 : i;
                   if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
                     const newExtractions = [...config.extractions];
-                    const [moved] = newExtractions.splice(fromIdx, 1);
-                    if (fromIdx < toIdx) toIdx--;
-                    newExtractions.splice(toIdx, 0, moved);
+                    moveArrayItem(newExtractions, fromIdx, toIdx);
                     updateConfig({extractions: newExtractions});
                   }
                 },

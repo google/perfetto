@@ -248,10 +248,10 @@ export function buildIR(
       const portInputs = new Map<string, NodeData>();
       const connected = findConnectedInputs(index, n.id);
       const ports = getManifestInputs(manifest, n);
-      for (let i = 0; i < ports.length; i++) {
+      for (const [i, port] of ports.entries()) {
         const input = i === 0 && primaryInput ? primaryInput : connected.get(i);
         if (input) {
-          portInputs.set(ports[i].name, input);
+          portInputs.set(port.name, input);
         }
       }
 
@@ -350,6 +350,7 @@ export function buildDisplaySql(
   }
 
   const lastEntry = entries[entries.length - 1];
+  if (!lastEntry) return undefined;
   const cteEntries = entries.slice(0, -1);
 
   const parts: string[] = [];
@@ -361,8 +362,8 @@ export function buildDisplaySql(
 
   // Build a mapping from content-addressable hashes to readable names.
   const nameMap = new Map<string, string>();
-  for (let i = 0; i < cteEntries.length; i++) {
-    nameMap.set(cteEntries[i].hash, `step_${i + 1}`);
+  for (const [i, cteEntry] of cteEntries.entries()) {
+    nameMap.set(cteEntry.hash, `step_${i + 1}`);
   }
 
   function renameSql(sql: string): string {
