@@ -21,10 +21,11 @@ import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import type {NodeQueryBuilderStore} from './graph_model';
 import {flattenNodes, type GraphIndex} from './graph_utils';
 import {
-  buildDisplaySql,
+  buildDisplayQuery,
   buildIR,
   collectLiveHashes,
   type IrEntry,
+  type SqlDialect,
 } from './ir';
 
 // Default cap on stale/orphaned tables retained for undo & mid-edit recovery.
@@ -98,9 +99,10 @@ export class MaterializationService {
   // Cache: hash -> metadata (hash IS the table name).
   private cache = new Map<string, StoredCacheEntry>();
 
-  // Memoized graph flatten + live hash set keyed by store & sqlModules refs.
+  // Memoized graph flatten + live hash set keyed by store, sqlModules & dialect.
   private lastStore: NodeQueryBuilderStore | undefined;
   private lastSqlModules: SqlModules | undefined;
+  private lastDialect: SqlDialect | undefined;
   private lastIndex: GraphIndex = {nodes: {}, childToParent: new Map()};
   private liveHashes: ReadonlySet<string> = new Set();
 
@@ -111,14 +113,16 @@ export class MaterializationService {
         readonly store: NodeQueryBuilderStore;
         readonly activeNodeId: string | undefined;
         readonly sqlModules: SqlModules | undefined;
+        readonly dialect: SqlDialect;
       }
     | undefined;
   private pendingUpdate = false;
   private pendingClearAll = false;
   private pendingPruneOrphans = false;
 
-  // The display SQL for the user to see.
+  // The display query for the active materialization dialect.
   private _displaySql: string | undefined;
+  private _activeDialect: SqlDialect = 'sql';
 
   // Error from the last materialization attempt.
   private _error: string | undefined;
@@ -158,6 +162,10 @@ export class MaterializationService {
     return this._displaySql;
   }
 
+  get activeDialect(): SqlDialect {
+    return this._activeDialect;
+  }
+
   get error(): string | undefined {
     return this._error;
   }
@@ -186,10 +194,11 @@ export class MaterializationService {
     store: NodeQueryBuilderStore,
     activeNodeId: string | undefined,
     sqlModules: SqlModules | undefined,
+    dialect: SqlDialect = 'sql',
   ): Promise<void> {
     if (this.disposed) return Promise.resolve();
-    this.updateGraphState(store, sqlModules);
-    this.latestUpdate = {store, activeNodeId, sqlModules};
+    this.updateGraphState(store, sqlModules, dialect);
+    this.latestUpdate = {store, activeNodeId, sqlModules, dialect};
     this.pendingUpdate = true;
     return this.scheduleWork();
   }
@@ -227,6 +236,7 @@ export class MaterializationService {
           this.updateGraphState(
             this.latestUpdate.store,
             this.latestUpdate.sqlModules,
+            this.latestUpdate.dialect,
           );
         }
         const evicted = await this.evictOrphans(0);
@@ -237,20 +247,26 @@ export class MaterializationService {
 
       if (this.disposed || !this.pendingUpdate || !this.latestUpdate) return;
       this.pendingUpdate = false;
-      const {store, activeNodeId, sqlModules} = this.latestUpdate;
-      await this.doUpdate(store, activeNodeId, sqlModules);
+      const {store, activeNodeId, sqlModules, dialect} = this.latestUpdate;
+      await this.doUpdate(store, activeNodeId, sqlModules, dialect);
     });
   }
 
   private updateGraphState(
     store: NodeQueryBuilderStore,
     sqlModules: SqlModules | undefined,
+    dialect: SqlDialect,
   ): GraphIndex {
-    if (store !== this.lastStore || sqlModules !== this.lastSqlModules) {
+    const graphChanged =
+      store !== this.lastStore || sqlModules !== this.lastSqlModules;
+    if (graphChanged) {
       this.lastStore = store;
       this.lastSqlModules = sqlModules;
       this.lastIndex = flattenNodes(store.nodes);
-      this.liveHashes = collectLiveHashes(this.lastIndex, sqlModules);
+    }
+    if (graphChanged || dialect !== this.lastDialect) {
+      this.lastDialect = dialect;
+      this.liveHashes = collectLiveHashes(this.lastIndex, sqlModules, dialect);
     }
     return this.lastIndex;
   }
@@ -267,44 +283,49 @@ export class MaterializationService {
     store: NodeQueryBuilderStore,
     activeNodeId: string | undefined,
     sqlModules: SqlModules | undefined,
+    dialect: SqlDialect,
   ): Promise<void> {
-    const index = this.updateGraphState(store, sqlModules);
+    const index = this.updateGraphState(store, sqlModules, dialect);
 
     if (!activeNodeId) {
       this.clearActiveOutput();
+      this._activeDialect = dialect;
       const evicted = await this.evictOrphans(this.maxOrphans);
       if (evicted > 0) m.redraw();
       return;
     }
 
-    const entries = buildIR(index, activeNodeId, sqlModules);
+    const entries = buildIR(index, activeNodeId, sqlModules, dialect);
     if (!entries || entries.length === 0) {
       this.clearActiveOutput();
+      this._activeDialect = dialect;
       const evicted = await this.evictOrphans(this.maxOrphans);
       if (evicted > 0) m.redraw();
       return;
     }
 
-    const displaySql = buildDisplaySql(entries);
+    const displaySql = buildDisplayQuery(entries, dialect);
     if (!displaySql) {
       this.clearActiveOutput();
+      this._activeDialect = dialect;
       const evicted = await this.evictOrphans(this.maxOrphans);
       if (evicted > 0) m.redraw();
       return;
     }
 
-    // Active node's SQL didn't change, though other branches may have been
-    // edited or deleted — still enforce the orphan cap.
-    if (displaySql === this._displaySql) {
+    // Active node's query and dialect didn't change, though other branches may
+    // have been edited or deleted — still enforce the orphan cap.
+    if (displaySql === this._displaySql && dialect === this._activeDialect) {
       const evicted = await this.evictOrphans(this.maxOrphans);
       if (evicted > 0) m.redraw();
       return;
     }
 
     this._displaySql = displaySql;
+    this._activeDialect = dialect;
 
     try {
-      await this.materializeEntries(entries);
+      await this.materializeEntries(entries, dialect);
       this._error = undefined;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -323,7 +344,10 @@ export class MaterializationService {
     if (evicted > 0) m.redraw();
   }
 
-  private async materializeEntries(entries: IrEntry[]): Promise<void> {
+  private async materializeEntries(
+    entries: IrEntry[],
+    dialect: SqlDialect,
+  ): Promise<void> {
     // Ensure required modules are loaded.
     const allIncludes = new Set<string>();
     for (const e of entries) {
@@ -360,7 +384,12 @@ export class MaterializationService {
       // Artificial delay for testing the loading indicator.
       // await new Promise((r) => setTimeout(r, 500));
 
-      const createSql = `CREATE TABLE ${entry.hash} AS ${entry.sql}`;
+      // PerfettoSQL Next pipelines must be materialized via `CREATE PERFETTO TABLE`
+      // (`CREATE TABLE t AS FROM ...` is rejected by the PerfettoSQL parser).
+      const createSql =
+        dialect === 'pipe'
+          ? `CREATE PERFETTO TABLE ${entry.hash} AS\n${entry.sql}`
+          : `CREATE TABLE ${entry.hash} AS ${entry.sql}`;
 
       console.log(
         `[QueryBuilder] Materializing ${entry.hash}:\n  ${createSql.replace(/\n/g, '\n  ')}`,
@@ -368,7 +397,7 @@ export class MaterializationService {
 
       const start = performance.now();
       await this.engine.query(
-        `DROP TABLE IF EXISTS ${entry.hash}; ${createSql}`,
+        `DROP TABLE IF EXISTS ${entry.hash};\n${createSql}`,
       );
       const timeMs = performance.now() - start;
       const now = performance.now();

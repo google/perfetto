@@ -30,10 +30,13 @@ import {
   type LogicalPlan,
 } from './logical_ir';
 import type {LogicalOpContext} from './node_types';
+import {buildDisplayPipeSql, lowerToPipe} from './pipe_backend';
 import {buildDisplaySql, type IrEntry, lowerToSql} from './sql_backend';
 
-export {buildDisplaySql, lowerToSql};
+export {buildDisplayPipeSql, buildDisplaySql, lowerToPipe, lowerToSql};
 export type {IrEntry};
+
+export type SqlDialect = 'sql' | 'pipe';
 
 // Build a language-agnostic `LogicalPlan` for a specific node's upstream DAG.
 // Returns `undefined` if the target node is missing or any upstream node is
@@ -109,29 +112,39 @@ export function buildLogicalPlan(
   };
 }
 
-// Build content-addressable IR entries for a specific node's upstream chain.
-// Returns entries in topological order, or `undefined` if invalid/incomplete.
+// Build content-addressable IR entries for a specific node's upstream chain
+// in the requested target dialect (`'sql'` or `'pipe'`).
 export function buildIR(
   index: GraphIndex,
   nodeId: string,
   sqlModules: SqlModules | undefined,
+  dialect: SqlDialect = 'sql',
 ): IrEntry[] | undefined {
   const plan = buildLogicalPlan(index, nodeId, sqlModules);
   if (!plan) return undefined;
-  const entries = lowerToSql(plan);
+  const entries = dialect === 'pipe' ? lowerToPipe(plan) : lowerToSql(plan);
   return entries.length > 0 ? entries : undefined;
 }
 
+export function buildDisplayQuery(
+  entries: readonly IrEntry[],
+  dialect: SqlDialect = 'sql',
+): string | undefined {
+  return dialect === 'pipe'
+    ? buildDisplayPipeSql(entries)
+    : buildDisplaySql(entries);
+}
+
 // Collect all content-addressable IR hashes reachable from any valid node
-// currently in the graph. Iterating every node ID (not just chain tails)
-// ensures both folded chains and intermediate nodes' hashes are preserved.
+// currently in the graph for the given dialect.
 export function collectLiveHashes(
   index: GraphIndex,
   sqlModules: SqlModules | undefined,
+  dialect: SqlDialect = 'sql',
 ): Set<string> {
   const live = new Set<string>();
   for (const nodeId of Object.keys(index.nodes)) {
-    const entries = buildIR(index, nodeId, sqlModules);
+    const entries = buildIR(index, nodeId, sqlModules, dialect);
     if (!entries) continue;
     for (const e of entries) {
       live.add(e.hash);
