@@ -174,17 +174,19 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
     event->set_track_uuid(*track_uuid);
   }
 
-  for (const auto* it = extra_data; *it != nullptr; it++) {
-    const struct PerfettoTeHlExtra& extra = **it;
-    if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_INT64 &&
-        type == protos::pbzero::TrackEvent::TYPE_COUNTER) {
-      event->set_counter_value(
-          reinterpret_cast<const struct PerfettoTeHlExtraCounterInt64&>(extra)
-              .value);
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_DOUBLE) {
-      event->set_double_counter_value(
-          reinterpret_cast<const struct PerfettoTeHlExtraCounterDouble&>(extra)
-              .value);
+  if (type == protos::pbzero::TrackEvent::TYPE_COUNTER) {
+    for (const auto* it = extra_data; *it != nullptr; it++) {
+      const struct PerfettoTeHlExtra& extra = **it;
+      if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_INT64) {
+        event->set_counter_value(
+            reinterpret_cast<const struct PerfettoTeHlExtraCounterInt64&>(extra)
+                .value);
+      } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_DOUBLE) {
+        event->set_double_counter_value(
+            reinterpret_cast<const struct PerfettoTeHlExtraCounterDouble&>(
+                extra)
+                .value);
+      }
     }
   }
 
@@ -535,8 +537,7 @@ void InstanceOp(internal::DataSourceType* ds,
           uuid = perfetto_te_process_track_uuid;
         } break;
         case PERFETTO_TE_HL_NESTED_TRACK_TYPE_THREAD: {
-          uuid = perfetto_te_process_track_uuid ^
-                 static_cast<uint64_t>(perfetto::base::GetThreadId());
+          uuid = incr_state->thread_track_uuid;
         } break;
         case PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROTO: {
           auto* proto_track =

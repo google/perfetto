@@ -44,16 +44,10 @@ namespace {
 // Restoring their rows would corrupt trackers in the loading instance. This
 // filter is specific to the version-coupled kPerfetto format; kArrowTar exports
 // every statically registered dataframe for external consumers.
-//
-// __intrinsic_histogram_bucket holds trace data, but its stat_id column
-// references __intrinsic_stats, which is regenerated with fresh ids by the
-// loading instance. Restoring buckets alone would leave dangling references,
-// so they are skipped together with their parent table.
 constexpr std::string_view kSkippedPerfettoTables[] = {
-    "__intrinsic_trace_file",       "__intrinsic_trace_import_logs",
-    "__intrinsic_build_flags",      "__intrinsic_modules",
-    "__intrinsic_metadata",         "__intrinsic_stats",
-    "__intrinsic_histogram_bucket",
+    "__intrinsic_trace_file",  "__intrinsic_trace_import_logs",
+    "__intrinsic_build_flags", "__intrinsic_modules",
+    "__intrinsic_metadata",    "__intrinsic_stats",
 };
 
 bool IsSkippedPerfettoTable(const std::string& name) {
