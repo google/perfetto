@@ -17254,6 +17254,7 @@ filegroup {
         "src/protovm/node.cc",
         "src/protovm/parser.cc",
         "src/protovm/program.cc",
+        "src/protovm/program_decoder.cc",
         "src/protovm/ro_cursor.cc",
         "src/protovm/rw_proto.cc",
         "src/protovm/rw_proto_cursor.cc",
@@ -17309,6 +17310,7 @@ filegroup {
     srcs: [
         "src/protovm/test/allocator_unittest.cc",
         "src/protovm/test/parser_unittest.cc",
+        "src/protovm/test/program_decoder_unittest.cc",
         "src/protovm/test/ro_cursor_unittest.cc",
         "src/protovm/test/rw_proto_unittest.cc",
         "src/protovm/test/slab_allocator_unittest.cc",
