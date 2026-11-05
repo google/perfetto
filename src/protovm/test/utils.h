@@ -26,6 +26,7 @@ namespace protovm {
 namespace test {
 
 protozero::ConstBytes AsConstBytes(const std::string& s);
+protozero::ConstBytes ExtractBytes(const std::string& trace_bytes);
 
 }  // namespace test
 }  // namespace protovm

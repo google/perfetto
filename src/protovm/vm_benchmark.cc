@@ -27,6 +27,7 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/base/test/utils.h"
+#include "src/protovm/test/utils.h"
 #include "src/protovm/vm.h"
 
 namespace perfetto {
@@ -41,25 +42,6 @@ void BenchmarkArgs(benchmark::internal::Benchmark* b) {
   if (is_benchmark_functional_only) {
     b->Iterations(1);
   }
-}
-
-protozero::ConstBytes ExtractProgram(const std::string& trace_bytes) {
-  protos::pbzero::Trace::Decoder trace(trace_bytes);
-  for (auto packet_it = trace.packet(); packet_it; ++packet_it) {
-    protos::pbzero::TracePacket::Decoder packet(*packet_it);
-    if (!packet.has_protovms()) {
-      continue;
-    }
-    protos::pbzero::TracePacket::ProtoVms::Decoder protovms(packet.protovms());
-    if (auto instance_it = protovms.instance(); instance_it) {
-      protos::pbzero::TracePacket::ProtoVms::Instance::Decoder instance(
-          *instance_it);
-      PERFETTO_CHECK(instance.program().data != nullptr &&
-                     instance.program().size > 0);
-      return instance.program();
-    }
-  }
-  PERFETTO_FATAL("Trace has no program");
 }
 
 std::vector<protozero::ConstBytes> ExtractPatches(
@@ -83,7 +65,7 @@ void SurfaceFlingerTrace(benchmark::State& state) {
       base::GetTestDataPath("test/data/protovm_surfaceflinger.pftrace"),
       &trace));
 
-  protozero::ConstBytes program = ExtractProgram(trace);
+  protozero::ConstBytes program = test::ExtractBytes(trace);
 
   std::vector<protozero::ConstBytes> patches = ExtractPatches(trace);
 
