@@ -305,6 +305,12 @@ struct TracingSession {
   // This is set when the clone operation was caused by a clone trigger.
   std::optional<TriggerInfo> clone_trigger;
 
+  // The trigger that caused this trace to be finalized: the one that started
+  // (START_TRACING) or stopped (STOP_TRACING) the session, or the one that
+  // caused the clone (CLONE_SNAPSHOT). Emitted as
+  // TracePacket.authoritative_trigger.
+  std::optional<TriggerInfo> authoritative_trigger;
+
   std::optional<base::ScopedSchedBoost> priority_boost;
 
   // NOTE: when adding new fields here consider whether that state should be

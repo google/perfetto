@@ -22,11 +22,8 @@
 namespace perfetto::trace_processor::stats {
 
 enum Type {
-  kSingle,   // Single-value property, one value per key.
-  kIndexed,  // Indexed property, multiple value per key (e.g. cpu_stats[1]).
-  kIndexedHistogram  // Indexed bucketed distribution, one histogram per key and
-                     // index (e.g. per pid). The total count is the stat value;
-                     // buckets are in stats_histogram_bucket.
+  kSingle,  // Single-value property, one value per key.
+  kIndexed  // Indexed property, multiple value per key (e.g. cpu_stats[1]).
 };
 
 enum Severity {
