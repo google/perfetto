@@ -39,8 +39,8 @@ export const manifest: NodeManifest<TimeRangeConfig> = {
       {name: 'dur', type: {kind: 'duration'}},
     ];
   },
-  emitIr(config) {
-    return {sql: `SELECT 0 AS id, ${config.ts} AS ts, ${config.dur} AS dur`};
+  toLogicalOp(config) {
+    return {kind: 'time_range', ts: config.ts, dur: config.dur};
   },
   render(config, updateConfig, ctx) {
     const timeSpan = ctx.trace.selection.getTimeSpanOfSelection();

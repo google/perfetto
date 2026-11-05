@@ -17,10 +17,11 @@ import {z} from 'zod';
 import {moveArrayItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
+  LogicalOpContext,
   NodeManifest,
   RenderContext,
-  SqlStatement,
 } from '../node_types';
+import type {LogicalOp} from '../logical_ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {TextInput} from '../../../widgets/text_input';
 import {Row} from '../components/row';
@@ -191,19 +192,20 @@ function isValid(config: ExtractArgConfig): boolean {
   return config.extractions.every((e) => !e.argName || e.argName);
 }
 
-function tryFold(stmt: SqlStatement, config: ExtractArgConfig): boolean {
-  // Can't append columns to a grouped query.
-  if (stmt.groupBy) return false;
-  const exprParts = config.extractions
-    .filter((e) => e.argName)
-    .map(
-      (e) =>
-        `extract_arg(${config.argSetIdCol}, '${e.argName}') AS ${extractArgAlias(e)}`,
-    );
-  if (exprParts.length > 0) {
-    stmt.columns = [stmt.columns, ...exprParts].join(', ');
-  }
-  return true;
+function toLogicalOp(
+  config: ExtractArgConfig,
+  ctx: LogicalOpContext,
+): LogicalOp | undefined {
+  const input = ctx.getInputNodeId('input');
+  if (!input) return undefined;
+  return {
+    kind: 'extract_arg',
+    input,
+    argSetIdCol: config.argSetIdCol,
+    extractions: config.extractions
+      .filter((e) => e.argName !== '')
+      .map((e) => ({argName: e.argName, alias: extractArgAlias(e)})),
+  };
 }
 
 export const manifest: NodeManifest<ExtractArgConfig> = {
@@ -216,5 +218,5 @@ export const manifest: NodeManifest<ExtractArgConfig> = {
   render,
   getOutputColumns,
   isValid,
-  tryFold,
+  toLogicalOp,
 };
