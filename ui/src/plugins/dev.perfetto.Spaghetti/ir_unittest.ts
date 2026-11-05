@@ -241,6 +241,81 @@ describe('buildIR (Standard SQL backend)', () => {
     expect(e0.sql).toContain('(utid)');
   });
 
+  it('flushes foldable right-input branch before standalone join and downstream ops', () => {
+    const sliceRoot: RootNodeData = {
+      id: 'c7aEUHyXD',
+      type: 'from',
+      x: 538,
+      y: 144,
+      config: {table: 'slice'},
+      next: {
+        id: 'cz2hanKDC',
+        type: 'join',
+        inputs: [null, 'cZayefyv4'],
+        config: {
+          leftColumn: 'arg_set_id',
+          rightColumn: 'arg_set_id',
+          columns: [
+            {column: 'key', alias: ''},
+            {column: 'display_value', alias: 'arg'},
+          ],
+          joinType: 'LEFT',
+        },
+        next: {
+          id: 'c1J5Lwm1W',
+          type: 'filter',
+          config: {
+            conditions: [
+              {column: 'name', op: '=', value: 'hipStreamSynchronize'},
+            ],
+            conjunction: 'AND',
+          },
+          next: {
+            id: 'cEL1iGXLx',
+            type: 'sort',
+            config: {
+              conditions: [{column: 'dur', order: 'DESC'}],
+            },
+          },
+        },
+      },
+    };
+    const argsRoot: RootNodeData = {
+      id: 'c_FkMas6e',
+      type: 'from',
+      x: 130,
+      y: 141,
+      config: {table: 'args'},
+      next: {
+        id: 'cZayefyv4',
+        type: 'filter',
+        config: {
+          conditions: [{column: 'key', op: '=', value: 'hipStreamSynchronize'}],
+          conjunction: 'AND',
+        },
+      },
+    };
+
+    const index = makeNodes([sliceRoot, argsRoot]);
+
+    const joinEntries = ensureDefined(buildIR(index, 'cz2hanKDC', undefined));
+    expect(joinEntries.length).toBe(2);
+    const rightEntry = ensureDefined(joinEntries[0]);
+    const joinEntry = ensureDefined(joinEntries[1]);
+    expect(rightEntry.sql).toContain('FROM args');
+    expect(rightEntry.sql).toContain("WHERE key = 'hipStreamSynchronize'");
+    expect(joinEntry.deps).toEqual([rightEntry.hash]);
+    expect(joinEntry.sql).toContain(`LEFT JOIN ${rightEntry.hash} AS r`);
+    expect(joinEntry.sql).toContain('r.display_value AS arg');
+
+    const sortEntries = ensureDefined(buildIR(index, 'cEL1iGXLx', undefined));
+    expect(sortEntries.length).toBe(3);
+    const tailEntry = ensureDefined(sortEntries[2]);
+    expect(tailEntry.deps).toEqual([joinEntry.hash]);
+    expect(tailEntry.sql).toContain("WHERE name = 'hipStreamSynchronize'");
+    expect(tailEntry.sql).toContain('ORDER BY dur DESC');
+  });
+
   it('computes stable hashes based on content and deps', () => {
     const filter: NodeData = {
       type: 'filter',
