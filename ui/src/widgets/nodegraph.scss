@@ -68,6 +68,7 @@
   z-index: 3;
   pointer-events: auto;
   display: flex;
+  align-items: baseline;
   gap: 8px;
 }
 
@@ -322,12 +323,18 @@
   text-align: right;
 }
 
+$port-border-color: color-mix(
+  in srgb,
+  var(--pf-color-text-muted) 50%,
+  var(--pf-color-background)
+);
+
 .pf-port {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--pf-color-background-secondary);
-  border: 2px solid var(--pf-color-border);
+  background: var(--pf-color-border);
+  border: 2px solid $port-border-color;
   cursor: crosshair;
   position: absolute;
   top: 50%;
@@ -353,7 +360,6 @@
 }
 
 .pf-output {
-  background: var(--pf-color-border);
   z-index: 2; // Make outputs appear above inputs when docked.
 }
 
@@ -364,24 +370,24 @@
 }
 
 .pf-port.pf-input {
-  left: -9px;
+  left: -7px;
 }
 
 .pf-port.pf-port-top {
-  top: -1px;
+  top: 0;
   left: 50%;
   transform: translate(-50%, -50%);
 }
 
 .pf-port.pf-port-bottom {
   top: unset;
-  bottom: -1px;
+  bottom: 0;
   left: 50%;
   transform: translate(-50%, 50%);
 }
 
 .pf-port.pf-output {
-  right: -9px;
+  right: -7px;
 }
 
 .pf-connection {
@@ -420,7 +426,7 @@
   }
   .pf-output:hover {
     background: var(--pf-color-border);
-    border-color: var(--pf-color-border-secondary);
+    border-color: $port-border-color;
     cursor: not-allowed;
   }
 }
@@ -582,33 +588,4 @@
     color: var(--pf-color-text-secondary);
     font-style: italic;
   }
-}
-
-.pf-node.pf-materializing:not(.pf-selected) {
-  transition:
-    box-shadow 0.5s ease-out,
-    border-color 0.5s ease-out;
-  box-shadow: 0 0 12px 3px hsla(var(--pf-node-hue, 210), 70%, 55%, 1);
-  border-color: hsla(var(--pf-node-hue, 210), 70%, 55%, 1);
-}
-
-.pf-node.pf-materializing.pf-selected {
-  transition: box-shadow 0.5s ease-out;
-  box-shadow: 0 0 12px 3px hsla(var(--pf-node-hue, 210), 70%, 55%, 1);
-}
-
-// Fade-out: no keyframe animation. Instead, declare the target values and let
-// a CSS transition carry them from wherever the pulse animation was at the
-// moment the class switched — giving a seamless, discontinuity-free fade.
-.pf-node.pf-materializing-fade-out:not(.pf-selected) {
-  transition:
-    box-shadow 1s ease-out,
-    border-color 1s ease-out;
-  box-shadow: none;
-  border-color: var(--pf-color-border);
-}
-
-.pf-node.pf-materializing-fade-out.pf-selected {
-  transition: box-shadow 1s ease-out;
-  box-shadow: none;
 }

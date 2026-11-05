@@ -17,8 +17,9 @@ import {
   perfettoSqlTypeIcon,
   perfettoSqlTypeToString,
 } from '../../../trace_processor/perfetto_sql_type';
-import type {ColumnDef} from '../graph_utils';
+import {EmptyState} from '../../../widgets/empty_state';
 import {Icon} from '../../../widgets/icon';
+import type {ColumnDef} from '../graph_utils';
 import './columns_tab.scss';
 
 export interface ColumnsTabAttrs {
@@ -26,16 +27,29 @@ export interface ColumnsTabAttrs {
   readonly activeNodeId: string | undefined;
 }
 
-function emptyTab(text: string) {
-  return m('.pf-spag-empty-tab', text);
-}
-
 export class ColumnsTab implements m.ClassComponent<ColumnsTabAttrs> {
   view({attrs}: m.Vnode<ColumnsTabAttrs>) {
     const {outputColumns, activeNodeId} = attrs;
 
     if (!outputColumns || outputColumns.length === 0) {
-      return emptyTab(activeNodeId ? 'No columns available' : 'Select a node');
+      if (activeNodeId) {
+        return m(
+          EmptyState,
+          {
+            fillHeight: true,
+            title: 'No columns available',
+          },
+          'Configure upstream inputs to see output columns.',
+        );
+      }
+      return m(
+        EmptyState,
+        {
+          fillHeight: true,
+          title: 'No node selected',
+        },
+        'Click on a node to view its output columns.',
+      );
     }
 
     return m(

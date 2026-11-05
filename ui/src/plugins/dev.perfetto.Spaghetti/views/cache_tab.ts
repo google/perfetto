@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {Button, ButtonVariant} from '../../../widgets/button';
+import {EmptyState} from '../../../widgets/empty_state';
 import type {CacheEntry} from '../materialization';
 import {Card} from '../components/card';
 import './cache_tab.scss';
@@ -33,54 +34,59 @@ function formatTimestamp(perfNow: number): string {
 export class CacheTab implements m.ClassComponent<CacheTabAttrs> {
   view({attrs}: m.Vnode<CacheTabAttrs>) {
     const {cacheEntries, onPruneOrphans, onClearCache} = attrs;
+    if (cacheEntries.length === 0) {
+      return m(
+        EmptyState,
+        {
+          fillHeight: true,
+          title: 'Cache is empty',
+        },
+        'Select a valid node to materialize and cache intermediate tables.',
+      );
+    }
     const orphanCount = cacheEntries.filter((e) => !e.isLive).length;
-    return m(
-      '.pf-spag-cache-tab',
-      cacheEntries.length > 0
-        ? [
-            m(
-              '.pf-spag-cache-tab-toolbar',
-              m(Button, {
-                variant: ButtonVariant.Filled,
-                icon: 'cleaning_services',
-                label:
-                  orphanCount > 0
-                    ? `Prune orphans (${orphanCount})`
-                    : 'Prune orphans',
-                disabled: orphanCount === 0,
-                onclick: onPruneOrphans,
+    return m('.pf-spag-cache-tab', [
+      m(
+        '.pf-spag-cache-tab-toolbar',
+        m(Button, {
+          variant: ButtonVariant.Filled,
+          icon: 'cleaning_services',
+          label:
+            orphanCount > 0
+              ? `Prune orphans (${orphanCount})`
+              : 'Prune orphans',
+          disabled: orphanCount === 0,
+          onclick: onPruneOrphans,
+        }),
+        m(Button, {
+          variant: ButtonVariant.Filled,
+          icon: 'delete_sweep',
+          label: 'Clear cache',
+          onclick: onClearCache,
+        }),
+      ),
+      ...[...cacheEntries]
+        .sort((a, b) => b.lastHitAt - a.lastHitAt)
+        .map((entry) =>
+          m(Card, {
+            title: entry.hash,
+            content: entry.sql,
+            meta: `created ${formatTimestamp(entry.createdAt)} · last hit ${formatTimestamp(entry.lastHitAt)}`,
+            badges: [
+              m(Card.Badge, {
+                variant: entry.isLive ? 'live' : 'orphan',
+                label: entry.isLive ? 'LIVE' : 'ORPHAN',
               }),
-              m(Button, {
-                variant: ButtonVariant.Filled,
-                icon: 'delete_sweep',
-                label: 'Clear cache',
-                onclick: onClearCache,
+              m(Card.Badge, {
+                variant: 'hits',
+                label: `${entry.hitCount} ${entry.hitCount === 1 ? 'hit' : 'hits'}`,
               }),
-            ),
-            ...[...cacheEntries]
-              .sort((a, b) => b.lastHitAt - a.lastHitAt)
-              .map((entry) =>
-                m(Card, {
-                  title: entry.hash,
-                  content: entry.sql,
-                  meta: `created ${formatTimestamp(entry.createdAt)} · last hit ${formatTimestamp(entry.lastHitAt)}`,
-                  badges: [
-                    m(Card.Badge, {
-                      variant: entry.isLive ? 'live' : 'orphan',
-                      label: entry.isLive ? 'LIVE' : 'ORPHAN',
-                    }),
-                    m(Card.Badge, {
-                      variant: 'hits',
-                      label: `${entry.hitCount} ${entry.hitCount === 1 ? 'hit' : 'hits'}`,
-                    }),
-                    m(Card.Time, {
-                      label: `${entry.materializeTimeMs.toFixed(1)}ms`,
-                    }),
-                  ],
-                }),
-              ),
-          ]
-        : m('span.pf-spag-cache-tab-empty', 'Cache is empty'),
-    );
+              m(Card.Time, {
+                label: `${entry.materializeTimeMs.toFixed(1)}ms`,
+              }),
+            ],
+          }),
+        ),
+    ]);
   }
 }

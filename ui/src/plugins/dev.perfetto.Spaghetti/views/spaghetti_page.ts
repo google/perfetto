@@ -32,7 +32,12 @@ import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
 import {Intent} from '../../../widgets/common';
 import {EmptyState} from '../../../widgets/empty_state';
 import {HotkeyContext} from '../../../widgets/hotkey_context';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {
+  MenuDivider,
+  MenuItem,
+  MenuTitle,
+  PopupMenu,
+} from '../../../widgets/menu';
 import {
   type Connection,
   type Node,
@@ -56,6 +61,7 @@ import type {
 import {
   chainTail,
   deserializeStore,
+  extractNodesForCopy,
   findConnectedInputs,
   findDockedParent,
   flattenNodes,
@@ -63,15 +69,13 @@ import {
   getManifest,
   getManifestInputs,
   getOutputColumnsForNode,
+  instantiateCopiedNodes,
+  removeNodeFromGraph,
   serializeStore,
+  trimInputs,
   type GraphIndex,
 } from '../graph_utils';
-import {
-  buildDisplayPipeSql,
-  buildDisplaySql,
-  buildIR,
-  type SqlDialect,
-} from '../ir';
+import {buildDisplayQuery, buildIR, type SqlDialect} from '../ir';
 import {MaterializationService} from '../materialization';
 import type {DetailsContext, RenderContext} from '../node_types';
 import {CacheTab} from './cache_tab';
@@ -82,6 +86,20 @@ import {SqlTab} from './sql_tab';
 import {TextInput} from '../../../widgets/text_input';
 import {findRef} from '../../../base/dom_utils';
 import {assertExists, assertIsInstance} from '../../../base/assert';
+import {classNames} from '../../../base/classnames';
+
+type LoadingStyle = 'beam' | 'shimmer' | 'pulse' | 'scanline' | 'none';
+
+const LOADING_STYLE_OPTIONS: ReadonlyArray<{
+  readonly value: LoadingStyle;
+  readonly label: string;
+}> = [
+  {value: 'shimmer', label: 'Header bar'},
+  {value: 'beam', label: 'Border beam'},
+  {value: 'pulse', label: 'Breathing halo'},
+  {value: 'scanline', label: 'Data scanline'},
+  {value: 'none', label: 'Off'},
+];
 
 export interface SpaghettiPage {
   readonly trace: Trace;
@@ -97,13 +115,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
     labels: [],
   };
 
-  // Cached index of root nodes by ID, rebuilt whenever store changes.
-  let nodesIndex: Record<string, RootNodeData> = {};
-  function rebuildIndex() {
-    nodesIndex = {};
-    for (const n of store.nodes) nodesIndex[n.id] = n;
-  }
-
   // History management
   const history: NodeQueryBuilderStore[] = [store];
   let historyIndex = 0;
@@ -117,20 +128,17 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
   // Target dialect used when materializing nodes in Trace Processor.
   let materializationDialect: SqlDialect = 'sql';
 
-  // O(1) root lookup via cached index. Rebuild only happens when store changes.
-  function getActiveNodes(): Record<string, RootNodeData> {
-    return nodesIndex;
-  }
+  // Visual style for the node loading animation while materializing.
+  let loadingStyle: LoadingStyle = 'shimmer';
+
+  // When enabled, sleeps 10x each node's query execution time to preview loading UX.
+  let emulateSlowLoads = false;
+
+  // Controlled open state for the toolbar "Add Node" popup menu.
+  let addMenuOpen = false;
 
   function getFlatNodes(): GraphIndex {
     return flattenNodes(store.nodes);
-  }
-
-  // Trim trailing nulls from an inputs array so length reflects actual wiring.
-  function trimInputs(inputs: (string | null)[]): (string | null)[] {
-    let end = inputs.length;
-    while (end > 0 && inputs[end - 1] === null) end--;
-    return inputs.slice(0, end);
   }
 
   // Derive Connection[] from node inputs for the nodegraph widget.
@@ -176,7 +184,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         return;
       }
       store = deserializeStore(saved);
-      rebuildIndex();
       history.splice(0, history.length, store);
       historyIndex = 0;
       selectedNodeIds.clear();
@@ -191,7 +198,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
   const updateStore = (updater: (draft: NodeQueryBuilderStore) => void) => {
     const newStore = produce(store, updater);
     store = newStore;
-    rebuildIndex();
 
     if (historyIndex < history.length - 1) {
       history.splice(historyIndex + 1);
@@ -213,7 +219,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
     if (prev !== undefined) {
       historyIndex--;
       store = prev;
-      rebuildIndex();
       saveGraph();
     }
   };
@@ -223,7 +228,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
     if (next !== undefined) {
       historyIndex++;
       store = next;
-      rebuildIndex();
       saveGraph();
     }
   };
@@ -245,19 +249,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
   const removeNode = (nodeId: string) => {
     updateStore((draft) => {
-      const idx = draft.nodes.findIndex((n) => n.id === nodeId);
-      if (idx === -1) return;
-
-      // Clear any inputs referencing this node across all nodes.
-      for (const node of Object.values(flattenNodes(draft.nodes).nodes)) {
-        if (!node.inputs) continue;
-        for (let i = 0; i < node.inputs.length; i++) {
-          if (node.inputs[i] === nodeId) node.inputs[i] = null;
-        }
-        node.inputs = trimInputs(node.inputs);
-      }
-
-      draft.nodes.splice(idx, 1);
+      removeNodeFromGraph(draft.nodes, nodeId);
     });
 
     selectedNodeIds.delete(nodeId);
@@ -269,72 +261,46 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
   // --- Clipboard support ---
 
-  interface ClipboardEntry {
-    node: RootNodeData;
-    relativeX: number;
-    relativeY: number;
-  }
-
-  let clipboard: ClipboardEntry[] | undefined;
+  let lastCopiedJson: string | undefined;
+  let pasteCount = 0;
 
   function copySelectedNodes() {
-    if (selectedNodeIds.size === 0) return;
+    const copied = extractNodesForCopy(store.nodes, selectedNodeIds);
+    if (copied.length === 0) return;
 
-    const activeNodes = getActiveNodes();
-    const selected: RootNodeData[] = [];
-    for (const id of selectedNodeIds) {
-      const node = activeNodes[id];
-      if (node) selected.push(node);
-    }
-    if (selected.length === 0) return;
-
-    const minX = Math.min(...selected.map((n) => n.x));
-    const minY = Math.min(...selected.map((n) => n.y));
-
-    clipboard = selected.map((n) => ({
-      node: structuredClone(n),
-      relativeX: n.x - minX,
-      relativeY: n.y - minY,
-    }));
+    const json = JSON.stringify(
+      JSON.parse(serializeStore({nodes: copied, labels: []})),
+      null,
+      2,
+    );
+    lastCopiedJson = json;
+    pasteCount = 0;
+    navigator.clipboard.writeText(json).catch(() => {
+      // Fall back silently to in-memory lastCopiedJson if clipboard access fails.
+    });
   }
 
-  function pasteNodes() {
-    if (!clipboard || clipboard.length === 0) return;
-
-    const pasteOffset = 50;
-    const oldToNew = new Map<string, string>();
-
-    // Build new nodes with fresh IDs, collecting old→new ID mapping.
-    const newNodes: RootNodeData[] = clipboard.map((entry) => {
-      const newId = shortUuid();
-      oldToNew.set(entry.node.id, newId);
-      // Also register chain node IDs so inputs within chains get remapped.
-      let cur = entry.node.next;
-      while (cur) {
-        const chainId = shortUuid();
-        oldToNew.set(cur.id, chainId);
-        cur = cur.next;
-      }
-      return {
-        ...structuredClone(entry.node),
-        id: newId,
-        x: entry.relativeX + pasteOffset,
-        y: entry.relativeY + pasteOffset,
-      };
-    });
-
-    // Remap chain node IDs and inputs throughout each new root.
-    function remapNode(node: NodeData): void {
-      const newId = oldToNew.get(node.id);
-      if (newId) (node as {id: string}).id = newId;
-      if (node.inputs) {
-        node.inputs = node.inputs.map((id) =>
-          id !== null ? (oldToNew.get(id) ?? id) : null,
-        );
-      }
-      if (node.next) remapNode(node.next);
+  function applyPastedJson(json: string) {
+    let parsed: NodeQueryBuilderStore;
+    try {
+      parsed = deserializeStore(json);
+    } catch {
+      return;
     }
-    for (const node of newNodes) remapNode(node);
+    if (parsed.nodes.length === 0) return;
+
+    if (json !== lastCopiedJson) {
+      lastCopiedJson = json;
+      pasteCount = 1;
+    } else {
+      pasteCount++;
+    }
+
+    const step = 40 * pasteCount;
+    const newNodes = instantiateCopiedNodes(parsed.nodes, {
+      dx: step,
+      dy: step,
+    });
 
     updateStore((draft) => {
       for (const node of newNodes) draft.nodes.push(node);
@@ -342,6 +308,21 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
     selectedNodeIds.clear();
     for (const node of newNodes) selectedNodeIds.add(node.id);
+  }
+
+  function pasteNodes() {
+    navigator.clipboard
+      .readText()
+      .then((text) => {
+        applyPastedJson(text !== '' ? text : (lastCopiedJson ?? ''));
+        m.redraw();
+      })
+      .catch(() => {
+        if (lastCopiedJson !== undefined) {
+          applyPastedJson(lastCopiedJson);
+          m.redraw();
+        }
+      });
   }
 
   function cutSelectedNodes() {
@@ -597,15 +578,25 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         m(
           PopupMenu,
           {
+            isOpen: addMenuOpen,
+            onChange: (open: boolean) => {
+              addMenuOpen = open;
+            },
             trigger: m(Button, {
               variant: ButtonVariant.Filled,
               intent: Intent.Primary,
               label: 'Add Node',
               icon: 'add',
+              onclick: () => {
+                addMenuOpen = !addMenuOpen;
+              },
             }),
           },
           m(AddNodeMenu, {
-            onAddNode: addNode,
+            onAddNode: (type: string) => {
+              addMenuOpen = false;
+              addNode(type);
+            },
           }),
         ),
       );
@@ -643,6 +634,43 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
           [
             m(RadioGroup.Button, {value: 'sql'}, 'SQL'),
             m(RadioGroup.Button, {value: 'pipe'}, 'PerfettoSQL Next'),
+          ],
+        ),
+        m(
+          PopupMenu,
+          {
+            trigger: m(Button, {
+              variant: ButtonVariant.Filled,
+              icon: 'build',
+              intent: emulateSlowLoads ? Intent.Primary : undefined,
+              title: 'Developer options',
+            }),
+          },
+          [
+            m(MenuTitle, {label: 'Developer Options'}),
+            m(MenuItem, {
+              label: 'Emulate slow loads (10x)',
+              icon: emulateSlowLoads ? Icons.Checkbox : Icons.BlankCheckbox,
+              closePopupOnClick: false,
+              onclick: () => {
+                emulateSlowLoads = !emulateSlowLoads;
+              },
+            }),
+            m(MenuDivider),
+            m(MenuTitle, {label: 'Loading Effect'}),
+            ...LOADING_STYLE_OPTIONS.map((opt) =>
+              m(MenuItem, {
+                label: opt.label,
+                icon:
+                  loadingStyle === opt.value
+                    ? Icons.RadioChecked
+                    : Icons.RadioUnchecked,
+                closePopupOnClick: false,
+                onclick: () => {
+                  loadingStyle = opt.value;
+                },
+              }),
+            ),
           ],
         ),
         m(
@@ -689,19 +717,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               ],
             ),
           ]),
-        ),
-        m(
-          ButtonGroup,
-          m(Button, {
-            variant: ButtonVariant.Filled,
-            icon: 'save',
-            onclick: saveGraph,
-          }),
-          m(Button, {
-            variant: ButtonVariant.Filled,
-            icon: 'folder_open',
-            onclick: loadGraph,
-          }),
         ),
         m(
           ButtonGroup,
@@ -907,6 +922,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       if (!matService) {
         matService = new MaterializationService(trace.engine);
       }
+      matService.emulateSlowLoads = emulateSlowLoads;
 
       // Schedule materialization on every render — the AsyncLimiter
       // ensures only the latest invocation actually runs.
@@ -927,26 +943,17 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         ? getOutputColumnsForNode(flatNodes, activeNodeId, sqlModules)
         : undefined;
 
-      // Build IR entries for both dialects (pure functions of the graph).
-      const sqlIrEntries = activeNodeId
-        ? (buildIR(flatNodes, activeNodeId, sqlModules, 'sql') ?? [])
+      // Build IR entries for the active dialect (pure function of the graph).
+      const irEntries = activeNodeId
+        ? (buildIR(
+            flatNodes,
+            activeNodeId,
+            sqlModules,
+            materializationDialect,
+          ) ?? [])
         : [];
-      const pipeIrEntries = activeNodeId
-        ? (buildIR(flatNodes, activeNodeId, sqlModules, 'pipe') ?? [])
-        : [];
 
-      const displaySql = buildDisplaySql(sqlIrEntries);
-      const displayPipeSql = buildDisplayPipeSql(pipeIrEntries);
-
-      const sqlText = activeNodeId
-        ? (displaySql ?? 'Incomplete query — fill in all required fields')
-        : 'Select a node to preview its SQL';
-      const pipeSqlText = activeNodeId
-        ? (displayPipeSql ?? 'Incomplete query — fill in all required fields')
-        : 'Select a node to preview its PerfettoSQL Next query';
-
-      const irEntries =
-        materializationDialect === 'pipe' ? pipeIrEntries : sqlIrEntries;
+      const displaySql = buildDisplayQuery(irEntries, materializationDialect);
 
       // Index report entries by hash for O(1) lookup per IR block.
       const reportByHash = new Map(
@@ -974,14 +981,13 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
             {
               key: 'sql',
               title: 'SQL',
-              content: m(SqlTab, {displaySql, sqlText}),
-            },
-            {
-              key: 'pipe',
-              title: 'PerfettoSQL Next',
               content: m(SqlTab, {
-                displaySql: displayPipeSql,
-                sqlText: pipeSqlText,
+                displaySql,
+                activeNodeId,
+                language:
+                  materializationDialect === 'pipe'
+                    ? 'PerfettoSQL Next'
+                    : 'SQL',
               }),
             },
             {
@@ -1010,7 +1016,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
                 liveJson,
                 onApply: (json: string) => {
                   store = deserializeStore(json);
-                  rebuildIndex();
                   history.splice(0, history.length, store);
                   historyIndex = 0;
                   selectedNodeIds.clear();
@@ -1089,6 +1094,27 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       );
 
       function renderEmptyState(): m.Children {
+        if (!activeNodeId) {
+          return m(
+            EmptyState,
+            {
+              fillHeight: true,
+              title: 'No node selected',
+            },
+            'Click on a node to see its query results.',
+          );
+        }
+        if (!displaySql) {
+          return m(
+            EmptyState,
+            {
+              icon: 'warning',
+              fillHeight: true,
+              title: 'Incomplete query',
+            },
+            'Fill in all required fields to see results.',
+          );
+        }
         if (matError) {
           return m(
             EmptyState,
@@ -1099,26 +1125,11 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
             },
             m('pre.pf-spag__error', matError),
           );
-        } else if (activeNodeId) {
-          return m(
-            EmptyState,
-            {
-              icon: 'warning',
-              fillHeight: true,
-              title: 'Incomplete query',
-            },
-            'Fill in all required fields to see results.',
-          );
-        } else {
-          return m(
-            EmptyState,
-            {
-              fillHeight: true,
-              title: 'No node selected',
-            },
-            'Click on a node to see its query results.',
-          );
         }
+        return m(EmptyState, {
+          title: 'Query results will appear here',
+          fillHeight: true,
+        });
       }
 
       const activeNode = activeNodeId
@@ -1137,7 +1148,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
       const resultsPanel = activeManifest?.renderDetails
         ? activeManifest.renderDetails(activeNode!.config, detailsCtx)
-        : dataSource
+        : activeNodeId && displaySql && dataSource
           ? m(DataGrid, {
               key: `${matService.activeDialect}:${matService.displaySql ?? ''}`,
               data: dataSource,
@@ -1158,6 +1169,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       return m(
         '.pf-spag',
         {
+          className: classNames(`pf-spag--loading-${loadingStyle}`),
           style: {
             display: 'flex',
             flexDirection: 'column',
@@ -1183,6 +1195,18 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
                   hotkey: 'Mod+Shift+Z',
                   callback: () => redo(),
                 },
+                {
+                  hotkey: 'Mod+C',
+                  callback: () => copySelectedNodes(),
+                },
+                {
+                  hotkey: 'Mod+V',
+                  callback: () => pasteNodes(),
+                },
+                {
+                  hotkey: 'Mod+X',
+                  callback: () => cutSelectedNodes(),
+                },
               ],
             },
             graphPanel,
@@ -1198,73 +1222,117 @@ interface AddNodeMenuAttrs {
   readonly onAddNode?: (type: string) => void;
 }
 
+interface NodeCategory {
+  readonly title: string;
+  readonly types: readonly string[];
+}
+
+const NODE_CATEGORIES: readonly NodeCategory[] = [
+  {
+    title: 'Sources',
+    types: ['from', 'time_range'],
+  },
+  {
+    title: 'Columns',
+    types: ['select', 'extend', 'set', 'rename', 'drop', 'extract_arg'],
+  },
+  {
+    title: 'Rows',
+    types: ['filter', 'distinct', 'sort', 'limit'],
+  },
+  {
+    title: 'Combine & Aggregate',
+    types: ['groupby', 'join', 'union'],
+  },
+  {
+    title: 'Intervals',
+    types: ['interval_intersect', 'interval_flatten', 'interval_fill_gaps'],
+  },
+  {
+    title: 'Graphs & Trees',
+    types: ['graph_tree', 'tree_accumulate'],
+  },
+  {
+    title: 'Visualize & Custom',
+    types: ['chart'],
+  },
+  {
+    title: 'Advanced',
+    types: ['sql'],
+  },
+];
+
 function AddNodeMenu(): m.Component<AddNodeMenuAttrs> {
   const SEARCH_BOX_REF = 'SearchBox';
   let searchTerm = '';
 
   return {
     view({attrs}) {
-      function nodeMenuItem(type: string): m.Children {
+      const {onAddNode} = attrs;
+      const query = searchTerm.trim().toLowerCase();
+
+      function nodeMenuItem(type: string, isHighlighted: boolean): m.Children {
         const manifest = getManifest(type);
         return m(MenuItem, {
           label: manifest.title,
           icon: manifest.icon,
+          active: isHighlighted,
           style: {borderLeft: `3px solid hsl(${manifest.hue}, 60%, 65%)`},
           onclick: () => onAddNode?.(type),
         });
       }
 
-      const {onAddNode} = attrs;
+      const filteredNodeTypes: string[] = [];
+      const menuChildren: m.Children[] = [];
 
-      const nodeTypes: string[] = [
-        'from',
-        'time_range',
-        'select',
-        'extend',
-        'set',
-        'rename',
-        'drop',
-        'distinct',
-        'filter',
-        'extract_arg',
-        'sort',
-        'limit',
-        'groupby',
-        'join',
-        'union',
-        'interval_intersect',
-        'interval_flatten',
-        'interval_fill_gaps',
-        'tree_accumulate',
-        'graph_tree',
-        'chart',
-        'sql',
-      ];
+      for (const category of NODE_CATEGORIES) {
+        const matching = category.types.filter((type) => {
+          if (query === '') return true;
+          const manifest = getManifest(type);
+          return (
+            manifest.title.toLowerCase().includes(query) ||
+            type.toLowerCase().includes(query) ||
+            category.title.toLowerCase().includes(query)
+          );
+        });
+        if (matching.length === 0) continue;
 
-      // Filter node types by search text.
-      const filteredNodeTypes = nodeTypes.filter((type: string) => {
-        const manifest = getManifest(type);
-        return (
-          !searchTerm ||
-          manifest.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          type.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      });
+        if (menuChildren.length > 0) {
+          menuChildren.push(m(MenuDivider));
+        }
+        menuChildren.push(m(MenuTitle, {label: category.title}));
+        for (const type of matching) {
+          const isFirst = filteredNodeTypes.length === 0;
+          filteredNodeTypes.push(type);
+          menuChildren.push(nodeMenuItem(type, query !== '' && isFirst));
+        }
+      }
 
-      const addNodeMenuItems = filteredNodeTypes.map(nodeMenuItem);
+      if (menuChildren.length === 0) {
+        menuChildren.push(m('.pf-spag-add-menu-empty', 'No matching nodes'));
+      }
 
-      // Build the popup content: search box + filtered items.
+      // Build the popup content: fixed search box + scrollable categorized list.
       const searchBox = m(TextInput, {
         ref: SEARCH_BOX_REF,
         placeholder: 'Filter nodes…',
-        icon: 'search',
+        leftIcon: 'search',
         value: searchTerm,
         oninput: (e: InputEvent) => {
           searchTerm = (e.target as HTMLInputElement).value;
         },
+        onkeydown: (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            const first = filteredNodeTypes[0];
+            if (first !== undefined) {
+              e.preventDefault();
+              onAddNode?.(first);
+            }
+          }
+        },
       });
 
-      return [searchBox, addNodeMenuItems];
+      return [searchBox, m('.pf-spag-add-menu-list', menuChildren)];
     },
     oncreate({dom}) {
       const textBoxElement = findRef(dom, SEARCH_BOX_REF);
