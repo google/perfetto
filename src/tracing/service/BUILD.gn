@@ -46,8 +46,8 @@ source_set("service") {
     "../core",
   ]
   sources = [
-    "block_arena.cc",
-    "block_arena.h",
+    "block_allocator.cc",
+    "block_allocator.h",
     "clock.cc",
     "clock.h",
     "dependencies.h",
@@ -217,7 +217,7 @@ perfetto_unittest_source_set("unittests") {
   }
 
   sources = [
-    "block_arena_unittest.cc",
+    "block_allocator_unittest.cc",
     "histogram_unittest.cc",
     "packet_stream_validator_unittest.cc",
     "proto_group_rewriter_reference_for_testing.h",

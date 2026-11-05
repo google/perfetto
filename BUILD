@@ -7232,8 +7232,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_tracing_service_service",
     srcs = [
-        "src/tracing/service/block_arena.cc",
-        "src/tracing/service/block_arena.h",
+        "src/tracing/service/block_allocator.cc",
+        "src/tracing/service/block_allocator.h",
         "src/tracing/service/clock.cc",
         "src/tracing/service/clock.h",
         "src/tracing/service/dependencies.h",
