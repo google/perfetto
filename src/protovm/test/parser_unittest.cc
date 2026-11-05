@@ -20,6 +20,7 @@
 #include "test/gtest_and_gmock.h"
 
 #include "src/protovm/parser.h"
+#include "src/protovm/program_decoder.h"
 #include "src/protovm/ro_cursor.h"
 #include "src/protovm/rw_proto.h"
 #include "src/protovm/test/mock_executor.h"
@@ -32,13 +33,23 @@ namespace test {
 
 class ParserTest : public ::testing::Test {
  protected:
+  StatusOr<void> RunProgram(const perfetto::protos::VmProgram& proto_program) {
+    auto serialized = proto_program.SerializeAsString();
+    auto program = ProgramDecoder::Decode(AsConstBytes(serialized));
+    PERFETTO_CHECK(program.IsOk());
+    Parser parser(&*program, &executor_);
+    return parser.Run(RoCursor{}, rw_proto_.GetRoot());
+  }
+
   MockExecutor executor_;
+  Allocator allocator_{10 * 1024 * 1024};
+  RwProto rw_proto_{&allocator_};
 };
 
 TEST_F(ParserTest, NoInstructions) {
-  EXPECT_CALL(executor_, EnterField(testing::Field(&Cursors::selected,
-                                                   CursorEnum::VM_CURSOR_SRC),
-                                    testing::_))
+  EXPECT_CALL(
+      executor_,
+      EnterField(testing::Field(&Cursors::selected, Cursor::kSrc), testing::_))
       .Times(0);
 
   EXPECT_CALL(executor_,
@@ -51,40 +62,28 @@ TEST_F(ParserTest, NoInstructions) {
 
   EXPECT_CALL(executor_, ReadRegister(testing::_)).Times(0);
 
-  auto program = SamplePrograms::NoInstructions().SerializeAsString();
-  Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsOk());
+  ASSERT_TRUE(RunProgram(SamplePrograms::NoInstructions()).IsOk());
 }
 
 TEST_F(ParserTest, RegLoad) {
   EXPECT_CALL(executor_, WriteRegister(testing::_, testing::_))
       .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
 
-  auto program = SamplePrograms::RegLoad().SerializeAsString();
-  Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsOk());
+  ASSERT_TRUE(RunProgram(SamplePrograms::RegLoad()).IsOk());
 }
 
 TEST_F(ParserTest, Del) {
-  Allocator allocator_{10 * 1024 * 1024};
-  RwProto rw_proto{&allocator_};
-  auto rw_cursor = rw_proto.GetRoot();
-
   EXPECT_CALL(executor_, Delete(testing::_))
       .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
 
-  auto program = SamplePrograms::Delete().SerializeAsString();
-  Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, rw_cursor).IsOk());
+  ASSERT_TRUE(RunProgram(SamplePrograms::Delete()).IsOk());
 }
 
 TEST_F(ParserTest, Merge) {
   EXPECT_CALL(executor_, Merge(testing::_, Executor::MergeFlags::kNone))
       .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
 
-  auto program = SamplePrograms::Merge().SerializeAsString();
-  Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsOk());
+  ASSERT_TRUE(RunProgram(SamplePrograms::Merge()).IsOk());
 }
 
 TEST_F(ParserTest, Merge_DelIfSrcEmpty) {
@@ -92,18 +91,14 @@ TEST_F(ParserTest, Merge_DelIfSrcEmpty) {
               Merge(testing::_, Executor::MergeFlags::kDelIfSrcEmpty))
       .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
 
-  auto program = SamplePrograms::Merge_DelIfSrcEmpty().SerializeAsString();
-  Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsOk());
+  ASSERT_TRUE(RunProgram(SamplePrograms::Merge_DelIfSrcEmpty()).IsOk());
 }
 
 TEST_F(ParserTest, Set) {
   EXPECT_CALL(executor_, Set(testing::_))
       .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
 
-  auto program = SamplePrograms::Set().SerializeAsString();
-  Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsOk());
+  ASSERT_TRUE(RunProgram(SamplePrograms::Set()).IsOk());
 }
 
 TEST_F(ParserTest, Select_AllCursorTypes) {
@@ -111,27 +106,85 @@ TEST_F(ParserTest, Select_AllCursorTypes) {
     testing::InSequence seq;
 
     // Default (SRC)
-    EXPECT_CALL(executor_, EnterField(testing::Field(&Cursors::selected,
-                                                     CursorEnum::VM_CURSOR_SRC),
-                                      1))
+    EXPECT_CALL(executor_,
+                EnterField(testing::Field(&Cursors::selected, Cursor::kSrc), 1))
         .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
 
     // SRC
-    EXPECT_CALL(executor_, EnterField(testing::Field(&Cursors::selected,
-                                                     CursorEnum::VM_CURSOR_SRC),
-                                      2))
+    EXPECT_CALL(executor_,
+                EnterField(testing::Field(&Cursors::selected, Cursor::kSrc), 2))
         .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
 
     // DST
-    EXPECT_CALL(executor_, EnterField(testing::Field(&Cursors::selected,
-                                                     CursorEnum::VM_CURSOR_DST),
-                                      3))
+    EXPECT_CALL(executor_,
+                EnterField(testing::Field(&Cursors::selected, Cursor::kDst), 3))
         .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
   }
 
-  auto program = SamplePrograms::Select_AllCursorTypes().SerializeAsString();
-  Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsOk());
+  ASSERT_TRUE(RunProgram(SamplePrograms::Select_AllCursorTypes()).IsOk());
+}
+
+TEST_F(ParserTest, Select_InlinedPathComponent) {
+  {
+    testing::InSequence seq;
+
+    EXPECT_CALL(
+        executor_,
+        EnterField(testing::Field(&Cursors::selected, Cursor::kSrc), 10))
+        .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
+
+    EXPECT_CALL(executor_,
+                IterateRepeatedField(testing::An<RwProto::Cursor*>(), 11))
+        .WillOnce(testing::Return(
+            testing::ByMove(StatusOr<RwProto::Cursor::RepeatedFieldIterator>(
+                RwProto::Cursor::RepeatedFieldIterator{}))));
+  }
+
+  ASSERT_TRUE(RunProgram(SamplePrograms::Select_InlinedPathComponent()).IsOk());
+}
+
+TEST_F(ParserTest, Select_NotInlinedPathComponentWhenFieldIdExceedsUint16Max) {
+  {
+    testing::InSequence seq;
+
+    EXPECT_CALL(
+        executor_,
+        EnterField(testing::Field(&Cursors::selected, Cursor::kSrc), 65536))
+        .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
+
+    EXPECT_CALL(executor_,
+                IterateRepeatedField(testing::An<RoCursor*>(), 65537))
+        .WillOnce(testing::Return(
+            testing::ByMove(StatusOr<RoCursor::RepeatedFieldIterator>(
+                RoCursor::RepeatedFieldIterator{}))));
+  }
+
+  ASSERT_TRUE(
+      RunProgram(
+          SamplePrograms::
+              Select_NotInlinedPathComponentWhenFieldIdExceedsUint16Max())
+          .IsOk());
+}
+
+TEST_F(ParserTest, Select_FusedPathComponents) {
+  {
+    testing::InSequence seq;
+
+    EXPECT_CALL(executor_,
+                EnterRepeatedFieldAt(
+                    testing::Field(&Cursors::selected, Cursor::kSrc), 1, 10))
+        .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
+
+    EXPECT_CALL(executor_, ReadRegister(4))
+        .WillOnce(testing::Return(testing::ByMove(StatusOr<uint64_t>(42ul))));
+
+    EXPECT_CALL(executor_,
+                EnterRepeatedFieldByKey(
+                    testing::Field(&Cursors::selected, Cursor::kSrc), 2, 3, 42))
+        .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
+  }
+
+  ASSERT_TRUE(RunProgram(SamplePrograms::Select_FusedPathComponents()).IsOk());
 }
 
 TEST_F(ParserTest, Select_AccessAllFieldTypes) {
@@ -174,9 +227,7 @@ TEST_F(ParserTest, Select_AccessAllFieldTypes) {
         .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
   }
 
-  auto program = SamplePrograms::Select_AllFieldTypes().SerializeAsString();
-  Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsOk());
+  ASSERT_TRUE(RunProgram(SamplePrograms::Select_AllFieldTypes()).IsOk());
 }
 
 TEST_F(ParserTest, Select_ExecutesNestedInstructions) {
@@ -218,10 +269,8 @@ TEST_F(ParserTest, Select_ExecutesNestedInstructions) {
     }
   }
 
-  auto program =
-      SamplePrograms::Select_ExecutesNestedInstructions().SerializeAsString();
-  Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsOk());
+  ASSERT_TRUE(
+      RunProgram(SamplePrograms::Select_ExecutesNestedInstructions()).IsOk());
 }
 
 TEST_F(ParserTest, Select_CanBreakOuterNestedInstructions) {
@@ -244,10 +293,9 @@ TEST_F(ParserTest, Select_CanBreakOuterNestedInstructions) {
     EXPECT_CALL(executor_, WriteRegister(testing::_, testing::_)).Times(0);
   }
 
-  auto program = SamplePrograms::Select_CanBreakOuterNestedInstructions()
-                     .SerializeAsString();
-  Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsError());
+  ASSERT_TRUE(
+      RunProgram(SamplePrograms::Select_CanBreakOuterNestedInstructions())
+          .IsError());
 }
 
 TEST_F(ParserTest,
@@ -262,9 +310,7 @@ TEST_F(ParserTest,
     EXPECT_CALL(executor_, WriteRegister(testing::_, testing::_)).Times(0);
   }
 
-  auto program = SamplePrograms::AbortLevel_default().SerializeAsString();
-  Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsError());
+  ASSERT_TRUE(RunProgram(SamplePrograms::AbortLevel_default()).IsError());
 }
 
 TEST_F(ParserTest, AbortLevel_SKIP_CURRENT_INSTRUCTION) {
@@ -279,10 +325,8 @@ TEST_F(ParserTest, AbortLevel_SKIP_CURRENT_INSTRUCTION) {
         .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
   }
 
-  auto program =
-      SamplePrograms::AbortLevel_SKIP_CURRENT_INSTRUCTION().SerializeAsString();
-  Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsOk());
+  ASSERT_TRUE(
+      RunProgram(SamplePrograms::AbortLevel_SKIP_CURRENT_INSTRUCTION()).IsOk());
 }
 
 TEST_F(ParserTest, AbortLevel_SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER) {
@@ -296,11 +340,10 @@ TEST_F(ParserTest, AbortLevel_SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER) {
     EXPECT_CALL(executor_, WriteRegister(testing::_, testing::_)).Times(0);
   }
 
-  auto program =
-      SamplePrograms::AbortLevel_SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER()
-          .SerializeAsString();
-  Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsError());
+  ASSERT_TRUE(
+      RunProgram(
+          SamplePrograms::AbortLevel_SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER())
+          .IsError());
 }
 
 TEST_F(ParserTest, AbortLevel_ABORT) {
@@ -314,9 +357,7 @@ TEST_F(ParserTest, AbortLevel_ABORT) {
     EXPECT_CALL(executor_, WriteRegister(testing::_, testing::_)).Times(0);
   }
 
-  auto program = SamplePrograms::AbortLevel_ABORT().SerializeAsString();
-  Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsAbort());
+  ASSERT_TRUE(RunProgram(SamplePrograms::AbortLevel_ABORT()).IsAbort());
 }
 
 }  // namespace test

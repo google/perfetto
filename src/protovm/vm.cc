@@ -16,26 +16,43 @@
 
 #include "src/protovm/vm.h"
 
-#include "perfetto/protozero/field.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "src/protovm/error_handling.h"
-#include "src/protovm/ro_cursor.h"
-#include "src/protovm/rw_proto.h"
+#include "src/protovm/program_decoder.h"
+#include "src/protovm/program_encoder.h"
 
 namespace perfetto {
 namespace protovm {
 
-Vm::Vm(protozero::ConstBytes program,
+base::StatusOr<std::unique_ptr<Vm>> Vm::Create(
+    protozero::ConstBytes proto_program,
+    size_t memory_limit_bytes,
+    protozero::ConstBytes initial_incremental_state) {
+  StatusOr<Program> program = ProgramDecoder::Decode(proto_program);
+  if (!program.IsOk()) {
+    PERFETTO_DCHECK(program.IsAbort());
+    if (program.IsAbort()) {
+      return base::ErrStatus(
+          "Failed to decode ProtoVM program. Stacktrace:\n%s",
+          base::Join(program.stacktrace(), "\n").c_str());
+    }
+    return base::ErrStatus("Failed to decode ProtoVM program");
+  }
+  return std::unique_ptr<Vm>(new Vm(std::move(*program), memory_limit_bytes,
+                                    initial_incremental_state));
+}
+
+Vm::Vm(Program program,
        size_t memory_limit_bytes,
        protozero::ConstBytes initial_incremental_state)
-    : owned_program_(program.ToStdString()),
+    : program_(std::move(program)),
       state_(std::in_place_type_t<ReadWriteState>{},
-             owned_program_,
+             &program_,
              memory_limit_bytes,
              initial_incremental_state) {}
 
 Vm::Vm(const Vm& other)
-    : owned_program_(other.SerializeProgram()),
+    : program_(other.program_),
       state_(std::in_place_type_t<ReadOnlyState>{},
              other.SerializeIncrementalStateAsString()) {}
 
@@ -67,7 +84,7 @@ std::string Vm::SerializeIncrementalStateAsString() const {
 }
 
 std::string Vm::SerializeProgram() const {
-  return owned_program_;
+  return ProgramEncoder::Encode(program_);
 }
 
 std::unique_ptr<Vm> Vm::CloneReadOnly() const {
@@ -76,11 +93,13 @@ std::unique_ptr<Vm> Vm::CloneReadOnly() const {
 
 uint64_t Vm::GetMemoryUsageBytes() const {
   if (const ReadOnlyState* state = std::get_if<ReadOnlyState>(&state_); state) {
-    return owned_program_.size() + state->serialized_incremental_state.size();
+    return program_.GetMemoryUsageBytes() +
+           state->serialized_incremental_state.size();
   }
 
   const ReadWriteState* state = std::get_if<ReadWriteState>(&state_);
-  return owned_program_.size() + state->allocator.GetMemoryUsageBytes();
+  return program_.GetMemoryUsageBytes() +
+         state->allocator.GetMemoryUsageBytes();
 }
 
 }  // namespace protovm
