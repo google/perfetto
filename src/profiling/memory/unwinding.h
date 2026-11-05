@@ -17,23 +17,21 @@
 #ifndef SRC_PROFILING_MEMORY_UNWINDING_H_
 #define SRC_PROFILING_MEMORY_UNWINDING_H_
 
-#include <unwindstack/Regs.h>
+#include <optional>
 
-#include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "src/profiling/common/unwind_support.h"
-#include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/unwound_messages.h"
 #include "src/profiling/memory/wire_protocol.h"
+#include "src/profiling/unwind/cpu_registers.h"
 
 namespace perfetto {
 namespace profiling {
 
-std::unique_ptr<unwindstack::Regs> CreateRegsFromRawData(
-    unwindstack::ArchEnum arch,
-    void* raw_data);
+std::optional<CpuRegisters> CreateRegsFromRawData(CpuArch arch,
+                                                  const void* raw_data);
 
 bool DoUnwind(WireMessage*, UnwindingMetadata* metadata, AllocRecord* out);
 
