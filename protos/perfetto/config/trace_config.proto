@@ -836,8 +836,9 @@ message TraceConfig {
     // manifest permissions even though SELinux permissions are worked around).
     optional bool use_pipe_in_framework_for_testing = 4;
 
-    // Reserved for Google-internal extension: TracePriority trace_priority
-    extensions 5;
+    // Reserved for Google-internal extensions.
+    // 1000: TracePriority trace_priority
+    extensions 1000 to 1100;
   }
   optional AndroidReportConfig android_report_config = 34;
 
