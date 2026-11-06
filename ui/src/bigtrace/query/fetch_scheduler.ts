@@ -90,9 +90,10 @@ export class FetchScheduler {
   // flight. For explicit refreshes, where waiting would be wrong.
   async runNow(
     run: (controller: AbortController) => Promise<void>,
+    key?: string,
   ): Promise<void> {
     this.clearTimer();
-    await this.start(undefined, run);
+    await this.start(key, run);
   }
 
   // ----- Internals -----

@@ -37,7 +37,6 @@ import {
 export type OpenQueryFn = (
   query: string,
   uuid: string,
-  materialize: boolean,
   forceNew?: boolean,
   limit?: number,
   startTime?: number,
@@ -121,8 +120,6 @@ export function renderHistoryItem(
   index: number,
   openQuery?: OpenQueryFn,
 ): m.Children {
-  // One mixed list, so the kind comes from the entry itself.
-  const isMaterialized = entry.materialized === true;
   const queryText = entry.perfettoSql || '';
   const uuid = entry.uuid;
   const startTime = entry.startTime;
@@ -140,7 +137,7 @@ export function renderHistoryItem(
 
   const openThis = () => {
     if (openQuery && uuid) {
-      openQuery(queryText, uuid, isMaterialized, false, entry.limit, startTime);
+      openQuery(queryText, uuid, false, entry.limit, startTime);
     }
   };
 
@@ -190,7 +187,12 @@ export function renderHistoryItem(
           });
           if (!confirmed) return;
           await queryHistoryStorage.deleteQuery(uuid);
+          queryStore.update(uuid, {
+            tableName: undefined,
+            tableLink: undefined,
+          });
           historyStore.refreshNow();
+          m.redraw();
         },
         icon: Icons.Delete,
         // Red hover so destructive intent reads before click.
@@ -225,15 +227,6 @@ export function renderHistoryItem(
             statusDisplayLabel(entry.status),
           ),
           m(
-            'span.pf-bt-history-item-kind',
-            {
-              title: isMaterialized
-                ? 'Results saved to a backend table — reopen to browse them.'
-                : 'Results were shown inline at run time and not saved.',
-            },
-            isMaterialized ? 'Saved to table' : 'Not saved',
-          ),
-          m(
             'span.pf-bt-history-item-date',
             {title: `${localString} (UTC: ${utcString})`},
             timeString,
@@ -241,8 +234,7 @@ export function renderHistoryItem(
         ]),
       ],
     ),
-    // Materialized only: a banded strip between the header and the SQL pre.
-    isMaterialized &&
+    entry.materialized !== false &&
       m(
         'div.pf-bt-history-item-details',
         {
