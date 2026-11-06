@@ -424,18 +424,19 @@ OutputProperties Where::Derive(DeriveContext& c) const {
   for (uint32_t i = 0; i < predicates_.size(); ++i) {
     const WherePredicate& p = predicates_[i];
     std::optional<core::StorageType> type = out.TypeOf(p.column).storage();
-    if (type) {
-      std::optional<std::string> mismatch =
-          LiteralMismatch(p, literals_, *type);
-      if (mismatch) {
-        c.Fail(base::ErrStatus("WHERE: expected %s", mismatch->c_str()));
-        return out;
-      }
+    if (!type) {
+      continue;
     }
-    if (!values[i] && type && !p.op.IsAnyOf<core::NullOp>()) {
-      values[i] =
-          CastWhereLiterals(p, literals_, strings_, *type, *c.context().pool);
+    if (std::optional<std::string> mismatch =
+            LiteralMismatch(p, literals_, *type)) {
+      c.Fail(base::ErrStatus("WHERE: expected %s", mismatch->c_str()));
+      return out;
     }
+    if (values[i] || p.op.IsAnyOf<core::NullOp>()) {
+      continue;
+    }
+    values[i] =
+        CastWhereLiterals(p, literals_, strings_, *type, *c.context().pool);
   }
   return out;
 }
