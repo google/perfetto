@@ -57,7 +57,35 @@ class SortedRows {
                       const std::vector<SortKey>& keys,
                       const StringPool* pool,
                       Context& context);
+  // As Append(), with the rows' keys at `laid_out` as LayOutKeys() lays them
+  // out, which saves doing so again.
+  base::Status AppendLaidOut(const RowBatch& in,
+                             const std::vector<SortKey>& keys,
+                             const StringPool* pool,
+                             Context& context,
+                             const uint8_t* laid_out);
   uint32_t size() const { return rows_.size(); }
+
+  // Checks the keys of `in` as Append() does. The first call fixes their
+  // types and layout.
+  base::Status CheckKeys(const RowBatch& in,
+                         const std::vector<SortKey>& keys,
+                         const StringPool* pool);
+  // Lays out at `rows` the keys of each row `in` keeps, except string keys,
+  // which are laid out only by Sort(). The keys must have been checked.
+  void LayOutKeys(const RowBatch& in,
+                  const std::vector<SortKey>& keys,
+                  uint8_t* rows) const;
+
+  // How keys are laid out, once checked.
+  const RowLayout& layout() const { return layout_; }
+  bool is_string(uint32_t key) const { return types_[key].string; }
+  // The keys of the held row `row`, laid out.
+  const uint8_t* keys(uint32_t row) const {
+    return keys_.data() + uint64_t{row} * layout_.stride();
+  }
+  // The string of the string key `key` at the held row `row`, if not null.
+  std::optional<StringPool::Id> string(uint32_t key, uint32_t row) const;
 
   // Resets the order to input order, then stably sorts it by the keys. Nulls
   // sort as in SQLite: first when ascending, last when descending. Strings
@@ -67,7 +95,7 @@ class SortedRows {
   FlexVector<uint32_t>& order() { return order_; }
 
   // Copies up to kMaxBatchRows rows into `out`, starting at position `at` in
-  // the order. Returns the number of rows copied.
+  // the order, up to its end. Returns the number of rows copied.
   uint32_t Gather(RowBatch* out, uint32_t at, Context& context);
   void Clear();
 
@@ -93,6 +121,13 @@ class SortedRows {
 
   static std::optional<KeyType> GetKeyType(const ColumnView& column,
                                            bool strings);
+
+  // Append() and AppendLaidOut(): `laid_out` is null for Append().
+  base::Status Store(const RowBatch& in,
+                     const std::vector<SortKey>& keys,
+                     const StringPool* pool,
+                     Context& context,
+                     const uint8_t* laid_out);
 
   std::vector<KeyType> types_;
   // By key; empty but for string keys.

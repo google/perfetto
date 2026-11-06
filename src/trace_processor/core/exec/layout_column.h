@@ -18,8 +18,10 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_LAYOUT_COLUMN_H_
 
 #include <cstdint>
+#include <optional>
 
 #include "perfetto/base/compiler.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/selection.h"
@@ -49,6 +51,17 @@ PERFETTO_ALWAYS_INLINE void WriteLayoutColumn(const ColumnView& column,
         return true;
       },
       rows);
+}
+
+// The string the String `column` holds at `row` of `selection`, if not null.
+inline std::optional<StringPool::Id> ReadString(const ColumnView& column,
+                                                const Selection& selection,
+                                                uint32_t row) {
+  uint32_t index = column.start() + selection[row];
+  if (column.validity() && !column.validity()->is_set(index)) {
+    return std::nullopt;
+  }
+  return static_cast<const StringPool::Id*>(column.data())[index];
 }
 
 }  // namespace perfetto::trace_processor::core::exec
