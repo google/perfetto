@@ -1,0 +1,177 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-spag-data-table-wrap {
+  max-height: 220px;
+  max-width: 480px;
+  overflow: auto;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  background: var(--pf-color-void);
+}
+
+.pf-spag-data-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: var(--pf-font-monospace);
+  font-size: 11px;
+
+  &__th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--pf-color-background-secondary);
+    border-bottom: 1px solid var(--pf-color-border);
+    border-right: 1px solid var(--pf-color-border-secondary);
+    padding: 3px 4px;
+    min-width: 92px;
+    text-align: left;
+    vertical-align: top;
+
+    &--actions {
+      min-width: 24px;
+      width: 24px;
+      border-right: none;
+      padding: 2px;
+    }
+  }
+
+  &__col-header {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__col-top {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  &__col-name {
+    flex: 1;
+    min-width: 52px;
+    width: 100%;
+    background: transparent;
+    color: var(--pf-color-text);
+    border: none;
+    border-bottom: 1px solid transparent;
+    font-family: var(--pf-font-monospace);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 2px;
+    outline: none;
+
+    &:focus {
+      border-bottom-color: var(--pf-color-primary);
+    }
+
+    &--invalid {
+      color: var(--pf-color-danger);
+      border-bottom-color: var(--pf-color-danger);
+    }
+  }
+
+  &__col-del {
+    flex: 0 0 auto;
+    background: transparent;
+    color: var(--pf-color-text-muted);
+    border: none;
+    border-radius: 2px;
+    padding: 0 3px;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.6;
+
+    &:hover {
+      opacity: 1;
+      color: var(--pf-color-danger);
+    }
+  }
+
+  &__col-type {
+    width: 100%;
+    background: transparent;
+    color: var(--pf-color-text-muted);
+    border: none;
+    font-family: var(--pf-font-monospace);
+    font-size: 10px;
+    padding: 0;
+    outline: none;
+    cursor: pointer;
+  }
+
+  &__td {
+    border-bottom: 1px solid var(--pf-color-border-secondary);
+    border-right: 1px solid var(--pf-color-border-secondary);
+    padding: 0;
+
+    &--actions {
+      border-right: none;
+      text-align: center;
+      width: 24px;
+      padding: 0 2px;
+    }
+  }
+
+  &__tr:last-child &__td {
+    border-bottom: none;
+  }
+
+  &__cell {
+    width: 100%;
+    min-width: 72px;
+    box-sizing: border-box;
+    background: transparent;
+    color: var(--pf-color-text);
+    border: 1px solid transparent;
+    font-family: var(--pf-font-monospace);
+    font-size: 11px;
+    padding: 3px 6px;
+    outline: none;
+
+    &::placeholder {
+      color: var(--pf-color-text-muted);
+      opacity: 0.45;
+      font-style: italic;
+    }
+
+    &:focus {
+      border-color: var(--pf-color-primary);
+      background: var(--pf-color-background);
+    }
+
+    &--invalid {
+      border-color: var(--pf-color-danger);
+      color: var(--pf-color-danger);
+    }
+  }
+
+  &__empty {
+    padding: 8px;
+    text-align: center;
+    color: var(--pf-color-text-muted);
+    font-style: italic;
+  }
+}
+
+.pf-spag-data-table-actions {
+  display: flex;
+  gap: 4px;
+
+  > * {
+    flex: 1;
+  }
+}
