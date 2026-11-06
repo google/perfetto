@@ -35,9 +35,11 @@ const RenameEntrySchema = z.object({
 
 export type RenameEntry = z.infer<typeof RenameEntrySchema>;
 
-const RenameConfigSchema = z.object({
-  entries: z.array(RenameEntrySchema),
-});
+const RenameConfigSchema = z
+  .object({
+    entries: z.array(RenameEntrySchema),
+  })
+  .describe('Rename columns in place, keeping all other columns.');
 
 export type RenameConfig = z.infer<typeof RenameConfigSchema>;
 

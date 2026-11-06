@@ -38,9 +38,11 @@ const ExtendEntrySchema = z.object({
 
 export type ExtendEntry = z.infer<typeof ExtendEntrySchema>;
 
-const ExtendConfigSchema = z.object({
-  entries: z.array(ExtendEntrySchema),
-});
+const ExtendConfigSchema = z
+  .object({
+    entries: z.array(ExtendEntrySchema),
+  })
+  .describe('Keep all input columns and append computed SQL expressions.');
 
 export type ExtendConfig = z.infer<typeof ExtendConfigSchema>;
 

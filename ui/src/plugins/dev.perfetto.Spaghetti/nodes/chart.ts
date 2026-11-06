@@ -27,15 +27,19 @@ import type {Port} from '../graph_model';
 
 const ChartSpecSchema = z.object({
   xCol: z.string(),
-  yCol: z.string(), // empty string = COUNT(*)
+  yCol: z.string().describe('Measure column to SUM, or "" for COUNT(*)'),
 });
 
 export type ChartSpec = z.infer<typeof ChartSpecSchema>;
 
-const ChartConfigSchema = z.object({
-  charts: z.array(ChartSpecSchema),
-  numInputs: z.number(),
-});
+const ChartConfigSchema = z
+  .object({
+    charts: z.array(ChartSpecSchema),
+    numInputs: z.number(),
+  })
+  .describe(
+    'Render bar charts in the details panel while passing input rows through.',
+  );
 
 export type ChartConfig = z.infer<typeof ChartConfigSchema>;
 

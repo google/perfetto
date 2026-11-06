@@ -27,13 +27,17 @@ import type {
 } from '../node_types';
 import {ColumnPicker} from '../widgets/column_picker';
 
-const GraphTreeConfigSchema = z.object({
-  kind: z.enum(['BFS', 'DFS', 'DOMINATOR']),
-  nodeIdColumn: z.string(),
-  sourceColumn: z.string(),
-  destColumn: z.string(),
-  rootIdColumn: z.string(),
-});
+const GraphTreeConfigSchema = z
+  .object({
+    kind: z.enum(['BFS', 'DFS', 'DOMINATOR']),
+    nodeIdColumn: z.string(),
+    sourceColumn: z.string(),
+    destColumn: z.string(),
+    rootIdColumn: z.string(),
+  })
+  .describe(
+    'Compute BFS, DFS, or DOMINATOR spanning tree from nodes, edges, and roots.',
+  );
 
 export type GraphTreeConfig = z.infer<typeof GraphTreeConfigSchema>;
 

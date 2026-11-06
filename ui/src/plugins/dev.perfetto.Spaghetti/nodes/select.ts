@@ -46,10 +46,14 @@ const SelectExpressionSchema = z.object({
 
 export type SelectExpression = z.infer<typeof SelectExpressionSchema>;
 
-const SelectConfigSchema = z.object({
-  entries: z.array(SelectEntrySchema).optional(),
-  expressions: z.array(SelectExpressionSchema).optional(),
-});
+const SelectConfigSchema = z
+  .object({
+    entries: z.array(SelectEntrySchema).optional(),
+    expressions: z.array(SelectExpressionSchema).optional(),
+  })
+  .describe(
+    'Project specific columns and/or computed SQL expressions (empty entries keeps all input columns; alias "" keeps original name).',
+  );
 
 export type SelectConfig = z.infer<typeof SelectConfigSchema>;
 

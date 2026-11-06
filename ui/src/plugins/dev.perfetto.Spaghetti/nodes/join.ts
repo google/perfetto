@@ -35,12 +35,19 @@ const JoinColumnSchema = z.object({
 
 export type JoinColumn = z.infer<typeof JoinColumnSchema>;
 
-const JoinConfigSchema = z.object({
-  leftColumn: z.string(),
-  rightColumn: z.string(),
-  columns: z.array(JoinColumnSchema).optional(),
-  joinType: z.enum(['LEFT', 'INNER']),
-});
+const JoinConfigSchema = z
+  .object({
+    leftColumn: z.string(),
+    rightColumn: z.string(),
+    columns: z
+      .array(JoinColumnSchema)
+      .optional()
+      .describe(
+        'Right-side columns to append (all left columns are kept automatically)',
+      ),
+    joinType: z.enum(['LEFT', 'INNER']),
+  })
+  .describe('Join two inputs on leftColumn = rightColumn.');
 
 export type JoinConfig = z.infer<typeof JoinConfigSchema>;
 

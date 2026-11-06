@@ -37,11 +37,13 @@ import {ColumnPicker} from '../widgets/column_picker';
 
 export type FlattenAggregation = PipelineAggEntry;
 
-const IntervalFlattenConfigSchema = z.object({
-  partitionColumns: z.array(z.string()),
-  aggregations: z.array(PipelineAggEntrySchema),
-  filterNegativeDur: z.boolean(),
-});
+const IntervalFlattenConfigSchema = z
+  .object({
+    partitionColumns: z.array(z.string()),
+    aggregations: z.array(PipelineAggEntrySchema),
+    filterNegativeDur: z.boolean(),
+  })
+  .describe('Flatten overlapping intervals into disjoint slices.');
 
 export type IntervalFlattenConfig = z.infer<typeof IntervalFlattenConfigSchema>;
 
