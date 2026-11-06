@@ -16,16 +16,35 @@ import {ensureDefined} from '../../base/assert';
 import type {NodeData, RootNodeData} from './graph_model';
 import {flattenNodes} from './graph_utils';
 import {
-  buildDisplayPipeSql,
-  buildDisplaySql,
-  buildIR,
+  analyzeCanvas,
+  buildDisplayQuery,
   buildLogicalPlan,
-  type IrEntry,
+  formatLogicalPlan,
+  formatPipe,
+  formatSql,
+  type LogicalPlan,
+  type SqlDialect,
 } from './ir';
+import {planMaterialization} from './materialization';
+
+function nodeHash(plan: LogicalPlan, id: string): string {
+  return ensureDefined(plan.nodes.find((n) => n.nodeId === id)).hash;
+}
 
 // Helper to build a graph index from root nodes.
 function makeNodes(nodeList: RootNodeData[]) {
   return flattenNodes(nodeList);
+}
+
+function getDisplay(
+  nodeList: RootNodeData[],
+  nodeId: string,
+  dialect: SqlDialect = 'sql',
+): string {
+  const plan = ensureDefined(
+    buildLogicalPlan(makeNodes(nodeList), nodeId, undefined),
+  );
+  return ensureDefined(buildDisplayQuery(plan, dialect));
 }
 
 describe('buildLogicalPlan', () => {
@@ -79,37 +98,15 @@ describe('buildLogicalPlan', () => {
       buildLogicalPlan(makeNodes([filter]), 'flt1', undefined),
     ).toBeUndefined();
   });
-});
 
-describe('buildIR (Standard SQL backend)', () => {
-  it('returns undefined for nonexistent node', () => {
-    const nodes = makeNodes([]);
-    expect(buildIR(nodes, 'missing', undefined)).toBeUndefined();
-  });
+  it('returns undefined for nonexistent or invalid upstream nodes', () => {
+    const empty = makeNodes([]);
+    expect(buildLogicalPlan(empty, 'missing', undefined)).toBeUndefined();
 
-  it('produces one entry for a single from node', () => {
-    const from: RootNodeData = {
-      type: 'from',
-      id: 'f1',
-      x: 0,
-      y: 0,
-      config: {table: 'slice'},
-    };
-    const nodes = makeNodes([from]);
-    const entries = ensureDefined(buildIR(nodes, 'f1', undefined));
-    expect(entries.length).toBe(1);
-    const e0 = ensureDefined(entries[0]);
-    expect(e0.sql).toBe('SELECT *\nFROM slice');
-    expect(e0.deps.length).toBe(0);
-  });
-
-  it('creates one IR entry for from -> filter chain', () => {
     const filter: NodeData = {
       type: 'filter',
       id: 'flt1',
-      config: {
-        conditions: [{column: 'dur', op: '>', value: '1000'}],
-      },
+      config: {conditions: []},
     };
     const from: RootNodeData = {
       type: 'from',
@@ -117,19 +114,31 @@ describe('buildIR (Standard SQL backend)', () => {
       x: 0,
       y: 0,
       next: filter,
-      config: {table: 'slice'},
+      config: {table: ''},
     };
-    const nodes = makeNodes([from]);
-    const entries = ensureDefined(buildIR(nodes, 'flt1', undefined));
-    expect(entries.length).toBe(1);
-    const e0 = ensureDefined(entries[0]);
-    expect(e0.sql).toContain('WHERE dur > 1000');
-    expect(e0.sql).toContain('FROM slice');
-    expect(e0.deps.length).toBe(0); // from node = no dep
-    expect(e0.hash).toMatch(/^_qb_[0-9a-f]{8}$/);
+    expect(
+      buildLogicalPlan(makeNodes([from]), 'flt1', undefined),
+    ).toBeUndefined();
+  });
+});
+
+describe('formatSql (Standard SQL backend)', () => {
+  it('returns undefined display query for undefined plan', () => {
+    expect(buildDisplayQuery(undefined, 'sql')).toBeUndefined();
   });
 
-  it('folds select into the same statement as filter when possible', () => {
+  it('formats a single from node directly', () => {
+    const from: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      config: {table: 'slice'},
+    };
+    expect(getDisplay([from], 'f1', 'sql')).toBe('SELECT *\nFROM slice');
+  });
+
+  it('folds from -> select -> filter into one SELECT without WITH clause', () => {
     const filter: NodeData = {
       type: 'filter',
       id: 'flt1',
@@ -157,16 +166,14 @@ describe('buildIR (Standard SQL backend)', () => {
       next: select,
       config: {table: 'slice'},
     };
-    const nodes = makeNodes([from]);
-    const entries = ensureDefined(buildIR(nodes, 'flt1', undefined));
-    // select + filter should fold into one entry
-    expect(entries.length).toBe(1);
-    const e0 = ensureDefined(entries[0]);
-    expect(e0.sql).toContain('name,\n  dur');
-    expect(e0.sql).toContain('WHERE dur > 100');
+    const sql = getDisplay([from], 'flt1', 'sql');
+    expect(sql).toContain('name,\n  dur');
+    expect(sql).toContain('FROM slice');
+    expect(sql).toContain('WHERE dur > 100');
+    expect(sql).not.toContain('WITH');
   });
 
-  it('creates separate entries when folding is not possible', () => {
+  it('generates WITH clause with readable step names when folding is not possible', () => {
     const filter: NodeData = {
       type: 'filter',
       id: 'flt1',
@@ -191,16 +198,43 @@ describe('buildIR (Standard SQL backend)', () => {
       next: groupby,
       config: {table: 'slice'},
     };
-    const nodes = makeNodes([from]);
-    const entries = ensureDefined(buildIR(nodes, 'flt1', undefined));
-    expect(entries.length).toBe(2);
-    const e0 = ensureDefined(entries[0]);
-    const e1 = ensureDefined(entries[1]);
-    // First entry is the groupby
-    expect(e0.sql).toContain('GROUP BY name');
-    // Second entry is filter, depends on groupby hash
-    expect(e1.deps).toContain(e0.hash);
-    expect(e1.sql).toContain('WHERE cnt > 5');
+    const sql = getDisplay([from], 'flt1', 'sql');
+    expect(sql).toContain('WITH');
+    expect(sql).toContain('step_1 AS (');
+    expect(sql).toContain('FROM step_1');
+    expect(sql).toContain('GROUP BY name');
+    expect(sql).toContain('WHERE cnt > 5');
+  });
+
+  it('merges upstream CTEs cleanly when final stage itself starts with WITH', () => {
+    const root: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      config: {table: 'slice'},
+      next: {
+        type: 'filter',
+        id: 'flt1',
+        config: {
+          conditions: [{column: 'dur', op: '>', value: '100'}],
+        },
+        next: {
+          type: 'interval_flatten',
+          id: 'flat1',
+          config: {
+            partitionColumns: ['track_id'],
+            aggregations: [{func: 'COUNT', column: '*', alias: 'depth_cnt'}],
+            filterNegativeDur: true,
+          },
+        },
+      },
+    };
+    const sql = getDisplay([root], 'flat1', 'sql');
+    expect(sql.match(/\bWITH\b/g)?.length).toBe(1);
+    expect(sql).toContain('step_1 AS (');
+    expect(sql).toContain('_src AS (');
+    expect(sql).toContain('FROM step_1');
   });
 
   it('lowers interval_intersect with stdlib module include', () => {
@@ -231,14 +265,16 @@ describe('buildIR (Standard SQL backend)', () => {
       },
     };
 
-    const entries = ensureDefined(
-      buildIR(makeNodes([left, right, ii]), 'ii1', undefined),
+    const plan = ensureDefined(
+      buildLogicalPlan(makeNodes([left, right, ii]), 'ii1', undefined),
     );
-    expect(entries.length).toBe(1);
-    const e0 = ensureDefined(entries[0]);
-    expect(e0.includes).toContain('intervals.intersect');
-    expect(e0.sql).toContain('_interval_intersect!');
-    expect(e0.sql).toContain('(utid)');
+    const res = formatSql(plan, {includeModuleHeaders: true});
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.includes).toContain('intervals.intersect');
+    expect(res.sql).toContain('INCLUDE PERFETTO MODULE intervals.intersect;');
+    expect(res.sql).toContain('_interval_intersect!');
+    expect(res.sql).toContain('(utid)');
   });
 
   it('flushes foldable right-input branch before standalone join and downstream ops', () => {
@@ -296,202 +332,18 @@ describe('buildIR (Standard SQL backend)', () => {
       },
     };
 
-    const index = makeNodes([sliceRoot, argsRoot]);
+    const joinSql = getDisplay([sliceRoot, argsRoot], 'cz2hanKDC', 'sql');
+    expect(joinSql).toContain('step_1 AS (');
+    expect(joinSql).toContain('FROM args');
+    expect(joinSql).toContain("WHERE key = 'hipStreamSynchronize'");
+    expect(joinSql).toContain('LEFT JOIN step_1 AS r');
+    expect(joinSql).toContain('r.display_value AS arg');
 
-    const joinEntries = ensureDefined(buildIR(index, 'cz2hanKDC', undefined));
-    expect(joinEntries.length).toBe(2);
-    const rightEntry = ensureDefined(joinEntries[0]);
-    const joinEntry = ensureDefined(joinEntries[1]);
-    expect(rightEntry.sql).toContain('FROM args');
-    expect(rightEntry.sql).toContain("WHERE key = 'hipStreamSynchronize'");
-    expect(joinEntry.deps).toEqual([rightEntry.hash]);
-    expect(joinEntry.sql).toContain(`LEFT JOIN ${rightEntry.hash} AS r`);
-    expect(joinEntry.sql).toContain('r.display_value AS arg');
-
-    const sortEntries = ensureDefined(buildIR(index, 'cEL1iGXLx', undefined));
-    expect(sortEntries.length).toBe(3);
-    const tailEntry = ensureDefined(sortEntries[2]);
-    expect(tailEntry.deps).toEqual([joinEntry.hash]);
-    expect(tailEntry.sql).toContain("WHERE name = 'hipStreamSynchronize'");
-    expect(tailEntry.sql).toContain('ORDER BY dur DESC');
-  });
-
-  it('computes stable hashes based on content and deps', () => {
-    const filter: NodeData = {
-      type: 'filter',
-      id: 'flt1',
-      config: {
-        conditions: [{column: 'dur', op: '>', value: '1000'}],
-      },
-    };
-    const from: RootNodeData = {
-      type: 'from',
-      id: 'f1',
-      x: 0,
-      y: 0,
-      next: filter,
-      config: {table: 'slice'},
-    };
-    const nodes = makeNodes([from]);
-
-    const e1 = ensureDefined(buildIR(nodes, 'flt1', undefined));
-    const e2 = ensureDefined(buildIR(nodes, 'flt1', undefined));
-    expect(ensureDefined(e1[0]).hash).toBe(ensureDefined(e2[0]).hash);
-  });
-
-  it('hash changes when filter value changes', () => {
-    const filter1: NodeData = {
-      type: 'filter',
-      id: 'flt1',
-      config: {
-        conditions: [{column: 'dur', op: '>', value: '1000'}],
-      },
-    };
-    const filter2: NodeData = {
-      type: 'filter',
-      id: 'flt1',
-      config: {
-        conditions: [{column: 'dur', op: '>', value: '2000'}],
-      },
-    };
-
-    const nodes1 = makeNodes([
-      {
-        type: 'from',
-        id: 'f1',
-        x: 0,
-        y: 0,
-        next: filter1,
-        config: {table: 'slice'},
-      },
-    ]);
-    const nodes2 = makeNodes([
-      {
-        type: 'from',
-        id: 'f1',
-        x: 0,
-        y: 0,
-        next: filter2,
-        config: {table: 'slice'},
-      },
-    ]);
-
-    const e1 = ensureDefined(buildIR(nodes1, 'flt1', undefined));
-    const e2 = ensureDefined(buildIR(nodes2, 'flt1', undefined));
-    expect(ensureDefined(e1[0]).hash).not.toBe(ensureDefined(e2[0]).hash);
-  });
-
-  it('hash changes when upstream from table changes', () => {
-    const makeGraph = (table: string) => {
-      const filter: NodeData = {
-        type: 'filter',
-        id: 'flt1',
-        config: {
-          conditions: [{column: 'dur', op: '>', value: '1000'}],
-        },
-      };
-      return makeNodes([
-        {type: 'from', id: 'f1', x: 0, y: 0, next: filter, config: {table}},
-      ]);
-    };
-
-    const g1 = makeGraph('slice');
-    const g2 = makeGraph('sched');
-    const e1 = ensureDefined(buildIR(g1, 'flt1', undefined));
-    const e2 = ensureDefined(buildIR(g2, 'flt1', undefined));
-
-    // The SQL differs (FROM slice vs FROM sched), so hashes differ.
-    expect(ensureDefined(e1[0]).hash).not.toBe(ensureDefined(e2[0]).hash);
-  });
-
-  it('returns undefined when a node is invalid', () => {
-    const filter: NodeData = {
-      type: 'filter',
-      id: 'flt1',
-      config: {conditions: []},
-    };
-    const from: RootNodeData = {
-      type: 'from',
-      id: 'f1',
-      x: 0,
-      y: 0,
-      next: filter,
-      config: {table: ''},
-    };
-    const nodes = makeNodes([from]);
-    expect(buildIR(nodes, 'flt1', undefined)).toBeUndefined();
-  });
-});
-
-describe('buildDisplaySql', () => {
-  function getEntries(nodeList: RootNodeData[], nodeId: string): IrEntry[] {
-    const nodes = makeNodes(nodeList);
-    const entries = buildIR(nodes, nodeId, undefined);
-    if (!entries) throw new Error('buildIR returned undefined');
-    return entries;
-  }
-
-  it('returns undefined for empty entries', () => {
-    expect(buildDisplaySql([])).toBeUndefined();
-  });
-
-  it('returns simple query for from -> filter', () => {
-    const filter: NodeData = {
-      type: 'filter',
-      id: 'flt1',
-      config: {
-        conditions: [{column: 'dur', op: '>', value: '1000'}],
-      },
-    };
-    const from: RootNodeData = {
-      type: 'from',
-      id: 'f1',
-      x: 0,
-      y: 0,
-      next: filter,
-      config: {table: 'slice'},
-    };
-    const entries = getEntries([from], 'flt1');
-    const sql = ensureDefined(buildDisplaySql(entries));
-    expect(sql).toContain('SELECT *');
-    expect(sql).toContain('FROM slice');
-    expect(sql).toContain('WHERE dur > 1000');
-    // No WITH clause for a single entry
-    expect(sql).not.toContain('WITH');
-  });
-
-  it('generates WITH clause with readable step names for multi-entry chains', () => {
-    const filter: NodeData = {
-      type: 'filter',
-      id: 'flt1',
-      config: {
-        conditions: [{column: 'cnt', op: '>', value: '5'}],
-      },
-    };
-    const groupby: NodeData = {
-      type: 'groupby',
-      id: 'gb1',
-      next: filter,
-      config: {
-        groupColumns: ['name'],
-        aggregations: [{func: 'COUNT', column: '*', alias: 'cnt'}],
-      },
-    };
-    const from: RootNodeData = {
-      type: 'from',
-      id: 'f1',
-      x: 0,
-      y: 0,
-      next: groupby,
-      config: {table: 'slice'},
-    };
-    const entries = getEntries([from], 'flt1');
-    const sql = ensureDefined(buildDisplaySql(entries));
-    expect(sql).toContain('WITH');
-    expect(sql).toContain('step_1 AS (');
-    expect(sql).toContain('FROM step_1');
-    expect(sql).toContain('GROUP BY name');
-    expect(sql).toContain('WHERE cnt > 5');
+    const sortSql = getDisplay([sliceRoot, argsRoot], 'cEL1iGXLx', 'sql');
+    expect(sortSql).toContain('step_2 AS (');
+    expect(sortSql).toContain('FROM step_2');
+    expect(sortSql).toContain("WHERE name = 'hipStreamSynchronize'");
+    expect(sortSql).toContain('ORDER BY dur DESC');
   });
 
   it('shows correct SQL when clicking intermediate node', () => {
@@ -517,21 +369,17 @@ describe('buildDisplaySql', () => {
       config: {table: 'slice'},
     };
 
-    // Clicking on filter: build IR from filter upstream only
-    const filterEntries = getEntries([from], 'flt1');
-    const filterSql = ensureDefined(buildDisplaySql(filterEntries));
+    const filterSql = getDisplay([from], 'flt1', 'sql');
     expect(filterSql).toContain('WHERE dur > 1000');
     expect(filterSql).not.toContain('ORDER BY');
 
-    // Clicking on sort: build IR from sort upstream (includes filter)
-    const sortEntries = getEntries([from], 'srt1');
-    const sortSql = ensureDefined(buildDisplaySql(sortEntries));
+    const sortSql = getDisplay([from], 'srt1', 'sql');
     expect(sortSql).toContain('WHERE dur > 1000');
     expect(sortSql).toContain('ORDER BY dur DESC');
   });
 });
 
-describe('PerfettoSQL Next (pipe) backend', () => {
+describe('formatPipe (PerfettoSQL Next backend)', () => {
   it('composes groupby -> filter -> drop -> sort -> limit into a single pipeline', () => {
     const limit: NodeData = {
       type: 'limit',
@@ -588,15 +436,7 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       config: {table: 'slice'},
     };
 
-    const index = makeNodes([from]);
-    const pipeEntries = ensureDefined(
-      buildIR(index, 'lim1', undefined, 'pipe'),
-    );
-    // Unlike Standard SQL (which needs multiple CTEs), PerfettoSQL Next folds
-    // the entire linear pipeline into a single entry!
-    expect(pipeEntries.length).toBe(1);
-
-    const display = ensureDefined(buildDisplayPipeSql(pipeEntries));
+    const display = getDisplay([from], 'lim1', 'pipe');
     expect(display).toBe(
       [
         'FROM slice',
@@ -638,20 +478,23 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       },
     };
 
-    const entries = ensureDefined(
-      buildIR(makeNodes([left, right, ii]), 'ii1', undefined, 'pipe'),
+    const plan = ensureDefined(
+      buildLogicalPlan(makeNodes([left, right, ii]), 'ii1', undefined),
     );
-    expect(entries.length).toBe(1);
-    const e0 = ensureDefined(entries[0]);
-    expect(e0.includes).toEqual([]);
-    expect(e0.sql).toContain('INTERVAL INTERSECTION OF (');
-    expect(e0.sql).toContain('(FROM slice |> WHERE dur >= 0) AS t1');
-    expect(e0.sql).toContain('(FROM sched |> WHERE dur >= 0) AS t2');
-    expect(e0.sql).toContain(') PER utid');
-    expect(e0.sql).toContain('|> SELECT ts, dur, t1.id AS id_0, t2.id AS id_1');
+    const res = formatPipe(plan);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.includes).toEqual([]);
+    expect(res.sql).toContain('INTERVAL INTERSECTION OF (');
+    expect(res.sql).toContain('(FROM slice |> WHERE dur >= 0) AS t1');
+    expect(res.sql).toContain('(FROM sched |> WHERE dur >= 0) AS t2');
+    expect(res.sql).toContain(') PER utid');
+    expect(res.sql).toContain(
+      '|> SELECT ts, dur, t1.id AS id_0, t2.id AS id_1',
+    );
   });
 
-  it('formats multi-entry diamond DAGs using CREATE OR REPLACE PERFETTO TABLE', () => {
+  it('formats multi-use diamond DAGs using CREATE OR REPLACE PERFETTO TABLE', () => {
     const sharedFilter: NodeData = {
       type: 'filter',
       id: 'flt1',
@@ -680,11 +523,7 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       },
     };
 
-    const entries = ensureDefined(
-      buildIR(makeNodes([from, ii]), 'ii1', undefined, 'pipe'),
-    );
-    expect(entries.length).toBe(2);
-    const display = ensureDefined(buildDisplayPipeSql(entries));
+    const display = getDisplay([from, ii], 'ii1', 'pipe');
     expect(display).toContain(
       'CREATE OR REPLACE PERFETTO TABLE step_1 AS\nFROM slice\n|> WHERE dur > 0;',
     );
@@ -736,13 +575,7 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       },
     };
 
-    const index = makeNodes([root]);
-
-    const pipeEntries = ensureDefined(
-      buildIR(index, 'lim1', undefined, 'pipe'),
-    );
-    expect(pipeEntries.length).toBe(1);
-    expect(buildDisplayPipeSql(pipeEntries)).toBe(
+    expect(getDisplay([root], 'lim1', 'pipe')).toBe(
       [
         'FROM slice',
         '|> SELECT id, dur',
@@ -753,8 +586,7 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       ].join('\n'),
     );
 
-    const sqlEntries = ensureDefined(buildIR(index, 'lim1', undefined, 'sql'));
-    const displaySql = ensureDefined(buildDisplaySql(sqlEntries));
+    const displaySql = getDisplay([root], 'lim1', 'sql');
     expect(displaySql).toContain('dur / 1000 AS dur');
     expect(displaySql).toContain('dur AS dur_us');
     expect(displaySql).toContain('SELECT DISTINCT *');
@@ -782,13 +614,7 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       },
     };
 
-    const index = makeNodes([root]);
-
-    const pipeEntries = ensureDefined(
-      buildIR(index, 'flat1', undefined, 'pipe'),
-    );
-    expect(pipeEntries.length).toBe(1);
-    expect(buildDisplayPipeSql(pipeEntries)).toBe(
+    expect(getDisplay([root], 'flat1', 'pipe')).toBe(
       [
         'FROM slice',
         '|> WHERE dur >= 0',
@@ -796,9 +622,7 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       ].join('\n'),
     );
 
-    const sqlEntries = ensureDefined(buildIR(index, 'flat1', undefined, 'sql'));
-    expect(sqlEntries.length).toBe(1);
-    const sqlText = ensureDefined(sqlEntries[0]).sql;
+    const sqlText = getDisplay([root], 'flat1', 'sql');
     expect(sqlText).toContain('PARTITION BY track_id');
     expect(sqlText).toContain('_active AS depth_cnt');
     expect(sqlText).toContain('AS total_dur');
@@ -838,13 +662,7 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       },
     };
 
-    const index = makeNodes([bg, fg]);
-
-    const pipeEntries = ensureDefined(buildIR(index, 'fg1', undefined, 'pipe'));
-    const pipeDisplay = ensureDefined(buildDisplayPipeSql(pipeEntries));
-    // Both single-use upstream branches inline directly into a single pipeline
-    // with zero `CREATE PERFETTO TABLE` statements.
-    expect(pipeDisplay).toBe(
+    expect(getDisplay([bg, fg], 'fg1', 'pipe')).toBe(
       [
         'FROM sched',
         '|> SELECT ts, dur, cpu',
@@ -852,8 +670,7 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       ].join('\n'),
     );
 
-    const sqlEntries = ensureDefined(buildIR(index, 'fg1', undefined, 'sql'));
-    const sqlDisplay = ensureDefined(buildDisplaySql(sqlEntries));
+    const sqlDisplay = getDisplay([bg, fg], 'fg1', 'sql');
     expect(sqlDisplay).toContain('_islands AS (');
     expect(sqlDisplay).toContain('_gaps AS (');
     expect(sqlDisplay).toContain('b.cpu AS cpu');
@@ -906,11 +723,7 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       config: {table: 'heap_roots'},
     };
 
-    const index = makeNodes([nodesRoot, edgesRoot, rootsRoot]);
-
-    const pipeEntries = ensureDefined(buildIR(index, 'ta1', undefined, 'pipe'));
-    expect(pipeEntries.length).toBe(1);
-    expect(buildDisplayPipeSql(pipeEntries)).toBe(
+    expect(getDisplay([nodesRoot, edgesRoot, rootsRoot], 'ta1', 'pipe')).toBe(
       [
         'GRAPH DOMINATOR TREE',
         '  NODES heap_graph_object',
@@ -920,15 +733,18 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       ].join('\n'),
     );
 
-    const sqlEntries = ensureDefined(buildIR(index, 'ta1', undefined, 'sql'));
-    expect(sqlEntries.length).toBe(2);
-    const sqlDisplay = ensureDefined(buildDisplaySql(sqlEntries));
+    const sqlDisplay = getDisplay(
+      [nodesRoot, edgesRoot, rootsRoot],
+      'ta1',
+      'sql',
+    );
     expect(sqlDisplay).toContain('INCLUDE PERFETTO MODULE graphs.search;');
     expect(sqlDisplay).toContain(
       'INCLUDE PERFETTO MODULE graphs.dominator_tree;',
     );
     expect(sqlDisplay).toContain('graph_dominator_tree!');
     expect(sqlDisplay).toContain('WITH RECURSIVE');
+    expect(sqlDisplay.match(/^WITH\b/gm)?.length).toBe(1);
     expect(sqlDisplay).toContain('SUM(v.self_size) AS retained_size');
   });
 
@@ -953,18 +769,13 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       },
     };
 
-    const index = makeNodes([root]);
-
-    const pipeEntries = ensureDefined(
-      buildIR(index, 'ext1', undefined, 'pipe'),
-    );
-    expect(buildDisplayPipeSql(pipeEntries)).toBe(
+    expect(getDisplay([root], 'ext1', 'pipe')).toBe(
       ['FROM slice', '|> AS s', '|> EXTEND s.ts + s.dur AS ts_end'].join('\n'),
     );
 
-    const sqlEntries = ensureDefined(buildIR(index, 'ext1', undefined, 'sql'));
-    expect(buildDisplaySql(sqlEntries)).toContain('s.ts + s.dur AS ts_end');
-    expect(buildDisplaySql(sqlEntries)).toContain('FROM slice AS s');
+    const sqlDisplay = getDisplay([root], 'ext1', 'sql');
+    expect(sqlDisplay).toContain('s.ts + s.dur AS ts_end');
+    expect(sqlDisplay).toContain('FROM slice AS s');
   });
 
   it('lowers interval_merge (OVERLAPPING and CONSECUTIVE) in both dialects', () => {
@@ -987,9 +798,7 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       },
     };
 
-    const ovIndex = makeNodes([overlappingRoot]);
-    const ovPipe = ensureDefined(buildIR(ovIndex, 'im1', undefined, 'pipe'));
-    expect(buildDisplayPipeSql(ovPipe)).toBe(
+    expect(getDisplay([overlappingRoot], 'im1', 'pipe')).toBe(
       [
         'FROM slice',
         '|> WHERE dur >= 0',
@@ -997,8 +806,7 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       ].join('\n'),
     );
 
-    const ovSql = ensureDefined(buildIR(ovIndex, 'im1', undefined, 'sql'));
-    const ovSqlText = ensureDefined(buildDisplaySql(ovSql));
+    const ovSqlText = getDisplay([overlappingRoot], 'im1', 'sql');
     expect(ovSqlText).toContain('MAX(ts + dur) OVER (PARTITION BY track_id');
     expect(ovSqlText).toContain('COUNT(*) AS slice_cnt');
 
@@ -1021,11 +829,7 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       },
     };
 
-    const consIndex = makeNodes([consecutiveRoot]);
-    const consPipe = ensureDefined(
-      buildIR(consIndex, 'im2', undefined, 'pipe'),
-    );
-    expect(buildDisplayPipeSql(consPipe)).toBe(
+    expect(getDisplay([consecutiveRoot], 'im2', 'pipe')).toBe(
       [
         'FROM sched',
         '|> INTERVAL MERGE CONSECUTIVE BY utid, end_state PER cpu AGGREGATE COUNT(*) AS _pf_cnt',
@@ -1033,8 +837,7 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       ].join('\n'),
     );
 
-    const consSql = ensureDefined(buildIR(consIndex, 'im2', undefined, 'sql'));
-    const consSqlText = ensureDefined(buildDisplaySql(consSql));
+    const consSqlText = getDisplay([consecutiveRoot], 'im2', 'sql');
     expect(consSqlText).toContain('LAG(ts + dur) OVER (PARTITION BY cpu');
     expect(consSqlText).toContain('GROUP BY cpu, _grp, utid, end_state');
   });
@@ -1057,26 +860,18 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       },
     };
 
-    const simpleIndex = makeNodes([simpleRoot]);
-    const simplePipe = ensureDefined(
-      buildIR(simpleIndex, 'ife1', undefined, 'pipe'),
-    );
-    expect(buildDisplayPipeSql(simplePipe)).toBe(
+    expect(getDisplay([simpleRoot], 'ife1', 'pipe')).toBe(
       [
         'FROM counter',
         '|> INTERVALS FROM EVENTS PER track_id CLOSING LAST AT (trace_end())',
       ].join('\n'),
     );
 
-    const simpleSql = ensureDefined(
-      buildIR(simpleIndex, 'ife1', undefined, 'sql'),
-    );
-    expect(ensureDefined(simpleSql[0]).error).toBeUndefined();
-    expect(ensureDefined(buildDisplaySql(simpleSql))).toContain(
+    expect(getDisplay([simpleRoot], 'ife1', 'sql')).toContain(
       'COALESCE(LEAD(ts) OVER (PARTITION BY track_id ORDER BY ts), (trace_end())) - ts AS dur',
     );
 
-    // With STOP connected: pipe emits `STOP <ref>`, while SQL marks the entry unsupported.
+    // With STOP connected: pipe emits `STOP <ref>`, while SQL marks it unsupported.
     const stopRoot: RootNodeData = {
       type: 'from',
       id: 'stop1',
@@ -1102,21 +897,19 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       },
     };
 
-    const stopIndex = makeNodes([stopRoot, withStopRoot]);
-    const stopPipe = ensureDefined(
-      buildIR(stopIndex, 'ife2', undefined, 'pipe'),
-    );
-    expect(ensureDefined(buildDisplayPipeSql(stopPipe))).toBe(
+    expect(getDisplay([stopRoot, withStopRoot], 'ife2', 'pipe')).toBe(
       [
         'FROM counter',
         '|> INTERVALS FROM EVENTS PER track_id STOP process KEEPING LAST OPEN',
       ].join('\n'),
     );
 
-    const stopSql = ensureDefined(buildIR(stopIndex, 'ife2', undefined, 'sql'));
-    const lastEntry = ensureDefined(stopSql[stopSql.length - 1]);
-    expect(lastEntry.error).toContain('only supported in PerfettoSQL Next');
-    expect(buildDisplaySql(stopSql)).toContain(
+    const stopPlan = ensureDefined(
+      buildLogicalPlan(makeNodes([stopRoot, withStopRoot]), 'ife2', undefined),
+    );
+    const stopSqlRes = formatLogicalPlan(stopPlan, 'sql');
+    expect(stopSqlRes.ok).toBe(false);
+    expect(getDisplay([stopRoot, withStopRoot], 'ife2', 'sql')).toContain(
       '-- Unsupported in Standard SQL: Intervals From Events with a Stop input is only supported in PerfettoSQL Next mode.',
     );
   });
@@ -1146,19 +939,14 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       },
     };
 
-    const index = makeNodes([populated]);
-
-    const pipeEntries = ensureDefined(buildIR(index, 'dr1', undefined, 'pipe'));
-    const pipeSql = ensureDefined(buildDisplayPipeSql(pipeEntries));
+    const pipeSql = getDisplay([populated], 'dr1', 'pipe');
     expect(pipeSql).toContain('WITH _data(id, label, ratio, active) AS (');
     expect(pipeSql).toContain("(1, 'App''s root', 2.0, 1)");
     expect(pipeSql).toContain('(2, CAST(NULL AS TEXT), CAST(NULL AS REAL), 0)');
     expect(pipeSql).toContain('|> DROP active');
 
-    const sqlEntries = ensureDefined(buildIR(index, 'dr1', undefined, 'sql'));
-    const sqlText = ensureDefined(buildDisplaySql(sqlEntries));
+    const sqlText = getDisplay([populated], 'dr1', 'sql');
     expect(sqlText).toContain('WITH _data(id, label, ratio, active) AS (');
-    // `drop` resolves remaining columns `(id, label, ratio)` from `data_table` schema!
     expect(sqlText).toContain('id,\n  label,\n  ratio');
 
     const emptyRoot: RootNodeData = {
@@ -1174,14 +962,7 @@ describe('PerfettoSQL Next (pipe) backend', () => {
         rows: [],
       },
     };
-    const emptyIdx = makeNodes([emptyRoot]);
-    expect(
-      ensureDefined(
-        buildDisplaySql(
-          ensureDefined(buildIR(emptyIdx, 'dt_empty', undefined, 'sql')),
-        ),
-      ),
-    ).toBe(
+    expect(getDisplay([emptyRoot], 'dt_empty', 'sql')).toBe(
       'SELECT\n  CAST(NULL AS INTEGER) AS src,\n  CAST(NULL AS INTEGER) AS dst\nWHERE 0',
     );
   });
@@ -1251,9 +1032,11 @@ describe('PerfettoSQL Next (pipe) backend', () => {
       },
     };
 
-    const index = makeNodes([nodesRoot, edgesRoot, rootsRoot]);
-    const pipeEntries = ensureDefined(buildIR(index, 'ta1', undefined, 'pipe'));
-    const display = ensureDefined(buildDisplayPipeSql(pipeEntries));
+    const display = getDisplay(
+      [nodesRoot, edgesRoot, rootsRoot],
+      'ta1',
+      'pipe',
+    );
     expect(display).not.toContain('CREATE');
     expect(display).toBe(
       [
@@ -1283,5 +1066,265 @@ describe('PerfettoSQL Next (pipe) backend', () => {
         '|> TREE ACCUMULATE UP SUM(self_size) AS retained_size',
       ].join('\n'),
     );
+  });
+});
+
+describe('computeLogicalPlanHashes & planMaterialization', () => {
+  it('computes identical Merkle hashes for semantically identical branches with different nodeIds', () => {
+    const branchA: RootNodeData = {
+      type: 'from',
+      id: 'from_a',
+      x: 0,
+      y: 0,
+      config: {table: 'slice'},
+      next: {
+        type: 'filter',
+        id: 'flt_a',
+        config: {conditions: [{column: 'dur', op: '>', value: '1000'}]},
+      },
+    };
+    const branchB: RootNodeData = {
+      type: 'from',
+      id: 'from_b',
+      x: 200,
+      y: 0,
+      config: {table: 'slice'},
+      next: {
+        type: 'filter',
+        id: 'flt_b',
+        config: {conditions: [{column: 'dur', op: '>', value: '1000'}]},
+      },
+    };
+    const union: RootNodeData = {
+      type: 'union',
+      id: 'u1',
+      x: 100,
+      y: 200,
+      inputs: ['flt_a', 'flt_b'],
+      config: {distinct: false, numInputs: 2},
+    };
+
+    const plan = ensureDefined(
+      buildLogicalPlan(makeNodes([branchA, branchB, union]), 'u1', undefined),
+    );
+    const filterHash = nodeHash(plan, 'flt_a');
+    expect(filterHash).toMatch(/^_qb_[0-9a-f]{8}$/);
+    expect(nodeHash(plan, 'flt_b')).toBe(filterHash);
+
+    // Common Subexpression Elimination: both identical inputs deduplicate into
+    // a single materialization step!
+    const matPlan = planMaterialization(plan);
+    expect(matPlan.steps.length).toBe(2); // [shared filter step, union target step]
+    expect(matPlan.steps[0]?.hash).toBe(filterHash);
+    expect(matPlan.steps[0]?.nodeIds).toEqual(['flt_a', 'flt_b']);
+    expect(formatSql(matPlan.steps[1]!.plan)).toEqual({
+      ok: true,
+      sql: `SELECT *\nFROM ${filterHash}\nUNION ALL\nSELECT *\nFROM ${filterHash}`,
+      includes: [],
+    });
+  });
+
+  it('changes Merkle hash when filter value or upstream table changes', () => {
+    const makeFilterPlan = (table: string, val: string) =>
+      ensureDefined(
+        buildLogicalPlan(
+          makeNodes([
+            {
+              type: 'from',
+              id: 'f1',
+              x: 0,
+              y: 0,
+              config: {table},
+              next: {
+                type: 'filter',
+                id: 'flt1',
+                config: {conditions: [{column: 'dur', op: '>', value: val}]},
+              },
+            },
+          ]),
+          'flt1',
+          undefined,
+        ),
+      );
+
+    const h1 = nodeHash(makeFilterPlan('slice', '1000'), 'flt1');
+    const h2 = nodeHash(makeFilterPlan('slice', '2000'), 'flt1');
+    const h3 = nodeHash(makeFilterPlan('sched', '1000'), 'flt1');
+    expect(h1).not.toBe(h2);
+    expect(h1).not.toBe(h3);
+  });
+
+  it('emits zero materialization steps for zero-cost queries (From, Chart, TimeRange, DataTable)', () => {
+    const fromChart: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      config: {table: 'slice'},
+      next: {
+        type: 'chart',
+        id: 'ch1',
+        config: {charts: [], numInputs: 1},
+      },
+    };
+    const index = makeNodes([fromChart]);
+    const fromPlan = ensureDefined(buildLogicalPlan(index, 'f1', undefined));
+    const fromMat = planMaterialization(fromPlan);
+    expect(fromMat.steps).toEqual([]);
+    expect(fromMat.finalRead.nodes[0]?.op).toEqual({
+      kind: 'scan',
+      table: 'slice',
+    });
+
+    const chartPlan = ensureDefined(buildLogicalPlan(index, 'ch1', undefined));
+    const chartMat = planMaterialization(chartPlan);
+    expect(chartMat.steps).toEqual([]);
+    expect(chartMat.finalRead.nodes[0]?.op).toEqual({
+      kind: 'scan',
+      table: 'slice',
+    });
+
+    const tr: RootNodeData = {
+      type: 'time_range',
+      id: 'tr1',
+      x: 0,
+      y: 0,
+      config: {ts: '10', dur: '20'},
+    };
+    const trPlan = ensureDefined(
+      buildLogicalPlan(makeNodes([tr]), 'tr1', undefined),
+    );
+    const trMat = planMaterialization(trPlan);
+    expect(trMat.steps).toEqual([]);
+    expect(formatSql(trMat.finalRead)).toEqual({
+      ok: true,
+      sql: 'SELECT 0 AS id, 10 AS ts, 20 AS dur',
+      includes: [],
+    });
+  });
+
+  it('fuses pipelined ops when cold, and cuts dynamically at warm cache prefixes', () => {
+    const root: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      config: {table: 'slice'},
+      next: {
+        type: 'filter',
+        id: 'flt1',
+        config: {conditions: [{column: 'dur', op: '>', value: '100'}]},
+        next: {
+          type: 'sort',
+          id: 'srt1',
+          config: {conditions: [{column: 'dur', order: 'DESC'}]},
+        },
+      },
+    };
+    const plan = ensureDefined(
+      buildLogicalPlan(makeNodes([root]), 'srt1', undefined),
+    );
+    const filterHash = nodeHash(plan, 'flt1');
+    const sortHash = nodeHash(plan, 'srt1');
+
+    // Cold run: Filter + Sort fuse into a single materialized step.
+    const coldMat = planMaterialization(plan);
+    expect(coldMat.steps.length).toBe(1);
+    expect(coldMat.steps[0]?.hash).toBe(sortHash);
+    expect(formatSql(coldMat.steps[0]!.plan)).toEqual({
+      ok: true,
+      sql: 'SELECT *\nFROM slice\nWHERE dur > 100\nORDER BY dur DESC',
+      includes: [],
+    });
+
+    // Warm run (`flt1` already cached): cuts at `flt1` so `srt1` reads `_qb_<filterHash>`.
+    const warmMat = planMaterialization(plan, {
+      warmHashes: new Set([filterHash]),
+    });
+    expect(warmMat.steps.length).toBe(2);
+    expect(warmMat.steps[0]?.hash).toBe(filterHash);
+    expect(warmMat.steps[1]?.hash).toBe(sortHash);
+    expect(formatSql(warmMat.steps[1]!.plan)).toEqual({
+      ok: true,
+      sql: `SELECT *\nFROM ${filterHash}\nORDER BY dur DESC`,
+      includes: [],
+    });
+  });
+
+  it('checkpoints pipeline breakers (GroupBy, Interval Intersect) and global canvas Y-forks', () => {
+    // 1. Pipeline breaker: GroupBy -> Filter cuts into 2 steps even when cold.
+    const gbChain: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      config: {table: 'slice'},
+      next: {
+        type: 'groupby',
+        id: 'gb1',
+        config: {
+          groupColumns: ['name'],
+          aggregations: [{func: 'COUNT', column: '*', alias: 'cnt'}],
+        },
+        next: {
+          type: 'filter',
+          id: 'flt1',
+          config: {conditions: [{column: 'cnt', op: '>', value: '5'}]},
+        },
+      },
+    };
+    const gbPlan = ensureDefined(
+      buildLogicalPlan(makeNodes([gbChain]), 'flt1', undefined),
+    );
+    const gbMat = planMaterialization(gbPlan);
+    expect(gbMat.steps.length).toBe(2);
+    expect(formatSql(gbMat.steps[1]!.plan)).toEqual({
+      ok: true,
+      sql: `SELECT *\nFROM ${gbMat.steps[0]!.hash}\nWHERE cnt > 5`,
+      includes: [],
+    });
+
+    // 2. Global Y-fork across independent canvas branches:
+    // From(slice) -> Filter(flt_shared) feeds Sort(branch_a) and Limit(branch_b).
+    const sharedRoot: RootNodeData = {
+      type: 'from',
+      id: 'f_shared',
+      x: 0,
+      y: 0,
+      config: {table: 'slice'},
+      next: {
+        type: 'filter',
+        id: 'flt_shared',
+        config: {conditions: [{column: 'dur', op: '>', value: '500'}]},
+        next: {
+          type: 'sort',
+          id: 'branch_a',
+          config: {conditions: [{column: 'dur', order: 'DESC'}]},
+        },
+      },
+    };
+    const branchB: RootNodeData = {
+      type: 'limit',
+      id: 'branch_b',
+      x: 200,
+      y: 100,
+      inputs: ['flt_shared'],
+      config: {limitCount: '10'},
+    };
+    const forkIndex = makeNodes([sharedRoot, branchB]);
+    const analysis = analyzeCanvas(forkIndex, undefined);
+    expect(analysis.canvasRefCounts.get('flt_shared')).toBe(2);
+
+    const branchAPlan = ensureDefined(
+      buildLogicalPlan(forkIndex, 'branch_a', undefined),
+    );
+    // In isolation `branchAPlan` has refCount 1 on `flt_shared`, so passing
+    // `canvasRefCounts` is what triggers the shared checkpoint cut!
+    const forkMat = planMaterialization(branchAPlan, {
+      canvasRefCounts: analysis.canvasRefCounts,
+    });
+    expect(forkMat.steps.length).toBe(2);
+    expect(forkMat.steps[0]?.nodeIds).toEqual(['flt_shared']);
+    expect(forkMat.steps[1]?.nodeIds).toEqual(['branch_a']);
   });
 });

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {assertUnreachable} from '../../base/assert';
-import {fnvHash} from './graph_utils';
 import {
   type AggregateOp,
   type AsOp,
@@ -26,6 +25,8 @@ import {
   formatDataTableSql,
   formatExtractArgExpr,
   formatFilterConditions,
+  type FormatOptions,
+  type FormatResult,
   type GraphTreeOp,
   type IntervalFillGapsOp,
   type IntervalFlattenOp,
@@ -45,32 +46,7 @@ import {
   type TimeRangeOp,
   type TreeAccumulateOp,
   type UnionOp,
-} from './logical_ir';
-
-// Content-addressable physical IR entry: the hash IS the CTE/table name
-// (`_qb_<8hex>`). SQL in each entry references deps by their hash directly.
-export interface IrEntry {
-  // Content+dependency hash, also used as CTE/table name: _qb_<8hex>.
-  readonly hash: string;
-  // The query for this statement. References deps by hash and FROM tables by name.
-  readonly sql: string;
-  // The hashes of IR entries this depends on.
-  readonly deps: readonly string[];
-  // Module include keys required by this entry.
-  readonly includes: readonly string[];
-  // The node IDs that were folded into this entry.
-  readonly nodeIds: readonly string[];
-  // Optional error message if this step cannot be materialized in the target dialect.
-  readonly error?: string;
-}
-
-export function computeIrHash(
-  sql: string,
-  depHashes: readonly string[],
-): string {
-  const sorted = [...depHashes].sort();
-  return `_qb_${fnvHash(sql + sorted.join(','))}`;
-}
+} from './ir';
 
 // --- Standard SQL statement folding ---
 
@@ -738,92 +714,74 @@ function emitRawSql(
   return `WITH ${withClauses.join(',\n')}${separator}${body}`;
 }
 
-// --- Lower LogicalPlan -> Standard SQL IrEntry[] ---
+// --- Format LogicalPlan -> Standard SQL ---
 
-export function lowerToSql(plan: LogicalPlan): IrEntry[] {
+interface SqlStep {
+  readonly name: string;
+  readonly sql: string;
+}
+
+function mergeCtesWithFinalSql(
+  cteSteps: readonly SqlStep[],
+  finalSql: string,
+): string {
+  if (cteSteps.length === 0) return finalSql;
+  const cteParts = cteSteps.map((step) => {
+    const indented = step.sql.split('\n').join('\n  ');
+    return `${step.name} AS (\n  ${indented}\n)`;
+  });
+  const trimmed = finalSql.trimStart();
+  const recursiveMatch = trimmed.match(/^with\s+recursive\s+/i);
+  if (recursiveMatch) {
+    const rest = trimmed.slice(recursiveMatch[0].length);
+    return `WITH RECURSIVE\n${cteParts.join(',\n')},\n${rest}`;
+  }
+  const withMatch = trimmed.match(/^with\s+/i);
+  if (withMatch) {
+    const rest = trimmed.slice(withMatch[0].length);
+    return `WITH\n${cteParts.join(',\n')},\n${rest}`;
+  }
+  return `WITH\n${cteParts.join(',\n')}\n${finalSql}`;
+}
+
+export function formatSql(
+  plan: LogicalPlan,
+  options?: FormatOptions,
+): FormatResult {
+  if (plan.nodes.length === 0) {
+    return {ok: false, error: 'Empty logical plan.'};
+  }
+
   const nodeById = new Map<string, LogicalNode>();
   for (const node of plan.nodes) {
     nodeById.set(node.nodeId, node);
   }
 
-  const entries: IrEntry[] = [];
-  const entryByHash = new Set<string>();
+  const steps: SqlStep[] = [];
   const emittedAs = new Map<string, string>();
-  const isScanNode = new Set<string>();
-  const nodeIncludes = new Map<string, Set<string>>();
+  const allIncludes = new Set<string>();
 
   let current: SqlStatement | undefined;
   let currentTailId: string | undefined;
-  let currentDeps: string[] = [];
-  let currentIncludes = new Set<string>();
-  let currentNodeIds: string[] = [];
 
-  function collectIncludes(inputIds: readonly string[]): Set<string> {
-    const includes = new Set<string>();
-    for (const id of inputIds) {
-      const parentIncludes = nodeIncludes.get(id);
-      if (parentIncludes) {
-        for (const inc of parentIncludes) includes.add(inc);
-      }
-    }
-    return includes;
-  }
-
-  function emitEntry(
-    sql: string,
-    deps: readonly string[],
-    includes: ReadonlySet<string>,
-    nodeIds: readonly string[],
-    error?: string,
-  ): string {
-    const hash = computeIrHash(sql, deps);
-    if (!entryByHash.has(hash)) {
-      entryByHash.add(hash);
-      entries.push({
-        hash,
-        sql,
-        deps: [...deps],
-        includes: [...includes],
-        nodeIds: [...nodeIds],
-        ...(error !== undefined ? {error} : {}),
-      });
-    }
-    return hash;
+  function emitStep(sql: string): string {
+    const name = `step_${steps.length + 1}`;
+    steps.push({name, sql});
+    return name;
   }
 
   function emitCurrent(): void {
     if (current !== undefined && currentTailId !== undefined) {
       const sql = statementToSql(current);
-      const hash = emitEntry(sql, currentDeps, currentIncludes, currentNodeIds);
-      emittedAs.set(currentTailId, hash);
+      const name = emitStep(sql);
+      emittedAs.set(currentTailId, name);
     }
     current = undefined;
     currentTailId = undefined;
-    currentDeps = [];
-    currentIncludes = new Set<string>();
-    currentNodeIds = [];
   }
 
   function resolveRef(id: string): string {
     return emittedAs.get(id) ?? '';
-  }
-
-  function resolveDep(id: string): string | undefined {
-    if (isScanNode.has(id)) return undefined;
-    return emittedAs.get(id);
-  }
-
-  function resolveDeps(inputIds: readonly string[]): string[] {
-    const seen = new Set<string>();
-    const deps: string[] = [];
-    for (const id of inputIds) {
-      const dep = resolveDep(id);
-      if (dep !== undefined && !seen.has(dep)) {
-        seen.add(dep);
-        deps.push(dep);
-      }
-    }
-    return deps;
   }
 
   function emitStandalone(
@@ -834,38 +792,17 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
   ): boolean {
     emitCurrent();
     if (inputIds.some((id) => resolveRef(id) === '')) return false;
-    const sql = buildSql();
-    const deps = resolveDeps(inputIds);
-    const includes = collectIncludes(inputIds);
     if (extraIncludes) {
-      for (const inc of extraIncludes) includes.add(inc);
+      for (const inc of extraIncludes) allIncludes.add(inc);
     }
-    const hash = emitEntry(sql, deps, includes, [nodeId]);
-    nodeIncludes.set(nodeId, includes);
-    emittedAs.set(nodeId, hash);
-    return true;
-  }
-
-  function emitUnsupported(
-    nodeId: string,
-    inputIds: readonly string[],
-    reason: string,
-  ): boolean {
-    emitCurrent();
-    if (inputIds.some((id) => resolveRef(id) === '')) return false;
-    const deps = resolveDeps(inputIds);
-    const includes = collectIncludes(inputIds);
-    const sql = `-- Unsupported in Standard SQL: ${reason}`;
-    const hash = emitEntry(sql, deps, includes, [nodeId], reason);
-    nodeIncludes.set(nodeId, includes);
-    emittedAs.set(nodeId, hash);
+    const name = emitStep(buildSql());
+    emittedAs.set(nodeId, name);
     return true;
   }
 
   function emitFoldable(nodeId: string, op: FoldableOp): boolean {
     const inputIsCurrentTail = op.input === currentTailId;
     const inputSingleRef = (nodeById.get(op.input)?.refCount ?? 0) <= 1;
-    const inherited = collectIncludes([op.input]);
 
     if (
       inputIsCurrentTail &&
@@ -874,9 +811,6 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
       tryFoldOp(current, op)
     ) {
       currentTailId = nodeId;
-      currentNodeIds.push(nodeId);
-      for (const inc of inherited) currentIncludes.add(inc);
-      nodeIncludes.set(nodeId, currentIncludes);
       return true;
     }
 
@@ -886,11 +820,6 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
     current = {columns: '*', from: inputRef};
     tryFoldOp(current, op);
     currentTailId = nodeId;
-    currentNodeIds = [nodeId];
-    currentIncludes = inherited;
-    const dep = resolveDep(op.input);
-    if (dep !== undefined) currentDeps.push(dep);
-    nodeIncludes.set(nodeId, currentIncludes);
     return true;
   }
 
@@ -900,9 +829,8 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
       case 'scan': {
         emitCurrent();
         emittedAs.set(nodeId, op.table);
-        isScanNode.add(nodeId);
-        if (op.includes && op.includes.length > 0) {
-          nodeIncludes.set(nodeId, new Set(op.includes));
+        if (op.includes) {
+          for (const inc of op.includes) allIncludes.add(inc);
         }
         break;
       }
@@ -923,7 +851,7 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
             emitDropSql(op, resolveRef(op.input)),
           )
         ) {
-          return [];
+          return {ok: false, error: 'Failed to resolve Drop input.'};
         }
         break;
       }
@@ -934,7 +862,7 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
             emitRenameSql(op, resolveRef(op.input)),
           )
         ) {
-          return [];
+          return {ok: false, error: 'Failed to resolve Rename input.'};
         }
         break;
       }
@@ -945,7 +873,7 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
             emitSetSql(op, resolveRef(op.input)),
           )
         ) {
-          return [];
+          return {ok: false, error: 'Failed to resolve Set input.'};
         }
         break;
       }
@@ -956,26 +884,33 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
             emitJoinSql(op, resolveRef(op.left), resolveRef(op.right)),
           )
         ) {
-          return [];
+          return {ok: false, error: 'Failed to resolve Join inputs.'};
         }
         break;
       }
 
       case 'union': {
-        if (op.inputs.length === 0) return [];
+        if (op.inputs.length === 0) {
+          return {ok: false, error: 'Union requires at least one input.'};
+        }
         if (
           !emitStandalone(nodeId, op.inputs, () =>
             emitUnionSql(op, op.inputs.map(resolveRef)),
           )
         ) {
-          return [];
+          return {ok: false, error: 'Failed to resolve Union inputs.'};
         }
         break;
       }
 
       case 'interval_intersect': {
         const inputIds = op.inputs.map((inp) => inp.nodeId);
-        if (inputIds.length === 0) return [];
+        if (inputIds.length === 0) {
+          return {
+            ok: false,
+            error: 'Interval Intersect requires at least one input.',
+          };
+        }
         if (
           !emitStandalone(
             nodeId,
@@ -984,7 +919,10 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
             ['intervals.intersect'],
           )
         ) {
-          return [];
+          return {
+            ok: false,
+            error: 'Failed to resolve Interval Intersect inputs.',
+          };
         }
         break;
       }
@@ -995,7 +933,10 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
             emitIntervalFlattenSql(op, resolveRef(op.input)),
           )
         ) {
-          return [];
+          return {
+            ok: false,
+            error: 'Failed to resolve Interval Flatten input.',
+          };
         }
         break;
       }
@@ -1010,7 +951,10 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
             ),
           )
         ) {
-          return [];
+          return {
+            ok: false,
+            error: 'Failed to resolve Interval Fill Gaps inputs.',
+          };
         }
         break;
       }
@@ -1021,30 +965,28 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
             emitIntervalMergeSql(op, resolveRef(op.input)),
           )
         ) {
-          return [];
+          return {ok: false, error: 'Failed to resolve Interval Merge input.'};
         }
         break;
       }
 
       case 'intervals_from_events': {
         if (op.stop !== undefined) {
-          if (
-            !emitUnsupported(
-              nodeId,
-              [op.input, op.stop],
+          return {
+            ok: false,
+            error:
               'Intervals From Events with a Stop input is only supported in PerfettoSQL Next mode.',
-            )
-          ) {
-            return [];
-          }
-          break;
+          };
         }
         if (
           !emitStandalone(nodeId, [op.input], () =>
             emitIntervalsFromEventsSql(op, resolveRef(op.input)),
           )
         ) {
-          return [];
+          return {
+            ok: false,
+            error: 'Failed to resolve Intervals From Events input.',
+          };
         }
         break;
       }
@@ -1055,7 +997,7 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
             emitTreeAccumulateSql(op, resolveRef(op.input)),
           )
         ) {
-          return [];
+          return {ok: false, error: 'Failed to resolve Tree Accumulate input.'};
         }
         break;
       }
@@ -1079,7 +1021,7 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
             graphIncludes,
           )
         ) {
-          return [];
+          return {ok: false, error: 'Failed to resolve Graph Tree inputs.'};
         }
         break;
       }
@@ -1089,7 +1031,7 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
         if (
           !emitStandalone(nodeId, inputIds, () => emitRawSql(op, resolveRef))
         ) {
-          return [];
+          return {ok: false, error: 'Failed to resolve SQL inputs.'};
         }
         break;
       }
@@ -1104,7 +1046,9 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
       case 'aggregate':
       case 'sort':
       case 'limit': {
-        if (!emitFoldable(nodeId, op)) return [];
+        if (!emitFoldable(nodeId, op)) {
+          return {ok: false, error: `Failed to resolve ${op.kind} input.`};
+        }
         break;
       }
 
@@ -1118,65 +1062,33 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
   // If the target node itself is a scan (`FROM`), emit `SELECT * FROM <table>`.
   const targetNode = nodeById.get(plan.targetNodeId);
   if (targetNode?.op.kind === 'scan') {
-    const includes = nodeIncludes.get(targetNode.nodeId) ?? new Set<string>();
-    emitEntry(`SELECT *\nFROM ${targetNode.op.table}`, [], includes, [
-      targetNode.nodeId,
-    ]);
+    emitStep(`SELECT *\nFROM ${targetNode.op.table}`);
   }
 
-  return entries;
-}
-
-// --- Display SQL ---
-
-// Format Standard SQL IR entries as a single query using `WITH` CTEs.
-export function buildDisplaySql(
-  entries: readonly IrEntry[],
-): string | undefined {
-  if (entries.length === 0) return undefined;
-
-  const errEntry = entries.find((e) => e.error !== undefined);
-  if (errEntry?.error !== undefined) {
-    return `-- Unsupported in Standard SQL: ${errEntry.error}`;
+  const lastStep = steps[steps.length - 1];
+  if (!lastStep) {
+    return {ok: false, error: 'Empty SQL output.'};
   }
 
-  const allIncludes = new Set<string>();
-  for (const e of entries) {
-    for (const inc of e.includes) allIncludes.add(inc);
+  const cteSteps = steps.slice(0, -1);
+  const queryBody = mergeCtesWithFinalSql(cteSteps, lastStep.sql);
+  const includes = [...allIncludes];
+  const includeHeaders = options?.includeModuleHeaders ?? true;
+
+  if (includeHeaders && includes.length > 0) {
+    const headerLines = includes.map(
+      (inc) => `INCLUDE PERFETTO MODULE ${inc};`,
+    );
+    return {
+      ok: true,
+      sql: `${headerLines.join('\n')}\n${queryBody}`,
+      includes,
+    };
   }
 
-  const lastEntry = entries[entries.length - 1];
-  if (!lastEntry) return undefined;
-  const cteEntries = entries.slice(0, -1);
-
-  const parts: string[] = [];
-
-  for (const inc of allIncludes) {
-    parts.push(`INCLUDE PERFETTO MODULE ${inc};`);
-  }
-
-  const nameMap = new Map<string, string>();
-  for (const [i, cteEntry] of cteEntries.entries()) {
-    nameMap.set(cteEntry.hash, `step_${i + 1}`);
-  }
-
-  function renameSql(sql: string): string {
-    let result = sql;
-    for (const [hash, name] of nameMap) {
-      result = result.replaceAll(hash, name);
-    }
-    return result;
-  }
-
-  if (cteEntries.length === 0) {
-    parts.push(lastEntry.sql);
-  } else {
-    const cteParts = cteEntries.map((e) => {
-      const indented = renameSql(e.sql).split('\n').join('\n  ');
-      return `${nameMap.get(e.hash)} AS (\n  ${indented}\n)`;
-    });
-    parts.push(`WITH\n${cteParts.join(',\n')}\n${renameSql(lastEntry.sql)}`);
-  }
-
-  return parts.join('\n');
+  return {
+    ok: true,
+    sql: queryBody,
+    includes,
+  };
 }

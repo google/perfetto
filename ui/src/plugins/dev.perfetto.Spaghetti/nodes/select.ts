@@ -21,7 +21,7 @@ import type {
   NodeManifest,
   RenderContext,
 } from '../node_types';
-import type {LogicalOp} from '../logical_ir';
+import type {LogicalOp} from '../ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {ColumnPickerWithAlias} from '../components/column_picker_with_alias';
 import {DraggableStack} from '../components/draggable_stack';

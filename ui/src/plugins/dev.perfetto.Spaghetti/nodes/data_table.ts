@@ -20,13 +20,18 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {Row} from '../components/row';
 import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
-import {
-  DATA_TABLE_COLUMN_TYPES,
-  type DataTableColumnType,
-  type LogicalOp,
-} from '../logical_ir';
+import type {DataTableColumnType, LogicalOp} from '../ir';
 import type {NodeManifest} from '../node_types';
 import './data_table.scss';
+
+const DATA_TABLE_COLUMN_TYPES = [
+  'int',
+  'double',
+  'string',
+  'timestamp',
+  'duration',
+  'boolean',
+] as const satisfies readonly DataTableColumnType[];
 
 const VALID_IDENT = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const MIN_INT64 = -9223372036854775808n;

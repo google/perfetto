@@ -18,7 +18,7 @@ import {RadioGroup} from '../../../widgets/radio_group';
 import {Row} from '../components/row';
 import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
-import type {GraphTreeKind, LogicalOp} from '../logical_ir';
+import type {GraphTreeKind, LogicalOp} from '../ir';
 import type {
   ColumnContext,
   LogicalOpContext,

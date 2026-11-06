@@ -25,6 +25,8 @@ import {
   formatDataTableSql,
   formatExtractArgExpr,
   formatFilterConditions,
+  type FormatOptions,
+  type FormatResult,
   type GraphTreeOp,
   type IntervalFillGapsOp,
   type IntervalFlattenOp,
@@ -45,8 +47,7 @@ import {
   type TimeRangeOp,
   type TreeAccumulateOp,
   type UnionOp,
-} from './logical_ir';
-import {computeIrHash, type IrEntry} from './sql_backend';
+} from './ir';
 
 // ---------------------------------------------------------------------------
 // PerfettoSQL Next (Pipe Syntax) Backend
@@ -89,10 +90,6 @@ function formatPipelineAggs(aggs: readonly PipelineAggregationSpec[]): string {
       (a) => `${a.func}(${a.func === 'COUNT' ? '*' : a.column}) AS ${a.alias}`,
     )
     .join(', ');
-}
-
-function computePipeIrHash(sql: string, deps: readonly string[]): string {
-  return computeIrHash(`pipe:${sql}`, deps);
 }
 
 function pipeStatementToSql(p: PipeStatement): string {
@@ -502,350 +499,12 @@ function emitRawSql(
   return `WITH ${withClauses.join(',\n')}${separator}${body}`;
 }
 
-// --- Lower LogicalPlan -> PerfettoSQL Next IrEntry[] ---
+// --- Format LogicalPlan -> PerfettoSQL Next ---
 
-export function lowerToPipe(plan: LogicalPlan): IrEntry[] {
-  const nodeById = new Map<string, LogicalNode>();
-  for (const node of plan.nodes) {
-    nodeById.set(node.nodeId, node);
-  }
-
-  const entries: IrEntry[] = [];
-  const entryByHash = new Set<string>();
-  const emittedAs = new Map<string, string>();
-  const isScanNode = new Set<string>();
-  const nodeIncludes = new Map<string, Set<string>>();
-
-  let current: PipeStatement | undefined;
-  let currentTailId: string | undefined;
-  let currentDeps: string[] = [];
-  let currentIncludes = new Set<string>();
-  let currentNodeIds: string[] = [];
-
-  function collectIncludes(inputIds: readonly string[]): Set<string> {
-    const includes = new Set<string>();
-    for (const id of inputIds) {
-      const parentIncludes = nodeIncludes.get(id);
-      if (parentIncludes) {
-        for (const inc of parentIncludes) includes.add(inc);
-      }
-    }
-    return includes;
-  }
-
-  function addDep(dep: string | undefined): void {
-    if (dep !== undefined && !currentDeps.includes(dep)) {
-      currentDeps.push(dep);
-    }
-  }
-
-  function emitEntry(
-    sql: string,
-    deps: readonly string[],
-    includes: ReadonlySet<string>,
-    nodeIds: readonly string[],
-  ): string {
-    const hash = computePipeIrHash(sql, deps);
-    if (!entryByHash.has(hash)) {
-      entryByHash.add(hash);
-      entries.push({
-        hash,
-        sql,
-        deps: [...deps],
-        includes: [...includes],
-        nodeIds: [...nodeIds],
-      });
-    }
-    return hash;
-  }
-
-  function emitCurrent(): void {
-    if (current !== undefined && currentTailId !== undefined) {
-      const sql = pipeStatementToSql(current);
-      const hash = emitEntry(sql, currentDeps, currentIncludes, currentNodeIds);
-      emittedAs.set(currentTailId, hash);
-    }
-    current = undefined;
-    currentTailId = undefined;
-    currentDeps = [];
-    currentIncludes = new Set<string>();
-    currentNodeIds = [];
-  }
-
-  function resolveRef(id: string): string {
-    return emittedAs.get(id) ?? '';
-  }
-
-  function resolveDep(id: string): string | undefined {
-    if (isScanNode.has(id)) return undefined;
-    return emittedAs.get(id);
-  }
-
-  function resolveDeps(inputIds: readonly string[]): string[] {
-    const seen = new Set<string>();
-    const deps: string[] = [];
-    for (const id of inputIds) {
-      const dep = resolveDep(id);
-      if (dep !== undefined && !seen.has(dep)) {
-        seen.add(dep);
-        deps.push(dep);
-      }
-    }
-    return deps;
-  }
-
-  function startPipeline(
-    nodeId: string,
-    stmt: PipeStatement,
-    inputIds: readonly string[],
-  ): void {
-    emitCurrent();
-    current = stmt;
-    currentTailId = nodeId;
-    currentNodeIds = [nodeId];
-    currentDeps = resolveDeps(inputIds);
-    currentIncludes = collectIncludes(inputIds);
-    nodeIncludes.set(nodeId, currentIncludes);
-  }
-
-  function emitStage(nodeId: string, op: PipeStageOp): boolean {
-    const inputIsCurrentTail = op.input === currentTailId;
-    const inputSingleRef = (nodeById.get(op.input)?.refCount ?? 0) <= 1;
-    const inherited = collectIncludes([op.input]);
-
-    if (inputIsCurrentTail && inputSingleRef && current !== undefined) {
-      appendStageOp(current, op);
-      currentTailId = nodeId;
-      currentNodeIds.push(nodeId);
-      for (const inc of inherited) currentIncludes.add(inc);
-      nodeIncludes.set(nodeId, currentIncludes);
-      return true;
-    }
-
-    emitCurrent();
-    const inputRef = resolveRef(op.input);
-    if (inputRef === '') return false;
-    current = {source: inputRef, stages: []};
-    appendStageOp(current, op);
-    currentTailId = nodeId;
-    currentNodeIds = [nodeId];
-    currentIncludes = inherited;
-    addDep(resolveDep(op.input));
-    nodeIncludes.set(nodeId, currentIncludes);
-    return true;
-  }
-
-  for (const node of plan.nodes) {
-    const {nodeId, op} = node;
-    switch (op.kind) {
-      case 'scan': {
-        // Scans bind table names directly without disturbing an unrelated
-        // active pipeline branch on a multi-input graph.
-        emittedAs.set(nodeId, op.table);
-        isScanNode.add(nodeId);
-        if (op.includes && op.includes.length > 0) {
-          nodeIncludes.set(nodeId, new Set(op.includes));
-        }
-        break;
-      }
-
-      case 'time_range': {
-        startPipeline(nodeId, makeTimeRangePipe(op), []);
-        break;
-      }
-
-      case 'data_table': {
-        startPipeline(nodeId, makeDataTablePipe(op), []);
-        break;
-      }
-
-      case 'join': {
-        const leftIsCurrentTail =
-          op.left === currentTailId && op.right !== currentTailId;
-        const leftSingleRef = (nodeById.get(op.left)?.refCount ?? 0) <= 1;
-        const rightRefIfFolded = resolveRef(op.right);
-
-        if (
-          leftIsCurrentTail &&
-          leftSingleRef &&
-          current !== undefined &&
-          rightRefIfFolded !== ''
-        ) {
-          appendJoinStages(current, op, rightRefIfFolded);
-          currentTailId = nodeId;
-          currentNodeIds.push(nodeId);
-          addDep(resolveDep(op.right));
-          for (const inc of collectIncludes([op.left, op.right])) {
-            currentIncludes.add(inc);
-          }
-          nodeIncludes.set(nodeId, currentIncludes);
-          break;
-        }
-
-        emitCurrent();
-        const leftRef = resolveRef(op.left);
-        const rightRef = resolveRef(op.right);
-        if (leftRef === '' || rightRef === '') return [];
-        const stmt: PipeStatement = {source: leftRef, stages: []};
-        appendJoinStages(stmt, op, rightRef);
-        startPipeline(nodeId, stmt, [op.left, op.right]);
-        break;
-      }
-
-      case 'union': {
-        emitCurrent();
-        const refs = op.inputs.map(resolveRef);
-        if (refs.length === 0 || refs.some((r) => r === '')) return [];
-        startPipeline(nodeId, makeUnionPipe(op, refs), op.inputs);
-        break;
-      }
-
-      case 'interval_intersect': {
-        emitCurrent();
-        const inputIds = op.inputs.map((inp) => inp.nodeId);
-        const refs = inputIds.map(resolveRef);
-        if (refs.length === 0 || refs.some((r) => r === '')) return [];
-        startPipeline(nodeId, makeIntervalIntersectPipe(op, refs), inputIds);
-        break;
-      }
-
-      case 'interval_fill_gaps': {
-        const fgIsCurrentTail =
-          op.input === currentTailId && op.background !== currentTailId;
-        const fgSingleRef = (nodeById.get(op.input)?.refCount ?? 0) <= 1;
-        const bgRefIfFolded = resolveRef(op.background);
-
-        if (
-          fgIsCurrentTail &&
-          fgSingleRef &&
-          current !== undefined &&
-          bgRefIfFolded !== ''
-        ) {
-          appendFillGapsStage(current, op, bgRefIfFolded);
-          currentTailId = nodeId;
-          currentNodeIds.push(nodeId);
-          addDep(resolveDep(op.background));
-          for (const inc of collectIncludes([op.input, op.background])) {
-            currentIncludes.add(inc);
-          }
-          nodeIncludes.set(nodeId, currentIncludes);
-          break;
-        }
-
-        emitCurrent();
-        const fgRef = resolveRef(op.input);
-        const bgRef = resolveRef(op.background);
-        if (fgRef === '' || bgRef === '') return [];
-        const stmt: PipeStatement = {source: fgRef, stages: []};
-        appendFillGapsStage(stmt, op, bgRef);
-        startPipeline(nodeId, stmt, [op.input, op.background]);
-        break;
-      }
-
-      case 'intervals_from_events': {
-        const inSingleRef = (nodeById.get(op.input)?.refCount ?? 0) <= 1;
-        const allInputs =
-          op.stop !== undefined ? [op.input, op.stop] : [op.input];
-        const canFold =
-          op.input === currentTailId &&
-          op.stop !== currentTailId &&
-          inSingleRef &&
-          current !== undefined &&
-          (op.stop === undefined || resolveRef(op.stop) !== '');
-
-        if (canFold && current !== undefined) {
-          const stopRef =
-            op.stop !== undefined ? resolveRef(op.stop) : undefined;
-          appendIntervalsFromEventsStage(current, op, stopRef);
-          currentTailId = nodeId;
-          currentNodeIds.push(nodeId);
-          if (op.stop !== undefined) {
-            addDep(resolveDep(op.stop));
-          }
-          for (const inc of collectIncludes(allInputs)) {
-            currentIncludes.add(inc);
-          }
-          nodeIncludes.set(nodeId, currentIncludes);
-          break;
-        }
-
-        emitCurrent();
-        const inRef = resolveRef(op.input);
-        const stopRef = op.stop !== undefined ? resolveRef(op.stop) : undefined;
-        if (inRef === '' || (op.stop !== undefined && stopRef === '')) {
-          return [];
-        }
-        const stmt: PipeStatement = {source: inRef, stages: []};
-        appendIntervalsFromEventsStage(stmt, op, stopRef);
-        startPipeline(nodeId, stmt, allInputs);
-        break;
-      }
-
-      case 'graph_tree': {
-        emitCurrent();
-        const nodesRef = resolveRef(op.nodes);
-        const edgesRef = resolveRef(op.edges);
-        const rootsRef = resolveRef(op.roots);
-        if (nodesRef === '' || edgesRef === '' || rootsRef === '') return [];
-        startPipeline(
-          nodeId,
-          makeGraphTreePipe(op, nodesRef, edgesRef, rootsRef),
-          [op.nodes, op.edges, op.roots],
-        );
-        break;
-      }
-
-      case 'raw_sql': {
-        emitCurrent();
-        const inputIds = op.inputs.map((inp) => inp.nodeId);
-        if (inputIds.some((id) => resolveRef(id) === '')) return [];
-        const sql = emitRawSql(op, resolveRef);
-        const deps = resolveDeps(inputIds);
-        const includes = collectIncludes(inputIds);
-        const hash = emitEntry(sql, deps, includes, [nodeId]);
-        nodeIncludes.set(nodeId, includes);
-        emittedAs.set(nodeId, hash);
-        break;
-      }
-
-      case 'passthrough':
-      case 'filter':
-      case 'project':
-      case 'extend':
-      case 'extract_arg':
-      case 'drop':
-      case 'rename':
-      case 'set':
-      case 'as':
-      case 'distinct':
-      case 'aggregate':
-      case 'sort':
-      case 'limit':
-      case 'interval_flatten':
-      case 'interval_merge':
-      case 'tree_accumulate': {
-        if (!emitStage(nodeId, op)) return [];
-        break;
-      }
-
-      default:
-        assertUnreachable(op);
-    }
-  }
-
-  emitCurrent();
-
-  // If the target node itself is a scan (`FROM`), emit `FROM <table>`.
-  const targetNode = nodeById.get(plan.targetNodeId);
-  if (targetNode?.op.kind === 'scan') {
-    const includes = nodeIncludes.get(targetNode.nodeId) ?? new Set<string>();
-    emitEntry(`FROM ${targetNode.op.table}`, [], includes, [targetNode.nodeId]);
-  }
-
-  return entries;
+interface PipeStep {
+  readonly token: string;
+  readonly sql: string;
 }
-
-// --- Display PerfettoSQL Next ---
 
 function indentBlock(text: string, prefix: string): string {
   return text
@@ -912,19 +571,19 @@ function extractPureSqlSource(sql: string): string | undefined {
   return undefined;
 }
 
-function countHashOccurrences(sql: string, hash: string): number {
-  return sql.split(hash).length - 1;
+function countTokenOccurrences(sql: string, token: string): number {
+  return sql.split(token).length - 1;
 }
 
 function inlineStepIntoPipeSql(
   consumerSql: string,
-  hash: string,
+  token: string,
   stepSql: string,
 ): string {
   const pureSqlSource = extractPureSqlSource(stepSql);
 
-  // 1. Consumer starts directly with `FROM <hash>` at the top of a pipeline.
-  const topPrefix = `FROM ${hash}`;
+  // 1. Consumer starts directly with `FROM <token>` at the top of a pipeline.
+  const topPrefix = `FROM ${token}`;
   if (
     stepSql.startsWith('FROM ') &&
     (consumerSql === topPrefix || consumerSql.startsWith(`${topPrefix}\n|>`))
@@ -932,9 +591,9 @@ function inlineStepIntoPipeSql(
     return `${stepSql}${consumerSql.slice(topPrefix.length)}`;
   }
 
-  // 2. Consumer wrapped `<hash>` in `(FROM <hash> |> <stages>)` and `stepSql`
+  // 2. Consumer wrapped `<token>` in `(FROM <token> |> <stages>)` and `stepSql`
   //    is itself a `FROM ...` pipeline — flatten into one subpipeline.
-  const wrappedMarker = `(FROM ${hash} |> `;
+  const wrappedMarker = `(FROM ${token} |> `;
   const wrappedIdx = consumerSql.indexOf(wrappedMarker);
   if (
     wrappedIdx !== -1 &&
@@ -960,8 +619,8 @@ function inlineStepIntoPipeSql(
     }
   }
 
-  // 3. General `<source>` slot (`NODES <hash>`, `JOIN <hash> AS r`, etc.).
-  const idx = consumerSql.indexOf(hash);
+  // 3. General `<source>` slot (`NODES <token>`, `JOIN <token> AS r`, etc.).
+  const idx = consumerSql.indexOf(token);
   if (idx === -1) return consumerSql;
   const lineStart = consumerSql.lastIndexOf('\n', idx - 1) + 1;
   const lineIndent = consumerSql.slice(lineStart, idx).match(/^\s*/)?.[0] ?? '';
@@ -971,111 +630,367 @@ function inlineStepIntoPipeSql(
     .map((line, i) => (i === 0 ? line : `${lineIndent}${line}`))
     .join('\n');
   return (
-    consumerSql.slice(0, idx) + indented + consumerSql.slice(idx + hash.length)
+    consumerSql.slice(0, idx) + indented + consumerSql.slice(idx + token.length)
   );
 }
 
-// Format PerfettoSQL Next IR entries as executable PerfettoSQL Next.
-// Single-use upstream branches are inlined directly as parenthesized
-// `<source>` subqueries/subpipelines so tree-shaped queries emit a single
-// statement with zero `CREATE PERFETTO TABLE`s; shared diamond steps (or
-// pipelines feeding plain-SQL `UNION` / `SQL` nodes) materialize via
-// `CREATE OR REPLACE PERFETTO TABLE`.
-export function buildDisplayPipeSql(
-  entries: readonly IrEntry[],
-): string | undefined {
-  if (entries.length === 0) return undefined;
+export function formatPipe(
+  plan: LogicalPlan,
+  options?: FormatOptions,
+): FormatResult {
+  if (plan.nodes.length === 0) {
+    return {ok: false, error: 'Empty logical plan.'};
+  }
 
+  const nodeById = new Map<string, LogicalNode>();
+  for (const node of plan.nodes) {
+    nodeById.set(node.nodeId, node);
+  }
+
+  const steps: PipeStep[] = [];
+  const emittedAs = new Map<string, string>();
   const allIncludes = new Set<string>();
-  for (const e of entries) {
-    for (const inc of e.includes) allIncludes.add(inc);
+
+  let current: PipeStatement | undefined;
+  let currentTailId: string | undefined;
+
+  function emitStep(sql: string): string {
+    const token = `__spag_step_${steps.length + 1}__`;
+    steps.push({token, sql});
+    return token;
   }
 
-  const lastEntry = entries[entries.length - 1];
-  if (!lastEntry) return undefined;
-  const stepEntries = entries.slice(0, -1);
-
-  const sqlByHash = new Map<string, string>();
-  for (const e of entries) {
-    sqlByHash.set(e.hash, e.sql);
+  function emitCurrent(): void {
+    if (current !== undefined && currentTailId !== undefined) {
+      const sql = pipeStatementToSql(current);
+      const token = emitStep(sql);
+      emittedAs.set(currentTailId, token);
+    }
+    current = undefined;
+    currentTailId = undefined;
   }
 
-  const inlinedHashes = new Set<string>();
+  function resolveRef(id: string): string {
+    return emittedAs.get(id) ?? '';
+  }
+
+  function startPipeline(nodeId: string, stmt: PipeStatement): void {
+    emitCurrent();
+    current = stmt;
+    currentTailId = nodeId;
+  }
+
+  function emitStage(nodeId: string, op: PipeStageOp): boolean {
+    const inputIsCurrentTail = op.input === currentTailId;
+    const inputSingleRef = (nodeById.get(op.input)?.refCount ?? 0) <= 1;
+
+    if (inputIsCurrentTail && inputSingleRef && current !== undefined) {
+      appendStageOp(current, op);
+      currentTailId = nodeId;
+      return true;
+    }
+
+    emitCurrent();
+    const inputRef = resolveRef(op.input);
+    if (inputRef === '') return false;
+    current = {source: inputRef, stages: []};
+    appendStageOp(current, op);
+    currentTailId = nodeId;
+    return true;
+  }
+
+  for (const node of plan.nodes) {
+    const {nodeId, op} = node;
+    switch (op.kind) {
+      case 'scan': {
+        // Scans bind table names directly without disturbing an unrelated
+        // active pipeline branch on a multi-input graph.
+        emittedAs.set(nodeId, op.table);
+        if (op.includes) {
+          for (const inc of op.includes) allIncludes.add(inc);
+        }
+        break;
+      }
+
+      case 'time_range': {
+        startPipeline(nodeId, makeTimeRangePipe(op));
+        break;
+      }
+
+      case 'data_table': {
+        startPipeline(nodeId, makeDataTablePipe(op));
+        break;
+      }
+
+      case 'join': {
+        const leftIsCurrentTail =
+          op.left === currentTailId && op.right !== currentTailId;
+        const leftSingleRef = (nodeById.get(op.left)?.refCount ?? 0) <= 1;
+        const rightRefIfFolded = resolveRef(op.right);
+
+        if (
+          leftIsCurrentTail &&
+          leftSingleRef &&
+          current !== undefined &&
+          rightRefIfFolded !== ''
+        ) {
+          appendJoinStages(current, op, rightRefIfFolded);
+          currentTailId = nodeId;
+          break;
+        }
+
+        emitCurrent();
+        const leftRef = resolveRef(op.left);
+        const rightRef = resolveRef(op.right);
+        if (leftRef === '' || rightRef === '') {
+          return {ok: false, error: 'Failed to resolve Join inputs.'};
+        }
+        const stmt: PipeStatement = {source: leftRef, stages: []};
+        appendJoinStages(stmt, op, rightRef);
+        startPipeline(nodeId, stmt);
+        break;
+      }
+
+      case 'union': {
+        emitCurrent();
+        const refs = op.inputs.map(resolveRef);
+        if (refs.length === 0 || refs.some((r) => r === '')) {
+          return {ok: false, error: 'Failed to resolve Union inputs.'};
+        }
+        startPipeline(nodeId, makeUnionPipe(op, refs));
+        break;
+      }
+
+      case 'interval_intersect': {
+        emitCurrent();
+        const inputIds = op.inputs.map((inp) => inp.nodeId);
+        const refs = inputIds.map(resolveRef);
+        if (refs.length === 0 || refs.some((r) => r === '')) {
+          return {
+            ok: false,
+            error: 'Failed to resolve Interval Intersect inputs.',
+          };
+        }
+        startPipeline(nodeId, makeIntervalIntersectPipe(op, refs));
+        break;
+      }
+
+      case 'interval_fill_gaps': {
+        const fgIsCurrentTail =
+          op.input === currentTailId && op.background !== currentTailId;
+        const fgSingleRef = (nodeById.get(op.input)?.refCount ?? 0) <= 1;
+        const bgRefIfFolded = resolveRef(op.background);
+
+        if (
+          fgIsCurrentTail &&
+          fgSingleRef &&
+          current !== undefined &&
+          bgRefIfFolded !== ''
+        ) {
+          appendFillGapsStage(current, op, bgRefIfFolded);
+          currentTailId = nodeId;
+          break;
+        }
+
+        emitCurrent();
+        const fgRef = resolveRef(op.input);
+        const bgRef = resolveRef(op.background);
+        if (fgRef === '' || bgRef === '') {
+          return {
+            ok: false,
+            error: 'Failed to resolve Interval Fill Gaps inputs.',
+          };
+        }
+        const stmt: PipeStatement = {source: fgRef, stages: []};
+        appendFillGapsStage(stmt, op, bgRef);
+        startPipeline(nodeId, stmt);
+        break;
+      }
+
+      case 'intervals_from_events': {
+        const inSingleRef = (nodeById.get(op.input)?.refCount ?? 0) <= 1;
+        const canFold =
+          op.input === currentTailId &&
+          op.stop !== currentTailId &&
+          inSingleRef &&
+          current !== undefined &&
+          (op.stop === undefined || resolveRef(op.stop) !== '');
+
+        if (canFold && current !== undefined) {
+          const stopRef =
+            op.stop !== undefined ? resolveRef(op.stop) : undefined;
+          appendIntervalsFromEventsStage(current, op, stopRef);
+          currentTailId = nodeId;
+          break;
+        }
+
+        emitCurrent();
+        const inRef = resolveRef(op.input);
+        const stopRef = op.stop !== undefined ? resolveRef(op.stop) : undefined;
+        if (inRef === '' || (op.stop !== undefined && stopRef === '')) {
+          return {
+            ok: false,
+            error: 'Failed to resolve Intervals From Events inputs.',
+          };
+        }
+        const stmt: PipeStatement = {source: inRef, stages: []};
+        appendIntervalsFromEventsStage(stmt, op, stopRef);
+        startPipeline(nodeId, stmt);
+        break;
+      }
+
+      case 'graph_tree': {
+        emitCurrent();
+        const nodesRef = resolveRef(op.nodes);
+        const edgesRef = resolveRef(op.edges);
+        const rootsRef = resolveRef(op.roots);
+        if (nodesRef === '' || edgesRef === '' || rootsRef === '') {
+          return {ok: false, error: 'Failed to resolve Graph Tree inputs.'};
+        }
+        startPipeline(
+          nodeId,
+          makeGraphTreePipe(op, nodesRef, edgesRef, rootsRef),
+        );
+        break;
+      }
+
+      case 'raw_sql': {
+        emitCurrent();
+        const inputIds = op.inputs.map((inp) => inp.nodeId);
+        if (inputIds.some((id) => resolveRef(id) === '')) {
+          return {ok: false, error: 'Failed to resolve SQL inputs.'};
+        }
+        const token = emitStep(emitRawSql(op, resolveRef));
+        emittedAs.set(nodeId, token);
+        break;
+      }
+
+      case 'passthrough':
+      case 'filter':
+      case 'project':
+      case 'extend':
+      case 'extract_arg':
+      case 'drop':
+      case 'rename':
+      case 'set':
+      case 'as':
+      case 'distinct':
+      case 'aggregate':
+      case 'sort':
+      case 'limit':
+      case 'interval_flatten':
+      case 'interval_merge':
+      case 'tree_accumulate': {
+        if (!emitStage(nodeId, op)) {
+          return {ok: false, error: `Failed to resolve ${op.kind} input.`};
+        }
+        break;
+      }
+
+      default:
+        assertUnreachable(op);
+    }
+  }
+
+  emitCurrent();
+
+  // If the target node itself is a scan (`FROM`), emit `FROM <table>`.
+  const targetNode = nodeById.get(plan.targetNodeId);
+  if (targetNode?.op.kind === 'scan') {
+    emitStep(`FROM ${targetNode.op.table}`);
+  }
+
+  const lastStep = steps[steps.length - 1];
+  if (!lastStep) {
+    return {ok: false, error: 'Empty PerfettoSQL Next output.'};
+  }
+
+  const stepEntries = steps.slice(0, -1);
+  const sqlByToken = new Map<string, string>();
+  for (const s of steps) {
+    sqlByToken.set(s.token, s.sql);
+  }
+
+  const inlinedTokens = new Set<string>();
   for (const [idx, step] of stepEntries.entries()) {
-    const stepSql = sqlByHash.get(step.hash) ?? step.sql;
-    const downstream = entries
+    const stepSql = sqlByToken.get(step.token) ?? step.sql;
+    const downstream = steps
       .slice(idx + 1)
-      .filter((e) => !inlinedHashes.has(e.hash));
+      .filter((s) => !inlinedTokens.has(s.token));
 
     let totalRefs = 0;
-    let consumerHash: string | undefined;
+    let consumerToken: string | undefined;
     let usedInPlainSqlFrom = false;
     for (const d of downstream) {
-      const dSql = sqlByHash.get(d.hash) ?? d.sql;
-      const count = countHashOccurrences(dSql, step.hash);
+      const dSql = sqlByToken.get(d.token) ?? d.sql;
+      const count = countTokenOccurrences(dSql, step.token);
       if (count > 0) {
         totalRefs += count;
-        consumerHash = d.hash;
-        if (dSql.includes(`SELECT * FROM ${step.hash}`)) {
+        consumerToken = d.token;
+        if (dSql.includes(`SELECT * FROM ${step.token}`)) {
           usedInPlainSqlFrom = true;
         }
       }
     }
 
     if (totalRefs === 0) {
-      inlinedHashes.add(step.hash);
+      inlinedTokens.add(step.token);
       continue;
     }
 
     const isPureSql = extractPureSqlSource(stepSql) !== undefined;
     if (
       totalRefs === 1 &&
-      consumerHash !== undefined &&
+      consumerToken !== undefined &&
       (isPureSql || !usedInPlainSqlFrom)
     ) {
-      const consumerSql = sqlByHash.get(consumerHash) ?? '';
-      sqlByHash.set(
-        consumerHash,
-        inlineStepIntoPipeSql(consumerSql, step.hash, stepSql),
+      const consumerSql = sqlByToken.get(consumerToken) ?? '';
+      sqlByToken.set(
+        consumerToken,
+        inlineStepIntoPipeSql(consumerSql, step.token, stepSql),
       );
-      inlinedHashes.add(step.hash);
+      inlinedTokens.add(step.token);
     }
   }
 
-  const remainingSteps = stepEntries.filter((s) => !inlinedHashes.has(s.hash));
+  const remainingSteps = stepEntries.filter((s) => !inlinedTokens.has(s.token));
   const nameMap = new Map<string, string>();
-  for (const [i, stepEntry] of remainingSteps.entries()) {
-    nameMap.set(stepEntry.hash, `step_${i + 1}`);
+  for (const [i, step] of remainingSteps.entries()) {
+    nameMap.set(step.token, `step_${i + 1}`);
   }
 
-  function renameSql(sql: string): string {
+  function renameTokens(sql: string): string {
     let result = sql;
-    for (const [hash, name] of nameMap) {
-      result = result.replaceAll(hash, name);
+    for (const [token, name] of nameMap) {
+      result = result.replaceAll(token, name);
     }
     return result;
   }
 
+  const includes = [...allIncludes];
+  const includeHeaders = options?.includeModuleHeaders ?? true;
   const blocks: string[] = [];
 
-  if (allIncludes.size > 0) {
+  if (includeHeaders && includes.length > 0) {
     blocks.push(
-      Array.from(allIncludes, (inc) => `INCLUDE PERFETTO MODULE ${inc};`).join(
-        '\n',
-      ),
+      includes.map((inc) => `INCLUDE PERFETTO MODULE ${inc};`).join('\n'),
     );
   }
 
   for (const step of remainingSteps) {
-    const stepName = nameMap.get(step.hash);
-    const stepSql = sqlByHash.get(step.hash) ?? step.sql;
+    const stepName = nameMap.get(step.token);
+    const stepSql = sqlByToken.get(step.token) ?? step.sql;
     blocks.push(
-      `CREATE OR REPLACE PERFETTO TABLE ${stepName} AS\n${renameSql(stepSql)};`,
+      `CREATE OR REPLACE PERFETTO TABLE ${stepName} AS\n${renameTokens(stepSql)};`,
     );
   }
 
-  const finalSql = sqlByHash.get(lastEntry.hash) ?? lastEntry.sql;
-  blocks.push(renameSql(finalSql));
+  const finalSql = sqlByToken.get(lastStep.token) ?? lastStep.sql;
+  blocks.push(renameTokens(finalSql));
 
-  return blocks.join('\n\n');
+  return {
+    ok: true,
+    sql: blocks.join('\n\n'),
+    includes,
+  };
 }

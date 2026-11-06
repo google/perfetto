@@ -77,19 +77,13 @@ import {
   trimInputs,
   type GraphIndex,
 } from '../graph_utils';
-import {
-  buildDisplayQuery,
-  buildLogicalPlan,
-  lowerLogicalPlan,
-  type SqlDialect,
-} from '../ir';
+import {buildDisplayQuery, buildLogicalPlan, type SqlDialect} from '../ir';
 import {MaterializationService} from '../materialization';
 import type {DetailsContext, RenderContext} from '../node_types';
 import {CacheTab} from './cache_tab';
 import {ColumnsTab} from './columns_tab';
 import {GraphTab} from './graph_tab';
 import {LogicalIrTab} from './logical_ir_tab';
-import {IrTab} from './materialization_tab';
 import {SqlTab} from './sql_tab';
 import {TextInput} from '../../../widgets/text_input';
 import {findRef} from '../../../base/dom_utils';
@@ -989,7 +983,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
       const dataSource = matService.dataSource;
       const matError = matService.error;
-      const queryReport = matService.queryReport;
       const cacheEntries = matService.cacheEntries;
 
       // Build DataGrid schema from the node's output columns.
@@ -997,20 +990,11 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         ? getOutputColumnsForNode(flatNodes, activeNodeId, sqlModules)
         : undefined;
 
-      // Build logical plan + lowered IR entries (pure functions of the graph).
+      // Build logical plan + display query (pure functions of the graph).
       const logicalPlan = activeNodeId
         ? buildLogicalPlan(flatNodes, activeNodeId, sqlModules)
         : undefined;
-      const irEntries = logicalPlan
-        ? (lowerLogicalPlan(logicalPlan, materializationDialect) ?? [])
-        : [];
-
-      const displaySql = buildDisplayQuery(irEntries, materializationDialect);
-
-      // Index report entries by hash for O(1) lookup per IR block.
-      const reportByHash = new Map(
-        (queryReport?.entries ?? []).map((e) => [e.hash, e]),
-      );
+      const displaySql = buildDisplayQuery(logicalPlan, materializationDialect);
 
       const liveJson = JSON.stringify(
         JSON.parse(serializeStore(store)),
@@ -1041,13 +1025,8 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
             },
             {
               key: 'logical_ir',
-              title: 'Logical IR',
+              title: 'IR',
               content: m(LogicalIrTab, {logicalPlan, activeNodeId}),
-            },
-            {
-              key: 'materialization',
-              title: 'Materialization',
-              content: m(IrTab, {irEntries, reportByHash, activeNodeId}),
             },
             {
               key: 'cache',
@@ -1199,7 +1178,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         ? activeManifest.renderDetails(activeNode!.config, detailsCtx)
         : activeNodeId && displaySql && dataSource
           ? m(DataGrid, {
-              key: `${matService.activeDialect}:${matService.displaySql ?? ''}`,
+              key: matService.materializedTable ?? '',
               data: dataSource,
               schema: datagridSchema,
               fillHeight: true,

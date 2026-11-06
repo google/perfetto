@@ -27,7 +27,7 @@ import {
 } from '../components/pipeline_agg_row';
 import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
-import type {IntervalMergeKind, LogicalOp} from '../logical_ir';
+import type {IntervalMergeKind, LogicalOp} from '../ir';
 import type {
   ColumnContext,
   LogicalOpContext,
