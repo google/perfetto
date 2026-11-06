@@ -23,12 +23,11 @@ import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
 import {
-  FILTER_OPS,
   type FilterConjunction,
   type FilterOp,
   isUnaryFilterOp,
   type LogicalOp,
-} from '../logical_ir';
+} from '../ir';
 import type {
   LogicalOpContext,
   NodeManifest,
@@ -36,7 +35,20 @@ import type {
 } from '../node_types';
 import './filter.scss';
 
-export {FILTER_OPS};
+export const FILTER_OPS = [
+  '=',
+  '!=',
+  '>',
+  '>=',
+  '<',
+  '<=',
+  'LIKE',
+  'NOT LIKE',
+  'GLOB',
+  'IS NULL',
+  'IS NOT NULL',
+] as const satisfies readonly FilterOp[];
+
 export type {FilterConjunction, FilterOp};
 
 const FilterOpSchema = z.enum(FILTER_OPS);

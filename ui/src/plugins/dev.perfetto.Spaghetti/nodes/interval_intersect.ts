@@ -16,7 +16,7 @@ import m from 'mithril';
 import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
 import {Checkbox} from '../../../widgets/checkbox';
-import type {IntervalIntersectInput} from '../logical_ir';
+import type {IntervalIntersectInput} from '../ir';
 import type {NodeManifest, RenderContext} from '../node_types';
 import {DraggableStack} from '../components/draggable_stack';
 import {InputPortStepper} from '../components/input_port_stepper';

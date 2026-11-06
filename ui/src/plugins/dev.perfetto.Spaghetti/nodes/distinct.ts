@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import type {LogicalOp} from '../logical_ir';
+import type {LogicalOp} from '../ir';
 import type {LogicalOpContext, NodeManifest} from '../node_types';
 import {Stack} from '../components/stack';
 
