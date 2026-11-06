@@ -131,6 +131,9 @@ message AndroidProcessStateSnapshot {
     optional int64 start_time_ms = 8;
     // Kernel process group (android.os.Process.THREAD_GROUP_*).
     optional ProcessGroup process_group = 9;
+    // Timestamp in CLOCK_BOOTTIME nanoseconds when the process state was
+    // entered.
+    optional int64 proc_state_start_ns = 10;
   }
   repeated Record record = 1;
 
@@ -158,6 +161,11 @@ message AndroidFreezerStateSnapshot {
     optional int64 frozen_dur_ms = 4;
     // Unfreeze reason.
     optional UnfreezeReason unfreeze_reason = 5;
+    // Timestamp in CLOCK_BOOTTIME nanoseconds when the process was last
+    // unfrozen.
+    optional int64 unfrozen_start_ns = 6;
+    // Timestamp in CLOCK_BOOTTIME nanoseconds when the process was last frozen.
+    optional int64 frozen_start_ns = 7;
   }
   repeated Record record = 1;
 }

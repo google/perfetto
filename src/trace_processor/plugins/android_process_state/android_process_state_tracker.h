@@ -52,6 +52,8 @@ class AndroidProcessStateTracker {
 
   // A process_state_changed_event TrackEvent extension at |ts|.
   void ParseProcessStateChange(int64_t ts, protozero::ConstBytes bytes);
+  // A process_state_died_event TrackEvent extension at |ts|.
+  void ParseProcessStateDied(int64_t ts, protozero::ConstBytes bytes);
   // An AndroidProcessState dump TracePacket.
   void ParseProcessStateDump(protozero::ConstBytes bytes);
 
@@ -71,12 +73,15 @@ class AndroidProcessStateTracker {
     std::optional<int32_t> proc_state;
     std::optional<int32_t> capability_flags;
     std::optional<int32_t> process_group;
+    std::optional<int64_t> proc_state_start_ns;
   };
 
   // Information captured for freezer state from trace-stop dumps.
   struct FreezerStateValues {
     UniquePid upid = 0;
     std::optional<int32_t> unfreeze_reason;
+    std::optional<int64_t> unfrozen_start_ns;
+    std::optional<int64_t> frozen_start_ns;
   };
 
   // Tracks the state before the first observed change (prev_*) for a process,
