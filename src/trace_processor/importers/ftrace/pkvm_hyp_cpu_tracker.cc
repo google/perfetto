@@ -95,6 +95,8 @@ bool PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(uint32_t event_id) {
     case FtraceEvent::kHypervisorPsciMemProtectFieldNumber:
     case FtraceEvent::kHypervisorIommuIdmapCompleteFieldNumber:
     case FtraceEvent::kHypervisorVcpuIllegalTrapFieldNumber:
+    case FtraceEvent::kHypervisorFuncFieldNumber:
+    case FtraceEvent::kHypervisorFuncRetFieldNumber:
       return true;
     default:
       return false;
@@ -143,6 +145,10 @@ void PkvmHypervisorCpuTracker::ParseHypEvent(uint32_t cpu,
       break;
     case FtraceEvent::kHypervisorVcpuIllegalTrapFieldNumber:
       ParseVcuIllegalTrap(cpu, blob);
+      break;
+    case FtraceEvent::kHypervisorFuncFieldNumber:
+    case FtraceEvent::kHypervisorFuncRetFieldNumber:
+      // TODO(bgrzesik): add processsing
       break;
     // TODO(b/249050813): add remaining hypervisor events
     default:
