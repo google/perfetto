@@ -158,10 +158,12 @@ std::string LogicalPlanFormatter::ExprString(const Expr& e, uint32_t i) {
   switch (node.op) {
     case Op::kColumn:
       return "#" + std::to_string(node.a);
-    case Op::kConstant:
-      return node.type == core::exec::ExprType::kDouble
-                 ? std::to_string(node.double_value)
-                 : std::to_string(node.int_value);
+    case Op::kConstant: {
+      const Literal& l = e.literals[node.a];
+      return l.is_string()   ? "'" + l.text + "'"
+             : l.is_double() ? std::to_string(l.double_value)
+                             : std::to_string(l.int_value);
+    }
     case Op::kNull:
       return "NULL";
     case Op::kAdd:
