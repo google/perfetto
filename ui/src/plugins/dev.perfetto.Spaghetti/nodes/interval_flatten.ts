@@ -52,7 +52,7 @@ function IntervalFlattenContent(): m.Component<{
 }> {
   return {
     view({attrs: {config, updateConfig, ctx}}) {
-      return m(Stack, {style: {minWidth: '250px'}}, [
+      return m(Stack, {minWidth: 'lg'}, [
         m(Checkbox, {
           label: 'Filter dur >= 0',
           checked: config.filterNegativeDur,

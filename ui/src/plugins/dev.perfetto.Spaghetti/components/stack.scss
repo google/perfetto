@@ -18,8 +18,16 @@
   flex-direction: column;
   gap: 6px;
 
-  &--compact {
-    gap: 2px;
+  &--min-w-sm {
+    min-width: 200px;
+  }
+
+  &--min-w-md {
+    min-width: 220px;
+  }
+
+  &--min-w-lg {
+    min-width: 250px;
   }
 
   // PopupMultiSelect / Button triggers in stacks should fill width.

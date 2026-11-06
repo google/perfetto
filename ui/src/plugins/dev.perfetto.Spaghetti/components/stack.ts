@@ -16,17 +16,19 @@ import m from 'mithril';
 import {classNames} from '../../../base/classnames';
 import './stack.scss';
 
+export type StackMinWidth = 'sm' | 'md' | 'lg';
+
 export interface StackAttrs extends m.Attributes {
-  readonly compact?: boolean;
+  readonly minWidth?: StackMinWidth;
 }
 
 export function Stack(): m.Component<StackAttrs> {
   return {
     view({attrs = {}, children}) {
-      const {compact, className, ...rest} = attrs;
+      const {minWidth, className, ...rest} = attrs;
       const classes = classNames(
         'pf-spag-stack',
-        compact && 'pf-spag-stack--compact',
+        minWidth && `pf-spag-stack--min-w-${minWidth}`,
         className,
       );
       return m('', {className: classes, ...rest}, children);

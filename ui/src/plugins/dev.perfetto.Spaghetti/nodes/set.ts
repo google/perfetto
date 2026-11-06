@@ -49,7 +49,7 @@ function SetContent(): m.Component<{
 }> {
   return {
     view({attrs: {config, updateConfig, ctx}}) {
-      return m(Stack, {style: {minWidth: '250px'}}, [
+      return m(Stack, {minWidth: 'lg'}, [
         config.entries.length === 0 &&
           m('.pf-spag-passthrough-hint', 'All columns (passthrough)'),
         m(DraggableStack, {
@@ -63,7 +63,7 @@ function SetContent(): m.Component<{
                   entries: config.entries.with(i, {...entry, column}),
                 }),
             }),
-            m('span', {style: {opacity: 0.5}}, '='),
+            m('span.pf-spag-operator', '='),
             m(TextInput, {
               placeholder: 'expression',
               value: entry.expression,

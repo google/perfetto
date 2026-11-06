@@ -55,7 +55,7 @@ function ExtendContent(): m.Component<{
 }> {
   return {
     view({attrs: {config, updateConfig}}) {
-      return m(Stack, {style: {minWidth: '250px'}}, [
+      return m(Stack, {minWidth: 'lg'}, [
         m(DraggableStack, {
           rows: config.entries.map((entry, i) =>
             m(TextInputWithAlias, {
