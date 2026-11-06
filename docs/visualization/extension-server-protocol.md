@@ -13,6 +13,8 @@ Extension servers implement these HTTP(S) endpoints:
 {base_url}/modules/{module_id}/macros            GET  (optional)
 {base_url}/modules/{module_id}/sql_modules       GET  (optional)
 {base_url}/modules/{module_id}/proto_descriptors GET  (optional)
+{base_url}/modules/{module_id}/skills            GET  (optional)
+{base_url}/modules/{module_id}/skill_files/{skill}/{path}  GET  (optional)
 ```
 
 The UI only fetches optional endpoints for features declared in the manifest.
@@ -46,7 +48,7 @@ Returns server metadata, supported features, and available modules.
 |-------|------|----------|-------------|
 | `name` | string | Yes | Human-readable server name, shown in command palette source chips. |
 | `namespace` | string | Yes | Unique identifier in reverse-domain notation (e.g., `com.acme`). Used to enforce naming constraints on macros and SQL modules. |
-| `features` | array | Yes | Features this server supports. Each entry has a `name` field. Valid names: `macros`, `sql_modules`, `proto_descriptors`. |
+| `features` | array | Yes | Features this server supports. Each entry has a `name` field. Valid names: `macros`, `sql_modules`, `proto_descriptors`, `skills`. |
 | `modules` | array | Yes | Available modules. Each entry has an `id` (used in URL paths and settings) and a `name` (human-readable display name). |
 
 For single-module servers, use `[{"id": "default", "name": "Default"}]`.
@@ -135,6 +137,53 @@ Only fetched if `features` includes `{"name": "proto_descriptors"}`.
 
 Proto descriptors are not subject to namespace enforcement since protobuf
 messages have their own package-based namespacing.
+
+## Skills
+
+**Endpoints:** `GET {base_url}/modules/{module_id}/skills` (the index) and
+`GET {base_url}/modules/{module_id}/skill_files/{skill}/{path}` (one file).
+
+Only fetched if `features` includes `{"name": "skills"}`.
+
+Skills are [Agent Skills](https://agentskills.io/specification) (a `SKILL.md`
+plus the files it references) for the in-UI assistant. The UI fetches the index
+when the assistant first lists skills, puts only each skill's name and
+description into the assistant's prompt, and fetches a file from `skill_files`
+only when the assistant reads it.
+
+```json
+{
+  "skills": [
+    {
+      "name": "acme-startup",
+      "description": "Analyze app startup of Acme apps. Use for ...",
+      "files": [
+        {"path": "SKILL.md", "bytes": 1200},
+        {"path": "workflows/startup.md", "bytes": 4000},
+        {"path": "workflows/scripts/startup.sql", "bytes": 900}
+      ]
+    }
+  ]
+}
+```
+
+`skill_files/{skill}/{path}` returns the raw text of the file.
+`tools/gen_skill_bundle.py --host ui --module <id>` writes both the index and
+the files from a skill directory.
+
+### Skill fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Lowercase letters, digits and hyphens, at most 64 characters. |
+| `description` | string | When to use the skill, at most 1024 characters. The assistant chooses skills from this text. |
+| `files` | array | Every file the UI may fetch: `path` (relative to the skill root, `.md` or `.sql`, must include `SKILL.md`) and `bytes` (at most 64 KiB). |
+| `replaces` | string | Optional. The name of a skill built into the UI that this skill takes the place of. Only honoured from the server configured by the UI build itself (embedder-managed); other servers' skills are always added alongside. |
+
+The UI lists a server's skills as `<namespace>/<name>`, so skills from
+different servers cannot collide. A skill that replaces a builtin one keeps the
+builtin name. If the replacing server cannot be reached, the builtin skill is
+used.
 
 ## Namespace enforcement
 
