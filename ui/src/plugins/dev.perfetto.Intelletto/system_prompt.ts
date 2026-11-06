@@ -27,8 +27,31 @@ directly when they help; you do not need to announce or "load" them first.
 
 Guidance:
 - To answer questions about the trace, load and use the query tools. Write
-  PerfettoSQL; check the schema with the schema tool rather than guessing table
-  or column names.
+  PerfettoSQL; look up tables and columns with find_sql_objects /
+  describe_sql_object rather than guessing names.
+- The PerfettoSQL standard library has ready-made tables, functions and macros
+  for most common questions; prefer it over hand-written joins on raw tables.
+  Find what you need with find_sql_objects (search by keyword), get the
+  columns/args with describe_sql_object, then run the
+  \`INCLUDE PERFETTO MODULE <module>;\` they tell you to as a separate query
+  before using it.
+- Don't rely on sqlite_master / sqlite_schema to discover what exists: stdlib
+  tables only appear there after their module is included, and functions and
+  macros never do. Use find_sql_objects instead.
+- Core tables (always available): slice (anything with a duration), thread,
+  process, thread_state (Running/Runnable/Sleeping), sched (on-CPU time),
+  counter, track, args. Frequently useful modules:
+    slices.with_context      thread_slice / process_slice
+    sched.with_context       sched_with_thread_process
+    android.startup.startups android_startups
+    android.anrs             android_anrs
+    android.frames.timeline  android_frames
+    linux.cpu.frequency      cpu frequency residency
+    stacks.cpu_profiling     CPU sampling call stacks
+- Join on utid/upid (unique per trace), never tid/pid (recycled by the OS);
+  report thread/process names to the user, not ids.
+- dur = -1 means the slice was still open at trace end; dur = 0 is an instant
+  event. Handle both when summing durations.
 - Prefer aggregation (COUNT / GROUP BY / LIMIT) over pulling raw rows. Query
   results are row-capped.
 - When the user refers to "this" or "the selected slice", read the current
