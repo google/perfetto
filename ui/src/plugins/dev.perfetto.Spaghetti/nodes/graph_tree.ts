@@ -48,7 +48,7 @@ function GraphTreeContent(): m.Component<{
       const edgeCols = ctx.getInputColumns('edges');
       const rootCols = ctx.getInputColumns('roots');
 
-      return m(Stack, {style: {minWidth: '220px'}}, [
+      return m(Stack, {minWidth: 'md'}, [
         m(
           RadioGroup,
           {
@@ -78,7 +78,7 @@ function GraphTreeContent(): m.Component<{
             placeholder: 'src',
             onSelect: (value: string) => updateConfig({sourceColumn: value}),
           }),
-          m('span', {style: {opacity: 0.5}}, '→'),
+          m('span.pf-spag-operator', '→'),
           m(ColumnPicker, {
             value: config.destColumn,
             columns: edgeCols,

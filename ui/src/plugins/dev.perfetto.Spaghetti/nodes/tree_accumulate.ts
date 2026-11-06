@@ -58,7 +58,7 @@ function TreeAccumulateContent(): m.Component<{
 }> {
   return {
     view({attrs: {config, updateConfig, ctx}}) {
-      return m(Stack, {style: {minWidth: '250px'}}, [
+      return m(Stack, {minWidth: 'lg'}, [
         m(
           RadioGroup,
           {
@@ -80,7 +80,7 @@ function TreeAccumulateContent(): m.Component<{
             placeholder: 'id',
             onSelect: (value: string) => updateConfig({idColumn: value}),
           }),
-          m('span', {style: {opacity: 0.5}}, '→'),
+          m('span.pf-spag-operator', '→'),
           m(ColumnPicker, {
             value: config.parentIdColumn,
             columns: ctx.availableColumns,

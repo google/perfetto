@@ -64,16 +64,8 @@ export const manifest: NodeManifest<TimeRangeConfig> = {
 
     const hasCaptured = config.ts !== '0' || config.dur !== '0';
     const info = hasCaptured
-      ? m(
-          'span',
-          {style: {fontSize: '11px', opacity: '0.7'}},
-          `ts=${config.ts}, dur=${config.dur}`,
-        )
-      : m(
-          'span',
-          {style: {fontSize: '11px', opacity: '0.5'}},
-          'Click snap to capture',
-        );
+      ? m('span.pf-spag-hint', `ts=${config.ts}, dur=${config.dur}`)
+      : m('span.pf-spag-hint.pf-spag-hint--muted', 'Click snap to capture');
 
     return m(Stack, [snapButton, info]);
   },

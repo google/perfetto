@@ -95,6 +95,7 @@ import {TextInput} from '../../../widgets/text_input';
 import {findRef} from '../../../base/dom_utils';
 import {assertExists, assertIsInstance} from '../../../base/assert';
 import {classNames} from '../../../base/classnames';
+import './spaghetti_page.scss';
 
 type LoadingStyle = 'beam' | 'shimmer' | 'pulse' | 'scanline' | 'none';
 
@@ -681,7 +682,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       }
 
       toolbarItems.push(
-        m('div', {style: {flex: '1'}}),
+        m('.pf-spag__toolbar-spacer'),
         m(
           RadioGroup,
           {
@@ -745,38 +746,28 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
           },
           m(Stack, [
             m('span', 'Are you sure you want to clear everything?'),
-            m(
-              `.${Popup.DISMISS_POPUP_GROUP_CLASS}`,
-              {
-                style: {
-                  display: 'flex',
-                  gap: '4px',
-                  justifyContent: 'flex-end',
+            m(`.pf-spag-confirm-actions.${Popup.DISMISS_POPUP_GROUP_CLASS}`, [
+              m(Button, {
+                label: 'Cancel',
+                className: Popup.DISMISS_POPUP_GROUP_CLASS,
+              }),
+              m(Button, {
+                label: 'Clear',
+                variant: ButtonVariant.Filled,
+                intent: Intent.Danger,
+                className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                onclick: () => {
+                  store = {
+                    nodes: [],
+                    labels: [],
+                  };
+                  history.splice(0, history.length, store);
+                  historyIndex = 0;
+                  selectedNodeIds.clear();
+                  pinnedNodeId = undefined;
                 },
-              },
-              [
-                m(Button, {
-                  label: 'Cancel',
-                  className: Popup.DISMISS_POPUP_GROUP_CLASS,
-                }),
-                m(Button, {
-                  label: 'Clear',
-                  variant: ButtonVariant.Filled,
-                  intent: Intent.Danger,
-                  className: Popup.DISMISS_POPUP_GROUP_CLASS,
-                  onclick: () => {
-                    store = {
-                      nodes: [],
-                      labels: [],
-                    };
-                    history.splice(0, history.length, store);
-                    historyIndex = 0;
-                    selectedNodeIds.clear();
-                    pinnedNodeId = undefined;
-                  },
-                }),
-              ],
-            ),
+              }),
+            ]),
           ]),
         ),
         m(
@@ -1028,15 +1019,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       );
 
       const sqlPanel = m(
-        '',
-        {
-          style: {
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%',
-            background: 'var(--surface)',
-          },
-        },
+        '.pf-spag__sql-panel',
         m(Tabs, {
           tabs: [
             {
@@ -1236,11 +1219,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         '.pf-spag',
         {
           className: classNames(`pf-spag--loading-${loadingStyle}`),
-          style: {
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%',
-          },
         },
         m(SplitPanel, {
           direction: 'horizontal',
@@ -1349,7 +1327,8 @@ function AddNodeMenu(): m.Component<AddNodeMenuAttrs> {
           label: manifest.title,
           icon: manifest.icon,
           active: isHighlighted,
-          style: {borderLeft: `3px solid hsl(${manifest.hue}, 60%, 65%)`},
+          className: 'pf-spag-add-menu-item',
+          style: `--pf-node-hue: ${manifest.hue}`,
           onclick: () => onAddNode?.(type),
         });
       }

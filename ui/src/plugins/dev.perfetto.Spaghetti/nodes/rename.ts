@@ -48,7 +48,7 @@ function RenameContent(): m.Component<{
 }> {
   return {
     view({attrs: {config, updateConfig, ctx}}) {
-      return m(Stack, {style: {minWidth: '220px'}}, [
+      return m(Stack, {minWidth: 'md'}, [
         config.entries.length === 0 &&
           m('.pf-spag-passthrough-hint', 'All columns (passthrough)'),
         m(DraggableStack, {

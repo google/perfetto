@@ -71,6 +71,15 @@
 .pf-spag-hint {
   font-size: 11px;
   opacity: 0.7;
+
+  &--muted {
+    opacity: 0.5;
+  }
+}
+
+// Inline operator / separator symbol inside rows (e.g. "=", "→").
+.pf-spag-operator {
+  opacity: 0.5;
 }
 
 // Placeholder shown when a node has no upstream connection.

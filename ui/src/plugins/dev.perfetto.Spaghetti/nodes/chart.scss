@@ -21,6 +21,27 @@
   height: 100%;
   box-sizing: border-box;
   align-content: flex-start;
+
+  &--empty {
+    align-items: center;
+    align-content: center;
+    justify-content: center;
+  }
+
+  &__placeholder {
+    opacity: 0.5;
+  }
+}
+
+.pf-spag-chart-svg {
+  display: block;
+  overflow: visible;
+}
+
+.pf-spag-chart-sep {
+  opacity: 0.5;
+  font-size: 11px;
+  padding: 0 2px;
 }
 
 .pf-spag-chart-panel {

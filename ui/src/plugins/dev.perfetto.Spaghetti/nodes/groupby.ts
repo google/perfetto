@@ -58,7 +58,7 @@ function GroupByContent(): m.Component<{
 }> {
   return {
     view({attrs: {config, updateConfig, ctx}}) {
-      return m(Stack, {style: {minWidth: '250px'}}, [
+      return m(Stack, {minWidth: 'lg'}, [
         m('.pf-spag-section-label', 'Group by'),
         m(DraggableStack, {
           rows: config.groupColumns.map((col, i) =>

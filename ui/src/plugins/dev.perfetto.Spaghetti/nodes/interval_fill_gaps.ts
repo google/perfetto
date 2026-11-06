@@ -44,7 +44,7 @@ function IntervalFillGapsContent(): m.Component<{
   return {
     view({attrs: {config, updateConfig, ctx}}) {
       const inputColumns = ctx.getInputColumns('input');
-      return m(Stack, {style: {minWidth: '200px'}}, [
+      return m(Stack, {minWidth: 'sm'}, [
         m('.pf-spag-section-label', 'Partition by'),
         m(DraggableStack, {
           rows: config.partitionColumns.map((col, i) =>

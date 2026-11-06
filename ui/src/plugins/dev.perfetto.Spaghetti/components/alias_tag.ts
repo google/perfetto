@@ -44,7 +44,7 @@ export function AliasTag(): m.Component<{
             },
           },
           [
-            m('span', {style: {opacity: 0.5, fontSize: '11px'}}, 'as'),
+            m('span.pf-spag-alias-tag__label', 'as'),
             m(TextInput, {
               placeholder,
               value: alias,

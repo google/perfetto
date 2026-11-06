@@ -46,9 +46,6 @@ const SqlConfigSchema = z.object({
 
 export type SqlConfig = z.infer<typeof SqlConfigSchema>;
 
-const DEFAULT_TEXTAREA_WIDTH = 220;
-const DEFAULT_TEXTAREA_HEIGHT = 120;
-
 const TYPE_OPTIONS: {label: string; value: string}[] = [
   {label: '(unknown)', value: ''},
   {label: 'int', value: 'int'},
@@ -110,15 +107,10 @@ export const manifest: NodeManifest<SqlConfig> = {
         m(Stack, [
           m('span.pf-spag-section-label', 'Input tables'),
           m(
-            'div',
-            {style: {display: 'flex', flexDirection: 'column', gap: '2px'}},
+            '.pf-spag-sql-col-list',
             ctx.inputPorts.map((port, i) =>
               m('.pf-spag-sql-col-row', {key: port.name}, [
-                m(
-                  'span.pf-spag-hint',
-                  {style: {gridColumn: 'span 1'}},
-                  `#${i + 1}`,
-                ),
+                m('span.pf-spag-hint.pf-spag-sql-port-index', `#${i + 1}`),
                 m(TextInput, {
                   placeholder: `alias (e.g. events)`,
                   value: inputPorts[i] ?? '',
@@ -149,10 +141,20 @@ export const manifest: NodeManifest<SqlConfig> = {
       m('textarea.pf-spag-sql-textarea', {
         value: config.sql,
         spellcheck: false,
-        style: {
-          width: `${config.textareaWidth ?? DEFAULT_TEXTAREA_WIDTH}px`,
-          height: `${config.textareaHeight ?? DEFAULT_TEXTAREA_HEIGHT}px`,
-        },
+        style:
+          config.textareaWidth !== undefined ||
+          config.textareaHeight !== undefined
+            ? {
+                width:
+                  config.textareaWidth !== undefined
+                    ? `${config.textareaWidth}px`
+                    : undefined,
+                height:
+                  config.textareaHeight !== undefined
+                    ? `${config.textareaHeight}px`
+                    : undefined,
+              }
+            : undefined,
         oninput: (e: InputEvent) => {
           updateConfig({sql: (e.target as HTMLTextAreaElement).value});
         },
@@ -168,8 +170,7 @@ export const manifest: NodeManifest<SqlConfig> = {
       m('span.pf-spag-section-label', 'Output columns'),
       columns.length > 0 &&
         m(
-          'div',
-          {style: {display: 'flex', flexDirection: 'column', gap: '2px'}},
+          '.pf-spag-sql-col-list',
           columns.map((col, i) =>
             m('.pf-spag-sql-col-row', {key: i}, [
               m(TextInput, {
