@@ -199,6 +199,12 @@ std::string LogicalPlanFormatter::ExprString(const Expr& e, uint32_t i) {
     case Op::kGe:
       op = ">=";
       break;
+    case Op::kCoalesce:
+      return "coalesce(" + ExprString(e, node.a) + ", " +
+             ExprString(e, node.b) + ")";
+    case Op::kIif:
+      return "iif(" + ExprString(e, node.a) + ", " + ExprString(e, node.b) +
+             ", " + ExprString(e, node.c) + ")";
     case Op::kGlob:
       return "(" + ExprString(e, node.a) + " GLOB '" + e.literals[node.b].text +
              "')";
