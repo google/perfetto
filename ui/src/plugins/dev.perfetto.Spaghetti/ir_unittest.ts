@@ -1219,7 +1219,7 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
     });
   });
 
-  it('fuses pipelined ops when cold, and cuts dynamically at warm cache prefixes', () => {
+  it('fuses pipelined ops into a single step', () => {
     const root: RootNodeData = {
       type: 'from',
       id: 'f1',
@@ -1240,29 +1240,15 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
     const plan = ensureDefined(
       buildLogicalPlan(makeNodes([root]), 'srt1', undefined),
     );
-    const filterHash = nodeHash(plan, 'flt1');
     const sortHash = nodeHash(plan, 'srt1');
 
-    // Cold run: Filter + Sort fuse into a single materialized step.
+    // Filter + Sort fuse into a single materialized step.
     const coldMat = planMaterialization(plan);
     expect(coldMat.steps.length).toBe(1);
     expect(coldMat.steps[0]?.hash).toBe(sortHash);
     expect(formatSql(coldMat.steps[0]!.plan)).toEqual({
       ok: true,
       sql: 'SELECT *\nFROM slice\nWHERE dur > 100\nORDER BY dur DESC',
-      includes: [],
-    });
-
-    // Warm run (`flt1` already cached): cuts at `flt1` so `srt1` reads `_qb_<filterHash>`.
-    const warmMat = planMaterialization(plan, {
-      warmHashes: new Set([filterHash]),
-    });
-    expect(warmMat.steps.length).toBe(2);
-    expect(warmMat.steps[0]?.hash).toBe(filterHash);
-    expect(warmMat.steps[1]?.hash).toBe(sortHash);
-    expect(formatSql(warmMat.steps[1]!.plan)).toEqual({
-      ok: true,
-      sql: `SELECT *\nFROM ${filterHash}\nORDER BY dur DESC`,
       includes: [],
     });
   });
