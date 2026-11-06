@@ -215,7 +215,7 @@ export const manifest: NodeManifest<SortConfig> = {
   title: 'Sort',
   icon: 'sort',
   getInputs: () => [{name: 'input', content: 'Input'}],
-  hue: 178,
+  hue: 44,
   schema: SortConfigSchema,
   defaultConfig: () => ({sortColumn: '', sortOrder: 'ASC', conditions: []}),
   render: renderSortNode,

@@ -231,7 +231,7 @@ export const manifest: NodeManifest<JoinConfig> = {
     {name: 'left', content: 'Left'},
     {name: 'right', content: 'Right'},
   ],
-  hue: 308,
+  hue: 282,
   schema: JoinConfigSchema,
   getOutputColumns(config, ctx) {
     // Output columns are all left columns, plus select right columns.

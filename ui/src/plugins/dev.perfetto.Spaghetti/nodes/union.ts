@@ -30,7 +30,7 @@ export type UnionConfig = z.infer<typeof UnionConfigSchema>;
 export const manifest: NodeManifest<UnionConfig> = {
   title: 'Union',
   icon: 'merge',
-  hue: 242,
+  hue: 298,
   schema: UnionConfigSchema,
   getInputs(config: UnionConfig): Port[] {
     return Array.from({length: config.numInputs}, (_, i) => ({

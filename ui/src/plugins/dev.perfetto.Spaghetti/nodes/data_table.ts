@@ -401,7 +401,7 @@ function toLogicalOp(config: DataTableConfig): LogicalOp | undefined {
 export const manifest: NodeManifest<DataTableConfig> = {
   title: 'Data Table',
   icon: 'grid_on',
-  hue: 192,
+  hue: 219,
   schema: DataTableConfigSchema,
   defaultConfig: () => ({
     columns: [

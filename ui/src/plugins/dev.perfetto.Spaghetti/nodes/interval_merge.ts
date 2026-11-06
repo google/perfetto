@@ -313,7 +313,7 @@ export const manifest: NodeManifest<IntervalMergeConfig> = {
   title: 'Interval Merge',
   icon: 'compress',
   getInputs: () => [{name: 'input', content: 'Input'}],
-  hue: 332,
+  hue: 330,
   schema: IntervalMergeConfigSchema,
   defaultConfig: () => ({
     mergeKind: 'OVERLAPPING',

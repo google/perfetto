@@ -29,7 +29,7 @@ export const manifest: NodeManifest<LimitConfig> = {
   title: 'Limit',
   icon: 'horizontal_rule',
   getInputs: () => [{name: 'input', content: 'Input'}],
-  hue: 60,
+  hue: 57,
   schema: LimitConfigSchema,
   defaultConfig: () => ({limitCount: '100', offset: ''}),
   isValid: (config) =>

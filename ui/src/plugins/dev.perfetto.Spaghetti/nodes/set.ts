@@ -162,7 +162,7 @@ export const manifest: NodeManifest<SetConfig> = {
   title: 'Set',
   icon: 'edit_note',
   getInputs: () => [{name: 'input', content: 'Input'}],
-  hue: 38,
+  hue: 134,
   schema: SetConfigSchema,
   defaultConfig: () => ({entries: []}),
   render,

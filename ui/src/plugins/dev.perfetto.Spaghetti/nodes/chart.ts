@@ -285,7 +285,7 @@ function ChartDashboard(): m.Component<{
 export const manifest: NodeManifest<ChartConfig> = {
   title: 'Chart',
   icon: 'bar_chart',
-  hue: 160,
+  hue: 190,
   schema: ChartConfigSchema,
   getInputs(config: ChartConfig): Port[] {
     return Array.from({length: config.numInputs}, (_, i) => ({

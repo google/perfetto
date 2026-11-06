@@ -26,7 +26,7 @@ export const manifest: NodeManifest<DistinctConfig> = {
   title: 'Distinct',
   icon: 'done_all',
   getInputs: () => [{name: 'input', content: 'Input'}],
-  hue: 195,
+  hue: 31,
   schema: DistinctConfigSchema,
   defaultConfig: () => ({}),
   isValid: () => true,

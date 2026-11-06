@@ -28,7 +28,7 @@ export type TimeRangeConfig = z.infer<typeof TimeRangeConfigSchema>;
 export const manifest: NodeManifest<TimeRangeConfig> = {
   title: 'Time Range',
   icon: 'highlight_alt',
-  hue: 15,
+  hue: 234,
   schema: TimeRangeConfigSchema,
   defaultConfig: () => ({ts: '0', dur: '0'}),
   isValid: (config) => config.ts !== '0' || config.dur !== '0',

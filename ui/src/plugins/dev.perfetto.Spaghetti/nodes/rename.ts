@@ -160,7 +160,7 @@ export const manifest: NodeManifest<RenameConfig> = {
   title: 'Rename',
   icon: 'drive_file_rename_outline',
   getInputs: () => [{name: 'input', content: 'Input'}],
-  hue: 25,
+  hue: 144,
   schema: RenameConfigSchema,
   defaultConfig: () => ({entries: []}),
   render,

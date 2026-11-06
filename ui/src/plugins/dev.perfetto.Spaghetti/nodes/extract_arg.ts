@@ -212,7 +212,7 @@ export const manifest: NodeManifest<ExtractArgConfig> = {
   title: 'Extract Args',
   icon: 'data_object',
   getInputs: () => [{name: 'input', content: 'Input'}],
-  hue: 95,
+  hue: 174,
   schema: ExtractArgConfigSchema,
   defaultConfig: () => ({argSetIdCol: '', extractions: []}),
   render,

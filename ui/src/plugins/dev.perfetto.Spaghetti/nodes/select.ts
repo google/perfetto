@@ -338,7 +338,7 @@ export const manifest: NodeManifest<SelectConfig> = {
   title: 'Select',
   icon: 'view_column',
   getInputs: () => [{name: 'input', content: 'Input'}],
-  hue: 145,
+  hue: 114,
   schema: SelectConfigSchema,
   defaultConfig: () => ({entries: [], expressions: []}),
   render(config, updateConfig, ctx) {

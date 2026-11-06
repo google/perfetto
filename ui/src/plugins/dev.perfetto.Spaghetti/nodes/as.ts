@@ -68,7 +68,7 @@ export const manifest: NodeManifest<AsConfig> = {
   title: 'As',
   icon: 'label',
   getInputs: () => [{name: 'input', content: 'Input'}],
-  hue: 168,
+  hue: 164,
   schema: AsConfigSchema,
   defaultConfig: () => ({alias: ''}),
   isValid,
