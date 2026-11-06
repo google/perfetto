@@ -227,3 +227,46 @@ data_sources: {
     }
 }
 ```
+
+## Persisting Traces Across Reboots
+
+By default, trace files for `--upload` on Android are stored in temporary
+storage and lost if the device restarts. For long-running traces (e.g., 24-hour
+battery and power monitoring), setting `persist_trace_across_reboots: true` in
+`TraceConfig` preserves trace data captured up to a reboot or shutdown (such as
+an OTA update or battery depletion) and uploads it on the next boot.
+
+NOTE: This feature is intended for the Android upload pipeline (`--upload`),
+not for local tracing or interactive debugging. For preserving kernel-level
+ftrace buffers across kernel panics, see
+[Tracing across reboot with frozen_ftrace](/docs/data-sources/previous-boot-trace.md).
+
+### Behavior
+
+* **Storage & Exclusivity**: Trace chunks are written to
+  `/data/misc/perfetto-traces/persistent/<unique_session_name>.tmp`. Concurrent
+  sessions with the same `unique_session_name` are rejected.
+* **Shutdown vs. Normal Exit**: If the trace finishes normally or is cancelled,
+  the `.tmp` file is deleted after upload. If the device shuts down or reboots
+  mid-session, the file is kept on disk.
+* **Post-Boot Recovery**: On the next boot, Android automatically truncates any
+  incomplete trailing packet, injects a `RecoveredTraceInfo` packet (`reason:
+  REASON_UNEXPECTED_REBOOT`), and uploads the trace via the embedded
+  `android_report_config`.
+* **Identification**: Recovered traces expose `trace_recovery_reason`
+  (`REASON_UNEXPECTED_REBOOT`) in Trace Processor's `metadata` table and in the
+  Perfetto UI under **Overview > Metadata**.
+
+### How to enable
+
+Available from Perfetto v59 (Android 26Q4+). The session must be invoked with
+`--upload` (and a valid `android_report_config`), and the `TraceConfig` must
+specify:
+
+```protobuf
+unique_session_name: "long_battery_trace"
+
+write_into_file: true
+file_write_period_ms: 10000
+persist_trace_across_reboots: true
+```

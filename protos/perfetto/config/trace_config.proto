@@ -1011,8 +1011,10 @@ message TraceConfig {
 
   // Android-only. Not for general use. If set to true, writes trace chunks to a
   // persistent file
-  // (/data/misc/perfetto-traces/persistent/$unique_session_name.tmp) that
-  // survives device reboots (e.g. during OTA updates or battery depletion).
+  // (`/data/misc/perfetto-traces/persistent/<unique_session_name>.tmp`) that
+  // survives device reboots (e.g. during OTA updates or battery depletion) and
+  // is recovered on next boot via `perfetto --upload-after-reboot`.
+  // Only applicable when |write_into_file| is true and invoked with `--upload`.
   //
   // Introduced in: perfetto v59.
   // Supported on: Android 26Q4+.
