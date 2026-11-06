@@ -154,7 +154,7 @@ export class MaterializationTab implements m.ClassComponent<MaterializationTabAt
         includeModuleHeaders: false,
       });
       const bodySql = res.ok
-        ? `CREATE PERFETTO TABLE ${step.hash} AS\n${res.sql}`
+        ? res.sql
         : `-- Unsupported in Standard SQL: ${res.error}`;
 
       const meta =
@@ -213,10 +213,10 @@ export class MaterializationTab implements m.ClassComponent<MaterializationTabAt
       matPlan.finalRead.nodes[0]?.op.kind === 'scan'
         ? matPlan.finalRead.nodes[0].op.table
         : undefined;
-    const finalRes = formatLogicalPlan(matPlan.finalRead, dialect, {
-      includeModuleHeaders: false,
-    });
-    const fallbackSql = formatSql(matPlan.finalRead, {
+    // The output query is always executed as Standard SQL (regardless of the
+    // selected dialect) because the DataGrid and details panels wrap it in a
+    // plain SQL subquery, which cannot contain a pipe query.
+    const finalRes = formatSql(matPlan.finalRead, {
       includeModuleHeaders: false,
     });
     const finalSql =
@@ -224,15 +224,14 @@ export class MaterializationTab implements m.ClassComponent<MaterializationTabAt
         ? `SELECT * FROM ${singleScan}`
         : finalRes.ok
           ? finalRes.sql
-          : fallbackSql.ok
-            ? fallbackSql.sql
-            : `-- ${finalRes.error}`;
+          : `-- ${finalRes.error}`;
 
     cards.push(
       m(Card, {
         icon: 'output',
         hue: 145,
         title: 'Output',
+        meta: 'Standard SQL',
         subheader: this.renderDepsRow('reads from', finalDeps),
         content: finalSql,
         badges: [

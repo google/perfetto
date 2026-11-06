@@ -657,15 +657,10 @@ export function buildLogicalPlan(
   };
 }
 
-export interface CanvasAnalysis {
-  readonly canvasRefCounts: ReadonlyMap<string, number>;
-  readonly liveHashes: ReadonlySet<string>;
-}
-
-export function analyzeCanvas(
+export function collectLiveHashes(
   index: GraphIndex,
   sqlModules: SqlModules | undefined,
-): CanvasAnalysis {
+): Set<string> {
   const validOps = new Map<string, LogicalOp>();
   const hashes = new Map<string, string>();
   const visiting = new Set<string>();
@@ -695,22 +690,11 @@ export function analyzeCanvas(
 
   for (const id of Object.keys(index.nodes)) evalNode(id);
 
-  const canvasRefCounts = new Map<string, number>();
   const liveHashes = new Set<string>();
   for (const [id, op] of validOps) {
-    for (const inp of getLogicalOpInputs(op)) {
-      canvasRefCounts.set(inp, (canvasRefCounts.get(inp) ?? 0) + 1);
-    }
     if (op.kind !== 'scan') liveHashes.add(hashes.get(id)!);
   }
-  return {canvasRefCounts, liveHashes};
-}
-
-export function collectLiveHashes(
-  index: GraphIndex,
-  sqlModules: SqlModules | undefined,
-): Set<string> {
-  return new Set(analyzeCanvas(index, sqlModules).liveHashes);
+  return liveHashes;
 }
 
 // --- Query formatting ---

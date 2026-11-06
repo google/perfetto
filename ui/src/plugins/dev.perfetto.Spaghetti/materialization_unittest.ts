@@ -72,6 +72,36 @@ function makeFilterChain(
   };
 }
 
+// From -> Filter -> Sort chain whose (expensive) Sort target is materialized
+// into a cache table with the cheap Filter folded in.
+function makeSortedChain(
+  fromId: string,
+  sortId: string,
+  minDur: string,
+): RootNodeData {
+  const sort: NodeData = {
+    type: 'sort',
+    id: sortId,
+    config: {conditions: [{column: 'dur', order: 'DESC'}]},
+  };
+  const filter: NodeData = {
+    type: 'filter',
+    id: `${sortId}_flt`,
+    config: {
+      conditions: [{column: 'dur', op: '>', value: minDur}],
+    },
+    next: sort,
+  };
+  return {
+    type: 'from',
+    id: fromId,
+    x: 0,
+    y: 0,
+    next: filter,
+    config: {table: 'slice'},
+  };
+}
+
 describe('collectLiveHashes', () => {
   it('includes valid non-scan Merkle hashes in a chain without materializing bare scans', () => {
     const sort: NodeData = {
@@ -172,31 +202,31 @@ describe('MaterializationService cache policy', () => {
 
     // Build 4 independent live branches (> maxOrphans) and materialize them all.
     const liveBranches = [
-      makeFilterChain('f1', 'flt1', '10'),
-      makeFilterChain('f2', 'flt2', '20'),
-      makeFilterChain('f3', 'flt3', '30'),
-      makeFilterChain('f4', 'flt4', '40'),
+      makeSortedChain('f1', 'srt1', '10'),
+      makeSortedChain('f2', 'srt2', '20'),
+      makeSortedChain('f3', 'srt3', '30'),
+      makeSortedChain('f4', 'srt4', '40'),
     ];
     let store: NodeQueryBuilderStore = {
-      nodes: [...liveBranches, makeFilterChain('fe', 'flte', '100')],
+      nodes: [...liveBranches, makeSortedChain('fe', 'srte', '100')],
       labels: [],
     };
 
-    for (const id of ['flt1', 'flt2', 'flt3', 'flt4']) {
+    for (const id of ['srt1', 'srt2', 'srt3', 'srt4']) {
       await service.scheduleUpdate(store, id, undefined);
     }
     const pinnedHashes = service.cacheEntries.map((e) => e.hash);
     expect(pinnedHashes.length).toBe(4);
 
-    // Rapidly edit branch 'flte' 5 times, leaving 4 orphans behind while the
+    // Rapidly edit branch 'srte' 5 times, leaving 4 orphans behind while the
     // 5th edit is live. Only maxOrphans (2) orphans should remain, while all
     // 4 untouched live branches stay cached.
     for (const val of ['101', '102', '103', '104', '105']) {
       store = {
-        nodes: [...liveBranches, makeFilterChain('fe', 'flte', val)],
+        nodes: [...liveBranches, makeSortedChain('fe', 'srte', val)],
         labels: [],
       };
-      await service.scheduleUpdate(store, 'flte', undefined);
+      await service.scheduleUpdate(store, 'srte', undefined);
     }
 
     const remainingHashes = new Set(service.cacheEntries.map((e) => e.hash));
@@ -234,28 +264,28 @@ describe('MaterializationService cache policy', () => {
     try {
       const service = new MaterializationService(engine, {maxOrphans: 2});
       const storeFor = (val: string): NodeQueryBuilderStore => ({
-        nodes: [makeFilterChain('f1', 'flt1', val)],
+        nodes: [makeSortedChain('f1', 'srt1', val)],
         labels: [],
       });
 
       // Materialize expensive query '1' (100ms).
       simulatedCostMs = 100;
-      await service.scheduleUpdate(storeFor('1'), 'flt1', undefined);
+      await service.scheduleUpdate(storeFor('1'), 'srt1', undefined);
       const hExpensive = ensureDefined(service.materializedTable);
 
       // Materialize cheap queries '2' (1ms) and '3' (1ms).
       simulatedCostMs = 1;
-      await service.scheduleUpdate(storeFor('2'), 'flt1', undefined);
+      await service.scheduleUpdate(storeFor('2'), 'srt1', undefined);
       const hCheapOld = ensureDefined(service.materializedTable);
 
-      await service.scheduleUpdate(storeFor('3'), 'flt1', undefined);
+      await service.scheduleUpdate(storeFor('3'), 'srt1', undefined);
       const hCheapNewer = ensureDefined(service.materializedTable);
 
       // Edit to '4' -> 3 orphans (`hExpensive`, `hCheapOld`, `hCheapNewer`), maxOrphans = 2.
       // Even though `hExpensive` was created earliest, its high materialization
       // cost gives it higher GreedyDual priority than `hCheapOld`, so `hCheapOld`
       // is evicted first!
-      await service.scheduleUpdate(storeFor('4'), 'flt1', undefined);
+      await service.scheduleUpdate(storeFor('4'), 'srt1', undefined);
 
       const cachedHashes = new Set(service.cacheEntries.map((e) => e.hash));
       expect(cachedHashes.has(hExpensive)).toBe(true);
@@ -271,18 +301,18 @@ describe('MaterializationService cache policy', () => {
     const {engine} = makeFakeEngine();
     const service = new MaterializationService(engine, {maxOrphans: 1});
 
-    const branchA = makeFilterChain('fa', 'flta', '10');
-    const branchB = makeFilterChain('fb', 'fltb', '20');
-    const branchC = makeFilterChain('fc', 'fltc', '30');
+    const branchA = makeSortedChain('fa', 'srta', '10');
+    const branchB = makeSortedChain('fb', 'srtb', '20');
+    const branchC = makeSortedChain('fc', 'srtc', '30');
 
     const fullStore: NodeQueryBuilderStore = {
       nodes: [branchA, branchB, branchC],
       labels: [],
     };
-    await service.scheduleUpdate(fullStore, 'flta', undefined);
-    await service.scheduleUpdate(fullStore, 'fltb', undefined);
-    await service.scheduleUpdate(fullStore, 'fltc', undefined);
-    await service.scheduleUpdate(fullStore, 'flta', undefined);
+    await service.scheduleUpdate(fullStore, 'srta', undefined);
+    await service.scheduleUpdate(fullStore, 'srtb', undefined);
+    await service.scheduleUpdate(fullStore, 'srtc', undefined);
+    await service.scheduleUpdate(fullStore, 'srta', undefined);
     expect(service.cacheEntries.length).toBe(3);
 
     // Keep flta active (same displaySql!), delete branchB and branchC -> 2 orphans > maxOrphans (1).
@@ -290,7 +320,7 @@ describe('MaterializationService cache policy', () => {
       nodes: [branchA],
       labels: [],
     };
-    await service.scheduleUpdate(trimmedStore, 'flta', undefined);
+    await service.scheduleUpdate(trimmedStore, 'srta', undefined);
     expect(service.cacheEntries.length).toBe(2); // flta (live) + 1 orphan
 
     // Clear workspace completely (activeNodeId = undefined) -> only 1 orphan allowed.
@@ -324,10 +354,10 @@ describe('MaterializationService cache policy', () => {
     });
 
     const store1: NodeQueryBuilderStore = {
-      nodes: [makeFilterChain('f1', 'flt1', '1')],
+      nodes: [makeSortedChain('f1', 'srt1', '1')],
       labels: [],
     };
-    await service.scheduleUpdate(store1, 'flt1', undefined);
+    await service.scheduleUpdate(store1, 'srt1', undefined);
     const h1 = ensureDefined(service.materializedTable);
 
     // Simulate an in-flight SQLDataSource pagination query on taskQueue.
@@ -343,10 +373,10 @@ describe('MaterializationService cache policy', () => {
 
     // Trigger an edit that orphans & evicts h1 while the read is still running.
     const store2: NodeQueryBuilderStore = {
-      nodes: [makeFilterChain('f1', 'flt1', '2')],
+      nodes: [makeSortedChain('f1', 'srt1', '2')],
       labels: [],
     };
-    const updatePromise = service.scheduleUpdate(store2, 'flt1', undefined);
+    const updatePromise = service.scheduleUpdate(store2, 'srt1', undefined);
 
     // Let microtasks settle; drop must NOT have run yet because read is active.
     await Promise.resolve();
@@ -366,19 +396,19 @@ describe('MaterializationService cache policy', () => {
     const service = new MaterializationService(engine, {maxOrphans: 4});
 
     const store: NodeQueryBuilderStore = {
-      nodes: [makeFilterChain('f1', 'flt1', '250')],
+      nodes: [makeSortedChain('f1', 'srt1', '250')],
       labels: [],
     };
 
     // Materialize in Standard SQL mode first -> uses CREATE PERFETTO TABLE.
-    await service.scheduleUpdate(store, 'flt1', undefined, 'sql');
+    await service.scheduleUpdate(store, 'srt1', undefined, 'sql');
     const sqlHash = ensureDefined(service.materializedTable);
     expect(service.activeDialect).toBe('sql');
     expect(service.cacheEntries[0]?.hitCount).toBe(1);
     expect(
       queries.some((q) =>
         q.includes(
-          `CREATE PERFETTO TABLE ${sqlHash} AS\nSELECT *\nFROM slice\nWHERE dur > 250`,
+          `CREATE PERFETTO TABLE ${sqlHash} AS\nSELECT *\nFROM slice\nWHERE dur > 250\nORDER BY dur DESC`,
         ),
       ),
     ).toBe(true);
@@ -386,11 +416,14 @@ describe('MaterializationService cache policy', () => {
     // Switch to PerfettoSQL Next mode -> same semantic Merkle hash -> instant
     // warm cache hit with ZERO new CREATE PERFETTO TABLE queries!
     const queryCountBeforeSwitch = queries.length;
-    await service.scheduleUpdate(store, 'flt1', undefined, 'pipe');
+    await service.scheduleUpdate(store, 'srt1', undefined, 'pipe');
     expect(service.activeDialect).toBe('pipe');
     expect(service.materializedTable).toBe(sqlHash);
     expect(service.cacheEntries[0]?.hitCount).toBe(2);
-    expect(service.cacheEntries[0]?.sql).toBe('FROM slice\n|> WHERE dur > 250');
+    // The cache entry keeps the Standard SQL that actually built the table.
+    expect(service.cacheEntries[0]?.sql).toBe(
+      'SELECT *\nFROM slice\nWHERE dur > 250\nORDER BY dur DESC',
+    );
     expect(
       queries
         .slice(queryCountBeforeSwitch)
@@ -398,22 +431,25 @@ describe('MaterializationService cache policy', () => {
     ).toBe(false);
   });
 
-  it('plans cut points independently of cache state and shares Y-fork checkpoints across branches', async () => {
+  it('plans cut points independently of cache state, materializing only expensive ops', async () => {
     const {engine, queries} = makeFakeEngine();
     const service = new MaterializationService(engine, {maxOrphans: 4});
 
-    // 1. User builds From -> Filter and clicks Filter.
+    // 1. User builds From -> Filter and clicks Filter -> cheap, so it is read
+    // directly with no cache table.
     const step1Store: NodeQueryBuilderStore = {
       nodes: [makeFilterChain('f1', 'flt1', '500')],
       labels: [],
     };
     await service.scheduleUpdate(step1Store, 'flt1', undefined, 'sql');
-    const filterHash = ensureDefined(service.materializedTable);
-    expect(service.lastRunOutcomes.get(filterHash)?.kind).toBe('built');
+    expect(service.cacheEntries.length).toBe(0);
+    expect(service.readQuerySql).toBe('SELECT *\nFROM slice\nWHERE dur > 500');
+    expect(queries.some((q) => q.includes('CREATE PERFETTO TABLE'))).toBe(
+      false,
+    );
 
-    // 2. User docks Sort below Filter and clicks Sort -> the warm Filter table
-    // does not introduce a cut; Sort folds Filter into one step exactly as it
-    // would with a cold cache.
+    // 2. User docks Sort below Filter and clicks Sort -> the expensive Sort is
+    // materialized with the Filter folded in.
     const step2Store: NodeQueryBuilderStore = {
       nodes: [
         {
@@ -446,11 +482,7 @@ describe('MaterializationService cache policy', () => {
     queries.length = 0;
     await service.scheduleUpdate(step2Store, 'srt1', undefined, 'sql');
     const sortHash = ensureDefined(service.materializedTable);
-    expect(service.planFor(sortPlan).steps.map((s) => s.hash)).toEqual(
-      coldSteps,
-    );
     expect(coldSteps).toEqual([sortHash]);
-    expect(service.lastRunOutcomes.get(filterHash)).toBeUndefined();
     expect(service.lastRunOutcomes.get(sortHash)?.kind).toBe('built');
     expect(
       queries.some((q) =>
@@ -460,8 +492,15 @@ describe('MaterializationService cache policy', () => {
       ),
     ).toBe(true);
 
-    // 3. Y-fork on a fresh service: `flt_shared` feeds `srt_a` and `lim_b`.
-    const {engine: forkEngine, queries: forkQueries} = makeFakeEngine();
+    // 3. Re-planning with a warm cache yields the identical plan.
+    expect(service.planFor(sortPlan).steps.map((s) => s.hash)).toEqual(
+      coldSteps,
+    );
+
+    // 4. Fork after the cheap Filter: `flt_shared` feeds `srt_a` and `lim_b`.
+    // The shared Filter is not checkpointed; the cheap Limit branch reads
+    // straight from `slice` with no cache table.
+    const {engine: forkEngine} = makeFakeEngine();
     const forkService = new MaterializationService(forkEngine);
     const forkStore: NodeQueryBuilderStore = {
       nodes: [
@@ -494,24 +533,14 @@ describe('MaterializationService cache policy', () => {
       labels: [],
     };
 
-    // Selecting `srt_a` checkpoints `flt_shared` first because `canvasRefCounts` = 2.
     await forkService.scheduleUpdate(forkStore, 'srt_a', undefined, 'sql');
-    expect(forkService.cacheEntries.length).toBe(2);
-    const sharedHash = ensureDefined(
-      forkService.cacheEntries.find(
-        (e) => e.hash !== forkService.materializedTable,
-      )?.hash,
-    );
+    expect(forkService.cacheEntries.length).toBe(1);
 
-    // Selecting sibling `lim_b` hits `sharedHash` in cache!
-    forkQueries.length = 0;
     await forkService.scheduleUpdate(forkStore, 'lim_b', undefined, 'sql');
-    expect(
-      forkService.cacheEntries.find((e) => e.hash === sharedHash)?.hitCount,
-    ).toBe(2);
-    expect(
-      forkQueries.some((q) => q.includes(`FROM ${sharedHash}\nLIMIT 5`)),
-    ).toBe(true);
+    expect(forkService.cacheEntries.length).toBe(1);
+    expect(forkService.readQuerySql).toBe(
+      'SELECT *\nFROM slice\nWHERE dur > 999\nLIMIT 5',
+    );
   });
 
   it('surfaces materialization error when a node is unsupported in Standard SQL mode', async () => {

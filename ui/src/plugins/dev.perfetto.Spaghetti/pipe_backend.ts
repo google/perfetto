@@ -344,15 +344,30 @@ function makeDataTablePipe(op: DataTableOp): PipeStatement {
   };
 }
 
+const STEP_TOKEN_PREFIX = '__spag_step_';
+
+function isStepToken(ref: string): boolean {
+  return ref.startsWith(STEP_TOKEN_PREFIX);
+}
+
+// Pipe-native union (proposed syntax):
+//   FROM <first>
+//   UNION ALL (SELECT * FROM <table>)
+//   UNION ALL (<pipeline>)
+// Plain table refs are wrapped as `(SELECT * FROM <table>)`. Step tokens are
+// left bare so they get inlined as parenthesized sub-pipelines.
 function makeUnionPipe(op: UnionOp, refs: readonly string[]): PipeStatement {
   const first = refs[0];
   if (refs.length === 1 && first !== undefined) {
     return {source: first, stages: []};
   }
   const kw = op.distinct ? 'UNION' : 'UNION ALL';
-  const body = refs.map((r) => `SELECT * FROM ${r}`).join(`\n  ${kw}\n  `);
+  const clauses = refs
+    .slice(1)
+    .map((r) => `${kw} ${isStepToken(r) ? r : `(SELECT * FROM ${r})`}`);
   return {
-    source: `(\n  ${body}\n)`,
+    source: [`FROM ${first}`, ...clauses].join('\n'),
+    rawSourceClause: true,
     stages: [],
   };
 }
@@ -571,10 +586,6 @@ function extractPureSqlSource(sql: string): string | undefined {
   return undefined;
 }
 
-function countTokenOccurrences(sql: string, token: string): number {
-  return sql.split(token).length - 1;
-}
-
 function inlineStepIntoPipeSql(
   consumerSql: string,
   token: string,
@@ -582,11 +593,14 @@ function inlineStepIntoPipeSql(
 ): string {
   const pureSqlSource = extractPureSqlSource(stepSql);
 
-  // 1. Consumer starts directly with `FROM <token>` at the top of a pipeline.
+  // 1. Consumer starts directly with `FROM <token>` at the top of a pipeline
+  //    (followed by `|>` stages or `UNION` clauses).
   const topPrefix = `FROM ${token}`;
   if (
     stepSql.startsWith('FROM ') &&
-    (consumerSql === topPrefix || consumerSql.startsWith(`${topPrefix}\n|>`))
+    (consumerSql === topPrefix ||
+      consumerSql.startsWith(`${topPrefix}\n|>`) ||
+      consumerSql.startsWith(`${topPrefix}\nUNION`))
   ) {
     return `${stepSql}${consumerSql.slice(topPrefix.length)}`;
   }
@@ -655,7 +669,7 @@ export function formatPipe(
   let currentTailId: string | undefined;
 
   function emitStep(sql: string): string {
-    const token = `__spag_step_${steps.length + 1}__`;
+    const token = `${STEP_TOKEN_PREFIX}${steps.length + 1}__`;
     steps.push({token, sql});
     return token;
   }
@@ -911,60 +925,42 @@ export function formatPipe(
     sqlByToken.set(s.token, s.sql);
   }
 
-  const inlinedTokens = new Set<string>();
+  // PerfettoSQL Next has no CTEs and pipelines can't be named outside of a
+  // real table, so every intermediate step is inlined into each place that
+  // uses it (repeating cheap steps used more than once), producing a single
+  // query.
   for (const [idx, step] of stepEntries.entries()) {
     const stepSql = sqlByToken.get(step.token) ?? step.sql;
-    const downstream = steps
-      .slice(idx + 1)
-      .filter((s) => !inlinedTokens.has(s.token));
-
-    let totalRefs = 0;
-    let consumerToken: string | undefined;
-    let usedInPlainSqlFrom = false;
-    for (const d of downstream) {
-      const dSql = sqlByToken.get(d.token) ?? d.sql;
-      const count = countTokenOccurrences(dSql, step.token);
-      if (count > 0) {
-        totalRefs += count;
-        consumerToken = d.token;
-        if (dSql.includes(`SELECT * FROM ${step.token}`)) {
-          usedInPlainSqlFrom = true;
-        }
-      }
-    }
-
-    if (totalRefs === 0) {
-      inlinedTokens.add(step.token);
-      continue;
-    }
-
     const isPureSql = extractPureSqlSource(stepSql) !== undefined;
-    if (
-      totalRefs === 1 &&
-      consumerToken !== undefined &&
-      (isPureSql || !usedInPlainSqlFrom)
-    ) {
-      const consumerSql = sqlByToken.get(consumerToken) ?? '';
-      sqlByToken.set(
-        consumerToken,
-        inlineStepIntoPipeSql(consumerSql, step.token, stepSql),
-      );
-      inlinedTokens.add(step.token);
-    }
-  }
 
-  const remainingSteps = stepEntries.filter((s) => !inlinedTokens.has(s.token));
-  const nameMap = new Map<string, string>();
-  for (const [i, step] of remainingSteps.entries()) {
-    nameMap.set(step.token, `step_${i + 1}`);
-  }
+    for (const d of steps.slice(idx + 1)) {
+      let dSql = sqlByToken.get(d.token) ?? d.sql;
+      if (!dSql.includes(step.token)) continue;
 
-  function renameTokens(sql: string): string {
-    let result = sql;
-    for (const [token, name] of nameMap) {
-      result = result.replaceAll(token, name);
+      // Pipelines can be nested inside pipelines, but not inside plain SQL
+      // (e.g. the `SELECT * FROM <input>` wrappers of a SQL node).
+      if (!isPureSql && dSql.includes(`SELECT * FROM ${step.token}`)) {
+        return {
+          ok: false,
+          error:
+            'SQL node inputs are not supported in PerfettoSQL Next mode ' +
+            'unless they are tables or materialized nodes (a pipe query ' +
+            'cannot be nested inside plain SQL). Use Standard SQL mode instead.',
+        };
+      }
+
+      while (dSql.includes(step.token)) {
+        const next = inlineStepIntoPipeSql(dSql, step.token, stepSql);
+        if (next === dSql) {
+          return {
+            ok: false,
+            error: 'Failed to inline intermediate PerfettoSQL Next step.',
+          };
+        }
+        dSql = next;
+      }
+      sqlByToken.set(d.token, dSql);
     }
-    return result;
   }
 
   const includes = [...allIncludes];
@@ -977,16 +973,7 @@ export function formatPipe(
     );
   }
 
-  for (const step of remainingSteps) {
-    const stepName = nameMap.get(step.token);
-    const stepSql = sqlByToken.get(step.token) ?? step.sql;
-    blocks.push(
-      `CREATE OR REPLACE PERFETTO TABLE ${stepName} AS\n${renameTokens(stepSql)};`,
-    );
-  }
-
-  const finalSql = sqlByToken.get(lastStep.token) ?? lastStep.sql;
-  blocks.push(renameTokens(finalSql));
+  blocks.push(sqlByToken.get(lastStep.token) ?? lastStep.sql);
 
   return {
     ok: true,

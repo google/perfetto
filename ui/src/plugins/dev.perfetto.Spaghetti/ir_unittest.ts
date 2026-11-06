@@ -16,7 +16,6 @@ import {ensureDefined} from '../../base/assert';
 import type {NodeData, RootNodeData} from './graph_model';
 import {flattenNodes} from './graph_utils';
 import {
-  analyzeCanvas,
   buildDisplayQuery,
   buildLogicalPlan,
   formatLogicalPlan,
@@ -494,7 +493,7 @@ describe('formatPipe (PerfettoSQL Next backend)', () => {
     );
   });
 
-  it('formats multi-use diamond DAGs using CREATE OR REPLACE PERFETTO TABLE', () => {
+  it('formats multi-use diamond DAGs in pipe mode as a single query by repeating the shared step', () => {
     const sharedFilter: NodeData = {
       type: 'filter',
       id: 'flt1',
@@ -524,11 +523,22 @@ describe('formatPipe (PerfettoSQL Next backend)', () => {
     };
 
     const display = getDisplay([from, ii], 'ii1', 'pipe');
-    expect(display).toContain(
-      'CREATE OR REPLACE PERFETTO TABLE step_1 AS\nFROM slice\n|> WHERE dur > 0;',
+    expect(display).not.toContain('CREATE OR REPLACE PERFETTO TABLE');
+    expect(display).toBe(
+      [
+        'INTERVAL INTERSECTION OF (',
+        '  (',
+        '    FROM slice',
+        '    |> WHERE dur > 0',
+        '  ) AS t1,',
+        '  (',
+        '    FROM slice',
+        '    |> WHERE dur > 0',
+        '  ) AS t2',
+        ')',
+        '|> SELECT ts, dur, t1.id AS id_0, t2.id AS id_1',
+      ].join('\n'),
     );
-    expect(display).toContain('step_1 AS t1');
-    expect(display).toContain('step_1 AS t2');
   });
 
   it('lowers distinct, rename, set, and limit offset in both dialects', () => {
@@ -1253,8 +1263,9 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
     });
   });
 
-  it('checkpoints pipeline breakers (GroupBy, Interval Intersect) and global canvas Y-forks', () => {
-    // 1. Pipeline breaker: GroupBy -> Filter cuts into 2 steps even when cold.
+  it('materializes only expensive ops and folds cheap ops (including shared forks) into consumers', () => {
+    // 1. Expensive op: GroupBy gets its own table; the cheap Filter target
+    // reads from it in the final read without its own table.
     const gbChain: RootNodeData = {
       type: 'from',
       id: 'f1',
@@ -1279,15 +1290,17 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
       buildLogicalPlan(makeNodes([gbChain]), 'flt1', undefined),
     );
     const gbMat = planMaterialization(gbPlan);
-    expect(gbMat.steps.length).toBe(2);
-    expect(formatSql(gbMat.steps[1]!.plan)).toEqual({
+    expect(gbMat.steps.length).toBe(1);
+    expect(gbMat.steps[0]?.nodeIds).toEqual(['gb1']);
+    expect(formatSql(gbMat.finalRead)).toEqual({
       ok: true,
       sql: `SELECT *\nFROM ${gbMat.steps[0]!.hash}\nWHERE cnt > 5`,
       includes: [],
     });
 
-    // 2. Global Y-fork across independent canvas branches:
-    // From(slice) -> Filter(flt_shared) feeds Sort(branch_a) and Limit(branch_b).
+    // 2. Canvas fork after a cheap op: From(slice) -> Filter(flt_shared)
+    // feeds Sort(branch_a) and Limit(branch_b). The shared Filter is not
+    // checkpointed; it folds into the expensive Sort's table.
     const sharedRoot: RootNodeData = {
       type: 'from',
       id: 'f_shared',
@@ -1314,19 +1327,17 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
       config: {limitCount: '10'},
     };
     const forkIndex = makeNodes([sharedRoot, branchB]);
-    const analysis = analyzeCanvas(forkIndex, undefined);
-    expect(analysis.canvasRefCounts.get('flt_shared')).toBe(2);
 
-    const branchAPlan = ensureDefined(
-      buildLogicalPlan(forkIndex, 'branch_a', undefined),
+    const forkMat = planMaterialization(
+      ensureDefined(buildLogicalPlan(forkIndex, 'branch_a', undefined)),
     );
-    // In isolation `branchAPlan` has refCount 1 on `flt_shared`, so passing
-    // `canvasRefCounts` is what triggers the shared checkpoint cut!
-    const forkMat = planMaterialization(branchAPlan, {
-      canvasRefCounts: analysis.canvasRefCounts,
-    });
-    expect(forkMat.steps.length).toBe(2);
-    expect(forkMat.steps[0]?.nodeIds).toEqual(['flt_shared']);
-    expect(forkMat.steps[1]?.nodeIds).toEqual(['branch_a']);
+    expect(forkMat.steps.length).toBe(1);
+    expect(forkMat.steps[0]?.nodeIds).toEqual(['flt_shared', 'branch_a']);
+
+    // The cheap Limit branch needs no table at all.
+    const limitMat = planMaterialization(
+      ensureDefined(buildLogicalPlan(forkIndex, 'branch_b', undefined)),
+    );
+    expect(limitMat.steps.length).toBe(0);
   });
 });

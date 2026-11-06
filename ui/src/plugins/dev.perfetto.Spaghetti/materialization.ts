@@ -21,9 +21,9 @@ import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import type {NodeQueryBuilderStore} from './graph_model';
 import {flattenNodes, type GraphIndex} from './graph_utils';
 import {
-  analyzeCanvas,
   buildDisplayQuery,
   buildLogicalPlan,
+  collectLiveHashes,
   collectLogicalPlanIncludes,
   formatLogicalPlan,
   formatSql,
@@ -35,18 +35,11 @@ import {
 
 const DEFAULT_MAX_ORPHANS = 16;
 
-const ZERO_COST_KINDS: ReadonlySet<LogicalOp['kind']> = new Set([
-  'scan',
-  'passthrough',
-  'as',
-  'time_range',
-  'data_table',
-  'rename',
-  'drop',
-]);
-
-const PIPELINE_BREAKER_KINDS: ReadonlySet<LogicalOp['kind']> = new Set([
+// Potentially expensive ops whose output is always materialized into a cache
+// table. Everything else folds into the next table's query or the final read.
+const EXPENSIVE_KINDS: ReadonlySet<LogicalOp['kind']> = new Set([
   'aggregate',
+  'sort',
   'join',
   'union',
   'interval_intersect',
@@ -58,13 +51,6 @@ const PIPELINE_BREAKER_KINDS: ReadonlySet<LogicalOp['kind']> = new Set([
   'graph_tree',
   'raw_sql',
 ]);
-
-function isZeroCostOp(op: LogicalOp): boolean {
-  return (
-    ZERO_COST_KINDS.has(op.kind) ||
-    (op.kind === 'project' && op.expressions.length === 0)
-  );
-}
 
 export interface MaterializationStep {
   readonly hash: string;
@@ -79,19 +65,12 @@ export interface MaterializationPlan {
   readonly includes: readonly string[];
 }
 
-export interface PlanMaterializationOptions {
-  readonly canvasRefCounts?: ReadonlyMap<string, number>;
-}
-
 // Partition a `LogicalPlan` into dialect-agnostic cacheable materialization
-// steps plus a lightweight `finalRead` subplan. Cut points depend only on the
-// plan structure (and canvas fan-out), never on cache state, so the same graph
-// always yields the same steps; the cache only decides which steps execute.
-export function planMaterialization(
-  plan: LogicalPlan,
-  options?: PlanMaterializationOptions,
-): MaterializationPlan {
-  const {canvasRefCounts} = options ?? {};
+// steps plus a lightweight `finalRead` subplan. The output of every expensive
+// op becomes a cache table; everything else folds into the next table's query
+// or the final read. Cut points are a pure function of the plan - the cache
+// only decides which steps execute.
+export function planMaterialization(plan: LogicalPlan): MaterializationPlan {
   const nodeById = new Map(plan.nodes.map((n) => [n.nodeId, n]));
 
   let targetId = plan.targetNodeId;
@@ -105,22 +84,9 @@ export function planMaterialization(
   }
 
   const cutNodeIds = new Set<string>();
-  const zeroCost = new Map<string, boolean>();
   for (const n of plan.nodes) {
-    const inputsFree = getLogicalOpInputs(n.op).every(
-      (id) => cutNodeIds.has(id) || (zeroCost.get(id) ?? true),
-    );
-    const isFree = isZeroCostOp(n.op) && inputsFree;
-    zeroCost.set(n.nodeId, isFree);
-
-    if (n.op.kind === 'scan' || n.op.kind === 'passthrough') continue;
-    if (n.nodeId === targetId) {
-      if (!isFree) cutNodeIds.add(n.nodeId);
-    } else {
-      const refs = Math.max(n.refCount, canvasRefCounts?.get(n.nodeId) ?? 0);
-      if ((refs > 1 && !isFree) || PIPELINE_BREAKER_KINDS.has(n.op.kind)) {
-        cutNodeIds.add(n.nodeId);
-      }
+    if (EXPENSIVE_KINDS.has(n.op.kind)) {
+      cutNodeIds.add(n.nodeId);
     }
   }
 
@@ -232,7 +198,7 @@ export interface MaterializationOptions {
 
 interface StoredCacheEntry {
   readonly hash: string;
-  sql: string;
+  readonly sql: string;
   readonly createdAt: number;
   readonly materializeTimeMs: number;
   lastHitAt: number;
@@ -268,7 +234,6 @@ export class MaterializationService {
   private lastStore: NodeQueryBuilderStore | undefined;
   private lastSqlModules: SqlModules | undefined;
   private lastIndex: GraphIndex = {nodes: {}, childToParent: new Map()};
-  private _canvasRefCounts: ReadonlyMap<string, number> = new Map();
   private liveHashes: ReadonlySet<string> = new Set();
 
   private latestUpdate:
@@ -367,9 +332,7 @@ export class MaterializationService {
   }
 
   planFor(logicalPlan: LogicalPlan): MaterializationPlan {
-    return planMaterialization(logicalPlan, {
-      canvasRefCounts: this._canvasRefCounts,
-    });
+    return planMaterialization(logicalPlan);
   }
 
   scheduleUpdate(
@@ -436,9 +399,7 @@ export class MaterializationService {
       this.lastStore = store;
       this.lastSqlModules = sqlModules;
       this.lastIndex = flattenNodes(store.nodes);
-      const analysis = analyzeCanvas(this.lastIndex, sqlModules);
-      this._canvasRefCounts = analysis.canvasRefCounts;
-      this.liveHashes = analysis.liveHashes;
+      this.liveHashes = collectLiveHashes(this.lastIndex, sqlModules);
     }
     return this.lastIndex;
   }
@@ -569,7 +530,6 @@ export class MaterializationService {
       if (cached) {
         cached.lastHitAt = performance.now();
         cached.hitCount++;
-        cached.sql = sql;
         cached.priority = this.computePriority(
           cached.materializeTimeMs,
           cached.hitCount,
