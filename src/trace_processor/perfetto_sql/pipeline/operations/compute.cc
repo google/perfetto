@@ -77,7 +77,8 @@ OutputProperties Compute::Derive(DeriveContext& c) const {
 
 void Compute::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerInput(node, 0);
-  c->AddOperator(std::make_unique<ex::Compute>(c->QueryPrograms(node)));
+  c->AddOperator(
+      std::make_unique<ex::Compute>(c->QueryPrograms(node), c->context().pool));
 }
 
 const OperationRegistration& Compute::registration() const {

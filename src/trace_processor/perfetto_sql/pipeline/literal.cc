@@ -23,8 +23,10 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/filter_value_cast.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
@@ -151,6 +153,35 @@ ex::FilterValue CastLiterals(const core::Op& op,
                                                        &value);
   }
   return value;
+}
+
+ResolvedComparison ResolveLiteralComparison(const core::Op& op,
+                                            const Literal& literal,
+                                            bool double_value) {
+  LiteralFetcher fetcher(&literal, 1);
+  core::NonNullOp non_null = *op.TryDowncast<core::NonNullOp>();
+  core::filter::CastFilterValueResult cast =
+      double_value
+          ? core::filter::CastFilterValue<core::Double>(0, fetcher, non_null)
+          : core::filter::CastFilterValue<core::Int64>(0, fetcher, non_null);
+  ResolvedComparison resolved;
+  switch (cast.validity) {
+    case core::filter::CastFilterValueResult::kAllMatch:
+      resolved.kind = ResolvedComparison::Kind::kAlwaysTrue;
+      return resolved;
+    case core::filter::CastFilterValueResult::kNoneMatch:
+      resolved.kind = ResolvedComparison::Kind::kAlwaysFalse;
+      return resolved;
+    case core::filter::CastFilterValueResult::kValid:
+      break;
+  }
+  if (double_value) {
+    resolved.literal.type = Literal::Type::kDouble;
+    resolved.literal.double_value = base::unchecked_get<double>(cast.value);
+  } else {
+    resolved.literal.int_value = base::unchecked_get<int64_t>(cast.value);
+  }
+  return resolved;
 }
 
 void SerializeLiteral(PlanCodec& c, Literal* literal) {

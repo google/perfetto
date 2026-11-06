@@ -1745,6 +1745,85 @@ class PerfettoPipeline(TestSuite):
         """,
         out=ExpectedError('a negated string'))
 
+  # A comparison must match what SQLite computes for the same SQL, including
+  # nulls, fractions and integers a double can't hold exactly.
+  def test_computed_comparisons_match_sqlite(self):
+    query = """
+        id, n > 5 AS a, n = 5 AS b, n != 5 AS c, n <> 5 AS d, n == 5 AS e,
+        n <= 5 AS f, n >= 5 AS g, n < 5 AS h,
+        n > 5.5 AS i, n < 5.5 AS j, n >= 5.5 AS k, n <= 5.5 AS l,
+        n = 5.5 AS m, n != 5.5 AS o, n = 5.0 AS p, n < 1e30 AS q, n > 1e30 AS r,
+        5 < n AS s, 5.5 > n AS t, n = m2 AS u, n < m2 AS v, d2 > 1 AS w,
+        d2 = 2.5 AS x, 3 > d2 AS y, d2 < e2 AS z,
+        s1 = 'foo' AS aa, s1 != 'foo' AS ab, s1 < 'c' AS ac, s1 >= 'foo' AS ad,
+        s1 = 'absent' AS ae, 'c' > s1 AS af, s1 = s2 AS ag, s1 < s2 AS ah,
+        big = 9007199254740992.0 AS ai, big > 9007199254740992.0 AS aj,
+        n + 1 > 5 AS ak, (n > 5) + 1 AS al, n > NULL AS am
+        """
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query=f"""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 1 AS id, 5 AS n, 6 AS m2, 2.5 AS d2, 3.5 AS e2, 'foo' AS s1,
+          'foo' AS s2, 9007199254740993 AS big
+        UNION ALL SELECT 2, NULL, 6, NULL, 1.0, NULL, 'bar', 1
+        UNION ALL SELECT 3, 7, 7, 0.5, NULL, 'bar', NULL, 9007199254740992
+        UNION ALL SELECT 4, -1, 0, 3.0, 3.0, 'a', 'b', -9007199254740993;
+
+        CREATE PERFETTO TABLE plain AS SELECT {query} FROM t;
+        CREATE PERFETTO TABLE piped AS FROM t |> SELECT {query};
+
+        SELECT
+          (SELECT count(*) FROM piped) AS n,
+          (SELECT count(*) FROM (SELECT * FROM piped EXCEPT SELECT * FROM plain))
+          + (SELECT count(*) FROM (SELECT * FROM plain EXCEPT SELECT * FROM piped))
+            AS mismatches;
+        """,
+        out=Csv("""
+        "n","mismatches"
+        4,0
+        """))
+
+  def test_computed_comparison_reads_a_later_where(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 1 AS id, 'foo' AS s UNION ALL SELECT 2, 'bar'
+        UNION ALL SELECT 3, 'foo';
+        FROM t
+        |> WHERE id > 1
+        |> EXTEND s = 'foo' AS is_foo
+        |> WHERE is_foo = 1
+        |> SELECT id, is_foo;
+        """,
+        out=Csv("""
+        "id","is_foo"
+        3,1
+        """))
+
+  def test_computed_comparison_refuses_a_string_for_a_number(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n;
+        FROM t |> EXTEND n = '5' AS a;
+        """,
+        out=ExpectedError('values of one kind to compare'))
+
+  def test_computed_comparison_refuses_an_integer_with_a_double_value(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 2.5 AS d;
+        FROM t |> EXTEND n > d AS a;
+        """,
+        out=ExpectedError('values of one type to compare'))
+
   # A computed column's type is only known once the source's is, so later
   # stages must see it then.
   def test_computed_columns_feed_later_stages(self):

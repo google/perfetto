@@ -18,7 +18,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -178,6 +180,13 @@ bool IntArithmetic(Op op,
     case Op::kConstant:
     case Op::kNull:
     case Op::kToDouble:
+    case Op::kEq:
+    case Op::kNe:
+    case Op::kLt:
+    case Op::kLe:
+    case Op::kGt:
+    case Op::kGe:
+    case Op::kConstantWherePresent:
       break;
   }
   PERFETTO_FATAL("Not arithmetic");
@@ -218,9 +227,46 @@ void DoubleArithmetic(Op op,
     case Op::kConstant:
     case Op::kNull:
     case Op::kToDouble:
+    case Op::kEq:
+    case Op::kNe:
+    case Op::kLt:
+    case Op::kLe:
+    case Op::kGt:
+    case Op::kGe:
+    case Op::kConstantWherePresent:
       break;
   }
   PERFETTO_FATAL("Not double arithmetic");
+}
+
+template <typename T, typename F>
+PERFETTO_NO_INLINE void CompareLoop(const T* x,
+                                    const T* y,
+                                    int64_t* o,
+                                    uint32_t rows,
+                                    F f) {
+  for (uint32_t r = 0; r < rows; ++r) {
+    o[r] = f(x[r], y[r]);
+  }
+}
+
+// Eq, Lt or Le: the others come from these (see Evaluator::Compare), so that
+// there are fewer copies of the loop.
+template <typename T>
+void CompareNumbers(Op op, const T* x, const T* y, int64_t* o, uint32_t rows) {
+  if (op == Op::kEq) {
+    CompareLoop(x, y, o, rows, std::equal_to<T>());
+  } else if (op == Op::kLt) {
+    CompareLoop(x, y, o, rows, std::less<T>());
+  } else {
+    CompareLoop(x, y, o, rows, std::less_equal<T>());
+  }
+}
+
+PERFETTO_NO_INLINE void FlipBools(int64_t* o, uint32_t rows) {
+  for (uint32_t r = 0; r < rows; ++r) {
+    o[r] ^= 1;
+  }
 }
 
 StorageType StorageFor(ExprType type) {
@@ -238,8 +284,10 @@ StorageType StorageFor(ExprType type) {
 // Runs one program over batches, keeping a register per step.
 class Evaluator {
  public:
-  Evaluator(const ExprProgram& program, Context& context)
-      : program_(&program), context_(&context) {
+  Evaluator(const ExprProgram& program,
+            Context& context,
+            const StringPool* pool)
+      : program_(&program), context_(&context), pool_(pool) {
     regs_.resize(program.steps.size());
     constants_.resize(program.steps.size());
     for (uint32_t i = 0; i < program.steps.size(); ++i) {
@@ -314,19 +362,30 @@ class Evaluator {
   // Sets `out` present where `a` and, if given, `b` are, and for a division
   // where `b` is not zero. Leaves `out` without validity if it would hold
   // every row.
-  void Validity(const Register& a,
-                const Register* b,
-                bool division,
-                bool doubles,
-                Register& out) const {
+  PERFETTO_NO_INLINE void Validity(const Register& a,
+                                   const Register* b,
+                                   bool division,
+                                   bool doubles,
+                                   Register& out) const {
     if (!division && !a.validity && !(b && b->validity)) {
       return;
     }
     BitVector* v = AllocValidity(out);
-    v->FillBits(0, rows_, true);
-    for (const Register* in : {&a, b}) {
-      if (in && in->validity) {
-        v->AndBitsFrom(0, *in->validity, in->start, rows_);
+    const Register* first = a.validity ? &a : b;
+    const Register* second = a.validity && b && b->validity ? b : nullptr;
+    if (!first || !first->validity) {
+      v->FillBits(0, rows_, true);
+    } else if (first->start % 64 == 0 && (!second || second->start % 64 == 0)) {
+      // Nearly always: only RowStore shifts where a batch's column starts.
+      v->CopyWordsFrom(*first->validity, first->start, rows_);
+      if (second) {
+        v->AndWordsFrom(*second->validity, second->start, rows_);
+      }
+    } else {
+      v->FillBits(0, rows_, true);
+      v->AndBitsFrom(0, *first->validity, first->start, rows_);
+      if (second) {
+        v->AndBitsFrom(0, *second->validity, second->start, rows_);
       }
     }
     if (!division) {
@@ -350,9 +409,9 @@ class Evaluator {
     }
   }
 
-  void LoadColumn(const ColumnView& column,
-                  const ColumnBuffer& buffer,
-                  Register& out) {
+  PERFETTO_NO_INLINE void LoadColumn(const ColumnView& column,
+                                     const ColumnBuffer& buffer,
+                                     Register& out) {
     PERFETTO_CHECK(column.kind() != ColumnView::Kind::kVariant);
     StorageType type = column.type();
     if (column.kind() == ColumnView::Kind::kFlat &&
@@ -381,9 +440,9 @@ class Evaluator {
   }
 
   // False if an integer result did not fit at a row the batch keeps.
-  bool Arithmetic(const ExprStep& step,
-                  const Selection& selection,
-                  Register& out) {
+  PERFETTO_NO_INLINE bool Arithmetic(const ExprStep& step,
+                                     const Selection& selection,
+                                     Register& out) {
     const Register& a = regs_[step.a];
     const Register& b = regs_[step.b];
     bool division = step.op == Op::kDiv || step.op == Op::kMod;
@@ -401,6 +460,67 @@ class Evaluator {
     const int64_t* y = b.Values<int64_t>();
     return IntArithmetic(step.op, x, y, o, rows_) ||
            !KeptRowFails(step.op, x, y, out, selection);
+  }
+
+  // Equal strings are one string in the pool, so only an ordering reads them.
+  PERFETTO_NO_INLINE void CompareStrings(Op op,
+                                         const Register& a,
+                                         const Register& b,
+                                         int64_t* o) const {
+    static_assert(sizeof(StringPool::Id) == sizeof(uint32_t));
+    const StringPool::Id* x = a.Values<StringPool::Id>();
+    const StringPool::Id* y = b.Values<StringPool::Id>();
+    if (op == Op::kEq) {
+      CompareLoop(reinterpret_cast<const uint32_t*>(x),
+                  reinterpret_cast<const uint32_t*>(y), o, rows_,
+                  std::equal_to<uint32_t>());
+      return;
+    }
+    for (uint32_t r = 0; r < rows_; ++r) {
+      if (!a.Valid(r) || !b.Valid(r)) {
+        continue;
+      }
+      int order = std::string_view(pool_->Get(x[r]))
+                      .compare(std::string_view(pool_->Get(y[r])));
+      o[r] = op == Op::kLt ? order < 0 : order <= 0;
+    }
+  }
+
+  // Everything is computed as Eq, Lt or Le: a > b is b < a, a >= b is b <= a
+  // and a != b is the opposite of a == b, which holds for doubles too.
+  PERFETTO_NO_INLINE void Compare(const ExprStep& step, Register& out) {
+    bool swap = step.op == Op::kGt || step.op == Op::kGe;
+    const Register& a = regs_[swap ? step.b : step.a];
+    const Register& b = regs_[swap ? step.a : step.b];
+    Op op = step.op == Op::kNe   ? Op::kEq
+            : step.op == Op::kGt ? Op::kLt
+            : step.op == Op::kGe ? Op::kLe
+                                 : step.op;
+    int64_t* o = Alloc<int64_t>(out);
+    Validity(a, &b, false, false, out);
+    switch (program_->steps[step.a].type) {
+      case ExprType::kInt64:
+        CompareNumbers(op, a.Values<int64_t>(), b.Values<int64_t>(), o, rows_);
+        break;
+      case ExprType::kDouble:
+        CompareNumbers(op, a.Values<double>(), b.Values<double>(), o, rows_);
+        break;
+      case ExprType::kString:
+        CompareStrings(op, a, b, o);
+        break;
+    }
+    if (step.op == Op::kNe) {
+      FlipBools(o, rows_);
+    }
+  }
+
+  PERFETTO_NO_INLINE void ConstantWherePresent(const ExprStep& step,
+                                               Register& out) {
+    int64_t* o = Alloc<int64_t>(out);
+    Validity(regs_[step.a], nullptr, false, false, out);
+    for (uint32_t r = 0; r < rows_; ++r) {
+      o[r] = step.int_value;
+    }
   }
 
   // False if the step failed.
@@ -426,12 +546,24 @@ class Evaluator {
       case Op::kDiv:
       case Op::kMod:
         return Arithmetic(step, batch.selection(), out);
+      case Op::kEq:
+      case Op::kNe:
+      case Op::kLt:
+      case Op::kLe:
+      case Op::kGt:
+      case Op::kGe:
+        Compare(step, out);
+        return true;
+      case Op::kConstantWherePresent:
+        ConstantWherePresent(step, out);
+        return true;
     }
     PERFETTO_FATAL("For GCC");
   }
 
   const ExprProgram* program_;
   Context* context_;
+  const StringPool* pool_;
   std::vector<Register> regs_;
   // By step, the register of each constant step, filled for every row once.
   std::vector<Register> constants_;
@@ -459,15 +591,15 @@ void Compute::DescribeColumns(StepColumns* out) const {
   out->added = static_cast<uint32_t>(programs_.size());
 }
 
-Compute::Compute(std::vector<ExprProgram> programs)
-    : programs_(std::move(programs)) {}
+Compute::Compute(std::vector<ExprProgram> programs, const StringPool* pool)
+    : programs_(std::move(programs)), pool_(pool) {}
 Compute::~Compute() = default;
 
 std::unique_ptr<OperatorState> Compute::MakeState(Context& context) const {
   auto state = std::make_unique<ComputeState>();
   state->evaluators.reserve(programs_.size());
   for (const ExprProgram& program : programs_) {
-    state->evaluators.emplace_back(program, context);
+    state->evaluators.emplace_back(program, context, pool_);
   }
   return state;
 }
