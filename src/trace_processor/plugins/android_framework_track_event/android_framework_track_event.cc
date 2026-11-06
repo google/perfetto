@@ -171,10 +171,9 @@ class Parser : public TrackEventExtensionParser {
       int64_t new_pid = processes[event.upid].pid();
       trace_context_->import_logs_tracker->RecordParserLog(
           stats::android_system_server_restart, event.ts,
-          [old_pid_key = old_pid_key_, new_pid_key = new_pid_key_, old_pid,
-           new_pid](ArgsInserter& inserter) {
-            inserter.AddArg(old_pid_key, Variadic::Integer(old_pid));
-            inserter.AddArg(new_pid_key, Variadic::Integer(new_pid));
+          [&](ArgsInserter& inserter) {
+            inserter.AddArg(old_pid_key_, Variadic::Integer(old_pid));
+            inserter.AddArg(new_pid_key_, Variadic::Integer(new_pid));
           });
     }
     system_server_upid_ = event.upid;

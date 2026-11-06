@@ -37,8 +37,8 @@ namespace perfetto::trace_processor::stats {
   F(android_log_num_total,                kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_system_server_restart,        kSingle,  kDataLoss, kAnalysis, Scope::kMachineAndTrace, \
       "system_server restarted during the trace (e.g. it crashed): the "       \
-      "processes it started died with it without any death event, so "        \
-      "processes and their events around the restart may be misattributed. "  \
+      "processes it started died with it without any death event, so "         \
+      "processes and their events around the restart may be misattributed. "   \
       "See trace_import_logs for the restarts."),                              \
   F(android_video_size_cap_hit,           kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "android.display.video producer hit max_stream_size_bytes; stream torn " \
