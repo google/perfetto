@@ -114,7 +114,7 @@ message TraceStats {
 
     // Number of completed TraceBufferV2 compactions.
     // Includes compactions that move no chunks and excludes calls that skip
-    // compaction, such as calls on DISCARD or read-only buffers.
+    // compaction, such as calls on read-only buffers.
     // For TraceBufferV3, this counts staging compactions.
     //
     // Compaction moves remaining chunks to the front and clears the unused

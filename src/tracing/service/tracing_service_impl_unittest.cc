@@ -6410,8 +6410,8 @@ TEST_F(TracingServiceImplTest, TraceBufferV3WriteIntoFile) {
   EXPECT_GT(v3_stats.compressed_bytes_written(), buf_stats.buffer_size());
   EXPECT_EQ(v3_stats.bundles_overwritten(), 0u);
   EXPECT_EQ(buf_stats.chunks_overwritten(), 0u);
-  // Each bundled packet was read once.
-  EXPECT_EQ(buf_stats.bytes_read(), v3_stats.uncompressed_bytes_written());
+  // Staging read each chunk once.
+  EXPECT_EQ(buf_stats.bytes_read(), buf_stats.bytes_written());
 
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("data_source");

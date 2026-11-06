@@ -123,11 +123,10 @@ message TraceConfig {
 
   // Enables compaction after reads for this session's TraceBufferV2 and
   // TraceBufferV3 buffers.
-  // Defaults to false and does not affect V1, read-only V2 or DISCARD V2
-  // buffers.
+  // Defaults to false and does not affect V1 or read-only V2 buffers.
   // V3 also compacts staging after each bundling pass that reads all readable
   // packets, even when this flag is false.
-  // A DISCARD V3 buffer that stopped stays stopped.
+  // A DISCARD buffer that stopped stays stopped.
   optional bool experimental_trace_buffer_v2_compaction = 50;
 
   message DataSource {
