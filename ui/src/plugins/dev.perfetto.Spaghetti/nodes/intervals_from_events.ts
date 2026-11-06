@@ -21,7 +21,7 @@ import {TextInput} from '../../../widgets/text_input';
 import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
-import type {EventsLastMode, LogicalOp} from '../logical_ir';
+import type {EventsLastMode, LogicalOp} from '../ir';
 import type {
   ColumnContext,
   LogicalOpContext,

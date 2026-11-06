@@ -16,7 +16,7 @@ import m from 'mithril';
 import {z} from 'zod';
 import {TextInput} from '../../../widgets/text_input';
 import {Stack} from '../components/stack';
-import type {LogicalOp} from '../logical_ir';
+import type {LogicalOp} from '../ir';
 import type {
   LogicalOpContext,
   NodeManifest,

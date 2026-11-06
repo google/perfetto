@@ -16,7 +16,7 @@ import m from 'mithril';
 import {z} from 'zod';
 import {Select} from '../../../widgets/select';
 import type {ColumnDef} from '../graph_utils';
-import type {PipelineAggFunc} from '../logical_ir';
+import type {PipelineAggFunc} from '../ir';
 import {ColumnPicker} from '../widgets/column_picker';
 import {AliasTag} from './alias_tag';
 

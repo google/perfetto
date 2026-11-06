@@ -18,7 +18,7 @@ import type {Trace} from '../../public/trace';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import type {Port} from './graph_model';
 import type {ColumnDef} from './graph_utils';
-import type {LogicalOp} from './logical_ir';
+import type {LogicalOp} from './ir';
 
 // ---------------------------------------------------------------------------
 // Render context bag — each render function picks what it needs.

@@ -19,7 +19,7 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
-import type {LogicalOp} from '../logical_ir';
+import type {LogicalOp} from '../ir';
 import type {
   ColumnContext,
   LogicalOpContext,

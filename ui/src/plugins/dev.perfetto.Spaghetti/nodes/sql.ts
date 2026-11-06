@@ -21,7 +21,7 @@ import {InputPortStepper} from '../components/input_port_stepper';
 import {Row} from '../components/row';
 import {Stack} from '../components/stack';
 import './sql.scss';
-import type {RawSqlInput} from '../logical_ir';
+import type {RawSqlInput} from '../ir';
 import type {NodeManifest, RenderContext} from '../node_types';
 import type {ColumnDef} from '../graph_utils';
 import type {SimpleTypeKind} from '../../../trace_processor/perfetto_sql_type';

@@ -26,7 +26,7 @@ import {
 } from '../components/pipeline_agg_row';
 import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
-import type {LogicalOp} from '../logical_ir';
+import type {LogicalOp} from '../ir';
 import type {
   ColumnContext,
   LogicalOpContext,

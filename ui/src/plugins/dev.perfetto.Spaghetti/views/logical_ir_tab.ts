@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {CodeSnippet} from '../../../widgets/code_snippet';
 import {EmptyState} from '../../../widgets/empty_state';
-import type {LogicalPlan} from '../logical_ir';
+import type {LogicalPlan} from '../ir';
 import './logical_ir_tab.scss';
 
 export interface LogicalIrTabAttrs {
