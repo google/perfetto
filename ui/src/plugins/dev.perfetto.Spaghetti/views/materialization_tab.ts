@@ -228,15 +228,11 @@ export class MaterializationTab implements m.ClassComponent<MaterializationTabAt
             ? fallbackSql.sql
             : `-- ${finalRes.error}`;
 
-    const isDirect = matPlan.steps.length === 0;
     cards.push(
       m(Card, {
         icon: 'output',
         hue: 145,
         title: 'Output',
-        meta: isDirect
-          ? 'Zero-cost read · no cache table'
-          : 'DataGrid / Chart query',
         subheader: this.renderDepsRow('reads from', finalDeps),
         content: finalSql,
         badges: [
