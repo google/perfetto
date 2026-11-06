@@ -199,7 +199,7 @@ export const manifest: NodeManifest<ExtendConfig> = {
   title: 'Extend',
   icon: 'add_column_right',
   getInputs: () => [{name: 'input', content: 'Input'}],
-  hue: 125,
+  hue: 124,
   schema: ExtendConfigSchema,
   defaultConfig: () => ({entries: []}),
   render,

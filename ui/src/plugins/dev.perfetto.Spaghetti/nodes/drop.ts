@@ -139,7 +139,7 @@ export const manifest: NodeManifest<DropConfig> = {
   title: 'Drop',
   icon: 'remove',
   getInputs: () => [{name: 'input', content: 'Input'}],
-  hue: 5,
+  hue: 154,
   schema: DropConfigSchema,
   defaultConfig: () => ({columns: []}),
   render,

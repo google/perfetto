@@ -167,7 +167,7 @@ function getSourceColumnsForInputs(
 export const manifest: NodeManifest<IntervalIntersectConfig> = {
   title: 'Interval Intersect',
   icon: 'compare_arrows',
-  hue: 340,
+  hue: 312,
   schema: IntervalIntersectConfigSchema,
   getInputs(config: IntervalIntersectConfig): Port[] {
     return Array.from({length: config.numInputs}, (_, i) => ({
