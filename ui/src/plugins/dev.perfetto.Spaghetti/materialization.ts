@@ -69,6 +69,7 @@ function isZeroCostOp(op: LogicalOp): boolean {
 export interface MaterializationStep {
   readonly hash: string;
   readonly plan: LogicalPlan;
+  readonly deps: readonly string[];
   readonly nodeIds: readonly string[];
 }
 
@@ -193,9 +194,7 @@ export function planMaterialization(
     visited.add(cutId);
     const hash = nodeById.get(cutId)!.hash;
     const sub = buildSubplan(cutId, false);
-    if (!warmHashes?.has(hash)) {
-      sub.cutDeps.forEach(collectCutStep);
-    }
+    sub.cutDeps.forEach(collectCutStep);
     const prev = byHash.get(hash);
     if (prev) {
       byHash.set(hash, {
@@ -204,7 +203,8 @@ export function planMaterialization(
       });
       return;
     }
-    byHash.set(hash, {hash, plan: sub.plan, nodeIds: sub.nodeIds});
+    const deps = [...new Set(sub.cutDeps.map((id) => nodeById.get(id)!.hash))];
+    byHash.set(hash, {hash, plan: sub.plan, deps, nodeIds: sub.nodeIds});
     orderedHashes.push(hash);
   }
 
@@ -215,6 +215,30 @@ export function planMaterialization(
     finalRead: finalSub.plan,
     includes: collectLogicalPlanIncludes(plan),
   };
+}
+
+// Return the subset of `matPlan.steps` hashes required to serve `finalRead`:
+// walks backward from `finalRead` and stops descending past already-warm steps
+// so evicted ancestors of warm tables are never unnecessarily rebuilt.
+export function computeNeededStepHashes(
+  matPlan: MaterializationPlan,
+  warmHashes: ReadonlySet<string>,
+): Set<string> {
+  const stepByHash = new Map(matPlan.steps.map((s) => [s.hash, s]));
+  const needed = new Set<string>();
+  function visit(hash: string): void {
+    if (needed.has(hash)) return;
+    needed.add(hash);
+    if (!warmHashes.has(hash)) {
+      stepByHash.get(hash)?.deps.forEach(visit);
+    }
+  }
+  for (const {op} of matPlan.finalRead.nodes) {
+    if (op.kind === 'scan' && stepByHash.has(op.table)) {
+      visit(op.table);
+    }
+  }
+  return needed;
 }
 
 export interface MaterializationOptions {
@@ -241,6 +265,11 @@ export interface CacheEntry {
   readonly hitCount: number;
   readonly isLive: boolean;
 }
+
+export type StepRunOutcome =
+  | {readonly kind: 'building'}
+  | {readonly kind: 'hit'}
+  | {readonly kind: 'built'; readonly timeMs: number};
 
 export class MaterializationService {
   private readonly limiter = new AsyncLimiter();
@@ -279,6 +308,8 @@ export class MaterializationService {
   private _materializingNodeIds = new Set<string>();
   private _fadingOutNodeIds = new Set<string>();
   private fadeTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private _lastRunOutcomes: ReadonlyMap<string, StepRunOutcome> = new Map();
+  private _lastIncludesTimeMs: number | undefined;
 
   emulateSlowLoads = false;
   private disposed = false;
@@ -327,6 +358,21 @@ export class MaterializationService {
 
   get fadingOutNodeIds(): ReadonlySet<string> {
     return this._fadingOutNodeIds;
+  }
+
+  get lastRunOutcomes(): ReadonlyMap<string, StepRunOutcome> {
+    return this._lastRunOutcomes;
+  }
+
+  get lastIncludesTimeMs(): number | undefined {
+    return this._lastIncludesTimeMs;
+  }
+
+  planFor(logicalPlan: LogicalPlan): MaterializationPlan {
+    return planMaterialization(logicalPlan, {
+      canvasRefCounts: this._canvasRefCounts,
+      warmHashes: new Set(this.cache.keys()),
+    });
   }
 
   scheduleUpdate(
@@ -407,6 +453,8 @@ export class MaterializationService {
     this._materializedTable = undefined;
     this._displaySql = undefined;
     this._error = undefined;
+    this._lastRunOutcomes = new Map();
+    this._lastIncludesTimeMs = undefined;
   }
 
   private async doUpdate(
@@ -449,10 +497,7 @@ export class MaterializationService {
 
     try {
       if (!displayRes.ok) throw new Error(displayRes.error);
-      const matPlan = planMaterialization(logicalPlan, {
-        canvasRefCounts: this._canvasRefCounts,
-        warmHashes: new Set(this.cache.keys()),
-      });
+      const matPlan = this.planFor(logicalPlan);
       await this.executeMaterializationPlan(matPlan, dialect);
       this._error = undefined;
     } catch (e) {
@@ -466,6 +511,8 @@ export class MaterializationService {
       this.clearFadeTimers();
       this._materializingNodeIds.clear();
       this._fadingOutNodeIds.clear();
+      this._lastRunOutcomes = new Map();
+      this._lastIncludesTimeMs = undefined;
       m.redraw();
     }
 
@@ -474,15 +521,20 @@ export class MaterializationService {
   }
 
   private computePriority(timeMs: number, hitCount: number): number {
-    return this.evictionClock + (hitCount + 1) * Math.max(1, timeMs);
+    return this.evictionClock + Math.max(1, hitCount) * Math.max(1, timeMs);
   }
 
   private async executeMaterializationPlan(
     matPlan: MaterializationPlan,
     dialect: SqlDialect,
   ): Promise<void> {
+    const neededHashes = computeNeededStepHashes(
+      matPlan,
+      new Set(this.cache.keys()),
+    );
     const formattedSteps: Array<{step: MaterializationStep; sql: string}> = [];
     for (const step of matPlan.steps) {
+      if (!neededHashes.has(step.hash)) continue;
       const res = formatLogicalPlan(step.plan, dialect, {
         includeModuleHeaders: false,
       });
@@ -495,9 +547,17 @@ export class MaterializationService {
     });
     if (!finalReadRes.ok) throw new Error(finalReadRes.error);
 
-    for (const inc of matPlan.includes) {
-      await this.engine.query(`INCLUDE PERFETTO MODULE ${inc}`);
+    this._lastIncludesTimeMs = undefined;
+    if (matPlan.includes.length > 0) {
+      const incStart = performance.now();
+      for (const inc of matPlan.includes) {
+        await this.engine.query(`INCLUDE PERFETTO MODULE ${inc}`);
+      }
+      this._lastIncludesTimeMs = performance.now() - incStart;
     }
+
+    const runOutcomes = new Map<string, StepRunOutcome>();
+    this._lastRunOutcomes = runOutcomes;
 
     for (const {step, sql} of formattedSteps) {
       const cached = this.cache.get(step.hash);
@@ -509,9 +569,11 @@ export class MaterializationService {
           cached.materializeTimeMs,
           cached.hitCount,
         );
+        runOutcomes.set(step.hash, {kind: 'hit'});
         continue;
       }
 
+      runOutcomes.set(step.hash, {kind: 'building'});
       for (const nid of step.nodeIds) {
         const prevTimer = this.fadeTimers.get(nid);
         if (prevTimer !== undefined) {
@@ -561,9 +623,10 @@ export class MaterializationService {
         createdAt: now,
         materializeTimeMs: timeMs,
         lastHitAt: now,
-        hitCount: 0,
-        priority: this.computePriority(timeMs, 0),
+        hitCount: 1,
+        priority: this.computePriority(timeMs, 1),
       });
+      runOutcomes.set(step.hash, {kind: 'built', timeMs});
     }
 
     const singleScan =
@@ -588,6 +651,7 @@ export class MaterializationService {
         queue: this.taskQueue,
       });
     }
+    m.redraw();
   }
 
   private isProtected(hash: string): boolean {

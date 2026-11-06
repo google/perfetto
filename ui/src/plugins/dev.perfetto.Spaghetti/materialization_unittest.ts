@@ -25,7 +25,11 @@ import type {
 } from './graph_model';
 import {flattenNodes} from './graph_utils';
 import {buildLogicalPlan, collectLiveHashes, type LogicalPlan} from './ir';
-import {MaterializationService} from './materialization';
+import {
+  computeNeededStepHashes,
+  MaterializationService,
+  planMaterialization,
+} from './materialization';
 
 function nodeHash(plan: LogicalPlan, id: string): string {
   return ensureDefined(plan.nodes.find((n) => n.nodeId === id)).hash;
@@ -370,6 +374,7 @@ describe('MaterializationService cache policy', () => {
     await service.scheduleUpdate(store, 'flt1', undefined, 'sql');
     const sqlHash = ensureDefined(service.materializedTable);
     expect(service.activeDialect).toBe('sql');
+    expect(service.cacheEntries[0]?.hitCount).toBe(1);
     expect(
       queries.some((q) =>
         q.includes(
@@ -384,7 +389,7 @@ describe('MaterializationService cache policy', () => {
     await service.scheduleUpdate(store, 'flt1', undefined, 'pipe');
     expect(service.activeDialect).toBe('pipe');
     expect(service.materializedTable).toBe(sqlHash);
-    expect(service.cacheEntries[0]?.hitCount).toBe(1);
+    expect(service.cacheEntries[0]?.hitCount).toBe(2);
     expect(service.cacheEntries[0]?.sql).toBe('FROM slice\n|> WHERE dur > 250');
     expect(
       queries
@@ -404,6 +409,7 @@ describe('MaterializationService cache policy', () => {
     };
     await service.scheduleUpdate(step1Store, 'flt1', undefined, 'sql');
     const filterHash = ensureDefined(service.materializedTable);
+    expect(service.lastRunOutcomes.get(filterHash)?.kind).toBe('built');
 
     // 2. User docks Sort below Filter and clicks Sort -> Sort reads from
     // `_qb_<filterHash>` instead of re-scanning `slice`!
@@ -432,9 +438,11 @@ describe('MaterializationService cache policy', () => {
     queries.length = 0;
     await service.scheduleUpdate(step2Store, 'srt1', undefined, 'sql');
     const sortHash = ensureDefined(service.materializedTable);
+    expect(service.lastRunOutcomes.get(filterHash)).toEqual({kind: 'hit'});
+    expect(service.lastRunOutcomes.get(sortHash)?.kind).toBe('built');
     expect(
       service.cacheEntries.find((e) => e.hash === filterHash)?.hitCount,
-    ).toBe(1);
+    ).toBe(2);
     expect(
       queries.some((q) =>
         q.includes(
@@ -491,7 +499,7 @@ describe('MaterializationService cache policy', () => {
     await forkService.scheduleUpdate(forkStore, 'lim_b', undefined, 'sql');
     expect(
       forkService.cacheEntries.find((e) => e.hash === sharedHash)?.hitCount,
-    ).toBe(1);
+    ).toBe(2);
     expect(
       forkQueries.some((q) => q.includes(`FROM ${sharedHash}\nLIMIT 5`)),
     ).toBe(true);
@@ -538,5 +546,48 @@ describe('MaterializationService cache policy', () => {
     expect(queries.some((q) => q.includes('Unsupported in Standard SQL'))).toBe(
       false,
     );
+  });
+
+  it('retains full step DAG when downstream target is warm while bypassing evicted ancestors during execution', () => {
+    const chain: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      config: {table: 'slice'},
+      next: {
+        type: 'groupby',
+        id: 'agg1',
+        config: {
+          groupColumns: ['name'],
+          aggregations: [{func: 'COUNT', column: '*', alias: 'cnt'}],
+        },
+        next: {
+          type: 'sort',
+          id: 'srt1',
+          config: {conditions: [{column: 'cnt', order: 'DESC'}]},
+        },
+      },
+    };
+    const index = flattenNodes([chain]);
+    const logicalPlan = ensureDefined(
+      buildLogicalPlan(index, 'srt1', undefined),
+    );
+    const aggHash = nodeHash(logicalPlan, 'agg1');
+    const sortHash = nodeHash(logicalPlan, 'srt1');
+
+    // Even when `sortHash` is warm and `aggHash` has been evicted,
+    // `planMaterialization` still exposes both steps and their `deps` edge for
+    // the IR graph, while `computeNeededStepHashes` stops at `sortHash`.
+    const matPlan = planMaterialization(logicalPlan, {
+      warmHashes: new Set([sortHash]),
+    });
+    expect(matPlan.steps.map((s) => s.hash)).toEqual([aggHash, sortHash]);
+    expect(matPlan.steps.find((s) => s.hash === sortHash)?.deps).toEqual([
+      aggHash,
+    ]);
+
+    const needed = computeNeededStepHashes(matPlan, new Set([sortHash]));
+    expect([...needed]).toEqual([sortHash]);
   });
 });

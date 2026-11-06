@@ -18,26 +18,77 @@
   border-radius: 6px;
   overflow: hidden;
   flex-shrink: 0;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 
   .pf-spag-card-header {
     display: flex;
     align-items: baseline;
-    gap: 8px;
+    gap: 6px;
     padding: 4px 10px;
     border-bottom: 1px solid var(--pf-color-border);
     background: color-mix(in srgb, var(--pf-color-border) 30%, transparent);
+  }
+
+  .pf-spag-card-icon {
+    align-self: center;
+  }
+
+  &[style*="--pf-card-hue"] {
+    border-color: color-mix(
+      in srgb,
+      hsl(var(--pf-card-hue), 55%, 50%) 45%,
+      var(--pf-color-border)
+    );
+
+    .pf-spag-card-header {
+      background: color-mix(
+        in srgb,
+        hsl(var(--pf-card-hue), 60%, 50%) 32%,
+        var(--pf-color-background-secondary)
+      );
+      border-bottom-color: color-mix(
+        in srgb,
+        hsl(var(--pf-card-hue), 55%, 50%) 35%,
+        var(--pf-color-border)
+      );
+    }
+
+    .pf-spag-card-icon {
+      color: color-mix(
+        in srgb,
+        hsl(var(--pf-card-hue), 75%, 55%) 80%,
+        currentColor
+      );
+    }
+  }
+
+  &--highlighted {
+    border-color: var(--pf-color-accent, #49d);
+    box-shadow: 0 0 0 1px var(--pf-color-accent, #49d);
+  }
+
+  .pf-spag-card-subheader {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px 10px;
+    border-bottom: 1px solid var(--pf-color-border);
+    background: color-mix(in srgb, var(--pf-color-border) 12%, transparent);
+    font-size: 11px;
   }
 
   .pf-spag-card-title {
     font-family: var(--pf-font-monospace);
     font-size: 11px;
     font-weight: 600;
-    opacity: 0.9;
   }
 
   .pf-spag-card-meta {
     font-size: 11px;
-    opacity: 0.55;
+    color: var(--pf-color-text-muted);
     flex: 1;
   }
 
@@ -80,7 +131,7 @@
   .pf-spag-card-time {
     font-size: 11px;
     font-family: var(--pf-font-monospace);
-    opacity: 0.7;
+    color: var(--pf-color-text-muted);
   }
 
   .pf-spag-card-body {
@@ -91,5 +142,6 @@
     white-space: pre-wrap;
     word-break: break-word;
     line-height: 1.5;
+    user-select: text;
   }
 }
