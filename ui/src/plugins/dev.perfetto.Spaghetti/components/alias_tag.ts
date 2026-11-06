@@ -69,7 +69,7 @@ export function AliasTag(): m.Component<{
       return m(Button, {
         icon: 'shoppingmode',
         className: 'pf-spag-alias-btn',
-        title: 'Add alias',
+        tooltip: 'Add alias',
         onclick: () => {
           pendingFocus = true;
         },

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import {moveArrayItem} from '../../../base/array_utils';
+import {moveItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
   LogicalOpContext,
@@ -24,11 +24,11 @@ import type {
 import type {LogicalOp} from '../logical_ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Select} from '../../../widgets/select';
-import {Row} from '../components/row';
+import {ColumnPickerWithAlias} from '../components/column_picker_with_alias';
+import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
 import type {ColumnDef} from '../graph_utils';
-import {AliasTag} from '../components/alias_tag';
 
 const AggregationSchema = z.object({
   func: z.enum(['COUNT', 'SUM', 'AVG', 'MIN', 'MAX']),
@@ -60,83 +60,25 @@ function GroupByContent(): m.Component<{
     view({attrs: {config, updateConfig, ctx}}) {
       return m(Stack, {style: {minWidth: '250px'}}, [
         m('.pf-spag-section-label', 'Group by'),
-        m(Stack, {compact: true}, [
-          ...config.groupColumns.map((col, i) =>
-            m(
-              Row,
-              {
-                key: i,
-                draggable: true,
-                ondragstart: (e: DragEvent) => {
-                  e.dataTransfer!.effectAllowed = 'move';
-                  e.dataTransfer!.setData('text/plain', `group:${i}`);
-                  (e.currentTarget as HTMLElement).classList.add('pf-dragging');
-                },
-                ondragend: (e: DragEvent) => {
-                  (e.currentTarget as HTMLElement).classList.remove(
-                    'pf-dragging',
-                  );
-                },
-                ondragover: (e: DragEvent) => {
-                  e.preventDefault();
-                  e.dataTransfer!.dropEffect = 'move';
-                  const el = e.currentTarget as HTMLElement;
-                  const rect = el.getBoundingClientRect();
-                  const isBottom = e.clientY > rect.top + rect.height / 2;
-                  el.classList.toggle('pf-drag-over-top', !isBottom);
-                  el.classList.toggle('pf-drag-over-bottom', isBottom);
-                },
-                ondragleave: (e: DragEvent) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                },
-                ondrop: (e: DragEvent) => {
-                  e.preventDefault();
-                  const el = e.currentTarget as HTMLElement;
-                  const isBottom = el.classList.contains('pf-drag-over-bottom');
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                  const data = e.dataTransfer!.getData('text/plain');
-                  if (!data.startsWith('group:')) return;
-                  const fromIdx = parseInt(data.slice(6));
-                  const toIdx = isBottom ? i + 1 : i;
-                  if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
-                    const updated = [...config.groupColumns];
-                    moveArrayItem(updated, fromIdx, toIdx);
-                    updateConfig({groupColumns: updated});
-                  }
-                },
-              },
-              [
-                m(Row.DragHandle),
-                m(ColumnPicker, {
-                  value: col,
-                  columns: ctx.availableColumns,
-                  placeholder: 'column',
-                  onSelect: (value: string) => {
-                    const updated = [...config.groupColumns];
-                    updated[i] = value;
-                    updateConfig({groupColumns: updated});
-                  },
+        m(DraggableStack, {
+          rows: config.groupColumns.map((col, i) =>
+            m(ColumnPicker, {
+              value: col,
+              columns: ctx.availableColumns,
+              placeholder: 'column',
+              onSelect: (value) =>
+                updateConfig({
+                  groupColumns: config.groupColumns.with(i, value),
                 }),
-                m(Row.DeleteButton, {
-                  onclick: () => {
-                    updateConfig({
-                      groupColumns: config.groupColumns.filter(
-                        (_, j) => j !== i,
-                      ),
-                    });
-                  },
-                }),
-              ],
-            ),
+            }),
           ),
-        ]),
+          onReorder: (from, to) =>
+            updateConfig({
+              groupColumns: moveItem(config.groupColumns, from, to),
+            }),
+          onDelete: (i) =>
+            updateConfig({groupColumns: config.groupColumns.toSpliced(i, 1)}),
+        }),
         m(Button, {
           label: 'Grouping',
           icon: 'add',
@@ -147,114 +89,52 @@ function GroupByContent(): m.Component<{
         }),
 
         m('.pf-spag-section-label', 'Aggregations'),
-        m(Stack, {compact: true}, [
-          ...config.aggregations.map((agg, i) =>
+        m(DraggableStack, {
+          rows: config.aggregations.map((agg, i) => [
             m(
-              Row,
+              Select,
               {
-                key: i,
-                draggable: true,
-                ondragstart: (e: DragEvent) => {
-                  e.dataTransfer!.effectAllowed = 'move';
-                  e.dataTransfer!.setData('text/plain', `agg:${i}`);
-                  (e.currentTarget as HTMLElement).classList.add('pf-dragging');
-                },
-                ondragend: (e: DragEvent) => {
-                  (e.currentTarget as HTMLElement).classList.remove(
-                    'pf-dragging',
-                  );
-                },
-                ondragover: (e: DragEvent) => {
-                  e.preventDefault();
-                  e.dataTransfer!.dropEffect = 'move';
-                  const el = e.currentTarget as HTMLElement;
-                  const rect = el.getBoundingClientRect();
-                  const isBottom = e.clientY > rect.top + rect.height / 2;
-                  el.classList.toggle('pf-drag-over-top', !isBottom);
-                  el.classList.toggle('pf-drag-over-bottom', isBottom);
-                },
-                ondragleave: (e: DragEvent) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                },
-                ondrop: (e: DragEvent) => {
-                  e.preventDefault();
-                  const el = e.currentTarget as HTMLElement;
-                  const isBottom = el.classList.contains('pf-drag-over-bottom');
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                  const data = e.dataTransfer!.getData('text/plain');
-                  if (!data.startsWith('agg:')) return;
-                  const fromIdx = parseInt(data.slice(4));
-                  const toIdx = isBottom ? i + 1 : i;
-                  if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
-                    const newAggs = [...config.aggregations];
-                    moveArrayItem(newAggs, fromIdx, toIdx);
-                    updateConfig({aggregations: newAggs});
-                  }
+                value: agg.func,
+                onchange: (e: Event) => {
+                  updateConfig({
+                    aggregations: config.aggregations.with(i, {
+                      ...agg,
+                      func: (e.target as HTMLSelectElement)
+                        .value as Aggregation['func'],
+                    }),
+                  });
                 },
               },
               [
-                m(Row.DragHandle),
-                m(
-                  Select,
-                  {
-                    value: agg.func,
-                    onchange: (e: Event) => {
-                      const newAggs = [...config.aggregations];
-                      newAggs[i] = {
-                        ...agg,
-                        func: (e.target as HTMLSelectElement)
-                          .value as Aggregation['func'],
-                      };
-                      updateConfig({aggregations: newAggs});
-                    },
-                  },
-                  [
-                    m('option', {value: 'COUNT'}, 'COUNT'),
-                    m('option', {value: 'SUM'}, 'SUM'),
-                    m('option', {value: 'AVG'}, 'AVG'),
-                    m('option', {value: 'MIN'}, 'MIN'),
-                    m('option', {value: 'MAX'}, 'MAX'),
-                  ],
-                ),
-                m(ColumnPicker, {
-                  value: agg.column,
-                  columns: [{name: '*'}, ...ctx.availableColumns],
-                  placeholder: 'column',
-                  onSelect: (value: string) => {
-                    const newAggs = [...config.aggregations];
-                    newAggs[i] = {...agg, column: value};
-                    updateConfig({aggregations: newAggs});
-                  },
-                }),
-                m(AliasTag, {
-                  alias: agg.alias,
-                  placeholder: aggAlias(agg),
-                  onChange: (value: string) => {
-                    const newAggs = [...config.aggregations];
-                    newAggs[i] = {...agg, alias: value};
-                    updateConfig({aggregations: newAggs});
-                  },
-                }),
-                m(Row.DeleteButton, {
-                  onclick: () => {
-                    updateConfig({
-                      aggregations: config.aggregations.filter(
-                        (_, j) => j !== i,
-                      ),
-                    });
-                  },
-                }),
+                m('option', {value: 'COUNT'}, 'COUNT'),
+                m('option', {value: 'SUM'}, 'SUM'),
+                m('option', {value: 'AVG'}, 'AVG'),
+                m('option', {value: 'MIN'}, 'MIN'),
+                m('option', {value: 'MAX'}, 'MAX'),
               ],
             ),
-          ),
-        ]),
+            m(ColumnPickerWithAlias, {
+              value: agg.column,
+              columns: [{name: '*'}, ...ctx.availableColumns],
+              onSelect: (column) =>
+                updateConfig({
+                  aggregations: config.aggregations.with(i, {...agg, column}),
+                }),
+              alias: agg.alias,
+              aliasPlaceholder: aggAlias(agg),
+              onAliasChange: (alias) =>
+                updateConfig({
+                  aggregations: config.aggregations.with(i, {...agg, alias}),
+                }),
+            }),
+          ]),
+          onReorder: (from, to) =>
+            updateConfig({
+              aggregations: moveItem(config.aggregations, from, to),
+            }),
+          onDelete: (i) =>
+            updateConfig({aggregations: config.aggregations.toSpliced(i, 1)}),
+        }),
         m(Button, {
           label: 'Aggregation',
           icon: 'add',

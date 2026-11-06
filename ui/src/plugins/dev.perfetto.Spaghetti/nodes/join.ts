@@ -14,19 +14,19 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import {moveArrayItem} from '../../../base/array_utils';
+import {moveItem} from '../../../base/array_utils';
 import type {
   LogicalOpContext,
   NodeManifest,
   RenderContext,
 } from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Row} from '../components/row';
+import {ColumnPickerWithAlias} from '../components/column_picker_with_alias';
+import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
 import './join.scss';
 import {ColumnPicker} from '../widgets/column_picker';
 import {RadioGroup} from '../../../widgets/radio_group';
-import {AliasTag} from '../components/alias_tag';
 
 const JoinColumnSchema = z.object({
   column: z.string(),
@@ -108,93 +108,26 @@ function JoinNodeContent(): m.Component<{
         ]),
 
         m('.pf-spag-section-label', 'Columns to add'),
-        m(Stack, {compact: true}, [
-          ...columns.map((entry, i) => {
+        m(DraggableStack, {
+          rows: columns.map((entry, i) => {
             const defaultAlias = leftSet.has(entry.column)
               ? `right_${entry.column}`
               : entry.column;
-            return m(
-              Row,
-              {
-                key: i,
-                draggable: true,
-                ondragstart: (e: DragEvent) => {
-                  e.dataTransfer!.effectAllowed = 'move';
-                  e.dataTransfer!.setData('text/plain', String(i));
-                  (e.currentTarget as HTMLElement).classList.add('pf-dragging');
-                },
-                ondragend: (e: DragEvent) => {
-                  (e.currentTarget as HTMLElement).classList.remove(
-                    'pf-dragging',
-                  );
-                },
-                ondragover: (e: DragEvent) => {
-                  e.preventDefault();
-                  e.dataTransfer!.dropEffect = 'move';
-                  const el = e.currentTarget as HTMLElement;
-                  const rect = el.getBoundingClientRect();
-                  const isBottom = e.clientY > rect.top + rect.height / 2;
-                  el.classList.toggle('pf-drag-over-top', !isBottom);
-                  el.classList.toggle('pf-drag-over-bottom', isBottom);
-                },
-                ondragleave: (e: DragEvent) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                },
-                ondrop: (e: DragEvent) => {
-                  e.preventDefault();
-                  const el = e.currentTarget as HTMLElement;
-                  const isBottom = el.classList.contains('pf-drag-over-bottom');
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                  const fromIdx = parseInt(
-                    e.dataTransfer!.getData('text/plain'),
-                  );
-                  const toIdx = isBottom ? i + 1 : i;
-                  if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
-                    const updated = [...columns];
-                    moveArrayItem(updated, fromIdx, toIdx);
-                    updateConfig({columns: updated});
-                  }
-                },
-              },
-              [
-                m(Row.DragHandle),
-                m(ColumnPicker, {
-                  value: entry.column,
-                  columns: rightColumns,
-                  placeholder: 'column',
-                  onSelect: (value: string) => {
-                    const updated = [...columns];
-                    updated[i] = {...entry, column: value};
-                    updateConfig({columns: updated});
-                  },
-                }),
-                m(AliasTag, {
-                  alias: entry.alias,
-                  placeholder: defaultAlias,
-                  onChange: (value: string) => {
-                    const updated = [...columns];
-                    updated[i] = {...entry, alias: value};
-                    updateConfig({columns: updated});
-                  },
-                }),
-                m(Row.DeleteButton, {
-                  onclick: () => {
-                    updateConfig({
-                      columns: columns.filter((_, j) => j !== i),
-                    });
-                  },
-                }),
-              ],
-            );
+            return m(ColumnPickerWithAlias, {
+              value: entry.column,
+              columns: rightColumns,
+              onSelect: (column) =>
+                updateConfig({columns: columns.with(i, {...entry, column})}),
+              alias: entry.alias,
+              aliasPlaceholder: defaultAlias,
+              onAliasChange: (alias) =>
+                updateConfig({columns: columns.with(i, {...entry, alias})}),
+            });
           }),
-        ]),
+          onReorder: (from, to) =>
+            updateConfig({columns: moveItem(columns, from, to)}),
+          onDelete: (i) => updateConfig({columns: columns.toSpliced(i, 1)}),
+        }),
         m(Button, {
           label: 'Column',
           icon: 'add',

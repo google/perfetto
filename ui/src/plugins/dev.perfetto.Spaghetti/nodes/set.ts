@@ -14,9 +14,10 @@
 
 import m from 'mithril';
 import {z} from 'zod';
+import {moveItem} from '../../../base/array_utils';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {TextInput} from '../../../widgets/text_input';
-import {Row} from '../components/row';
+import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
 import type {LogicalOp} from '../logical_ir';
@@ -50,50 +51,33 @@ function SetContent(): m.Component<{
     view({attrs: {config, updateConfig, ctx}}) {
       return m(Stack, {style: {minWidth: '250px'}}, [
         config.entries.length === 0 &&
-          m(
-            '.pf-spag-passthrough-hint',
-            {
-              style: {
-                opacity: 0.5,
-                fontStyle: 'italic',
-                fontSize: '11px',
-                padding: '2px 4px',
-              },
-            },
-            'All columns (passthrough)',
-          ),
-        m(Stack, {compact: true}, [
-          ...config.entries.map((entry, i) =>
-            m(Row, {key: i}, [
-              m(ColumnPicker, {
-                value: entry.column,
-                columns: ctx.availableColumns,
-                placeholder: 'column',
-                onSelect: (value: string) => {
-                  const updated = [...config.entries];
-                  updated[i] = {...entry, column: value};
-                  updateConfig({entries: updated});
-                },
-              }),
-              m('span', {style: {opacity: 0.5}}, '='),
-              m(TextInput, {
-                placeholder: 'expression',
-                value: entry.expression,
-                onChange: (value: string) => {
-                  const updated = [...config.entries];
-                  updated[i] = {...entry, expression: value};
-                  updateConfig({entries: updated});
-                },
-              }),
-              m(Row.DeleteButton, {
-                onclick: () =>
-                  updateConfig({
-                    entries: config.entries.filter((_, j) => j !== i),
-                  }),
-              }),
-            ]),
-          ),
-        ]),
+          m('.pf-spag-passthrough-hint', 'All columns (passthrough)'),
+        m(DraggableStack, {
+          rows: config.entries.map((entry, i) => [
+            m(ColumnPicker, {
+              value: entry.column,
+              columns: ctx.availableColumns,
+              placeholder: 'column',
+              onSelect: (column) =>
+                updateConfig({
+                  entries: config.entries.with(i, {...entry, column}),
+                }),
+            }),
+            m('span', {style: {opacity: 0.5}}, '='),
+            m(TextInput, {
+              placeholder: 'expression',
+              value: entry.expression,
+              onChange: (expression) =>
+                updateConfig({
+                  entries: config.entries.with(i, {...entry, expression}),
+                }),
+            }),
+          ]),
+          onReorder: (from, to) =>
+            updateConfig({entries: moveItem(config.entries, from, to)}),
+          onDelete: (i) =>
+            updateConfig({entries: config.entries.toSpliced(i, 1)}),
+        }),
         m(Button, {
           label: 'Set column',
           variant: ButtonVariant.Filled,

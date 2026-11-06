@@ -80,6 +80,24 @@
   font-style: italic;
 }
 
+// Empty-list passthrough hint inside nodes (e.g. "All columns (passthrough)").
+.pf-spag-passthrough-hint {
+  font-size: 11px;
+  opacity: 0.5;
+  font-style: italic;
+  padding: 2px 4px;
+}
+
+// Equal-width − Input / + Input button row.
+.pf-spag-port-stepper {
+  display: flex;
+  gap: 4px;
+
+  > * {
+    flex: 1;
+  }
+}
+
 // Clickable AND/OR conjunction label spanning the full grid row.
 .pf-spag-conjunction {
   display: flex;

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import {moveArrayItem} from '../../../base/array_utils';
+import {moveItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
   LogicalOpContext,
@@ -23,12 +23,14 @@ import type {
 } from '../node_types';
 import type {LogicalOp} from '../logical_ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {TextInput} from '../../../widgets/text_input';
-import {Row} from '../components/row';
+import {ColumnPickerWithAlias} from '../components/column_picker_with_alias';
+import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
-import {ColumnPicker} from '../widgets/column_picker';
+import {
+  sanitizeAlias,
+  TextInputWithAlias,
+} from '../components/text_input_with_alias';
 import type {ColumnDef} from '../graph_utils';
-import {AliasTag} from '../components/alias_tag';
 
 const SelectEntrySchema = z.object({
   column: z.string(),
@@ -52,10 +54,7 @@ const SelectConfigSchema = z.object({
 export type SelectConfig = z.infer<typeof SelectConfigSchema>;
 
 function exprAlias(e: SelectExpression): string {
-  if (e.alias) return e.alias;
-  // Use expression text sanitized as a column name.
-  if (e.expression) return e.expression.replace(/[^a-zA-Z0-9_]/g, '_');
-  return '';
+  return e.alias || sanitizeAlias(e.expression);
 }
 
 function SelectNodeContent(): m.Component<{
@@ -72,102 +71,23 @@ function SelectNodeContent(): m.Component<{
       return m(Stack, [
         m('.pf-spag-section-label', 'Columns'),
         entries.length === 0 &&
-          m(
-            '.pf-spag-passthrough-hint',
-            {
-              style: {
-                opacity: 0.5,
-                fontStyle: 'italic',
-                fontSize: '11px',
-                padding: '2px 4px',
-              },
-            },
-            'All columns (passthrough)',
+          m('.pf-spag-passthrough-hint', 'All columns (passthrough)'),
+        m(DraggableStack, {
+          rows: entries.map((entry, i) =>
+            m(ColumnPickerWithAlias, {
+              value: entry.column,
+              columns: availableColumns,
+              onSelect: (column) =>
+                updateConfig({entries: entries.with(i, {...entry, column})}),
+              alias: entry.alias,
+              onAliasChange: (alias) =>
+                updateConfig({entries: entries.with(i, {...entry, alias})}),
+            }),
           ),
-        m(Stack, {compact: true}, [
-          ...entries.map((entry, i) =>
-            m(
-              Row,
-              {
-                key: `entry:${i}`,
-                draggable: true,
-                ondragstart: (e: DragEvent) => {
-                  e.dataTransfer!.effectAllowed = 'move';
-                  e.dataTransfer!.setData('text/plain', `entry:${i}`);
-                  (e.currentTarget as HTMLElement).classList.add('pf-dragging');
-                },
-                ondragend: (e: DragEvent) => {
-                  (e.currentTarget as HTMLElement).classList.remove(
-                    'pf-dragging',
-                  );
-                },
-                ondragover: (e: DragEvent) => {
-                  e.preventDefault();
-                  e.dataTransfer!.dropEffect = 'move';
-                  const el = e.currentTarget as HTMLElement;
-                  const rect = el.getBoundingClientRect();
-                  const isBottom = e.clientY > rect.top + rect.height / 2;
-                  el.classList.toggle('pf-drag-over-top', !isBottom);
-                  el.classList.toggle('pf-drag-over-bottom', isBottom);
-                },
-                ondragleave: (e: DragEvent) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                },
-                ondrop: (e: DragEvent) => {
-                  e.preventDefault();
-                  const el = e.currentTarget as HTMLElement;
-                  const isBottom = el.classList.contains('pf-drag-over-bottom');
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                  const data = e.dataTransfer!.getData('text/plain');
-                  if (!data.startsWith('entry:')) return;
-                  const fromIdx = parseInt(data.slice(6));
-                  const toIdx = isBottom ? i + 1 : i;
-                  if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
-                    const updated = [...entries];
-                    moveArrayItem(updated, fromIdx, toIdx);
-                    updateConfig({entries: updated});
-                  }
-                },
-              },
-              [
-                m(Row.DragHandle),
-                m(ColumnPicker, {
-                  value: entry.column,
-                  columns: availableColumns,
-                  placeholder: 'column',
-                  onSelect: (value: string) => {
-                    const updated = [...entries];
-                    updated[i] = {...entry, column: value};
-                    updateConfig({entries: updated});
-                  },
-                }),
-                m(AliasTag, {
-                  alias: entry.alias,
-                  placeholder: entry.column || 'alias',
-                  onChange: (value: string) => {
-                    const updated = [...entries];
-                    updated[i] = {...entry, alias: value};
-                    updateConfig({entries: updated});
-                  },
-                }),
-                m(Row.DeleteButton, {
-                  onclick: () => {
-                    updateConfig({
-                      entries: entries.filter((_, j) => j !== i),
-                    });
-                  },
-                }),
-              ],
-            ),
-          ),
-        ]),
+          onReorder: (from, to) =>
+            updateConfig({entries: moveItem(entries, from, to)}),
+          onDelete: (i) => updateConfig({entries: entries.toSpliced(i, 1)}),
+        }),
         m(Button, {
           label: 'Add column',
           icon: 'add',
@@ -180,89 +100,27 @@ function SelectNodeContent(): m.Component<{
         }),
 
         m('.pf-spag-section-label', 'Expressions'),
-        m(Stack, {compact: true}, [
-          ...expressions.map((expr, i) =>
-            m(
-              Row,
-              {
-                key: `expr:${i}`,
-                draggable: true,
-                ondragstart: (e: DragEvent) => {
-                  e.dataTransfer!.effectAllowed = 'move';
-                  e.dataTransfer!.setData('text/plain', `expr:${i}`);
-                  (e.currentTarget as HTMLElement).classList.add('pf-dragging');
-                },
-                ondragend: (e: DragEvent) => {
-                  (e.currentTarget as HTMLElement).classList.remove(
-                    'pf-dragging',
-                  );
-                },
-                ondragover: (e: DragEvent) => {
-                  e.preventDefault();
-                  e.dataTransfer!.dropEffect = 'move';
-                  const el = e.currentTarget as HTMLElement;
-                  const rect = el.getBoundingClientRect();
-                  const isBottom = e.clientY > rect.top + rect.height / 2;
-                  el.classList.toggle('pf-drag-over-top', !isBottom);
-                  el.classList.toggle('pf-drag-over-bottom', isBottom);
-                },
-                ondragleave: (e: DragEvent) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                },
-                ondrop: (e: DragEvent) => {
-                  e.preventDefault();
-                  const el = e.currentTarget as HTMLElement;
-                  const isBottom = el.classList.contains('pf-drag-over-bottom');
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                  const data = e.dataTransfer!.getData('text/plain');
-                  if (!data.startsWith('expr:')) return;
-                  const fromIdx = parseInt(data.slice(5));
-                  const toIdx = isBottom ? i + 1 : i;
-                  if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
-                    const updated = [...expressions];
-                    moveArrayItem(updated, fromIdx, toIdx);
-                    updateConfig({expressions: updated});
-                  }
-                },
-              },
-              [
-                m(Row.DragHandle),
-                m(TextInput, {
-                  placeholder: 'expression',
-                  value: expr.expression,
-                  onChange: (value: string) => {
-                    const newExprs = [...expressions];
-                    newExprs[i] = {...expr, expression: value};
-                    updateConfig({expressions: newExprs});
-                  },
+        m(DraggableStack, {
+          rows: expressions.map((expr, i) =>
+            m(TextInputWithAlias, {
+              placeholder: 'expression',
+              value: expr.expression,
+              onChange: (expression) =>
+                updateConfig({
+                  expressions: expressions.with(i, {...expr, expression}),
                 }),
-                m(AliasTag, {
-                  alias: expr.alias,
-                  placeholder: exprAlias(expr) || 'alias',
-                  onChange: (value: string) => {
-                    const newExprs = [...expressions];
-                    newExprs[i] = {...expr, alias: value};
-                    updateConfig({expressions: newExprs});
-                  },
+              alias: expr.alias,
+              onAliasChange: (alias) =>
+                updateConfig({
+                  expressions: expressions.with(i, {...expr, alias}),
                 }),
-                m(Row.DeleteButton, {
-                  onclick: () => {
-                    updateConfig({
-                      expressions: expressions.filter((_, j) => j !== i),
-                    });
-                  },
-                }),
-              ],
-            ),
+            }),
           ),
-        ]),
+          onReorder: (from, to) =>
+            updateConfig({expressions: moveItem(expressions, from, to)}),
+          onDelete: (i) =>
+            updateConfig({expressions: expressions.toSpliced(i, 1)}),
+        }),
         m(Button, {
           label: 'Add expression',
           variant: ButtonVariant.Filled,

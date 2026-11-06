@@ -14,14 +14,20 @@
 
 import m from 'mithril';
 import {z} from 'zod';
+import {moveItem} from '../../../base/array_utils';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {RadioGroup} from '../../../widgets/radio_group';
-import {Select} from '../../../widgets/select';
-import {AliasTag} from '../components/alias_tag';
+import {DraggableStack} from '../components/draggable_stack';
+import {
+  pipelineAggAlias,
+  type PipelineAggEntry,
+  PipelineAggEntrySchema,
+  PipelineAggRow,
+} from '../components/pipeline_agg_row';
 import {Row} from '../components/row';
 import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
-import type {LogicalOp, PipelineAggFunc} from '../logical_ir';
+import type {LogicalOp} from '../logical_ir';
 import type {
   ColumnContext,
   LogicalOpContext,
@@ -30,28 +36,19 @@ import type {
 } from '../node_types';
 import {ColumnPicker} from '../widgets/column_picker';
 
-const TreeAggSchema = z.object({
-  func: z.enum(['COUNT', 'SUM', 'MIN', 'MAX']),
-  column: z.string(),
-  alias: z.string(),
-});
-
-export type TreeAggregation = z.infer<typeof TreeAggSchema>;
+export type TreeAggregation = PipelineAggEntry;
 
 const TreeAccumulateConfigSchema = z.object({
   direction: z.enum(['UP', 'DOWN']),
   idColumn: z.string(),
   parentIdColumn: z.string(),
-  aggregations: z.array(TreeAggSchema),
+  aggregations: z.array(PipelineAggEntrySchema),
 });
 
 export type TreeAccumulateConfig = z.infer<typeof TreeAccumulateConfigSchema>;
 
 function aggAlias(a: TreeAggregation, direction: 'UP' | 'DOWN'): string {
-  if (a.alias !== '') return a.alias;
-  const prefix = direction === 'UP' ? 'subtree' : 'path';
-  if (a.func === 'COUNT') return `${prefix}_count`;
-  return `${prefix}_${a.func.toLowerCase()}_${a.column}`;
+  return pipelineAggAlias(a, direction === 'UP' ? 'subtree' : 'path');
 }
 
 function TreeAccumulateContent(): m.Component<{
@@ -92,66 +89,27 @@ function TreeAccumulateContent(): m.Component<{
           }),
         ]),
         m('.pf-spag-section-label', 'Aggregations'),
-        m(Stack, {compact: true}, [
-          ...config.aggregations.map((agg, i) =>
-            m(Row, {key: i}, [
-              m(
-                Select,
-                {
-                  value: agg.func,
-                  onchange: (e: Event) => {
-                    const nextFunc = (e.target as HTMLSelectElement)
-                      .value as PipelineAggFunc;
-                    const updated = [...config.aggregations];
-                    updated[i] = {
-                      ...agg,
-                      func: nextFunc,
-                      column:
-                        nextFunc === 'COUNT'
-                          ? '*'
-                          : agg.column === '*'
-                            ? ''
-                            : agg.column,
-                    };
-                    updateConfig({aggregations: updated});
-                  },
-                },
-                [
-                  m('option', {value: 'COUNT'}, 'COUNT'),
-                  m('option', {value: 'SUM'}, 'SUM'),
-                  m('option', {value: 'MIN'}, 'MIN'),
-                  m('option', {value: 'MAX'}, 'MAX'),
-                ],
-              ),
-              agg.func !== 'COUNT' &&
-                m(ColumnPicker, {
-                  value: agg.column,
-                  columns: ctx.availableColumns,
-                  placeholder: 'column',
-                  onSelect: (value: string) => {
-                    const updated = [...config.aggregations];
-                    updated[i] = {...agg, column: value};
-                    updateConfig({aggregations: updated});
-                  },
+        m(DraggableStack, {
+          rows: config.aggregations.map((agg, i) =>
+            m(PipelineAggRow, {
+              value: agg,
+              columns: ctx.availableColumns,
+              aliasPlaceholder: aggAlias(agg, config.direction),
+              onChange: (updated) =>
+                updateConfig({
+                  aggregations: config.aggregations.with(i, updated),
                 }),
-              m(AliasTag, {
-                alias: agg.alias,
-                placeholder: aggAlias(agg, config.direction),
-                onChange: (value: string) => {
-                  const updated = [...config.aggregations];
-                  updated[i] = {...agg, alias: value};
-                  updateConfig({aggregations: updated});
-                },
-              }),
-              m(Row.DeleteButton, {
-                onclick: () =>
-                  updateConfig({
-                    aggregations: config.aggregations.filter((_, j) => j !== i),
-                  }),
-              }),
-            ]),
+            }),
           ),
-        ]),
+          onReorder: (from, to) =>
+            updateConfig({
+              aggregations: moveItem(config.aggregations, from, to),
+            }),
+          onDelete: (i) =>
+            updateConfig({
+              aggregations: config.aggregations.toSpliced(i, 1),
+            }),
+        }),
         m(Button, {
           label: 'Aggregation',
           icon: 'add',

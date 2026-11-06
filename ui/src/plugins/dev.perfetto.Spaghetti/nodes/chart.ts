@@ -14,11 +14,13 @@
 
 import m from 'mithril';
 import {z} from 'zod';
+import {moveItem} from '../../../base/array_utils';
 import type {NodeManifest, DetailsContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {NUM_NULL, STR_NULL} from '../../../trace_processor/query_result';
 import {ColumnPicker} from '../widgets/column_picker';
-import {Row} from '../components/row';
+import {DraggableStack} from '../components/draggable_stack';
+import {InputPortStepper} from '../components/input_port_stepper';
 import {Stack} from '../components/stack';
 import './chart.scss';
 import type {Port} from '../graph_model';
@@ -317,60 +319,39 @@ export const manifest: NodeManifest<ChartConfig> = {
     const cols = ctx.availableColumns;
 
     return m(Stack, [
-      m('div', {style: {display: 'flex', gap: '4px'}}, [
-        canRemove &&
-          m(Button, {
-            label: '− Input',
-            variant: ButtonVariant.Filled,
-            style: {flex: '1'},
-            onclick: () => updateConfig({numInputs: n - 1}),
-          }),
-        m(Button, {
-          label: '+ Input',
-          variant: ButtonVariant.Filled,
-          style: {flex: '1'},
-          onclick: () => updateConfig({numInputs: n + 1}),
-        }),
-      ]),
+      m(InputPortStepper, {
+        canRemove,
+        onRemove: () => updateConfig({numInputs: n - 1}),
+        onAdd: () => updateConfig({numInputs: n + 1}),
+      }),
       m('.pf-spag-section-label', 'Charts'),
-      m(
-        Stack,
-        {compact: true},
-        config.charts.map((spec, i) =>
-          m(Row, {key: i}, [
-            m(ColumnPicker, {
-              value: spec.xCol,
-              columns: cols,
-              placeholder: 'x column',
-              onSelect: (v: string) => {
-                const updated = [...config.charts];
-                updated[i] = {...spec, xCol: v};
-                updateConfig({charts: updated});
-              },
-            }),
-            m(
-              'span',
-              {style: {opacity: '0.5', fontSize: '11px', padding: '0 2px'}},
-              '×',
-            ),
-            m(ColumnPicker, {
-              value: spec.yCol,
-              columns: cols,
-              placeholder: 'y (count)',
-              onSelect: (v: string) => {
-                const updated = [...config.charts];
-                updated[i] = {...spec, yCol: v};
-                updateConfig({charts: updated});
-              },
-            }),
-            m(Row.DeleteButton, {
-              title: 'Remove chart',
-              onclick: () =>
-                updateConfig({charts: config.charts.filter((_, j) => j !== i)}),
-            }),
-          ]),
-        ),
-      ),
+      m(DraggableStack, {
+        deleteTitle: 'Remove chart',
+        rows: config.charts.map((spec, i) => [
+          m(ColumnPicker, {
+            value: spec.xCol,
+            columns: cols,
+            placeholder: 'x column',
+            onSelect: (xCol) =>
+              updateConfig({charts: config.charts.with(i, {...spec, xCol})}),
+          }),
+          m(
+            'span',
+            {style: {opacity: '0.5', fontSize: '11px', padding: '0 2px'}},
+            '×',
+          ),
+          m(ColumnPicker, {
+            value: spec.yCol,
+            columns: cols,
+            placeholder: 'y (count)',
+            onSelect: (yCol) =>
+              updateConfig({charts: config.charts.with(i, {...spec, yCol})}),
+          }),
+        ]),
+        onReorder: (from, to) =>
+          updateConfig({charts: moveItem(config.charts, from, to)}),
+        onDelete: (i) => updateConfig({charts: config.charts.toSpliced(i, 1)}),
+      }),
       m(Button, {
         label: 'Add chart',
         icon: 'add',
