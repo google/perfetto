@@ -206,10 +206,17 @@ export interface NodeGraphApi {
   resetZoom: () => void;
 }
 
+export interface NodeGraphViewport {
+  readonly panOffset: Position;
+  readonly zoom: number;
+}
+
 export interface NodeGraphAttrs {
   readonly nodes: ReadonlyArray<Node>;
   readonly connections: ReadonlyArray<Connection>;
   readonly labels?: ReadonlyArray<Label>;
+  readonly initialViewport?: NodeGraphViewport;
+  readonly onViewportChange?: (viewport: NodeGraphViewport) => void;
   readonly onConnect?: (connection: Connection) => void;
   readonly onNodeMove?: (nodeId: string, x: number, y: number) => void;
   readonly onConnectionRemove?: (index: number) => void;
@@ -393,10 +400,22 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
   // document order, which may be inside a hidden tab (display:none).
   const instanceId = shortUuid();
 
+  const notifyViewportChange = () => {
+    latestVnode?.attrs.onViewportChange?.({
+      panOffset: {
+        x: canvasState.panOffset.x,
+        y: canvasState.panOffset.y,
+      },
+      zoom: canvasState.zoom,
+    });
+  };
+
   // Shared pan function used by both internal handlers and external API
   const panBy = (dx: number, dy: number) => {
+    if (dx === 0 && dy === 0) return;
     canvasState.panOffset.x += dx;
     canvasState.panOffset.y += dy;
+    notifyViewportChange();
   };
 
   // Shared zoom function used by both internal handlers and external API
@@ -427,6 +446,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       x: zoomX - canvasX * newZoom,
       y: zoomY - canvasY * newZoom,
     };
+    notifyViewportChange();
   };
 
   // API functions that are exposed to parent components via onReady callback
@@ -1579,6 +1599,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       x: paddingX - minX * newZoom,
       y: paddingY - minY * newZoom,
     };
+    notifyViewportChange();
 
     m.redraw();
   }
@@ -1614,6 +1635,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         x: mouseX - canvasX * newZoom,
         y: mouseY - canvasY * newZoom,
       };
+      notifyViewportChange();
     } else if (e.shiftKey) {
       // Emulate horizontal scroll while shift held
       panBy(-e.deltaY, 0);
@@ -2168,6 +2190,18 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
   }
 
   return {
+    oninit: (vnode: m.Vnode<NodeGraphAttrs>) => {
+      latestVnode = vnode;
+      const vp = vnode.attrs.initialViewport;
+      if (vp) {
+        canvasState.panOffset = {
+          x: vp.panOffset.x,
+          y: vp.panOffset.y,
+        };
+        canvasState.zoom = Math.max(0.1, Math.min(5.0, vp.zoom));
+      }
+    },
+
     oncreate: (vnode: m.VnodeDOM<NodeGraphAttrs>) => {
       latestVnode = vnode;
       canvasElement = vnode.dom as HTMLElement;
@@ -2332,6 +2366,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           x: centerX - canvasX,
           y: centerY - canvasY,
         };
+        notifyViewportChange();
 
         m.redraw();
       };
