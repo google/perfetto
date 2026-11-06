@@ -14,9 +14,10 @@
 
 import {z} from 'zod';
 import {ensureDefined} from '../../base/assert';
+import {okResult} from '../../base/result';
 import type {Trace} from '../../public/trace';
 import type {Engine} from '../../trace_processor/engine';
-import type {QueryResult} from '../../trace_processor/query_result';
+import type {QueryResult, SqlValue} from '../../trace_processor/query_result';
 import type {
   ContextProviderRegistration,
   IntellettoToolRegistrar,
@@ -35,8 +36,35 @@ import {
 } from './graph_format';
 import {SpaghettiGraphState} from './graph_state';
 import {NODE_REGISTRY} from './graph_utils';
+import {MaterializationService} from './materialization';
 import type {NodeManifest} from './node_types';
 import {registerSpaghettiTools} from './spaghetti_tools';
+
+function makeMockQueryResult(
+  columns: readonly string[],
+  rows: ReadonlyArray<Record<string, SqlValue>>,
+): QueryResult {
+  return {
+    columns: () => [...columns],
+    iter: (spec: Record<string, unknown>) => {
+      let idx = 0;
+      const iterator: Record<string, unknown> = {
+        valid: () => idx < rows.length,
+        next: () => {
+          idx++;
+        },
+        get: (col: string) => rows[idx]?.[col] ?? null,
+      };
+      for (const key of Object.keys(spec)) {
+        Object.defineProperty(iterator, key, {
+          enumerable: true,
+          get: () => rows[idx]?.[key] ?? null,
+        });
+      }
+      return iterator;
+    },
+  } as unknown as QueryResult;
+}
 
 function makeFakeEngine(failPredicate?: (sql: string) => string | undefined) {
   const queries: string[] = [];
@@ -47,7 +75,11 @@ function makeFakeEngine(failPredicate?: (sql: string) => string | undefined) {
       if (err !== undefined) {
         throw new Error(err);
       }
-      return {} as QueryResult;
+      return makeMockQueryResult([], []);
+    },
+    async tryQuery(sql: string) {
+      queries.push(sql);
+      return okResult(makeMockQueryResult([], []));
     },
   } as unknown as Engine;
   return {engine, queries};
@@ -426,9 +458,9 @@ describe('collectSpaghettiGraphErrors', () => {
     );
     expect(errors).toHaveLength(1);
     expect(errors[0]?.nodeId).toBe('ch');
-    expect(queries.some((q) => q.startsWith('DROP TABLE IF EXISTS _qb_chk_'))).toBe(
-      true,
-    );
+    expect(
+      queries.some((q) => q.startsWith('DROP TABLE IF EXISTS _qb_chk_')),
+    ).toBe(true);
   });
 });
 
@@ -459,17 +491,20 @@ describe('registerSpaghettiTools', () => {
     } as unknown as SqlModules;
 
     const state = new SpaghettiGraphState({persist: false});
+    const matService = new MaterializationService(engine);
     const {registrar, tools, providers} = makeFakeRegistrar();
     registerSpaghettiTools(
       registrar,
       trace,
       makeFakeSqlModulesPlugin(fakeSqlModules),
       state,
+      matService,
     );
 
     expect([...tools.keys()]).toEqual([
       'get_spaghetti_graph',
       'set_spaghetti_graph',
+      'evaluate_spaghetti_node',
       'check_spaghetti_graph',
       'validate_spaghetti_graph',
     ]);
@@ -517,7 +552,7 @@ describe('registerSpaghettiTools', () => {
     );
     expect(state.store.nodes).toHaveLength(0);
 
-    // Apply updates state, selects sink node, navigates to #!/spaghetti, and pushes undo history.
+    // Apply updates state, selects sink node, warms matService, navigates to #!/spaghetti, and pushes undo history.
     expect(await setTool.invoke({graph: candidateJson})).toBe(
       'OK: Spaghetti graph applied and runs cleanly.',
     );
@@ -527,13 +562,17 @@ describe('registerSpaghettiTools', () => {
 
     const selectedCtx = ensureDefined(ctxProvider.getContext());
     expect(selectedCtx.summary).toBe('Spaghetti node: Limit');
-    expect(selectedCtx.data).toEqual({
+    expect(selectedCtx.data).toMatchObject({
       nodeId: 'l1',
       type: 'limit',
       title: 'Limit',
       config: {limitCount: '10', offset: ''},
       columns: ['id', 'name', 'dur'],
+      sql: 'SELECT *\nFROM slice\nLIMIT 10',
     });
+    expect(
+      (selectedCtx.data as {materializedTable?: string}).materializedTable,
+    ).toMatch(/^_qb_/);
 
     // Undo restores previous empty state; redo restores applied graph.
     expect(state.canUndo()).toBe(true);
@@ -541,5 +580,152 @@ describe('registerSpaghettiTools', () => {
     expect(state.store.nodes).toHaveLength(0);
     state.redo();
     expect(state.store.nodes).toHaveLength(1);
+
+    await matService.dispose();
+  });
+
+  test('evaluate_spaghetti_node reads active/sink results and evaluates arbitrary nodes without changing selection', async () => {
+    const queries: string[] = [];
+    const sampleRows: ReadonlyArray<Record<string, SqlValue>> = [
+      {id: 1n, name: 'doFrame', dur: 2500n},
+      {id: 2n, name: 'draw', dur: 1800n},
+      {id: 3n, name: 'doFrame', dur: 900n},
+    ];
+
+    const engine = {
+      async query(sql: string): Promise<QueryResult> {
+        queries.push(sql);
+        const filtered =
+          sql.includes('dur > 1000') || sql.includes('_qb_')
+            ? sampleRows.slice(0, 2)
+            : sampleRows;
+        if (sql.startsWith('SELECT COUNT(*) AS cnt')) {
+          return makeMockQueryResult(['cnt'], [{cnt: filtered.length}]);
+        }
+        if (sql.startsWith('SELECT CAST(name AS TEXT) AS label')) {
+          return makeMockQueryResult(
+            ['label', 'value'],
+            [
+              {label: 'doFrame', value: 1},
+              {label: 'draw', value: 1},
+            ],
+          );
+        }
+        const limitMatch = /LIMIT (\d+) OFFSET (\d+)/.exec(sql);
+        if (limitMatch) {
+          const lim = Number(limitMatch[1]);
+          const off = Number(limitMatch[2]);
+          return makeMockQueryResult(
+            ['id', 'name', 'dur'],
+            filtered.slice(off, off + lim),
+          );
+        }
+        return makeMockQueryResult([], []);
+      },
+      async tryQuery(sql: string) {
+        queries.push(sql);
+        return okResult(makeMockQueryResult([], []));
+      },
+    } as unknown as Engine;
+
+    const trace = {
+      engine,
+      navigate: () => {},
+    } as unknown as Trace;
+
+    const state = new SpaghettiGraphState({persist: false});
+    const matService = new MaterializationService(engine);
+    const {registrar, tools} = makeFakeRegistrar();
+    registerSpaghettiTools(
+      registrar,
+      trace,
+      makeFakeSqlModulesPlugin(undefined),
+      state,
+      matService,
+    );
+
+    const setTool = ensureDefined(tools.get('set_spaghetti_graph'));
+    const evalTool = ensureDefined(tools.get('evaluate_spaghetti_node'));
+
+    await setTool.invoke({
+      graph: JSON.stringify({
+        nodes: [
+          {
+            id: 'src',
+            type: 'from',
+            config: {table: 'slice'},
+            next: {
+              id: 'flt',
+              type: 'filter',
+              config: {
+                conditions: [{column: 'dur', op: '>', value: '1000'}],
+                conjunction: 'AND',
+              },
+              next: {
+                id: 'ch',
+                type: 'chart',
+                config: {
+                  charts: [{xCol: 'name', yCol: ''}],
+                  numInputs: 1,
+                },
+              },
+            },
+          },
+        ],
+      }),
+    });
+
+    expect(state.getActiveNodeId()).toBe('ch');
+    queries.length = 0;
+
+    // 1. Default call with no nodeId reads the warm active Chart node without re-materializing.
+    const activeEval = JSON.parse(await evalTool.invoke({limit: 1, offset: 0}));
+    expect(activeEval).toEqual({
+      nodeId: 'ch',
+      type: 'chart',
+      title: 'Chart',
+      sql: 'SELECT *\nFROM slice\nWHERE dur > 1000',
+      totalRowCount: 2,
+      columns: ['id', 'name', 'dur'],
+      rows: [{id: 1, name: 'doFrame', dur: 2500}],
+      offset: 0,
+      limit: 1,
+      truncated: true,
+      charts: [
+        {
+          xCol: 'name',
+          yCol: '',
+          bars: [
+            {label: 'doFrame', value: 1},
+            {label: 'draw', value: 1},
+          ],
+        },
+      ],
+    });
+    expect(queries.some((q) => q.includes('CREATE'))).toBe(false);
+
+    // 2. Evaluating upstream 'src' node headlessly returns all 3 rows WITHOUT changing UI selection.
+    const upstreamEval = JSON.parse(await evalTool.invoke({nodeId: 'src'}));
+    expect(upstreamEval.nodeId).toBe('src');
+    expect(upstreamEval.totalRowCount).toBe(3);
+    expect(upstreamEval.rows).toHaveLength(3);
+    expect(upstreamEval.truncated).toBe(false);
+    expect(state.getActiveNodeId()).toBe('ch');
+
+    // 3. Clearing selection still evaluates the default sink node when nodeId is omitted.
+    state.selectedNodeIds.clear();
+    expect(state.getActiveNodeId()).toBeUndefined();
+    const sinkEval = JSON.parse(await evalTool.invoke({limit: 0}));
+    expect(sinkEval.nodeId).toBe('ch');
+    expect(sinkEval.totalRowCount).toBe(2);
+    expect(sinkEval.rows).toEqual([]);
+    expect(state.getActiveNodeId()).toBeUndefined();
+
+    // 4. Unknown node id reports available ids clearly.
+    await expect(evalTool.invoke({nodeId: 'missing'})).rejects.toThrow(
+      /available node ids: src, flt, ch/,
+    );
+
+    await matService.dispose();
   });
 });

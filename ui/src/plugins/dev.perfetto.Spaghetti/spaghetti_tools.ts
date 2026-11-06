@@ -33,6 +33,13 @@ import {
   serializeStore,
   tryGetManifest,
 } from './graph_utils';
+import {buildDisplayQuery, buildLogicalPlan} from './ir';
+import type {MaterializationService} from './materialization';
+import {
+  DEFAULT_EVAL_ROW_LIMIT,
+  evaluateSpaghettiNode,
+  MAX_EVAL_ROW_LIMIT,
+} from './node_eval';
 
 export interface SelectedSpaghettiNodeContext {
   readonly nodeId: string;
@@ -40,11 +47,15 @@ export interface SelectedSpaghettiNodeContext {
   readonly title: string;
   readonly config: unknown;
   readonly columns: readonly string[];
+  readonly sql?: string;
+  readonly materializedTable?: string;
+  readonly error?: string;
 }
 
 export function getSelectedNodeContext(
   state: SpaghettiGraphState,
   sqlModules: SqlModules | undefined,
+  matService?: MaterializationService,
 ): SelectedSpaghettiNodeContext | undefined {
   const activeNodeId = state.getActiveNodeId();
   if (activeNodeId === undefined) return undefined;
@@ -55,12 +66,28 @@ export function getSelectedNodeContext(
   const columns = (
     getOutputColumnsForNode(index, activeNodeId, sqlModules) ?? []
   ).map((c) => c.name);
+  const logicalPlan = buildLogicalPlan(index, activeNodeId, sqlModules);
+  const sql = buildDisplayQuery(logicalPlan, state.dialect);
+
+  const isEvaluatedActive = matService?.evaluatedNodeId === activeNodeId;
+  const matTable = isEvaluatedActive
+    ? matService?.materializedTable
+    : undefined;
+  const warmTable =
+    matTable !== undefined && matTable.startsWith('_qb_')
+      ? matTable
+      : undefined;
+  const error = isEvaluatedActive ? matService?.error : undefined;
+
   return {
     nodeId: node.id,
     type: node.type,
     title,
     config: node.config,
     columns,
+    ...(sql !== undefined ? {sql} : {}),
+    ...(warmTable !== undefined ? {materializedTable: warmTable} : {}),
+    ...(error !== undefined ? {error} : {}),
   };
 }
 
@@ -111,6 +138,7 @@ export function registerSpaghettiTools(
   trace: Trace,
   sqlModulesPlugin: SqlModulesPlugin,
   state: SpaghettiGraphState,
+  matService?: MaterializationService,
 ): void {
   intelletto.registerTool({
     name: 'get_spaghetti_graph',
@@ -166,6 +194,7 @@ export function registerSpaghettiTools(
       }
 
       await sqlModulesPlugin.ensureInitialized();
+      const sqlModules = sqlModulesPlugin.getSqlModules();
       const nextStore = ensureDefined(validated.store);
       const wasEmpty = state.store.nodes.length === 0;
       const targetNodeId = selectedNodeId ?? pickDefaultTargetNodeId(nextStore);
@@ -180,10 +209,19 @@ export function registerSpaghettiTools(
       trace.navigate('#!/spaghetti');
       m.redraw();
 
+      if (matService !== undefined) {
+        await matService.scheduleUpdate(
+          state.store,
+          state.getActiveNodeId(),
+          sqlModules,
+          state.dialect,
+        );
+      }
+
       const errors = await collectSpaghettiGraphErrors(
         trace.engine,
         state.store,
-        sqlModulesPlugin.getSqlModules(),
+        sqlModules,
         state.dialect,
       );
       if (errors.length === 0) {
@@ -194,6 +232,61 @@ export function registerSpaghettiTools(
         'set_spaghetti_graph again:\n' +
         formatSpaghettiGraphErrors(errors)
       );
+    },
+  });
+
+  intelletto.registerTool({
+    name: 'evaluate_spaghetti_node',
+    description:
+      'Evaluate a node in the current Spaghetti graph and return its compiled ' +
+      'SQL, totalRowCount, output columns, and rows (plus bar chart series ' +
+      'for Chart nodes) WITHOUT changing the UI selection or modifying the ' +
+      'graph. Call with no arguments to inspect the results of the active / ' +
+      'most recently evaluated node (or the graph sink node if none is ' +
+      'selected). Pass `nodeId` to inspect any intermediate, docked, or ' +
+      'branch node headlessly - e.g. to check row counts at each step when ' +
+      'debugging why a filter or join returned 0 rows. Reuses warm cached ' +
+      'materialization tables automatically.',
+    shape: {
+      nodeId: z
+        .string()
+        .optional()
+        .describe(
+          'Optional node id from get_spaghetti_graph to evaluate without ' +
+            'selecting it. Omit to read the active/most recently evaluated ' +
+            'node (or default sink node).',
+        ),
+      limit: z
+        .number()
+        .int()
+        .min(0)
+        .max(MAX_EVAL_ROW_LIMIT)
+        .optional()
+        .describe(
+          `Max rows to return (0-${MAX_EVAL_ROW_LIMIT}, default ${DEFAULT_EVAL_ROW_LIMIT}). ` +
+            'Pass 0 to fetch only totalRowCount, columns, and sql.',
+        ),
+      offset: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe('Zero-based row offset for pagination (default 0).'),
+    },
+    callback: async ({nodeId, limit, offset}) => {
+      await sqlModulesPlugin.ensureInitialized();
+      const result = await evaluateSpaghettiNode({
+        engine: trace.engine,
+        store: state.store,
+        sqlModules: sqlModulesPlugin.getSqlModules(),
+        dialect: state.dialect,
+        nodeId,
+        activeNodeId: state.getActiveNodeId(),
+        matService,
+        limit,
+        offset,
+      });
+      return JSON.stringify(result);
     },
   });
 
@@ -248,11 +341,16 @@ export function registerSpaghettiTools(
       'The active (pinned or selected) node in the Spaghetti query builder. ' +
       '"nodeId", "type", and "config" match the get_spaghetti_graph / ' +
       'set_spaghetti_graph JSON format; "columns" lists its output column ' +
-      'names.',
+      'names; "sql" is its compiled query; "materializedTable" (when present) ' +
+      'is the warm cached _qb_* table in TraceProcessor that can be queried ' +
+      'directly with run_query; "error" (when present) is the latest SQL ' +
+      'runtime error. Call evaluate_spaghetti_node to inspect output rows of ' +
+      'this or any other node.',
     getContext: () => {
       const ctx = getSelectedNodeContext(
         state,
         sqlModulesPlugin.getSqlModules(),
+        matService,
       );
       if (ctx === undefined) return undefined;
       return {

@@ -298,6 +298,7 @@ export class MaterializationService {
   private pendingClearAll = false;
   private pendingPruneOrphans = false;
 
+  private _evaluatedNodeId: string | undefined;
   private _displaySql: string | undefined;
   private _activeDialect: SqlDialect = 'sql';
   private _error: string | undefined;
@@ -324,8 +325,20 @@ export class MaterializationService {
     return this._dataSource;
   }
 
+  get evaluatedNodeId(): string | undefined {
+    return this._evaluatedNodeId;
+  }
+
+  get readQuerySql(): string | undefined {
+    return this._readQuerySql;
+  }
+
   get materializedTable(): string | undefined {
     return this._materializedTable;
+  }
+
+  get warmHashes(): ReadonlySet<string> {
+    return new Set(this.cache.keys());
   }
 
   get displaySql(): string | undefined {
@@ -449,6 +462,7 @@ export class MaterializationService {
   private clearActiveOutput(): void {
     this._dataSource?.dispose();
     this._dataSource = undefined;
+    this._evaluatedNodeId = undefined;
     this._readQuerySql = undefined;
     this._materializedTable = undefined;
     this._displaySql = undefined;
@@ -475,6 +489,8 @@ export class MaterializationService {
       if (evicted > 0) m.redraw();
       return;
     }
+
+    this._evaluatedNodeId = activeNodeId;
 
     const displayRes = formatLogicalPlan(logicalPlan, dialect, {
       includeModuleHeaders: true,

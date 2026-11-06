@@ -115,6 +115,7 @@ export interface SpaghettiPage {
   readonly trace: Trace;
   readonly sqlModules: SqlModules | undefined;
   readonly state?: SpaghettiGraphState;
+  readonly matService?: MaterializationService;
 }
 
 export function SpaghettiPage(): m.Component<SpaghettiPage> {
@@ -164,6 +165,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
     return result;
   }
 
+  let fallbackMatService: MaterializationService | undefined;
   let matService: MaterializationService | undefined;
 
   const VIEWPORT_STORAGE_KEY = 'perfettoSpaghettiViewport';
@@ -557,11 +559,16 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
     onremove(_: m.VnodeDOM<SpaghettiPage>) {
       graphApi = undefined;
       flushViewportSave();
-      matService?.dispose();
+      matService = undefined;
+      fallbackMatService?.dispose();
+      fallbackMatService = undefined;
     },
     view({attrs}: m.Vnode<SpaghettiPage>) {
       const {trace, sqlModules} = attrs;
       activeState = attrs.state;
+      matService =
+        attrs.matService ??
+        (fallbackMatService ??= new MaterializationService(trace.engine));
       const state = getState();
       const {store, selectedNodeIds, pinnedNodeId} = state;
       const materializationDialect = state.dialect;
@@ -909,10 +916,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       // Use pinned node if set, otherwise fall back to selected node.
       const activeNodeId = state.getActiveNodeId();
 
-      // Lazily create the materialization service.
-      if (!matService) {
-        matService = new MaterializationService(trace.engine);
-      }
       matService.emulateSlowLoads = emulateSlowLoads;
 
       // Schedule materialization on every render — the AsyncLimiter
