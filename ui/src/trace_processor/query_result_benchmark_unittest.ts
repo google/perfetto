@@ -78,7 +78,7 @@ function pushTag(arr: number[], field: number, wireType: number): void {
 function pushLenDelim(arr: number[], field: number, payload: number[]): void {
   pushTag(arr, field, 2);
   pushVarint(arr, payload.length);
-  for (let i = 0; i < payload.length; i++) arr.push(payload[i]!);
+  arr.push(...payload);
 }
 
 const textEncoder = new TextEncoder();

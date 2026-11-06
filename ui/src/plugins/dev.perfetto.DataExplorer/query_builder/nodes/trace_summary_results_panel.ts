@@ -99,8 +99,7 @@ function parseTraceSummaryProto(data: Uint8Array): MetricBundleResult[] {
         valueIndex: 0,
       });
     } else {
-      for (let i = 0; i < specs.length; i++) {
-        const spec = specs[i]!;
+      for (const [i, spec] of specs.entries()) {
         metrics.push({
           metricId: spec.id ?? `${bundle.bundleId ?? 'unknown'}_${i}`,
           valueName: spec.value ?? 'value',
@@ -126,9 +125,9 @@ function parseTraceSummaryProto(data: Uint8Array): MetricBundleResult[] {
       const rows: Row[] = [];
       for (const row of bundle.row ?? []) {
         const rowData: Row = {};
-        for (let i = 0; i < dimensionNames.length; i++) {
+        for (const [i, dimName] of dimensionNames.entries()) {
           const dimValue = row.dimension?.[i];
-          rowData[dimensionNames[i]!] =
+          rowData[dimName] =
             dimValue !== undefined && dimValue !== null
               ? parseDimensionValue(dimValue)
               : null;

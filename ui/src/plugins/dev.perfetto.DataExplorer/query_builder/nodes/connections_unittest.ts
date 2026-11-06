@@ -2595,8 +2595,8 @@ describe('Connection Management', () => {
       );
 
       // Union allows unbounded inputs
-      for (let i = 0; i < nodes.length; i++) {
-        addConnection(nodes[i]!, unionNode, i);
+      for (const [i, node] of nodes.entries()) {
+        addConnection(node, unionNode, i);
       }
 
       // With 10 inputs, validation should pass (unbounded max)

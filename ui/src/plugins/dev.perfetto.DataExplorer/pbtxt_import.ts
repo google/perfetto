@@ -126,14 +126,14 @@ export async function parsePbtxtToState(
   };
 
   // Process metric_template_specs.
-  for (let i = 0; i < allTemplateSpecs.length; i++) {
+  for (const [i, templateSpec] of allTemplateSpecs.entries()) {
     const chainX = START_X + i * METRIC_CHAIN_GAP_X;
     mergeResult(
       acc,
       buildNodesFromMetricConfig(
         {
-          query: allTemplateSpecs[i]!.query,
-          metricsState: templateSpecToMetricsState(allTemplateSpecs[i]!),
+          query: templateSpec.query,
+          metricsState: templateSpecToMetricsState(templateSpec),
         },
         chainX,
         sharedQueries,
@@ -144,14 +144,14 @@ export async function parsePbtxtToState(
 
   // Process metric_specs (simpler, single-value metrics).
   const metricSpecOffset = allTemplateSpecs.length;
-  for (let i = 0; i < allMetricSpecs.length; i++) {
+  for (const [i, metricSpec] of allMetricSpecs.entries()) {
     const chainX = START_X + (metricSpecOffset + i) * METRIC_CHAIN_GAP_X;
     mergeResult(
       acc,
       buildNodesFromMetricConfig(
         {
-          query: allMetricSpecs[i]!.query,
-          metricsState: metricSpecToMetricsState(allMetricSpecs[i]!),
+          query: metricSpec.query,
+          metricsState: metricSpecToMetricsState(metricSpec),
         },
         chainX,
         sharedQueries,

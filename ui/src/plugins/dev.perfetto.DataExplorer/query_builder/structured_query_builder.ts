@@ -334,8 +334,8 @@ export class StructuredQueryBuilder {
 
     // Create reference queries for intervals with dur filter
     const intervals: protos.PerfettoSqlStructuredQuery[] = [];
-    for (let i = 0; i < intervalQueries.length; i++) {
-      const intervalId = extractQueryId(intervalQueries[i]);
+    for (const [i, intervalQuery] of intervalQueries.entries()) {
+      const intervalId = extractQueryId(intervalQuery);
       if (!intervalId) return undefined;
       intervals.push(
         this.createDurFilteredRef(intervalId, `${actualNodeId}_interval_${i}`),
@@ -679,8 +679,8 @@ export class StructuredQueryBuilder {
     const actualNodeId = nodeId ?? nextNodeId();
 
     const refQueries: protos.PerfettoSqlStructuredQuery[] = [];
-    for (let i = 0; i < queries.length; i++) {
-      const queryId = extractQueryId(queries[i]);
+    for (const [i, query] of queries.entries()) {
+      const queryId = extractQueryId(query);
       if (!queryId) return undefined;
       refQueries.push(this.createRef(queryId, `${actualNodeId}_union_${i}`));
     }
