@@ -411,7 +411,7 @@ export function validateSpaghettiGraphJson(
   };
 }
 
-function describeInvalidNodeConfig(node: NodeData): string {
+export function describeInvalidNodeConfig(node: NodeData): string {
   switch (node.type) {
     case 'from':
       return 'Table name must not be empty';
@@ -742,6 +742,82 @@ export function formatSpaghettiGraphErrors(
   return errors
     .map((e) => `- node ${e.nodeId} (${e.title}): ${e.error}`)
     .join('\n');
+}
+
+/**
+ * Walks the upstream dependency DAG of `targetNodeId` to identify the root-cause
+ * incomplete config, unconnected required port, or dependency cycle preventing
+ * a `LogicalPlan` from being constructed.
+ */
+export function findUpstreamPlanBlocker(
+  index: GraphIndex,
+  targetNodeId: string,
+): GraphNodeError | undefined {
+  const state = new Map<string, 'visiting' | 'visited'>();
+
+  function visit(nodeId: string): GraphNodeError | undefined {
+    const cur = state.get(nodeId);
+    if (cur === 'visited') return undefined;
+    const node = index.nodes[nodeId];
+    if (!node) {
+      return {
+        nodeId,
+        title: nodeId,
+        error: `Node "${nodeId}" does not exist`,
+      };
+    }
+    const manifest = tryGetManifest(node.type);
+    const title = manifest?.title ?? node.type;
+    if (cur === 'visiting') {
+      return {
+        nodeId,
+        title,
+        error: 'Node is part of a dependency cycle',
+      };
+    }
+    if (!manifest) {
+      return {
+        nodeId,
+        title,
+        error: `Unknown node type "${node.type}"`,
+      };
+    }
+
+    state.set(nodeId, 'visiting');
+    const ports = getManifestInputs(manifest, node);
+    const dockedParent = findDockedParent(index, nodeId);
+    const connected = findConnectedInputs(index, nodeId);
+
+    for (const [portIdx, port] of ports.entries()) {
+      const inp =
+        portIdx === 0 && dockedParent ? dockedParent : connected.get(portIdx);
+      if (!inp) {
+        if (!port.optional) {
+          return {
+            nodeId,
+            title,
+            error: `Missing input connection on port ${portIdx} ("${port.name}")`,
+          };
+        }
+        continue;
+      }
+      const upstreamErr = visit(inp.id);
+      if (upstreamErr !== undefined) return upstreamErr;
+    }
+
+    if (!isNodeValid(node)) {
+      return {
+        nodeId,
+        title,
+        error: describeInvalidNodeConfig(node),
+      };
+    }
+
+    state.set(nodeId, 'visited');
+    return undefined;
+  }
+
+  return visit(targetNodeId);
 }
 
 /**

@@ -19,6 +19,7 @@ import type {Trace} from '../../public/trace';
 import IntellettoPlugin from '../dev.perfetto.Intelletto';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {SpaghettiGraphState} from './graph_state';
+import {MaterializationService} from './materialization';
 import {registerSpaghettiTools} from './spaghetti_tools';
 import {SpaghettiPage} from './views/spaghetti_page';
 
@@ -67,12 +68,14 @@ export default class SpaghettiPlugin implements PerfettoPlugin {
   async onTraceLoad(trace: Trace): Promise<void> {
     const sqlModulesPlugin = trace.plugins.getPlugin(SqlModulesPlugin);
     const intelletto = trace.plugins.getPlugin(IntellettoPlugin);
+    const matService = new MaterializationService(trace.engine);
 
     registerSpaghettiTools(
       intelletto,
       trace,
       sqlModulesPlugin,
       this.graphState,
+      matService,
     );
 
     trace.pages.registerPage({
@@ -83,6 +86,7 @@ export default class SpaghettiPlugin implements PerfettoPlugin {
           trace,
           sqlModules: sqlModulesPlugin.getSqlModules(),
           state: this.graphState,
+          matService,
         });
       },
     });
