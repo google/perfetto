@@ -83,7 +83,7 @@ import type {DetailsContext, RenderContext} from '../node_types';
 import {CacheTab} from './cache_tab';
 import {ColumnsTab} from './columns_tab';
 import {GraphTab} from './graph_tab';
-import {LogicalIrTab} from './logical_ir_tab';
+import {MaterializationTab} from './materialization_tab';
 import {SqlTab} from './sql_tab';
 import {TextInput} from '../../../widgets/text_input';
 import {findRef} from '../../../base/dom_utils';
@@ -994,6 +994,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       const logicalPlan = activeNodeId
         ? buildLogicalPlan(flatNodes, activeNodeId, sqlModules)
         : undefined;
+      const matPlan = logicalPlan ? matService.planFor(logicalPlan) : undefined;
       const displaySql = buildDisplayQuery(logicalPlan, materializationDialect);
 
       const liveJson = JSON.stringify(
@@ -1024,9 +1025,15 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               content: m(ColumnsTab, {outputColumns, activeNodeId}),
             },
             {
-              key: 'logical_ir',
-              title: 'IR',
-              content: m(LogicalIrTab, {logicalPlan, activeNodeId}),
+              key: 'materialization',
+              title: 'Materialization',
+              content: m(MaterializationTab, {
+                matPlan,
+                dialect: materializationDialect,
+                lastRunOutcomes: matService.lastRunOutcomes,
+                lastIncludesTimeMs: matService.lastIncludesTimeMs,
+                activeNodeId,
+              }),
             },
             {
               key: 'cache',
