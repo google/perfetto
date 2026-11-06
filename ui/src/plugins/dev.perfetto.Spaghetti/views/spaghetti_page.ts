@@ -1230,7 +1230,7 @@ interface NodeCategory {
 const NODE_CATEGORIES: readonly NodeCategory[] = [
   {
     title: 'Sources',
-    types: ['from', 'time_range'],
+    types: ['from', 'data_table', 'time_range'],
   },
   {
     title: 'Columns',

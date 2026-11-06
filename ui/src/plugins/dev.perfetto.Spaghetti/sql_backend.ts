@@ -17,11 +17,13 @@ import {fnvHash} from './graph_utils';
 import {
   type AggregateOp,
   type AsOp,
+  type DataTableOp,
   type DistinctOp,
   type DropOp,
   type ExtendOp,
   type ExtractArgOp,
   type FilterLogicalOp,
+  formatDataTableSql,
   formatExtractArgExpr,
   formatFilterConditions,
   type GraphTreeOp,
@@ -286,6 +288,10 @@ function tryFoldOp(stmt: SqlStatement, op: FoldableOp): boolean {
 
 function emitTimeRangeSql(op: TimeRangeOp): string {
   return `SELECT 0 AS id, ${op.ts} AS ts, ${op.dur} AS dur`;
+}
+
+function emitDataTableSql(op: DataTableOp): string {
+  return formatDataTableSql(op);
 }
 
 function emitDropSql(op: DropOp, ref: string): string {
@@ -903,6 +909,11 @@ export function lowerToSql(plan: LogicalPlan): IrEntry[] {
 
       case 'time_range': {
         emitStandalone(nodeId, [], () => emitTimeRangeSql(op));
+        break;
+      }
+
+      case 'data_table': {
+        emitStandalone(nodeId, [], () => emitDataTableSql(op));
         break;
       }
 

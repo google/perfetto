@@ -129,6 +129,28 @@ export interface TimeRangeOp {
   readonly dur: string;
 }
 
+export const DATA_TABLE_COLUMN_TYPES = [
+  'int',
+  'double',
+  'string',
+  'timestamp',
+  'duration',
+  'boolean',
+] as const;
+
+export type DataTableColumnType = (typeof DATA_TABLE_COLUMN_TYPES)[number];
+
+export interface DataTableColumn {
+  readonly name: string;
+  readonly type: DataTableColumnType;
+}
+
+export interface DataTableOp {
+  readonly kind: 'data_table';
+  readonly columns: readonly DataTableColumn[];
+  readonly rows: readonly (readonly string[])[];
+}
+
 export interface PassthroughOp {
   readonly kind: 'passthrough';
   readonly input: string;
@@ -315,6 +337,7 @@ export interface RawSqlOp {
 export type LogicalOp =
   | ScanOp
   | TimeRangeOp
+  | DataTableOp
   | PassthroughOp
   | FilterLogicalOp
   | ProjectOp
@@ -358,6 +381,7 @@ export function getLogicalOpInputs(op: LogicalOp): readonly string[] {
   switch (op.kind) {
     case 'scan':
     case 'time_range':
+    case 'data_table':
       return [];
     case 'passthrough':
     case 'filter':
@@ -443,4 +467,68 @@ export function formatExtractArgExpr(
 ): string {
   const escaped = argName.replace(/'/g, "''");
   return `extract_arg(${argSetIdCol}, '${escaped}')`;
+}
+
+function sqlCastType(type: DataTableColumnType): string {
+  switch (type) {
+    case 'int':
+    case 'timestamp':
+    case 'duration':
+    case 'boolean':
+      return 'INTEGER';
+    case 'double':
+      return 'REAL';
+    case 'string':
+      return 'TEXT';
+    default:
+      return assertUnreachable(type);
+  }
+}
+
+function formatDataTableCell(raw: string, type: DataTableColumnType): string {
+  if (type === 'string') {
+    if (raw === '') return 'CAST(NULL AS TEXT)';
+    return `'${raw.replaceAll("'", "''")}'`;
+  }
+  const trimmed = raw.trim();
+  if (trimmed === '') {
+    return `CAST(NULL AS ${sqlCastType(type)})`;
+  }
+  switch (type) {
+    case 'int':
+    case 'timestamp':
+    case 'duration':
+      return BigInt(trimmed).toString();
+    case 'double': {
+      const s = String(Number(trimmed));
+      return /^[+-]?\d+$/.test(s) ? `${s}.0` : s;
+    }
+    case 'boolean':
+      return /^(true|1)$/i.test(trimmed) ? '1' : '0';
+    default:
+      return assertUnreachable(type);
+  }
+}
+
+export function formatDataTableSql(op: DataTableOp): string {
+  if (op.rows.length === 0) {
+    const emptyCols = op.columns.map(
+      (c) => `CAST(NULL AS ${sqlCastType(c.type)}) AS ${c.name}`,
+    );
+    return `SELECT\n  ${emptyCols.join(',\n  ')}\nWHERE 0`;
+  }
+  const colNames = op.columns.map((c) => c.name).join(', ');
+  const valueTuples = op.rows.map((row) => {
+    const cells = op.columns.map((col, idx) =>
+      formatDataTableCell(row[idx] ?? '', col.type),
+    );
+    return `    (${cells.join(', ')})`;
+  });
+  return [
+    `WITH _data(${colNames}) AS (`,
+    '  VALUES',
+    valueTuples.join(',\n'),
+    ')',
+    `SELECT ${colNames} FROM _data`,
+  ].join('\n');
 }
