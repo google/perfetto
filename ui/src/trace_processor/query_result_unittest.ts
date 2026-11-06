@@ -413,13 +413,15 @@ test('QueryResult.decodeColumnsTypeErrors', () => {
     /Error @ row: 1 col: 'x'/,
   );
 
-  // NULL on a non-nullable spec must throw, like iter().
+  // NULL on a non-nullable spec throws by default, unless {nullAsNaN: true}
+  // is passed (which decodes NULL cells on NUM columns as NaN).
   const nulls = protos.QueryResult.create({
     columnNames: ['x', 'y'],
     batch: [
       {
-        cells: [T.CELL_VARINT, T.CELL_NULL],
-        varintCells: [1],
+        cells: [T.CELL_VARINT, T.CELL_NULL, T.CELL_VARINT, T.CELL_FLOAT64],
+        varintCells: [1, 2],
+        float64Cells: [3.5],
         isLastBatch: true,
       },
     ],
@@ -429,8 +431,32 @@ test('QueryResult.decodeColumnsTypeErrors', () => {
   expect(() => qr2.decodeColumns({x: NUM, y: NUM})).toThrowError(
     /Error @ row: 0 col: 'y': SQL value is NULL but that was not expected/,
   );
-  // The nullable spec type is fine.
-  expect(() => qr2.decodeColumns({x: NUM, y: NUM_NULL})).not.toThrow();
+  const numNullDecoded = qr2.decodeColumns({x: NUM, y: NUM}, {nullAsNaN: true});
+  expect(numNullDecoded.y).toBeInstanceOf(Float64Array);
+  expect(Number.isNaN(numNullDecoded.y[0])).toBe(true);
+  expect(numNullDecoded.y[1]).toBe(3.5);
+  // Non-nullable non-NUM specs in decodeColumns() still throw on NULL even
+  // with {nullAsNaN: true}.
+  const longNulls = protos.QueryResult.create({
+    columnNames: ['x', 'y'],
+    batch: [
+      {
+        cells: [T.CELL_VARINT, T.CELL_NULL],
+        varintCells: [1],
+        isLastBatch: true,
+      },
+    ],
+  });
+  const qrLongNulls = createQueryResult({query: 'Some query'});
+  qrLongNulls.appendResultBatch(protos.QueryResult.encode(longNulls).finish());
+  expect(() =>
+    qrLongNulls.decodeColumns({x: NUM, y: LONG}, {nullAsNaN: true}),
+  ).toThrowError(
+    /Error @ row: 0 col: 'y': SQL value is NULL but that was not expected/,
+  );
+  // The nullable spec types are fine.
+  expect(qr2.decodeColumns({x: NUM, y: NUM_NULL}).y).toEqual([null, 3.5]);
+  expect(qrLongNulls.decodeColumns({x: NUM, y: LONG_NULL}).y).toEqual([null]);
 
   // LONG + float64 cells must throw (matches iter()'s compatibility rules).
   const longFloat = protos.QueryResult.create({

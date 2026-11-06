@@ -17,9 +17,11 @@
 #include "src/trace_processor/plugins/counter_mipmap_operator/counter_mipmap_operator.h"
 
 #include <sqlite3.h>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -103,12 +105,17 @@ int CounterMipmapOperator::Create(sqlite3* db,
     *zErr = sqlite3_mprintf("%s", res.status().c_message());
     return SQLITE_ERROR;
   }
-  do {
-    int64_t ts = sqlite3_column_int64(res->stmt.sqlite_stmt(), 0);
-    auto value = sqlite3_column_double(res->stmt.sqlite_stmt(), 1);
-    state->timestamps.push_back(ts);
-    state->forest.Push(Counter{value, value});
-  } while (res->stmt.Step());
+  if (!res->stmt.IsDone()) {
+    do {
+      sqlite3_stmt* stmt = res->stmt.sqlite_stmt();
+      int64_t ts = sqlite3_column_int64(stmt, 0);
+      double value = sqlite3_column_type(stmt, 1) == SQLITE_NULL
+                         ? std::numeric_limits<double>::quiet_NaN()
+                         : sqlite3_column_double(stmt, 1);
+      state->timestamps.push_back(ts);
+      state->forest.Push(Counter{value, value});
+    } while (res->stmt.Step());
+  }
   if (!res->stmt.status().ok()) {
     *zErr = sqlite3_mprintf("%s", res->stmt.status().c_message());
     return SQLITE_ERROR;
@@ -189,6 +196,9 @@ int CounterMipmapOperator::Filter(sqlite3_vtab_cursor* cursor,
 
   c->index = 0;
   c->counters.clear();
+  if (state->timestamps.empty()) {
+    return SQLITE_OK;
+  }
 
   // Build the array of query timestamps (window boundaries).
   const auto steps = static_cast<size_t>((end_ts - start_ts) / step_ts);
@@ -262,6 +272,8 @@ int CounterMipmapOperator::Column(sqlite3_vtab_cursor* cursor,
       return SQLITE_OK;
     case ColumnIndex::kLastValue:
       PERFETTO_DCHECK(
+          (std::isnan(res.last_counter.min) &&
+           std::isnan(res.last_counter.max)) ||
           std::equal_to<>()(res.last_counter.min, res.last_counter.max));
       sqlite::result::Double(ctx, res.last_counter.min);
       return SQLITE_OK;
