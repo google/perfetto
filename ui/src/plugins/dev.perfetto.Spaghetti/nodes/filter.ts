@@ -14,12 +14,12 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import {moveArrayItem} from '../../../base/array_utils';
+import {moveItem} from '../../../base/array_utils';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {RadioGroup} from '../../../widgets/radio_group';
 import {Select} from '../../../widgets/select';
 import {TextInput} from '../../../widgets/text_input';
-import {Row} from '../components/row';
+import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
 import {
@@ -84,109 +84,47 @@ function FilterNodeContent(): m.Component<{
             m(RadioGroup.Button, {value: 'OR'}, 'OR'),
           ],
         ),
-        m(Stack, [
-          ...conditions.map((cond, i) =>
+        m(DraggableStack, {
+          rows: conditions.map((cond, i) => [
+            m(ColumnPicker, {
+              value: cond.column,
+              columns: availableColumns,
+              placeholder: 'column',
+              onSelect: (column) =>
+                updateConfig({
+                  conditions: conditions.with(i, {...cond, column}),
+                }),
+            }),
             m(
-              Row,
+              Select,
               {
-                key: i,
-                draggable: true,
-                ondragstart: (e: DragEvent) => {
-                  e.dataTransfer!.effectAllowed = 'move';
-                  e.dataTransfer!.setData('text/plain', String(i));
-                  (e.currentTarget as HTMLElement).classList.add('pf-dragging');
-                },
-                ondragend: (e: DragEvent) => {
-                  (e.currentTarget as HTMLElement).classList.remove(
-                    'pf-dragging',
-                  );
-                },
-                ondragover: (e: DragEvent) => {
-                  e.preventDefault();
-                  e.dataTransfer!.dropEffect = 'move';
-                  const el = e.currentTarget as HTMLElement;
-                  const rect = el.getBoundingClientRect();
-                  const isBottom = e.clientY > rect.top + rect.height / 2;
-                  el.classList.toggle('pf-drag-over-top', !isBottom);
-                  el.classList.toggle('pf-drag-over-bottom', isBottom);
-                },
-                ondragleave: (e: DragEvent) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                },
-                ondrop: (e: DragEvent) => {
-                  e.preventDefault();
-                  const el = e.currentTarget as HTMLElement;
-                  const isBottom = el.classList.contains('pf-drag-over-bottom');
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                  const fromIdx = parseInt(
-                    e.dataTransfer!.getData('text/plain'),
-                  );
-                  const toIdx = isBottom ? i + 1 : i;
-                  if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
-                    const newConds = [...conditions];
-                    moveArrayItem(newConds, fromIdx, toIdx);
-                    updateConfig({conditions: newConds});
-                  }
+                value: cond.op,
+                onchange: (e: Event) => {
+                  updateConfig({
+                    conditions: conditions.with(i, {
+                      ...cond,
+                      op: (e.target as HTMLSelectElement).value as FilterOp,
+                    }),
+                  });
                 },
               },
-              [
-                m(Row.DragHandle),
-                m(ColumnPicker, {
-                  value: cond.column,
-                  columns: availableColumns,
-                  placeholder: 'column',
-                  onSelect: (value: string) => {
-                    const newConds = [...conditions];
-                    newConds[i] = {...cond, column: value};
-                    updateConfig({conditions: newConds});
-                  },
-                }),
-                m(
-                  Select,
-                  {
-                    value: cond.op,
-                    onchange: (e: Event) => {
-                      const newConds = [...conditions];
-                      newConds[i] = {
-                        ...cond,
-                        op: (e.target as HTMLSelectElement).value as FilterOp,
-                      };
-                      updateConfig({conditions: newConds});
-                    },
-                  },
-                  FILTER_OPS.map((op) => m('option', {value: op}, op)),
-                ),
-                ...(!isUnaryFilterOp(cond.op)
-                  ? [
-                      m(TextInput, {
-                        placeholder: 'value',
-                        value: cond.value,
-                        onChange: (value: string) => {
-                          const newConds = [...conditions];
-                          newConds[i] = {...cond, value};
-                          updateConfig({conditions: newConds});
-                        },
-                      }),
-                    ]
-                  : []),
-                m(Row.DeleteButton, {
-                  onclick: () => {
-                    updateConfig({
-                      conditions: conditions.filter((_, j) => j !== i),
-                    });
-                  },
-                }),
-              ],
+              FILTER_OPS.map((op) => m('option', {value: op}, op)),
             ),
-          ),
-        ]),
+            !isUnaryFilterOp(cond.op) &&
+              m(TextInput, {
+                placeholder: 'value',
+                value: cond.value,
+                onChange: (value) =>
+                  updateConfig({
+                    conditions: conditions.with(i, {...cond, value}),
+                  }),
+              }),
+          ]),
+          onReorder: (from, to) =>
+            updateConfig({conditions: moveItem(conditions, from, to)}),
+          onDelete: (i) =>
+            updateConfig({conditions: conditions.toSpliced(i, 1)}),
+        }),
         m(Button, {
           label: 'Add condition',
           icon: 'add',

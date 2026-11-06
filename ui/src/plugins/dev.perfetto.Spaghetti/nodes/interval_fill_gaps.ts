@@ -14,8 +14,9 @@
 
 import m from 'mithril';
 import {z} from 'zod';
+import {moveItem} from '../../../base/array_utils';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Row} from '../components/row';
+import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
 import type {LogicalOp} from '../logical_ir';
@@ -45,30 +46,27 @@ function IntervalFillGapsContent(): m.Component<{
       const inputColumns = ctx.getInputColumns('input');
       return m(Stack, {style: {minWidth: '200px'}}, [
         m('.pf-spag-section-label', 'Partition by'),
-        m(Stack, {compact: true}, [
-          ...config.partitionColumns.map((col, i) =>
-            m(Row, {key: i}, [
-              m(ColumnPicker, {
-                value: col,
-                columns: inputColumns,
-                placeholder: 'column',
-                onSelect: (value: string) => {
-                  const updated = [...config.partitionColumns];
-                  updated[i] = value;
-                  updateConfig({partitionColumns: updated});
-                },
-              }),
-              m(Row.DeleteButton, {
-                onclick: () =>
-                  updateConfig({
-                    partitionColumns: config.partitionColumns.filter(
-                      (_, j) => j !== i,
-                    ),
-                  }),
-              }),
-            ]),
+        m(DraggableStack, {
+          rows: config.partitionColumns.map((col, i) =>
+            m(ColumnPicker, {
+              value: col,
+              columns: inputColumns,
+              placeholder: 'column',
+              onSelect: (value) =>
+                updateConfig({
+                  partitionColumns: config.partitionColumns.with(i, value),
+                }),
+            }),
           ),
-        ]),
+          onReorder: (from, to) =>
+            updateConfig({
+              partitionColumns: moveItem(config.partitionColumns, from, to),
+            }),
+          onDelete: (i) =>
+            updateConfig({
+              partitionColumns: config.partitionColumns.toSpliced(i, 1),
+            }),
+        }),
         m(Button, {
           label: 'Partition',
           icon: 'add',

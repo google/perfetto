@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
+import {moveItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
   LogicalOpContext,
@@ -22,7 +23,7 @@ import type {
 } from '../node_types';
 import type {LogicalOp} from '../logical_ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Row} from '../components/row';
+import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
 import type {ColumnDef} from '../graph_utils';
@@ -43,41 +44,22 @@ function DropContent(): m.Component<{
     view({attrs: {config, updateConfig, ctx}}) {
       return m(Stack, [
         config.columns.length === 0 &&
-          m(
-            '.pf-spag-passthrough-hint',
-            {
-              style: {
-                opacity: 0.5,
-                fontStyle: 'italic',
-                fontSize: '11px',
-                padding: '2px 4px',
-              },
-            },
-            'All columns (passthrough)',
+          m('.pf-spag-passthrough-hint', 'All columns (passthrough)'),
+        m(DraggableStack, {
+          rows: config.columns.map((column, i) =>
+            m(ColumnPicker, {
+              value: column,
+              columns: ctx.availableColumns,
+              placeholder: 'column',
+              onSelect: (value) =>
+                updateConfig({columns: config.columns.with(i, value)}),
+            }),
           ),
-        m(Stack, {compact: true}, [
-          ...config.columns.map((column, i) =>
-            m(Row, {key: i}, [
-              m(ColumnPicker, {
-                value: column,
-                columns: ctx.availableColumns,
-                placeholder: 'column',
-                onSelect: (value: string) => {
-                  const updated = [...config.columns];
-                  updated[i] = value;
-                  updateConfig({columns: updated});
-                },
-              }),
-              m(Row.DeleteButton, {
-                onclick: () => {
-                  updateConfig({
-                    columns: config.columns.filter((_, j) => j !== i),
-                  });
-                },
-              }),
-            ]),
-          ),
-        ]),
+          onReorder: (from, to) =>
+            updateConfig({columns: moveItem(config.columns, from, to)}),
+          onDelete: (i) =>
+            updateConfig({columns: config.columns.toSpliced(i, 1)}),
+        }),
         m(Button, {
           label: 'Drop column',
           variant: ButtonVariant.Filled,

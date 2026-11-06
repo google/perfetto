@@ -69,6 +69,18 @@ export function moveArrayItem<T>(array: T[], from: number, to: number) {
   array.splice(to, 0, ...removed);
 }
 
+// Non-mutating version of `moveArrayItem`: returns a copy with the item at
+// `from` moved before `to`.
+export function moveItem<T>(
+  array: readonly T[],
+  from: number,
+  to: number,
+): T[] {
+  const copy = [...array];
+  moveArrayItem(copy, from, to);
+  return copy;
+}
+
 // If all values in the array are the same, returns that value. Otherwise
 // returns undefined. If the array is empty, returns undefined.
 export function valueIfAllEqual<T>(arr: ReadonlyArray<T>): T | undefined {

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import {moveArrayItem} from '../../../base/array_utils';
+import {moveItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
   LogicalOpContext,
@@ -23,11 +23,13 @@ import type {
 } from '../node_types';
 import type {LogicalOp} from '../logical_ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {TextInput} from '../../../widgets/text_input';
 import type {ColumnDef} from '../graph_utils';
-import {Row} from '../components/row';
+import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
-import {AliasTag} from '../components/alias_tag';
+import {
+  sanitizeAlias,
+  TextInputWithAlias,
+} from '../components/text_input_with_alias';
 
 const ExtendEntrySchema = z.object({
   expression: z.string(),
@@ -43,10 +45,7 @@ const ExtendConfigSchema = z.object({
 export type ExtendConfig = z.infer<typeof ExtendConfigSchema>;
 
 function entryAlias(e: ExtendEntry): string {
-  if (e.alias) return e.alias;
-  // Use expression text sanitized as a column name.
-  if (e.expression) return e.expression.replace(/[^a-zA-Z0-9_]/g, '_');
-  return '';
+  return e.alias || sanitizeAlias(e.expression);
 }
 
 function ExtendContent(): m.Component<{
@@ -57,88 +56,27 @@ function ExtendContent(): m.Component<{
   return {
     view({attrs: {config, updateConfig}}) {
       return m(Stack, {style: {minWidth: '250px'}}, [
-        m(Stack, {compact: true}, [
-          ...config.entries.map((entry, i) =>
-            m(
-              Row,
-              {
-                key: i,
-                draggable: true,
-                ondragstart: (e: DragEvent) => {
-                  e.dataTransfer!.effectAllowed = 'move';
-                  e.dataTransfer!.setData('text/plain', String(i));
-                  (e.currentTarget as HTMLElement).classList.add('pf-dragging');
-                },
-                ondragend: (e: DragEvent) => {
-                  (e.currentTarget as HTMLElement).classList.remove(
-                    'pf-dragging',
-                  );
-                },
-                ondragover: (e: DragEvent) => {
-                  e.preventDefault();
-                  e.dataTransfer!.dropEffect = 'move';
-                  const el = e.currentTarget as HTMLElement;
-                  const rect = el.getBoundingClientRect();
-                  const isBottom = e.clientY > rect.top + rect.height / 2;
-                  el.classList.toggle('pf-drag-over-top', !isBottom);
-                  el.classList.toggle('pf-drag-over-bottom', isBottom);
-                },
-                ondragleave: (e: DragEvent) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                },
-                ondrop: (e: DragEvent) => {
-                  e.preventDefault();
-                  const el = e.currentTarget as HTMLElement;
-                  const isBottom = el.classList.contains('pf-drag-over-bottom');
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                  const fromIdx = parseInt(
-                    e.dataTransfer!.getData('text/plain'),
-                  );
-                  const toIdx = isBottom ? i + 1 : i;
-                  if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
-                    const updated = [...config.entries];
-                    moveArrayItem(updated, fromIdx, toIdx);
-                    updateConfig({entries: updated});
-                  }
-                },
-              },
-              [
-                m(Row.DragHandle),
-                m(TextInput, {
-                  placeholder: 'expression',
-                  value: entry.expression,
-                  onChange: (value: string) => {
-                    const updated = [...config.entries];
-                    updated[i] = {...entry, expression: value};
-                    updateConfig({entries: updated});
-                  },
+        m(DraggableStack, {
+          rows: config.entries.map((entry, i) =>
+            m(TextInputWithAlias, {
+              placeholder: 'expression',
+              value: entry.expression,
+              onChange: (expression) =>
+                updateConfig({
+                  entries: config.entries.with(i, {...entry, expression}),
                 }),
-                m(AliasTag, {
-                  alias: entry.alias,
-                  placeholder: entryAlias(entry) || 'alias',
-                  onChange: (value: string) => {
-                    const updated = [...config.entries];
-                    updated[i] = {...entry, alias: value};
-                    updateConfig({entries: updated});
-                  },
+              alias: entry.alias,
+              onAliasChange: (alias) =>
+                updateConfig({
+                  entries: config.entries.with(i, {...entry, alias}),
                 }),
-                m(Row.DeleteButton, {
-                  onclick: () =>
-                    updateConfig({
-                      entries: config.entries.filter((_, j) => j !== i),
-                    }),
-                }),
-              ],
-            ),
+            }),
           ),
-        ]),
+          onReorder: (from, to) =>
+            updateConfig({entries: moveItem(config.entries, from, to)}),
+          onDelete: (i) =>
+            updateConfig({entries: config.entries.toSpliced(i, 1)}),
+        }),
         m(Button, {
           label: 'Add column',
           variant: ButtonVariant.Filled,

@@ -45,18 +45,7 @@ export const manifest: NodeManifest<DistinctConfig> = {
   render() {
     return m(
       Stack,
-      m(
-        '.pf-spag-passthrough-hint',
-        {
-          style: {
-            opacity: 0.5,
-            fontStyle: 'italic',
-            fontSize: '11px',
-            padding: '2px 4px',
-          },
-        },
-        'Deduplicate identical rows',
-      ),
+      m('.pf-spag-passthrough-hint', 'Deduplicate identical rows'),
     );
   },
 };

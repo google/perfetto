@@ -18,6 +18,7 @@ import {
   removeFalsyValues,
   range,
   moveArrayItem,
+  moveItem,
   min,
   max,
   mapTuple,
@@ -99,6 +100,13 @@ test('moveArrayItem.moveBackward', () => {
   const input = range(3);
   moveArrayItem(input, 2, 0);
   expect(input).toEqual([2, 0, 1]);
+});
+
+test('moveItem', () => {
+  const input = [0, 1, 2];
+  expect(moveItem(input, 0, 2)).toEqual([1, 0, 2]);
+  expect(moveItem(input, 2, 0)).toEqual([2, 0, 1]);
+  expect(input).toEqual([0, 1, 2]);
 });
 
 describe('min', () => {
