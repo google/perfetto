@@ -37,6 +37,9 @@ export const MODEL_SCHEMA = z.object({
   modelName: z.string(),
   // The role(s) this model fills.
   roles: z.array(z.enum(MODEL_ROLES)),
+  // The model's context window size in tokens, if known. Auto-filled from the
+  // backend's model list where the protocol reports it, else user-supplied.
+  contextWindow: z.number().int().positive().optional(),
 });
 export type Model = z.infer<typeof MODEL_SCHEMA>;
 
