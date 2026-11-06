@@ -5687,6 +5687,8 @@ perfetto_filegroup(
         "src/trace_processor/plugins/wattson/table_function.cc",
         "src/trace_processor/plugins/wattson/table_function.h",
         "src/trace_processor/plugins/wattson/wattson.h",
+        "src/trace_processor/plugins/wattson/wattson_soc_model_module.cc",
+        "src/trace_processor/plugins/wattson/wattson_soc_model_module.h",
     ],
 )
 

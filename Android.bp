@@ -21446,6 +21446,7 @@ filegroup {
     srcs: [
         "src/trace_processor/plugins/wattson/plugin.cc",
         "src/trace_processor/plugins/wattson/table_function.cc",
+        "src/trace_processor/plugins/wattson/wattson_soc_model_module.cc",
     ],
 }
 
