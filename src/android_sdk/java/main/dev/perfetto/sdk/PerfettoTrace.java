@@ -108,19 +108,22 @@ public final class PerfettoTrace {
 
     /** Create the native category object and register it. */
     public synchronized Category register() {
-      if (mPtr == 0) {
-        long ptr = native_init(mName, mTags.toArray(new String[0]));
-        sNativeMemoryCleaner.registerNativeAllocation(this, ptr, native_delete());
-        native_register(ptr);
-        // There is not much sense in the created, but not yet registered category,
-        // so we make the `ptr` visible to other threads only after registration.
-        mPtr = ptr;
-        mIsRegistered = true;
-      } else {
-        if (!mIsRegistered) {
-          native_register(mPtr);
+      try {
+        if (mPtr == 0) {
+          long ptr = native_init(mName, mTags.toArray(new String[0]));
+          sNativeMemoryCleaner.registerNativeAllocation(this, ptr, native_delete());
+          native_register(ptr);
+          // There is not much sense in the created, but not yet registered category,
+          // so we make the `ptr` visible to other threads only after registration.
+          mPtr = ptr;
           mIsRegistered = true;
+        } else {
+          if (!mIsRegistered) {
+            native_register(mPtr);
+            mIsRegistered = true;
+          }
         }
+      } catch (UnsatisfiedLinkError ignored) {
       }
       return this;
     }
@@ -325,17 +328,28 @@ public final class PerfettoTrace {
 
   /** Returns the process track uuid that can be used as a parent track uuid. */
   public static long getProcessTrackUuid() {
-    return native_get_process_track_uuid();
+    try {
+      return native_get_process_track_uuid();
+    } catch (UnsatisfiedLinkError e) {
+      return 0;
+    }
   }
 
   /** Given a thread tid, returns the thread track uuid that can be used as a parent track uuid. */
   public static long getThreadTrackUuid(long tid) {
-    return native_get_thread_track_uuid(tid);
+    try {
+      return native_get_thread_track_uuid(tid);
+    } catch (UnsatisfiedLinkError e) {
+      return 0;
+    }
   }
 
   /** Activates a trigger by name {@code triggerName} with expiry in {@code ttlMs}. */
   public static void activateTrigger(String triggerName, int ttlMs) {
-    native_activate_trigger(triggerName, ttlMs);
+    try {
+      native_activate_trigger(triggerName, ttlMs);
+    } catch (UnsatisfiedLinkError ignored) {
+    }
   }
 
   /**
@@ -355,8 +369,12 @@ public final class PerfettoTrace {
       }
       sAttemptedSystemRegistration.set(true);
     }
-    native_register(isBackendInProcess);
-    return true;
+    try {
+      native_register(isBackendInProcess);
+      return true;
+    } catch (UnsatisfiedLinkError e) {
+      return false;
+    }
   }
 
   /** Registers the process with Perfetto and enables additional debug checks on the Java side. */

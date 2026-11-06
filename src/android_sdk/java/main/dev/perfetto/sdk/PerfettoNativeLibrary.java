@@ -41,6 +41,9 @@ final class PerfettoNativeLibrary {
       return;
     }
     boolean isFramework = className.startsWith(FRAMEWORK_PREFIX);
-    System.loadLibrary(isFramework ? "perfetto_framework_jni" : "perfetto_jni");
+    try {
+      System.loadLibrary(isFramework ? "perfetto_framework_jni" : "perfetto_jni");
+    } catch (UnsatisfiedLinkError ignored) {
+    }
   }
 }

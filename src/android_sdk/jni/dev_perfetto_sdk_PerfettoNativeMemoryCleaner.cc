@@ -41,15 +41,14 @@ static const JNINativeMethod gNativeMemoryCleanerMethods[] = {
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_applyNativeFunction}};
 
 int register_dev_perfetto_sdk_PerfettoNativeMemoryCleaner(JNIEnv* env) {
-  int res = jniRegisterNativeMethods(
+  bool ok = PerfettoRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME(
           "dev/perfetto/sdk/PerfettoNativeMemoryCleaner"),
       gNativeMemoryCleanerMethods, NELEM(gNativeMemoryCleanerMethods));
-  LOG_ALWAYS_FATAL_IF(
-      res < 0,
-      "Unable to register PerfettoNativeMemoryCleaner native methods.");
-  return 0;
+  LOG_ERROR_IF(
+      !ok, "Unable to register PerfettoNativeMemoryCleaner native methods.");
+  return ok ? 0 : -1;
 }
 
 }  // namespace jni
