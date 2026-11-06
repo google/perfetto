@@ -19,7 +19,13 @@ import {
   type LineChartSeries,
 } from '../../../../components/widgets/charts_svg/line_chart_svg';
 import type {LiveSession, SnapshotData} from '../../sessions/live_session';
-import {counterPoints, maxSeriesKb, niceKbInterval} from '../../utils';
+import {
+  chartXWindow,
+  counterPoints,
+  formatRelativeXValue,
+  maxSeriesKb,
+  niceKbInterval,
+} from '../../utils';
 import {formatBytesIec} from '../../../../base/bytes_format';
 import {Panel} from '../../components/panel';
 import {Grid, GridCell, GridHeaderCell} from '../../../../widgets/grid';
@@ -203,6 +209,11 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
   const pageFaultChartData = buildPageFaultTimeSeries(data, t0);
   const swapChartData = buildSwapTimeSeries(data, t0);
   const vmstatChartData = buildVmstatTimeSeries(data, t0);
+  // Fixed-width window ending at the latest sample; the chart clips points
+  // outside it and labels are relative to the latest sample (0s on the
+  // right, -60s on the left).
+  const xWindow = chartXWindow(data.xMax);
+  const formatX = formatRelativeXValue(data.xMax);
 
   return [
     m(
@@ -225,9 +236,9 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
               showLegend: true,
               showPoints: false,
               gridLines: 'both',
-              xAxisMin: data.xMin,
-              xAxisMax: data.xMax,
-              formatXValue: (v: number) => `${v.toFixed(0)}s`,
+              xAxisMin: xWindow.min,
+              xAxisMax: xWindow.max,
+              formatXValue: formatX,
               formatYValue: (v: number) => `${v.toFixed(1)} ms/s`,
               // TODO(stevegolton): Add markers back in when we support them in LineChartSvg.
               //   x: (ev.ts - t0) / 1e9,
@@ -257,9 +268,9 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
               showLegend: true,
               showPoints: false,
               gridLines: 'both',
-              xAxisMin: data.xMin,
-              xAxisMax: data.xMax,
-              formatXValue: (v: number) => `${v.toFixed(0)}s`,
+              xAxisMin: xWindow.min,
+              xAxisMax: xWindow.max,
+              formatXValue: formatX,
               formatYValue: (v: number) => `${v.toFixed(0)} f/s`,
             })
           : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
@@ -280,15 +291,15 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
           m(LineChartSvg, {
             data: swapChartData,
             height: 200,
-            xAxisMin: data.xMin,
-            xAxisMax: data.xMax,
+            xAxisMin: xWindow.min,
+            xAxisMax: xWindow.max,
             xAxisLabel: 'Time (s)',
             yAxisLabel: 'Swap',
             showLegend: true,
             showPoints: false,
             stacked: true,
             gridLines: 'both',
-            formatXValue: (v: number) => `${v.toFixed(0)}s`,
+            formatXValue: formatX,
             formatYValue: (v: number) => formatBytesIec(v * 1024),
             yAxisMinInterval: niceKbInterval(
               maxSeriesKb(swapChartData?.series ?? []),
@@ -310,15 +321,15 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
           Panel.Body,
           m(LineChartSvg, {
             data: vmstatChartData,
-            xAxisMin: data.xMin,
-            xAxisMax: data.xMax,
+            xAxisMin: xWindow.min,
+            xAxisMax: xWindow.max,
             height: 200,
             xAxisLabel: 'Time (s)',
             yAxisLabel: 'Pages/s',
             showLegend: true,
             showPoints: false,
             gridLines: 'both',
-            formatXValue: (v: number) => `${v.toFixed(0)}s`,
+            formatXValue: formatX,
             formatYValue: (v: number) => `${v.toFixed(0)} pg/s`,
           }),
         ),

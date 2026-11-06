@@ -38,7 +38,8 @@ export interface ProfileView {
 
 const SNAPSHOT_INTERVAL_MS = 3_000; // How over to take a snapshot of the runnign trace and extract data.
 const INITIAL_SNAPSHOT_INTERVAL_MS = 1_000; // Use a shorter interval for the first snapshot to get data on screen faster.
-const POLLING_INTERVAL_MS = 1_000; // Recording config polling interval for process stats and system stats.
+const POLLING_INTERVAL_MS = 1_000; // Recording config polling interval for system stats.
+const PROCESS_STATS_POLL_MS = 500; // 2x the default polling resolution for process memory counters.
 
 let engineCounter = 0;
 
@@ -389,7 +390,7 @@ function createMonitoringConfig(
           targetBufferName: 'polled_stats',
           processStatsConfig: {
             scanAllProcessesOnStart: false,
-            procStatsPollMs: POLLING_INTERVAL_MS,
+            procStatsPollMs: PROCESS_STATS_POLL_MS,
             recordProcessDmabufRss: true,
           },
         },

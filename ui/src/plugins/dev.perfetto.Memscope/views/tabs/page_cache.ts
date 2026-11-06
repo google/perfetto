@@ -21,7 +21,9 @@ import {
 import type {LiveSession, SnapshotData} from '../../sessions/live_session';
 import {
   billboardBytes,
+  chartXWindow,
   counterPoints,
+  formatRelativeXValue,
   maxSeriesKb,
   niceKbInterval,
 } from '../../utils';
@@ -220,6 +222,11 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
   const fileCacheBreakdownData = buildFileCacheBreakdownTimeSeries(data, t0);
   const fileCacheActivityData = buildFileCacheActivityTimeSeries(data, t0);
   const bb = getPageCacheBillboards(fileCacheBreakdownData);
+  // Fixed-width window ending at the latest sample; the chart clips points
+  // outside it and labels are relative to the latest sample (0s on the
+  // right, -60s on the left).
+  const xWindow = chartXWindow(data.xMax);
+  const formatX = formatRelativeXValue(data.xMax);
 
   return m.fragment({}, [
     bb !== undefined &&
@@ -262,9 +269,9 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
               showPoints: false,
               stacked: true,
               gridLines: 'both',
-              xAxisMin: data.xMin,
-              xAxisMax: data.xMax,
-              formatXValue: (v: number) => `${v.toFixed(0)}s`,
+              xAxisMin: xWindow.min,
+              xAxisMax: xWindow.max,
+              formatXValue: formatX,
               formatYValue: (v: number) => formatBytesIec(v * 1024),
               yAxisMinInterval: niceKbInterval(
                 maxSeriesKb(pageCacheChartData.series),
@@ -295,9 +302,9 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
               showLegend: true,
               showPoints: false,
               gridLines: 'both',
-              xAxisMin: data.xMin,
-              xAxisMax: data.xMax,
-              formatXValue: (v: number) => `${v.toFixed(0)}s`,
+              xAxisMin: xWindow.min,
+              xAxisMax: xWindow.max,
+              formatXValue: formatX,
               formatYValue: (v: number) => v.toLocaleString(),
             })
           : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
