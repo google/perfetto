@@ -19,10 +19,13 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/protozero/field.h"
 #include "src/traced/probes/cgroup/android_cgroups.h"
 #include "src/traced/probes/cgroup/memcg_fields.h"
@@ -52,26 +55,49 @@ class MemcgReader {
     std::vector<AndroidCgroupScope> scopes;
     // If zero: read once at the start.
     uint32_t poll_period_ms = 0;
+    // If caching to avoid emitting unchanged values, emit absolute snapshots
+    // after this many read calls. Zero if not caching.
+    uint32_t cache_ttl_polls = 0;
   };
 
   explicit MemcgReader(Config config,
                        std::string cgroup_root = "/sys/fs/cgroup");
 
   // Finds the cgroups in scope, reads the values, and serialises
-  // MemcgStats.Cgroup messages into |out|.
-  void Read(protos::pbzero::MemcgStats* out);
+  // MemcgStats.Cgroup messages into the message returned by |lazy_out|.
+  // |lazy_out| must return the same message every time. It's only called if
+  // there are values to record, so it can create the message on first use.
+  void Read(const std::function<protos::pbzero::MemcgStats*()>& lazy_out);
 
   const Config& config() const { return config_; }
 
  private:
+  // The last recorded values of a cgroup for caching: one per field in
+  // |config_.fields|, in field order, or nullopt if not recorded yet.
+  using CachedValues = std::vector<std::optional<uint64_t>>;
+
   // Reads the files of the cgroup at |path|, using |path_buf| and |file_buf|
   // as scratch space.
   MemcgValues ReadCgroup(const std::string& path,
                          std::string* path_buf,
                          std::string* file_buf);
 
+  // Records |values| as the last values of |cgroup|, and returns the ones that
+  // changed.
+  MemcgValues UpdateCache(const AndroidCgroup& cgroup,
+                          const MemcgValues& values);
+
   const Config config_;
   const std::string cgroup_root_;
+  // The cgroups recorded since the cache was last emptied, if caching.
+  // Note: unordered_map over base::FlatHashMap because we want to only allocate
+  // as much as needed, and lookup speed doesn't matter.
+  std::unordered_map<AndroidCgroup,
+                     CachedValues,
+                     base::MurmurHash<AndroidCgroup>>
+      cache_;
+  // Number of times Read() was called.
+  uint64_t read_count_ = 0;
 };
 
 }  // namespace perfetto

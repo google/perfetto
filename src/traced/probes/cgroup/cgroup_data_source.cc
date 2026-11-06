@@ -72,10 +72,17 @@ void CgroupDataSource::Tick() {
   // Use a single timestamp per tick for simplicity.
   auto start_ts = static_cast<uint64_t>(base::GetBootTimeNs().count());
 
-  auto packet = writer_->NewTracePacket();
-  packet->set_timestamp(start_ts);
-  auto* stats = packet->set_memcg_stats();
-  memcg_reader_->Read(stats);
+  // Only write a packet if there are values to record.
+  TraceWriter::TracePacketHandle packet;
+  protos::pbzero::MemcgStats* stats = nullptr;
+  memcg_reader_->Read([&] {
+    if (!stats) {
+      packet = writer_->NewTracePacket();
+      packet->set_timestamp(start_ts);
+      stats = packet->set_memcg_stats();
+    }
+    return stats;
+  });
 
   // Repost if periodic.
   uint32_t period_ms = memcg_reader_->config().poll_period_ms;
