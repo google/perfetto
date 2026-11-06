@@ -237,7 +237,7 @@ export const manifest: NodeManifest<FilterConfig> = {
   title: 'Filter',
   icon: 'filter_alt',
   getInputs: () => [{name: 'input', content: 'Input'}],
-  hue: 35,
+  hue: 18,
   schema: FilterConfigSchema,
   defaultConfig: () => ({
     conditions: [],

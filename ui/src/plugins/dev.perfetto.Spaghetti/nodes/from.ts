@@ -27,7 +27,7 @@ export type FromConfig = z.infer<typeof FromConfigSchema>;
 export const manifest: NodeManifest<FromConfig> = {
   title: 'From',
   icon: 'table_chart',
-  hue: 210,
+  hue: 204,
   schema: FromConfigSchema,
   defaultConfig: () => ({table: 'slice'}),
   isValid: (config) => config.table !== '',

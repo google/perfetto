@@ -168,7 +168,7 @@ export const manifest: NodeManifest<IntervalsFromEventsConfig> = {
     {name: 'input', content: 'Input'},
     {name: 'stop', content: 'Stop'},
   ],
-  hue: 318,
+  hue: 348,
   schema: IntervalsFromEventsConfigSchema,
   defaultConfig: () => ({
     partitionColumns: [],

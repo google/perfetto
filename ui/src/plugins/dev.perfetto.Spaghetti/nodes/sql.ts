@@ -67,7 +67,7 @@ function toColumnDef(col: SqlOutputColumn): ColumnDef {
 export const manifest: NodeManifest<SqlConfig> = {
   title: 'SQL',
   icon: 'code',
-  hue: 280,
+  hue: 250,
   schema: SqlConfigSchema,
   getInputs(config: SqlConfig): Port[] {
     const {inputPorts = []} = config;

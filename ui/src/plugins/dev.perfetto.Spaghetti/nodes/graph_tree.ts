@@ -153,7 +153,7 @@ export const manifest: NodeManifest<GraphTreeConfig> = {
     {name: 'edges', content: 'Edges'},
     {name: 'roots', content: 'Roots'},
   ],
-  hue: 260,
+  hue: 76,
   schema: GraphTreeConfigSchema,
   defaultConfig: () => ({
     kind: 'BFS',

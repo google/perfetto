@@ -229,7 +229,7 @@ export const manifest: NodeManifest<IntervalFlattenConfig> = {
   title: 'Interval Flatten',
   icon: 'layers',
   getInputs: () => [{name: 'input', content: 'Input'}],
-  hue: 350,
+  hue: 321,
   schema: IntervalFlattenConfigSchema,
   defaultConfig: () => ({
     partitionColumns: [],

@@ -117,7 +117,7 @@ export const manifest: NodeManifest<IntervalFillGapsConfig> = {
     {name: 'input', content: 'Input'},
     {name: 'background', content: 'Background'},
   ],
-  hue: 325,
+  hue: 339,
   schema: IntervalFillGapsConfigSchema,
   defaultConfig: () => ({partitionColumns: []}),
   isValid: () => true,

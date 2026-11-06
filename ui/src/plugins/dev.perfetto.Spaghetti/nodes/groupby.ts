@@ -328,7 +328,7 @@ export const manifest: NodeManifest<GroupByConfig> = {
   title: 'Group By',
   icon: 'workspaces',
   getInputs: () => [{name: 'input', content: 'Input'}],
-  hue: 275,
+  hue: 266,
   schema: GroupByConfigSchema,
   defaultConfig: () => ({groupColumns: [], aggregations: []}),
   render,

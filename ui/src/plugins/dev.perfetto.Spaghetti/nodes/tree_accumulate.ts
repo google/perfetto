@@ -217,7 +217,7 @@ export const manifest: NodeManifest<TreeAccumulateConfig> = {
   title: 'Tree Accumulate',
   icon: 'mediation',
   getInputs: () => [{name: 'input', content: 'Input'}],
-  hue: 290,
+  hue: 94,
   schema: TreeAccumulateConfigSchema,
   defaultConfig: () => ({
     direction: 'UP',
