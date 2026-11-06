@@ -596,7 +596,7 @@ std::unique_ptr<TraceBufferV2> TraceBufferV2::Create(size_t size_in_bytes,
   // efficiency.
   static_assert(sizeof(TBChunk) == 16);
   static_assert(alignof(TBChunk) == 4);
-  // CloneReadOnly() and CompactChunks() copy chunks as raw bytes.
+  // CloneReadOnly() and MaybeCompact() copy chunks as raw bytes.
   static_assert(std::is_trivially_copyable_v<TBChunk>);
   std::unique_ptr<TraceBufferV2> trace_buffer(new TraceBufferV2(pol));
   if (!trace_buffer->Initialize(size_in_bytes))
@@ -711,19 +711,11 @@ bool TraceBufferV2::ReadNextTracePacket(
 }
 
 void TraceBufferV2::MaybeCompact() {
-  // Standalone kDiscard buffers must not regain space after reads.
-  if (overwrite_policy_ != kOverwrite) {
-    chunk_seq_reader_.reset();
+  TRACE_BUFFER_V2_DLOG("MaybeCompact(), wr_=%zu", wr_);
+  chunk_seq_reader_.reset();
+  if (read_only_) {
     return;
   }
-  CompactChunks();
-}
-
-void TraceBufferV2::CompactChunks() {
-  TRACE_BUFFER_V2_DLOG("CompactChunks(), wr_=%zu", wr_);
-  chunk_seq_reader_.reset();
-  if (read_only_)
-    return;
 
   // The read cycle is complete, so usually only a few chunks remain.
   size_t num_chunks = 0;
@@ -1372,7 +1364,7 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
   // This loop erases all the existing chunks in the clear range.
   for (size_t off = wr_, next_off = 0; off < clear_end; off = next_off) {
     if (PERFETTO_UNLIKELY(off >= used_size_)) {
-      // This happens on the first round of writing, or after CompactChunks()
+      // This happens on the first round of writing, or after MaybeCompact()
       // shrinks |used_size_|, when there are no chunks in this range.
       // There is nothing to delete here, easy.
       break;

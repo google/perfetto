@@ -490,7 +490,7 @@ class TraceBufferV2 : public TraceBuffer {
   // Compaction can invalidate packet slices from earlier reads, so the caller
   // must not use those packets after MaybeCompact().
   //
-  // This is a no-op if the buffer is read-only or if it is a kDiscard buffer.
+  // This is a no-op if the buffer is read-only.
   void MaybeCompact() override;
 
   // Creates a read-only clone of the trace buffer. The read iterators of the
@@ -552,11 +552,6 @@ class TraceBufferV2 : public TraceBuffer {
   bool MakeSpaceToWrite(size_t size);
   void DeleteNextChunksFor(size_t bytes_to_clear);
 
-  // Same as MaybeCompact(), but also runs in kDiscard buffers, so their freed
-  // space can take new writes.
-  // Writes stopped by |discard_writes_| stay stopped.
-  void CompactChunks();
-
   // Makes a reassembled SMB v2 packet length-delimited protobuf. A packet
   // without nested messages keeps its slices into the buffer, as an SMB
   // packet does. Otherwise the packet gets one owned slice. Returns false,
@@ -613,16 +608,16 @@ class TraceBufferV2 : public TraceBuffer {
   size_t size_ = 0;  // Size in bytes of |data_|.
 
   // High watermark of the written bytes (<= |size_|).
-  // Writes increase it until the write cursor wraps around, and CompactChunks()
+  // Writes increase it until the write cursor wraps around, and MaybeCompact()
   // sets it to the total size of the remaining chunks.
   // Reads and overwrites stop here, and [used_size_, size_) is zero-filled.
   size_t used_size_ = 0;
 
-  // Where the last madvise in CompactChunks() began.
+  // Where the last madvise in MaybeCompact() began.
   // The whole pages from here to |size_| are released or were never written.
-  // Writes after that can go past it. If they do, the next CompactChunks()
-  // first raises it to |used_size_|, to cover the pages they touched.
-  // CompactChunks() then uses it to skip a madvise that would release nothing.
+  // Writes after that can go past it. If they do, the next MaybeCompact() first
+  // raises it to |used_size_|, to cover the pages they touched.
+  // MaybeCompact() then uses it to skip a madvise that would release nothing.
   size_t prev_madvise_begin_ = 0;
 
   // Set when the first chunk is written, and never cleared.

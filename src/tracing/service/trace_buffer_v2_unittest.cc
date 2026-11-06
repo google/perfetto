@@ -79,11 +79,10 @@ class TraceBufferV2Test : public testing::Test {
   }
 
   // The TEST_F subclasses do not inherit friendship, so expose the private
-  // staging operations through this fixture.
+  // staging operation through this fixture.
   bool WriteWouldWrapOrOverwrite(size_t payload_size) {
     return trace_buffer()->WriteWouldWrapOrOverwrite(payload_size);
   }
-  void CompactChunks() { trace_buffer()->CompactChunks(); }
 
   void TearDown() override {
     // Test that the used_size() logic works and that all the data after that
@@ -2783,27 +2782,6 @@ TEST_F(TraceBufferV2Test, DiscardPolicy_FillsExactlyThenDiscards) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
-TEST_F(TraceBufferV2Test, DiscardPolicy_ReadsDoNotReclaimSpace) {
-  ResetBuffer(4096, TraceBufferV2::kDiscard);
-  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
-      .AddPacket(4096 - 16, 'a')
-      .CopyIntoTraceBuffer();
-  trace_buffer()->BeginRead();
-  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4096 - 16, 'a')));
-  ASSERT_THAT(ReadPacket(), IsEmpty());
-
-  // Standalone reads call MaybeCompact(), but must not restore write space.
-  trace_buffer()->MaybeCompact();
-  EXPECT_EQ(trace_buffer()->used_size(), 4096u);
-  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
-      .AddPacket(16, 'b')
-      .CopyIntoTraceBuffer();
-  EXPECT_EQ(trace_buffer()->stats().bytes_written(), 4096u);
-  EXPECT_EQ(trace_buffer()->stats().chunks_discarded(), 1u);
-  trace_buffer()->BeginRead();
-  EXPECT_THAT(ReadPacket(), IsEmpty());
-}
-
 // Verify write_wrap_count increments every time a write needs to wrap, and
 // that filling the buffer exactly defers the increment until the next write.
 TEST_F(TraceBufferV2Test, WriteWrapCount) {
@@ -5338,7 +5316,7 @@ TEST_F(TraceBufferV2Test, Staging_CompactionKeepsWritesStopped) {
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4096 - 16, 'a')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
-  CompactChunks();
+  trace_buffer()->MaybeCompact();
   ASSERT_EQ(trace_buffer()->used_size(), 0u);
 
   // Compaction reclaimed all space, but intake must remain stopped.
