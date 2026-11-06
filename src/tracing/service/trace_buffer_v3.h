@@ -64,8 +64,9 @@ namespace internal {
 //   +---------------+------------------------+
 //   |<-------------- bundle_size ----------->|
 //
-// - |bundle_header| has three uint32_t fields.
+// - |bundle_header| has four uint32_t fields.
 //   - |bundle_size| is the size of the whole bundle, including this header.
+//   - |bundle_id| uniquely identifies the bundle among stored bundles.
 //   - |num_sequences| is the number of distinct sequences in the bundle.
 //     Stored in the header so an overwrite doesn't have to decompress the
 //     bundle.
@@ -86,6 +87,7 @@ namespace internal {
 // The header stored before each bundle's compressed packet data.
 struct BundleHeader {
   uint32_t bundle_size = 0;
+  uint32_t bundle_id = 0;
   uint32_t num_sequences = 0;
   uint32_t packet_data_size = 0;
 };
@@ -125,9 +127,8 @@ class BundleBuffer {
   size_t free_size() const { return capacity() - used_size(); }
   bool empty() const { return begin_ == end_; }
 
-  // A bundle's id is the number of bundles pushed before it.
-  uint64_t begin_bundle_id() const { return begin_bundle_id_; }
-  uint64_t end_bundle_id() const { return end_bundle_id_; }
+  // The id PushBack() stores in the next bundle's header.
+  uint32_t next_bundle_id() const { return next_bundle_id_; }
 
  private:
   // Appends |size| bytes from |src| to the ring buffer, advancing |end_|.
@@ -159,10 +160,8 @@ class BundleBuffer {
   uint64_t begin_ = 0;  // Start of the front bundle.
   uint64_t end_ = 0;    // End of the newest bundle, where PushBack() writes.
 
-  // Stored bundles have ids in [begin_bundle_id_, end_bundle_id_).
-  // Unlike |begin_| and |end_|, these don't reset when the buffer empties.
-  uint64_t begin_bundle_id_ = 0;  // Id of the front bundle.
-  uint64_t end_bundle_id_ = 0;    // Id of the next pushed bundle.
+  // Monotonic counter that gives the next pushed bundle its id.
+  uint32_t next_bundle_id_ = 0;
 
   // One past the highest byte written in |data_| since last MaybeCompact().
   size_t max_written_offset_ = 0;
@@ -379,7 +378,7 @@ class TraceBufferV3 : public TraceBuffer {
   // Returns the entry for |sequence_index| in bundle |bundle_id|.
   // A bundle keeps its entries until it leaves |bundle_buf_|, so a miss means a
   // bug.
-  BundleSequence& GetBundleSequence(uint64_t bundle_id,
+  BundleSequence& GetBundleSequence(uint32_t bundle_id,
                                     uint32_t sequence_index);
 
   // Builds one bundle from complete packets in |staging_buf_|.
@@ -455,7 +454,7 @@ class TraceBufferV3 : public TraceBuffer {
   internal::BundleBuffer bundle_buf_;
 
   // Bundle id and the sequence's index in that bundle.
-  using BundleSequenceKey = std::pair<uint64_t, uint32_t>;
+  using BundleSequenceKey = std::pair<uint32_t, uint32_t>;
 
   // Holds one entry for each sequence of the open bundle and of each bundle in
   // |bundle_buf_|.

@@ -453,8 +453,8 @@ TEST(BundleBufferTest, CloneCopiesStoredBundles) {
   ASSERT_TRUE(clone.CloneFrom(src));
   EXPECT_EQ(clone.capacity(), src.capacity());
   EXPECT_EQ(clone.used_size(), 2 * bundle_size);
-  EXPECT_EQ(clone.end_bundle_id(), 3u);
-  EXPECT_EQ(clone.begin_bundle_id(), 1u);
+  EXPECT_EQ(clone.next_bundle_id(), 3u);
+  EXPECT_EQ(clone.PeekFrontHeader().bundle_id, 1u);
 
   // Overwriting all of the source must not change the clone.
   src.PopFront();
@@ -480,27 +480,25 @@ TEST(BundleBufferTest, BundleIdsSurviveEmptying) {
       reinterpret_cast<const uint8_t*>("abcdefgh"), 8};
   BundleBuffer buf;
   ASSERT_TRUE(buf.Initialize(4096));
-  EXPECT_EQ(buf.end_bundle_id(), 0u);
-  EXPECT_EQ(buf.begin_bundle_id(), 0u);
+  EXPECT_EQ(buf.next_bundle_id(), 0u);
 
   buf.PushBack(/*num_sequences=*/1, /*packet_data_size=*/80,
                compressed_packet_data);
   buf.PushBack(/*num_sequences=*/1, /*packet_data_size=*/81,
                compressed_packet_data);
-  EXPECT_EQ(buf.end_bundle_id(), 2u);
-  EXPECT_EQ(buf.begin_bundle_id(), 0u);
+  EXPECT_EQ(buf.next_bundle_id(), 2u);
+  EXPECT_EQ(buf.PeekFrontHeader().bundle_id, 0u);
 
   buf.PopFront();
-  EXPECT_EQ(buf.begin_bundle_id(), 1u);
+  EXPECT_EQ(buf.PeekFrontHeader().bundle_id, 1u);
   buf.PopFront();
   ASSERT_TRUE(buf.empty());
-  EXPECT_EQ(buf.end_bundle_id(), 2u);
-  EXPECT_EQ(buf.begin_bundle_id(), 2u);
+  EXPECT_EQ(buf.next_bundle_id(), 2u);
 
   buf.PushBack(/*num_sequences=*/1, /*packet_data_size=*/82,
                compressed_packet_data);
-  EXPECT_EQ(buf.end_bundle_id(), 3u);
-  EXPECT_EQ(buf.begin_bundle_id(), 2u);
+  EXPECT_EQ(buf.next_bundle_id(), 3u);
+  EXPECT_EQ(buf.PeekFrontHeader().bundle_id, 2u);
 }
 
 // ---------------------------------------------------------------------------
