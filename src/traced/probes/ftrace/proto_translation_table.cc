@@ -532,6 +532,19 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
       }
     }
 
+    if (!strcmp(event.group, "hypervisor") &&
+        (!strcmp(event.name, "func") || !strcmp(event.name, "func_ret"))) {
+      for (auto& field : ftrace_event.fields) {
+        if (GetNameFromTypeAndName(field.type_and_name) == "ip") {
+          field.type_and_name = "void * ip";
+          break;
+        } else if (GetNameFromTypeAndName(field.type_and_name) == "parent") {
+          field.type_and_name = "void * parent";
+          break;
+        }
+      }
+    }
+
     event.ftrace_event_id = ftrace_event.id;
 
     if (!common_fields_processed) {
