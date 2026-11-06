@@ -26,6 +26,7 @@ namespace perfetto::trace_processor::winscope::surfaceflinger_layers {
 
 namespace {
 using ColorDecoder = com::android::internal::pbzero::ColorProto::Decoder;
+using VisibilityReason = com::android::internal::pbzero::VisibilityReason;
 
 bool IsHiddenByParent(
     const LayerDecoder& layer,
@@ -183,6 +184,14 @@ geometry::Rect GetDisplayCrop(
   }
   return display_crop;
 }
+
+// Whether SurfaceFlinger's FrontEnd wrote its visibility verdict. It writes
+// is_visible together with the reason.
+bool HasFrontEndVisibility(const LayerDecoder& layer) {
+  return layer.has_visibility_reason() &&
+         layer.visibility_reason() !=
+             VisibilityReason::VISIBILITY_REASON_UNSPECIFIED;
+}
 }  // namespace
 
 VisibilityComputation::VisibilityComputation(
@@ -206,7 +215,34 @@ VisibilityComputation::VisibilityComputation(
       empty_visible_region_id_(pool_->InternString(
           "visible region calculated by Composition Engine is empty")),
       null_visible_region_id_(pool_->InternString("null visible region")),
-      occluded_id_(pool_->InternString("occluded")) {}
+      occluded_id_(pool_->InternString("occluded")),
+      frontend_reason_ids_({
+          {VisibilityReason::VISIBILITY_REASON_NOT_REACHABLE,
+           pool_->InternString("not reachable from the root")},
+          {VisibilityReason::
+               VISIBILITY_REASON_ONLY_REACHABLE_BY_RELATIVE_PARENT,
+           pool_->InternString("only reachable via a relative parent")},
+          {VisibilityReason::VISIBILITY_REASON_HIDDEN_BY_POLICY,
+           pool_->InternString("flag is hidden or hidden by parent")},
+          {VisibilityReason::VISIBILITY_REASON_HIDDEN_BY_RELATIVE_PARENT,
+           pool_->InternString("hidden by relative parent")},
+          {VisibilityReason::VISIBILITY_REASON_INVALID_TRANSFORM,
+           transform_is_invalid_id_},
+          {VisibilityReason::VISIBILITY_REASON_ALPHA_ZERO, alpha_is_zero_id_},
+          {VisibilityReason::VISIBILITY_REASON_NOTHING_TO_DRAW,
+           pool_->InternString("does not have a buffer, color fill or effect")},
+          {VisibilityReason::VISIBILITY_REASON_NO_DISPLAY,
+           pool_->InternString("not on any display")},
+          {VisibilityReason::VISIBILITY_REASON_EMPTY_BOUNDS,
+           bounds_is_zero_id_},
+          {VisibilityReason::VISIBILITY_REASON_OCCLUDED, occluded_id_},
+          {VisibilityReason::VISIBILITY_REASON_OUTSIDE_DISPLAY,
+           pool_->InternString("visible region is outside the display")},
+          {VisibilityReason::VISIBILITY_REASON_TRANSPARENT_REGION,
+           pool_->InternString(
+               "visible region is covered by the transparent region")},
+      }),
+      unknown_reason_id_(pool_->InternString("unknown reason")) {}
 
 std::unordered_map<int32_t, VisibilityProperties>
 VisibilityComputation::Compute() {
@@ -233,7 +269,11 @@ VisibilityProperties VisibilityComputation::IsLayerVisible(
     bool excludes_composition_state,
     const std::optional<geometry::Rect> crop) {
   VisibilityProperties res;
-  res.is_visible = IsLayerVisibleInIsolation(layer, excludes_composition_state);
+  // SurfaceFlinger's verdict already accounts for the layers above.
+  const bool from_frontend = HasFrontEndVisibility(layer);
+  res.is_visible = from_frontend ? layer.is_visible()
+                                 : IsLayerVisibleInIsolation(
+                                       layer, excludes_composition_state);
 
   if (res.is_visible) {
     for (const auto opaque_layer_id : opaque_layer_ids) {
@@ -242,7 +282,7 @@ VisibilityProperties VisibilityComputation::IsLayerVisible(
         continue;
       }
 
-      if (LayerContains(opaque_layer, layer, crop)) {
+      if (!from_frontend && LayerContains(opaque_layer, layer, crop)) {
         res.is_visible = false;
         res.occluding_layers.push_back(opaque_layer.id());
         continue;
@@ -275,7 +315,22 @@ VisibilityProperties VisibilityComputation::IsLayerVisible(
     }
   }
 
-  if (!res.is_visible) {
+  if (from_frontend && !res.is_visible) {
+    const auto reason = frontend_reason_ids_.find(layer.visibility_reason());
+    res.visibility_reasons.push_back(reason != frontend_reason_ids_.end()
+                                         ? reason->second
+                                         : unknown_reason_id_);
+    if (layer.visibility_reason() ==
+        VisibilityReason::VISIBILITY_REASON_OCCLUDED) {
+      for (const auto opaque_layer_id : opaque_layer_ids) {
+        const auto& opaque_layer = layers_by_id_.at(opaque_layer_id);
+        if (opaque_layer.layer_stack() == layer.layer_stack() &&
+            LayerOverlaps(opaque_layer, layer, crop)) {
+          res.occluding_layers.push_back(opaque_layer_id);
+        }
+      }
+    }
+  } else if (!res.is_visible) {
     res.visibility_reasons = GetVisibilityReasons(
         layer, excludes_composition_state, res.occluding_layers);
   }
