@@ -101,15 +101,6 @@ StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
   return context->storage->InternString(base::StringView(jank_str));
 }
 
-StringId InputJankToStringId(TraceProcessorContext* context,
-                             std::optional<bool> is_janky) {
-  if (!is_janky.has_value())
-    return context->storage->InternString("Unspecified");
-  if (*is_janky)
-    return context->storage->InternString("Missed Expected Deadline");
-  return context->storage->InternString("None");
-}
-
 bool DisplayFrameJanky(int32_t jank_type) {
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED ||
       jank_type == FrameTimelineEvent::JANK_NON_ANIMATING ||
@@ -286,10 +277,8 @@ FrameTimelineEventParser::FrameTimelineEventParser(
           context->storage->InternString("SurfaceFlinger Stuffing")),
       jank_tag_none_perceivable_id_(
           context->storage->InternString("Non-perceivable Jank")),
-      expected_frame_cat_id_(
-          context->storage->InternString("expected_frame")),
-      expected_frame_name_id_(
-          context->storage->InternString("Expected Frame")),
+      expected_frame_cat_id_(context->storage->InternString("expected_frame")),
+      expected_frame_name_id_(context->storage->InternString("Expected Frame")),
       actual_frame_cat_id_(context->storage->InternString("actual_frame")),
       actual_frame_name_id_(context->storage->InternString("Actual Frame")) {}
 
@@ -550,12 +539,11 @@ StringId FrameTimelineEventParser::CalculateSurfaceFrameJankTag(
   return jank_tag;
 }
 
-void FrameTimelineEventParser::InsertInputFlows(
-    UniquePid upid,
-    int64_t actual_token,
-    int64_t expected_token,
-    SliceId input_slice_id,
-    SliceId actual_frame_slice_id) {
+void FrameTimelineEventParser::InsertInputFlows(UniquePid upid,
+                                                int64_t actual_token,
+                                                int64_t expected_token,
+                                                SliceId input_slice_id,
+                                                SliceId actual_frame_slice_id) {
   // When the expected frame token reported by FrameTimeline differs from the
   // actual frame token, emit two flows (one to the expected frame slice and one
   // to the actual frame slice); otherwise emit a single flow to the actual
@@ -563,12 +551,12 @@ void FrameTimelineEventParser::InsertInputFlows(
   if (expected_token >= 0 && expected_token != actual_token) {
     auto exp_slice_it = expected_timeline_slice_map_[upid].find(expected_token);
     if (exp_slice_it != expected_timeline_slice_map_[upid].end()) {
-      context_->flow_tracker->InsertFlow(
-          input_slice_id, exp_slice_it->second, expected_frame_cat_id_,
-          expected_frame_name_id_);
-      context_->flow_tracker->InsertFlow(
-          input_slice_id, actual_frame_slice_id, actual_frame_cat_id_,
-          actual_frame_name_id_);
+      context_->flow_tracker->InsertFlow(input_slice_id, exp_slice_it->second,
+                                         expected_frame_cat_id_,
+                                         expected_frame_name_id_);
+      context_->flow_tracker->InsertFlow(input_slice_id, actual_frame_slice_id,
+                                         actual_frame_cat_id_,
+                                         actual_frame_name_id_);
       return;
     }
   }
@@ -604,20 +592,14 @@ void FrameTimelineEventParser::ParseInputTimelineStart(int64_t timestamp,
   StringId input_name_id = context_->storage->InternString(
       base::StringView(std::to_string(input_event_id)));
 
-  // parse input jank type and tag
+  // parse input jank tag
   const std::optional<bool> is_janky_opt =
       info.has_is_janky() ? std::make_optional(info.is_janky()) : std::nullopt;
-  StringId input_jank_type;
   StringId input_jank_tag;
   if (event.has_present_type() &&
       event.present_type() == FrameTimelineEvent::PRESENT_DROPPED) {
     input_jank_tag = jank_tag_dropped_id_;
-    input_jank_type =
-        is_janky_opt.value_or(false)
-            ? InputJankToStringId(context_, is_janky_opt)
-            : context_->storage->InternString("Dropped Frame");
   } else {
-    input_jank_type = InputJankToStringId(context_, is_janky_opt);
     input_jank_tag =
         !is_janky_opt.has_value()
             ? jank_tag_unspecified_id_
@@ -645,11 +627,10 @@ void FrameTimelineEventParser::ParseInputTimelineStart(int64_t timestamp,
                           Variadic::Integer(info.expected_deadline_nanos()));
         }
         if (event.has_input_latency_millis()) {
-          inserter.AddArg(
-              input_latency_millis_id_,
-              Variadic::Real(static_cast<double>(event.input_latency_millis())));
+          inserter.AddArg(input_latency_millis_id_,
+                          Variadic::Real(static_cast<double>(
+                              event.input_latency_millis())));
         }
-        inserter.AddArg(jank_type_id_, Variadic::String(input_jank_type));
         inserter.AddArg(jank_tag_id_, Variadic::String(input_jank_tag));
       });
   if (!input_slice_id) {
@@ -789,9 +770,9 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
                           Variadic::Real(animation_time_millis));
         }
         if (event.has_input_latency_millis()) {
-          inserter.AddArg(
-              input_latency_millis_id_,
-              Variadic::Real(static_cast<double>(event.input_latency_millis())));
+          inserter.AddArg(input_latency_millis_id_,
+                          Variadic::Real(static_cast<double>(
+                              event.input_latency_millis())));
         }
         inserter.AddArg(present_delay_millis_id_,
                         Variadic::Real(present_delay_millis));
@@ -825,7 +806,8 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
               Variadic::String(latched_fence_state_ids_[static_cast<size_t>(
                   event.latched_fence_state())]));
         }
-        // Attach per-input-event timeline metadata to the Actual Timeline slice.
+        // Attach per-input-event timeline metadata to the Actual Timeline
+        // slice.
         size_t idx = 0;
         for (auto it = event.input_timeline_info(); it; ++it, ++idx) {
           FrameTimelineEvent::InputTimelineInfo::Decoder info(*it);

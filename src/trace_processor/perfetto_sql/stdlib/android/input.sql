@@ -118,8 +118,7 @@ SELECT
   cast_int!(ui_thread_utid) AS utid,
   frame_id
 FROM android_frames_choreographer_do_frame AS f
-JOIN slice AS do_frame_slice
-  ON f.id = do_frame_slice.id;
+JOIN slice AS do_frame_slice ON f.id = do_frame_slice.id;
 
 CREATE PERFETTO TABLE _clean_deliver_events AS
 SELECT
@@ -136,8 +135,7 @@ SELECT
   parent.ts + parent.dur AS finish_time
 FROM slice AS s
 JOIN thread_slice AS t USING (id)
-JOIN slice AS parent
-  ON s.parent_id = parent.id
+JOIN slice AS parent ON s.parent_id = parent.id
 WHERE
   s.name GLOB 'deliverInputEvent src=*';
 
@@ -184,9 +182,7 @@ WITH
       f.do_frame_id AS do_frame_id_key,
       row_number() OVER (PARTITION BY e.id ORDER BY f.do_frame_ts) AS rn
     FROM _input_events_pending_frame_match AS e
-    JOIN _clean_android_frames AS f
-      ON e.utid = f.utid
-      AND f.do_frame_ts >= e.ts
+    JOIN _clean_android_frames AS f ON e.utid = f.utid AND f.do_frame_ts >= e.ts
   )
 SELECT do_frame_id_key, event_id_key, 1 AS is_speculative_match
 FROM _ordered_future_frames
@@ -657,8 +653,7 @@ SELECT
   s.dur,
   cast_int!(STR_SPLIT(s.name, ' ', 1)) AS vsync_id
 FROM slice AS s
-JOIN thread_track AS t
-  ON s.track_id = t.id
+JOIN thread_track AS t ON s.track_id = t.id
 JOIN thread USING (utid)
 JOIN process USING (upid)
 WHERE
