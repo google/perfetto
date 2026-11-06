@@ -3159,6 +3159,7 @@ cc_test {
         ":perfetto_src_trace_processor_core_tree_tree",
         ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
+        ":perfetto_src_trace_processor_importers_android_android",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_log_event",
@@ -18392,6 +18393,14 @@ genrule {
     ],
 }
 
+// GN: //src/trace_processor/importers/android:android
+filegroup {
+    name: "perfetto_src_trace_processor_importers_android_android",
+    srcs: [
+        "src/trace_processor/importers/android/unknown_process_logger.cc",
+    ],
+}
+
 // GN: //src/trace_processor/importers/android_bugreport:android_bugreport
 filegroup {
     name: "perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
@@ -21910,6 +21919,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_core_tree_tree",
         ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
+        ":perfetto_src_trace_processor_importers_android_android",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_log_event",
@@ -25020,6 +25030,7 @@ cc_test {
         ":perfetto_src_trace_processor_core_util_unittests",
         ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
+        ":perfetto_src_trace_processor_importers_android_android",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_log_event",
@@ -26215,6 +26226,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_core_tree_tree",
         ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
+        ":perfetto_src_trace_processor_importers_android_android",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_log_event",
@@ -26936,6 +26948,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_core_tree_tree",
         ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
+        ":perfetto_src_trace_processor_importers_android_android",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_log_event",

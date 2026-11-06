@@ -19,6 +19,7 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -59,8 +60,8 @@ AndroidProcessStateTracker::AndroidProcessStateTracker(
     : context_(context),
       process_state_table_(process_state_table),
       freezer_state_table_(freezer_state_table),
-      capability_flags_id_(context->storage->InternString("capability_flags")) {
-}
+      capability_flags_id_(context->storage->InternString("capability_flags")),
+      unknown_process_logger_(context) {}
 
 // The track-event stream only emits delta transitions (prev -> cur). To
 // reconstruct each process's state at the start of the trace, we record the
@@ -80,13 +81,14 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
     int64_t ts,
     protozero::ConstBytes bytes) {
   fb::AndroidProcessStateChangedEvent::Decoder p(bytes);
-  if (!p.has_pid()) {
+  if (!p.has_pid() || p.pid() <= 0) {
     return;
   }
-  int32_t pid = p.pid();
+  auto pid = static_cast<uint32_t>(p.pid());
   std::optional<UniquePid> opt_upid =
-      context_->process_tracker->GetProcessOrNull(static_cast<uint32_t>(pid));
+      context_->process_tracker->GetProcessOrNull(pid);
   if (!opt_upid) {
+    unknown_process_logger_.Record(ts, "process_state_changed", pid);
     return;
   }
   UniquePid upid = *opt_upid;
@@ -143,6 +145,7 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
 }
 
 void AndroidProcessStateTracker::ParseProcessStateDump(
+    int64_t ts,
     protozero::ConstBytes blob) {
   fb::AndroidProcessStateSnapshot::Decoder dump(blob);
   // The trace-start dump carries no state. It is handled by
@@ -153,13 +156,19 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
   }
   for (auto it = dump.record(); it; ++it) {
     fb::AndroidProcessStateSnapshot::Record::Decoder rec(*it);
-    if (!rec.has_pid()) {
+    if (!rec.has_pid() || rec.pid() <= 0) {
       continue;
     }
+    auto pid = static_cast<uint32_t>(rec.pid());
     std::optional<UniquePid> opt_upid =
-        context_->process_tracker->GetProcessOrNull(
-            static_cast<uint32_t>(rec.pid()));
+        context_->process_tracker->GetProcessOrNull(pid);
     if (!opt_upid) {
+      std::optional<int64_t> start_seq_id;
+      if (rec.has_start_seq_id()) {
+        start_seq_id = rec.start_seq_id();
+      }
+      unknown_process_logger_.Record(ts, "process_dump", pid,
+                                     rec.process_name(), start_seq_id);
       continue;
     }
     ProcessStateValues v;
@@ -187,13 +196,14 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
     int64_t ts,
     protozero::ConstBytes bytes) {
   fb::AndroidFreezerEvent::Decoder evt(bytes);
-  if (!evt.has_pid()) {
+  if (!evt.has_pid() || evt.pid() <= 0) {
     return;
   }
+  auto pid = static_cast<uint32_t>(evt.pid());
   std::optional<UniquePid> opt_upid =
-      context_->process_tracker->GetProcessOrNull(
-          static_cast<uint32_t>(evt.pid()));
+      context_->process_tracker->GetProcessOrNull(pid);
   if (!opt_upid) {
+    unknown_process_logger_.Record(ts, "freezer_event", pid);
     return;
   }
   tables::AndroidFreezerStateTable::Row row;
@@ -215,17 +225,19 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
   freezer_state_table_->Insert(row);
 }
 
-void AndroidProcessStateTracker::ParseFreezerDump(protozero::ConstBytes blob) {
+void AndroidProcessStateTracker::ParseFreezerDump(int64_t ts,
+                                                  protozero::ConstBytes blob) {
   fb::AndroidFreezerStateSnapshot::Decoder dump(blob);
   for (auto it = dump.record(); it; ++it) {
     fb::AndroidFreezerStateSnapshot::Record::Decoder rec(*it);
-    if (!rec.has_pid()) {
+    if (!rec.has_pid() || rec.pid() <= 0) {
       continue;
     }
+    auto pid = static_cast<uint32_t>(rec.pid());
     std::optional<UniquePid> opt_upid =
-        context_->process_tracker->GetProcessOrNull(
-            static_cast<uint32_t>(rec.pid()));
+        context_->process_tracker->GetProcessOrNull(pid);
     if (!opt_upid) {
+      unknown_process_logger_.Record(ts, "freezer_dump", pid);
       continue;
     }
     FreezerStateValues v;

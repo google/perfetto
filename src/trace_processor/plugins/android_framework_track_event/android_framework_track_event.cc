@@ -30,6 +30,7 @@
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
+#include "src/trace_processor/importers/android/unknown_process_logger.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event_extension_parser.h"
@@ -122,6 +123,7 @@ class Parser : public TrackEventExtensionParser {
          AndroidTrackEventProcessTableHolder* table)
       : TrackEventExtensionParser(extension_parser_context),
         trace_context_(context),
+        unknown_process_logger_(context),
         table_(table) {
     RegisterTrackEventExtension(FBTE::kProcessStartEventFieldNumber);
     RegisterTrackEventExtension(FBTE::kBinderDiedEventFieldNumber);
@@ -143,7 +145,7 @@ class Parser : public TrackEventExtensionParser {
         HandleBinderDied(field.Cast<FBTE::kBinderDiedEvent>(), ts);
         break;
       case FBTE::kProcessDiedEventFieldNumber:
-        HandleProcessDied(field.Cast<FBTE::kProcessDiedEvent>());
+        HandleProcessDied(field.Cast<FBTE::kProcessDiedEvent>(), ts);
         break;
       default:
         break;
@@ -215,13 +217,20 @@ class Parser : public TrackEventExtensionParser {
   // Returns the row of the process a death event refers to, identified by
   // |start_seq_id| and cross-checked against |pid|. Falls back to the live
   // process for |pid| when the event has no start_seq_id or it is unknown.
-  // Returns nullopt if the process is unknown or the two values disagree.
+  // Returns nullopt if the process is unknown or the two values disagree. On
+  // the |pid| fallback, records an unknown-process notice (with |ts|,
+  // |source|, |process_name| and |start_seq_id|) when no live process exists
+  // for |pid|.
   //
   // start_seq_id check comes first because AndroidProcessDiedEvent can arrive
   // up to ~15s after AndroidBinderDiedEvent, when the pid has already been
   // ended and possibly reused by another process.
   std::optional<AndroidTrackEventProcessTable::RowReference>
-  ResolveDyingProcess(uint32_t pid, std::optional<int64_t> start_seq_id) {
+  ResolveDyingProcess(uint32_t pid,
+                      std::optional<int64_t> start_seq_id,
+                      int64_t ts,
+                      const char* source,
+                      protozero::ConstChars process_name) {
     if (auto row = table_->FindRowByStartSeqId(start_seq_id)) {
       auto process = trace_context_->storage->process_table()[row->upid()];
       if (process.pid() != pid) {
@@ -232,6 +241,8 @@ class Parser : public TrackEventExtensionParser {
     std::optional<UniquePid> upid =
         trace_context_->process_tracker->GetProcessOrNull(pid);
     if (!upid) {
+      unknown_process_logger_.Record(ts, source, pid, process_name,
+                                     start_seq_id);
       return std::nullopt;
     }
     auto row = table_->GetOrInsertRow(*upid);
@@ -259,7 +270,8 @@ class Parser : public TrackEventExtensionParser {
     }
     // Ignores deaths for another process (e.g. an older process whose pid was
     // reused before it was ended) instead of ending the current one.
-    auto row = ResolveDyingProcess(pid, start_seq_id);
+    auto row = ResolveDyingProcess(pid, start_seq_id, ts, "binder_died",
+                                   evt.process_name());
     if (!row) {
       return;
     }
@@ -278,7 +290,7 @@ class Parser : public TrackEventExtensionParser {
 
   // Records why a process died. Ending the process is left to
   // AndroidBinderDiedEvent, which arrives earlier.
-  void HandleProcessDied(protozero::ConstBytes data) {
+  void HandleProcessDied(protozero::ConstBytes data, int64_t ts) {
     AndroidProcessDiedEvent::Decoder evt(data);
     if (!evt.has_pid() || evt.pid() <= 0) {
       return;
@@ -288,7 +300,8 @@ class Parser : public TrackEventExtensionParser {
       start_seq_id = evt.start_seq_id();
     }
     auto row =
-        ResolveDyingProcess(static_cast<uint32_t>(evt.pid()), start_seq_id);
+        ResolveDyingProcess(static_cast<uint32_t>(evt.pid()), start_seq_id, ts,
+                            "process_died", evt.process_name());
     if (!row) {
       return;
     }
@@ -316,6 +329,7 @@ class Parser : public TrackEventExtensionParser {
   }
 
   TraceProcessorContext* trace_context_;
+  UnknownProcessLogger unknown_process_logger_;
   DescriptorPool::CachedDescriptor trigger_type_cache_;
   DescriptorPool::CachedDescriptor hosting_type_cache_;
   DescriptorPool::CachedDescriptor exit_reason_cache_;
