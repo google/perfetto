@@ -384,11 +384,8 @@ void SerializeExpr(PlanCodec& c, Expr* e) {
   e->nodes.resize(c.Count(e->nodes.size()));
   for (ex::ExprStep& node : e->nodes) {
     c.Pod(&node.op);
-    c.Pod(&node.type);
     c.Pod(&node.a);
     c.Pod(&node.b);
-    c.Pod(&node.int_value);
-    c.Pod(&node.double_value);
   }
   e->literals.resize(c.Count(e->literals.size()));
   for (Literal& literal : e->literals) {
