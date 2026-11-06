@@ -259,6 +259,11 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     group: undefined,
   },
   {
+    type: 'pkvm_hypervisor_func',
+    topLevelGroup: 'HYPERVISOR',
+    group: undefined,
+  },
+  {
     type: 'virtio_video_queue_event',
     topLevelGroup: 'SYSTEM',
     group: 'Virtio Video Queue Events',

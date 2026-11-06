@@ -42,6 +42,13 @@ constexpr auto kPkvmBlueprint = tracks::SliceBlueprint(
       return base::StackString<255>("pkVM Hypervisor CPU %u", cpu);
     }));
 
+constexpr auto kPkvmFuncBlueprint = tracks::SliceBlueprint(
+    "pkvm_hypervisor_func",
+    tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
+    tracks::FnNameBlueprint([](uint32_t cpu) {
+      return base::StackString<255>("pKVM Hypervisor CPU %u Functions", cpu);
+    }));
+
 }  // namespace
 
 PkvmHypervisorCpuTracker::PkvmHypervisorCpuTracker(
@@ -72,7 +79,9 @@ PkvmHypervisorCpuTracker::PkvmHypervisorCpuTracker(
       host_smc_(context_->storage->InternString("host_smc")),
       forwarded_(context_->storage->InternString("forwarded")),
       host_mem_abort_(context_->storage->InternString("host_mem_abort")),
-      addr_(context_->storage->InternString("addr")) {}
+      addr_(context_->storage->InternString("addr")),
+      ip_(context_->storage->InternString("ip")),
+      parent_(context_->storage->InternString("parent")) {}
 
 // static
 bool PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(uint32_t event_id) {
@@ -103,10 +112,12 @@ bool PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(uint32_t event_id) {
   }
 }
 
-void PkvmHypervisorCpuTracker::ParseHypEvent(uint32_t cpu,
-                                             int64_t timestamp,
-                                             uint32_t event_id,
-                                             protozero::ConstBytes blob) {
+void PkvmHypervisorCpuTracker::ParseHypEvent(
+    uint32_t cpu,
+    int64_t timestamp,
+    uint32_t event_id,
+    protozero::ConstBytes blob,
+    std::function<StringId(uint64_t)> ksym_resolve) {
   using protos::pbzero::FtraceEvent;
   switch (event_id) {
     case FtraceEvent::kHypEnterFieldNumber:
@@ -147,8 +158,10 @@ void PkvmHypervisorCpuTracker::ParseHypEvent(uint32_t cpu,
       ParseVcuIllegalTrap(cpu, blob);
       break;
     case FtraceEvent::kHypervisorFuncFieldNumber:
+      ParseFunc(cpu, timestamp, blob, ksym_resolve);
+      break;
     case FtraceEvent::kHypervisorFuncRetFieldNumber:
-      // TODO(bgrzesik): add processsing
+      ParseFuncRet(cpu, timestamp);
       break;
     // TODO(b/249050813): add remaining hypervisor events
     default:
@@ -275,6 +288,40 @@ void PkvmHypervisorCpuTracker::ParseVcuIllegalTrap(uint32_t cpu,
                         Variadic::String(vcpu_illegal_trap_));
         inserter.AddArg(esr_, Variadic::UnsignedInteger(evt.esr()));
       });
+}
+
+void PkvmHypervisorCpuTracker::ParseFunc(
+    uint32_t cpu,
+    int64_t timestamp,
+    protozero::ConstBytes blob,
+    std::function<StringId(uint64_t)> ksym_resolve) {
+  protos::pbzero::HypervisorFuncFtraceEvent::Decoder evt(blob);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kPkvmFuncBlueprint, tracks::Dimensions(cpu));
+
+  StringId ip = StripSymPrefix(ksym_resolve(evt.ip()));
+  StringId parent = StripSymPrefix(ksym_resolve(evt.parent()));
+
+  context_->slice_tracker->Begin(
+      timestamp, track_id, category_, ip, [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(ip_, Variadic::String(ip));
+        inserter.AddArg(parent_, Variadic::String(parent));
+      });
+}
+
+void PkvmHypervisorCpuTracker::ParseFuncRet(uint32_t cpu, int64_t timestamp) {
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kPkvmFuncBlueprint, tracks::Dimensions(cpu));
+
+  context_->slice_tracker->End(timestamp, track_id);
+}
+
+StringId PkvmHypervisorCpuTracker::StripSymPrefix(StringId id) {
+  static constexpr char kPrefix[] = "__kvm_nvhe_";
+  NullTermStringView str = context_->storage->GetString(id);
+  if (!base::StartsWith(str.c_str(), kPrefix))
+    return id;
+  return context_->storage->InternString(str.substr(sizeof(kPrefix) - 1));
 }
 
 }  // namespace perfetto::trace_processor
