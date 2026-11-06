@@ -3821,7 +3821,7 @@ std::array<FtraceMessageDescriptor, 620> descriptors{{
     },
     {
         "sde_sde_evtlog",
-        18,
+        23,
         {
             {},
             {"evtlog_tag", ProtoSchemaType::kString},
@@ -3842,6 +3842,11 @@ std::array<FtraceMessageDescriptor, 620> descriptors{{
             {"d12", ProtoSchemaType::kUint32},
             {"d13", ProtoSchemaType::kUint32},
             {"d14", ProtoSchemaType::kUint32},
+            {"d010", ProtoSchemaType::kUint32},
+            {"d011", ProtoSchemaType::kUint32},
+            {"d012", ProtoSchemaType::kUint32},
+            {"d013", ProtoSchemaType::kUint32},
+            {"d014", ProtoSchemaType::kUint32},
         },
     },
     {
