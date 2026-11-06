@@ -351,6 +351,97 @@
     padding: 0;
   }
 
+  &__histogram-jump-link {
+    margin-left: 6px;
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+
+    .pf-icon {
+      font-size: var(--pf-font-size-m);
+    }
+  }
+
+  &__histogram-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  &__histogram-card {
+    padding: 16px;
+    background: var(--pf-color-background-secondary);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__histogram-body {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  &__histogram-y-label {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: var(--pf-font-size-s);
+    font-weight: 600;
+    color: var(--pf-color-text-muted);
+    padding-bottom: 20px;
+    user-select: none;
+  }
+
+  &__histogram-chart-col {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__histogram-x-label {
+    text-align: center;
+    font-size: var(--pf-font-size-s);
+    font-weight: 600;
+    color: var(--pf-color-text-muted);
+    user-select: none;
+  }
+
+  &__histogram-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  &__histogram-title-group {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  &__histogram-title {
+    font-family: var(--pf-font-monospace);
+    font-size: var(--pf-font-size-l);
+    font-weight: 600;
+    color: var(--pf-color-text);
+    word-break: break-word;
+  }
+
+  &__histogram-context {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+
+  &__histogram-meta {
+    font-family: var(--pf-font-monospace);
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+
   // ============================================================================
   // External component overrides
   // These styles override external components for consistent appearance
