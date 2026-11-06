@@ -6366,7 +6366,7 @@ message TraceConfig {
 
     // Reserved for Google-internal extensions.
     // 1000: TracePriority trace_priority
-    extensions 1000 to 1100;
+    extensions 1000 to 1099;
   }
   optional AndroidReportConfig android_report_config = 34;
 
