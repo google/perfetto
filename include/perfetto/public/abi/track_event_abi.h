@@ -135,6 +135,22 @@ struct PerfettoTeRegisteredTrackImpl {
   uint64_t uuid;
 };
 
+// Opaque pointer to a persistent state track.
+struct PerfettoTePersistentStateTrackImpl;
+
+// Creates a persistent state track for events of the registered (non dynamic)
+// category `cat` on the state track described by `track`. `track` is copied: it
+// can be unregistered after this call.
+PERFETTO_SDK_EXPORT struct PerfettoTePersistentStateTrackImpl*
+PerfettoTePersistentStateTrackImplCreate(
+    struct PerfettoTeCategoryImpl* cat,
+    const struct PerfettoTeRegisteredTrackImpl* track);
+
+// Destroys a persistent state track. It must not be used concurrently with or
+// after this call.
+PERFETTO_SDK_EXPORT void PerfettoTePersistentStateTrackImplDestroy(
+    struct PerfettoTePersistentStateTrackImpl*);
+
 // The UUID of the process track for the current process.
 extern PERFETTO_SDK_EXPORT uint64_t perfetto_te_process_track_uuid;
 

@@ -18074,6 +18074,7 @@ filegroup {
         "src/shared_lib/track_event/global_state.cc",
         "src/shared_lib/track_event/hl.cc",
         "src/shared_lib/track_event/ll.cc",
+        "src/shared_lib/track_event/persistent_state.cc",
         "src/shared_lib/track_event/serialization.cc",
         "src/shared_lib/track_event/track_event.cc",
     ],

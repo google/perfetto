@@ -16,7 +16,9 @@
 
 #include "src/shared_lib/track_event/ds.h"
 
+#include "perfetto/tracing/core/flush_flags.h"
 #include "src/shared_lib/track_event/category_utils.h"
+#include "src/shared_lib/track_event/persistent_state.h"
 
 namespace perfetto::shlib {
 
@@ -33,9 +35,21 @@ void TrackEvent::OnSetup(const DataSourceBase::SetupArgs& args) {
 
 void TrackEvent::OnStart(const DataSourceBase::StartArgs&) {
   GlobalState::Instance().OnStart(config_, inst_id_);
+  // After the categories are enabled on this instance.
+  EmitPersistentStates(inst_id_);
+}
+
+void TrackEvent::OnFlush(const DataSourceBase::FlushArgs& args) {
+  // A clone is the end of the trace for its consumer, even if the tracing
+  // session keeps going (e.g. long running ring buffer sessions).
+  if (args.flush_flags.reason() == FlushFlags::Reason::kTraceClone) {
+    EmitPersistentStates(inst_id_);
+  }
 }
 
 void TrackEvent::OnStop(const DataSourceBase::StopArgs&) {
+  // Before the categories are disabled on this instance.
+  EmitPersistentStates(inst_id_);
   GlobalState::Instance().OnStop(inst_id_);
 }
 
