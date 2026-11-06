@@ -13,7 +13,8 @@
 // limitations under the License.
 
 .pf-spag-sql-textarea {
-  width: 100%;
+  width: 220px;
+  height: 120px;
   min-height: 100px;
   resize: both;
   font-family: var(--pf-font-monospace);
@@ -29,6 +30,16 @@
   &:focus {
     border-color: var(--pf-color-primary);
   }
+}
+
+.pf-spag-sql-col-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pf-spag-sql-port-index {
+  grid-column: span 1;
 }
 
 .pf-spag-sql-col-row {

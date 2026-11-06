@@ -17,6 +17,11 @@
   display: flex;
   align-items: center;
   gap: 4px;
+
+  &__label {
+    opacity: 0.5;
+    font-size: 11px;
+  }
 }
 
 // Compact "as" button that expands into the alias editor.

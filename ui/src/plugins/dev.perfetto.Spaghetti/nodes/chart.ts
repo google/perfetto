@@ -204,11 +204,10 @@ function BarChartPanel(): m.Component<{
       return m('.pf-spag-chart-panel', [
         m('.pf-spag-chart-title', title),
         m(
-          'svg',
+          'svg.pf-spag-chart-svg',
           {
             viewBox: `0 0 ${CHART_SVG_WIDTH} ${svgHeight}`,
             width: '100%',
-            style: {display: 'block', overflow: 'visible'},
           },
           bars,
         ),
@@ -229,18 +228,9 @@ function ChartDashboard(): m.Component<{
     view({attrs: {config, ctx}}) {
       if (!ctx.materializedTable) {
         return m(
-          '.pf-spag-chart-dashboard',
-          {
-            style: {
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-            },
-          },
+          '.pf-spag-chart-dashboard.pf-spag-chart-dashboard--empty',
           m(
-            'span',
-            {style: {opacity: '0.5'}},
+            'span.pf-spag-chart-dashboard__placeholder',
             'Connect an input to see charts.',
           ),
         );
@@ -248,18 +238,9 @@ function ChartDashboard(): m.Component<{
 
       if (config.charts.length === 0) {
         return m(
-          '.pf-spag-chart-dashboard',
-          {
-            style: {
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-            },
-          },
+          '.pf-spag-chart-dashboard.pf-spag-chart-dashboard--empty',
           m(
-            'span',
-            {style: {opacity: '0.5'}},
+            'span.pf-spag-chart-dashboard__placeholder',
             'Add chart specs in the node to see visualizations.',
           ),
         );
@@ -335,11 +316,7 @@ export const manifest: NodeManifest<ChartConfig> = {
             onSelect: (xCol) =>
               updateConfig({charts: config.charts.with(i, {...spec, xCol})}),
           }),
-          m(
-            'span',
-            {style: {opacity: '0.5', fontSize: '11px', padding: '0 2px'}},
-            '×',
-          ),
+          m('span.pf-spag-chart-sep', '×'),
           m(ColumnPicker, {
             value: spec.yCol,
             columns: cols,
