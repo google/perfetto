@@ -1111,15 +1111,31 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
     expect(filterHash).toMatch(/^_qb_[0-9a-f]{8}$/);
     expect(nodeHash(plan, 'flt_b')).toBe(filterHash);
 
-    // Common Subexpression Elimination: both identical inputs deduplicate into
-    // a single materialization step!
+    // Union inputs are not forced into cache tables: cheap filter branches fold
+    // into the union's own step as CTEs.
     const matPlan = planMaterialization(plan);
-    expect(matPlan.steps.length).toBe(2); // [shared filter step, union target step]
-    expect(matPlan.steps[0]?.hash).toBe(filterHash);
-    expect(matPlan.steps[0]?.nodeIds).toEqual(['flt_a', 'flt_b']);
-    expect(formatSql(matPlan.steps[1]!.plan)).toEqual({
+    expect(matPlan.steps.length).toBe(1);
+    expect(matPlan.steps[0]?.nodeIds).toEqual(['flt_a', 'flt_b', 'u1']);
+    expect(formatSql(matPlan.steps[0]!.plan)).toEqual({
       ok: true,
-      sql: `SELECT *\nFROM ${filterHash}\nUNION ALL\nSELECT *\nFROM ${filterHash}`,
+      sql: [
+        'WITH',
+        'step_1 AS (',
+        '  SELECT *',
+        '  FROM slice',
+        '  WHERE dur > 1000',
+        '),',
+        'step_2 AS (',
+        '  SELECT *',
+        '  FROM slice',
+        '  WHERE dur > 1000',
+        ')',
+        'SELECT *',
+        'FROM step_1',
+        'UNION ALL',
+        'SELECT *',
+        'FROM step_2',
+      ].join('\n'),
       includes: [],
     });
   });
