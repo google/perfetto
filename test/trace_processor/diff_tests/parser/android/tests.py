@@ -453,6 +453,28 @@ class AndroidParser(TestSuite):
           "[NULL]",800,"[NULL]","[NULL]","[NULL]",1
         """))
 
+  def test_android_process_group_state(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.process_group,
+          t.is_initial
+        FROM __intrinsic_android_process_group_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","process_group","is_initial"
+          "[NULL]",100,"[NULL]",1
+          "[NULL]",200,"[NULL]",1
+          3500,200,"PROCESS_GROUP_DEFAULT",0
+          "[NULL]",300,"[NULL]",1
+          "[NULL]",400,"[NULL]",1
+        """))
+
   def test_android_process_state_metadata(self):
     return DiffTestBlueprint(
         trace=Path('android_process_state_metadata.textproto'),
@@ -494,6 +516,24 @@ class AndroidParser(TestSuite):
           "ts","pid","unfreeze_reason","is_initial"
           "[NULL]",200,"UFR_PING",1
           2500000000,400,"UFR_BINDER_TXNS",0
+        """))
+
+  def test_android_process_state_metadata_process_group(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_metadata.textproto'),
+        query="""
+        SELECT t.ts, p.pid, t.process_group, t.is_initial
+        FROM __intrinsic_android_process_group_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","process_group","is_initial"
+          "[NULL]",100,"[NULL]",1
+          "[NULL]",200,"[NULL]",1
+          "[NULL]",300,"[NULL]",1
+          2600000000,400,"PROCESS_GROUP_DEFAULT",0
+          "[NULL]",500,"[NULL]",1
         """))
 
   def test_android_process_state_metadata_state(self):

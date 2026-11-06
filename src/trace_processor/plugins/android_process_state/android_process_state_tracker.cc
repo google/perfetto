@@ -55,10 +55,12 @@ StringId InternEnum(TraceProcessorContext* context,
 AndroidProcessStateTracker::AndroidProcessStateTracker(
     TraceProcessorContext* context,
     tables::AndroidProcessStateTable* process_state_table,
-    tables::AndroidFreezerStateTable* freezer_state_table)
+    tables::AndroidFreezerStateTable* freezer_state_table,
+    tables::AndroidProcessGroupStateTable* process_group_state_table)
     : context_(context),
       process_state_table_(process_state_table),
       freezer_state_table_(freezer_state_table),
+      process_group_state_table_(process_group_state_table),
       capability_flags_id_(context->storage->InternString("capability_flags")) {
 }
 
@@ -245,6 +247,31 @@ void AndroidProcessStateTracker::ParseFreezerDump(protozero::ConstBytes blob) {
   }
 }
 
+void AndroidProcessStateTracker::ParseProcessGroupChange(
+    int64_t ts,
+    protozero::ConstBytes bytes) {
+  fb::AndroidProcessGroupChangedEvent::Decoder evt(bytes);
+  if (!evt.has_pid()) {
+    return;
+  }
+  std::optional<UniquePid> opt_upid =
+      context_->process_tracker->GetProcessOrNull(
+          static_cast<uint32_t>(evt.pid()));
+  if (!opt_upid) {
+    return;
+  }
+  tables::AndroidProcessGroupStateTable::Row row;
+  row.ts = ts;
+  row.upid = *opt_upid;
+  if (evt.has_cur_process_group()) {
+    row.process_group = InternEnum(
+        context_, process_group_cache_, ".com.android.internal.ProcessGroup",
+        static_cast<int32_t>(evt.cur_process_group()));
+  }
+  row.is_initial = 0;
+  process_group_state_table_->Insert(row);
+}
+
 // Combines the trace-stop snapshot dump with earliest observed delta events:
 // 1. Processes that never changed state during the trace have their initial
 //    state recovered directly from `process_dump_` (the trace-stop snapshot).
@@ -281,6 +308,9 @@ void AndroidProcessStateTracker::Finalize() {
   }
   for (const auto& [upid, v] : freezer_dump_) {
     EmitInitialFreezerRow(v);
+  }
+  for (const auto& [upid, v] : process_dump_) {
+    EmitInitialProcessGroupRow(upid);
   }
 }
 
@@ -354,6 +384,21 @@ void AndroidProcessStateTracker::EmitInitialFreezerRow(
                    ".com.android.internal.UnfreezeReason", *v.unfreeze_reason);
   }
   freezer_state_table_->Insert(row);
+}
+
+void AndroidProcessStateTracker::EmitInitialProcessGroupRow(UniquePid upid) {
+  tables::AndroidProcessGroupStateTable::Row row;
+  row.upid = upid;
+  row.ts = std::nullopt;
+  // Intentionally left as std::nullopt: AndroidProcessStateSnapshot records
+  // OomAdjuster's view of the process group (from
+  // ProcessRecord.getSchedGroup()) rather than the actual kernel process group
+  // (Process.getProcessGroup(pid)), and AndroidProcessGroupChangedEvent does
+  // not carry prev_process_group. Therefore, the dump is not a reliable source
+  // for the actual initial process group.
+  row.process_group = std::nullopt;
+  row.is_initial = 1;
+  process_group_state_table_->Insert(row);
 }
 
 }  // namespace perfetto::trace_processor::android_process_state
