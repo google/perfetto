@@ -18,9 +18,13 @@ import type {NodeManifest, RenderContext} from '../node_types';
 import {Combobox} from '../../../widgets/combobox';
 import './from.scss';
 
-const FromConfigSchema = z.object({
-  table: z.string(),
-});
+const FromConfigSchema = z
+  .object({
+    table: z.string(),
+  })
+  .describe(
+    'Read a trace or stdlib table (stdlib module includes are added automatically).',
+  );
 
 export type FromConfig = z.infer<typeof FromConfigSchema>;
 

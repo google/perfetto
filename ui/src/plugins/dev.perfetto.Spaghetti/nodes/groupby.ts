@@ -32,16 +32,22 @@ import type {ColumnDef} from '../graph_utils';
 
 const AggregationSchema = z.object({
   func: z.enum(['COUNT', 'SUM', 'AVG', 'MIN', 'MAX']),
-  column: z.string(),
+  column: z.string().describe('Column name, or "*" for COUNT(*)'),
   alias: z.string(),
 });
 
 export type Aggregation = z.infer<typeof AggregationSchema>;
 
-const GroupByConfigSchema = z.object({
-  groupColumns: z.array(z.string()),
-  aggregations: z.array(AggregationSchema),
-});
+const GroupByConfigSchema = z
+  .object({
+    groupColumns: z
+      .array(z.string())
+      .describe('At least one non-empty column required'),
+    aggregations: z.array(AggregationSchema),
+  })
+  .describe(
+    'GROUP BY columns with aggregations (alias "" auto-generates a name).',
+  );
 
 export type GroupByConfig = z.infer<typeof GroupByConfigSchema>;
 

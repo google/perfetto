@@ -56,17 +56,23 @@ const FilterOpSchema = z.enum(FILTER_OPS);
 const FilterConditionSchema = z.object({
   column: z.string(),
   op: FilterOpSchema,
-  value: z.string(),
+  value: z
+    .string()
+    .describe(
+      'Comparison value (numbers stay unquoted, plain strings are auto-quoted, "" for IS NULL / IS NOT NULL)',
+    ),
 });
 
 export type FilterCondition = z.infer<typeof FilterConditionSchema>;
 
 const FilterConjunctionSchema = z.enum(['AND', 'OR']);
 
-const FilterConfigSchema = z.object({
-  conditions: z.array(FilterConditionSchema),
-  conjunction: FilterConjunctionSchema.optional(),
-});
+const FilterConfigSchema = z
+  .object({
+    conditions: z.array(FilterConditionSchema),
+    conjunction: FilterConjunctionSchema.optional(),
+  })
+  .describe('Keep rows matching predicates.');
 
 export type FilterConfig = z.infer<typeof FilterConfigSchema>;
 

@@ -23,9 +23,11 @@ import type {
   RenderContext,
 } from '../node_types';
 
-const AsConfigSchema = z.object({
-  alias: z.string(),
-});
+const AsConfigSchema = z
+  .object({
+    alias: z.string(),
+  })
+  .describe('Assign a valid SQL identifier alias to the input relation.');
 
 export type AsConfig = z.infer<typeof AsConfigSchema>;
 

@@ -34,15 +34,21 @@ const SqlOutputColumnSchema = z.object({
 
 export type SqlOutputColumn = z.infer<typeof SqlOutputColumnSchema>;
 
-const SqlConfigSchema = z.object({
-  sql: z.string(),
-  columns: z.array(SqlOutputColumnSchema).optional(),
-  /** User-defined alias for each input port, parallel to the inputs array. */
-  inputPorts: z.array(z.string()).optional(),
-  /** Persisted textarea dimensions. Undefined = use defaults. */
-  textareaWidth: z.number().optional(),
-  textareaHeight: z.number().optional(),
-});
+const SqlConfigSchema = z
+  .object({
+    sql: z
+      .string()
+      .describe('Single SELECT / WITH..SELECT query without trailing ";"'),
+    columns: z.array(SqlOutputColumnSchema).optional(),
+    /** User-defined alias for each input port, parallel to the inputs array. */
+    inputPorts: z.array(z.string()).optional(),
+    /** Persisted textarea dimensions. Undefined = use defaults. */
+    textareaWidth: z.number().optional(),
+    textareaHeight: z.number().optional(),
+  })
+  .describe(
+    'Fallback raw SQL node; connected inputs are bound as CTEs named by inputPorts.',
+  );
 
 export type SqlConfig = z.infer<typeof SqlConfigSchema>;
 

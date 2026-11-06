@@ -38,13 +38,15 @@ import {ColumnPicker} from '../widgets/column_picker';
 
 export type MergeAggregation = PipelineAggEntry;
 
-const IntervalMergeConfigSchema = z.object({
-  mergeKind: z.enum(['OVERLAPPING', 'CONSECUTIVE']),
-  keyColumns: z.array(z.string()),
-  partitionColumns: z.array(z.string()),
-  aggregations: z.array(PipelineAggEntrySchema),
-  filterNegativeDur: z.boolean(),
-});
+const IntervalMergeConfigSchema = z
+  .object({
+    mergeKind: z.enum(['OVERLAPPING', 'CONSECUTIVE']),
+    keyColumns: z.array(z.string()),
+    partitionColumns: z.array(z.string()),
+    aggregations: z.array(PipelineAggEntrySchema),
+    filterNegativeDur: z.boolean(),
+  })
+  .describe('Merge overlapping or consecutive intervals.');
 
 export type IntervalMergeConfig = z.infer<typeof IntervalMergeConfigSchema>;
 

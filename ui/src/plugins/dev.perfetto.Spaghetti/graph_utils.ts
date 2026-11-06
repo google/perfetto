@@ -52,7 +52,7 @@ import type {
 } from './graph_model';
 
 // Central registry mapping node type strings to their manifests.
-const NODE_REGISTRY: Record<string, NodeManifest> = {
+export const NODE_REGISTRY: Readonly<Record<string, NodeManifest>> = {
   from: fromNode,
   time_range: timeRangeNode,
   data_table: dataTableNode,
@@ -81,7 +81,7 @@ const NODE_REGISTRY: Record<string, NodeManifest> = {
   sql: sqlNode,
 };
 
-function tryGetManifest(type: string): NodeManifest | undefined {
+export function tryGetManifest(type: string): NodeManifest | undefined {
   return Object.prototype.hasOwnProperty.call(NODE_REGISTRY, type)
     ? NODE_REGISTRY[type]
     : undefined;

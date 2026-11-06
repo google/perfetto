@@ -36,9 +36,11 @@ const SetEntrySchema = z.object({
 
 export type SetEntry = z.infer<typeof SetEntrySchema>;
 
-const SetConfigSchema = z.object({
-  entries: z.array(SetEntrySchema),
-});
+const SetConfigSchema = z
+  .object({
+    entries: z.array(SetEntrySchema),
+  })
+  .describe('Overwrite existing columns in place with SQL expressions.');
 
 export type SetConfig = z.infer<typeof SetConfigSchema>;
 
