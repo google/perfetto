@@ -166,9 +166,13 @@ function renderLmkPanel(
     Panel,
     m(Panel.Header, {
       title: `LMK Kills (${events.length})`,
-      subtitle:
-        'Low Memory Killer events recorded during this session. ' +
-        'Source: lmkd atrace / lowmemorykiller ftrace.',
+      help: m.fragment({}, [
+        m('div', 'Low Memory Killer events recorded during this session.'),
+        m('div', [
+          'Source: lowmemorykiller ftrace events + lmkd atrace, ' +
+            'captured by the linux.ftrace data source (traced_probes).',
+        ]),
+      ]),
     }),
     m(
       Panel.Body,
@@ -220,10 +224,16 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
       Panel,
       m(Panel.Header, {
         title: 'Memory Pressure (PSI)',
-        subtitle:
-          'Source: /proc/pressure/memory (psi.mem.some, psi.mem.full). ' +
-          'Derived: cumulative \u00b5s converted to ms/s rate. ' +
-          '"some" = at least one task stalled, "full" = all tasks stalled.',
+        help: m.fragment({}, [
+          m('div', [
+            'Derived: cumulative \u00b5s converted to ms/s rate. ' +
+              '"some" = at least one task stalled, "full" = all tasks stalled.',
+          ]),
+          m('div', [
+            'Source: /proc/pressure/memory (psi.mem.some, psi.mem.full) via the ' +
+              'linux.sys_stats data source (traced_probes).',
+          ]),
+        ]),
       }),
       m(
         Panel.Body,
@@ -231,8 +241,6 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
           ? m(LineChartSvg, {
               data: psiChartData,
               height: 200,
-              xAxisLabel: 'Time (s)',
-              yAxisLabel: 'Stall (ms/s)',
               showLegend: true,
               showPoints: false,
               gridLines: 'both',
@@ -252,10 +260,17 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
       Panel,
       m(Panel.Header, {
         title: 'Page Faults',
-        subtitle:
-          'Source: /proc/vmstat counters pgfault, pgmajfault. ' +
-          'Derived: cumulative counts converted to faults/s rate. ' +
-          'Minor (pgfault) = page in RAM but not in TLB. Major (pgmajfault) = page must be read from disk.',
+        help: m.fragment({}, [
+          m('div', [
+            'Derived: cumulative counts converted to faults/s rate. ' +
+              'Minor (pgfault) = page in RAM but not in TLB. ' +
+              'Major (pgmajfault) = page must be read from disk.',
+          ]),
+          m('div', [
+            'Source: /proc/vmstat counters pgfault, pgmajfault via the ' +
+              'linux.sys_stats data source (traced_probes).',
+          ]),
+        ]),
       }),
       m(
         Panel.Body,
@@ -263,8 +278,6 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
           ? m(LineChartSvg, {
               data: pageFaultChartData,
               height: 200,
-              xAxisLabel: 'Time (s)',
-              yAxisLabel: 'Faults/s',
               showLegend: true,
               showPoints: false,
               gridLines: 'both',
@@ -282,9 +295,15 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
         Panel,
         m(Panel.Header, {
           title: 'Swap Usage',
-          subtitle:
-            'Source: /proc/meminfo counters SwapTotal, SwapFree, SwapCached. ' +
-            'Derived: Swap dirty = (SwapTotal \u2212 SwapFree) \u2212 SwapCached.',
+          help: m.fragment({}, [
+            m('div', [
+              'Derived: Swap dirty = (SwapTotal \u2212 SwapFree) \u2212 SwapCached.',
+            ]),
+            m('div', [
+              'Source: /proc/meminfo counters SwapTotal, SwapFree, SwapCached via the ' +
+                'linux.sys_stats data source (traced_probes).',
+            ]),
+          ]),
         }),
         m(
           Panel.Body,
@@ -293,8 +312,6 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
             height: 200,
             xAxisMin: xWindow.min,
             xAxisMax: xWindow.max,
-            xAxisLabel: 'Time (s)',
-            yAxisLabel: 'Swap',
             showLegend: true,
             showPoints: false,
             stacked: true,
@@ -313,9 +330,15 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
         Panel,
         m(Panel.Header, {
           title: 'Swap I/O (pswpin / pswpout)',
-          subtitle:
-            'Source: /proc/vmstat counters pswpin, pswpout. ' +
-            'Derived: cumulative page counts converted to pages/s rate.',
+          help: m.fragment({}, [
+            m('div', [
+              'Derived: cumulative page counts converted to pages/s rate.',
+            ]),
+            m('div', [
+              'Source: /proc/vmstat counters pswpin, pswpout via the ' +
+                'linux.sys_stats data source (traced_probes).',
+            ]),
+          ]),
         }),
         m(
           Panel.Body,
@@ -324,8 +347,6 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
             xAxisMin: xWindow.min,
             xAxisMax: xWindow.max,
             height: 200,
-            xAxisLabel: 'Time (s)',
-            yAxisLabel: 'Pages/s',
             showLegend: true,
             showPoints: false,
             gridLines: 'both',

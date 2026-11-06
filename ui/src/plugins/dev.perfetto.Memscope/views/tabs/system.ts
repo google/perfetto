@@ -240,10 +240,17 @@ export function renderSystemTab(session: LiveSession): m.Children {
       Panel,
       m(Panel.Header, {
         title: 'System Memory',
-        subtitle:
-          'Stacked areas partition MemTotal. Source: /proc/meminfo. ' +
-          'Anon = Active(anon) + Inactive(anon). Page cache = Active(file) + Inactive(file) \u2212 Shmem. ' +
-          'Unaccounted = MemTotal \u2212 sum of all other categories.',
+        help: m.fragment({}, [
+          m('div', [
+            'Stacked areas partition MemTotal. Anon = Active(anon) + Inactive(anon). ' +
+              'Page cache = Active(file) + Inactive(file) \u2212 Shmem. ' +
+              'Unaccounted = MemTotal \u2212 sum of all other categories.',
+          ]),
+          m('div', [
+            'Source: linux.sys_stats data source (traced_probes) polling /proc/meminfo; ' +
+              'DMA-BUF from the dma_heap_stat ftrace event.',
+          ]),
+        ]),
       }),
       m(
         Panel.Body,
@@ -251,8 +258,6 @@ export function renderSystemTab(session: LiveSession): m.Children {
           ? m(LineChartSvg, {
               data: chartData,
               height: 400,
-              xAxisLabel: 'Time (s)',
-              yAxisLabel: 'Memory',
               showLegend: true,
               showPoints: false,
               stacked: true,
