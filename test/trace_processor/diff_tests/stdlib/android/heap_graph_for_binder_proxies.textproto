@@ -1,0 +1,843 @@
+packet {
+  process_tree {
+    processes {
+      pid: 1
+      ppid: 0
+      cmdline: "init"
+      uid: 0
+    }
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "system_server"
+      uid: 1000
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  # Cases covered in dump 1 (timestamp 10):
+  #  1 & 9.  0x10 History -> 0x11 Object[] -> 0x12 Record.mCallback
+  #          -> 0x13 IFoo$Stub$Proxy -> 0x14 BinderProxy
+  #          with plain ArrayList mDeathRecipients -> [0x17 RecB, 0x18 RecA]
+  #  2 & 8 & 11. 0x20 BindRecord.binder -> 0x21 BinderProxy (raw IBinder,
+  #          no mDeathRecipients; also targeted by 0x82 WeakReference.referent)
+  #  3 & 10. 0x30 Svc.mMap -> 0x31 HashMap -> 0x32 Node[] -> 0x33 Node.key
+  #          -> 0x34 BinderProxy with Collections$SynchronizedRandomAccessList
+  #          -> ArrayList -> [RecB, RecA] plus shadow$_klass_ -> Class<ArrayList>
+  #  4.      0x40 Svc.mCallbacks -> 0x41 RemoteCallbackList -> 0x42 ArrayMap
+  #          -> 0x43 Object[] -> 0x44 RemoteCallbackList$Interface
+  #          -> 0x45 IBar$Stub$Proxy -> 0x46 BinderProxy
+  #  5a.     0x50 Record & 0x51 Record (both roots) -> 0x52 IFoo$Stub$Proxy
+  #          -> 0x53 BinderProxy (no single dominator -> holder NULL)
+  #  5b.     0x54 History -> {0x55 Record, 0x56 Record} -> 0x57 IFoo$Stub$Proxy
+  #          -> 0x58 BinderProxy (common dominator History, field NULL)
+  #  6.      0x60 DeathRec (ROOT_JNI_GLOBAL) -> 0x61 IBar$Stub$Proxy
+  #          -> 0x62 BinderProxy (missing unlinkToDeath)
+  #  7.      0x70 Class<Mgr>.sCache -> 0x71 ArrayMap -> 0x72 Object[]
+  #          -> 0x73 BinderProxy (static field holder)
+  #  8.      0x80 unreachable BinderProxy; 0x83 weak-only BinderProxy (excluded)
+  #  12a.    0x90 h.f (ObfHolder.mObfProxy) -> 0x91 p (IObf$Stub$Proxy)
+  #          -> 0x92 BinderProxy -> mDeathRecipients -> 0x95 d (ObfDeathRec)
+  #  13.     0xA0 Svc -> {0xA1 IZed$Stub$Proxy, 0xA2 IAlpha$Stub$Proxy}
+  #          -> 0xA3 BinderProxy (MIN by proxy class name -> IAlpha$Stub$Proxy)
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+    pid: 2
+    roots {
+      root_type: ROOT_STICKY_CLASS
+      object_ids: 0x10
+      object_ids: 0x20
+      object_ids: 0x30
+      object_ids: 0x3A
+      object_ids: 0x40
+      object_ids: 0x50
+      object_ids: 0x51
+      object_ids: 0x54
+      object_ids: 0x70
+      object_ids: 0x81
+      object_ids: 0x90
+      object_ids: 0xA0
+    }
+    roots {
+      root_type: ROOT_JNI_GLOBAL
+      object_ids: 0x60
+    }
+
+    # Case 1 & 9: History -> Object[] -> Record -> IFoo$Stub$Proxy -> BinderProxy
+    objects {
+      id: 0x10
+      type_id: 17
+      self_size: 24
+      reference_field_id: 1
+      reference_object_id: 0x11
+    }
+    objects {
+      id: 0x11
+      type_id: 3
+      self_size: 32
+      reference_field_id: 2
+      reference_object_id: 0x12
+    }
+    objects {
+      id: 0x12
+      type_id: 18
+      self_size: 48
+      reference_field_id: 4
+      reference_object_id: 0x13
+    }
+    objects {
+      id: 0x13
+      type_id: 13
+      self_size: 16
+      reference_field_id: 5
+      reference_object_id: 0x14
+    }
+    objects {
+      id: 0x14
+      type_id: 2
+      self_size: 40
+      reference_field_id: 18
+      reference_object_id: 0x15
+    }
+    objects {
+      id: 0x15
+      type_id: 4
+      self_size: 24
+      reference_field_id: 19
+      reference_object_id: 0x16
+    }
+    objects {
+      id: 0x16
+      type_id: 3
+      self_size: 24
+      reference_field_id: 2
+      reference_field_id: 3
+      reference_object_id: 0x17
+      reference_object_id: 0x18
+    }
+    objects {
+      id: 0x17
+      type_id: 24
+      self_size: 16
+    }
+    objects {
+      id: 0x18
+      type_id: 23
+      self_size: 16
+    }
+
+    # Case 2 & 11: BindRecord.binder -> BinderProxy (raw IBinder, no death list)
+    objects {
+      id: 0x20
+      type_id: 19
+      self_size: 32
+      reference_field_id: 6
+      reference_object_id: 0x21
+    }
+    objects {
+      id: 0x21
+      type_id: 2
+      self_size: 40
+    }
+
+    # Case 3 & 10: Svc.mMap -> HashMap -> Node[] -> Node.key -> BinderProxy
+    # with SynchronizedRandomAccessList + hprof shadow$_klass_ -> Class<ArrayList>
+    objects {
+      id: 0x30
+      type_id: 20
+      self_size: 32
+      reference_field_id: 7
+      reference_object_id: 0x31
+    }
+    objects {
+      id: 0x31
+      type_id: 6
+      self_size: 48
+      reference_field_id: 8
+      reference_object_id: 0x32
+    }
+    objects {
+      id: 0x32
+      type_id: 7
+      self_size: 32
+      reference_field_id: 2
+      reference_object_id: 0x33
+    }
+    objects {
+      id: 0x33
+      type_id: 8
+      self_size: 32
+      reference_field_id: 9
+      reference_object_id: 0x34
+    }
+    objects {
+      id: 0x34
+      type_id: 2
+      self_size: 40
+      reference_field_id: 18
+      reference_object_id: 0x35
+    }
+    objects {
+      id: 0x35
+      type_id: 9
+      self_size: 24
+      reference_field_id: 20
+      reference_field_id: 21
+      reference_object_id: 0x36
+      reference_object_id: 0x3A
+    }
+    objects {
+      id: 0x36
+      type_id: 4
+      self_size: 24
+      reference_field_id: 19
+      reference_field_id: 21
+      reference_object_id: 0x37
+      reference_object_id: 0x3A
+    }
+    objects {
+      id: 0x37
+      type_id: 3
+      self_size: 24
+      reference_field_id: 2
+      reference_field_id: 3
+      reference_object_id: 0x38
+      reference_object_id: 0x39
+    }
+    objects {
+      id: 0x38
+      type_id: 24
+      self_size: 16
+    }
+    objects {
+      id: 0x39
+      type_id: 23
+      self_size: 16
+    }
+    objects {
+      id: 0x3A
+      type_id: 25
+      self_size: 64
+      reference_field_id: 22
+      reference_object_id: 0x3B
+    }
+    objects {
+      id: 0x3B
+      type_id: 26
+      self_size: 24
+    }
+
+    # Case 4: Svc.mCallbacks -> RemoteCallbackList -> ArrayMap -> Object[]
+    #         -> RemoteCallbackList$Interface -> IBar$Stub$Proxy -> BinderProxy
+    objects {
+      id: 0x40
+      type_id: 20
+      self_size: 32
+      reference_field_id: 10
+      reference_object_id: 0x41
+    }
+    objects {
+      id: 0x41
+      type_id: 10
+      self_size: 32
+      reference_field_id: 11
+      reference_object_id: 0x42
+    }
+    objects {
+      id: 0x42
+      type_id: 5
+      self_size: 24
+      reference_field_id: 12
+      reference_object_id: 0x43
+    }
+    objects {
+      id: 0x43
+      type_id: 3
+      self_size: 24
+      reference_field_id: 2
+      reference_object_id: 0x44
+    }
+    objects {
+      id: 0x44
+      type_id: 11
+      self_size: 16
+      reference_field_id: 13
+      reference_object_id: 0x45
+    }
+    objects {
+      id: 0x45
+      type_id: 14
+      self_size: 16
+      reference_field_id: 14
+      reference_object_id: 0x46
+    }
+    objects {
+      id: 0x46
+      type_id: 2
+      self_size: 40
+    }
+
+    # Case 5a: Two root Records share one IFoo$Stub$Proxy -> holder NULL
+    objects {
+      id: 0x50
+      type_id: 18
+      self_size: 48
+      reference_field_id: 4
+      reference_object_id: 0x52
+    }
+    objects {
+      id: 0x51
+      type_id: 18
+      self_size: 48
+      reference_field_id: 4
+      reference_object_id: 0x52
+    }
+    objects {
+      id: 0x52
+      type_id: 13
+      self_size: 16
+      reference_field_id: 5
+      reference_object_id: 0x53
+    }
+    objects {
+      id: 0x53
+      type_id: 2
+      self_size: 40
+    }
+
+    # Case 5b: Two Records under one History share one IFoo$Stub$Proxy
+    objects {
+      id: 0x54
+      type_id: 17
+      self_size: 24
+      reference_field_id: 1
+      reference_field_id: 1
+      reference_object_id: 0x55
+      reference_object_id: 0x56
+    }
+    objects {
+      id: 0x55
+      type_id: 18
+      self_size: 48
+      reference_field_id: 4
+      reference_object_id: 0x57
+    }
+    objects {
+      id: 0x56
+      type_id: 18
+      self_size: 48
+      reference_field_id: 4
+      reference_object_id: 0x57
+    }
+    objects {
+      id: 0x57
+      type_id: 13
+      self_size: 16
+      reference_field_id: 5
+      reference_object_id: 0x58
+    }
+    objects {
+      id: 0x58
+      type_id: 2
+      self_size: 40
+    }
+
+    # Case 6: JNI global DeathRec -> IBar$Stub$Proxy -> BinderProxy
+    objects {
+      id: 0x60
+      type_id: 21
+      self_size: 24
+      reference_field_id: 15
+      reference_object_id: 0x61
+    }
+    objects {
+      id: 0x61
+      type_id: 14
+      self_size: 16
+      reference_field_id: 14
+      reference_object_id: 0x62
+    }
+    objects {
+      id: 0x62
+      type_id: 2
+      self_size: 40
+    }
+
+    # Case 7: Static Class<Mgr>.sCache -> ArrayMap -> Object[] -> BinderProxy
+    objects {
+      id: 0x70
+      type_id: 22
+      self_size: 64
+      reference_field_id: 16
+      reference_object_id: 0x71
+    }
+    objects {
+      id: 0x71
+      type_id: 5
+      self_size: 24
+      reference_field_id: 12
+      reference_object_id: 0x72
+    }
+    objects {
+      id: 0x72
+      type_id: 3
+      self_size: 24
+      reference_field_id: 2
+      reference_object_id: 0x73
+    }
+    objects {
+      id: 0x73
+      type_id: 2
+      self_size: 40
+    }
+
+    # Case 8: Unreachable BinderProxy (0x80), weak-only BinderProxy (0x83),
+    # and weak referent edge to reachable 0x21 (must not affect 0x21's holder)
+    objects {
+      id: 0x80
+      type_id: 2
+      self_size: 40
+    }
+    objects {
+      id: 0x81
+      type_id: 20
+      self_size: 32
+      reference_field_id: 7
+      reference_object_id: 0x82
+    }
+    objects {
+      id: 0x82
+      type_id: 12
+      self_size: 24
+      reference_field_id: 17
+      reference_field_id: 17
+      reference_object_id: 0x21
+      reference_object_id: 0x83
+    }
+    objects {
+      id: 0x83
+      type_id: 2
+      self_size: 40
+    }
+
+    # Case 12a: Obfuscated holder, field, proxy class, and death recipient
+    objects {
+      id: 0x90
+      type_id: 28
+      self_size: 24
+      reference_field_id: 23
+      reference_object_id: 0x91
+    }
+    objects {
+      id: 0x91
+      type_id: 27
+      self_size: 16
+      reference_field_id: 24
+      reference_object_id: 0x92
+    }
+    objects {
+      id: 0x92
+      type_id: 2
+      self_size: 40
+      reference_field_id: 18
+      reference_object_id: 0x93
+    }
+    objects {
+      id: 0x93
+      type_id: 4
+      self_size: 24
+      reference_field_id: 19
+      reference_object_id: 0x94
+    }
+    objects {
+      id: 0x94
+      type_id: 3
+      self_size: 24
+      reference_field_id: 2
+      reference_object_id: 0x95
+    }
+    objects {
+      id: 0x95
+      type_id: 29
+      self_size: 16
+    }
+
+    # Case 13: Two *$Stub$Proxy classes (IZed first, IAlpha second) -> IAlpha wins
+    objects {
+      id: 0xA0
+      type_id: 20
+      self_size: 32
+      reference_field_id: 28
+      reference_field_id: 27
+      reference_object_id: 0xA1
+      reference_object_id: 0xA2
+    }
+    objects {
+      id: 0xA1
+      type_id: 16
+      self_size: 16
+      reference_field_id: 26
+      reference_object_id: 0xA3
+    }
+    objects {
+      id: 0xA2
+      type_id: 15
+      self_size: 16
+      reference_field_id: 25
+      reference_object_id: 0xA3
+    }
+    objects {
+      id: 0xA3
+      type_id: 2
+      self_size: 40
+    }
+
+    types {
+      id: 1
+      location_id: 1
+      class_name: "java.lang.Object"
+    }
+    types {
+      id: 2
+      location_id: 1
+      class_name: "android.os.BinderProxy"
+    }
+    types {
+      id: 3
+      location_id: 1
+      class_name: "java.lang.Object[]"
+    }
+    types {
+      id: 4
+      location_id: 1
+      class_name: "java.util.ArrayList"
+    }
+    types {
+      id: 5
+      location_id: 1
+      class_name: "android.util.ArrayMap"
+    }
+    types {
+      id: 6
+      location_id: 1
+      class_name: "java.util.HashMap"
+    }
+    types {
+      id: 7
+      location_id: 1
+      class_name: "java.util.HashMap$Node[]"
+    }
+    types {
+      id: 8
+      location_id: 1
+      class_name: "java.util.HashMap$Node"
+    }
+    types {
+      id: 9
+      location_id: 1
+      class_name: "java.util.Collections$SynchronizedRandomAccessList"
+    }
+    types {
+      id: 10
+      location_id: 1
+      class_name: "android.os.RemoteCallbackList"
+    }
+    types {
+      id: 11
+      location_id: 1
+      class_name: "android.os.RemoteCallbackList$Interface"
+    }
+    types {
+      id: 12
+      location_id: 1
+      class_name: "java.lang.ref.WeakReference"
+      kind: KIND_WEAK_REFERENCE
+    }
+    types {
+      id: 13
+      location_id: 1
+      class_name: "com.example.IFoo$Stub$Proxy"
+    }
+    types {
+      id: 14
+      location_id: 1
+      class_name: "com.example.IBar$Stub$Proxy"
+    }
+    types {
+      id: 15
+      location_id: 1
+      class_name: "com.example.IAlpha$Stub$Proxy"
+    }
+    types {
+      id: 16
+      location_id: 1
+      class_name: "com.example.IZed$Stub$Proxy"
+    }
+    types {
+      id: 17
+      location_id: 1
+      class_name: "com.example.History"
+    }
+    types {
+      id: 18
+      location_id: 1
+      class_name: "com.example.Record"
+    }
+    types {
+      id: 19
+      location_id: 1
+      class_name: "com.example.BindRecord"
+    }
+    types {
+      id: 20
+      location_id: 1
+      class_name: "com.example.Svc"
+    }
+    types {
+      id: 21
+      location_id: 1
+      class_name: "com.example.DeathRec"
+    }
+    types {
+      id: 22
+      location_id: 1
+      class_name: "java.lang.Class<com.example.Mgr>"
+    }
+    types {
+      id: 23
+      location_id: 1
+      class_name: "com.example.RecA"
+    }
+    types {
+      id: 24
+      location_id: 1
+      class_name: "com.example.RecB"
+    }
+    types {
+      id: 25
+      location_id: 1
+      class_name: "java.lang.Class<java.util.ArrayList>"
+    }
+    types {
+      id: 26
+      location_id: 1
+      class_name: "java.lang.String"
+    }
+    types {
+      id: 27
+      location_id: 1
+      class_name: "p"
+    }
+    types {
+      id: 28
+      location_id: 1
+      class_name: "h"
+    }
+    types {
+      id: 29
+      location_id: 1
+      class_name: "d"
+    }
+
+    field_names {
+      iid: 1
+      str: "com.example.History.mItems"
+    }
+    field_names {
+      iid: 2
+      str: "[0]"
+    }
+    field_names {
+      iid: 3
+      str: "[1]"
+    }
+    field_names {
+      iid: 4
+      str: "com.example.Record.mCallback"
+    }
+    field_names {
+      iid: 5
+      str: "com.example.IFoo$Stub$Proxy.mRemote"
+    }
+    field_names {
+      iid: 6
+      str: "com.example.BindRecord.binder"
+    }
+    field_names {
+      iid: 7
+      str: "com.example.Svc.mMap"
+    }
+    field_names {
+      iid: 8
+      str: "java.util.HashMap.table"
+    }
+    field_names {
+      iid: 9
+      str: "java.util.HashMap$Node.key"
+    }
+    field_names {
+      iid: 10
+      str: "com.example.Svc.mCallbacks"
+    }
+    field_names {
+      iid: 11
+      str: "android.os.RemoteCallbackList.mCallbacks"
+    }
+    field_names {
+      iid: 12
+      str: "android.util.ArrayMap.mArray"
+    }
+    field_names {
+      iid: 13
+      str: "android.os.RemoteCallbackList$Interface.mCallback"
+    }
+    field_names {
+      iid: 14
+      str: "com.example.IBar$Stub$Proxy.mRemote"
+    }
+    field_names {
+      iid: 15
+      str: "com.example.DeathRec.mProxy"
+    }
+    field_names {
+      iid: 16
+      str: "com.example.Mgr.sCache"
+    }
+    field_names {
+      iid: 17
+      str: "java.lang.ref.Reference.referent"
+    }
+    field_names {
+      iid: 18
+      str: "android.os.BinderProxy.mDeathRecipients"
+    }
+    field_names {
+      iid: 19
+      str: "java.util.ArrayList.elementData"
+    }
+    field_names {
+      iid: 20
+      str: "java.util.Collections$SynchronizedList.list"
+    }
+    field_names {
+      iid: 21
+      str: "java.lang.Object.shadow$_klass_"
+    }
+    field_names {
+      iid: 22
+      str: "java.util.ArrayList.$class$name"
+    }
+    field_names {
+      iid: 23
+      str: "h.f"
+    }
+    field_names {
+      iid: 24
+      str: "p.a"
+    }
+    field_names {
+      iid: 25
+      str: "com.example.IAlpha$Stub$Proxy.mRemote"
+    }
+    field_names {
+      iid: 26
+      str: "com.example.IZed$Stub$Proxy.mRemote"
+    }
+    field_names {
+      iid: 27
+      str: "com.example.Svc.mAlpha"
+    }
+    field_names {
+      iid: 28
+      str: "com.example.Svc.mZed"
+    }
+    location_names {
+      iid: 1
+      str: "l1"
+    }
+    continued: false
+    index: 0
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 20
+  # Case 12b: Second heap dump of the same process (graph_sample_ts = 20).
+  #   0x01 BindRecord.binder -> 0x02 IFoo$Stub$Proxy -> 0x03 BinderProxy
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+    pid: 2
+    roots {
+      root_type: ROOT_STICKY_CLASS
+      object_ids: 0x01
+    }
+    objects {
+      id: 0x01
+      type_id: 19
+      self_size: 32
+      reference_field_id: 6
+      reference_object_id: 0x02
+    }
+    objects {
+      id: 0x02
+      type_id: 13
+      self_size: 16
+      reference_field_id: 5
+      reference_object_id: 0x03
+    }
+    objects {
+      id: 0x03
+      type_id: 2
+      self_size: 40
+    }
+    types {
+      id: 2
+      location_id: 1
+      class_name: "android.os.BinderProxy"
+    }
+    types {
+      id: 13
+      location_id: 1
+      class_name: "com.example.IFoo$Stub$Proxy"
+    }
+    types {
+      id: 19
+      location_id: 1
+      class_name: "com.example.BindRecord"
+    }
+    field_names {
+      iid: 5
+      str: "com.example.IFoo$Stub$Proxy.mRemote"
+    }
+    field_names {
+      iid: 6
+      str: "com.example.BindRecord.binder"
+    }
+    location_names {
+      iid: 1
+      str: "l1"
+    }
+    continued: false
+    index: 0
+  }
+}
+packet {
+  deobfuscation_mapping {
+    obfuscated_classes {
+      obfuscated_name: "p"
+      deobfuscated_name: "com.example.IObf$Stub$Proxy"
+    }
+    obfuscated_classes {
+      obfuscated_name: "h"
+      deobfuscated_name: "com.example.ObfHolder"
+      obfuscated_members {
+        obfuscated_name: "f"
+        deobfuscated_name: "mObfProxy"
+      }
+    }
+    obfuscated_classes {
+      obfuscated_name: "d"
+      deobfuscated_name: "com.example.ObfDeathRec"
+    }
+  }
+}
