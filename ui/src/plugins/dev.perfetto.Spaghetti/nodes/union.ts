@@ -20,10 +20,14 @@ import {Stack} from '../components/stack';
 import type {NodeManifest} from '../node_types';
 import type {Port} from '../graph_model';
 
-const UnionConfigSchema = z.object({
-  distinct: z.boolean(),
-  numInputs: z.number(),
-});
+const UnionConfigSchema = z
+  .object({
+    distinct: z.boolean(),
+    numInputs: z.number(),
+  })
+  .describe(
+    'Combine rows from >= 2 inputs (UNION ALL when distinct is false, UNION when true).',
+  );
 
 export type UnionConfig = z.infer<typeof UnionConfigSchema>;
 

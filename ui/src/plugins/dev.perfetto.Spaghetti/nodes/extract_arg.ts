@@ -39,10 +39,12 @@ const ExtractArgEntrySchema = z.object({
 
 export type ExtractArgEntry = z.infer<typeof ExtractArgEntrySchema>;
 
-const ExtractArgConfigSchema = z.object({
-  argSetIdCol: z.string(),
-  extractions: z.array(ExtractArgEntrySchema),
-});
+const ExtractArgConfigSchema = z
+  .object({
+    argSetIdCol: z.string(),
+    extractions: z.array(ExtractArgEntrySchema),
+  })
+  .describe('Extract values from an arg_set_id column via extract_arg().');
 
 export type ExtractArgConfig = z.infer<typeof ExtractArgConfigSchema>;
 

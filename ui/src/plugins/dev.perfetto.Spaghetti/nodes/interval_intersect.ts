@@ -26,11 +26,15 @@ import type {ColumnDef} from '../graph_utils';
 import type {Port} from '../graph_model';
 import {Button, ButtonVariant} from '../../../widgets/button';
 
-const IntervalIntersectConfigSchema = z.object({
-  numInputs: z.number(),
-  partitionColumns: z.array(z.string()),
-  filterNegativeDur: z.boolean(),
-});
+const IntervalIntersectConfigSchema = z
+  .object({
+    numInputs: z.number(),
+    partitionColumns: z.array(z.string()),
+    filterNegativeDur: z.boolean(),
+  })
+  .describe(
+    'Intersect overlapping (id, ts, dur) intervals across >= 2 inputs.',
+  );
 
 export type IntervalIntersectConfig = z.infer<
   typeof IntervalIntersectConfigSchema

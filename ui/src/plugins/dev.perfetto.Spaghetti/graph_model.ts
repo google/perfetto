@@ -57,6 +57,8 @@ export interface Port {
   readonly name: string;
   /** User-facing label shown on the port. Not used for programmatic lookup. */
   readonly content: string;
+  /** Whether this port may remain unconnected when executing the node. */
+  readonly optional?: boolean;
 }
 
 export interface NodeQueryBuilderStore {

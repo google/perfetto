@@ -18,10 +18,15 @@ import type {LogicalOpContext, NodeManifest} from '../node_types';
 import {TextInput} from '../../../widgets/text_input';
 import {Stack} from '../components/stack';
 
-const LimitConfigSchema = z.object({
-  limitCount: z.string(),
-  offset: z.string().optional(),
-});
+const LimitConfigSchema = z
+  .object({
+    limitCount: z.string().describe('Row limit as digits string, e.g. "100"'),
+    offset: z
+      .string()
+      .optional()
+      .describe('Optional offset as digits string or ""'),
+  })
+  .describe('Cap output row count.');
 
 export type LimitConfig = z.infer<typeof LimitConfigSchema>;
 

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {produce} from 'immer';
 import m from 'mithril';
 import {z} from 'zod';
 import {Icons} from '../../../base/semantic_icons';
@@ -60,6 +59,7 @@ import type {
   NodeQueryBuilderStore,
   RootNodeData,
 } from '../graph_model';
+import {SpaghettiGraphState} from '../graph_state';
 import {
   chainTail,
   deserializeStore,
@@ -72,12 +72,11 @@ import {
   getManifestInputs,
   getOutputColumnsForNode,
   instantiateCopiedNodes,
-  removeNodeFromGraph,
   serializeStore,
   trimInputs,
   type GraphIndex,
 } from '../graph_utils';
-import {buildDisplayQuery, buildLogicalPlan, type SqlDialect} from '../ir';
+import {buildDisplayQuery, buildLogicalPlan} from '../ir';
 import {MaterializationService} from '../materialization';
 import type {DetailsContext, RenderContext} from '../node_types';
 import {CacheTab} from './cache_tab';
@@ -115,29 +114,20 @@ const LOADING_STYLE_OPTIONS: ReadonlyArray<{
 export interface SpaghettiPage {
   readonly trace: Trace;
   readonly sqlModules: SqlModules | undefined;
+  readonly state?: SpaghettiGraphState;
 }
 
 export function SpaghettiPage(): m.Component<SpaghettiPage> {
   let graphApi: NodeGraphApi | undefined;
+  let fallbackState: SpaghettiGraphState | undefined;
+  let activeState: SpaghettiGraphState | undefined;
+  let suppressHistoryOnMove = false;
 
-  // Initialize store
-  let store: NodeQueryBuilderStore = {
-    nodes: [],
-    labels: [],
-  };
-
-  // History management
-  const history: NodeQueryBuilderStore[] = [store];
-  let historyIndex = 0;
-
-  // Selection state (separate from undo/redo history)
-  const selectedNodeIds = new Set<string>();
-
-  // Pinned node: when set, results panel always shows this node's query
-  let pinnedNodeId: string | undefined;
-
-  // Target dialect used when materializing nodes in Trace Processor.
-  let materializationDialect: SqlDialect = 'sql';
+  function getState(): SpaghettiGraphState {
+    if (activeState) return activeState;
+    fallbackState ??= new SpaghettiGraphState();
+    return fallbackState;
+  }
 
   // Visual style for the node loading animation while materializing.
   let loadingStyle: LoadingStyle = 'shimmer';
@@ -149,7 +139,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
   let addMenuOpen = false;
 
   function getFlatNodes(): GraphIndex {
-    return flattenNodes(store.nodes);
+    return flattenNodes(getState().store.nodes);
   }
 
   // Derive Connection[] from node inputs for the nodegraph widget.
@@ -176,7 +166,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
   let matService: MaterializationService | undefined;
 
-  const STORAGE_KEY = 'perfettoSpaghetti';
   const VIEWPORT_STORAGE_KEY = 'perfettoSpaghettiViewport';
   const VIEWPORT_SAVE_DEBOUNCE_MS = 250;
 
@@ -222,97 +211,47 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
   const initialViewport = loadViewport();
 
-  function saveGraph() {
-    try {
-      localStorage.setItem(STORAGE_KEY, serializeStore(store));
-      console.log('[QueryBuilder] Graph saved');
-    } catch (e) {
-      console.error('[QueryBuilder] Failed to save graph:', e);
-    }
-  }
-
-  function loadGraph() {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved) {
-        console.log('[QueryBuilder] No saved graph found');
-        return;
-      }
-      store = deserializeStore(saved);
-      history.splice(0, history.length, store);
-      historyIndex = 0;
-      selectedNodeIds.clear();
-      pinnedNodeId = undefined;
-      console.log('[QueryBuilder] Graph loaded');
-    } catch (e) {
-      console.error('[QueryBuilder] Failed to load graph:', e);
-    }
-  }
-
-  // Update store with history
   const updateStore = (updater: (draft: NodeQueryBuilderStore) => void) => {
-    const newStore = produce(store, updater);
-    store = newStore;
-
-    if (historyIndex < history.length - 1) {
-      history.splice(historyIndex + 1);
-    }
-
-    history.push(store);
-    historyIndex = history.length - 1;
-
-    if (history.length > 50) {
-      history.shift();
-      historyIndex--;
-    }
-
-    saveGraph();
+    getState().updateStore(updater);
   };
 
-  const undo = () => {
-    const prev = history[historyIndex - 1];
-    if (prev !== undefined) {
-      historyIndex--;
-      store = prev;
-      saveGraph();
-    }
-  };
-
-  const redo = () => {
-    const next = history[historyIndex + 1];
-    if (next !== undefined) {
-      historyIndex++;
-      store = next;
-      saveGraph();
-    }
-  };
-
-  const canUndo = () => historyIndex > 0;
-  const canRedo = () => historyIndex < history.length - 1;
+  const undo = () => getState().undo();
+  const redo = () => getState().redo();
+  const canUndo = () => getState().canUndo();
+  const canRedo = () => getState().canRedo();
 
   const updateNode = (
     nodeId: string,
     updates: Partial<Omit<RootNodeData, 'id'>>,
   ) => {
-    updateStore((draft) => {
-      const node = draft.nodes.find((n) => n.id === nodeId);
-      if (node) {
-        Object.assign(node, updates);
-      }
+    getState().updateNode(nodeId, updates, {
+      skipHistory: suppressHistoryOnMove,
     });
   };
 
   const removeNode = (nodeId: string) => {
-    updateStore((draft) => {
-      removeNodeFromGraph(draft.nodes, nodeId);
-    });
-
-    selectedNodeIds.delete(nodeId);
-    if (pinnedNodeId === nodeId) pinnedNodeId = undefined;
+    getState().removeNode(nodeId);
   };
 
-  // Load the graph from localStorage on initialization
-  loadGraph();
+  function flushPendingLayout() {
+    if (!graphApi) return;
+    const pending = getState().consumePendingLayout();
+    if (!pending) return;
+    requestAnimationFrame(() => {
+      if (!graphApi) return;
+      if (pending.autoLayout) {
+        suppressHistoryOnMove = true;
+        try {
+          graphApi.autoLayout();
+        } finally {
+          suppressHistoryOnMove = false;
+        }
+      }
+      if (pending.recenter) {
+        graphApi.recenter();
+      }
+    });
+  }
 
   // --- Clipboard support ---
 
@@ -320,7 +259,11 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
   let pasteCount = 0;
 
   function copySelectedNodes() {
-    const copied = extractNodesForCopy(store.nodes, selectedNodeIds);
+    const state = getState();
+    const copied = extractNodesForCopy(
+      state.store.nodes,
+      state.selectedNodeIds,
+    );
     if (copied.length === 0) return;
 
     const json = JSON.stringify(
@@ -361,6 +304,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       for (const node of newNodes) draft.nodes.push(node);
     });
 
+    const selectedNodeIds = getState().selectedNodeIds;
     selectedNodeIds.clear();
     for (const node of newNodes) selectedNodeIds.add(node.id);
   }
@@ -382,7 +326,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
   function cutSelectedNodes() {
     copySelectedNodes();
-    for (const id of [...selectedNodeIds]) {
+    for (const id of [...getState().selectedNodeIds]) {
       removeNode(id);
     }
   }
@@ -489,7 +433,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       availableColumns,
       tableNames,
       trace,
-      isSelected: selectedNodeIds.has(nodeData.id),
+      isSelected: getState().selectedNodeIds.has(nodeData.id),
       inputPorts: ports,
       getInputColumns(portLabel: string) {
         const input = portInputs.get(portLabel);
@@ -552,11 +496,13 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       hue: manifest.hue,
       contextMenuItems: [
         m(MenuItem, {
-          label: pinnedNodeId === nodeData.id ? 'Unpin node' : 'Pin node',
+          label:
+            getState().pinnedNodeId === nodeData.id ? 'Unpin node' : 'Pin node',
           icon: 'push_pin',
           onclick: () => {
-            pinnedNodeId =
-              pinnedNodeId === nodeData.id ? undefined : nodeData.id;
+            const state = getState();
+            state.pinnedNodeId =
+              state.pinnedNodeId === nodeData.id ? undefined : nodeData.id;
           },
         }),
         m(MenuItem, {
@@ -609,11 +555,18 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
   return {
     onremove(_: m.VnodeDOM<SpaghettiPage>) {
+      graphApi = undefined;
       flushViewportSave();
       matService?.dispose();
     },
     view({attrs}: m.Vnode<SpaghettiPage>) {
       const {trace, sqlModules} = attrs;
+      activeState = attrs.state;
+      const state = getState();
+      const {store, selectedNodeIds, pinnedNodeId} = state;
+      const materializationDialect = state.dialect;
+
+      flushPendingLayout();
 
       // Get table names from SqlModules, falling back to a basic list
       const tableNames = sqlModules
@@ -669,7 +622,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
             label: pinnedLabel,
             title: 'Unpin node',
             onclick: () => {
-              pinnedNodeId = undefined;
+              state.pinnedNodeId = undefined;
             },
           }),
         );
@@ -684,7 +637,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
             selectedValue: materializationDialect,
             title: 'Query backend used for materialization',
             onValueChange: (value: string) => {
-              materializationDialect = value === 'pipe' ? 'pipe' : 'sql';
+              state.dialect = value === 'pipe' ? 'pipe' : 'sql';
             },
           },
           [
@@ -751,14 +704,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
                 intent: Intent.Danger,
                 className: Popup.DISMISS_POPUP_GROUP_CLASS,
                 onclick: () => {
-                  store = {
-                    nodes: [],
-                    labels: [],
-                  };
-                  history.splice(0, history.length, store);
-                  historyIndex = 0;
-                  selectedNodeIds.clear();
-                  pinnedNodeId = undefined;
+                  state.clear();
                 },
               }),
             ]),
@@ -793,6 +739,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         toolbarItems,
         onReady: (api: NodeGraphApi) => {
           graphApi = api;
+          flushPendingLayout();
         },
         onCopy: () => copySelectedNodes(),
         onPaste: () => pasteNodes(),
@@ -960,11 +907,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       });
 
       // Use pinned node if set, otherwise fall back to selected node.
-      const activeNodeId =
-        pinnedNodeId ??
-        (selectedNodeIds.size === 1
-          ? (selectedNodeIds.values().next().value as string)
-          : undefined);
+      const activeNodeId = state.getActiveNodeId();
 
       // Lazily create the materialization service.
       if (!matService) {
@@ -1050,12 +993,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               content: m(GraphTab, {
                 liveJson,
                 onApply: (json: string) => {
-                  store = deserializeStore(json);
-                  history.splice(0, history.length, store);
-                  historyIndex = 0;
-                  selectedNodeIds.clear();
-                  pinnedNodeId = undefined;
-                  saveGraph();
+                  state.replaceStore(deserializeStore(json));
                 },
               }),
             },

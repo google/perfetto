@@ -42,10 +42,14 @@ const DataTableColumnSchema = z.object({
   type: z.enum(DATA_TABLE_COLUMN_TYPES),
 });
 
-const DataTableConfigSchema = z.object({
-  columns: z.array(DataTableColumnSchema),
-  rows: z.array(z.array(z.string())),
-});
+const DataTableConfigSchema = z
+  .object({
+    columns: z.array(DataTableColumnSchema),
+    rows: z.array(z.array(z.string())),
+  })
+  .describe(
+    'Inline constant table; requires >= 1 column with valid SQL identifier names.',
+  );
 
 export type DataTableConfig = z.infer<typeof DataTableConfigSchema>;
 

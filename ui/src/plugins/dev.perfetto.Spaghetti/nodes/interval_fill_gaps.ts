@@ -28,9 +28,11 @@ import type {
 } from '../node_types';
 import {ColumnPicker} from '../widgets/column_picker';
 
-const IntervalFillGapsConfigSchema = z.object({
-  partitionColumns: z.array(z.string()),
-});
+const IntervalFillGapsConfigSchema = z
+  .object({
+    partitionColumns: z.array(z.string()),
+  })
+  .describe('Fill gaps in input intervals within background intervals.');
 
 export type IntervalFillGapsConfig = z.infer<
   typeof IntervalFillGapsConfigSchema

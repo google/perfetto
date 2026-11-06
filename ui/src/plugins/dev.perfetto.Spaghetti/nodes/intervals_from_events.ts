@@ -30,11 +30,15 @@ import type {
 } from '../node_types';
 import {ColumnPicker} from '../widgets/column_picker';
 
-const IntervalsFromEventsConfigSchema = z.object({
-  partitionColumns: z.array(z.string()),
-  lastMode: z.enum(['CLOSE_AT', 'KEEP_OPEN']),
-  closeAtExpr: z.string(),
-});
+const IntervalsFromEventsConfigSchema = z
+  .object({
+    partitionColumns: z.array(z.string()),
+    lastMode: z.enum(['CLOSE_AT', 'KEEP_OPEN']),
+    closeAtExpr: z.string(),
+  })
+  .describe(
+    'Convert point events (ts) into (ts, dur) intervals; wiring optional stop port requires PerfettoSQL Next mode.',
+  );
 
 export type IntervalsFromEventsConfig = z.infer<
   typeof IntervalsFromEventsConfigSchema
@@ -164,7 +168,7 @@ export const manifest: NodeManifest<IntervalsFromEventsConfig> = {
   icon: 'timeline',
   getInputs: () => [
     {name: 'input', content: 'Input'},
-    {name: 'stop', content: 'Stop'},
+    {name: 'stop', content: 'Stop', optional: true},
   ],
   hue: 348,
   schema: IntervalsFromEventsConfigSchema,

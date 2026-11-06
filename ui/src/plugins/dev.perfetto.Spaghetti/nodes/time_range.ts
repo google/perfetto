@@ -18,10 +18,14 @@ import type {NodeManifest} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Stack} from '../components/stack';
 
-const TimeRangeConfigSchema = z.object({
-  ts: z.string(), // bigint as string for serialization
-  dur: z.string(),
-});
+const TimeRangeConfigSchema = z
+  .object({
+    ts: z.string().describe('Start timestamp in ns (integer string)'),
+    dur: z.string().describe('Duration in ns (integer string)'),
+  })
+  .describe(
+    'Single-row (id, ts, dur) time window; at least one of ts or dur must not be "0".',
+  );
 
 export type TimeRangeConfig = z.infer<typeof TimeRangeConfigSchema>;
 

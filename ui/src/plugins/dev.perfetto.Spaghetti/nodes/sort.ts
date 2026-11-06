@@ -36,11 +36,15 @@ const SortConditionSchema = z.object({
 
 export type SortCondition = z.infer<typeof SortConditionSchema>;
 
-const SortConfigSchema = z.object({
-  sortColumn: z.string(),
-  sortOrder: SortOrderSchema,
-  conditions: z.array(SortConditionSchema).optional(),
-});
+const SortConfigSchema = z
+  .object({
+    sortColumn: z.string(),
+    sortOrder: SortOrderSchema,
+    conditions: z.array(SortConditionSchema).optional(),
+  })
+  .describe(
+    'Order rows; set sortColumn and sortOrder to match the primary sort key.',
+  );
 
 export type SortConfig = z.infer<typeof SortConfigSchema>;
 

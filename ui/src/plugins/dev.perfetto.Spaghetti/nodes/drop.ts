@@ -28,10 +28,12 @@ import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
 import type {ColumnDef} from '../graph_utils';
 
-const DropConfigSchema = z.object({
-  // Names of the input columns to drop.
-  columns: z.array(z.string()),
-});
+const DropConfigSchema = z
+  .object({
+    // Names of the input columns to drop.
+    columns: z.array(z.string()),
+  })
+  .describe('Drop named columns from the input.');
 
 export type DropConfig = z.infer<typeof DropConfigSchema>;
 

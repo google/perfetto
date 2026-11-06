@@ -18,7 +18,9 @@ import type {LogicalOp} from '../ir';
 import type {LogicalOpContext, NodeManifest} from '../node_types';
 import {Stack} from '../components/stack';
 
-const DistinctConfigSchema = z.object({});
+const DistinctConfigSchema = z
+  .object({})
+  .describe('Deduplicate identical rows.');
 
 export type DistinctConfig = z.infer<typeof DistinctConfigSchema>;
 

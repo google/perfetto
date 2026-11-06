@@ -38,12 +38,16 @@ import {ColumnPicker} from '../widgets/column_picker';
 
 export type TreeAggregation = PipelineAggEntry;
 
-const TreeAccumulateConfigSchema = z.object({
-  direction: z.enum(['UP', 'DOWN']),
-  idColumn: z.string(),
-  parentIdColumn: z.string(),
-  aggregations: z.array(PipelineAggEntrySchema),
-});
+const TreeAccumulateConfigSchema = z
+  .object({
+    direction: z.enum(['UP', 'DOWN']),
+    idColumn: z.string(),
+    parentIdColumn: z.string(),
+    aggregations: z.array(PipelineAggEntrySchema),
+  })
+  .describe(
+    'Accumulate aggregations UP (subtree) or DOWN (ancestors) over (idColumn, parentIdColumn).',
+  );
 
 export type TreeAccumulateConfig = z.infer<typeof TreeAccumulateConfigSchema>;
 

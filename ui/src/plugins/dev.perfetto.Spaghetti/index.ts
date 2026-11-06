@@ -16,7 +16,10 @@ import './styles.scss';
 import m from 'mithril';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
+import IntellettoPlugin from '../dev.perfetto.Intelletto';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import {SpaghettiGraphState} from './graph_state';
+import {registerSpaghettiTools} from './spaghetti_tools';
 import {SpaghettiPage} from './views/spaghetti_page';
 
 /*
@@ -54,13 +57,23 @@ could be architected and how it could look and feel.
     Resulting in more pleasing connection beziers.
 */
 
-export default class implements PerfettoPlugin {
+export default class SpaghettiPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Spaghetti';
-  static readonly dependencies = [SqlModulesPlugin];
+  static readonly dependencies = [SqlModulesPlugin, IntellettoPlugin];
   static readonly description = 'A visual query builder for SQL modules.';
+
+  private readonly graphState = new SpaghettiGraphState();
 
   async onTraceLoad(trace: Trace): Promise<void> {
     const sqlModulesPlugin = trace.plugins.getPlugin(SqlModulesPlugin);
+    const intelletto = trace.plugins.getPlugin(IntellettoPlugin);
+
+    registerSpaghettiTools(
+      intelletto,
+      trace,
+      sqlModulesPlugin,
+      this.graphState,
+    );
 
     trace.pages.registerPage({
       route: '/spaghetti',
@@ -69,6 +82,7 @@ export default class implements PerfettoPlugin {
         return m(SpaghettiPage, {
           trace,
           sqlModules: sqlModulesPlugin.getSqlModules(),
+          state: this.graphState,
         });
       },
     });
