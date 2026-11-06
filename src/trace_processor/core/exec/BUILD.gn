@@ -101,6 +101,7 @@ source_set("exec") {
     "../../containers",
     "../../util:bump_allocator",
     "../../util:cold_sort",
+    "../../util:glob",
     "../../util:graph",
     "../common",
     "../dataframe",

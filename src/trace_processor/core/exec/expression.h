@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -60,6 +61,13 @@ struct ExprStep {
     kGe,
     // `int_value` where `a` is present, else null.
     kConstantWherePresent,
+    // Whether the string `a` matches pattern `b` of the program, as 0 or 1.
+    // Null
+    // if `a` is.
+    kGlob,
+    // Whether `a` is null or not, as 0 or 1.
+    kIsNull,
+    kIsNotNull,
   };
 
   Op op = Op::kColumn;
@@ -86,6 +94,8 @@ struct ExprStep {
 // the run.
 struct ExprProgram {
   std::vector<ExprStep> steps;
+  // The patterns the program's kGlob steps match.
+  std::vector<std::string> patterns;
 };
 
 // Appends one column to each batch for each program.

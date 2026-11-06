@@ -16,10 +16,12 @@
 
 #include "src/trace_processor/core/exec/expression.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -27,6 +29,8 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -37,6 +41,7 @@
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/util/glob.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -187,6 +192,9 @@ bool IntArithmetic(Op op,
     case Op::kGt:
     case Op::kGe:
     case Op::kConstantWherePresent:
+    case Op::kGlob:
+    case Op::kIsNull:
+    case Op::kIsNotNull:
       break;
   }
   PERFETTO_FATAL("Not arithmetic");
@@ -234,6 +242,9 @@ void DoubleArithmetic(Op op,
     case Op::kGt:
     case Op::kGe:
     case Op::kConstantWherePresent:
+    case Op::kGlob:
+    case Op::kIsNull:
+    case Op::kIsNotNull:
       break;
   }
   PERFETTO_FATAL("Not double arithmetic");
@@ -263,6 +274,20 @@ void CompareNumbers(Op op, const T* x, const T* y, int64_t* o, uint32_t rows) {
   }
 }
 
+// Writes the `rows` bits of `bits` from `start` as 0 or 1 each.
+PERFETTO_NO_INLINE void BitsToBools(const BitVector& bits,
+                                    uint32_t start,
+                                    int64_t* o,
+                                    uint32_t rows) {
+  for (uint32_t r = 0; r < rows; r += 64) {
+    uint32_t n = std::min(64u, rows - r);
+    uint64_t word = bits.ReadBits(start + r, n);
+    for (uint32_t i = 0; i < n; ++i) {
+      o[r + i] = static_cast<int64_t>((word >> i) & 1);
+    }
+  }
+}
+
 PERFETTO_NO_INLINE void FlipBools(int64_t* o, uint32_t rows) {
   for (uint32_t r = 0; r < rows; ++r) {
     o[r] ^= 1;
@@ -281,6 +306,16 @@ StorageType StorageFor(ExprType type) {
   PERFETTO_FATAL("For GCC");
 }
 
+// A kGlob step's pattern, and what it found of the strings seen so far.
+struct GlobPattern {
+  explicit GlobPattern(const std::string& pattern)
+      : matcher(util::GlobMatcher::FromPattern(base::StringView(pattern))) {}
+
+  util::GlobMatcher matcher;
+  base::FlatHashMap<uint32_t, bool> results;
+  bool remember = true;
+};
+
 // Runs one program over batches, keeping a register per step.
 class Evaluator {
  public:
@@ -289,6 +324,10 @@ class Evaluator {
             const StringPool* pool)
       : program_(&program), context_(&context), pool_(pool) {
     regs_.resize(program.steps.size());
+    globs_.reserve(program.patterns.size());
+    for (const std::string& pattern : program.patterns) {
+      globs_.push_back(std::make_unique<GlobPattern>(pattern));
+    }
     constants_.resize(program.steps.size());
     for (uint32_t i = 0; i < program.steps.size(); ++i) {
       const ExprStep& step = program.steps[i];
@@ -486,6 +525,37 @@ class Evaluator {
     }
   }
 
+  // Each string is matched once, as matching costs more than finding the
+  // earlier result, unless a batch shows that strings do not tend to repeat.
+  PERFETTO_NO_INLINE void Glob(const ExprStep& step, Register& out) {
+    const Register& a = regs_[step.a];
+    int64_t* o = Alloc<int64_t>(out);
+    Validity(a, nullptr, false, false, out);
+    const StringPool::Id* x = a.Values<StringPool::Id>();
+    GlobPattern& pattern = *globs_[step.b];
+    uint32_t matched = 0;
+    for (uint32_t r = 0; r < rows_; ++r) {
+      if (!a.Valid(r)) {
+        o[r] = 0;
+        continue;
+      }
+      if (!pattern.remember) {
+        o[r] = pattern.matcher.Matches(pool_->Get(x[r]));
+        continue;
+      }
+      auto [result, inserted] = pattern.results.Insert(x[r].raw_id(), false);
+      if (inserted) {
+        *result = pattern.matcher.Matches(pool_->Get(x[r]));
+        ++matched;
+      }
+      o[r] = *result;
+    }
+    if (pattern.remember && matched > rows_ / 2) {
+      pattern.remember = false;
+      pattern.results.Clear();
+    }
+  }
+
   // Everything is computed as Eq, Lt or Le: a > b is b < a, a >= b is b <= a
   // and a != b is the opposite of a == b, which holds for doubles too.
   PERFETTO_NO_INLINE void Compare(const ExprStep& step, Register& out) {
@@ -510,6 +580,21 @@ class Evaluator {
         break;
     }
     if (step.op == Op::kNe) {
+      FlipBools(o, rows_);
+    }
+  }
+
+  PERFETTO_NO_INLINE void NullTest(const ExprStep& step, Register& out) {
+    const Register& a = regs_[step.a];
+    int64_t* o = Alloc<int64_t>(out);
+    if (a.validity) {
+      BitsToBools(*a.validity, a.start, o, rows_);
+    } else {
+      for (uint32_t r = 0; r < rows_; ++r) {
+        o[r] = 1;
+      }
+    }
+    if (step.op == Op::kIsNull) {
       FlipBools(o, rows_);
     }
   }
@@ -554,6 +639,13 @@ class Evaluator {
       case Op::kGe:
         Compare(step, out);
         return true;
+      case Op::kGlob:
+        Glob(step, out);
+        return true;
+      case Op::kIsNull:
+      case Op::kIsNotNull:
+        NullTest(step, out);
+        return true;
       case Op::kConstantWherePresent:
         ConstantWherePresent(step, out);
         return true;
@@ -564,6 +656,8 @@ class Evaluator {
   const ExprProgram* program_;
   Context* context_;
   const StringPool* pool_;
+  // By pattern of the program. Behind pointers so nothing moves them.
+  std::vector<std::unique_ptr<GlobPattern>> globs_;
   std::vector<Register> regs_;
   // By step, the register of each constant step, filled for every row once.
   std::vector<Register> constants_;

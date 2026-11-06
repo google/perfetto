@@ -199,6 +199,13 @@ std::string LogicalPlanFormatter::ExprString(const Expr& e, uint32_t i) {
     case Op::kGe:
       op = ">=";
       break;
+    case Op::kGlob:
+      return "(" + ExprString(e, node.a) + " GLOB '" + e.literals[node.b].text +
+             "')";
+    case Op::kIsNull:
+      return "(" + ExprString(e, node.a) + " IS NULL)";
+    case Op::kIsNotNull:
+      return "(" + ExprString(e, node.a) + " IS NOT NULL)";
     case Op::kToDouble:
     case Op::kConstantWherePresent:
       PERFETTO_FATAL("Not a logical expression");
