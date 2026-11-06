@@ -173,15 +173,6 @@ export class LiveSession {
     }
   }
 
-  /** Toggles between paused and running. */
-  togglePause(): void {
-    if (this.isPaused) {
-      this.resume();
-    } else {
-      this.pause();
-    }
-  }
-
   /** Starts a heap profiling session for a single process. */
   async startProfile(pid: number, processName: string): Promise<void> {
     if (this.profileImpl) {
@@ -246,13 +237,14 @@ export class LiveSession {
     // the engine again, and the finally block doesn't reschedule.
     this.isDisposed = true;
     clearTimeout(this.timer);
-    if (this.session) {
-      await this.session.cancel();
-      this.session = undefined;
-    }
     if (this.engine) {
       this.engine[Symbol.dispose]();
       this.engine = undefined;
+    }
+    if (this.session) {
+      const session = this.session;
+      this.session = undefined;
+      await session.cancel();
     }
   }
 
