@@ -182,7 +182,6 @@ export class LiveSession {
       this.linuxTarget ?? this.device!,
       pid,
       processName,
-      this.data?.xMax ?? 0,
     );
     this.profileImpl = {session, startMs: Date.now()};
   }
