@@ -15,7 +15,11 @@
 import {BigtraceAsyncDataSource} from './bigtrace_async_data_source';
 import {QueryNotFoundError} from './bigtrace_query_client';
 import {isoToEpochMs, type RawQueryExecution} from './query_history_storage';
-import {queryStore, TERMINAL_STATUSES} from './query_store';
+import {
+  queryStore,
+  TERMINAL_STATUSES,
+  toQueryExecutionPhase,
+} from './query_store';
 import {makeQueryResponse} from '../pages/query_tabs_state';
 import type {BigTraceEditorTab} from '../pages/query_tabs_state';
 
@@ -27,8 +31,67 @@ export interface PollingCallbacks {
   readonly onHistoryChanged: () => void;
 }
 
-// Owns the poll-until-terminal loop for async (materialized) queries.
+// Apply a full GET /query_executions/{uuid} payload to `tab` and `queryStore`.
+export function applyExecutionDetails(
+  tab: BigTraceEditorTab,
+  details: RawQueryExecution,
+): void {
+  if (!tab.queryUuid) return;
+  const status = details.status ?? 'N/A';
+  const isTerminal = TERMINAL_STATUSES.has(status);
+  const startMs = isoToEpochMs(details.startTime);
+  const endMs = isoToEpochMs(details.endTime);
+
+  const exec = queryStore.getOrCreate(tab.queryUuid);
+  tab.execution = exec;
+  queryStore.update(tab.queryUuid, {
+    status,
+    processedRows: details.processedRows ?? 0,
+    processedTraces: details.processedTraces ?? exec.processedTraces,
+    totalTraces: details.totalTraces ?? exec.totalTraces,
+    phase: isTerminal
+      ? undefined
+      : (toQueryExecutionPhase(details.phase) ?? exec.phase),
+    ...(details.materialized !== undefined
+      ? {materialized: details.materialized}
+      : {}),
+    ...(startMs !== undefined ? {startTime: startMs} : {}),
+    ...(isTerminal && endMs !== undefined ? {endTime: endMs} : {}),
+    ...(details.schema !== undefined ? {schema: details.schema} : {}),
+    tableName: details.tableName || undefined,
+    tableLink: details.tableLink || undefined,
+  });
+
+  tab.isLoading = !isTerminal;
+
+  const durationMs =
+    exec.endTime !== undefined && exec.startTime !== undefined
+      ? exec.endTime - exec.startTime
+      : 0;
+
+  if (!tab.queryResult) {
+    tab.queryResult = makeQueryResponse(tab.editorText, {
+      totalRowCount: exec.processedRows,
+      durationMs,
+      statementWithOutputCount: 1,
+    });
+  } else {
+    tab.queryResult.totalRowCount = exec.processedRows;
+    tab.queryResult.durationMs = durationMs;
+    tab.queryResult.lastStatementSql = tab.editorText;
+    tab.queryResult.query = tab.editorText;
+  }
+
+  if (status === 'FAILED') {
+    tab.queryResult.error =
+      details.errorMessage || details.error || 'Query failed';
+  }
+}
+
+// Owns the poll-until-terminal loop for async queries.
 export class PollingController {
+  private readonly fetchingPreviewDetails = new Set<string>();
+
   constructor(private readonly cb: PollingCallbacks) {}
 
   // Begin polling `:status` for the given tab's queryUuid.
@@ -49,7 +112,7 @@ export class PollingController {
         if (tab.pollGeneration !== generation || !tab.isLoading) return;
 
         if (status !== undefined && status !== null) {
-          this.applyStatus(tab, status);
+          this.applyStatus(tab, status, generation);
         }
 
         const isTerminal =
@@ -57,7 +120,7 @@ export class PollingController {
           status.status !== undefined &&
           TERMINAL_STATUSES.has(status.status);
         if (isTerminal) {
-          await this.finalize(tab, status!);
+          await this.finalize(tab, status!, generation);
         } else if (tab.pollInterval !== undefined) {
           tab.isLoading = true;
           tab.pollInterval = window.setTimeout(poll, POLL_INTERVAL_MS);
@@ -90,100 +153,166 @@ export class PollingController {
     }
   }
 
+  // Status-bar refresh: re-poll now instead of waiting for the next tick, so a
+  // run that finished in between goes through the same `finalize` path, and
+  // reload the grid for a run that is still in progress.
+  refreshNow(tab: BigTraceEditorTab): void {
+    if (!tab.queryUuid) return;
+    if (tab.isLoading) {
+      if (
+        tab.dataSource instanceof BigtraceAsyncDataSource &&
+        Boolean(tab.execution?.tableName)
+      ) {
+        void tab.dataSource.refresh();
+      }
+      this.start(tab);
+      return;
+    }
+    if (tab.dataSource instanceof BigtraceAsyncDataSource) {
+      void tab.dataSource.refresh();
+    }
+    this.cb.redraw();
+  }
+
   // Strip dead async metadata but keep the saved SQL for re-run.
   dropStaleQueryUuid(tab: BigTraceEditorTab): void {
     this.stop(tab);
     tab.pollGeneration++;
+    if (tab.queryUuid) {
+      this.fetchingPreviewDetails.delete(tab.queryUuid);
+    }
     tab.queryUuid = undefined;
     tab.execution = undefined;
     tab.dataSource = undefined;
     tab.queryResult = undefined;
     tab.isLoading = false;
-    tab.lastProcessedRows = 0;
     this.cb.redraw();
   }
 
   // ----- Internals -----
 
-  // Progress only — the poll never pulls result rows. A page fetch costs a
-  // full count over the result table under the same lock the worker writes
-  // through, so doing it every 3s would fight the query it is reporting on.
-  // The status bar's refresh button (lit while processedRows is ahead of
-  // lastProcessedRows) is how a partial result gets asked for.
-  private applyStatus(tab: BigTraceEditorTab, status: RawQueryExecution): void {
+  // Progress only — the poll never pulls result rows; mid-run refreshes use
+  // the status bar's manual refresh button. `generation` guards every write
+  // that happens after an await: a Cancel, re-run or refresh bumps it.
+  private applyStatus(
+    tab: BigTraceEditorTab,
+    status: RawQueryExecution,
+    generation: number,
+  ): void {
     if (!tab.queryUuid) return;
+    const prevRows = tab.execution?.processedRows ?? 0;
+    const nextRows = status.processedRows ?? 0;
+    const isTerminal =
+      status.status !== undefined && TERMINAL_STATUSES.has(status.status);
+    const nextPhase = isTerminal
+      ? undefined
+      : (toQueryExecutionPhase(status.phase) ?? tab.execution?.phase);
     queryStore.update(tab.queryUuid, {
-      processedRows: status.processedRows ?? 0,
+      processedRows: nextRows,
       processedTraces: status.processedTraces ?? 0,
       totalTraces: status.totalTraces ?? 0,
+      phase: nextPhase,
       status: status.status ?? 'N/A',
     });
+    // `:status` only carries counts; fetch execution details once preview rows
+    // appear (and retry if `tableName` is still unset) so DataGrid mounts once
+    // with `tableName` and `schema` already populated.
+    const uuid = tab.queryUuid;
+    if (
+      !isTerminal &&
+      nextRows > 0 &&
+      (prevRows === 0 || !tab.execution?.tableName) &&
+      !this.fetchingPreviewDetails.has(uuid)
+    ) {
+      this.fetchingPreviewDetails.add(uuid);
+      void tab.queryClient
+        ?.getQueryExecution(uuid, tab.lifecycle.signal)
+        .then((details: RawQueryExecution) => {
+          if (tab.queryUuid !== uuid || tab.pollGeneration !== generation) {
+            return;
+          }
+          queryStore.update(uuid, {
+            ...(details.schema !== undefined ? {schema: details.schema} : {}),
+            tableName: details.tableName || undefined,
+            tableLink: details.tableLink || undefined,
+          });
+          this.cb.redraw();
+        })
+        .catch(() => {})
+        .finally(() => {
+          this.fetchingPreviewDetails.delete(uuid);
+        });
+    }
     this.cb.redraw();
   }
 
   private async finalize(
     tab: BigTraceEditorTab,
     status: RawQueryExecution,
+    generation: number,
   ): Promise<void> {
     tab.pollInterval = undefined;
 
-    if (
-      tab.execution !== undefined &&
-      tab.execution.endTime === undefined &&
-      tab.queryUuid
-    ) {
-      queryStore.update(tab.queryUuid, {endTime: Date.now()});
+    const isFailed = status.status === 'FAILED';
+    const statusError = status.errorMessage || status.error;
+
+    if (tab.queryUuid) {
+      queryStore.update(tab.queryUuid, {
+        phase: undefined,
+        ...(tab.execution !== undefined && tab.execution.endTime === undefined
+          ? {endTime: Date.now()}
+          : {}),
+        ...(isFailed && statusError ? {error: statusError} : {}),
+      });
     }
 
     if (tab.isLoading) {
       this.cb.onHistoryChanged();
     }
-    tab.isLoading = false;
-
-    const isFailed = status.status === 'FAILED';
-    const isSuccess = status.status === 'SUCCESS';
 
     if (isFailed) {
       const startMs = tab.execution?.startTime;
       const endMs = tab.execution?.endTime;
       tab.queryResult = makeQueryResponse(tab.editorText, {
-        error: 'Fetching error details...',
+        error: statusError || 'Fetching error details...',
         durationMs:
           startMs !== undefined && endMs !== undefined ? endMs - startMs : 0,
       });
       this.cb.redraw();
     }
 
-    // Fetch full execution details for timing + error message.
-    void tab.queryClient
-      ?.getQueryExecution(tab.queryUuid!, tab.lifecycle.signal)
-      .then((details: RawQueryExecution) => {
-        const endMs = isoToEpochMs(details.endTime);
-        if (tab.queryUuid) {
-          queryStore.update(tab.queryUuid, {
-            ...(endMs !== undefined ? {endTime: endMs} : {}),
-            ...(details.schema !== undefined ? {schema: details.schema} : {}),
-            ...(details.tableName !== undefined
-              ? {tableName: details.tableName}
-              : {}),
-          });
+    // `isLoading` stays true until the full record (incl. `tableName`) is in,
+    // so a redraw in between never shows "Results no longer available".
+    const uuid = tab.queryUuid;
+    if (uuid && tab.queryClient) {
+      try {
+        const details = await tab.queryClient.getQueryExecution(
+          uuid,
+          tab.lifecycle.signal,
+        );
+        if (tab.queryUuid !== uuid || tab.pollGeneration !== generation) {
+          return;
         }
-        if (isFailed && tab.queryResult !== undefined) {
-          tab.queryResult.error = details.errorMessage || 'Query failed';
-        }
-        this.cb.redraw();
-      })
-      .catch((e: unknown) => {
+        applyExecutionDetails(tab, details);
+      } catch (e: unknown) {
         console.error('Failed to fetch query execution details:', e);
-        if (isFailed && tab.queryResult !== undefined) {
-          tab.queryResult.error = `Failed to fetch error details: ${e instanceof Error ? e.message : String(e)}`;
-          this.cb.redraw();
+        if (tab.queryUuid !== uuid || tab.pollGeneration !== generation) {
+          return;
         }
-      });
-
-    if (isSuccess && tab.dataSource instanceof BigtraceAsyncDataSource) {
-      tab.dataSource.refresh();
-      tab.lastProcessedRows = tab.execution?.processedRows ?? 0;
+        if (isFailed && tab.queryResult !== undefined && !statusError) {
+          tab.queryResult.error = `Failed to fetch error details: ${e instanceof Error ? e.message : String(e)}`;
+        }
+      }
     }
+    tab.isLoading = false;
+
+    if (
+      tab.dataSource instanceof BigtraceAsyncDataSource &&
+      Boolean(tab.execution?.tableName) &&
+      (tab.execution?.processedRows ?? 0) > 0
+    ) {
+      await tab.dataSource.refresh();
+    }
+    this.cb.redraw();
   }
 }

@@ -756,3 +756,40 @@ class PerfettoTable(TestSuite):
         "text","text","[NULL]","Text 1"
         "view_id","view_id","[NULL]","NO_ID"
         """))
+
+  def test_mipmap_operator_int64_max_window_end(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+        CREATE PERFETTO TABLE test_slices AS
+        SELECT 1 AS id, 100 AS ts, 50 AS dur, 0 AS depth
+        UNION ALL
+        SELECT 2 AS id, 6949342971933024256 AS ts, 100 AS dur, 0 AS depth;
+
+        CREATE VIRTUAL TABLE slice_mipmap USING __intrinsic_slice_mipmap(
+          test_slices
+        );
+
+        CREATE PERFETTO TABLE test_counters AS
+        SELECT 100 AS ts, 10.0 AS value
+        UNION ALL
+        SELECT 6949342971933024256 AS ts, 20.0 AS value;
+
+        CREATE VIRTUAL TABLE counter_mipmap USING __intrinsic_counter_mipmap(
+          test_counters
+        );
+
+        SELECT
+          (
+            SELECT COUNT(*)
+            FROM slice_mipmap(0, 9223372036854775807, 9007199254740992)
+          ) AS slice_cnt,
+          (
+            SELECT COUNT(*)
+            FROM counter_mipmap(0, 9223372036854775807, 9007199254740992)
+          ) AS counter_cnt;
+        """,
+        out=Csv("""
+        "slice_cnt","counter_cnt"
+        2,2
+        """))

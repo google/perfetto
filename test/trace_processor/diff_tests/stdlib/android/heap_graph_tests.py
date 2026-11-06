@@ -328,6 +328,7 @@ class HeapGraph(TestSuite):
             remote_only_size_bytes,
             remote_only_native_size_bytes
           FROM android_heap_graph_binder_stub
+          WHERE graph_sample_ts <= 20
           ORDER BY graph_sample_ts, id;
         """,
         out=Csv("""
@@ -341,6 +342,30 @@ class HeapGraph(TestSuite):
           10,13,"com.example.ObfService","com.example.IObf$Stub",1,1,36,0
           20,28,"com.example.FooService$1","com.example.IFoo$Stub",1,2,132,0
           20,29,"com.example.FooService$1","com.example.IFoo$Stub",1,2,92,0
+        """))
+
+  # An object tied between classes goes to the first class name. How one tied
+  # between stubs of a class is split is arbitrary, so only the class is checked.
+  def test_heap_graph_binder_stub_ties_per_class(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_binder_stubs.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.binder;
+
+          SELECT
+            class_name,
+            count(*) AS stub_count,
+            sum(remote_only_obj_count) AS remote_only_obj_count,
+            sum(remote_only_size_bytes) AS remote_only_size_bytes
+          FROM android_heap_graph_binder_stub
+          WHERE graph_sample_ts = 30
+          GROUP BY class_name
+          ORDER BY class_name;
+        """,
+        out=Csv("""
+          "class_name","stub_count","remote_only_obj_count","remote_only_size_bytes"
+          "com.example.BarRecord",1,3,1074
+          "com.example.FooService$1",2,4,184
         """))
 
   # Totals per dump do not depend on how shared objects are split between stubs.

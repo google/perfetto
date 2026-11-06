@@ -487,6 +487,23 @@ uint64_t PerfettoDsOnFlushArgsGetReason(struct PerfettoDsOnFlushArgs* args) {
   return static_cast<uint64_t>(flush_args->flush_flags.reason());
 }
 
+uint64_t PerfettoDsOnFlushArgsGetCloneTarget(
+    struct PerfettoDsOnFlushArgs* args) {
+  static_assert(
+      static_cast<uint64_t>(PERFETTO_DS_FLUSH_CLONE_TARGET_UNKNOWN) ==
+          static_cast<uint64_t>(perfetto::FlushFlags::CloneTarget::kUnknown),
+      "PerfettoDsFlushCloneTarget out of sync with FlushFlags::CloneTarget");
+  static_assert(
+      static_cast<uint64_t>(PERFETTO_DS_FLUSH_CLONE_TARGET_BUGREPORT) ==
+          static_cast<uint64_t>(perfetto::FlushFlags::CloneTarget::kBugreport),
+      "PerfettoDsFlushCloneTarget out of sync with FlushFlags::CloneTarget");
+  if (!args) {
+    return PERFETTO_DS_FLUSH_CLONE_TARGET_UNKNOWN;
+  }
+  auto* flush_args = reinterpret_cast<const ShlibDataSource::FlushArgs*>(args);
+  return static_cast<uint64_t>(flush_args->flush_flags.clone_target());
+}
+
 void* PerfettoDsImplGetInstanceLocked(struct PerfettoDsImpl* ds_impl,
                                       PerfettoDsInstanceIndex idx) {
   auto* internal_state = ds_impl->cpp_type.static_state()->TryGet(idx);

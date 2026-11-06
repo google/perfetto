@@ -21,32 +21,37 @@ INCLUDE PERFETTO MODULE android.memory.heap_graph.helpers;
 -- roots, so every object's path from a root is a shortest one. Where several
 -- are, the roots are taken in order of class name, which keeps the tree
 -- comparable across heap dumps, and then each object's references in order of
--- the object referred to.
+-- the object referred to. Also holds the cumulative size, native size and count
+-- of each object: the totals over it and everything below it in the tree. Only
+-- reachable objects are in the tree.
 CREATE PERFETTO TABLE _heap_graph_object_min_depth_tree AS
 GRAPH BFS TREE
   NODES heap_graph_object
   EDGES (
-    SELECT owner_id AS src, owned_id AS dst
-    FROM heap_graph_reference
-    WHERE
-      id NOT IN _excluded_refs
-      AND owned_id IS NOT NULL
-    ORDER BY
-      owned_id
+    FROM _heap_graph_strong_edges
+    |> ORDER BY dst
   )
   FROM (
     SELECT o.id
     FROM heap_graph_object AS o
-    JOIN heap_graph_class AS c
-      ON o.type_id = c.id
+    JOIN heap_graph_class AS c ON o.type_id = c.id
     WHERE
       o.root_type IS NOT NULL
     ORDER BY
       c.name,
       o.id
   )
-|> ORDER BY id
-|> SELECT id, parent_id;
+|> TREE ACCUMULATE UP
+  SUM(self_size) AS cumulative_size,
+  SUM(native_size) AS cumulative_native_size,
+  COUNT(*) AS cumulative_count
+|> SELECT
+  id,
+  parent_id,
+  cumulative_size,
+  cumulative_native_size,
+  cumulative_count
+|> ORDER BY id;
 
 CREATE PERFETTO TABLE _heap_graph_path_hashes AS
 SELECT * FROM _heap_graph_type_path_hash!(_heap_graph_object_min_depth_tree);

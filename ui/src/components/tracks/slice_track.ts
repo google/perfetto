@@ -470,8 +470,8 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     checkerboardExcept(
       ctx,
       this.getHeight(),
-      0,
-      size.width,
+      Math.max(0, timescale.timeToPx(Time.MIN)),
+      Math.min(size.width, timescale.timeToPx(Time.MAX)),
       frameStartPx,
       frameEndPx,
     );

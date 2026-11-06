@@ -46,6 +46,8 @@ source_set("service") {
     "../core",
   ]
   sources = [
+    "block_allocator.cc",
+    "block_allocator.h",
     "clock.cc",
     "clock.h",
     "dependencies.h",
@@ -56,6 +58,8 @@ source_set("service") {
     "packet_stream_validator.h",
     "random.cc",
     "random.h",
+    "sequence_state_map.cc",
+    "sequence_state_map.h",
     "service_ring_buffer_drainer.cc",
     "service_ring_buffer_drainer.h",
     "trace_buffer.h",
@@ -215,10 +219,12 @@ perfetto_unittest_source_set("unittests") {
   }
 
   sources = [
+    "block_allocator_unittest.cc",
     "histogram_unittest.cc",
     "packet_stream_validator_unittest.cc",
     "proto_group_rewriter_reference_for_testing.h",
     "proto_group_rewriter_unittest.cc",
+    "sequence_state_map_unittest.cc",
     "service_ring_buffer_drainer_unittest.cc",
     "trace_buffer_factory_unittest.cc",
     "trace_buffer_v1_unittest.cc",

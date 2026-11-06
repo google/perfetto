@@ -107,6 +107,18 @@ perfetto_cc_library(
     linkstatic = True,
 )
 
+# GN target: //src/perfetto_sql/syntaqlite:perfetto_fmt_dialect
+perfetto_cc_library(
+    name = "perfetto_fmt_dialect",
+    srcs = [
+        "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.c",
+    ],
+    hdrs = [
+        "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h",
+    ],
+    linkstatic = True,
+)
+
 # GN target: //src/protozero/protoc_plugin:cppgen_plugin
 perfetto_cc_binary(
     name = "cppgen_plugin",
@@ -313,13 +325,12 @@ perfetto_cc_binary(
         ":include_perfetto_ext_base_base",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",
-        ":src_perfetto_sql_analysis_analysis",
         ":src_perfetto_sql_intrinsic_macro_expansion",
         ":src_perfetto_sql_syntaqlite_syntaqlite",
-        ":src_trace_processor_util_json_parser",
+        ":src_tools_pfsql_source_tree",
         ":src_trace_processor_util_json_serializer",
-        ":src_trace_processor_util_json_value",
         ":src_trace_processor_util_simple_json_serializer",
+        ":src_trace_processor_util_sql_module_doc_parser",
         "src/tools/pfsql/main.cc",
     ],
     deps = [
@@ -2231,12 +2242,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_perfetto_sql_analysis_analysis",
     srcs = [
-        "src/perfetto_sql/analysis/program.cc",
-        "src/perfetto_sql/analysis/program.h",
         "src/perfetto_sql/analysis/relation.cc",
         "src/perfetto_sql/analysis/relation.h",
-        "src/perfetto_sql/analysis/source_tree.cc",
-        "src/perfetto_sql/analysis/source_tree.h",
         "src/perfetto_sql/analysis/string_arena.h",
     ],
 )
@@ -2525,6 +2532,15 @@ perfetto_filegroup(
         "src/shared_lib/producer.cc",
         "src/shared_lib/thread_utils.cc",
         "src/shared_lib/tracing_session.cc",
+    ],
+)
+
+# GN target: //src/tools/pfsql:source_tree
+perfetto_filegroup(
+    name = "src_tools_pfsql_source_tree",
+    srcs = [
+        "src/tools/pfsql/source_tree.cc",
+        "src/tools/pfsql/source_tree.h",
     ],
 )
 
@@ -4029,6 +4045,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/compiler.h",
         "src/trace_processor/perfetto_sql/pipeline/expression.cc",
         "src/trace_processor/perfetto_sql/pipeline/expression.h",
+        "src/trace_processor/perfetto_sql/pipeline/literal.cc",
+        "src/trace_processor/perfetto_sql/pipeline/literal.h",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.h",
         "src/trace_processor/perfetto_sql/pipeline/operation_registry.h",
@@ -7235,6 +7253,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_tracing_service_service",
     srcs = [
+        "src/tracing/service/block_allocator.cc",
+        "src/tracing/service/block_allocator.h",
         "src/tracing/service/clock.cc",
         "src/tracing/service/clock.h",
         "src/tracing/service/dependencies.h",
@@ -7245,6 +7265,8 @@ perfetto_filegroup(
         "src/tracing/service/packet_stream_validator.h",
         "src/tracing/service/random.cc",
         "src/tracing/service/random.h",
+        "src/tracing/service/sequence_state_map.cc",
+        "src/tracing/service/sequence_state_map.h",
         "src/tracing/service/service_ring_buffer_drainer.cc",
         "src/tracing/service/service_ring_buffer_drainer.h",
         "src/tracing/service/trace_buffer.h",

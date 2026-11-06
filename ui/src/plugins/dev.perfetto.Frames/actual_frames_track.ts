@@ -70,6 +70,8 @@ const JANK_TYPE_DESCRIPTIONS: Record<string, string> = {
     'The frame was not presented on time due to a display mode change (refresh rate or resolution).',
   'PowerModeChange in progress':
     'The frame was not presented on time due to an active display power state transition.',
+  'DequeueBuffer Delay':
+    'The frame missed its deadline due to time spent waiting for an available buffer in dequeueBuffer.',
   'Unknown Jank': 'The frame was not presented on time due to unknown reasons.',
 };
 

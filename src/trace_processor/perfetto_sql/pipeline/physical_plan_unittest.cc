@@ -144,8 +144,8 @@ class PhysicalPlanTest : public ::testing::Test {
                             catalog_));
     RETURN_IF_ERROR(
         BindDataframeArgs(&bound, DataframeArgs(dataframes), &pool_));
-    RunBoundPasses(&bound, {&pool_});
-    return Lower(bound, {&pool_});
+    RETURN_IF_ERROR(RunBoundPasses(&bound, {&pool_}));
+    return Lower(&bound, {&pool_});
   }
 
   std::vector<std::string> Names(const PhysicalPlan& plan) {
@@ -204,38 +204,12 @@ TEST_F(PhysicalPlanTest, PruningACopyLeavesTheOriginalResultsIntact) {
 
   auto bound = ResolveCompiledPlan(*original, catalog_);
   ASSERT_TRUE(bound.ok()) << bound.status().message();
-  RunBoundPasses(&*bound, {&pool_});
-  auto physical = Lower(*bound, {&pool_});
-  ASSERT_TRUE(physical.ok()) << physical.status().message();
-  auto rows = Run(**physical, "total");
+  ASSERT_TRUE(RunBoundPasses(&*bound, {&pool_}).ok());
+  std::unique_ptr<PhysicalPlan> physical = Lower(&*bound, {&pool_});
+  auto rows = Run(*physical, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
-}
-
-// Each node's output is described from its inputs': a table read in order
-// keeps its sorted columns sorted, and a fold leaves the rows walking the tree
-// in its direction.
-TEST_F(PhysicalPlanTest, OutputsAreDerivedFromInputs) {
-  CreateDataframeTree();
-  auto plan = Compile(
-      "FROM df |> ORDER BY id |> TREE ACCUMULATE UP SUM(self) AS total");
-  ASSERT_TRUE(plan.ok()) << plan.status().message();
-  auto bound = ResolveCompiledPlan(std::move(*plan), catalog_);
-  ASSERT_TRUE(bound.ok()) << bound.status().message();
-  RunBoundPasses(&*bound, {&pool_});
-  const LogicalPlan& logical = bound->plan;
-  const PlanNode& fold = logical.nodes()[logical.root()];
-  const PlanNode& sort = logical.nodes()[fold.children()[0]];
-  const OutputProperties& sorted = bound->outputs[logical.IdOf(sort)];
-  ASSERT_EQ(sorted.arrangements.size(), 1u);
-  EXPECT_TRUE(sorted.arrangements[0].grouped_by.empty());
-  ASSERT_EQ(sorted.arrangements[0].sorted_by.size(), 1u);
-  EXPECT_FALSE(sorted.tree);
-  const OutputProperties& folded = bound->outputs[logical.root()];
-  EXPECT_TRUE(folded.arrangements.empty());
-  ASSERT_TRUE(folded.tree);
-  EXPECT_EQ(folded.tree->walk, TreeDirection::kUp);
 }
 
 TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
@@ -410,9 +384,20 @@ TEST_F(PhysicalPlanTest, WhereComparesStringsListsAndNulls) {
   EXPECT_THAT(ids("name IS NULL"), ElementsAre(3));
   EXPECT_THAT(ids("v IS NOT NULL AND v NOTNULL"), ElementsAre(1, 3, 4, 5));
   EXPECT_THAT(ids("v BETWEEN 20 AND 45"), ElementsAre(3, 4));
-  // Numbers sort before strings, as in SQL.
-  EXPECT_THAT(ids("name > 5"), ElementsAre(1, 2, 4, 5));
-  EXPECT_THAT(ids("v = 'foo'"), ElementsAre());
+}
+
+// A string is never a number, so comparing the two is refused.
+TEST_F(PhysicalPlanTest, WhereRefusesStringsMeetingNumbers) {
+  Exec("CREATE TABLE t(id INTEGER, name TEXT, v INTEGER)");
+  Exec("INSERT INTO t VALUES (1, 'foo', 10)");
+  auto plan = Plan("FROM t |> WHERE name > 5");
+  ASSERT_FALSE(plan.ok());
+  EXPECT_THAT(plan.status().message(),
+              HasSubstr("a string to compare with a string column"));
+  plan = Plan("FROM t |> WHERE v = 'foo'");
+  ASSERT_FALSE(plan.ok());
+  EXPECT_THAT(plan.status().message(),
+              HasSubstr("a number to compare with a numeric column"));
 }
 
 // WHERE on a table's sorted columns searches them instead of testing each row;
@@ -453,6 +438,35 @@ TEST_F(PhysicalPlanTest, WhereLooksUpAnIndexWithUnreadColumns) {
   auto rows = Run(**plan, "w");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, ElementsAre(Pair(0, 0), Pair(2, 2), Pair(4, 4)));
+}
+
+// A condition the scan cannot answer does not stop it answering the others.
+TEST_F(PhysicalPlanTest, WhereSearchesAroundAConditionItCannotAnswer) {
+  catalog_.AddTable("ix", {"id", "k", "v"},
+                    {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  catalog_.AddIndex("ix", {1});
+  auto plan = Plan("FROM ix |> WHERE v IS NOT NULL AND k = 7 |> SELECT id, v");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "main: IndexScan | Filter(#2 IS NOT NULL)");
+  auto rows = Run(**plan, "v");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(0, 1), Pair(2, 9), Pair(4, 9)));
+}
+
+// A column of only nulls needs no check, however many types it is made to hold.
+TEST_F(PhysicalPlanTest, AllNullColumnConvertedTwiceStaysNull) {
+  Exec("CREATE TABLE a(ts INTEGER, dur INTEGER, k)");
+  Exec("INSERT INTO a VALUES (0, 10, NULL)");
+  Exec("CREATE TABLE b(ts INTEGER, dur INTEGER, k REAL)");
+  Exec("INSERT INTO b VALUES (5, 10, 1.5)");
+  auto plan = Plan(
+      "INTERVAL INTERSECTION OF ((FROM a |> WHERE k = 1) AS p, b AS q) PER k "
+      "|> SELECT ts, dur");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_THAT(PhysicalPlanToString(**plan),
+              HasSubstr("NullColumn(#2 as Int64) | Filter(#2 = ?0) | "
+                        "NullColumn(#2 as Double)"));
 }
 
 // A condition no row can match leaves nothing to read.
@@ -664,12 +678,11 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
   PlanKey key(0, 0);
   auto read = DeserializePlan(SerializePlan(moved.plan, key), key, catalog_);
   ASSERT_TRUE(read.ok()) << read.status().message();
-  RunBoundPasses(&*read, {&pool_});
-  auto lowered = Lower(*read, {&pool_});
-  ASSERT_TRUE(lowered.ok()) << lowered.status().message();
-  EXPECT_THAT(Names(**lowered),
+  ASSERT_TRUE(RunBoundPasses(&*read, {&pool_}).ok());
+  std::unique_ptr<PhysicalPlan> lowered = Lower(&*read, {&pool_});
+  EXPECT_THAT(Names(*lowered),
               ElementsAre("id", "parent_id", "own", "copy", "total"));
-  auto rows = Run(**lowered, "copy");
+  auto rows = Run(*lowered, "copy");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 10), Pair(1, 20), Pair(2, 30), Pair(3, 40)));

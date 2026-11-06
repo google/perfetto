@@ -69,10 +69,6 @@ FROM _heap_graph_binder_class AS c
 LEFT JOIN _heap_graph_binder_class_stub AS s ON s.id = c.parent_id
 LEFT JOIN _heap_graph_binder_class AS stub ON stub.id = s.stub_class_id;
 
--- Materialized copy of `_heap_graph_strong_edges`: both walks below read it.
-CREATE PERFETTO TABLE _heap_graph_binder_edges AS
-SELECT src, dst FROM _heap_graph_strong_edges;
-
 -- `android.os.Binder` objects held by a JNI global reference
 -- (`ROOT_JNI_GLOBAL`).
 CREATE PERFETTO TABLE _heap_graph_binder_roots AS
@@ -84,48 +80,62 @@ WHERE
 ORDER BY
   id;
 
--- Objects reachable from the process's own GC roots: every root except the
--- `ROOT_JNI_GLOBAL` Binder stubs.
-CREATE PERFETTO TABLE _heap_graph_binder_reach_intrinsic AS
-GRAPH DFS TREE
-  NODES heap_graph_object
-  EDGES _heap_graph_binder_edges
-  FROM (
-    SELECT id
-    FROM heap_graph_object
-    WHERE
-      root_type IS NOT NULL
-      AND id NOT IN (SELECT id FROM _heap_graph_binder_roots)
-  )
-|> SELECT id;
+-- Reachable objects, flagged with whether they are one of the process's own GC
+-- roots: every root except the `ROOT_JNI_GLOBAL` Binder stubs.
+CREATE PERFETTO TABLE _heap_graph_binder_candidate AS
+SELECT
+  id,
+  self_size,
+  native_size,
+  iif(
+    root_type IS NOT NULL
+    AND id NOT IN (SELECT id FROM _heap_graph_binder_roots),
+    0,
+    1
+  ) AS not_own_root
+FROM heap_graph_object
+WHERE
+  reachable = 1;
+
+-- The stubs, by (deobfuscated) class name, which keeps the split between
+-- classes comparable across heap dumps. Stubs of one class have nothing stable
+-- to tell them apart, so they are in no particular order.
+CREATE PERFETTO TABLE _heap_graph_binder_stub_seed AS
+SELECT r.id
+FROM _heap_graph_binder_roots AS r
+JOIN heap_graph_object AS o ON o.id = r.id
+JOIN _heap_graph_binder_class AS c ON c.id = o.type_id
+ORDER BY
+  c.name;
+
+-- The process's own roots, then the stubs: the order the DFS below searches.
+CREATE PERFETTO TABLE _heap_graph_binder_seed AS
+SELECT id FROM _heap_graph_binder_candidate WHERE not_own_root = 0
+UNION ALL
+SELECT id FROM _heap_graph_binder_stub_seed;
 
 -- Remote-only objects (reachable from the `ROOT_JNI_GLOBAL` Binder stubs but
--- not from the process's own roots) as a BFS forest from the stubs. Stubs
--- reachable from the process's own roots are not nodes, so they drop out, and
--- the forest roots (parent_id IS NULL) are exactly the remote-only stubs. Each
--- object belongs to the closest stub; ties go to the stub first in order of
--- (deobfuscated) class name, which keeps the split comparable across heap
--- dumps, then id. As in `_heap_graph_object_min_depth_tree`, each object's
--- references are taken in order of the object referred to, so the split is
--- stable.
+-- not from the process's own roots) as a BFS forest from the stubs. The inner
+-- DFS searches own roots first, so an object has no own root above it exactly
+-- when own roots cannot reach it. Stubs own roots reach are not nodes, so they
+-- drop out, and the forest roots (parent_id IS NULL) are exactly the
+-- remote-only stubs. Each object belongs to the closest stub; ties go to the
+-- first stub in seed order. The search keeps the stubs' classes in seed order
+-- at every depth, so the total per class depends on neither the order of the
+-- edges nor the order of the stubs within a class.
 CREATE PERFETTO TABLE _heap_graph_binder_remote_only_by_stub AS
 GRAPH BFS TREE
   NODES (
-    SELECT id, self_size, native_size
-    FROM heap_graph_object
-    WHERE
-      id NOT IN (SELECT id FROM _heap_graph_binder_reach_intrinsic)
+    GRAPH DFS TREE
+      NODES _heap_graph_binder_candidate
+      EDGES _heap_graph_strong_edges
+      FROM _heap_graph_binder_seed
+    |> TREE ACCUMULATE DOWN MIN(not_own_root) AS remote_only
+    |> WHERE remote_only = 1
+    |> SELECT id, self_size, native_size
   )
-  EDGES (SELECT src, dst FROM _heap_graph_binder_edges ORDER BY dst)
-  FROM (
-    SELECT r.id
-    FROM _heap_graph_binder_roots AS r
-    JOIN heap_graph_object AS o ON o.id = r.id
-    JOIN _heap_graph_binder_class AS c ON c.id = o.type_id
-    ORDER BY
-      c.name,
-      r.id
-  )
+  EDGES _heap_graph_strong_edges
+  FROM _heap_graph_binder_stub_seed
 |> TREE ACCUMULATE UP
   COUNT(*) AS remote_only_obj_count,
   SUM(self_size) AS remote_only_size_bytes,
@@ -169,7 +179,8 @@ CREATE PERFETTO TABLE android_heap_graph_binder_stub(
   is_remote_only BOOL,
   -- Count of remote-only objects (reachable only from remote-only Binder stubs,
   -- self inclusive) attributed to this stub instance by a BFS forest (closest
-  -- stub wins).
+  -- stub wins, then first class name). The split between stubs of the same
+  -- class is arbitrary: compare heap dumps by class, not by instance.
   remote_only_obj_count LONG,
   -- Java bytes (`self_size`) of remote-only objects attributed to this stub
   -- instance. Sum across a dump is exact; an object reachable from several

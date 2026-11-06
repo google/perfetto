@@ -16853,9 +16853,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_perfetto_sql_analysis_analysis",
     srcs: [
-        "src/perfetto_sql/analysis/program.cc",
         "src/perfetto_sql/analysis/relation.cc",
-        "src/perfetto_sql/analysis/source_tree.cc",
     ],
 }
 
@@ -16863,9 +16861,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_perfetto_sql_analysis_unittests",
     srcs: [
-        "src/perfetto_sql/analysis/program_unittest.cc",
         "src/perfetto_sql/analysis/relation_unittest.cc",
-        "src/perfetto_sql/analysis/source_tree_unittest.cc",
     ],
 }
 
@@ -18138,6 +18134,22 @@ filegroup {
     name: "perfetto_src_shared_lib_track_event_unittests",
     srcs: [
         "src/shared_lib/track_event/intern_map_unittest.cc",
+    ],
+}
+
+// GN: //src/tools/pfsql:source_tree
+filegroup {
+    name: "perfetto_src_tools_pfsql_source_tree",
+    srcs: [
+        "src/tools/pfsql/source_tree.cc",
+    ],
+}
+
+// GN: //src/tools/pfsql:unittests
+filegroup {
+    name: "perfetto_src_tools_pfsql_unittests",
+    srcs: [
+        "src/tools/pfsql/source_tree_unittest.cc",
     ],
 }
 
@@ -19567,6 +19579,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/pipeline/column_pruning.cc",
         "src/trace_processor/perfetto_sql/pipeline/compiler.cc",
         "src/trace_processor/perfetto_sql/pipeline/expression.cc",
+        "src/trace_processor/perfetto_sql/pipeline/literal.cc",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/output_properties.cc",
         "src/trace_processor/perfetto_sql/pipeline/physical_plan.cc",
@@ -23790,10 +23803,12 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_service_service",
     srcs: [
+        "src/tracing/service/block_allocator.cc",
         "src/tracing/service/clock.cc",
         "src/tracing/service/metatrace_writer.cc",
         "src/tracing/service/packet_stream_validator.cc",
         "src/tracing/service/random.cc",
+        "src/tracing/service/sequence_state_map.cc",
         "src/tracing/service/service_ring_buffer_drainer.cc",
         "src/tracing/service/trace_buffer_factory.cc",
         "src/tracing/service/trace_buffer_protovms.cc",
@@ -23810,10 +23825,12 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_service_unittests",
     srcs: [
+        "src/tracing/service/block_allocator_unittest.cc",
         "src/tracing/service/compressor_unittest.cc",
         "src/tracing/service/histogram_unittest.cc",
         "src/tracing/service/packet_stream_validator_unittest.cc",
         "src/tracing/service/proto_group_rewriter_unittest.cc",
+        "src/tracing/service/sequence_state_map_unittest.cc",
         "src/tracing/service/service_ring_buffer_drainer_unittest.cc",
         "src/tracing/service/trace_buffer_factory_unittest.cc",
         "src/tracing/service/trace_buffer_v1_unittest.cc",
@@ -25069,6 +25086,8 @@ cc_test {
         ":perfetto_src_shared_lib_track_event_intern_map",
         ":perfetto_src_shared_lib_track_event_track_event",
         ":perfetto_src_shared_lib_track_event_unittests",
+        ":perfetto_src_tools_pfsql_source_tree",
+        ":perfetto_src_tools_pfsql_unittests",
         ":perfetto_src_tools_tracing_proto_extensions_lib",
         ":perfetto_src_tools_tracing_proto_extensions_unittests",
         ":perfetto_src_trace_processor_containers_containers",

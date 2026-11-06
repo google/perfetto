@@ -38,24 +38,25 @@ Code: `/src/trace_processor/perfetto_sql/pipeline/`
 5. **Run.** A `RowCursor` pulls batches through the operators and SQLite reads
    them row by row.
 
-Each `PlanOperation` lowers itself through `Lowering`. Operators state what
-they need, such as a column of a given type (`RequireType`), rows grouped by
-some keys and sorted by `ts` (`RequireIntervalLanes`), or a tree order
-(`RequireTreeWalk`). `Lowering` adds a conversion, sort or grouping only when
-the rows are not already that way. What an operation produces, such as sorted
-columns, is stated by its `Derive`, so later stages can skip work.
+Each `PlanOperation` says three things. `Needs` is what it needs of the rows of
+each input, such as a column of a given type, rows grouped by some keys and
+sorted by `ts`, or a tree order. `Derive` is what it then outputs: its columns,
+their types and how the rows are arranged (`OutputProperties`). `Lower` adds its
+own operator.
+
+Everything which decides is in one sweep over the plan (`RunBoundPasses`), from
+the inputs up. At each node it first lets the operation rewrite the plan
+(`Rewrite`). It then compares what each input offers with what the node needs,
+and works out the steps it takes: a conversion, sort, grouping or tree order,
+each only when the rows are not already that way. It derives the node's output
+last, which also types its expressions. Anything wrong with the plan is found
+here. Lowering an input runs its steps, so lowering makes no decisions and
+cannot fail. A sort nothing read is removed from the plan when a later one
+replaces it.
 
 An operator with more than one input, such as `INTERVAL INTERSECTION OF`, reads
 each extra input through a side pipeline (`AddSidePipeline`) lowered the same
 way.
-
-`PlanOperation::Derive` describes, without lowering, what each node outputs
-(`OutputProperties`): where each column is, the layouts the rows are sorted or
-grouped in, the tree they are numbered as and the direction they walk it, and
-the group number columns they carry. Each operation says this once, from what
-its inputs output. `Lower` adds the operators which make it so, and once a node
-is lowered its pipeline is as derived. Column types are the exception, as
-`Lowering` decides conversions as it goes.
 
 ### Batches
 
@@ -189,8 +190,8 @@ operands after the first. Everything else is found by its bare name too.
 
 Code: `/src/trace_processor/core/exec/interval_flatten.cc`
 
-Input is grouped by the `PER` keys and sorted by `ts` within each group,
-through `RequireIntervalLanes`, which adds a sort only if needed.
+Input is grouped by the `PER` keys and sorted by `ts` within each group, with a
+sort added only if needed.
 `IntervalFlatten` then streams through the sorted rows.
 
 A min-heap tracks when active intervals end. Each interval keeps its row's
@@ -219,7 +220,7 @@ still decides the rows.
 Code: `/src/trace_processor/core/exec/interval_fill_gaps.cc`
 
 The background is a side pipeline, read whole before the input. Both are
-grouped by the `PER` keys and sorted by `ts` through `RequireIntervalLanes`,
+grouped by the `PER` keys and sorted by `ts`,
 and columns shared by the two are converted to one type.
 
 `IntervalFillGaps` streams through the input, outputs every row unchanged, and

@@ -473,6 +473,7 @@ perfetto_unittest_source_set("unittests") {
   if (enable_perfetto_trace_processor_sqlite) {
     deps += [
       "../perfetto_sql/analysis:unittests",
+      "../tools/pfsql:unittests",
       "perfetto_sql/engine:unittests",
       "perfetto_sql/parser:unittests",
       "perfetto_sql/pipeline:unittests",

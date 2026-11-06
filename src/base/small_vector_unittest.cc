@@ -65,8 +65,10 @@ struct Obj {
   }
 
   Obj& operator=(const Obj& other) {
-    this->~Obj();
-    new (this) Obj(other);
+    if (this != &other) {
+      this->~Obj();
+      new (this) Obj(other);
+    }
     return *this;
   }
 

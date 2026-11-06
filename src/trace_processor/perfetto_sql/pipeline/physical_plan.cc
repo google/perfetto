@@ -16,10 +16,8 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -28,8 +26,6 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/assert_type.h"
 #include "src/trace_processor/core/exec/combine_batches.h"
@@ -132,27 +128,117 @@ std::optional<PlanType> CommonType(const PlanType& a, const PlanType& b) {
   return PlanType(core::Int64{});
 }
 
-Lowering::Lowering(PlanLowering* plan) : plan_(plan) {
-  output_.positions.assign(plan->plan().columns().size(),
-                           OutputProperties::kNoPosition);
-}
+Lowering::Lowering(PlanLowering* plan) : plan_(plan) {}
 
 Lowering::~Lowering() = default;
 
 void Lowering::LowerNode(PlanNodeId id) {
   const PlanNode& node = plan().nodes()[id];
+  const OutputProperties& output = plan_->bound_.planned[id].output;
+  rows_ = &output;
   node.operation().Lower(this, node);
-  output_ = plan_->bound_.outputs[id];
+  rows_ = &output;
   if (input_ && !source_columns_) {
-    source_columns_ = output_.column_count;
-  }
-  if (!output_.before_open_sort) {
-    open_sort_.reset();
+    source_columns_ = static_cast<uint32_t>(output.columns.size());
   }
 }
 
-void Lowering::Fail(base::Status status) {
-  plan_->Fail(std::move(status));
+const std::vector<core::exec::ExprProgram>& Lowering::QueryPrograms(
+    const PlanNode& node) const {
+  return plan_->bound_.planned[plan().IdOf(node)].programs;
+}
+
+void Lowering::LowerInput(const PlanNode& node, uint32_t input) {
+  LowerNode(node.children()[input]);
+  const PlannedInput& planned =
+      plan_->bound_.planned[plan().IdOf(node)].inputs[input];
+  // Steps only add columns, so every position is already as in the end.
+  rows_ = &planned.rows;
+  for (const InputStep& step : planned.steps) {
+    std::visit([this](const auto& s) { Apply(s); }, step);
+  }
+}
+
+void Lowering::Apply(const input_step::Sort& step) {
+  ex::SortSpec sort;
+  sort.pool = context().pool;
+  for (const SortKey& key : step.keys) {
+    sort.keys.push_back({QueryPosition(key.column), key.descending});
+  }
+  if (step.combine_first) {
+    AddOperator(std::make_unique<ex::CombineBatches>());
+  }
+  AddOperator(std::make_unique<ex::Sort>(std::move(sort)));
+}
+
+void Lowering::Apply(const input_step::Group& step) {
+  ex::GroupedSortSpec spec;
+  for (ColumnId key : step.keys) {
+    spec.groups.push_back(QueryPosition(key));
+  }
+  for (const SortKey& key : step.sorted_by) {
+    spec.keys.push_back({QueryPosition(key.column), key.descending});
+  }
+  if (step.combine_first) {
+    AddOperator(std::make_unique<ex::CombineBatches>());
+  }
+  AddOperator(std::make_unique<ex::GroupedSort>(std::move(spec)));
+}
+
+void Lowering::Apply(const input_step::NumberTree& step) {
+  AddOperator(std::make_unique<ex::TreeNumberNodes>(
+      QueryPosition(step.node), QueryPosition(step.parent)));
+}
+
+void Lowering::Apply(const input_step::WalkTree& step) {
+  if (step.combine_first) {
+    AddOperator(std::make_unique<ex::CombineBatches>());
+  }
+  uint32_t node = QueryPosition(step.node_number);
+  uint32_t parent = QueryPosition(step.parent_number);
+  if (step.direction == TreeDirection::kUp) {
+    AddOperator(std::make_unique<ex::TreeChildFirst>(node, parent));
+  } else {
+    AddOperator(std::make_unique<ex::TreeParentFirst>(node, parent));
+  }
+}
+
+void Lowering::Apply(const input_step::CombineBatches&) {
+  AddOperator(std::make_unique<ex::CombineBatches>());
+}
+
+void Lowering::Apply(const input_step::Convert& step) {
+  uint32_t position = QueryPosition(step.column);
+  if (step.all_null) {
+    AddOperator(std::make_unique<ex::NullColumn>(position, step.type));
+    return;
+  }
+  ex::AssertTypeTarget target = core::String{};
+  if (step.type.Is<core::Int64>()) {
+    target = core::Int64{};
+  } else if (step.type.Is<core::Double>()) {
+    target = core::Double{};
+  }
+  PERFETTO_DCHECK(target.Is<core::String>() == step.type.Is<core::String>());
+  AddOperator(std::make_unique<ex::AssertType>(
+      position, target,
+      plan().names().text(plan().columns()[step.column].name)));
+}
+
+core::exec::IntervalLaneSpec Lowering::QueryIntervalLanes(
+    ColumnId ts,
+    ColumnId dur,
+    const std::vector<ColumnId>& keys) const {
+  core::exec::IntervalLaneSpec spec;
+  if (!keys.empty()) {
+    spec.group_column = QueryPosition(*rows_->GroupNumbersOf(keys));
+  }
+  spec.ts_column = QueryPosition(ts);
+  spec.dur_column = QueryPosition(dur);
+  for (ColumnId key : keys) {
+    spec.key_columns.push_back(QueryPosition(key));
+  }
+  return spec;
 }
 
 void Lowering::SetSource(std::unique_ptr<core::exec::Source> source) {
@@ -161,7 +247,6 @@ void Lowering::SetSource(std::unique_ptr<core::exec::Source> source) {
 }
 
 void Lowering::AddOperator(core::exec::Pipeline::Step operation) {
-  CloseOpenSort();
   operators_.push_back(std::move(operation));
 }
 
@@ -178,9 +263,16 @@ const core::exec::Source* Lowering::FinishSide() {
   return out.side_pipelines_.back().get();
 }
 
-uint32_t Lowering::AddFilterValue(core::exec::FilterValue value) {
+std::optional<uint32_t> Lowering::TakeFilterValue(const PlanNode& node,
+                                                  uint32_t condition) {
+  std::optional<core::exec::FilterValue>& value =
+      plan_->bound_.planned[plan().IdOf(node)].filter_values[condition];
+  if (!value) {
+    return std::nullopt;
+  }
   std::vector<core::exec::FilterValue>& values = plan_->out_->filter_values_;
-  values.push_back(std::move(value));
+  values.push_back(std::move(*value));
+  value.reset();
   return static_cast<uint32_t>(values.size() - 1);
 }
 
@@ -188,179 +280,10 @@ const LoweringContext& Lowering::context() const {
   return plan_->context_;
 }
 
-void Lowering::RequireType(ColumnId column, core::StorageType type) {
-  std::optional<PlanType> common =
-      CommonType(plan_->TypeOf(column), PlanType(type));
-  if (!common || !common->storage() || !(*common->storage() == type)) {
-    const char* what = type.Is<core::String>()   ? "strings"
-                       : type.Is<core::Double>() ? "numbers"
-                                                 : "integers";
-    Fail(base::ErrStatus(
-        "column '%s' must hold %s",
-        plan().names().text(plan().columns()[column].name).c_str(), what));
-    return;
-  }
-  Convert({this, column}, type);
-}
-
-PlanType Lowering::RequireCommonType(const std::vector<Side>& sides) {
-  PlanType common = PlanType::Null();
-  for (const Side& side : sides) {
-    std::optional<PlanType> next =
-        CommonType(common, plan_->TypeOf(side.column));
-    if (!next) {
-      Fail(base::ErrStatus(
-          "column '%s' holds strings in one input and numbers in another",
-          plan().names().text(plan().columns()[side.column].name).c_str()));
-      return common;
-    }
-    common = *next;
-  }
-  for (const Side& side : sides) {
-    Convert(side, common);
-  }
-  return common;
-}
-
-void Lowering::RequireSorted(const std::vector<SortKey>& keys) {
-  OutputProperties::RequiredSteps steps = output_.RequireSorted(keys);
-  if (steps.drop_open_sort) {
-    EraseOpenSort();
-  }
-  if (!steps.reorder) {
-    return;
-  }
-  ex::SortSpec sort;
-  sort.pool = context().pool;
-  for (const SortKey& key : keys) {
-    if (!plan_->TypeOf(key.column).storage()) {
-      RequireType(key.column, core::Int64{});
-    }
-    sort.keys.push_back({QueryPosition(key.column), key.descending});
-  }
-  if (steps.combine_batches) {
-    AddOrderIndependent(std::make_unique<ex::CombineBatches>());
-  }
-  open_sort_ = operators_.size();
-  operators_.push_back(std::make_unique<ex::Sort>(std::move(sort)));
-}
-
-void Lowering::RequireGrouped(const std::vector<ColumnId>& keys) {
-  if (output_.IsArranged(keys, {})) {
-    return;
-  }
-  if (DropOpenSort() && output_.IsArranged(keys, {})) {
-    return;
-  }
-  GroupRows(keys, {});
-}
-
-void Lowering::RequireSortedWithinGroups(
-    const std::vector<ColumnId>& keys,
-    const std::vector<SortKey>& sorted_by) {
-  // Without keys, all rows are one group, so this is a plain sort.
-  if (keys.empty()) {
-    RequireSorted(sorted_by);
-    return;
-  }
-  if (output_.IsArranged(keys, sorted_by)) {
-    return;
-  }
-  if (DropOpenSort() && output_.IsArranged(keys, sorted_by)) {
-    return;
-  }
-  // Grouping is stable, so if the rows are already sorted by `sorted_by`,
-  // grouping them is enough.
-  GroupRows(keys, output_.IsArranged({}, sorted_by) ? std::vector<SortKey>()
-                                                    : sorted_by);
-}
-
-uint32_t Lowering::RequireGroupNumbers(const std::vector<ColumnId>& keys) {
-  RequireGrouped(keys);
-  for (const OutputProperties::GroupNumbers& numbers : output_.group_numbers) {
-    if (std::is_permutation(numbers.keys.begin(), numbers.keys.end(),
-                            keys.begin(), keys.end())) {
-      return numbers.position;
-    }
-  }
-  // The rows are grouped but have no group numbers. Grouping them again
-  // adds the numbers.
-  GroupRows(keys, {});
-  return output_.group_numbers.back().position;
-}
-
-void Lowering::RequireFullBatches() {
-  if (!output_.full_batches) {
-    AddOrderIndependent(std::make_unique<ex::CombineBatches>());
-    output_.full_batches = true;
-  }
-}
-
-core::exec::IntervalLaneSpec Lowering::RequireIntervalLanes(
-    ColumnId ts,
-    ColumnId dur,
-    const std::vector<ColumnId>& keys) {
-  RequireType(ts, core::Int64{});
-  RequireType(dur, core::Int64{});
-  RequireSortedWithinGroups(keys, {{ts, false}});
-  core::exec::IntervalLaneSpec spec;
-  if (!keys.empty()) {
-    spec.group_column = RequireGroupNumbers(keys);
-  }
-  spec.ts_column = QueryPosition(ts);
-  spec.dur_column = QueryPosition(dur);
-  for (ColumnId key : keys) {
-    spec.key_columns.push_back(QueryPosition(key));
-  }
-  return spec;
-}
-
-Lowering::TreeColumns Lowering::RequireTreeWalk(ColumnId node,
-                                                ColumnId parent,
-                                                TreeDirection direction) {
-  uint32_t node_position = QueryPosition(node);
-  uint32_t parent_position = QueryPosition(parent);
-  OutputProperties::RequiredSteps steps =
-      output_.RequireTreeWalk(node, parent, direction);
-  if (steps.drop_open_sort) {
-    EraseOpenSort();
-  }
-  TreeColumns columns = QueryTreeColumns();
-  if (steps.number_tree) {
-    AddOrderIndependent(
-        std::make_unique<ex::TreeNumberNodes>(node_position, parent_position));
-  }
-  if (steps.combine_batches) {
-    AddOrderIndependent(std::make_unique<ex::CombineBatches>());
-  }
-  if (steps.reorder) {
-    open_sort_.reset();
-    if (direction == TreeDirection::kUp) {
-      operators_.push_back(
-          std::make_unique<ex::TreeChildFirst>(columns.node, columns.parent));
-    } else {
-      operators_.push_back(
-          std::make_unique<ex::TreeParentFirst>(columns.node, columns.parent));
-    }
-  }
-  return columns;
-}
-
-void Lowering::DeclareType(ColumnId id, core::StorageType type) {
-  plan_->converted_[id] = type;
-}
-
-Lowering::TreeColumns Lowering::QueryTreeColumns() const {
-  return {output_.tree->node_position, output_.tree->parent_position};
-}
-
 uint32_t Lowering::QueryPosition(ColumnId id) const {
-  PERFETTO_DCHECK(output_.positions[id] != OutputProperties::kNoPosition);
-  return output_.positions[id];
-}
-
-PlanType Lowering::QueryType(ColumnId id) const {
-  return plan_->TypeOf(id);
+  std::optional<uint32_t> position = rows_->PositionOf(id);
+  PERFETTO_DCHECK(position);
+  return *position;
 }
 
 const LogicalPlan& Lowering::plan() const {
@@ -375,107 +298,22 @@ const Bindings::Dataframe& Lowering::QueryDataframe(
   return *dataframe;
 }
 
-void Lowering::AddOrderIndependent(core::exec::Pipeline::Step step) {
-  operators_.push_back(std::move(step));
-}
-
-void Lowering::AddOrderDependent(core::exec::Pipeline::Step step) {
-  CloseOpenSort();
-  operators_.push_back(std::move(step));
-}
-
-void Lowering::AddBreaker(core::exec::Pipeline::Step breaker) {
-  RequireFullBatches();
-  CloseOpenSort();
-  operators_.push_back(std::move(breaker));
-}
-
-bool Lowering::DropOpenSort() {
-  if (!output_.DropOpenSort()) {
-    return false;
-  }
-  EraseOpenSort();
-  return true;
-}
-
-void Lowering::EraseOpenSort() {
-  operators_.erase(operators_.begin() + static_cast<ptrdiff_t>(*open_sort_));
-  open_sort_.reset();
-}
-
-void Lowering::CloseOpenSort() {
-  open_sort_.reset();
-  output_.CloseOpenSort();
-}
-
-void Lowering::GroupRows(const std::vector<ColumnId>& keys,
-                         const std::vector<SortKey>& sorted_by) {
-  ex::GroupedSortSpec spec;
-  for (ColumnId key : keys) {
-    spec.groups.push_back(QueryPosition(key));
-  }
-  for (const SortKey& key : sorted_by) {
-    if (!plan_->TypeOf(key.column).storage()) {
-      RequireType(key.column, core::Int64{});
-    }
-    spec.keys.push_back({QueryPosition(key.column), key.descending});
-  }
-  AddBreaker(std::make_unique<ex::GroupedSort>(std::move(spec)));
-  output_.Group(keys, sorted_by);
-}
-
-void Lowering::Convert(const Side& side, const PlanType& type) {
-  PlanLowering& plan = *side.pipeline->plan_;
-  PlanType from = plan.TypeOf(side.column);
-  if (!type.storage() ||
-      (from.storage() && *from.storage() == *type.storage())) {
-    return;
-  }
-  plan.converted_[side.column] = *type.storage();
-  uint32_t position = side.pipeline->QueryPosition(side.column);
-  // TypeOf forgets a Null column once it has been converted.
-  if (plan.bound_.bindings.types[side.column].is_null()) {
-    side.pipeline->AddOrderIndependent(
-        std::make_unique<ex::NullColumn>(position, *type.storage()));
-    return;
-  }
-  ex::AssertTypeTarget target = core::String{};
-  if (type.Is<core::Int64>()) {
-    target = core::Int64{};
-  } else if (type.Is<core::Double>()) {
-    target = core::Double{};
-  }
-  PERFETTO_DCHECK(target.Is<core::String>() == type.Is<core::String>());
-  side.pipeline->AddOrderIndependent(std::make_unique<ex::AssertType>(
-      position, target,
-      plan.plan().names().text(plan.plan().columns()[side.column].name)));
-}
-
 std::unique_ptr<ex::Pipeline> Lowering::Build(
     const std::vector<uint32_t>* outputs) {
   SetUnreadColumns(*source_columns_, outputs, &operators_);
   return std::make_unique<ex::Pipeline>(*input_, std::move(operators_));
 }
 
-PlanLowering::PlanLowering(const BoundPlan& bound,
-                           const LoweringContext& context)
-    : bound_(bound),
+PlanLowering::PlanLowering(BoundPlan* bound, const LoweringContext& context)
+    : bound_(*bound),
       context_(context),
-      converted_(bound.plan.columns().size()),
       out_(std::make_unique<PhysicalPlan>()) {
   pipelines_.push_back(std::make_unique<Lowering>(this));
 }
 
 PlanLowering::~PlanLowering() = default;
 
-void PlanLowering::Fail(base::Status status) {
-  if (status_.ok()) {
-    status_ = std::move(status);
-  }
-}
-
-base::StatusOr<std::unique_ptr<PhysicalPlan>> PlanLowering::Finish() {
-  RETURN_IF_ERROR(status_);
+std::unique_ptr<PhysicalPlan> PlanLowering::Finish() {
   Lowering& lowering = main();
   std::vector<uint32_t> outputs;
   for (const NamedColumn& column : plan().output()) {
@@ -488,21 +326,13 @@ base::StatusOr<std::unique_ptr<PhysicalPlan>> PlanLowering::Finish() {
   return std::move(out_);
 }
 
-PlanType PlanLowering::TypeOf(ColumnId column) const {
-  if (converted_[column]) {
-    return *converted_[column];
-  }
-  return bound_.bindings.types[column];
-}
-
 PhysicalPlan::PhysicalPlan() = default;
 PhysicalPlan::~PhysicalPlan() = default;
 
-base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(
-    const BoundPlan& bound,
-    const LoweringContext& context) {
+std::unique_ptr<PhysicalPlan> Lower(BoundPlan* bound,
+                                    const LoweringContext& context) {
   PlanLowering lowering(bound, context);
-  lowering.main().LowerNode(bound.plan.root());
+  lowering.main().LowerNode(bound->plan.root());
   return lowering.Finish();
 }
 

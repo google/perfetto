@@ -388,18 +388,18 @@ std::optional<uint32_t> Scan::Prune(std::vector<bool>* needed) {
   }
 }
 
-OutputProperties Scan::Derive(const BoundPlan& bound, PlanNodeId self) const {
-  OutputProperties out = OutputProperties::Empty(bound.plan.columns().size());
+OutputProperties Scan::Derive(DeriveContext& c) const {
+  OutputProperties out;
   for (const NamedColumn& column : columns_) {
-    out.AddColumn(column.id);
+    out.columns.push_back(c.ColumnOf(column.id));
   }
-  // A dataframe is read in order, so a column it keeps sorted ascends.
   const std::optional<Bindings::Dataframe>& data =
-      bound.bindings.dataframes[self];
+      c.bound().bindings.dataframes[c.self()];
   // An index is read in its own order, not the table's.
   if (search_ && search_->kind == ScanSearch::Kind::kIndex) {
     return out;
   }
+  // A dataframe is read in order, so a column it keeps sorted ascends.
   for (uint32_t i = 0; data && i < columns_.size(); ++i) {
     if (!data->columns[i]->sort_state.Is<core::Unsorted>()) {
       out.arrangements.push_back({{}, {{columns_[i].id, false}}});
@@ -414,14 +414,16 @@ void Scan::Lower(Lowering* c, const PlanNode& node) const {
   // dataframe, before a plan is run.
   const Bindings::Dataframe& data = c->QueryDataframe(node);
   if (search_) {
-    LowerSearch(c, data);
+    LowerSearch(c, node, data);
     return;
   }
   c->SetSource(
       std::make_unique<ex::DataframeScan>(data.columns, data.row_count));
 }
 
-void Scan::LowerSearch(Lowering* c, const Bindings::Dataframe& data) const {
+void Scan::LowerSearch(Lowering* c,
+                       const PlanNode& node,
+                       const Bindings::Dataframe& data) const {
   if (search_->kind == ScanSearch::Kind::kEmpty) {
     c->SetSource(std::make_unique<ex::EmptySource>());
     return;
@@ -430,11 +432,9 @@ void Scan::LowerSearch(Lowering* c, const Bindings::Dataframe& data) const {
   // The column each searched condition is on, and its value for this run.
   std::vector<std::shared_ptr<const dataframe::Column>> columns;
   std::vector<uint32_t> values;
-  for (const WherePredicate& p : search_->predicates) {
-    columns.push_back(data.columns[Position(p.column)]);
-    values.push_back(c->AddFilterValue(
-        CastWhereLiterals(p, search_->literals, search_->strings,
-                          *c->QueryType(p.column).storage(), *pool)));
+  for (uint32_t i = 0; i < search_->predicates.size(); ++i) {
+    columns.push_back(data.columns[Position(search_->predicates[i].column)]);
+    values.push_back(*c->TakeFilterValue(node, i));
   }
   if (search_->kind == ScanSearch::Kind::kIndex) {
     // Rows are read in index order, so the table's order is lost.
