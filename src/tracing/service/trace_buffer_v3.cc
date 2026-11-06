@@ -136,7 +136,7 @@ namespace internal {
 // PushBack() and PeekFrontHeader() copy this as raw bytes, so it must be
 // trivially copyable and have no padding.
 static_assert(std::is_trivially_copyable_v<BundleHeader>);
-static_assert(sizeof(BundleHeader) == 12);
+static_assert(sizeof(BundleHeader) == 16);
 
 bool BundleBuffer::Initialize(size_t capacity) {
   PERFETTO_CHECK(capacity > 0 &&
@@ -159,8 +159,7 @@ bool BundleBuffer::CloneFrom(const BundleBuffer& src) {
   src.CopyBytes(/*offset_from_front=*/0, size, data_.Get());
   end_ = size;
   max_written_offset_ = size;
-  begin_bundle_id_ = src.begin_bundle_id_;
-  end_bundle_id_ = src.end_bundle_id_;
+  next_bundle_id_ = src.next_bundle_id_;
   return true;
 }
 
@@ -171,11 +170,11 @@ void BundleBuffer::PushBack(uint32_t num_sequences,
   PERFETTO_CHECK(bundle_size <= free_size());
   BundleHeader header{};
   header.bundle_size = static_cast<uint32_t>(bundle_size);
+  header.bundle_id = next_bundle_id_++;
   header.num_sequences = num_sequences;
   header.packet_data_size = packet_data_size;
   AppendBytes(&header, sizeof(header));
   AppendBytes(compressed_packet_data.data, compressed_packet_data.size);
-  ++end_bundle_id_;
 }
 
 BundleHeader BundleBuffer::PeekFrontHeader() const {
@@ -211,7 +210,6 @@ Slice BundleBuffer::PeekFrontCompressedPacketData() const {
 
 void BundleBuffer::PopFront() {
   begin_ += PeekFrontHeader().bundle_size;
-  ++begin_bundle_id_;
   if (begin_ == end_) {
     begin_ = 0;
     end_ = 0;
@@ -457,7 +455,7 @@ void TraceBufferV3::RecordBundlingTime(base::TimeNanos duration) {
 }
 
 TraceBufferV3::BundleSequence& TraceBufferV3::GetBundleSequence(
-    uint64_t bundle_id,
+    uint32_t bundle_id,
     uint32_t sequence_index) {
   BundleSequence* entry =
       bundle_sequences_.Find(BundleSequenceKey{bundle_id, sequence_index});
@@ -468,7 +466,7 @@ TraceBufferV3::BundleSequence& TraceBufferV3::GetBundleSequence(
 bool TraceBufferV3::FillNextBundle() {
   PERFETTO_DCHECK(open_bundle_.sequence_indexes.size() == 0);
 
-  const uint64_t bundle_id = bundle_buf_.end_bundle_id();
+  const uint32_t bundle_id = bundle_buf_.next_bundle_id();
   // We expect packets from the same sequence to be adjacent, so cache the last
   // |sequence_index| to avoid a lookup per packet.
   // Staging keeps key 0 for padding, so no real packet can match this.
@@ -505,10 +503,11 @@ bool TraceBufferV3::FillNextBundle() {
       sequence_index = *index;
       // Take a lease on the sequence for its first packet in this bundle.
       if (inserted) {
-        bundle_sequences_.Insert(
+        auto& sequence = sequence_states().FindOrDie(sequence_key);
+        auto [_, is_new] = bundle_sequences_.Insert(
             BundleSequenceKey{bundle_id, sequence_index},
-            BundleSequence{
-                sequence_states().FindOrDie(sequence_key).AcquireLease()});
+            BundleSequence{sequence.AcquireLease()});
+        PERFETTO_CHECK(is_new);
       }
       last_sequence_key = sequence_key;
     }
@@ -550,7 +549,7 @@ void TraceBufferV3::CloseOpenBundle() {
       sizeof(internal::BundleHeader) + compressed_packet_data.size;
 
   auto drop_open_bundle = [this, num_sequences] {
-    const uint64_t bundle_id = bundle_buf_.end_bundle_id();
+    const uint32_t bundle_id = bundle_buf_.next_bundle_id();
     for (uint32_t i = 0; i < num_sequences; ++i) {
       BundleSequence& entry = GetBundleSequence(bundle_id, i);
       // The sequence's later packets are still in staging, so they report this
@@ -603,7 +602,7 @@ void TraceBufferV3::CloseOpenBundle() {
 void TraceBufferV3::OverwriteFrontBundle() {
   PERFETTO_DCHECK(overwrite_policy() == kOverwrite);
   const internal::BundleHeader header = bundle_buf_.PeekFrontHeader();
-  const uint64_t bundle_id = bundle_buf_.begin_bundle_id();
+  const uint32_t bundle_id = header.bundle_id;
 
   v3_stats_.set_bundles_overwritten(v3_stats_.bundles_overwritten() + 1);
   v3_stats_.set_uncompressed_bytes_overwritten(
@@ -726,7 +725,7 @@ bool TraceBufferV3::DecodeNextBundle() {
   DecompressFrontBundle(decoded_bundle_.packet_data.data(),
                         decoded_bundle_.packet_data.size());
 
-  const uint64_t bundle_id = bundle_buf_.begin_bundle_id();
+  const uint32_t bundle_id = header.bundle_id;
   decoded_bundle_.sequences.reserve(header.num_sequences);
   for (uint32_t i = 0; i < header.num_sequences; ++i) {
     internal::SequenceState& state = *GetBundleSequence(bundle_id, i).lease;
