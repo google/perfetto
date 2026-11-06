@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import {moveArrayItem} from '../../../base/array_utils';
+import {moveItem} from '../../../base/array_utils';
 import type {
   LogicalOpContext,
   NodeManifest,
@@ -22,7 +22,7 @@ import type {
 } from '../node_types';
 import type {LogicalOp} from '../logical_ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Row} from '../components/row';
+import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
 import {RadioGroup} from '../../../widgets/radio_group';
@@ -84,92 +84,35 @@ function SortNodeContent(): m.Component<{
       };
 
       return m(Stack, [
-        m(Stack, {compact: true}, [
-          ...conditions.map((cond, i) =>
+        m(DraggableStack, {
+          rows: conditions.map((cond, i) => [
+            m(ColumnPicker, {
+              value: cond.column,
+              columns: availableColumns,
+              placeholder: 'column',
+              onSelect: (column) =>
+                updateConditions(conditions.with(i, {...cond, column})),
+            }),
             m(
-              Row,
+              RadioGroup,
               {
-                key: i,
-                draggable: true,
-                ondragstart: (e: DragEvent) => {
-                  e.dataTransfer!.effectAllowed = 'move';
-                  e.dataTransfer!.setData('text/plain', String(i));
-                  (e.currentTarget as HTMLElement).classList.add('pf-dragging');
-                },
-                ondragend: (e: DragEvent) => {
-                  (e.currentTarget as HTMLElement).classList.remove(
-                    'pf-dragging',
-                  );
-                },
-                ondragover: (e: DragEvent) => {
-                  e.preventDefault();
-                  e.dataTransfer!.dropEffect = 'move';
-                  const el = e.currentTarget as HTMLElement;
-                  const rect = el.getBoundingClientRect();
-                  const isBottom = e.clientY > rect.top + rect.height / 2;
-                  el.classList.toggle('pf-drag-over-top', !isBottom);
-                  el.classList.toggle('pf-drag-over-bottom', isBottom);
-                },
-                ondragleave: (e: DragEvent) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                },
-                ondrop: (e: DragEvent) => {
-                  e.preventDefault();
-                  const el = e.currentTarget as HTMLElement;
-                  const isBottom = el.classList.contains('pf-drag-over-bottom');
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                  const fromIdx = parseInt(
-                    e.dataTransfer!.getData('text/plain'),
-                  );
-                  const toIdx = isBottom ? i + 1 : i;
-                  if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
-                    const updated = [...conditions];
-                    moveArrayItem(updated, fromIdx, toIdx);
-                    updateConditions(updated);
-                  }
-                },
+                selectedValue: cond.order,
+                onValueChange: (value: string) =>
+                  updateConditions(
+                    conditions.with(i, {
+                      ...cond,
+                      order: value as 'ASC' | 'DESC',
+                    }),
+                  ),
               },
-              [
-                m(Row.DragHandle),
-                m(ColumnPicker, {
-                  value: cond.column,
-                  columns: availableColumns,
-                  placeholder: 'column',
-                  onSelect: (value: string) => {
-                    const updated = [...conditions];
-                    updated[i] = {...cond, column: value};
-                    updateConditions(updated);
-                  },
-                }),
-                m(
-                  RadioGroup,
-                  {
-                    selectedValue: cond.order,
-                    onValueChange: (value: string) => {
-                      const updated = [...conditions];
-                      updated[i] = {...cond, order: value as 'ASC' | 'DESC'};
-                      updateConditions(updated);
-                    },
-                  },
-                  m(RadioGroup.Button, {value: 'ASC'}, 'ASC'),
-                  m(RadioGroup.Button, {value: 'DESC'}, 'DESC'),
-                ),
-                m(Row.DeleteButton, {
-                  onclick: () => {
-                    updateConditions(conditions.filter((_, j) => j !== i));
-                  },
-                }),
-              ],
+              m(RadioGroup.Button, {value: 'ASC'}, 'ASC'),
+              m(RadioGroup.Button, {value: 'DESC'}, 'DESC'),
             ),
-          ),
-        ]),
+          ]),
+          onReorder: (from, to) =>
+            updateConditions(moveItem(conditions, from, to)),
+          onDelete: (i) => updateConditions(conditions.toSpliced(i, 1)),
+        }),
         m(Button, {
           label: 'Add sort by',
           icon: 'add',

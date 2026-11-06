@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import {moveArrayItem} from '../../../base/array_utils';
+import {moveItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
   LogicalOpContext,
@@ -23,12 +23,14 @@ import type {
 } from '../node_types';
 import type {LogicalOp} from '../logical_ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {TextInput} from '../../../widgets/text_input';
-import {Row} from '../components/row';
+import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
+import {
+  sanitizeAlias,
+  TextInputWithAlias,
+} from '../components/text_input_with_alias';
 import {ColumnPicker} from '../widgets/column_picker';
 import type {ColumnDef} from '../graph_utils';
-import {AliasTag} from '../components/alias_tag';
 
 const ExtractArgEntrySchema = z.object({
   argName: z.string(),
@@ -45,9 +47,7 @@ const ExtractArgConfigSchema = z.object({
 export type ExtractArgConfig = z.infer<typeof ExtractArgConfigSchema>;
 
 function extractArgAlias(e: ExtractArgEntry): string {
-  if (e.alias) return e.alias;
-  if (e.argName) return e.argName.replace(/[^a-zA-Z0-9_]/g, '_');
-  return '';
+  return e.alias || sanitizeAlias(e.argName);
 }
 
 function ExtractArgContent(): m.Component<{
@@ -68,89 +68,29 @@ function ExtractArgContent(): m.Component<{
           },
         }),
         m('.pf-spag-section-label', 'Args'),
-        m(Stack, {compact: true}, [
-          ...config.extractions.map((entry, i) =>
-            m(
-              Row,
-              {
-                key: i,
-                draggable: true,
-                ondragstart: (e: DragEvent) => {
-                  e.dataTransfer!.effectAllowed = 'move';
-                  e.dataTransfer!.setData('text/plain', String(i));
-                  (e.currentTarget as HTMLElement).classList.add('pf-dragging');
-                },
-                ondragend: (e: DragEvent) => {
-                  (e.currentTarget as HTMLElement).classList.remove(
-                    'pf-dragging',
-                  );
-                },
-                ondragover: (e: DragEvent) => {
-                  e.preventDefault();
-                  e.dataTransfer!.dropEffect = 'move';
-                  const el = e.currentTarget as HTMLElement;
-                  const rect = el.getBoundingClientRect();
-                  const isBottom = e.clientY > rect.top + rect.height / 2;
-                  el.classList.toggle('pf-drag-over-top', !isBottom);
-                  el.classList.toggle('pf-drag-over-bottom', isBottom);
-                },
-                ondragleave: (e: DragEvent) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                },
-                ondrop: (e: DragEvent) => {
-                  e.preventDefault();
-                  const el = e.currentTarget as HTMLElement;
-                  const isBottom = el.classList.contains('pf-drag-over-bottom');
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                  const fromIdx = parseInt(
-                    e.dataTransfer!.getData('text/plain'),
-                  );
-                  const toIdx = isBottom ? i + 1 : i;
-                  if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
-                    const newExtractions = [...config.extractions];
-                    moveArrayItem(newExtractions, fromIdx, toIdx);
-                    updateConfig({extractions: newExtractions});
-                  }
-                },
-              },
-              [
-                m(Row.DragHandle),
-                m(TextInput, {
-                  placeholder: 'arg name',
-                  value: entry.argName,
-                  onChange: (value: string) => {
-                    const newExtractions = [...config.extractions];
-                    newExtractions[i] = {...entry, argName: value};
-                    updateConfig({extractions: newExtractions});
-                  },
+        m(DraggableStack, {
+          rows: config.extractions.map((entry, i) =>
+            m(TextInputWithAlias, {
+              placeholder: 'arg name',
+              value: entry.argName,
+              onChange: (argName) =>
+                updateConfig({
+                  extractions: config.extractions.with(i, {...entry, argName}),
                 }),
-                m(AliasTag, {
-                  alias: entry.alias,
-                  placeholder: extractArgAlias(entry) || 'alias',
-                  onChange: (value: string) => {
-                    const newExtractions = [...config.extractions];
-                    newExtractions[i] = {...entry, alias: value};
-                    updateConfig({extractions: newExtractions});
-                  },
+              alias: entry.alias,
+              onAliasChange: (alias) =>
+                updateConfig({
+                  extractions: config.extractions.with(i, {...entry, alias}),
                 }),
-                m(Row.DeleteButton, {
-                  onclick: () => {
-                    updateConfig({
-                      extractions: config.extractions.filter((_, j) => j !== i),
-                    });
-                  },
-                }),
-              ],
-            ),
+            }),
           ),
-        ]),
+          onReorder: (from, to) =>
+            updateConfig({
+              extractions: moveItem(config.extractions, from, to),
+            }),
+          onDelete: (i) =>
+            updateConfig({extractions: config.extractions.toSpliced(i, 1)}),
+        }),
         m(Button, {
           label: 'Add arg',
           variant: ButtonVariant.Filled,

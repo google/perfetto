@@ -14,9 +14,10 @@
 
 import m from 'mithril';
 import {z} from 'zod';
+import {moveItem} from '../../../base/array_utils';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {AliasTag} from '../components/alias_tag';
-import {Row} from '../components/row';
+import {ColumnPickerWithAlias} from '../components/column_picker_with_alias';
+import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
 import type {LogicalOp} from '../logical_ir';
@@ -26,7 +27,6 @@ import type {
   NodeManifest,
   RenderContext,
 } from '../node_types';
-import {ColumnPicker} from '../widgets/column_picker';
 
 const RenameEntrySchema = z.object({
   column: z.string(),
@@ -50,49 +50,29 @@ function RenameContent(): m.Component<{
     view({attrs: {config, updateConfig, ctx}}) {
       return m(Stack, {style: {minWidth: '220px'}}, [
         config.entries.length === 0 &&
-          m(
-            '.pf-spag-passthrough-hint',
-            {
-              style: {
-                opacity: 0.5,
-                fontStyle: 'italic',
-                fontSize: '11px',
-                padding: '2px 4px',
-              },
-            },
-            'All columns (passthrough)',
+          m('.pf-spag-passthrough-hint', 'All columns (passthrough)'),
+        m(DraggableStack, {
+          rows: config.entries.map((entry, i) =>
+            m(ColumnPickerWithAlias, {
+              value: entry.column,
+              columns: ctx.availableColumns,
+              onSelect: (column) =>
+                updateConfig({
+                  entries: config.entries.with(i, {...entry, column}),
+                }),
+              alias: entry.alias,
+              aliasPlaceholder: entry.column || 'new name',
+              onAliasChange: (alias) =>
+                updateConfig({
+                  entries: config.entries.with(i, {...entry, alias}),
+                }),
+            }),
           ),
-        m(Stack, {compact: true}, [
-          ...config.entries.map((entry, i) =>
-            m(Row, {key: i}, [
-              m(ColumnPicker, {
-                value: entry.column,
-                columns: ctx.availableColumns,
-                placeholder: 'column',
-                onSelect: (value: string) => {
-                  const updated = [...config.entries];
-                  updated[i] = {...entry, column: value};
-                  updateConfig({entries: updated});
-                },
-              }),
-              m(AliasTag, {
-                alias: entry.alias,
-                placeholder: entry.column || 'new name',
-                onChange: (value: string) => {
-                  const updated = [...config.entries];
-                  updated[i] = {...entry, alias: value};
-                  updateConfig({entries: updated});
-                },
-              }),
-              m(Row.DeleteButton, {
-                onclick: () =>
-                  updateConfig({
-                    entries: config.entries.filter((_, j) => j !== i),
-                  }),
-              }),
-            ]),
-          ),
-        ]),
+          onReorder: (from, to) =>
+            updateConfig({entries: moveItem(config.entries, from, to)}),
+          onDelete: (i) =>
+            updateConfig({entries: config.entries.toSpliced(i, 1)}),
+        }),
         m(Button, {
           label: 'Rename column',
           variant: ButtonVariant.Filled,

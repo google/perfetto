@@ -17,6 +17,7 @@ import {z} from 'zod';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {TextInput} from '../../../widgets/text_input';
 import {Select} from '../../../widgets/select';
+import {InputPortStepper} from '../components/input_port_stepper';
 import {Row} from '../components/row';
 import {Stack} from '../components/stack';
 import './sql.scss';
@@ -132,27 +133,17 @@ export const manifest: NodeManifest<SqlConfig> = {
           ),
         ]),
       // Add / remove input buttons
-      m('div', {style: {display: 'flex', gap: '4px'}}, [
-        canRemove &&
-          m(Button, {
-            label: '- Input',
-            variant: ButtonVariant.Filled,
-            style: {flex: '1'},
-            onclick: () =>
-              updateConfig({
-                inputPorts: inputPorts.slice(0, inputPorts.length - 1),
-              }),
+      m(InputPortStepper, {
+        canRemove,
+        onRemove: () =>
+          updateConfig({
+            inputPorts: inputPorts.slice(0, inputPorts.length - 1),
           }),
-        m(Button, {
-          label: '+ Input',
-          variant: ButtonVariant.Filled,
-          style: {flex: '1'},
-          onclick: () =>
-            updateConfig({
-              inputPorts: [...inputPorts, `input_${inputPorts.length}`],
-            }),
-        }),
-      ]),
+        onAdd: () =>
+          updateConfig({
+            inputPorts: [...inputPorts, `input_${inputPorts.length}`],
+          }),
+      }),
       // SQL body
       m('span.pf-spag-section-label', 'SQL'),
       m('textarea.pf-spag-sql-textarea', {

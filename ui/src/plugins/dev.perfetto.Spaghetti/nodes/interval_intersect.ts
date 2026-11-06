@@ -14,10 +14,12 @@
 
 import m from 'mithril';
 import {z} from 'zod';
+import {moveItem} from '../../../base/array_utils';
 import {Checkbox} from '../../../widgets/checkbox';
 import type {IntervalIntersectInput} from '../logical_ir';
 import type {NodeManifest, RenderContext} from '../node_types';
-import {Row} from '../components/row';
+import {DraggableStack} from '../components/draggable_stack';
+import {InputPortStepper} from '../components/input_port_stepper';
 import {Stack} from '../components/stack';
 import {TextInput} from '../../../widgets/text_input';
 import type {ColumnDef} from '../graph_utils';
@@ -49,64 +51,33 @@ function IntervalIntersectContent(): m.Component<{
           onchange: () =>
             updateConfig({filterNegativeDur: !config.filterNegativeDur}),
         }),
-        m('div', {style: {display: 'flex', gap: '4px'}}, [
-          canRemove &&
-            m(Button, {
-              label: '− Input',
-              variant: ButtonVariant.Filled,
-              style: {flex: '1'},
-              onclick: () =>
-                updateConfig({numInputs: Math.max(2, config.numInputs - 1)}),
-            }),
-          m(Button, {
-            label: '+ Input',
-            variant: ButtonVariant.Filled,
-            style: {flex: '1'},
-            onclick: () => updateConfig({numInputs: config.numInputs + 1}),
-          }),
-        ]),
+        m(InputPortStepper, {
+          canRemove,
+          onRemove: () =>
+            updateConfig({numInputs: Math.max(2, config.numInputs - 1)}),
+          onAdd: () => updateConfig({numInputs: config.numInputs + 1}),
+        }),
         m('.pf-spag-section-label', 'Partition by'),
-        m(Stack, {compact: true}, [
-          ...config.partitionColumns.map((col, i) =>
-            m(
-              Row,
-              {
-                key: i,
-                draggable: true,
-                onReorder: (fromIdx: number, toIdx: number) => {
-                  const updated = [...config.partitionColumns];
-                  const [moved] = updated.splice(fromIdx, 1);
-                  if (moved !== undefined) {
-                    updated.splice(toIdx, 0, moved);
-                    updateConfig({partitionColumns: updated});
-                  }
-                },
-              },
-              [
-                m(Row.DragHandle),
-                m(TextInput, {
-                  value: col,
-                  placeholder: 'column',
-                  onChange: (value: string) => {
-                    const updated = [...config.partitionColumns];
-                    updated[i] = value;
-                    updateConfig({partitionColumns: updated});
-                  },
+        m(DraggableStack, {
+          rows: config.partitionColumns.map((col, i) =>
+            m(TextInput, {
+              value: col,
+              placeholder: 'column',
+              onChange: (value) =>
+                updateConfig({
+                  partitionColumns: config.partitionColumns.with(i, value),
                 }),
-                m(Row.DeleteButton, {
-                  title: 'Remove',
-                  onclick: () => {
-                    updateConfig({
-                      partitionColumns: config.partitionColumns.filter(
-                        (_, j) => j !== i,
-                      ),
-                    });
-                  },
-                }),
-              ],
-            ),
+            }),
           ),
-        ]),
+          onReorder: (from, to) =>
+            updateConfig({
+              partitionColumns: moveItem(config.partitionColumns, from, to),
+            }),
+          onDelete: (i) =>
+            updateConfig({
+              partitionColumns: config.partitionColumns.toSpliced(i, 1),
+            }),
+        }),
         m(Button, {
           label: 'Column',
           icon: 'add',

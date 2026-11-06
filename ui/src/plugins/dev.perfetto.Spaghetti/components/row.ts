@@ -13,8 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {classNames} from '../../../base/classnames';
+import {Button, type ButtonAttrs} from '../../../widgets/button';
 import {Icon} from '../../../widgets/icon';
-import {Button} from '../../../widgets/button';
 import './row.scss';
 
 export function Row(): m.Component<m.Attributes> {
@@ -35,18 +36,14 @@ export namespace Row {
     },
   };
 
-  export interface DeleteButtonAttrs {
-    readonly onclick?: () => void;
-    readonly title?: string;
-  }
-
-  export const DeleteButton: m.Component<DeleteButtonAttrs> = {
+  export const DeleteButton: m.Component<Partial<ButtonAttrs>> = {
     view({attrs}) {
+      const {icon = 'delete', tooltip = 'Remove', className, ...rest} = attrs;
       return m(Button, {
-        icon: 'delete',
-        className: 'pf-spag-delete',
-        title: 'Remove',
-        onclick: attrs.onclick,
+        className: classNames('pf-spag-delete', className),
+        icon,
+        tooltip,
+        ...rest,
       });
     },
   };
