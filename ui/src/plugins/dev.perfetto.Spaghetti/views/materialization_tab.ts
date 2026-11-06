@@ -149,7 +149,7 @@ export class MaterializationTab implements m.ClassComponent<MaterializationTabAt
       );
     }
 
-    for (const [idx, step] of matPlan.steps.entries()) {
+    for (const step of matPlan.steps) {
       const res = formatLogicalPlan(step.plan, dialect, {
         includeModuleHeaders: false,
       });
@@ -157,19 +157,21 @@ export class MaterializationTab implements m.ClassComponent<MaterializationTabAt
         ? `CREATE PERFETTO TABLE ${step.hash} AS\n${res.sql}`
         : `-- Unsupported in Standard SQL: ${res.error}`;
 
-      const metaParts = [`step ${idx + 1}/${matPlan.steps.length}`];
-      if (step.nodeIds.length > 0) {
-        metaParts.push(`nodes: ${step.nodeIds.join(', ')}`);
-      }
+      const meta =
+        step.nodeIds.length > 0
+          ? `nodes: ${step.nodeIds.join(', ')}`
+          : undefined;
 
       const outcome = lastRunOutcomes.get(step.hash);
       const badges: m.Children[] = [];
       if (outcome?.kind === 'building') {
         badges.push(m(Card.Badge, {variant: 'miss', label: 'BUILDING'}));
       } else if (outcome?.kind === 'hit') {
-        badges.push(m(Card.Time, {label: '0ms (CACHED)'}));
+        badges.push(m(Card.Time, {label: 'CACHED'}));
       } else if (outcome?.kind === 'built') {
         badges.push(m(Card.Time, {label: `${outcome.timeMs.toFixed(1)}ms`}));
+      } else if (outcome?.kind === 'skipped') {
+        badges.push(m(Card.Time, {label: 'SKIPPED'}));
       }
       badges.push(
         m(CopyToClipboardButton, {
@@ -188,7 +190,7 @@ export class MaterializationTab implements m.ClassComponent<MaterializationTabAt
             this.highlightedHash === step.hash && 'pf-spag-card--highlighted',
           ),
           title: step.hash,
-          meta: metaParts.join(' · '),
+          meta,
           subheader: this.renderDepsRow('depends on', step.deps),
           content: bodySql,
           badges,

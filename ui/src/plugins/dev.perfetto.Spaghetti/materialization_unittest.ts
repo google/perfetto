@@ -438,7 +438,7 @@ describe('MaterializationService cache policy', () => {
     queries.length = 0;
     await service.scheduleUpdate(step2Store, 'srt1', undefined, 'sql');
     const sortHash = ensureDefined(service.materializedTable);
-    expect(service.lastRunOutcomes.get(filterHash)).toEqual({kind: 'hit'});
+    expect(service.lastRunOutcomes.get(filterHash)?.kind).toBe('hit');
     expect(service.lastRunOutcomes.get(sortHash)?.kind).toBe('built');
     expect(
       service.cacheEntries.find((e) => e.hash === filterHash)?.hitCount,

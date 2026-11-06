@@ -268,8 +268,9 @@ export interface CacheEntry {
 
 export type StepRunOutcome =
   | {readonly kind: 'building'}
-  | {readonly kind: 'hit'}
-  | {readonly kind: 'built'; readonly timeMs: number};
+  | {readonly kind: 'hit'; readonly savedTimeMs: number}
+  | {readonly kind: 'built'; readonly timeMs: number}
+  | {readonly kind: 'skipped'};
 
 export class MaterializationService {
   private readonly limiter = new AsyncLimiter();
@@ -573,6 +574,11 @@ export class MaterializationService {
     }
 
     const runOutcomes = new Map<string, StepRunOutcome>();
+    for (const step of matPlan.steps) {
+      if (!neededHashes.has(step.hash)) {
+        runOutcomes.set(step.hash, {kind: 'skipped'});
+      }
+    }
     this._lastRunOutcomes = runOutcomes;
 
     for (const {step, sql} of formattedSteps) {
@@ -585,7 +591,10 @@ export class MaterializationService {
           cached.materializeTimeMs,
           cached.hitCount,
         );
-        runOutcomes.set(step.hash, {kind: 'hit'});
+        runOutcomes.set(step.hash, {
+          kind: 'hit',
+          savedTimeMs: cached.materializeTimeMs,
+        });
         continue;
       }
 
