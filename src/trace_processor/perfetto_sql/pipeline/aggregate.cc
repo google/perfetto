@@ -23,6 +23,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/aggregate_function.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/output_properties.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -42,6 +43,15 @@ void PruneAggregates(std::vector<Aggregate>* aggregates,
   }
 }
 
+void AddAggregateNeeds(const std::vector<Aggregate>& aggregates,
+                       InputNeeds* needs) {
+  for (const Aggregate& agg : aggregates) {
+    if (agg.reads_column()) {
+      needs->types_then.push_back({agg.column, core::Int64{}, false});
+    }
+  }
+}
+
 core::exec::AggregateCall LowerAggregate(Lowering* c, const Aggregate& agg) {
   core::exec::AggregateCall call;
   call.function = agg.function;
@@ -50,7 +60,6 @@ core::exec::AggregateCall LowerAggregate(Lowering* c, const Aggregate& agg) {
     // Double totals. With dynamically typed input, a Double in a later batch
     // may require promoting earlier Int64 values. Picking one numeric type
     // for the whole column may then need a breaker that buffers the input.
-    c->RequireType(agg.column, core::Int64{});
     call.column = c->QueryPosition(agg.column);
   }
   return call;

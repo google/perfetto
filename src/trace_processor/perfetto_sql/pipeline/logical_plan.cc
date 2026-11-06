@@ -81,6 +81,18 @@ PlanOperation::~PlanOperation() = default;
 void PlanOperation::MoveSqlSourcesToDataframeArgs(const NameTable&,
                                                   std::vector<std::string>*) {}
 
+void PlanOperation::Rewrite(BoundPlan*,
+                            PlanNodeId,
+                            const LoweringContext&) const {}
+
+InputNeeds PlanOperation::Needs(uint32_t) const {
+  return {};
+}
+
+std::vector<std::vector<InputColumn>> PlanOperation::CommonTypes() const {
+  return {};
+}
+
 base::Status PlanOperation::ResolveDataframes(const LogicalPlan&,
                                               PlanNodeId,
                                               const Catalog&,

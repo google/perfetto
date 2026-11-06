@@ -29,7 +29,7 @@
 namespace perfetto::trace_processor::pipeline {
 
 class Compiler;
-class Lowering;
+struct OutputProperties;
 class PlanCodec;
 
 // A scalar expression over the columns of a row, as a stage computes it:
@@ -59,12 +59,15 @@ base::StatusOr<PlanType> CheckExprType(const Compiler&, const Expr&);
 // Marks the columns `expr` reads.
 void MarkExprColumns(const Expr&, std::vector<bool>* needed);
 
-// Builds the executor's program for `expr`, with columns at their lowered
-// positions, and sets `type` to the type it computes. Fails lowering if
-// `expr` cannot be typed.
-core::exec::ExprProgram LowerExpr(Lowering*,
-                                  const Expr&,
-                                  core::StorageType* type);
+// An expression typed for the rows it reads.
+struct TypedExpr {
+  core::exec::ExprProgram program;
+  core::StorageType type = core::Int64{};
+};
+
+// Builds the executor's program for `expr`, with columns at their positions in
+// `rows`, and the type it computes.
+base::StatusOr<TypedExpr> TypeExpr(const OutputProperties& rows, const Expr&);
 
 // Writes or reads `expr`.
 void SerializeExpr(PlanCodec&, Expr* expr);

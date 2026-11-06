@@ -81,11 +81,11 @@ class OperationRegistration {
 const OperationRegistration* FindOperationByTag(uint8_t tag);
 const OperationRegistration* FindOperationBySyntax(uint32_t syntax);
 
-// Rewrites a bound plan before it is lowered, with what binding found:
+// Plans a bound plan before it is lowered, with what binding found:
 // reorders, merges or drops nodes. Each pass is defined beside the operation
-// it rewrites; this runs them in order. Also fills in `bound->outputs`, which
+// it rewrites; this runs them in order. Also fills in `bound->planned`, which
 // lowering needs.
-void RunBoundPasses(BoundPlan* bound, const LoweringContext& context);
+base::Status RunBoundPasses(BoundPlan* bound, const LoweringContext& context);
 
 }  // namespace perfetto::trace_processor::pipeline
 

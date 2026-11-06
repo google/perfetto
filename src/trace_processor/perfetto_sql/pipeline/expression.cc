@@ -229,14 +229,14 @@ core::StorageType StorageOf(Kind kind) {
                                  : core::StorageType(core::Int64{});
 }
 
-// Types an expression's nodes in order and, when lowering, appends the steps
-// computing them. Without a Lowering it only checks, as the compiler does
-// before every column's type is known. An error is what was expected
-// instead.
+// Types an expression's nodes in order and, given the rows it reads, appends
+// the steps computing them. Without them it only checks, as the compiler does
+// before every column's type is known. An error is what was expected instead.
 class Typer {
  public:
-  Typer(const LogicalPlan& plan, Lowering* lowering, ex::ExprProgram* program)
-      : plan_(plan), lowering_(lowering), program_(program) {}
+  explicit Typer(const LogicalPlan& plan) : plan_(&plan) {}
+  Typer(const OutputProperties& rows, ex::ExprProgram* program)
+      : rows_(&rows), program_(program) {}
 
   // The kind of the expression's result.
   base::StatusOr<Kind> Run(const Expr& e) {
@@ -276,9 +276,9 @@ class Typer {
   base::StatusOr<Kind> Type(const ex::ExprStep& node, uint32_t* reg) {
     if (node.op == Op::kColumn) {
       ColumnId column = node.a;
-      Kind kind = KindOf(lowering_ ? lowering_->QueryType(column)
-                                   : plan_.columns()[column].type);
-      if (!lowering_ || kind == Kind::kNull) {
+      Kind kind =
+          KindOf(rows_ ? rows_->TypeOf(column) : plan_->columns()[column].type);
+      if (!rows_ || kind == Kind::kNull) {
         return kind;
       }
       if (kind == Kind::kUnknown) {
@@ -287,12 +287,12 @@ class Typer {
       ex::ExprStep step;
       step.op = Op::kColumn;
       step.type = TypeOf(kind);
-      step.a = lowering_->QueryPosition(column);
+      step.a = *rows_->PositionOf(column);
       *reg = Add(step);
       return kind;
     }
     if (node.op == Op::kConstant) {
-      if (lowering_) {
+      if (rows_) {
         *reg = Add(node);
       }
       return node.type == Type::kDouble ? Kind::kDouble : Kind::kInt64;
@@ -318,7 +318,7 @@ class Typer {
     }
     Kind kind =
         a == Kind::kDouble || b == Kind::kDouble ? Kind::kDouble : Kind::kInt64;
-    if (lowering_) {
+    if (rows_) {
       ex::ExprStep step =
           Node2(node.op, Materialize(node.a, kind), Materialize(node.b, kind));
       step.type = TypeOf(kind);
@@ -327,10 +327,10 @@ class Typer {
     return kind;
   }
 
-  const LogicalPlan& plan_;
-  Lowering* lowering_;
-  ex::ExprProgram* program_;
-  // By node, its kind and, when lowering, the register holding it.
+  const LogicalPlan* plan_ = nullptr;
+  const OutputProperties* rows_ = nullptr;
+  ex::ExprProgram* program_ = nullptr;
+  // By node, its kind and the register holding it.
   std::vector<Kind> kinds_;
   std::vector<uint32_t> regs_;
 };
@@ -342,7 +342,7 @@ base::Status CompileExpr(Compiler* c, uint32_t expr, Expr* out) {
 }
 
 base::StatusOr<PlanType> CheckExprType(const Compiler& c, const Expr& e) {
-  ASSIGN_OR_RETURN(Kind kind, Typer(c.plan(), nullptr, nullptr).Run(e));
+  ASSIGN_OR_RETURN(Kind kind, Typer(c.plan()).Run(e));
   if (kind == Kind::kUnknown) {
     return PlanType::Unknown();
   }
@@ -357,28 +357,25 @@ void MarkExprColumns(const Expr& e, std::vector<bool>* needed) {
   }
 }
 
-core::exec::ExprProgram LowerExpr(Lowering* c,
-                                  const Expr& e,
-                                  core::StorageType* type) {
-  ex::ExprProgram program;
-  Typer typer(c->plan(), c, &program);
+base::StatusOr<TypedExpr> TypeExpr(const OutputProperties& rows,
+                                   const Expr& e) {
+  TypedExpr typed;
+  Typer typer(rows, &typed.program);
   base::StatusOr<Kind> kind = typer.Run(e);
   if (!kind.ok()) {
-    c->Fail(base::ErrStatus("expected %s", kind.status().c_message()));
-    *type = core::Int64{};
-    return program;
+    return base::ErrStatus("expected %s", kind.status().c_message());
   }
   // A result which is only ever NULL is a column of Int64 nulls.
   Kind result = *kind == Kind::kNull ? Kind::kInt64 : *kind;
   uint32_t reg =
       typer.Materialize(static_cast<uint32_t>(e.nodes.size() - 1), result);
-  if (reg != program.steps.size() - 1) {
+  if (reg != typed.program.steps.size() - 1) {
     // The result is an earlier step, such as a bare column: repeat it last.
-    ex::ExprStep step = program.steps[reg];
-    program.steps.push_back(step);
+    ex::ExprStep step = typed.program.steps[reg];
+    typed.program.steps.push_back(step);
   }
-  *type = StorageOf(result);
-  return program;
+  typed.type = StorageOf(result);
+  return typed;
 }
 
 void SerializeExpr(PlanCodec& c, Expr* e) {
