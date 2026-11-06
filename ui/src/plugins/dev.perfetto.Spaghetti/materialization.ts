@@ -93,17 +93,6 @@ export function planMaterialization(
   const {canvasRefCounts, warmHashes} = options ?? {};
   const nodeById = new Map(plan.nodes.map((n) => [n.nodeId, n]));
 
-  const mustCutInputIds = new Set<string>();
-  for (const {op} of plan.nodes) {
-    if (op.kind === 'union' || op.kind === 'raw_sql') {
-      for (const inpId of getLogicalOpInputs(op)) {
-        if (nodeById.get(inpId)?.op.kind !== 'scan') {
-          mustCutInputIds.add(inpId);
-        }
-      }
-    }
-  }
-
   let targetId = plan.targetNodeId;
   while (true) {
     const t = nodeById.get(targetId);
@@ -131,7 +120,6 @@ export function planMaterialization(
       const refs = Math.max(n.refCount, canvasRefCounts?.get(n.nodeId) ?? 0);
       if (
         isWarm ||
-        mustCutInputIds.has(n.nodeId) ||
         (refs > 1 && !isFree) ||
         PIPELINE_BREAKER_KINDS.has(n.op.kind)
       ) {
