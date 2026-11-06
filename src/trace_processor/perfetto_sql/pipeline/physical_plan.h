@@ -179,6 +179,10 @@ class Lowering {
   // What is known of the rows of the input just lowered.
   const OutputProperties& QueryRows() const { return *rows_; }
 
+  // How many rows the open sort of the input just lowered outputs, if it is
+  // limited to its first rows.
+  std::optional<uint32_t> QuerySortKeep() const;
+
   // Where an interval operator finds the input just lowered (see
   // IntervalLaneNeeds).
   core::exec::IntervalLaneSpec QueryIntervalLanes(
