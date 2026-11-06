@@ -66,6 +66,13 @@ void EnsureInitialized() {
   (void)initialized;
 }
 
+TracingSession StartTrackEventSession() {
+  return TracingSession::Builder()
+      .set_data_source_name("track_event")
+      .add_enabled_category("*")
+      .Build();
+}
+
 size_t DecodePacketSizes(const std::vector<uint8_t>& data) {
   for (struct PerfettoPbDecoderField field :
        IdFieldView(data, perfetto_protos_Trace_packet_field_number)) {
@@ -152,10 +159,7 @@ void BM_Shlib_TeDisabled(benchmark::State& state) {
 
 void BM_Shlib_TeBasic(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session = TracingSession::Builder()
-                                       .set_data_source_name("track_event")
-                                       .add_enabled_category("*")
-                                       .Build();
+  TracingSession tracing_session = StartTrackEventSession();
 
   while (state.KeepRunning()) {
     PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_BEGIN("Event"));
@@ -165,10 +169,7 @@ void BM_Shlib_TeBasic(benchmark::State& state) {
 
 void BM_Shlib_TeBasicNoIntern(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session = TracingSession::Builder()
-                                       .set_data_source_name("track_event")
-                                       .add_enabled_category("*")
-                                       .Build();
+  TracingSession tracing_session = StartTrackEventSession();
 
   while (state.KeepRunning()) {
     PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_BEGIN("Event"),
@@ -179,10 +180,7 @@ void BM_Shlib_TeBasicNoIntern(benchmark::State& state) {
 
 void BM_Shlib_TeDebugAnnotations(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session = TracingSession::Builder()
-                                       .set_data_source_name("track_event")
-                                       .add_enabled_category("*")
-                                       .Build();
+  TracingSession tracing_session = StartTrackEventSession();
 
   while (state.KeepRunning()) {
     PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_BEGIN("Event"),
@@ -193,10 +191,7 @@ void BM_Shlib_TeDebugAnnotations(benchmark::State& state) {
 
 void BM_Shlib_TeCustomProto(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session = TracingSession::Builder()
-                                       .set_data_source_name("track_event")
-                                       .add_enabled_category("*")
-                                       .Build();
+  TracingSession tracing_session = StartTrackEventSession();
 
   while (state.KeepRunning()) {
     PERFETTO_TE(
@@ -211,12 +206,20 @@ void BM_Shlib_TeCustomProto(benchmark::State& state) {
   }
 }
 
+void BM_Shlib_TeNestedThreadTrack(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session = StartTrackEventSession();
+
+  while (state.KeepRunning()) {
+    PERFETTO_TE(benchmark_cat, PERFETTO_TE_INSTANT("Event"),
+                PERFETTO_TE_NESTED_TRACKS(PERFETTO_TE_NESTED_TRACK_THREAD()));
+    benchmark::ClobberMemory();
+  }
+}
+
 void BM_Shlib_TeLlBasic(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session = TracingSession::Builder()
-                                       .set_data_source_name("track_event")
-                                       .add_enabled_category("*")
-                                       .Build();
+  TracingSession tracing_session = StartTrackEventSession();
 
   while (state.KeepRunning()) {
     if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
@@ -267,10 +270,7 @@ void BM_Shlib_TeLlBasic(benchmark::State& state) {
 
 void BM_Shlib_TeLlBasicNoIntern(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session = TracingSession::Builder()
-                                       .set_data_source_name("track_event")
-                                       .add_enabled_category("*")
-                                       .Build();
+  TracingSession tracing_session = StartTrackEventSession();
 
   while (state.KeepRunning()) {
     if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
@@ -318,10 +318,7 @@ void BM_Shlib_TeLlBasicNoIntern(benchmark::State& state) {
 
 void BM_Shlib_TeLlDebugAnnotations(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session = TracingSession::Builder()
-                                       .set_data_source_name("track_event")
-                                       .add_enabled_category("*")
-                                       .Build();
+  TracingSession tracing_session = StartTrackEventSession();
 
   while (state.KeepRunning()) {
     if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
@@ -383,10 +380,7 @@ void BM_Shlib_TeLlDebugAnnotations(benchmark::State& state) {
 
 void BM_Shlib_TeLlCustomProto(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session = TracingSession::Builder()
-                                       .set_data_source_name("track_event")
-                                       .add_enabled_category("*")
-                                       .Build();
+  TracingSession tracing_session = StartTrackEventSession();
 
   while (state.KeepRunning()) {
     if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
@@ -452,6 +446,7 @@ BENCHMARK(BM_Shlib_TeBasic);
 BENCHMARK(BM_Shlib_TeBasicNoIntern);
 BENCHMARK(BM_Shlib_TeDebugAnnotations);
 BENCHMARK(BM_Shlib_TeCustomProto);
+BENCHMARK(BM_Shlib_TeNestedThreadTrack);
 BENCHMARK(BM_Shlib_TeLlBasic);
 BENCHMARK(BM_Shlib_TeLlBasicNoIntern);
 BENCHMARK(BM_Shlib_TeLlDebugAnnotations);

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {HSLColor} from '../../base/color';
+import {Time} from '../../base/time';
 import {getOrCreate} from '../../base/utils';
 import {createAggregationTab} from '../../components/aggregation_adapter';
 import {
@@ -110,9 +111,10 @@ const COMPACT_SLICES = {sliceHeight: 12, titleSizePx: 10};
 // Below every other process-scoped track (-50..30) so it appears first.
 const PROCESS_GROUP_SORT_ORDER = -100;
 
-// Keeps the freezer and capability lanes out of the aggregators, which scope
-// by the state track's tag.
+// Keeps the freezer, OOM score, and capability lanes out of the aggregators,
+// which scope by the state track's tag.
 const TAG_FREEZER_TRACK = 'android_freezer';
+const TAG_OOM_SCORE_TRACK = 'android_oom_score';
 const TAG_CAPABILITY_TRACK = 'android_process_capability';
 
 /**
@@ -127,8 +129,8 @@ export default class ProcessState implements PerfettoPlugin {
   static readonly id = 'com.android.ProcessState';
   static readonly description =
     'Visualizes Android framework process states: per-state and freezer ' +
-    'concurrency counters, and per-process state, freezer, and capability ' +
-    'timelines.';
+    'concurrency counters, and per-process state, freezer, OOM score, and ' +
+    'capability timelines.';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -139,6 +141,15 @@ export default class ProcessState implements PerfettoPlugin {
     await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.process_state;
       INCLUDE PERFETTO MODULE android.freezer;
+
+      -- Open intervals (dur = -1) run to the end of the trace.
+      CREATE PERFETTO TABLE _android_process_state_alive_concurrency AS
+      FROM (
+        SELECT ts, iif(dur < 0, trace_end() - ts, dur) AS dur
+        FROM _android_process_state_intervals
+        WHERE state NOT IN ('NONEXISTENT', 'EXITED')
+      )
+      |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS concurrency;
     `);
 
     ctx.selection.registerAreaSelectionTab(
@@ -173,13 +184,30 @@ export default class ProcessState implements PerfettoPlugin {
     return result.ok && result.value.firstRow({cnt: NUM}).cnt > 0;
   }
 
-  // One counter per proc state, showing how many processes were in that state
-  // at any point in time, ordered by declaration order in the proto, then one
-  // per freezer state.
+  // The alive process count as the group's own track, then one counter per
+  // proc state, showing how many processes were in that state at any point in
+  // time, ordered by declaration order in the proto, then one per freezer
+  // state.
   private async createConcurrencyTracks(ctx: Trace): Promise<TrackNode> {
+    const aliveUri = `${ProcessState.id}#count.alive`;
+    ctx.tracks.registerTrack({
+      uri: aliveUri,
+      renderer: CounterTrack.create({
+        trace: ctx,
+        uri: aliveUri,
+        sqlSource: `
+          SELECT ts, concurrency AS value
+          FROM _android_process_state_alive_concurrency
+        `,
+      }),
+      description:
+        'Total number of concurrently alive processes over time, broken down ' +
+        'by process state and freezer state underneath.',
+    });
+
     const summary = new TrackNode({
       name: 'By state',
-      isSummary: true,
+      uri: aliveUri,
     });
 
     // States entered and left within the same timestamp never reach a
@@ -241,8 +269,8 @@ export default class ProcessState implements PerfettoPlugin {
     return summary;
   }
 
-  // One timeline per process, with its freezer and capability timelines as
-  // children when present. Ordered by uid so that the successive
+  // One timeline per process, with its freezer, OOM score, and capability
+  // timelines as children when present. Ordered by uid so that the successive
   // processes of a respawning app sit next to each other - that adjacency is
   // the only thing tying an app's lifetimes together, since each restart gets
   // its own upid.
@@ -252,17 +280,21 @@ export default class ProcessState implements PerfettoPlugin {
 
     const processes = await ctx.engine.query(`
       SELECT
-        upid,
-        pid,
-        process_name AS name,
-        upid IN (SELECT upid FROM _android_freezer_intervals)
-          AS hasFreezer
-      FROM _android_process_state_intervals
-      GROUP BY upid
+        i.upid,
+        i.pid,
+        i.process_name AS name,
+        p.end_ts AS endTs,
+        i.upid IN (SELECT upid FROM _android_freezer_intervals)
+          AS hasFreezer,
+        i.upid IN (SELECT upid FROM _android_process_oom_scores)
+          AS hasOomScore
+      FROM _android_process_state_intervals AS i
+      JOIN process AS p USING (upid)
+      GROUP BY i.upid
       ORDER BY
-        uid NULLS LAST,
-        min(ts),
-        pid
+        i.uid NULLS LAST,
+        min(i.ts),
+        i.pid
     `);
 
     const capabilitiesByUpid = new Map<number, string[]>();
@@ -285,12 +317,14 @@ export default class ProcessState implements PerfettoPlugin {
         upid: NUM,
         pid: NUM,
         name: STR_NULL,
+        endTs: LONG_NULL,
         hasFreezer: NUM,
+        hasOomScore: NUM,
       });
       it.valid();
       it.next()
     ) {
-      const {upid, pid, hasFreezer} = it;
+      const {upid, pid, endTs, hasFreezer, hasOomScore} = it;
       const name = it.name ?? `${pid}`;
       const uri = processTrackUri(upid);
       const processGroup = groups.getGroupForProcess(upid);
@@ -381,6 +415,37 @@ export default class ProcessState implements PerfettoPlugin {
         );
         groupNode.addChildLast(
           new TrackNode({uri: freezerUri, name: 'Freezer'}),
+        );
+      }
+
+      if (hasOomScore) {
+        const oomScoreUri = `${uri}.oom_score`;
+        const overviewOomScoreUri = this.registerProcessTrack(
+          ctx,
+          processGroup,
+          {
+            uri: oomScoreUri,
+            tag: TAG_OOM_SCORE_TRACK,
+            upid,
+            description: `OOM adjustment score of ${name} (${pid}) over time.`,
+            create: (trackUri) =>
+              CounterTrack.create({
+                trace: ctx,
+                uri: trackUri,
+                endTs: Time.fromRaw(endTs ?? undefined),
+                sqlSource: `
+                  SELECT ts, oom_score AS value
+                  FROM _android_process_oom_scores
+                  WHERE upid = ${upid}
+                `,
+              }),
+          },
+        );
+        overviewNode.addChildLast(
+          new TrackNode({uri: overviewOomScoreUri, name: 'OOM score'}),
+        );
+        groupNode.addChildLast(
+          new TrackNode({uri: oomScoreUri, name: 'OOM score'}),
         );
       }
 

@@ -429,8 +429,8 @@ def parse_module(
   if sys.platform.startswith('win'):
     path = path.replace('\\', '/')
 
-  module_as_list: List[str] = path.split('/stdlib/')[-1].split(".sql")[0].split(
-      '/')
+  rel_no_ext = re.sub(r'\.(?:pf\.)?sql$', '', path.split('/stdlib/')[-1])
+  module_as_list: List[str] = rel_no_ext.split('/')
   package_name = module_as_list[0]
   if package_name == "deprecated":
     return None

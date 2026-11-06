@@ -91,13 +91,19 @@ std::optional<uint32_t> TreeAccumulate::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
-OutputProperties TreeAccumulate::Derive(const BoundPlan& bound,
-                                        PlanNodeId self) const {
-  OutputProperties out = bound.outputs[bound.plan.nodes()[self].children()[0]];
-  out.RequireTreeWalk(node_column_, parent_column_, direction_);
-  out.CloseOpenSort();
+InputNeeds TreeAccumulate::Needs(uint32_t) const {
+  InputNeeds needs;
+  needs.tree_walk =
+      InputNeeds::TreeWalk{node_column_, parent_column_, direction_};
+  AddAggregateNeeds(aggregates_, &needs);
+  return needs;
+}
+
+OutputProperties TreeAccumulate::Derive(DeriveContext& c) const {
+  OutputProperties out = c.input(0);
+  out.open_sort.reset();
   for (const Aggregate& agg : aggregates_) {
-    out.AddColumn(agg.output);
+    out.columns.push_back(c.ColumnOf(agg.output));
   }
   return out;
 }
@@ -117,38 +123,36 @@ bool TreeAccumulate::CommutesWith(const TreeAccumulate& below) const {
   return true;
 }
 
-void ReorderTreeFold(BoundPlan* bound, PlanNodeId id) {
+void TreeAccumulate::Rewrite(BoundPlan* bound,
+                             PlanNodeId self,
+                             const LoweringContext& context) const {
   std::vector<PlanNode>& nodes = bound->plan.nodes();
-  PlanNode& node = nodes[id];
-  if (!node.Is<TreeAccumulate>()) {
-    return;
-  }
+  PlanNode& node = nodes[self];
   PlanNodeId below_id = node.children()[0];
   PlanNode& below = nodes[below_id];
-  const auto& fold = node.Cast<TreeAccumulate>();
   if (!below.Is<TreeAccumulate>() ||
-      !fold.CommutesWith(below.Cast<TreeAccumulate>())) {
+      !CommutesWith(below.Cast<TreeAccumulate>())) {
     return;
   }
   // If the rows already walk the tree, the fold in that direction goes first
   // and reuses the walk.
   std::optional<TreeDirection> walk =
-      bound->outputs[below.children()[0]].TreeWalk(fold.node_column_,
-                                                   fold.parent_column_);
+      bound->planned[below.children()[0]].output.TreeWalk(node_column_,
+                                                          parent_column_);
   if (walk && below.Cast<TreeAccumulate>().direction_ != *walk) {
     node.SwapOperation(&below);
-    bound->outputs[below_id] = below.operation().Derive(*bound, below_id);
+    PlanNodeInputs(bound, below_id, context);
   }
 }
 
 void TreeAccumulate::Lower(Lowering* c, const PlanNode& node) const {
   const auto& acc = *this;
-  c->LowerNode(node.children()[0]);
-
-  const auto tree =
-      c->RequireTreeWalk(acc.node_column_, acc.parent_column_, acc.direction_);
+  c->LowerInput(node, 0);
+  const OutputProperties::Tree& tree = *c->QueryRows().tree;
   // One operator folds every aggregate, appending their columns in order.
-  ex::TreeAccumulateSpec spec{tree.node, tree.parent, {}};
+  ex::TreeAccumulateSpec spec{c->QueryPosition(tree.node_number),
+                              c->QueryPosition(tree.parent_number),
+                              {}};
   for (const Aggregate& agg : acc.aggregates_) {
     spec.aggregates.push_back(LowerAggregate(c, agg));
   }

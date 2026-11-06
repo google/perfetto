@@ -95,6 +95,7 @@ const PAGE = {
   rows: [{a: '1'}],
   columns: ['a'],
   totalFilteredRows: 5000,
+  totalFilteredTraces: 42,
   availableColumnNames: ['a'],
 };
 
@@ -208,5 +209,79 @@ describe('BigtraceAsyncDataSource fetch scheduling', () => {
     // Nothing has been sent yet, but the grid must not read as settled.
     expect(calls).toHaveLength(0);
     expect(ds.useRows(model(400, 100)).isPending).toBe(true);
+  });
+
+  test('refresh keeps a pending scroll window and resists duplicate initial fetch', async () => {
+    const {client, calls} = manualClient();
+    const ds = new BigtraceAsyncDataSource('uid', client, () => 5000);
+    ds.useRows(model(0, 100));
+    expect(calls).toHaveLength(1);
+
+    // Refresh while initial load is still in flight; synchronous redraw must
+    // not abort the refresh with a duplicate needsInitial schedule.
+    void ds.refresh();
+    ds.useRows(model(0, 100));
+    expect(calls).toHaveLength(2);
+    expect(calls[0]!.signal?.aborted).toBe(true);
+    expect(calls[1]!.signal?.aborted).toBe(false);
+
+    calls[1]!.resolve(PAGE);
+    await vi.advanceTimersByTimeAsync(0);
+
+    // User scrolls to 400 (still in debounce) when refresh() runs.
+    ds.useRows(model(400, 100));
+    void ds.refresh();
+    expect(calls).toHaveLength(3);
+    expect(calls[2]!.offset).toBe(400);
+  });
+
+  test('limit=0 triggers initial 100-row fetch and empty initial schema falls back', async () => {
+    const {client, calls} = manualClient();
+    const ds = new BigtraceAsyncDataSource(
+      'uid',
+      client,
+      () => 5000,
+      undefined,
+      () => [],
+    );
+
+    ds.useRows({mode: 'flat', columns: []});
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({offset: 0, limit: 100});
+
+    calls[0]!.resolve({
+      ...PAGE,
+      schema: [{name: 'a', type: 'STRING'}],
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(ds.getSchema()).toEqual([{name: 'a', type: 'STRING'}]);
+    expect(ds.filteredTotalTraces).toBe(42);
+
+    // Changing filters clears cached filtered counts until the filtered page arrives.
+    ds.useRows({
+      ...model(0, 100),
+      filters: [{field: 'a', op: '=', value: '1'}],
+    });
+    expect(ds.filteredTotalRows).toBeUndefined();
+    expect(ds.filteredTotalTraces).toBeUndefined();
+  });
+
+  test('a superseded fetch rejecting late does not set error', async () => {
+    const rejections: Array<(e: Error) => void> = [];
+    const client = {
+      fetchResults: vi.fn(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejections.push(reject);
+          }),
+      ),
+    } as unknown as BigtraceQueryClient;
+    const ds = new BigtraceAsyncDataSource('uid', client, () => 5000);
+    ds.useRows({mode: 'flat', columns: []});
+    ds.useRows(model(0, 100));
+    rejections[0]!(new Error('signal is aborted without reason'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ds.getError()).toBeNull();
   });
 });

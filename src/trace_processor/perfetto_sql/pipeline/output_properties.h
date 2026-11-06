@@ -19,17 +19,25 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <optional>
+#include <variant>
 #include <vector>
 
+#include "perfetto/base/status.h"
+#include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/expression.h"
+#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
 namespace perfetto::trace_processor::pipeline {
 
-// What is known about the batches a node outputs: where each column is, how the
-// rows are arranged, the tree they are numbered as and the group number columns
-// they carry. Column types are kept apart, by PlanLowering.
+struct BoundPlan;
+struct LoweringContext;
+
+// What is known about the batches a node outputs: their columns and types, how
+// the rows are arranged, the tree they are numbered as and the group number
+// columns they carry. Rewrites read this to decide, and PlanNodeInputs compares
+// it with what each node needs.
 struct OutputProperties {
   // A layout the rows are known to have.
   struct Arrangement {
@@ -46,33 +54,41 @@ struct OutputProperties {
     ColumnId parent = 0;
     // The direction the rows walk the tree in, if they do.
     std::optional<TreeDirection> walk;
-    // The positions of the node number columns.
-    uint32_t node_position = 0;
-    uint32_t parent_position = 0;
+    // The columns holding the node numbers.
+    ColumnId node_number = 0;
+    ColumnId parent_number = 0;
   };
 
   // A column holding group numbers.
   struct GroupNumbers {
     // The columns the groups are formed by.
     std::vector<ColumnId> keys;
-
-    // The position of the group number column.
-    uint32_t position = 0;
+    ColumnId column = 0;
   };
 
-  // What was known before the most recent sort.
-  struct BeforeOpenSort {
+  // A column of a batch, and what it holds here.
+  struct Column {
+    ColumnId id = 0;
+    PlanType type;
+    // It was bound as holding only nulls, whatever it has since converted to.
+    bool all_null = false;
+  };
+
+  // The most recent sort, while nothing has read its order, and what was known
+  // before it: it can still be undone.
+  struct OpenSort {
+    PlanNodeId node = 0;
+    uint32_t input = 0;
+    size_t step = 0;
     std::vector<Arrangement> arrangements;
     std::optional<TreeDirection> walk;
   };
 
-  // The steps a pipeline must take for a requirement to hold, in this order.
-  struct RequiredSteps {
-    bool drop_open_sort = false;
-    bool number_tree = false;
-    bool combine_batches = false;
-    bool reorder = false;
-  };
+  // The position of `column` in a batch, if it has one.
+  std::optional<uint32_t> PositionOf(ColumnId column) const;
+
+  // The type of `column`, which the batches must have.
+  const PlanType& TypeOf(ColumnId column) const;
 
   // Whether the rows are grouped by `keys` and sorted by `sorted_by` within
   // each group. Sorting by some keys first also groups by them. For example,
@@ -80,69 +96,23 @@ struct OutputProperties {
   bool IsArranged(const std::vector<ColumnId>& keys,
                   const std::vector<SortKey>& sorted_by) const;
 
-  // The longest prefix of a known sort order that uses only `columns`.
-  std::vector<SortKey> SortedBy(const std::vector<ColumnId>& columns) const;
+  // The longest prefix of a known sort order that uses only `allowed`.
+  std::vector<SortKey> SortedBy(const std::vector<ColumnId>& allowed) const;
 
   // The direction the rows walk the tree of `node` and `parent` in, if known.
   std::optional<TreeDirection> TreeWalk(ColumnId node, ColumnId parent) const;
 
-  // Nothing known yet, of batches from a plan with `plan_columns` columns.
-  static OutputProperties Empty(size_t plan_columns);
-
-  // Makes the rows sorted by `keys`, and returns what that takes.
-  RequiredSteps RequireSorted(const std::vector<SortKey>& keys);
-
-  // Makes the rows walk the tree of `node` and `parent` in `direction`, and
-  // returns what that takes.
-  RequiredSteps RequireTreeWalk(ColumnId node,
-                                ColumnId parent,
-                                TreeDirection direction);
-
-  // The rows are sorted by `keys`, which nothing has read yet.
-  void Sort(const std::vector<SortKey>& keys);
-
-  // The sort nothing has read is undone. Returns whether there was one.
-  bool DropOpenSort();
-
-  // Something now depends on the order of the rows, so no sort can be undone.
-  void CloseOpenSort();
-
-  // The rows are grouped by `keys`, each group sorted by `sorted_by`, and carry
-  // a new group number column. Grouping is stable.
-  void Group(const std::vector<ColumnId>& keys,
-             const std::vector<SortKey>& sorted_by);
-
-  // The rows are numbered as the tree of `node` and `parent`, in two new
-  // columns, unless they already are.
-  void NumberTree(ColumnId node, ColumnId parent);
-
-  // The rows walk the tree of `node` and `parent` in `direction`, numbering it
-  // if needed.
-  void WalkTree(ColumnId node, ColumnId parent, TreeDirection direction);
+  // The column numbering the groups of `keys`, if the rows carry one.
+  std::optional<ColumnId> GroupNumbersOf(
+      const std::vector<ColumnId>& keys) const;
 
   // Some rows were dropped by a step reading their order. Rows kept stay in
   // order, in batches which can be small, but a tree numbered before may now
   // name parents which are gone.
   void DropRows();
 
-  // The next batch column is `id`. Returns its position.
-  uint32_t AddColumn(ColumnId id);
-
-  // Reserves the next batch column for a value with no logical column.
-  uint32_t AddTemporaryColumn();
-
-  // The batches hold new rows: nothing is known of them yet.
-  void Reset();
-
-  // The number of columns in a batch, including temporary columns.
-  uint32_t column_count = 0;
-
-  // The batch position of each logical column, or kNoPosition.
-  static constexpr uint32_t kNoPosition = std::numeric_limits<uint32_t>::max();
-  std::vector<uint32_t> positions;
-
-  // Whether batches are known to be full, so no combining is needed.
-  bool full_batches = true;
+  // The columns of a batch, in order.
+  std::vector<Column> columns;
 
   // Every layout known to hold.
   std::vector<Arrangement> arrangements;
@@ -150,13 +120,162 @@ struct OutputProperties {
   // The tree the rows are numbered as, if any.
   std::optional<Tree> tree;
 
-  // The group number columns. They stay valid when rows are reordered, until
-  // Reset.
+  // The group number columns, which stay valid when rows are reordered.
   std::vector<GroupNumbers> group_numbers;
 
+  // Whether batches are known to be full, so no combining is needed.
+  bool full_batches = true;
+
   // Set while a sort can still be undone.
-  std::optional<BeforeOpenSort> before_open_sort;
+  std::optional<OpenSort> open_sort;
 };
+
+// What a node needs of the rows of one of its inputs. All of it is optional,
+// and it is met in the order of these fields.
+struct InputNeeds {
+  // A column to hold a type, which must convert to it without loss.
+  struct Type {
+    ColumnId column = 0;
+    core::StorageType type;
+    // Only if the column's type is not yet known.
+    bool if_unknown = false;
+  };
+
+  std::vector<Type> types_first;
+
+  struct TreeWalk {
+    ColumnId node = 0;
+    ColumnId parent = 0;
+    TreeDirection direction = TreeDirection::kUp;
+  };
+
+  // Grouped by `grouped_by` and sorted by `sorted_by` within each group.
+  std::optional<OutputProperties::Arrangement> arranged;
+
+  // A column numbering the groups of `arranged`.
+  bool group_numbers = false;
+
+  std::optional<TreeWalk> tree_walk;
+
+  std::vector<Type> types_then;
+
+  bool full_batches = false;
+};
+
+// What it takes for an input to meet a node's needs, each step run in order
+// before the node reads the input.
+namespace input_step {
+struct Sort {
+  std::vector<SortKey> keys;
+  bool combine_first = false;
+};
+struct Group {
+  std::vector<ColumnId> keys;
+  std::vector<SortKey> sorted_by;
+  ColumnId numbers = 0;
+  bool combine_first = false;
+};
+struct NumberTree {
+  ColumnId node = 0;
+  ColumnId parent = 0;
+  ColumnId node_number = 0;
+  ColumnId parent_number = 0;
+};
+struct WalkTree {
+  ColumnId node_number = 0;
+  ColumnId parent_number = 0;
+  TreeDirection direction = TreeDirection::kUp;
+  bool combine_first = false;
+};
+struct CombineBatches {};
+struct Convert {
+  ColumnId column = 0;
+  core::StorageType type;
+  // Its values are all null, so it can be converted without reading them.
+  bool all_null = false;
+};
+}  // namespace input_step
+using InputStep = std::variant<input_step::Sort,
+                               input_step::Group,
+                               input_step::NumberTree,
+                               input_step::WalkTree,
+                               input_step::CombineBatches,
+                               input_step::Convert>;
+
+// One input of a node, once planned.
+struct PlannedInput {
+  std::vector<InputStep> steps;
+  // What is known of the rows after `steps`.
+  OutputProperties rows;
+};
+
+// What is decided about a node before it is lowered.
+struct PlannedNode {
+  std::vector<PlannedInput> inputs;
+  OutputProperties output;
+  // The programs of the expressions it computes, if any.
+  std::vector<core::exec::ExprProgram> programs;
+  // By condition, the value it tests with, if any, until lowering takes it.
+  std::vector<std::optional<core::exec::FilterValue>> filter_values;
+  // The columns it added to the plan, which planning it again reuses.
+  std::vector<ColumnId> new_columns;
+  size_t new_columns_used = 0;
+};
+
+// What an operation derives its output from.
+class DeriveContext {
+ public:
+  DeriveContext(BoundPlan* bound,
+                PlanNodeId self,
+                const LoweringContext& context)
+      : bound_(bound), self_(self), context_(context) {}
+
+  const BoundPlan& bound() const { return *bound_; }
+  PlanNodeId self() const { return self_; }
+  const LoweringContext& context() const { return context_; }
+
+  // What is known of input `i` once its needs are met.
+  const OutputProperties& input(uint32_t i) const;
+
+  // `id` as a column of the output: as it is in an input which has it, else as
+  // binding found it.
+  OutputProperties::Column ColumnOf(ColumnId id) const;
+
+  // A new column for the plan, for a value only the plan's steps read.
+  OutputProperties::Column NewColumn();
+
+  // Keeps the programs of the expressions this node computes.
+  void SetPrograms(std::vector<core::exec::ExprProgram> programs);
+
+  // The values of the conditions this node tests.
+  std::vector<std::optional<core::exec::FilterValue>>& filter_values();
+
+  // Records why the plan cannot run.
+  void Fail(base::Status status);
+
+ private:
+  BoundPlan* bound_;
+  PlanNodeId self_;
+  const LoweringContext& context_;
+};
+
+// What an interval operator needs of its input: Int64 `ts` and `dur`, grouped
+// by `keys` with group numbers, and sorted by `ts` within each group.
+InputNeeds IntervalLaneNeeds(ColumnId ts,
+                             ColumnId dur,
+                             const std::vector<ColumnId>& keys);
+
+// A column of one of a node's inputs.
+struct InputColumn {
+  uint32_t input = 0;
+  ColumnId column = 0;
+};
+
+// Plans how each input of node `id` meets its needs, and derives its output.
+// Everything below `id` must already be planned.
+void PlanNodeInputs(BoundPlan* bound,
+                    PlanNodeId id,
+                    const LoweringContext& context);
 
 }  // namespace perfetto::trace_processor::pipeline
 

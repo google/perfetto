@@ -37,7 +37,8 @@ struct ExprStep {
   enum class Op : uint8_t {
     // Reads batch column `a`. Integer columns of any width read as Int64.
     kColumn,
-    // A constant: `int_value` or `double_value` by `type`.
+    // A constant: `int_value`, the raw id of a string for kString, or
+    // `double_value`, by `type`.
     kConstant,
     // A null of `type`.
     kNull,

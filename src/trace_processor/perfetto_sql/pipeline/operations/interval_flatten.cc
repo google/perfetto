@@ -112,39 +112,42 @@ std::optional<uint32_t> IntervalFlatten::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
-OutputProperties IntervalFlatten::Derive(const BoundPlan& bound,
-                                         PlanNodeId) const {
-  // Its rows are the segments, laid out afresh. Segments are output as each one
-  // ends, so batches can be small.
-  OutputProperties out = OutputProperties::Empty(bound.plan.columns().size());
-  out.AddColumn(out_ts_);
-  out.AddColumn(out_dur_);
+InputNeeds IntervalFlatten::Needs(uint32_t) const {
+  InputNeeds needs = IntervalLaneNeeds(ts_, dur_, keys_);
+  AddAggregateNeeds(aggregates_, &needs);
+  needs.full_batches = true;
+  return needs;
+}
+
+OutputProperties IntervalFlatten::Derive(DeriveContext& c) const {
+  // Its rows are the segments. Segments are output as each one ends, so batches
+  // can be small. The operator always outputs group numbers.
+  OutputProperties out;
+  out.columns.push_back(c.ColumnOf(out_ts_));
+  out.columns.push_back(c.ColumnOf(out_dur_));
   for (ColumnId key : keys_) {
-    out.AddColumn(key);
+    out.columns.push_back(c.ColumnOf(key));
   }
   for (const Aggregate& agg : aggregates_) {
-    out.AddColumn(agg.output);
+    out.columns.push_back(c.ColumnOf(agg.output));
   }
-  uint32_t groups = out.AddTemporaryColumn();
+  OutputProperties::Column groups = c.NewColumn();
+  out.columns.push_back(groups);
   out.arrangements.push_back({keys_, {{out_ts_, false}}});
   if (!keys_.empty()) {
-    out.group_numbers.push_back({keys_, groups});
+    out.group_numbers.push_back({keys_, groups.id});
   }
   out.full_batches = false;
   return out;
 }
 
 void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
-  const auto& flatten = *this;
-  c->LowerNode(node.children()[0]);
-
+  c->LowerInput(node, 0);
   ex::IntervalFlattenSpec spec;
-  spec.lanes =
-      c->RequireIntervalLanes(flatten.ts_, flatten.dur_, flatten.keys_);
-  for (const Aggregate& agg : flatten.aggregates_) {
+  spec.lanes = c->QueryIntervalLanes(ts_, dur_, keys_);
+  for (const Aggregate& agg : aggregates_) {
     spec.aggregates.push_back(LowerAggregate(c, agg));
   }
-  c->RequireFullBatches();
   c->AddOperator(std::make_unique<ex::IntervalFlatten>(std::move(spec)));
 }
 

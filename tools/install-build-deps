@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import argparse
+import concurrent.futures
 import dataclasses as dc
 import hashlib
 import logging
@@ -28,7 +29,6 @@ import zipfile
 import bz2
 
 from collections import namedtuple
-from multiprocessing.pool import ThreadPool
 from platform import system, machine
 
 
@@ -1086,9 +1086,15 @@ def Main():
         os.path.join(ROOT_DIR, dep.target_folder), dep.source_url, dep.checksum,
         args.check_only)
 
-  git_pool = ThreadPool(8)
-  git_results = git_pool.map_async(
-      CheckoutGitDep, [d for d in deps if d.source_url.endswith('.git')])
+  # ThreadPoolExecutor, unlike multiprocessing.pool, re-raises a SystemExit from
+  # a worker (e.g. the safety check in RmtreeIfExists()) from result() instead
+  # of hanging.
+  git_pool = concurrent.futures.ThreadPoolExecutor(max_workers=8)
+  git_tasks = [
+      git_pool.submit(CheckoutGitDep, d)
+      for d in deps
+      if d.source_url.endswith('.git')
+  ]
 
   for dep in deps:
     if dep.source_url.endswith('.git'):
@@ -1167,10 +1173,10 @@ def Main():
         stamp_file.write(dep.checksum)
       os.remove(local_path)
 
-  git_pool.close()
-  # get() re-raises the first exception from a failed checkout.
-  deps_updated |= any(git_results.get())
-  git_pool.join()
+  # result() re-raises a failed checkout. Build the full list before any() so
+  # every task's result (and failure) is collected.
+  deps_updated |= any([task.result() for task in git_tasks])
+  git_pool.shutdown()
 
   if args.ui:
     # Needs to happen after nodejs is installed above.

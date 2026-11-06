@@ -61,6 +61,8 @@ class PERFETTO_EXPORT_COMPONENT MessageHandleBase {
   }
 
   MessageHandleBase& operator=(MessageHandleBase&& other) noexcept {
+    if (this == &other)
+      return *this;
     // If the current handle was pointing to a message and is being reset to a
     // new one, finalize the old message. However, if the other message is the
     // same as the one we point to, don't finalize.

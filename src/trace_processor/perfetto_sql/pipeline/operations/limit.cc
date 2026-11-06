@@ -89,14 +89,14 @@ std::optional<uint32_t> Limit::Prune(std::vector<bool>*) {
   return std::nullopt;
 }
 
-OutputProperties Limit::Derive(const BoundPlan& bound, PlanNodeId self) const {
-  OutputProperties out = bound.outputs[bound.plan.nodes()[self].children()[0]];
+OutputProperties Limit::Derive(DeriveContext& c) const {
+  OutputProperties out = c.input(0);
   out.DropRows();
   return out;
 }
 
 void Limit::Lower(Lowering* c, const PlanNode& node) const {
-  c->LowerNode(node.children()[0]);
+  c->LowerInput(node, 0);
   std::optional<uint32_t> count;
   if (count_ >= 0) {
     count = Clamp(count_);

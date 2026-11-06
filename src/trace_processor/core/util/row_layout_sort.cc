@@ -160,8 +160,9 @@ void FindVaryingBytes(const Rows& rows, Scratch& scratch) {
       }
     }
     for (uint32_t w = 0; w < words; ++w) {
+      uint64_t d = base::HostToLE(diff[w]);
       for (uint32_t b = 0; b < 8; ++b) {
-        differs[word_at(w) + b] |= ((diff[w] >> (b * 8)) & 0xFF) != 0;
+        differs[word_at(w) + b] |= ((d >> (b * 8)) & 0xFF) != 0;
       }
     }
   } else {

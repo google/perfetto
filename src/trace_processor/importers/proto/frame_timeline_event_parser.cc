@@ -92,6 +92,8 @@ StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
   if (jank_type &
       FrameTimelineEvent::JANK_DISPLAY_POWER_MODE_CHANGE_IN_PROGRESS)
     jank_reasons.emplace_back("PowerModeChange in progress");
+  if (jank_type & FrameTimelineEvent::JANK_DEQUEUE_BUFFER_DELAY)
+    jank_reasons.emplace_back("DequeueBuffer Delay");
 
   std::string jank_str(
       std::accumulate(jank_reasons.begin(), jank_reasons.end(), std::string(),
@@ -101,34 +103,33 @@ StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
   return context->storage->InternString(base::StringView(jank_str));
 }
 
-bool DisplayFrameJanky(int32_t jank_type) {
+bool IsSfJankType(int32_t jank_type) {
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED ||
       jank_type == FrameTimelineEvent::JANK_NON_ANIMATING ||
       jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON ||
       jank_type == FrameTimelineEvent::JANK_NONE)
     return false;
 
-  int32_t display_frame_jank_bitmask =
-      FrameTimelineEvent::JANK_SF_SCHEDULING |
-      FrameTimelineEvent::JANK_PREDICTION_ERROR |
-      FrameTimelineEvent::JANK_DISPLAY_HAL |
-      FrameTimelineEvent::JANK_SF_CPU_DEADLINE_MISSED |
-      FrameTimelineEvent::JANK_SF_GPU_DEADLINE_MISSED;
-  return (jank_type & display_frame_jank_bitmask) != 0;
+  int32_t sf_jank_bitmask = FrameTimelineEvent::JANK_SF_SCHEDULING |
+                            FrameTimelineEvent::JANK_PREDICTION_ERROR |
+                            FrameTimelineEvent::JANK_DISPLAY_HAL |
+                            FrameTimelineEvent::JANK_SF_CPU_DEADLINE_MISSED |
+                            FrameTimelineEvent::JANK_SF_GPU_DEADLINE_MISSED |
+                            FrameTimelineEvent::JANK_DEQUEUE_BUFFER_DELAY;
+  return (jank_type & sf_jank_bitmask) != 0;
 }
 
-bool SurfaceFrameJanky(int32_t jank_type) {
+bool IsAppJankType(int32_t jank_type) {
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED ||
       jank_type == FrameTimelineEvent::JANK_NONE ||
       jank_type == FrameTimelineEvent::JANK_NON_ANIMATING ||
       jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON)
     return false;
 
-  int32_t surface_frame_jank_bitmask =
-      FrameTimelineEvent::JANK_APP_DEADLINE_MISSED |
-      FrameTimelineEvent ::JANK_APP_RESYNCED_JITTER |
-      FrameTimelineEvent::JANK_UNKNOWN;
-  return (jank_type & surface_frame_jank_bitmask) != 0;
+  int32_t app_jank_bitmask = FrameTimelineEvent::JANK_APP_DEADLINE_MISSED |
+                             FrameTimelineEvent ::JANK_APP_RESYNCED_JITTER |
+                             FrameTimelineEvent::JANK_UNKNOWN;
+  return (jank_type & app_jank_bitmask) != 0;
 }
 
 bool ValidatePredictionType(TraceProcessorContext* context,
@@ -314,7 +315,7 @@ StringId FrameTimelineEventParser::CalculateDisplayFrameJankTag(
   StringId jank_tag;
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED) {
     jank_tag = jank_tag_unspecified_id_;
-  } else if (DisplayFrameJanky(jank_type)) {
+  } else if (IsSfJankType(jank_type)) {
     jank_tag = jank_tag_self_id_;
   } else if (jank_type == FrameTimelineEvent::JANK_SF_STUFFING) {
     jank_tag = jank_tag_sf_stuffing_id_;
@@ -516,9 +517,9 @@ StringId FrameTimelineEventParser::CalculateSurfaceFrameJankTag(
   StringId jank_tag;
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED) {
     jank_tag = jank_tag_unspecified_id_;
-  } else if (SurfaceFrameJanky(jank_type)) {
+  } else if (IsAppJankType(jank_type)) {
     jank_tag = jank_tag_self_id_;
-  } else if (DisplayFrameJanky(jank_type)) {
+  } else if (IsSfJankType(jank_type)) {
     jank_tag = jank_tag_other_id_;
   } else if (jank_type == FrameTimelineEvent::JANK_BUFFER_STUFFING) {
     jank_tag = jank_tag_buffer_stuffing_id_;
