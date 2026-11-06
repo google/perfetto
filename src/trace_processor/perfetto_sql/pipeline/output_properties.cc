@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -55,7 +56,7 @@ ColumnId NewPlanColumn(BoundPlan* bound, PlanNodeId node) {
   }
   LogicalPlan& plan = bound->plan;
   auto id = static_cast<ColumnId>(plan.columns().size());
-  plan.columns().push_back({plan.names().Intern("$number"), PlanType::Null()});
+  plan.columns().push_back({plan.names().Intern("$number"), core::Uint32{}});
   planned.new_columns.push_back(id);
   planned.new_columns_used++;
   return id;
@@ -214,7 +215,7 @@ class InputPlanner {
     ColumnId numbers = NewPlanColumn(bound_, node_);
     out_.steps.push_back(
         input_step::Group{keys, sorted_by, numbers, !rows.full_batches});
-    rows.columns.push_back({numbers, PlanType::Null()});
+    rows.columns.push_back({numbers, core::Uint32{}});
     rows.full_batches = true;
     rows.open_sort.reset();
     std::vector<OutputProperties::Arrangement> kept;
@@ -254,8 +255,8 @@ class InputPlanner {
       ColumnId parent_number = NewPlanColumn(bound_, node_);
       out_.steps.push_back(input_step::NumberTree{walk.node, walk.parent,
                                                   node_number, parent_number});
-      rows.columns.push_back({node_number, PlanType::Null()});
-      rows.columns.push_back({parent_number, PlanType::Null()});
+      rows.columns.push_back({node_number, core::Uint32{}});
+      rows.columns.push_back({parent_number, core::Uint32{}});
       rows.tree = OutputProperties::Tree{walk.node, walk.parent, std::nullopt,
                                          node_number, parent_number};
     }
@@ -385,8 +386,8 @@ const OutputProperties& DeriveContext::input(uint32_t i) const {
 
 OutputProperties::Column DeriveContext::ColumnOf(ColumnId id) const {
   for (const PlannedInput& input : bound_->planned[self_].inputs) {
-    if (input.rows.PositionOf(id)) {
-      return input.rows.columns[*input.rows.PositionOf(id)];
+    if (std::optional<uint32_t> pos = input.rows.PositionOf(id)) {
+      return input.rows.columns[*pos];
     }
   }
   const PlanType& type = bound_->bindings.types[id];
@@ -394,7 +395,7 @@ OutputProperties::Column DeriveContext::ColumnOf(ColumnId id) const {
 }
 
 OutputProperties::Column DeriveContext::NewColumn() {
-  return {NewPlanColumn(bound_, self_), PlanType::Null()};
+  return {NewPlanColumn(bound_, self_), core::Uint32{}};
 }
 
 void DeriveContext::SetPrograms(std::vector<core::exec::ExprProgram> programs) {
