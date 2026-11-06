@@ -14,6 +14,7 @@
 
 import {produce} from 'immer';
 import m from 'mithril';
+import {z} from 'zod';
 import {Icons} from '../../../base/semantic_icons';
 import {Duration, Time} from '../../../base/time';
 import {shortUuid} from '../../../base/uuid';
@@ -43,6 +44,7 @@ import {
   type Node,
   NodeGraph,
   type NodeGraphApi,
+  type NodeGraphViewport,
 } from '../../../widgets/nodegraph';
 // Connection is only used as the widget's wire type (for visual rendering
 // and event callbacks). Connections are NOT stored in the graph model —
@@ -95,6 +97,14 @@ import {assertExists, assertIsInstance} from '../../../base/assert';
 import {classNames} from '../../../base/classnames';
 
 type LoadingStyle = 'beam' | 'shimmer' | 'pulse' | 'scanline' | 'none';
+
+const ViewportSchema = z.object({
+  panOffset: z.object({
+    x: z.number().finite(),
+    y: z.number().finite(),
+  }),
+  zoom: z.number().finite().min(0.1).max(5.0),
+});
 
 const LOADING_STYLE_OPTIONS: ReadonlyArray<{
   readonly value: LoadingStyle;
@@ -172,6 +182,50 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
   let matService: MaterializationService | undefined;
 
   const STORAGE_KEY = 'perfettoSpaghetti';
+  const VIEWPORT_STORAGE_KEY = 'perfettoSpaghettiViewport';
+  const VIEWPORT_SAVE_DEBOUNCE_MS = 250;
+
+  let pendingViewport: NodeGraphViewport | undefined;
+  let viewportSaveTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function loadViewport(): NodeGraphViewport | undefined {
+    try {
+      const raw = localStorage.getItem(VIEWPORT_STORAGE_KEY);
+      if (!raw) return undefined;
+      const parsed = ViewportSchema.safeParse(JSON.parse(raw));
+      return parsed.success ? parsed.data : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  function flushViewportSave() {
+    if (viewportSaveTimer !== undefined) {
+      clearTimeout(viewportSaveTimer);
+      viewportSaveTimer = undefined;
+    }
+    if (!pendingViewport) return;
+    const toSave = pendingViewport;
+    pendingViewport = undefined;
+    try {
+      localStorage.setItem(VIEWPORT_STORAGE_KEY, JSON.stringify(toSave));
+    } catch (e) {
+      console.error('[QueryBuilder] Failed to save viewport:', e);
+    }
+  }
+
+  function scheduleSaveViewport(viewport: NodeGraphViewport) {
+    pendingViewport = viewport;
+    if (viewportSaveTimer !== undefined) {
+      clearTimeout(viewportSaveTimer);
+    }
+    viewportSaveTimer = setTimeout(
+      flushViewportSave,
+      VIEWPORT_SAVE_DEBOUNCE_MS,
+    );
+  }
+
+  const initialViewport = loadViewport();
 
   function saveGraph() {
     try {
@@ -560,6 +614,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
   return {
     onremove(_: m.VnodeDOM<SpaghettiPage>) {
+      flushViewportSave();
       matService?.dispose();
     },
     view({attrs}: m.Vnode<SpaghettiPage>) {
@@ -745,6 +800,8 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         nodes: renderedNodes,
         connections: activeConns,
         labels: store.labels,
+        initialViewport,
+        onViewportChange: scheduleSaveViewport,
         selectedNodeIds,
         fillHeight: true,
         contextMenuOnHover: true,
