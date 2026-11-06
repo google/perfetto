@@ -149,9 +149,17 @@ ex::FilterValue CastLiterals(const core::Op& op,
 
 void SerializeLiteral(PlanCodec& c, Literal* literal) {
   c.Pod(&literal->type);
-  c.Pod(&literal->int_value);
-  c.Pod(&literal->double_value);
-  c.Str(&literal->text);
+  switch (literal->type) {
+    case Literal::Type::kInt64:
+      c.Pod(&literal->int_value);
+      break;
+    case Literal::Type::kDouble:
+      c.Pod(&literal->double_value);
+      break;
+    case Literal::Type::kString:
+      c.Str(&literal->text);
+      break;
+  }
 }
 
 }  // namespace perfetto::trace_processor::pipeline
