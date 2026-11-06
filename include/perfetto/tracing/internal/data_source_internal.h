@@ -111,9 +111,12 @@ struct DataSourceState {
   // second time.
   bool async_stop_in_progress = false;
 
-  // Whether this data source instance should call NotifyDataSourceStopped()
-  // when it's stopped.
-  bool will_notify_on_stop = false;
+  // Set when the tracing service requests stopping this instance via
+  // StopDataSource_AsyncBegin() and the data source descriptor has
+  // will_notify_on_stop() == true. Remains false for locally-initiated stops
+  // (such as aborting a startup session or producer disconnection) so we don't
+  // send unsolicited NotifyDataSourceStopped() calls.
+  bool notify_service_on_stop = false;
 
   // The wanted behavior for this data source instance when a TraceWriter runs
   // out of space in the shared memory buffer.

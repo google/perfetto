@@ -21,6 +21,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/waitable_event.h"
 #include "perfetto/tracing/internal/basic_types.h"
 #include "src/tracing/internal/tracing_muxer_impl.h"
 
@@ -212,6 +213,58 @@ void TracingMuxerImplInternalsForTest::ClearIncrementalState() {
       }
     }
   }
+}
+
+// static
+void TracingMuxerImplInternalsForTest::DispatchProducerOp(
+    BackendType backend_type,
+    ProducerOp op,
+    uint64_t instance_id,
+    const DataSourceConfig* cfg) {
+  auto* muxer =
+      reinterpret_cast<TracingMuxerImpl*>(TracingMuxerImpl::instance_);
+  base::WaitableEvent done;
+  muxer->task_runner_->PostTask(
+      [muxer, backend_type, op, instance_id, cfg, &done] {
+        auto* backend = muxer->FindProducerBackendByType(backend_type);
+        PERFETTO_CHECK(backend && backend->producer);
+        switch (op) {
+          case ProducerOp::kSetup:
+            backend->producer->SetupDataSource(instance_id, *cfg);
+            break;
+          case ProducerOp::kStart:
+            backend->producer->StartDataSource(instance_id, *cfg);
+            break;
+          case ProducerOp::kStop:
+            backend->producer->StopDataSource(instance_id);
+            break;
+        }
+        done.Notify();
+      });
+  done.Wait();
+}
+
+// static
+void TracingMuxerImplInternalsForTest::SetupDataSourceOnProducer(
+    BackendType backend_type,
+    uint64_t instance_id,
+    const DataSourceConfig& cfg) {
+  DispatchProducerOp(backend_type, ProducerOp::kSetup, instance_id, &cfg);
+}
+
+// static
+void TracingMuxerImplInternalsForTest::StartDataSourceOnProducer(
+    BackendType backend_type,
+    uint64_t instance_id,
+    const DataSourceConfig& cfg) {
+  DispatchProducerOp(backend_type, ProducerOp::kStart, instance_id, &cfg);
+}
+
+// static
+void TracingMuxerImplInternalsForTest::StopDataSourceOnProducer(
+    BackendType backend_type,
+    uint64_t instance_id) {
+  DispatchProducerOp(backend_type, ProducerOp::kStop, instance_id, nullptr);
 }
 
 // static
