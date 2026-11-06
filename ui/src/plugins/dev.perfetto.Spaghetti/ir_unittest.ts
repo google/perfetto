@@ -842,10 +842,14 @@ describe('PerfettoSQL Next (pipe) backend', () => {
 
     const pipeEntries = ensureDefined(buildIR(index, 'fg1', undefined, 'pipe'));
     const pipeDisplay = ensureDefined(buildDisplayPipeSql(pipeEntries));
-    // `time_range` exposes `(id, ts, dur)` while `sel1` only has `(ts, dur, cpu)`,
-    // so the pipe backend narrows the background to `(FROM step_2 |> SELECT ts, dur)`.
-    expect(pipeDisplay).toContain(
-      '|> INTERVAL FILL GAPS WITH (FROM step_2 |> SELECT ts, dur) PER cpu',
+    // Both single-use upstream branches inline directly into a single pipeline
+    // with zero `CREATE PERFETTO TABLE` statements.
+    expect(pipeDisplay).toBe(
+      [
+        'FROM sched',
+        '|> SELECT ts, dur, cpu',
+        '|> INTERVAL FILL GAPS WITH (FROM (SELECT 0 AS id, 0 AS ts, 1000 AS dur) |> SELECT ts, dur) PER cpu',
+      ].join('\n'),
     );
 
     const sqlEntries = ensureDefined(buildIR(index, 'fg1', undefined, 'sql'));
@@ -1114,6 +1118,170 @@ describe('PerfettoSQL Next (pipe) backend', () => {
     expect(lastEntry.error).toContain('only supported in PerfettoSQL Next');
     expect(buildDisplaySql(stopSql)).toContain(
       '-- Unsupported in Standard SQL: Intervals From Events with a Stop input is only supported in PerfettoSQL Next mode.',
+    );
+  });
+
+  it('lowers data_table with typed values, NULLs, escaping, and 0-row tables in both dialects', () => {
+    const populated: RootNodeData = {
+      type: 'data_table',
+      id: 'dt1',
+      x: 0,
+      y: 0,
+      config: {
+        columns: [
+          {name: 'id', type: 'int'},
+          {name: 'label', type: 'string'},
+          {name: 'ratio', type: 'double'},
+          {name: 'active', type: 'boolean'},
+        ],
+        rows: [
+          ['1', "App's root", '2', 'true'],
+          ['2', '', '', 'false'],
+        ],
+      },
+      next: {
+        type: 'drop',
+        id: 'dr1',
+        config: {columns: ['active']},
+      },
+    };
+
+    const index = makeNodes([populated]);
+
+    const pipeEntries = ensureDefined(buildIR(index, 'dr1', undefined, 'pipe'));
+    const pipeSql = ensureDefined(buildDisplayPipeSql(pipeEntries));
+    expect(pipeSql).toContain('WITH _data(id, label, ratio, active) AS (');
+    expect(pipeSql).toContain("(1, 'App''s root', 2.0, 1)");
+    expect(pipeSql).toContain('(2, CAST(NULL AS TEXT), CAST(NULL AS REAL), 0)');
+    expect(pipeSql).toContain('|> DROP active');
+
+    const sqlEntries = ensureDefined(buildIR(index, 'dr1', undefined, 'sql'));
+    const sqlText = ensureDefined(buildDisplaySql(sqlEntries));
+    expect(sqlText).toContain('WITH _data(id, label, ratio, active) AS (');
+    // `drop` resolves remaining columns `(id, label, ratio)` from `data_table` schema!
+    expect(sqlText).toContain('id,\n  label,\n  ratio');
+
+    const emptyRoot: RootNodeData = {
+      type: 'data_table',
+      id: 'dt_empty',
+      x: 0,
+      y: 0,
+      config: {
+        columns: [
+          {name: 'src', type: 'int'},
+          {name: 'dst', type: 'int'},
+        ],
+        rows: [],
+      },
+    };
+    const emptyIdx = makeNodes([emptyRoot]);
+    expect(
+      ensureDefined(
+        buildDisplaySql(
+          ensureDefined(buildIR(emptyIdx, 'dt_empty', undefined, 'sql')),
+        ),
+      ),
+    ).toBe(
+      'SELECT\n  CAST(NULL AS INTEGER) AS src,\n  CAST(NULL AS INTEGER) AS dst\nWHERE 0',
+    );
+  });
+
+  it('inlines multiple data_table branches directly into graph_tree without CREATE PERFETTO TABLE', () => {
+    const nodesRoot: RootNodeData = {
+      type: 'data_table',
+      id: 'dt_nodes',
+      x: 0,
+      y: 0,
+      config: {
+        columns: [
+          {name: 'id', type: 'int'},
+          {name: 'self_size', type: 'int'},
+        ],
+        rows: [
+          ['1', '10'],
+          ['2', '20'],
+        ],
+      },
+      next: {
+        type: 'graph_tree',
+        id: 'gt1',
+        inputs: [null, 'dt_edges', 'dt_roots'],
+        config: {
+          kind: 'DOMINATOR',
+          nodeIdColumn: 'id',
+          sourceColumn: 'src',
+          destColumn: 'dst',
+          rootIdColumn: 'id',
+        },
+        next: {
+          type: 'tree_accumulate',
+          id: 'ta1',
+          config: {
+            direction: 'UP',
+            idColumn: 'id',
+            parentIdColumn: 'parent_id',
+            aggregations: [
+              {func: 'SUM', column: 'self_size', alias: 'retained_size'},
+            ],
+          },
+        },
+      },
+    };
+    const edgesRoot: RootNodeData = {
+      type: 'data_table',
+      id: 'dt_edges',
+      x: 200,
+      y: 0,
+      config: {
+        columns: [
+          {name: 'src', type: 'int'},
+          {name: 'dst', type: 'int'},
+        ],
+        rows: [['1', '2']],
+      },
+    };
+    const rootsRoot: RootNodeData = {
+      type: 'data_table',
+      id: 'dt_roots',
+      x: 400,
+      y: 0,
+      config: {
+        columns: [{name: 'id', type: 'int'}],
+        rows: [['1']],
+      },
+    };
+
+    const index = makeNodes([nodesRoot, edgesRoot, rootsRoot]);
+    const pipeEntries = ensureDefined(buildIR(index, 'ta1', undefined, 'pipe'));
+    const display = ensureDefined(buildDisplayPipeSql(pipeEntries));
+    expect(display).not.toContain('CREATE');
+    expect(display).toBe(
+      [
+        'GRAPH DOMINATOR TREE',
+        '  NODES (',
+        '    WITH _data(id, self_size) AS (',
+        '      VALUES',
+        '        (1, 10),',
+        '        (2, 20)',
+        '    )',
+        '    SELECT id, self_size FROM _data',
+        '  )',
+        '  EDGES (',
+        '    WITH _data(src, dst) AS (',
+        '      VALUES',
+        '        (1, 2)',
+        '    )',
+        '    SELECT src, dst FROM _data',
+        '  )',
+        '  FROM (',
+        '    WITH _data(id) AS (',
+        '      VALUES',
+        '        (1)',
+        '    )',
+        '    SELECT id FROM _data',
+        '  )',
+        '|> TREE ACCUMULATE UP SUM(self_size) AS retained_size',
+      ].join('\n'),
     );
   });
 });

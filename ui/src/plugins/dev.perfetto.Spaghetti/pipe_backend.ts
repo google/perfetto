@@ -16,11 +16,13 @@ import {assertUnreachable} from '../../base/assert';
 import {
   type AggregateOp,
   type AsOp,
+  type DataTableOp,
   type DistinctOp,
   type DropOp,
   type ExtendOp,
   type ExtractArgOp,
   type FilterLogicalOp,
+  formatDataTableSql,
   formatExtractArgExpr,
   formatFilterConditions,
   type GraphTreeOp,
@@ -334,6 +336,17 @@ function makeTimeRangePipe(op: TimeRangeOp): PipeStatement {
   };
 }
 
+function makeDataTablePipe(op: DataTableOp): PipeStatement {
+  const body = formatDataTableSql(op)
+    .split('\n')
+    .map((line) => `  ${line}`)
+    .join('\n');
+  return {
+    source: `(\n${body}\n)`,
+    stages: [],
+  };
+}
+
 function makeUnionPipe(op: UnionOp, refs: readonly string[]): PipeStatement {
   const first = refs[0];
   if (refs.length === 1 && first !== undefined) {
@@ -641,6 +654,11 @@ export function lowerToPipe(plan: LogicalPlan): IrEntry[] {
         break;
       }
 
+      case 'data_table': {
+        startPipeline(nodeId, makeDataTablePipe(op), []);
+        break;
+      }
+
       case 'join': {
         const leftIsCurrentTail =
           op.left === currentTailId && op.right !== currentTailId;
@@ -829,10 +847,140 @@ export function lowerToPipe(plan: LogicalPlan): IrEntry[] {
 
 // --- Display PerfettoSQL Next ---
 
+function indentBlock(text: string, prefix: string): string {
+  return text
+    .split('\n')
+    .map((line) => `${prefix}${line}`)
+    .join('\n');
+}
+
+// Find the index of the matching `)` for the `(` at `openIdx`, respecting SQL
+// single- and double-quoted strings. Returns -1 if unbalanced.
+function findMatchingParen(sql: string, openIdx: number): number {
+  let depth = 0;
+  let inSingle = false;
+  let inDouble = false;
+  for (let i = openIdx; i < sql.length; i++) {
+    const ch = sql[i];
+    if (inSingle) {
+      if (ch === "'") {
+        if (sql[i + 1] === "'") {
+          i++;
+        } else {
+          inSingle = false;
+        }
+      }
+      continue;
+    }
+    if (inDouble) {
+      if (ch === '"') {
+        if (sql[i + 1] === '"') {
+          i++;
+        } else {
+          inDouble = false;
+        }
+      }
+      continue;
+    }
+    if (ch === "'") {
+      inSingle = true;
+    } else if (ch === '"') {
+      inDouble = true;
+    } else if (ch === '(') {
+      depth++;
+    } else if (ch === ')') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+// If `sql` is a pure SQL query (either `FROM (<select-stmt>)` with no trailing
+// `|>` stages, or a raw `SELECT` / `WITH` query), return its parenthesized
+// `<source>` form `(<select-stmt>)`; otherwise return `undefined`.
+function extractPureSqlSource(sql: string): string | undefined {
+  if (sql.startsWith('FROM (') && sql.endsWith(')')) {
+    const closeIdx = findMatchingParen(sql, 5);
+    if (closeIdx === sql.length - 1) {
+      return sql.slice(5);
+    }
+  }
+  if (/^(select|with)\b/i.test(sql.trimStart())) {
+    return `(\n${indentBlock(sql, '  ')}\n)`;
+  }
+  return undefined;
+}
+
+function countHashOccurrences(sql: string, hash: string): number {
+  return sql.split(hash).length - 1;
+}
+
+function inlineStepIntoPipeSql(
+  consumerSql: string,
+  hash: string,
+  stepSql: string,
+): string {
+  const pureSqlSource = extractPureSqlSource(stepSql);
+
+  // 1. Consumer starts directly with `FROM <hash>` at the top of a pipeline.
+  const topPrefix = `FROM ${hash}`;
+  if (
+    stepSql.startsWith('FROM ') &&
+    (consumerSql === topPrefix || consumerSql.startsWith(`${topPrefix}\n|>`))
+  ) {
+    return `${stepSql}${consumerSql.slice(topPrefix.length)}`;
+  }
+
+  // 2. Consumer wrapped `<hash>` in `(FROM <hash> |> <stages>)` and `stepSql`
+  //    is itself a `FROM ...` pipeline — flatten into one subpipeline.
+  const wrappedMarker = `(FROM ${hash} |> `;
+  const wrappedIdx = consumerSql.indexOf(wrappedMarker);
+  if (
+    wrappedIdx !== -1 &&
+    pureSqlSource === undefined &&
+    stepSql.startsWith('FROM ')
+  ) {
+    const closeIdx = findMatchingParen(consumerSql, wrappedIdx);
+    if (closeIdx !== -1) {
+      const extraStages = consumerSql.slice(
+        wrappedIdx + wrappedMarker.length,
+        closeIdx,
+      );
+      const lineStart = consumerSql.lastIndexOf('\n', wrappedIdx - 1) + 1;
+      const lineIndent =
+        consumerSql.slice(lineStart, wrappedIdx).match(/^\s*/)?.[0] ?? '';
+      const combined = `${stepSql}\n|> ${extraStages}`;
+      const replacement = `(\n${indentBlock(combined, `${lineIndent}  `)}\n${lineIndent})`;
+      return (
+        consumerSql.slice(0, wrappedIdx) +
+        replacement +
+        consumerSql.slice(closeIdx + 1)
+      );
+    }
+  }
+
+  // 3. General `<source>` slot (`NODES <hash>`, `JOIN <hash> AS r`, etc.).
+  const idx = consumerSql.indexOf(hash);
+  if (idx === -1) return consumerSql;
+  const lineStart = consumerSql.lastIndexOf('\n', idx - 1) + 1;
+  const lineIndent = consumerSql.slice(lineStart, idx).match(/^\s*/)?.[0] ?? '';
+  const sourceExpr = pureSqlSource ?? `(\n${indentBlock(stepSql, '  ')}\n)`;
+  const indented = sourceExpr
+    .split('\n')
+    .map((line, i) => (i === 0 ? line : `${lineIndent}${line}`))
+    .join('\n');
+  return (
+    consumerSql.slice(0, idx) + indented + consumerSql.slice(idx + hash.length)
+  );
+}
+
 // Format PerfettoSQL Next IR entries as executable PerfettoSQL Next.
-// Single-entry pipelines emit directly (`FROM ... |> ...`); multi-entry DAGs
-// materialize shared upstream steps via `CREATE OR REPLACE PERFETTO TABLE`
-// statements (since PerfettoSQL Next pipelines are top-level statements).
+// Single-use upstream branches are inlined directly as parenthesized
+// `<source>` subqueries/subpipelines so tree-shaped queries emit a single
+// statement with zero `CREATE PERFETTO TABLE`s; shared diamond steps (or
+// pipelines feeding plain-SQL `UNION` / `SQL` nodes) materialize via
+// `CREATE OR REPLACE PERFETTO TABLE`.
 export function buildDisplayPipeSql(
   entries: readonly IrEntry[],
 ): string | undefined {
@@ -847,8 +995,56 @@ export function buildDisplayPipeSql(
   if (!lastEntry) return undefined;
   const stepEntries = entries.slice(0, -1);
 
+  const sqlByHash = new Map<string, string>();
+  for (const e of entries) {
+    sqlByHash.set(e.hash, e.sql);
+  }
+
+  const inlinedHashes = new Set<string>();
+  for (const [idx, step] of stepEntries.entries()) {
+    const stepSql = sqlByHash.get(step.hash) ?? step.sql;
+    const downstream = entries
+      .slice(idx + 1)
+      .filter((e) => !inlinedHashes.has(e.hash));
+
+    let totalRefs = 0;
+    let consumerHash: string | undefined;
+    let usedInPlainSqlFrom = false;
+    for (const d of downstream) {
+      const dSql = sqlByHash.get(d.hash) ?? d.sql;
+      const count = countHashOccurrences(dSql, step.hash);
+      if (count > 0) {
+        totalRefs += count;
+        consumerHash = d.hash;
+        if (dSql.includes(`SELECT * FROM ${step.hash}`)) {
+          usedInPlainSqlFrom = true;
+        }
+      }
+    }
+
+    if (totalRefs === 0) {
+      inlinedHashes.add(step.hash);
+      continue;
+    }
+
+    const isPureSql = extractPureSqlSource(stepSql) !== undefined;
+    if (
+      totalRefs === 1 &&
+      consumerHash !== undefined &&
+      (isPureSql || !usedInPlainSqlFrom)
+    ) {
+      const consumerSql = sqlByHash.get(consumerHash) ?? '';
+      sqlByHash.set(
+        consumerHash,
+        inlineStepIntoPipeSql(consumerSql, step.hash, stepSql),
+      );
+      inlinedHashes.add(step.hash);
+    }
+  }
+
+  const remainingSteps = stepEntries.filter((s) => !inlinedHashes.has(s.hash));
   const nameMap = new Map<string, string>();
-  for (const [i, stepEntry] of stepEntries.entries()) {
+  for (const [i, stepEntry] of remainingSteps.entries()) {
     nameMap.set(stepEntry.hash, `step_${i + 1}`);
   }
 
@@ -870,14 +1066,16 @@ export function buildDisplayPipeSql(
     );
   }
 
-  for (const step of stepEntries) {
+  for (const step of remainingSteps) {
     const stepName = nameMap.get(step.hash);
+    const stepSql = sqlByHash.get(step.hash) ?? step.sql;
     blocks.push(
-      `CREATE OR REPLACE PERFETTO TABLE ${stepName} AS\n${renameSql(step.sql)};`,
+      `CREATE OR REPLACE PERFETTO TABLE ${stepName} AS\n${renameSql(stepSql)};`,
     );
   }
 
-  blocks.push(renameSql(lastEntry.sql));
+  const finalSql = sqlByHash.get(lastEntry.hash) ?? lastEntry.sql;
+  blocks.push(renameSql(finalSql));
 
   return blocks.join('\n\n');
 }

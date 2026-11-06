@@ -20,6 +20,7 @@ import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import {manifest as filterNode} from './nodes/filter';
 import {manifest as fromNode} from './nodes/from';
 import {manifest as timeRangeNode} from './nodes/time_range';
+import {manifest as dataTableNode} from './nodes/data_table';
 import {manifest as selectNode} from './nodes/select';
 import {manifest as extendNode} from './nodes/extend';
 import {manifest as dropNode} from './nodes/drop';
@@ -54,6 +55,7 @@ import type {
 const NODE_REGISTRY: Record<string, NodeManifest> = {
   from: fromNode,
   time_range: timeRangeNode,
+  data_table: dataTableNode,
   select: selectNode,
   extend: extendNode,
   drop: dropNode,

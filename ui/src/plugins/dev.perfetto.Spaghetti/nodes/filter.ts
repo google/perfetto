@@ -34,6 +34,7 @@ import type {
   NodeManifest,
   RenderContext,
 } from '../node_types';
+import './filter.scss';
 
 export {FILTER_OPS};
 export type {FilterConjunction, FilterOp};
@@ -68,7 +69,7 @@ function FilterNodeContent(): m.Component<{
       const conditions = config.conditions;
       const conjunction = config.conjunction ?? 'AND';
 
-      return m(Stack, [
+      return m(Stack, {className: 'pf-spag-filter'}, [
         m(
           RadioGroup,
           {

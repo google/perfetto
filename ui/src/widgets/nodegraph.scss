@@ -70,6 +70,10 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
+  background: var(--pf-color-background);
+  box-shadow: $box-shadow-2;
+  padding: 2px 5px;
+  border-radius: 3px;
 }
 
 .pf-node {
