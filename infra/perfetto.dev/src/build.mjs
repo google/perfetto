@@ -222,6 +222,22 @@ function exec(cmd, args, opts) {
   return res;
 }
 
+// Builds pfsql, the only part of the site which needs the C++ toolchain, and
+// returns its path. It is shared with the presubmit's out directory.
+function buildPfsql() {
+  const outDir = pjoin(ROOT_DIR, "out/presubmits");
+  if (!fs.existsSync(pjoin(outDir, "build.ninja"))) {
+    exec("python3", [
+      pjoin(ROOT_DIR, "tools/gn"),
+      "gen",
+      outDir,
+      "--args=is_debug=false",
+    ]);
+  }
+  exec("python3", [pjoin(ROOT_DIR, "tools/ninja"), "-C", outDir, "pfsql"]);
+  return pjoin(outDir, "pfsql");
+}
+
 // Blog posts live on the orphan `blog` branch and are read from a worktree at
 // //blog. Anything already there -- a worktree, or a symlink to one checked out
 // elsewhere -- is left alone, so a local setup is never clobbered.
@@ -773,14 +789,15 @@ async function buildGeneratedMarkdown(genDir) {
     searchUrl: "/docs/analysis/sql-tables",
   });
 
-  // -- PerfettoSQL standard library. gen_stdlib_docs_md.py parses the .sql
-  // files itself; the inputs listed here are only for memoization.
+  // -- PerfettoSQL standard library. gen_stdlib_docs_md.py reads the .sql files
+  // with pfsql; the inputs listed here are only for memoization.
   const stdlibDir = pjoin(ROOT_DIR, "src/trace_processor/perfetto_sql/stdlib");
   const sqlFiles = listFilesRecursive(stdlibDir, (f) => f.endsWith(".sql"));
   const sqlProcessingPys = listFilesRecursive(
     pjoin(ROOT_DIR, "python/generators/sql_processing"),
     (f) => f.endsWith(".py"),
   );
+  const pfsql = buildPfsql();
   const stdlibMd = pjoin(genDir, "stdlib_docs.md");
   const stdlibMdPy = pjoin(SRC_DIR, "gen_stdlib_docs_md.py");
   out.push({
@@ -790,11 +807,18 @@ async function buildGeneratedMarkdown(genDir) {
       [
         ...sqlFiles.map((f) => ({ file: f })),
         ...sqlProcessingPys.map((f) => ({ file: f })),
+        { file: pfsql },
         { file: pjoin(ROOT_DIR, "python/perfetto/trace_data_checks.py") },
         { file: stdlibMdPy },
       ],
       () => {
-        exec("python3", [stdlibMdPy, "--output", stdlibMd]);
+        exec("python3", [
+          stdlibMdPy,
+          "--output",
+          stdlibMd,
+          "--pfsql-binary",
+          pfsql,
+        ]);
         return fs.readFileSync(stdlibMd, "utf8");
       },
     ),

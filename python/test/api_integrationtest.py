@@ -150,6 +150,14 @@ class TestApi(unittest.TestCase):
         expected_regex='.*Trace Processor RPC API version:.*'):
       TraceProcessor(trace=io.BytesIO(b''), config=config)
 
+  def test_startup_does_not_leave_status_temp_file(self):
+    config = TraceProcessorConfig(bin_path=os.environ["SHELL_PATH"])
+    with tempfile.TemporaryDirectory() as directory:
+      with mock.patch.object(tempfile, 'tempdir', directory):
+        with TraceProcessor(config=config):
+          pass
+        self.assertEqual(os.listdir(directory), [])
+
   def test_close_stops_shell(self):
     tp = create_tp(trace=example_android_trace_path())
     shell = tp.subprocess
@@ -622,6 +630,20 @@ class TestApi(unittest.TestCase):
                   ['metric_one', 'metric_two'])
     tp.close()
 
+  def test_metadata_without_loaded_trace(self):
+    # Remote processors do not resolve a local trace URI.
+    with TraceProcessor(remote='127.0.0.1:1') as first:
+      with TraceProcessor(addr='127.0.0.1:1') as second:
+        self.assertEqual(first.metadata, {})
+        self.assertEqual(second.metadata, {})
+        first.metadata['source'] = 'first'
+        self.assertEqual(second.metadata, {})
+
+  def test_metadata_without_loaded_local_trace(self):
+    config = TraceProcessorConfig(bin_path=os.environ["SHELL_PATH"])
+    with TraceProcessor(config=config) as tp:
+      self.assertEqual(tp.metadata, {})
+
   def test_metadata_from_path(self):
     # When loading a trace directly from a path, metadata should be empty
     with create_tp(trace=example_android_trace_path()) as tp:
@@ -729,6 +751,23 @@ class TestApi(unittest.TestCase):
           '_path': example_android_trace_path()
       }
       self.assertEqual(tp.metadata, expected_metadata)
+
+  def test_export_invalid_format_preserves_destination(self):
+    with tempfile.TemporaryDirectory() as directory:
+      with TraceProcessor(remote='127.0.0.1:1') as tp:
+        for exists in (False, True):
+          with self.subTest(exists=exists):
+            path = os.path.join(directory, str(exists))
+            if exists:
+              with open(path, 'wb') as f:
+                f.write(b'existing data')
+            with self.assertRaisesRegex(ValueError, 'Unknown export format'):
+              tp.export(path, 'invalid')
+            if exists:
+              with open(path, 'rb') as f:
+                self.assertEqual(f.read(), b'existing data')
+            else:
+              self.assertFalse(os.path.exists(path))
 
   def test_export_perfetto(self):
     import json

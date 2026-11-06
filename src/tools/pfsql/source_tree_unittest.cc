@@ -53,20 +53,26 @@ TEST(SourceTreeTest, ReportsModulesAndReferences) {
   tree.AddDir("producer");
   tree.AddFile("producer/tables.sql",
                "CREATE PERFETTO TABLE input_table AS SELECT 1 AS id;");
+  tree.AddFile("producer/pf_tables.pf.sql",
+               "CREATE PERFETTO TABLE pf_input_table AS SELECT 1 AS id;");
   tree.AddFile("consumer.sql",
                "INCLUDE PERFETTO MODULE producer.tables;\n"
+               "INCLUDE PERFETTO MODULE producer.pf_tables;\n"
                "CREATE PERFETTO VIEW output_view AS "
-               "SELECT id FROM input_table;");
+               "SELECT id FROM input_table UNION ALL "
+               "SELECT id FROM pf_input_table;");
 
   base::StatusOr<std::vector<Module>> modules = ParseSourceTrees({tree.path()});
 
   ASSERT_TRUE(modules.ok()) << modules.status().c_message();
-  ASSERT_THAT(*modules, testing::SizeIs(2));
+  ASSERT_THAT(*modules, testing::SizeIs(3));
   EXPECT_EQ((*modules)[0].name, "consumer");
-  EXPECT_EQ((*modules)[1].name, "producer.tables");
-  EXPECT_THAT((*modules)[0].includes, testing::ElementsAre("producer.tables"));
+  EXPECT_EQ((*modules)[1].name, "producer.pf_tables");
+  EXPECT_EQ((*modules)[2].name, "producer.tables");
+  EXPECT_THAT((*modules)[0].includes,
+              testing::ElementsAre("producer.tables", "producer.pf_tables"));
   EXPECT_THAT(ReferencedNames(*modules, "output_view"),
-              testing::ElementsAre("input_table"));
+              testing::ElementsAre("input_table", "pf_input_table"));
 }
 
 TEST(SourceTreeTest, ReportsSyntaxErrorsOnce) {
@@ -180,6 +186,60 @@ TEST_F(SourceTreeReferencesTest, CteShadowsSymbol) {
 
   EXPECT_THAT(ReferencedNames(program, "uut_view"),
               testing::UnorderedElementsAre("lib_macro"));
+}
+
+TEST(SourceTreeTest, ReportsHowTablesWereCreated) {
+  base::TmpDirTree tree;
+  tree.AddFile("uut.sql",
+               "CREATE PERFETTO TABLE p AS SELECT 1 AS x;\n"
+               "CREATE TABLE t AS SELECT 1 AS x;\n"
+               "CREATE VIEW v AS SELECT 1 AS x;\n"
+               "CREATE VIRTUAL TABLE s USING span_join(p, t);\n");
+
+  base::StatusOr<std::vector<Module>> modules = ParseSourceTrees({tree.path()});
+
+  ASSERT_TRUE(modules.ok()) << modules.status().c_message();
+  const std::vector<Symbol>& symbols = FindModule(*modules, "uut").symbols;
+  ASSERT_THAT(symbols, testing::SizeIs(4));
+  EXPECT_EQ(symbols[0].form, SymbolForm::kPerfetto);
+  EXPECT_EQ(symbols[1].form, SymbolForm::kPlain);
+  EXPECT_EQ(symbols[2].form, SymbolForm::kPlain);
+  EXPECT_EQ(symbols[2].kind, SymbolKind::kView);
+  EXPECT_EQ(symbols[3].form, SymbolForm::kVirtual);
+}
+
+TEST(SourceTreeTest, ReportsMutations) {
+  base::TmpDirTree tree;
+  tree.AddFile("uut.sql",
+               "DROP TABLE IF EXISTS gone;\n"
+               "INSERT INTO target VALUES (1);\n");
+
+  base::StatusOr<std::vector<Module>> modules = ParseSourceTrees({tree.path()});
+
+  ASSERT_TRUE(modules.ok()) << modules.status().c_message();
+  const std::vector<Mutation>& mutations =
+      FindModule(*modules, "uut").mutations;
+  ASSERT_THAT(mutations, testing::SizeIs(2));
+  EXPECT_EQ(mutations[0].kind, "drop");
+  EXPECT_EQ(mutations[0].object_type, "table");
+  EXPECT_EQ(mutations[0].name, "gone");
+  EXPECT_EQ(mutations[1].kind, "insert");
+}
+
+TEST(SourceTreeTest, OnlyTheLikeOperatorCountsAsLike) {
+  base::TmpDirTree tree;
+  tree.AddFile("no_like.sql",
+               "-- Nothing like this.\n"
+               "SELECT 'like' AS unlikely FROM t WHERE x GLOB 'a*';\n");
+  tree.AddFile("in_macro.sql",
+               "CREATE PERFETTO MACRO m(x Expr) RETURNS Expr AS "
+               "($x LIKE 'a%');\n");
+
+  base::StatusOr<std::vector<Module>> modules = ParseSourceTrees({tree.path()});
+
+  ASSERT_TRUE(modules.ok()) << modules.status().c_message();
+  EXPECT_FALSE(FindModule(*modules, "no_like").uses_like);
+  EXPECT_TRUE(FindModule(*modules, "in_macro").uses_like);
 }
 
 TEST(SourceTreeTest, ReportsTreeDiscoveryFailure) {

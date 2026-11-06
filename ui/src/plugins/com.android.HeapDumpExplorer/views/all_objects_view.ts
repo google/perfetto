@@ -71,7 +71,7 @@ function buildQuery(activeDump: HeapDump): string {
       WHERE o.reachable != 0
         AND ${dumpFilterSql(activeDump, 'o')}
     ) base
-    LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = base.id
+    LEFT JOIN _heap_graph_object_min_depth_tree a ON a.id = base.id
   `;
 }
 

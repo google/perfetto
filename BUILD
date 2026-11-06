@@ -107,6 +107,18 @@ perfetto_cc_library(
     linkstatic = True,
 )
 
+# GN target: //src/perfetto_sql/syntaqlite:perfetto_fmt_dialect
+perfetto_cc_library(
+    name = "perfetto_fmt_dialect",
+    srcs = [
+        "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.c",
+    ],
+    hdrs = [
+        "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h",
+    ],
+    linkstatic = True,
+)
+
 # GN target: //src/protozero/protoc_plugin:cppgen_plugin
 perfetto_cc_binary(
     name = "cppgen_plugin",
@@ -318,6 +330,7 @@ perfetto_cc_binary(
         ":src_tools_pfsql_source_tree",
         ":src_trace_processor_util_json_serializer",
         ":src_trace_processor_util_simple_json_serializer",
+        ":src_trace_processor_util_sql_module_doc_parser",
         "src/tools/pfsql/main.cc",
     ],
     deps = [
@@ -7219,6 +7232,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_tracing_service_service",
     srcs = [
+        "src/tracing/service/block_allocator.cc",
+        "src/tracing/service/block_allocator.h",
         "src/tracing/service/clock.cc",
         "src/tracing/service/clock.h",
         "src/tracing/service/dependencies.h",
@@ -7229,6 +7244,8 @@ perfetto_filegroup(
         "src/tracing/service/packet_stream_validator.h",
         "src/tracing/service/random.cc",
         "src/tracing/service/random.h",
+        "src/tracing/service/sequence_state_map.cc",
+        "src/tracing/service/sequence_state_map.h",
         "src/tracing/service/service_ring_buffer_drainer.cc",
         "src/tracing/service/service_ring_buffer_drainer.h",
         "src/tracing/service/trace_buffer.h",

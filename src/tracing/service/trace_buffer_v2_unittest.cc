@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <initializer_list>
+#include <iterator>
 #include <memory>
 #include <random>
 #include <sstream>
@@ -55,8 +56,27 @@ class TraceBufferV2Test : public testing::Test {
   static constexpr uint8_t kChunkNeedsPatching =
       SharedMemoryABI::ChunkHeader::kChunkNeedsPatching;
 
-  size_t sequence_count() { return trace_buffer()->sequences_.size(); }
-  size_t empty_sequence_count() { return trace_buffer()->empty_sequences_; }
+  size_t sequence_count() {
+    auto& states = trace_buffer()->sequence_states_;
+    return static_cast<size_t>(std::distance(states.begin(), states.end()));
+  }
+  size_t empty_sequence_count() {
+    size_t count = 0;
+    for (const auto& [_, seq] : trace_buffer()->sequence_states_) {
+      if (seq.chunks.empty())
+        count++;
+    }
+    return count;
+  }
+  // Doesn't use Find(), because a lookup would count as a use.
+  bool has_sequence(ProducerID p, WriterID w) {
+    const ProducerAndWriterID key = MkProducerAndWriterID(p, w);
+    for (const auto& [seq_key, _] : trace_buffer()->sequence_states_) {
+      if (seq_key == key)
+        return true;
+    }
+    return false;
+  }
 
   void TearDown() override {
     // Test that the used_size() logic works and that all the data after that
@@ -4519,8 +4539,9 @@ TEST_F(TraceBufferV2Test, V2Loss_EmptySmbV2StateIsBounded) {
     ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, writer),
                                                      &frag, 1, false, false));
   }
-  EXPECT_LE(empty_sequence_count(), 1152u);
+  EXPECT_LE(empty_sequence_count(), 1279u);
   EXPECT_LT(sequence_count(), 1999u);
+  EXPECT_FALSE(has_sequence(1, 1));
 
   ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, 1), &frag,
                                                    1, false, false));
@@ -4549,6 +4570,29 @@ TEST_F(TraceBufferV2Test, V2Loss_RejectedWritersCreateNoState) {
   // Only writer 1, which stored data, has sequence state.
   EXPECT_EQ(sequence_count(), 1u);
   EXPECT_EQ(empty_sequence_count(), 0u);
+}
+
+// An SMB write starts a prune.
+TEST_F(TraceBufferV2Test, EmptySequences_SmbWriteStartsPrune) {
+  // Big enough to keep every unread chunk of this test without an overwrite.
+  ResetBuffer(64 * 1024);
+  auto add_writer = [&](WriterID writer) {
+    CreateChunk(ProducerID(1), writer, ChunkID(0))
+        .AddPacket(32 - 16, 'a')
+        .CopyIntoTraceBuffer();
+  };
+
+  // The last prune ran at 1024 sequences, and 255 more don't start another.
+  for (WriterID writer = 1; writer <= 1279; ++writer)
+    add_writer(writer);
+  trace_buffer()->BeginRead();
+  while (!ReadPacket().empty()) {
+  }
+  ASSERT_EQ(empty_sequence_count(), 1279u);
+
+  // The 1280th sequence starts a prune, which keeps 1024 empty sequences.
+  add_writer(1280);
+  EXPECT_EQ(empty_sequence_count(), 1024u);
 }
 
 TEST_F(TraceBufferV2Test, V2Admission_SizeOverflowAndNullPayload) {

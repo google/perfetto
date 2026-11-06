@@ -46,6 +46,9 @@ export class BigtraceAsyncDataSource implements DataSource {
   // Window in `loadedRows`, for range-change detection.
   private loadedOffset = 0;
   private loadedLimit = 0;
+  // Latest window requested by DataGrid, so `refresh()` stays on a pending scroll.
+  private wantedOffset = 0;
+  private wantedLimit = 0;
   // AIP-132 §Ordering. Empty = default order.
   private currentOrderBy = '';
   // Aliases pre-resolved to field names. `currentFilterKey` is the JSON
@@ -54,11 +57,12 @@ export class BigtraceAsyncDataSource implements DataSource {
   private currentFilterKey = '';
   // `useRows` falls back to `getTotalRows()` when undefined.
   private _filteredTotalRows: number | undefined;
+  private _filteredTotalTraces: number | undefined;
   // Field-mask shipped as `:fetch_results` `columns`. Tracks the visible
   // results-grid columns so a column toggle refetches a narrower page (and
   // pulls in a metadata column when the user just enabled it).
   private currentColumns: readonly string[] = [];
-  private currentColumnsKey = '';
+  private currentColumnsKey = '[]';
   // availableColumnNames from the last fetch — the results-page column picker
   // reads this to know what's selectable.
   private _availableColumnNames: ReadonlyArray<string> | undefined;
@@ -69,6 +73,10 @@ export class BigtraceAsyncDataSource implements DataSource {
 
   get filteredTotalRows(): number | undefined {
     return this._filteredTotalRows;
+  }
+
+  get filteredTotalTraces(): number | undefined {
+    return this._filteredTotalTraces;
   }
 
   get availableColumnNames(): ReadonlyArray<string> | undefined {
@@ -101,6 +109,8 @@ export class BigtraceAsyncDataSource implements DataSource {
     const wantedFilterKey = encodeFilters(wantedFilter);
     const wantedOffset = model.pagination?.offset ?? 0;
     const wantedLimit = model.pagination?.limit ?? 0;
+    this.wantedOffset = wantedOffset;
+    if (wantedLimit > 0) this.wantedLimit = wantedLimit;
     // Columns the grid is currently displaying; shipped as the `:fetch_results`
     // `columns` field-mask.
     const wantedColumns = (model.columns ?? []).map((c) => c.field);
@@ -116,7 +126,7 @@ export class BigtraceAsyncDataSource implements DataSource {
     const columnsChanged =
       this.hasInitialFetchCompleted &&
       wantedColumnsKey !== this.currentColumnsKey;
-    const needsInitial = !this.hasInitialFetchCompleted && wantedLimit > 0;
+    const needsInitial = !this.hasInitialFetchCompleted;
     // No `isFetching` check: a tick arriving mid-fetch is the newest thing the
     // user has asked for, so it replaces the pending window rather than being
     // dropped. The debounce coalesces the burst and the fetch supersedes
@@ -134,6 +144,7 @@ export class BigtraceAsyncDataSource implements DataSource {
         this.currentFilterKey = wantedFilterKey;
         // Briefly oversized scrollbar > briefly collapsed while refetching.
         this._filteredTotalRows = undefined;
+        this._filteredTotalTraces = undefined;
       }
       this.currentColumns = wantedColumns;
       this.currentColumnsKey = wantedColumnsKey;
@@ -191,14 +202,19 @@ export class BigtraceAsyncDataSource implements DataSource {
     });
   }
 
-  // Re-fetch the currently-loaded window, superseding anything queued or in
-  // flight — an explicit refresh shouldn't wait behind a scroll.
+  // Re-fetch the active window, superseding anything queued or in flight.
   async refresh(): Promise<void> {
     this.distinctValues.invalidate();
-    const offset = this.loadedOffset;
-    const limit = this.loadedLimit > 0 ? this.loadedLimit : 100;
-    await this.scheduler.runNow((controller) =>
-      this.fetchMoreRows(offset, limit, controller),
+    const offset = this.wantedOffset;
+    const limit =
+      this.wantedLimit > 0
+        ? this.wantedLimit
+        : this.loadedLimit > 0
+          ? this.loadedLimit
+          : 100;
+    await this.scheduler.runNow(
+      (controller) => this.fetchMoreRows(offset, limit, controller),
+      this.requestKey(offset, limit),
     );
   }
 
@@ -239,15 +255,21 @@ export class BigtraceAsyncDataSource implements DataSource {
       this.loadedLimit = limit;
       this.hasInitialFetchCompleted = true;
       this._filteredTotalRows = result.totalFilteredRows;
+      this._filteredTotalTraces = result.totalFilteredTraces;
       this._availableColumnNames = result.availableColumnNames;
 
       if (this.schema === undefined && result.schema.length > 0) {
         this.schema = result.schema;
       }
     } catch (e) {
-      // Aborts are routine here — the tab closing, or a newer window
-      // superseding this one — so they are not failures to show.
-      if (e instanceof QueryCancelledError) return;
+      // Aborts and superseded windows are routine here — the tab closing, or a
+      // newer window replacing this one — so they are not failures to show.
+      if (
+        e instanceof QueryCancelledError ||
+        !this.scheduler.isCurrent(controller)
+      ) {
+        return;
+      }
       console.error('[bigtrace] fetch_results failed:', e);
       if (e instanceof BigtraceHttpError) {
         // Surface the backend's detail (not the wrapped message) and keep the
@@ -281,7 +303,8 @@ export class BigtraceAsyncDataSource implements DataSource {
   }
 
   getSchema(): ReadonlyArray<BigtraceColumnSchema> | undefined {
-    return this.getInitialSchema?.() ?? this.schema;
+    const initial = this.getInitialSchema?.();
+    return initial !== undefined && initial.length > 0 ? initial : this.schema;
   }
 
   useAggregateSummaries(_model: DataSourceModel): AsyncMemoResult<Row> {

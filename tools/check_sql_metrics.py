@@ -27,12 +27,12 @@ from typing import Dict, Tuple, List
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.sql_processing.utils import check_banned_create_view_as
-from python.generators.sql_processing.utils import check_banned_words
-from python.generators.sql_processing.utils import match_pattern
-from python.generators.sql_processing.utils import DROP_TABLE_VIEW_PATTERN
-from python.generators.sql_processing.utils import CREATE_TABLE_VIEW_PATTERN
-from python.generators.sql_processing.utils import CREATE_TABLE_AS_PATTERN
+from python.generators.sql_processing.utils_legacy import check_banned_create_view_as
+from python.generators.sql_processing.utils_legacy import check_banned_words
+from python.generators.sql_processing.utils_legacy import match_pattern
+from python.generators.sql_processing.utils_legacy import DROP_TABLE_VIEW_PATTERN
+from python.generators.sql_processing.utils_legacy import CREATE_TABLE_VIEW_PATTERN
+from python.generators.sql_processing.utils_legacy import CREATE_TABLE_AS_PATTERN
 
 
 def check_if_create_table_allowlisted(

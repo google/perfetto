@@ -486,8 +486,10 @@ class FlatHashMapV2 : private flat_hash_map_v2_internal::FlatHashMapV2Base {
       : FlatHashMapV2Base(std::move(other)) {}
 
   FlatHashMapV2& operator=(FlatHashMapV2&& other) noexcept {
-    this->~FlatHashMapV2();
-    new (this) FlatHashMapV2(std::move(other));
+    if (this != &other) {
+      this->~FlatHashMapV2();
+      new (this) FlatHashMapV2(std::move(other));
+    }
     return *this;
   }
 

@@ -35,6 +35,11 @@ namespace perfetto::trace_processor::stats {
   F(android_log_format_invalid,           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_skipped,              kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_total,                kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(android_system_server_restart,        kSingle,  kDataLoss, kAnalysis, Scope::kMachineAndTrace, \
+      "system_server restarted during the trace (e.g. it crashed): the "       \
+      "processes it started died with it without any death event, so "         \
+      "processes and their events around the restart may be misattributed. "   \
+      "See trace_import_logs for the restarts."),                              \
   F(android_video_size_cap_hit,           kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "android.display.video producer hit max_stream_size_bytes; stream torn " \
       "down. See trace_import_logs for the affected display."),                \
@@ -339,7 +344,7 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_sequence_packet_loss,      kIndexed, kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
       "The number of groups of consecutive packets lost in each sequence for " \
       "this buffer"),                                                          \
-  F(traced_buf_incremental_sequences_dropped, kIndexed, kDataLoss, kAnalysis, Scope::kMachineAndTrace,  \
+  F(traced_buf_incremental_sequences_dropped, kIndexed, kInfo,     kAnalysis, Scope::kMachineAndTrace,  \
       "For a given buffer, indicates the number of sequences where all the "   \
       "packets on that sequence were dropped due to lack of a valid "          \
       "incremental state (i.e. interned data). This is usually a strong sign " \

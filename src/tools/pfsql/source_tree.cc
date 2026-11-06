@@ -67,12 +67,14 @@ class NameSet {
 };
 
 // "slices/with_context.sql" → "slices.with_context".
+// "slices/with_context.pf.sql" → "slices.with_context".
 std::string ModuleNameFromRelPath(const std::string& rel) {
   std::string r = rel;
-  constexpr std::string_view kSuffix = ".sql";
-  if (r.size() >= kSuffix.size() &&
-      std::string_view(r).substr(r.size() - kSuffix.size()) == kSuffix) {
-    r.resize(r.size() - kSuffix.size());
+  for (std::string_view suffix : {".pf.sql", ".sql"}) {
+    if (base::EndsWith(r, suffix)) {
+      r.resize(r.size() - suffix.size());
+      break;
+    }
   }
   for (char& c : r) {
     if (c == '/')
@@ -92,6 +94,7 @@ struct RawRefs {
 struct ScratchSymbol {
   std::string name;
   SymbolKind kind;
+  SymbolForm form;
   RawRefs refs;
 };
 
@@ -102,6 +105,8 @@ struct ScratchModule {
   std::vector<ScratchSymbol> symbols;
   std::vector<std::string> includes;
   std::vector<std::string> errors;
+  std::vector<Mutation> mutations;
+  bool uses_like = false;
   // References from statements which define no symbol.
   RawRefs refs;
 };
@@ -496,6 +501,42 @@ base::Status DiscoverTree(const std::string& root,
   return base::OkStatus();
 }
 
+bool UsesLike(std::string_view sql) {
+  SyntaqliteTokenizer* tok = syntaqlite_tokenizer_create_perfetto(nullptr);
+  PERFETTO_CHECK(tok != nullptr);
+  syntaqlite_tokenizer_reset(tok, sql.data(),
+                             static_cast<uint32_t>(sql.size()));
+  bool found = false;
+  SyntaqliteToken token;
+  while (!found && syntaqlite_tokenizer_next(tok, &token)) {
+    // GLOB and friends share LIKE's token type.
+    found = token.type == SYNTAQLITE_TK_LIKE_KW &&
+            base::ToLower(std::string(token.text, token.length)) == "like";
+  }
+  syntaqlite_tokenizer_destroy(tok);
+  return found;
+}
+
+const char* DropObjectTypeName(SyntaqliteDropObjectType type) {
+  switch (type) {
+    case SYNTAQLITE_DROP_OBJECT_TYPE_TABLE:
+      return "table";
+    case SYNTAQLITE_DROP_OBJECT_TYPE_VIEW:
+      return "view";
+    case SYNTAQLITE_DROP_OBJECT_TYPE_INDEX:
+      return "index";
+    case SYNTAQLITE_DROP_OBJECT_TYPE_TRIGGER:
+      return "trigger";
+  }
+  PERFETTO_FATAL("Unknown drop object type");
+}
+
+std::string NodeText(SyntaqliteParser* p, uint32_t node_id) {
+  SyntaqliteLength len = 0;
+  const char* text = syntaqlite_parser_node_text(p, node_id, &len, nullptr);
+  return text ? std::string(text, len) : std::string();
+}
+
 // Pass A: walk every file once to collect macro bodies (for the expansion
 // registry) and all top-level defined-symbol names (for the global symbol
 // index). We do NOT call CollectStatementRefs here — refs are gathered in
@@ -510,8 +551,10 @@ void PassA(const DiscoveredFile& f, ScratchModule& m, MacroRegistry& registry) {
     m.errors.push_back("failed to read file");
     return;
   }
+  m.uses_like = UsesLike(sql);
   ScopedParser owned = MakeParser();
   SyntaqliteParser* p = owned.get();
+  syntaqlite_parser_set_collect_node_extents(p, 1);
   syntaqlite_parser_reset(p, sql.data(), static_cast<uint32_t>(sql.size()));
 
   for (;;) {
@@ -530,20 +573,35 @@ void PassA(const DiscoveredFile& f, ScratchModule& m, MacroRegistry& registry) {
         static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(p, root));
     if (!node)
       continue;
-    auto push_symbol = [&](std::string name, SymbolKind kind) {
+    auto push_symbol = [&](std::string name, SymbolKind kind,
+                           SymbolForm form = SymbolForm::kPerfetto) {
       ScratchSymbol s;
       s.name = std::move(name);
       s.kind = kind;
+      s.form = form;
       m.symbols.push_back(std::move(s));
     };
     switch (static_cast<int>(node->tag)) {
       case SYNTAQLITE_NODE_CREATE_TABLE_STMT:
         push_symbol(SpanString(p, node->create_table_stmt.table_name),
-                    SymbolKind::kTable);
+                    SymbolKind::kTable, SymbolForm::kPlain);
         break;
       case SYNTAQLITE_NODE_CREATE_VIRTUAL_TABLE_STMT:
         push_symbol(SpanString(p, node->create_virtual_table_stmt.table_name),
-                    SymbolKind::kTable);
+                    SymbolKind::kTable, SymbolForm::kVirtual);
+        break;
+      case SYNTAQLITE_NODE_CREATE_VIEW_STMT:
+        push_symbol(SpanString(p, node->create_view_stmt.view_name),
+                    SymbolKind::kView, SymbolForm::kPlain);
+        break;
+      case SYNTAQLITE_NODE_DROP_STMT:
+        m.mutations.push_back({"drop",
+                               DropObjectTypeName(node->drop_stmt.object_type),
+                               NodeText(p, node->drop_stmt.target)});
+        break;
+      case SYNTAQLITE_NODE_INSERT_STMT:
+        m.mutations.push_back(
+            {"insert", "", NodeText(p, node->insert_stmt.table)});
         break;
       case SYNTAQLITE_NODE_INCLUDE_PERFETTO_MODULE_STMT:
         m.includes.push_back(
@@ -632,6 +690,7 @@ void PassB(const DiscoveredFile& f, MacroRegistry& registry, ScratchModule& m) {
       case SYNTAQLITE_NODE_CREATE_PERFETTO_MACRO_STMT:
       case SYNTAQLITE_NODE_CREATE_TABLE_STMT:
       case SYNTAQLITE_NODE_CREATE_VIRTUAL_TABLE_STMT:
+      case SYNTAQLITE_NODE_CREATE_VIEW_STMT:
         if (sym_idx < m.symbols.size())
           refs = &m.symbols[sym_idx].refs;
         ++sym_idx;
@@ -673,6 +732,18 @@ std::vector<std::string> SortedReferences(const RawRefs& refs) {
 }
 
 }  // namespace
+
+const char* SymbolFormName(SymbolForm form) {
+  switch (form) {
+    case SymbolForm::kPerfetto:
+      return "perfetto";
+    case SymbolForm::kVirtual:
+      return "virtual";
+    case SymbolForm::kPlain:
+      return "plain";
+  }
+  PERFETTO_FATAL("Unknown PerfettoSQL symbol form");
+}
 
 const char* SymbolKindName(SymbolKind kind) {
   switch (kind) {
@@ -720,13 +791,16 @@ base::StatusOr<std::vector<Module>> ParseSourceTrees(
     ScratchModule& m = scratch[i];
     Module module;
     module.name = std::move(m.module);
+    module.absolute_path = m.tree_root + "/" + m.path;
     module.path = std::move(m.path);
     module.includes = std::move(m.includes);
     module.references = SortedReferences(m.refs);
+    module.mutations = std::move(m.mutations);
+    module.uses_like = m.uses_like;
     module.errors = std::move(m.errors);
     for (ScratchSymbol& symbol : m.symbols) {
-      module.symbols.push_back(
-          {std::move(symbol.name), symbol.kind, SortedReferences(symbol.refs)});
+      module.symbols.push_back({std::move(symbol.name), symbol.kind,
+                                symbol.form, SortedReferences(symbol.refs)});
     }
     modules.push_back(std::move(module));
   }

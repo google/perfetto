@@ -148,14 +148,6 @@ std::map<ClassDescriptor, ClassDescriptor> BuildSuperclassMap(
   return superclass_map;
 }
 
-// Extract the size from `nar_size`, which is the value of a
-// libcore.util.NativeAllocationRegistry.size field: it encodes the size, but
-// uses the least significant bit to represent the source of the allocation.
-int64_t GetSizeFromNativeAllocationRegistry(int64_t nar_size) {
-  constexpr uint64_t kIsMalloced = 1;
-  return static_cast<int64_t>(static_cast<uint64_t>(nar_size) & ~kIsMalloced);
-}
-
 // A given object can be a heap root in different ways. Ensure analysis is
 // consistent.
 constexpr std::array<::com::android::art::tracing::pbzero::HeapGraphRoot::Type,
