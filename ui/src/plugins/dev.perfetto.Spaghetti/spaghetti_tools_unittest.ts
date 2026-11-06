@@ -570,9 +570,10 @@ describe('registerSpaghettiTools', () => {
       columns: ['id', 'name', 'dur'],
       sql: 'SELECT *\nFROM slice\nLIMIT 10',
     });
+    // A cheap Limit target is read directly, so there is no _qb_ cache table.
     expect(
       (selectedCtx.data as {materializedTable?: string}).materializedTable,
-    ).toMatch(/^_qb_/);
+    ).toBeUndefined();
 
     // Undo restores previous empty state; redo restores applied graph.
     expect(state.canUndo()).toBe(true);
