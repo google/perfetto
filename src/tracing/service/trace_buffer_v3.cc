@@ -223,7 +223,7 @@ void BundleBuffer::MaybeCompact() {
     return;
 
   // TODO(sashwinbalaji): Move this spare-page policy, copied from
-  // TraceBufferV2::CompactChunks(), into a helper that both share.
+  // TraceBufferV2::MaybeCompact(), into a helper that both share.
   constexpr size_t kSpareCapacityDivisor = 4;
   const size_t spare_size =
       std::min(max_written_offset_ / kSpareCapacityDivisor,
@@ -419,7 +419,7 @@ void TraceBufferV3::BundleStagingForWrite() {
     if (!FillNextBundle()) {
       // Compaction moves chunks and invalidates staging's read cursor, so run
       // it only once the read is complete.
-      staging_buf_->CompactChunks();
+      staging_buf_->MaybeCompact();
       break;
     }
   }
@@ -439,7 +439,7 @@ bool TraceBufferV3::BundleStagingForRead() {
   while (bundle_buf_.empty()) {
     if (!FillNextBundle()) {
       staging_read_complete_ = true;
-      staging_buf_->CompactChunks();
+      staging_buf_->MaybeCompact();
       break;
     }
   }
@@ -750,7 +750,7 @@ bool TraceBufferV3::DecodeNextBundle() {
 void TraceBufferV3::MaybeCompact() {
   // Compaction doesn't raise kDiscard's limit, because writes still stop once
   // |v3_stats_.compressed_bytes_written()| reaches |bundle_buf_|'s capacity.
-  staging_buf_->CompactChunks();
+  staging_buf_->MaybeCompact();
   bundle_buf_.MaybeCompact();
   returned_packet_data_ = decltype(returned_packet_data_)();
 
