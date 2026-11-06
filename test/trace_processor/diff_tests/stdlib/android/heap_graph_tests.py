@@ -417,3 +417,100 @@ class HeapGraph(TestSuite):
           "android.os.ResultReceiver$MyResultReceiver",2,2
           "com.android.server.input.InputManagerService$InputMonitorHost",2,2
         """))
+
+  def test_heap_graph_binder_proxy(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_binder_proxies.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.binder_proxy;
+
+          SELECT
+            p.graph_sample_ts,
+            p.proxy_class_name,
+            p.holder_class_name,
+            p.holder_field_name,
+            p.death_recipient_count,
+            p.death_recipient_class_name,
+            (p.proxy_class_id IS NULL AND p.proxy_class_name IS NULL)
+              OR coalesce(pc.deobfuscated_name, pc.name) = p.proxy_class_name
+              AS proxy_id_matches,
+            (p.holder_id IS NULL
+              AND p.holder_type_id IS NULL
+              AND p.holder_class_name IS NULL)
+              OR (ho.type_id = p.holder_type_id
+                AND coalesce(hc.deobfuscated_name, hc.name)
+                  = p.holder_class_name)
+              AS holder_id_matches
+          FROM android_heap_graph_binder_proxy AS p
+          LEFT JOIN heap_graph_class AS pc ON pc.id = p.proxy_class_id
+          LEFT JOIN heap_graph_object AS ho ON ho.id = p.holder_id
+          LEFT JOIN heap_graph_class AS hc ON hc.id = p.holder_type_id
+          ORDER BY
+            p.graph_sample_ts,
+            coalesce(p.proxy_class_name, ''),
+            coalesce(p.holder_class_name, ''),
+            coalesce(p.holder_field_name, '');
+        """,
+        out=Csv("""
+          "graph_sample_ts","proxy_class_name","holder_class_name","holder_field_name","death_recipient_count","death_recipient_class_name","proxy_id_matches","holder_id_matches"
+          10,"[NULL]","com.example.BindRecord","com.example.BindRecord.binder",0,"[NULL]",1,1
+          10,"[NULL]","com.example.Svc","com.example.Svc.mMap",2,"com.example.RecA",1,1
+          10,"[NULL]","java.lang.Class<com.example.Mgr>","com.example.Mgr.sCache",0,"[NULL]",1,1
+          10,"com.example.IAlpha$Stub$Proxy","com.example.Svc","[NULL]",0,"[NULL]",1,1
+          10,"com.example.IBar$Stub$Proxy","com.example.DeathRec","com.example.DeathRec.mProxy",0,"[NULL]",1,1
+          10,"com.example.IBar$Stub$Proxy","com.example.Svc","com.example.Svc.mCallbacks",0,"[NULL]",1,1
+          10,"com.example.IFoo$Stub$Proxy","[NULL]","[NULL]",0,"[NULL]",1,1
+          10,"com.example.IFoo$Stub$Proxy","com.example.History","[NULL]",0,"[NULL]",1,1
+          10,"com.example.IFoo$Stub$Proxy","com.example.Record","com.example.Record.mCallback",2,"com.example.RecA",1,1
+          10,"com.example.IObf$Stub$Proxy","com.example.ObfHolder","com.example.ObfHolder.mObfProxy",1,"com.example.ObfDeathRec",1,1
+          20,"com.example.IFoo$Stub$Proxy","com.example.BindRecord","com.example.BindRecord.binder",0,"[NULL]",1,1
+        """))
+
+  def test_heap_graph_binder_proxy_system_server_totals(self):
+    return DiffTestBlueprint(
+        trace=DataPath('system-server-heap-graph-new.pftrace'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.binder_proxy;
+
+          SELECT
+            count(*) AS proxy_count,
+            count(proxy_class_id) AS with_proxy_class,
+            count(holder_id) AS with_holder,
+            count(holder_field_name) AS with_holder_field,
+            sum(death_recipient_count) AS death_recipient_count
+          FROM android_heap_graph_binder_proxy;
+        """,
+        out=Csv("""
+          "proxy_count","with_proxy_class","with_holder","with_holder_field","death_recipient_count"
+          1246,1029,343,335,0
+        """))
+
+  def test_heap_graph_binder_proxy_system_server_holders(self):
+    return DiffTestBlueprint(
+        trace=DataPath('system-server-heap-graph-new.pftrace'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.binder_proxy;
+
+          SELECT
+            holder_class_name,
+            holder_field_name,
+            count(*) AS proxy_count
+          FROM android_heap_graph_binder_proxy
+          WHERE holder_id IS NOT NULL
+          GROUP BY holder_type_id, holder_field_name
+          ORDER BY proxy_count DESC, holder_class_name, holder_field_name
+          LIMIT 10;
+        """,
+        out=Csv("""
+          "holder_class_name","holder_field_name","proxy_count"
+          "android.content.ContentProviderProxy","android.content.ContentProviderProxy.mRemote",124
+          "com.android.server.display.DisplayManagerService$CallbackRecord","com.android.server.display.DisplayManagerService$CallbackRecord.mCallback",49
+          "com.android.server.am.IntentBindRecord","com.android.server.am.IntentBindRecord.binder",44
+          "android.os.Messenger","android.os.Messenger.mTarget",19
+          "com.android.server.ConnectivityService$NetworkRequestInfo","com.android.server.ConnectivityService$NetworkRequestInfo.mBinder",17
+          "com.android.server.inputmethod.InputMethodManagerService$ClientState","[NULL]",7
+          "com.android.server.am.ReceiverList","com.android.server.am.ReceiverList.receiver",6
+          "com.android.server.wm.Session","com.android.server.wm.Session.mCallback",6
+          "com.android.server.stats.StatsManagerService$PullerValue","com.android.server.stats.StatsManagerService$PullerValue.mCallback",5
+          "android.graphics.GraphicsStatsService$ActiveBuffer","android.graphics.GraphicsStatsService$ActiveBuffer.mToken",4
+        """))
