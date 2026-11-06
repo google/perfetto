@@ -120,7 +120,7 @@ async function prepareNodeReadQuery(
   }
 
   const warmHashes = matService?.warmHashes ?? new Set<string>();
-  const matPlan = planMaterialization(logicalPlan, {warmHashes});
+  const matPlan = planMaterialization(logicalPlan);
   const neededHashes = computeNeededStepHashes(matPlan, warmHashes);
 
   let usesWarmHash = false;

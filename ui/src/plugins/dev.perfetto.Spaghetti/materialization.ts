@@ -81,16 +81,17 @@ export interface MaterializationPlan {
 
 export interface PlanMaterializationOptions {
   readonly canvasRefCounts?: ReadonlyMap<string, number>;
-  readonly warmHashes?: ReadonlySet<string>;
 }
 
 // Partition a `LogicalPlan` into dialect-agnostic cacheable materialization
-// steps plus a lightweight `finalRead` subplan.
+// steps plus a lightweight `finalRead` subplan. Cut points depend only on the
+// plan structure (and canvas fan-out), never on cache state, so the same graph
+// always yields the same steps; the cache only decides which steps execute.
 export function planMaterialization(
   plan: LogicalPlan,
   options?: PlanMaterializationOptions,
 ): MaterializationPlan {
-  const {canvasRefCounts, warmHashes} = options ?? {};
+  const {canvasRefCounts} = options ?? {};
   const nodeById = new Map(plan.nodes.map((n) => [n.nodeId, n]));
 
   let targetId = plan.targetNodeId;
@@ -113,16 +114,11 @@ export function planMaterialization(
     zeroCost.set(n.nodeId, isFree);
 
     if (n.op.kind === 'scan' || n.op.kind === 'passthrough') continue;
-    const isWarm = warmHashes?.has(n.hash) ?? false;
     if (n.nodeId === targetId) {
-      if (isWarm || !isFree) cutNodeIds.add(n.nodeId);
+      if (!isFree) cutNodeIds.add(n.nodeId);
     } else {
       const refs = Math.max(n.refCount, canvasRefCounts?.get(n.nodeId) ?? 0);
-      if (
-        isWarm ||
-        (refs > 1 && !isFree) ||
-        PIPELINE_BREAKER_KINDS.has(n.op.kind)
-      ) {
+      if ((refs > 1 && !isFree) || PIPELINE_BREAKER_KINDS.has(n.op.kind)) {
         cutNodeIds.add(n.nodeId);
       }
     }
@@ -373,7 +369,6 @@ export class MaterializationService {
   planFor(logicalPlan: LogicalPlan): MaterializationPlan {
     return planMaterialization(logicalPlan, {
       canvasRefCounts: this._canvasRefCounts,
-      warmHashes: new Set(this.cache.keys()),
     });
   }
 

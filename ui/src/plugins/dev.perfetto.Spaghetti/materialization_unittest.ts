@@ -398,7 +398,7 @@ describe('MaterializationService cache policy', () => {
     ).toBe(false);
   });
 
-  it('reuses warm upstream prefix when docking new nodes interactively and shares Y-fork checkpoints across branches', async () => {
+  it('plans cut points independently of cache state and shares Y-fork checkpoints across branches', async () => {
     const {engine, queries} = makeFakeEngine();
     const service = new MaterializationService(engine, {maxOrphans: 4});
 
@@ -411,8 +411,9 @@ describe('MaterializationService cache policy', () => {
     const filterHash = ensureDefined(service.materializedTable);
     expect(service.lastRunOutcomes.get(filterHash)?.kind).toBe('built');
 
-    // 2. User docks Sort below Filter and clicks Sort -> Sort reads from
-    // `_qb_<filterHash>` instead of re-scanning `slice`!
+    // 2. User docks Sort below Filter and clicks Sort -> the warm Filter table
+    // does not introduce a cut; Sort folds Filter into one step exactly as it
+    // would with a cold cache.
     const step2Store: NodeQueryBuilderStore = {
       nodes: [
         {
@@ -435,18 +436,26 @@ describe('MaterializationService cache policy', () => {
       ],
       labels: [],
     };
+    const sortPlan = ensureDefined(
+      buildLogicalPlan(flattenNodes(step2Store.nodes), 'srt1', undefined),
+    );
+    const coldSteps = new MaterializationService(makeFakeEngine().engine)
+      .planFor(sortPlan)
+      .steps.map((s) => s.hash);
+
     queries.length = 0;
     await service.scheduleUpdate(step2Store, 'srt1', undefined, 'sql');
     const sortHash = ensureDefined(service.materializedTable);
-    expect(service.lastRunOutcomes.get(filterHash)?.kind).toBe('hit');
+    expect(service.planFor(sortPlan).steps.map((s) => s.hash)).toEqual(
+      coldSteps,
+    );
+    expect(coldSteps).toEqual([sortHash]);
+    expect(service.lastRunOutcomes.get(filterHash)).toBeUndefined();
     expect(service.lastRunOutcomes.get(sortHash)?.kind).toBe('built');
-    expect(
-      service.cacheEntries.find((e) => e.hash === filterHash)?.hitCount,
-    ).toBe(2);
     expect(
       queries.some((q) =>
         q.includes(
-          `CREATE PERFETTO TABLE ${sortHash} AS\nSELECT *\nFROM ${filterHash}\nORDER BY dur DESC`,
+          `CREATE PERFETTO TABLE ${sortHash} AS\nSELECT *\nFROM slice\nWHERE dur > 500\nORDER BY dur DESC`,
         ),
       ),
     ).toBe(true);
@@ -576,12 +585,10 @@ describe('MaterializationService cache policy', () => {
     const aggHash = nodeHash(logicalPlan, 'agg1');
     const sortHash = nodeHash(logicalPlan, 'srt1');
 
-    // Even when `sortHash` is warm and `aggHash` has been evicted,
-    // `planMaterialization` still exposes both steps and their `deps` edge for
-    // the IR graph, while `computeNeededStepHashes` stops at `sortHash`.
-    const matPlan = planMaterialization(logicalPlan, {
-      warmHashes: new Set([sortHash]),
-    });
+    // `sortHash` is warm and `aggHash` has been evicted: `planMaterialization`
+    // still exposes both steps and their `deps` edge (the plan never depends on
+    // the cache), while `computeNeededStepHashes` stops at `sortHash`.
+    const matPlan = planMaterialization(logicalPlan);
     expect(matPlan.steps.map((s) => s.hash)).toEqual([aggHash, sortHash]);
     expect(matPlan.steps.find((s) => s.hash === sortHash)?.deps).toEqual([
       aggHash,
