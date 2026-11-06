@@ -23,6 +23,7 @@ import type {RouteArgs} from './route_schema';
 import type {SettingsManager} from './settings';
 import type {SidePanelManager} from './side_panel';
 import type {SidebarManager} from './sidebar';
+import type {SkillManager} from './skills';
 import type {TraceStream} from './stream';
 import type {TaskTracker} from './task_tracker';
 import type {Trace} from './trace';
@@ -81,6 +82,15 @@ export interface App {
    * future. Use with caution and be prepared for breaking changes.
    */
   readonly sidePanel: SidePanelManager;
+
+  /**
+   * Agent skills (markdown instructions plus SQL scripts) for in-UI agents,
+   * read one file at a time.
+   *
+   * @experimental - This is a new API and may change or be removed in the
+   * future.
+   */
+  readonly skills: SkillManager;
 
   // True if the current user is an 'internal' user. E.g. a Googler on
   // ui.perfetto.dev. Plugins might use this to determine whether to show
