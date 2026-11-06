@@ -31,6 +31,11 @@ message SdeSdeEvtlogFtraceEvent {
   optional uint32 d12 = 16;
   optional uint32 d13 = 17;
   optional uint32 d14 = 18;
+  optional uint32 d010 = 19;
+  optional uint32 d011 = 20;
+  optional uint32 d012 = 21;
+  optional uint32 d013 = 22;
+  optional uint32 d014 = 23;
 }
 message SdeSdePerfCalcCrtcFtraceEvent {
   optional uint64 bw_ctl_ebi = 1;
