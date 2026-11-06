@@ -112,6 +112,14 @@ export function buildLogicalPlan(
   };
 }
 
+export function lowerLogicalPlan(
+  plan: LogicalPlan,
+  dialect: SqlDialect = 'sql',
+): IrEntry[] | undefined {
+  const entries = dialect === 'pipe' ? lowerToPipe(plan) : lowerToSql(plan);
+  return entries.length > 0 ? entries : undefined;
+}
+
 // Build content-addressable IR entries for a specific node's upstream chain
 // in the requested target dialect (`'sql'` or `'pipe'`).
 export function buildIR(
@@ -122,8 +130,7 @@ export function buildIR(
 ): IrEntry[] | undefined {
   const plan = buildLogicalPlan(index, nodeId, sqlModules);
   if (!plan) return undefined;
-  const entries = dialect === 'pipe' ? lowerToPipe(plan) : lowerToSql(plan);
-  return entries.length > 0 ? entries : undefined;
+  return lowerLogicalPlan(plan, dialect);
 }
 
 export function buildDisplayQuery(

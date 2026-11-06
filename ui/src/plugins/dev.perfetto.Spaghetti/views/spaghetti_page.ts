@@ -75,12 +75,18 @@ import {
   trimInputs,
   type GraphIndex,
 } from '../graph_utils';
-import {buildDisplayQuery, buildIR, type SqlDialect} from '../ir';
+import {
+  buildDisplayQuery,
+  buildLogicalPlan,
+  lowerLogicalPlan,
+  type SqlDialect,
+} from '../ir';
 import {MaterializationService} from '../materialization';
 import type {DetailsContext, RenderContext} from '../node_types';
 import {CacheTab} from './cache_tab';
 import {ColumnsTab} from './columns_tab';
 import {GraphTab} from './graph_tab';
+import {LogicalIrTab} from './logical_ir_tab';
 import {IrTab} from './materialization_tab';
 import {SqlTab} from './sql_tab';
 import {TextInput} from '../../../widgets/text_input';
@@ -943,14 +949,12 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         ? getOutputColumnsForNode(flatNodes, activeNodeId, sqlModules)
         : undefined;
 
-      // Build IR entries for the active dialect (pure function of the graph).
-      const irEntries = activeNodeId
-        ? (buildIR(
-            flatNodes,
-            activeNodeId,
-            sqlModules,
-            materializationDialect,
-          ) ?? [])
+      // Build logical plan + lowered IR entries (pure functions of the graph).
+      const logicalPlan = activeNodeId
+        ? buildLogicalPlan(flatNodes, activeNodeId, sqlModules)
+        : undefined;
+      const irEntries = logicalPlan
+        ? (lowerLogicalPlan(logicalPlan, materializationDialect) ?? [])
         : [];
 
       const displaySql = buildDisplayQuery(irEntries, materializationDialect);
@@ -994,6 +998,11 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               key: 'columns',
               title: 'Columns',
               content: m(ColumnsTab, {outputColumns, activeNodeId}),
+            },
+            {
+              key: 'logical_ir',
+              title: 'Logical IR',
+              content: m(LogicalIrTab, {logicalPlan, activeNodeId}),
             },
             {
               key: 'materialization',
