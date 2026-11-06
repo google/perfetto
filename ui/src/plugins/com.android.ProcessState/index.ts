@@ -139,6 +139,15 @@ export default class ProcessState implements PerfettoPlugin {
     await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.process_state;
       INCLUDE PERFETTO MODULE android.freezer;
+
+      -- Open intervals (dur = -1) run to the end of the trace.
+      CREATE PERFETTO TABLE _android_process_state_alive_concurrency AS
+      FROM (
+        SELECT ts, iif(dur < 0, trace_end() - ts, dur) AS dur
+        FROM _android_process_state_intervals
+        WHERE state NOT IN ('NONEXISTENT', 'EXITED')
+      )
+      |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS concurrency;
     `);
 
     ctx.selection.registerAreaSelectionTab(
@@ -173,13 +182,30 @@ export default class ProcessState implements PerfettoPlugin {
     return result.ok && result.value.firstRow({cnt: NUM}).cnt > 0;
   }
 
-  // One counter per proc state, showing how many processes were in that state
-  // at any point in time, ordered by declaration order in the proto, then one
-  // per freezer state.
+  // The alive process count as the group's own track, then one counter per
+  // proc state, showing how many processes were in that state at any point in
+  // time, ordered by declaration order in the proto, then one per freezer
+  // state.
   private async createConcurrencyTracks(ctx: Trace): Promise<TrackNode> {
+    const aliveUri = `${ProcessState.id}#count.alive`;
+    ctx.tracks.registerTrack({
+      uri: aliveUri,
+      renderer: CounterTrack.create({
+        trace: ctx,
+        uri: aliveUri,
+        sqlSource: `
+          SELECT ts, concurrency AS value
+          FROM _android_process_state_alive_concurrency
+        `,
+      }),
+      description:
+        'Total number of concurrently alive processes over time, broken down ' +
+        'by process state and freezer state underneath.',
+    });
+
     const summary = new TrackNode({
       name: 'By state',
-      isSummary: true,
+      uri: aliveUri,
     });
 
     // States entered and left within the same timestamp never reach a
