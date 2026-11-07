@@ -26,13 +26,9 @@ import {
   type FilterConjunction,
   type FilterOp,
   isUnaryFilterOp,
-  type LogicalOp,
-} from '../ir';
-import type {
-  LogicalOpContext,
-  NodeManifest,
-  RenderContext,
-} from '../node_types';
+} from '../sql_types';
+import {formatFilterConditions} from '../generator_utils';
+import type {NodeGenerators, NodeManifest, RenderContext} from '../node_types';
 import './filter.scss';
 
 export const FILTER_OPS = [
@@ -175,19 +171,25 @@ function isValid(config: FilterConfig): boolean {
   });
 }
 
-function toLogicalOp(
-  config: FilterConfig,
-  ctx: LogicalOpContext,
-): LogicalOp | undefined {
-  const input = ctx.getInputNodeId('input');
-  if (!input) return undefined;
-  return {
-    kind: 'filter',
-    input,
-    conditions: config.conditions.filter((c) => c.column !== ''),
-    conjunction: config.conjunction ?? 'AND',
-  };
+function whereExpr(config: FilterConfig): string {
+  return formatFilterConditions(
+    config.conditions.filter((c) => c.column !== ''),
+    config.conjunction ?? 'AND',
+  );
 }
+
+const generators: NodeGenerators<FilterConfig> = {
+  sql: (config, ctx) => {
+    if (ctx.input('input') === undefined) return undefined;
+    const where = whereExpr(config);
+    return where !== '' ? {where} : {};
+  },
+  psn: (config, ctx) => {
+    if (ctx.input('input') === undefined) return undefined;
+    const where = whereExpr(config);
+    return {stages: where !== '' ? [`WHERE ${where}`] : []};
+  },
+};
 
 export const manifest: NodeManifest<FilterConfig> = {
   title: 'Filter',
@@ -202,5 +204,5 @@ export const manifest: NodeManifest<FilterConfig> = {
   render: renderFilterNode,
   isValid,
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
-  toLogicalOp,
+  generators,
 };

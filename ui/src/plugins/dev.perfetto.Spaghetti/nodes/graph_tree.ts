@@ -18,10 +18,11 @@ import {RadioGroup} from '../../../widgets/radio_group';
 import {Row} from '../components/row';
 import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
-import type {GraphTreeKind, LogicalOp} from '../ir';
+import type {GraphTreeKind} from '../sql_types';
+import {indentTail, subquery} from '../generator_utils';
 import type {
   ColumnContext,
-  LogicalOpContext,
+  NodeGenerators,
   NodeManifest,
   RenderContext,
 } from '../node_types';
@@ -127,27 +128,95 @@ function isValid(config: GraphTreeConfig): boolean {
   );
 }
 
-function toLogicalOp(
+function carriedNodeColumns(
   config: GraphTreeConfig,
-  ctx: LogicalOpContext,
-): LogicalOp | undefined {
-  const nodes = ctx.getInputNodeId('nodes');
-  const edges = ctx.getInputNodeId('edges');
-  const roots = ctx.getInputNodeId('roots');
-  if (!nodes || !edges || !roots || !isValid(config)) return undefined;
-  return {
-    kind: 'graph_tree',
-    treeKind: config.kind,
-    nodes,
-    edges,
-    roots,
-    nodeIdColumn: config.nodeIdColumn,
-    sourceColumn: config.sourceColumn,
-    destColumn: config.destColumn,
-    rootIdColumn: config.rootIdColumn,
-    nodeColumns: ctx.getInputColumns('nodes')?.map((c) => c.name),
-  };
+  nodeColumns: readonly string[] | undefined,
+): string[] {
+  if (nodeColumns === undefined || nodeColumns.length === 0) return ['n.*'];
+  return nodeColumns
+    .filter((c) => c !== 'parent_id')
+    .map((c) =>
+      c === config.nodeIdColumn && config.nodeIdColumn !== 'id'
+        ? `n.${c} AS id`
+        : `n.${c}`,
+    );
 }
+
+const generators: NodeGenerators<GraphTreeConfig> = {
+  sql: (config, ctx) => {
+    const nodes = ctx.input('nodes');
+    const edges = ctx.input('edges');
+    const roots = ctx.input('roots');
+    if (!nodes || !edges || !roots || !isValid(config)) return undefined;
+
+    const carried = carriedNodeColumns(
+      config,
+      ctx.getInputColumns('nodes')?.map((c) => c.name),
+    );
+    const edgesSql = `SELECT ${config.sourceColumn} AS source_node_id, ${config.destColumn} AS dest_node_id FROM ${edges.ref} WHERE ${config.sourceColumn} IS NOT NULL AND ${config.destColumn} IS NOT NULL`;
+    const rootsSql = `SELECT ${config.rootIdColumn} AS node_id FROM ${roots.ref} WHERE ${config.rootIdColumn} IS NOT NULL`;
+
+    // BFS / DFS: join the reachability macro straight onto the nodes.
+    if (config.kind === 'BFS' || config.kind === 'DFS') {
+      const macro =
+        config.kind === 'BFS' ? 'graph_reachable_bfs!' : 'graph_reachable_dfs!';
+      return {
+        includes: ['graphs.search'],
+        from:
+          `${nodes.ref} AS n\n` +
+          `JOIN ${macro}(\n  (${edgesSql}),\n  (${rootsSql})\n) AS _tree ON n.${config.nodeIdColumn} = _tree.node_id`,
+        select: [...carried, '_tree.parent_node_id AS parent_id'],
+      };
+    }
+
+    // DOMINATOR: add a synthetic super-root feeding every root, then compute
+    // the dominator tree over the reachable subgraph.
+    return {
+      includes: ['graphs.search', 'graphs.dominator_tree'],
+      from: subquery(
+        [
+          'WITH',
+          `  _edges AS (\n    ${edgesSql}\n  ),`,
+          `  _roots AS (\n    ${rootsSql}\n  ),`,
+          '  _reach AS (\n    SELECT node_id FROM graph_reachable_dfs!(_edges, _roots)\n  ),',
+          `  _super AS (\n    SELECT COALESCE(MAX(${config.nodeIdColumn}), 0) + 1 AS root_id FROM ${nodes.ref}\n  ),`,
+          '  _flow AS (\n    SELECT e.source_node_id, e.dest_node_id\n    FROM _edges AS e\n    JOIN _reach AS r ON e.source_node_id = r.node_id\n    UNION ALL\n    SELECT (SELECT root_id FROM _super) AS source_node_id, node_id AS dest_node_id\n    FROM _roots\n  ),',
+          '  _dom AS (\n    SELECT\n      node_id,\n      IIF(dominator_node_id = (SELECT root_id FROM _super), NULL, dominator_node_id) AS parent_id\n    FROM graph_dominator_tree!(_flow, (SELECT root_id FROM _super))\n    WHERE node_id != (SELECT root_id FROM _super)\n  )',
+          `SELECT\n  ${[...carried, '_dom.parent_id'].join(',\n  ')}\nFROM ${nodes.ref} AS n\nJOIN _dom ON n.${config.nodeIdColumn} = _dom.node_id`,
+        ].join('\n'),
+      ),
+    };
+  },
+  // GRAPH ... TREE expects NODES(id), EDGES(src, dst) and roots(id).
+  psn: (config, ctx) => {
+    const nodes = ctx.input('nodes');
+    const edges = ctx.input('edges');
+    const roots = ctx.input('roots');
+    if (!nodes || !edges || !roots || !isValid(config)) return undefined;
+    const nodesSrc =
+      config.nodeIdColumn === 'id'
+        ? nodes.source
+        : nodes.withStages([`RENAME ${config.nodeIdColumn} AS id`]);
+    const edgesSrc =
+      config.sourceColumn === 'src' && config.destColumn === 'dst'
+        ? edges.source
+        : edges.withStages([
+            `SELECT ${config.sourceColumn} AS src, ${config.destColumn} AS dst`,
+          ]);
+    const rootsSrc =
+      config.rootIdColumn === 'id'
+        ? roots.source
+        : roots.withStages([`SELECT ${config.rootIdColumn} AS id`]);
+    return {
+      source: [
+        `GRAPH ${config.kind} TREE`,
+        `  NODES ${indentTail(nodesSrc, '  ')}`,
+        `  EDGES ${indentTail(edgesSrc, '  ')}`,
+        `  FROM ${indentTail(rootsSrc, '  ')}`,
+      ].join('\n'),
+    };
+  },
+};
 
 export const manifest: NodeManifest<GraphTreeConfig> = {
   title: 'Graph Tree',
@@ -158,6 +227,7 @@ export const manifest: NodeManifest<GraphTreeConfig> = {
     {name: 'roots', content: 'Roots'},
   ],
   hue: 76,
+  expensive: true,
   schema: GraphTreeConfigSchema,
   defaultConfig: () => ({
     kind: 'BFS',
@@ -170,5 +240,5 @@ export const manifest: NodeManifest<GraphTreeConfig> = {
     m(GraphTreeContent, {config, updateConfig, ctx}),
   getOutputColumns,
   isValid,
-  toLogicalOp,
+  generators,
 };

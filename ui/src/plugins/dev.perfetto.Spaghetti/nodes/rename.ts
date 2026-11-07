@@ -20,10 +20,9 @@ import {ColumnPickerWithAlias} from '../components/column_picker_with_alias';
 import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
-import type {LogicalOp} from '../ir';
 import type {
   ColumnContext,
-  LogicalOpContext,
+  NodeGenerators,
   NodeManifest,
   RenderContext,
 } from '../node_types';
@@ -120,23 +119,39 @@ function isValid(config: RenameConfig): boolean {
   return config.entries.every((e) => e.alias === '' || e.column !== '');
 }
 
-function toLogicalOp(
-  config: RenameConfig,
-  ctx: LogicalOpContext,
-): LogicalOp | undefined {
-  const input = ctx.getInputNodeId('input');
-  if (!input) return undefined;
-  const renames = config.entries
-    .filter((e) => e.column !== '' && e.alias !== '' && e.column !== e.alias)
-    .map((e) => ({from: e.column, to: e.alias}));
-  const inputColumns = ctx.getInputColumns('input')?.map((c) => c.name);
-  return {
-    kind: 'rename',
-    input,
-    renames,
-    inputColumns,
-  };
+function renameMap(config: RenameConfig): Map<string, string> {
+  return new Map(
+    config.entries
+      .filter((e) => e.column !== '' && e.alias !== '' && e.column !== e.alias)
+      .map((e) => [e.column, e.alias]),
+  );
 }
+
+const generators: NodeGenerators<RenameConfig> = {
+  // Standard SQL needs the full column list to rename in place.
+  sql: (config, ctx) => {
+    if (ctx.input('input') === undefined) return undefined;
+    const renames = renameMap(config);
+    if (renames.size === 0) return {};
+    const inputColumns = ctx.getInputColumns('input');
+    if (inputColumns === undefined) {
+      return {error: 'Rename needs known input columns in Standard SQL mode.'};
+    }
+    return {
+      select: inputColumns.map((c) => {
+        const to = renames.get(c.name);
+        return to !== undefined ? `${c.name} AS ${to}` : c.name;
+      }),
+    };
+  },
+  psn: (config, ctx) => {
+    if (ctx.input('input') === undefined) return undefined;
+    const items = [...renameMap(config)].map(
+      ([from, to]) => `${from} AS ${to}`,
+    );
+    return {stages: items.length > 0 ? [`RENAME ${items.join(', ')}`] : []};
+  },
+};
 
 export const manifest: NodeManifest<RenameConfig> = {
   title: 'Rename',
@@ -148,5 +163,5 @@ export const manifest: NodeManifest<RenameConfig> = {
   render,
   getOutputColumns,
   isValid,
-  toLogicalOp,
+  generators,
 };

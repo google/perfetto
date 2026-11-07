@@ -22,153 +22,174 @@ import type {NodeQueryBuilderStore} from './graph_model';
 import {flattenNodes, type GraphIndex} from './graph_utils';
 import {
   buildDisplayQuery,
-  buildLogicalPlan,
-  collectLiveHashes,
-  collectLogicalPlanIncludes,
-  formatLogicalPlan,
-  formatSql,
-  getLogicalOpInputs,
-  type LogicalOp,
-  type LogicalPlan,
-  type SqlDialect,
-} from './ir';
+  compose,
+  formatPlan,
+  type FormatResult,
+} from './compose';
+import {buildPlan, collectLiveHashes, type Plan} from './plan';
+import type {SqlDialect} from './sql_types';
 
 const DEFAULT_MAX_ORPHANS = 16;
 
-// Potentially expensive ops whose output is always materialized into a cache
-// table. Everything else folds into the next table's query or the final read.
-const EXPENSIVE_KINDS: ReadonlySet<LogicalOp['kind']> = new Set([
-  'aggregate',
-  'sort',
-  'join',
-  'union',
-  'interval_intersect',
-  'interval_flatten',
-  'interval_fill_gaps',
-  'interval_merge',
-  'intervals_from_events',
-  'tree_accumulate',
-  'graph_tree',
-  'raw_sql',
-]);
-
+/** A cache table: an expensive node plus the cheap nodes folded into it. */
 export interface MaterializationStep {
   readonly hash: string;
-  readonly plan: LogicalPlan;
-  readonly deps: readonly string[];
+  /** The expensive node whose output this table holds. */
+  readonly rootId: string;
+  /** Nodes rendered inline in this step's query, in topological order. */
   readonly nodeIds: readonly string[];
+  /** Hashes of the cache tables this step reads from. */
+  readonly deps: readonly string[];
+}
+
+/** The query that reads the target's result (always Standard SQL). */
+export interface MaterializationOutput {
+  readonly rootId: string;
+  /** Nodes rendered inline; empty when the target itself is a cache table. */
+  readonly nodeIds: readonly string[];
+  readonly deps: readonly string[];
 }
 
 export interface MaterializationPlan {
+  readonly plan: Plan;
+  /** In dependency order: every step comes after the steps it reads. */
   readonly steps: readonly MaterializationStep[];
-  readonly finalRead: LogicalPlan;
+  readonly output: MaterializationOutput;
   readonly includes: readonly string[];
 }
 
-// Partition a `LogicalPlan` into dialect-agnostic cacheable materialization
-// steps plus a lightweight `finalRead` subplan. The output of every expensive
-// op becomes a cache table; everything else folds into the next table's query
-// or the final read. Cut points are a pure function of the plan - the cache
-// only decides which steps execute.
-export function planMaterialization(plan: LogicalPlan): MaterializationPlan {
+// Partition a plan into cacheable steps plus an output query. The output of
+// every expensive node becomes a cache table; everything else folds into the
+// next table's query or the output query. Cut points are a pure function of
+// the plan - the cache only decides which steps execute.
+export function planMaterialization(plan: Plan): MaterializationPlan {
   const nodeById = new Map(plan.nodes.map((n) => [n.nodeId, n]));
+  const isCut = (id: string) => nodeById.get(id)?.expensive ?? false;
 
-  let targetId = plan.targetNodeId;
-  while (true) {
-    const t = nodeById.get(targetId);
-    if (t?.op.kind === 'passthrough') {
-      targetId = t.op.input;
-    } else {
-      break;
-    }
-  }
-
-  const cutNodeIds = new Set<string>();
-  for (const n of plan.nodes) {
-    if (EXPENSIVE_KINDS.has(n.op.kind)) {
-      cutNodeIds.add(n.nodeId);
-    }
-  }
-
-  function buildSubplan(rootId: string, treatRootAsCut: boolean) {
-    const reached = new Set<string>();
-    const cutBoundary = new Set<string>();
-    function mark(id: string): void {
-      if (reached.has(id)) return;
-      reached.add(id);
-      if ((treatRootAsCut || id !== rootId) && cutNodeIds.has(id)) {
-        cutBoundary.add(id);
+  // Nodes reachable from `rootId` without crossing a cut, plus the cuts hit.
+  function collect(rootId: string, rootIsMember: boolean) {
+    const members = new Set<string>();
+    const boundary = new Set<string>();
+    function visit(id: string): void {
+      if (members.has(id) || boundary.has(id)) return;
+      if (isCut(id) && !(rootIsMember && id === rootId)) {
+        boundary.add(id);
         return;
       }
-      const n = nodeById.get(id);
-      if (n) getLogicalOpInputs(n.op).forEach(mark);
+      members.add(id);
+      nodeById.get(id)?.inputs.forEach((inp) => visit(inp.nodeId));
     }
-    mark(rootId);
-
-    const raw = plan.nodes
-      .filter((n) => reached.has(n.nodeId))
-      .map((n) =>
-        cutBoundary.has(n.nodeId)
-          ? {
-              nodeId: n.nodeId,
-              op: {kind: 'scan' as const, table: n.hash},
-              hash: n.hash,
-            }
-          : {nodeId: n.nodeId, op: n.op, hash: n.hash},
-      );
-    const refs = new Map<string, number>();
-    for (const r of raw) {
-      for (const inp of getLogicalOpInputs(r.op)) {
-        refs.set(inp, (refs.get(inp) ?? 0) + 1);
-      }
-    }
+    visit(rootId);
     return {
-      plan: {
-        nodes: raw.map((r) => ({...r, refCount: refs.get(r.nodeId) ?? 0})),
-        targetNodeId: rootId,
-      },
-      cutDeps: [...cutBoundary],
-      nodeIds: raw
-        .filter((r) => !cutBoundary.has(r.nodeId) && r.op.kind !== 'scan')
-        .map((r) => r.nodeId),
+      nodeIds: plan.nodes.map((n) => n.nodeId).filter((id) => members.has(id)),
+      deps: [...boundary],
     };
   }
 
-  const finalSub = buildSubplan(targetId, true);
-  const visited = new Set<string>();
   const byHash = new Map<string, MaterializationStep>();
   const orderedHashes: string[] = [];
+  const visited = new Set<string>();
 
-  function collectCutStep(cutId: string): void {
+  function collectStep(cutId: string): void {
     if (visited.has(cutId)) return;
     visited.add(cutId);
     const hash = nodeById.get(cutId)!.hash;
-    const sub = buildSubplan(cutId, false);
-    sub.cutDeps.forEach(collectCutStep);
+    const sub = collect(cutId, true);
+    sub.deps.forEach(collectStep);
     const prev = byHash.get(hash);
-    if (prev) {
+    if (prev !== undefined) {
+      // Identical subgraph elsewhere: same table, credit both sets of nodes.
       byHash.set(hash, {
         ...prev,
         nodeIds: [...new Set([...prev.nodeIds, ...sub.nodeIds])],
       });
       return;
     }
-    const deps = [...new Set(sub.cutDeps.map((id) => nodeById.get(id)!.hash))];
-    byHash.set(hash, {hash, plan: sub.plan, deps, nodeIds: sub.nodeIds});
+    byHash.set(hash, {
+      hash,
+      rootId: cutId,
+      nodeIds: sub.nodeIds,
+      deps: [...new Set(sub.deps.map((id) => nodeById.get(id)!.hash))],
+    });
     orderedHashes.push(hash);
   }
 
-  finalSub.cutDeps.forEach(collectCutStep);
+  const out = collect(plan.targetNodeId, false);
+  out.deps.forEach(collectStep);
 
   return {
+    plan,
     steps: orderedHashes.map((h) => byHash.get(h)!),
-    finalRead: finalSub.plan,
-    includes: collectLogicalPlanIncludes(plan),
+    output: {
+      rootId: plan.targetNodeId,
+      nodeIds: out.nodeIds,
+      deps: [...new Set(out.deps.map((id) => nodeById.get(id)!.hash))],
+    },
+    includes: plan.includes,
   };
 }
 
-// Return the subset of `matPlan.steps` hashes required to serve `finalRead`:
-// walks backward from `finalRead` and stops descending past already-warm steps
+function hashToNodeTable(
+  matPlan: MaterializationPlan,
+  tableName: (hash: string) => string,
+): (nodeId: string) => string {
+  const hashById = new Map(matPlan.plan.nodes.map((n) => [n.nodeId, n.hash]));
+  return (nodeId) => tableName(hashById.get(nodeId) ?? nodeId);
+}
+
+/**
+ * The query body that builds a step's cache table (without the
+ * `CREATE PERFETTO TABLE` wrapper). `tableName` maps a dependency's hash to
+ * the table to read it from (default: the hash itself).
+ */
+export function formatStep(
+  matPlan: MaterializationPlan,
+  step: MaterializationStep,
+  dialect: SqlDialect,
+  tableName: (hash: string) => string = (h) => h,
+): FormatResult {
+  return compose(
+    matPlan.plan,
+    {
+      members: new Set(step.nodeIds),
+      rootId: step.rootId,
+      tableFor: hashToNodeTable(matPlan, tableName),
+    },
+    dialect,
+  );
+}
+
+/**
+ * The query that reads the target's result. Always Standard SQL: the DataGrid
+ * and details panels wrap it in plain SQL, which can't contain a pipe query.
+ */
+export function formatOutput(
+  matPlan: MaterializationPlan,
+  tableName: (hash: string) => string = (h) => h,
+): FormatResult {
+  const {output} = matPlan;
+  if (output.nodeIds.length === 0) {
+    const table = hashToNodeTable(matPlan, tableName)(output.rootId);
+    return {
+      ok: true,
+      sql: `SELECT * FROM ${table}`,
+      includes: [],
+      relation: table,
+    };
+  }
+  return compose(
+    matPlan.plan,
+    {
+      members: new Set(output.nodeIds),
+      rootId: output.rootId,
+      tableFor: hashToNodeTable(matPlan, tableName),
+    },
+    'sql',
+  );
+}
+
+// Return the subset of `matPlan.steps` hashes required to serve the output:
+// walks backward from the output and stops descending past already-warm steps
 // so evicted ancestors of warm tables are never unnecessarily rebuilt.
 export function computeNeededStepHashes(
   matPlan: MaterializationPlan,
@@ -183,11 +204,7 @@ export function computeNeededStepHashes(
       stepByHash.get(hash)?.deps.forEach(visit);
     }
   }
-  for (const {op} of matPlan.finalRead.nodes) {
-    if (op.kind === 'scan' && stepByHash.has(op.table)) {
-      visit(op.table);
-    }
-  }
+  matPlan.output.deps.forEach(visit);
   return needed;
 }
 
@@ -331,8 +348,8 @@ export class MaterializationService {
     return this._lastIncludesTimeMs;
   }
 
-  planFor(logicalPlan: LogicalPlan): MaterializationPlan {
-    return planMaterialization(logicalPlan);
+  planFor(plan: Plan): MaterializationPlan {
+    return planMaterialization(plan);
   }
 
   scheduleUpdate(
@@ -423,11 +440,11 @@ export class MaterializationService {
     dialect: SqlDialect,
   ): Promise<void> {
     const index = this.updateGraphState(store, sqlModules);
-    const logicalPlan = activeNodeId
-      ? buildLogicalPlan(index, activeNodeId, sqlModules)
+    const plan = activeNodeId
+      ? buildPlan(index, activeNodeId, sqlModules)
       : undefined;
 
-    if (!logicalPlan) {
+    if (!plan) {
       this.clearActiveOutput();
       this._activeDialect = dialect;
       const evicted = await this.evictOrphans(this.maxOrphans);
@@ -437,10 +454,10 @@ export class MaterializationService {
 
     this._evaluatedNodeId = activeNodeId;
 
-    const displayRes = formatLogicalPlan(logicalPlan, dialect, {
+    const displayRes = formatPlan(plan, dialect, {
       includeModuleHeaders: true,
     });
-    const displaySql = buildDisplayQuery(logicalPlan, dialect);
+    const displaySql = buildDisplayQuery(plan, dialect);
 
     if (
       displaySql !== undefined &&
@@ -458,7 +475,7 @@ export class MaterializationService {
 
     try {
       if (!displayRes.ok) throw new Error(displayRes.error);
-      const matPlan = this.planFor(logicalPlan);
+      const matPlan = this.planFor(plan);
       await this.executeMaterializationPlan(matPlan, dialect);
       this._error = undefined;
     } catch (e) {
@@ -496,16 +513,12 @@ export class MaterializationService {
     const formattedSteps: Array<{step: MaterializationStep; sql: string}> = [];
     for (const step of matPlan.steps) {
       if (!neededHashes.has(step.hash)) continue;
-      const res = formatLogicalPlan(step.plan, dialect, {
-        includeModuleHeaders: false,
-      });
+      const res = formatStep(matPlan, step, dialect);
       if (!res.ok) throw new Error(res.error);
       formattedSteps.push({step, sql: res.sql});
     }
 
-    const finalReadRes = formatSql(matPlan.finalRead, {
-      includeModuleHeaders: false,
-    });
+    const finalReadRes = formatOutput(matPlan);
     if (!finalReadRes.ok) throw new Error(finalReadRes.error);
 
     this._lastIncludesTimeMs = undefined;
@@ -597,11 +610,7 @@ export class MaterializationService {
       runOutcomes.set(step.hash, {kind: 'built', timeMs});
     }
 
-    const singleScan =
-      matPlan.finalRead.nodes.length === 1 &&
-      matPlan.finalRead.nodes[0]?.op.kind === 'scan'
-        ? matPlan.finalRead.nodes[0].op.table
-        : undefined;
+    const singleScan = finalReadRes.relation;
 
     const readQuerySql =
       singleScan !== undefined

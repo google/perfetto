@@ -27,19 +27,16 @@ import {
   getOutputColumnsForNode,
   tryGetManifest,
 } from './graph_utils';
-import {
-  buildDisplayQuery,
-  buildLogicalPlan,
-  formatLogicalPlan,
-  formatSql,
-  type LogicalPlan,
-  type SqlDialect,
-} from './ir';
+import {buildDisplayQuery, formatPlan} from './compose';
 import {
   computeNeededStepHashes,
+  formatOutput,
+  formatStep,
   type MaterializationService,
   planMaterialization,
 } from './materialization';
+import {buildPlan, type Plan} from './plan';
+import type {SqlDialect} from './sql_types';
 import type {ChartConfig} from './nodes/chart';
 
 export const DEFAULT_EVAL_ROW_LIMIT = 50;
@@ -103,7 +100,7 @@ interface PreparedNodeReadQuery {
 
 async function prepareNodeReadQuery(
   engine: Engine,
-  logicalPlan: LogicalPlan,
+  plan: Plan,
   targetId: string,
   dialect: SqlDialect,
   matService: MaterializationService | undefined,
@@ -120,7 +117,7 @@ async function prepareNodeReadQuery(
   }
 
   const warmHashes = matService?.warmHashes ?? new Set<string>();
-  const matPlan = planMaterialization(logicalPlan);
+  const matPlan = planMaterialization(plan);
   const neededHashes = computeNeededStepHashes(matPlan, warmHashes);
 
   let usesWarmHash = false;
@@ -134,7 +131,7 @@ async function prepareNodeReadQuery(
   // In pure SQL dialect with no warm upstream tables to reuse, execute as a
   // single CTE query without creating/dropping intermediate tables.
   if (dialect === 'sql' && !usesWarmHash) {
-    const formatted = formatSql(logicalPlan, {includeModuleHeaders: false});
+    const formatted = formatPlan(plan, 'sql');
     if (!formatted.ok) {
       throw new Error(formatted.error);
     }
@@ -151,61 +148,41 @@ async function prepareNodeReadQuery(
     await engine.query(`INCLUDE PERFETTO MODULE ${inc}`);
   }
 
+  // Steps that aren't already cached are built into temporary tables; warm
+  // steps are read straight from their cache tables.
   const runPrefix = `_qb_eval_${shortUuid().replace(/[^a-zA-Z0-9_]/g, '')}_`;
-  const hashRemap = new Map<string, string>();
+  const tempNames = new Map<string, string>();
   const tempTables: string[] = [];
-
   for (const [idx, step] of matPlan.steps.entries()) {
     if (!neededHashes.has(step.hash) || warmHashes.has(step.hash)) continue;
     const tempName = `${runPrefix}${idx}`;
-    hashRemap.set(step.hash, tempName);
+    tempNames.set(step.hash, tempName);
     tempTables.push(tempName);
   }
-
-  function remapSql(sql: string): string {
-    let out = sql;
-    for (const [origHash, tempName] of hashRemap) {
-      out = out.replaceAll(origHash, tempName);
-    }
-    return out;
-  }
+  const tableName = (hash: string) => tempNames.get(hash) ?? hash;
 
   try {
     for (const step of matPlan.steps) {
-      const tempName = hashRemap.get(step.hash);
+      const tempName = tempNames.get(step.hash);
       if (tempName === undefined) continue;
-      const stepRes = formatLogicalPlan(step.plan, dialect, {
-        includeModuleHeaders: false,
-      });
+      const stepRes = formatStep(matPlan, step, dialect, tableName);
       if (!stepRes.ok) {
         throw new Error(stepRes.error);
       }
       await engine.query(
-        `CREATE OR REPLACE PERFETTO TABLE ${tempName} AS\n${remapSql(stepRes.sql)}`,
+        `CREATE OR REPLACE PERFETTO TABLE ${tempName} AS\n${stepRes.sql}`,
       );
     }
 
-    const singleScan =
-      matPlan.finalRead.nodes.length === 1 &&
-      matPlan.finalRead.nodes[0]?.op.kind === 'scan'
-        ? matPlan.finalRead.nodes[0].op.table
-        : undefined;
-
-    if (singleScan !== undefined) {
-      return {
-        readSql: `SELECT * FROM ${remapSql(singleScan)}`,
-        tempTables,
-      };
-    }
-
-    const finalRes = formatSql(matPlan.finalRead, {
-      includeModuleHeaders: false,
-    });
+    const finalRes = formatOutput(matPlan, tableName);
     if (!finalRes.ok) {
       throw new Error(finalRes.error);
     }
     return {
-      readSql: remapSql(finalRes.sql).trim().replace(/;+$/, ''),
+      readSql:
+        finalRes.relation !== undefined
+          ? `SELECT * FROM ${finalRes.relation}`
+          : finalRes.sql.trim().replace(/;+$/, ''),
       tempTables,
     };
   } catch (e) {
@@ -250,8 +227,8 @@ export async function evaluateSpaghettiNode(
 
   const manifest = tryGetManifest(node.type);
   const title = manifest?.title ?? node.type;
-  const logicalPlan = buildLogicalPlan(index, targetId, sqlModules);
-  if (!logicalPlan) {
+  const plan = buildPlan(index, targetId, sqlModules);
+  if (!plan) {
     const blocker = findUpstreamPlanBlocker(index, targetId);
     if (blocker !== undefined) {
       if (blocker.nodeId === targetId) {
@@ -268,7 +245,7 @@ export async function evaluateSpaghettiNode(
     );
   }
 
-  const displaySql = buildDisplayQuery(logicalPlan, dialect) ?? '';
+  const displaySql = buildDisplayQuery(plan, dialect) ?? '';
   const limit = Math.max(
     0,
     Math.min(
@@ -280,7 +257,7 @@ export async function evaluateSpaghettiNode(
 
   const {readSql, tempTables} = await prepareNodeReadQuery(
     engine,
-    logicalPlan,
+    plan,
     targetId,
     dialect,
     matService,

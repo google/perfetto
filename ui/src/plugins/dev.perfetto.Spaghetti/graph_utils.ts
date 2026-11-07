@@ -26,7 +26,6 @@ import {manifest as extendNode} from './nodes/extend';
 import {manifest as dropNode} from './nodes/drop';
 import {manifest as renameNode} from './nodes/rename';
 import {manifest as setNode} from './nodes/set';
-import {manifest as asNode} from './nodes/as';
 import {manifest as distinctNode} from './nodes/distinct';
 import {manifest as groupByNode} from './nodes/groupby';
 import {manifest as joinNode} from './nodes/join';
@@ -61,7 +60,6 @@ export const NODE_REGISTRY: Readonly<Record<string, NodeManifest>> = {
   drop: dropNode,
   rename: renameNode,
   set: setNode,
-  as: asNode,
   distinct: distinctNode,
   filter: filterNode,
   sort: sortNode,

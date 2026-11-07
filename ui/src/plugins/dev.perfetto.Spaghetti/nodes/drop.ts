@@ -17,11 +17,10 @@ import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
-  LogicalOpContext,
+  NodeGenerators,
   NodeManifest,
   RenderContext,
 } from '../node_types';
-import type {LogicalOp} from '../ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
@@ -97,27 +96,28 @@ function isValid(): boolean {
   return true;
 }
 
-function toLogicalOp(
-  config: DropConfig,
-  ctx: LogicalOpContext,
-): LogicalOp | undefined {
-  const input = ctx.getInputNodeId('input');
-  if (!input) return undefined;
-
-  const dropColumns = config.columns.filter((c) => c !== '');
-  const dropped = new Set(dropColumns);
-  const inputColumns = ctx.getInputColumns('input');
-  const remainingColumns = inputColumns
-    ?.filter((c) => !dropped.has(c.name))
-    .map((c) => c.name);
-
-  return {
-    kind: 'drop',
-    input,
-    dropColumns,
-    remainingColumns,
-  };
-}
+const generators: NodeGenerators<DropConfig> = {
+  // Standard SQL has no `SELECT * EXCEPT`, so we need the input columns.
+  sql: (config, ctx) => {
+    if (ctx.input('input') === undefined) return undefined;
+    const dropped = new Set(config.columns.filter((c) => c !== ''));
+    if (dropped.size === 0) return {};
+    const inputColumns = ctx.getInputColumns('input');
+    if (inputColumns === undefined) {
+      return {error: 'Drop needs known input columns in Standard SQL mode.'};
+    }
+    return {
+      select: inputColumns
+        .filter((c) => !dropped.has(c.name))
+        .map((c) => c.name),
+    };
+  },
+  psn: (config, ctx) => {
+    if (ctx.input('input') === undefined) return undefined;
+    const dropped = config.columns.filter((c) => c !== '');
+    return {stages: dropped.length > 0 ? [`DROP ${dropped.join(', ')}`] : []};
+  },
+};
 
 export const manifest: NodeManifest<DropConfig> = {
   title: 'Drop',
@@ -129,5 +129,5 @@ export const manifest: NodeManifest<DropConfig> = {
   render,
   getOutputColumns,
   isValid,
-  toLogicalOp,
+  generators,
 };

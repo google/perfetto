@@ -20,8 +20,9 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {Row} from '../components/row';
 import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
-import type {DataTableColumnType, LogicalOp} from '../ir';
-import type {NodeManifest} from '../node_types';
+import type {DataTableColumnType} from '../sql_types';
+import {formatDataTableSql, subquery} from '../generator_utils';
+import type {NodeGenerators, NodeManifest} from '../node_types';
 import './data_table.scss';
 
 const DATA_TABLE_COLUMN_TYPES = [
@@ -396,16 +397,26 @@ function getOutputColumns(config: DataTableConfig): ColumnDef[] | undefined {
   }));
 }
 
-function toLogicalOp(config: DataTableConfig): LogicalOp | undefined {
-  if (!isValid(config)) return undefined;
-  return {
-    kind: 'data_table',
+function dataTableSql(config: DataTableConfig): string {
+  return formatDataTableSql({
     columns: config.columns,
     rows: config.rows.map((row) =>
       config.columns.map((_, idx) => row[idx] ?? ''),
     ),
-  };
+  });
 }
+
+const generators: NodeGenerators<DataTableConfig> = {
+  sql: (config) => {
+    if (!isValid(config)) return undefined;
+    return {from: subquery(dataTableSql(config))};
+  },
+  // A plain SQL subquery is a valid PSN source.
+  psn: (config) => {
+    if (!isValid(config)) return undefined;
+    return {source: `FROM ${subquery(dataTableSql(config))}`};
+  },
+};
 
 export const manifest: NodeManifest<DataTableConfig> = {
   title: 'Data Table',
@@ -422,5 +433,5 @@ export const manifest: NodeManifest<DataTableConfig> = {
   render: (config, updateConfig) => m(DataTableContent, {config, updateConfig}),
   getOutputColumns,
   isValid,
-  toLogicalOp,
+  generators,
 };

@@ -19,6 +19,7 @@ import {InputPortStepper} from '../components/input_port_stepper';
 import {Stack} from '../components/stack';
 import type {NodeManifest} from '../node_types';
 import type {Port} from '../graph_model';
+import {subquery} from '../generator_utils';
 
 const UnionConfigSchema = z
   .object({
@@ -35,6 +36,7 @@ export const manifest: NodeManifest<UnionConfig> = {
   title: 'Union',
   icon: 'merge',
   hue: 298,
+  expensive: true,
   schema: UnionConfigSchema,
   getInputs(config: UnionConfig): Port[] {
     return Array.from({length: config.numInputs}, (_, i) => ({
@@ -67,11 +69,34 @@ export const manifest: NodeManifest<UnionConfig> = {
       }),
     ]);
   },
-  toLogicalOp(config, ctx) {
-    const inputs = ctx.inputPorts
-      .map((p) => ctx.getInputNodeId(p.name))
-      .filter((id): id is string => id !== undefined);
-    if (inputs.length === 0) return undefined;
-    return {kind: 'union', inputs, distinct: config.distinct};
+  generators: {
+    sql: (config, ctx) => {
+      const inputs = ctx.inputs();
+      const first = inputs[0];
+      if (first === undefined) return undefined;
+      if (inputs.length === 1) return {};
+      const kw = config.distinct ? 'UNION' : 'UNION ALL';
+      return {
+        from: subquery(
+          inputs.map((i) => `SELECT * FROM ${i.input.ref}`).join(`\n${kw}\n`),
+        ),
+      };
+    },
+    // Proposed pipe-native union syntax (not yet supported by TP):
+    //   FROM <a>
+    //   UNION ALL (<b>)
+    psn: (config, ctx) => {
+      const inputs = ctx.inputs();
+      const first = inputs[0];
+      if (first === undefined) return undefined;
+      if (inputs.length === 1) return {};
+      const kw = config.distinct ? 'UNION' : 'UNION ALL';
+      return {
+        source: [
+          `FROM ${first.input.source}`,
+          ...inputs.slice(1).map((i) => `${kw} ${i.input.withStages([])}`),
+        ].join('\n'),
+      };
+    },
   },
 };

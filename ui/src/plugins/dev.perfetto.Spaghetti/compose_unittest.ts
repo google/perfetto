@@ -15,18 +15,12 @@
 import {ensureDefined} from '../../base/assert';
 import type {NodeData, RootNodeData} from './graph_model';
 import {flattenNodes} from './graph_utils';
-import {
-  buildDisplayQuery,
-  buildLogicalPlan,
-  formatLogicalPlan,
-  formatPipe,
-  formatSql,
-  type LogicalPlan,
-  type SqlDialect,
-} from './ir';
-import {planMaterialization} from './materialization';
+import {buildDisplayQuery, formatPlan} from './compose';
+import {formatOutput, formatStep, planMaterialization} from './materialization';
+import {buildPlan, type Plan} from './plan';
+import type {SqlDialect} from './sql_types';
 
-function nodeHash(plan: LogicalPlan, id: string): string {
+function nodeHash(plan: Plan, id: string): string {
   return ensureDefined(plan.nodes.find((n) => n.nodeId === id)).hash;
 }
 
@@ -40,14 +34,12 @@ function getDisplay(
   nodeId: string,
   dialect: SqlDialect = 'sql',
 ): string {
-  const plan = ensureDefined(
-    buildLogicalPlan(makeNodes(nodeList), nodeId, undefined),
-  );
+  const plan = ensureDefined(buildPlan(makeNodes(nodeList), nodeId, undefined));
   return ensureDefined(buildDisplayQuery(plan, dialect));
 }
 
-describe('buildLogicalPlan', () => {
-  it('emits language-agnostic ops and computes refCount on diamond DAGs', () => {
+describe('buildPlan', () => {
+  it('orders nodes topologically and computes refCount on diamond DAGs', () => {
     const filter: NodeData = {
       type: 'filter',
       id: 'flt1',
@@ -73,14 +65,32 @@ describe('buildLogicalPlan', () => {
     };
 
     const plan = ensureDefined(
-      buildLogicalPlan(makeNodes([from, union]), 'u1', undefined),
+      buildPlan(makeNodes([from, union]), 'u1', undefined),
     );
     expect(plan.targetNodeId).toBe('u1');
-    expect(plan.nodes.map((n) => [n.nodeId, n.op.kind, n.refCount])).toEqual([
-      ['f1', 'scan', 1],
-      ['flt1', 'filter', 2],
-      ['u1', 'union', 0],
+    expect(plan.nodes.map((n) => [n.nodeId, n.expensive, n.refCount])).toEqual([
+      ['f1', false, 1],
+      ['flt1', false, 2],
+      ['u1', true, 0],
     ]);
+  });
+
+  it('resolves passthrough nodes to their input', () => {
+    const root: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      config: {table: 'slice'},
+      next: {
+        type: 'chart',
+        id: 'ch1',
+        config: {charts: [], numInputs: 1},
+      },
+    };
+    const plan = ensureDefined(buildPlan(makeNodes([root]), 'ch1', undefined));
+    expect(plan.targetNodeId).toBe('f1');
+    expect(plan.nodes.map((n) => n.nodeId)).toEqual(['f1']);
   });
 
   it('returns undefined when required upstream input is unconnected', () => {
@@ -93,14 +103,12 @@ describe('buildLogicalPlan', () => {
         conditions: [{column: 'dur', op: '>', value: '100'}],
       },
     };
-    expect(
-      buildLogicalPlan(makeNodes([filter]), 'flt1', undefined),
-    ).toBeUndefined();
+    expect(buildPlan(makeNodes([filter]), 'flt1', undefined)).toBeUndefined();
   });
 
   it('returns undefined for nonexistent or invalid upstream nodes', () => {
     const empty = makeNodes([]);
-    expect(buildLogicalPlan(empty, 'missing', undefined)).toBeUndefined();
+    expect(buildPlan(empty, 'missing', undefined)).toBeUndefined();
 
     const filter: NodeData = {
       type: 'filter',
@@ -115,9 +123,7 @@ describe('buildLogicalPlan', () => {
       next: filter,
       config: {table: ''},
     };
-    expect(
-      buildLogicalPlan(makeNodes([from]), 'flt1', undefined),
-    ).toBeUndefined();
+    expect(buildPlan(makeNodes([from]), 'flt1', undefined)).toBeUndefined();
   });
 });
 
@@ -148,7 +154,6 @@ describe('formatSql (Standard SQL backend)', () => {
     const select: NodeData = {
       type: 'select',
       id: 's1',
-      next: filter,
       config: {
         entries: [
           {column: 'name', alias: ''},
@@ -157,19 +162,43 @@ describe('formatSql (Standard SQL backend)', () => {
         expressions: [],
       },
     };
+    // from -> filter -> select: WHERE then SELECT folds into one block.
     const from: RootNodeData = {
       type: 'from',
       id: 'f1',
       x: 0,
       y: 0,
-      next: select,
+      next: {...filter, next: select},
       config: {table: 'slice'},
     };
-    const sql = getDisplay([from], 'flt1', 'sql');
-    expect(sql).toContain('name,\n  dur');
-    expect(sql).toContain('FROM slice');
-    expect(sql).toContain('WHERE dur > 100');
-    expect(sql).not.toContain('WITH');
+    expect(getDisplay([from], 's1', 'sql')).toBe(
+      'SELECT\n  name,\n  dur\nFROM slice\nWHERE dur > 100',
+    );
+
+    // from -> select -> filter: a WHERE after a SELECT may refer to its
+    // aliases, so it must not fold back into the same block.
+    const reversed: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      next: {...select, next: filter},
+      config: {table: 'slice'},
+    };
+    expect(getDisplay([reversed], 'flt1', 'sql')).toBe(
+      [
+        'WITH',
+        'select_1 AS (',
+        '  SELECT',
+        '    name,',
+        '    dur',
+        '  FROM slice',
+        ')',
+        'SELECT *',
+        'FROM select_1',
+        'WHERE dur > 100',
+      ].join('\n'),
+    );
   });
 
   it('generates WITH clause with readable step names when folding is not possible', () => {
@@ -199,8 +228,8 @@ describe('formatSql (Standard SQL backend)', () => {
     };
     const sql = getDisplay([from], 'flt1', 'sql');
     expect(sql).toContain('WITH');
-    expect(sql).toContain('step_1 AS (');
-    expect(sql).toContain('FROM step_1');
+    expect(sql).toContain('groupby_1 AS (');
+    expect(sql).toContain('FROM groupby_1');
     expect(sql).toContain('GROUP BY name');
     expect(sql).toContain('WHERE cnt > 5');
   });
@@ -230,10 +259,10 @@ describe('formatSql (Standard SQL backend)', () => {
       },
     };
     const sql = getDisplay([root], 'flat1', 'sql');
-    expect(sql.match(/\bWITH\b/g)?.length).toBe(1);
-    expect(sql).toContain('step_1 AS (');
-    expect(sql).toContain('_src AS (');
-    expect(sql).toContain('FROM step_1');
+    // The filter becomes a CTE; flatten's own WITH stays inside its subquery.
+    expect(sql).toContain('filter_1 AS (');
+    expect(sql).toContain('FROM (\n  WITH\n    _src AS (');
+    expect(sql).toContain('SELECT * FROM filter_1 WHERE ts IS NOT NULL');
   });
 
   it('lowers interval_intersect with stdlib module include', () => {
@@ -265,9 +294,9 @@ describe('formatSql (Standard SQL backend)', () => {
     };
 
     const plan = ensureDefined(
-      buildLogicalPlan(makeNodes([left, right, ii]), 'ii1', undefined),
+      buildPlan(makeNodes([left, right, ii]), 'ii1', undefined),
     );
-    const res = formatSql(plan, {includeModuleHeaders: true});
+    const res = formatPlan(plan, 'sql', {includeModuleHeaders: true});
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.includes).toContain('intervals.intersect');
@@ -332,17 +361,19 @@ describe('formatSql (Standard SQL backend)', () => {
     };
 
     const joinSql = getDisplay([sliceRoot, argsRoot], 'cz2hanKDC', 'sql');
-    expect(joinSql).toContain('step_1 AS (');
+    expect(joinSql).toContain('filter_1 AS (');
     expect(joinSql).toContain('FROM args');
     expect(joinSql).toContain("WHERE key = 'hipStreamSynchronize'");
-    expect(joinSql).toContain('LEFT JOIN step_1 AS r');
+    expect(joinSql).toContain('LEFT JOIN filter_1 AS r');
     expect(joinSql).toContain('r.display_value AS arg');
 
+    // The filter after the join can't fold into the join's SELECT block, but
+    // the filter and sort fold together.
     const sortSql = getDisplay([sliceRoot, argsRoot], 'cEL1iGXLx', 'sql');
-    expect(sortSql).toContain('step_2 AS (');
-    expect(sortSql).toContain('FROM step_2');
-    expect(sortSql).toContain("WHERE name = 'hipStreamSynchronize'");
-    expect(sortSql).toContain('ORDER BY dur DESC');
+    expect(sortSql).toContain('join_1 AS (');
+    expect(sortSql).toContain(
+      "SELECT *\nFROM join_1\nWHERE name = 'hipStreamSynchronize'\nORDER BY dur DESC",
+    );
   });
 
   it('shows correct SQL when clicking intermediate node', () => {
@@ -478,15 +509,19 @@ describe('formatPipe (PerfettoSQL Next backend)', () => {
     };
 
     const plan = ensureDefined(
-      buildLogicalPlan(makeNodes([left, right, ii]), 'ii1', undefined),
+      buildPlan(makeNodes([left, right, ii]), 'ii1', undefined),
     );
-    const res = formatPipe(plan);
+    const res = formatPlan(plan, 'pipe');
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.includes).toEqual([]);
     expect(res.sql).toContain('INTERVAL INTERSECTION OF (');
-    expect(res.sql).toContain('(FROM slice |> WHERE dur >= 0) AS t1');
-    expect(res.sql).toContain('(FROM sched |> WHERE dur >= 0) AS t2');
+    expect(res.sql).toContain(
+      '  (\n    FROM slice\n    |> WHERE dur >= 0\n  ) AS t1',
+    );
+    expect(res.sql).toContain(
+      '  (\n    FROM sched\n    |> WHERE dur >= 0\n  ) AS t2',
+    );
     expect(res.sql).toContain(') PER utid');
     expect(res.sql).toContain(
       '|> SELECT ts, dur, t1.id AS id_0, t2.id AS id_1',
@@ -599,7 +634,9 @@ describe('formatPipe (PerfettoSQL Next backend)', () => {
     const displaySql = getDisplay([root], 'lim1', 'sql');
     expect(displaySql).toContain('dur / 1000 AS dur');
     expect(displaySql).toContain('dur AS dur_us');
-    expect(displaySql).toContain('SELECT DISTINCT *');
+    expect(displaySql).toContain(
+      'SELECT DISTINCT\n  id,\n  dur AS dur_us\nFROM set_1',
+    );
     expect(displaySql).toContain('LIMIT 10 OFFSET 5');
   });
 
@@ -676,7 +713,10 @@ describe('formatPipe (PerfettoSQL Next backend)', () => {
       [
         'FROM sched',
         '|> SELECT ts, dur, cpu',
-        '|> INTERVAL FILL GAPS WITH (FROM (SELECT 0 AS id, 0 AS ts, 1000 AS dur) |> SELECT ts, dur) PER cpu',
+        '|> INTERVAL FILL GAPS WITH (',
+        '  FROM (SELECT 0 AS id, 0 AS ts, 1000 AS dur)',
+        '  |> SELECT ts, dur',
+        ') PER cpu',
       ].join('\n'),
     );
 
@@ -737,7 +777,10 @@ describe('formatPipe (PerfettoSQL Next backend)', () => {
       [
         'GRAPH DOMINATOR TREE',
         '  NODES heap_graph_object',
-        '  EDGES (FROM heap_graph_reference |> SELECT owner_id AS src, owned_id AS dst)',
+        '  EDGES (',
+        '    FROM heap_graph_reference',
+        '    |> SELECT owner_id AS src, owned_id AS dst',
+        '  )',
         '  FROM heap_roots',
         '|> TREE ACCUMULATE UP SUM(self_size) AS retained_size',
       ].join('\n'),
@@ -756,36 +799,6 @@ describe('formatPipe (PerfettoSQL Next backend)', () => {
     expect(sqlDisplay).toContain('WITH RECURSIVE');
     expect(sqlDisplay.match(/^WITH\b/gm)?.length).toBe(1);
     expect(sqlDisplay).toContain('SUM(v.self_size) AS retained_size');
-  });
-
-  it('lowers as stage in both dialects', () => {
-    const root: RootNodeData = {
-      type: 'from',
-      id: 'f1',
-      x: 0,
-      y: 0,
-      config: {table: 'slice'},
-      next: {
-        type: 'as',
-        id: 'as1',
-        config: {alias: 's'},
-        next: {
-          type: 'extend',
-          id: 'ext1',
-          config: {
-            entries: [{expression: 's.ts + s.dur', alias: 'ts_end'}],
-          },
-        },
-      },
-    };
-
-    expect(getDisplay([root], 'ext1', 'pipe')).toBe(
-      ['FROM slice', '|> AS s', '|> EXTEND s.ts + s.dur AS ts_end'].join('\n'),
-    );
-
-    const sqlDisplay = getDisplay([root], 'ext1', 'sql');
-    expect(sqlDisplay).toContain('s.ts + s.dur AS ts_end');
-    expect(sqlDisplay).toContain('FROM slice AS s');
   });
 
   it('lowers interval_merge (OVERLAPPING and CONSECUTIVE) in both dialects', () => {
@@ -915,12 +928,12 @@ describe('formatPipe (PerfettoSQL Next backend)', () => {
     );
 
     const stopPlan = ensureDefined(
-      buildLogicalPlan(makeNodes([stopRoot, withStopRoot]), 'ife2', undefined),
+      buildPlan(makeNodes([stopRoot, withStopRoot]), 'ife2', undefined),
     );
-    const stopSqlRes = formatLogicalPlan(stopPlan, 'sql');
+    const stopSqlRes = formatPlan(stopPlan, 'sql');
     expect(stopSqlRes.ok).toBe(false);
     expect(getDisplay([stopRoot, withStopRoot], 'ife2', 'sql')).toContain(
-      '-- Unsupported in Standard SQL: Intervals From Events with a Stop input is only supported in PerfettoSQL Next mode.',
+      '-- Intervals From Events with a Stop input is only supported in PerfettoSQL Next mode.',
     );
   });
 
@@ -973,7 +986,15 @@ describe('formatPipe (PerfettoSQL Next backend)', () => {
       },
     };
     expect(getDisplay([emptyRoot], 'dt_empty', 'sql')).toBe(
-      'SELECT\n  CAST(NULL AS INTEGER) AS src,\n  CAST(NULL AS INTEGER) AS dst\nWHERE 0',
+      [
+        'SELECT *',
+        'FROM (',
+        '  SELECT',
+        '    CAST(NULL AS INTEGER) AS src,',
+        '    CAST(NULL AS INTEGER) AS dst',
+        '  WHERE 0',
+        ')',
+      ].join('\n'),
     );
   });
 
@@ -1115,7 +1136,7 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
     };
 
     const plan = ensureDefined(
-      buildLogicalPlan(makeNodes([branchA, branchB, union]), 'u1', undefined),
+      buildPlan(makeNodes([branchA, branchB, union]), 'u1', undefined),
     );
     const filterHash = nodeHash(plan, 'flt_a');
     expect(filterHash).toMatch(/^_qb_[0-9a-f]{8}$/);
@@ -1125,26 +1146,33 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
     // into the union's own step as CTEs.
     const matPlan = planMaterialization(plan);
     expect(matPlan.steps.length).toBe(1);
-    expect(matPlan.steps[0]?.nodeIds).toEqual(['flt_a', 'flt_b', 'u1']);
-    expect(formatSql(matPlan.steps[0]!.plan)).toEqual({
+    expect(matPlan.steps[0]?.nodeIds).toEqual([
+      'from_a',
+      'flt_a',
+      'from_b',
+      'flt_b',
+      'u1',
+    ]);
+    expect(formatStep(matPlan, matPlan.steps[0]!, 'sql')).toEqual({
       ok: true,
       sql: [
         'WITH',
-        'step_1 AS (',
+        'filter_1 AS (',
         '  SELECT *',
         '  FROM slice',
         '  WHERE dur > 1000',
         '),',
-        'step_2 AS (',
+        'filter_2 AS (',
         '  SELECT *',
         '  FROM slice',
         '  WHERE dur > 1000',
         ')',
         'SELECT *',
-        'FROM step_1',
-        'UNION ALL',
-        'SELECT *',
-        'FROM step_2',
+        'FROM (',
+        '  SELECT * FROM filter_1',
+        '  UNION ALL',
+        '  SELECT * FROM filter_2',
+        ')',
       ].join('\n'),
       includes: [],
     });
@@ -1153,7 +1181,7 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
   it('changes Merkle hash when filter value or upstream table changes', () => {
     const makeFilterPlan = (table: string, val: string) =>
       ensureDefined(
-        buildLogicalPlan(
+        buildPlan(
           makeNodes([
             {
               type: 'from',
@@ -1194,20 +1222,24 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
       },
     };
     const index = makeNodes([fromChart]);
-    const fromPlan = ensureDefined(buildLogicalPlan(index, 'f1', undefined));
+    const fromPlan = ensureDefined(buildPlan(index, 'f1', undefined));
     const fromMat = planMaterialization(fromPlan);
     expect(fromMat.steps).toEqual([]);
-    expect(fromMat.finalRead.nodes[0]?.op).toEqual({
-      kind: 'scan',
-      table: 'slice',
+    expect(formatOutput(fromMat)).toEqual({
+      ok: true,
+      sql: 'SELECT *\nFROM slice',
+      includes: [],
+      relation: 'slice',
     });
 
-    const chartPlan = ensureDefined(buildLogicalPlan(index, 'ch1', undefined));
+    const chartPlan = ensureDefined(buildPlan(index, 'ch1', undefined));
     const chartMat = planMaterialization(chartPlan);
     expect(chartMat.steps).toEqual([]);
-    expect(chartMat.finalRead.nodes[0]?.op).toEqual({
-      kind: 'scan',
-      table: 'slice',
+    expect(formatOutput(chartMat)).toEqual({
+      ok: true,
+      sql: 'SELECT *\nFROM slice',
+      includes: [],
+      relation: 'slice',
     });
 
     const tr: RootNodeData = {
@@ -1217,15 +1249,14 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
       y: 0,
       config: {ts: '10', dur: '20'},
     };
-    const trPlan = ensureDefined(
-      buildLogicalPlan(makeNodes([tr]), 'tr1', undefined),
-    );
+    const trPlan = ensureDefined(buildPlan(makeNodes([tr]), 'tr1', undefined));
     const trMat = planMaterialization(trPlan);
     expect(trMat.steps).toEqual([]);
-    expect(formatSql(trMat.finalRead)).toEqual({
+    expect(formatOutput(trMat)).toEqual({
       ok: true,
-      sql: 'SELECT 0 AS id, 10 AS ts, 20 AS dur',
+      sql: 'SELECT *\nFROM (SELECT 0 AS id, 10 AS ts, 20 AS dur)',
       includes: [],
+      relation: undefined,
     });
   });
 
@@ -1247,16 +1278,14 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
         },
       },
     };
-    const plan = ensureDefined(
-      buildLogicalPlan(makeNodes([root]), 'srt1', undefined),
-    );
+    const plan = ensureDefined(buildPlan(makeNodes([root]), 'srt1', undefined));
     const sortHash = nodeHash(plan, 'srt1');
 
     // Filter + Sort fuse into a single materialized step.
     const coldMat = planMaterialization(plan);
     expect(coldMat.steps.length).toBe(1);
     expect(coldMat.steps[0]?.hash).toBe(sortHash);
-    expect(formatSql(coldMat.steps[0]!.plan)).toEqual({
+    expect(formatStep(coldMat, coldMat.steps[0]!, 'sql')).toEqual({
       ok: true,
       sql: 'SELECT *\nFROM slice\nWHERE dur > 100\nORDER BY dur DESC',
       includes: [],
@@ -1287,12 +1316,12 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
       },
     };
     const gbPlan = ensureDefined(
-      buildLogicalPlan(makeNodes([gbChain]), 'flt1', undefined),
+      buildPlan(makeNodes([gbChain]), 'flt1', undefined),
     );
     const gbMat = planMaterialization(gbPlan);
     expect(gbMat.steps.length).toBe(1);
-    expect(gbMat.steps[0]?.nodeIds).toEqual(['gb1']);
-    expect(formatSql(gbMat.finalRead)).toEqual({
+    expect(gbMat.steps[0]?.nodeIds).toEqual(['f1', 'gb1']);
+    expect(formatOutput(gbMat)).toEqual({
       ok: true,
       sql: `SELECT *\nFROM ${gbMat.steps[0]!.hash}\nWHERE cnt > 5`,
       includes: [],
@@ -1329,14 +1358,18 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
     const forkIndex = makeNodes([sharedRoot, branchB]);
 
     const forkMat = planMaterialization(
-      ensureDefined(buildLogicalPlan(forkIndex, 'branch_a', undefined)),
+      ensureDefined(buildPlan(forkIndex, 'branch_a', undefined)),
     );
     expect(forkMat.steps.length).toBe(1);
-    expect(forkMat.steps[0]?.nodeIds).toEqual(['flt_shared', 'branch_a']);
+    expect(forkMat.steps[0]?.nodeIds).toEqual([
+      'f_shared',
+      'flt_shared',
+      'branch_a',
+    ]);
 
     // The cheap Limit branch needs no table at all.
     const limitMat = planMaterialization(
-      ensureDefined(buildLogicalPlan(forkIndex, 'branch_b', undefined)),
+      ensureDefined(buildPlan(forkIndex, 'branch_b', undefined)),
     );
     expect(limitMat.steps.length).toBe(0);
   });

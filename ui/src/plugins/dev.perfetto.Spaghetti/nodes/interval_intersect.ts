@@ -16,8 +16,12 @@ import m from 'mithril';
 import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
 import {Checkbox} from '../../../widgets/checkbox';
-import type {IntervalIntersectInput} from '../ir';
-import type {NodeManifest, RenderContext} from '../node_types';
+import type {
+  GeneratorContext,
+  NodeManifest,
+  RenderContext,
+} from '../node_types';
+import {indentTail, perClause} from '../generator_utils';
 import {DraggableStack} from '../components/draggable_stack';
 import {InputPortStepper} from '../components/input_port_stepper';
 import {Stack} from '../components/stack';
@@ -139,10 +143,27 @@ function getSourceColumnsForInputs(
   });
 }
 
+/** Non-interval columns picked from each operand `tN`, de-duplicated. */
+function pickedColumns<I>(ctx: GeneratorContext<I>): string[] {
+  const inputs = ctx.inputs();
+  const sourceCols = getSourceColumnsForInputs(
+    inputs.map((i) => ctx.getInputColumns(i.port)),
+    inputs.length,
+  );
+  return sourceCols.flatMap((cols, i) =>
+    cols.map((col) =>
+      col.alias !== col.name
+        ? `t${i + 1}.${col.name} AS ${col.alias}`
+        : `t${i + 1}.${col.name}`,
+    ),
+  );
+}
+
 export const manifest: NodeManifest<IntervalIntersectConfig> = {
   title: 'Interval Intersect',
   icon: 'compare_arrows',
   hue: 312,
+  expensive: true,
   schema: IntervalIntersectConfigSchema,
   getInputs(config: IntervalIntersectConfig): Port[] {
     return Array.from({length: config.numInputs}, (_, i) => ({
@@ -182,35 +203,66 @@ export const manifest: NodeManifest<IntervalIntersectConfig> = {
     }
     return result;
   },
-  toLogicalOp(config, ctx) {
-    const connected: Array<{
-      readonly portName: string;
-      readonly nodeId: string;
-    }> = [];
-    for (const p of ctx.inputPorts) {
-      const nodeId = ctx.getInputNodeId(p.name);
-      if (nodeId !== undefined) {
-        connected.push({portName: p.name, nodeId});
+  generators: {
+    // `_interval_intersect!` yields (ts, dur, id_0..id_n); picked input
+    // columns are joined back on from each operand by id.
+    sql: (config, ctx) => {
+      const inputs = ctx.inputs();
+      if (inputs.length === 0) return undefined;
+      const negDur = config.filterNegativeDur;
+      if (inputs.length === 1) return negDur ? {where: 'dur >= 0'} : {};
+
+      const operands = inputs.map((i) =>
+        negDur ? `(SELECT * FROM ${i.input.ref} WHERE dur >= 0)` : i.input.ref,
+      );
+      const partition = config.partitionColumns.filter((c) => c !== '');
+      const macro = `_interval_intersect!(\n  (${operands.join(',\n   ')}),\n  (${partition.join(', ')})\n)`;
+      const picked = pickedColumns(ctx);
+      if (picked.length === 0) {
+        return {from: macro, includes: ['intervals.intersect']};
       }
-    }
-    if (connected.length === 0) return undefined;
-    const inputCols = connected.map((c) => ctx.getInputColumns(c.portName));
-    const sourceCols = getSourceColumnsForInputs(inputCols, connected.length);
+      return {
+        includes: ['intervals.intersect'],
+        from: [
+          `${macro} ii`,
+          ...inputs.map(
+            (inp, i) =>
+              `JOIN ${inp.input.ref} t${i + 1} ON ii.id_${i} = t${i + 1}.id`,
+          ),
+        ].join('\n'),
+        select: [
+          'ii.ts',
+          'ii.dur',
+          ...inputs.map((_, i) => `ii.id_${i}`),
+          ...picked,
+        ],
+      };
+    },
+    // Native INTERVAL INTERSECTION OF; the SELECT stage dedupes the operands'
+    // id / ts / dur columns into id_0..id_n and applies picked columns.
+    psn: (config, ctx) => {
+      const inputs = ctx.inputs();
+      if (inputs.length === 0) return undefined;
+      const negDur = config.filterNegativeDur ? ['WHERE dur >= 0'] : [];
+      if (inputs.length === 1) return {stages: negDur};
 
-    const inputs: IntervalIntersectInput[] = connected.map((c, i) => ({
-      nodeId: c.nodeId,
-      columns: (sourceCols[i] ?? []).map((col) => ({
-        name: col.name,
-        alias: col.alias,
-      })),
-    }));
-
-    return {
-      kind: 'interval_intersect',
-      inputs,
-      partitionColumns: config.partitionColumns.filter((c) => c !== ''),
-      filterNegativeDur: config.filterNegativeDur,
-    };
+      const operands = inputs.map(
+        (i, idx) =>
+          `${indentTail(i.input.withStages(negDur), '  ')} AS t${idx + 1}`,
+      );
+      const partition = config.partitionColumns.filter((c) => c !== '');
+      return {
+        source: `INTERVAL INTERSECTION OF (\n  ${operands.join(',\n  ')}\n)${perClause(partition)}`,
+        stages: [
+          `SELECT ${[
+            'ts',
+            'dur',
+            ...inputs.map((_, i) => `t${i + 1}.id AS id_${i}`),
+            ...pickedColumns(ctx),
+          ].join(', ')}`,
+        ],
+      };
+    },
   },
   render(config, updateConfig, ctx) {
     return m(IntervalIntersectContent, {config, updateConfig, ctx});

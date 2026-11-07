@@ -27,10 +27,17 @@ import {
 } from '../components/pipeline_agg_row';
 import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
-import type {IntervalMergeKind, LogicalOp} from '../ir';
+import type {IntervalMergeKind} from '../sql_types';
+import {
+  type AggSpec,
+  formatAggs,
+  partitionBy,
+  perClause,
+  subquery,
+} from '../generator_utils';
 import type {
   ColumnContext,
-  LogicalOpContext,
+  NodeGenerators,
   NodeManifest,
   RenderContext,
 } from '../node_types';
@@ -224,37 +231,113 @@ function isValid(config: IntervalMergeConfig): boolean {
   return true;
 }
 
-function toLogicalOp(
-  config: IntervalMergeConfig,
-  ctx: LogicalOpContext,
-): LogicalOp | undefined {
-  const input = ctx.getInputNodeId('input');
-  if (input === undefined || !isValid(config)) return undefined;
-  return {
-    kind: 'interval_merge',
-    input,
-    mergeKind: config.mergeKind,
-    keyColumns:
-      config.mergeKind === 'CONSECUTIVE'
-        ? config.keyColumns.filter((c) => c !== '')
-        : [],
-    partitionColumns: config.partitionColumns.filter((c) => c !== ''),
-    aggregations: config.aggregations
-      .filter((a) => a.func === 'COUNT' || a.column !== '')
-      .map((a) => ({
-        func: a.func,
-        column: a.func === 'COUNT' ? '*' : a.column,
-        alias: pipelineAggAlias(a),
-      })),
-    filterNegativeDur: config.filterNegativeDur,
-  };
+function mergeAggs(config: IntervalMergeConfig): AggSpec[] {
+  return config.aggregations
+    .filter((a) => a.func === 'COUNT' || a.column !== '')
+    .map((a) => ({
+      func: a.func,
+      column: a.func === 'COUNT' ? '*' : a.column,
+      alias: pipelineAggAlias(a),
+    }));
 }
+
+function mergeKeys(config: IntervalMergeConfig): string[] {
+  return config.mergeKind === 'CONSECUTIVE'
+    ? config.keyColumns.filter((c) => c !== '')
+    : [];
+}
+
+// Gaps-and-islands: a running group id starts a new group whenever the
+// interval doesn't overlap (OVERLAPPING) / abut with equal keys (CONSECUTIVE)
+// the previous one; each group collapses to a single interval.
+function mergeSql(ref: string, config: IntervalMergeConfig): string {
+  const partition = config.partitionColumns.filter((c) => c !== '');
+  const uniquePer = [...new Set(partition)];
+  const partBy = partitionBy(uniquePer);
+  const where = config.filterNegativeDur
+    ? 'WHERE ts IS NOT NULL AND dur >= 0'
+    : 'WHERE ts IS NOT NULL';
+  const aggExprs = mergeAggs(config).map((a) =>
+    a.func === 'COUNT'
+      ? `COUNT(*) AS ${a.alias}`
+      : `${a.func}(${a.column}) AS ${a.alias}`,
+  );
+  const running = `${partBy}ORDER BY ts, dur ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`;
+
+  if (config.mergeKind === 'OVERLAPPING') {
+    const outCols = [
+      'MIN(ts) AS ts',
+      'MAX(ts + dur) - MIN(ts) AS dur',
+      ...partition,
+      ...aggExprs,
+    ];
+    return [
+      'WITH',
+      `  _bounds AS (\n    SELECT\n      *,\n      MAX(ts + dur) OVER (${partBy}ORDER BY ts, dur ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS _max_end\n    FROM ${ref}\n    ${where}\n  ),`,
+      `  _groups AS (\n    SELECT\n      *,\n      SUM(IIF(_max_end IS NULL OR ts > _max_end, 1, 0)) OVER (${running}) AS _grp\n    FROM _bounds\n  )`,
+      `SELECT\n  ${outCols.join(',\n  ')}\nFROM _groups\nGROUP BY ${[...uniquePer, '_grp'].join(', ')}`,
+    ].join('\n');
+  }
+
+  const keys = mergeKeys(config);
+  const uniqueKeys = [...new Set(keys)];
+  const prevKeys = uniqueKeys.map(
+    (k, idx) =>
+      `,\n      LAG(${k}) OVER (${partBy}ORDER BY ts, dur) AS _prev_k${idx}`,
+  );
+  const keySame = uniqueKeys
+    .map((k, idx) => `${k} IS _prev_k${idx}`)
+    .join(' AND ');
+  const newGrp = `_prev_end IS NULL OR ts != _prev_end${keySame !== '' ? ` OR NOT (${keySame})` : ''}`;
+  const groupCols = [
+    ...uniquePer,
+    '_grp',
+    ...uniqueKeys.filter((k) => !uniquePer.includes(k)),
+  ];
+  const outCols = [
+    'MIN(ts) AS ts',
+    'MAX(ts + dur) - MIN(ts) AS dur',
+    ...partition,
+    ...keys.filter((k) => !partition.includes(k)),
+    ...aggExprs,
+  ];
+  return [
+    'WITH',
+    `  _prev AS (\n    SELECT\n      *,\n      LAG(ts + dur) OVER (${partBy}ORDER BY ts, dur) AS _prev_end${prevKeys.join('')}\n    FROM ${ref}\n    ${where}\n  ),`,
+    `  _groups AS (\n    SELECT\n      *,\n      SUM(IIF(${newGrp}, 1, 0)) OVER (${running}) AS _grp\n    FROM _prev\n  )`,
+    `SELECT\n  ${outCols.join(',\n  ')}\nFROM _groups\nGROUP BY ${groupCols.join(', ')}`,
+  ].join('\n');
+}
+
+const generators: NodeGenerators<IntervalMergeConfig> = {
+  sql: (config, ctx) => {
+    const input = ctx.input('input');
+    if (input === undefined || !isValid(config)) return undefined;
+    return {from: subquery(mergeSql(input.ref, config))};
+  },
+  psn: (config, ctx) => {
+    if (ctx.input('input') === undefined || !isValid(config)) return undefined;
+    const keys = mergeKeys(config);
+    const by = keys.length > 0 ? ` BY ${keys.join(', ')}` : '';
+    const per = perClause(config.partitionColumns.filter((c) => c !== ''));
+    const head = `INTERVAL MERGE ${config.mergeKind}${by}${per}`;
+    const aggs = mergeAggs(config);
+    const negDur = config.filterNegativeDur ? ['WHERE dur >= 0'] : [];
+    // INTERVAL MERGE requires at least one aggregate.
+    const merge =
+      aggs.length > 0
+        ? [`${head} AGGREGATE ${formatAggs(aggs)}`]
+        : [`${head} AGGREGATE COUNT(*) AS _pf_cnt`, 'DROP _pf_cnt'];
+    return {stages: [...negDur, ...merge]};
+  },
+};
 
 export const manifest: NodeManifest<IntervalMergeConfig> = {
   title: 'Interval Merge',
   icon: 'compress',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 330,
+  expensive: true,
   schema: IntervalMergeConfigSchema,
   defaultConfig: () => ({
     mergeKind: 'OVERLAPPING',
@@ -267,5 +350,5 @@ export const manifest: NodeManifest<IntervalMergeConfig> = {
     m(IntervalMergeContent, {config, updateConfig, ctx}),
   getOutputColumns,
   isValid,
-  toLogicalOp,
+  generators,
 };

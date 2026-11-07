@@ -14,8 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import type {LogicalOp} from '../ir';
-import type {LogicalOpContext, NodeManifest} from '../node_types';
+import type {NodeManifest} from '../node_types';
 import {Stack} from '../components/stack';
 
 const DistinctConfigSchema = z
@@ -33,16 +32,15 @@ export const manifest: NodeManifest<DistinctConfig> = {
   defaultConfig: () => ({}),
   isValid: () => true,
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
-  toLogicalOp(
-    _config: DistinctConfig,
-    ctx: LogicalOpContext,
-  ): LogicalOp | undefined {
-    const input = ctx.getInputNodeId('input');
-    if (!input) return undefined;
-    return {
-      kind: 'distinct',
-      input,
-    };
+  generators: {
+    sql: (_config, ctx) => {
+      if (ctx.input('input') === undefined) return undefined;
+      return {distinct: true};
+    },
+    psn: (_config, ctx) => {
+      if (ctx.input('input') === undefined) return undefined;
+      return {stages: ['DISTINCT']};
+    },
   },
   render() {
     return m(
