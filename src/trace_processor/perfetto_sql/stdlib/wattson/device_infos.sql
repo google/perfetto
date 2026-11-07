@@ -103,7 +103,15 @@ WITH
         ("SM8750", 7, 0)
     ) AS _values
   )
-SELECT * FROM data;
+SELECT *
+FROM _prefer_external_table!(
+  (
+    SELECT d.device_name AS device, c.cpu, c.deep_idle_offset_ns AS offset_ns
+    FROM __intrinsic_wattson_external_cpu_cluster AS c
+    CROSS JOIN __intrinsic_wattson_external_device_info AS d
+  ),
+  data
+);
 
 CREATE PERFETTO TABLE _linux_soc_compatible_map AS
 WITH
@@ -235,9 +243,15 @@ WITH
   )
 -- Once model is obtained, check to see if the model is supported by Wattson
 -- via checking if model is within a key-value pair mapping
-SELECT DISTINCT name
-FROM soc_model
-JOIN _device_cpu_deep_idle_offsets AS map ON map.device = name;
+SELECT *
+FROM _prefer_external_table!(
+  (SELECT device_name AS name FROM __intrinsic_wattson_external_device_info),
+  (
+    SELECT DISTINCT name
+    FROM soc_model
+    JOIN _device_cpu_deep_idle_offsets AS map ON map.device = name
+  )
+);
 
 -- Device specific mapping from CPU to policy
 CREATE PERFETTO TABLE _cpu_to_policy_map AS
@@ -329,9 +343,15 @@ SELECT * FROM data;
 
 -- Prefilter table based on device
 CREATE PERFETTO TABLE _dev_cpu_policy_map AS
-SELECT cpu, policy
-FROM _cpu_to_policy_map AS cp_map
-JOIN _wattson_device AS device ON cp_map.device = device.name
+SELECT *
+FROM _prefer_external_table!(
+  (SELECT cpu, cluster AS policy FROM __intrinsic_wattson_external_cpu_cluster),
+  (
+    SELECT cpu, policy
+    FROM _cpu_to_policy_map AS cp_map
+    JOIN _wattson_device AS device ON cp_map.device = device.name
+  )
+)
 ORDER BY
   cpu;
 
@@ -378,9 +398,20 @@ SELECT * FROM data;
 
 -- Creates non-empty table if device needs devfreq
 CREATE PERFETTO TABLE _use_devfreq_for_calc AS
-SELECT TRUE AS devfreq_necessary
-FROM _use_devfreq AS d
-JOIN _wattson_device AS device ON d.device = device.name;
+SELECT *
+FROM _prefer_external_table!(
+  (
+    SELECT TRUE AS devfreq_necessary
+    FROM __intrinsic_wattson_external_device_info
+    WHERE
+      use_devfreq = 1
+  ),
+  (
+    SELECT TRUE AS devfreq_necessary
+    FROM _use_devfreq AS d
+    JOIN _wattson_device AS device ON d.device = device.name
+  )
+);
 
 -- Creates empty table if device needs devfreq; inverse of _use_devfreq_for_calc
 CREATE PERFETTO TABLE _skip_devfreq_for_calc AS
@@ -435,9 +466,18 @@ SELECT * FROM data;
 
 -- idle_mapping override filtered for device
 CREATE PERFETTO TABLE _idle_state_map_override AS
-SELECT nominal_idle, override_idle
-FROM _idle_state_map AS idle_map
-JOIN _wattson_device AS device ON idle_map.device = device.name;
+SELECT *
+FROM _prefer_external_table!(
+  (
+    SELECT nominal_idle, override_idle
+    FROM __intrinsic_wattson_external_idle_state_map
+  ),
+  (
+    SELECT nominal_idle, override_idle
+    FROM _idle_state_map AS idle_map
+    JOIN _wattson_device AS device ON idle_map.device = device.name
+  )
+);
 
 -- Get the device specific deepest idle state if defined, otherwise use 1 as the
 -- deepest idle state
@@ -473,9 +513,15 @@ WITH
     FROM _vote_by_freq AS v
     JOIN _wattson_device AS device ON v.device = device.name
   )
-SELECT m.cpu, coalesce(v.vote_by_freq, 0) AS vote_by_freq
-FROM _dev_cpu_policy_map AS m
-LEFT JOIN _filtered_vote_by_freq AS v USING (cpu)
+SELECT *
+FROM _prefer_external_table!(
+  (SELECT cpu, vote_by_freq FROM __intrinsic_wattson_external_cpu_cluster),
+  (
+    SELECT m.cpu, coalesce(v.vote_by_freq, 0) AS vote_by_freq
+    FROM _dev_cpu_policy_map AS m
+    LEFT JOIN _filtered_vote_by_freq AS v USING (cpu)
+  )
+)
 ORDER BY
   cpu;
 
@@ -486,4 +532,11 @@ WITH
     SELECT *
     FROM (VALUES ("Tensor G5", 0), ("Tensor G6", 0), ("Tensor", 1)) AS _values
   )
-SELECT * FROM data;
+SELECT *
+FROM _prefer_external_table!(
+  (
+    SELECT device_name AS device, coalesce(gpu_id, 0) AS gpu_id
+    FROM __intrinsic_wattson_external_device_info
+  ),
+  data
+);
