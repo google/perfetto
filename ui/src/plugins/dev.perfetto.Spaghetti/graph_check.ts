@@ -33,14 +33,10 @@ import {
   trimInputs,
   tryGetManifest,
 } from './graph_utils';
-import {
-  buildLogicalPlan,
-  formatLogicalPlan,
-  formatSql,
-  type LogicalPlan,
-  type SqlDialect,
-} from './ir';
-import {planMaterialization} from './materialization';
+import {formatPlan} from './compose';
+import {formatOutput, formatStep, planMaterialization} from './materialization';
+import {buildPlan, type Plan} from './plan';
+import type {SqlDialect} from './sql_types';
 import type {ChartConfig} from './nodes/chart';
 
 export interface GraphNodeError {
@@ -419,12 +415,8 @@ export function describeInvalidNodeConfig(node: NodeData): string {
       return 'Time range requires non-zero ts or dur';
     case 'data_table':
       return 'Data Table has empty/invalid column names or cell values matching column types';
-    case 'as':
-      return 'Alias must be a valid SQL identifier';
     case 'filter':
       return 'Filter condition is missing a comparison value';
-    case 'sort':
-      return 'Sort requires at least one non-empty sort column';
     case 'limit':
       return 'Limit requires non-negative integer digits in limitCount (and optional offset)';
     case 'groupby':
@@ -486,15 +478,15 @@ function computeTopologicalOrder(index: GraphIndex): {
   return {order, cycleNodeIds};
 }
 
-async function checkLogicalPlanRuntime(
+async function checkPlanRuntime(
   engine: Engine,
-  plan: LogicalPlan,
+  plan: Plan,
   dialect: SqlDialect,
   includedModules: Set<string>,
   tempTables: string[],
 ): Promise<{readonly error?: string; readonly subquerySql?: string}> {
   if (dialect === 'sql') {
-    const formatted = formatSql(plan, {includeModuleHeaders: false});
+    const formatted = formatPlan(plan, 'sql');
     if (!formatted.ok) {
       return {error: formatted.error};
     }
@@ -531,40 +523,29 @@ async function checkLogicalPlanRuntime(
   }
 
   const runPrefix = `_qb_chk_${shortUuid().replace(/[^a-zA-Z0-9_]/g, '')}_`;
-  const hashRemap = new Map<string, string>();
+  const tempNames = new Map<string, string>();
   for (const [idx, step] of matPlan.steps.entries()) {
     const tempName = `${runPrefix}${idx}`;
-    hashRemap.set(step.hash, tempName);
+    tempNames.set(step.hash, tempName);
     tempTables.push(tempName);
   }
-
-  function remapSql(sql: string): string {
-    let out = sql;
-    for (const [origHash, tempName] of hashRemap) {
-      out = out.replaceAll(origHash, tempName);
-    }
-    return out;
-  }
+  const tableName = (hash: string) => tempNames.get(hash) ?? hash;
 
   for (const step of matPlan.steps) {
-    const res = formatLogicalPlan(step.plan, 'pipe', {
-      includeModuleHeaders: false,
-    });
+    const res = formatStep(matPlan, step, 'pipe', tableName);
     if (!res.ok) return {error: res.error};
-    const tempName = hashRemap.get(step.hash);
-    if (tempName === undefined) continue;
     try {
       await engine.query(
-        `CREATE OR REPLACE PERFETTO TABLE ${tempName} AS\n${remapSql(res.sql)}`,
+        `CREATE OR REPLACE PERFETTO TABLE ${tableName(step.hash)} AS\n${res.sql}`,
       );
     } catch (e) {
       return {error: getErrorMessage(e)};
     }
   }
 
-  const finalRes = formatSql(matPlan.finalRead, {includeModuleHeaders: false});
+  const finalRes = formatOutput(matPlan, tableName);
   if (!finalRes.ok) return {error: finalRes.error};
-  const finalSql = remapSql(finalRes.sql).trim().replace(/;+$/, '');
+  const finalSql = finalRes.sql.trim().replace(/;+$/, '');
   try {
     await engine.query(`SELECT * FROM (\n${finalSql}\n) LIMIT 1`);
     return {subquerySql: finalSql};
@@ -669,8 +650,8 @@ export async function collectSpaghettiGraphErrors(
         continue;
       }
 
-      const logicalPlan = buildLogicalPlan(index, node.id, sqlModules);
-      if (!logicalPlan) {
+      const plan = buildPlan(index, node.id, sqlModules);
+      if (!plan) {
         errors.push({
           nodeId: node.id,
           title: manifest.title,
@@ -680,9 +661,9 @@ export async function collectSpaghettiGraphErrors(
         continue;
       }
 
-      const runtimeRes = await checkLogicalPlanRuntime(
+      const runtimeRes = await checkPlanRuntime(
         engine,
-        logicalPlan,
+        plan,
         dialect,
         includedModules,
         tempTables,
@@ -747,7 +728,7 @@ export function formatSpaghettiGraphErrors(
 /**
  * Walks the upstream dependency DAG of `targetNodeId` to identify the root-cause
  * incomplete config, unconnected required port, or dependency cycle preventing
- * a `LogicalPlan` from being constructed.
+ * a plan from being built.
  */
 export function findUpstreamPlanBlocker(
   index: GraphIndex,

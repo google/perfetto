@@ -15,12 +15,7 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
-import type {
-  LogicalOpContext,
-  NodeManifest,
-  RenderContext,
-} from '../node_types';
-import type {LogicalOp} from '../ir';
+import type {NodeGenerators, NodeManifest, RenderContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
@@ -138,35 +133,40 @@ function renderSortNode(
   return m(SortNodeContent, {config, updateConfig, ctx});
 }
 
-function isValid(config: SortConfig): boolean {
-  return (
-    (config.conditions ?? []).some((c) => c.column !== '') ||
-    config.sortColumn !== ''
-  );
+// A sort with no columns is a valid passthrough (its generators emit nothing).
+function isValid(_config: SortConfig): boolean {
+  return true;
 }
 
-function toLogicalOp(
-  config: SortConfig,
-  ctx: LogicalOpContext,
-): LogicalOp | undefined {
-  const input = ctx.getInputNodeId('input');
-  if (!input) return undefined;
-  return {
-    kind: 'sort',
-    input,
-    keys: getSortConditions(config).filter((c) => c.column !== ''),
-  };
+function sortTerms(config: SortConfig): string[] {
+  return getSortConditions(config)
+    .filter((c) => c.column !== '')
+    .map((c) => `${c.column} ${c.order}`);
 }
+
+const generators: NodeGenerators<SortConfig> = {
+  sql: (config, ctx) => {
+    if (ctx.input('input') === undefined) return undefined;
+    const terms = sortTerms(config);
+    return terms.length > 0 ? {orderBy: terms} : {};
+  },
+  psn: (config, ctx) => {
+    if (ctx.input('input') === undefined) return undefined;
+    const terms = sortTerms(config);
+    return {stages: terms.length > 0 ? [`ORDER BY ${terms.join(', ')}`] : []};
+  },
+};
 
 export const manifest: NodeManifest<SortConfig> = {
   title: 'Sort',
   icon: 'sort',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 44,
+  expensive: true,
   schema: SortConfigSchema,
   defaultConfig: () => ({sortColumn: '', sortOrder: 'ASC', conditions: []}),
   render: renderSortNode,
   isValid,
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
-  toLogicalOp,
+  generators,
 };

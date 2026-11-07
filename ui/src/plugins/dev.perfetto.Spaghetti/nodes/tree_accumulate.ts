@@ -27,10 +27,10 @@ import {
 import {Row} from '../components/row';
 import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
-import type {LogicalOp} from '../ir';
+import {type AggSpec, formatAggs, subquery} from '../generator_utils';
 import type {
   ColumnContext,
-  LogicalOpContext,
+  NodeGenerators,
   NodeManifest,
   RenderContext,
 } from '../node_types';
@@ -155,31 +155,77 @@ function isValid(config: TreeAccumulateConfig): boolean {
   );
 }
 
-function toLogicalOp(
-  config: TreeAccumulateConfig,
-  ctx: LogicalOpContext,
-): LogicalOp | undefined {
-  const input = ctx.getInputNodeId('input');
-  if (!input || !isValid(config)) return undefined;
-  return {
-    kind: 'tree_accumulate',
-    input,
-    direction: config.direction,
-    idColumn: config.idColumn,
-    parentIdColumn: config.parentIdColumn,
-    aggregations: config.aggregations.map((a) => ({
-      func: a.func,
-      column: a.func === 'COUNT' ? '*' : a.column,
-      alias: aggAlias(a, config.direction),
-    })),
-  };
+function treeAggs(config: TreeAccumulateConfig): AggSpec[] {
+  return config.aggregations.map((a) => ({
+    func: a.func,
+    column: a.func === 'COUNT' ? '*' : a.column,
+    alias: aggAlias(a, config.direction),
+  }));
 }
+
+// Recursive closure of (anchor, member) pairs, aggregated per anchor (UP:
+// over each node's subtree) or per member (DOWN: over each node's ancestors).
+function treeAccumulateSql(
+  ref: string,
+  config: TreeAccumulateConfig,
+  aggs: readonly AggSpec[],
+): string {
+  const {idColumn, parentIdColumn, direction} = config;
+  const keyExpr = direction === 'UP' ? 'c._anchor' : 'c._member';
+  const valJoinKey = direction === 'UP' ? 'c._member' : 'c._anchor';
+  const aggExprs = aggs.map((a) =>
+    a.func === 'COUNT'
+      ? `COUNT(*) AS ${a.alias}`
+      : `${a.func}(v.${a.column}) AS ${a.alias}`,
+  );
+  const outerCols = aggs.map((a) => `_agg.${a.alias}`);
+  return [
+    'WITH RECURSIVE',
+    `  _closure(_anchor, _member) AS (\n    SELECT ${idColumn}, ${idColumn} FROM ${ref}\n    UNION ALL\n    SELECT c._anchor, child.${idColumn}\n    FROM _closure AS c\n    JOIN ${ref} AS child ON child.${parentIdColumn} = c._member\n  ),`,
+    `  _agg AS (\n    SELECT\n      ${keyExpr} AS _key_id,\n      ${aggExprs.join(',\n      ')}\n    FROM _closure AS c\n    JOIN ${ref} AS v ON v.${idColumn} = ${valJoinKey}\n    GROUP BY ${keyExpr}\n  )`,
+    `SELECT\n  src.*,\n  ${outerCols.join(',\n  ')}\nFROM ${ref} AS src\nLEFT JOIN _agg ON src.${idColumn} = _agg._key_id`,
+  ].join('\n');
+}
+
+const generators: NodeGenerators<TreeAccumulateConfig> = {
+  sql: (config, ctx) => {
+    const input = ctx.input('input');
+    if (input === undefined || !isValid(config)) return undefined;
+    const aggs = treeAggs(config);
+    if (aggs.length === 0) return {};
+    return {from: subquery(treeAccumulateSql(input.ref, config, aggs))};
+  },
+  // TREE ACCUMULATE expects `id` / `parent_id`: rename in and back out.
+  psn: (config, ctx) => {
+    if (ctx.input('input') === undefined || !isValid(config)) return undefined;
+    const aggs = treeAggs(config);
+    if (aggs.length === 0) return {};
+    const renamesIn: string[] = [];
+    const renamesOut: string[] = [];
+    if (config.idColumn !== 'id') {
+      renamesIn.push(`${config.idColumn} AS id`);
+      renamesOut.push(`id AS ${config.idColumn}`);
+    }
+    if (config.parentIdColumn !== 'parent_id') {
+      renamesIn.push(`${config.parentIdColumn} AS parent_id`);
+      renamesOut.push(`parent_id AS ${config.parentIdColumn}`);
+    }
+    return {
+      stages: [
+        ...(renamesIn.length > 0 ? [`RENAME ${renamesIn.join(', ')}`] : []),
+        `TREE ACCUMULATE ${config.direction} ${formatAggs(aggs)}`,
+        ...(renamesOut.length > 0 ? [`RENAME ${renamesOut.join(', ')}`] : []),
+      ],
+    };
+  },
+};
 
 export const manifest: NodeManifest<TreeAccumulateConfig> = {
   title: 'Tree Accumulate',
   icon: 'mediation',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 94,
+  expensive: true,
   schema: TreeAccumulateConfigSchema,
   defaultConfig: () => ({
     direction: 'UP',
@@ -191,5 +237,5 @@ export const manifest: NodeManifest<TreeAccumulateConfig> = {
     m(TreeAccumulateContent, {config, updateConfig, ctx}),
   getOutputColumns,
   isValid,
-  toLogicalOp,
+  generators,
 };

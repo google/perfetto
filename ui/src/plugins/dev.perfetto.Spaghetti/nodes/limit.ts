@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import type {LogicalOpContext, NodeManifest} from '../node_types';
+import type {NodeManifest} from '../node_types';
 import {TextInput} from '../../../widgets/text_input';
 import {Stack} from '../components/stack';
 
@@ -30,6 +30,14 @@ const LimitConfigSchema = z
 
 export type LimitConfig = z.infer<typeof LimitConfigSchema>;
 
+function parseLimit(config: LimitConfig): {count: number; offset: number} {
+  const offset =
+    config.offset !== undefined && config.offset !== ''
+      ? parseInt(config.offset, 10)
+      : 0;
+  return {count: parseInt(config.limitCount, 10) || 100, offset};
+}
+
 export const manifest: NodeManifest<LimitConfig> = {
   title: 'Limit',
   icon: 'horizontal_rule',
@@ -44,19 +52,21 @@ export const manifest: NodeManifest<LimitConfig> = {
       config.offset === '' ||
       /^\d+$/.test(config.offset)),
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
-  toLogicalOp(config: LimitConfig, ctx: LogicalOpContext) {
-    const input = ctx.getInputNodeId('input');
-    if (!input) return undefined;
-    const parsedOffset =
-      config.offset !== undefined && config.offset !== ''
-        ? parseInt(config.offset, 10)
-        : 0;
-    return {
-      kind: 'limit',
-      input,
-      count: parseInt(config.limitCount, 10) || 100,
-      ...(parsedOffset > 0 ? {offset: parsedOffset} : {}),
-    };
+  generators: {
+    sql: (config, ctx) => {
+      if (ctx.input('input') === undefined) return undefined;
+      const {count, offset} = parseLimit(config);
+      return offset > 0 ? {limit: count, offset} : {limit: count};
+    },
+    psn: (config, ctx) => {
+      if (ctx.input('input') === undefined) return undefined;
+      const {count, offset} = parseLimit(config);
+      return {
+        stages: [
+          offset > 0 ? `LIMIT ${count} OFFSET ${offset}` : `LIMIT ${count}`,
+        ],
+      };
+    },
   },
   render(config, updateConfig) {
     return m(Stack, [

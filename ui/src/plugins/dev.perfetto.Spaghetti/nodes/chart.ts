@@ -24,6 +24,7 @@ import {InputPortStepper} from '../components/input_port_stepper';
 import {Stack} from '../components/stack';
 import './chart.scss';
 import type {Port} from '../graph_model';
+import {manifest as unionManifest} from './union';
 
 const ChartSpecSchema = z.object({
   xCol: z.string(),
@@ -273,6 +274,7 @@ export const manifest: NodeManifest<ChartConfig> = {
   title: 'Chart',
   icon: 'bar_chart',
   hue: 190,
+  expensive: true,
   schema: ChartConfigSchema,
   getInputs(config: ChartConfig): Port[] {
     return Array.from({length: config.numInputs}, (_, i) => ({
@@ -289,14 +291,18 @@ export const manifest: NodeManifest<ChartConfig> = {
     }
     return undefined;
   },
-  toLogicalOp(_config, ctx) {
-    const inputs = ctx.inputPorts
-      .map((p) => ctx.getInputNodeId(p.name))
-      .filter((id): id is string => id !== undefined);
-    const first = inputs[0];
-    if (first === undefined) return undefined;
-    if (inputs.length === 1) return {kind: 'passthrough', input: first};
-    return {kind: 'union', inputs, distinct: false};
+  // Passes rows through (UNION ALL of all inputs when there are several).
+  generators: {
+    sql: (config, ctx) =>
+      unionManifest.generators.sql(
+        {distinct: false, numInputs: config.numInputs},
+        ctx,
+      ),
+    psn: (config, ctx) =>
+      unionManifest.generators.psn?.(
+        {distinct: false, numInputs: config.numInputs},
+        ctx,
+      ),
   },
   render(config, updateConfig, ctx) {
     const n = config.numInputs;

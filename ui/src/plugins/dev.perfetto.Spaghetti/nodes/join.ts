@@ -15,11 +15,8 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
-import type {
-  LogicalOpContext,
-  NodeManifest,
-  RenderContext,
-} from '../node_types';
+import type {NodeManifest, RenderContext} from '../node_types';
+import type {ColumnDef} from '../graph_utils';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {ColumnPickerWithAlias} from '../components/column_picker_with_alias';
 import {DraggableStack} from '../components/draggable_stack';
@@ -162,6 +159,20 @@ function isValid(config: JoinConfig): boolean {
   return config.leftColumn !== '' && config.rightColumn !== '';
 }
 
+/** `l.*` plus the picked right-hand columns (aliased on name clashes). */
+function joinSelect(
+  config: JoinConfig,
+  ctx: {getInputColumns(port: string): ColumnDef[] | undefined},
+): string[] {
+  const leftCols = (ctx.getInputColumns('left') ?? []).map((c) => c.name);
+  const picked = getExtendColumnAliases(config, leftCols)
+    .filter((c) => c.column !== '')
+    .map((c) =>
+      c.alias !== c.column ? `r.${c.column} AS ${c.alias}` : `r.${c.column}`,
+    );
+  return ['l.*', ...picked];
+}
+
 export const manifest: NodeManifest<JoinConfig> = {
   title: 'Join',
   icon: 'join_left',
@@ -172,6 +183,7 @@ export const manifest: NodeManifest<JoinConfig> = {
     {name: 'right', content: 'Right'},
   ],
   hue: 282,
+  expensive: true,
   schema: JoinConfigSchema,
   getOutputColumns(config, ctx) {
     // Output columns are all left columns, plus select right columns.
@@ -202,25 +214,34 @@ export const manifest: NodeManifest<JoinConfig> = {
   }),
   render,
   isValid,
-  toLogicalOp(config: JoinConfig, ctx: LogicalOpContext) {
-    const left = ctx.getInputNodeId('left');
-    const right = ctx.getInputNodeId('right');
-    if (!left) return undefined;
-    if (!right) return {kind: 'passthrough', input: left};
-    const leftCols = ctx.getInputColumns('left');
-    const rightColumns = getExtendColumnAliases(
-      config,
-      (leftCols ?? []).map((c) => c.name),
-    ).filter((c) => c.column !== '');
-
-    return {
-      kind: 'join',
-      left,
-      right,
-      joinType: config.joinType ?? 'LEFT',
-      leftColumn: config.leftColumn,
-      rightColumn: config.rightColumn,
-      rightColumns,
-    };
+  generators: {
+    // No right input -> passthrough of the left input.
+    sql: (config, ctx) => {
+      const left = ctx.input('left');
+      const right = ctx.input('right');
+      if (left === undefined) return undefined;
+      if (right === undefined) return {};
+      const kw = config.joinType === 'INNER' ? 'JOIN' : 'LEFT JOIN';
+      return {
+        from:
+          `${left.ref} AS l\n` +
+          `${kw} ${right.ref} AS r ON l.${config.leftColumn} = r.${config.rightColumn}`,
+        select: joinSelect(config, ctx),
+      };
+    },
+    psn: (config, ctx) => {
+      const left = ctx.input('left');
+      const right = ctx.input('right');
+      if (left === undefined) return undefined;
+      if (right === undefined) return {};
+      const kw = config.joinType === 'INNER' ? 'JOIN' : 'LEFT JOIN';
+      return {
+        stages: [
+          'AS l',
+          `${kw} ${right.source} AS r ON l.${config.leftColumn} = r.${config.rightColumn}`,
+          `SELECT ${joinSelect(config, ctx).join(', ')}`,
+        ],
+      };
+    },
   },
 };

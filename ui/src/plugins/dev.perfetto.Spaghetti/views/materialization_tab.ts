@@ -19,8 +19,13 @@ import {Callout} from '../../../widgets/callout';
 import {CopyToClipboardButton} from '../../../widgets/copy_to_clipboard_button';
 import {EmptyState} from '../../../widgets/empty_state';
 import {Card} from '../components/card';
-import {formatLogicalPlan, formatSql, type SqlDialect} from '../ir';
-import type {MaterializationPlan, StepRunOutcome} from '../materialization';
+import {
+  formatOutput,
+  formatStep,
+  type MaterializationPlan,
+  type StepRunOutcome,
+} from '../materialization';
+import type {SqlDialect} from '../sql_types';
 import './materialization_tab.scss';
 
 export interface MaterializationTabAttrs {
@@ -112,7 +117,6 @@ export class MaterializationTab implements m.ClassComponent<MaterializationTabAt
       );
     }
 
-    const stepByHash = new Map(matPlan.steps.map((s) => [s.hash, s]));
     const cards: m.Children[] = [];
 
     if (matPlan.steps.length > 0 || matPlan.includes.length > 0) {
@@ -150,12 +154,8 @@ export class MaterializationTab implements m.ClassComponent<MaterializationTabAt
     }
 
     for (const step of matPlan.steps) {
-      const res = formatLogicalPlan(step.plan, dialect, {
-        includeModuleHeaders: false,
-      });
-      const bodySql = res.ok
-        ? res.sql
-        : `-- Unsupported in Standard SQL: ${res.error}`;
+      const res = formatStep(matPlan, step, dialect);
+      const bodySql = res.ok ? res.sql : `-- ${res.error}`;
 
       const meta =
         step.nodeIds.length > 0
@@ -198,33 +198,13 @@ export class MaterializationTab implements m.ClassComponent<MaterializationTabAt
       );
     }
 
-    const finalDeps = [
-      ...new Set(
-        matPlan.finalRead.nodes.flatMap((n) =>
-          n.op.kind === 'scan' && stepByHash.has(n.op.table)
-            ? [n.op.table]
-            : [],
-        ),
-      ),
-    ];
+    const finalDeps = matPlan.output.deps;
 
-    const singleScan =
-      matPlan.finalRead.nodes.length === 1 &&
-      matPlan.finalRead.nodes[0]?.op.kind === 'scan'
-        ? matPlan.finalRead.nodes[0].op.table
-        : undefined;
     // The output query is always executed as Standard SQL (regardless of the
     // selected dialect) because the DataGrid and details panels wrap it in a
     // plain SQL subquery, which cannot contain a pipe query.
-    const finalRes = formatSql(matPlan.finalRead, {
-      includeModuleHeaders: false,
-    });
-    const finalSql =
-      singleScan !== undefined
-        ? `SELECT * FROM ${singleScan}`
-        : finalRes.ok
-          ? finalRes.sql
-          : `-- ${finalRes.error}`;
+    const finalRes = formatOutput(matPlan);
+    const finalSql = finalRes.ok ? finalRes.sql : `-- ${finalRes.error}`;
 
     cards.push(
       m(Card, {

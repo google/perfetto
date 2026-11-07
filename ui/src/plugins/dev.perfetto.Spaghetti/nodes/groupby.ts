@@ -17,11 +17,10 @@ import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
-  LogicalOpContext,
+  NodeGenerators,
   NodeManifest,
   RenderContext,
 } from '../node_types';
-import type {LogicalOp} from '../ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Select} from '../../../widgets/select';
 import {ColumnPickerWithAlias} from '../components/column_picker_with_alias';
@@ -194,31 +193,50 @@ function isValid(config: GroupByConfig): boolean {
   return hasGroup;
 }
 
-function toLogicalOp(
-  config: GroupByConfig,
-  ctx: LogicalOpContext,
-): LogicalOp | undefined {
-  const input = ctx.getInputNodeId('input');
-  if (!input) return undefined;
+function aggParts(config: GroupByConfig): {keys: string[]; aggs: string[]} {
   return {
-    kind: 'aggregate',
-    input,
-    groupColumns: config.groupColumns.filter((c) => c !== ''),
-    aggregations: config.aggregations
+    keys: config.groupColumns.filter((c) => c !== ''),
+    aggs: config.aggregations
       .filter((a) => a.column !== '')
-      .map((a) => ({func: a.func, column: a.column, alias: aggAlias(a)})),
+      .map((a) => `${a.func}(${a.column}) AS ${aggAlias(a)}`),
   };
 }
+
+const generators: NodeGenerators<GroupByConfig> = {
+  sql: (config, ctx) => {
+    if (ctx.input('input') === undefined) return undefined;
+    const {keys, aggs} = aggParts(config);
+    if (keys.length === 0 && aggs.length === 0) return {};
+    return {
+      ...(keys.length > 0 ? {groupBy: keys} : {}),
+      select: [...keys, ...aggs],
+    };
+  },
+  psn: (config, ctx) => {
+    if (ctx.input('input') === undefined) return undefined;
+    const {keys, aggs} = aggParts(config);
+    if (aggs.length === 0) {
+      // Group by with no aggregates is just the distinct keys.
+      return {
+        stages:
+          keys.length > 0 ? [`SELECT ${keys.join(', ')}`, 'DISTINCT'] : [],
+      };
+    }
+    const groupSuffix = keys.length > 0 ? ` GROUP BY ${keys.join(', ')}` : '';
+    return {stages: [`AGGREGATE ${aggs.join(', ')}${groupSuffix}`]};
+  },
+};
 
 export const manifest: NodeManifest<GroupByConfig> = {
   title: 'Group By',
   icon: 'workspaces',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 266,
+  expensive: true,
   schema: GroupByConfigSchema,
   defaultConfig: () => ({groupColumns: [], aggregations: []}),
   render,
   getOutputColumns,
   isValid,
-  toLogicalOp,
+  generators,
 };

@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {z} from 'zod';
 import type {NodeManifest, RenderContext} from '../node_types';
+import type {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {Combobox} from '../../../widgets/combobox';
 import './from.scss';
 
@@ -28,6 +29,16 @@ const FromConfigSchema = z
 
 export type FromConfig = z.infer<typeof FromConfigSchema>;
 
+function includesForTable(
+  config: FromConfig,
+  ctx: {readonly sqlModules: SqlModules | undefined},
+): string[] | undefined {
+  const mod = ctx.sqlModules?.getModuleForTable(config.table);
+  return mod && !mod.includeKey.startsWith('prelude')
+    ? [mod.includeKey]
+    : undefined;
+}
+
 export const manifest: NodeManifest<FromConfig> = {
   title: 'From',
   icon: 'table_chart',
@@ -35,14 +46,19 @@ export const manifest: NodeManifest<FromConfig> = {
   schema: FromConfigSchema,
   defaultConfig: () => ({table: 'slice'}),
   isValid: (config) => config.table !== '',
-  toLogicalOp(config, ctx) {
-    if (!config.table) return undefined;
-    const mod = ctx.sqlModules?.getModuleForTable(config.table);
-    const includes =
-      mod && !mod.includeKey.startsWith('prelude')
-        ? [mod.includeKey]
-        : undefined;
-    return {kind: 'scan', table: config.table, includes};
+  generators: {
+    // A bare-name `from` renders as a plain reference (no CTE / wrapper).
+    sql: (config, ctx) => {
+      if (!config.table) return undefined;
+      return {from: config.table, includes: includesForTable(config, ctx)};
+    },
+    psn: (config, ctx) => {
+      if (!config.table) return undefined;
+      return {
+        source: `FROM ${config.table}`,
+        includes: includesForTable(config, ctx),
+      };
+    },
   },
   getOutputColumns(config, ctx) {
     if (!config.table || !ctx.sqlModules) return undefined;

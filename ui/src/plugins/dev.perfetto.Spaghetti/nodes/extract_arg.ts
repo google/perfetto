@@ -17,11 +17,10 @@ import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
-  LogicalOpContext,
+  NodeGenerators,
   NodeManifest,
   RenderContext,
 } from '../node_types';
-import type {LogicalOp} from '../ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
@@ -31,6 +30,7 @@ import {
 } from '../components/text_input_with_alias';
 import {ColumnPicker} from '../widgets/column_picker';
 import type {ColumnDef} from '../graph_utils';
+import {formatExtractArgExpr} from '../generator_utils';
 
 const ExtractArgEntrySchema = z.object({
   argName: z.string(),
@@ -134,21 +134,27 @@ function isValid(config: ExtractArgConfig): boolean {
   return config.extractions.every((e) => e.alias === '' || e.argName !== '');
 }
 
-function toLogicalOp(
-  config: ExtractArgConfig,
-  ctx: LogicalOpContext,
-): LogicalOp | undefined {
-  const input = ctx.getInputNodeId('input');
-  if (!input) return undefined;
-  return {
-    kind: 'extract_arg',
-    input,
-    argSetIdCol: config.argSetIdCol,
-    extractions: config.extractions
-      .filter((e) => e.argName !== '')
-      .map((e) => ({argName: e.argName, alias: extractArgAlias(e)})),
-  };
+function extractParts(config: ExtractArgConfig): string[] {
+  return config.extractions
+    .filter((e) => e.argName !== '')
+    .map(
+      (e) =>
+        `${formatExtractArgExpr(config.argSetIdCol, e.argName)} AS ${extractArgAlias(e)}`,
+    );
 }
+
+const generators: NodeGenerators<ExtractArgConfig> = {
+  sql: (config, ctx) => {
+    if (ctx.input('input') === undefined) return undefined;
+    const exprs = extractParts(config);
+    return exprs.length > 0 ? {select: ['*', ...exprs]} : {};
+  },
+  psn: (config, ctx) => {
+    if (ctx.input('input') === undefined) return undefined;
+    const exprs = extractParts(config);
+    return {stages: exprs.length > 0 ? [`EXTEND ${exprs.join(', ')}`] : []};
+  },
+};
 
 export const manifest: NodeManifest<ExtractArgConfig> = {
   title: 'Extract Args',
@@ -160,5 +166,5 @@ export const manifest: NodeManifest<ExtractArgConfig> = {
   render,
   getOutputColumns,
   isValid,
-  toLogicalOp,
+  generators,
 };

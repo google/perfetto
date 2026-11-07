@@ -21,8 +21,12 @@ import {InputPortStepper} from '../components/input_port_stepper';
 import {Row} from '../components/row';
 import {Stack} from '../components/stack';
 import './sql.scss';
-import type {RawSqlInput} from '../ir';
-import type {NodeManifest, RenderContext} from '../node_types';
+import type {
+  GeneratorContext,
+  NodeManifest,
+  RenderContext,
+} from '../node_types';
+import {subquery} from '../generator_utils';
 import type {ColumnDef} from '../graph_utils';
 import type {SimpleTypeKind} from '../../../trace_processor/perfetto_sql_type';
 import type {Port} from '../graph_model';
@@ -68,10 +72,44 @@ function toColumnDef(col: SqlOutputColumn): ColumnDef {
   return {name: col.name, type: {kind: col.type as SimpleTypeKind}};
 }
 
+interface InputBinding {
+  readonly alias: string;
+  readonly source: string;
+}
+
+function inputBindings<I>(
+  config: SqlConfig,
+  ctx: GeneratorContext<I>,
+  render: (input: I) => string,
+): InputBinding[] {
+  const {inputPorts = []} = config;
+  const bindings: InputBinding[] = [];
+  for (const [i, port] of ctx.inputPorts.entries()) {
+    const input = ctx.input(port.name);
+    if (input === undefined) continue;
+    const alias = inputPorts[i]?.trim() || `input_${i}`;
+    bindings.push({alias, source: render(input)});
+  }
+  return bindings;
+}
+
+/** Prepend `alias AS (SELECT * FROM <source>)` CTEs to the user's query. */
+function withBindings(sql: string, bindings: readonly InputBinding[]): string {
+  if (bindings.length === 0) return sql;
+  const ctes = bindings.map(
+    (b) => `${b.alias} AS (\n  SELECT * FROM ${b.source}\n)`,
+  );
+  const trimmed = sql.trimStart();
+  const withMatch = trimmed.match(/^with\s/i);
+  const body = withMatch ? trimmed.slice(withMatch[0].length) : trimmed;
+  return `WITH ${ctes.join(',\n')}${withMatch ? ',\n' : '\n'}${body}`;
+}
+
 export const manifest: NodeManifest<SqlConfig> = {
   title: 'SQL',
   icon: 'code',
   hue: 250,
+  expensive: true,
   schema: SqlConfigSchema,
   getInputs(config: SqlConfig): Port[] {
     const {inputPorts = []} = config;
@@ -86,17 +124,28 @@ export const manifest: NodeManifest<SqlConfig> = {
     inputPorts: [],
   }),
   isValid: (config) => config.sql.trim() !== '',
-  toLogicalOp(config, ctx) {
-    const {inputPorts = []} = config;
-    if (config.sql.trim() === '') return undefined;
-    const inputs: RawSqlInput[] = [];
-    for (const [i, port] of ctx.inputPorts.entries()) {
-      const nodeId = ctx.getInputNodeId(port.name);
-      if (nodeId === undefined) continue;
-      const alias = inputPorts[i]?.trim() || `input_${i}`;
-      inputs.push({nodeId, alias});
-    }
-    return {kind: 'raw_sql', sql: config.sql, inputs};
+  generators: {
+    // Bind each input to its alias with a WITH clause in front of the user's
+    // query, and use the whole thing as a subquery source.
+    sql: (config, ctx) => {
+      if (config.sql.trim() === '') return undefined;
+      const bindings = inputBindings(config, ctx, (i) => i.ref);
+      return {from: subquery(withBindings(config.sql, bindings))};
+    },
+    // The user's SQL is plain SQL, so pipeline inputs can't be nested in it:
+    // inputs must already be tables (e.g. materialized expensive nodes).
+    psn: (config, ctx) => {
+      if (config.sql.trim() === '') return undefined;
+      const bindings = inputBindings(config, ctx, (i) => i.source);
+      if (bindings.some((b) => b.source.startsWith('('))) {
+        return {
+          error:
+            'SQL node inputs must be tables in PerfettoSQL Next mode (a ' +
+            'pipe query cannot be nested inside plain SQL).',
+        };
+      }
+      return {source: `FROM ${subquery(withBindings(config.sql, bindings))}`};
+    },
   },
   getOutputColumns(config) {
     const {columns = []} = config;

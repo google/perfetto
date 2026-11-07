@@ -17,11 +17,10 @@ import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
-  LogicalOpContext,
+  NodeGenerators,
   NodeManifest,
   RenderContext,
 } from '../node_types';
-import type {LogicalOp} from '../ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {ColumnPickerWithAlias} from '../components/column_picker_with_alias';
 import {DraggableStack} from '../components/draggable_stack';
@@ -173,28 +172,39 @@ function isValid(config: SelectConfig): boolean {
   return expressions.every((e) => e.alias === '' || e.expression !== '');
 }
 
-function toLogicalOp(
-  config: SelectConfig,
-  ctx: LogicalOpContext,
-): LogicalOp | undefined {
-  const input = ctx.getInputNodeId('input');
-  if (!input) return undefined;
-  const entries = config.entries ?? [];
-  const expressions = config.expressions ?? [];
+function projection(config: SelectConfig): {
+  columns: string[];
+  exprs: string[];
+} {
   return {
-    kind: 'project',
-    input,
-    columns: entries
+    columns: (config.entries ?? [])
       .filter((e) => e.column !== '')
-      .map((e) => ({
-        column: e.column,
-        alias: e.alias !== '' ? e.alias : undefined,
-      })),
-    expressions: expressions
+      .map((e) => (e.alias !== '' ? `${e.column} AS ${e.alias}` : e.column)),
+    exprs: (config.expressions ?? [])
       .filter((e) => e.expression !== '')
-      .map((e) => ({expression: e.expression, alias: exprAlias(e)})),
+      .map((e) => `${e.expression} AS ${exprAlias(e)}`),
   };
 }
+
+const generators: NodeGenerators<SelectConfig> = {
+  // No picked columns means "keep everything and add the expressions".
+  sql: (config, ctx) => {
+    if (ctx.input('input') === undefined) return undefined;
+    const {columns, exprs} = projection(config);
+    if (columns.length === 0) {
+      return exprs.length > 0 ? {select: ['*', ...exprs]} : {};
+    }
+    return {select: [...columns, ...exprs]};
+  },
+  psn: (config, ctx) => {
+    if (ctx.input('input') === undefined) return undefined;
+    const {columns, exprs} = projection(config);
+    if (columns.length === 0) {
+      return {stages: exprs.length > 0 ? [`EXTEND ${exprs.join(', ')}`] : []};
+    }
+    return {stages: [`SELECT ${[...columns, ...exprs].join(', ')}`]};
+  },
+};
 
 export const manifest: NodeManifest<SelectConfig> = {
   title: 'Select',
@@ -208,5 +218,5 @@ export const manifest: NodeManifest<SelectConfig> = {
   },
   getOutputColumns,
   isValid,
-  toLogicalOp,
+  generators,
 };

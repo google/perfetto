@@ -20,7 +20,7 @@ import {
   removeNodeFromGraph,
   serializeStore,
 } from './graph_utils';
-import type {SqlDialect} from './ir';
+import type {SqlDialect} from './sql_types';
 
 const STORAGE_KEY = 'perfettoSpaghetti';
 const MAX_HISTORY = 50;

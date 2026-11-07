@@ -24,14 +24,14 @@ import type {
   RootNodeData,
 } from './graph_model';
 import {flattenNodes} from './graph_utils';
-import {buildLogicalPlan, collectLiveHashes, type LogicalPlan} from './ir';
+import {buildPlan, collectLiveHashes, type Plan} from './plan';
 import {
   computeNeededStepHashes,
   MaterializationService,
   planMaterialization,
 } from './materialization';
 
-function nodeHash(plan: LogicalPlan, id: string): string {
+function nodeHash(plan: Plan, id: string): string {
   return ensureDefined(plan.nodes.find((n) => n.nodeId === id)).hash;
 }
 
@@ -103,7 +103,7 @@ function makeSortedChain(
 }
 
 describe('collectLiveHashes', () => {
-  it('includes valid non-scan Merkle hashes in a chain without materializing bare scans', () => {
+  it('includes only expensive (materializable) node hashes', () => {
     const sort: NodeData = {
       type: 'sort',
       id: 'sort1',
@@ -129,20 +129,20 @@ describe('collectLiveHashes', () => {
     };
 
     const index = flattenNodes([from]);
-    const plan = ensureDefined(buildLogicalPlan(index, 'sort1', undefined));
+    const plan = ensureDefined(buildPlan(index, 'sort1', undefined));
     const fromHash = nodeHash(plan, 'from1');
     const filterHash = nodeHash(plan, 'flt1');
     const sortHash = nodeHash(plan, 'sort1');
 
     const live = collectLiveHashes(index, undefined);
     expect(live.has(fromHash)).toBe(false);
-    expect(live.has(filterHash)).toBe(true);
+    expect(live.has(filterHash)).toBe(false);
     expect(live.has(sortHash)).toBe(true);
-    expect(live.size).toBe(2);
+    expect(live.size).toBe(1);
   });
 
   it('skips invalid nodes while keeping valid branches', () => {
-    const validBranch = makeFilterChain('f1', 'flt1', '50');
+    const validBranch = makeSortedChain('f1', 'srt1', '50');
     const invalidFilter: NodeData = {
       type: 'filter',
       id: 'flt_bad',
@@ -162,8 +162,8 @@ describe('collectLiveHashes', () => {
     const index = flattenNodes([validBranch, invalidBranch]);
     const live = collectLiveHashes(index, undefined);
 
-    const plan = ensureDefined(buildLogicalPlan(index, 'flt1', undefined));
-    const validHash = nodeHash(plan, 'flt1');
+    const plan = ensureDefined(buildPlan(index, 'srt1', undefined));
+    const validHash = nodeHash(plan, 'srt1');
 
     expect(live.has(validHash)).toBe(true);
     expect(live.size).toBe(1);
@@ -473,7 +473,7 @@ describe('MaterializationService cache policy', () => {
       labels: [],
     };
     const sortPlan = ensureDefined(
-      buildLogicalPlan(flattenNodes(step2Store.nodes), 'srt1', undefined),
+      buildPlan(flattenNodes(step2Store.nodes), 'srt1', undefined),
     );
     const coldSteps = new MaterializationService(makeFakeEngine().engine)
       .planFor(sortPlan)
@@ -608,9 +608,7 @@ describe('MaterializationService cache policy', () => {
       },
     };
     const index = flattenNodes([chain]);
-    const logicalPlan = ensureDefined(
-      buildLogicalPlan(index, 'srt1', undefined),
-    );
+    const logicalPlan = ensureDefined(buildPlan(index, 'srt1', undefined));
     const aggHash = nodeHash(logicalPlan, 'agg1');
     const sortHash = nodeHash(logicalPlan, 'srt1');
 

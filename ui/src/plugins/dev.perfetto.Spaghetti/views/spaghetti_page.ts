@@ -76,7 +76,8 @@ import {
   trimInputs,
   type GraphIndex,
 } from '../graph_utils';
-import {buildDisplayQuery, buildLogicalPlan} from '../ir';
+import {buildDisplayQuery} from '../compose';
+import {buildPlan} from '../plan';
 import {MaterializationService} from '../materialization';
 import type {DetailsContext, RenderContext} from '../node_types';
 import {CacheTab} from './cache_tab';
@@ -936,12 +937,12 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         ? getOutputColumnsForNode(flatNodes, activeNodeId, sqlModules)
         : undefined;
 
-      // Build logical plan + display query (pure functions of the graph).
-      const logicalPlan = activeNodeId
-        ? buildLogicalPlan(flatNodes, activeNodeId, sqlModules)
+      // Build plan + display query (pure functions of the graph).
+      const plan = activeNodeId
+        ? buildPlan(flatNodes, activeNodeId, sqlModules)
         : undefined;
-      const matPlan = logicalPlan ? matService.planFor(logicalPlan) : undefined;
-      const displaySql = buildDisplayQuery(logicalPlan, materializationDialect);
+      const matPlan = plan ? matService.planFor(plan) : undefined;
+      const displaySql = buildDisplayQuery(plan, materializationDialect);
 
       const liveJson = JSON.stringify(
         JSON.parse(serializeStore(store)),
@@ -1205,7 +1206,7 @@ const NODE_CATEGORIES: readonly NodeCategory[] = [
   },
   {
     title: 'Columns',
-    types: ['select', 'extend', 'set', 'rename', 'drop', 'as', 'extract_arg'],
+    types: ['select', 'extend', 'set', 'rename', 'drop', 'extract_arg'],
   },
   {
     title: 'Rows',

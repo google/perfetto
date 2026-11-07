@@ -18,7 +18,6 @@ import type {Trace} from '../../public/trace';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import type {Port} from './graph_model';
 import type {ColumnDef} from './graph_utils';
-import type {LogicalOp} from './ir';
 
 // ---------------------------------------------------------------------------
 // Render context bag — each render function picks what it needs.
@@ -40,18 +39,97 @@ export interface RenderContext {
 }
 
 // ---------------------------------------------------------------------------
-// Logical op context — passed to toLogicalOp to emit language-agnostic IR.
+// Generators — each node renders itself in each SQL dialect.
 // ---------------------------------------------------------------------------
 
-export interface LogicalOpContext {
+/**
+ * A node's contribution in Standard SQL, as structured clauses over its primary
+ * input. The composer folds consecutive fragments into one SELECT block when
+ * every clause added comes strictly later in SQL clause order
+ * (FROM -> WHERE -> GROUP BY -> SELECT -> DISTINCT -> ORDER BY -> LIMIT) than
+ * the block's latest clause (WHERE + WHERE is ANDed). Otherwise it starts a new
+ * CTE. An empty fragment `{}` is a passthrough.
+ */
+export interface SqlFragment {
+  /**
+   * Custom source: a table name, a macro call, joins, or a `(subquery)`.
+   * Defaults to the primary input. Always starts a new block. A block holding
+   * only a bare-name `from` is rendered as a plain reference.
+   */
+  readonly from?: string;
+  readonly where?: string;
+  readonly groupBy?: readonly string[];
+  readonly select?: readonly string[];
+  readonly distinct?: boolean;
+  readonly orderBy?: readonly string[];
+  readonly limit?: number;
+  readonly offset?: number;
+  readonly includes?: readonly string[];
+}
+
+/**
+ * A node's contribution in PerfettoSQL Next. Either `stages` appended to the
+ * primary input's pipeline, or a new `source` clause (e.g. `FROM x`,
+ * `INTERVAL INTERSECTION OF (...)`, `GRAPH ... TREE`) followed by `stages`.
+ * An empty fragment `{}` is a passthrough.
+ */
+export interface PsnFragment {
+  readonly source?: string;
+  readonly stages?: readonly string[];
+  readonly includes?: readonly string[];
+}
+
+/** Returned when a node can't be expressed in a dialect. */
+export interface GeneratorError {
+  readonly error: string;
+}
+
+/** An input as seen by the Standard SQL generator. */
+export interface SqlInput {
+  /** Always a relation name: a base table, a `_qb_` cache table or a CTE. */
+  readonly ref: string;
+}
+
+/** An input as seen by the PerfettoSQL Next generator. */
+export interface PsnInput {
+  /** A table name or a parenthesized sub-pipeline, usable as a source. */
+  readonly source: string;
+  /** The input with extra stages appended to the end of its own pipeline. */
+  withStages(stages: readonly string[]): string;
+}
+
+export interface ConnectedInput<I> {
+  readonly port: string;
+  readonly input: I;
+}
+
+export interface GeneratorContext<I> {
   /** Effective input ports for this node instance. */
   readonly inputPorts: ReadonlyArray<Port>;
-  /** Get the upstream node ID connected to an input port by name. */
-  getInputNodeId(portName: string): string | undefined;
+  /** The input connected to a port, if any. */
+  input(portName: string): I | undefined;
+  /** All connected inputs, in port order. */
+  inputs(): ReadonlyArray<ConnectedInput<I>>;
   /** Get the output columns of an input by port name. */
   getInputColumns(portName: string): ColumnDef[] | undefined;
   /** SQL modules for table/module metadata resolution. */
   readonly sqlModules: SqlModules | undefined;
+}
+
+export interface NodeGenerators<C> {
+  /**
+   * Standard SQL (required). Return undefined when the node is incomplete
+   * (e.g. a required input is not connected).
+   */
+  sql(
+    config: C,
+    ctx: GeneratorContext<SqlInput>,
+  ): SqlFragment | GeneratorError | undefined;
+  /** PerfettoSQL Next (optional; omitted means unsupported in PSN mode). */
+  psn?(
+    config: C,
+    ctx: GeneratorContext<PsnInput>,
+  ): PsnFragment | GeneratorError | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -118,8 +196,15 @@ export interface NodeManifest<C extends object = object> {
   /** Compute output columns (optional — absent means pass-through). */
   getOutputColumns?(config: C, ctx: ColumnContext): ColumnDef[] | undefined;
 
-  /** Lower this node's config and input wiring into a declarative LogicalOp. */
-  toLogicalOp(config: C, ctx: LogicalOpContext): LogicalOp | undefined;
+  /** Render this node in each SQL dialect. */
+  readonly generators: NodeGenerators<C>;
+
+  /**
+   * Potentially expensive nodes (joins, aggregates, interval ops...) have their
+   * output materialized into a cache table. Everything else folds into the
+   * next table's query or the output query.
+   */
+  readonly expensive?: boolean;
 
   /**
    * Optional: render custom content in the details panel instead of the

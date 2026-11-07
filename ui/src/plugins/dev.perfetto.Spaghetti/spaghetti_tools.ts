@@ -33,7 +33,8 @@ import {
   serializeStore,
   tryGetManifest,
 } from './graph_utils';
-import {buildDisplayQuery, buildLogicalPlan} from './ir';
+import {buildDisplayQuery} from './compose';
+import {buildPlan} from './plan';
 import type {MaterializationService} from './materialization';
 import {
   DEFAULT_EVAL_ROW_LIMIT,
@@ -66,8 +67,8 @@ export function getSelectedNodeContext(
   const columns = (
     getOutputColumnsForNode(index, activeNodeId, sqlModules) ?? []
   ).map((c) => c.name);
-  const logicalPlan = buildLogicalPlan(index, activeNodeId, sqlModules);
-  const sql = buildDisplayQuery(logicalPlan, state.dialect);
+  const plan = buildPlan(index, activeNodeId, sqlModules);
+  const sql = buildDisplayQuery(plan, state.dialect);
 
   const isEvaluatedActive = matService?.evaluatedNodeId === activeNodeId;
   const matTable = isEvaluatedActive

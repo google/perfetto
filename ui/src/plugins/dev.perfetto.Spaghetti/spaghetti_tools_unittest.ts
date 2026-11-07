@@ -151,7 +151,7 @@ describe('SPAGHETTI_GRAPH_FORMAT', () => {
       defaultConfig: () => ({mode: 'FAST'}),
       render: () => null,
       isValid: () => true,
-      toLogicalOp: () => undefined,
+      generators: {sql: () => undefined},
     };
 
     const catalog = buildNodeCatalogFromRegistry({custom_op: fakeManifest});

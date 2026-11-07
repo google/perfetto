@@ -17,11 +17,10 @@ import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
 import type {
   ColumnContext,
-  LogicalOpContext,
+  NodeGenerators,
   NodeManifest,
   RenderContext,
 } from '../node_types';
-import type {LogicalOp} from '../ir';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import type {ColumnDef} from '../graph_utils';
 import {DraggableStack} from '../components/draggable_stack';
@@ -120,20 +119,24 @@ function isValid(config: ExtendConfig): boolean {
   return config.entries.every((e) => e.alias === '' || e.expression !== '');
 }
 
-function toLogicalOp(
-  config: ExtendConfig,
-  ctx: LogicalOpContext,
-): LogicalOp | undefined {
-  const input = ctx.getInputNodeId('input');
-  if (!input) return undefined;
-  return {
-    kind: 'extend',
-    input,
-    expressions: config.entries
-      .filter((e) => e.expression !== '')
-      .map((e) => ({expression: e.expression, alias: entryAlias(e)})),
-  };
+function exprParts(config: ExtendConfig): string[] {
+  return config.entries
+    .filter((e) => e.expression !== '')
+    .map((e) => `${e.expression} AS ${entryAlias(e)}`);
 }
+
+const generators: NodeGenerators<ExtendConfig> = {
+  sql: (config, ctx) => {
+    if (ctx.input('input') === undefined) return undefined;
+    const exprs = exprParts(config);
+    return exprs.length > 0 ? {select: ['*', ...exprs]} : {};
+  },
+  psn: (config, ctx) => {
+    if (ctx.input('input') === undefined) return undefined;
+    const exprs = exprParts(config);
+    return {stages: exprs.length > 0 ? [`EXTEND ${exprs.join(', ')}`] : []};
+  },
+};
 
 export const manifest: NodeManifest<ExtendConfig> = {
   title: 'Extend',
@@ -145,5 +148,5 @@ export const manifest: NodeManifest<ExtendConfig> = {
   render,
   getOutputColumns,
   isValid,
-  toLogicalOp,
+  generators,
 };
