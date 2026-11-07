@@ -141,7 +141,8 @@ function makeEvaluator(index: GraphIndex, sqlModules: SqlModules | undefined) {
     const hashes = new Map<string, string>();
     const inputColumns = new Map<string, ColumnDef[] | undefined>();
     for (const [i, port] of ports.entries()) {
-      const upstream = i === 0 && dockedParent ? dockedParent : connected.get(i);
+      const upstream =
+        i === 0 && dockedParent ? dockedParent : connected.get(i);
       if (upstream === undefined) continue;
       const upstreamEval = evaluate(upstream.id);
       if (upstreamEval === undefined) return undefined;
