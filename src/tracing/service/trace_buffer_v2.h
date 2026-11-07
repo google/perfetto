@@ -433,6 +433,9 @@ class TraceBufferV2 : public TraceBuffer {
 
   void RecordAbiViolation() override;
 
+  // No-op because TraceBufferV2 does no work at the end of a write cycle.
+  void OnWriteCheckpoint() override;
+
   // To read the contents of the buffer the caller needs to:
   //   BeginRead()
   //   while (ReadNextTracePacket(packet_fragments)) { ... }
@@ -487,7 +490,7 @@ class TraceBufferV2 : public TraceBuffer {
   // Compaction can invalidate packet slices from earlier reads, so the caller
   // must not use those packets after MaybeCompact().
   //
-  // This is a no-op if the buffer is read-only or if it is a kDiscard buffer.
+  // This is a no-op if the buffer is read-only.
   void MaybeCompact() override;
 
   // Creates a read-only clone of the trace buffer. The read iterators of the
@@ -521,6 +524,8 @@ class TraceBufferV2 : public TraceBuffer {
   using ChunkSeqReader = internal::ChunkSeqReader;
 
   friend class TraceBufferV2Test;
+  friend class TraceBufferV3;
+  friend class TraceBufferV3Test;
   friend class internal::ChunkSeqReader;
   friend class internal::ChunkSeqIterator;
 
@@ -536,10 +541,14 @@ class TraceBufferV2 : public TraceBuffer {
   bool Initialize(size_t size);
   TBChunk* CreateTBChunk(size_t off, size_t payload_size);
 
+  // True if a chunk with |payload_size| bytes would run past the end, or if
+  // kOverwrite would replace chunks or padding at |wr_|.
+  bool WriteWouldWrapOrOverwrite(size_t payload_size) const;
+
   // Prepares contiguous storage at wr_. The caller checks that size <= size_.
-  // May evict chunks and wrap. Does not prune sequences or change stats for
-  // rejected writes. Returns false if the write reaches the end of a kDiscard
-  // buffer. The caller then seals the buffer with DiscardWrite().
+  // May evict chunks and wrap. Does not prune sequences. If the write reaches
+  // the end of a kDiscard buffer, stops accepting writes, counts a discarded
+  // chunk and returns false.
   bool MakeSpaceToWrite(size_t size);
   void DeleteNextChunksFor(size_t bytes_to_clear);
 
@@ -585,7 +594,10 @@ class TraceBufferV2 : public TraceBuffer {
     return static_cast<size_t>(addr - buf_start);
   }
 
-  void DiscardWrite();
+  // Enters discard mode, so all later writes are rejected and counted.
+  // Retained chunks remain readable and can still receive patches.
+  void StopAcceptingWrites();
+
   void MaybePruneSequences();
 
   uint8_t* begin() const { return reinterpret_cast<uint8_t*>(data_.Get()); }
@@ -637,7 +649,8 @@ class TraceBufferV2 : public TraceBuffer {
   bool read_only_ = false;
 
   // Only used when |overwrite_policy_ == kDiscard|. This is set the first time
-  // a write fails because it would overwrite unread chunks.
+  // a write fails because it would overwrite unread chunks, or by
+  // StopAcceptingWrites().
   bool discard_writes_ = false;
 
   // When true disable some DCHECKs that have been put in place to detect
