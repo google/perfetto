@@ -71,5 +71,30 @@ TEST(RowBatchTest, KeepingTheFirstRowsKeepsAPrefix) {
   EXPECT_EQ(selection[0], 1u);
 }
 
+// Rows can be kept in any order, and are read in it. Only the first rows, in
+// order, are a prefix.
+TEST(RowBatchTest, KeepsRowsInAnyOrder) {
+  std::vector<int64_t> values = {0, 10, 20, 30};
+  RowBatch batch;
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  batch.SetRowCount(4);
+  std::vector<uint32_t> reversed = {3, 2, 1, 0};
+  batch.mutable_selection().Reorder(reversed);
+  EXPECT_FALSE(batch.selection().prefix());
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(30, 20, 10, 0));
+
+  // The last two kept end at count - 1, but are not the first two rows.
+  std::vector<uint32_t> last_two = {1, 0};
+  batch.mutable_selection().KeepRows(last_two);
+  EXPECT_FALSE(batch.selection().prefix());
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(10, 0));
+
+  std::vector<uint32_t> in_order = {0, 1};
+  batch.mutable_selection().Reorder(in_order);
+  EXPECT_TRUE(batch.selection().prefix());
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(0, 10));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core::exec
