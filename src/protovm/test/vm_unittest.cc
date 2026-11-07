@@ -17,6 +17,7 @@
 #include "src/protovm/test/sample_packets.h"
 #include "test/gtest_and_gmock.h"
 
+#include "src/protovm/program_decoder.h"
 #include "src/protovm/test/protos/incremental_trace.pb.h"
 #include "src/protovm/test/sample_programs.h"
 #include "src/protovm/test/utils.h"
@@ -29,6 +30,20 @@ namespace test {
 class VmTest : public ::testing::Test {
  protected:
   static constexpr size_t MEMORY_LIMIT_BYTES = 10 * 1024 * 1024;
+
+  std::unique_ptr<Vm> CreateVm(
+      const perfetto::protos::VmProgram& proto_program,
+      std::optional<std::string> initial_incremental_state =
+          std::nullopt) const {
+    std::string serialized_program = proto_program.SerializeAsString();
+    protozero::ConstBytes state_bytes =
+        initial_incremental_state ? AsConstBytes(*initial_incremental_state)
+                                  : protozero::ConstBytes{nullptr, 0};
+    auto vm = Vm::Create(AsConstBytes(serialized_program), MEMORY_LIMIT_BYTES,
+                         state_bytes);
+    PERFETTO_CHECK(vm.ok());
+    return std::move(*vm);
+  }
 
   std::string InitialIncrementalState() const {
     protos::TraceEntry state{};
@@ -49,21 +64,24 @@ class VmTest : public ::testing::Test {
 };
 
 TEST_F(VmTest, NoPatch) {
-  auto program =
-      SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
-  ASSERT_TRUE(SerializeIncrementalStateAsString(vm).empty());
+  auto vm = CreateVm(SamplePrograms::IncrementalTraceInstructions());
+  ASSERT_TRUE(SerializeIncrementalStateAsString(*vm).empty());
+}
+
+TEST_F(VmTest, InvalidProgramAbortsOnCreation) {
+  perfetto::protos::VmProgram invalid_program{};
+  invalid_program.add_instructions();  // Instruction with no operation set
+  auto serialized = invalid_program.SerializeAsString();
+  auto vm = Vm::Create(AsConstBytes(serialized), MEMORY_LIMIT_BYTES);
+  ASSERT_FALSE(vm.ok());
 }
 
 TEST_F(VmTest, ConstructionWithInitialIncrementalState) {
-  auto program =
-      SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
-
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES,
-        AsConstBytes(InitialIncrementalState())};
+  auto vm = CreateVm(SamplePrograms::IncrementalTraceInstructions(),
+                     InitialIncrementalState());
 
   protos::TraceEntry state{};
-  state.ParseFromString(SerializeIncrementalStateAsString(vm));
+  state.ParseFromString(SerializeIncrementalStateAsString(*vm));
   ASSERT_EQ(state.elements_size(), 2);
   ASSERT_EQ(state.elements(0).id(), 0);
   ASSERT_EQ(state.elements(0).value(), 10);
@@ -72,35 +90,31 @@ TEST_F(VmTest, ConstructionWithInitialIncrementalState) {
 }
 
 TEST_F(VmTest, ApplyPatch_DelOperation) {
-  auto program =
-      SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+  auto vm = CreateVm(SamplePrograms::IncrementalTraceInstructions());
 
   auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
-  vm.ApplyPatch(AsConstBytes(patch));
+  vm->ApplyPatch(AsConstBytes(patch));
 
   patch = SamplePackets::PatchWithDelOperation().SerializeAsString();
-  vm.ApplyPatch(AsConstBytes(patch));
+  vm->ApplyPatch(AsConstBytes(patch));
 
   protos::TraceEntry state{};
-  state.ParseFromString(SerializeIncrementalStateAsString(vm));
+  state.ParseFromString(SerializeIncrementalStateAsString(*vm));
   ASSERT_EQ(state.elements_size(), 1);
   ASSERT_EQ(state.elements(0).id(), 1);
   ASSERT_EQ(state.elements(0).value(), 11);
 }
 
 TEST_F(VmTest, ApplyPatch_MergeOperation) {
-  auto program =
-      SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+  auto vm = CreateVm(SamplePrograms::IncrementalTraceInstructions());
 
   // patch #1
   {
     auto patch = SamplePackets::PatchWithMergeOperation1().SerializeAsString();
-    vm.ApplyPatch(AsConstBytes(patch));
+    vm->ApplyPatch(AsConstBytes(patch));
 
     protos::TraceEntry state{};
-    state.ParseFromString(SerializeIncrementalStateAsString(vm));
+    state.ParseFromString(SerializeIncrementalStateAsString(*vm));
     ASSERT_EQ(state.elements_size(), 1);
     ASSERT_EQ(state.elements(0).id(), 0);
     ASSERT_EQ(state.elements(0).value(), 10);
@@ -109,10 +123,10 @@ TEST_F(VmTest, ApplyPatch_MergeOperation) {
   // patch #2
   {
     auto patch = SamplePackets::PatchWithMergeOperation2().SerializeAsString();
-    vm.ApplyPatch(AsConstBytes(patch));
+    vm->ApplyPatch(AsConstBytes(patch));
 
     protos::TraceEntry state{};
-    state.ParseFromString(SerializeIncrementalStateAsString(vm));
+    state.ParseFromString(SerializeIncrementalStateAsString(*vm));
     ASSERT_EQ(state.elements_size(), 2);
     ASSERT_EQ(state.elements(0).id(), 0);
     ASSERT_EQ(state.elements(0).value(), 100);
@@ -122,24 +136,22 @@ TEST_F(VmTest, ApplyPatch_MergeOperation) {
 }
 
 TEST_F(VmTest, ApplyPatch_SetOperation) {
-  auto program =
-      SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+  auto vm = CreateVm(SamplePrograms::IncrementalTraceInstructions());
 
   // empty
   {
     protos::TraceEntry state{};
-    state.ParseFromString(SerializeIncrementalStateAsString(vm));
+    state.ParseFromString(SerializeIncrementalStateAsString(*vm));
     ASSERT_EQ(state.elements_size(), 0);
   }
 
   // patch #1
   {
     auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
-    vm.ApplyPatch(AsConstBytes(patch));
+    vm->ApplyPatch(AsConstBytes(patch));
 
     protos::TraceEntry state{};
-    state.ParseFromString(SerializeIncrementalStateAsString(vm));
+    state.ParseFromString(SerializeIncrementalStateAsString(*vm));
     ASSERT_EQ(state.elements_size(), 2);
     ASSERT_EQ(state.elements(0).id(), 0);
     ASSERT_EQ(state.elements(0).value(), 10);
@@ -150,10 +162,10 @@ TEST_F(VmTest, ApplyPatch_SetOperation) {
   // patch #2
   {
     auto patch = SamplePackets::PatchWithSetOperation().SerializeAsString();
-    vm.ApplyPatch(AsConstBytes(patch));
+    vm->ApplyPatch(AsConstBytes(patch));
 
     protos::TraceEntry state{};
-    state.ParseFromString(SerializeIncrementalStateAsString(vm));
+    state.ParseFromString(SerializeIncrementalStateAsString(*vm));
     ASSERT_EQ(state.elements_size(), 2);
     ASSERT_EQ(state.elements(0).id(), 0);
     ASSERT_FALSE(state.elements(0).has_value());
@@ -163,12 +175,10 @@ TEST_F(VmTest, ApplyPatch_SetOperation) {
 }
 
 TEST_F(VmTest, ApplyPatch_ErrorHandling) {
-  auto program =
-      SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+  auto vm = CreateVm(SamplePrograms::IncrementalTraceInstructions());
 
   auto patch = SamplePackets::PatchInconsistentWithIncrementalTraceProgram();
-  auto status = vm.ApplyPatch(AsConstBytes(patch));
+  auto status = vm->ApplyPatch(AsConstBytes(patch));
   ASSERT_TRUE(status.IsAbort());
 
   const auto& stacktrace = status.stacktrace();
@@ -179,14 +189,12 @@ TEST_F(VmTest, ApplyPatch_ErrorHandling) {
 }
 
 TEST_F(VmTest, CloneReadOnly) {
-  auto program =
-      SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+  auto vm = CreateVm(SamplePrograms::IncrementalTraceInstructions());
 
   auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
-  vm.ApplyPatch(AsConstBytes(patch));
+  vm->ApplyPatch(AsConstBytes(patch));
 
-  std::unique_ptr<Vm> cloned_vm = vm.CloneReadOnly();
+  std::unique_ptr<Vm> cloned_vm = vm->CloneReadOnly();
 
   // Check read-only VM doesn't accept patches
   ASSERT_TRUE(cloned_vm->ApplyPatch(AsConstBytes(patch)).IsAbort());
@@ -202,57 +210,61 @@ TEST_F(VmTest, CloneReadOnly) {
 }
 
 TEST_F(VmTest, ApplyPatch_DelAliasedRoot) {
-  auto program = SamplePrograms::DelAliasedRoot().SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+  auto vm = CreateVm(SamplePrograms::DelAliasedRoot());
 
   auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
-  auto status = vm.ApplyPatch(AsConstBytes(patch));
+  auto status = vm->ApplyPatch(AsConstBytes(patch));
   ASSERT_TRUE(status.IsOk());
 }
 
 TEST_F(VmTest, ApplyPatch_DelAliasedDstAborts1) {
-  auto program =
-      SamplePrograms::DelAliasedDstInsideSrcSelect().SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+  auto vm = CreateVm(SamplePrograms::DelAliasedDstInsideSrcSelect());
 
   auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
-  auto status = vm.ApplyPatch(AsConstBytes(patch));
+  auto status = vm->ApplyPatch(AsConstBytes(patch));
   ASSERT_TRUE(status.IsAbort());
 }
 
 TEST_F(VmTest, ApplyPatch_DelAliasedDstAborts2) {
-  auto program = SamplePrograms::DelAliasedDstInsideEmptyPathDstSelect()
-                     .SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+  auto vm = CreateVm(SamplePrograms::DelAliasedDstInsideEmptyPathDstSelect());
 
   auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
-  auto status = vm.ApplyPatch(AsConstBytes(patch));
+  auto status = vm->ApplyPatch(AsConstBytes(patch));
   ASSERT_TRUE(status.IsAbort());
 }
 
 TEST_F(VmTest, ApplyPatch_AccessDeletedDstAborts) {
-  auto program = SamplePrograms::DelAndNestedDel().SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+  auto vm = CreateVm(SamplePrograms::DelAndNestedDel());
 
   auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
-  auto status = vm.ApplyPatch(AsConstBytes(patch));
+  auto status = vm->ApplyPatch(AsConstBytes(patch));
   ASSERT_TRUE(status.IsAbort());
 }
 
 TEST_F(VmTest, GetMemoryUsage) {
-  auto program =
+  auto proto_program =
       SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
-  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+  auto decoded_program = ProgramDecoder::Decode(AsConstBytes(proto_program));
+  ASSERT_TRUE(decoded_program.IsOk());
+  uint64_t expected_program_bytes =
+      proto_program.size() + decoded_program->GetMemoryUsageBytes();
+  auto vm = CreateVm(SamplePrograms::IncrementalTraceInstructions());
 
   // Initial memory usage only accounts for the program size
-  ASSERT_EQ(vm.GetMemoryUsageBytes(), program.size());
-  ASSERT_EQ(vm.CloneReadOnly()->GetMemoryUsageBytes(), program.size());
+  ASSERT_EQ(vm->GetMemoryUsageBytes(), expected_program_bytes);
+  ASSERT_EQ(vm->CloneReadOnly()->GetMemoryUsageBytes(), expected_program_bytes);
 
   // Populating the incremental state increases memory usage
   auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
-  vm.ApplyPatch(AsConstBytes(patch));
-  ASSERT_GT(vm.GetMemoryUsageBytes(), program.size());
-  ASSERT_GT(vm.CloneReadOnly()->GetMemoryUsageBytes(), program.size());
+  vm->ApplyPatch(AsConstBytes(patch));
+  ASSERT_GT(vm->GetMemoryUsageBytes(), expected_program_bytes);
+  ASSERT_GT(vm->CloneReadOnly()->GetMemoryUsageBytes(), expected_program_bytes);
+}
+
+TEST_F(VmTest, SerializeProgram) {
+  auto proto_program = SamplePrograms::IncrementalTraceInstructions();
+  auto vm = CreateVm(proto_program);
+  ASSERT_EQ(vm->SerializeProgram(), proto_program.SerializeAsString());
 }
 
 }  // namespace test
