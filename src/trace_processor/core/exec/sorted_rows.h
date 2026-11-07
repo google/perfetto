@@ -97,6 +97,9 @@ class SortedRows {
   // Copies up to kMaxBatchRows rows into `out`, starting at position `at` in
   // the order, up to its end. Returns the number of rows copied.
   uint32_t Gather(RowBatch* out, uint32_t at, Context& context);
+  // As Gather(), but rows held in one batch are viewed where they are held
+  // (see RowStore::GatherInPlace).
+  uint32_t GatherInPlace(RowBatch* out, uint32_t at, Context& context);
   void Clear();
 
   // Clear(), keeping only small allocations for the next run (see RunHeld).

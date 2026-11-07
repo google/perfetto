@@ -280,6 +280,29 @@ TEST(RowStoreTest, HoldsRowsInTheOrderKept) {
               ElementsAre(last - 5, last - 6, last - 7));
 }
 
+// Rows asked for from one batch held, in any order, are viewed where they are
+// held, not copied.
+TEST(RowStoreTest, GathersRowsOfOneBatchInAnyOrderWithoutCopying) {
+  std::vector<int64_t> values(kMaxBatchRows);
+  for (uint32_t i = 0; i < kMaxBatchRows; ++i) {
+    values[i] = i;
+  }
+  RowStore store;
+  RowBatch input;
+  FillBuffer(&input, values);
+  const void* data = input.column(0).data();
+  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+  RowBatch out;
+  std::vector<uint32_t> rows = {7, 5, 6, 100};
+  ASSERT_EQ(store.GatherInPlace(&out,
+                                base::Span<const uint32_t>(
+                                    rows.data(), rows.data() + rows.size()),
+                                test::TestContext()),
+            4u);
+  EXPECT_EQ(out.column(0).data(), data);
+  EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(7, 5, 6, 100));
+}
+
 // A gather turns an implicit id into a stored one, so a stream can carry both.
 // A column never read back is not held, so its buffer is given back at once,
 // and it reads back as nulls.
