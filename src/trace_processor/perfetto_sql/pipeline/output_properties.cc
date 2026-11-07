@@ -158,6 +158,9 @@ class InputPlanner {
         (DropOpenSort() && rows.IsArranged(keys, sorted_by))) {
       return;
     }
+    if (keys.empty() && ReadBackwards(sorted_by)) {
+      return;
+    }
     if (keys.empty()) {
       Sort(sorted_by);
       return;
@@ -166,6 +169,32 @@ class InputPlanner {
     // grouping them is enough.
     Group(keys,
           rows.IsArranged({}, sorted_by) ? std::vector<SortKey>() : sorted_by);
+  }
+
+  // Reads the scan the rows come from backwards, if that sorts them by
+  // `sorted_by`. Rows which tie come out in the reverse of the scan's order.
+  bool ReadBackwards(const std::vector<SortKey>& sorted_by) {
+    OutputProperties& rows = out_.rows;
+    if (!rows.reversible_scan) {
+      return false;
+    }
+    OutputProperties backwards = rows;
+    for (OutputProperties::Arrangement& arrangement : backwards.arrangements) {
+      for (SortKey& key : arrangement.sorted_by) {
+        key.descending = !key.descending;
+      }
+    }
+    if (!backwards.IsArranged({}, sorted_by)) {
+      return false;
+    }
+    bound_->planned[*rows.reversible_scan].scan_direction =
+        core::exec::ReadDirection::kBackwards;
+    backwards.reversible_scan.reset();
+    if (backwards.tree) {
+      backwards.tree->walk.reset();
+    }
+    rows = std::move(backwards);
+    return true;
   }
 
   bool DropOpenSort() {
@@ -203,6 +232,7 @@ class InputPlanner {
       rows.tree->walk.reset();
     }
     out_.steps.push_back(input_step::Sort{keys, !rows.full_batches});
+    rows.reversible_scan.reset();
     rows.full_batches = true;
     rows.arrangements = {{{}, keys}};
     rows.open_sort = std::move(sort);
@@ -218,6 +248,7 @@ class InputPlanner {
     rows.columns.push_back({numbers, core::Uint32{}});
     rows.full_batches = true;
     rows.open_sort.reset();
+    rows.reversible_scan.reset();
     std::vector<OutputProperties::Arrangement> kept;
     if (sorted_by.empty()) {
       // An order known within groups of a subset of `keys` still holds within
@@ -268,6 +299,7 @@ class InputPlanner {
                              walk.direction, up && !rows.full_batches});
     rows.full_batches = up;
     rows.open_sort.reset();
+    rows.reversible_scan.reset();
     rows.arrangements.clear();
     rows.tree->walk = walk.direction;
   }
@@ -466,6 +498,13 @@ void PlanNodeInputs(BoundPlan* bound,
     inputs.push_back(planners[i].Take());
   }
   bound->planned[id].inputs = std::move(inputs);
+  if (!op.IsRowWise()) {
+    // Only a row-wise operation's output is reversed by reading its input
+    // backwards.
+    for (PlannedInput& input : bound->planned[id].inputs) {
+      input.rows.reversible_scan.reset();
+    }
+  }
   DeriveContext derive(bound, id, context);
   OutputProperties output = op.Derive(derive);
   bound->planned[id].output = std::move(output);

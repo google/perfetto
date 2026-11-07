@@ -164,6 +164,11 @@ void Lowering::LowerInput(const PlanNode& node, uint32_t input) {
   }
 }
 
+core::exec::ReadDirection Lowering::QueryScanDirection(
+    const PlanNode& node) const {
+  return plan_->bound_.planned[plan().IdOf(node)].scan_direction;
+}
+
 std::optional<uint32_t> Lowering::QuerySortKeep() const {
   const std::optional<OutputProperties::OpenSort>& sort = rows_->open_sort;
   if (!sort) {
