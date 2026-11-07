@@ -258,6 +258,16 @@ uint32_t SortedRows::Gather(RowBatch* out, uint32_t at, Context& context) {
                       context);
 }
 
+uint32_t SortedRows::GatherInPlace(RowBatch* out,
+                                   uint32_t at,
+                                   Context& context) {
+  auto count =
+      std::min(kMaxBatchRows, static_cast<uint32_t>(order_.size()) - at);
+  const uint32_t* begin = order_.data() + at;
+  return rows_.GatherInPlace(
+      out, base::Span<const uint32_t>(begin, begin + count), context);
+}
+
 void SortedRows::EndRun() {
   types_.clear();
   strings_.clear();
