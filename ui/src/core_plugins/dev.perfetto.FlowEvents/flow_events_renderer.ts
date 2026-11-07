@@ -32,6 +32,7 @@ const CIRCLE_RADIUS = 3;
 const BEZIER_OFFSET = 30;
 
 const CONNECTED_FLOW_HUE = 10;
+const EXPECTED_FLOW_HUE = 120;
 const SELECTED_FLOW_HUE = 230;
 
 const DEFAULT_FLOW_WIDTH = 2;
@@ -84,7 +85,9 @@ export function renderFlows(
 
   const drawFlow = (flow: Flow, hue: number) => {
     const flowStartTs =
-      flow.flowToDescendant || flow.begin.sliceStartTs >= flow.end.sliceStartTs
+      flow.flowToDescendant ||
+      flow.category === 'expected_frame' ||
+      flow.begin.sliceStartTs >= flow.end.sliceStartTs
         ? flow.begin.sliceStartTs
         : flow.begin.sliceEndTs;
 
@@ -188,7 +191,11 @@ export function renderFlows(
 
   // Render the connected flows
   flows.connectedFlows.forEach((flow) => {
-    drawFlow(flow, CONNECTED_FLOW_HUE);
+    const hue =
+      flow.category === 'expected_frame'
+        ? EXPECTED_FLOW_HUE
+        : CONNECTED_FLOW_HUE;
+    drawFlow(flow, hue);
   });
 
   // Render the selected flows
@@ -199,7 +206,11 @@ export function renderFlows(
         flows.visibleCategories.get(cat) ||
         flows.visibleCategories.get(ALL_CATEGORIES)
       ) {
-        drawFlow(flow, SELECTED_FLOW_HUE);
+        const hue =
+          flow.category === 'expected_frame'
+            ? EXPECTED_FLOW_HUE
+            : SELECTED_FLOW_HUE;
+        drawFlow(flow, hue);
         break;
       }
     }
