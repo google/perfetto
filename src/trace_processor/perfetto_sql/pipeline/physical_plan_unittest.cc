@@ -312,6 +312,56 @@ TEST_F(PhysicalPlanTest, ReordersHoldOnlyColumnsReadAfterThem) {
   EXPECT_THAT(*rows, ElementsAre(Pair(1, 50), Pair(2, 60), Pair(3, 70)));
 }
 
+// A LIMIT straight after a sort makes the sort output only the rows the LIMIT
+// reads, so with no offset the LIMIT needs no operator of its own. Steps
+// keeping every row may come between; a WHERE may not, as rows it drops would
+// have to be replaced.
+TEST_F(PhysicalPlanTest, ALimitKeepsOnlyTheRowsItReadsFromASort) {
+  Exec("CREATE TABLE t(id INTEGER, n INTEGER)");
+  Exec("INSERT INTO t VALUES (1, 5), (2, 3), (3, 4), (4, 1), (5, 2)");
+  auto plan = [&](const std::string& sql) -> std::string {
+    auto lowered = Plan(sql);
+    EXPECT_TRUE(lowered.ok()) << lowered.status().message();
+    return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
+  };
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> LIMIT 2 OFFSET 1"),
+            "main: DataframeScan | TopK(#1; 3) | Limit(2 offset 1)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> LIMIT 2"),
+            "main: DataframeScan | TopK(#1; 2)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> EXTEND n + 1 AS m |> LIMIT 2"),
+            "main: DataframeScan | TopK(#1; 2) | Compute((#1 + 1))");
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> WHERE id > 1 |> LIMIT 2"),
+            "main: DataframeScan | Sort(#1) | Filter(#0 > ?0) | Limit(2)");
+
+  auto lowered = Plan("FROM t |> ORDER BY n |> LIMIT 2 OFFSET 1");
+  ASSERT_TRUE(lowered.ok()) << lowered.status().message();
+  auto rows = Run(**lowered, "n");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(2, 3), Pair(5, 2)));
+
+  lowered = Plan("FROM t |> ORDER BY n |> LIMIT 2");
+  ASSERT_TRUE(lowered.ok()) << lowered.status().message();
+  rows = Run(**lowered, "n");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(4, 1), Pair(5, 2)));
+}
+
+// A sort drops a key nothing after it reads, as it lays the key out when rows
+// arrive. A TopK holds it: pruning appends the rows it keeps again.
+TEST_F(PhysicalPlanTest, ATopKHoldsItsKeys) {
+  Exec("CREATE TABLE t(id INTEGER, n INTEGER)");
+  Exec("INSERT INTO t VALUES (1, 5), (2, 3), (3, 4), (4, 1), (5, 2)");
+  auto plan = [&](const std::string& sql) -> std::string {
+    auto lowered = Plan(sql);
+    EXPECT_TRUE(lowered.ok()) << lowered.status().message();
+    return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
+  };
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> SELECT id"),
+            "main: DataframeScan | Sort(#1; drops #1)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> SELECT id |> LIMIT 2"),
+            "main: DataframeScan | TopK(#1; 2)");
+}
+
 // DISTINCT compares only the columns of the row at that stage: `id`, dropped
 // before it, does not make rows differ.
 TEST_F(PhysicalPlanTest, DistinctComparesTheRowAtItsStage) {

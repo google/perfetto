@@ -47,6 +47,7 @@
 #include "src/trace_processor/core/exec/sort.h"
 #include "src/trace_processor/core/exec/sorted_rows.h"
 #include "src/trace_processor/core/exec/sorted_scan.h"
+#include "src/trace_processor/core/exec/top_k.h"
 #include "src/trace_processor/core/exec/tree_accumulate.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
@@ -323,6 +324,11 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
   if (op.Is<Sort>()) {
     const auto& sort = static_cast<const Sort&>(op);
     return "Sort(" + Keys(sort.spec_.keys) + Unread(sort.unread_) + ")";
+  }
+  if (op.Is<TopK>()) {
+    const auto& top = static_cast<const TopK&>(op);
+    return "TopK(" + Keys(top.spec_.keys) + "; " +
+           std::to_string(top.spec_.count) + Unread(top.unread_) + ")";
   }
   if (op.Is<GroupedSort>()) {
     const auto& sort = static_cast<const GroupedSort&>(op);
