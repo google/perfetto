@@ -13,16 +13,41 @@
 
 import m from 'mithril';
 import type {Engine} from '../../../trace_processor/engine';
-import {NUM_NULL} from '../../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  type InferRowType,
+} from '../../../trace_processor/query_result';
+import {formatNumber} from '../../../components/widgets/charts/chart_utils';
+import type {
+  HistogramBucket,
+  HistogramData,
+} from '../../../components/widgets/charts/histogram_loader';
+import {HistogramSvg} from '../../../components/widgets/charts_svg/histogram_svg';
+import {Anchor} from '../../../widgets/anchor';
 import {Button} from '../../../widgets/button';
+import {Card} from '../../../widgets/card';
 import {Section} from '../../../widgets/section';
 import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
 import {Icon} from '../../../widgets/icon';
 import {Tooltip} from '../../../widgets/tooltip';
-import {statsSpec, type StatsSectionRow} from '../utils';
+import {statsSpec} from '../utils';
+
+// C++ producers (e.g. heapprofd) use std::numeric_limits<int64_t>::max() as the
+// upper_bound sentinel for open-ended overflow buckets.
+const INT64_MAX = 9223372036854775807n;
+
+const statsRowSpec = {
+  ...statsSpec,
+  id: NUM,
+};
+
+type StatsRow = InferRowType<typeof statsRowSpec>;
 
 export interface StatsData {
-  allStats: StatsSectionRow[];
+  allStats: StatsRow[];
+  histograms: Map<number, HistogramData>;
   isMultiTrace: boolean;
   isMultiMachine: boolean;
 }
@@ -31,6 +56,7 @@ export async function loadStatsData(engine: Engine): Promise<StatsData> {
   // Load all stats
   const allStatsResult = await engine.query(`
     select
+      id,
       name,
       value,
       cast(ifnull(idx, '') as text) as idx,
@@ -42,9 +68,14 @@ export async function loadStatsData(engine: Engine): Promise<StatsData> {
     from stats
     order by trace_id, machine_id, name, idx
   `);
-  const allStats: StatsSectionRow[] = [];
-  for (const iter = allStatsResult.iter(statsSpec); iter.valid(); iter.next()) {
+  const allStats: StatsRow[] = [];
+  for (
+    const iter = allStatsResult.iter(statsRowSpec);
+    iter.valid();
+    iter.next()
+  ) {
     allStats.push({
+      id: iter.id,
       name: iter.name,
       value: iter.value,
       description: iter.description,
@@ -53,6 +84,64 @@ export async function loadStatsData(engine: Engine): Promise<StatsData> {
       source: iter.source,
       machineId: iter.machineId,
       traceId: iter.traceId,
+    });
+  }
+
+  // Load histogram buckets for non-empty histogram-type stats.
+  const bucketsResult = await engine.query(`
+    select
+      b.stat_id as statId,
+      b.lower_bound as lowerBound,
+      b.upper_bound as upperBound,
+      b.count,
+      s.value as totalCount
+    from stats_histogram_bucket b
+    join stats s on s.id = b.stat_id
+    where s.value > 0
+    order by b.stat_id, b.lower_bound
+  `);
+  const bucketsByStatId = new Map<
+    number,
+    {totalCount: number; buckets: HistogramBucket[]}
+  >();
+  for (
+    const iter = bucketsResult.iter({
+      statId: NUM,
+      lowerBound: LONG,
+      upperBound: LONG,
+      count: LONG,
+      totalCount: NUM,
+    });
+    iter.valid();
+    iter.next()
+  ) {
+    let entry = bucketsByStatId.get(iter.statId);
+    if (entry === undefined) {
+      entry = {totalCount: iter.totalCount, buckets: []};
+      bucketsByStatId.set(iter.statId, entry);
+    }
+    entry.buckets.push({
+      start: Number(iter.lowerBound),
+      end:
+        iter.upperBound >= INT64_MAX
+          ? Number.POSITIVE_INFINITY
+          : Number(iter.upperBound),
+      count: Number(iter.count),
+    });
+  }
+
+  const histograms = new Map<number, HistogramData>();
+  for (const [statId, {totalCount, buckets}] of bucketsByStatId) {
+    const first = buckets[0];
+    const last = buckets[buckets.length - 1];
+    if (first === undefined || last === undefined) continue;
+    histograms.set(statId, {
+      buckets,
+      min: first.start,
+      max: last.end,
+      totalCount,
+      nullCount: 0,
+      nonNumericCount: 0,
     });
   }
 
@@ -90,9 +179,21 @@ export async function loadStatsData(engine: Engine): Promise<StatsData> {
 
   return {
     allStats,
+    histograms,
     isMultiTrace: traceIds.size > 1,
     isMultiMachine: machineIds.size > 1,
   };
+}
+
+function statHistogramElementId(statId: number): string {
+  return `stat-histogram-${statId}`;
+}
+
+function scrollToStatHistogram(statId: number): void {
+  const element = document.getElementById(statHistogramElementId(statId));
+  if (element) {
+    element.scrollIntoView({behavior: 'smooth', block: 'start'});
+  }
 }
 
 export interface StatsTabAttrs {
@@ -101,6 +202,10 @@ export interface StatsTabAttrs {
 
 export class StatsTab implements m.ClassComponent<StatsTabAttrs> {
   view({attrs}: m.CVnode<StatsTabAttrs>) {
+    const histogramRows = attrs.data.allStats.filter((row) =>
+      attrs.data.histograms.has(row.id),
+    );
+
     return m(
       '.pf-trace-info-page__tab-content',
       m(
@@ -112,17 +217,34 @@ export class StatsTab implements m.ClassComponent<StatsTabAttrs> {
         },
         m(StatsSection, {
           data: attrs.data.allStats,
+          histograms: attrs.data.histograms,
           isMultiTrace: attrs.data.isMultiTrace,
           isMultiMachine: attrs.data.isMultiMachine,
         }),
       ),
+      histogramRows.length > 0 &&
+        m(
+          Section,
+          {
+            title: 'Histograms',
+            subtitle:
+              'Bucket distributions for histogram-type trace statistics',
+          },
+          m(StatsHistogramsSection, {
+            rows: histogramRows,
+            histograms: attrs.data.histograms,
+            isMultiTrace: attrs.data.isMultiTrace,
+            isMultiMachine: attrs.data.isMultiMachine,
+          }),
+        ),
     );
   }
 }
 
 // Stats Section
 interface StatsSectionAttrs {
-  data: StatsSectionRow[];
+  data: StatsRow[];
+  histograms: Map<number, HistogramData>;
   isMultiTrace: boolean;
   isMultiMachine: boolean;
 }
@@ -166,6 +288,23 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
             `${row.description}`,
           )
         : undefined;
+      const hasHistogram = attrs.histograms.has(row.id);
+      const histogramLink = hasHistogram
+        ? m(
+            Tooltip,
+            {
+              trigger: m(
+                Anchor,
+                {
+                  className: 'pf-trace-info-page__histogram-jump-link',
+                  onclick: () => scrollToStatHistogram(row.id),
+                },
+                m(Icon, {icon: 'bar_chart'}),
+              ),
+            },
+            'Jump to histogram',
+          )
+        : undefined;
       const cells = [];
       if (attrs.isMultiTrace) {
         cells.push(m(GridCell, row.traceId === null ? '-' : row.traceId));
@@ -179,6 +318,7 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
           {className: 'pf-trace-info-page__grid-key'},
           `${row.name}${idx}`,
           help,
+          histogramLink,
         ),
         m(GridCell, `${row.value}`),
         m(GridCell, `${row.severity} (${row.source})`),
@@ -199,6 +339,101 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
         columns,
         rowData,
         className: 'pf-trace-info-page__dense-grid',
+      }),
+    );
+  }
+}
+
+interface StatsHistogramsSectionAttrs {
+  rows: StatsRow[];
+  histograms: Map<number, HistogramData>;
+  isMultiTrace: boolean;
+  isMultiMachine: boolean;
+}
+
+function histogramXAxisLabel(name: string): string {
+  const withoutSuffix = name.replace(/_histogram$/, '');
+  const match = /^(.*)_(ns|us|ms|s|bytes|kb|mb)$/.exec(withoutSuffix);
+  if (match !== null) {
+    return `${match[1]} (${match[2]})`;
+  }
+  return withoutSuffix;
+}
+
+class StatsHistogramsSection implements m.ClassComponent<StatsHistogramsSectionAttrs> {
+  view({attrs}: m.CVnode<StatsHistogramsSectionAttrs>) {
+    return m(
+      '.pf-trace-info-page__histogram-list',
+      attrs.rows.map((row) => {
+        const histogram = attrs.histograms.get(row.id);
+        if (histogram === undefined) return undefined;
+        const idx = row.idx !== '' ? `[${row.idx}]` : '';
+        const contextParts: string[] = [];
+        if (attrs.isMultiTrace && row.traceId !== null) {
+          contextParts.push(`Trace ${row.traceId}`);
+        }
+        if (attrs.isMultiMachine && row.machineId !== null) {
+          contextParts.push(`Machine ${row.machineId}`);
+        }
+        const total = row.value ?? histogram.totalCount;
+        const help = Boolean(row.description)
+          ? m(
+              Tooltip,
+              {
+                trigger: m(Icon, {
+                  icon: 'help_outline',
+                  className: 'pf-trace-info-page__help-icon',
+                }),
+              },
+              `${row.description}`,
+            )
+          : undefined;
+
+        return m(
+          Card,
+          {
+            id: statHistogramElementId(row.id),
+            className: 'pf-trace-info-page__histogram-card',
+          },
+          m(
+            '.pf-trace-info-page__histogram-header',
+            m(
+              '.pf-trace-info-page__histogram-title-group',
+              m(
+                'span.pf-trace-info-page__histogram-title',
+                `${row.name}${idx}`,
+                help,
+              ),
+              contextParts.length > 0 &&
+                m(
+                  'span.pf-trace-info-page__histogram-context',
+                  `(${contextParts.join(', ')})`,
+                ),
+            ),
+            m(
+              'span.pf-trace-info-page__histogram-meta',
+              `Total: ${total.toLocaleString()}`,
+            ),
+          ),
+          m(
+            '.pf-trace-info-page__histogram-body',
+            m('.pf-trace-info-page__histogram-y-label', 'Count'),
+            m(
+              '.pf-trace-info-page__histogram-chart-col',
+              m(HistogramSvg, {
+                data: histogram,
+                height: 200,
+                yAxisLabel: '',
+                formatXValue: (v: number) =>
+                  Number.isFinite(v) ? formatNumber(v) : '∞',
+              }),
+              m(
+                '.pf-trace-info-page__histogram-x-label',
+                histogramXAxisLabel(row.name),
+              ),
+            ),
+          ),
+        );
       }),
     );
   }
