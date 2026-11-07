@@ -149,7 +149,7 @@ base::Status TopK::Prune(State& s) const {
   rows.order().resize(spec_.count);
   for (uint32_t at = 0; at < spec_.count;) {
     RowBatch first;
-    at += rows.Gather(&first, at, *s.context);
+    at += rows.GatherInPlace(&first, at, *s.context);
     RETURN_IF_ERROR(s.spare->Append(first, spec_.keys, spec_.pool, *s.context));
   }
   rows.Clear();
@@ -185,7 +185,7 @@ bool TopK::Serve(RowBatch& out, Breaker::State& state) const {
   if (s.emitted == s.rows->order().size()) {
     return false;
   }
-  s.emitted += s.rows->Gather(&out, s.emitted, *s.context);
+  s.emitted += s.rows->GatherInPlace(&out, s.emitted, *s.context);
   return true;
 }
 

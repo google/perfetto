@@ -280,4 +280,45 @@ uint32_t RowStore::Gather(RowBatch* out,
   return count;
 }
 
+uint32_t RowStore::GatherInPlace(RowBatch* out,
+                                 base::Span<const uint32_t> rows,
+                                 Context& context) {
+  auto count =
+      static_cast<uint32_t>(std::min<size_t>(rows.size(), kMaxBatchRows));
+  if (!count) {
+    return Gather(out, rows, context);
+  }
+  Flush();
+  uint32_t batch = Find(rows[0]);
+  bool run = true;
+  for (uint32_t r = 1; r < count; ++r) {
+    if (Find(rows[r]) != batch) {
+      return Gather(out, rows, context);
+    }
+    run &= rows[r] == rows[0] + r;
+  }
+  const RowBatch& held = *batches_[batch];
+  if (run && held.selection().prefix()) {
+    // Viewed as a run, which readers take in one go.
+    return Gather(out, rows, context);
+  }
+  out->Reset();
+  for (uint32_t c = 0; c < shape_.column_count(); ++c) {
+    uint32_t stored = stored_column_[c];
+    if (stored == kNotHeld) {
+      out->AddColumn(shape_.column(c), shape_.buffer(c));
+      continue;
+    }
+    out->AddColumn(held.column(stored), held.buffer(stored));
+  }
+  std::array<uint32_t, kMaxBatchRows> batch_rows;
+  for (uint32_t r = 0; r < count; ++r) {
+    batch_rows[r] = RowInBatch(rows[r], batch);
+  }
+  out->SetRowCount(held.selection().rows());
+  out->mutable_selection().Reorder(
+      base::Span<const uint32_t>(batch_rows.data(), batch_rows.data() + count));
+  return count;
+}
+
 }  // namespace perfetto::trace_processor::core::exec
