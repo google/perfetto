@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/exec/dataframe_windows.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -182,6 +183,9 @@ class Lowering {
   // How many rows the open sort of the input just lowered outputs, if it is
   // limited to its first rows.
   std::optional<uint32_t> QuerySortKeep() const;
+
+  // Which way the scan `node` reads its rows.
+  core::exec::ReadDirection QueryScanDirection(const PlanNode& node) const;
 
   // Where an interval operator finds the input just lowered (see
   // IntervalLaneNeeds).

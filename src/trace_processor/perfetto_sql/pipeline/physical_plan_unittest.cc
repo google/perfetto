@@ -279,6 +279,49 @@ TEST_F(PhysicalPlanTest, RowsAlreadyInOrderAreNotSortedAgain) {
             "HashAggregate(keys: #1; COUNT(*)) | Sort(#0)");
 }
 
+// Rows a scan keeps sorted by a column are read backwards to sort them the
+// other way, with rows which tie in reverse. Only steps taking each row on its
+// own may come between, as reading backwards must just reverse their output.
+TEST_F(PhysicalPlanTest, ScansBackwardsToSortTheOtherWay) {
+  Exec("CREATE TABLE t(ts INTEGER, n INTEGER)");
+  Exec("INSERT INTO t VALUES (0, 4), (2, 2), (2, 3), (5, 1)");
+  auto plan = [&](const std::string& sql) -> std::string {
+    auto lowered = Plan(sql);
+    EXPECT_TRUE(lowered.ok()) << lowered.status().message();
+    return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
+  };
+  EXPECT_EQ(plan("FROM t |> ORDER BY ts DESC"),
+            "main: DataframeScan(backwards)");
+  EXPECT_EQ(plan("FROM t |> WHERE n > 1 |> EXTEND n + 1 AS m |> SELECT ts, m "
+                 "|> ORDER BY ts DESC"),
+            "main: DataframeScan(backwards) | Filter(#1 > ?0) | "
+            "Compute((#1 + 1))");
+  EXPECT_EQ(plan("FROM t |> WHERE ts > 0 |> ORDER BY ts DESC"),
+            "main: SortedScan(backwards)");
+  // A LIMIT keeps the first rows, which reading backwards would change.
+  EXPECT_EQ(plan("FROM t |> LIMIT 2 |> ORDER BY ts DESC"),
+            "main: DataframeScan | Limit(2) | CombineBatches | Sort(#0 desc)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY ts DESC, n"),
+            "main: DataframeScan | Sort(#0 desc, #1)");
+
+  auto lowered = Plan("FROM t |> ORDER BY ts DESC");
+  ASSERT_TRUE(lowered.ok()) << lowered.status().message();
+  uint32_t n = 0;
+  for (const PhysicalPlan::Column& column : (*lowered)->columns()) {
+    if (column.name == "n") {
+      n = column.index;
+    }
+  }
+  std::vector<int64_t> values;
+  RowCursor cursor((*lowered)->source());
+  for (bool row = cursor.Open((*lowered)->filter_values()); row;
+       row = cursor.Next()) {
+    values.push_back(*IntAt(cursor, n));
+  }
+  ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
+  EXPECT_THAT(values, ElementsAre(1, 3, 2, 4));
+}
+
 // Small batches are combined only after a step that may output them, and only
 // before an operator that works best on full batches.
 TEST_F(PhysicalPlanTest, OnlySmallBatchesAreCombined) {
