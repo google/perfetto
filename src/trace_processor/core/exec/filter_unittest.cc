@@ -206,6 +206,10 @@ TEST_F(FilterTest, KeepsTheRowsEveryConditionHoldsFor) {
   EXPECT_THAT(Kept({{1, Gt{}}}, {"b"}), ElementsAre(0, 50));
   EXPECT_THAT(Kept({{1, Glob{}}}, {"[ab]"}), ElementsAre(10, 20, 40));
   EXPECT_THAT(Kept({{1, Glob{}}}, {"a"}), ElementsAre(20, 40));
+  EXPECT_THAT(Kept({{1, Regex{}}}, {"^[ab]$"}), ElementsAre(10, 20, 40));
+  EXPECT_THAT(Kept({{1, Regex{}}}, {"[cd]"}), ElementsAre(0, 50));
+  // As in the interpreter, a pattern which does not compile matches nothing.
+  EXPECT_THAT(Kept({{1, Regex{}}}, {"("}), ElementsAre());
 
   // Every condition must hold, each with its own value.
   EXPECT_THAT(Kept({{1, Eq{}, 0}, {0, Gt{}, 1}}, {"a", int64_t{20}}),
@@ -249,6 +253,28 @@ TEST_F(FilterTest, RunsAgainWithNewValues) {
   EXPECT_THAT(run("c", "a"), ElementsAre(10));
   EXPECT_THAT(run("a long string sorting after a", "z"), ElementsAre(20, 40));
   EXPECT_THAT(run("d", "b"), ElementsAre(20, 0, 40));
+}
+
+// A REGEXP pattern is compiled with each run's values, so a new pattern
+// replaces the last.
+TEST_F(FilterTest, RunsAgainWithANewPattern) {
+  std::vector<On> on = {{1, Regex{}, 0}};
+  Filter filter(Conditions(on), &pool_);
+  Context context;
+  std::unique_ptr<OperatorState> state = filter.MakeState(context);
+  std::vector<FilterValue> cast;
+  auto run = [&](const char* pattern) {
+    CastAll(on, {pattern}, &cast);
+    context.SetFilterValues(base::Span<const FilterValue>(cast));
+    RowBatch batch;
+    batch.CopyFrom(batch_);
+    EXPECT_TRUE(filter.Process(batch, *state));
+    return test::ReadColumn<int64_t>(batch, 0);
+  };
+  EXPECT_THAT(run("a"), ElementsAre(20, 40));
+  EXPECT_THAT(run("^[bd]"), ElementsAre(10, 50));
+  EXPECT_THAT(run("("), ElementsAre());
+  EXPECT_THAT(run("c"), ElementsAre(0));
 }
 
 // An Id column holds the row each value is stored at, from where the window

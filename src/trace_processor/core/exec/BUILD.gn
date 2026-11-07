@@ -98,6 +98,7 @@ source_set("exec") {
   deps = [
     "../../../../gn:default_deps",
     "../../../base",
+    "../../../base/regex",
     "../../containers",
     "../../util:bump_allocator",
     "../../util:cold_sort",
