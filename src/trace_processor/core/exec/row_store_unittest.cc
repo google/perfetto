@@ -247,6 +247,39 @@ TEST(RowStoreTest, GathersARunOfOneBatchWithoutCopying) {
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(5, 6, 7));
 }
 
+// Rows kept in any order are held, and read back, in that order, whether the
+// batch is shared or its rows are packed.
+TEST(RowStoreTest, HoldsRowsInTheOrderKept) {
+  std::vector<int64_t> values(kMaxBatchRows);
+  std::vector<uint32_t> reversed(kMaxBatchRows);
+  for (uint32_t i = 0; i < kMaxBatchRows; ++i) {
+    values[i] = i;
+    reversed[i] = kMaxBatchRows - 1 - i;
+  }
+  RowStore store;
+  RowBatch input;
+  FillBuffer(&input, values);
+  input.mutable_selection().Reorder(base::Span<const uint32_t>(
+      reversed.data(), reversed.data() + reversed.size()));
+  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+  FillBuffer(&input, {10, 20, 30});
+  uint32_t few[] = {2, 0};
+  input.mutable_selection().Reorder(base::Span<const uint32_t>(few));
+  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+
+  std::vector<int64_t> all = ReadAll(store, 0);
+  ASSERT_EQ(all.size(), kMaxBatchRows + 2);
+  EXPECT_EQ(all[0], int64_t{kMaxBatchRows} - 1);
+  EXPECT_EQ(all[kMaxBatchRows - 1], 0);
+  EXPECT_THAT(std::vector<int64_t>(all.end() - 2, all.end()),
+              ElementsAre(30, 10));
+  RowBatch out;
+  ASSERT_EQ(Gather(store, &out, {5, 6, 7}), 3u);
+  int64_t last = int64_t{kMaxBatchRows} - 1;
+  EXPECT_THAT(test::ReadColumn<int64_t>(out, 0),
+              ElementsAre(last - 5, last - 6, last - 7));
+}
+
 // A gather turns an implicit id into a stored one, so a stream can carry both.
 // A column never read back is not held, so its buffer is given back at once,
 // and it reads back as nulls.

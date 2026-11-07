@@ -230,6 +230,19 @@ TEST_F(FilterTest, NarrowsTheRowsKeptOfAWindow) {
   EXPECT_THAT(Kept({{0, Gt{}}}, ten, &window), ElementsAre(20, 40, 50));
 }
 
+// Rows kept in another order stay in it: a filter keeps the rows it reads in
+// the order it reads them.
+TEST_F(FilterTest, KeepsTheOrderOfTheRowsKept) {
+  RowBatch reversed;
+  reversed.CopyFrom(batch_);
+  uint32_t rows[] = {4, 3, 2, 1, 0};
+  reversed.mutable_selection().Reorder(base::Span<const uint32_t>(rows));
+  // Rows 3 and 1 end at count - 1, but are not the first two rows.
+  EXPECT_THAT(Kept({{1, Eq{}}}, {"a"}, &reversed), ElementsAre(40, 20));
+  EXPECT_THAT(Kept({{0, Gt{}}}, {int64_t{10}}, &reversed),
+              ElementsAre(50, 40, 20));
+}
+
 // A plan runs again with new values cast into the same ones, so strings of
 // any length, and ones the pool does not hold, keep the right rows.
 TEST_F(FilterTest, RunsAgainWithNewValues) {
