@@ -82,20 +82,19 @@ export const manifest: NodeManifest<UnionConfig> = {
         ),
       };
     },
-    // Proposed pipe-native union syntax (not yet supported by TP):
+    // Pipe-native union syntax (not yet supported by TP):
     //   FROM <a>
-    //   UNION ALL (<b>)
+    //   |> UNION ALL (<b>)
     psn: (config, ctx) => {
       const inputs = ctx.inputs();
-      const first = inputs[0];
-      if (first === undefined) return undefined;
+      if (inputs[0] === undefined) return undefined;
       if (inputs.length === 1) return {};
       const kw = config.distinct ? 'UNION' : 'UNION ALL';
       return {
-        source: [
-          `FROM ${first.input.source}`,
-          ...inputs.slice(1).map((i) => `${kw} ${i.input.withStages([])}`),
-        ].join('\n'),
+        stages: inputs.slice(1).map((i) => {
+          const src = i.input.source;
+          return `${kw} ${src.startsWith('(') ? src : `(FROM ${src})`}`;
+        }),
       };
     },
   },

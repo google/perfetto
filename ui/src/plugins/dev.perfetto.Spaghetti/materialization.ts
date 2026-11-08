@@ -19,17 +19,17 @@ import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
 import type {Engine} from '../../trace_processor/engine';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import type {NodeQueryBuilderStore} from './graph_model';
-import {flattenNodes, fnvHash, type GraphIndex} from './graph_utils';
+import {flattenNodes, fnvHash} from './graph_utils';
 import {
   buildDisplayQuery,
   compose,
   formatPlan,
   type FormatResult,
 } from './compose';
-import {buildCanvasPlan, buildPlan, type Plan} from './plan';
+import {buildPlan, type Plan} from './plan';
 import type {SqlDialect} from './sql_types';
 
-const DEFAULT_MAX_ORPHANS = 16;
+const DEFAULT_MAX_ENTRIES = 16;
 
 /** A cache table: an expensive node plus the cheap nodes folded into it. */
 export interface MaterializationStep {
@@ -174,20 +174,6 @@ export function planMaterialization(
   };
 }
 
-/**
- * Hashes of every cache table the canvas currently uses (every valid
- * expensive node, in `dialect`). These must not be evicted.
- */
-export function collectLiveHashes(
-  index: GraphIndex,
-  sqlModules: SqlModules | undefined,
-  dialect: SqlDialect,
-): Set<string> {
-  return new Set(
-    computeStepHashes(buildCanvasPlan(index, sqlModules), dialect).values(),
-  );
-}
-
 function hashToNodeTable(
   matPlan: MaterializationPlan,
   tableName: (hash: string) => string,
@@ -267,7 +253,8 @@ export function computeNeededStepHashes(
 }
 
 export interface MaterializationOptions {
-  readonly maxOrphans?: number;
+  /** Maximum number of cache tables kept (least recently used evicted). */
+  readonly maxEntries?: number;
   readonly taskQueue?: AtomicTaskQueue;
 }
 
@@ -278,7 +265,6 @@ interface StoredCacheEntry {
   readonly materializeTimeMs: number;
   lastHitAt: number;
   hitCount: number;
-  priority: number;
 }
 
 export interface CacheEntry {
@@ -288,7 +274,6 @@ export interface CacheEntry {
   readonly materializeTimeMs: number;
   readonly lastHitAt: number;
   readonly hitCount: number;
-  readonly isLive: boolean;
 }
 
 export type StepRunOutcome =
@@ -301,16 +286,11 @@ export class MaterializationService {
   private readonly limiter = new AsyncLimiter();
   private readonly engine: Engine;
   private readonly taskQueue: AtomicTaskQueue;
-  private readonly maxOrphans: number;
+  private readonly maxEntries: number;
 
   private cache = new Map<string, StoredCacheEntry>();
-  private evictionClock = 0;
-
-  private lastStore: NodeQueryBuilderStore | undefined;
-  private lastSqlModules: SqlModules | undefined;
-  private lastDialect: SqlDialect | undefined;
-  private lastIndex: GraphIndex = {nodes: {}, childToParent: new Map()};
-  private liveHashes: ReadonlySet<string> = new Set();
+  // Cache tables the current output query reads: never evicted.
+  private readHashes: ReadonlySet<string> = new Set();
 
   private latestUpdate:
     | {
@@ -322,7 +302,6 @@ export class MaterializationService {
     | undefined;
   private pendingUpdate = false;
   private pendingClearAll = false;
-  private pendingPruneOrphans = false;
 
   private _evaluatedNodeId: string | undefined;
   private _displaySql: string | undefined;
@@ -343,7 +322,7 @@ export class MaterializationService {
 
   constructor(engine: Engine, options?: MaterializationOptions) {
     this.engine = engine;
-    this.maxOrphans = options?.maxOrphans ?? DEFAULT_MAX_ORPHANS;
+    this.maxEntries = options?.maxEntries ?? DEFAULT_MAX_ENTRIES;
     this.taskQueue = options?.taskQueue ?? new AtomicTaskQueue();
   }
 
@@ -387,7 +366,6 @@ export class MaterializationService {
       materializeTimeMs: entry.materializeTimeMs,
       lastHitAt: entry.lastHitAt,
       hitCount: entry.hitCount,
-      isLive: this.liveHashes.has(entry.hash),
     }));
   }
 
@@ -418,15 +396,8 @@ export class MaterializationService {
     dialect: SqlDialect = 'sql',
   ): Promise<void> {
     if (this.disposed) return Promise.resolve();
-    this.updateGraphState(store, sqlModules, dialect);
     this.latestUpdate = {store, activeNodeId, sqlModules, dialect};
     this.pendingUpdate = true;
-    return this.scheduleWork();
-  }
-
-  pruneOrphans(): Promise<void> {
-    if (this.disposed) return Promise.resolve();
-    this.pendingPruneOrphans = true;
     return this.scheduleWork();
   }
 
@@ -444,21 +415,9 @@ export class MaterializationService {
 
       if (this.pendingClearAll) {
         this.pendingClearAll = false;
-        this.pendingPruneOrphans = false;
         this.clearActiveOutput();
         await this.dropAll();
         m.redraw();
-      } else if (this.pendingPruneOrphans) {
-        this.pendingPruneOrphans = false;
-        if (this.latestUpdate) {
-          this.updateGraphState(
-            this.latestUpdate.store,
-            this.latestUpdate.sqlModules,
-            this.latestUpdate.dialect,
-          );
-        }
-        const evicted = await this.evictOrphans(0);
-        if (evicted > 0) m.redraw();
       }
 
       if (this.disposed || !this.pendingUpdate || !this.latestUpdate) return;
@@ -468,31 +427,13 @@ export class MaterializationService {
     });
   }
 
-  private updateGraphState(
-    store: NodeQueryBuilderStore,
-    sqlModules: SqlModules | undefined,
-    dialect: SqlDialect,
-  ): GraphIndex {
-    if (
-      store !== this.lastStore ||
-      sqlModules !== this.lastSqlModules ||
-      dialect !== this.lastDialect
-    ) {
-      this.lastStore = store;
-      this.lastSqlModules = sqlModules;
-      this.lastDialect = dialect;
-      this.lastIndex = flattenNodes(store.nodes);
-      this.liveHashes = collectLiveHashes(this.lastIndex, sqlModules, dialect);
-    }
-    return this.lastIndex;
-  }
-
   private clearActiveOutput(): void {
     this._dataSource?.dispose();
     this._dataSource = undefined;
     this._evaluatedNodeId = undefined;
     this._readQuerySql = undefined;
     this._materializedTable = undefined;
+    this.readHashes = new Set();
     this._displaySql = undefined;
     this._error = undefined;
     this._lastRunOutcomes = new Map();
@@ -505,7 +446,7 @@ export class MaterializationService {
     sqlModules: SqlModules | undefined,
     dialect: SqlDialect,
   ): Promise<void> {
-    const index = this.updateGraphState(store, sqlModules, dialect);
+    const index = flattenNodes(store.nodes);
     const plan = activeNodeId
       ? buildPlan(index, activeNodeId, sqlModules)
       : undefined;
@@ -513,7 +454,7 @@ export class MaterializationService {
     if (!plan) {
       this.clearActiveOutput();
       this._activeDialect = dialect;
-      const evicted = await this.evictOrphans(this.maxOrphans);
+      const evicted = await this.evict();
       if (evicted > 0) m.redraw();
       return;
     }
@@ -531,7 +472,7 @@ export class MaterializationService {
       dialect === this._activeDialect &&
       (this._dataSource !== undefined || this._error !== undefined)
     ) {
-      const evicted = await this.evictOrphans(this.maxOrphans);
+      const evicted = await this.evict();
       if (evicted > 0) m.redraw();
       return;
     }
@@ -552,6 +493,7 @@ export class MaterializationService {
       this._dataSource = undefined;
       this._readQuerySql = undefined;
       this._materializedTable = undefined;
+      this.readHashes = new Set();
       this.clearFadeTimers();
       this._materializingNodeIds.clear();
       this._fadingOutNodeIds.clear();
@@ -560,12 +502,8 @@ export class MaterializationService {
       m.redraw();
     }
 
-    const evicted = await this.evictOrphans(this.maxOrphans);
+    const evicted = await this.evict();
     if (evicted > 0) m.redraw();
-  }
-
-  private computePriority(timeMs: number, hitCount: number): number {
-    return this.evictionClock + Math.max(1, hitCount) * Math.max(1, timeMs);
   }
 
   private async executeMaterializationPlan(
@@ -608,10 +546,6 @@ export class MaterializationService {
       if (cached) {
         cached.lastHitAt = performance.now();
         cached.hitCount++;
-        cached.priority = this.computePriority(
-          cached.materializeTimeMs,
-          cached.hitCount,
-        );
         runOutcomes.set(step.hash, {
           kind: 'hit',
           savedTimeMs: cached.materializeTimeMs,
@@ -670,7 +604,6 @@ export class MaterializationService {
         materializeTimeMs: timeMs,
         lastHitAt: now,
         hitCount: 1,
-        priority: this.computePriority(timeMs, 1),
       });
       runOutcomes.set(step.hash, {kind: 'built', timeMs});
     }
@@ -683,6 +616,7 @@ export class MaterializationService {
         : finalReadRes.sql;
     this._materializedTable =
       singleScan !== undefined ? singleScan : `(\n${finalReadRes.sql}\n)`;
+    this.readHashes = new Set(matPlan.output.deps);
 
     if (this._readQuerySql !== readQuerySql || !this._dataSource) {
       this._dataSource?.dispose();
@@ -696,29 +630,18 @@ export class MaterializationService {
     m.redraw();
   }
 
-  private isProtected(hash: string): boolean {
-    return this.liveHashes.has(hash) || hash === this._materializedTable;
-  }
-
-  private async evictOrphans(maxOrphans: number): Promise<number> {
-    const orphans: StoredCacheEntry[] = [];
-    for (const entry of this.cache.values()) {
-      if (!this.isProtected(entry.hash)) orphans.push(entry);
-    }
-    if (orphans.length <= maxOrphans) return 0;
-
-    orphans.sort(
-      (a, b) =>
-        a.priority - b.priority ||
-        a.lastHitAt - b.lastHitAt ||
-        a.createdAt - b.createdAt,
-    );
-
-    const victims = orphans.slice(0, orphans.length - maxOrphans);
-    for (const victim of victims) {
-      this.evictionClock = Math.max(this.evictionClock, victim.priority);
-      this.cache.delete(victim.hash);
-    }
+  // Least-recently-used eviction down to `maxEntries`, never dropping a table
+  // the current output query reads. Runs after each run (never mid-run), and
+  // re-running a plan only needs its most downstream cached step, so dropping
+  // older upstream tables doesn't cause rebuild cascades.
+  private async evict(): Promise<number> {
+    const excess = this.cache.size - this.maxEntries;
+    if (excess <= 0) return 0;
+    const victims = [...this.cache.values()]
+      .filter((e) => !this.readHashes.has(e.hash))
+      .sort((a, b) => a.lastHitAt - b.lastHitAt || a.createdAt - b.createdAt)
+      .slice(0, excess);
+    for (const victim of victims) this.cache.delete(victim.hash);
     const hashes = victims.map((v) => v.hash);
     await this.dropTables(hashes);
     return hashes.length;
@@ -749,7 +672,6 @@ export class MaterializationService {
   private async dropAll(): Promise<void> {
     const hashes = Array.from(this.cache.keys());
     this.cache.clear();
-    this.evictionClock = 0;
     await this.dropTables(hashes);
   }
 

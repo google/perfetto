@@ -26,7 +26,6 @@ import type {
 import {flattenNodes} from './graph_utils';
 import {buildPlan, type Plan} from './plan';
 import {
-  collectLiveHashes,
   computeNeededStepHashes,
   computeStepHashes,
   MaterializationService,
@@ -104,68 +103,6 @@ function makeSortedChain(
   };
 }
 
-describe('collectLiveHashes', () => {
-  it('includes only expensive (materializable) node hashes', () => {
-    const sort: NodeData = {
-      type: 'sort',
-      id: 'sort1',
-      config: {
-        conditions: [{column: 'ts', order: 'ASC'}],
-      },
-    };
-    const filter: NodeData = {
-      type: 'filter',
-      id: 'flt1',
-      next: sort,
-      config: {
-        conditions: [{column: 'dur', op: '>', value: '100'}],
-      },
-    };
-    const from: RootNodeData = {
-      type: 'from',
-      id: 'from1',
-      x: 0,
-      y: 0,
-      next: filter,
-      config: {table: 'slice'},
-    };
-
-    const index = flattenNodes([from]);
-    const plan = ensureDefined(buildPlan(index, 'sort1', undefined));
-    // Only the expensive sort ever becomes a cache table.
-    const live = collectLiveHashes(index, undefined, 'sql');
-    expect(live).toEqual(new Set([stepHash(plan, 'sort1')]));
-  });
-
-  it('skips invalid nodes while keeping valid branches', () => {
-    const validBranch = makeSortedChain('f1', 'srt1', '50');
-    const invalidFilter: NodeData = {
-      type: 'filter',
-      id: 'flt_bad',
-      config: {
-        conditions: [{column: 'dur', op: '>', value: ''}],
-      },
-    };
-    const invalidBranch: RootNodeData = {
-      type: 'from',
-      id: 'f2',
-      x: 100,
-      y: 0,
-      next: invalidFilter,
-      config: {table: 'sched'},
-    };
-
-    const index = flattenNodes([validBranch, invalidBranch]);
-    const live = collectLiveHashes(index, undefined, 'sql');
-
-    const plan = ensureDefined(buildPlan(index, 'srt1', undefined));
-    const validHash = stepHash(plan, 'srt1');
-
-    expect(live.has(validHash)).toBe(true);
-    expect(live.size).toBe(1);
-  });
-});
-
 describe('MaterializationService cache policy', () => {
   it('reads bare From nodes directly without creating any _qb_ cache table', async () => {
     const {engine, queries} = makeFakeEngine();
@@ -192,142 +129,143 @@ describe('MaterializationService cache policy', () => {
     );
   });
 
-  it('never evicts live graph hashes regardless of orphan churn', async () => {
-    const {engine} = makeFakeEngine();
-    const service = new MaterializationService(engine, {maxOrphans: 2});
+  it('caps total entries at maxEntries, keeping the most recently used', async () => {
+    const {engine, queries} = makeFakeEngine();
+    const service = new MaterializationService(engine, {maxEntries: 2});
 
-    // Build 4 independent live branches (> maxOrphans) and materialize them all.
-    const liveBranches = [
-      makeSortedChain('f1', 'srt1', '10'),
-      makeSortedChain('f2', 'srt2', '20'),
-      makeSortedChain('f3', 'srt3', '30'),
-      makeSortedChain('f4', 'srt4', '40'),
-    ];
-    let store: NodeQueryBuilderStore = {
-      nodes: [...liveBranches, makeSortedChain('fe', 'srte', '100')],
+    const store: NodeQueryBuilderStore = {
+      nodes: [
+        makeSortedChain('f1', 'srt1', '10'),
+        makeSortedChain('f2', 'srt2', '20'),
+        makeSortedChain('f3', 'srt3', '30'),
+        makeSortedChain('f4', 'srt4', '40'),
+      ],
       labels: [],
     };
 
+    const hashes: string[] = [];
     for (const id of ['srt1', 'srt2', 'srt3', 'srt4']) {
       await service.scheduleUpdate(store, id, undefined);
-    }
-    const pinnedHashes = service.cacheEntries.map((e) => e.hash);
-    expect(pinnedHashes.length).toBe(4);
-
-    // Rapidly edit branch 'srte' 5 times, leaving 4 orphans behind while the
-    // 5th edit is live. Only maxOrphans (2) orphans should remain, while all
-    // 4 untouched live branches stay cached.
-    for (const val of ['101', '102', '103', '104', '105']) {
-      store = {
-        nodes: [...liveBranches, makeSortedChain('fe', 'srte', val)],
-        labels: [],
-      };
-      await service.scheduleUpdate(store, 'srte', undefined);
+      hashes.push(ensureDefined(service.materializedTable));
+      expect(service.cacheEntries.length).toBeLessThanOrEqual(2);
     }
 
-    const remainingHashes = new Set(service.cacheEntries.map((e) => e.hash));
-    for (const h of pinnedHashes) {
-      expect(remainingHashes.has(h)).toBe(true);
-    }
-
-    const liveEntries = service.cacheEntries.filter((e) => e.isLive);
-    const orphanEntries = service.cacheEntries.filter((e) => !e.isLive);
-    expect(liveEntries.length).toBe(5); // 4 untouched branches + latest flte
-    expect(orphanEntries.length).toBe(2); // capped at maxOrphans
+    const cached = new Set(service.cacheEntries.map((e) => e.hash));
+    expect(cached).toEqual(new Set([hashes[2], hashes[3]]));
+    expect(queries).toContain(`DROP TABLE IF EXISTS ${hashes[0]}`);
+    expect(queries).toContain(`DROP TABLE IF EXISTS ${hashes[1]}`);
   });
 
-  it('evicts lower-priority orphans first and retains frequently hit or expensive orphans (GreedyDual)', async () => {
-    let simulatedCostMs = 1;
+  it('evicts the least recently used entry first; a hit refreshes recency', async () => {
     let now = 1000;
-    const queries: string[] = [];
-    const engine = {
-      async query(sql: string): Promise<QueryResult> {
-        queries.push(sql);
-        now += simulatedCostMs;
-        return {} as QueryResult;
-      },
-      async tryQuery(sql: string) {
-        queries.push(sql);
-        return okResult({} as QueryResult);
-      },
-    } as unknown as Engine;
-
     const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => {
-      now += 0.1;
+      now += 1;
       return now;
     });
 
     try {
-      const service = new MaterializationService(engine, {maxOrphans: 2});
-      const storeFor = (val: string): NodeQueryBuilderStore => ({
-        nodes: [makeSortedChain('f1', 'srt1', val)],
+      const {engine, queries} = makeFakeEngine();
+      const service = new MaterializationService(engine, {maxEntries: 2});
+      const store: NodeQueryBuilderStore = {
+        nodes: [
+          makeSortedChain('fa', 'srta', '10'),
+          makeSortedChain('fb', 'srtb', '20'),
+          makeSortedChain('fc', 'srtc', '30'),
+        ],
         labels: [],
-      });
+      };
 
-      // Materialize expensive query '1' (100ms).
-      simulatedCostMs = 100;
-      await service.scheduleUpdate(storeFor('1'), 'srt1', undefined);
-      const hExpensive = ensureDefined(service.materializedTable);
+      await service.scheduleUpdate(store, 'srta', undefined);
+      const hA = ensureDefined(service.materializedTable);
+      await service.scheduleUpdate(store, 'srtb', undefined);
+      const hB = ensureDefined(service.materializedTable);
 
-      // Materialize cheap queries '2' (1ms) and '3' (1ms).
-      simulatedCostMs = 1;
-      await service.scheduleUpdate(storeFor('2'), 'srt1', undefined);
-      const hCheapOld = ensureDefined(service.materializedTable);
+      // Re-selecting A is a cache hit, making B the least recently used.
+      queries.length = 0;
+      await service.scheduleUpdate(store, 'srta', undefined);
+      expect(queries.some((q) => q.includes('CREATE PERFETTO TABLE'))).toBe(
+        false,
+      );
 
-      await service.scheduleUpdate(storeFor('3'), 'srt1', undefined);
-      const hCheapNewer = ensureDefined(service.materializedTable);
+      await service.scheduleUpdate(store, 'srtc', undefined);
+      const hC = ensureDefined(service.materializedTable);
 
-      // Edit to '4' -> 3 orphans (`hExpensive`, `hCheapOld`, `hCheapNewer`), maxOrphans = 2.
-      // Even though `hExpensive` was created earliest, its high materialization
-      // cost gives it higher GreedyDual priority than `hCheapOld`, so `hCheapOld`
-      // is evicted first!
-      await service.scheduleUpdate(storeFor('4'), 'srt1', undefined);
-
-      const cachedHashes = new Set(service.cacheEntries.map((e) => e.hash));
-      expect(cachedHashes.has(hExpensive)).toBe(true);
-      expect(cachedHashes.has(hCheapNewer)).toBe(true);
-      expect(cachedHashes.has(hCheapOld)).toBe(false);
-      expect(queries).toContain(`DROP TABLE IF EXISTS ${hCheapOld}`);
+      const cached = new Set(service.cacheEntries.map((e) => e.hash));
+      expect(cached).toEqual(new Set([hA, hC]));
+      expect(queries).toContain(`DROP TABLE IF EXISTS ${hB}`);
     } finally {
       nowSpy.mockRestore();
     }
   });
 
-  it('sweeps orphans when nodes are deleted with no active selection or while another node is pinned', async () => {
+  it('never evicts a table the current output reads', async () => {
     const {engine} = makeFakeEngine();
-    const service = new MaterializationService(engine, {maxOrphans: 1});
-
-    const branchA = makeSortedChain('fa', 'srta', '10');
-    const branchB = makeSortedChain('fb', 'srtb', '20');
-    const branchC = makeSortedChain('fc', 'srtc', '30');
-
-    const fullStore: NodeQueryBuilderStore = {
-      nodes: [branchA, branchB, branchC],
+    const service = new MaterializationService(engine, {maxEntries: 0});
+    const store: NodeQueryBuilderStore = {
+      nodes: [
+        makeSortedChain('f1', 'srt1', '10'),
+        makeSortedChain('f2', 'srt2', '20'),
+      ],
       labels: [],
     };
-    await service.scheduleUpdate(fullStore, 'srta', undefined);
-    await service.scheduleUpdate(fullStore, 'srtb', undefined);
-    await service.scheduleUpdate(fullStore, 'srtc', undefined);
-    await service.scheduleUpdate(fullStore, 'srta', undefined);
-    expect(service.cacheEntries.length).toBe(3);
 
-    // Keep flta active (same displaySql!), delete branchB and branchC -> 2 orphans > maxOrphans (1).
-    const trimmedStore: NodeQueryBuilderStore = {
-      nodes: [branchA],
-      labels: [],
-    };
-    await service.scheduleUpdate(trimmedStore, 'srta', undefined);
-    expect(service.cacheEntries.length).toBe(2); // flta (live) + 1 orphan
+    await service.scheduleUpdate(store, 'srt1', undefined);
+    const h1 = ensureDefined(service.materializedTable);
+    expect(service.cacheEntries.map((e) => e.hash)).toEqual([h1]);
 
-    // Clear workspace completely (activeNodeId = undefined) -> only 1 orphan allowed.
-    const emptyStore: NodeQueryBuilderStore = {nodes: [], labels: []};
-    await service.scheduleUpdate(emptyStore, undefined, undefined);
-    expect(service.cacheEntries.length).toBe(1);
-    expect(service.cacheEntries[0]?.isLive).toBe(false);
+    // Switching away means h1 is no longer read, so it goes.
+    await service.scheduleUpdate(store, 'srt2', undefined);
+    const h2 = ensureDefined(service.materializedTable);
+    expect(service.cacheEntries.map((e) => e.hash)).toEqual([h2]);
 
-    // Prune orphans drops remaining orphan immediately.
-    await service.pruneOrphans();
+    // With no selection nothing is read, so everything goes.
+    await service.scheduleUpdate(store, undefined, undefined);
     expect(service.cacheEntries.length).toBe(0);
+  });
+
+  it('does not rebuild a plan with more steps than maxEntries', async () => {
+    const {engine, queries} = makeFakeEngine();
+    const service = new MaterializationService(engine, {maxEntries: 1});
+    const store: NodeQueryBuilderStore = {
+      nodes: [
+        {
+          type: 'from',
+          id: 'f1',
+          x: 0,
+          y: 0,
+          config: {table: 'slice'},
+          next: {
+            type: 'groupby',
+            id: 'agg1',
+            config: {
+              groupColumns: ['name'],
+              aggregations: [{func: 'COUNT', column: '*', alias: 'cnt'}],
+            },
+            next: {
+              type: 'sort',
+              id: 'srt1',
+              config: {conditions: [{column: 'cnt', order: 'DESC'}]},
+            },
+          },
+        },
+        makeFilterChain('f2', 'flt2', '10'),
+      ],
+      labels: [],
+    };
+
+    // Two steps are built; the upstream one is evicted afterwards.
+    await service.scheduleUpdate(store, 'srt1', undefined);
+    const sortHash = ensureDefined(service.materializedTable);
+    expect(service.cacheEntries.map((e) => e.hash)).toEqual([sortHash]);
+
+    // Select something else, then come back: the warm sort step is enough.
+    await service.scheduleUpdate(store, 'flt2', undefined);
+    queries.length = 0;
+    await service.scheduleUpdate(store, 'srt1', undefined);
+    expect(queries.some((q) => q.includes('CREATE PERFETTO TABLE'))).toBe(
+      false,
+    );
+    expect(service.lastRunOutcomes.get(sortHash)?.kind).toBe('hit');
   });
 
   it('waits for in-flight taskQueue queries before dropping evicted tables', async () => {
@@ -345,7 +283,7 @@ describe('MaterializationService cache policy', () => {
 
     const taskQueue = new AtomicTaskQueue();
     const service = new MaterializationService(engine, {
-      maxOrphans: 0,
+      maxEntries: 0,
       taskQueue,
     });
 
@@ -367,7 +305,7 @@ describe('MaterializationService cache policy', () => {
     });
     await readStarted;
 
-    // Trigger an edit that orphans & evicts h1 while the read is still running.
+    // Trigger an edit that stops reading & evicts h1 while the read is still running.
     const store2: NodeQueryBuilderStore = {
       nodes: [makeSortedChain('f1', 'srt1', '2')],
       labels: [],
@@ -389,7 +327,7 @@ describe('MaterializationService cache policy', () => {
 
   it('plans cut points independently of cache state, materializing only expensive ops', async () => {
     const {engine, queries} = makeFakeEngine();
-    const service = new MaterializationService(engine, {maxOrphans: 4});
+    const service = new MaterializationService(engine, {maxEntries: 4});
 
     // 1. User builds From -> Filter and clicks Filter -> cheap, so it is read
     // directly with no cache table.
@@ -501,7 +439,7 @@ describe('MaterializationService cache policy', () => {
 
   it('surfaces materialization error when a node is unsupported in Standard SQL mode', async () => {
     const {engine, queries} = makeFakeEngine();
-    const service = new MaterializationService(engine, {maxOrphans: 4});
+    const service = new MaterializationService(engine, {maxEntries: 4});
 
     const stopRoot: RootNodeData = {
       type: 'from',

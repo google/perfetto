@@ -70,6 +70,7 @@ union:   {from: '(SELECT * FROM a UNION ALL SELECT * FROM b)'}
 filter:  {stages: ['WHERE dur > 1000']}
 from:    {source: 'FROM slice'}
 ii:      {source: 'INTERVAL INTERSECTION OF (...)', stages: ['SELECT ...']}
+union:   {stages: ['UNION ALL (...)']}  // continues the first input's pipeline
 ```
 
 A generator may also return:
@@ -111,9 +112,6 @@ memoized per node, with cycle detection. For each node it:
   srt   sort     expensive=true  refCount=1 inputs=[flt2]
   lim   limit    expensive=false refCount=0 inputs=[srt]
 ```
-
-`buildCanvasPlan(index)` builds the same structure for every valid node on the
-canvas, with no single target. It's used to find the live cache tables.
 
 ---
 
@@ -361,8 +359,8 @@ TraceProcessor is named `h` (e.g. `_qb_324566e1`).
    evicted.
 3. **Run the includes:** one `INCLUDE PERFETTO MODULE` per module in the plan.
 4. **Run the needed steps in dependency order:**
-   - **Already cached:** a hit. Update the hit count, last-hit time and eviction
-     priority; no SQL runs.
+   - **Already cached:** a hit. Update the hit count and last-hit time; no SQL
+     runs.
    - **Not cached:** run
      `DROP TABLE IF EXISTS h; CREATE PERFETTO TABLE h AS <formatStep body>`,
      then record a cache entry holding that body (the text `h` was computed
@@ -375,15 +373,13 @@ TraceProcessor is named `h` (e.g. `_qb_324566e1`).
 **Run outcomes** for each step: `building` → `built` (with time) / `hit` /
 `skipped`. The Materialization tab shows these as badges.
 
-**Eviction (GreedyDual):**
-- **Live hashes** (`collectLiveHashes(index, sqlModules, dialect)`: the step
-  hash of every valid expensive node on the canvas, in the **active dialect**)
-  and the table currently being read are never evicted.
-- **Orphans** (cached tables not live in the current dialect, including the
-  other dialect's tables after a switch) are capped at `maxOrphans` (default
-  16). Above the cap, the lowest priority goes first, where
-  `priority = clock + max(1, hitCount) × max(1, buildTimeMs)`. Expensive,
-  frequently hit tables survive longest, and the clock ages out stale ones.
+**Eviction (least recently used):**
+- All cache tables share one cap, `maxEntries` (default 16). After each run
+  (never mid-run), anything over the cap is dropped, oldest last hit first.
+- The tables the current output query reads are never evicted.
+- Re-running a plan only needs its most downstream cached step, so dropping
+  older upstream tables never causes a rebuild cascade, even when a plan has
+  more steps than the cap.
 - Drops wait for in-flight DataGrid queries on the shared task queue.
 
 ---
@@ -399,7 +395,7 @@ Starting from the example above in Standard SQL, with both steps cached
 | **C:** cnt > 5 → 50 | sort step only (`_qb_171cdcd6` → `_qb_547fdb70`) | `_qb_547fdb70` (new), `_qb_324566e1` (cached) | One `CREATE` (the sort step, reading the cached groupby table) |
 | **D:** dur > 1000 → 5000 | both (`_qb_52e94ac5`, `_qb_e7f5e0ec`) | both (new) | Both steps are rebuilt |
 | **E:** select `flt2` instead | none (subset of the plan) | `_qb_324566e1` (cached) | No `CREATE`; output is `SELECT * FROM _qb_324566e1 WHERE cnt > 5` |
-| **G:** switch to PSN | all (`_qb_ba3e9372`, `_qb_f5c00c00`) | both (new) | Both steps are rebuilt as PSN tables; the SQL tables become orphans |
+| **G:** switch to PSN | all (`_qb_ba3e9372`, `_qb_f5c00c00`) | both (new) | Both steps are rebuilt as PSN tables |
 
 In C:
 
@@ -425,8 +421,7 @@ Notes on these results:
   cheap nodes after the last table run in the output query on every DataGrid
   page fetch, which is the trade-off of not caching cheap nodes.
 - **Switching dialect** (G) starts from a cold cache for that dialect. Switching
-  back reuses the other dialect's tables if they haven't been evicted as
-  orphans.
+  back reuses the other dialect's tables if they haven't been evicted.
 
 ---
 
@@ -457,15 +452,14 @@ FROM (
 )
 ```
 
-PerfettoSQL Next (`_qb_e324e867`): no CTEs, so the pipeline is repeated. This
-uses the proposed `UNION` syntax, which TraceProcessor doesn't support yet.
+PerfettoSQL Next (`_qb_322fd832`): no CTEs, so the pipeline is repeated. The
+union is a pipe stage on the first input's pipeline. This uses the proposed
+`|> UNION` syntax, which TraceProcessor doesn't support yet.
 
 ```
-FROM (
-  FROM slice
-  |> WHERE dur > 0
-)
-UNION ALL (
+FROM slice
+|> WHERE dur > 0
+|> UNION ALL (
   FROM slice
   |> WHERE dur > 0
 )
@@ -488,5 +482,5 @@ UNION ALL (
 | Shared SQL helpers and types | [sql_types.ts](./sql_types.ts), [generator_utils.ts](./generator_utils.ts) |
 | Graph → Plan (structure, passthroughs, incomplete nodes) | [plan.ts](./plan.ts) |
 | Folding (SQL), stage appending (PSN), display query | [compose.ts](./compose.ts) |
-| Steps, step hashes, live hashes, `formatStep` / `formatOutput`, executor, cache, eviction | [materialization.ts](./materialization.ts) |
+| Steps, step hashes, `formatStep` / `formatOutput`, executor, cache, eviction | [materialization.ts](./materialization.ts) |
 | Runtime checks / headless evaluation (temp tables via `tableName`) | [graph_check.ts](./graph_check.ts), [node_eval.ts](./node_eval.ts) |
