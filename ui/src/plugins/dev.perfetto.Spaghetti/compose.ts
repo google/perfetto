@@ -255,7 +255,7 @@ function composeSql(plan: Plan, spec: ComposeSpec): FormatResult {
     const frag = node.manifest.generators.sql(node.node.config, ctx);
     if (frag === undefined) return generatorError(node, 'incomplete node');
     if (isError(frag)) return fromGeneratorError(frag);
-    for (const inc of frag.includes ?? []) includes.add(inc);
+    for (const inc of node.includes.sql) includes.add(inc);
 
     for (const id of accessed) materializeName(id);
 
@@ -390,7 +390,7 @@ function composePsn(plan: Plan, spec: ComposeSpec): FormatResult {
     );
     if (frag === undefined) return generatorError(node, 'incomplete node');
     if (isError(frag)) return fromGeneratorError(frag);
-    for (const inc of frag.includes ?? []) includes.add(inc);
+    for (const inc of node.includes.pipe) includes.add(inc);
 
     if (frag.source !== undefined) {
       states.set(node.nodeId, {source: frag.source, stages: frag.stages ?? []});

@@ -369,9 +369,9 @@ describe('MaterializationService cache policy', () => {
     const sortPlan = ensureDefined(
       buildPlan(flattenNodes(step2Store.nodes), 'srt1', undefined),
     );
-    const coldSteps = new MaterializationService(makeFakeEngine().engine)
-      .planFor(sortPlan, 'sql')
-      .steps.map((s) => s.hash);
+    const coldSteps = planMaterialization(sortPlan, 'sql').steps.map(
+      (s) => s.hash,
+    );
 
     queries.length = 0;
     await service.scheduleUpdate(step2Store, 'srt1', undefined, 'sql');
@@ -387,9 +387,9 @@ describe('MaterializationService cache policy', () => {
     ).toBe(true);
 
     // 3. Re-planning with a warm cache yields the identical plan.
-    expect(service.planFor(sortPlan, 'sql').steps.map((s) => s.hash)).toEqual(
-      coldSteps,
-    );
+    expect(
+      planMaterialization(sortPlan, 'sql').steps.map((s) => s.hash),
+    ).toEqual(coldSteps);
 
     // 4. Fork after the cheap Filter: `flt_shared` feeds `srt_a` and `lim_b`.
     // The shared Filter is not checkpointed; the cheap Limit branch reads

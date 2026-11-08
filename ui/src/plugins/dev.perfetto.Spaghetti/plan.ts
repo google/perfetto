@@ -31,11 +31,19 @@ import {
 import type {
   ConnectedInput,
   GeneratorContext,
+  GeneratorError,
   NodeManifest,
   PsnFragment,
+  PsnInput,
   SqlFragment,
   SqlInput,
 } from './node_types';
+import type {SqlDialect} from './sql_types';
+
+/** Stdlib modules to include, per dialect (a dialect may not need them). */
+export type DialectIncludes = Readonly<Record<SqlDialect, readonly string[]>>;
+
+const NO_INCLUDES: DialectIncludes = {sql: [], pipe: []};
 
 export interface PlanInput {
   readonly port: string;
@@ -53,7 +61,11 @@ export interface PlanNode {
   /** Output columns of each connected input port. */
   readonly inputColumns: ReadonlyMap<string, ColumnDef[] | undefined>;
   readonly expensive: boolean;
-  readonly includes: readonly string[];
+  /**
+   * Stdlib modules the node needs, worked out once here (with the real
+   * `sqlModules`). Compose and the executor both take includes from here.
+   */
+  readonly includes: DialectIncludes;
   /** Number of references to this node from other nodes in the plan. */
   readonly refCount: number;
 }
@@ -63,7 +75,7 @@ export interface Plan {
   readonly nodes: readonly PlanNode[];
   /** The target, resolved through passthrough nodes. */
   readonly targetNodeId: string;
-  readonly includes: readonly string[];
+  readonly includes: DialectIncludes;
 }
 
 interface NodeEval {
@@ -75,7 +87,7 @@ interface NodeEval {
   readonly ports: ReadonlyArray<Port>;
   readonly inputs: readonly PlanInput[];
   readonly inputColumns: ReadonlyMap<string, ColumnDef[] | undefined>;
-  readonly includes: readonly string[];
+  readonly includes: DialectIncludes;
 }
 
 /** Builds a generator context over a fixed set of connected inputs. */
@@ -173,9 +185,21 @@ function makeEvaluator(index: GraphIndex, sqlModules: SqlModules | undefined) {
         ports,
         inputs,
         inputColumns,
-        includes: [],
+        includes: NO_INCLUDES,
       };
     }
+
+    // Probe the PSN generator too, just for its includes.
+    const psnCtx = makeGeneratorContext<PsnInput>(
+      ports,
+      inputs.map((inp) => ({
+        port: inp.port,
+        input: {source: inp.nodeId, withStages: () => inp.nodeId},
+      })),
+      inputColumns,
+      sqlModules,
+    );
+    const psnFrag = manifest.generators.psn?.(node.config, psnCtx);
 
     return {
       nodeId,
@@ -184,11 +208,21 @@ function makeEvaluator(index: GraphIndex, sqlModules: SqlModules | undefined) {
       ports,
       inputs,
       inputColumns,
-      includes: isError ? [] : (sqlFrag.includes ?? []),
+      includes: {
+        sql: fragmentIncludes(sqlFrag),
+        pipe: fragmentIncludes(psnFrag),
+      },
     };
   }
 
   return evaluate;
+}
+
+function fragmentIncludes(
+  frag: SqlFragment | PsnFragment | GeneratorError | undefined,
+): readonly string[] {
+  if (frag === undefined || 'error' in frag) return [];
+  return frag.includes ?? [];
 }
 
 function planFrom(
@@ -219,9 +253,7 @@ function planFrom(
     }
   }
 
-  const includes = new Set<string>();
   const nodes: PlanNode[] = order.map((e) => {
-    for (const inc of e.includes) includes.add(inc);
     return {
       nodeId: e.nodeId,
       node: e.node,
@@ -235,7 +267,14 @@ function planFrom(
     };
   });
 
-  return {nodes, targetNodeId, includes: [...includes]};
+  const includesFor = (dialect: SqlDialect) => [
+    ...new Set(nodes.flatMap((n) => n.includes[dialect])),
+  ];
+  return {
+    nodes,
+    targetNodeId,
+    includes: {sql: includesFor('sql'), pipe: includesFor('pipe')},
+  };
 }
 
 /**
