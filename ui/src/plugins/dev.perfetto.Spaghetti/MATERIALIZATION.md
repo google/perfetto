@@ -1,6 +1,8 @@
 # How Spaghetti materialization works
 
-This doc follows one graph through every stage of the pipeline. All plans, hashes and SQL below are **real output from the current code**, not hand-written examples.
+This doc follows one graph through every stage of the pipeline. All plans,
+hashes and SQL below are **real output from the current code**, not
+hand-written examples.
 
 ```mermaid
 flowchart LR
@@ -14,12 +16,13 @@ flowchart LR
 | Stage | Pure? | Input | Output |
 |---|---|---|---|
 | Node generators | yes | config + input references | SQL / PSN fragment |
-| 1. `buildPlan` | yes | graph + target node | `Plan`: nodes in topological order with Merkle hashes |
-| 2. `planMaterialization` | yes | `Plan` | steps (one cache table each) + the output query |
-| 3. `compose` (`formatStep`, `formatOutput`) | yes | a step or the output + dialect | one SQL string |
+| 1. `buildPlan` | yes | graph + target node | `Plan`: nodes in topological order (no hashes) |
+| 2. `planMaterialization` | yes | `Plan` + dialect | steps (one cache table each, hashed from their SQL) + output query |
+| 3. `compose` (`formatStep`, `formatOutput`) | yes | a step or the output | one SQL string |
 | 4. Executor | **no** | materialization plan + cache | tables in TraceProcessor, DataGrid source |
 
-Every stage before the executor is a pure function of the graph, the target and the dialect. The cache only affects **which steps run**, never the plan.
+Everything before the executor is a pure function of the graph, the target and
+the dialect. The cache only affects **which steps run**, never the plan.
 
 ---
 
@@ -43,7 +46,10 @@ Node ids: `src`, `flt1`, `ext`, `gb`, `flt2`, `srt`, `lim`.
 
 ## 0. Node generators
 
-Each node manifest has `generators: {sql, psn?}`, plus an optional `expensive: true`. Generators are pure. They receive the node's config and a context giving access to the inputs (`ctx.input(port)`, `ctx.inputs()`) and their columns.
+Each node manifest has `generators: {sql, psn?}`, plus an optional
+`expensive: true`. Generators are pure. They receive the node's config and a
+context giving access to the inputs (`ctx.input(port)`, `ctx.inputs()`) and
+their columns.
 
 **SQL fragments are structured clauses**, never full SQL strings to be parsed:
 
@@ -67,67 +73,101 @@ ii:      {source: 'INTERVAL INTERSECTION OF (...)', stages: ['SELECT ...']}
 ```
 
 A generator may also return:
-- **`undefined`**: the node is incomplete, e.g. a required input isn't connected.
+- **`undefined`**: the node is incomplete, e.g. a required input isn't
+  connected.
 - **`{error}`**: the node can't be expressed in this dialect.
 - **`{}`**: an empty fragment, meaning a passthrough.
 
-Generators are called **twice** per node. The first call is during planning, with each input's *hash* as its reference, to compute hashes. The second is during composition, with *real* references (CTE names, `_qb_*` tables, inline pipelines). Because they're pure, both calls describe the same thing.
+The SQL generator is called **twice** per node:
+- **During planning, as a probe**, with placeholder references, only to find
+  incomplete nodes and passthroughs.
+- **During composition**, with real references: CTE names, `_qb_*` tables, or
+  inline pipelines.
 
 ---
 
 ## 1. Graph → Plan (`plan.ts`)
 
-`buildPlan(index, targetId)` walks **upstream** from the target depth-first, memoized per node, with cycle detection. For each node it:
+`buildPlan(index, targetId)` walks **upstream** from the target depth-first,
+memoized per node, with cycle detection. For each node it:
 
 1. Evaluates the node's inputs first, recursively.
-2. Calls `generators.sql(config, ctx)` with **each input referred to by its hash**, so the fragment never contains a node id.
-3. Handles the result:
-   - `undefined`: incomplete, so the target gets no plan, which the UI shows as "Incomplete query".
-   - `{}` (passthrough): the node takes its primary input's hash and drops out of the plan.
-   - `{error}`: the PSN fragment is hashed instead.
-4. Computes its **Merkle hash**:
+2. Probes `generators.sql(config, ctx)` and handles the result:
+   - `undefined`: incomplete, so the target gets no plan, which the UI shows as
+     "Incomplete query".
+   - `{}`: a passthrough. The node forwards its primary input and drops out of
+     the plan.
+   - anything else: the node is kept.
+3. Records its inputs, its input columns, its `expensive` flag and its includes.
 
-```ts
-hash = `_qb_${fnv(JSON.stringify({type, inputs: [[port, inputHash], ...], sql: fragment}))}`
-```
-
-The explicit `inputs` field is the Merkle link. A clause fragment like `{where: 'dur > 1000'}` never mentions its primary input, so without that field two identical filters on different tables would hash the same.
-
-**The resulting plan for `lim`:**
+**The plan contains no hashes.** It's pure structure:
 
 ```
-  src   from     expensive=false refCount=1 inputs=[]     hash=_qb_42adaf5a
-  flt1  filter   expensive=false refCount=1 inputs=[src]  hash=_qb_9045604c
-  ext   extend   expensive=false refCount=1 inputs=[flt1] hash=_qb_61988b68
-  gb    groupby  expensive=true  refCount=1 inputs=[ext]  hash=_qb_472be57f
-  flt2  filter   expensive=false refCount=1 inputs=[gb]   hash=_qb_adc9c72c
-  srt   sort     expensive=true  refCount=1 inputs=[flt2] hash=_qb_46b46246
-  lim   limit    expensive=false refCount=0 inputs=[srt]  hash=_qb_3da59340
+  src   from     expensive=false refCount=1 inputs=[]
+  flt1  filter   expensive=false refCount=1 inputs=[src]
+  ext   extend   expensive=false refCount=1 inputs=[flt1]
+  gb    groupby  expensive=true  refCount=1 inputs=[ext]
+  flt2  filter   expensive=false refCount=1 inputs=[gb]
+  srt   sort     expensive=true  refCount=1 inputs=[flt2]
+  lim   limit    expensive=false refCount=0 inputs=[srt]
 ```
 
-Properties of these hashes:
-- **Identical subgraphs get identical hashes,** whatever their node ids or layout, and so share a cache table.
-- **A node's hash changes exactly when its own config or anything upstream of it changes** (see the edit scenarios below).
-- **The hash doesn't depend on the dialect.** The same node uses the same table in Standard SQL and PSN mode.
+`buildCanvasPlan(index)` builds the same structure for every valid node on the
+canvas, with no single target. It's used to find the live cache tables.
 
 ---
 
 ## 2. Plan → MaterializationPlan (`materialization.ts`)
 
-**There is one rule:** the output of every `expensive` node becomes a cache table. A **step** is an expensive node plus the cheap nodes behind it, back to the previous expensive nodes, which become its `deps`. Whatever is left in front of the target is the **output**.
+### Steps
+
+**There is one rule:** the output of every `expensive` node becomes a cache
+table. A **step** is an expensive node plus the cheap nodes behind it, back to
+the previous expensive nodes, which become its `deps`. Whatever is left in front
+of the target is the **output**.
+
+### Hashes: the cache key is the query that builds the table
+
+`computeStepHashes(plan, dialect)` visits expensive nodes in topological order.
+For each one it composes the step's query **in the active dialect**, with every
+dependency table named by that dependency's own hash, and hashes the result:
+
+```ts
+hash = `_qb_${fnv(dialect + '\n' + stepSql)}`
+```
+
+This is a Merkle hash without any extra machinery:
+- **Upstream changes propagate.** A dependency's name *is* its hash, so any
+  upstream change renames it, which changes this step's text and so its hash.
+- **The key is exactly what runs.** "Same hash" means "same query", and the
+  Cache tab's stored SQL is the text the hash was computed from.
+- **Node ids, layout and UI-only config don't matter.** Only the generated SQL
+  is hashed.
+- **Each dialect has its own tables.** The dialect is part of the hashed text,
+  so Standard SQL and PSN never share a cache table.
+
+For the example in Standard SQL:
 
 ```
-  step _qb_472be57f root=gb  nodes=[src,flt1,ext,gb] deps=[]
-  step _qb_46b46246 root=srt nodes=[flt2,srt]        deps=[_qb_472be57f]
-  output            root=lim nodes=[lim]             deps=[_qb_46b46246]
+  step _qb_324566e1 root=gb  nodes=[src,flt1,ext,gb] deps=[]
+  step _qb_171cdcd6 root=srt nodes=[flt2,srt]        deps=[_qb_324566e1]
+  output            root=lim nodes=[lim]             deps=[_qb_171cdcd6]
+```
+
+and in PSN (same steps, different hashes):
+
+```
+  step _qb_ba3e9372 root=gb  nodes=[src,flt1,ext,gb] deps=[]
+  step _qb_f5c00c00 root=srt nodes=[flt2,srt]        deps=[_qb_ba3e9372]
+  output            root=lim nodes=[lim]             deps=[_qb_f5c00c00]
 ```
 
 ```mermaid
 flowchart LR
-  subgraph S1["step _qb_472be57f"]
+  subgraph S1["step _qb_324566e1"]
     src --> flt1 --> ext --> gb
   end
-  subgraph S2["step _qb_46b46246"]
+  subgraph S2["step _qb_171cdcd6"]
     flt2 --> srt
   end
   subgraph O["output"]
@@ -137,15 +177,27 @@ flowchart LR
   srt --> lim
 ```
 
-Steps are listed in dependency order, so each step comes after the steps it reads. Two identical subgraphs with the same hash share one step, and its `nodeIds` lists both sets of nodes.
+Steps are listed in dependency order, so each step comes after the steps it
+reads. Two identical subgraphs produce the same SQL, get the same hash and
+share one step, whose `nodeIds` lists both sets of nodes.
 
-The plan never looks at the cache: the same graph always gives the same steps.
+The plan never looks at the cache: the same graph and dialect always give the
+same steps and hashes.
 
 ---
 
 ## 3. Compose (`compose.ts`)
 
-`formatStep(matPlan, step, dialect)` renders one step as a query body; the executor adds the `CREATE PERFETTO TABLE` itself. `formatOutput(matPlan)` renders the output, **always in Standard SQL**, because the DataGrid wraps it in plain SQL, which can't contain a pipe query. Nodes outside the step being rendered are referred to by table name: `_qb_<hash>`, or a temp name supplied by `graph_check`/`node_eval`.
+`formatStep(matPlan, step)` renders one step as a query body in the plan's
+dialect; the executor adds the `CREATE PERFETTO TABLE` itself.
+`formatOutput(matPlan)` renders the output, **always in Standard SQL**, because
+the DataGrid wraps it in plain SQL, which can't contain a pipe query. Nodes
+outside the step being rendered are referred to by table name: `_qb_<hash>`, or
+a temp name supplied by `graph_check`/`node_eval`.
+
+How a query is rendered depends **only on the nodes inside it**. Consumer counts
+are taken within the query being built, so a step's SQL, and therefore its hash,
+doesn't change when unrelated nodes are added elsewhere on the canvas.
 
 ### Standard SQL: clause-order folding
 
@@ -155,14 +207,18 @@ Each clause has a fixed position in SQL's evaluation order:
 FROM(0) → WHERE(1) → GROUP BY(2) → SELECT(3) → DISTINCT(4) → ORDER BY(5) → LIMIT/OFFSET(6)
 ```
 
-A node's fragment **folds** into its primary input's open block only if all of these hold:
-- the input is in the same step and used once (`refCount === 1`);
+A node's fragment **folds** into its primary input's open block only if all of
+these hold:
+- the input is used once **within this query**;
 - the fragment has no `from`;
-- every clause it adds comes **strictly later** than the block's latest clause. The one exception is `WHERE` + `WHERE`, which is ANDed while the block hasn't got past `WHERE`.
+- every clause it adds comes **strictly later** than the block's latest clause.
+  The one exception is `WHERE` + `WHERE`, which is ANDed while the block hasn't
+  got past `WHERE`.
 
-Otherwise the input block is written out as a **CTE** named after its node type (`filter_1`, `extend_1`…), and a new block reads from it.
+Otherwise the input block is written out as a **CTE** named after its node type
+(`filter_1`, `extend_1`…), and a new block reads from it.
 
-Step `_qb_472be57f`:
+Step `_qb_324566e1`:
 
 | Node | Fragment adds | Block's latest clause | Result |
 |---|---|---|---|
@@ -188,11 +244,12 @@ FROM extend_1
 GROUP BY name
 ```
 
-Step `_qb_46b46246`: `gb` is outside the step, so it's read from its table, and filter and sort fold together:
+Step `_qb_171cdcd6`: `gb` is outside the step, so it's read from its table, and
+filter and sort fold together:
 
 ```sql
 SELECT *
-FROM _qb_472be57f
+FROM _qb_324566e1
 WHERE cnt > 5
 ORDER BY total_ms DESC
 ```
@@ -201,14 +258,22 @@ Output: always Standard SQL; the limit folds onto a read of the sort table:
 
 ```sql
 SELECT *
-FROM _qb_46b46246
+FROM _qb_171cdcd6
 LIMIT 10
 ```
 
 Other folding behaviour to know:
-- **A clause that comes earlier never folds.** `limit → filter`, `extend → filter` and `groupby → filter` always start a new block. A filter after a projection may refer to its aliases, and a filter after a limit means something different.
-- **Inputs referred to by name become CTEs.** When a generator reads `inp.ref` (joins, II, union, SQL node), that input is always materialized as a CTE or table first. Inputs used more than once (`refCount > 1`) become a CTE once and are referenced by every consumer (see the shared-node example).
-- **Nested `WITH` is possible.** Nodes whose fragment is a whole subquery (interval ops, union, data_table) render as `SELECT * FROM (…)`, possibly with their own `WITH` nested inside.
+- **A clause that comes earlier never folds.** `limit → filter`,
+  `extend → filter` and `groupby → filter` always start a new block. A filter
+  after a projection may refer to its aliases, and a filter after a limit means
+  something different.
+- **Inputs referred to by name become CTEs.** When a generator reads `inp.ref`
+  (joins, II, union, SQL node), that input is always materialized as a CTE or
+  table first. Inputs used more than once within the query become a CTE once
+  and are referenced by every consumer (see the shared-node example).
+- **Nested `WITH` is possible.** Nodes whose fragment is a whole subquery
+  (interval ops, union, data_table) render as `SELECT * FROM (…)`, possibly with
+  their own `WITH` nested inside.
 
 ### PerfettoSQL Next: stage appending
 
@@ -216,9 +281,11 @@ PSN needs no folding, because pipe stages already map one-to-one onto nodes:
 - **A `stages` fragment** is appended to the primary input's pipeline.
 - **A `source` fragment** starts a new pipeline.
 - **An input used more than once** is **repeated**, since PSN has no CTEs.
-- **Sub-pipelines used as sources** are always written multi-line in parentheses. A bare table collapses to its name, and a plain SQL subquery source is used as-is.
+- **Sub-pipelines used as sources** are always written multi-line in
+  parentheses. A bare table collapses to its name, and a plain SQL subquery
+  source is used as-is.
 
-Step `_qb_472be57f` in PSN:
+Step `_qb_ba3e9372` (PSN):
 
 ```
 FROM slice
@@ -227,20 +294,22 @@ FROM slice
 |> AGGREGATE COUNT(*) AS cnt, SUM(dur_ms) AS total_ms GROUP BY name
 ```
 
-Step `_qb_46b46246` in PSN:
+Step `_qb_f5c00c00` (PSN):
 
 ```
-FROM _qb_472be57f
+FROM _qb_ba3e9372
 |> WHERE cnt > 5
 |> ORDER BY total_ms DESC
 ```
 
 ### The SQL tab (display query)
 
-`buildDisplayQuery(plan, dialect)` composes the **whole plan as one query**, with no cache tables. That's the query you'd run by hand:
+`buildDisplayQuery(plan, dialect)` composes the **whole plan as one query**,
+with no cache tables. That's the query you'd run by hand.
+
+Standard SQL:
 
 ```sql
--- Standard SQL
 WITH
 extend_1 AS (
   SELECT
@@ -264,8 +333,9 @@ ORDER BY total_ms DESC
 LIMIT 10
 ```
 
+PerfettoSQL Next:
+
 ```
--- PerfettoSQL Next
 FROM slice
 |> WHERE dur > 1000
 |> EXTEND dur / 1e6 AS dur_ms
@@ -279,55 +349,84 @@ FROM slice
 
 ## 4. Executor and cache (`MaterializationService`)
 
-The cache is a map from hash to cache entry. The table for hash `h` in TraceProcessor is named `h` (e.g. `_qb_472be57f`).
+The cache is a map from hash to cache entry. The table for hash `h` in
+TraceProcessor is named `h` (e.g. `_qb_324566e1`).
 
 **Each run:**
-1. **Plan:** `buildPlan` → `planMaterialization`. It's skipped if the display query and dialect haven't changed since the last run.
-2. **Work out the needed steps** (`computeNeededStepHashes`): walk back from the output's deps through the step deps, **stopping at any step that's already cached**. Ancestors of a cached step aren't needed, even if they've been evicted.
+1. **Plan:** `buildPlan`, then `planMaterialization(plan, dialect)`. It's skipped
+   if the display query and dialect haven't changed since the last run.
+2. **Work out the needed steps** (`computeNeededStepHashes`): walk back from the
+   output's deps through the step deps, **stopping at any step that's already
+   cached**. Ancestors of a cached step aren't needed, even if they've been
+   evicted.
 3. **Run the includes:** one `INCLUDE PERFETTO MODULE` per module in the plan.
 4. **Run the needed steps in dependency order:**
-   - **Already cached:** a hit. Update the hit count, last-hit time and eviction priority; no SQL runs.
-   - **Not cached:** run `DROP TABLE IF EXISTS h; CREATE PERFETTO TABLE h AS <formatStep body>`, then record a cache entry holding the **query body that actually ran** (never overwritten afterwards) and how long it took.
+   - **Already cached:** a hit. Update the hit count, last-hit time and eviction
+     priority; no SQL runs.
+   - **Not cached:** run
+     `DROP TABLE IF EXISTS h; CREATE PERFETTO TABLE h AS <formatStep body>`,
+     then record a cache entry holding that body (the text `h` was computed
+     from) and how long it took.
    - **Not needed at all:** marked skipped.
-5. **Output:** run `formatOutput` and hand it to the DataGrid's `SQLDataSource`. If the output is just a table, it's read directly as `SELECT * FROM <table>`.
+5. **Output:** run `formatOutput` and hand it to the DataGrid's
+   `SQLDataSource`. If the output is just a table, it's read directly as
+   `SELECT * FROM <table>`.
 
-**Run outcomes** for each step: `building` → `built` (with time) / `hit` / `skipped`. The Materialization tab shows these as badges.
+**Run outcomes** for each step: `building` → `built` (with time) / `hit` /
+`skipped`. The Materialization tab shows these as badges.
 
 **Eviction (GreedyDual):**
-- **Live hashes** (`collectLiveHashes`: every valid expensive node on the canvas) and the table currently being read are never evicted.
-- **Orphans** (cached tables no longer on the canvas) are capped at `maxOrphans` (default 16). Above the cap, the lowest priority goes first, where `priority = clock + max(1, hitCount) × max(1, buildTimeMs)`. Expensive, frequently hit tables survive longest, and the clock ages out stale ones.
+- **Live hashes** (`collectLiveHashes(index, sqlModules, dialect)`: the step
+  hash of every valid expensive node on the canvas, in the **active dialect**)
+  and the table currently being read are never evicted.
+- **Orphans** (cached tables not live in the current dialect, including the
+  other dialect's tables after a switch) are capped at `maxOrphans` (default
+  16). Above the cap, the lowest priority goes first, where
+  `priority = clock + max(1, hitCount) × max(1, buildTimeMs)`. Expensive,
+  frequently hit tables survive longest, and the clock ages out stale ones.
 - Drops wait for in-flight DataGrid queries on the shared task queue.
 
 ---
 
 ## Edit scenarios: what the cache reuses
 
-Starting from the example above, with both steps cached (`warm = {_qb_472be57f, _qb_46b46246}`). These are real results:
+Starting from the example above in Standard SQL, with both steps cached
+(`warm = {_qb_324566e1, _qb_171cdcd6}`). These are real results:
 
-| Edit | Hashes that change | Needed steps | What runs |
+| Edit | Step hashes that change | Needed steps | What runs |
 |---|---|---|---|
-| **B:** Limit 10 → 20 | `lim` only (`_qb_3da59340` → `_qb_2072d733`) | `_qb_46b46246` (cached) | No `CREATE`; only the output query changes (`LIMIT 20`) |
-| **C:** cnt > 5 → 50 | `flt2`, `srt`, `lim` | `_qb_578de95a` (new), `_qb_472be57f` (cached) | One `CREATE` (the sort step, reading the cached groupby table) |
-| **D:** dur > 1000 → 5000 | `flt1` and everything downstream | `_qb_50235f96`, `_qb_5056351c` (both new) | Both steps are rebuilt |
-| **E:** select `flt2` instead | none (subset of the plan) | `_qb_472be57f` (cached) | No `CREATE`; output is `SELECT * FROM _qb_472be57f WHERE cnt > 5` |
+| **B:** Limit 10 → 20 | none (the limit is in the output) | `_qb_171cdcd6` (cached) | No `CREATE`; only the output query changes (`LIMIT 20`) |
+| **C:** cnt > 5 → 50 | sort step only (`_qb_171cdcd6` → `_qb_547fdb70`) | `_qb_547fdb70` (new), `_qb_324566e1` (cached) | One `CREATE` (the sort step, reading the cached groupby table) |
+| **D:** dur > 1000 → 5000 | both (`_qb_52e94ac5`, `_qb_e7f5e0ec`) | both (new) | Both steps are rebuilt |
+| **E:** select `flt2` instead | none (subset of the plan) | `_qb_324566e1` (cached) | No `CREATE`; output is `SELECT * FROM _qb_324566e1 WHERE cnt > 5` |
+| **G:** switch to PSN | all (`_qb_ba3e9372`, `_qb_f5c00c00`) | both (new) | Both steps are rebuilt as PSN tables; the SQL tables become orphans |
 
 In C:
+
 ```
-  step _qb_472be57f root=gb  nodes=[src,flt1,ext,gb] deps=[]              ← cached hit
-  step _qb_578de95a root=srt nodes=[flt2,srt]        deps=[_qb_472be57f]  ← built
+  step _qb_324566e1 root=gb  nodes=[src,flt1,ext,gb] deps=[]              ← cached hit
+  step _qb_547fdb70 root=srt nodes=[flt2,srt]        deps=[_qb_324566e1]  ← built
 ```
+
 ```sql
--- _qb_578de95a
+-- _qb_547fdb70
 SELECT *
-FROM _qb_472be57f
+FROM _qb_324566e1
 WHERE cnt > 50
 ORDER BY total_ms DESC
 ```
 
 Notes on these results:
-- **Editing a cheap node after the last expensive one** (B) never builds a table; only the output query changes.
-- **Reverting an edit** (e.g. cnt back to 5) gets an instant hit on the old table, if it hasn't been evicted, because it has the same hash.
-- **Selecting a different node** (E) reuses every table upstream of it. The cheap nodes after the last table run in the output query on every DataGrid page fetch, which is the trade-off of not caching cheap nodes.
+- **Editing a cheap node after the last expensive one** (B) never builds a
+  table; only the output query changes.
+- **Reverting an edit** (e.g. cnt back to 5) gets an instant hit on the old
+  table, if it hasn't been evicted, because it renders the same SQL.
+- **Selecting a different node** (E) reuses every table upstream of it. The
+  cheap nodes after the last table run in the output query on every DataGrid
+  page fetch, which is the trade-off of not caching cheap nodes.
+- **Switching dialect** (G) starts from a cold cache for that dialect. Switching
+  back reuses the other dialect's tables if they haven't been evicted as
+  orphans.
 
 ---
 
@@ -336,13 +435,14 @@ Notes on these results:
 `From(slice) → Filter(dur > 0)` feeding **both** inputs of a Union:
 
 ```
-  src refCount=1 hash=_qb_42adaf5a
-  flt refCount=2 hash=_qb_d7d8db9d     ← used twice
-  uni refCount=0 hash=_qb_c027f447     (union is expensive → one step)
+  src refCount=1
+  flt refCount=2     ← used twice
+  uni refCount=0     (union is expensive → one step)
 ```
 
+Standard SQL (`_qb_ea58b357`): the shared filter is written once as a CTE.
+
 ```sql
--- Standard SQL: the shared filter is written once as a CTE
 WITH
 filter_1 AS (
   SELECT *
@@ -357,9 +457,10 @@ FROM (
 )
 ```
 
+PerfettoSQL Next (`_qb_e324e867`): no CTEs, so the pipeline is repeated. This
+uses the proposed `UNION` syntax, which TraceProcessor doesn't support yet.
+
 ```
--- PerfettoSQL Next: no CTEs, so the pipeline is repeated
--- (proposed UNION syntax, not yet supported by TraceProcessor)
 FROM (
   FROM slice
   |> WHERE dur > 0
@@ -371,7 +472,10 @@ UNION ALL (
 ```
 
 > [!NOTE]
-> Sharing in the composer is by **node id**. Two separate but identical branches (different nodes, same hash) share a *cache table* when they're expensive, but within a single query they become two CTEs (`filter_1`, `filter_2`).
+> Within a query, sharing is by **node id**. Two separate but identical branches
+> (different nodes) become two CTEs (`filter_1`, `filter_2`). If they're
+> expensive, they still share a single *cache table*, because their steps render
+> identical SQL and so get the same hash.
 
 ---
 
@@ -382,7 +486,7 @@ UNION ALL (
 | Fragment types, `NodeGenerators`, `expensive` flag | [node_types.ts](./node_types.ts) |
 | Per-node SQL / PSN generators | `nodes/*.ts` |
 | Shared SQL helpers and types | [sql_types.ts](./sql_types.ts), [generator_utils.ts](./generator_utils.ts) |
-| Graph → Plan, Merkle hashes, live hashes | [plan.ts](./plan.ts) |
+| Graph → Plan (structure, passthroughs, incomplete nodes) | [plan.ts](./plan.ts) |
 | Folding (SQL), stage appending (PSN), display query | [compose.ts](./compose.ts) |
-| Step planning, `formatStep` / `formatOutput`, needed steps, executor, cache, eviction | [materialization.ts](./materialization.ts) |
+| Steps, step hashes, live hashes, `formatStep` / `formatOutput`, executor, cache, eviction | [materialization.ts](./materialization.ts) |
 | Runtime checks / headless evaluation (temp tables via `tableName`) | [graph_check.ts](./graph_check.ts), [node_eval.ts](./node_eval.ts) |

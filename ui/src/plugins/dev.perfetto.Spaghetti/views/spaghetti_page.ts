@@ -941,7 +941,9 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       const plan = activeNodeId
         ? buildPlan(flatNodes, activeNodeId, sqlModules)
         : undefined;
-      const matPlan = plan ? matService.planFor(plan) : undefined;
+      const matPlan = plan
+        ? matService.planFor(plan, materializationDialect)
+        : undefined;
       const displaySql = buildDisplayQuery(plan, materializationDialect);
 
       const liveJson = JSON.stringify(
@@ -976,7 +978,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               title: 'Materialization',
               content: m(MaterializationTab, {
                 matPlan,
-                dialect: materializationDialect,
                 lastRunOutcomes: matService.lastRunOutcomes,
                 lastIncludesTimeMs: matService.lastIncludesTimeMs,
                 activeNodeId,

@@ -16,12 +16,17 @@ import {ensureDefined} from '../../base/assert';
 import type {NodeData, RootNodeData} from './graph_model';
 import {flattenNodes} from './graph_utils';
 import {buildDisplayQuery, formatPlan} from './compose';
-import {formatOutput, formatStep, planMaterialization} from './materialization';
+import {
+  computeStepHashes,
+  formatOutput,
+  formatStep,
+  planMaterialization,
+} from './materialization';
 import {buildPlan, type Plan} from './plan';
 import type {SqlDialect} from './sql_types';
 
-function nodeHash(plan: Plan, id: string): string {
-  return ensureDefined(plan.nodes.find((n) => n.nodeId === id)).hash;
+function stepHash(plan: Plan, id: string, dialect: SqlDialect = 'sql'): string {
+  return ensureDefined(computeStepHashes(plan, dialect).get(id));
 }
 
 // Helper to build a graph index from root nodes.
@@ -1138,13 +1143,9 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
     const plan = ensureDefined(
       buildPlan(makeNodes([branchA, branchB, union]), 'u1', undefined),
     );
-    const filterHash = nodeHash(plan, 'flt_a');
-    expect(filterHash).toMatch(/^_qb_[0-9a-f]{8}$/);
-    expect(nodeHash(plan, 'flt_b')).toBe(filterHash);
-
     // Union inputs are not forced into cache tables: cheap filter branches fold
     // into the union's own step as CTEs.
-    const matPlan = planMaterialization(plan);
+    const matPlan = planMaterialization(plan, 'sql');
     expect(matPlan.steps.length).toBe(1);
     expect(matPlan.steps[0]?.nodeIds).toEqual([
       'from_a',
@@ -1153,7 +1154,7 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
       'flt_b',
       'u1',
     ]);
-    expect(formatStep(matPlan, matPlan.steps[0]!, 'sql')).toEqual({
+    expect(formatStep(matPlan, matPlan.steps[0]!)).toEqual({
       ok: true,
       sql: [
         'WITH',
@@ -1178,8 +1179,78 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
     });
   });
 
-  it('changes Merkle hash when filter value or upstream table changes', () => {
-    const makeFilterPlan = (table: string, val: string) =>
+  it('gives identical cache identity to identical expensive subgraphs', () => {
+    const sortedBranch = (from: string, flt: string, srt: string) =>
+      ({
+        type: 'from',
+        id: from,
+        x: 0,
+        y: 0,
+        config: {table: 'slice'},
+        next: {
+          type: 'filter',
+          id: flt,
+          config: {conditions: [{column: 'dur', op: '>', value: '1000'}]},
+          next: {
+            type: 'sort',
+            id: srt,
+            config: {conditions: [{column: 'dur', order: 'DESC'}]},
+          },
+        },
+      }) as RootNodeData;
+    const union: RootNodeData = {
+      type: 'union',
+      id: 'u1',
+      x: 100,
+      y: 200,
+      inputs: ['srt_a', 'srt_b'],
+      config: {distinct: false, numInputs: 2},
+    };
+    const plan = ensureDefined(
+      buildPlan(
+        makeNodes([
+          sortedBranch('from_a', 'flt_a', 'srt_a'),
+          sortedBranch('from_b', 'flt_b', 'srt_b'),
+          union,
+        ]),
+        'u1',
+        undefined,
+      ),
+    );
+    const sortHash = stepHash(plan, 'srt_a');
+    expect(sortHash).toMatch(/^_qb_[0-9a-f]{8}$/);
+    expect(stepHash(plan, 'srt_b')).toBe(sortHash);
+
+    // Both branches share one cache table; the union reads it twice.
+    const matPlan = planMaterialization(plan, 'sql');
+    expect(matPlan.steps.map((s) => s.hash)).toEqual([
+      sortHash,
+      stepHash(plan, 'u1'),
+    ]);
+    expect(matPlan.steps[0]?.nodeIds).toEqual([
+      'from_a',
+      'flt_a',
+      'srt_a',
+      'from_b',
+      'flt_b',
+      'srt_b',
+    ]);
+    expect(formatStep(matPlan, matPlan.steps[1]!)).toEqual({
+      ok: true,
+      sql: [
+        'SELECT *',
+        'FROM (',
+        `  SELECT * FROM ${sortHash}`,
+        '  UNION ALL',
+        `  SELECT * FROM ${sortHash}`,
+        ')',
+      ].join('\n'),
+      includes: [],
+    });
+  });
+
+  it('changes cache identity when anything upstream or the dialect changes', () => {
+    const makeSortPlan = (table: string, val: string) =>
       ensureDefined(
         buildPlan(
           makeNodes([
@@ -1193,19 +1264,29 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
                 type: 'filter',
                 id: 'flt1',
                 config: {conditions: [{column: 'dur', op: '>', value: val}]},
+                next: {
+                  type: 'sort',
+                  id: 'srt1',
+                  config: {conditions: [{column: 'dur', order: 'DESC'}]},
+                },
               },
             },
           ]),
-          'flt1',
+          'srt1',
           undefined,
         ),
       );
 
-    const h1 = nodeHash(makeFilterPlan('slice', '1000'), 'flt1');
-    const h2 = nodeHash(makeFilterPlan('slice', '2000'), 'flt1');
-    const h3 = nodeHash(makeFilterPlan('sched', '1000'), 'flt1');
+    const h1 = stepHash(makeSortPlan('slice', '1000'), 'srt1');
+    const h2 = stepHash(makeSortPlan('slice', '2000'), 'srt1');
+    const h3 = stepHash(makeSortPlan('sched', '1000'), 'srt1');
     expect(h1).not.toBe(h2);
     expect(h1).not.toBe(h3);
+
+    // Each dialect builds (and caches) its own tables.
+    expect(stepHash(makeSortPlan('slice', '1000'), 'srt1', 'pipe')).not.toBe(
+      h1,
+    );
   });
 
   it('emits zero materialization steps for zero-cost queries (From, Chart, TimeRange, DataTable)', () => {
@@ -1223,7 +1304,7 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
     };
     const index = makeNodes([fromChart]);
     const fromPlan = ensureDefined(buildPlan(index, 'f1', undefined));
-    const fromMat = planMaterialization(fromPlan);
+    const fromMat = planMaterialization(fromPlan, 'sql');
     expect(fromMat.steps).toEqual([]);
     expect(formatOutput(fromMat)).toEqual({
       ok: true,
@@ -1233,7 +1314,7 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
     });
 
     const chartPlan = ensureDefined(buildPlan(index, 'ch1', undefined));
-    const chartMat = planMaterialization(chartPlan);
+    const chartMat = planMaterialization(chartPlan, 'sql');
     expect(chartMat.steps).toEqual([]);
     expect(formatOutput(chartMat)).toEqual({
       ok: true,
@@ -1250,7 +1331,7 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
       config: {ts: '10', dur: '20'},
     };
     const trPlan = ensureDefined(buildPlan(makeNodes([tr]), 'tr1', undefined));
-    const trMat = planMaterialization(trPlan);
+    const trMat = planMaterialization(trPlan, 'sql');
     expect(trMat.steps).toEqual([]);
     expect(formatOutput(trMat)).toEqual({
       ok: true,
@@ -1279,13 +1360,13 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
       },
     };
     const plan = ensureDefined(buildPlan(makeNodes([root]), 'srt1', undefined));
-    const sortHash = nodeHash(plan, 'srt1');
+    const sortHash = stepHash(plan, 'srt1');
 
     // Filter + Sort fuse into a single materialized step.
-    const coldMat = planMaterialization(plan);
+    const coldMat = planMaterialization(plan, 'sql');
     expect(coldMat.steps.length).toBe(1);
     expect(coldMat.steps[0]?.hash).toBe(sortHash);
-    expect(formatStep(coldMat, coldMat.steps[0]!, 'sql')).toEqual({
+    expect(formatStep(coldMat, coldMat.steps[0]!)).toEqual({
       ok: true,
       sql: 'SELECT *\nFROM slice\nWHERE dur > 100\nORDER BY dur DESC',
       includes: [],
@@ -1318,7 +1399,7 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
     const gbPlan = ensureDefined(
       buildPlan(makeNodes([gbChain]), 'flt1', undefined),
     );
-    const gbMat = planMaterialization(gbPlan);
+    const gbMat = planMaterialization(gbPlan, 'sql');
     expect(gbMat.steps.length).toBe(1);
     expect(gbMat.steps[0]?.nodeIds).toEqual(['f1', 'gb1']);
     expect(formatOutput(gbMat)).toEqual({
@@ -1359,6 +1440,7 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
 
     const forkMat = planMaterialization(
       ensureDefined(buildPlan(forkIndex, 'branch_a', undefined)),
+      'sql',
     );
     expect(forkMat.steps.length).toBe(1);
     expect(forkMat.steps[0]?.nodeIds).toEqual([
@@ -1370,6 +1452,7 @@ describe('computeLogicalPlanHashes & planMaterialization', () => {
     // The cheap Limit branch needs no table at all.
     const limitMat = planMaterialization(
       ensureDefined(buildPlan(forkIndex, 'branch_b', undefined)),
+      'sql',
     );
     expect(limitMat.steps.length).toBe(0);
   });
