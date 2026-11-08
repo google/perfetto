@@ -24,15 +24,17 @@ import type {
   RootNodeData,
 } from './graph_model';
 import {flattenNodes} from './graph_utils';
-import {buildPlan, collectLiveHashes, type Plan} from './plan';
+import {buildPlan, type Plan} from './plan';
 import {
+  collectLiveHashes,
   computeNeededStepHashes,
+  computeStepHashes,
   MaterializationService,
   planMaterialization,
 } from './materialization';
 
-function nodeHash(plan: Plan, id: string): string {
-  return ensureDefined(plan.nodes.find((n) => n.nodeId === id)).hash;
+function stepHash(plan: Plan, id: string): string {
+  return ensureDefined(computeStepHashes(plan, 'sql').get(id));
 }
 
 function makeFakeEngine() {
@@ -130,15 +132,9 @@ describe('collectLiveHashes', () => {
 
     const index = flattenNodes([from]);
     const plan = ensureDefined(buildPlan(index, 'sort1', undefined));
-    const fromHash = nodeHash(plan, 'from1');
-    const filterHash = nodeHash(plan, 'flt1');
-    const sortHash = nodeHash(plan, 'sort1');
-
-    const live = collectLiveHashes(index, undefined);
-    expect(live.has(fromHash)).toBe(false);
-    expect(live.has(filterHash)).toBe(false);
-    expect(live.has(sortHash)).toBe(true);
-    expect(live.size).toBe(1);
+    // Only the expensive sort ever becomes a cache table.
+    const live = collectLiveHashes(index, undefined, 'sql');
+    expect(live).toEqual(new Set([stepHash(plan, 'sort1')]));
   });
 
   it('skips invalid nodes while keeping valid branches', () => {
@@ -160,10 +156,10 @@ describe('collectLiveHashes', () => {
     };
 
     const index = flattenNodes([validBranch, invalidBranch]);
-    const live = collectLiveHashes(index, undefined);
+    const live = collectLiveHashes(index, undefined, 'sql');
 
     const plan = ensureDefined(buildPlan(index, 'srt1', undefined));
-    const validHash = nodeHash(plan, 'srt1');
+    const validHash = stepHash(plan, 'srt1');
 
     expect(live.has(validHash)).toBe(true);
     expect(live.size).toBe(1);
@@ -391,46 +387,6 @@ describe('MaterializationService cache policy', () => {
     expect(dropIdx).toBeGreaterThan(readEndIdx);
   });
 
-  it('materializes with CREATE PERFETTO TABLE and shares warm cache across Standard SQL and PerfettoSQL Next dialects', async () => {
-    const {engine, queries} = makeFakeEngine();
-    const service = new MaterializationService(engine, {maxOrphans: 4});
-
-    const store: NodeQueryBuilderStore = {
-      nodes: [makeSortedChain('f1', 'srt1', '250')],
-      labels: [],
-    };
-
-    // Materialize in Standard SQL mode first -> uses CREATE PERFETTO TABLE.
-    await service.scheduleUpdate(store, 'srt1', undefined, 'sql');
-    const sqlHash = ensureDefined(service.materializedTable);
-    expect(service.activeDialect).toBe('sql');
-    expect(service.cacheEntries[0]?.hitCount).toBe(1);
-    expect(
-      queries.some((q) =>
-        q.includes(
-          `CREATE PERFETTO TABLE ${sqlHash} AS\nSELECT *\nFROM slice\nWHERE dur > 250\nORDER BY dur DESC`,
-        ),
-      ),
-    ).toBe(true);
-
-    // Switch to PerfettoSQL Next mode -> same semantic Merkle hash -> instant
-    // warm cache hit with ZERO new CREATE PERFETTO TABLE queries!
-    const queryCountBeforeSwitch = queries.length;
-    await service.scheduleUpdate(store, 'srt1', undefined, 'pipe');
-    expect(service.activeDialect).toBe('pipe');
-    expect(service.materializedTable).toBe(sqlHash);
-    expect(service.cacheEntries[0]?.hitCount).toBe(2);
-    // The cache entry keeps the Standard SQL that actually built the table.
-    expect(service.cacheEntries[0]?.sql).toBe(
-      'SELECT *\nFROM slice\nWHERE dur > 250\nORDER BY dur DESC',
-    );
-    expect(
-      queries
-        .slice(queryCountBeforeSwitch)
-        .some((q) => q.includes('CREATE PERFETTO TABLE')),
-    ).toBe(false);
-  });
-
   it('plans cut points independently of cache state, materializing only expensive ops', async () => {
     const {engine, queries} = makeFakeEngine();
     const service = new MaterializationService(engine, {maxOrphans: 4});
@@ -476,7 +432,7 @@ describe('MaterializationService cache policy', () => {
       buildPlan(flattenNodes(step2Store.nodes), 'srt1', undefined),
     );
     const coldSteps = new MaterializationService(makeFakeEngine().engine)
-      .planFor(sortPlan)
+      .planFor(sortPlan, 'sql')
       .steps.map((s) => s.hash);
 
     queries.length = 0;
@@ -493,7 +449,7 @@ describe('MaterializationService cache policy', () => {
     ).toBe(true);
 
     // 3. Re-planning with a warm cache yields the identical plan.
-    expect(service.planFor(sortPlan).steps.map((s) => s.hash)).toEqual(
+    expect(service.planFor(sortPlan, 'sql').steps.map((s) => s.hash)).toEqual(
       coldSteps,
     );
 
@@ -609,13 +565,13 @@ describe('MaterializationService cache policy', () => {
     };
     const index = flattenNodes([chain]);
     const logicalPlan = ensureDefined(buildPlan(index, 'srt1', undefined));
-    const aggHash = nodeHash(logicalPlan, 'agg1');
-    const sortHash = nodeHash(logicalPlan, 'srt1');
+    const aggHash = stepHash(logicalPlan, 'agg1');
+    const sortHash = stepHash(logicalPlan, 'srt1');
 
     // `sortHash` is warm and `aggHash` has been evicted: `planMaterialization`
     // still exposes both steps and their `deps` edge (the plan never depends on
     // the cache), while `computeNeededStepHashes` stops at `sortHash`.
-    const matPlan = planMaterialization(logicalPlan);
+    const matPlan = planMaterialization(logicalPlan, 'sql');
     expect(matPlan.steps.map((s) => s.hash)).toEqual([aggHash, sortHash]);
     expect(matPlan.steps.find((s) => s.hash === sortHash)?.deps).toEqual([
       aggHash,

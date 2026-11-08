@@ -191,6 +191,15 @@ function composeSql(plan: Plan, spec: ComposeSpec): FormatResult {
   const typeCounters = new Map<string, number>();
   const includes = new Set<string>();
   const nodeById = new Map(plan.nodes.map((n) => [n.nodeId, n]));
+  // Consumers within this query only, so the rendered SQL depends on nothing
+  // outside the step (its hash is derived from this text).
+  const localRefs = new Map<string, number>();
+  for (const n of plan.nodes) {
+    if (!spec.members.has(n.nodeId)) continue;
+    for (const inp of n.inputs) {
+      localRefs.set(inp.nodeId, (localRefs.get(inp.nodeId) ?? 0) + 1);
+    }
+  }
 
   function cteNameFor(nodeId: string): string {
     let name = cteNames.get(nodeId);
@@ -270,7 +279,7 @@ function composeSql(plan: Plan, spec: ComposeSpec): FormatResult {
       frag.from === undefined &&
       primary !== undefined &&
       primaryState?.kind === 'block' &&
-      nodeById.get(primary)!.refCount === 1 &&
+      localRefs.get(primary) === 1 &&
       canFold(primaryState.block, frag)
     ) {
       states.set(node.nodeId, {

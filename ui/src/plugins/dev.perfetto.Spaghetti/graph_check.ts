@@ -510,7 +510,7 @@ async function checkPlanRuntime(
   }
 
   // PerfettoSQL Next ('pipe') dialect check via isolated temporary tables.
-  const matPlan = planMaterialization(plan);
+  const matPlan = planMaterialization(plan, 'pipe');
   for (const inc of matPlan.includes) {
     if (!includedModules.has(inc)) {
       try {
@@ -532,7 +532,7 @@ async function checkPlanRuntime(
   const tableName = (hash: string) => tempNames.get(hash) ?? hash;
 
   for (const step of matPlan.steps) {
-    const res = formatStep(matPlan, step, 'pipe', tableName);
+    const res = formatStep(matPlan, step, tableName);
     if (!res.ok) return {error: res.error};
     try {
       await engine.query(

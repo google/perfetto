@@ -117,7 +117,7 @@ async function prepareNodeReadQuery(
   }
 
   const warmHashes = matService?.warmHashes ?? new Set<string>();
-  const matPlan = planMaterialization(plan);
+  const matPlan = planMaterialization(plan, dialect);
   const neededHashes = computeNeededStepHashes(matPlan, warmHashes);
 
   let usesWarmHash = false;
@@ -165,7 +165,7 @@ async function prepareNodeReadQuery(
     for (const step of matPlan.steps) {
       const tempName = tempNames.get(step.hash);
       if (tempName === undefined) continue;
-      const stepRes = formatStep(matPlan, step, dialect, tableName);
+      const stepRes = formatStep(matPlan, step, tableName);
       if (!stepRes.ok) {
         throw new Error(stepRes.error);
       }

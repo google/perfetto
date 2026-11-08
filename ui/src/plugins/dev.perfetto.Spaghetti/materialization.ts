@@ -19,14 +19,14 @@ import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
 import type {Engine} from '../../trace_processor/engine';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import type {NodeQueryBuilderStore} from './graph_model';
-import {flattenNodes, type GraphIndex} from './graph_utils';
+import {flattenNodes, fnvHash, type GraphIndex} from './graph_utils';
 import {
   buildDisplayQuery,
   compose,
   formatPlan,
   type FormatResult,
 } from './compose';
-import {buildPlan, collectLiveHashes, type Plan} from './plan';
+import {buildCanvasPlan, buildPlan, type Plan} from './plan';
 import type {SqlDialect} from './sql_types';
 
 const DEFAULT_MAX_ORPHANS = 16;
@@ -52,39 +52,82 @@ export interface MaterializationOutput {
 
 export interface MaterializationPlan {
   readonly plan: Plan;
+  /** The dialect the steps are built in (part of every step's identity). */
+  readonly dialect: SqlDialect;
+  /** Cache table hash of every expensive node in the plan. */
+  readonly hashes: ReadonlyMap<string, string>;
   /** In dependency order: every step comes after the steps it reads. */
   readonly steps: readonly MaterializationStep[];
   readonly output: MaterializationOutput;
   readonly includes: readonly string[];
 }
 
+/** Nodes reachable from `rootId` without crossing an expensive node. */
+function collectStepNodes(
+  plan: Plan,
+  rootId: string,
+  rootIsMember: boolean,
+): {nodeIds: string[]; deps: string[]} {
+  const nodeById = new Map(plan.nodes.map((n) => [n.nodeId, n]));
+  const members = new Set<string>();
+  const boundary = new Set<string>();
+  function visit(id: string): void {
+    if (members.has(id) || boundary.has(id)) return;
+    const isCut = nodeById.get(id)?.expensive ?? false;
+    if (isCut && !(rootIsMember && id === rootId)) {
+      boundary.add(id);
+      return;
+    }
+    members.add(id);
+    nodeById.get(id)?.inputs.forEach((inp) => visit(inp.nodeId));
+  }
+  visit(rootId);
+  return {
+    nodeIds: plan.nodes.map((n) => n.nodeId).filter((id) => members.has(id)),
+    deps: [...boundary],
+  };
+}
+
+/**
+ * Cache identity of every expensive node: the hash of the exact query that
+ * builds its table, in `dialect`, with the tables it reads named by their own
+ * hashes. That makes it a Merkle hash: any change upstream renames a
+ * dependency and so changes the text. Different dialects never share tables.
+ */
+export function computeStepHashes(
+  plan: Plan,
+  dialect: SqlDialect,
+): Map<string, string> {
+  const hashes = new Map<string, string>();
+  for (const node of plan.nodes) {
+    // Plan order is topological, so dependencies are hashed first.
+    if (!node.expensive) continue;
+    const sub = collectStepNodes(plan, node.nodeId, true);
+    const res = compose(
+      plan,
+      {
+        members: new Set(sub.nodeIds),
+        rootId: node.nodeId,
+        tableFor: (id) => hashes.get(id) ?? id,
+      },
+      dialect,
+    );
+    const text = res.ok ? res.sql : `-- error: ${res.error}`;
+    hashes.set(node.nodeId, `_qb_${fnvHash(`${dialect}\n${text}`)}`);
+  }
+  return hashes;
+}
+
 // Partition a plan into cacheable steps plus an output query. The output of
 // every expensive node becomes a cache table; everything else folds into the
 // next table's query or the output query. Cut points are a pure function of
 // the plan - the cache only decides which steps execute.
-export function planMaterialization(plan: Plan): MaterializationPlan {
-  const nodeById = new Map(plan.nodes.map((n) => [n.nodeId, n]));
-  const isCut = (id: string) => nodeById.get(id)?.expensive ?? false;
-
-  // Nodes reachable from `rootId` without crossing a cut, plus the cuts hit.
-  function collect(rootId: string, rootIsMember: boolean) {
-    const members = new Set<string>();
-    const boundary = new Set<string>();
-    function visit(id: string): void {
-      if (members.has(id) || boundary.has(id)) return;
-      if (isCut(id) && !(rootIsMember && id === rootId)) {
-        boundary.add(id);
-        return;
-      }
-      members.add(id);
-      nodeById.get(id)?.inputs.forEach((inp) => visit(inp.nodeId));
-    }
-    visit(rootId);
-    return {
-      nodeIds: plan.nodes.map((n) => n.nodeId).filter((id) => members.has(id)),
-      deps: [...boundary],
-    };
-  }
+export function planMaterialization(
+  plan: Plan,
+  dialect: SqlDialect,
+): MaterializationPlan {
+  const hashes = computeStepHashes(plan, dialect);
+  const hashOf = (id: string) => hashes.get(id)!;
 
   const byHash = new Map<string, MaterializationStep>();
   const orderedHashes: string[] = [];
@@ -93,8 +136,8 @@ export function planMaterialization(plan: Plan): MaterializationPlan {
   function collectStep(cutId: string): void {
     if (visited.has(cutId)) return;
     visited.add(cutId);
-    const hash = nodeById.get(cutId)!.hash;
-    const sub = collect(cutId, true);
+    const hash = hashOf(cutId);
+    const sub = collectStepNodes(plan, cutId, true);
     sub.deps.forEach(collectStep);
     const prev = byHash.get(hash);
     if (prev !== undefined) {
@@ -109,43 +152,58 @@ export function planMaterialization(plan: Plan): MaterializationPlan {
       hash,
       rootId: cutId,
       nodeIds: sub.nodeIds,
-      deps: [...new Set(sub.deps.map((id) => nodeById.get(id)!.hash))],
+      deps: [...new Set(sub.deps.map(hashOf))],
     });
     orderedHashes.push(hash);
   }
 
-  const out = collect(plan.targetNodeId, false);
+  const out = collectStepNodes(plan, plan.targetNodeId, false);
   out.deps.forEach(collectStep);
 
   return {
     plan,
+    dialect,
+    hashes,
     steps: orderedHashes.map((h) => byHash.get(h)!),
     output: {
       rootId: plan.targetNodeId,
       nodeIds: out.nodeIds,
-      deps: [...new Set(out.deps.map((id) => nodeById.get(id)!.hash))],
+      deps: [...new Set(out.deps.map(hashOf))],
     },
     includes: plan.includes,
   };
+}
+
+/**
+ * Hashes of every cache table the canvas currently uses (every valid
+ * expensive node, in `dialect`). These must not be evicted.
+ */
+export function collectLiveHashes(
+  index: GraphIndex,
+  sqlModules: SqlModules | undefined,
+  dialect: SqlDialect,
+): Set<string> {
+  return new Set(
+    computeStepHashes(buildCanvasPlan(index, sqlModules), dialect).values(),
+  );
 }
 
 function hashToNodeTable(
   matPlan: MaterializationPlan,
   tableName: (hash: string) => string,
 ): (nodeId: string) => string {
-  const hashById = new Map(matPlan.plan.nodes.map((n) => [n.nodeId, n.hash]));
-  return (nodeId) => tableName(hashById.get(nodeId) ?? nodeId);
+  return (nodeId) => tableName(matPlan.hashes.get(nodeId) ?? nodeId);
 }
 
 /**
  * The query body that builds a step's cache table (without the
- * `CREATE PERFETTO TABLE` wrapper). `tableName` maps a dependency's hash to
- * the table to read it from (default: the hash itself).
+ * `CREATE PERFETTO TABLE` wrapper), in the plan's dialect. `tableName` maps a
+ * dependency's hash to the table to read it from (default: the hash itself,
+ * which is exactly the text the step's hash was computed from).
  */
 export function formatStep(
   matPlan: MaterializationPlan,
   step: MaterializationStep,
-  dialect: SqlDialect,
   tableName: (hash: string) => string = (h) => h,
 ): FormatResult {
   return compose(
@@ -155,7 +213,7 @@ export function formatStep(
       rootId: step.rootId,
       tableFor: hashToNodeTable(matPlan, tableName),
     },
-    dialect,
+    matPlan.dialect,
   );
 }
 
@@ -250,6 +308,7 @@ export class MaterializationService {
 
   private lastStore: NodeQueryBuilderStore | undefined;
   private lastSqlModules: SqlModules | undefined;
+  private lastDialect: SqlDialect | undefined;
   private lastIndex: GraphIndex = {nodes: {}, childToParent: new Map()};
   private liveHashes: ReadonlySet<string> = new Set();
 
@@ -348,8 +407,8 @@ export class MaterializationService {
     return this._lastIncludesTimeMs;
   }
 
-  planFor(plan: Plan): MaterializationPlan {
-    return planMaterialization(plan);
+  planFor(plan: Plan, dialect: SqlDialect): MaterializationPlan {
+    return planMaterialization(plan, dialect);
   }
 
   scheduleUpdate(
@@ -359,7 +418,7 @@ export class MaterializationService {
     dialect: SqlDialect = 'sql',
   ): Promise<void> {
     if (this.disposed) return Promise.resolve();
-    this.updateGraphState(store, sqlModules);
+    this.updateGraphState(store, sqlModules, dialect);
     this.latestUpdate = {store, activeNodeId, sqlModules, dialect};
     this.pendingUpdate = true;
     return this.scheduleWork();
@@ -395,6 +454,7 @@ export class MaterializationService {
           this.updateGraphState(
             this.latestUpdate.store,
             this.latestUpdate.sqlModules,
+            this.latestUpdate.dialect,
           );
         }
         const evicted = await this.evictOrphans(0);
@@ -411,12 +471,18 @@ export class MaterializationService {
   private updateGraphState(
     store: NodeQueryBuilderStore,
     sqlModules: SqlModules | undefined,
+    dialect: SqlDialect,
   ): GraphIndex {
-    if (store !== this.lastStore || sqlModules !== this.lastSqlModules) {
+    if (
+      store !== this.lastStore ||
+      sqlModules !== this.lastSqlModules ||
+      dialect !== this.lastDialect
+    ) {
       this.lastStore = store;
       this.lastSqlModules = sqlModules;
+      this.lastDialect = dialect;
       this.lastIndex = flattenNodes(store.nodes);
-      this.liveHashes = collectLiveHashes(this.lastIndex, sqlModules);
+      this.liveHashes = collectLiveHashes(this.lastIndex, sqlModules, dialect);
     }
     return this.lastIndex;
   }
@@ -439,7 +505,7 @@ export class MaterializationService {
     sqlModules: SqlModules | undefined,
     dialect: SqlDialect,
   ): Promise<void> {
-    const index = this.updateGraphState(store, sqlModules);
+    const index = this.updateGraphState(store, sqlModules, dialect);
     const plan = activeNodeId
       ? buildPlan(index, activeNodeId, sqlModules)
       : undefined;
@@ -475,8 +541,8 @@ export class MaterializationService {
 
     try {
       if (!displayRes.ok) throw new Error(displayRes.error);
-      const matPlan = this.planFor(plan);
-      await this.executeMaterializationPlan(matPlan, dialect);
+      const matPlan = this.planFor(plan, dialect);
+      await this.executeMaterializationPlan(matPlan);
       this._error = undefined;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -504,7 +570,6 @@ export class MaterializationService {
 
   private async executeMaterializationPlan(
     matPlan: MaterializationPlan,
-    dialect: SqlDialect,
   ): Promise<void> {
     const neededHashes = computeNeededStepHashes(
       matPlan,
@@ -513,7 +578,7 @@ export class MaterializationService {
     const formattedSteps: Array<{step: MaterializationStep; sql: string}> = [];
     for (const step of matPlan.steps) {
       if (!neededHashes.has(step.hash)) continue;
-      const res = formatStep(matPlan, step, dialect);
+      const res = formatStep(matPlan, step);
       if (!res.ok) throw new Error(res.error);
       formattedSteps.push({step, sql: res.sql});
     }

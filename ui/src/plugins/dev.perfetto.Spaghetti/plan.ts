@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Graph -> Plan: evaluates each node's generators to derive a dialect-agnostic
-// Merkle hash per node, resolves passthrough nodes, and collects the upstream
-// DAG of a target node in topological order.
+// Graph -> Plan: the upstream DAG of a target node in topological order, with
+// passthrough nodes resolved and incomplete nodes rejected. Plans carry no
+// hashes: cache identity is assigned per materialization step from the SQL
+// that builds it (see materialization.ts).
 
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import type {NodeData, Port} from './graph_model';
@@ -22,7 +23,6 @@ import {
   type ColumnDef,
   findConnectedInputs,
   findDockedParent,
-  fnvHash,
   getManifestInputs,
   getOutputColumnsForNode,
   type GraphIndex,
@@ -33,7 +33,6 @@ import type {
   GeneratorContext,
   NodeManifest,
   PsnFragment,
-  PsnInput,
   SqlFragment,
   SqlInput,
 } from './node_types';
@@ -53,7 +52,6 @@ export interface PlanNode {
   readonly inputs: readonly PlanInput[];
   /** Output columns of each connected input port. */
   readonly inputColumns: ReadonlyMap<string, ColumnDef[] | undefined>;
-  readonly hash: string;
   readonly expensive: boolean;
   readonly includes: readonly string[];
   /** Number of references to this node from other nodes in the plan. */
@@ -70,7 +68,6 @@ export interface Plan {
 
 interface NodeEval {
   readonly nodeId: string;
-  readonly hash: string;
   /** Set when this node is a passthrough: the node it forwards. */
   readonly aliasOf?: string;
   readonly node: NodeData;
@@ -104,10 +101,6 @@ export function isEmptyFragment(frag: SqlFragment | PsnFragment): boolean {
   );
 }
 
-function hashOf(value: unknown): string {
-  return `_qb_${fnvHash(JSON.stringify(value))}`;
-}
-
 /**
  * Evaluates every node reachable on demand, memoized. Invalid / incomplete
  * nodes (and anything downstream of them) evaluate to undefined.
@@ -138,7 +131,6 @@ function makeEvaluator(index: GraphIndex, sqlModules: SqlModules | undefined) {
     const dockedParent = findDockedParent(index, nodeId);
     const connected = findConnectedInputs(index, nodeId);
     const inputs: PlanInput[] = [];
-    const hashes = new Map<string, string>();
     const inputColumns = new Map<string, ColumnDef[] | undefined>();
     for (const [i, port] of ports.entries()) {
       const upstream =
@@ -150,61 +142,31 @@ function makeEvaluator(index: GraphIndex, sqlModules: SqlModules | undefined) {
         port: port.name,
         nodeId: upstreamEval.aliasOf ?? upstreamEval.nodeId,
       });
-      hashes.set(port.name, upstreamEval.hash);
       inputColumns.set(
         port.name,
         getOutputColumnsForNode(index, upstream.id, sqlModules),
       );
     }
 
-    // Render with each input referred to by its hash, so the result (and so
-    // the node's hash) is independent of node ids and dialect. Input hashes
-    // are also hashed explicitly: clause fragments (e.g. `{where}`) never
-    // mention their primary input.
-    const inputHashes = inputs.map((inp) => [inp.port, hashes.get(inp.port)!]);
+    // Probe the SQL generator to learn whether the node is complete and
+    // whether it is a passthrough. The references are placeholders: the real
+    // rendering happens in compose.ts.
     const sqlCtx = makeGeneratorContext<SqlInput>(
       ports,
-      inputs.map((inp) => ({
-        port: inp.port,
-        input: {ref: hashes.get(inp.port)!},
-      })),
+      inputs.map((inp) => ({port: inp.port, input: {ref: inp.nodeId}})),
       inputColumns,
       sqlModules,
     );
     const sqlFrag = manifest.generators.sql(node.config, sqlCtx);
     if (sqlFrag === undefined) return undefined;
 
-    let hash: string;
-    let includes: readonly string[] = [];
-    if ('error' in sqlFrag) {
-      // Not expressible in Standard SQL: identify it by its PSN rendering.
-      const psnCtx = makeGeneratorContext<PsnInput>(
-        ports,
-        inputs.map((inp) => {
-          const h = hashes.get(inp.port)!;
-          return {
-            port: inp.port,
-            input: {
-              source: h,
-              withStages: (stages) =>
-                stages.length > 0 ? `(FROM ${h} |> ${stages.join(' |> ')})` : h,
-            },
-          };
-        }),
-        inputColumns,
-        sqlModules,
-      );
-      const psnFrag = manifest.generators.psn?.(node.config, psnCtx);
-      if (psnFrag === undefined) return undefined;
-      hash = hashOf({type: node.type, inputs: inputHashes, psn: psnFrag});
-      if (!('error' in psnFrag)) includes = psnFrag.includes ?? [];
-    } else if (isEmptyFragment(sqlFrag)) {
+    const isError = 'error' in sqlFrag;
+    if (!isError && isEmptyFragment(sqlFrag)) {
       // Passthrough: forward the primary input.
       const primary = inputs[0];
       if (primary === undefined) return undefined;
       return {
         nodeId,
-        hash: hashes.get(primary.port)!,
         aliasOf: primary.nodeId,
         node,
         manifest,
@@ -213,41 +175,27 @@ function makeEvaluator(index: GraphIndex, sqlModules: SqlModules | undefined) {
         inputColumns,
         includes: [],
       };
-    } else {
-      hash = hashOf({type: node.type, inputs: inputHashes, sql: sqlFrag});
-      includes = sqlFrag.includes ?? [];
     }
 
     return {
       nodeId,
-      hash,
       node,
       manifest,
       ports,
       inputs,
       inputColumns,
-      includes,
+      includes: isError ? [] : (sqlFrag.includes ?? []),
     };
   }
 
   return evaluate;
 }
 
-/**
- * Builds the plan for `targetId`: its upstream DAG in topological order with
- * a Merkle hash per node. Returns undefined if the target or anything upstream
- * of it is invalid or incomplete.
- */
-export function buildPlan(
-  index: GraphIndex,
-  targetId: string,
-  sqlModules: SqlModules | undefined,
-): Plan | undefined {
-  const evaluate = makeEvaluator(index, sqlModules);
-  const target = evaluate(targetId);
-  if (target === undefined) return undefined;
-  const resolvedTarget = target.aliasOf ?? target.nodeId;
-
+function planFrom(
+  evaluate: (nodeId: string) => NodeEval | undefined,
+  roots: readonly string[],
+  targetNodeId: string,
+): Plan {
   const order: NodeEval[] = [];
   const visited = new Set<string>();
   function visit(nodeId: string): void {
@@ -255,10 +203,14 @@ export function buildPlan(
     visited.add(nodeId);
     const e = evaluate(nodeId);
     if (e === undefined) return;
+    if (e.aliasOf !== undefined) {
+      visit(e.aliasOf);
+      return;
+    }
     for (const inp of e.inputs) visit(inp.nodeId);
     order.push(e);
   }
-  visit(resolvedTarget);
+  roots.forEach(visit);
 
   const refCounts = new Map<string, number>();
   for (const e of order) {
@@ -277,32 +229,40 @@ export function buildPlan(
       ports: e.ports,
       inputs: e.inputs,
       inputColumns: e.inputColumns,
-      hash: e.hash,
       expensive: e.manifest.expensive ?? false,
       includes: e.includes,
       refCount: refCounts.get(e.nodeId) ?? 0,
     };
   });
 
-  return {nodes, targetNodeId: resolvedTarget, includes: [...includes]};
+  return {nodes, targetNodeId, includes: [...includes]};
 }
 
 /**
- * Hashes of every valid expensive node on the canvas: the only nodes whose
- * output is ever materialized, and so the cache tables that must not be
- * evicted while the graph still uses them.
+ * Builds the plan for `targetId`: its upstream DAG in topological order.
+ * Returns undefined if the target or anything upstream of it is invalid or
+ * incomplete.
  */
-export function collectLiveHashes(
+export function buildPlan(
+  index: GraphIndex,
+  targetId: string,
+  sqlModules: SqlModules | undefined,
+): Plan | undefined {
+  const evaluate = makeEvaluator(index, sqlModules);
+  const target = evaluate(targetId);
+  if (target === undefined) return undefined;
+  const resolvedTarget = target.aliasOf ?? target.nodeId;
+  return planFrom(evaluate, [resolvedTarget], resolvedTarget);
+}
+
+/**
+ * A plan covering every valid node on the canvas (no single target). Used to
+ * find every cache table the graph currently uses.
+ */
+export function buildCanvasPlan(
   index: GraphIndex,
   sqlModules: SqlModules | undefined,
-): Set<string> {
+): Plan {
   const evaluate = makeEvaluator(index, sqlModules);
-  const live = new Set<string>();
-  for (const nodeId of Object.keys(index.nodes)) {
-    const e = evaluate(nodeId);
-    if (e !== undefined && e.aliasOf === undefined && e.manifest.expensive) {
-      live.add(e.hash);
-    }
-  }
-  return live;
+  return planFrom(evaluate, Object.keys(index.nodes), '');
 }

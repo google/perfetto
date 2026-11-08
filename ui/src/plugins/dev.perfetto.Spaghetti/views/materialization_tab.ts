@@ -25,12 +25,10 @@ import {
   type MaterializationPlan,
   type StepRunOutcome,
 } from '../materialization';
-import type {SqlDialect} from '../sql_types';
 import './materialization_tab.scss';
 
 export interface MaterializationTabAttrs {
   readonly matPlan: MaterializationPlan | undefined;
-  readonly dialect: SqlDialect;
   readonly lastRunOutcomes: ReadonlyMap<string, StepRunOutcome>;
   readonly lastIncludesTimeMs: number | undefined;
   readonly activeNodeId: string | undefined;
@@ -87,13 +85,7 @@ export class MaterializationTab implements m.ClassComponent<MaterializationTabAt
   }
 
   view({attrs}: m.Vnode<MaterializationTabAttrs>) {
-    const {
-      matPlan,
-      dialect,
-      lastRunOutcomes,
-      lastIncludesTimeMs,
-      activeNodeId,
-    } = attrs;
+    const {matPlan, lastRunOutcomes, lastIncludesTimeMs, activeNodeId} = attrs;
 
     if (!matPlan) {
       if (activeNodeId) {
@@ -154,7 +146,7 @@ export class MaterializationTab implements m.ClassComponent<MaterializationTabAt
     }
 
     for (const step of matPlan.steps) {
-      const res = formatStep(matPlan, step, dialect);
+      const res = formatStep(matPlan, step);
       const bodySql = res.ok ? res.sql : `-- ${res.error}`;
 
       const meta =
