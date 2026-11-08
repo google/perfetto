@@ -78,7 +78,11 @@ import {
 } from '../graph_utils';
 import {buildDisplayQuery} from '../compose';
 import {buildPlan} from '../plan';
-import {MaterializationService} from '../materialization';
+import {
+  MaterializationService,
+  planMaterialization,
+  type StepRunOutcome,
+} from '../materialization';
 import type {DetailsContext, RenderContext} from '../node_types';
 import {CacheTab} from './cache_tab';
 import {ColumnsTab} from './columns_tab';
@@ -117,6 +121,19 @@ export interface SpaghettiPage {
   readonly sqlModules: SqlModules | undefined;
   readonly state?: SpaghettiGraphState;
   readonly matService?: MaterializationService;
+}
+
+// The node's materialization glow: animated while its step builds, then a
+// one-shot CSS fade (which ends hidden) once it's built.
+function runOutcomeClass(outcome: StepRunOutcome | undefined) {
+  switch (outcome?.kind) {
+    case 'building':
+      return 'pf-materializing';
+    case 'built':
+      return 'pf-materializing-fade-out';
+    default:
+      return undefined;
+  }
 }
 
 export function SpaghettiPage(): m.Component<SpaghettiPage> {
@@ -533,11 +550,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       ],
       collapsed: isRoot ? nodeData.collapsed : undefined,
       collapsible: isRoot,
-      className: matService?.materializingNodeIds.has(nodeData.id)
-        ? 'pf-materializing'
-        : matService?.fadingOutNodeIds.has(nodeData.id)
-          ? 'pf-materializing-fade-out'
-          : undefined,
+      className: runOutcomeClass(matService?.nodeOutcomes.get(nodeData.id)),
     };
   }
 
@@ -942,7 +955,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         ? buildPlan(flatNodes, activeNodeId, sqlModules)
         : undefined;
       const matPlan = plan
-        ? matService.planFor(plan, materializationDialect)
+        ? planMaterialization(plan, materializationDialect)
         : undefined;
       const displaySql = buildDisplayQuery(plan, materializationDialect);
 

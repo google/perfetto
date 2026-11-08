@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {ensureDefined} from '../../base/assert';
+import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import type {NodeData, RootNodeData} from './graph_model';
 import {flattenNodes} from './graph_utils';
 import {buildDisplayQuery, formatPlan} from './compose';
@@ -308,6 +309,31 @@ describe('formatSql (Standard SQL backend)', () => {
     expect(res.sql).toContain('INCLUDE PERFETTO MODULE intervals.intersect;');
     expect(res.sql).toContain('_interval_intersect!');
     expect(res.sql).toContain('(utid)');
+  });
+
+  it('includes the stdlib module of a From table in the formatted SQL', () => {
+    const sqlModules = {
+      getModuleForTable: (table: string) =>
+        table === 'thread_slice'
+          ? {includeKey: 'slices.with_context'}
+          : undefined,
+    } as unknown as SqlModules;
+    const from: RootNodeData = {
+      type: 'from',
+      id: 'f1',
+      x: 0,
+      y: 0,
+      config: {table: 'thread_slice'},
+    };
+
+    const plan = ensureDefined(buildPlan(makeNodes([from]), 'f1', sqlModules));
+    for (const dialect of ['sql', 'pipe'] as const) {
+      const res = formatPlan(plan, dialect, {includeModuleHeaders: true});
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
+      expect(res.includes).toEqual(['slices.with_context']);
+      expect(res.sql).toContain('INCLUDE PERFETTO MODULE slices.with_context;');
+    }
   });
 
   it('flushes foldable right-input branch before standalone join and downstream ops', () => {

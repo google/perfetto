@@ -170,7 +170,7 @@ export function planMaterialization(
       nodeIds: out.nodeIds,
       deps: [...new Set(out.deps.map(hashOf))],
     },
-    includes: plan.includes,
+    includes: plan.includes[dialect],
   };
 }
 
@@ -282,6 +282,151 @@ export type StepRunOutcome =
   | {readonly kind: 'built'; readonly timeMs: number}
   | {readonly kind: 'skipped'};
 
+/** Each step's outcome, keyed by the ids of the nodes in that step. */
+export function nodeOutcomes(
+  matPlan: MaterializationPlan,
+  outcomes: ReadonlyMap<string, StepRunOutcome>,
+): Map<string, StepRunOutcome> {
+  const byNode = new Map<string, StepRunOutcome>();
+  for (const step of matPlan.steps) {
+    const outcome = outcomes.get(step.hash);
+    if (outcome === undefined) continue;
+    for (const nid of step.nodeIds) byNode.set(nid, outcome);
+  }
+  return byNode;
+}
+
+/** Callbacks for following a run as it progresses (e.g. to drive the UI). */
+export interface RunHooks {
+  /** Called with a fresh outcomes map whenever a step's outcome changes. */
+  onProgress?(outcomes: ReadonlyMap<string, StepRunOutcome>): void;
+  /**
+   * Called once a step's table is built, before its build time is recorded,
+   * so any time spent here counts towards it.
+   */
+  onStepEnd?(
+    step: MaterializationStep,
+    queryTimeMs: number,
+  ): Promise<void> | void;
+}
+
+export interface RunResult {
+  /** Cache entries for the tables built in this run (even if it failed). */
+  readonly built: readonly CacheEntry[];
+  /** Hashes of the steps served from `cache`. */
+  readonly hits: readonly string[];
+  readonly outcomes: ReadonlyMap<string, StepRunOutcome>;
+  readonly includesTimeMs: number | undefined;
+  /** How to read the target's result; undefined if the run failed. */
+  readonly output?: {readonly sql: string; readonly relation?: string};
+  readonly error?: string;
+}
+
+/**
+ * Runs a materialization plan: includes the plan's modules, builds every
+ * needed step that isn't in `cache` into a `_qb_<hash>` table, and returns how
+ * to read the target's result.
+ *
+ * `cache` is only read. The caller decides what to do with the result: the new
+ * entries in `built` and the `hits` to record.
+ */
+export async function runMaterializationPlan(
+  engine: Engine,
+  matPlan: MaterializationPlan,
+  cache: ReadonlyMap<string, CacheEntry>,
+  hooks: RunHooks = {},
+): Promise<RunResult> {
+  const built: CacheEntry[] = [];
+  const hits: string[] = [];
+  let outcomes = new Map<string, StepRunOutcome>();
+  let includesTimeMs: number | undefined;
+  const fail = (error: string): RunResult => ({
+    built,
+    hits,
+    outcomes,
+    includesTimeMs,
+    error,
+  });
+  const setOutcome = (hash: string, outcome: StepRunOutcome) => {
+    outcomes = new Map(outcomes).set(hash, outcome);
+    hooks.onProgress?.(outcomes);
+  };
+
+  const neededHashes = computeNeededStepHashes(matPlan, new Set(cache.keys()));
+  const formattedSteps: Array<{step: MaterializationStep; sql: string}> = [];
+  for (const step of matPlan.steps) {
+    if (!neededHashes.has(step.hash)) continue;
+    const res = formatStep(matPlan, step);
+    if (!res.ok) return fail(res.error);
+    formattedSteps.push({step, sql: res.sql});
+  }
+
+  const finalReadRes = formatOutput(matPlan);
+  if (!finalReadRes.ok) return fail(finalReadRes.error);
+
+  try {
+    if (matPlan.includes.length > 0) {
+      const incStart = performance.now();
+      for (const inc of matPlan.includes) {
+        await engine.query(`INCLUDE PERFETTO MODULE ${inc}`);
+      }
+      includesTimeMs = performance.now() - incStart;
+    }
+
+    for (const step of matPlan.steps) {
+      if (!neededHashes.has(step.hash)) {
+        outcomes.set(step.hash, {kind: 'skipped'});
+      }
+    }
+    hooks.onProgress?.(outcomes);
+
+    for (const {step, sql} of formattedSteps) {
+      const cached = cache.get(step.hash);
+      if (cached) {
+        hits.push(step.hash);
+        setOutcome(step.hash, {
+          kind: 'hit',
+          savedTimeMs: cached.materializeTimeMs,
+        });
+        continue;
+      }
+
+      setOutcome(step.hash, {kind: 'building'});
+
+      const createSql = `CREATE PERFETTO TABLE ${step.hash} AS\n${sql}`;
+      console.log(
+        `[QueryBuilder] Materializing ${step.hash}:\n  ${createSql.replace(/\n/g, '\n  ')}`,
+      );
+
+      const start = performance.now();
+      await engine.query(`DROP TABLE IF EXISTS ${step.hash};\n${createSql}`);
+      await hooks.onStepEnd?.(step, performance.now() - start);
+      const now = performance.now();
+      const timeMs = now - start;
+
+      built.push({
+        hash: step.hash,
+        sql,
+        createdAt: now,
+        materializeTimeMs: timeMs,
+        lastHitAt: now,
+        hitCount: 1,
+      });
+      setOutcome(step.hash, {kind: 'built', timeMs});
+    }
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : String(e));
+  }
+
+  return {
+    built,
+    hits,
+    outcomes,
+    includesTimeMs,
+    output: {sql: finalReadRes.sql, relation: finalReadRes.relation},
+  };
+}
+
 export class MaterializationService {
   private readonly limiter = new AsyncLimiter();
   private readonly engine: Engine;
@@ -311,10 +456,8 @@ export class MaterializationService {
   private _readQuerySql: string | undefined;
   private _materializedTable: string | undefined;
 
-  private _materializingNodeIds = new Set<string>();
-  private _fadingOutNodeIds = new Set<string>();
-  private fadeTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private _lastRunOutcomes: ReadonlyMap<string, StepRunOutcome> = new Map();
+  private _nodeOutcomes: ReadonlyMap<string, StepRunOutcome> = new Map();
   private _lastIncludesTimeMs: number | undefined;
 
   emulateSlowLoads = false;
@@ -369,12 +512,9 @@ export class MaterializationService {
     }));
   }
 
-  get materializingNodeIds(): ReadonlySet<string> {
-    return this._materializingNodeIds;
-  }
-
-  get fadingOutNodeIds(): ReadonlySet<string> {
-    return this._fadingOutNodeIds;
+  /** The last run's outcome for each node, by the step it belongs to. */
+  get nodeOutcomes(): ReadonlyMap<string, StepRunOutcome> {
+    return this._nodeOutcomes;
   }
 
   get lastRunOutcomes(): ReadonlyMap<string, StepRunOutcome> {
@@ -383,10 +523,6 @@ export class MaterializationService {
 
   get lastIncludesTimeMs(): number | undefined {
     return this._lastIncludesTimeMs;
-  }
-
-  planFor(plan: Plan, dialect: SqlDialect): MaterializationPlan {
-    return planMaterialization(plan, dialect);
   }
 
   scheduleUpdate(
@@ -437,6 +573,7 @@ export class MaterializationService {
     this._displaySql = undefined;
     this._error = undefined;
     this._lastRunOutcomes = new Map();
+    this._nodeOutcomes = new Map();
     this._lastIncludesTimeMs = undefined;
   }
 
@@ -454,8 +591,7 @@ export class MaterializationService {
     if (!plan) {
       this.clearActiveOutput();
       this._activeDialect = dialect;
-      const evicted = await this.evict();
-      if (evicted > 0) m.redraw();
+      await this.evict();
       return;
     }
 
@@ -472,8 +608,7 @@ export class MaterializationService {
       dialect === this._activeDialect &&
       (this._dataSource !== undefined || this._error !== undefined)
     ) {
-      const evicted = await this.evict();
-      if (evicted > 0) m.redraw();
+      await this.evict();
       return;
     }
 
@@ -482,7 +617,7 @@ export class MaterializationService {
 
     try {
       if (!displayRes.ok) throw new Error(displayRes.error);
-      const matPlan = this.planFor(plan, dialect);
+      const matPlan = planMaterialization(plan, dialect);
       await this.executeMaterializationPlan(matPlan);
       this._error = undefined;
     } catch (e) {
@@ -494,128 +629,59 @@ export class MaterializationService {
       this._readQuerySql = undefined;
       this._materializedTable = undefined;
       this.readHashes = new Set();
-      this.clearFadeTimers();
-      this._materializingNodeIds.clear();
-      this._fadingOutNodeIds.clear();
       this._lastRunOutcomes = new Map();
+      this._nodeOutcomes = new Map();
       this._lastIncludesTimeMs = undefined;
       m.redraw();
     }
 
-    const evicted = await this.evict();
-    if (evicted > 0) m.redraw();
+    await this.evict();
   }
 
   private async executeMaterializationPlan(
     matPlan: MaterializationPlan,
   ): Promise<void> {
-    const neededHashes = computeNeededStepHashes(
-      matPlan,
-      new Set(this.cache.keys()),
-    );
-    const formattedSteps: Array<{step: MaterializationStep; sql: string}> = [];
-    for (const step of matPlan.steps) {
-      if (!neededHashes.has(step.hash)) continue;
-      const res = formatStep(matPlan, step);
-      if (!res.ok) throw new Error(res.error);
-      formattedSteps.push({step, sql: res.sql});
-    }
-
-    const finalReadRes = formatOutput(matPlan);
-    if (!finalReadRes.ok) throw new Error(finalReadRes.error);
-
     this._lastIncludesTimeMs = undefined;
-    if (matPlan.includes.length > 0) {
-      const incStart = performance.now();
-      for (const inc of matPlan.includes) {
-        await this.engine.query(`INCLUDE PERFETTO MODULE ${inc}`);
-      }
-      this._lastIncludesTimeMs = performance.now() - incStart;
+    const result = await runMaterializationPlan(
+      this.engine,
+      matPlan,
+      this.cache,
+      {
+        onProgress: (outcomes) => {
+          this._lastRunOutcomes = outcomes;
+          this._nodeOutcomes = nodeOutcomes(matPlan, outcomes);
+          m.redraw();
+        },
+        onStepEnd: async (_step, queryTimeMs) => {
+          if (this.emulateSlowLoads && !this.disposed) {
+            await new Promise<void>((r) => setTimeout(r, queryTimeMs * 10));
+          }
+        },
+      },
+    );
+
+    // Record the run in the cache, even if it failed part-way, so every table
+    // that was built is tracked (and eventually dropped).
+    const now = performance.now();
+    for (const hash of result.hits) {
+      const entry = this.cache.get(hash);
+      if (entry === undefined) continue;
+      entry.lastHitAt = now;
+      entry.hitCount++;
     }
+    for (const entry of result.built) this.cache.set(entry.hash, {...entry});
+    this._lastRunOutcomes = result.outcomes;
+    this._nodeOutcomes = nodeOutcomes(matPlan, result.outcomes);
+    this._lastIncludesTimeMs = result.includesTimeMs;
 
-    const runOutcomes = new Map<string, StepRunOutcome>();
-    for (const step of matPlan.steps) {
-      if (!neededHashes.has(step.hash)) {
-        runOutcomes.set(step.hash, {kind: 'skipped'});
-      }
-    }
-    this._lastRunOutcomes = runOutcomes;
+    if (this.disposed) return;
+    if (result.output === undefined) throw new Error(result.error);
 
-    for (const {step, sql} of formattedSteps) {
-      const cached = this.cache.get(step.hash);
-      if (cached) {
-        cached.lastHitAt = performance.now();
-        cached.hitCount++;
-        runOutcomes.set(step.hash, {
-          kind: 'hit',
-          savedTimeMs: cached.materializeTimeMs,
-        });
-        continue;
-      }
-
-      runOutcomes.set(step.hash, {kind: 'building'});
-      for (const nid of step.nodeIds) {
-        const prevTimer = this.fadeTimers.get(nid);
-        if (prevTimer !== undefined) {
-          clearTimeout(prevTimer);
-          this.fadeTimers.delete(nid);
-        }
-        this._fadingOutNodeIds.delete(nid);
-        this._materializingNodeIds.add(nid);
-      }
-      m.redraw();
-
-      const createSql = `CREATE PERFETTO TABLE ${step.hash} AS\n${sql}`;
-      console.log(
-        `[QueryBuilder] Materializing ${step.hash}:\n  ${createSql.replace(/\n/g, '\n  ')}`,
-      );
-
-      const start = performance.now();
-      await this.engine.query(
-        `DROP TABLE IF EXISTS ${step.hash};\n${createSql}`,
-      );
-      const queryTimeMs = performance.now() - start;
-      if (this.emulateSlowLoads && !this.disposed) {
-        await new Promise<void>((r) => setTimeout(r, queryTimeMs * 10));
-      }
-      if (this.disposed) return;
-      const timeMs = performance.now() - start;
-      const now = performance.now();
-
-      for (const nid of step.nodeIds) {
-        this._materializingNodeIds.delete(nid);
-        this._fadingOutNodeIds.add(nid);
-        const prevTimer = this.fadeTimers.get(nid);
-        if (prevTimer !== undefined) clearTimeout(prevTimer);
-        this.fadeTimers.set(
-          nid,
-          setTimeout(() => {
-            this.fadeTimers.delete(nid);
-            this._fadingOutNodeIds.delete(nid);
-            m.redraw();
-          }, 900),
-        );
-      }
-
-      this.cache.set(step.hash, {
-        hash: step.hash,
-        sql,
-        createdAt: now,
-        materializeTimeMs: timeMs,
-        lastHitAt: now,
-        hitCount: 1,
-      });
-      runOutcomes.set(step.hash, {kind: 'built', timeMs});
-    }
-
-    const singleScan = finalReadRes.relation;
-
+    const {sql, relation} = result.output;
     const readQuerySql =
-      singleScan !== undefined
-        ? `SELECT * FROM ${singleScan}`
-        : finalReadRes.sql;
+      relation !== undefined ? `SELECT * FROM ${relation}` : sql;
     this._materializedTable =
-      singleScan !== undefined ? singleScan : `(\n${finalReadRes.sql}\n)`;
+      relation !== undefined ? relation : `(\n${sql}\n)`;
     this.readHashes = new Set(matPlan.output.deps);
 
     if (this._readQuerySql !== readQuerySql || !this._dataSource) {
@@ -627,24 +693,21 @@ export class MaterializationService {
         queue: this.taskQueue,
       });
     }
-    m.redraw();
   }
 
   // Least-recently-used eviction down to `maxEntries`, never dropping a table
   // the current output query reads. Runs after each run (never mid-run), and
   // re-running a plan only needs its most downstream cached step, so dropping
   // older upstream tables doesn't cause rebuild cascades.
-  private async evict(): Promise<number> {
+  private async evict(): Promise<void> {
     const excess = this.cache.size - this.maxEntries;
-    if (excess <= 0) return 0;
+    if (excess <= 0) return;
     const victims = [...this.cache.values()]
       .filter((e) => !this.readHashes.has(e.hash))
       .sort((a, b) => a.lastHitAt - b.lastHitAt || a.createdAt - b.createdAt)
       .slice(0, excess);
     for (const victim of victims) this.cache.delete(victim.hash);
-    const hashes = victims.map((v) => v.hash);
-    await this.dropTables(hashes);
-    return hashes.length;
+    await this.dropTables(victims.map((v) => v.hash));
   }
 
   private runOnTaskQueue(fn: () => Promise<void>): Promise<void> {
@@ -675,15 +738,9 @@ export class MaterializationService {
     await this.dropTables(hashes);
   }
 
-  private clearFadeTimers(): void {
-    for (const timer of this.fadeTimers.values()) clearTimeout(timer);
-    this.fadeTimers.clear();
-  }
-
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
-    this.clearFadeTimers();
     this._dataSource?.dispose();
     this._dataSource = undefined;
     this._readQuerySql = undefined;
