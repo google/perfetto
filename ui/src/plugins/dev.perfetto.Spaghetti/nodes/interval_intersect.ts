@@ -254,12 +254,12 @@ export const manifest: NodeManifest<IntervalIntersectConfig> = {
       return {
         source: `INTERVAL INTERSECTION OF (\n  ${operands.join(',\n  ')}\n)${perClause(partition)}`,
         stages: [
-          `SELECT ${[
+          `SELECT\n  ${[
             'ts',
             'dur',
             ...inputs.map((_, i) => `t${i + 1}.id AS id_${i}`),
             ...pickedColumns(ctx),
-          ].join(', ')}`,
+          ].join(',\n  ')}`,
         ],
       };
     },

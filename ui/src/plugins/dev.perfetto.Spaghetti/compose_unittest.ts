@@ -529,7 +529,7 @@ describe('formatPipe (PerfettoSQL Next backend)', () => {
     );
     expect(res.sql).toContain(') PER utid');
     expect(res.sql).toContain(
-      '|> SELECT ts, dur, t1.id AS id_0, t2.id AS id_1',
+      '|> SELECT\n  ts,\n  dur,\n  t1.id AS id_0,\n  t2.id AS id_1',
     );
   });
 
@@ -576,7 +576,11 @@ describe('formatPipe (PerfettoSQL Next backend)', () => {
         '    |> WHERE dur > 0',
         '  ) AS t2',
         ')',
-        '|> SELECT ts, dur, t1.id AS id_0, t2.id AS id_1',
+        '|> SELECT',
+        '  ts,',
+        '  dur,',
+        '  t1.id AS id_0,',
+        '  t2.id AS id_1',
       ].join('\n'),
     );
   });

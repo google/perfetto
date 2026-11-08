@@ -254,15 +254,3 @@ export function buildPlan(
   const resolvedTarget = target.aliasOf ?? target.nodeId;
   return planFrom(evaluate, [resolvedTarget], resolvedTarget);
 }
-
-/**
- * A plan covering every valid node on the canvas (no single target). Used to
- * find every cache table the graph currently uses.
- */
-export function buildCanvasPlan(
-  index: GraphIndex,
-  sqlModules: SqlModules | undefined,
-): Plan {
-  const evaluate = makeEvaluator(index, sqlModules);
-  return planFrom(evaluate, Object.keys(index.nodes), '');
-}
