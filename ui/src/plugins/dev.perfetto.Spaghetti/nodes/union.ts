@@ -35,23 +35,16 @@ export type UnionConfig = z.infer<typeof UnionConfigSchema>;
 export const manifest: NodeManifest<UnionConfig> = {
   title: 'Union',
   icon: 'merge',
-  hue: 298,
-  expensive: true,
-  schema: UnionConfigSchema,
   getInputs(config: UnionConfig): Port[] {
     return Array.from({length: config.numInputs}, (_, i) => ({
       name: `input_${i}`,
       content: `Input ${i + 1}`,
     }));
   },
+  hue: 298,
+  schema: UnionConfigSchema,
+  expensive: true,
   defaultConfig: () => ({distinct: false, numInputs: 2}),
-  getOutputColumns(_config, ctx) {
-    for (const port of ctx.inputPorts) {
-      const cols = ctx.getInputColumns(port.name);
-      if (cols) return cols;
-    }
-    return undefined;
-  },
   render(config, updateConfig) {
     const n = config.numInputs;
     const canRemove = n > 2;
@@ -67,6 +60,13 @@ export const manifest: NodeManifest<UnionConfig> = {
         onchange: () => updateConfig({distinct: !config.distinct}),
       }),
     ]);
+  },
+  getOutputColumns(_config, ctx) {
+    for (const port of ctx.inputPorts) {
+      const cols = ctx.getInputColumns(port.name);
+      if (cols) return cols;
+    }
+    return undefined;
   },
   generators: {
     sql: (config, ctx) => {

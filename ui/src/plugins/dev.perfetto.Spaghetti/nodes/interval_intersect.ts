@@ -162,20 +162,23 @@ function pickedColumns<I>(ctx: GeneratorContext<I>): string[] {
 export const manifest: NodeManifest<IntervalIntersectConfig> = {
   title: 'Interval Intersect',
   icon: 'compare_arrows',
-  hue: 312,
-  expensive: true,
-  schema: IntervalIntersectConfigSchema,
   getInputs(config: IntervalIntersectConfig): Port[] {
     return Array.from({length: config.numInputs}, (_, i) => ({
       name: `input_${i}`,
       content: `Input ${i + 1}`,
     }));
   },
+  hue: 312,
+  schema: IntervalIntersectConfigSchema,
+  expensive: true,
   defaultConfig: () => ({
     numInputs: 2,
     partitionColumns: [],
     filterNegativeDur: true,
   }),
+  render(config, updateConfig, ctx) {
+    return m(IntervalIntersectContent, {config, updateConfig, ctx});
+  },
   getOutputColumns(_config, ctx) {
     const connectedPorts = ctx.inputPorts.filter(
       (p) => ctx.getInputColumns(p.name) !== undefined,
@@ -262,8 +265,5 @@ export const manifest: NodeManifest<IntervalIntersectConfig> = {
         ],
       };
     },
-  },
-  render(config, updateConfig, ctx) {
-    return m(IntervalIntersectContent, {config, updateConfig, ctx});
   },
 };

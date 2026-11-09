@@ -30,6 +30,12 @@ export const manifest: NodeManifest<DistinctConfig> = {
   hue: 31,
   schema: DistinctConfigSchema,
   defaultConfig: () => ({}),
+  render() {
+    return m(
+      Stack,
+      m('.pf-spag-passthrough-hint', 'Deduplicate identical rows'),
+    );
+  },
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
   generators: {
     sql: (_config, ctx) => {
@@ -40,11 +46,5 @@ export const manifest: NodeManifest<DistinctConfig> = {
       if (ctx.input('input') === undefined) return undefined;
       return {stages: ['DISTINCT']};
     },
-  },
-  render() {
-    return m(
-      Stack,
-      m('.pf-spag-passthrough-hint', 'Deduplicate identical rows'),
-    );
   },
 };

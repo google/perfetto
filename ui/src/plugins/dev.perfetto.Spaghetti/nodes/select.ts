@@ -15,12 +15,7 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
-import type {
-  ColumnContext,
-  NodeGenerators,
-  NodeManifest,
-  RenderContext,
-} from '../node_types';
+import type {NodeManifest, RenderContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {ColumnPickerWithAlias} from '../components/column_picker_with_alias';
 import {DraggableStack} from '../components/draggable_stack';
@@ -139,34 +134,6 @@ function SelectNodeContent(): m.Component<{
   };
 }
 
-function getOutputColumns(
-  config: SelectConfig,
-  ctx: ColumnContext,
-): ColumnDef[] | undefined {
-  const columns = ctx.getInputColumns('input');
-  const entries = config.entries ?? [];
-  const expressions = config.expressions ?? [];
-  const hasEntries = entries.some((e) => e.column);
-  const exprAliases: ColumnDef[] = expressions
-    .filter((e) => e.expression)
-    .map((e) => ({name: exprAlias(e)}));
-
-  // No explicit columns: pass through all input columns (SELECT *)
-  // plus any expressions on top.
-  if (!hasEntries) {
-    return [...(columns ?? []), ...exprAliases];
-  }
-
-  const selectedEntries: ColumnDef[] = entries
-    .filter((e) => e.column)
-    .map((e) => {
-      const name = e.alias || e.column;
-      const orig = columns?.find((c) => c.name === e.column);
-      return {name, type: orig?.type};
-    });
-  return [...selectedEntries, ...exprAliases];
-}
-
 function isValid(config: SelectConfig): boolean {
   const expressions = config.expressions ?? [];
   return expressions.every((e) => e.alias === '' || e.expression !== '');
@@ -186,28 +153,6 @@ function projection(config: SelectConfig): {
   };
 }
 
-const generators: NodeGenerators<SelectConfig> = {
-  // No picked columns means "keep everything and add the expressions".
-  sql: (config, ctx) => {
-    if (!isValid(config)) return undefined;
-    if (ctx.input('input') === undefined) return undefined;
-    const {columns, exprs} = projection(config);
-    if (columns.length === 0) {
-      return exprs.length > 0 ? {select: ['*', ...exprs]} : {};
-    }
-    return {select: [...columns, ...exprs]};
-  },
-  psn: (config, ctx) => {
-    if (!isValid(config)) return undefined;
-    if (ctx.input('input') === undefined) return undefined;
-    const {columns, exprs} = projection(config);
-    if (columns.length === 0) {
-      return {stages: exprs.length > 0 ? [`EXTEND ${exprs.join(', ')}`] : []};
-    }
-    return {stages: [`SELECT ${[...columns, ...exprs].join(', ')}`]};
-  },
-};
-
 export const manifest: NodeManifest<SelectConfig> = {
   title: 'Select',
   icon: 'view_column',
@@ -218,6 +163,49 @@ export const manifest: NodeManifest<SelectConfig> = {
   render(config, updateConfig, ctx) {
     return m(SelectNodeContent, {config, updateConfig, ctx});
   },
-  getOutputColumns,
-  generators,
+  getOutputColumns(config, ctx) {
+    const columns = ctx.getInputColumns('input');
+    const entries = config.entries ?? [];
+    const expressions = config.expressions ?? [];
+    const hasEntries = entries.some((e) => e.column);
+    const exprAliases: ColumnDef[] = expressions
+      .filter((e) => e.expression)
+      .map((e) => ({name: exprAlias(e)}));
+
+    // No explicit columns: pass through all input columns (SELECT *)
+    // plus any expressions on top.
+    if (!hasEntries) {
+      return [...(columns ?? []), ...exprAliases];
+    }
+
+    const selectedEntries: ColumnDef[] = entries
+      .filter((e) => e.column)
+      .map((e) => {
+        const name = e.alias || e.column;
+        const orig = columns?.find((c) => c.name === e.column);
+        return {name, type: orig?.type};
+      });
+    return [...selectedEntries, ...exprAliases];
+  },
+  generators: {
+    // No picked columns means "keep everything and add the expressions".
+    sql: (config, ctx) => {
+      if (!isValid(config)) return undefined;
+      if (ctx.input('input') === undefined) return undefined;
+      const {columns, exprs} = projection(config);
+      if (columns.length === 0) {
+        return exprs.length > 0 ? {select: ['*', ...exprs]} : {};
+      }
+      return {select: [...columns, ...exprs]};
+    },
+    psn: (config, ctx) => {
+      if (!isValid(config)) return undefined;
+      if (ctx.input('input') === undefined) return undefined;
+      const {columns, exprs} = projection(config);
+      if (columns.length === 0) {
+        return {stages: exprs.length > 0 ? [`EXTEND ${exprs.join(', ')}`] : []};
+      }
+      return {stages: [`SELECT ${[...columns, ...exprs].join(', ')}`]};
+    },
+  },
 };

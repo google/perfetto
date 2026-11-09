@@ -40,25 +40,6 @@ export const manifest: NodeManifest<TimeRangeConfig> = {
   hue: 234,
   schema: TimeRangeConfigSchema,
   defaultConfig: () => ({ts: '0', dur: '0'}),
-  getOutputColumns() {
-    return [
-      {name: 'id', type: {kind: 'int'}},
-      {name: 'ts', type: {kind: 'timestamp'}},
-      {name: 'dur', type: {kind: 'duration'}},
-    ];
-  },
-  generators: {
-    sql: (config) =>
-      isUnset(config)
-        ? undefined
-        : {from: `(SELECT 0 AS id, ${config.ts} AS ts, ${config.dur} AS dur)`},
-    psn: (config) =>
-      isUnset(config)
-        ? undefined
-        : {
-            source: `FROM (SELECT 0 AS id, ${config.ts} AS ts, ${config.dur} AS dur)`,
-          },
-  },
   render(config, updateConfig, ctx) {
     const timeSpan = ctx.trace.selection.getTimeSpanOfSelection();
     const hasSelection = timeSpan !== undefined;
@@ -85,5 +66,24 @@ export const manifest: NodeManifest<TimeRangeConfig> = {
       : m('span.pf-spag-hint.pf-spag-hint--muted', 'Click snap to capture');
 
     return m(Stack, [snapButton, info]);
+  },
+  getOutputColumns() {
+    return [
+      {name: 'id', type: {kind: 'int'}},
+      {name: 'ts', type: {kind: 'timestamp'}},
+      {name: 'dur', type: {kind: 'duration'}},
+    ];
+  },
+  generators: {
+    sql: (config) =>
+      isUnset(config)
+        ? undefined
+        : {from: `(SELECT 0 AS id, ${config.ts} AS ts, ${config.dur} AS dur)`},
+    psn: (config) =>
+      isUnset(config)
+        ? undefined
+        : {
+            source: `FROM (SELECT 0 AS id, ${config.ts} AS ts, ${config.dur} AS dur)`,
+          },
   },
 };

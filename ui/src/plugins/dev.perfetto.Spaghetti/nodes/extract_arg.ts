@@ -15,12 +15,7 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
-import type {
-  ColumnContext,
-  NodeGenerators,
-  NodeManifest,
-  RenderContext,
-} from '../node_types';
+import type {NodeManifest, RenderContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
@@ -108,28 +103,6 @@ function ExtractArgContent(): m.Component<{
   };
 }
 
-function render(
-  config: ExtractArgConfig,
-  updateConfig: (updates: Partial<ExtractArgConfig>) => void,
-  ctx: RenderContext,
-): m.Children {
-  return m(ExtractArgContent, {config, updateConfig, ctx});
-}
-
-function getOutputColumns(
-  config: ExtractArgConfig,
-  ctx: ColumnContext,
-): ColumnDef[] | undefined {
-  const columns = ctx.getInputColumns('input');
-  const extractAliases: ColumnDef[] = config.extractions
-    .filter((e) => e.argName)
-    .map((e) => ({name: extractArgAlias(e)}));
-  if (extractAliases.length > 0) {
-    return [...(columns ?? []), ...extractAliases];
-  }
-  return columns;
-}
-
 function extractParts(config: ExtractArgConfig): string[] {
   return config.extractions
     .filter((e) => e.argName !== '')
@@ -139,19 +112,6 @@ function extractParts(config: ExtractArgConfig): string[] {
     );
 }
 
-const generators: NodeGenerators<ExtractArgConfig> = {
-  sql: (config, ctx) => {
-    if (ctx.input('input') === undefined) return undefined;
-    const exprs = extractParts(config);
-    return exprs.length > 0 ? {select: ['*', ...exprs]} : {};
-  },
-  psn: (config, ctx) => {
-    if (ctx.input('input') === undefined) return undefined;
-    const exprs = extractParts(config);
-    return {stages: exprs.length > 0 ? [`EXTEND ${exprs.join(', ')}`] : []};
-  },
-};
-
 export const manifest: NodeManifest<ExtractArgConfig> = {
   title: 'Extract Args',
   icon: 'data_object',
@@ -159,7 +119,29 @@ export const manifest: NodeManifest<ExtractArgConfig> = {
   hue: 174,
   schema: ExtractArgConfigSchema,
   defaultConfig: () => ({argSetIdCol: '', extractions: []}),
-  render,
-  getOutputColumns,
-  generators,
+  render(config, updateConfig, ctx) {
+    return m(ExtractArgContent, {config, updateConfig, ctx});
+  },
+  getOutputColumns(config, ctx) {
+    const columns = ctx.getInputColumns('input');
+    const extractAliases: ColumnDef[] = config.extractions
+      .filter((e) => e.argName)
+      .map((e) => ({name: extractArgAlias(e)}));
+    if (extractAliases.length > 0) {
+      return [...(columns ?? []), ...extractAliases];
+    }
+    return columns;
+  },
+  generators: {
+    sql: (config, ctx) => {
+      if (ctx.input('input') === undefined) return undefined;
+      const exprs = extractParts(config);
+      return exprs.length > 0 ? {select: ['*', ...exprs]} : {};
+    },
+    psn: (config, ctx) => {
+      if (ctx.input('input') === undefined) return undefined;
+      const exprs = extractParts(config);
+      return {stages: exprs.length > 0 ? [`EXTEND ${exprs.join(', ')}`] : []};
+    },
+  },
 };

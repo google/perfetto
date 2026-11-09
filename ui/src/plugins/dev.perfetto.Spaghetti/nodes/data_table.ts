@@ -19,10 +19,9 @@ import {classNames} from '../../../base/classnames';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Row} from '../components/row';
 import {Stack} from '../components/stack';
-import type {ColumnDef} from '../graph_utils';
 import type {DataTableColumnType} from '../sql_types';
 import {formatDataTableSql, subquery} from '../generator_utils';
-import type {NodeGenerators, NodeManifest} from '../node_types';
+import type {NodeManifest} from '../node_types';
 import './data_table.scss';
 
 const DATA_TABLE_COLUMN_TYPES = [
@@ -386,17 +385,6 @@ function isValid(config: DataTableConfig): boolean {
   return true;
 }
 
-function getOutputColumns(config: DataTableConfig): ColumnDef[] | undefined {
-  const colValid = getColumnValidities(config.columns);
-  if (config.columns.length === 0 || colValid.some((v) => !v)) {
-    return undefined;
-  }
-  return config.columns.map((col) => ({
-    name: col.name,
-    type: {kind: col.type},
-  }));
-}
-
 function dataTableSql(config: DataTableConfig): string {
   return formatDataTableSql({
     columns: config.columns,
@@ -405,18 +393,6 @@ function dataTableSql(config: DataTableConfig): string {
     ),
   });
 }
-
-const generators: NodeGenerators<DataTableConfig> = {
-  sql: (config) => {
-    if (!isValid(config)) return undefined;
-    return {from: subquery(dataTableSql(config))};
-  },
-  // A plain SQL subquery is a valid PSN source.
-  psn: (config) => {
-    if (!isValid(config)) return undefined;
-    return {source: `FROM ${subquery(dataTableSql(config))}`};
-  },
-};
 
 export const manifest: NodeManifest<DataTableConfig> = {
   title: 'Data Table',
@@ -431,6 +407,25 @@ export const manifest: NodeManifest<DataTableConfig> = {
     rows: [['1', 'example']],
   }),
   render: (config, updateConfig) => m(DataTableContent, {config, updateConfig}),
-  getOutputColumns,
-  generators,
+  getOutputColumns(config) {
+    const colValid = getColumnValidities(config.columns);
+    if (config.columns.length === 0 || colValid.some((v) => !v)) {
+      return undefined;
+    }
+    return config.columns.map((col) => ({
+      name: col.name,
+      type: {kind: col.type},
+    }));
+  },
+  generators: {
+    sql: (config) => {
+      if (!isValid(config)) return undefined;
+      return {from: subquery(dataTableSql(config))};
+    },
+    // A plain SQL subquery is a valid PSN source.
+    psn: (config) => {
+      if (!isValid(config)) return undefined;
+      return {source: `FROM ${subquery(dataTableSql(config))}`};
+    },
+  },
 };

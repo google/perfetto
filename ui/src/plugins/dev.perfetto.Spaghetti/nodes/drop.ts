@@ -15,17 +15,11 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
-import type {
-  ColumnContext,
-  NodeGenerators,
-  NodeManifest,
-  RenderContext,
-} from '../node_types';
+import type {NodeManifest, RenderContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
-import type {ColumnDef} from '../graph_utils';
 
 const DropConfigSchema = z
   .object({
@@ -74,47 +68,6 @@ function DropContent(): m.Component<{
   };
 }
 
-function render(
-  config: DropConfig,
-  updateConfig: (updates: Partial<DropConfig>) => void,
-  ctx: RenderContext,
-): m.Children {
-  return m(DropContent, {config, updateConfig, ctx});
-}
-
-function getOutputColumns(
-  config: DropConfig,
-  ctx: ColumnContext,
-): ColumnDef[] | undefined {
-  const columns = ctx.getInputColumns('input');
-  if (columns === undefined) return undefined;
-  const dropped = new Set(config.columns.filter((c) => c));
-  return columns.filter((c) => !dropped.has(c.name));
-}
-
-const generators: NodeGenerators<DropConfig> = {
-  // Standard SQL has no `SELECT * EXCEPT`, so we need the input columns.
-  sql: (config, ctx) => {
-    if (ctx.input('input') === undefined) return undefined;
-    const dropped = new Set(config.columns.filter((c) => c !== ''));
-    if (dropped.size === 0) return {};
-    const inputColumns = ctx.getInputColumns('input');
-    if (inputColumns === undefined) {
-      return {error: 'Drop needs known input columns in Standard SQL mode.'};
-    }
-    return {
-      select: inputColumns
-        .filter((c) => !dropped.has(c.name))
-        .map((c) => c.name),
-    };
-  },
-  psn: (config, ctx) => {
-    if (ctx.input('input') === undefined) return undefined;
-    const dropped = config.columns.filter((c) => c !== '');
-    return {stages: dropped.length > 0 ? [`DROP ${dropped.join(', ')}`] : []};
-  },
-};
-
 export const manifest: NodeManifest<DropConfig> = {
   title: 'Drop',
   icon: 'remove',
@@ -122,7 +75,35 @@ export const manifest: NodeManifest<DropConfig> = {
   hue: 154,
   schema: DropConfigSchema,
   defaultConfig: () => ({columns: []}),
-  render,
-  getOutputColumns,
-  generators,
+  render(config, updateConfig, ctx) {
+    return m(DropContent, {config, updateConfig, ctx});
+  },
+  getOutputColumns(config, ctx) {
+    const columns = ctx.getInputColumns('input');
+    if (columns === undefined) return undefined;
+    const dropped = new Set(config.columns.filter((c) => c));
+    return columns.filter((c) => !dropped.has(c.name));
+  },
+  generators: {
+    // Standard SQL has no `SELECT * EXCEPT`, so we need the input columns.
+    sql: (config, ctx) => {
+      if (ctx.input('input') === undefined) return undefined;
+      const dropped = new Set(config.columns.filter((c) => c !== ''));
+      if (dropped.size === 0) return {};
+      const inputColumns = ctx.getInputColumns('input');
+      if (inputColumns === undefined) {
+        return {error: 'Drop needs known input columns in Standard SQL mode.'};
+      }
+      return {
+        select: inputColumns
+          .filter((c) => !dropped.has(c.name))
+          .map((c) => c.name),
+      };
+    },
+    psn: (config, ctx) => {
+      if (ctx.input('input') === undefined) return undefined;
+      const dropped = config.columns.filter((c) => c !== '');
+      return {stages: dropped.length > 0 ? [`DROP ${dropped.join(', ')}`] : []};
+    },
+  },
 };

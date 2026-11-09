@@ -19,13 +19,7 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {TextInput} from '../../../widgets/text_input';
 import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
-import type {ColumnDef} from '../graph_utils';
-import type {
-  ColumnContext,
-  NodeGenerators,
-  NodeManifest,
-  RenderContext,
-} from '../node_types';
+import type {NodeManifest, RenderContext} from '../node_types';
 import {ColumnPicker} from '../widgets/column_picker';
 
 const SetEntrySchema = z.object({
@@ -94,29 +88,6 @@ function SetContent(): m.Component<{
   };
 }
 
-function render(
-  config: SetConfig,
-  updateConfig: (updates: Partial<SetConfig>) => void,
-  ctx: RenderContext,
-): m.Children {
-  return m(SetContent, {config, updateConfig, ctx});
-}
-
-function getOutputColumns(
-  config: SetConfig,
-  ctx: ColumnContext,
-): ColumnDef[] | undefined {
-  const columns = ctx.getInputColumns('input');
-  if (columns === undefined) return undefined;
-  const overwritten = new Set(
-    config.entries
-      .filter((e) => e.column !== '' && e.expression !== '')
-      .map((e) => e.column),
-  );
-  if (overwritten.size === 0) return columns;
-  return columns.map((c) => (overwritten.has(c.name) ? {name: c.name} : c));
-}
-
 function isValid(config: SetConfig): boolean {
   return config.entries.every(
     (e) =>
@@ -133,34 +104,6 @@ function assignments(config: SetConfig): Map<string, string> {
   );
 }
 
-const generators: NodeGenerators<SetConfig> = {
-  // Standard SQL needs the full column list to overwrite columns in place.
-  sql: (config, ctx) => {
-    if (!isValid(config)) return undefined;
-    if (ctx.input('input') === undefined) return undefined;
-    const assigns = assignments(config);
-    if (assigns.size === 0) return {};
-    const inputColumns = ctx.getInputColumns('input');
-    if (inputColumns === undefined) {
-      return {error: 'Set needs known input columns in Standard SQL mode.'};
-    }
-    return {
-      select: inputColumns.map((c) => {
-        const expr = assigns.get(c.name);
-        return expr !== undefined ? `${expr} AS ${c.name}` : c.name;
-      }),
-    };
-  },
-  psn: (config, ctx) => {
-    if (!isValid(config)) return undefined;
-    if (ctx.input('input') === undefined) return undefined;
-    const items = [...assignments(config)].map(
-      ([col, expr]) => `${col} = ${expr}`,
-    );
-    return {stages: items.length > 0 ? [`SET ${items.join(', ')}`] : []};
-  },
-};
-
 export const manifest: NodeManifest<SetConfig> = {
   title: 'Set',
   icon: 'edit_note',
@@ -168,7 +111,45 @@ export const manifest: NodeManifest<SetConfig> = {
   hue: 134,
   schema: SetConfigSchema,
   defaultConfig: () => ({entries: []}),
-  render,
-  getOutputColumns,
-  generators,
+  render(config, updateConfig, ctx) {
+    return m(SetContent, {config, updateConfig, ctx});
+  },
+  getOutputColumns(config, ctx) {
+    const columns = ctx.getInputColumns('input');
+    if (columns === undefined) return undefined;
+    const overwritten = new Set(
+      config.entries
+        .filter((e) => e.column !== '' && e.expression !== '')
+        .map((e) => e.column),
+    );
+    if (overwritten.size === 0) return columns;
+    return columns.map((c) => (overwritten.has(c.name) ? {name: c.name} : c));
+  },
+  generators: {
+    // Standard SQL needs the full column list to overwrite columns in place.
+    sql: (config, ctx) => {
+      if (!isValid(config)) return undefined;
+      if (ctx.input('input') === undefined) return undefined;
+      const assigns = assignments(config);
+      if (assigns.size === 0) return {};
+      const inputColumns = ctx.getInputColumns('input');
+      if (inputColumns === undefined) {
+        return {error: 'Set needs known input columns in Standard SQL mode.'};
+      }
+      return {
+        select: inputColumns.map((c) => {
+          const expr = assigns.get(c.name);
+          return expr !== undefined ? `${expr} AS ${c.name}` : c.name;
+        }),
+      };
+    },
+    psn: (config, ctx) => {
+      if (!isValid(config)) return undefined;
+      if (ctx.input('input') === undefined) return undefined;
+      const items = [...assignments(config)].map(
+        ([col, expr]) => `${col} = ${expr}`,
+      );
+      return {stages: items.length > 0 ? [`SET ${items.join(', ')}`] : []};
+    },
+  },
 };

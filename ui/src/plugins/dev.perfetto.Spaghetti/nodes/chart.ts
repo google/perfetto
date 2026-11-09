@@ -273,36 +273,16 @@ function ChartDashboard(): m.Component<{
 export const manifest: NodeManifest<ChartConfig> = {
   title: 'Chart',
   icon: 'bar_chart',
-  hue: 190,
-  expensive: true,
-  schema: ChartConfigSchema,
   getInputs(config: ChartConfig): Port[] {
     return Array.from({length: config.numInputs}, (_, i) => ({
       name: `input_${i}`,
       content: `Input ${i + 1}`,
     }));
   },
+  hue: 190,
+  schema: ChartConfigSchema,
+  expensive: true,
   defaultConfig: () => ({charts: [], numInputs: 1}),
-  getOutputColumns(_config, ctx) {
-    for (const port of ctx.inputPorts) {
-      const cols = ctx.getInputColumns(port.name);
-      if (cols !== undefined) return cols;
-    }
-    return undefined;
-  },
-  // Passes rows through (UNION ALL of all inputs when there are several).
-  generators: {
-    sql: (config, ctx) =>
-      unionManifest.generators.sql(
-        {distinct: false, numInputs: config.numInputs},
-        ctx,
-      ),
-    psn: (config, ctx) =>
-      unionManifest.generators.psn?.(
-        {distinct: false, numInputs: config.numInputs},
-        ctx,
-      ),
-  },
   render(config, updateConfig, ctx) {
     const n = config.numInputs;
     const canRemove = n > 1;
@@ -347,7 +327,27 @@ export const manifest: NodeManifest<ChartConfig> = {
       }),
     ]);
   },
+  getOutputColumns(_config, ctx) {
+    for (const port of ctx.inputPorts) {
+      const cols = ctx.getInputColumns(port.name);
+      if (cols !== undefined) return cols;
+    }
+    return undefined;
+  },
   renderDetails(config, ctx) {
     return m(ChartDashboard, {config, ctx});
+  },
+  // Passes rows through (UNION ALL of all inputs when there are several).
+  generators: {
+    sql: (config, ctx) =>
+      unionManifest.generators.sql(
+        {distinct: false, numInputs: config.numInputs},
+        ctx,
+      ),
+    psn: (config, ctx) =>
+      unionManifest.generators.psn?.(
+        {distinct: false, numInputs: config.numInputs},
+        ctx,
+      ),
   },
 };

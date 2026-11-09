@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import type {NodeManifest, RenderContext} from '../node_types';
+import type {NodeManifest} from '../node_types';
 import type {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {Combobox} from '../../../widgets/combobox';
 import './from.scss';
@@ -45,6 +45,22 @@ export const manifest: NodeManifest<FromConfig> = {
   hue: 204,
   schema: FromConfigSchema,
   defaultConfig: () => ({table: 'slice'}),
+  render(config, updateConfig, ctx) {
+    return m(Combobox, {
+      value: config.table,
+      suggestions: ctx.tableNames,
+      placeholder: 'Pick table...',
+      icon: 'table_chart',
+      onChange: (value: string) => updateConfig({table: value}),
+    });
+  },
+  getOutputColumns(config, ctx) {
+    if (!config.table || !ctx.sqlModules) return undefined;
+    const table = ctx.sqlModules.getTable(config.table);
+    return table
+      ? table.columns.map((c) => ({name: c.name, type: c.type}))
+      : undefined;
+  },
   generators: {
     // A bare-name `from` renders as a plain reference (no CTE / wrapper).
     sql: (config, ctx) => {
@@ -58,25 +74,5 @@ export const manifest: NodeManifest<FromConfig> = {
         includes: includesForTable(config, ctx),
       };
     },
-  },
-  getOutputColumns(config, ctx) {
-    if (!config.table || !ctx.sqlModules) return undefined;
-    const table = ctx.sqlModules.getTable(config.table);
-    return table
-      ? table.columns.map((c) => ({name: c.name, type: c.type}))
-      : undefined;
-  },
-  render(
-    config: FromConfig,
-    updateConfig: (updates: Partial<FromConfig>) => void,
-    ctx: RenderContext,
-  ): m.Children {
-    return m(Combobox, {
-      value: config.table,
-      suggestions: ctx.tableNames,
-      placeholder: 'Pick table...',
-      icon: 'table_chart',
-      onChange: (value: string) => updateConfig({table: value}),
-    });
   },
 };
