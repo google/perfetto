@@ -345,9 +345,7 @@ describe('MaterializationService cache policy', () => {
 
     // Clearing the cache runs the latest update again.
     await service.clearCache();
-    expect(
-      queries.some((q) => q.includes('CREATE PERFETTO TABLE')),
-    ).toBe(true);
+    expect(queries.some((q) => q.includes('CREATE PERFETTO TABLE'))).toBe(true);
   });
 
   it('waits for in-flight taskQueue queries before dropping evicted tables', async () => {
@@ -419,7 +417,9 @@ describe('MaterializationService cache policy', () => {
     };
     await service.scheduleUpdate(step1Store, 'flt1', undefined, 'sql');
     expect(service.cacheEntries.length).toBe(0);
-    expect(service.outputRead?.sql).toBe('SELECT *\nFROM slice\nWHERE dur > 500');
+    expect(service.outputRead?.sql).toBe(
+      'SELECT *\nFROM slice\nWHERE dur > 500',
+    );
     expect(queries.some((q) => q.includes('CREATE PERFETTO TABLE'))).toBe(
       false,
     );
