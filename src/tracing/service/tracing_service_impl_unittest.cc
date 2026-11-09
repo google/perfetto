@@ -6146,8 +6146,7 @@ TEST_F(TracingServiceImplTest, TraceBufferV2Compaction) {
         ASSERT_EQ(4u, stats.buffer_stats().size());
         EXPECT_GT(stats.buffer_stats()[1].bytes_read(), 0u);
         for (size_t i = 0; i < 4; ++i) {
-          const uint64_t expected =
-              enable_compaction && (i == 1 || i == 2) ? cycle : 0;
+          const uint64_t expected = enable_compaction && i > 0 ? cycle : 0;
           EXPECT_EQ(expected, stats.buffer_stats()[i].compactions());
           EXPECT_EQ(0u, stats.buffer_stats()[i].compactions_skipped());
         }
