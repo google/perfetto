@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
 
+#include "perfetto/base/endian.h"
+
 namespace perfetto {
 namespace trace_processor {
 namespace fuchsia_trace_utils {
@@ -105,8 +107,7 @@ bool RecordCursor::ReadTimestamp(uint64_t ticks_per_second, int64_t* ts_out) {
     return false;
   }
   if (ts_out != nullptr) {
-    uint64_t ticks;
-    memcpy(&ticks, ts_data, sizeof(uint64_t));
+    uint64_t ticks = base::LoadLE<uint64_t>(ts_data);
     *ts_out = TicksToNs(ticks, ticks_per_second);
   }
   return true;
@@ -134,8 +135,8 @@ bool RecordCursor::ReadInlineThread(FuchsiaThreadInfo* thread_out) {
     return false;
   }
   if (thread_out != nullptr) {
-    memcpy(&thread_out->pid, thread_data, sizeof(uint64_t));
-    memcpy(&thread_out->tid, thread_data + sizeof(uint64_t), sizeof(uint64_t));
+    thread_out->pid = base::LoadLE<uint64_t>(thread_data);
+    thread_out->tid = base::LoadLE<uint64_t>(thread_data + sizeof(uint64_t));
   }
   return true;
 }
@@ -146,7 +147,7 @@ bool RecordCursor::ReadInt64(int64_t* out) {
     return false;
   }
   if (out != nullptr) {
-    memcpy(out, out_data, sizeof(int64_t));
+    *out = base::LoadLE<int64_t>(out_data);
   }
   return true;
 }
@@ -157,7 +158,7 @@ bool RecordCursor::ReadUint64(uint64_t* out) {
     return false;
   }
   if (out != nullptr) {
-    memcpy(out, out_data, sizeof(uint64_t));
+    *out = base::LoadLE<uint64_t>(out_data);
   }
   return true;
 }
@@ -170,7 +171,7 @@ bool RecordCursor::ReadDouble(double* out) {
     return false;
   }
   if (out != nullptr) {
-    memcpy(out, out_data, sizeof(double));
+    *out = base::LoadLE<double>(out_data);
   }
   return true;
 }
