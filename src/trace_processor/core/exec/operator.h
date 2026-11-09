@@ -47,6 +47,9 @@ struct StepColumns {
   uint32_t added = 0;
   // Every column of its input the step reads.
   std::vector<uint32_t> reads;
+  // The columns of `reads` the step reads as a scan lends them, sparse (see
+  // ColumnView::Kind::kSparse), so that they need no Expand before it.
+  std::vector<uint32_t> reads_sparse;
 };
 
 // The mutable state of one step (Source, Transform or Operator) for one run

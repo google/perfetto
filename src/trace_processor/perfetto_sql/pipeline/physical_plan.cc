@@ -52,9 +52,10 @@ void Describe(const ex::Pipeline::Step& step, ex::StepColumns* out) {
 }
 
 // Puts an Expand in front of each step which needs a `sparse` column of the
-// source laid out, as late as it can be: a transform reading the column, or
-// any operator, as one holds or rebuilds its batches. The columns still sparse
-// after the steps are expanded for `outputs`, or all of them if it is null.
+// source laid out, as late as it can be: a transform reading the column but
+// not sparse, or any operator, as one holds or rebuilds its batches. The
+// columns still sparse after the steps are expanded for `outputs`, or all of
+// them if it is null.
 void PlaceExpands(std::vector<uint32_t> sparse,
                   const std::vector<uint32_t>* outputs,
                   std::vector<ex::Pipeline::Step>* steps) {
@@ -71,8 +72,12 @@ void PlaceExpands(std::vector<uint32_t> sparse,
       ex::StepColumns columns;
       Describe(step, &columns);
       for (auto it = sparse.begin(); it != sparse.end();) {
-        if (std::find(columns.reads.begin(), columns.reads.end(), *it) !=
-            columns.reads.end()) {
+        bool reads = std::find(columns.reads.begin(), columns.reads.end(),
+                               *it) != columns.reads.end();
+        bool lent =
+            std::find(columns.reads_sparse.begin(), columns.reads_sparse.end(),
+                      *it) != columns.reads_sparse.end();
+        if (reads && !lent) {
           expand.push_back(*it);
           it = sparse.erase(it);
         } else {

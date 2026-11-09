@@ -568,6 +568,26 @@ TEST_F(PhysicalPlanTest, WhereComparesWithParametersEachRunBinds) {
   EXPECT_THAT(ids(6, 0), ElementsAre());
 }
 
+// A filter reads a column a scan lends sparse, so it needs no Expand first.
+TEST_F(PhysicalPlanTest, WhereReadsASparseColumnWhereItLies) {
+  catalog_.AddTable(
+      "t", {"id", "v"},
+      {{0, 5}, {1, std::nullopt}, {2, 9}, {3, std::nullopt}, {4, 5}});
+  auto plan = Plan("FROM t |> WHERE v > 4 |> SELECT id, id AS w");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  auto rows = Run(**plan, "w");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(0, 0), Pair(2, 2), Pair(4, 4)));
+
+  auto equal = Plan("FROM t |> WHERE v = 5 |> SELECT id, id AS w");
+  ASSERT_TRUE(equal.ok()) << equal.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**equal),
+            "main: DataframeScan | Filter(#1 = ?0)");
+  auto kept = Run(**equal, "w");
+  ASSERT_TRUE(kept.ok()) << kept.status().message();
+  EXPECT_THAT(*kept, ElementsAre(Pair(0, 0), Pair(4, 4)));
+}
+
 // A caller which reads sparse columns gets them as lent; any other gets them
 // expanded before the output.
 TEST_F(PhysicalPlanTest, SparseOutputsAreExpandedOnlyForACallerWhichNeedsIt) {
