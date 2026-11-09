@@ -59,6 +59,7 @@ source_set("engine") {
     "../parser",
     "../pipeline",
     "../pipeline:plan",
+    "../pipeline/operations",
     "../schema",
     "../tokenizer",
   ]
@@ -99,6 +100,7 @@ if (enable_perfetto_benchmarks) {
       ":engine",
       "../../../../gn:benchmark",
       "../../../../gn:default_deps",
+      "../../../../gn:sqlite",
       "../../../base",
       "../../containers",
       "../../sqlite",
