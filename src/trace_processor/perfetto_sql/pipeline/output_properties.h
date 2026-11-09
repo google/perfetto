@@ -223,6 +223,9 @@ struct PlannedParam {
     // `value`, cast from `literals` when the plan is built. With no literals,
     // it matches no row.
     kConstant,
+    // Cast from `literals`, a single external literal, when the plan's caller
+    // sets its literals: once per execution.
+    kExternal,
     // Cast by each run from `literals`, a single bound param.
     kBound,
     // Moved into the physical plan by lowering.

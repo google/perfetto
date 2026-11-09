@@ -660,6 +660,51 @@ TEST_F(PhysicalPlanTest, WhereComparesWithParametersEachRunBinds) {
   EXPECT_THAT(ids(6, 0), ElementsAre());
 }
 
+// An external literal is cast once, when the caller sets the plan's literals,
+// and keeps its value for every run; a bound param takes each run's.
+TEST_F(PhysicalPlanTest, WhereComparesWithExternalLiteralsSetOnce) {
+  catalog_.AddTable("ix", {"id", "k", "v"},
+                    {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  const dataframe::Dataframe& df = *catalog_.FindDataframe("ix");
+  LogicalPlan plan;
+  PlanNodeId scan = Scan::AddToPlan(&plan, df, "ix", {0, 1, 2});
+  std::vector<NamedColumn> columns = plan.nodes()[scan].Cast<Scan>().columns();
+  WherePredicate k_eq;
+  k_eq.column = columns[1].id;
+  k_eq.literal_count = 1;
+  WherePredicate v_gt;
+  v_gt.column = columns[2].id;
+  v_gt.op = core::Gt{};
+  v_gt.first_literal = 1;
+  v_gt.literal_count = 1;
+  Where::AddToPlan(&plan, {k_eq, v_gt},
+                   {Literal::External(0), Literal::Bound(1)});
+  plan.output() = columns;
+  BoundPlan bound(std::move(plan));
+  Scan::Bind(&bound, scan, df);
+  ASSERT_TRUE(RunBoundPasses(&bound, {&pool_}).ok());
+  std::unique_ptr<PhysicalPlan> physical = Lower(&bound, {&pool_});
+  ASSERT_TRUE(bound.status.ok()) << bound.status.message();
+
+  RowCursor cursor(physical->source());
+  RunParams<Args> params(*physical);
+  Args literals;
+  literals.values = {7, 0};
+  params.SetLiterals(literals);
+  auto ids = [&](int64_t ignored_k, int64_t v) {
+    Args args;
+    args.values = {ignored_k, v};
+    std::vector<int64_t> out;
+    for (bool row = cursor.Open(params.Bind(args)); row; row = cursor.Next()) {
+      out.push_back(*IntAt(cursor, physical->columns()[0].index));
+    }
+    return out;
+  };
+  EXPECT_THAT(ids(7, 1), ElementsAre(2, 4));
+  EXPECT_THAT(ids(5, 0), ElementsAre(0, 2, 4));
+  EXPECT_THAT(ids(5, 9), ElementsAre());
+}
+
 // A filter reads a column a scan lends sparse, so it needs no Expand first.
 TEST_F(PhysicalPlanTest, WhereReadsASparseColumnWhereItLies) {
   catalog_.AddTable(

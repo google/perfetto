@@ -34,10 +34,20 @@ namespace perfetto::trace_processor::pipeline {
 class Compiler;
 class PlanCodec;
 
-// A value written in a query: a number, a string, or a bound param, which
-// stands for one of the values a run binds.
+// A value written in a query: a number or a string; an external literal, a
+// value fixed for a whole execution of the plan which its caller gives; or a
+// bound param, which stands for one of the values a run binds.
 struct Literal {
-  enum class Type : uint8_t { kInt64, kDouble, kString, kBound };
+  enum class Type : uint8_t { kInt64, kDouble, kString, kExternal, kBound };
+
+  // Value `index` of those the caller gives when it sets the plan's literals
+  // (see RunParams::SetLiterals).
+  static Literal External(uint32_t index) {
+    Literal literal;
+    literal.type = Type::kExternal;
+    literal.bound = index;
+    return literal;
+  }
 
   static Literal Bound(uint32_t index) {
     Literal literal;
@@ -48,12 +58,16 @@ struct Literal {
 
   bool is_double() const { return type == Type::kDouble; }
   bool is_string() const { return type == Type::kString; }
+  bool is_external() const { return type == Type::kExternal; }
   bool is_bound() const { return type == Type::kBound; }
+  // Whether the value is given by whoever runs the plan.
+  bool is_given() const { return is_external() || is_bound(); }
 
   Type type = Type::kInt64;
   int64_t int_value = 0;
   double double_value = 0;
   std::string text;
+  // For kExternal and kBound, which of the given values it is.
   uint32_t bound = 0;
 };
 
