@@ -164,6 +164,8 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     };
     std::vector<Prefetch> prefetches;
     bool resolved = false;
+    // Whether the plan's literals have been cast, which the first run does.
+    bool literals_set = false;
   };
 
   struct Cursor : sqlite::Module<DataframeModule>::Cursor {

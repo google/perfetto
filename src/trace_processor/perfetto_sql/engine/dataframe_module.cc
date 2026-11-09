@@ -187,10 +187,12 @@ dataframe::Op OpFromIndex(uint32_t index) {
 }
 
 // `!<columns used>|` then `<column>,<operator>,<argument>;` per filter, with
-// `-` for a filter given no argument.
+// `-` for a filter given no argument and `L` before the argument of one whose
+// value SQLite knows is constant (see `constant`, by constraint).
 std::optional<std::string> ExecQueryString(
     const dataframe::Dataframe& df,
     const std::vector<dataframe::FilterSpec>& filters,
+    const std::vector<bool>& constant,
     uint64_t cols_used) {
   std::string query =
       kExecQuery +
@@ -207,7 +209,12 @@ std::optional<std::string> ExecQueryString(
     }
     query += base::StackString<64>("%u,%u,", filter.col, filter.op.index())
                  .ToStdString();
-    query += null_op ? "-" : std::to_string(*filter.value_index);
+    if (null_op) {
+      query += "-";
+    } else {
+      query += constant[filter.source_index] ? "L" : "";
+      query += std::to_string(*filter.value_index);
+    }
     query += ";";
   }
   return query;
@@ -234,6 +241,8 @@ base::StatusOr<std::shared_ptr<const ExecPlan>> LoadExecPlan(
     uint32_t column = 0;
     dataframe::Op op{dataframe::Eq{}};
     std::optional<uint32_t> arg;
+    // Whether `arg` is the same for every run of the statement.
+    bool constant = false;
   };
   std::vector<Spec> specs;
   for (const char* it = end + 1; *it;) {
@@ -243,7 +252,9 @@ base::StatusOr<std::shared_ptr<const ExecPlan>> LoadExecPlan(
     if (end[1] == '-') {
       end += 2;
     } else {
-      spec.arg = static_cast<uint32_t>(strtoul(end + 1, &end, 10));
+      spec.constant = end[1] == 'L';
+      spec.arg = static_cast<uint32_t>(
+          strtoul(end + 1 + (spec.constant ? 1 : 0), &end, 10));
     }
     PERFETTO_CHECK(*end == ';');
     it = end + 1;
@@ -285,7 +296,8 @@ base::StatusOr<std::shared_ptr<const ExecPlan>> LoadExecPlan(
     if (spec.arg) {
       predicate.first_literal = static_cast<uint32_t>(literals.size());
       predicate.literal_count = 1;
-      literals.push_back(pipeline::Literal::Bound(*spec.arg));
+      literals.push_back(spec.constant ? pipeline::Literal::External(*spec.arg)
+                                       : pipeline::Literal::Bound(*spec.arg));
     }
     predicates.push_back(predicate);
   }
@@ -395,6 +407,8 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   std::optional<int> offset_constraint_idx;
 
   std::vector<dataframe::FilterSpec> filter_specs;
+  // By constraint, whether SQLite knows its value before running.
+  std::vector<bool> constant(static_cast<size_t>(info->nConstraint));
   dataframe::LimitSpec limit_spec;
   filter_specs.reserve(static_cast<size_t>(info->nConstraint));
   bool has_unknown_constraint = false;
@@ -437,6 +451,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
       df_op = dataframe::In();
       PERFETTO_CHECK(sqlite3_vtab_in(info, i, 1));
     }
+    constant[static_cast<size_t>(i)] = rhs && !df_op->Is<dataframe::In>();
     filter_specs.emplace_back(dataframe::FilterSpec{
         static_cast<uint32_t>(info->aConstraint[i].iColumn),
         static_cast<uint32_t>(i),
@@ -612,7 +627,8 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   std::optional<std::string> query;
   if (s->dataframe->finalized() && distinct_specs.empty() &&
       sort_specs.empty() && !limit_spec.limit && !limit_spec.offset) {
-    query = ExecQueryString(*s->dataframe, filter_specs, info->colUsed);
+    query =
+        ExecQueryString(*s->dataframe, filter_specs, constant, info->colUsed);
   }
   info->idxStr = sqlite3_mprintf(
       "%s", query ? query->c_str() : std::move(plan).Serialize().data());
@@ -687,6 +703,11 @@ int DataframeModule::FilterExec(Cursor* c,
   }
   ExecQuery& q = *c->exec;
   SqliteValueFetcher fetcher(argv, argc);
+  if (PERFETTO_UNLIKELY(!q.literals_set)) {
+    // SQLite gives a constant the same value on every call of the statement.
+    q.params.SetLiterals(fetcher);
+    q.literals_set = true;
+  }
   bool row = q.rows.Open(q.params.Bind(fetcher));
   c->eof = !row;
   if (PERFETTO_UNLIKELY(!row)) {
