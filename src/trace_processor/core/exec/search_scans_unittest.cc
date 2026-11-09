@@ -233,7 +233,6 @@ class SearchScansDiffTest : public ::testing::Test {
     ExecPlan out;
     out.casters.resize(plan.filter_value_count);
     std::vector<SortedScan::Search> searches;
-    std::vector<Filter::Condition> searches_as_conditions;
     std::vector<Filter::Condition> conditions;
     std::vector<IndexScan::Equality> equalities;
     const dataframe::Index* index = nullptr;
@@ -271,7 +270,6 @@ class SearchScansDiffTest : public ::testing::Test {
         if (kind) {
           searches.push_back(
               {df_->shared_column(f->col), *kind, f->op, *f->value_index});
-          searches_as_conditions.push_back({f->col, f->op, *f->value_index});
         } else {
           conditions.push_back({f->col, f->op, f->value_index.value_or(0)});
         }
@@ -301,11 +299,10 @@ class SearchScansDiffTest : public ::testing::Test {
       if (direction == ReadDirection::kBackwards) {
         return std::nullopt;
       }
-      // Through an index, any search of a sorted column is left to the Filter.
-      conditions.insert(conditions.end(), searches_as_conditions.begin(),
-                        searches_as_conditions.end());
+      // Searches of sorted columns cut the index's rows to their range.
       out.scan = std::make_unique<IndexScan>(std::move(columns), *index,
-                                             std::move(equalities), &pool_);
+                                             std::move(equalities),
+                                             std::move(searches), &pool_);
       ++index_scans_;
     } else if (searches.empty()) {
       out.scan =

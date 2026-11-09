@@ -416,7 +416,7 @@ void BM_IndexEq_IndexScan(benchmark::State& state) {
       std::make_unique<IndexScan>(
           Columns(*s.df, {kSliceId}), s.df->indexes()[0],
           std::vector<IndexScan::Equality>{{s.df->shared_column(kTrack), 0}},
-          &s.pool),
+          std::vector<SortedSearches::Search>{}, &s.pool),
       {}, {{Uint32{}, Eq{}}}, &s.pool);
   uint32_t i = 0;
   uint32_t rows = 0;
