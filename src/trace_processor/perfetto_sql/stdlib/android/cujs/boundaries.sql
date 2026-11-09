@@ -23,6 +23,10 @@ INCLUDE PERFETTO MODULE android.cujs.relevant_slices;
 -- from the CUJ markers. For backward compatibility (In case the markers don't
 -- exist), We calculate that by extracting the vsync ID from the
 -- `Choreographer#doFrame` slices that are within the CUJ markers.
+--
+-- A CUJ is included if it has `Choreographer#doFrame` slices (the usual case),
+-- or if it carries explicit vsync bounds and its layer could be resolved
+-- (`android_jank_cuj_layer_name`), for processes that do not render through HWUI.
 CREATE PERFETTO TABLE _android_jank_cuj_vsync_boundary(
   -- CUJ id.
   cuj_id LONG,
@@ -40,10 +44,16 @@ SELECT
   cuj.cuj_id,
   cuj.upid, -- also store upid to simplify further queries
   cuj.layer_id, -- also store layer_id to simplify further queries
-  IFNULL(cuj.begin_vsync, MIN(vsync)) AS vsync_min,
-  IFNULL(cuj.end_vsync, MAX(vsync)) AS vsync_max
+  IFNULL(cuj.begin_vsync, MIN(do_frame.vsync)) AS vsync_min,
+  IFNULL(cuj.end_vsync, MAX(do_frame.vsync)) AS vsync_max
 FROM android_jank_cuj AS cuj
-JOIN _android_jank_cuj_do_frames USING (cuj_id)
+LEFT JOIN _android_jank_cuj_do_frames AS do_frame USING (cuj_id)
+LEFT JOIN android_jank_cuj_layer_name AS cuj_layer USING (cuj_id)
+WHERE
+  do_frame.vsync IS NOT NULL
+  OR (cuj.begin_vsync IS NOT NULL
+  AND cuj.end_vsync IS NOT NULL
+  AND cuj_layer.layer_name IS NOT NULL)
 GROUP BY
   cuj.cuj_id,
   cuj.upid,
@@ -107,9 +117,7 @@ WITH
       ON e.upid = vsync_boundary.upid
       AND e.vsync >= vsync_min
       AND e.vsync <= vsync_max
-    JOIN actual_frame_timeline_slice AS a
-      ON e.upid = a.upid
-      AND e.name = a.name
+    JOIN actual_frame_timeline_slice AS a ON e.upid = a.upid AND e.name = a.name
     GROUP BY
       cuj_id,
       e.vsync,

@@ -50,8 +50,7 @@ SELECT
   dur,
   ts + dur AS ts_end
 FROM slice
-JOIN process_track
-  ON slice.track_id = process_track.id
+JOIN process_track ON slice.track_id = process_track.id
 JOIN process USING (upid)
 WHERE
   _is_jank_slice!(slice, process)
@@ -64,8 +63,7 @@ WITH
   cuj_named_tracks AS MATERIALIZED (
     SELECT DISTINCT track.id AS track_id, track.name AS track_name
     FROM track
-    JOIN _jank_cujs_slices AS cuj
-      ON track.name = cuj.cuj_slice_name
+    JOIN _jank_cujs_slices AS cuj ON track.name = cuj.cuj_slice_name
   ),
   candidate_markers AS MATERIALIZED (
     SELECT s.ts, s.name, s.track_id, cnt.track_name
@@ -97,13 +95,30 @@ FROM _jank_cujs_slices AS cuj
 JOIN candidate_markers AS cuj_state_marker
   ON cuj_state_marker.ts >= cuj.ts
   AND cuj_state_marker.ts < cuj.ts_end
-LEFT JOIN thread_track
-  ON cuj_state_marker.track_id = thread_track.id
+LEFT JOIN thread_track ON cuj_state_marker.track_id = thread_track.id
 WHERE
   -- e.g. J<CUJ_NAME>#FT#end#0 this for backward compatibility
   cuj_state_marker.name GLOB (cuj.cuj_slice_name || '#FT#*')
   OR cuj_state_marker.track_name = cuj.cuj_slice_name
   OR cuj_state_marker.name = (cuj.cuj_slice_name || '#UIThread');
+
+-- CUJ metadata carried as typed arguments on the CUJ slice itself.
+--
+-- Producers that cannot emit the dynamically named `FT#beginVsync#<id>` /
+-- `FT#endVsync#<id>` / `FT#end#0` instants (e.g. Chrome, whose trace event
+-- names must be static strings) attach the same information as typed
+-- `ChromeTrackEvent.android_cuj_metrics` arguments on the `J<...>` slice.
+-- These take precedence over the marker-derived values below; CUJs without
+-- the arguments are unaffected (all columns NULL).
+CREATE PERFETTO TABLE _cuj_typed_args AS
+SELECT
+  cuj.cuj_id,
+  extract_arg(slice.arg_set_id, 'android_cuj_metrics.begin_vsync_id') AS begin_vsync,
+  extract_arg(slice.arg_set_id, 'android_cuj_metrics.end_vsync_id') AS end_vsync,
+  -- 1 = canceled, 0 = completed, NULL = not provided.
+  extract_arg(slice.arg_set_id, 'android_cuj_metrics.canceled') AS canceled
+FROM _jank_cujs_slices AS cuj
+JOIN slice USING (slice_id);
 
 -- CUJ instant event values.
 CREATE PERFETTO TABLE _cuj_instant_events AS
@@ -120,34 +135,70 @@ SELECT
       ELSE NULL
     END
   ) AS layer_id,
-  -- Extract begin VSync ID from 'beginVsync#<ID>' marker.
-  max(
-    CASE
-      WHEN csm.marker_name GLOB '*beginVsync#*' THEN CAST(str_split(
-        csm.marker_name,
-        'beginVsync#',
-        1
-      ) AS INTEGER)
-      ELSE NULL
-    END
+  -- Begin VSync ID: typed argument if present, else the 'beginVsync#<ID>' marker.
+  coalesce(
+    max(typed.begin_vsync),
+    max(
+      CASE
+        WHEN csm.marker_name GLOB '*beginVsync#*' THEN CAST(str_split(
+          csm.marker_name,
+          'beginVsync#',
+          1
+        ) AS INTEGER)
+        ELSE NULL
+      END
+    )
   ) AS begin_vsync,
-  -- Extract end VSync ID from 'endVsync#<ID>' marker.
-  max(
-    CASE
-      WHEN csm.marker_name GLOB '*endVsync#*' THEN CAST(str_split(
-        csm.marker_name,
-        'endVsync#',
-        1
-      ) AS INTEGER)
-      ELSE NULL
-    END
+  -- End VSync ID: typed argument if present, else the 'endVsync#<ID>' marker.
+  coalesce(
+    max(typed.end_vsync),
+    max(
+      CASE
+        WHEN csm.marker_name GLOB '*endVsync#*' THEN CAST(str_split(
+          csm.marker_name,
+          'endVsync#',
+          1
+        ) AS INTEGER)
+        ELSE NULL
+      END
+    )
   ) AS end_vsync,
   -- Extract UI thread UTID from 'UIThread' marker.
   max(CASE WHEN csm.marker_type = 'UIThread' THEN csm.utid ELSE NULL END) AS ui_thread
 FROM _jank_cujs_slices AS cuj
 LEFT JOIN _cuj_state_markers AS csm USING (cuj_id)
+LEFT JOIN _cuj_typed_args AS typed USING (cuj_id)
 GROUP BY
   cuj_id;
+
+-- Completion state of a CUJ: 'completed', 'canceled' or NULL when unknown.
+-- Typed arguments take precedence over the FT#end / FT#cancel markers.
+CREATE PERFETTO FUNCTION _android_jank_cuj_state(
+  -- CUJ id.
+  cuj_id LONG
+)
+RETURNS STRING
+AS
+SELECT
+  CASE
+    WHEN (SELECT canceled FROM _cuj_typed_args WHERE cuj_id = $cuj_id) = 1 THEN 'canceled'
+    WHEN (SELECT canceled FROM _cuj_typed_args WHERE cuj_id = $cuj_id) = 0 THEN 'completed'
+    WHEN EXISTS (
+      SELECT 1
+      FROM _cuj_state_markers AS csm
+      WHERE
+        csm.cuj_id = $cuj_id
+        AND csm.marker_type = 'cancel'
+    ) THEN 'canceled'
+    WHEN EXISTS (
+      SELECT 1
+      FROM _cuj_state_markers AS csm
+      WHERE
+        csm.cuj_id = $cuj_id
+        AND csm.marker_type = 'end'
+    ) THEN 'completed'
+    ELSE NULL
+  END;
 
 CREATE PERFETTO FUNCTION _extract_cuj_name_from_slice(cuj_slice_name STRING)
 RETURNS STRING
@@ -177,8 +228,7 @@ FROM android_frames_layers AS frame
 JOIN _cuj_instant_events AS cie
   ON frame.ui_thread_utid = cie.ui_thread
   AND frame.layer_id IS NOT NULL
-JOIN _jank_cujs_slices AS cuj
-  ON cie.cuj_id = cuj.cuj_id
+JOIN _jank_cujs_slices AS cuj ON cie.cuj_id = cuj.cuj_id
 -- Check whether the frame_id falls within the begin and end vsync of the cuj.
 -- Also check if the frame start or end timestamp falls within the cuj boundary.
 WHERE
@@ -286,7 +336,7 @@ WHERE
   AND (vsync <= end_vsync OR end_vsync IS NULL);
 
 -- Resolves the layer name for each CUJ.
--- The layer can be identified in two ways:
+-- The layer can be identified in three ways:
 -- 1. Explicit Marker: The Android framework may log a 'layerId#<id>' instant event. If
 --    present, this is extracted into `cuj_layer_id` inside `_cuj_instant_events`.
 --    We then filter `_all_frames_in_cuj` to exactly that layer.
@@ -296,6 +346,11 @@ WHERE
 --    per frame during the CUJ (`HAVING MAX(layers_per_frame) = 1`). If so, we safely
 --    use that layer's name (extracted via `MAX(layer_name)`). If multiple layers
 --    were rendered simultaneously, we can't safely guess, and return NULL.
+-- 3. Frame-timeline Inference: For CUJs that provide explicit vsync bounds but have
+--    no HWUI frames to infer from (1 and 2 yield nothing), e.g. processes that do
+--    not render through HWUI, we pick the SurfaceFlinger layer of the CUJ's own
+--    process that presented a frame at both the begin and the end vsync (ties go to
+--    the layer with the most frames in the range).
 CREATE PERFETTO TABLE android_jank_cuj_layer_name(
   -- CUJ id.
   cuj_id LONG,
@@ -344,10 +399,56 @@ WITH
     -- Only use the fallback if every single frame in the CUJ rendered exactly 1 layer.
     HAVING
       MAX(layers_per_frame) = 1
+  ),
+  -- 3. Frame-timeline Inference
+  -- Only for CUJs with explicit vsync bounds and no HWUI frames at all, so CUJs
+  -- resolved by 1 or 2 are never affected.
+  frame_timeline_layer_counts AS (
+    SELECT
+      cuj.cuj_id,
+      timeline.layer_name,
+      count(DISTINCT CAST(timeline.name AS INTEGER)) AS frame_count,
+      max(CAST(timeline.name AS INTEGER) = cie.begin_vsync) AS has_begin,
+      max(CAST(timeline.name AS INTEGER) = cie.end_vsync) AS has_end
+    FROM _jank_cujs_slices AS cuj
+    JOIN _cuj_instant_events AS cie USING (cuj_id)
+    JOIN actual_frame_timeline_slice AS timeline
+      ON timeline.upid = cuj.upid
+      AND CAST(timeline.name AS INTEGER) >= cie.begin_vsync
+      AND CAST(timeline.name AS INTEGER) <= cie.end_vsync
+    WHERE
+      cie.begin_vsync IS NOT NULL
+      AND cie.end_vsync IS NOT NULL
+      AND timeline.layer_name IS NOT NULL
+      AND cuj.cuj_id NOT IN (SELECT cuj_id FROM _all_frames_in_cuj)
+    GROUP BY
+      cuj.cuj_id,
+      timeline.layer_name
+  ),
+  frame_timeline_layer_name AS (
+    SELECT cuj_id, layer_name
+    FROM (
+      SELECT
+        cuj_id,
+        layer_name,
+        row_number() OVER (
+          PARTITION BY
+            cuj_id
+          ORDER BY frame_count DESC, layer_name
+        ) AS rank
+      FROM frame_timeline_layer_counts
+      WHERE
+        has_begin
+        AND has_end
+    )
+    WHERE
+      rank = 1
   )
 SELECT cuj_id, layer_name FROM explicit_layer_name
 UNION ALL
-SELECT cuj_id, layer_name FROM fallback_layer_name;
+SELECT cuj_id, layer_name FROM fallback_layer_name
+UNION ALL
+SELECT cuj_id, layer_name FROM frame_timeline_layer_name;
 
 -- Table tracking all jank CUJs information.
 CREATE PERFETTO TABLE android_jank_cuj(
@@ -374,8 +475,8 @@ CREATE PERFETTO TABLE android_jank_cuj(
   ts_end TIMESTAMP,
   -- Duration of the CUJ calculated based on the ts and ts_end values.
   dur DURATION,
-  -- State of the CUJ. One of "completed", "cancelled" or NULL. NULL in cases where the FT#cancel or
-  -- FT#end instant event is not present for the CUJ.
+  -- State of the CUJ. One of "completed", "canceled" or NULL. NULL in cases where neither the
+  -- FT#cancel / FT#end instant event nor the typed `canceled` argument is present for the CUJ.
   state STRING,
   -- thread id of the UI thread.
   ui_thread JOINID(thread.id),
@@ -390,23 +491,7 @@ AS
 SELECT
   cuj.*,
   _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
-  CASE
-    WHEN EXISTS (
-      SELECT 1
-      FROM _cuj_state_markers AS csm
-      WHERE
-        csm.cuj_id = cuj.cuj_id
-        AND csm.marker_type = 'cancel'
-    ) THEN 'canceled'
-    WHEN EXISTS (
-      SELECT 1
-      FROM _cuj_state_markers AS csm
-      WHERE
-        csm.cuj_id = cuj.cuj_id
-        AND csm.marker_type = 'end'
-    ) THEN 'completed'
-    ELSE NULL
-  END AS state,
+  _android_jank_cuj_state(cuj.cuj_id) AS state,
   cuj_events.ui_thread,
   cuj_events.layer_id,
   cuj_events.begin_vsync,

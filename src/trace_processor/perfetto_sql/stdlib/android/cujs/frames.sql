@@ -328,23 +328,7 @@ SELECT
   cuj.cuj_id,
   cuj.cuj_slice_name AS name,
   cuj.process_name,
-  CASE
-    WHEN EXISTS (
-      SELECT 1
-      FROM _cuj_state_markers AS csm
-      WHERE
-        csm.cuj_id = cuj.cuj_id
-        AND csm.marker_type = 'cancel'
-    ) THEN 'canceled'
-    WHEN EXISTS (
-      SELECT 1
-      FROM _cuj_state_markers AS csm
-      WHERE
-        csm.cuj_id = cuj.cuj_id
-        AND csm.marker_type = 'end'
-    ) THEN 'completed'
-    ELSE NULL
-  END AS state,
+  _android_jank_cuj_state(cuj.cuj_id) AS state,
   fc.total_frames,
   fc.missed_app_frames,
   fc.missed_sf_frames,
@@ -354,15 +338,12 @@ SELECT
   s.track_id,
   cuj.slice_id
 FROM _jank_cujs_slices AS cuj
-JOIN slice AS s
-  ON s.id = cuj.slice_id
+JOIN slice AS s ON s.id = cuj.slice_id
 -- Gate frame stats and boundary on android_jank_cuj membership: canceled/invalid
 -- CUJs get NULL stats and fall back to raw slice ts/dur. Layer name covers all
 -- CUJs, so it joins on the raw cuj_id.
 LEFT JOIN android_jank_cuj AS ajc USING (cuj_id)
-LEFT JOIN frame_counts AS fc
-  ON fc.cuj_id = ajc.cuj_id
-LEFT JOIN android_jank_cuj_layer_name AS layer
-  ON layer.cuj_id = cuj.cuj_id
+LEFT JOIN frame_counts AS fc ON fc.cuj_id = ajc.cuj_id
+LEFT JOIN android_jank_cuj_layer_name AS layer ON layer.cuj_id = cuj.cuj_id
 LEFT JOIN _android_jank_cuj_main_thread_cuj_boundary AS boundary
   ON boundary.cuj_id = ajc.cuj_id;
