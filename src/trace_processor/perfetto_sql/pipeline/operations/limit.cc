@@ -73,6 +73,13 @@ const OperationRegistration Limit::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_LIMIT, &BuildPlan,
     OperationRegistration::Encoding{11, &MakeOperation<Limit>}};
 
+void Limit::AddToPlan(LogicalPlan* plan, int64_t count, int64_t offset) {
+  Limit limit;
+  limit.count_ = count;
+  limit.offset_ = offset;
+  plan->AddNode(std::move(limit), {plan->root()});
+}
+
 base::Status Limit::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("LIMIT");
   const auto* n = Node<SyntaqlitePerfettoPipeLimit>(c->parser(), stage);
