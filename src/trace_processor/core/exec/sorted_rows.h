@@ -94,6 +94,13 @@ class SortedRows {
   // The row numbers in output order.
   FlexVector<uint32_t>& order() { return order_; }
 
+  // After Sort(), points every row, in output order, where it is held, so
+  // the rows are read without being copied, unless they cannot be (see
+  // RowStore::Place).
+  void Place();
+  // What Place() pointed at, or null if it did not.
+  const RowsInPlace* placed() const { return placed_ ? &in_place_ : nullptr; }
+
   // Copies up to kMaxBatchRows rows into `out`, starting at position `at` in
   // the order, up to its end. Returns the number of rows copied.
   uint32_t Gather(RowBatch* out, uint32_t at, Context& context);
@@ -143,6 +150,8 @@ class SortedRows {
   FlexVector<uint8_t> keys_;
   RowStore rows_;
   FlexVector<uint32_t> order_;
+  RowsInPlace in_place_;
+  bool placed_ = false;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

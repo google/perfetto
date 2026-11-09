@@ -360,4 +360,14 @@ PERFETTO_NO_INLINE void Pipeline::TransformFailed(const State::Link& link,
   StepFailed(link.op->status(*link.state), state);
 }
 
+const RowsInPlace* Pipeline::InPlace(const OperatorState& state) const {
+  const Segment& last = segments_[last_segment_];
+  if (!last.start_op || last.first != last.end) {
+    return nullptr;
+  }
+  const auto& s = state.Cast<State>();
+  return last.start_op->InPlace(
+      *s.operators[static_cast<uint32_t>(last.start)]);
+}
+
 }  // namespace perfetto::trace_processor::core::exec

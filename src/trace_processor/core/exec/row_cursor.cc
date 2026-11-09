@@ -26,16 +26,20 @@ RowCursor::RowCursor(const Source& source)
 RowCursor::~RowCursor() = default;
 
 bool RowCursor::Pull() {
+  placed_ += size_;
   for (;;) {
     batch_ = source_.Next(scratch_, *state_);
     if (!batch_) {
       index_ = 0;
       size_ = 0;
+      current_ = nullptr;
       return false;
     }
     if (batch_->size()) {
       index_ = 0;
       size_ = batch_->size();
+      in_place_ = source_.InPlace(*state_);
+      Locate();
       return true;
     }
   }
