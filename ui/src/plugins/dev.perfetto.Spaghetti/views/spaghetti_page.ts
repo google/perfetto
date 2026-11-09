@@ -83,13 +83,7 @@ import {
 import type {StepRunOutcome} from '../run_chunks';
 import type {MaterializationService} from '../materialization_service';
 import type {DetailsContext, RenderContext} from '../node_types';
-import {planChunks} from '../plan_chunks';
 import {serialize} from '../serialize';
-import {
-  isOutputMaterialized,
-  outputQuery,
-  serializeChunks,
-} from '../chunk_queries';
 import {CacheTab} from './cache_tab';
 import {ColumnsTab} from './columns_tab';
 import {GraphTab} from './graph_tab';
@@ -952,15 +946,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
                     .join('\n'),
                   serialized.sql,
                 ].join('\n\n');
-      const chunkPlan = activeNodeId
-        ? planChunks(flatNodes, activeNodeId)
-        : undefined;
-      const chunkQueries = chunkPlan
-        ? serializeChunks(flatNodes, chunkPlan, {
-            sqlModules,
-            dialect: materializationDialect,
-          })
-        : undefined;
 
       const liveJson = JSON.stringify(
         JSON.parse(serializeStore(store)),
@@ -992,22 +977,12 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
             {
               key: 'materialization',
               title: 'Materialization',
+              // What the service is building, as it builds it.
               content: m(MaterializationTab, {
-                chunkPlan,
-                chunkQueries,
-                materializeOutput:
-                  chunkPlan !== undefined &&
-                  isOutputMaterialized(flatNodes, chunkPlan),
-                output:
-                  chunkPlan && chunkQueries?.ok
-                    ? outputQuery(
-                        flatNodes,
-                        chunkPlan,
-                        chunkQueries.chunks,
-                        materializationDialect,
-                        {sqlModules},
-                      )
-                    : undefined,
+                chunkPlan: matService.plan,
+                chunkQueries: matService.chunkQueries,
+                materializeOutput: matService.materializeOutput,
+                output: matService.output,
                 language:
                   materializationDialect === 'pipe'
                     ? 'PerfettoSQL Next'
@@ -1153,14 +1128,14 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         outputColumns,
         error: matError,
         trace,
-        materializedTable: matService?.materializedTable,
+        output: matService.outputRead,
       };
 
       const resultsPanel = activeManifest?.renderDetails
         ? activeManifest.renderDetails(activeNode!.config, detailsCtx)
         : activeNodeId && serialized?.ok && dataSource
           ? m(DataGrid, {
-              key: matService.materializedTable ?? '',
+              key: matService.outputRead?.sql ?? '',
               data: dataSource,
               schema: datagridSchema,
               fillHeight: true,

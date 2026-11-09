@@ -23,14 +23,22 @@ import {flattenNodes, type GraphIndex} from './graph_utils';
 import type {SqlDialect} from './sql_types';
 import {type ChunkPlan, planChunks} from './plan_chunks';
 import {
+  type ChunkQueriesResult,
   type ChunkQuery,
   isOutputMaterialized,
   outputQuery,
   serializeChunks,
 } from './chunk_queries';
+import type {SerializeResult} from './serialize_common';
 import {type CacheEntry, runChunks, type StepRunOutcome} from './run_chunks';
 
 const DEFAULT_MAX_ENTRIES = 16;
+
+/** How the output is read: a Standard SQL query and the modules it needs. */
+export interface OutputRead {
+  readonly sql: string;
+  readonly includes: readonly string[];
+}
 
 export interface MaterializationOptions {
   /** Maximum number of cache tables kept (least recently used evicted). */
@@ -66,6 +74,9 @@ export class MaterializationService {
         readonly emulateSlowLoads: boolean;
       }
     | undefined;
+  // Set once an update for `latestUpdate` has been scheduled, so repeat calls
+  // with the same inputs (e.g. every frame) do nothing.
+  private latestScheduled = false;
   private pendingUpdate = false;
   private pendingClearAll = false;
 
@@ -74,8 +85,14 @@ export class MaterializationService {
   private lastRunKey: string | undefined;
   private _error: string | undefined;
   private _dataSource: SQLDataSource | undefined;
-  private _readQuerySql: string | undefined;
-  private _materializedTable: string | undefined;
+  private _outputRead: OutputRead | undefined;
+  private _outputTable: string | undefined;
+
+  // What the current run builds, published when it starts.
+  private _plan: ChunkPlan | undefined;
+  private _chunkQueries: ChunkQueriesResult | undefined;
+  private _output: SerializeResult | undefined;
+  private _materializeOutput = false;
 
   private _lastRunOutcomes: ReadonlyMap<string, StepRunOutcome> = new Map();
   private _nodeOutcomes: ReadonlyMap<string, StepRunOutcome> = new Map();
@@ -92,12 +109,34 @@ export class MaterializationService {
     return this._dataSource;
   }
 
-  get readQuerySql(): string | undefined {
-    return this._readQuerySql;
+  /** How the DataGrid (and details panels) read the output. */
+  get outputRead(): OutputRead | undefined {
+    return this._outputRead;
   }
 
-  get materializedTable(): string | undefined {
-    return this._materializedTable;
+  /** The output's table, when the output is read straight from one. */
+  get outputTable(): string | undefined {
+    return this._outputTable;
+  }
+
+  /** The chunk plan of the current run. */
+  get plan(): ChunkPlan | undefined {
+    return this._plan;
+  }
+
+  /** Each chunk's query and hash, in the current run's dialect. */
+  get chunkQueries(): ChunkQueriesResult | undefined {
+    return this._chunkQueries;
+  }
+
+  /** The query that reads the output, in the current run's dialect. */
+  get output(): SerializeResult | undefined {
+    return this._output;
+  }
+
+  /** Whether the current run builds the output chunk into a table. */
+  get materializeOutput(): boolean {
+    return this._materializeOutput;
   }
 
   get error(): string | undefined {
@@ -132,6 +171,7 @@ export class MaterializationService {
     emulateSlowLoads: boolean = false,
   ): Promise<void> {
     if (this.disposed) return Promise.resolve();
+    const prev = this.latestUpdate;
     this.latestUpdate = {
       store,
       activeNodeId,
@@ -139,6 +179,18 @@ export class MaterializationService {
       dialect,
       emulateSlowLoads,
     };
+    // The store is immutable, so an unchanged reference means an unchanged
+    // graph: nothing to do.
+    if (
+      this.latestScheduled &&
+      prev?.store === store &&
+      prev.activeNodeId === activeNodeId &&
+      prev.sqlModules === sqlModules &&
+      prev.dialect === dialect
+    ) {
+      return Promise.resolve();
+    }
+    this.latestScheduled = true;
     this.pendingUpdate = true;
     return this.scheduleWork();
   }
@@ -146,6 +198,9 @@ export class MaterializationService {
   clearCache(): Promise<void> {
     if (this.disposed) return Promise.resolve();
     this.pendingClearAll = true;
+    // Run the latest update again afterwards, against the empty cache.
+    this.latestScheduled = false;
+    if (this.latestUpdate !== undefined) this.pendingUpdate = true;
     return this.scheduleWork();
   }
 
@@ -172,13 +227,17 @@ export class MaterializationService {
   private clearActiveOutput(): void {
     this._dataSource?.dispose();
     this._dataSource = undefined;
-    this._readQuerySql = undefined;
-    this._materializedTable = undefined;
+    this._outputRead = undefined;
+    this._outputTable = undefined;
     this.readHashes = new Set();
     this.lastRunKey = undefined;
     this._error = undefined;
     this._lastRunOutcomes = new Map();
     this._nodeOutcomes = new Map();
+    this._plan = undefined;
+    this._chunkQueries = undefined;
+    this._output = undefined;
+    this._materializeOutput = false;
   }
 
   private async doUpdate(
@@ -215,6 +274,16 @@ export class MaterializationService {
 
     this.lastRunKey = runKey;
 
+    // Publish what this run builds before building it, so the
+    // Materialization tab can show its progress.
+    this._plan = plan;
+    this._chunkQueries = queries;
+    this._materializeOutput = isOutputMaterialized(index, plan);
+    this._output = queries.ok
+      ? outputQuery(index, plan, queries.chunks, dialect, {sqlModules})
+      : undefined;
+    m.redraw();
+
     try {
       if (!queries.ok) throw new Error(queries.error);
       await this.executeChunks(index, plan, queries.chunks, sqlModules);
@@ -225,8 +294,8 @@ export class MaterializationService {
       this._error = msg;
       this._dataSource?.dispose();
       this._dataSource = undefined;
-      this._readQuerySql = undefined;
-      this._materializedTable = undefined;
+      this._outputRead = undefined;
+      this._outputTable = undefined;
       this.readHashes = new Set();
       this._lastRunOutcomes = new Map();
       this._nodeOutcomes = new Map();
@@ -293,19 +362,17 @@ export class MaterializationService {
     // a Standard SQL query whatever the dialect.
     const read = outputQuery(index, plan, chunks, 'sql', {sqlModules});
     if (!read.ok) throw new Error(read.error);
-    const {sql, includes, relation} = read;
-    const readQuerySql =
-      relation !== undefined ? `SELECT * FROM ${relation}` : sql;
-    this._materializedTable =
-      relation !== undefined ? relation : `(\n${sql}\n)`;
+    const {includes, relation} = read;
+    const sql = relation !== undefined ? `SELECT * FROM ${relation}` : read.sql;
+    this._outputTable = relation;
     this.readHashes = new Set(result.outputReads);
 
-    if (this._readQuerySql !== readQuerySql || !this._dataSource) {
+    if (this._outputRead?.sql !== sql || !this._dataSource) {
       this._dataSource?.dispose();
-      this._readQuerySql = readQuerySql;
+      this._outputRead = {sql, includes};
       this._dataSource = new SQLDataSource({
         engine: this.engine,
-        tableOrSubquery: readQuerySql,
+        tableOrSubquery: sql,
         // The read query's includes run once, before the grid's own queries.
         preamble:
           includes.length > 0
@@ -366,7 +433,7 @@ export class MaterializationService {
     this.disposed = true;
     this._dataSource?.dispose();
     this._dataSource = undefined;
-    this._readQuerySql = undefined;
+    this._outputRead = undefined;
     await this.limiter.schedule(async () => {
       await this.dropAll();
     });
