@@ -358,7 +358,11 @@ const Bindings::Dataframe& Lowering::QueryDataframe(
 
 std::unique_ptr<ex::Pipeline> Lowering::Build(
     const std::vector<uint32_t>* outputs) {
-  PlaceExpands(std::move(sparse_columns_), outputs, &operators_);
+  // A caller reading sparse columns as lent needs none expanded for it.
+  std::vector<uint32_t> none;
+  bool lend = outputs &&
+              context().sparse_outputs == LoweringContext::SparseOutputs::kLend;
+  PlaceExpands(std::move(sparse_columns_), lend ? &none : outputs, &operators_);
   SetUnreadColumns(*source_columns_, outputs, &operators_);
   return std::make_unique<ex::Pipeline>(*input_, std::move(operators_));
 }
