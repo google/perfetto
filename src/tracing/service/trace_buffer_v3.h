@@ -67,10 +67,10 @@ namespace internal {
 // - |bundle_header| has four uint32_t fields.
 //   - |bundle_size| is the size of the whole bundle, including this header.
 //   - |bundle_id| uniquely identifies the bundle among stored bundles.
-//   - |num_sequences| is the number of distinct sequences in the bundle.
-//     Stored in the header so an overwrite doesn't have to decompress the
-//     bundle.
-//   - |packet_data_size| is the uncompressed size of |packet_data|.
+//   - |num_sequences| counts the sequences with packets in the bundle.
+//     The sequences live in the SequenceStateMap. This is the upper bound for
+//     looking them up, so an overwrite doesn't have to decompress the bundle.
+//   - |uncompressed_packets_size| is the size of |packet_data| below.
 // - |compressed_packet_data| is one zstd frame.
 //   It decompresses to |packet_data|, a sequence of packets with their headers.
 //
@@ -89,7 +89,7 @@ struct BundleHeader {
   uint32_t bundle_size = 0;
   uint32_t bundle_id = 0;
   uint32_t num_sequences = 0;
-  uint32_t packet_data_size = 0;
+  uint32_t uncompressed_packets_size = 0;
 };
 
 class BundleBuffer {
@@ -108,7 +108,7 @@ class BundleBuffer {
   // Copies a bundle after the newest one.
   // The bundle must fit in free_size().
   void PushBack(uint32_t num_sequences,
-                uint32_t packet_data_size,
+                uint32_t uncompressed_packets_size,
                 protozero::ConstBytes compressed_packet_data);
 
   BundleHeader PeekFrontHeader() const;
@@ -190,7 +190,7 @@ class BundleBuffer {
 //                   v
 //   [ open_bundle_: metadata ] + [ codec_: compressed packet data ]
 //                   |
-//                   | CloseOpenBundle()
+//                   | FinalizeNextBundle()
 //                   v
 //   [ bundle_buf_: compressed bundles, oldest first ]
 //                   |
@@ -383,7 +383,7 @@ class TraceBufferV3 : public TraceBuffer {
 
   // Builds one bundle from complete packets in |staging_buf_|.
   // |open_bundle_| holds metadata, while |codec_| receives the packet data.
-  // Calls CloseOpenBundle() once the packet data reaches
+  // Calls FinalizeNextBundle() once the packet data reaches
   // |target_packet_data_size_| or no packet is readable.
   // Returns false if staging ran out of packets before the bundle filled.
   bool FillNextBundle();
@@ -396,13 +396,13 @@ class TraceBufferV3 : public TraceBuffer {
   // - Either policy drops a bundle that can't fit in an empty |bundle_buf_|, or
   //   whose uncompressed packet data exceeds UINT32_MAX bytes.
   // A dropped bundle's loss goes on the next packet from |staging_buf_|.
-  void CloseOpenBundle();
+  void FinalizeNextBundle();
 
   // Passes the front bundle to |protovms_|, then removes it from |bundle_buf_|.
   // Decodes it only if a producer in the bundle has a ProtoVM.
   // Its sequences report DATA_LOSS_OVERWRITE and the bundle's recorded loss
   // on their next packet after this bundle.
-  void OverwriteFrontBundle();
+  void PopFrontBundle();
 
   // Decompresses the front bundle's packet data into |dst|.
   void DecompressFrontBundle(uint8_t* dst, size_t dst_size);
@@ -411,8 +411,8 @@ class TraceBufferV3 : public TraceBuffer {
   // Returns false if no packet is readable.
   bool DecodeNextBundle();
 
-  // Target uncompressed packet data bytes per bundle.
-  // FillNextBundle() closes each bundle at the target, keeping packets whole.
+  // The threshold that kicks off bundling. OnWriteCheckpoint() starts bundling
+  // once staging holds at least this many bytes.
   const size_t target_packet_data_size_;
 
   // Holds chunks until bundling reads their packets.
@@ -440,7 +440,7 @@ class TraceBufferV3 : public TraceBuffer {
     base::FlatHashMap<ProducerAndWriterID, uint32_t> sequence_indexes;
 
     // Uncompressed packet data bytes accumulated in |codec_|.
-    // Kept at 64 bits so CloseOpenBundle() can reject a count above UINT32_MAX.
+    // 64 bits so FinalizeNextBundle() can reject a count above UINT32_MAX.
     uint64_t packet_data_size = 0;
   };
   // Empty except while FillNextBundle() runs.
@@ -509,11 +509,9 @@ class TraceBufferV3 : public TraceBuffer {
   using BundlingTimeBuckets = Histogram<10, 100, 1000, 10000, 100000>;
   BundlingTimeBuckets bundling_time_us_histogram_;
 
-  // Counts uncompressed packet data bytes consumed by ReadNextTracePacket().
-  // Used for BufferStats.bytes_read.
-  uint64_t bytes_read_ = 0;
-
-  // Backs the reference returned by stats(), which rebuilds it on every call.
+  // Statistics about buffer usage.
+  // Mutable because stats() rebuilds it on each call, from staging's stats
+  // plus the V3 stats.
   mutable TraceStats::BufferStats stats_;
 };
 

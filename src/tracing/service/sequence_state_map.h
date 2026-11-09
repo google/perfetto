@@ -39,7 +39,12 @@ namespace internal {
 // +---------------------------------------------------------------------------+
 // | SequenceState                                                             |
 // +---------------------------------------------------------------------------+
-// Holds the state for each sequence with TBCHunk(s) in the buffer or leases.
+// Holds the state of one sequence, which two users keep alive:
+// 1. Chunks in TraceBufferV2. The sequence is active, and can't be pruned,
+//    while it has one or more |chunks|.
+// 2. Compressed bundles in TraceBufferV3. |chunks| can be empty, depending on
+//    the state of the staging buffer, but each bundle with packets from the
+//    sequence holds a lease that keeps the state alive.
 // Remember that this class must be copyable for CloneReadOnly(). Don't hold
 // onto any pointers in here.
 // SequenceState(s) are not deleted aggressively to preserve the

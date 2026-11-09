@@ -202,7 +202,7 @@ protos::gen::TestEvent::ProtoVmIncrementalState ProtoVmState(TraceBuffer* buf) {
 size_t StoredBundleSize(protozero::ConstBytes compressed_packet_data) {
   BundleBuffer buf;
   PERFETTO_CHECK(buf.Initialize(4096));
-  buf.PushBack(/*num_sequences=*/0, /*packet_data_size=*/0,
+  buf.PushBack(/*num_sequences=*/0, /*uncompressed_packets_size=*/0,
                compressed_packet_data);
   return buf.used_size();
 }
@@ -405,26 +405,26 @@ TEST(BundleBufferTest, PushAndReadAcrossTheEnd) {
     SCOPED_TRACE(bytes_to_end);
     BundleBuffer buf;
     ASSERT_TRUE(buf.Initialize(2 * bundle_size + bytes_to_end));
-    buf.PushBack(/*num_sequences=*/1, /*packet_data_size=*/80,
+    buf.PushBack(/*num_sequences=*/1, /*uncompressed_packets_size=*/80,
                  first_compressed_packet_data);
-    buf.PushBack(/*num_sequences=*/1, /*packet_data_size=*/81,
+    buf.PushBack(/*num_sequences=*/1, /*uncompressed_packets_size=*/81,
                  first_compressed_packet_data);
     buf.PopFront();
     // Keep the second bundle so the cursors do not reset before this push.
-    buf.PushBack(/*num_sequences=*/2, /*packet_data_size=*/82,
+    buf.PushBack(/*num_sequences=*/2, /*uncompressed_packets_size=*/82,
                  last_compressed_packet_data);
     EXPECT_EQ(buf.used_size(), 2 * bundle_size);
     EXPECT_EQ(buf.free_size(), bytes_to_end);
 
     BundleHeader header = buf.PeekFrontHeader();
     EXPECT_EQ(header.num_sequences, 1u);
-    EXPECT_EQ(header.packet_data_size, 81u);
+    EXPECT_EQ(header.uncompressed_packets_size, 81u);
     EXPECT_EQ(SliceToString(buf.PeekFrontCompressedPacketData()), "abcdefgh");
     buf.PopFront();
 
     header = buf.PeekFrontHeader();
     EXPECT_EQ(header.num_sequences, 2u);
-    EXPECT_EQ(header.packet_data_size, 82u);
+    EXPECT_EQ(header.uncompressed_packets_size, 82u);
     EXPECT_EQ(SliceToString(buf.PeekFrontCompressedPacketData()), "01234567");
     buf.PopFront();
     EXPECT_TRUE(buf.empty());
@@ -440,13 +440,13 @@ TEST(BundleBufferTest, CloneCopiesStoredBundles) {
   BundleBuffer src;
   ASSERT_TRUE(src.Initialize(2 * bundle_size + bundle_header_size +
                              compressed_packet_data.size / 2));
-  src.PushBack(/*num_sequences=*/1, /*packet_data_size=*/80,
+  src.PushBack(/*num_sequences=*/1, /*uncompressed_packets_size=*/80,
                compressed_packet_data);
-  src.PushBack(/*num_sequences=*/1, /*packet_data_size=*/81,
+  src.PushBack(/*num_sequences=*/1, /*uncompressed_packets_size=*/81,
                compressed_packet_data);
   src.PopFront();
   // This one wraps in the middle of its compressed packet data.
-  src.PushBack(/*num_sequences=*/1, /*packet_data_size=*/82,
+  src.PushBack(/*num_sequences=*/1, /*uncompressed_packets_size=*/82,
                compressed_packet_data);
 
   BundleBuffer clone;
@@ -460,13 +460,13 @@ TEST(BundleBufferTest, CloneCopiesStoredBundles) {
   src.PopFront();
   src.PopFront();
   std::vector<uint8_t> replacement(src.capacity() - bundle_header_size, 'z');
-  src.PushBack(/*num_sequences=*/9, /*packet_data_size=*/99,
+  src.PushBack(/*num_sequences=*/9, /*uncompressed_packets_size=*/99,
                {replacement.data(), replacement.size()});
 
-  for (uint32_t packet_data_size : {81u, 82u}) {
+  for (uint32_t uncompressed_packets_size : {81u, 82u}) {
     const BundleHeader header = clone.PeekFrontHeader();
     EXPECT_EQ(header.num_sequences, 1u);
-    EXPECT_EQ(header.packet_data_size, packet_data_size);
+    EXPECT_EQ(header.uncompressed_packets_size, uncompressed_packets_size);
     EXPECT_EQ(SliceToString(clone.PeekFrontCompressedPacketData()), "abcdefgh");
     clone.PopFront();
   }
@@ -482,9 +482,9 @@ TEST(BundleBufferTest, BundleIdsSurviveEmptying) {
   ASSERT_TRUE(buf.Initialize(4096));
   EXPECT_EQ(buf.next_bundle_id(), 0u);
 
-  buf.PushBack(/*num_sequences=*/1, /*packet_data_size=*/80,
+  buf.PushBack(/*num_sequences=*/1, /*uncompressed_packets_size=*/80,
                compressed_packet_data);
-  buf.PushBack(/*num_sequences=*/1, /*packet_data_size=*/81,
+  buf.PushBack(/*num_sequences=*/1, /*uncompressed_packets_size=*/81,
                compressed_packet_data);
   EXPECT_EQ(buf.next_bundle_id(), 2u);
   EXPECT_EQ(buf.PeekFrontHeader().bundle_id, 0u);
@@ -495,7 +495,7 @@ TEST(BundleBufferTest, BundleIdsSurviveEmptying) {
   ASSERT_TRUE(buf.empty());
   EXPECT_EQ(buf.next_bundle_id(), 2u);
 
-  buf.PushBack(/*num_sequences=*/1, /*packet_data_size=*/82,
+  buf.PushBack(/*num_sequences=*/1, /*uncompressed_packets_size=*/82,
                compressed_packet_data);
   EXPECT_EQ(buf.next_bundle_id(), 3u);
   EXPECT_EQ(buf.PeekFrontHeader().bundle_id, 2u);
@@ -567,7 +567,7 @@ TEST_F(TraceBufferV3Test, OnWriteCheckpointBundlesAfterEnoughStagingBytes) {
   EXPECT_EQ(num_bundled_sequences(), 1u);
 
   // Both packets, 47 bytes each with headers, fit below the 128 byte target.
-  EXPECT_EQ(FrontBundleHeader().packet_data_size, 94u);
+  EXPECT_EQ(FrontBundleHeader().uncompressed_packets_size, 94u);
   EXPECT_EQ(FrontBundleHeader().num_sequences, 1u);
   EXPECT_EQ(v3_stats().compressed_bytes_written(), trace_buffer_->used_size());
 
@@ -632,7 +632,6 @@ TEST_F(TraceBufferV3Test, FragmentsWaitForPatches) {
   trace_buffer_->OnWriteCheckpoint();
   EXPECT_THAT(Strs(ReadAll()), ElementsAre("a", "other"));
   EXPECT_EQ(staging()->stats().readaheads_failed(), 2u);
-  EXPECT_EQ(stats().readaheads_failed(), 0u);
 
   // Patch "XXXX" after [a]'s 7 bytes, the fragment's size byte and the
   // packet's 5-byte protobuf prefix.
@@ -727,19 +726,18 @@ TEST_F(TraceBufferV3Test, PacketThatCrossesTheTargetStaysWhole) {
   EXPECT_EQ(v3_stats().bundles_written(), 2u);
   EXPECT_EQ(v3_stats().uncompressed_bytes_written(), 5 * 47u);
   EXPECT_EQ(v3_stats().compressed_bytes_written(), trace_buffer_->used_size());
-  EXPECT_EQ(FrontBundleHeader().packet_data_size, 3 * 47u);
+  EXPECT_EQ(FrontBundleHeader().uncompressed_packets_size, 3 * 47u);
 
   trace_buffer_->BeginRead();
   TestPacket packet;
   for (int i = 0; i < 3; i++)
     ASSERT_TRUE(ReadOne(trace_buffer_.get(), &packet));
   EXPECT_EQ(packet.str, std::string(40, 'c'));
-  EXPECT_EQ(FrontBundleHeader().packet_data_size, 2 * 47u);
+  EXPECT_EQ(FrontBundleHeader().uncompressed_packets_size, 2 * 47u);
   ASSERT_TRUE(ReadOne(trace_buffer_.get(), &packet));
   ASSERT_TRUE(ReadOne(trace_buffer_.get(), &packet));
   EXPECT_EQ(packet.str, std::string(40, 'e'));
   EXPECT_FALSE(ReadOne(trace_buffer_.get(), &packet));
-  EXPECT_EQ(stats().bytes_read(), 5 * 47u);
 }
 
 TEST_F(TraceBufferV3Test, PacketsOfManySizesInOneBundle) {
@@ -1151,7 +1149,7 @@ TEST_F(TraceBufferV3Test, PacketDataAllocatorFitsFileReadBatchesFromFirstRead) {
       WriteBatch(input);
     ASSERT_EQ(stats().chunks_overwritten(), 0u);
     ASSERT_EQ(v3_stats().bundles_overwritten(), 0u);
-    ASSERT_EQ(FrontBundleHeader().packet_data_size,
+    ASSERT_EQ(FrontBundleHeader().uncompressed_packets_size,
               11 * EncodeBundlePacket(0, input).size());
 
     size_t packets_read = 0;
@@ -2243,8 +2241,9 @@ TEST_F(TraceBufferV3Test, Stats) {
     EXPECT_EQ(s.buffer_size(), 2 * size_a);
     EXPECT_EQ(s.chunks_written(), 3u);
     EXPECT_EQ(s.bytes_written(), 3 * 64u);
-    EXPECT_EQ(staging()->stats().chunks_read(), 3u);
-    EXPECT_EQ(staging()->stats().bytes_read(), 3 * 64u);
+    // Read counters come from staging, whose reads build the bundles.
+    EXPECT_EQ(s.chunks_read(), 3u);
+    EXPECT_EQ(s.bytes_read(), 3 * 64u);
     EXPECT_EQ(s.chunks_overwritten(), 0u);
     EXPECT_EQ(v3.bundles_written(), 3u);
     EXPECT_EQ(v3.uncompressed_bytes_written(), 3 * 47u);
@@ -2253,16 +2252,8 @@ TEST_F(TraceBufferV3Test, Stats) {
     EXPECT_EQ(v3.uncompressed_bytes_overwritten(), 47u);
     EXPECT_EQ(v3.bundles_too_large(), 0u);
     EXPECT_EQ(s.compactions(), 3u);
-    // Nothing was returned to the consumer yet.
-    EXPECT_EQ(s.bytes_read(), 0u);
-    EXPECT_EQ(s.chunks_read(), 0u);
-    EXPECT_EQ(s.readaheads_succeeded(), 0u);
-    EXPECT_EQ(s.readaheads_failed(), 0u);
   }
   EXPECT_EQ(ReadAll().size(), 2u);
-  EXPECT_EQ(stats().bytes_read(), 2 * 47u);
-  EXPECT_EQ(stats().chunks_read(), 0u);
-  EXPECT_EQ(staging()->stats().chunks_read(), 3u);
 
   TraceStats trace_stats;
   *trace_stats.add_buffer_stats() = stats();

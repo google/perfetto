@@ -67,7 +67,8 @@ void SequenceState::ReleaseLease() {
   PERFETTO_CHECK(lease_count_ > 0);
   --lease_count_;
   if (lease_count_ == 0) {
-    // No bundle is left, so this writer's next packet comes from its chunks.
+    // No bundle holds packets from this sequence anymore. Its next packet comes
+    // from its chunks in staging, so move the loss there.
     data_loss_reasons_ |= std::exchange(bundle_loss_reasons_, 0u);
   }
 }

@@ -164,7 +164,7 @@ bool BundleBuffer::CloneFrom(const BundleBuffer& src) {
 }
 
 void BundleBuffer::PushBack(uint32_t num_sequences,
-                            uint32_t packet_data_size,
+                            uint32_t uncompressed_packets_size,
                             protozero::ConstBytes compressed_packet_data) {
   const size_t bundle_size = sizeof(BundleHeader) + compressed_packet_data.size;
   PERFETTO_CHECK(bundle_size <= free_size());
@@ -172,12 +172,13 @@ void BundleBuffer::PushBack(uint32_t num_sequences,
   header.bundle_size = static_cast<uint32_t>(bundle_size);
   header.bundle_id = next_bundle_id_++;
   header.num_sequences = num_sequences;
-  header.packet_data_size = packet_data_size;
+  header.uncompressed_packets_size = uncompressed_packets_size;
   AppendBytes(&header, sizeof(header));
   AppendBytes(compressed_packet_data.data, compressed_packet_data.size);
 }
 
 BundleHeader BundleBuffer::PeekFrontHeader() const {
+  PERFETTO_CHECK(!empty());
   BundleHeader header{};
   CopyBytes(/*offset_from_front=*/0, sizeof(header), &header);
 
@@ -507,6 +508,9 @@ bool TraceBufferV3::FillNextBundle() {
         auto [_, is_new] = bundle_sequences_.Insert(
             BundleSequenceKey{bundle_id, sequence_index},
             BundleSequence{sequence.AcquireLease()});
+        // A duplicate means the 32-bit |bundle_id| wrapped around and reused
+        // the id of a bundle that is still stored. That needs the buffer to
+        // hold 4B bundles.
         PERFETTO_CHECK(is_new);
       }
       last_sequence_key = sequence_key;
@@ -527,11 +531,11 @@ bool TraceBufferV3::FillNextBundle() {
   // |codec_| has copied or compressed the slices, so release |staged_packet_|
   // before compaction can move |staging_buf_|'s memory.
   staged_packet_.Clear();
-  CloseOpenBundle();
+  FinalizeNextBundle();
   return filled;
 }
 
-void TraceBufferV3::CloseOpenBundle() {
+void TraceBufferV3::FinalizeNextBundle() {
   auto reset_open_bundle = base::OnScopeExit([this] {
     open_bundle_.sequence_indexes.Clear();
     open_bundle_.packet_data_size = 0;
@@ -578,7 +582,7 @@ void TraceBufferV3::CloseOpenBundle() {
     }
 
     while (bundle_size > bundle_buf_.free_size())
-      OverwriteFrontBundle();
+      PopFrontBundle();
   }
 
   const uint32_t packet_data_size =
@@ -599,14 +603,15 @@ void TraceBufferV3::CloseOpenBundle() {
   bundle_buf_.PushBack(num_sequences, packet_data_size, compressed_packet_data);
 }
 
-void TraceBufferV3::OverwriteFrontBundle() {
+void TraceBufferV3::PopFrontBundle() {
   PERFETTO_DCHECK(overwrite_policy() == kOverwrite);
   const internal::BundleHeader header = bundle_buf_.PeekFrontHeader();
   const uint32_t bundle_id = header.bundle_id;
 
   v3_stats_.set_bundles_overwritten(v3_stats_.bundles_overwritten() + 1);
   v3_stats_.set_uncompressed_bytes_overwritten(
-      v3_stats_.uncompressed_bytes_overwritten() + header.packet_data_size);
+      v3_stats_.uncompressed_bytes_overwritten() +
+      header.uncompressed_packets_size);
 
   // Each sequence's producer, indexed by |sequence_index|.
   std::vector<ProducerID> producer_ids;
@@ -623,8 +628,8 @@ void TraceBufferV3::OverwriteFrontBundle() {
   }
 
   if (any_producer_has_protovm) {
-    const internal::BlockAllocator::Allocation packet_data =
-        packet_data_allocator_.Allocate(header.packet_data_size);
+    const auto packet_data =
+        packet_data_allocator_.Allocate(header.uncompressed_packets_size);
     DecompressFrontBundle(packet_data.data(), packet_data.size());
 
     TracePacket packet;
@@ -702,7 +707,6 @@ bool TraceBufferV3::ReadNextTracePacket(
   *sequence_properties = sequence.properties;
   *previous_packet_on_sequence_dropped = sequence.unreported_loss_reasons;
   sequence.unreported_loss_reasons = 0;
-  bytes_read_ += bundle_packet.encoded_size;
 
   // Returned slices still point into this packet data, so it has to stay.
   if (decoded_bundle_.read_offset == decoded_bundle_.packet_data.size()) {
@@ -713,6 +717,7 @@ bool TraceBufferV3::ReadNextTracePacket(
 }
 
 bool TraceBufferV3::DecodeNextBundle() {
+  PERFETTO_DCHECK(!decoded_bundle_.packet_data);
   // Drain |bundle_buf_| before reading |staging_buf_|, so bundling can't
   // overwrite older packets still waiting to be read.
   if (bundle_buf_.empty() && !BundleStagingForRead())
@@ -721,7 +726,7 @@ bool TraceBufferV3::DecodeNextBundle() {
   const internal::BundleHeader header = bundle_buf_.PeekFrontHeader();
 
   decoded_bundle_.packet_data =
-      packet_data_allocator_.Allocate(header.packet_data_size);
+      packet_data_allocator_.Allocate(header.uncompressed_packets_size);
   DecompressFrontBundle(decoded_bundle_.packet_data.data(),
                         decoded_bundle_.packet_data.size());
 
@@ -740,7 +745,7 @@ bool TraceBufferV3::DecodeNextBundle() {
     bundle_sequences_.Erase(BundleSequenceKey{bundle_id, i});
   }
 
-  // Reads now use |packet_data_allocator_|, so reclaim the compressed bundle's
+  // Reads now use |decoded_bundle_|, so reclaim the compressed bundle's
   // space in |bundle_buf_| even while its packets remain unread.
   bundle_buf_.PopFront();
   return true;
@@ -755,7 +760,7 @@ void TraceBufferV3::MaybeCompact() {
 
   // The maps keep their capacity after a burst of writers or bundles, so free
   // them once they are empty.
-  // |open_bundle_| is always empty here, because no bundle is being built.
+  PERFETTO_DCHECK(open_bundle_.sequence_indexes.size() == 0);
   open_bundle_.sequence_indexes = decltype(open_bundle_.sequence_indexes)();
   if (bundle_sequences_.size() == 0)
     bundle_sequences_ = decltype(bundle_sequences_)();
@@ -810,18 +815,13 @@ const TraceStats::BufferStats& TraceBufferV3::stats() const {
   stats_ = staging_buf_->stats();
   stats_.set_buffer_size(bundle_buf_.capacity());
 
-  // Exclude |staging_buf_|'s read counts because its reads only build bundles.
-  stats_.set_bytes_read(bytes_read_);
-  stats_.set_chunks_read(0);
-  stats_.set_readaheads_succeeded(0);
-  stats_.set_readaheads_failed(0);
-
   auto* v3_stats = stats_.mutable_experimental_v3_stats();
   *v3_stats = v3_stats_;
   const auto& hist = bundling_time_us_histogram_;
   for (size_t i = 0; i < hist.num_buckets(); ++i) {
-    if (i + 1 < hist.num_buckets())
+    if (i + 1 < hist.num_buckets()) {
       v3_stats->add_bundling_time_us_histogram_def(hist.GetBucketThres(i));
+    }
     v3_stats->add_bundling_time_us_histogram_counts(hist.GetBucketCount(i));
     v3_stats->add_bundling_time_us_histogram_sum(hist.GetBucketSum(i));
   }

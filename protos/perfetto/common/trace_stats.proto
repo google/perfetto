@@ -181,11 +181,6 @@ message TraceStats {
 
     // Experimental statistics for TraceBufferV3, subject to change.
     //
-    // Some BufferStats fields differ from TraceBufferV2:
-    // - Write and overwrite counters describe chunks in its staging buffer.
-    // - |bytes_read| counts packet bytes and their headers, not whole chunks.
-    // - |chunks_read| and |readaheads_*| stay 0.
-    //
     // Introduced in: perfetto v60.
     // Supported on: Android 27Q1+.
     //
