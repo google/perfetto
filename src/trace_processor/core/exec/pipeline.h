@@ -52,6 +52,7 @@ class Pipeline final : public Source {
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   RowBatch* Next(RowBatch& scratch, OperatorState& state) const override;
+  RowBatch* Start(RowBatch& scratch, OperatorState& state) const override;
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
   base::Status status(const OperatorState& state) const override;

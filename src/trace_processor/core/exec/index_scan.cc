@@ -123,6 +123,14 @@ base::Span<const uint32_t> IndexScan::Find(const State& s) const {
   return base::Span<const uint32_t>(entries.b, entries.e);
 }
 
+RowBatch* IndexScan::Start(RowBatch& scratch, OperatorState& state) const {
+  state.EndRun();
+  State& s = state.Cast<State>();
+  s.reader.Start(Find(s));
+  s.searched = true;
+  return s.reader.Read(scratch) ? &scratch : nullptr;
+}
+
 bool IndexScan::GetData(RowBatch& out, OperatorState& state) const {
   State& s = state.Cast<State>();
   if (PERFETTO_UNLIKELY(!s.searched)) {

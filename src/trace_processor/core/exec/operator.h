@@ -208,6 +208,10 @@ class Source {
     return GetData(scratch, state) ? &scratch : nullptr;
   }
 
+  // Restarts the run and returns its first batch, as Restart() then Next()
+  // would, in one call.
+  virtual RowBatch* Start(RowBatch& scratch, OperatorState& state) const;
+
   // Restarts from the first batch.
   virtual void Rewind(OperatorState& state) const = 0;
 
@@ -236,6 +240,11 @@ class Source {
 inline void Restart(const Source& source, OperatorState& state) {
   state.EndRun();
   source.Rewind(state);
+}
+
+inline RowBatch* Source::Start(RowBatch& scratch, OperatorState& state) const {
+  Restart(*this, state);
+  return Next(scratch, state);
 }
 
 // A step changing the batch it is given in place. Unlike an Operator it never

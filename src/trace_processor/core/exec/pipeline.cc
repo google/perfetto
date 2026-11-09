@@ -131,6 +131,32 @@ void Pipeline::Rewind(OperatorState& state) const {
   source_.Rewind(*s.source_state);
 }
 
+// Holding nothing and with only transforms after the source, a run starts
+// with its source's: there is nothing else to restart.
+RowBatch* Pipeline::Start(RowBatch& scratch, OperatorState& state) const {
+  auto& s = state.Cast<State>();
+  if (PERFETTO_UNLIKELY((plan_flags_ & State::kSegmented) || s.holds_any ||
+                        state.holds() || (s.flags & State::kFailed))) {
+    Restart(*this, state);
+    return Next(scratch, state);
+  }
+  ++s.run;
+  s.flags = plan_flags_;
+  s.ended_segments = 0;
+  RowBatch* batch = s.source->Start(s.output, *s.source_state);
+  if (PERFETTO_UNLIKELY(!batch)) {
+    SourceDone(s);
+    return nullptr;
+  }
+  for (const State::Link& link : *s.output_links) {
+    if (PERFETTO_UNLIKELY(!link.op->Process(*batch, *link.state))) {
+      TransformFailed(link, s);
+      return nullptr;
+    }
+  }
+  return PERFETTO_LIKELY(batch->size()) ? batch : NextSlow(s);
+}
+
 // A batch is one pull, from the source or the operator starting the last
 // segment, and that segment's transforms. Limits, combining, cancellation and
 // failure are NextSlow()'s.

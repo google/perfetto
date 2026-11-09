@@ -150,6 +150,14 @@ Range SortedScan::FindIdEq(const Context& context) const {
   return range;
 }
 
+RowBatch* SortedScan::Start(RowBatch& scratch, OperatorState& state) const {
+  state.EndRun();
+  State& s = state.Cast<State>();
+  s.reader.Start(only_id_eq_ ? FindIdEq(*s.context) : Find(*s.context));
+  s.searched = true;
+  return s.reader.Read(scratch) ? &scratch : nullptr;
+}
+
 bool SortedScan::GetData(RowBatch& out, OperatorState& state) const {
   State& s = state.Cast<State>();
   if (PERFETTO_UNLIKELY(!s.searched)) {

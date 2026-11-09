@@ -70,6 +70,7 @@ class SortedScan final : public Source {
 
   std::unique_ptr<OperatorState> MakeState(Context& context) const override;
   bool GetData(RowBatch& out, OperatorState& state) const override;
+  RowBatch* Start(RowBatch& scratch, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
 
  private:

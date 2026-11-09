@@ -47,11 +47,14 @@ class RowCursor {
   // `params` (see Context::SetParams).
   bool Open(base::Span<const ParamValue> params = {}) {
     context_.SetParams(params);
-    Restart(source_, *state_);
-    batch_ = nullptr;
+    batch_ = source_.Start(scratch_, *state_);
     index_ = 0;
-    size_ = 0;
-    return Pull();
+    if (PERFETTO_UNLIKELY(!batch_)) {
+      size_ = 0;
+      return false;
+    }
+    size_ = batch_->size();
+    return PERFETTO_LIKELY(size_) || Pull();
   }
 
   // Moves to the next row, pulling a new batch if this one is exhausted. At
