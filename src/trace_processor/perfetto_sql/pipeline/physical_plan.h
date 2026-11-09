@@ -208,6 +208,9 @@ class Lowering {
 
   // Sets the pipeline's input. It must not already be set.
   void SetSource(std::unique_ptr<core::exec::Source> source);
+  // The columns the source lends sparse (see ColumnView::Kind::kSparse),
+  // which Build() expands where they are first needed laid out.
+  void SetSparseColumns(std::vector<uint32_t> columns);
 
   // Adds an operator.
   void AddOperator(core::exec::Pipeline::Step);
@@ -293,6 +296,7 @@ class Lowering {
 
   // The pipeline's operators, in the order they run.
   std::vector<core::exec::Pipeline::Step> operators_;
+  std::vector<uint32_t> sparse_columns_;
 };
 
 // State shared by all pipelines while lowering a plan.

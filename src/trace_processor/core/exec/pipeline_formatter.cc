@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/distinct.h"
 #include "src/trace_processor/core/exec/empty_source.h"
+#include "src/trace_processor/core/exec/expand.h"
 #include "src/trace_processor/core/exec/expression.h"
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/graph_tree.h"
@@ -290,6 +291,10 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
       }
     }
     return "Filter(" + out + ")";
+  }
+  if (transform.Is<Expand>()) {
+    return "Expand(" + Columns(static_cast<const Expand&>(transform).columns_) +
+           ")";
   }
   if (transform.Is<NullColumn>()) {
     const auto& null = static_cast<const NullColumn&>(transform);

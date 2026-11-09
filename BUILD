@@ -2671,6 +2671,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/distinct.h",
         "src/trace_processor/core/exec/empty_source.cc",
         "src/trace_processor/core/exec/empty_source.h",
+        "src/trace_processor/core/exec/expand.cc",
+        "src/trace_processor/core/exec/expand.h",
         "src/trace_processor/core/exec/expression.cc",
         "src/trace_processor/core/exec/expression.h",
         "src/trace_processor/core/exec/filter.cc",

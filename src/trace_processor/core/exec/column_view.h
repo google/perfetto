@@ -39,6 +39,10 @@ class ColumnView {
     kSequence,
     // `data()` is a Variant array and `type()` is meaningless.
     kVariant,
+    // Values only for the rows `validity()` has set, stored in row order: a
+    // row's value is at the count of set bits before it (see popcount()). Only
+    // Expand reads one.
+    kSparse,
   };
 
   ColumnView() = default;
@@ -69,6 +73,22 @@ class ColumnView {
     return view;
   }
 
+  // A sparse column, as a dataframe stores it. `data` is null for an Id
+  // column, whose values are their positions in storage. `popcount[w]` is how
+  // many bits of `validity` are set before word `w`.
+  static ColumnView Sparse(StorageType type,
+                           const void* data,
+                           const BitVector* validity,
+                           const uint32_t* popcount) {
+    ColumnView view;
+    view.type_ = type;
+    view.kind_ = Kind::kSparse;
+    view.data_ = data;
+    view.validity_ = validity;
+    view.popcount_ = popcount;
+    return view;
+  }
+
   Kind kind() const { return kind_; }
   StorageType type() const { return type_; }
 
@@ -93,6 +113,7 @@ class ColumnView {
     } else {
       PERFETTO_DCHECK(kind_ != Kind::kSequence);
     }
+    PERFETTO_DCHECK(kind_ != Kind::kSparse);
     return static_cast<const T*>(data_)[index];
   }
 
@@ -101,8 +122,18 @@ class ColumnView {
     return !validity_ || validity_->is_set(start_ + row);
   }
 
-  // The values the window is onto.
-  const void* data() const { return data_; }
+  // The values the window is onto, one per row. Not for a kSparse column.
+  const void* data() const {
+    PERFETTO_DCHECK(kind_ != Kind::kSparse);
+    return data_;
+  }
+
+  // The values of a kSparse column, and its popcount.
+  const void* sparse_data() const {
+    PERFETTO_DCHECK(kind_ == Kind::kSparse);
+    return data_;
+  }
+  const uint32_t* popcount() const { return popcount_; }
 
   // Which stored values are there, or null when they all are.
   const BitVector* validity() const { return validity_; }
@@ -113,6 +144,7 @@ class ColumnView {
   uint32_t start_ = 0;
   const void* data_ = nullptr;
   const BitVector* validity_ = nullptr;
+  const uint32_t* popcount_ = nullptr;
 };
 
 // Whether `column` is a flat column of type `Tag`, which is what
