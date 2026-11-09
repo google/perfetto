@@ -127,6 +127,13 @@ class ColumnView {
     return static_cast<const T*>(data_)[index];
   }
 
+  // Starts loading the cell of batch row `row`, whose values are `1 << shift`
+  // bytes.
+  PERFETTO_ALWAYS_INLINE void Prefetch(uint32_t row, uint32_t shift) const {
+    __builtin_prefetch(static_cast<const char*>(data_) +
+                       (static_cast<size_t>(start_ + row) << shift));
+  }
+
   // Whether batch row `row` holds a value.
   PERFETTO_ALWAYS_INLINE bool IsValid(uint32_t row) const {
     return !validity_ || validity_->is_set(start_ + row);
