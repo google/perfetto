@@ -16467,6 +16467,7 @@ filegroup {
     srcs: [
         "src/base/atomic_file_unittest.cc",
         "src/base/base64_unittest.cc",
+        "src/base/bit_vector_unittest.cc",
         "src/base/bits_unittest.cc",
         "src/base/circular_queue_unittest.cc",
         "src/base/ctrl_c_handler_unittest.cc",

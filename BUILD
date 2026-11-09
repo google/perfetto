@@ -1462,6 +1462,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/android_utils.h",
         "include/perfetto/ext/base/atomic_file.h",
         "include/perfetto/ext/base/base64.h",
+        "include/perfetto/ext/base/bit_vector.h",
         "include/perfetto/ext/base/circular_queue.h",
         "include/perfetto/ext/base/clock_snapshots.h",
         "include/perfetto/ext/base/container_annotations.h",
