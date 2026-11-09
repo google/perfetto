@@ -83,6 +83,13 @@
 #define PERFETTO_I_TE_HL_MACRO_NAME_AND_TYPE(NAME, TYPE) \
   (PERFETTO_I_TE_COMPOUND_LITERAL(PerfettoTeHlMacroNameAndType, {NAME, TYPE}))
 
+// Expands to the `value` and `extra_data` params of
+// PerfettoTePersistentStateTrackImplSet(). The last param must be
+// PERFETTO_NULL.
+#define PERFETTO_I_TE_PERSISTENT_STATE_PARAMS(VALUE, ...)                \
+  VALUE, PERFETTO_I_TE_COMPOUND_LITERAL_ARRAY(struct PerfettoTeHlExtra*, \
+                                              {__VA_ARGS__})
+
 #define PERFETTO_I_TE_CONCAT2(a, b) a##b
 #define PERFETTO_I_TE_CONCAT(a, b) PERFETTO_I_TE_CONCAT2(a, b)
 // Generate a unique name with a given prefix.
@@ -566,6 +573,32 @@ struct PerfettoTeHlMacroNameAndType {
 //             PERFETTO_TE_DYNAMIC_CATEGORY_STRING("category"));
 //
 #define PERFETTO_TE(CAT, ...) PERFETTO_I_TE_IMPL(CAT, __VA_ARGS__)
+
+// --------------------------------------
+// The PERFETTO_TE_PERSISTENT_STATE macro
+// --------------------------------------
+//
+// Sets the state of the persistent state track
+// `struct PerfettoTePersistentStateTrack* T` (see track_event.h) to the
+// `const char*` value passed as the first parameter after `T`. Unlike
+// PERFETTO_TE(), this does something even if the category of `T` is disabled:
+// it records the new state.
+//
+// The other parameters can be PERFETTO_TE_TIMESTAMP() (the start of the state),
+// debug args (PERFETTO_TE_ARG_*) and PERFETTO_TE_PROTO_FIELDS() (not interned),
+// which are persisted with the state.
+//
+// Examples:
+//
+// PERFETTO_TE_PERSISTENT_STATE(&mytrack, "idle");
+// PERFETTO_TE_PERSISTENT_STATE(&mytrack, "busy",
+//                              PERFETTO_TE_ARG_UINT64("load", 42));
+//
+#define PERFETTO_TE_PERSISTENT_STATE(T, ...)                                \
+  PerfettoTePersistentStateTrackImplSet(                                    \
+      (T)->impl,                                                            \
+      PERFETTO_I_TE_HL_MACRO_PARAMS_(PERFETTO_I_TE_PERSISTENT_STATE_PARAMS, \
+                                     (__VA_ARGS__, PERFETTO_NULL)))
 
 #ifdef __cplusplus
 
