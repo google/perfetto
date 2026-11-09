@@ -19,6 +19,9 @@ import {forwardAbort} from './abort_utils';
 // send one request for where the user actually stopped.
 export const FETCH_DEBOUNCE_MS = 150;
 
+// Typing pauses this long before a value picker sends its search.
+export const SEARCH_DEBOUNCE_MS = 250;
+
 // Decides when a grid data source actually talks to the backend: it coalesces
 // a burst of window requests into one, and cancels the request a newer one
 // replaces. Both data sources drive their fetches through it, so the two grids
