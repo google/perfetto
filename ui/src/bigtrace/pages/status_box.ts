@@ -31,6 +31,23 @@ export function formatDurationS(ms: number): string {
   return Duration.format(Duration.fromMillis(Math.round(ms / 1000) * 1000));
 }
 
+interface RunningDurationAttrs {
+  readonly duration: string;
+}
+
+// Redraws every second so the running time ticks.
+class RunningDuration implements m.ClassComponent<RunningDurationAttrs> {
+  private readonly timer = window.setInterval(() => m.redraw(), 1000);
+
+  onremove(): void {
+    window.clearInterval(this.timer);
+  }
+
+  view({attrs}: m.CVnode<RunningDurationAttrs>): m.Children {
+    return m('span.pf-bt-status-bar-duration-value', attrs.duration);
+  }
+}
+
 export function renderStatusBox(
   tab: BigTraceEditorTab,
   onRefresh?: () => void,
@@ -88,7 +105,9 @@ export function renderStatusBox(
     ),
     m(
       'span.pf-bt-status-bar-duration',
-      m('span.pf-bt-status-bar-duration-value', durationStr),
+      isTerminal
+        ? m('span.pf-bt-status-bar-duration-value', durationStr)
+        : m(RunningDuration, {duration: durationStr}),
     ),
   );
 
