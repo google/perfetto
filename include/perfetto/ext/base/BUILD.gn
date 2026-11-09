@@ -19,7 +19,6 @@ source_set("base") {
     "android_utils.h",
     "atomic_file.h",
     "base64.h",
-    "bits.h",
     "circular_queue.h",
     "clock_snapshots.h",
     "container_annotations.h",

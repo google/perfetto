@@ -26,8 +26,8 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/bits.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/bits.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/util/heap.h"
 #include "src/trace_processor/core/util/sort.h"

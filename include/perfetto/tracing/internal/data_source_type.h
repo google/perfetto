@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstdint>
 
+#include "perfetto/base/bits.h"
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
@@ -251,11 +252,12 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
       DataSourceThreadLocalState* tls_state,
       typename TracePointTraits::TracePointData trace_point_data) {
     iterator->instance = nullptr;
-    for (; iterator->i < kMaxDataSourceInstances; iterator->i++) {
-      DataSourceState* instance_state =
-          state_.TryGetCached(iterator->cached_instances, iterator->i);
-      if (!instance_state)
-        continue;
+    while (iterator->i < kMaxDataSourceInstances) {
+      const uint32_t remaining = iterator->cached_instances >> iterator->i;
+      if (!remaining)
+        break;
+      iterator->i += base::CountTrailZeros32(remaining);
+      PERFETTO_DCHECK(iterator->i < kMaxDataSourceInstances);
       // Even if we passed the check above, the DataSourceInstance might be
       // still destroyed concurrently while this code runs. The code below is
       // designed to deal with such race, as follows:
@@ -288,11 +290,13 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
         iterator->cached_instances &=
             TracePointTraits::GetActiveInstances(trace_point_data)
                 ->load(std::memory_order_acquire);
-        instance_state =
+        DataSourceState* instance_state =
             state_.TryGetCached(iterator->cached_instances, iterator->i);
         if (!instance_state || !instance_state->trace_lambda_enabled.load(
-                                   std::memory_order_relaxed))
+                                   std::memory_order_relaxed)) {
+          iterator->i++;
           continue;
+        }
         PopulateTlsInst(&tls_inst, instance_state, iterator->i);
       }
       iterator->instance = &tls_inst;

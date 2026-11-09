@@ -23,9 +23,9 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/bits.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/bits.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
