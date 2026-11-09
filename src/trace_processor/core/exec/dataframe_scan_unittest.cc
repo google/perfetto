@@ -28,6 +28,7 @@
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/expand.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
@@ -62,11 +63,27 @@ class DataframeScanTest : public ::testing::Test {
     return std::move(*df);
   }
 
+  // Lays out every sparse column of `batch`, as the Expand lowering puts after
+  // a scan would.
+  void ExpandSparse(RowBatch& batch) {
+    std::vector<uint32_t> sparse;
+    for (uint32_t c = 0; c < batch.column_count(); ++c) {
+      if (batch.column(c).kind() == ColumnView::Kind::kSparse) {
+        sparse.push_back(c);
+      }
+    }
+    Expand expand(std::move(sparse));
+    std::unique_ptr<OperatorState> state =
+        expand.MakeState(test::TestContext());
+    ASSERT_TRUE(expand.Process(batch, *state));
+  }
+
   std::vector<int64_t> Drain(const DataframeScan& scan, uint32_t column) {
     std::unique_ptr<OperatorState> state = scan.MakeState(test::TestContext());
     RowBatch batch;
     std::vector<int64_t> out;
     while (scan.GetData(batch, *state)) {
+      ExpandSparse(batch);
       std::vector<int64_t> values = test::ReadColumn<int64_t>(batch, column);
       out.insert(out.end(), values.begin(), values.end());
     }
@@ -151,6 +168,8 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
       sparse_scan.MakeState(test::TestContext());
   RowBatch batch;
   ASSERT_TRUE(sparse_scan.GetData(batch, *sparse_state));
+  EXPECT_EQ(batch.column(0).kind(), ColumnView::Kind::kSparse);
+  ExpandSparse(batch);
   EXPECT_TRUE(batch.column(0).type().Is<Uint32>());
   EXPECT_THAT(test::ReadNullableColumn<uint32_t>(batch, 0),
               ElementsAre(Optional(0u), Eq(std::nullopt), Optional(1u)));
@@ -174,8 +193,8 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
               ElementsAre(Optional(0u), Eq(std::nullopt), Optional(2u)));
 }
 
-// Expanding a batch at a time means picking up in the packed values where the
-// previous batch left off, which every batch after the first depends on.
+// Expanding a batch at a time means finding where in the packed values the
+// batch starts, which every batch after the first depends on.
 TEST_F(DataframeScanTest, AColumnWithoutASlotPerRowSpansBatches) {
   std::vector<int64_t> values(kMaxBatchRows * 2 + 5);
   std::vector<bool> present(values.size());
@@ -206,9 +225,11 @@ TEST_F(DataframeScanTest, ContractRetainedSparseExpansionSurvivesAdvance) {
   auto state = scan.MakeState(test::TestContext());
   RowBatch output, retained;
   ASSERT_TRUE(scan.GetData(output, *state));
+  ExpandSparse(output);
   auto expected = test::ReadNullableColumn<int64_t>(output, 0);
   retained.CopyFrom(output);
   ASSERT_TRUE(scan.GetData(output, *state));
+  ExpandSparse(output);
   EXPECT_EQ(test::ReadNullableColumn<int64_t>(retained, 0), expected);
   output.Reset();
   state.reset();

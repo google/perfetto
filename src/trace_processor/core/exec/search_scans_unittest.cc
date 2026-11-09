@@ -39,6 +39,7 @@
 #include "src/trace_processor/core/dataframe/logical_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
+#include "src/trace_processor/core/exec/expand.h"
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/index_scan.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -313,6 +314,17 @@ class SearchScansDiffTest : public ::testing::Test {
       ++sorted_scans_;
     }
     std::vector<Pipeline::Step> steps;
+    // The scan lends nullable columns sparse; lay them out before anything
+    // reads them, as lowering would.
+    std::vector<uint32_t> sparse;
+    for (uint32_t i = 0; i < df_->column_names().size(); ++i) {
+      if (!df_->column(i).null_storage.nullability().Is<NonNull>()) {
+        sparse.push_back(i);
+      }
+    }
+    if (!sparse.empty()) {
+      steps.emplace_back(std::make_unique<Expand>(std::move(sparse)));
+    }
     if (!conditions.empty()) {
       steps.emplace_back(
           std::make_unique<Filter>(std::move(conditions), &pool_));
