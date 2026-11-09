@@ -40,10 +40,11 @@ PERFETTO_ALWAYS_INLINE void WriteLayoutColumn(const ColumnView& column,
                                               Value value) {
   uint32_t start = column.start();
   const BitVector* validity = column.validity();
+  const uint16_t* indices = selection.prefix() ? nullptr : selection.indices();
   RowLayout::Write<T>(
       slot, selection.size(),
-      [&](uint32_t row, T* out) {
-        uint32_t index = start + selection[row];
+      [start, validity, indices, &value](uint32_t row, T* out) {
+        uint32_t index = start + (indices ? indices[row] : row);
         if (validity && !validity->is_set(index)) {
           return false;
         }

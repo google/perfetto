@@ -80,22 +80,26 @@ void KeepNulls(const ColumnView& column, bool nulls, Rows& r) {
   if (column.kind() == ColumnView::Kind::kVariant) {
     const auto* data = static_cast<const Variant*>(column.data());
     uint32_t start = column.start();
+    uint32_t* rows = r.rows;
+    uint32_t count = r.count;
     uint32_t kept = 0;
-    for (uint32_t i = 0; i < r.count; ++i) {
-      uint32_t row = r.rows[i];
+    for (uint32_t i = 0; i < count; ++i) {
+      uint32_t row = rows[i];
       if ((data[start + row].type == Variant::Type::kNull) == nulls) {
-        r.rows[kept++] = row;
+        rows[kept++] = row;
       }
     }
     r.count = kept;
     return;
   }
   uint32_t start = column.start();
+  uint32_t* rows = r.rows;
+  uint32_t count = r.count;
   uint32_t kept = 0;
-  for (uint32_t i = 0; i < r.count; ++i) {
-    uint32_t row = r.rows[i];
+  for (uint32_t i = 0; i < count; ++i) {
+    uint32_t row = rows[i];
     if (validity->is_set(start + row) != nulls) {
-      r.rows[kept++] = row;
+      rows[kept++] = row;
     }
   }
   r.count = kept;
@@ -131,10 +135,11 @@ void Compare(const ColumnView& column,
       using M =
           StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
       const auto* data = static_cast<const M*>(column.data()) + column.start();
+      // A local, not to be reloaded after every row written.
+      M value = base::unchecked_get<M>(cast.value.value);
       r.count = static_cast<uint32_t>(
           filter::FilterRange(
-              data, 0, r.count, r.rows,
-              base::unchecked_get<M>(cast.value.value),
+              data, 0, r.count, r.rows, value,
               filter::comparators::IntegerOrDoubleComparator<M, O>()) -
           r.rows);
       r.contiguous = false;
@@ -162,9 +167,10 @@ void Compare(const ColumnView& column,
   } else {
     using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
     const auto* data = static_cast<const M*>(column.data()) + column.start();
-    kept = filter::Filter(
-        data, begin, end, begin, base::unchecked_get<M>(cast.value.value),
-        filter::comparators::IntegerOrDoubleComparator<M, O>());
+    M value = base::unchecked_get<M>(cast.value.value);
+    kept =
+        filter::Filter(data, begin, end, begin, value,
+                       filter::comparators::IntegerOrDoubleComparator<M, O>());
   }
   r.count = static_cast<uint32_t>(kept - begin);
 }
@@ -257,24 +263,28 @@ void KeepGlobMatches(const ColumnView& column,
       glob.matched_below = raw + 1;
     }
   }
-  if (!glob.matched_below) {
-    glob.rows += r.count;
-    for (uint32_t i = 0; i < r.count; ++i) {
-      uint32_t row = r.rows[i];
-      r.rows[kept] = row;
+  uint32_t* rows = r.rows;
+  uint32_t count = r.count;
+  uint32_t matched_below = glob.matched_below;
+  if (!matched_below) {
+    glob.rows += count;
+    for (uint32_t i = 0; i < count; ++i) {
+      uint32_t row = rows[i];
+      rows[kept] = row;
       kept += matcher.Matches(pool.Get(data[row]));
     }
     r.count = kept;
     return;
   }
-  for (uint32_t i = 0; i < r.count; ++i) {
-    uint32_t row = r.rows[i];
+  const BitVector& matches = glob.matches;
+  for (uint32_t i = 0; i < count; ++i) {
+    uint32_t row = rows[i];
     StringPool::Id id = data[row];
     uint32_t raw = id.raw_id();
-    bool match = id.is_large_string() || raw >= glob.matched_below
+    bool match = id.is_large_string() || raw >= matched_below
                      ? matcher.Matches(pool.Get(id))
-                     : glob.matches.is_set(raw);
-    r.rows[kept] = row;
+                     : matches.is_set(raw);
+    rows[kept] = row;
     kept += match;
   }
   r.count = kept;
@@ -286,10 +296,16 @@ template <uint32_t kWidth>
 ColumnView GatherSparse(const ColumnView& column, Rows& r, uint8_t* values) {
   Materialize(r);
   const auto* packed = static_cast<const uint8_t*>(column.sparse_data());
-  for (uint32_t i = 0; i < r.count; ++i) {
-    uint32_t row = r.rows[i];
-    uint32_t slot = filter::IndexToStorageIndex<SparseNull>(
-        column.Index(row), column.validity(), column.popcount());
+  // Locals: the bytes written could otherwise alias any of them.
+  const uint32_t* rows = r.rows;
+  uint32_t count = r.count;
+  uint32_t start = column.start();
+  const BitVector* validity = column.validity();
+  const uint32_t* popcount = column.popcount();
+  for (uint32_t i = 0; i < count; ++i) {
+    uint32_t row = rows[i];
+    uint32_t slot = filter::IndexToStorageIndex<SparseNull>(start + row,
+                                                            validity, popcount);
     uint8_t* value = values + uint64_t{row} * kWidth;
     if (packed) {
       memcpy(value, packed + uint64_t{slot} * kWidth, kWidth);
@@ -307,8 +323,11 @@ PERFETTO_NO_INLINE ColumnView GatherSequence(const ColumnView& column,
                                              Rows& r,
                                              uint32_t* values) {
   Materialize(r);
-  for (uint32_t i = 0; i < r.count; ++i) {
-    values[r.rows[i]] = column.Index(r.rows[i]);
+  const uint32_t* rows = r.rows;
+  uint32_t count = r.count;
+  uint32_t start = column.start();
+  for (uint32_t i = 0; i < count; ++i) {
+    values[rows[i]] = start + rows[i];
   }
   return ColumnView::Reference(StorageType{Uint32{}}, values);
 }
@@ -376,7 +395,7 @@ bool Filter::Process(RowBatch& batch, OperatorState& state) const {
   const Selection& selection = batch.selection();
   Rows r{s.rows.data(), selection.size(), selection.prefix()};
   if (!r.contiguous) {
-    for (uint32_t i = 0; i < r.count; ++i) {
+    for (uint32_t i = 0, n = r.count; i < n; ++i) {
       r.rows[i] = selection[i];
     }
   }

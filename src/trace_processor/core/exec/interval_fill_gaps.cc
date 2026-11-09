@@ -208,7 +208,8 @@ base::Status IntervalFillGaps::Cover(const RowBatch& in, State& s) const {
     s.lane_key = LaneKeys::kCarried;
     s.gaps.set_lane(s.lane_key);
   }
-  for (uint32_t row = 0; row < in.size(); ++row) {
+  uint32_t n = in.size();
+  for (uint32_t row = 0; row < n; ++row) {
     uint32_t lane = lanes.lane(row);
     if (!s.gaps.in_lane() || lane != s.lane) {
       StartLane(lane, row, s);

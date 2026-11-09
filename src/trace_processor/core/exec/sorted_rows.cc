@@ -50,12 +50,18 @@ void AppendStrings(const ColumnView& column,
                    FlexVector<StringPool::Id>* ids,
                    BitVector* present,
                    StringRanks* ranks) {
-  for (uint32_t row = 0; row < selection.size(); ++row) {
-    std::optional<StringPool::Id> id = ReadString(column, selection, row);
-    ids->push_back(id ? *id : StringPool::Id::Null());
-    present->push_back(id.has_value());
-    if (id) {
-      ranks->Add(*id);
+  const auto* data = static_cast<const StringPool::Id*>(column.data());
+  const BitVector* validity = column.validity();
+  uint32_t start = column.start();
+  uint32_t count = selection.size();
+  const uint16_t* indices = selection.prefix() ? nullptr : selection.indices();
+  for (uint32_t row = 0; row < count; ++row) {
+    uint32_t index = start + (indices ? indices[row] : row);
+    bool valid = !validity || validity->is_set(index);
+    ids->push_back(valid ? data[index] : StringPool::Id::Null());
+    present->push_back(valid);
+    if (valid) {
+      ranks->Add(data[index]);
     }
   }
 }
