@@ -52,11 +52,15 @@ export interface RenderContext {
  */
 export interface SqlFragment {
   /**
-   * Custom source: a table name, a macro call, joins, or a `(subquery)`.
-   * Defaults to the primary input. Always starts a new block. A block holding
-   * only a bare-name `from` is rendered as a plain reference.
+   * Custom source: a macro call, joins, or a `(subquery)`. Defaults to the
+   * primary input. Always starts a new block.
    */
   readonly from?: string;
+  /**
+   * Reads a table directly (instead of `from`). A block that is only this
+   * table is referenced by name, with no wrapper.
+   */
+  readonly table?: string;
   readonly where?: string;
   readonly groupBy?: readonly string[];
   readonly select?: readonly string[];
@@ -75,6 +79,13 @@ export interface SqlFragment {
  */
 export interface PsnFragment {
   readonly source?: string;
+  /** Reads a table directly (instead of `source`): `FROM <table>`. */
+  readonly table?: string;
+  /**
+   * Reads a parenthesized plain SQL subquery (instead of `source`), e.g.
+   * `(SELECT 1 AS x)`. It can be used directly where a source is expected.
+   */
+  readonly subquery?: string;
   readonly stages?: readonly string[];
   readonly includes?: readonly string[];
 }
@@ -94,6 +105,8 @@ export interface SqlInput {
 export interface PsnInput {
   /** A table name or a parenthesized sub-pipeline, usable as a source. */
   readonly source: string;
+  /** Set when the input is a plain table, read by this name. */
+  readonly table?: string;
   /** The input with extra stages appended to the end of its own pipeline. */
   withStages(stages: readonly string[]): string;
 }

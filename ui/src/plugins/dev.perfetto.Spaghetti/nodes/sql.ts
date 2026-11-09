@@ -260,15 +260,15 @@ export const manifest: NodeManifest<SqlConfig> = {
     // inputs must already be tables (e.g. materialized expensive nodes).
     psn: (config, ctx) => {
       if (config.sql.trim() === '') return undefined;
-      const bindings = inputBindings(config, ctx, (i) => i.source);
-      if (bindings.some((b) => b.source.startsWith('('))) {
+      if (ctx.inputs().some(({input}) => input.table === undefined)) {
         return {
           error:
             'SQL node inputs must be tables in PerfettoSQL Next mode (a ' +
             'pipe query cannot be nested inside plain SQL).',
         };
       }
-      return {source: `FROM ${subquery(withBindings(config.sql, bindings))}`};
+      const bindings = inputBindings(config, ctx, (i) => i.source);
+      return {subquery: subquery(withBindings(config.sql, bindings))};
     },
   },
 };

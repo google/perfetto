@@ -83,7 +83,7 @@ export const manifest: NodeManifest<TimeRangeConfig> = {
       isUnset(config)
         ? undefined
         : {
-            source: `FROM (SELECT 0 AS id, ${config.ts} AS ts, ${config.dur} AS dur)`,
+            subquery: `(SELECT 0 AS id, ${config.ts} AS ts, ${config.dur} AS dur)`,
           },
   },
 };

@@ -90,9 +90,11 @@ export const manifest: NodeManifest<UnionConfig> = {
       if (inputs.length === 1) return {};
       const kw = config.distinct ? 'UNION' : 'UNION ALL';
       return {
-        stages: inputs.slice(1).map((i) => {
-          const src = i.input.source;
-          return `${kw} ${src.startsWith('(') ? src : `(FROM ${src})`}`;
+        stages: inputs.slice(1).map(({input}) => {
+          // UNION needs a parenthesized query, so a table becomes `(FROM t)`.
+          const query =
+            input.table !== undefined ? `(FROM ${input.table})` : input.source;
+          return `${kw} ${query}`;
         }),
       };
     },

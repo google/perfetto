@@ -34,8 +34,10 @@ interface Pipeline {
   /** A full source clause, e.g. `FROM slice` or `INTERVAL INTERSECTION OF`. */
   readonly source: string;
   readonly stages: readonly string[];
-  /** Set when the pipeline is just `FROM <name>` of a table or relation. */
+  /** Set when the pipeline is just a table, read by this name. */
   readonly table?: string;
+  /** Set when the pipeline is just a parenthesized plain SQL subquery. */
+  readonly subquery?: string;
 }
 
 /** Serializes everything upstream of `outputId` as one PSN query. */
@@ -79,6 +81,7 @@ export function serializePsn(
         inputs,
         (id): PsnInput => ({
           source: asSource(pipelineOf(id)),
+          table: pipelineOf(id).table,
           withStages: (stages) => {
             const p = pipelineOf(id);
             return asSource({
@@ -96,14 +99,28 @@ export function serializePsn(
     if ('error' in frag) return {ok: false, error: frag.error, nodeId};
     for (const inc of frag.includes ?? []) includes.add(inc);
 
+    // A new pipeline. Only one with no stages is still just a table or a
+    // subquery.
+    const ownStages = frag.stages ?? [];
+    const bare = ownStages.length === 0;
+    if (frag.table !== undefined) {
+      pipelines.set(nodeId, {
+        source: `FROM ${frag.table}`,
+        stages: ownStages,
+        table: bare ? frag.table : undefined,
+      });
+      continue;
+    }
+    if (frag.subquery !== undefined) {
+      pipelines.set(nodeId, {
+        source: `FROM ${frag.subquery}`,
+        stages: ownStages,
+        subquery: bare ? frag.subquery : undefined,
+      });
+      continue;
+    }
     if (frag.source !== undefined) {
-      const stages = frag.stages ?? [];
-      // A source that is just `FROM <name>` reads a table directly.
-      const table =
-        stages.length === 0
-          ? /^FROM ([A-Za-z_][A-Za-z0-9_]*)$/.exec(frag.source)?.[1]
-          : undefined;
-      pipelines.set(nodeId, {source: frag.source, stages, table});
+      pipelines.set(nodeId, {source: frag.source, stages: ownStages});
       continue;
     }
     // Stages continue the primary input's pipeline (an empty fragment passes
@@ -135,12 +152,10 @@ function renderPipeline(p: Pipeline): string {
   return [p.source, ...p.stages.map((s) => `|> ${s}`)].join('\n');
 }
 
-/** A pipeline as a source: a table name, or the pipeline in parentheses. */
+/**
+ * A pipeline as a source: a table name, a plain SQL subquery as is, or the
+ * pipeline in parentheses.
+ */
 function asSource(p: Pipeline): string {
-  if (p.table !== undefined) return p.table;
-  // `FROM (<plain SQL>)` with no stages: the subquery is already a source.
-  if (p.stages.length === 0 && /^FROM \([\s\S]*\)$/.test(p.source)) {
-    return p.source.slice('FROM '.length);
-  }
-  return `(\n${indent(renderPipeline(p))}\n)`;
+  return p.table ?? p.subquery ?? `(\n${indent(renderPipeline(p))}\n)`;
 }

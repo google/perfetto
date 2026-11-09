@@ -425,7 +425,7 @@ export const manifest: NodeManifest<DataTableConfig> = {
     // A plain SQL subquery is a valid PSN source.
     psn: (config) => {
       if (!isValid(config)) return undefined;
-      return {source: `FROM ${subquery(dataTableSql(config))}`};
+      return {subquery: subquery(dataTableSql(config))};
     },
   },
 };
