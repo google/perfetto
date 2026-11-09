@@ -24,10 +24,14 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
+#include "src/trace_processor/core/common/op_types.h"
+#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/pipeline.h"
+#include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/output_properties.h"
 
@@ -53,7 +57,9 @@ class PhysicalPlan {
   PhysicalPlan& operator=(const PhysicalPlan&) = delete;
   ~PhysicalPlan();
 
-  const core::exec::Source& source() const { return *pipeline_; }
+  const core::exec::Source& source() const {
+    return pipeline_->steps().empty() ? pipeline_->input() : *pipeline_;
+  }
   const std::vector<Column>& columns() const { return columns_; }
 
   // The main pipeline. Its output is the plan's output.
@@ -68,12 +74,22 @@ class PhysicalPlan {
 
   // The plan's constant params: the values its operators compare with,
   // cast when the plan was built from its literals. Passed to
-  // Context::SetParams (see core::exec::RowCursor::Open) before each run.
+  // Context::SetParams (see core::exec::RowCursor::Open) before each run. A
+  // plan with bound params is run with RunParams instead.
   const std::vector<core::exec::ParamValue>& params() const { return params_; }
 
  private:
   friend class Lowering;
   friend class PlanLowering;
+  template <typename Fetcher>
+  friend class RunParams;
+
+  struct ParamSource {
+    PlannedParam::State state;
+    std::vector<Literal> literals;
+    core::StorageType type;
+    core::Op op;
+  };
 
   // Declared first so they are destroyed last: each input must outlive the
   // pipelines that read it.
@@ -83,6 +99,51 @@ class PhysicalPlan {
   std::unique_ptr<core::exec::Pipeline> pipeline_;
   std::vector<Column> columns_;
   std::vector<core::exec::ParamValue> params_;
+  // By param.
+  std::vector<ParamSource> param_sources_;
+  const StringPool* pool_ = nullptr;
+};
+
+// A cursor's params for its runs of a plan. Constant params are cast once, and
+// bound param `i` on each Bind() from value `i` of `fetcher`.
+template <typename Fetcher>
+class RunParams {
+ public:
+  explicit RunParams(const PhysicalPlan& plan)
+      : pool_(plan.pool_), params_(plan.param_sources_.size()) {
+    for (uint32_t i = 0; i < params_.size(); ++i) {
+      const PhysicalPlan::ParamSource& s = plan.param_sources_[i];
+      if (s.state == PlannedParam::State::kBound) {
+        bindings_.push_back(
+            {s.op.Is<core::In>()
+                 ? core::exec::GetParamListCaster<Fetcher>(s.type)
+                 : core::exec::GetParamCaster<Fetcher>(s.type, s.op),
+             s.literals[0].bound, i});
+      } else if (!s.literals.empty()) {
+        params_[i] = CastLiterals(s.op, s.literals.data(),
+                                  static_cast<uint32_t>(s.literals.size()),
+                                  s.type, *pool_);
+      }
+    }
+  }
+
+  // Casts the bound params from `fetcher`, and returns the run's params.
+  base::Span<const core::exec::ParamValue> Bind(Fetcher& fetcher) {
+    for (const Binding& b : bindings_) {
+      b.cast(fetcher, b.value, *pool_, &params_[b.param]);
+    }
+    return {params_.data(), params_.data() + params_.size()};
+  }
+
+ private:
+  struct Binding {
+    core::exec::ParamCaster<Fetcher> cast;
+    uint32_t value;
+    uint32_t param;
+  };
+  const StringPool* pool_;
+  std::vector<core::exec::ParamValue> params_;
+  std::vector<Binding> bindings_;
 };
 
 // What lowering needs from whoever runs the plan. Everything here must outlive

@@ -402,7 +402,7 @@ void DeriveContext::SetPrograms(std::vector<core::exec::ExprProgram> programs) {
   bound_->planned[self_].programs = std::move(programs);
 }
 
-std::vector<std::optional<core::exec::ParamValue>>& DeriveContext::params() {
+std::vector<PlannedParam>& DeriveContext::params() {
   return bound_->planned[self_].params;
 }
 

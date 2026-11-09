@@ -46,6 +46,9 @@ struct LoweringContext;
 // or GLOB, `column IN (literal, ...)`, or `column IS [NOT] NULL`. A WHERE
 // condition is the AND of these. Literals are compared as SQL compares them
 // with the column's type, whatever that is.
+//
+// A predicate can compare with a bound param instead, as its only literal: each
+// run binds its value, or for IN its list. Its column's type must be known.
 struct WherePredicate {
   using Op = core::Op;
 
@@ -65,6 +68,12 @@ inline constexpr bool kCopiedAsBytes<WherePredicate> = true;
 class Where : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
+
+  // Adds a WHERE testing `predicates`, which compare with `literals`, above
+  // the root of `plan`.
+  static void AddToPlan(LogicalPlan* plan,
+                        std::vector<WherePredicate> predicates,
+                        std::vector<Literal> literals);
 
  private:
   // Test-only formatting; keep payload details out of the public interface.

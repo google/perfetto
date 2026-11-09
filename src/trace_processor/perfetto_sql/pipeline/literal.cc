@@ -55,6 +55,8 @@ struct LiteralFetcher : core::ValueFetcher {
         return kDouble;
       case Literal::Type::kString:
         return kString;
+      case Literal::Type::kBound:
+        PERFETTO_FATAL("A bound param has no value until a run binds it");
     }
     PERFETTO_FATAL("Unknown literal type");
   }
@@ -162,6 +164,9 @@ void SerializeLiteral(PlanCodec& c, Literal* literal) {
       break;
     case Literal::Type::kString:
       c.Str(&literal->text);
+      break;
+    case Literal::Type::kBound:
+      c.Pod(&literal->bound);
       break;
   }
 }

@@ -34,18 +34,27 @@ namespace perfetto::trace_processor::pipeline {
 class Compiler;
 class PlanCodec;
 
-// A value written in a query: a number or a string. It is part of the plan
-// and never changes: a plan's constant params are cast from its literals.
+// A value written in a query: a number, a string, or a bound param, which
+// stands for one of the values a run binds.
 struct Literal {
-  enum class Type : uint8_t { kInt64, kDouble, kString };
+  enum class Type : uint8_t { kInt64, kDouble, kString, kBound };
+
+  static Literal Bound(uint32_t index) {
+    Literal literal;
+    literal.type = Type::kBound;
+    literal.bound = index;
+    return literal;
+  }
 
   bool is_double() const { return type == Type::kDouble; }
   bool is_string() const { return type == Type::kString; }
+  bool is_bound() const { return type == Type::kBound; }
 
   Type type = Type::kInt64;
   int64_t int_value = 0;
   double double_value = 0;
   std::string text;
+  uint32_t bound = 0;
 };
 
 // Reads the number, optionally negated, or string at `expr`.
