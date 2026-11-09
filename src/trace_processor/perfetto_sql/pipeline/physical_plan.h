@@ -179,10 +179,19 @@ struct LoweringContext {
     kLend,
   };
 
+  // How the caller reads the rows of a plan ending in a sort.
+  enum class SortedOutputs : uint8_t {
+    // Copied into batches in sorted order.
+    kCopied,
+    // Read where the sort holds them (see core::exec::Source::InPlace).
+    kInPlace,
+  };
+
   // Holds the strings of the columns read, and takes the strings of literals
   // which expressions output.
   StringPool* pool = nullptr;
   SparseOutputs sparse_outputs = SparseOutputs::kExpand;
+  SortedOutputs sorted_outputs = SortedOutputs::kCopied;
 };
 
 // Builds executor nodes from a bound plan. Establishes tree numbering, row
