@@ -106,8 +106,8 @@ struct ColumnChunk {
     return ColumnView::Reference(StorageType{Type{}}, copy, kept);
   }
 
-  // Views the populated chunk with the source's representation. Implicit Id
-  // columns become stored Uint32 values. The chunk must outlive the view.
+  // Views the populated chunk with the source's representation. A sequence
+  // becomes stored Uint32 values. The chunk must outlive the view.
   ColumnView View(const ColumnView& source, bool nullable) const;
 
   // Gives the validity kMaxBatchRows bits, which it then keeps.
