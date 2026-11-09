@@ -65,7 +65,7 @@ TEST(SortTest, RewindAfterInvalidKeysAndCompletedSort) {
   std::vector<double> second = {0.5, -1.5, -0.5, 2.5};
   RowBatch in;
   RowBatch out;
-  in.AddBorrowedColumn(ColumnView::Reference(StorageType{Id{}}, nullptr));
+  in.AddBorrowedColumn(ColumnView::Sequence(nullptr, 0));
   in.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Int64{}}, first.data()));
   // The first key is valid, but the second cannot be used in a row layout.
@@ -122,7 +122,7 @@ TEST(SortTest, StringsSortByTheirContents) {
   auto valid = BitVector::CreateWithSize(5, true);
   valid.clear(3);
   RowBatch in;
-  in.AddBorrowedColumn(ColumnView::Reference(StorageType{Id{}}, nullptr));
+  in.AddBorrowedColumn(ColumnView::Sequence(nullptr, 0));
   in.AddBorrowedColumn(
       ColumnView::Reference(StorageType{String{}}, strings.data(), &valid));
   in.SetRowCount(5);

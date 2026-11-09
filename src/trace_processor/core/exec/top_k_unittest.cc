@@ -117,8 +117,7 @@ bool RunBatchesInto(Operator& op,
   RowBatch out;
   for (uint32_t at = 0; at < rows; at += kMaxBatchRows) {
     RowBatch in;
-    in.AddBorrowedColumn(
-        ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, at));
+    in.AddBorrowedColumn(ColumnView::Sequence(nullptr, at));
     for (const Column& column : columns) {
       in.AddBorrowedColumn(
           ColumnView::Reference(column.type, column.data, column.validity, at));
