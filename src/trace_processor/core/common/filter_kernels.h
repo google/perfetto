@@ -162,6 +162,25 @@ template <typename Comparator, typename ValueType, typename DataType>
   return o_write;
 }
 
+// As Filter, for the indices [begin, end), which need no buffer to be read
+// from: writes each index whose value compares true to `output`, in order.
+template <typename Comparator, typename ValueType, typename DataType>
+[[nodiscard]] PERFETTO_ALWAYS_INLINE uint32_t* FilterRange(
+    const DataType* data,
+    uint32_t begin,
+    uint32_t end,
+    uint32_t* output,
+    const ValueType& value,
+    const Comparator& comparator) {
+  uint32_t* o_write = output;
+  for (uint32_t i = begin; i < end; ++i) {
+    if (comparator(data[i], value)) {
+      *o_write++ = i;
+    }
+  }
+  return o_write;
+}
+
 // As Filter, for an Id column, which stores no values: the value at index `i`
 // is `first_id + i`. The interpreter's indices are rows of the whole column,
 // so it passes 0; a window onto the column passes the row it starts at.
