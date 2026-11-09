@@ -28,6 +28,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/dataframe/arrow_internal.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
@@ -44,22 +45,9 @@ using arrow_test::RoundTrip;
 using arrow_test::Serialize;
 using perfetto::base::gtest_matchers::IsError;
 
-struct TestFieldNode {
-  int64_t length;
-  int64_t null_count;
-};
-
-struct TestArrowBuffer {
-  int64_t offset;
-  int64_t length;
-};
-
-struct TestBlock {
-  int64_t offset;
-  int32_t metadata_length;
-  int32_t padding;
-  int64_t body_length;
-};
+using TestFieldNode = arrow_internal::FieldNode;
+using TestArrowBuffer = arrow_internal::ArrowBuffer;
+using TestBlock = arrow_internal::Block;
 
 uint8_t* FollowMutableOffset(std::vector<uint8_t>* bytes,
                              const uint8_t* offset_location) {

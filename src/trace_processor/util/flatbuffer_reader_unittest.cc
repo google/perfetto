@@ -22,6 +22,7 @@
 #include <string_view>
 #include <vector>
 
+#include "perfetto/base/endian.h"
 #include "src/trace_processor/util/flatbuffer_writer.h"
 #include "test/gtest_and_gmock.h"
 
@@ -180,7 +181,7 @@ TEST(FlatBufferRoundTripTest, VecString) {
 TEST(FlatBufferRoundTripTest, VecScalar) {
   int32_t vals[] = {10, 20, 30};
   FlatBufferWriter w;
-  auto vec_off = w.WriteVecStruct(vals, sizeof(int32_t), 3, alignof(int32_t));
+  auto vec_off = w.WriteVecStruct(vals, 3);
   w.StartTable();
   w.FieldOffset(0, vec_off);
   auto root = w.EndTable();
@@ -214,7 +215,7 @@ TEST(FlatBufferRoundTripTest, EmptyVecStruct) {
   // A zero-element struct vector is the first thing written, so the writer's
   // buffer is still empty when the (empty) element payload is prepended.
   FlatBufferWriter w;
-  auto vec = w.WriteVecStruct(nullptr, sizeof(int32_t), 0, alignof(int32_t));
+  auto vec = w.WriteVecStruct<int32_t>(nullptr, 0);
   w.StartTable();
   w.FieldOffset(0, vec);
   auto root = w.EndTable();
@@ -232,9 +233,9 @@ TEST(FlatBufferRoundTripTest, VecIndexOutOfBoundsReturnsDefault) {
   double f64s[] = {0.5, 1.5};
   uint8_t u8s[] = {7};
   FlatBufferWriter w;
-  auto i64_off = w.WriteVecStruct(i64s, sizeof(int64_t), 2, alignof(int64_t));
-  auto f64_off = w.WriteVecStruct(f64s, sizeof(double), 2, alignof(double));
-  auto u8_off = w.WriteVecStruct(u8s, sizeof(uint8_t), 1, alignof(uint8_t));
+  auto i64_off = w.WriteVecStruct(i64s, 2);
+  auto f64_off = w.WriteVecStruct(f64s, 2);
+  auto u8_off = w.WriteVecStruct(u8s, 1);
   auto s0 = w.WriteString("only");
   auto str_vec = w.WriteVecOffsets(&s0, 1);
 
@@ -405,13 +406,13 @@ TEST(FlatBufferMalformedTest, VecScalarHugeCountIsRejected) {
   //   vector location: count = 0xFFFFFFFF, no actual elements follow.
   std::vector<uint8_t> buf(24, 0);
   auto put_u32 = [&](uint32_t pos, uint32_t v) {
-    memcpy(buf.data() + pos, &v, 4);
+    base::StoreLE(buf.data() + pos, v);
   };
   auto put_u16 = [&](uint32_t pos, uint16_t v) {
-    memcpy(buf.data() + pos, &v, 2);
+    base::StoreLE(buf.data() + pos, v);
   };
   auto put_i32 = [&](uint32_t pos, int32_t v) {
-    memcpy(buf.data() + pos, &v, 4);
+    base::StoreLE(buf.data() + pos, v);
   };
 
   put_u32(0, 4);            // root offset: table at 4.
@@ -438,13 +439,13 @@ TEST(FlatBufferMalformedTest, OffsetPastEndIsRejected) {
   // past the end of the buffer entirely.
   std::vector<uint8_t> buf(16, 0);
   auto put_u32 = [&](uint32_t pos, uint32_t v) {
-    memcpy(buf.data() + pos, &v, 4);
+    base::StoreLE(buf.data() + pos, v);
   };
   auto put_u16 = [&](uint32_t pos, uint16_t v) {
-    memcpy(buf.data() + pos, &v, 2);
+    base::StoreLE(buf.data() + pos, v);
   };
   auto put_i32 = [&](uint32_t pos, int32_t v) {
-    memcpy(buf.data() + pos, &v, 4);
+    base::StoreLE(buf.data() + pos, v);
   };
 
   put_u32(0, 4);
