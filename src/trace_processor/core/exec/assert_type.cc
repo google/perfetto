@@ -54,7 +54,6 @@ const char* Name(Variant::Type type) {
 
 const char* Name(StorageType type) {
   switch (type.index()) {
-    case StorageType::GetTypeIndex<Id>():
     case StorageType::GetTypeIndex<Uint32>():
     case StorageType::GetTypeIndex<Int32>():
     case StorageType::GetTypeIndex<Int64>():
@@ -201,7 +200,7 @@ bool AssertType::Widen(const ColumnView& column,
     return WidenAs<int64_t>(column, selection, exact, chunk.Values<double>(),
                             &chunk.validity);
   }
-  PERFETTO_DCHECK(from.Is<Id>() || from.Is<Uint32>());
+  PERFETTO_DCHECK(from.Is<Uint32>());
   return WidenAs<uint32_t>(column, selection, Cast<uint32_t, double>,
                            chunk.Values<double>(), &chunk.validity);
 }

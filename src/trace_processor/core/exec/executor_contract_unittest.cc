@@ -94,8 +94,7 @@ TEST(ExecutorContractTest, SelectionsMatchScalarRows) {
       }
       uint32_t start = static_cast<uint32_t>(random() % size);
       RowBatch batch;
-      batch.AddBorrowedColumn(
-          ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, start));
+      batch.AddBorrowedColumn(ColumnView::Sequence(nullptr, start));
       batch.AddBorrowedColumn(ColumnView::Reference(
           StorageType{Int64{}}, values.data(), &valid, start));
       batch.AddBorrowedColumn(

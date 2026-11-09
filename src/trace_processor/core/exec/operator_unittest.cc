@@ -245,8 +245,7 @@ class Trailer final : public Operator {
     if (s.let_go == count_) {
       return OpResult::kNeedMoreInput;
     }
-    out.AddBorrowedColumn(
-        ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
+    out.AddBorrowedColumn(ColumnView::Sequence(nullptr, 0));
     test::Window(&out, static_cast<uint32_t>(first_) + s.let_go, 1);
     return ++s.let_go == count_ ? OpResult::kNeedMoreInput
                                 : OpResult::kHaveMoreOutput;

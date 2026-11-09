@@ -225,6 +225,11 @@ class SearchScansDiffTest : public ::testing::Test {
     std::unique_ptr<Pipeline> pipeline;
     std::vector<std::optional<ParamCaster<Values>>> casters;
   };
+  // Params are cast for the type a column is read as: an id is a Uint32.
+  static StorageType ReadAs(StorageType type) {
+    return type.Is<Id>() ? StorageType{Uint32{}} : type;
+  }
+
   std::optional<ExecPlan> Lower(const dataframe::LogicalPlan& plan,
                                 ReadDirection direction) {
     std::vector<std::shared_ptr<const dataframe::Column>> columns;
@@ -245,7 +250,7 @@ class SearchScansDiffTest : public ::testing::Test {
         }
         if (f->value_index && !f->op.IsAnyOf<NullOp>()) {
           out.casters[*f->value_index] =
-              GetParamCaster<Values>(f->storage, f->op);
+              GetParamCaster<Values>(ReadAs(f->storage), f->op);
         }
         using K = SortedScan::Search::Kind;
         std::optional<K> kind;
@@ -280,7 +285,8 @@ class SearchScansDiffTest : public ::testing::Test {
           if (!p.op.Is<Eq>()) {
             return std::nullopt;
           }
-          out.casters[*p.value_index] = GetParamCaster<Values>(p.storage, p.op);
+          out.casters[*p.value_index] =
+              GetParamCaster<Values>(ReadAs(p.storage), p.op);
           equalities.push_back({df_->shared_column(p.col), *p.value_index});
         }
         index = &df_->indexes()[idx->index];

@@ -137,7 +137,8 @@ TEST_F(DataframeScanTest, ReadsEveryStorageType) {
   std::unique_ptr<OperatorState> state = scan.MakeState(test::TestContext());
   RowBatch batch;
   ASSERT_TRUE(scan.GetData(batch, *state));
-  EXPECT_TRUE(batch.column(0).type().Is<Id>());
+  EXPECT_EQ(batch.column(0).kind(), ColumnView::Kind::kSequence);
+  EXPECT_TRUE(batch.column(0).type().Is<Uint32>());
   EXPECT_TRUE(batch.column(1).type().Is<Uint32>());
   EXPECT_TRUE(batch.column(2).type().Is<Int32>());
   EXPECT_TRUE(batch.column(3).type().Is<Int64>());
@@ -188,7 +189,8 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
   std::unique_ptr<OperatorState> dense_state =
       dense_scan.MakeState(test::TestContext());
   ASSERT_TRUE(dense_scan.GetData(batch, *dense_state));
-  EXPECT_TRUE(batch.column(0).type().Is<Id>());
+  EXPECT_EQ(batch.column(0).kind(), ColumnView::Kind::kSequence);
+  EXPECT_TRUE(batch.column(0).type().Is<Uint32>());
   EXPECT_THAT(test::ReadNullableColumn<uint32_t>(batch, 0),
               ElementsAre(Optional(0u), Eq(std::nullopt), Optional(2u)));
 }

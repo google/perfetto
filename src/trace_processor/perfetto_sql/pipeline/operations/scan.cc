@@ -99,10 +99,13 @@ bool HoldsNoValues(const dataframe::Column& column, uint32_t rows) {
 }
 
 // The type a pipeline reads a dataframe column as.
+// Id is a storage type only for searching: a column read is Uint32.
 PlanType ColumnType(const dataframe::Dataframe& dataframe, uint32_t i) {
-  return HoldsNoValues(dataframe.column(i), dataframe.row_count())
-             ? PlanType::Null()
-             : PlanType(dataframe.column_type(i));
+  if (HoldsNoValues(dataframe.column(i), dataframe.row_count())) {
+    return PlanType::Null();
+  }
+  StorageType type = dataframe.column_type(i);
+  return PlanType(type.Is<core::Id>() ? StorageType{core::Uint32{}} : type);
 }
 
 // The stamp of a table's name and of the index, name and type of each column

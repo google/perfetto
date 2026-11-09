@@ -110,48 +110,40 @@ void Compare(const ColumnView& column,
   // The value was cast for the column's storage type, which picks its
   // alternative.
   PERFETTO_DCHECK(cast.value.value.index() == StorageType::GetTypeIndex<T>());
-  if constexpr (!std::is_same_v<T, Id>) {
-    if (r.contiguous) {
-      // The rows are a run, so the values are read in order with no list.
-      if constexpr (std::is_same_v<T, String>) {
-        if constexpr (std::is_same_v<O, Eq> || std::is_same_v<O, Ne>) {
-          const auto* data =
-              static_cast<const uint32_t*>(column.data()) + column.start();
-          using Cmp = std::conditional_t<std::is_same_v<O, Eq>, std::equal_to<>,
-                                         std::not_equal_to<>>;
-          r.count = static_cast<uint32_t>(
-              filter::FilterRange(data, 0, r.count, r.rows,
-                                  cast.string_id.raw_id(), Cmp()) -
-              r.rows);
-          r.contiguous = false;
-          return;
-        }
-      } else {
-        using M =
-            StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+  if (r.contiguous) {
+    // The rows are a run, so the values are read in order with no list.
+    if constexpr (std::is_same_v<T, String>) {
+      if constexpr (std::is_same_v<O, Eq> || std::is_same_v<O, Ne>) {
         const auto* data =
-            static_cast<const M*>(column.data()) + column.start();
+            static_cast<const uint32_t*>(column.data()) + column.start();
+        using Cmp = std::conditional_t<std::is_same_v<O, Eq>, std::equal_to<>,
+                                       std::not_equal_to<>>;
         r.count = static_cast<uint32_t>(
-            filter::FilterRange(
-                data, 0, r.count, r.rows,
-                base::unchecked_get<M>(cast.value.value),
-                filter::comparators::IntegerOrDoubleComparator<M, O>()) -
+            filter::FilterRange(data, 0, r.count, r.rows,
+                                cast.string_id.raw_id(), Cmp()) -
             r.rows);
         r.contiguous = false;
         return;
       }
+    } else {
+      using M =
+          StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+      const auto* data = static_cast<const M*>(column.data()) + column.start();
+      r.count = static_cast<uint32_t>(
+          filter::FilterRange(
+              data, 0, r.count, r.rows,
+              base::unchecked_get<M>(cast.value.value),
+              filter::comparators::IntegerOrDoubleComparator<M, O>()) -
+          r.rows);
+      r.contiguous = false;
+      return;
     }
   }
   Materialize(r);
   uint32_t* begin = r.rows;
   uint32_t* end = r.rows + r.count;
   uint32_t* kept;
-  if constexpr (std::is_same_v<T, Id>) {
-    kept = filter::IdentityFilter(
-        column.start(), begin, end, begin,
-        base::unchecked_get<CastFilterValueResult::Id>(cast.value.value).value,
-        filter::comparators::IntegerOrDoubleComparator<uint32_t, O>());
-  } else if constexpr (std::is_same_v<T, String>) {
+  if constexpr (std::is_same_v<T, String>) {
     const auto* data =
         static_cast<const StringPool::Id*>(column.data()) + column.start();
     if constexpr (std::is_same_v<O, Eq> || std::is_same_v<O, Ne>) {
@@ -182,11 +174,7 @@ void KeepIn(const ColumnView& column,
             Rows& r) {
   using M =
       StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
-  // An Id column stores nothing: its window's start is added to each row.
-  const auto* data = static_cast<const M*>(column.data());
-  if constexpr (!std::is_same_v<T, Id>) {
-    data += column.start();
-  }
+  const auto* data = static_cast<const M*>(column.data()) + column.start();
   Materialize(r);
   base::Span<uint32_t> rows(r.rows, r.rows + r.count);
   base::Span<uint32_t> dest = rows;
@@ -254,15 +242,27 @@ ColumnView GatherSparse(const ColumnView& column, Rows& r, uint8_t* values) {
     if (packed) {
       memcpy(value, packed + uint64_t{slot} * kWidth, kWidth);
     } else {
-      // A sparse Id column stores no values: each is its slot.
+      // A sparse column with no storage holds its slots.
       memcpy(value, &slot, sizeof(slot));
     }
   }
   return ColumnView::Reference(column.type(), values);
 }
 
-// Applies a comparison or IN to the rows kept so far. A sparse column's values
-// at those rows are gathered into `sparse_values` first.
+// Writes the values of a sequence at the rows kept into `values` at each row,
+// and views them as a flat column.
+PERFETTO_NO_INLINE ColumnView GatherSequence(const ColumnView& column,
+                                             Rows& r,
+                                             uint32_t* values) {
+  Materialize(r);
+  for (uint32_t i = 0; i < r.count; ++i) {
+    values[r.rows[i]] = column.Index(r.rows[i]);
+  }
+  return ColumnView::Reference(StorageType{Uint32{}}, values);
+}
+
+// Applies a comparison or IN to the rows kept so far. The values of a sparse
+// column or a sequence at those rows are written to `sparse_values` first.
 void ApplyCondition(const Op& op,
                     const ParamValue& cast,
                     const ColumnView& lent,
@@ -278,11 +278,11 @@ void ApplyCondition(const Op& op,
     column = ValueWidth(lent.type()) == sizeof(uint32_t)
                  ? GatherSparse<sizeof(uint32_t)>(lent, r, values)
                  : GatherSparse<sizeof(uint64_t)>(lent, r, values);
+  } else if (lent.kind() == ColumnView::Kind::kSequence) {
+    column =
+        GatherSequence(lent, r, reinterpret_cast<uint32_t*>(sparse_values));
   }
   switch (column.type().index()) {
-    case StorageType::GetTypeIndex<Id>():
-      PERFETTO_DCHECK(column.kind() == ColumnView::Kind::kSequence);
-      return CompareByOp<Id>(op, column, cast, pool, r);
     case StorageType::GetTypeIndex<Uint32>():
       return CompareByOp<Uint32>(op, column, cast, pool, r);
     case StorageType::GetTypeIndex<Int32>():
