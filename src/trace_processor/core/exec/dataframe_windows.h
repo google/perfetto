@@ -32,15 +32,17 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/range.h"
+#include "src/trace_processor/core/util/slab.h"
 
 namespace perfetto::trace_processor::core::exec {
 
 // Points batches at windows of a dataframe's rows, for the sources which read
 // a dataframe.
 //
-// A column storing one value per row is lent where it lies, so moving the
-// window costs nothing. A column which does not is expanded a window at a
-// time into a buffer from the run's Context. A window may start at any row.
+// Every column is lent where it lies, so moving the window costs nothing. A
+// column storing values only for its non-null rows is lent as a sparse view
+// (see ColumnView::Kind::kSparse), which an Expand lays out later. A window
+// may start at any row.
 class DataframeWindows {
  public:
   DataframeWindows();
@@ -48,36 +50,28 @@ class DataframeWindows {
   DataframeWindows(const DataframeWindows&) = delete;
   DataframeWindows& operator=(const DataframeWindows&) = delete;
 
-  // Prepares windows onto `columns`, expanding into buffers from `context`.
-  // Called once, before any window is filled.
-  void Init(const std::vector<std::shared_ptr<const dataframe::Column>>&,
-            Context& context);
+  // Prepares windows onto `columns`. Called once, before any window is
+  // filled.
+  void Init(const std::vector<std::shared_ptr<const dataframe::Column>>&);
 
   // Points `out` at rows [from, from + count), all kept.
   void Fill(uint32_t from, uint32_t count, RowBatch& out);
 
   // Points `out` at the rows `offsets` from `from`, which increase from 0.
-  // Only those rows are expanded.
   void FillKept(uint32_t from,
                 base::Span<const uint32_t> offsets,
                 RowBatch& out);
 
-  // Fills one window of a column which does not store one value per row.
-  // Defined in the .cc: an implementation detail with no callers outside it.
-  class Expander;
-
  private:
-  struct Expanded {
-    uint32_t column;
-    std::unique_ptr<Expander> expander;
-  };
+  // The prefix popcount of a sparse `column`'s null bits: its own if it keeps
+  // one, else one built here and kept as long as the windows.
+  const uint32_t* PopcountOf(const dataframe::Column& column);
 
-  // By column, the view of the window last filled, and the buffer it is onto
-  // for an expanded column.
+  // By column, the view of the window last filled. The buffers are all empty,
+  // as every view is onto the dataframe's storage.
   std::vector<ColumnView> lent_;
   std::vector<ColumnBuffer> buffers_;
-  std::vector<Expanded> expanded_;
-  Context* context_ = nullptr;
+  std::vector<Slab<uint32_t>> popcounts_;
 };
 
 // Which way a range of a dataframe's rows is read.
@@ -92,8 +86,7 @@ enum class ReadDirection : uint8_t {
 class RangeReader {
  public:
   void Init(
-      const std::vector<std::shared_ptr<const dataframe::Column>>& columns,
-      Context& context);
+      const std::vector<std::shared_ptr<const dataframe::Column>>& columns);
 
   // Reads `range` in `direction`.
   void Start(Range range, ReadDirection direction) {
@@ -134,9 +127,8 @@ class RangeReader {
 class RowListReader {
  public:
   void Init(
-      const std::vector<std::shared_ptr<const dataframe::Column>>& columns,
-      Context& context) {
-    windows_.Init(columns, context);
+      const std::vector<std::shared_ptr<const dataframe::Column>>& columns) {
+    windows_.Init(columns);
   }
 
   // `rows` must outlive the read.
