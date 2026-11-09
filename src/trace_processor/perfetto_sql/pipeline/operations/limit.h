@@ -39,6 +39,9 @@ class Limit : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
+  // Adds a LIMIT of `count` rows after `offset` above the root of `plan`.
+  static void AddToPlan(LogicalPlan* plan, int64_t count, int64_t offset);
+
  private:
   // Test-only formatting; keep payload details out of the public interface.
   friend class LogicalPlanFormatter;

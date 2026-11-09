@@ -17,16 +17,22 @@
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
+
+#include <sqlite3.h>
 
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_modules.h"
@@ -230,6 +236,102 @@ TEST_F(PerfettoSqlConnectionTest, DelegatingFunction_Error_TargetNotFound) {
   EXPECT_THAT(res.status().c_message(),
               testing::HasSubstr(
                   "Target function 'nonexistent_func' not found in registry"));
+}
+
+// A table still being added to is read as it is at each query, and is
+// filtered, made distinct, sorted and limited as a finalized one is.
+TEST_F(PerfettoSqlConnectionTest, Dataframe_ReadsATableStillBeingAddedTo) {
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+      {"id", "k", "v"},
+      dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{},
+                                       dataframe::IdSorted{},
+                                       dataframe::NoDuplicates{}),
+      dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{},
+                                       dataframe::Unsorted{}),
+      dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{},
+                                       dataframe::Unsorted{}));
+  dataframe::Dataframe df =
+      dataframe::Dataframe::CreateFromTypedSpec(kSpec, &pool_);
+  for (auto [k, v] : std::vector<std::pair<int64_t, int64_t>>{
+           {1, 10}, {2, 30}, {2, 20}, {3, 40}}) {
+    df.InsertUnchecked(kSpec, std::monostate{}, k, v);
+  }
+  PerfettoSqlConnection::Initializer init;
+  init.static_tables.push_back({&df, "t"});
+  connection_->Initialize(std::move(init));
+
+  auto rows = [&](const std::string& sql) {
+    auto result = connection_->ExecuteUntilLastStatement(
+        SqlSource::FromExecuteQuery(sql));
+    EXPECT_TRUE(result.ok()) << result.status().c_message();
+    std::vector<std::string> out;
+    for (; result.ok() && !result->stmt.IsDone(); result->stmt.Step()) {
+      sqlite3_stmt* stmt = result->stmt.sqlite_stmt();
+      std::string row;
+      for (int i = 0; i < sqlite3_column_count(stmt); ++i) {
+        row += (i ? "," : "") + std::to_string(sqlite3_column_int64(stmt, i));
+      }
+      out.push_back(row);
+    }
+    return out;
+  };
+  EXPECT_THAT(rows("SELECT k, v FROM t WHERE k >= 2 ORDER BY v DESC LIMIT 2"),
+              testing::ElementsAre("3,40", "2,30"));
+  EXPECT_THAT(rows("SELECT DISTINCT k FROM t ORDER BY k"),
+              testing::ElementsAre("1", "2", "3"));
+
+  df.InsertUnchecked(kSpec, std::monostate{}, int64_t{4}, int64_t{50});
+  EXPECT_THAT(rows("SELECT k, v FROM t WHERE k >= 2 ORDER BY v DESC LIMIT 2"),
+              testing::ElementsAre("4,50", "3,40"));
+  EXPECT_THAT(rows("SELECT count(*) FROM t WHERE k = 2"),
+              testing::ElementsAre("2"));
+}
+
+// A sort can serve some batches where they are held, where the id column is
+// a sequence, and copy others, where it is stored: every cell is read as its
+// batch stores it.
+TEST_F(PerfettoSqlConnectionTest,
+       Dataframe_ReadsSortedBatchesStoredDifferently) {
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+      {"id", "v"},
+      dataframe::CreateTypedColumnSpec(dataframe::Id{}, dataframe::NonNull{},
+                                       dataframe::IdSorted{},
+                                       dataframe::NoDuplicates{}),
+      dataframe::CreateTypedColumnSpec(dataframe::Int64{}, dataframe::NonNull{},
+                                       dataframe::Unsorted{}));
+  dataframe::Dataframe df =
+      dataframe::Dataframe::CreateFromTypedSpec(kSpec, &pool_);
+  // Three windows of rows. The middle one holds the smallest values, so the
+  // first rows sorted come from it alone. The rest alternate between the
+  // other two, so they are copied.
+  constexpr int64_t kWindow = 2048;
+  for (int64_t i = 0; i < 3 * kWindow; ++i) {
+    int64_t w = i / kWindow;
+    int64_t v =
+        w == 1 ? i - kWindow : kWindow + 2 * (i % kWindow) + (w == 2 ? 1 : 0);
+    df.InsertUnchecked(kSpec, std::monostate{}, v);
+  }
+  df.Finalize();
+  PerfettoSqlConnection::Initializer init;
+  init.static_tables.push_back({&df, "t"});
+  connection_->Initialize(std::move(init));
+
+  auto result = connection_->ExecuteUntilLastStatement(
+      SqlSource::FromExecuteQuery("SELECT id FROM t ORDER BY v LIMIT 6000"));
+  ASSERT_TRUE(result.ok()) << result.status().c_message();
+  std::vector<int64_t> ids;
+  for (; !result->stmt.IsDone(); result->stmt.Step()) {
+    ids.push_back(sqlite3_column_int64(result->stmt.sqlite_stmt(), 0));
+  }
+  std::vector<int64_t> expected;
+  for (int64_t i = kWindow; i < 2 * kWindow; ++i) {
+    expected.push_back(i);
+  }
+  for (int64_t i = 0; expected.size() < 6000; ++i) {
+    expected.push_back(i);
+    expected.push_back(2 * kWindow + i);
+  }
+  EXPECT_EQ(ids, expected);
 }
 
 TEST(SqlModulesTest, IsPackagePrefixOf) {

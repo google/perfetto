@@ -72,6 +72,9 @@ class RowCursor {
 
   bool eof() const { return index_ == size_; }
 
+  // Whether the current row is the first of its batch.
+  bool first_in_batch() const { return index_ == 0; }
+
   base::Status status() const { return source_.status(*state_); }
 
   // The value of `column` at the current row.
