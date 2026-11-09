@@ -153,8 +153,12 @@ RowBatch* Pipeline::Start(RowBatch& scratch, OperatorState& state) const {
       TransformFailed(link, s);
       return nullptr;
     }
+    // A batch with no rows left has nothing for later transforms to do.
+    if (PERFETTO_UNLIKELY(!batch->size())) {
+      return NextSlow(s);
+    }
   }
-  return PERFETTO_LIKELY(batch->size()) ? batch : NextSlow(s);
+  return batch;
 }
 
 // A batch is one pull, from the source or the operator starting the last
@@ -192,8 +196,12 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::Next(RowBatch&,
       TransformFailed(link, s);
       return nullptr;
     }
+    // A batch with no rows left has nothing for later transforms to do.
+    if (PERFETTO_UNLIKELY(!batch->size())) {
+      return NextSlow(s);
+    }
   }
-  return PERFETTO_LIKELY(batch->size()) ? batch : NextSlow(s);
+  return batch;
 }
 
 PERFETTO_NO_INLINE RowBatch* Pipeline::NextSlow(State& s) const {
@@ -228,6 +236,10 @@ PERFETTO_ALWAYS_INLINE RowBatch* Pipeline::SegmentNext(uint32_t segment,
       if (PERFETTO_UNLIKELY(!link.op->Process(*batch, *link.state))) {
         TransformFailed(link, s);
         return nullptr;
+      }
+      // A batch with no rows left has nothing for later transforms to do.
+      if (PERFETTO_UNLIKELY(!batch->size())) {
+        break;
       }
     }
     if (PERFETTO_LIKELY(batch->size())) {
