@@ -20,10 +20,13 @@
 #include <sqlite3.h>
 
 #include <cstdint>
+#include <limits>
 #include <type_traits>
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/filter_kernels.h"
+#include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/variant.h"
@@ -107,6 +110,37 @@ inline void ResultSequence(sqlite3_context* ctx,
   sqlite::result::Long(ctx, index);
 }
 
+// The slot of a kSparse column's storage holding batch row `row`, or
+// UINT32_MAX if the row is null.
+inline uint32_t SparseSlot(const ColumnView& view, uint32_t row) {
+  return core::filter::IndexToStorageIndex<core::SparseNull>(
+      view.Index(row), view.validity(), view.popcount());
+}
+
+template <typename T>
+void ResultSparse(sqlite3_context* ctx,
+                  StringPool* pool,
+                  const ColumnView& view,
+                  uint32_t row) {
+  uint32_t slot = SparseSlot(view, row);
+  if (slot == std::numeric_limits<uint32_t>::max()) {
+    return sqlite::result::Null(ctx);
+  }
+  ResultValue(ctx, pool, static_cast<const T*>(view.sparse_data())[slot]);
+}
+
+// A sparse Id column stores no values: each is its slot.
+inline void ResultSparseSlot(sqlite3_context* ctx,
+                             StringPool*,
+                             const ColumnView& view,
+                             uint32_t row) {
+  uint32_t slot = SparseSlot(view, row);
+  if (slot == std::numeric_limits<uint32_t>::max()) {
+    return sqlite::result::Null(ctx);
+  }
+  sqlite::result::Long(ctx, slot);
+}
+
 inline ColumnResultFn ColumnResultFor(const ColumnView& view) {
   if (view.kind() == ColumnView::Kind::kVariant) {
     return &ResultVariant;
@@ -115,6 +149,21 @@ inline ColumnResultFn ColumnResultFor(const ColumnView& view) {
     return &ResultSequence;
   }
   core::StorageType type = view.type();
+  if (view.kind() == ColumnView::Kind::kSparse) {
+    if (!view.sparse_data())
+      return &ResultSparseSlot;
+    if (type.Is<core::Uint32>())
+      return &ResultSparse<uint32_t>;
+    if (type.Is<core::Int32>())
+      return &ResultSparse<int32_t>;
+    if (type.Is<core::Int64>())
+      return &ResultSparse<int64_t>;
+    if (type.Is<core::Double>())
+      return &ResultSparse<double>;
+    if (type.Is<core::String>())
+      return &ResultSparse<StringPool::Id>;
+    PERFETTO_FATAL("Unexpected column type");
+  }
   if (type.Is<core::Uint32>())
     return &ResultFlat<uint32_t>;
   if (type.Is<core::Int32>())

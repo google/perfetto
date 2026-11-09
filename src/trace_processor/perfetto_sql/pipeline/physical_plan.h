@@ -150,9 +150,19 @@ class RunParams {
 // What lowering needs from whoever runs the plan. Everything here must outlive
 // every run of the plan.
 struct LoweringContext {
+  // How the caller reads the plan's output columns which a scan lends sparse
+  // (see core::exec::ColumnView::Kind::kSparse).
+  enum class SparseOutputs : uint8_t {
+    // Expanded before the output, so the caller reads only flat columns.
+    kExpand,
+    // Left as lent, as the caller reads sparse columns.
+    kLend,
+  };
+
   // Holds the strings of the columns read, and takes the strings of literals
   // which expressions output.
   StringPool* pool = nullptr;
+  SparseOutputs sparse_outputs = SparseOutputs::kExpand;
 };
 
 // Builds executor nodes from a bound plan. Establishes tree numbering, row
