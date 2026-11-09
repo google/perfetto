@@ -17,9 +17,8 @@
 #ifndef SRC_ANDROID_SDK_PERFETTO_SDK_FOR_JNI_TRACING_SDK_H_
 #define SRC_ANDROID_SDK_PERFETTO_SDK_FOR_JNI_TRACING_SDK_H_
 
+#include <stddef.h>
 #include <stdint.h>
-
-#include <sys/types.h>
 
 #include <optional>
 #include <string>
@@ -71,11 +70,6 @@ void trace_event(int type,
  * @brief Gets the process track UUID.
  */
 uint64_t get_process_track_uuid();
-
-/**
- * @brief Gets the thread track UUID for a given PID.
- */
-uint64_t get_thread_track_uuid(pid_t tid);
 
 /**
  * @brief Holder for all the other classes in the file.

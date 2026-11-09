@@ -146,19 +146,19 @@ public final class PerfettoTrackEventBuilder {
 
   public static PerfettoTrackEventBuilder newEvent(
       int traceType, Category category, boolean isDebug) {
-    if (category.isRegistered() && category.isEnabled()) {
-      PerfettoTrackEventBuilder[] pool = sThreadLocalBuilder.get();
-      for (int i = MAX_POOLED_BUILDERS - 1; i >= 0; i--) {
-        PerfettoTrackEventBuilder builder = pool[i];
-        if (builder != null) {
-          pool[i] = null;
-          return builder.initNewEvent(traceType, category, isDebug);
-        }
-      }
-      return new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ true, /* parent= */ null)
-          .initNewEvent(traceType, category, isDebug);
+    if (!category.isEnabled()) {
+      return NO_OP_BUILDER;
     }
-    return NO_OP_BUILDER;
+    PerfettoTrackEventBuilder[] pool = sThreadLocalBuilder.get();
+    for (int i = MAX_POOLED_BUILDERS - 1; i >= 0; i--) {
+      PerfettoTrackEventBuilder builder = pool[i];
+      if (builder != null) {
+        pool[i] = null;
+        return builder.initNewEvent(traceType, category, isDebug);
+      }
+    }
+    return new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ true, /* parent= */ null)
+        .initNewEvent(traceType, category, isDebug);
   }
 
   private PerfettoTrackEventBuilder(boolean isCategoryEnabled, PerfettoTrackEventBuilder parent) {
