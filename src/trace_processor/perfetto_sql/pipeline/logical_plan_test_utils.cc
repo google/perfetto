@@ -352,7 +352,8 @@ std::string LogicalPlanFormatter::WhereString(const Where& where) {
     std::vector<std::string> literals;
     for (uint32_t j = 0; j < p.literal_count; ++j) {
       const Literal& l = where.literals_[p.first_literal + j];
-      literals.push_back(l.is_string()   ? "'" + l.text + "'"
+      literals.push_back(l.is_bound()    ? "?" + std::to_string(l.bound)
+                         : l.is_string() ? "'" + l.text + "'"
                          : l.is_double() ? std::to_string(l.double_value)
                                          : std::to_string(l.int_value));
     }
