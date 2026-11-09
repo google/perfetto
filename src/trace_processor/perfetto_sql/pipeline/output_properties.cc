@@ -434,9 +434,8 @@ void DeriveContext::SetPrograms(std::vector<core::exec::ExprProgram> programs) {
   bound_->planned[self_].programs = std::move(programs);
 }
 
-std::vector<std::optional<core::exec::FilterValue>>&
-DeriveContext::filter_values() {
-  return bound_->planned[self_].filter_values;
+std::vector<PlannedParam>& DeriveContext::params() {
+  return bound_->planned[self_].params;
 }
 
 void DeriveContext::LimitSort(const OutputProperties::OpenSort& sort,
