@@ -18,6 +18,7 @@ package dev.perfetto.sdk.test;
 
 import static com.google.common.truth.Truth.assertThat;
 import static dev.perfetto.sdk.PerfettoTrace.Category;
+import static org.junit.Assert.assertThrows;
 import static perfetto.protos.ChromeLatencyInfoOuterClass.ChromeLatencyInfo.LatencyComponentType.COMPONENT_INPUT_EVENT_LATENCY_BEGIN_RWH;
 import static perfetto.protos.ChromeLatencyInfoOuterClass.ChromeLatencyInfo.LatencyComponentType.COMPONENT_INPUT_EVENT_LATENCY_SCROLL_UPDATE_ORIGINAL;
 
@@ -1533,5 +1534,39 @@ public class PerfettoTraceTest {
     // On host / default variant, system backend registration is unrestricted.
     assertThat(PerfettoTrace.register(false)).isTrue();
     assertThat(PerfettoTrace.getAttempedSystemRegistration()).isTrue();
+  }
+
+  @Test
+  public void testSameTrackNameWithDifferentIdOrParent() throws Exception {
+    PerfettoTrace.Session session =
+        new PerfettoTrace.Session(true, getTraceConfig(FOO).toByteArray());
+
+    // Reusing a name must not merge tracks with different ids or parents.
+    long parent = PerfettoTrace.getProcessTrackUuid();
+    long otherParent = PerfettoTrace.getThreadTrackUuid(Process.myTid());
+    PerfettoTrace.instant(FOO_CATEGORY, "a").usingNamedTrack(1, "named", parent).emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "b").usingNamedTrack(2, "named", parent).emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "c").usingNamedTrack(1, "named", otherParent).emit();
+    PerfettoTrace.counter(FOO_CATEGORY, 1).usingCounterTrack(parent, "counter").emit();
+    PerfettoTrace.counter(FOO_CATEGORY, 2).usingCounterTrack(otherParent, "counter").emit();
+    PerfettoTrace.state(FOO_CATEGORY, "x", "state").emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "d").usingStateTrack(otherParent, "state").emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+    Set<Long> uuids = new HashSet<>();
+    for (int i = 0; i < 7; i++) {
+      uuids.add(getTrackEvent(trace, i).getTrackUuid());
+    }
+    assertThat(uuids).hasSize(7);
+  }
+
+  @Test
+  public void testSessionCloseTwice() throws Exception {
+    PerfettoTrace.Session session =
+        new PerfettoTrace.Session(true, getTraceConfig(FOO).toByteArray());
+    PerfettoTrace.instant(FOO_CATEGORY, "event").emit();
+    assertThat(Trace.parseFrom(session.close()).getPacketCount()).isGreaterThan(0);
+
+    assertThrows(IllegalStateException.class, session::close);
   }
 }

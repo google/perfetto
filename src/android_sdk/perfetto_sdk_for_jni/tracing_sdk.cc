@@ -79,8 +79,8 @@ void Extra::clear_extras() {
   extras_.clear();
 }
 
-void Extra::delete_extra(Extra* ptr) {
-  delete ptr;
+void Extra::delete_extra(void* ptr) {
+  delete static_cast<Extra*>(ptr);
 }
 
 Category::Category(const std::string& name) : Category(name, {}) {}
@@ -121,8 +121,8 @@ bool Category::is_category_enabled() {
       (category_).enabled, PERFETTO_MEMORY_ORDER_RELAXED));
 }
 
-void Category::delete_category(Category* ptr) {
-  delete ptr;
+void Category::delete_category(void* ptr) {
+  delete static_cast<Category*>(ptr);
 }
 
 Flow::Flow() : flow_{} {}
@@ -139,8 +139,8 @@ void Flow::set_process_terminating_flow(uint64_t id) {
   flow_.id = ret.id;
 }
 
-void Flow::delete_flow(Flow* ptr) {
-  delete ptr;
+void Flow::delete_flow(void* ptr) {
+  delete static_cast<Flow*>(ptr);
 }
 
 NamedTrack::NamedTrack(uint64_t id,
@@ -154,8 +154,8 @@ NamedTrack::NamedTrack(uint64_t id,
              parent_uuid,
              is_name_static} {}
 
-void NamedTrack::delete_track(NamedTrack* ptr) {
-  delete ptr;
+void NamedTrack::delete_track(void* ptr) {
+  delete static_cast<NamedTrack*>(ptr);
 }
 
 NestedTracks::NestedTracks(RootType root_type, std::vector<NestedLevel> levels)
@@ -203,8 +203,8 @@ NestedTracks::NestedTracks(RootType root_type, std::vector<NestedLevel> levels)
   extra_.tracks = ptrs_.data();
 }
 
-void NestedTracks::delete_track(NestedTracks* ptr) {
-  delete ptr;
+void NestedTracks::delete_track(void* ptr) {
+  delete static_cast<NestedTracks*>(ptr);
 }
 
 RegisteredTrack::RegisteredTrack(uint64_t id,
@@ -251,8 +251,8 @@ void RegisteredTrack::unregister_track() {
   PerfettoTeRegisteredTrackUnregister(&registered_track_);
 }
 
-void RegisteredTrack::delete_track(RegisteredTrack* ptr) {
-  delete ptr;
+void RegisteredTrack::delete_track(void* ptr) {
+  delete static_cast<RegisteredTrack*>(ptr);
 }
 
 Proto::Proto() : proto_({{PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS}, nullptr}) {}
@@ -272,8 +272,8 @@ void Proto::clear_fields() {
   proto_.fields = nullptr;
 }
 
-void Proto::delete_proto(Proto* ptr) {
-  delete ptr;
+void Proto::delete_proto(void* ptr) {
+  delete static_cast<Proto*>(ptr);
 }
 
 ProtoFieldNested::ProtoFieldNested()
@@ -295,8 +295,8 @@ void ProtoFieldNested::set_id(uint32_t id) {
   field_.fields = nullptr;
 }
 
-void ProtoFieldNested::delete_field(ProtoFieldNested* ptr) {
-  delete ptr;
+void ProtoFieldNested::delete_field(void* ptr) {
+  delete static_cast<ProtoFieldNested*>(ptr);
 }
 
 Session::Session(bool is_backend_in_process, void* buf, size_t len) {
@@ -336,8 +336,8 @@ std::vector<uint8_t> Session::ReadBlocking() {
   return data;
 }
 
-void Session::delete_session(Session* ptr) {
-  delete ptr;
+void Session::delete_session(void* ptr) {
+  delete static_cast<Session*>(ptr);
 }
 
 void activate_trigger(const char* name, uint32_t ttl_ms) {
