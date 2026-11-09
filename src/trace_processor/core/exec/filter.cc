@@ -27,6 +27,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/span.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/filter_kernels.h"
@@ -43,6 +44,7 @@
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/util/glob.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -228,6 +230,56 @@ bool KeepRowsWhichCanMatch(const ParamValue& cast,
   return cast.value.validity == CastFilterValueResult::kValid && r.count != 0;
 }
 
+// Keeps the rows of a string `column` whose value `glob`'s pattern matches.
+// Rows are matched one at a time until as many have been as a quarter of the
+// pool's strings; then, as the interpreter does for a large input, every
+// string in the pool is matched in one pass, and each row after is a bit test.
+void KeepGlobMatches(const ColumnView& column,
+                     GlobMatch& glob,
+                     const StringPool& pool,
+                     Rows& r) {
+  const util::GlobMatcher& matcher = glob.matcher;
+  Materialize(r);
+  const auto* data =
+      static_cast<const StringPool::Id*>(column.data()) + column.start();
+  uint32_t kept = 0;
+  if (!glob.matched_below && glob.rows >= pool.size() / 4) {
+    uint32_t ids = pool.MaxSmallStringId().raw_id() + 1;
+    glob.matches = BitVector::CreateWithSize(ids);
+    for (auto it = pool.CreateSmallStringIterator(); it; ++it) {
+      uint32_t raw = it.StringId().raw_id();
+      if (raw >= ids) {
+        break;
+      }
+      if (matcher.Matches(it.StringView())) {
+        glob.matches.set(raw);
+      }
+      glob.matched_below = raw + 1;
+    }
+  }
+  if (!glob.matched_below) {
+    glob.rows += r.count;
+    for (uint32_t i = 0; i < r.count; ++i) {
+      uint32_t row = r.rows[i];
+      r.rows[kept] = row;
+      kept += matcher.Matches(pool.Get(data[row]));
+    }
+    r.count = kept;
+    return;
+  }
+  for (uint32_t i = 0; i < r.count; ++i) {
+    uint32_t row = r.rows[i];
+    StringPool::Id id = data[row];
+    uint32_t raw = id.raw_id();
+    bool match = id.is_large_string() || raw >= glob.matched_below
+                     ? matcher.Matches(pool.Get(id))
+                     : glob.matches.is_set(raw);
+    r.rows[kept] = row;
+    kept += match;
+  }
+  r.count = kept;
+}
+
 // Copies the values of a sparse `column` at the rows kept, none of which is
 // null, into `values` at each row, and views them as a flat column.
 template <uint32_t kWidth>
@@ -281,6 +333,9 @@ void ApplyCondition(const Op& op,
   } else if (lent.kind() == ColumnView::Kind::kSequence) {
     column =
         GatherSequence(lent, r, reinterpret_cast<uint32_t*>(sparse_values));
+  }
+  if (op.Is<Glob>() && cast.glob) {
+    return KeepGlobMatches(column, *cast.glob, pool, r);
   }
   switch (column.type().index()) {
     case StorageType::GetTypeIndex<Uint32>():

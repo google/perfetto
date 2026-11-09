@@ -18,8 +18,10 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_FILTER_H_
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"

@@ -34,6 +34,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
+#include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
@@ -703,6 +704,81 @@ TEST_F(PhysicalPlanTest, WhereComparesWithExternalLiteralsSetOnce) {
   EXPECT_THAT(ids(7, 1), ElementsAre(2, 4));
   EXPECT_THAT(ids(5, 0), ElementsAre(0, 2, 4));
   EXPECT_THAT(ids(5, 9), ElementsAre());
+}
+
+// Strings, as SQLite passes a GLOB's pattern.
+struct StringArgs : core::ValueFetcher {
+  using Type = int;
+  static constexpr Type kInt64 = 0;
+  static constexpr Type kDouble = 1;
+  static constexpr Type kString = 2;
+  static constexpr Type kNull = 3;
+  int64_t GetInt64Value(uint32_t) const { PERFETTO_FATAL("Not an int"); }
+  double GetDoubleValue(uint32_t) const { PERFETTO_FATAL("Not a double"); }
+  const char* GetStringValue(uint32_t i) const { return values[i].c_str(); }
+  Type GetValueType(uint32_t) const { return kString; }
+  bool IteratorInit(uint32_t) { PERFETTO_FATAL("Not a list"); }
+  bool IteratorNext(uint32_t) { PERFETTO_FATAL("Not a list"); }
+  std::vector<std::string> values;
+};
+
+// A GLOB literal is compiled and matched once per execution, however many runs
+// read it; a bound GLOB is matched as each run gives it.
+TEST_F(PhysicalPlanTest, WhereMatchesAGlobLiteralOncePerExecution) {
+  using ColumnType = dataframe::AdhocDataframeBuilder::ColumnType;
+  dataframe::AdhocDataframeBuilder::Options options;
+  options.types = {ColumnType::kInt64, ColumnType::kString};
+  dataframe::AdhocDataframeBuilder builder({"id", "name"}, &pool_, options);
+  int64_t id = 0;
+  for (const char* name : {"apple", "banana", "avocado", "cherry"}) {
+    ASSERT_TRUE(builder.PushNonNull(0, id++));
+    ASSERT_TRUE(builder.PushNonNull(1, pool_.InternString(name)));
+  }
+  auto built = std::move(builder).Build();
+  ASSERT_TRUE(built.ok()) << built.status().c_message();
+  LogicalPlan plan;
+  PlanNodeId scan = Scan::AddToPlan(&plan, *built, "s", {0, 1});
+  std::vector<NamedColumn> columns = plan.nodes()[scan].Cast<Scan>().columns();
+  WherePredicate literal;
+  literal.column = columns[1].id;
+  literal.op = core::Glob{};
+  literal.literal_count = 1;
+  WherePredicate bound;
+  bound.column = columns[1].id;
+  bound.op = core::Glob{};
+  bound.first_literal = 1;
+  bound.literal_count = 1;
+  Where::AddToPlan(&plan, {literal, bound},
+                   {Literal::External(0), Literal::Bound(1)});
+  plan.output() = columns;
+  BoundPlan bound_plan(std::move(plan));
+  Scan::Bind(&bound_plan, scan, *built);
+  ASSERT_TRUE(RunBoundPasses(&bound_plan, {&pool_}).ok());
+  std::unique_ptr<PhysicalPlan> physical = Lower(&bound_plan, {&pool_});
+  ASSERT_TRUE(bound_plan.status.ok()) << bound_plan.status.message();
+
+  RowCursor cursor(physical->source());
+  RunParams<StringArgs> params(*physical);
+  auto ids = [&](const std::string& run_pattern) {
+    StringArgs args;
+    args.values = {"", run_pattern};
+    base::Span<const core::exec::ParamValue> run = params.Bind(args);
+    EXPECT_NE(run[0].glob, nullptr);
+    EXPECT_EQ(run[1].glob, nullptr);
+    std::vector<int64_t> out;
+    for (bool row = cursor.Open(run); row; row = cursor.Next()) {
+      out.push_back(*IntAt(cursor, physical->columns()[0].index));
+    }
+    return out;
+  };
+  StringArgs literals;
+  literals.values = {"a*", ""};
+  params.SetLiterals(literals);
+  EXPECT_THAT(ids("*"), ElementsAre(0, 2));
+  EXPECT_THAT(ids("*o"), ElementsAre(2));
+  literals.values = {"[bc]*", ""};
+  params.SetLiterals(literals);
+  EXPECT_THAT(ids("*"), ElementsAre(1, 3));
 }
 
 // A filter reads a column a scan lends sparse, so it needs no Expand first.

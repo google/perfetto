@@ -22,6 +22,7 @@
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <utility>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -32,6 +33,8 @@
 #include "src/trace_processor/core/common/filter_value_cast.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/util/glob.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -44,6 +47,24 @@ namespace perfetto::trace_processor::core::exec {
 // GetParamCaster). Everything after only reads them: nothing is
 // allocated, and nothing dispatches on the column's type or the comparison,
 // which matters when each run looks up one row.
+// A GLOB literal's pattern, compiled, and the strings matched with it so far:
+// a string's result depends only on the pattern, so whatever reads the literal
+// fills this in as it goes.
+struct GlobMatch {
+  explicit GlobMatch(std::string p)
+      : pattern(std::move(p)),
+        matcher(util::GlobMatcher::FromPattern(base::StringView(pattern))) {}
+
+  std::string pattern;
+  util::GlobMatcher matcher;
+  // Rows matched one at a time.
+  uint64_t rows = 0;
+  // The result of every string with an id below `matched_below`, once the
+  // pool has been matched. Strings interned after are above it.
+  BitVector matches;
+  uint32_t matched_below = 0;
+};
+
 struct ParamValue {
   filter::CastFilterValueResult value =
       filter::CastFilterValueResult::NoneMatch();
@@ -55,7 +76,23 @@ struct ParamValue {
   // For IN: the list's values, while `value` says whether any can match. Its
   // allocations are reused from run to run.
   filter::CastFilterValueListResult::Ptr list;
+  // For a GLOB literal with wildcards (see AttachGlob).
+  std::unique_ptr<GlobMatch> glob;
 };
+
+// Gives `value`, a GLOB literal just cast, its GlobMatch, so that it is
+// matched against the pool once however many runs read it. A pattern without
+// wildcards still compares string ids, and needs none.
+inline void AttachGlob(ParamValue* value) {
+  value->glob.reset();
+  if (value->value.validity != filter::CastFilterValueResult::kValid) {
+    return;
+  }
+  auto glob = std::make_unique<GlobMatch>(value->text);
+  if (!glob->matcher.IsEquality()) {
+    value->glob = std::move(glob);
+  }
+}
 
 namespace internal {
 
