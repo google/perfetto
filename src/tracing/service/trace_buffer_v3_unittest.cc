@@ -263,7 +263,7 @@ class TraceBufferV3Test : public testing::Test {
 
   // Runs a checkpoint pass regardless of the target, so a test using
   // kBundleOnlyOnRead can choose which packets share a bundle.
-  void BundleNow() { trace_buffer_->BundleStagingForWrite(); }
+  void BundleNow() { trace_buffer_->BundleStaging(); }
 
   // Leaves a 1 KiB chunk that bundling cannot consume yet.
   // WriteEndOfSplitPacket() supplies the missing fragment.
@@ -314,7 +314,7 @@ class TraceBufferV3Test : public testing::Test {
       chunk.AddFragment(packet);
     chunk.CopyIntoTraceBuffer();
     probe->BeginRead();
-    probe->BundleStagingForRead();
+    probe->FillNextBundle();
     return probe->used_size();
   }
 
@@ -519,9 +519,9 @@ TEST_F(TraceBufferV3Test, EmptyBuffer) {
   EXPECT_EQ(v3_stats().bundles_written(), 0u);
 }
 
-// Packets below the target stay in staging until a read bundles them and
-// returns them with their writer's identity.
-TEST_F(TraceBufferV3Test, ReadBundlesWhatIsLeftInStaging) {
+// Packets below the target stay in staging, and a read returns them directly
+// with their writer's identity.
+TEST_F(TraceBufferV3Test, ReadReturnsWhatIsLeftInStaging) {
   ResetBuffer(4096, kBundleOnlyOnRead);
   WriteChunk(1, 1, 0, {Packet("a"), Packet("b")});
   WriteChunk(2, 3, 0, {Packet("c")});
@@ -542,7 +542,7 @@ TEST_F(TraceBufferV3Test, ReadBundlesWhatIsLeftInStaging) {
   for (const TestPacket& packet : packets)
     EXPECT_EQ(packet.loss, 0u);
 
-  EXPECT_EQ(v3_stats().bundles_written(), 1u);
+  EXPECT_EQ(v3_stats().bundles_written(), 0u);
   EXPECT_EQ(trace_buffer_->used_size(), 0u);
   // Once read, no bundle holds the sequences, so staging may prune them.
   EXPECT_EQ(num_bundled_sequences(), 0u);
@@ -635,7 +635,8 @@ TEST_F(TraceBufferV3Test, FragmentsWaitForPatches) {
 
   // Patch "XXXX" after [a]'s 7 bytes, the fragment's size byte and the
   // packet's 5-byte protobuf prefix.
-  // A patch adds no staging bytes toward a checkpoint, so the read bundles it.
+  // A patch adds no staging bytes toward a checkpoint, so the read returns it
+  // from staging.
   const TraceBuffer::Patch patch{7 + 1 + 5, {'r', 'e', 'a', 'd'}};
   ASSERT_TRUE(trace_buffer_->TryPatchChunkContents(
       1, 1, 0, &patch, 1, /*other_patches_pending=*/false));
@@ -758,6 +759,7 @@ TEST_F(TraceBufferV3Test, PacketsOfManySizesInOneBundle) {
   ASSERT_EQ(Packet(expected[8]).size(), 16384u);
   trace_buffer_->OnWriteCheckpoint();
   EXPECT_EQ(v3_stats().bundles_written(), 0u);
+  BundleNow();
 
   EXPECT_EQ(Strs(ReadAll()), expected);
   EXPECT_EQ(v3_stats().bundles_written(), 1u);
@@ -904,79 +906,6 @@ TEST_F(TraceBufferV3Test, BundleLargerThanTheBuffer) {
     EXPECT_EQ(packets[1].loss, kLossPresent | kLossReadGap);
     EXPECT_EQ(num_bundled_sequences(), 0u);
   }
-}
-
-// A blocked sequence is tried once per read batch, even when the batch
-// reads several bundles from staging.
-TEST_F(TraceBufferV3Test, ReadKeepsStagingCursorAcrossBundles) {
-  ResetBuffer(4096, 64);
-  const std::string split = Packet("fragmented");
-  const std::string a(80, 'a');
-  const std::string b(80, 'b');
-  CreateChunk(1, 1, 0)
-      .AddFragment(split.substr(0, 9), kContOnNextChunk)
-      .CopyIntoTraceBuffer();
-  const size_t blocked_chunk_size = staging()->used_size();
-  WriteChunk(1, 2, 0, {Packet(a), Packet(b), Packet("tail")});
-
-  trace_buffer_->BeginRead();
-  TestPacket packet;
-  for (const auto& expected : {a, b, std::string("tail")}) {
-    ASSERT_TRUE(ReadOne(trace_buffer_.get(), &packet));
-    EXPECT_EQ(packet.str, expected);
-    EXPECT_EQ(packet.loss, 0u);
-    EXPECT_EQ(staging()->stats().readaheads_failed(), 1u);
-  }
-
-  // The final partial bundle completes the staging read and compacts it.
-  // Further reads must not resume that cursor or retry the blocked sequence.
-  EXPECT_FALSE(ReadOne(trace_buffer_.get(), &packet));
-  EXPECT_FALSE(ReadOne(trace_buffer_.get(), &packet));
-  EXPECT_EQ(v3_stats().bundles_written(), 3u);
-  EXPECT_EQ(stats().compactions(), 1u);
-  EXPECT_EQ(staging()->stats().readaheads_failed(), 1u);
-  EXPECT_EQ(staging()->used_size(), blocked_chunk_size);
-
-  // A new batch can read the sequence once its missing fragment arrives.
-  CreateChunk(1, 1, 1)
-      .AddFragment(split.substr(9), kContFromPrevChunk)
-      .CopyIntoTraceBuffer();
-  const auto packets = ReadAll();
-  ASSERT_THAT(Strs(packets), ElementsAre("fragmented"));
-  EXPECT_EQ(packets[0].loss, 0u);
-  EXPECT_EQ(staging()->stats().readaheads_succeeded(), 1u);
-  EXPECT_EQ(staging()->used_size(), 0u);
-}
-
-// A read keeps bundling staging until it stores a bundle, so it skips bundles
-// too large to store, or returns nothing if staging has only those.
-TEST_F(TraceBufferV3Test, ReadSkipsOversizedBundles) {
-  const size_t target = 64;
-  const std::string small = Packet("kept");
-  const std::string large = Packet(RandomBytes(512, 1));
-  const size_t capacity = 3 * BundleSize(target, {small});
-  ASSERT_GT(BundleSize(target, {large}), capacity);
-  ResetBuffer(capacity, target);
-
-  WriteChunk(1, 1, 0, {large, large, small});
-  ASSERT_EQ(v3_stats().bundles_written(), 0u);
-  trace_buffer_->BeginRead();
-  TestPacket packet;
-  ASSERT_TRUE(ReadOne(trace_buffer_.get(), &packet));
-  EXPECT_EQ(packet.str, "kept");
-  EXPECT_EQ(packet.loss, kLossPresent);
-  EXPECT_EQ(v3_stats().bundles_too_large(), 2u);
-  EXPECT_EQ(v3_stats().bundles_written(), 1u);
-  EXPECT_FALSE(ReadOne(trace_buffer_.get(), &packet));
-
-  WriteChunk(1, 1, 1, {large});
-  EXPECT_THAT(ReadAll(), IsEmpty());
-  EXPECT_EQ(v3_stats().bundles_too_large(), 3u);
-
-  WriteChunk(1, 1, 2, {small});
-  std::vector<TestPacket> packets = ReadAll();
-  ASSERT_THAT(Strs(packets), ElementsAre("kept"));
-  EXPECT_EQ(packets[0].loss, kLossPresent);
 }
 
 // kDiscard drops a bundle that exceeds free space but fits the capacity.
@@ -1187,7 +1116,7 @@ TEST_F(TraceBufferV3Test, PacketDataAllocatorFitsFileReadBatchesFromFirstRead) {
 TEST_F(TraceBufferV3Test, ReadResumesInsideBundle) {
   ResetBuffer(4096, kBundleOnlyOnRead);
   WriteChunk(1, 1, 0, {Packet("p1"), Packet("p2"), Packet("p3"), Packet("p4")});
-  trace_buffer_->OnWriteCheckpoint();
+  BundleNow();
 
   trace_buffer_->BeginRead();
   TestPacket packet;
@@ -1220,9 +1149,10 @@ TEST_F(TraceBufferV3Test, ReadResumesInsideBundle) {
   ASSERT_TRUE(ReadOne(trace_buffer_.get(), &packet, &p4));
   EXPECT_EQ(packet.str, "p4");
   EXPECT_EQ(v3_stats().bundles_written(), 1u);
+  // p5 comes straight from staging.
   ASSERT_TRUE(ReadOne(trace_buffer_.get(), &packet));
   EXPECT_EQ(packet.str, "p5");
-  EXPECT_EQ(v3_stats().bundles_written(), 2u);
+  EXPECT_EQ(v3_stats().bundles_written(), 1u);
   EXPECT_FALSE(ReadOne(trace_buffer_.get(), &packet));
   EXPECT_EQ(p3.GetRawBytesForTesting(), Packet("p3"));
   EXPECT_EQ(p4.GetRawBytesForTesting(), Packet("p4"));
@@ -2267,9 +2197,9 @@ TEST_F(TraceBufferV3Test, Stats) {
   uint64_t count = 0;
   for (uint64_t bucket_count : serialized.bundling_time_us_histogram_counts())
     count += bucket_count;
-  // Three checkpoints and one read of empty staging give four measurements,
-  // regardless of how many bundles each pass evicts.
-  EXPECT_EQ(count, 4u);
+  // Three checkpoints give three measurements, regardless of how many bundles
+  // each pass evicts. Reads don't bundle, so they add none.
+  EXPECT_EQ(count, 3u);
 }
 
 // The first read adds a decode block, and MaybeCompact() keeps it for the next
@@ -2321,6 +2251,7 @@ TEST_F(TraceBufferV3Test, BothBuffersUseConfiguredCapacity) {
 
     // The first read allocates the first decode block.
     WriteChunk(1, 1, 0, {Packet("a")});
+    BundleNow();
     ASSERT_EQ(ReadAll().size(), 1u);
     EXPECT_EQ(decode_memory_bytes(), test_case.decode_block_size);
     EXPECT_GE(trace_buffer_->GetMemoryUsageBytes(),

@@ -28,7 +28,6 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/time.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -177,7 +176,7 @@ class BundleBuffer {
 // +---------------------------------------------------------------------------+
 // Compresses trace packets into bundles before storing them.
 // A staging TraceBufferV2 stores chunks and reassembles complete packets when
-// FillNextBundle() reads them.
+// bundling or a read takes them.
 //
 //   SMB v1 chunks / SMB v2 fragments
 //                   |
@@ -203,13 +202,14 @@ class BundleBuffer {
 //                   v
 //   TracePackets with slices into packet_data_allocator_
 //
-// We bundle packets out of staging in three places.
+// Once no decoded or stored bundle is left, ReadNextTracePacket() returns
+// packets straight from staging, with slices into its chunks.
+//
+// We bundle packets out of staging with BundleStaging() in two places.
 // - Checkpoint pass: OnWriteCheckpoint(), at a write cycle's end, once staging
 //   holds at least |target_packet_data_size_| bytes.
 // - Space pass: MaybeFreeStagingSpace(), before a copy that might wrap or
 //   overwrite staging. We bundle all readable packets to make space.
-// - Read pass: BundleStagingForRead(), when ReadNextTracePacket() has no
-//   decoded or stored bundle left.
 //
 // See RFC 0050 at https://github.com/google/perfetto/discussions/7838.
 class TraceBufferV3 : public TraceBuffer {
@@ -274,9 +274,10 @@ class TraceBufferV3 : public TraceBuffer {
   // Returns the next packet from these sources, in order.
   // 1. Remaining packets in |decoded_bundle_|.
   // 2. Bundles in |bundle_buf_|, oldest first.
-  // 3. Remaining packets in |staging_buf_|.
+  // 3. Remaining packets in |staging_buf_|, read directly.
   // Returns false if no packet is readable.
-  // Returned slices are valid until the next BeginRead() or MaybeCompact().
+  // Returned slices are valid until the next write, BeginRead() or
+  // MaybeCompact().
   bool ReadNextTracePacket(
       TracePacket*,
       PacketSequenceProperties* sequence_properties,
@@ -297,7 +298,7 @@ class TraceBufferV3 : public TraceBuffer {
   TraceBufferProtoVms* protovms() override;
 
   // Later writes, patches and loss reports fail a CHECK, but reads can still
-  // bundle the packets left in staging.
+  // return the packets left in staging.
   void set_read_only() override;
 
   const TraceStats::BufferStats& stats() const override;
@@ -345,18 +346,10 @@ class TraceBufferV3 : public TraceBuffer {
   // Existing chunks in |staging_buf_| can still be patched and read.
   void StopAcceptingWrites() { staging_buf_->StopAcceptingWrites(); }
 
-  // Called by OnWriteCheckpoint() and MaybeFreeStagingSpace().
-  // Bundles readable packets from |staging_buf_|, then compacts |staging_buf_|
-  // once the read finishes.
-  void BundleStagingForWrite();
-
-  // Called after |bundle_buf_| is drained.
-  // Continues the read begun by BeginRead() until |bundle_buf_| has a bundle
-  // or no packet is readable, even if kDiscard has stopped writes.
-  // Returns whether |bundle_buf_| now has a bundle.
-  bool BundleStagingForRead();
-
-  void RecordBundlingTime(base::TimeNanos duration);
+  // Starts a new read of |staging_buf_| and bundles all readable packets,
+  // stopping early if kDiscard stops writes.
+  // Then compacts |staging_buf_| if no packet is readable.
+  void BundleStaging();
 
   internal::SequenceStateMap& sequence_states() {
     return staging_buf_->sequence_states_;
@@ -380,6 +373,12 @@ class TraceBufferV3 : public TraceBuffer {
   // bug.
   BundleSequence& GetBundleSequence(uint32_t bundle_id,
                                     uint32_t sequence_index);
+
+  // Reads the next nonempty packet from |staging_buf_|.
+  // Returns false if no packet is readable.
+  bool ReadNextStagedPacket(TracePacket* packet,
+                            PacketSequenceProperties* sequence_properties,
+                            uint32_t* loss_reasons);
 
   // Builds one bundle from complete packets in |staging_buf_|.
   // |open_bundle_| holds metadata, while |codec_| receives the packet data.
@@ -407,25 +406,20 @@ class TraceBufferV3 : public TraceBuffer {
   // Decompresses the front bundle's packet data into |dst|.
   void DecompressFrontBundle(uint8_t* dst, size_t dst_size);
 
-  // Decodes the next available bundle and initializes |decoded_bundle_|.
-  // Returns false if no packet is readable.
-  bool DecodeNextBundle();
+  // Decodes the front bundle of |bundle_buf_| into |decoded_bundle_|.
+  void DecodeNextBundle();
 
   // The threshold that kicks off bundling. OnWriteCheckpoint() starts bundling
   // once staging holds at least this many bytes.
   const size_t target_packet_data_size_;
 
-  // Holds chunks until bundling reads their packets.
+  // Holds chunks until bundling or a read takes their packets.
   // Reassembles and patches SMB v1 packets, and converts SMB v2 packets to
   // length-delimited protobuf.
   // It also owns the sequence state map.
   // Declared before |bundle_sequences_|, because a lease calls into its
   // SequenceState when it ends.
   std::unique_ptr<TraceBufferV2> staging_buf_;
-
-  // Lets BundleStagingForRead() skip |staging_buf_| once no packet is readable.
-  // BeginRead() clears it so reads can pick up newly available packets.
-  bool staging_read_complete_ = false;
 
   // Reused for |staging_buf_| reads so its slice vector keeps its capacity.
   // Cleared after bundling because compaction can move the referenced chunks.

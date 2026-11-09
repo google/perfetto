@@ -393,7 +393,7 @@ void TraceBufferV3::MaybeFreeStagingSpace(size_t max_payload_size) {
     // A scrape can copy chunks out of order, so this pass can read past a chunk
     // that is still missing, and staging rejects that chunk when it arrives.
     // We accept the rare loss instead of complicating by waiting for the chunk.
-    BundleStagingForWrite();
+    BundleStaging();
     v3_stats_.set_staging_space_passes(v3_stats_.staging_space_passes() + 1);
   }
 }
@@ -405,49 +405,24 @@ void TraceBufferV3::OnWriteCheckpoint() {
   if (staging_buf_->used_size() < target_packet_data_size_)
     return;
 
-  BundleStagingForWrite();
+  BundleStaging();
 }
 
-void TraceBufferV3::BundleStagingForWrite() {
+void TraceBufferV3::BundleStaging() {
   const base::TimeNanos start = base::GetWallTimeNs();
+
   staging_buf_->BeginRead();
 
-  // Under kDiscard, stop this pass once cumulative stored bytes reach
-  // |bundle_buf_|'s capacity or a bundle does not fit in the free space.
-  while (!discard_writes()) {
-    if (!FillNextBundle()) {
-      // Compaction moves chunks and invalidates staging's read cursor, so run
-      // it only once the read is complete.
-      staging_buf_->MaybeCompact();
-      break;
-    }
-  }
+  // Bundle until no more packet is readable or kDiscard stops writes.
+  bool more_packets = true;
+  while (more_packets && !discard_writes())
+    more_packets = FillNextBundle();
 
-  RecordBundlingTime(base::GetWallTimeNs() - start);
-}
+  // Staging has no readable packets left, so compact it.
+  if (!more_packets)
+    staging_buf_->MaybeCompact();
 
-bool TraceBufferV3::BundleStagingForRead() {
-  PERFETTO_DCHECK(bundle_buf_.empty());
-  if (staging_read_complete_)
-    return false;
-
-  const base::TimeNanos start = base::GetWallTimeNs();
-
-  // Empty packets and oversized bundles can leave |bundle_buf_| empty.
-  // Stop once a bundle is stored or |staging_buf_| has no readable packets.
-  while (bundle_buf_.empty()) {
-    if (!FillNextBundle()) {
-      staging_read_complete_ = true;
-      staging_buf_->MaybeCompact();
-      break;
-    }
-  }
-
-  RecordBundlingTime(base::GetWallTimeNs() - start);
-  return !bundle_buf_.empty();
-}
-
-void TraceBufferV3::RecordBundlingTime(base::TimeNanos duration) {
+  const base::TimeNanos duration = base::GetWallTimeNs() - start;
   const uint64_t duration_us = static_cast<uint64_t>(
       std::chrono::duration_cast<std::chrono::microseconds>(duration).count());
   v3_stats_.set_bundling_max_us(
@@ -464,6 +439,32 @@ TraceBufferV3::BundleSequence& TraceBufferV3::GetBundleSequence(
   return *entry;
 }
 
+bool TraceBufferV3::ReadNextStagedPacket(
+    TracePacket* packet,
+    PacketSequenceProperties* sequence_properties,
+    uint32_t* loss_reasons) {
+  for (;;) {
+    packet->Clear();
+
+    if (!staging_buf_->ReadNextTracePacket(packet, sequence_properties,
+                                           loss_reasons)) {
+      return false;
+    }
+
+    if (PERFETTO_LIKELY(packet->size() > 0))
+      return true;
+
+    // SMB v1 can reassemble an empty packet from empty fragments.
+    // Keep its loss for the next packet on this sequence that leaves staging.
+    if (*loss_reasons) {
+      const ProducerAndWriterID key =
+          MkProducerAndWriterID(sequence_properties->producer_id_trusted,
+                                sequence_properties->writer_id);
+      sequence_states().FindOrDie(key).AddDataLoss(*loss_reasons);
+    }
+  }
+}
+
 bool TraceBufferV3::FillNextBundle() {
   PERFETTO_DCHECK(open_bundle_.sequence_indexes.size() == 0);
 
@@ -476,24 +477,13 @@ bool TraceBufferV3::FillNextBundle() {
   bool filled = false;
 
   for (;;) {
-    staged_packet_.Clear();
     PacketSequenceProperties properties{};
     uint32_t loss_reasons = 0;
-    if (!staging_buf_->ReadNextTracePacket(&staged_packet_, &properties,
-                                           &loss_reasons)) {
+    if (!ReadNextStagedPacket(&staged_packet_, &properties, &loss_reasons))
       break;
-    }
 
     const ProducerAndWriterID sequence_key = MkProducerAndWriterID(
         properties.producer_id_trusted, properties.writer_id);
-
-    // SMB v1 can reassemble an empty packet from empty fragments.
-    // Keep its loss for the next packet on this sequence that leaves staging.
-    if (PERFETTO_UNLIKELY(staged_packet_.size() == 0)) {
-      if (loss_reasons)
-        sequence_states().FindOrDie(sequence_key).AddDataLoss(loss_reasons);
-      continue;
-    }
 
     if (sequence_key != last_sequence_key) {
       auto& sequence_indexes = open_bundle_.sequence_indexes;
@@ -672,7 +662,6 @@ void TraceBufferV3::BeginRead() {
   // Packets returned by earlier reads are no longer needed.
   returned_packet_data_.clear();
   staging_buf_->BeginRead();
-  staging_read_complete_ = false;
 }
 
 bool TraceBufferV3::ReadNextTracePacket(
@@ -684,8 +673,16 @@ bool TraceBufferV3::ReadNextTracePacket(
                           /*writer_id=*/0};
   *previous_packet_on_sequence_dropped = 0;
 
-  if (!decoded_bundle_.packet_data && !DecodeNextBundle())
-    return false;
+  if (!decoded_bundle_.packet_data) {
+    if (bundle_buf_.empty()) {
+      // Staging only holds packets newer than every bundle, so read it once no
+      // bundle is left.
+      PERFETTO_DCHECK(bundle_sequences_.size() == 0);
+      return ReadNextStagedPacket(packet, sequence_properties,
+                                  previous_packet_on_sequence_dropped);
+    }
+    DecodeNextBundle();
+  }
 
   const BundlePacket bundle_packet = ParseBundlePacket(
       {decoded_bundle_.packet_data.data(), decoded_bundle_.packet_data.size()},
@@ -716,13 +713,8 @@ bool TraceBufferV3::ReadNextTracePacket(
   return true;
 }
 
-bool TraceBufferV3::DecodeNextBundle() {
+void TraceBufferV3::DecodeNextBundle() {
   PERFETTO_DCHECK(!decoded_bundle_.packet_data);
-  // Drain |bundle_buf_| before reading |staging_buf_|, so bundling can't
-  // overwrite older packets still waiting to be read.
-  if (bundle_buf_.empty() && !BundleStagingForRead())
-    return false;
-
   const internal::BundleHeader header = bundle_buf_.PeekFrontHeader();
 
   decoded_bundle_.packet_data =
@@ -748,7 +740,6 @@ bool TraceBufferV3::DecodeNextBundle() {
   // Reads now use |decoded_bundle_|, so reclaim the compressed bundle's
   // space in |bundle_buf_| even while its packets remain unread.
   bundle_buf_.PopFront();
-  return true;
 }
 
 void TraceBufferV3::MaybeCompact() {
