@@ -18,23 +18,16 @@ import {defer} from '../../base/deferred';
 import {okResult} from '../../base/result';
 import type {Engine} from '../../trace_processor/engine';
 import type {QueryResult} from '../../trace_processor/query_result';
+import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import type {
   NodeData,
   NodeQueryBuilderStore,
   RootNodeData,
 } from './graph_model';
 import {flattenNodes} from './graph_utils';
-import {buildPlan, type Plan} from './plan';
-import {
-  computeNeededStepHashes,
-  computeStepHashes,
-  MaterializationService,
-  planMaterialization,
-} from './materialization';
-
-function stepHash(plan: Plan, id: string): string {
-  return ensureDefined(computeStepHashes(plan, 'sql').get(id));
-}
+import {MaterializationService} from './materialization_service';
+import {planChunks} from './plan_chunks';
+import {serializeChunks} from './chunk_queries';
 
 function makeFakeEngine() {
   const queries: string[] = [];
@@ -268,6 +261,72 @@ describe('MaterializationService cache policy', () => {
     expect(service.lastRunOutcomes.get(sortHash)?.kind).toBe('hit');
   });
 
+  it('builds tables in PSN but reads a cheap output in Standard SQL', async () => {
+    const {engine, queries} = makeFakeEngine();
+    const service = new MaterializationService(engine);
+    const store: NodeQueryBuilderStore = {
+      nodes: [
+        {
+          ...makeSortedChain('f1', 'srt1', '10'),
+        },
+        {
+          type: 'limit',
+          id: 'lim1',
+          x: 0,
+          y: 0,
+          inputs: ['srt1'],
+          config: {limitCount: '5'},
+        },
+      ],
+      labels: [],
+    };
+
+    await service.scheduleUpdate(store, 'lim1', undefined, 'pipe');
+    expect(service.error).toBeUndefined();
+    const [entry] = service.cacheEntries;
+    const hash = ensureDefined(entry).hash;
+    expect(
+      queries.some((q) =>
+        q.includes(
+          `CREATE PERFETTO TABLE ${hash} AS\nFROM slice\n|> WHERE dur > 10\n|> ORDER BY dur DESC`,
+        ),
+      ),
+    ).toBe(true);
+    expect(service.readQuerySql).toBe(`SELECT *\nFROM ${hash}\nLIMIT 5`);
+  });
+
+  it("includes a chunk's modules in the statement that builds it", async () => {
+    const {engine, queries} = makeFakeEngine();
+    const service = new MaterializationService(engine);
+    const sqlModules = {
+      getModuleForTable: (table: string) =>
+        table === 'thread_slice'
+          ? {includeKey: 'slices.with_context'}
+          : undefined,
+      getTable: () => undefined,
+    } as unknown as SqlModules;
+    const chain = makeSortedChain('f1', 'srt1', '10');
+    const store: NodeQueryBuilderStore = {
+      nodes: [{...chain, config: {table: 'thread_slice'}}],
+      labels: [],
+    };
+
+    await service.scheduleUpdate(store, 'srt1', sqlModules, 'sql');
+    const hash = ensureDefined(service.materializedTable);
+    expect(queries).toContainEqual(
+      [
+        `DROP TABLE IF EXISTS ${hash};`,
+        'INCLUDE PERFETTO MODULE slices.with_context;',
+        `CREATE PERFETTO TABLE ${hash} AS`,
+        'SELECT *',
+        'FROM thread_slice',
+        'WHERE dur > 10',
+        'ORDER BY dur DESC',
+      ].join('\n'),
+    );
+    expect(queries.some((q) => q.startsWith('INCLUDE'))).toBe(false);
+  });
+
   it('waits for in-flight taskQueue queries before dropping evicted tables', async () => {
     const events: string[] = [];
     const engine = {
@@ -366,12 +425,15 @@ describe('MaterializationService cache policy', () => {
       ],
       labels: [],
     };
-    const sortPlan = ensureDefined(
-      buildPlan(flattenNodes(step2Store.nodes), 'srt1', undefined),
-    );
-    const coldSteps = planMaterialization(sortPlan, 'sql').steps.map(
-      (s) => s.hash,
-    );
+    const coldHashes = () => {
+      const index = flattenNodes(step2Store.nodes);
+      const res = serializeChunks(
+        index,
+        ensureDefined(planChunks(index, 'srt1')),
+      );
+      return res.ok ? res.chunks.map((c) => c.hash) : [];
+    };
+    const coldSteps = coldHashes();
 
     queries.length = 0;
     await service.scheduleUpdate(step2Store, 'srt1', undefined, 'sql');
@@ -387,9 +449,7 @@ describe('MaterializationService cache policy', () => {
     ).toBe(true);
 
     // 3. Re-planning with a warm cache yields the identical plan.
-    expect(
-      planMaterialization(sortPlan, 'sql').steps.map((s) => s.hash),
-    ).toEqual(coldSteps);
+    expect(coldHashes()).toEqual(coldSteps);
 
     // 4. Fork after the cheap Filter: `flt_shared` feeds `srt_a` and `lim_b`.
     // The shared Filter is not checkpointed; the cheap Limit branch reads
@@ -478,44 +538,5 @@ describe('MaterializationService cache policy', () => {
     expect(queries.some((q) => q.includes('Unsupported in Standard SQL'))).toBe(
       false,
     );
-  });
-
-  it('retains full step DAG when downstream target is warm while bypassing evicted ancestors during execution', () => {
-    const chain: RootNodeData = {
-      type: 'from',
-      id: 'f1',
-      x: 0,
-      y: 0,
-      config: {table: 'slice'},
-      next: {
-        type: 'groupby',
-        id: 'agg1',
-        config: {
-          groupColumns: ['name'],
-          aggregations: [{func: 'COUNT', column: '*', alias: 'cnt'}],
-        },
-        next: {
-          type: 'sort',
-          id: 'srt1',
-          config: {conditions: [{column: 'cnt', order: 'DESC'}]},
-        },
-      },
-    };
-    const index = flattenNodes([chain]);
-    const logicalPlan = ensureDefined(buildPlan(index, 'srt1', undefined));
-    const aggHash = stepHash(logicalPlan, 'agg1');
-    const sortHash = stepHash(logicalPlan, 'srt1');
-
-    // `sortHash` is warm and `aggHash` has been evicted: `planMaterialization`
-    // still exposes both steps and their `deps` edge (the plan never depends on
-    // the cache), while `computeNeededStepHashes` stops at `sortHash`.
-    const matPlan = planMaterialization(logicalPlan, 'sql');
-    expect(matPlan.steps.map((s) => s.hash)).toEqual([aggHash, sortHash]);
-    expect(matPlan.steps.find((s) => s.hash === sortHash)?.deps).toEqual([
-      aggHash,
-    ]);
-
-    const needed = computeNeededStepHashes(matPlan, new Set([sortHash]));
-    expect([...needed]).toEqual([sortHash]);
   });
 });

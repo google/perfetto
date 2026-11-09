@@ -130,10 +130,6 @@ function getOutputColumns(
   return columns;
 }
 
-function isValid(config: ExtractArgConfig): boolean {
-  return config.extractions.every((e) => e.alias === '' || e.argName !== '');
-}
-
 function extractParts(config: ExtractArgConfig): string[] {
   return config.extractions
     .filter((e) => e.argName !== '')
@@ -165,6 +161,5 @@ export const manifest: NodeManifest<ExtractArgConfig> = {
   defaultConfig: () => ({argSetIdCol: '', extractions: []}),
   render,
   getOutputColumns,
-  isValid,
   generators,
 };

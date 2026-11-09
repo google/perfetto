@@ -133,11 +133,6 @@ function renderSortNode(
   return m(SortNodeContent, {config, updateConfig, ctx});
 }
 
-// A sort with no columns is a valid passthrough (its generators emit nothing).
-function isValid(_config: SortConfig): boolean {
-  return true;
-}
-
 function sortTerms(config: SortConfig): string[] {
   return getSortConditions(config)
     .filter((c) => c.column !== '')
@@ -166,7 +161,6 @@ export const manifest: NodeManifest<SortConfig> = {
   schema: SortConfigSchema,
   defaultConfig: () => ({sortColumn: '', sortOrder: 'ASC', conditions: []}),
   render: renderSortNode,
-  isValid,
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
   generators,
 };

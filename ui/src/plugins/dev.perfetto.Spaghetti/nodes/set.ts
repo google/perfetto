@@ -136,6 +136,7 @@ function assignments(config: SetConfig): Map<string, string> {
 const generators: NodeGenerators<SetConfig> = {
   // Standard SQL needs the full column list to overwrite columns in place.
   sql: (config, ctx) => {
+    if (!isValid(config)) return undefined;
     if (ctx.input('input') === undefined) return undefined;
     const assigns = assignments(config);
     if (assigns.size === 0) return {};
@@ -151,6 +152,7 @@ const generators: NodeGenerators<SetConfig> = {
     };
   },
   psn: (config, ctx) => {
+    if (!isValid(config)) return undefined;
     if (ctx.input('input') === undefined) return undefined;
     const items = [...assignments(config)].map(
       ([col, expr]) => `${col} = ${expr}`,
@@ -168,6 +170,5 @@ export const manifest: NodeManifest<SetConfig> = {
   defaultConfig: () => ({entries: []}),
   render,
   getOutputColumns,
-  isValid,
   generators,
 };

@@ -176,7 +176,6 @@ export const manifest: NodeManifest<IntervalIntersectConfig> = {
     partitionColumns: [],
     filterNegativeDur: true,
   }),
-  isValid: () => true,
   getOutputColumns(_config, ctx) {
     const connectedPorts = ctx.inputPorts.filter(
       (p) => ctx.getInputColumns(p.name) !== undefined,

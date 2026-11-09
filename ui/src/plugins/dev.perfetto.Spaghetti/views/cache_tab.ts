@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {EmptyState} from '../../../widgets/empty_state';
-import type {CacheEntry} from '../materialization';
+import type {CacheEntry} from '../run_chunks';
 import {Card} from '../components/card';
 import './cache_tab.scss';
 

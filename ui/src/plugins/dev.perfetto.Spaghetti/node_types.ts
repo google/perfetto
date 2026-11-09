@@ -190,9 +190,6 @@ export interface NodeManifest<C extends object = object> {
     ctx: RenderContext,
   ): m.Children;
 
-  /** Pure config validation — no connection context. */
-  isValid(config: C): boolean;
-
   /** Compute output columns (optional — absent means pass-through). */
   getOutputColumns?(config: C, ctx: ColumnContext): ColumnDef[] | undefined;
 

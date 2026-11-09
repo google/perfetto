@@ -29,13 +29,17 @@ const TimeRangeConfigSchema = z
 
 export type TimeRangeConfig = z.infer<typeof TimeRangeConfigSchema>;
 
+// The default (0, 0) means no range has been captured yet.
+function isUnset(config: TimeRangeConfig): boolean {
+  return config.ts === '0' && config.dur === '0';
+}
+
 export const manifest: NodeManifest<TimeRangeConfig> = {
   title: 'Time Range',
   icon: 'highlight_alt',
   hue: 234,
   schema: TimeRangeConfigSchema,
   defaultConfig: () => ({ts: '0', dur: '0'}),
-  isValid: (config) => config.ts !== '0' || config.dur !== '0',
   getOutputColumns() {
     return [
       {name: 'id', type: {kind: 'int'}},
@@ -44,12 +48,16 @@ export const manifest: NodeManifest<TimeRangeConfig> = {
     ];
   },
   generators: {
-    sql: (config) => ({
-      from: `(SELECT 0 AS id, ${config.ts} AS ts, ${config.dur} AS dur)`,
-    }),
-    psn: (config) => ({
-      source: `FROM (SELECT 0 AS id, ${config.ts} AS ts, ${config.dur} AS dur)`,
-    }),
+    sql: (config) =>
+      isUnset(config)
+        ? undefined
+        : {from: `(SELECT 0 AS id, ${config.ts} AS ts, ${config.dur} AS dur)`},
+    psn: (config) =>
+      isUnset(config)
+        ? undefined
+        : {
+            source: `FROM (SELECT 0 AS id, ${config.ts} AS ts, ${config.dur} AS dur)`,
+          },
   },
   render(config, updateConfig, ctx) {
     const timeSpan = ctx.trace.selection.getTimeSpanOfSelection();

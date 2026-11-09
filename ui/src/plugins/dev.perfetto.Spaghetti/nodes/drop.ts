@@ -92,10 +92,6 @@ function getOutputColumns(
   return columns.filter((c) => !dropped.has(c.name));
 }
 
-function isValid(): boolean {
-  return true;
-}
-
 const generators: NodeGenerators<DropConfig> = {
   // Standard SQL has no `SELECT * EXCEPT`, so we need the input columns.
   sql: (config, ctx) => {
@@ -128,6 +124,5 @@ export const manifest: NodeManifest<DropConfig> = {
   defaultConfig: () => ({columns: []}),
   render,
   getOutputColumns,
-  isValid,
   generators,
 };

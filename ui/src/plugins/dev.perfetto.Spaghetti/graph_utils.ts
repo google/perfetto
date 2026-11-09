@@ -223,13 +223,6 @@ export function fnvHash(s: string): string {
   return (h >>> 0).toString(16).padStart(8, '0');
 }
 
-// Check if a single node's configuration is valid for SQL generation.
-// Validates both graph connectivity (all required ports satisfied) and config.
-export function isNodeValid(node: NodeData): boolean {
-  const manifest = tryGetManifest(node.type);
-  return manifest !== undefined && manifest.isValid(node.config);
-}
-
 // Flat index over the graph. Built once from the root node array.
 // - nodes: O(1) lookup by node ID.
 // - childToParent: O(1) docked-parent lookup (inverse of node.next).
@@ -362,6 +355,27 @@ export function findConnectedInputs(
       const inputNode = index.nodes[fromId];
       if (inputNode) result.set(i, inputNode);
     }
+  }
+  return result;
+}
+
+/**
+ * The node's connected input ports, in port order, each with the id of the
+ * node feeding it. A docked parent feeds port 0. Empty for unknown types.
+ */
+export function resolveInputs(
+  index: GraphIndex,
+  nodeId: string,
+): Array<{readonly port: Port; readonly upstreamId: string}> {
+  const node = index.nodes[nodeId];
+  const manifest = node && tryGetManifest(node.type);
+  if (node === undefined || manifest === undefined) return [];
+  const dockedParent = findDockedParent(index, nodeId);
+  const connected = findConnectedInputs(index, nodeId);
+  const result: Array<{port: Port; upstreamId: string}> = [];
+  for (const [i, port] of getManifestInputs(manifest, node).entries()) {
+    const upstream = i === 0 && dockedParent ? dockedParent : connected.get(i);
+    if (upstream !== undefined) result.push({port, upstreamId: upstream.id});
   }
   return result;
 }

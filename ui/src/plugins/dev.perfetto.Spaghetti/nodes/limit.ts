@@ -38,6 +38,16 @@ function parseLimit(config: LimitConfig): {count: number; offset: number} {
   return {count: parseInt(config.limitCount, 10) || 100, offset};
 }
 
+function isValid(config: LimitConfig): boolean {
+  return (
+    config.limitCount !== '' &&
+    /^\d+$/.test(config.limitCount) &&
+    (config.offset === undefined ||
+      config.offset === '' ||
+      /^\d+$/.test(config.offset))
+  );
+}
+
 export const manifest: NodeManifest<LimitConfig> = {
   title: 'Limit',
   icon: 'horizontal_rule',
@@ -45,21 +55,17 @@ export const manifest: NodeManifest<LimitConfig> = {
   hue: 57,
   schema: LimitConfigSchema,
   defaultConfig: () => ({limitCount: '100', offset: ''}),
-  isValid: (config) =>
-    config.limitCount !== '' &&
-    /^\d+$/.test(config.limitCount) &&
-    (config.offset === undefined ||
-      config.offset === '' ||
-      /^\d+$/.test(config.offset)),
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
   generators: {
     sql: (config, ctx) => {
       if (ctx.input('input') === undefined) return undefined;
+      if (!isValid(config)) return undefined;
       const {count, offset} = parseLimit(config);
       return offset > 0 ? {limit: count, offset} : {limit: count};
     },
     psn: (config, ctx) => {
       if (ctx.input('input') === undefined) return undefined;
+      if (!isValid(config)) return undefined;
       const {count, offset} = parseLimit(config);
       return {
         stages: [

@@ -236,6 +236,5 @@ export const manifest: NodeManifest<TreeAccumulateConfig> = {
   render: (config, updateConfig, ctx) =>
     m(TreeAccumulateContent, {config, updateConfig, ctx}),
   getOutputColumns,
-  isValid,
   generators,
 };

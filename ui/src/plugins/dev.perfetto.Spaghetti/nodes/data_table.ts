@@ -432,6 +432,5 @@ export const manifest: NodeManifest<DataTableConfig> = {
   }),
   render: (config, updateConfig) => m(DataTableContent, {config, updateConfig}),
   getOutputColumns,
-  isValid,
   generators,
 };

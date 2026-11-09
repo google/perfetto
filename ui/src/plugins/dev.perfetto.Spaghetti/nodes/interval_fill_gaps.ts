@@ -236,7 +236,6 @@ export const manifest: NodeManifest<IntervalFillGapsConfig> = {
   expensive: true,
   schema: IntervalFillGapsConfigSchema,
   defaultConfig: () => ({partitionColumns: []}),
-  isValid: () => true,
   getOutputColumns,
   generators,
   render: (config, updateConfig, ctx) =>

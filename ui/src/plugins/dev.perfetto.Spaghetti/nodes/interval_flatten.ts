@@ -249,6 +249,7 @@ function flattenSql(
 
 const generators: NodeGenerators<IntervalFlattenConfig> = {
   sql: (config, ctx) => {
+    if (!isValid(config)) return undefined;
     const input = ctx.input('input');
     if (input === undefined) return undefined;
     const partition = config.partitionColumns.filter((c) => c !== '');
@@ -257,6 +258,7 @@ const generators: NodeGenerators<IntervalFlattenConfig> = {
     };
   },
   psn: (config, ctx) => {
+    if (!isValid(config)) return undefined;
     if (ctx.input('input') === undefined) return undefined;
     const per = perClause(config.partitionColumns.filter((c) => c !== ''));
     const aggs = flattenAggs(config);
@@ -288,6 +290,5 @@ export const manifest: NodeManifest<IntervalFlattenConfig> = {
   render: (config, updateConfig, ctx) =>
     m(IntervalFlattenContent, {config, updateConfig, ctx}),
   getOutputColumns,
-  isValid,
   generators,
 };
