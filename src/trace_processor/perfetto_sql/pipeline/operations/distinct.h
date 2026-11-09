@@ -37,6 +37,9 @@ class Distinct : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
+  // Adds a DISTINCT over `columns` above the root of `plan`.
+  static void AddToPlan(LogicalPlan* plan, std::vector<ColumnId> columns);
+
  private:
   // Test-only formatting; keep payload details out of the public interface.
   friend class LogicalPlanFormatter;
