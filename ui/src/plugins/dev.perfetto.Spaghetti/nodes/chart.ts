@@ -61,25 +61,26 @@ const VALUE_WIDTH = 52;
 const BAR_AREA_WIDTH = 180;
 const CHART_SVG_WIDTH = LABEL_WIDTH + BAR_AREA_WIDTH + VALUE_WIDTH;
 
+interface ChartSource {
+  readonly sql: string;
+  readonly includes: readonly string[];
+}
+
 function BarChartPanel(): m.Component<{
   spec: ChartSpec;
-  materializedTable: string;
+  source: ChartSource;
   ctx: DetailsContext;
 }> {
   let rows: BarRow[] | undefined;
   let error: string | undefined;
   let loadingFor = '';
 
-  function keyFor(materializedTable: string, spec: ChartSpec): string {
-    return `${materializedTable}|${spec.xCol}|${spec.yCol}`;
+  function keyFor(source: ChartSource, spec: ChartSpec): string {
+    return `${source.sql}|${spec.xCol}|${spec.yCol}`;
   }
 
-  function load(
-    materializedTable: string,
-    spec: ChartSpec,
-    ctx: DetailsContext,
-  ) {
-    const k = keyFor(materializedTable, spec);
+  function load(source: ChartSource, spec: ChartSpec, ctx: DetailsContext) {
+    const k = keyFor(source, spec);
     if (loadingFor === k) return;
     loadingFor = k;
     rows = undefined;
@@ -95,8 +96,11 @@ function BarChartPanel(): m.Component<{
       ? `SUM(CAST(${spec.yCol} AS REAL))`
       : 'COUNT(*)';
     const sql =
+      source.includes
+        .map((inc) => `INCLUDE PERFETTO MODULE ${inc};\n`)
+        .join('') +
       `SELECT CAST(${spec.xCol} AS TEXT) AS label, ${valueExpr} AS value ` +
-      `FROM ${materializedTable} ` +
+      `FROM (${source.sql}) ` +
       `GROUP BY ${spec.xCol} ` +
       `ORDER BY value DESC ` +
       `LIMIT ${CHART_LIMIT}`;
@@ -126,10 +130,10 @@ function BarChartPanel(): m.Component<{
 
   return {
     oninit({attrs}) {
-      load(attrs.materializedTable, attrs.spec, attrs.ctx);
+      load(attrs.source, attrs.spec, attrs.ctx);
     },
     onupdate({attrs}) {
-      load(attrs.materializedTable, attrs.spec, attrs.ctx);
+      load(attrs.source, attrs.spec, attrs.ctx);
     },
     view({attrs}) {
       const {spec} = attrs;
@@ -231,7 +235,8 @@ function ChartDashboard(): m.Component<{
 }> {
   return {
     view({attrs: {config, ctx}}) {
-      if (!ctx.materializedTable) {
+      const source = ctx.output;
+      if (source === undefined) {
         return m(
           '.pf-spag-chart-dashboard.pf-spag-chart-dashboard--empty',
           m(
@@ -257,7 +262,7 @@ function ChartDashboard(): m.Component<{
           m(BarChartPanel, {
             key: i,
             spec,
-            materializedTable: ctx.materializedTable!,
+            source,
             ctx,
           }),
         ),

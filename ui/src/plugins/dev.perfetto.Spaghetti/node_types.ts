@@ -157,10 +157,11 @@ export interface DetailsContext {
   /** The trace object (includes engine for running queries). */
   readonly trace: Trace;
   /**
-   * The materialized output table name (e.g. '_qb_abcd1234'), queryable
-   * directly via trace.engine. Undefined if not yet materialized.
+   * How to read the node's output: a Standard SQL query and the modules it
+   * needs included first. Undefined until the output is ready.
    */
-  readonly materializedTable: string | undefined;
+  readonly output:
+    {readonly sql: string; readonly includes: readonly string[]} | undefined;
 }
 
 // ---------------------------------------------------------------------------

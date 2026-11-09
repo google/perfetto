@@ -115,7 +115,7 @@ describe('MaterializationService cache policy', () => {
     };
 
     await service.scheduleUpdate(store, 'f1', undefined, 'sql');
-    expect(service.materializedTable).toBe('slice');
+    expect(service.outputTable).toBe('slice');
     expect(service.cacheEntries.length).toBe(0);
     expect(queries.some((q) => q.includes('CREATE PERFETTO TABLE'))).toBe(
       false,
@@ -139,7 +139,7 @@ describe('MaterializationService cache policy', () => {
     const hashes: string[] = [];
     for (const id of ['srt1', 'srt2', 'srt3', 'srt4']) {
       await service.scheduleUpdate(store, id, undefined);
-      hashes.push(ensureDefined(service.materializedTable));
+      hashes.push(ensureDefined(service.outputTable));
       expect(service.cacheEntries.length).toBeLessThanOrEqual(2);
     }
 
@@ -169,9 +169,9 @@ describe('MaterializationService cache policy', () => {
       };
 
       await service.scheduleUpdate(store, 'srta', undefined);
-      const hA = ensureDefined(service.materializedTable);
+      const hA = ensureDefined(service.outputTable);
       await service.scheduleUpdate(store, 'srtb', undefined);
-      const hB = ensureDefined(service.materializedTable);
+      const hB = ensureDefined(service.outputTable);
 
       // Re-selecting A is a cache hit, making B the least recently used.
       queries.length = 0;
@@ -181,7 +181,7 @@ describe('MaterializationService cache policy', () => {
       );
 
       await service.scheduleUpdate(store, 'srtc', undefined);
-      const hC = ensureDefined(service.materializedTable);
+      const hC = ensureDefined(service.outputTable);
 
       const cached = new Set(service.cacheEntries.map((e) => e.hash));
       expect(cached).toEqual(new Set([hA, hC]));
@@ -203,12 +203,12 @@ describe('MaterializationService cache policy', () => {
     };
 
     await service.scheduleUpdate(store, 'srt1', undefined);
-    const h1 = ensureDefined(service.materializedTable);
+    const h1 = ensureDefined(service.outputTable);
     expect(service.cacheEntries.map((e) => e.hash)).toEqual([h1]);
 
     // Switching away means h1 is no longer read, so it goes.
     await service.scheduleUpdate(store, 'srt2', undefined);
-    const h2 = ensureDefined(service.materializedTable);
+    const h2 = ensureDefined(service.outputTable);
     expect(service.cacheEntries.map((e) => e.hash)).toEqual([h2]);
 
     // With no selection nothing is read, so everything goes.
@@ -248,7 +248,7 @@ describe('MaterializationService cache policy', () => {
 
     // Two steps are built; the upstream one is evicted afterwards.
     await service.scheduleUpdate(store, 'srt1', undefined);
-    const sortHash = ensureDefined(service.materializedTable);
+    const sortHash = ensureDefined(service.outputTable);
     expect(service.cacheEntries.map((e) => e.hash)).toEqual([sortHash]);
 
     // Select something else, then come back: the warm sort step is enough.
@@ -292,7 +292,7 @@ describe('MaterializationService cache policy', () => {
         ),
       ),
     ).toBe(true);
-    expect(service.readQuerySql).toBe(`SELECT *\nFROM ${hash}\nLIMIT 5`);
+    expect(service.outputRead?.sql).toBe(`SELECT *\nFROM ${hash}\nLIMIT 5`);
   });
 
   it("includes a chunk's modules in the statement that builds it", async () => {
@@ -312,7 +312,7 @@ describe('MaterializationService cache policy', () => {
     };
 
     await service.scheduleUpdate(store, 'srt1', sqlModules, 'sql');
-    const hash = ensureDefined(service.materializedTable);
+    const hash = ensureDefined(service.outputTable);
     expect(queries).toContainEqual(
       [
         `DROP TABLE IF EXISTS ${hash};`,
@@ -325,6 +325,29 @@ describe('MaterializationService cache policy', () => {
       ].join('\n'),
     );
     expect(queries.some((q) => q.startsWith('INCLUDE'))).toBe(false);
+  });
+
+  it('does nothing when called again with the same inputs', async () => {
+    const {engine, queries} = makeFakeEngine();
+    const service = new MaterializationService(engine);
+    const store: NodeQueryBuilderStore = {
+      nodes: [makeSortedChain('f1', 'srt1', '10')],
+      labels: [],
+    };
+
+    await service.scheduleUpdate(store, 'srt1', undefined);
+    const plan = service.plan;
+    expect(plan?.outputId).toBe('srt1');
+    queries.length = 0;
+    await service.scheduleUpdate(store, 'srt1', undefined);
+    expect(queries).toEqual([]);
+    expect(service.plan).toBe(plan);
+
+    // Clearing the cache runs the latest update again.
+    await service.clearCache();
+    expect(
+      queries.some((q) => q.includes('CREATE PERFETTO TABLE')),
+    ).toBe(true);
   });
 
   it('waits for in-flight taskQueue queries before dropping evicted tables', async () => {
@@ -351,7 +374,7 @@ describe('MaterializationService cache policy', () => {
       labels: [],
     };
     await service.scheduleUpdate(store1, 'srt1', undefined);
-    const h1 = ensureDefined(service.materializedTable);
+    const h1 = ensureDefined(service.outputTable);
 
     // Simulate an in-flight SQLDataSource pagination query on taskQueue.
     const unblockRead = defer<void>();
@@ -396,7 +419,7 @@ describe('MaterializationService cache policy', () => {
     };
     await service.scheduleUpdate(step1Store, 'flt1', undefined, 'sql');
     expect(service.cacheEntries.length).toBe(0);
-    expect(service.readQuerySql).toBe('SELECT *\nFROM slice\nWHERE dur > 500');
+    expect(service.outputRead?.sql).toBe('SELECT *\nFROM slice\nWHERE dur > 500');
     expect(queries.some((q) => q.includes('CREATE PERFETTO TABLE'))).toBe(
       false,
     );
@@ -437,7 +460,7 @@ describe('MaterializationService cache policy', () => {
 
     queries.length = 0;
     await service.scheduleUpdate(step2Store, 'srt1', undefined, 'sql');
-    const sortHash = ensureDefined(service.materializedTable);
+    const sortHash = ensureDefined(service.outputTable);
     expect(coldSteps).toEqual([sortHash]);
     expect(service.lastRunOutcomes.get(sortHash)?.kind).toBe('built');
     expect(
@@ -492,7 +515,7 @@ describe('MaterializationService cache policy', () => {
 
     await forkService.scheduleUpdate(forkStore, 'lim_b', undefined, 'sql');
     expect(forkService.cacheEntries.length).toBe(1);
-    expect(forkService.readQuerySql).toBe(
+    expect(forkService.outputRead?.sql).toBe(
       'SELECT *\nFROM slice\nWHERE dur > 999\nLIMIT 5',
     );
   });
@@ -531,7 +554,7 @@ describe('MaterializationService cache policy', () => {
     };
 
     await service.scheduleUpdate(store, 'ife1', undefined, 'sql');
-    expect(service.materializedTable).toBeUndefined();
+    expect(service.outputTable).toBeUndefined();
     expect(service.error).toBe(
       'Intervals From Events with a Stop input is only supported in PerfettoSQL Next mode.',
     );
