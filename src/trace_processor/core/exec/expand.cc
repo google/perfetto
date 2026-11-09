@@ -62,14 +62,17 @@ void ExpandColumn(const ColumnView& view,
   chunk.SizeValidity();
   chunk.validity.ClearAllBits();
   uint32_t kept = selection.size();
+  // Locals: the bytes written could otherwise alias the view's fields.
+  uint32_t start = view.start();
+  const uint32_t* popcount = view.popcount();
   if (selection.prefix()) {
     // The rows kept are consecutive, so each set bit is the next slot.
     uint32_t slot =
-        view.popcount()[view.start() / 64] +
-        static_cast<uint32_t>(bits.count_set_bits_until_in_word(view.start()));
+        popcount[start / 64] +
+        static_cast<uint32_t>(bits.count_set_bits_until_in_word(start));
     for (uint32_t row = 0; row < kept; ++row) {
       uint8_t* value = values + uint64_t{row} * kWidth;
-      if (bits.is_set(view.start() + row)) {
+      if (bits.is_set(start + row)) {
         CopyValue<kWidth>(packed, slot++, value);
         chunk.validity.set(row);
       } else {
@@ -80,10 +83,11 @@ void ExpandColumn(const ColumnView& view,
     return;
   }
   memset(values, 0, uint64_t{rows} * kWidth);
+  const uint16_t* indices = selection.indices();
   for (uint32_t i = 0; i < kept; ++i) {
-    uint32_t row = selection[i];
-    uint32_t slot = filter::IndexToStorageIndex<SparseNull>(
-        view.start() + row, &bits, view.popcount());
+    uint32_t row = indices[i];
+    uint32_t slot =
+        filter::IndexToStorageIndex<SparseNull>(start + row, &bits, popcount);
     if (slot != std::numeric_limits<uint32_t>::max()) {
       CopyValue<kWidth>(packed, slot, values + uint64_t{row} * kWidth);
       chunk.validity.set(row);
