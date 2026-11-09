@@ -416,6 +416,7 @@ void Where::Rewrite(BoundPlan* bound,
   ScanSearch search;
   search.kind = searched->kind;
   search.index = searched->index;
+  search.sorted = searched->sorted;
   std::vector<PlannedParam>& scan_values = bound->planned[scan_id].params;
   std::vector<bool> moved(where.predicates_.size(), false);
   for (uint32_t j : searched->answered) {
