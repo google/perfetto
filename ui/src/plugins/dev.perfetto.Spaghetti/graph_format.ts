@@ -175,6 +175,17 @@ CONNECTION MODEL & GUIDELINES
    Confirm table/column names with get_schema / run_query first, and call
    get_spaghetti_graph before editing an existing graph.
 
+4. LAYOUT (only matters if you give "x"/"y"; omit them to auto-layout):
+   Data flows left to right: input ports are on a node's left, its output on
+   the right. Place each root to the RIGHT of the roots it reads from, and
+   stack parallel branches vertically. Docked "next" nodes stack below their
+   parent automatically. Rough rendered sizes (actual size depends on config):
+   - Width: ~200-300px per node (200px minimum).
+   - Height: ~40px header + ~30-40px per config row; a docked chain is the sum
+     of its nodes. Most simple nodes are ~80-150px tall.
+   Leave ~80px horizontally between columns and ~80px vertically between
+   stacked roots, e.g. columns at x = 80, 420, 760, ...
+
 ================================================================================
 NODE CATALOG (auto-generated from each node's Zod schema)
 ================================================================================
