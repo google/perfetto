@@ -18,8 +18,11 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_FILTER_H_
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <string>
 #include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
@@ -29,6 +32,8 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/util/glob.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -64,6 +69,20 @@ class Filter final : public Transform {
     uint32_t param = 0;
   };
 
+  // A GLOB pattern, compiled, and what has been matched with it. A string's
+  // result depends only on the pattern, so all of it is kept until the
+  // pattern changes.
+  struct GlobMemo {
+    std::string pattern;
+    std::optional<util::GlobMatcher> matcher;
+    // Rows matched one at a time with the pattern.
+    uint64_t rows = 0;
+    // The result of every string with an id below `matched_below`, once the
+    // pool has been matched. Strings interned after are above it.
+    BitVector matches;
+    uint32_t matched_below = 0;
+  };
+
   // `pool` holds the strings of the columns, and must outlive the filter.
   Filter(std::vector<Condition> conditions, const StringPool* pool);
   ~Filter() override;
@@ -83,6 +102,9 @@ class Filter final : public Transform {
     CallScratch<std::array<uint32_t, kMaxBatchRows>> rows;
     // By batch row, the values of a sparse column at the rows kept.
     CallScratch<std::array<uint64_t, kMaxBatchRows>> sparse_values;
+    // By condition, so that each string is matched against a GLOB once. Only
+    // a filter with a GLOB has them.
+    std::vector<GlobMemo> globs;
   };
 
   std::vector<Condition> conditions_;

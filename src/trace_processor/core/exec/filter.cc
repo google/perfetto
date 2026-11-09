@@ -27,6 +27,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/span.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/filter_kernels.h"
@@ -43,6 +44,7 @@
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/util/glob.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -240,6 +242,57 @@ bool KeepRowsWhichCanMatch(const ParamValue& cast,
   return cast.value.validity == CastFilterValueResult::kValid && r.count != 0;
 }
 
+// Keeps the rows of a string `column` whose value `matcher` matches. Rows are
+// matched one at a time until as many have been matched with the pattern as a
+// quarter of the pool's strings; then, as the interpreter does for a large
+// input, every string in the pool is matched in one pass, and each row after
+// is a bit test.
+void KeepGlobMatches(const ColumnView& column,
+                     const util::GlobMatcher& matcher,
+                     const StringPool& pool,
+                     Filter::GlobMemo& memo,
+                     Rows& r) {
+  Materialize(r);
+  const auto* data =
+      static_cast<const StringPool::Id*>(column.data()) + column.start();
+  uint32_t kept = 0;
+  if (!memo.matched_below && memo.rows >= pool.size() / 4) {
+    uint32_t ids = pool.MaxSmallStringId().raw_id() + 1;
+    memo.matches = BitVector::CreateWithSize(ids);
+    for (auto it = pool.CreateSmallStringIterator(); it; ++it) {
+      uint32_t raw = it.StringId().raw_id();
+      if (raw >= ids) {
+        break;
+      }
+      if (matcher.Matches(it.StringView())) {
+        memo.matches.set(raw);
+      }
+      memo.matched_below = raw + 1;
+    }
+  }
+  if (!memo.matched_below) {
+    memo.rows += r.count;
+    for (uint32_t i = 0; i < r.count; ++i) {
+      uint32_t row = r.rows[i];
+      r.rows[kept] = row;
+      kept += matcher.Matches(pool.Get(data[row]));
+    }
+    r.count = kept;
+    return;
+  }
+  for (uint32_t i = 0; i < r.count; ++i) {
+    uint32_t row = r.rows[i];
+    StringPool::Id id = data[row];
+    uint32_t raw = id.raw_id();
+    bool match = id.is_large_string() || raw >= memo.matched_below
+                     ? matcher.Matches(pool.Get(id))
+                     : memo.matches.is_set(raw);
+    r.rows[kept] = row;
+    kept += match;
+  }
+  r.count = kept;
+}
+
 // Copies the values of a sparse `column` at the rows kept, none of which is
 // null, into `values` at each row, and views them as a flat column.
 template <uint32_t kWidth>
@@ -268,6 +321,7 @@ void ApplyCondition(const Op& op,
                     const ColumnView& lent,
                     const StringPool& pool,
                     uint64_t* sparse_values,
+                    Filter::GlobMemo* glob,
                     Rows& r) {
   if (!KeepRowsWhichCanMatch(cast, lent, r)) {
     return;
@@ -278,6 +332,18 @@ void ApplyCondition(const Op& op,
     column = ValueWidth(lent.type()) == sizeof(uint32_t)
                  ? GatherSparse<sizeof(uint32_t)>(lent, r, values)
                  : GatherSparse<sizeof(uint64_t)>(lent, r, values);
+  }
+  if (op.Is<Glob>()) {
+    Filter::GlobMemo& memo = *glob;
+    if (!memo.matcher || memo.pattern != cast.text) {
+      memo = Filter::GlobMemo();
+      memo.pattern = cast.text;
+      memo.matcher =
+          util::GlobMatcher::FromPattern(base::StringView(memo.pattern));
+    }
+    if (!memo.matcher->IsEquality()) {
+      return KeepGlobMatches(column, *memo.matcher, pool, memo, r);
+    }
   }
   switch (column.type().index()) {
     case StorageType::GetTypeIndex<Id>():
@@ -312,7 +378,14 @@ Filter::~Filter() = default;
 Filter::State::~State() = default;
 
 std::unique_ptr<OperatorState> Filter::MakeState(Context& context) const {
-  return std::make_unique<State>(context);
+  auto state = std::make_unique<State>(context);
+  for (const Condition& c : conditions_) {
+    if (c.op.Is<Glob>()) {
+      state->globs.resize(conditions_.size());
+      break;
+    }
+  }
+  return state;
 }
 
 bool Filter::Process(RowBatch& batch, OperatorState& state) const {
@@ -335,7 +408,8 @@ bool Filter::Process(RowBatch& batch, OperatorState& state) const {
     PERFETTO_DCHECK(column.kind() != ColumnView::Kind::kVariant);
     PERFETTO_DCHECK(c.param < s.context->params().size());
     ApplyCondition(c.op, values[c.param], column, *pool_,
-                   s.sparse_values.data(), r);
+                   s.sparse_values.data(),
+                   s.globs.empty() ? nullptr : &s.globs[i], r);
   }
   if (r.contiguous && r.count == selection.size()) {
     return true;
