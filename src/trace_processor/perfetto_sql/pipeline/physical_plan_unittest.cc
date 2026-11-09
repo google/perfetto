@@ -228,7 +228,7 @@ TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
   // parent-first walk can output small batches, so they are combined before
   // the child-first walk.
   EXPECT_EQ(PhysicalPlanToString(**plan),
-            "main: DataframeScan | TreeNumberNodes(#0, #1) | "
+            "main: DataframeScan | Expand(#1) | TreeNumberNodes(#0, #1) | "
             "TreeParentFirst(#3, #4) | AssertType(#2 to Int64) | "
             "TreeAccumulateDown(#3, #4; SUM(#2)) | "
             "TreeAccumulateDown(#3, #4; SUM(#5)) | CombineBatches | "
@@ -966,7 +966,7 @@ TEST_F(PhysicalPlanTest, IndependentFoldsKeepAChildFirstWalk) {
       "|> TREE ACCUMULATE UP COUNT(*) AS size");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   EXPECT_EQ(PhysicalPlanToString(**plan),
-            "main: DataframeScan | TreeNumberNodes(#0, #1) | "
+            "main: DataframeScan | Expand(#1) | TreeNumberNodes(#0, #1) | "
             "TreeChildFirst(#3, #4) | AssertType(#2 to Int64) | "
             "TreeAccumulateUp(#3, #4; SUM(#2)) | "
             "TreeAccumulateUp(#3, #4; COUNT(*)) | TreeParentFirst(#3, #4) | "

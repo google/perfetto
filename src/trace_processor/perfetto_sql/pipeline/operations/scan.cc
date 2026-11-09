@@ -68,6 +68,20 @@ using core::StorageType;
 
 namespace {
 
+// The columns of `data` a scan lends sparse (see ColumnView::Kind::kSparse).
+std::vector<uint32_t> SparseColumns(const Bindings::Dataframe& data) {
+  std::vector<uint32_t> sparse;
+  for (uint32_t i = 0; i < data.columns.size(); ++i) {
+    const auto& n = data.columns[i]->null_storage.nullability();
+    if (n.Is<core::SparseNull>() ||
+        n.Is<core::SparseNullWithPopcountAlways>() ||
+        n.Is<core::SparseNullWithPopcountUntilFinalization>()) {
+      sparse.push_back(i);
+    }
+  }
+  return sparse;
+}
+
 bool IsSubpipeline(Compiler* c, const SyntaqlitePerfettoPipeSource& n) {
   if (!syntaqlite_node_is_present(n.select)) {
     return false;
@@ -461,6 +475,7 @@ void Scan::Lower(Lowering* c, const PlanNode& node) const {
   }
   c->SetSource(std::make_unique<ex::DataframeScan>(
       data.columns, data.row_count, c->QueryScanDirection(node)));
+  c->SetSparseColumns(SparseColumns(data));
 }
 
 void Scan::LowerSearch(Lowering* c,
@@ -515,11 +530,13 @@ void Scan::LowerSearch(Lowering* c,
     c->SetSource(std::make_unique<ex::IndexScan>(
         data.columns, data.indexes[search_->index], std::move(equalities),
         std::move(searches), pool));
+    c->SetSparseColumns(SparseColumns(data));
     return;
   }
   c->SetSource(std::make_unique<ex::SortedScan>(data.columns, data.row_count,
                                                 std::move(searches), pool,
                                                 c->QueryScanDirection(node)));
+  c->SetSparseColumns(SparseColumns(data));
 }
 
 uint32_t Scan::Position(ColumnId column) const {

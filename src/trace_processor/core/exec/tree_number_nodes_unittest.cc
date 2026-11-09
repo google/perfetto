@@ -28,6 +28,7 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
+#include "src/trace_processor/core/exec/expand.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
@@ -249,6 +250,10 @@ TEST(TreeNumberNodesTest, AScannedIdColumnIsItsOwnNumbering) {
                      ReadDirection::kForwards);
   std::unique_ptr<OperatorState> scan_state =
       scan.MakeState(test::TestContext());
+  // The scan lends the nullable parents sparse, so they are laid out first.
+  Expand expand({1});
+  std::unique_ptr<OperatorState> expand_state =
+      expand.MakeState(test::TestContext());
   TreeNumberNodes op(0, 1);
   std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
 
@@ -257,6 +262,7 @@ TEST(TreeNumberNodesTest, AScannedIdColumnIsItsOwnNumbering) {
   uint32_t row = 0;
   uint32_t batches = 0;
   while (scan.GetData(in, *scan_state)) {
+    ASSERT_TRUE(expand.Process(in, *expand_state));
     ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
     ASSERT_TRUE(op.IsDenseForTesting(*state));
     std::vector<uint32_t> nodes = test::ReadColumn<uint32_t>(out, 2);
