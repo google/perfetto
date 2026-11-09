@@ -138,8 +138,9 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
     return OpResult::kError;
   }
   uint32_t rows = in.size();
-  for (; s.input_row < rows; ++s.input_row) {
-    uint32_t row = s.input_row;
+  // Stored back only on yielding, so it is not reloaded every row.
+  uint32_t row = s.input_row;
+  for (; row < rows; ++row) {
     int64_t start;
     int64_t end;
     LaneBatch::Result result = lanes.Read(row, &start, &end);
@@ -156,6 +157,7 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
         // Finish the old group before accepting any rows from the new one.
         // Several small groups can still share one output batch.
         if (!Advance(s, std::numeric_limits<int64_t>::max())) {
+          s.input_row = row;
           return Yield(out, s, OpResult::kHaveMoreOutput, &in);
         }
         ++s.output_group;
@@ -169,6 +171,7 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
       // The planner sorts each group by ts.
       PERFETTO_DCHECK(start > s.input_ts);
       if (!Advance(s, start)) {
+        s.input_row = row;
         return Yield(out, s, OpResult::kHaveMoreOutput, &in);
       }
       s.input_ts = start;

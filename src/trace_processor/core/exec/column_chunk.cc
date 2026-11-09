@@ -94,6 +94,32 @@ void WriteValidity(Valid valid,
   }
 }
 
+// Copies, for each i below `count`, batch row rows[i] of sources[batches[i]]
+// to `dest` at i. Each value is `kWidth` bytes. The arguments are not read
+// through a closure, which the bytes written could alias.
+template <uint32_t kWidth>
+void GatherValues(const GatherSource* sources,
+                  const uint32_t* batches,
+                  const uint32_t* rows,
+                  uint32_t count,
+                  uint8_t* dest) {
+  for (uint32_t i = 0; i < count; ++i) {
+    const GatherSource& source = sources[batches[i]];
+    uint32_t index = source.start + rows[i];
+    if constexpr (kWidth == sizeof(uint32_t)) {
+      // A sequence has no storage: its value is where it would be stored.
+      // Only Id columns are sequences.
+      if (PERFETTO_UNLIKELY(!source.data)) {
+        memcpy(dest + i * kWidth, &index, kWidth);
+        continue;
+      }
+    }
+    memcpy(dest + i * kWidth,
+           static_cast<const uint8_t*>(source.data) + uint64_t{index} * kWidth,
+           kWidth);
+  }
+}
+
 }  // namespace
 
 void ColumnChunk::CopyFrom(const RowBatch& batch,
@@ -107,7 +133,8 @@ void ColumnChunk::CopyFrom(const RowBatch& batch,
   SizeValidity();
   const BitVector* source = view.validity();
   if (!selection.prefix()) {
-    auto index = [&](uint32_t i) { return start + selection[i]; };
+    const uint16_t* kept = selection.indices();
+    auto index = [start, kept](uint32_t i) { return start + kept[i]; };
     DispatchOnWidth(view, [&](auto width) {
       CopyIndexed<decltype(width)::value>(view, index, count, offset, *this);
     });
@@ -147,24 +174,8 @@ void ColumnChunk::Gather(const ColumnView& like,
                          bool nullable) {
   PERFETTO_DCHECK(uint64_t{ValueWidth(like)} * kMaxBatchRows <= storage.size());
   DispatchOnWidth(like, [&](auto width) {
-    constexpr uint32_t kWidth = decltype(width)::value;
-    uint8_t* dest = Values<uint8_t>();
-    for (uint32_t i = 0; i < count; ++i) {
-      const GatherSource& source = sources[batches[i]];
-      uint32_t index = source.start + rows[i];
-      if constexpr (kWidth == sizeof(uint32_t)) {
-        // A sequence has no storage: its value is where it would be stored.
-        // Only Id columns are sequences.
-        if (PERFETTO_UNLIKELY(!source.data)) {
-          memcpy(dest + i * kWidth, &index, kWidth);
-          continue;
-        }
-      }
-      memcpy(
-          dest + i * kWidth,
-          static_cast<const uint8_t*>(source.data) + uint64_t{index} * kWidth,
-          kWidth);
-    }
+    GatherValues<decltype(width)::value>(sources, batches, rows, count,
+                                         Values<uint8_t>());
   });
 
   SizeValidity();
