@@ -18,15 +18,20 @@
 
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/filter_kernels.h"
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/exec/buffer_pool.h"
+#include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -64,6 +69,47 @@ ColumnView Lend(const dataframe::Column& column,
   return ColumnView::Sparse(type, data, &bits, popcount);
 }
 
+// Copies the values of `view` at `rows` into `chunk`, as bytes, and returns
+// which are there: the chunk's validity, or null if they all are. A null row's
+// value is zero.
+template <uint32_t kWidth>
+const BitVector* GatherColumn(const ColumnView& view,
+                              base::Span<const uint32_t> rows,
+                              ColumnChunk& chunk) {
+  uint8_t* values = chunk.Values<uint8_t>();
+  const BitVector* validity = view.validity();
+  bool sparse = view.kind() == ColumnView::Kind::kSparse;
+  const auto* data = static_cast<const uint8_t*>(
+      sparse ? view.sparse_data()
+             : (view.kind() == ColumnView::Kind::kSequence ? nullptr
+                                                           : view.data()));
+  if (validity) {
+    chunk.SizeValidity();
+    chunk.validity.ClearAllBits();
+  }
+  for (uint32_t i = 0; i < rows.size(); ++i) {
+    uint32_t row = rows.b[i];
+    uint8_t* value = values + uint64_t{i} * kWidth;
+    if (validity) {
+      if (!validity->is_set(row)) {
+        memset(value, 0, kWidth);
+        continue;
+      }
+      chunk.validity.set(i);
+    }
+    uint32_t at = sparse ? filter::IndexToStorageIndex<SparseNull>(
+                               row, validity, view.popcount())
+                         : row;
+    if (data) {
+      memcpy(value, data + uint64_t{at} * kWidth, kWidth);
+    } else {
+      // No storage: the value is where it would be stored.
+      memcpy(value, &at, sizeof(at));
+    }
+  }
+  return validity ? &chunk.validity : nullptr;
+}
+
 }  // namespace
 
 DataframeWindows::DataframeWindows() = default;
@@ -84,6 +130,8 @@ void DataframeWindows::Init(
   PERFETTO_DCHECK(lent_.empty());
   lent_.resize(columns.size());
   buffers_.resize(columns.size());
+  gathered_.resize(columns.size());
+  gathered_buffers_.resize(columns.size());
   for (uint32_t i = 0; i < columns.size(); ++i) {
     const dataframe::Column& column = *columns[i];
     StorageType type = column.storage.type();
@@ -111,15 +159,24 @@ void DataframeWindows::Init(
   }
 }
 
-void DataframeWindows::FillKept(uint32_t from,
-                                base::Span<const uint32_t> offsets,
-                                RowBatch& out) {
-  for (ColumnView& view : lent_) {
-    view.set_start(from);
+void DataframeWindows::Gather(base::Span<const uint32_t> rows,
+                              Context& context,
+                              RowBatch& out) {
+  for (uint32_t i = 0; i < lent_.size(); ++i) {
+    const ColumnView& view = lent_[i];
+    uint32_t width = ValueWidth(view.type());
+    // A buffer a batch still holds is left to it: a fresh one is taken.
+    gathered_buffers_[i] = context.TakeBuffer(width);
+    ColumnChunk& chunk = gathered_buffers_[i].chunk();
+    const BitVector* kept =
+        width == sizeof(uint32_t)
+            ? GatherColumn<sizeof(uint32_t)>(view, rows, chunk)
+            : GatherColumn<sizeof(uint64_t)>(view, rows, chunk);
+    gathered_[i] =
+        ColumnView::Reference(view.type(), chunk.Values<uint8_t>(), kept);
   }
-  out.SetColumns(lent_, buffers_);
-  out.SetRowCount(*(offsets.e - 1) + 1);
-  out.mutable_selection().KeepRows(offsets);
+  out.SetColumns(gathered_, gathered_buffers_);
+  out.SetRowCount(static_cast<uint32_t>(rows.size()));
 }
 
 void DataframeWindows::Fill(uint32_t from, uint32_t count, RowBatch& out) {
