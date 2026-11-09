@@ -263,14 +263,14 @@ const core::exec::Source* Lowering::FinishSide() {
   return out.side_pipelines_.back().get();
 }
 
-std::optional<uint32_t> Lowering::TakeFilterValue(const PlanNode& node,
-                                                  uint32_t condition) {
-  std::optional<core::exec::FilterValue>& value =
-      plan_->bound_.planned[plan().IdOf(node)].filter_values[condition];
+std::optional<uint32_t> Lowering::TakeParam(const PlanNode& node,
+                                            uint32_t condition) {
+  std::optional<core::exec::ParamValue>& value =
+      plan_->bound_.planned[plan().IdOf(node)].params[condition];
   if (!value) {
     return std::nullopt;
   }
-  std::vector<core::exec::FilterValue>& values = plan_->out_->filter_values_;
+  std::vector<core::exec::ParamValue>& values = plan_->out_->params_;
   values.push_back(std::move(*value));
   value.reset();
   return static_cast<uint32_t>(values.size() - 1);

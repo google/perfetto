@@ -28,7 +28,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/dataframe/types.h"
-#include "src/trace_processor/core/exec/filter_value.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
@@ -125,7 +125,7 @@ class Scan : public PlanOperation {
   struct Condition {
     ColumnId column = 0;
     core::Op op{core::Eq{}};
-    const core::exec::FilterValue* value = nullptr;
+    const core::exec::ParamValue* value = nullptr;
   };
   // How searching the dataframe would answer some of a WHERE's conditions.
   struct SearchPlan {

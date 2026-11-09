@@ -169,8 +169,7 @@ class PhysicalPlanTest : public ::testing::Test {
     }
     Rows out;
     RowCursor cursor(plan.source());
-    for (bool row = cursor.Open(plan.filter_values()); row;
-         row = cursor.Next()) {
+    for (bool row = cursor.Open(plan.params()); row; row = cursor.Next()) {
       out.emplace_back(*IntAt(cursor, id_column), IntAt(cursor, value_column));
     }
     if (!cursor.status().ok()) {
@@ -344,8 +343,7 @@ TEST_F(PhysicalPlanTest, WhereKeepsRowsMatchingEveryComparison) {
   uint32_t cpu_column = (*plan)->columns()[0].index;
   std::vector<int64_t> values;
   RowCursor cursor((*plan)->source());
-  for (bool row = cursor.Open((*plan)->filter_values()); row;
-       row = cursor.Next()) {
+  for (bool row = cursor.Open((*plan)->params()); row; row = cursor.Next()) {
     values.push_back(*IntAt(cursor, cpu_column));
   }
   ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
@@ -365,8 +363,7 @@ TEST_F(PhysicalPlanTest, WhereComparesStringsListsAndNulls) {
     uint32_t id_column = (*plan)->columns()[0].index;
     std::vector<int64_t> out;
     RowCursor cursor((*plan)->source());
-    for (bool row = cursor.Open((*plan)->filter_values()); row;
-         row = cursor.Next()) {
+    for (bool row = cursor.Open((*plan)->params()); row; row = cursor.Next()) {
       out.push_back(*IntAt(cursor, id_column));
     }
     PERFETTO_CHECK(cursor.status().ok());

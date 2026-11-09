@@ -24,9 +24,9 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/output_properties.h"
@@ -66,12 +66,10 @@ class PhysicalPlan {
     return side_pipelines_;
   }
 
-  // The values a Filter compares columns with, known when the plan was
-  // built, e.g. a WHERE literal. Passed to Context::SetFilterValues (see
-  // core::exec::RowCursor::Open) before each run.
-  const std::vector<core::exec::FilterValue>& filter_values() const {
-    return filter_values_;
-  }
+  // The plan's constant params: the values its operators compare with,
+  // cast when the plan was built from its literals. Passed to
+  // Context::SetParams (see core::exec::RowCursor::Open) before each run.
+  const std::vector<core::exec::ParamValue>& params() const { return params_; }
 
  private:
   friend class Lowering;
@@ -84,7 +82,7 @@ class PhysicalPlan {
   std::unique_ptr<core::exec::Source> input_;
   std::unique_ptr<core::exec::Pipeline> pipeline_;
   std::vector<Column> columns_;
-  std::vector<core::exec::FilterValue> filter_values_;
+  std::vector<core::exec::ParamValue> params_;
 };
 
 // What lowering needs from whoever runs the plan. Everything here must outlive
@@ -161,10 +159,9 @@ class Lowering {
   const core::exec::Source* FinishSide();
 
   // Moves the value condition `condition` of `node` tests with into the plan,
-  // if it has one, and returns its index into the run's filter values (see
-  // PhysicalPlan::filter_values).
-  std::optional<uint32_t> TakeFilterValue(const PlanNode& node,
-                                          uint32_t condition);
+  // if it has one, and returns its index into the run's params (see
+  // PhysicalPlan::params).
+  std::optional<uint32_t> TakeParam(const PlanNode& node, uint32_t condition);
 
   const LoweringContext& context() const;
 

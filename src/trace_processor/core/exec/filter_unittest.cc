@@ -31,8 +31,8 @@
 #include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
-#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/variant.h"
@@ -99,9 +99,9 @@ std::vector<int64_t> KeptIn(const RowBatch& batch,
   std::unique_ptr<OperatorState> state = filter.MakeState(context);
   List fetcher;
   fetcher.v = std::move(list);
-  FilterValue cast[1];
-  GetFilterValueListCaster<List>(type)(fetcher, 0, pool, &cast[0]);
-  context.SetFilterValues(base::Span<const FilterValue>(cast));
+  ParamValue cast[1];
+  GetParamListCaster<List>(type)(fetcher, 0, pool, &cast[0]);
+  context.SetParams(base::Span<const ParamValue>(cast));
   RowBatch out;
   out.CopyFrom(batch);
   EXPECT_TRUE(filter.Process(out, *state));
@@ -144,7 +144,7 @@ class FilterTest : public ::testing::Test {
   // casters it picked for each condition.
   void CastAll(const std::vector<On>& on,
                const std::vector<Value>& values,
-               std::vector<FilterValue>* cast) {
+               std::vector<ParamValue>* cast) {
     Values fetcher;
     fetcher.v = values;
     cast->resize(values.size());
@@ -154,8 +154,8 @@ class FilterTest : public ::testing::Test {
       }
       StorageType type =
           c.column == 0 ? StorageType{Int64{}} : StorageType{String{}};
-      GetFilterValueCaster<Values>(type, c.op)(fetcher, c.index, pool_,
-                                               &(*cast)[c.index]);
+      GetParamCaster<Values>(type, c.op)(fetcher, c.index, pool_,
+                                         &(*cast)[c.index]);
     }
   }
 
@@ -174,9 +174,9 @@ class FilterTest : public ::testing::Test {
     Filter filter(Conditions(on), &pool_);
     Context context;
     std::unique_ptr<OperatorState> state = filter.MakeState(context);
-    std::vector<FilterValue> cast;
+    std::vector<ParamValue> cast;
     CastAll(on, values, &cast);
-    context.SetFilterValues(base::Span<const FilterValue>(cast));
+    context.SetParams(base::Span<const ParamValue>(cast));
     RowBatch batch;
     batch.CopyFrom(in ? *in : batch_);
     EXPECT_TRUE(filter.Process(batch, *state));
@@ -237,10 +237,10 @@ TEST_F(FilterTest, RunsAgainWithNewValues) {
   Filter filter(Conditions(on), &pool_);
   Context context;
   std::unique_ptr<OperatorState> state = filter.MakeState(context);
-  std::vector<FilterValue> cast;
+  std::vector<ParamValue> cast;
   auto run = [&](const char* lt, const char* ne) {
     CastAll(on, {lt, ne}, &cast);
-    context.SetFilterValues(base::Span<const FilterValue>(cast));
+    context.SetParams(base::Span<const ParamValue>(cast));
     RowBatch batch;
     batch.CopyFrom(batch_);
     EXPECT_TRUE(filter.Process(batch, *state));
@@ -260,10 +260,9 @@ TEST(FilterIdTest, ComparesIdsByWhereTheyAre) {
   std::unique_ptr<OperatorState> state = filter.MakeState(context);
   Values fetcher;
   fetcher.v = {int64_t{12}};
-  FilterValue cast[1];
-  GetFilterValueCaster<Values>(StorageType{Id{}}, Ge{})(fetcher, 0, pool,
-                                                        &cast[0]);
-  context.SetFilterValues(base::Span<const FilterValue>(cast));
+  ParamValue cast[1];
+  GetParamCaster<Values>(StorageType{Id{}}, Ge{})(fetcher, 0, pool, &cast[0]);
+  context.SetParams(base::Span<const ParamValue>(cast));
   RowBatch batch;
   batch.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, 10));

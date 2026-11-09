@@ -33,7 +33,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/exec/filter.h"
-#include "src/trace_processor/core/exec/filter_value.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
@@ -292,7 +292,7 @@ OutputProperties Where::Derive(DeriveContext& c) const {
   OutputProperties out = c.input(0);
   out.DropRows();
   // A rewrite may have cast some already.
-  std::vector<std::optional<ex::FilterValue>>& values = c.filter_values();
+  std::vector<std::optional<ex::ParamValue>>& values = c.params();
   values.resize(predicates_.size());
   for (uint32_t i = 0; i < predicates_.size(); ++i) {
     const WherePredicate& p = predicates_[i];
@@ -330,7 +330,7 @@ void Where::Rewrite(BoundPlan* bound,
   // A scan converts no column, so only conditions on columns of a known type,
   // read as the table stores them, have values to search with. They are what
   // these conditions test whether or not the scan answers them.
-  std::vector<std::optional<ex::FilterValue>> values(where.predicates_.size());
+  std::vector<std::optional<ex::ParamValue>> values(where.predicates_.size());
   std::vector<uint32_t> predicate_indices;
   std::vector<Scan::Condition> conditions;
   for (uint32_t i = 0; i < where.predicates_.size(); ++i) {
@@ -350,7 +350,7 @@ void Where::Rewrite(BoundPlan* bound,
   std::optional<Scan::SearchPlan> searched =
       scan.PlanSearch(conditions, *bound->bindings.dataframes[scan_id]);
   if (!searched) {
-    bound->planned[self].filter_values = std::move(values);
+    bound->planned[self].params = std::move(values);
     return;
   }
 
@@ -358,8 +358,8 @@ void Where::Rewrite(BoundPlan* bound,
   ScanSearch search;
   search.kind = searched->kind;
   search.index = searched->index;
-  std::vector<std::optional<ex::FilterValue>>& scan_values =
-      bound->planned[scan_id].filter_values;
+  std::vector<std::optional<ex::ParamValue>>& scan_values =
+      bound->planned[scan_id].params;
   std::vector<bool> moved(where.predicates_.size(), false);
   for (uint32_t j : searched->answered) {
     uint32_t i = predicate_indices[j];
@@ -370,7 +370,7 @@ void Where::Rewrite(BoundPlan* bound,
   scan.SetSearch(std::move(search));
   PlanNodeInputs(bound, scan_id, context);
   std::vector<WherePredicate> kept;
-  std::vector<std::optional<ex::FilterValue>> kept_values;
+  std::vector<std::optional<ex::ParamValue>> kept_values;
   for (uint32_t i = 0; i < where.predicates_.size(); ++i) {
     if (!moved[i]) {
       kept.push_back(where.predicates_[i]);
@@ -378,7 +378,7 @@ void Where::Rewrite(BoundPlan* bound,
     }
   }
   where.predicates_ = std::move(kept);
-  bound->planned[self].filter_values = std::move(kept_values);
+  bound->planned[self].params = std::move(kept_values);
   if (where.predicates_.empty()) {
     plan.Bypass(self);
   }
@@ -392,8 +392,8 @@ void Where::Lower(Lowering* c, const PlanNode& node) const {
     ex::Filter::Condition condition;
     condition.column = c->QueryPosition(predicates_[i].column);
     condition.op = predicates_[i].op;
-    if (std::optional<uint32_t> value = c->TakeFilterValue(node, i)) {
-      condition.value = *value;
+    if (std::optional<uint32_t> value = c->TakeParam(node, i)) {
+      condition.param = *value;
     }
     conditions.push_back(condition);
   }

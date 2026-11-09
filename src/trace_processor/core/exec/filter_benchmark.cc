@@ -40,8 +40,8 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
-#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -131,13 +131,13 @@ void RunExecutor(benchmark::State& state,
   Filter filter({{1, op, 0}}, &s.pool());
   DataframeScan scan({df.shared_column(kId), df.shared_column(column)},
                      df.row_count());
-  FilterValueCaster<OneValue> caster =
-      GetFilterValueCaster<OneValue>(df.column_type(column), op);
+  ParamCaster<OneValue> caster =
+      GetParamCaster<OneValue>(df.column_type(column), op);
   OneValue fetcher(value);
-  FilterValue cast[1];
+  ParamValue cast[1];
 
   Context context;
-  context.SetFilterValues(base::Span<const FilterValue>(cast));
+  context.SetParams(base::Span<const ParamValue>(cast));
   std::unique_ptr<OperatorState> scan_state = scan.MakeState(context);
   std::unique_ptr<OperatorState> filter_state = filter.MakeState(context);
   RowBatch batch;

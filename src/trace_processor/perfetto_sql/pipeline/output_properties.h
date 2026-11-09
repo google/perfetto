@@ -26,7 +26,7 @@
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/expression.h"
-#include "src/trace_processor/core/exec/filter_value.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
 namespace perfetto::trace_processor::pipeline {
@@ -216,7 +216,7 @@ struct PlannedNode {
   // The programs of the expressions it computes, if any.
   std::vector<core::exec::ExprProgram> programs;
   // By condition, the value it tests with, if any, until lowering takes it.
-  std::vector<std::optional<core::exec::FilterValue>> filter_values;
+  std::vector<std::optional<core::exec::ParamValue>> params;
   // The columns it added to the plan, which planning it again reuses.
   std::vector<ColumnId> new_columns;
   size_t new_columns_used = 0;
@@ -248,7 +248,7 @@ class DeriveContext {
   void SetPrograms(std::vector<core::exec::ExprProgram> programs);
 
   // The values of the conditions this node tests.
-  std::vector<std::optional<core::exec::FilterValue>>& filter_values();
+  std::vector<std::optional<core::exec::ParamValue>>& params();
 
   // Records why the plan cannot run.
   void Fail(base::Status status);

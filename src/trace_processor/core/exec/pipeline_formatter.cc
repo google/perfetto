@@ -286,7 +286,7 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
     for (const Filter::Condition& c : filter.conditions_) {
       out += (out.empty() ? "" : ", ") + Column(c.column) + " " + OpName(c.op);
       if (!c.op.IsAnyOf<NullOp>()) {
-        out += " ?" + std::to_string(c.value);
+        out += " ?" + std::to_string(c.param);
       }
     }
     return "Filter(" + out + ")";

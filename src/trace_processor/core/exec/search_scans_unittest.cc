@@ -39,9 +39,9 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/filter.h"
-#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/index_scan.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
@@ -57,7 +57,7 @@ using Value = std::variant<std::nullptr_t, int64_t, double, std::string>;
 // Bigger than an int32, so a column holding it is stored as an int64.
 constexpr int64_t kBig = int64_t{1} << 40;
 
-// Fetches filter values from a vector.
+// Fetches params from a vector.
 struct Values : ValueFetcher {
   using Type = size_t;
   static constexpr Type kNull = base::variant_index<Value, std::nullptr_t>();
@@ -220,7 +220,7 @@ class SearchScansDiffTest : public ::testing::Test {
   struct ExecPlan {
     std::unique_ptr<Source> scan;
     std::unique_ptr<Pipeline> pipeline;
-    std::vector<std::optional<FilterValueCaster<Values>>> casters;
+    std::vector<std::optional<ParamCaster<Values>>> casters;
   };
   std::optional<ExecPlan> Lower(const dataframe::LogicalPlan& plan) {
     std::vector<std::shared_ptr<const dataframe::Column>> columns;
@@ -242,7 +242,7 @@ class SearchScansDiffTest : public ::testing::Test {
         }
         if (f->value_index && !f->op.IsAnyOf<NullOp>()) {
           out.casters[*f->value_index] =
-              GetFilterValueCaster<Values>(f->storage, f->op);
+              GetParamCaster<Values>(f->storage, f->op);
         }
         using K = SortedScan::Search::Kind;
         std::optional<K> kind;
@@ -278,8 +278,7 @@ class SearchScansDiffTest : public ::testing::Test {
           if (!p.op.Is<Eq>()) {
             return std::nullopt;
           }
-          out.casters[*p.value_index] =
-              GetFilterValueCaster<Values>(p.storage, p.op);
+          out.casters[*p.value_index] = GetParamCaster<Values>(p.storage, p.op);
           equalities.push_back({df_->shared_column(p.col), *p.value_index});
         }
         index = &df_->indexes()[idx->index];
@@ -389,19 +388,19 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
 
         Values fetcher;
         fetcher.values = &slots;
-        std::vector<FilterValue> cast(slots.size());
+        std::vector<ParamValue> cast(slots.size());
         for (uint32_t i = 0; i < slots.size(); ++i) {
           if (exec->casters[i]) {
             (*exec->casters[i])(fetcher, i, pool_, &cast[i]);
           }
         }
         // Whoever casts values can move them afterwards, as lowering does.
-        std::vector<FilterValue> moved;
-        for (FilterValue& value : cast) {
+        std::vector<ParamValue> moved;
+        for (ParamValue& value : cast) {
           moved.push_back(std::move(value));
         }
         std::vector<uint32_t> actual;
-        for (bool ok = cursor.Open(base::Span<const FilterValue>(
+        for (bool ok = cursor.Open(base::Span<const ParamValue>(
                  moved.data(), moved.data() + moved.size()));
              ok; ok = cursor.Next()) {
           uint32_t row = cursor.Value<uint32_t>(kId);

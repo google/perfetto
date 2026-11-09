@@ -33,8 +33,8 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
-#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/variant.h"
@@ -85,11 +85,11 @@ void KeepNulls(const ColumnView& column, bool nulls, Rows& r) {
 }
 
 // Keeps the rows of a column of storage type T which compare true by O with
-// the filter value. The kernels read each row's value at the column's data
+// the param. The kernels read each row's value at the column's data
 // plus the row, so the data passed starts where the window does.
 template <typename T, typename O>
 void Compare(const ColumnView& column,
-             const FilterValue& cast,
+             const ParamValue& cast,
              const StringPool& pool,
              Rows& r) {
   // The value was cast for the column's storage type, which picks its
@@ -148,7 +148,7 @@ void KeepIn(const ColumnView& column,
 template <typename T>
 void CompareByOp(const Op& op,
                  const ColumnView& column,
-                 const FilterValue& cast,
+                 const ParamValue& cast,
                  const StringPool& pool,
                  Rows& r) {
   switch (op.index()) {
@@ -177,10 +177,10 @@ void CompareByOp(const Op& op,
   PERFETTO_FATAL("Unsupported filter operator");
 }
 
-// Drops the nulls, which no comparison or IN is true of, as the interpreter
-// does. False if nothing is left to compare: no row can match the cast value,
-// every row left does, or no row is left.
-bool KeepRowsWhichCanMatch(const FilterValue& cast,
+// Drops the nulls, which no comparison or IN is true of. False if nothing is
+// left to compare: no row can match the cast value, every row left does, or no
+// row is left.
+bool KeepRowsWhichCanMatch(const ParamValue& cast,
                            const ColumnView& column,
                            Rows& r) {
   if (cast.value.validity == CastFilterValueResult::kNoneMatch) {
@@ -193,7 +193,7 @@ bool KeepRowsWhichCanMatch(const FilterValue& cast,
 
 // Applies a comparison or IN to the rows kept so far.
 void ApplyCondition(const Op& op,
-                    const FilterValue& cast,
+                    const ParamValue& cast,
                     const ColumnView& column,
                     const StringPool& pool,
                     Rows& r) {
@@ -238,7 +238,7 @@ std::unique_ptr<OperatorState> Filter::MakeState(Context& context) const {
 
 bool Filter::Process(RowBatch& batch, OperatorState& state) const {
   State& s = state.Cast<State>();
-  const FilterValue* values = s.context->filter_values().b;
+  const ParamValue* values = s.context->params().b;
   const Selection& selection = batch.selection();
   Rows r{s.rows.data(), selection.size()};
   for (uint32_t i = 0; i < r.count; ++i) {
@@ -252,8 +252,8 @@ bool Filter::Process(RowBatch& batch, OperatorState& state) const {
       continue;
     }
     PERFETTO_DCHECK(column.kind() != ColumnView::Kind::kVariant);
-    PERFETTO_DCHECK(c.value < s.context->filter_values().size());
-    ApplyCondition(c.op, values[c.value], column, *pool_, r);
+    PERFETTO_DCHECK(c.param < s.context->params().size());
+    ApplyCondition(c.op, values[c.param], column, *pool_, r);
   }
   batch.mutable_selection().KeepRows(
       base::Span<const uint32_t>(r.rows, r.rows + r.count));

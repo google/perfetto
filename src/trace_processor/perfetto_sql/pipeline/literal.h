@@ -23,7 +23,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/exec/filter_value.h"
+#include "src/trace_processor/core/exec/param_value.h"
 
 namespace perfetto::trace_processor {
 class StringPool;
@@ -34,8 +34,8 @@ namespace perfetto::trace_processor::pipeline {
 class Compiler;
 class PlanCodec;
 
-// A value written in a query: a number or a string. Unlike a filter value,
-// which a run binds, a literal is part of the plan and never changes.
+// A value written in a query: a number or a string. It is part of the plan
+// and never changes: a plan's constant params are cast from its literals.
 struct Literal {
   enum class Type : uint8_t { kInt64, kDouble, kString };
 
@@ -53,11 +53,11 @@ base::StatusOr<Literal> CompileLiteral(Compiler*, uint32_t expr);
 
 // Casts the `count` literals `op` compares with for a column of storage `type`,
 // as the dataframe's filters cast them.
-core::exec::FilterValue CastLiterals(const core::Op& op,
-                                     const Literal* literals,
-                                     uint32_t count,
-                                     core::StorageType type,
-                                     const StringPool& pool);
+core::exec::ParamValue CastLiterals(const core::Op& op,
+                                    const Literal* literals,
+                                    uint32_t count,
+                                    core::StorageType type,
+                                    const StringPool& pool);
 
 // Writes or reads `literal`.
 void SerializeLiteral(PlanCodec&, Literal* literal);

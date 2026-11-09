@@ -48,8 +48,8 @@
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/empty_source.h"
-#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/index_scan.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/sorted_scan.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
@@ -434,7 +434,7 @@ void Scan::LowerSearch(Lowering* c,
   std::vector<uint32_t> values;
   for (uint32_t i = 0; i < search_->predicates.size(); ++i) {
     columns.push_back(data.columns[Position(search_->predicates[i].column)]);
-    values.push_back(*c->TakeFilterValue(node, i));
+    values.push_back(*c->TakeParam(node, i));
   }
   if (search_->kind == ScanSearch::Kind::kIndex) {
     // Rows are read in index order, so the table's order is lost.
@@ -466,7 +466,7 @@ void Scan::LowerSearch(Lowering* c,
           std::holds_alternative<dataframe::logical::BinarySearch>(*strategy));
       search.kind = ex::SortedScan::Search::Kind::kBinarySearch;
     }
-    search.value = values[i];
+    search.param = values[i];
     searches.push_back(std::move(search));
   }
   c->SetSource(std::make_unique<ex::SortedScan>(data.columns, data.row_count,

@@ -33,8 +33,8 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/context.h"
-#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/util/range.h"
 
@@ -84,12 +84,12 @@ void SortedScan::Rewind(OperatorState& state) const {
 }
 
 Range SortedScan::Find(const Context& context) const {
-  const FilterValue* values = context.filter_values().b;
+  const ParamValue* values = context.params().b;
   Range range{0, row_count_};
   for (uint32_t i = 0; i < searches_.size() && !range.empty(); ++i) {
     const Search& s = searches_[i];
-    PERFETTO_DCHECK(s.value < context.filter_values().size());
-    const FilterValue& cast = values[s.value];
+    PERFETTO_DCHECK(s.param < context.params().size());
+    const ParamValue& cast = values[s.param];
     if (cast.value.validity == CastFilterValueResult::kNoneMatch) {
       range.e = range.b;
       break;
@@ -139,7 +139,7 @@ Range SortedScan::Find(const Context& context) const {
 
 Range SortedScan::FindIdEq(const Context& context) const {
   Range range{0, row_count_};
-  const FilterValue& cast = context.filter_values().b[searches_[0].value];
+  const ParamValue& cast = context.params().b[searches_[0].param];
   if (PERFETTO_LIKELY(cast.value.validity == CastFilterValueResult::kValid)) {
     filter::IdEqualRange(
         base::unchecked_get<CastFilterValueResult::Id>(cast.value.value).value,
