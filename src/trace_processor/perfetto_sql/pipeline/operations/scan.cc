@@ -475,19 +475,12 @@ void Scan::LowerSearch(Lowering* c,
     columns.push_back(data.columns[Position(search_->predicates[i].column)]);
     values.push_back(*c->TakeParam(node, i));
   }
-  if (search_->kind == ScanSearch::Kind::kIndex) {
-    // Rows are read in index order, so the table's order is lost.
-    std::vector<ex::IndexScan::Equality> equalities;
-    for (uint32_t i = 0; i < columns.size(); ++i) {
-      equalities.push_back({columns[i], values[i]});
-    }
-    c->SetSource(std::make_unique<ex::IndexScan>(data.columns,
-                                                 data.indexes[search_->index],
-                                                 std::move(equalities), pool));
-    return;
-  }
+  // The searches of sorted columns come first: all of them for kSorted.
+  uint32_t sorted = search_->kind == ScanSearch::Kind::kIndex
+                        ? search_->sorted
+                        : static_cast<uint32_t>(columns.size());
   std::vector<ex::SortedScan::Search> searches;
-  for (uint32_t i = 0; i < columns.size(); ++i) {
+  for (uint32_t i = 0; i < sorted; ++i) {
     ex::SortedScan::Search search;
     search.column = columns[i];
     search.op = search_->predicates[i].op;
@@ -507,6 +500,17 @@ void Scan::LowerSearch(Lowering* c,
     }
     search.param = values[i];
     searches.push_back(std::move(search));
+  }
+  if (search_->kind == ScanSearch::Kind::kIndex) {
+    // Rows are read in index order, so the table's order is lost.
+    std::vector<ex::IndexScan::Equality> equalities;
+    for (uint32_t i = sorted; i < columns.size(); ++i) {
+      equalities.push_back({columns[i], values[i]});
+    }
+    c->SetSource(std::make_unique<ex::IndexScan>(
+        data.columns, data.indexes[search_->index], std::move(equalities),
+        std::move(searches), pool));
+    return;
   }
   c->SetSource(std::make_unique<ex::SortedScan>(data.columns, data.row_count,
                                                 std::move(searches), pool));
@@ -541,41 +545,41 @@ std::optional<Scan::SearchPlan> Scan::PlanSearch(
   }
 
   // Each sorted column narrows the rows to a range, which stays in order.
+  std::vector<uint8_t> unsearchable(conditions.size(), false);
   for (uint32_t i = 0; i < conditions.size(); ++i) {
     if (dataframe::SortedFilterStrategy(
             *data.columns[Position(conditions[i].column)], conditions[i].op)) {
       plan.answered.push_back(i);
+      unsearchable[i] = true;
     }
   }
-  if (!plan.answered.empty()) {
-    plan.kind = ScanSearch::Kind::kSorted;
-    return plan;
-  }
+  auto sorted = static_cast<uint32_t>(plan.answered.size());
 
-  // Otherwise an index finds equalities on its leading columns, in index
-  // order rather than the dataframe's. Only a scan of a table has indexes.
-  const auto* table = std::get_if<Scan::Dataframe>(&source_);
-  if (!table) {
+  // An index then finds equalities on its leading columns, in index order
+  // rather than the dataframe's. Only a scan of a table has indexes.
+  if (const auto* table = std::get_if<Scan::Dataframe>(&source_)) {
+    std::vector<dataframe::FilterSpec> specs;
+    for (uint32_t i = 0; i < conditions.size(); ++i) {
+      uint32_t position = Position(conditions[i].column);
+      specs.push_back({table->read[position].index, i, conditions[i].op, {}});
+      bool id = data.columns[position]->storage.type().Is<core::Id>();
+      unsearchable[i] |= !conditions[i].op.Is<core::Eq>() || id;
+    }
+    if (std::optional<dataframe::BestIndex> best =
+            dataframe::GetBestIndexForFilterSpecs(data.row_count, specs,
+                                                  unsearchable, data.indexes)) {
+      plan.kind = ScanSearch::Kind::kIndex;
+      plan.index = best->best_index_idx;
+      plan.sorted = sorted;
+      plan.answered.insert(plan.answered.end(), best->best_index_specs.begin(),
+                           best->best_index_specs.end());
+      return plan;
+    }
+  }
+  if (sorted == 0) {
     return std::nullopt;
   }
-  std::vector<dataframe::FilterSpec> specs;
-  std::vector<uint8_t> unsearchable;
-  for (uint32_t i = 0; i < conditions.size(); ++i) {
-    uint32_t position = Position(conditions[i].column);
-    specs.push_back({table->read[position].index, i, conditions[i].op, {}});
-    bool id = data.columns[position]->storage.type().Is<core::Id>();
-    unsearchable.push_back(!conditions[i].op.Is<core::Eq>() || id);
-  }
-  std::optional<dataframe::BestIndex> best =
-      dataframe::GetBestIndexForFilterSpecs(data.row_count, specs, unsearchable,
-                                            data.indexes);
-  if (!best) {
-    return std::nullopt;
-  }
-  plan.kind = ScanSearch::Kind::kIndex;
-  plan.index = best->best_index_idx;
-  plan.answered.assign(best->best_index_specs.begin(),
-                       best->best_index_specs.end());
+  plan.kind = ScanSearch::Kind::kSorted;
   return plan;
 }
 

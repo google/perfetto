@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/core/exec/index_scan.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <utility>
@@ -37,6 +38,7 @@
 #include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -56,11 +58,14 @@ IndexScan::IndexScan(
     std::vector<std::shared_ptr<const dataframe::Column>> columns,
     const dataframe::Index& index,
     std::vector<Equality> equalities,
+    std::vector<SortedSearches::Search> searches,
     const StringPool* pool)
     : columns_(std::move(columns)),
       permutation_(index.permutation_vector()),
       equalities_(std::move(equalities)),
-      pool_(pool) {
+      searches_(std::move(searches), pool),
+      pool_(pool),
+      whole_key_(equalities_.size() == index.columns().size()) {
   PERFETTO_CHECK(equalities_.size() <= index.columns().size());
   for (const Equality& eq : equalities_) {
     PERFETTO_CHECK(!eq.column->storage.type().Is<Id>());
@@ -94,10 +99,11 @@ void IndexScan::Rewind(OperatorState& state) const {
   state.Cast<State>().searched = false;
 }
 
-base::Span<const uint32_t> IndexScan::Find(const State& s) const {
+base::Span<const uint32_t> IndexScan::Find(State& s) const {
   base::Span<const uint32_t> entries(
       permutation_->data(), permutation_->data() + permutation_->size());
   const ParamValue* values = s.context->params().b;
+  bool one_key = whole_key_;
   for (uint32_t i = 0; i < equalities_.size() && !entries.empty(); ++i) {
     const Equality& eq = equalities_[i];
     PERFETTO_DCHECK(eq.param < s.context->params().size());
@@ -107,6 +113,7 @@ base::Span<const uint32_t> IndexScan::Find(const State& s) const {
       break;
     }
     if (cast.value.validity == CastFilterValueResult::kAllMatch) {
+      one_key = false;
       continue;
     }
     const filter::IndexColumn& column = s.columns[i];
@@ -120,7 +127,28 @@ base::Span<const uint32_t> IndexScan::Find(const State& s) const {
       entries = filter::SearchIndexEqual(column, cast.value.value, entries);
     }
   }
-  return base::Span<const uint32_t>(entries.b, entries.e);
+  if (searches_.empty() || entries.empty()) {
+    return base::Span<const uint32_t>(entries.b, entries.e);
+  }
+  if (one_key) {
+    // The entries are rows in order, so only the rows between the first and
+    // the last need searching.
+    Range range =
+        searches_.Find(*s.context, {*entries.b, *(entries.e - 1) + 1});
+    const uint32_t* b = std::lower_bound(entries.b, entries.e, range.b);
+    const uint32_t* e = std::lower_bound(b, entries.e, range.e);
+    return base::Span<const uint32_t>(b, e);
+  }
+  auto rows = static_cast<uint32_t>(permutation_->size());
+  Range range = searches_.Find(*s.context, {0, rows});
+  s.in_range.clear();
+  for (const uint32_t* it = entries.b; it != entries.e; ++it) {
+    if (*it >= range.b && *it < range.e) {
+      s.in_range.push_back(*it);
+    }
+  }
+  return base::Span<const uint32_t>(s.in_range.data(),
+                                    s.in_range.data() + s.in_range.size());
 }
 
 RowBatch* IndexScan::Start(RowBatch& scratch, OperatorState& state) const {

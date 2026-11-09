@@ -45,15 +45,9 @@ using filter::CastFilterValueResult;
 
 }  // namespace
 
-SortedScan::SortedScan(
-    std::vector<std::shared_ptr<const dataframe::Column>> columns,
-    uint32_t row_count,
-    std::vector<Search> searches,
-    const StringPool* pool)
-    : columns_(std::move(columns)),
-      row_count_(row_count),
-      searches_(std::move(searches)),
-      pool_(pool) {
+SortedSearches::SortedSearches(std::vector<Search> searches,
+                               const StringPool* pool)
+    : searches_(std::move(searches)), pool_(pool) {
   for (const Search& s : searches_) {
     std::optional<RangeOp> op = s.op.TryDowncast<RangeOp>();
     PERFETTO_CHECK(op);
@@ -69,6 +63,21 @@ SortedScan::SortedScan(
                 searches_[0].op.Is<Eq>();
 }
 
+SortedSearches::~SortedSearches() = default;
+
+Range SortedSearches::Find(const Context& context, Range rows) const {
+  return only_id_eq_ ? FindIdEq(context, rows) : FindAll(context, rows);
+}
+
+SortedScan::SortedScan(
+    std::vector<std::shared_ptr<const dataframe::Column>> columns,
+    uint32_t row_count,
+    std::vector<Search> searches,
+    const StringPool* pool)
+    : columns_(std::move(columns)),
+      row_count_(row_count),
+      searches_(std::move(searches), pool) {}
+
 SortedScan::~SortedScan() = default;
 SortedScan::State::~State() = default;
 
@@ -83,9 +92,9 @@ void SortedScan::Rewind(OperatorState& state) const {
   state.Cast<State>().searched = false;
 }
 
-Range SortedScan::Find(const Context& context) const {
+Range SortedSearches::FindAll(const Context& context, Range rows) const {
   const ParamValue* values = context.params().b;
-  Range range{0, row_count_};
+  Range range = rows;
   for (uint32_t i = 0; i < searches_.size() && !range.empty(); ++i) {
     const Search& s = searches_[i];
     PERFETTO_DCHECK(s.param < context.params().size());
@@ -137,8 +146,8 @@ Range SortedScan::Find(const Context& context) const {
   return range;
 }
 
-Range SortedScan::FindIdEq(const Context& context) const {
-  Range range{0, row_count_};
+Range SortedSearches::FindIdEq(const Context& context, Range rows) const {
+  Range range = rows;
   const ParamValue& cast = context.params().b[searches_[0].param];
   if (PERFETTO_LIKELY(cast.value.validity == CastFilterValueResult::kValid)) {
     filter::IdEqualRange(
@@ -153,7 +162,7 @@ Range SortedScan::FindIdEq(const Context& context) const {
 RowBatch* SortedScan::Start(RowBatch& scratch, OperatorState& state) const {
   state.EndRun();
   State& s = state.Cast<State>();
-  s.reader.Start(only_id_eq_ ? FindIdEq(*s.context) : Find(*s.context));
+  s.reader.Start(searches_.Find(*s.context, {0, row_count_}));
   s.searched = true;
   return s.reader.Read(scratch) ? &scratch : nullptr;
 }
@@ -161,7 +170,7 @@ RowBatch* SortedScan::Start(RowBatch& scratch, OperatorState& state) const {
 bool SortedScan::GetData(RowBatch& out, OperatorState& state) const {
   State& s = state.Cast<State>();
   if (PERFETTO_UNLIKELY(!s.searched)) {
-    s.reader.Start(only_id_eq_ ? FindIdEq(*s.context) : Find(*s.context));
+    s.reader.Start(searches_.Find(*s.context, {0, row_count_}));
     s.searched = true;
   }
   return s.reader.Read(out);

@@ -456,6 +456,26 @@ TEST_F(PhysicalPlanTest, WhereSearchesAroundAConditionItCannotAnswer) {
   EXPECT_THAT(*rows, ElementsAre(Pair(0, 1), Pair(2, 9), Pair(4, 9)));
 }
 
+// A sorted column's range cuts the rows an index finds, whether the index's
+// key is covered or not.
+TEST_F(PhysicalPlanTest, WhereCutsAnIndexToASortedRange) {
+  for (const char* table : {"whole", "part"}) {
+    catalog_.AddTable(table, {"id", "k", "v"},
+                      {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  }
+  catalog_.AddIndex("whole", {1});
+  catalog_.AddIndex("part", {1, 2});
+  for (const char* table : {"whole", "part"}) {
+    auto plan = Plan(std::string("FROM ") + table +
+                     " |> WHERE id >= 2 AND k = 7 |> SELECT id, v");
+    ASSERT_TRUE(plan.ok()) << plan.status().message();
+    EXPECT_EQ(PhysicalPlanToString(**plan), "main: IndexScan");
+    auto rows = Run(**plan, "v");
+    ASSERT_TRUE(rows.ok()) << rows.status().message();
+    EXPECT_THAT(*rows, ElementsAre(Pair(2, 9), Pair(4, 9))) << table;
+  }
+}
+
 // A column of only nulls needs no check, however many types it is made to hold.
 TEST_F(PhysicalPlanTest, AllNullColumnConvertedTwiceStaysNull) {
   Exec("CREATE TABLE a(ts INTEGER, dur INTEGER, k)");
