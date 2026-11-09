@@ -33,17 +33,11 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-// Reads the rows of a dataframe kept by searches of its sorted columns.
-//
-// Each search narrows a contiguous range of rows with the search kernels of
-// core/common (see filter_kernels.h). The searches run once per run, on the
-// first GetData(); the range is then read like DataframeScan.
+// Searches of a dataframe's sorted columns. Each narrows a contiguous range of
+// rows with the search kernels of core/common (see filter_kernels.h).
 // Searched columns must be non-null and finalized.
-class SortedScan final : public Source {
+class SortedSearches {
  public:
-  static constexpr char kType = 0;
-  const void* type() const override { return &kType; }
-
   struct Search {
     enum class Kind : uint8_t {
       // Binary search of an ascending column; an Id column needs no search.
@@ -60,6 +54,47 @@ class SortedScan final : public Source {
     // Index into the run's params.
     uint32_t param = 0;
   };
+
+  // `pool` must outlive the searches.
+  SortedSearches(std::vector<Search> searches, const StringPool* pool);
+  ~SortedSearches();
+
+  // The rows of `rows` which every search keeps, for the run's params.
+  Range Find(const Context& context, Range rows) const;
+
+  bool empty() const { return searches_.empty(); }
+
+ private:
+  friend class PipelineFormatter;
+
+  // Arguments to filter::SearchSorted, built once.
+  struct Sorted {
+    filter::SortedColumn column;
+    RangeOp op{Eq{}};
+    // String = values arrive as interned ids.
+    bool string_eq = false;
+  };
+
+  Range FindAll(const Context& context, Range rows) const;
+  Range FindIdEq(const Context& context, Range rows) const;
+
+  std::vector<Search> searches_;
+  // Parallel to searches_; used only by binary searches.
+  std::vector<Sorted> sorted_;
+  const StringPool* pool_;
+  // The hottest lookup, id = ?, skips the general search loop.
+  bool only_id_eq_ = false;
+};
+
+// Reads the rows of a dataframe kept by searches of its sorted columns. The
+// searches run once per run, on the first GetData(); the range is then read
+// like DataframeScan.
+class SortedScan final : public Source {
+ public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
+  using Search = SortedSearches::Search;
 
   // `pool` must outlive the scan.
   SortedScan(std::vector<std::shared_ptr<const dataframe::Column>> columns,
@@ -83,26 +118,10 @@ class SortedScan final : public Source {
     bool searched = false;
   };
 
-  // Arguments to filter::SearchSorted, built once.
-  struct Sorted {
-    filter::SortedColumn column;
-    RangeOp op{Eq{}};
-    // String = values arrive as interned ids.
-    bool string_eq = false;
-  };
-
-  Range Find(const Context& context) const;
-  Range FindIdEq(const Context& context) const;
-
   std::vector<std::shared_ptr<const dataframe::Column>> columns_;
   uint32_t row_count_;
-  std::vector<Search> searches_;
-  // Parallel to searches_; used only by binary searches.
-  std::vector<Sorted> sorted_;
-  const StringPool* pool_;
+  SortedSearches searches_;
   ReadDirection direction_;
-  // The hottest lookup, id = ?, skips the general search loop.
-  bool only_id_eq_ = false;
 };
 
 }  // namespace perfetto::trace_processor::core::exec
