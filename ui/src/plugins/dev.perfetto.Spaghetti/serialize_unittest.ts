@@ -309,4 +309,69 @@ describe('serializePsn', () => {
       ].join('\n'),
     );
   });
+
+  it('parenthesizes a table read by a union, and uses a subquery as is', () => {
+    const nodes: RootNodeData[] = [
+      {type: 'from', id: 'a', x: 0, y: 0, config: {table: 'slice'}},
+      {
+        type: 'time_range',
+        id: 'tr',
+        x: 0,
+        y: 0,
+        config: {ts: '10', dur: '20'},
+      },
+      {
+        type: 'union',
+        id: 'uni',
+        x: 0,
+        y: 0,
+        inputs: ['a', 'b'],
+        config: {numInputs: 2, distinct: false},
+      },
+      {type: 'from', id: 'b', x: 0, y: 0, config: {table: 'sched'}},
+      {
+        type: 'union',
+        id: 'uni2',
+        x: 0,
+        y: 0,
+        inputs: ['a', 'tr'],
+        config: {numInputs: 2, distinct: false},
+      },
+    ];
+    expect(psnOf(nodes, 'uni')).toBe('FROM slice\n|> UNION ALL (FROM sched)');
+    expect(psnOf(nodes, 'uni2')).toBe(
+      'FROM slice\n|> UNION ALL (SELECT 0 AS id, 10 AS ts, 20 AS dur)',
+    );
+  });
+
+  it('rejects a pipeline as an input to the SQL node', () => {
+    const nodes: RootNodeData[] = [
+      {
+        type: 'from',
+        id: 'src',
+        x: 0,
+        y: 0,
+        config: {table: 'slice'},
+        next: {
+          type: 'filter',
+          id: 'flt',
+          config: {conditions: [{column: 'dur', op: '>', value: '0'}]},
+        },
+      },
+      {
+        type: 'sql',
+        id: 'q',
+        x: 0,
+        y: 0,
+        inputs: ['flt'],
+        config: {sql: 'SELECT * FROM input_0', columns: [], inputPorts: ['']},
+      },
+    ];
+    const index = flattenNodes(nodes);
+    expect(serializePsn(index, 'q').ok).toBe(false);
+    // Reading the filter as a table makes it valid.
+    expect(
+      serializePsn(index, 'q', {tables: new Map([['flt', '_qb_flt']])}).ok,
+    ).toBe(true);
+  });
 });

@@ -62,17 +62,14 @@ export const manifest: NodeManifest<FromConfig> = {
       : undefined;
   },
   generators: {
-    // A bare-name `from` renders as a plain reference (no CTE / wrapper).
+    // A table renders as a plain reference (no CTE / wrapper).
     sql: (config, ctx) => {
       if (!config.table) return undefined;
-      return {from: config.table, includes: includesForTable(config, ctx)};
+      return {table: config.table, includes: includesForTable(config, ctx)};
     },
     psn: (config, ctx) => {
       if (!config.table) return undefined;
-      return {
-        source: `FROM ${config.table}`,
-        includes: includesForTable(config, ctx),
-      };
+      return {table: config.table, includes: includesForTable(config, ctx)};
     },
   },
 };

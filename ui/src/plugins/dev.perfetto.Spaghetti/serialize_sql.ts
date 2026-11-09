@@ -32,6 +32,8 @@ import {
 
 interface Block {
   readonly from: string;
+  /** Set when `from` is a table (or CTE) name, so a bare block is that name. */
+  readonly table?: string;
   readonly where?: string;
   readonly groupBy?: readonly string[];
   readonly select?: readonly string[];
@@ -60,8 +62,6 @@ const CLAUSE_POS = {
 } as const;
 
 type Clause = keyof typeof CLAUSE_POS;
-
-const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** Serializes everything upstream of `outputId` as one SQL query. */
 export function serializeSql(
@@ -152,7 +152,7 @@ export function serializeSql(
       primaryFoldable &&
       frag !== undefined &&
       !('error' in frag) &&
-      frag.from !== undefined
+      (frag.from !== undefined || frag.table !== undefined)
     ) {
       nameOf(primary);
       frag = generate();
@@ -175,6 +175,7 @@ export function serializeSql(
     const current = primary !== undefined ? stateOf(primary) : undefined;
     if (
       frag.from === undefined &&
+      frag.table === undefined &&
       primaryFoldable &&
       current?.kind === 'block' &&
       canFold(current.block, frag)
@@ -183,16 +184,21 @@ export function serializeSql(
       continue;
     }
 
-    let from = frag.from;
-    if (from === undefined) {
+    let source: Block;
+    if (frag.table !== undefined) {
+      source = {from: frag.table, table: frag.table};
+    } else if (frag.from !== undefined) {
+      source = {from: frag.from};
+    } else {
       if (primary === undefined) {
         return {ok: false, error: `${manifest.title}: no input`, nodeId};
       }
-      from = nameOf(primary);
+      const name = nameOf(primary);
+      source = {from: name, table: name};
     }
     states.set(nodeId, {
       kind: 'block',
-      block: foldInto({from}, {...frag, from: undefined}),
+      block: foldInto(source, {...frag, from: undefined, table: undefined}),
     });
   }
 
@@ -253,7 +259,7 @@ function foldInto(block: Block, frag: SqlFragment): Block {
 }
 
 function isBareRelation(block: Block): boolean {
-  return clausesOf(block).length === 1 && IDENT_RE.test(block.from);
+  return block.table !== undefined && clausesOf(block).length === 1;
 }
 
 function renderBlock(block: Block): string {
