@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <numeric>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -51,10 +52,26 @@ using filter::CastFilterValueResult;
 struct Rows {
   uint32_t* rows;
   uint32_t count;
+  // Whether the rows are 0 to count - 1, not yet written to `rows`.
+  bool contiguous;
 };
+
+// Writes contiguous rows out, for the steps which read them one by one.
+void Materialize(Rows& r) {
+  if (r.contiguous) {
+    std::iota(r.rows, r.rows + r.count, 0u);
+    r.contiguous = false;
+  }
+}
 
 // Keeps the rows which are null if `nulls`, or which are not otherwise.
 void KeepNulls(const ColumnView& column, bool nulls, Rows& r) {
+  const BitVector* validity = column.validity();
+  if (column.kind() != ColumnView::Kind::kVariant && !validity) {
+    r.count = nulls ? 0 : r.count;
+    return;
+  }
+  Materialize(r);
   if (column.kind() == ColumnView::Kind::kVariant) {
     const auto* data = static_cast<const Variant*>(column.data());
     uint32_t start = column.start();
@@ -66,11 +83,6 @@ void KeepNulls(const ColumnView& column, bool nulls, Rows& r) {
       }
     }
     r.count = kept;
-    return;
-  }
-  const BitVector* validity = column.validity();
-  if (!validity) {
-    r.count = nulls ? 0 : r.count;
     return;
   }
   uint32_t start = column.start();
@@ -95,6 +107,39 @@ void Compare(const ColumnView& column,
   // The value was cast for the column's storage type, which picks its
   // alternative.
   PERFETTO_DCHECK(cast.value.value.index() == StorageType::GetTypeIndex<T>());
+  if constexpr (!std::is_same_v<T, Id>) {
+    if (r.contiguous) {
+      // The rows are a run, so the values are read in order with no list.
+      if constexpr (std::is_same_v<T, String>) {
+        if constexpr (std::is_same_v<O, Eq> || std::is_same_v<O, Ne>) {
+          const auto* data =
+              static_cast<const uint32_t*>(column.data()) + column.start();
+          using Cmp = std::conditional_t<std::is_same_v<O, Eq>, std::equal_to<>,
+                                         std::not_equal_to<>>;
+          r.count = static_cast<uint32_t>(
+              filter::FilterRange(data, 0, r.count, r.rows,
+                                  cast.string_id.raw_id(), Cmp()) -
+              r.rows);
+          r.contiguous = false;
+          return;
+        }
+      } else {
+        using M =
+            StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+        const auto* data =
+            static_cast<const M*>(column.data()) + column.start();
+        r.count = static_cast<uint32_t>(
+            filter::FilterRange(
+                data, 0, r.count, r.rows,
+                base::unchecked_get<M>(cast.value.value),
+                filter::comparators::IntegerOrDoubleComparator<M, O>()) -
+            r.rows);
+        r.contiguous = false;
+        return;
+      }
+    }
+  }
+  Materialize(r);
   uint32_t* begin = r.rows;
   uint32_t* end = r.rows + r.count;
   uint32_t* kept;
@@ -142,6 +187,7 @@ void KeepIn(const ColumnView& column,
   if constexpr (!std::is_same_v<T, Id>) {
     data += column.start();
   }
+  Materialize(r);
   base::Span<uint32_t> rows(r.rows, r.rows + r.count);
   base::Span<uint32_t> dest = rows;
   filter::NonIndexedFilterInScan<T>(list, data, column.start(), rows, dest);
@@ -248,9 +294,11 @@ bool Filter::Process(RowBatch& batch, OperatorState& state) const {
   State& s = state.Cast<State>();
   const ParamValue* values = s.context->params().b;
   const Selection& selection = batch.selection();
-  Rows r{s.rows.data(), selection.size()};
-  for (uint32_t i = 0; i < r.count; ++i) {
-    r.rows[i] = selection[i];
+  Rows r{s.rows.data(), selection.size(), selection.prefix()};
+  if (!r.contiguous) {
+    for (uint32_t i = 0; i < r.count; ++i) {
+      r.rows[i] = selection[i];
+    }
   }
   for (uint32_t i = 0; i < conditions_.size() && r.count != 0; ++i) {
     const Condition& c = conditions_[i];
@@ -263,6 +311,10 @@ bool Filter::Process(RowBatch& batch, OperatorState& state) const {
     PERFETTO_DCHECK(c.param < s.context->params().size());
     ApplyCondition(c.op, values[c.param], column, *pool_, r);
   }
+  if (r.contiguous && r.count == selection.size()) {
+    return true;
+  }
+  Materialize(r);
   batch.mutable_selection().KeepRows(
       base::Span<const uint32_t>(r.rows, r.rows + r.count));
   return true;
