@@ -120,7 +120,7 @@ class RunParams {
         Binding binding{s.op.Is<core::In>()
                             ? core::exec::GetParamListCaster<Fetcher>(s.type)
                             : core::exec::GetParamCaster<Fetcher>(s.type, s.op),
-                        s.literals[0].bound, i};
+                        s.literals[0].bound, i, s.op.Is<core::Glob>()};
         std::vector<Binding>& to =
             s.state == PlannedParam::State::kBound ? bindings_ : literals_;
         to.push_back(binding);
@@ -128,6 +128,9 @@ class RunParams {
         params_[i] = CastLiterals(s.op, s.literals.data(),
                                   static_cast<uint32_t>(s.literals.size()),
                                   s.type, *pool_);
+        if (s.op.Is<core::Glob>()) {
+          core::exec::AttachGlob(&params_[i]);
+        }
       }
     }
   }
@@ -137,6 +140,9 @@ class RunParams {
   void SetLiterals(Fetcher& fetcher) {
     for (const Binding& b : literals_) {
       b.cast(fetcher, b.value, *pool_, &params_[b.param]);
+      if (b.glob) {
+        core::exec::AttachGlob(&params_[b.param]);
+      }
     }
   }
 
@@ -153,6 +159,8 @@ class RunParams {
     core::exec::ParamCaster<Fetcher> cast;
     uint32_t value;
     uint32_t param;
+    // A GLOB literal, matched once however many runs read it.
+    bool glob;
   };
   const StringPool* pool_;
   std::vector<core::exec::ParamValue> params_;
