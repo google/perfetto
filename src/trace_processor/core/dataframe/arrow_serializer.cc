@@ -97,13 +97,15 @@ void Append(std::vector<uint8_t>* output, const void* data, size_t size) {
 }
 
 void AppendU32(std::vector<uint8_t>* output, uint32_t value) {
+  value = base::HostToLE(value);
   Append(output, &value, sizeof(value));
 }
 
 void AppendMessage(std::vector<uint8_t>* output,
                    const std::vector<uint8_t>& metadata,
                    uint32_t padded_size) {
-  MessagePrefix prefix{kContinuation, static_cast<int32_t>(padded_size)};
+  MessagePrefix prefix =
+      HostToLE(MessagePrefix{kContinuation, static_cast<int32_t>(padded_size)});
   Append(output, &prefix, sizeof(prefix));
   Append(output, metadata.data(), metadata.size());
   output->resize(output->size() + padded_size - metadata.size(), 0);
@@ -150,6 +152,12 @@ class BufferedOutput {
       }
     }
     return base::OkStatus();
+  }
+
+  template <typename T>
+  base::Status AppendLE(T value) {
+    value = base::HostToLE(value);
+    return Append(&value, sizeof(value));
   }
 
   base::Status AppendPadding(size_t size) {
@@ -354,10 +362,10 @@ base::Status WriteUtf8OffsetBuffer(const std::vector<StringPool::Id>& values,
                                    BufferedOutput* output) {
   int32_t offset = 0;
   for (StringPool::Id id : values) {
-    RETURN_IF_ERROR(output->Append(&offset, sizeof(offset)));
+    RETURN_IF_ERROR(output->AppendLE(offset));
     offset += static_cast<int32_t>(pool.Get(id).size());
   }
-  RETURN_IF_ERROR(output->Append(&offset, sizeof(offset)));
+  RETURN_IF_ERROR(output->AppendLE(offset));
   PERFETTO_CHECK(static_cast<uint32_t>(offset) == data_length);
   size_t bytes = static_cast<size_t>(
       Utf8OffsetBufferSize(static_cast<uint32_t>(values.size())));
@@ -370,12 +378,30 @@ base::Status WriteIdBuffer(uint32_t rows,
                            const ArrowSerializer::WriteFn& write) {
   BufferedOutput output(scratch, write);
   for (uint32_t row = 0; row < rows; ++row) {
-    RETURN_IF_ERROR(output.Append(&row, sizeof(row)));
+    RETURN_IF_ERROR(output.AppendLE(row));
   }
   size_t bytes = static_cast<size_t>(rows) * sizeof(uint32_t);
   RETURN_IF_ERROR(
       output.AppendPadding(static_cast<size_t>(AlignToArrow(bytes)) - bytes));
   return output.Finish();
+}
+
+// Writes host-endian |T| storage values as LE logical rows, zeroing nulls.
+template <typename T>
+base::Status ScatterNumeric(uint32_t rows,
+                            const uint8_t* source,
+                            StorageIndexMapper* mapper,
+                            BufferedOutput* output) {
+  for (uint32_t row = 0; row < rows; ++row) {
+    T value{};
+    if (mapper->HasValue(row)) {
+      memcpy(&value,
+             source + static_cast<size_t>(mapper->Take(row)) * sizeof(T),
+             sizeof(T));
+    }
+    RETURN_IF_ERROR(output->AppendLE(value));
+  }
+  return base::OkStatus();
 }
 
 base::Status WriteNumericBuffer(uint32_t rows,
@@ -388,24 +414,25 @@ base::Status WriteNumericBuffer(uint32_t rows,
   size_t bytes = static_cast<size_t>(rows) * element_size;
   size_t padded = static_cast<size_t>(AlignToArrow(bytes));
   const uint8_t* source = NumericData(column.storage);
-  const uint8_t zeros[kArrowAlignment] = {};
-  if (!sparse) {
-    RETURN_IF_ERROR(Emit(write, source, bytes));
-    return Emit(write, zeros, padded - bytes);
+  if constexpr (PERFETTO_IS_LITTLE_ENDIAN()) {
+    if (!sparse) {
+      const uint8_t zeros[kArrowAlignment] = {};
+      RETURN_IF_ERROR(Emit(write, source, bytes));
+      return Emit(write, zeros, padded - bytes);
+    }
   }
 
   // Sparse dataframe storage omits null rows. Arrow numeric arrays do not, so
   // scatter values while streaming logical rows through bounded scratch space.
-  PERFETTO_DCHECK(validity);
+  // Big-endian hosts also take this path for dense columns to byte-swap.
+  PERFETTO_DCHECK(validity || !sparse);
   BufferedOutput output(scratch, write);
-  StorageIndexMapper mapper(validity, sparse);
-  for (uint32_t row = 0; row < rows; ++row) {
-    if (mapper.HasValue(row)) {
-      RETURN_IF_ERROR(output.Append(source + mapper.Take(row) * element_size,
-                                    element_size));
-    } else {
-      RETURN_IF_ERROR(output.Append(zeros, element_size));
-    }
+  StorageIndexMapper mapper(sparse ? validity : nullptr, sparse);
+  if (element_size == sizeof(uint64_t)) {
+    RETURN_IF_ERROR(ScatterNumeric<uint64_t>(rows, source, &mapper, &output));
+  } else {
+    PERFETTO_DCHECK(element_size == sizeof(uint32_t));
+    RETURN_IF_ERROR(ScatterNumeric<uint32_t>(rows, source, &mapper, &output));
   }
   RETURN_IF_ERROR(output.AppendPadding(padded - bytes));
   return output.Finish();
@@ -708,7 +735,7 @@ base::Status ArrowSerializer::WriteDictionaryIndices(
       PERFETTO_CHECK(found);
       index = static_cast<DictionaryIndex>(*found);
     }
-    RETURN_IF_ERROR(output.Append(&index, sizeof(index)));
+    RETURN_IF_ERROR(output.AppendLE(index));
   }
   size_t bytes = static_cast<size_t>(rows) * sizeof(DictionaryIndex);
   RETURN_IF_ERROR(
