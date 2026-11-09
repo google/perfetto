@@ -17,18 +17,27 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
+#include <optional>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "src/trace_processor/containers/null_term_string_view.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/cursor.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/row_cursor.h"
+#include "src/trace_processor/perfetto_sql/engine/column_results.h"
+#include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -60,6 +69,11 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     std::unique_ptr<State> temporary_create_state;
   };
   struct SqliteValueFetcher : dataframe::ValueFetcher {
+    SqliteValueFetcher(sqlite3_value** args, int count)
+        : argv(args), argc(static_cast<uint32_t>(count)), values(args) {
+      PERFETTO_DCHECK(argc <= in_values.size());
+    }
+
     using Type = sqlite::Type;
     static const Type kInt64 = sqlite::Type::kInteger;
     static const Type kDouble = sqlite::Type::kFloat;
@@ -67,25 +81,32 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     static const Type kNull = sqlite::Type::kNull;
 
     int64_t GetInt64Value(uint32_t idx) const {
-      return sqlite::value::Int64(sqlite_value[idx]);
+      return sqlite::value::Int64(values[idx]);
     }
     double GetDoubleValue(uint32_t idx) const {
-      return sqlite::value::Double(sqlite_value[idx]);
+      return sqlite::value::Double(values[idx]);
     }
     const char* GetStringValue(uint32_t idx) const {
-      return sqlite::value::Text(sqlite_value[idx]);
+      return sqlite::value::Text(values[idx]);
     }
     Type GetValueType(uint32_t idx) const {
-      return sqlite::value::Type(sqlite_value[idx]);
+      return sqlite::value::Type(values[idx]);
     }
     bool IteratorInit(uint32_t idx) {
-      return sqlite3_vtab_in_first(argv[idx], &sqlite_value[idx]) == SQLITE_OK;
+      // Copied only when an IN list needs a slot for its current value.
+      if (values == argv) {
+        std::copy(argv, argv + argc, in_values.begin());
+        values = in_values.data();
+      }
+      return sqlite3_vtab_in_first(argv[idx], &in_values[idx]) == SQLITE_OK;
     }
     bool IteratorNext(uint32_t idx) {
-      return sqlite3_vtab_in_next(argv[idx], &sqlite_value[idx]) == SQLITE_OK;
+      return sqlite3_vtab_in_next(argv[idx], &in_values[idx]) == SQLITE_OK;
     }
-    std::array<sqlite3_value*, 16> sqlite_value;
     sqlite3_value** argv;
+    uint32_t argc;
+    sqlite3_value** values;
+    std::array<sqlite3_value*, 16> in_values;
   };
   struct SqliteResultCallback : dataframe::CellCallback {
     void OnCell(int64_t v) const { sqlite::result::Long(ctx, v); }
@@ -98,18 +119,62 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     void OnCell(int32_t v) const { sqlite::result::Long(ctx, v); }
     sqlite3_context* ctx;
   };
+  struct ExecPlan;
   struct Vtab : sqlite::Module<DataframeModule>::Vtab {
     sqlite::ModuleStateManager<DataframeModule>::PerVtabState* state;
     std::string name;
     int best_idx_num = 0;
     uint32_t id_col_idx = 0;
+    std::unordered_map<std::string, std::shared_ptr<const ExecPlan>> exec_plans;
   };
   using DfCursor = dataframe::Cursor<SqliteValueFetcher>;
+
+  // Built once per table and query string, and shared by every cursor.
+  struct ExecPlan {
+    static constexpr uint32_t kUnread = std::numeric_limits<uint32_t>::max();
+
+    std::unique_ptr<pipeline::PhysicalPlan> plan;
+    // By column of the table, its column in the plan's batches.
+    std::vector<uint32_t> columns;
+    StringPool* pool = nullptr;
+    uint32_t id_index = 0;
+  };
+
+  struct ExecQuery {
+    explicit ExecQuery(std::shared_ptr<const ExecPlan> p)
+        : plan(std::move(p)),
+          rows(plan->plan->source()),
+          params(*plan->plan),
+          results(plan->columns.size()) {}
+
+    // Chosen at the first row read: a cursor's views keep their kind and type
+    // from batch to batch.
+    struct Result {
+      ColumnResultFn fn = nullptr;
+      uint32_t index = 0;
+    };
+
+    std::shared_ptr<const ExecPlan> plan;
+    core::exec::RowCursor rows;
+    pipeline::RunParams<SqliteValueFetcher> params;
+    std::vector<Result> results;
+    struct Prefetch {
+      uint32_t index;
+      uint32_t shift;
+    };
+    std::vector<Prefetch> prefetches;
+    bool resolved = false;
+  };
+
   struct Cursor : sqlite::Module<DataframeModule>::Cursor {
     const dataframe::Dataframe* dataframe;
     DfCursor df_cursor;
     const char* last_idx_str = nullptr;
     uint32_t id_col_idx = 0;
+    // In place rather than behind a pointer, saving a load per cell read.
+    std::optional<ExecQuery> exec;
+    // Kept for both paths so that Eof need not check which one runs.
+    bool eof = true;
   };
 
   static int Create(sqlite3*,
@@ -138,6 +203,17 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
                     const char*,
                     int,
                     sqlite3_value**);
+  PERFETTO_ALWAYS_INLINE static int FilterExec(Cursor*,
+                                               const char* idx_str,
+                                               int,
+                                               sqlite3_value**);
+  // Out of line, so that the executor's Column keeps nothing across calls.
+  PERFETTO_NO_INLINE static int ColumnInterpreted(Cursor*,
+                                                  sqlite3_context*,
+                                                  uint32_t column);
+  PERFETTO_NO_INLINE static void ResolveResults(ExecQuery*);
+  // Out of line: it is rarely an error and the status is costly to make.
+  PERFETTO_NO_INLINE static int CheckExecStatus(Cursor*);
   static int Next(sqlite3_vtab_cursor*);
   static int Eof(sqlite3_vtab_cursor*);
   static int Column(sqlite3_vtab_cursor*, sqlite3_context*, int);
