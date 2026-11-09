@@ -28,7 +28,7 @@
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
-#include "src/trace_processor/core/exec/filter_value.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -36,8 +36,8 @@ namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 namespace {
 
-// Hands literals to the shared filter value casts, so they mean for each column
-// type what any other filter value means. A scalar is the first literal; IN
+// Hands literals to the shared param casts, so they mean for each column
+// type what any other param means. A scalar is the first literal; IN
 // iterates them all.
 struct LiteralFetcher : core::ValueFetcher {
   static constexpr Type kInt64 = 0;
@@ -55,6 +55,8 @@ struct LiteralFetcher : core::ValueFetcher {
         return kDouble;
       case Literal::Type::kString:
         return kString;
+      case Literal::Type::kBound:
+        PERFETTO_FATAL("A bound param has no value until a run binds it");
     }
     PERFETTO_FATAL("Unknown literal type");
   }
@@ -136,19 +138,17 @@ base::StatusOr<Literal> CompileLiteral(Compiler* c, uint32_t expr) {
   return out;
 }
 
-ex::FilterValue CastLiterals(const core::Op& op,
-                             const Literal* literals,
-                             uint32_t count,
-                             core::StorageType type,
-                             const StringPool& pool) {
+ex::ParamValue CastLiterals(const core::Op& op,
+                            const Literal* literals,
+                            uint32_t count,
+                            core::StorageType type,
+                            const StringPool& pool) {
   LiteralFetcher fetcher(literals, count);
-  ex::FilterValue value;
+  ex::ParamValue value;
   if (op.Is<core::In>()) {
-    ex::GetFilterValueListCaster<LiteralFetcher>(type)(fetcher, 0, pool,
-                                                       &value);
+    ex::GetParamListCaster<LiteralFetcher>(type)(fetcher, 0, pool, &value);
   } else {
-    ex::GetFilterValueCaster<LiteralFetcher>(type, op)(fetcher, 0, pool,
-                                                       &value);
+    ex::GetParamCaster<LiteralFetcher>(type, op)(fetcher, 0, pool, &value);
   }
   return value;
 }
@@ -164,6 +164,9 @@ void SerializeLiteral(PlanCodec& c, Literal* literal) {
       break;
     case Literal::Type::kString:
       c.Str(&literal->text);
+      break;
+    case Literal::Type::kBound:
+      c.Pod(&literal->bound);
       break;
   }
 }

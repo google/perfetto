@@ -35,9 +35,9 @@ namespace perfetto::trace_processor::core::exec {
 
 // Reads the rows of a dataframe kept by searches of its sorted columns.
 //
-// Each search narrows a contiguous range of rows with the same kernels as the
-// dataframe interpreter, so both find the same rows. The searches run once per
-// run, on the first GetData(); the range is then read like DataframeScan.
+// Each search narrows a contiguous range of rows with the search kernels of
+// core/common (see filter_kernels.h). The searches run once per run, on the
+// first GetData(); the range is then read like DataframeScan.
 // Searched columns must be non-null and finalized.
 class SortedScan final : public Source {
  public:
@@ -57,8 +57,8 @@ class SortedScan final : public Source {
     Kind kind = Kind::kBinarySearch;
     // One of =, <, <=, >, >=. Only = for kSetIdEq and kSmallValueEq.
     Op op{Eq{}};
-    // Index into the run's filter values.
-    uint32_t value = 0;
+    // Index into the run's params.
+    uint32_t param = 0;
   };
 
   // `pool` must outlive the scan.
