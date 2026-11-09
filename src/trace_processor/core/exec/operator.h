@@ -29,6 +29,7 @@ namespace perfetto::trace_processor::core::exec {
 
 class Context;
 class RunHeld;
+struct RowsInPlace;
 
 // How a step uses the columns of the batches it is given: what every
 // Transform and Operator describes in DescribeColumns(), so the planner can
@@ -52,6 +53,9 @@ struct StepColumns {
   // The columns of `reads` the step reads as a scan lends them, sparse (see
   // ColumnView::Kind::kSparse), so that they need no Expand before it.
   std::vector<uint32_t> reads_sparse;
+  // Whether an operator holds the columns a scan lends sparse as they are, so
+  // that only those it reads otherwise need an Expand before it.
+  bool keeps_sparse = false;
 };
 
 // The mutable state of one step (Source, Transform or Operator) for one run
@@ -221,6 +225,12 @@ class Source {
     return base::OkStatus();
   }
 
+  // Set when the batches served are read in place: each then holds only a
+  // row count, its rows being the next of these. Valid until the run ends.
+  virtual const RowsInPlace* InPlace(const OperatorState&) const {
+    return nullptr;
+  }
+
   // Identifies the concrete class. Each class has a `static constexpr char
   // kType` and returns its address.
   virtual const void* type() const = 0;
@@ -336,6 +346,11 @@ class Operator {
   // Why Execute() or Finish() returned kError.
   virtual base::Status status(const OperatorState&) const {
     return base::OkStatus();
+  }
+
+  // As Source::InPlace(), for the batches Finish() outputs.
+  virtual const RowsInPlace* InPlace(const OperatorState&) const {
+    return nullptr;
   }
 
   // Identifies the concrete class. Each class has a `static constexpr char
