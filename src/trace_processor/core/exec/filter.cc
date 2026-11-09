@@ -411,7 +411,8 @@ bool Filter::Process(RowBatch& batch, OperatorState& state) const {
                    s.sparse_values.data(),
                    s.globs.empty() ? nullptr : &s.globs[i], r);
   }
-  if (r.contiguous && r.count == selection.size()) {
+  // The rows kept are in order, so as many as before are the same rows.
+  if (r.count == selection.size()) {
     return true;
   }
   Materialize(r);

@@ -131,6 +131,11 @@ class RowBatch {
   // Removes every column and row.
   void Reset();
 
+  // Whether the run has no batch after this one. Only a source which knows
+  // marks it, so a batch not marked may still be the last.
+  bool last() const { return last_; }
+  void set_last(bool last) { last_ = last; }
+
  private:
   static ColumnView NullView(StorageType type, const ColumnBuffer& nulls) {
     // An Id column has no storage for nulls, so use Uint32, which holds the
@@ -173,6 +178,7 @@ class RowBatch {
   const ColumnBuffer* buffers_ = nullptr;
   uint32_t buffer_count_ = 0;
   bool owned_ = true;
+  bool last_ = false;
   std::vector<ColumnView> own_columns_;
   std::vector<ColumnBuffer> own_buffers_;
   Selection selection_;

@@ -149,6 +149,9 @@ class Pipeline final : public Source {
 
   // Pulling batches.
   RowBatch* NextSlow(State&) const;
+  // Continues past a batch the transforms emptied, ending the run if the
+  // source marked it last.
+  RowBatch* EmptyBatch(const RowBatch& batch, State& s) const;
   // The next non-empty batch of `segment`, after its transforms.
   RowBatch* SegmentNext(uint32_t segment, RowBatch& scratch, State&) const;
   RowBatch* PullSlow(uint32_t segment, RowBatch& scratch, State&) const;

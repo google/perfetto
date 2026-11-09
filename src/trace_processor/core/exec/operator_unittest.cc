@@ -200,6 +200,89 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
   EXPECT_THAT(read_computed, ElementsAre(90, 91));
 }
 
+// Emits `rows` rows in one batch which it marks last, counting its pulls.
+class LastBatchSource final : public Source {
+ public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
+  explicit LastBatchSource(uint32_t rows) : rows_(rows) {}
+
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
+    return std::make_unique<State>();
+  }
+  void Rewind(OperatorState& state) const override {
+    state.Cast<State>().emitted = false;
+  }
+  bool GetData(RowBatch& out, OperatorState& state) const override {
+    ++pulls;
+    State& s = state.Cast<State>();
+    if (s.emitted) {
+      return false;
+    }
+    out.Reset();
+    out.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
+    out.SetRowCount(rows_);
+    out.set_last(true);
+    s.emitted = true;
+    return true;
+  }
+
+  mutable uint32_t pulls = 0;
+
+ private:
+  struct State : OperatorState {
+    bool emitted = false;
+  };
+  uint32_t rows_;
+};
+
+// Drops every row.
+class DropAll final : public Transform {
+ public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) const override {}
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
+    return std::make_unique<OperatorState>();
+  }
+  bool Process(RowBatch& batch, OperatorState&) const override {
+    batch.mutable_selection().KeepRows({});
+    return true;
+  }
+};
+
+// Once a source marks a batch last, the run ends when it is read, with no
+// pull to find there is nothing more.
+TEST(SinkTest, LastBatchEndsTheRun) {
+  LastBatchSource source(2);
+  Pipeline pipeline(source, {});
+  RowCursor cursor(pipeline);
+  for (uint32_t run = 0; run < 2; ++run) {
+    std::vector<uint32_t> rows;
+    for (cursor.Open(); !cursor.eof(); cursor.Next()) {
+      rows.push_back(cursor.Value<uint32_t>(0));
+    }
+    EXPECT_THAT(rows, ElementsAre(0, 1));
+    EXPECT_TRUE(cursor.status().ok());
+  }
+  EXPECT_EQ(source.pulls, 2u);
+}
+
+// A last batch which the transforms empty ends the run too.
+TEST(SinkTest, EmptiedLastBatchEndsTheRun) {
+  LastBatchSource source(2);
+  std::vector<Pipeline::Step> steps;
+  steps.push_back(std::make_unique<DropAll>());
+  Pipeline pipeline(source, std::move(steps));
+  RowCursor cursor(pipeline);
+  EXPECT_FALSE(cursor.Open());
+  EXPECT_TRUE(cursor.status().ok());
+  EXPECT_FALSE(cursor.Open());
+  EXPECT_EQ(source.pulls, 2u);
+}
+
 // A cursor is at eof until it is opened. Once it reports eof, advancing again
 // must still report eof.
 TEST(SinkTest, EofStaysEof) {

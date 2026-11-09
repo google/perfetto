@@ -155,7 +155,7 @@ RowBatch* Pipeline::Start(RowBatch& scratch, OperatorState& state) const {
     }
     // A batch with no rows left has nothing for later transforms to do.
     if (PERFETTO_UNLIKELY(!batch->size())) {
-      return NextSlow(s);
+      return EmptyBatch(*batch, s);
     }
   }
   return batch;
@@ -198,10 +198,19 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::Next(RowBatch&,
     }
     // A batch with no rows left has nothing for later transforms to do.
     if (PERFETTO_UNLIKELY(!batch->size())) {
-      return NextSlow(s);
+      return EmptyBatch(*batch, s);
     }
   }
   return batch;
+}
+
+PERFETTO_NO_INLINE RowBatch* Pipeline::EmptyBatch(const RowBatch& batch,
+                                                  State& s) const {
+  if (batch.last()) {
+    SourceDone(s);
+    return nullptr;
+  }
+  return NextSlow(s);
 }
 
 PERFETTO_NO_INLINE RowBatch* Pipeline::NextSlow(State& s) const {

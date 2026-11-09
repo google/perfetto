@@ -54,7 +54,7 @@ class RowCursor {
       return false;
     }
     size_ = batch_->size();
-    return PERFETTO_LIKELY(size_) || Pull();
+    return PERFETTO_LIKELY(size_) || (!batch_->last() && Pull());
   }
 
   // Moves to the next row, pulling a new batch if this one is exhausted. At
@@ -63,7 +63,7 @@ class RowCursor {
     if (index_ == size_) {
       return false;
     }
-    return ++index_ != size_ || Pull();
+    return ++index_ != size_ || (!batch_->last() && Pull());
   }
 
   bool eof() const { return index_ == size_; }
