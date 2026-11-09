@@ -213,10 +213,10 @@ export const manifest: NodeManifest<JoinConfig> = {
     columns: [],
   }),
   render,
-  isValid,
   generators: {
     // No right input -> passthrough of the left input.
     sql: (config, ctx) => {
+      if (!isValid(config)) return undefined;
       const left = ctx.input('left');
       const right = ctx.input('right');
       if (left === undefined) return undefined;
@@ -230,6 +230,7 @@ export const manifest: NodeManifest<JoinConfig> = {
       };
     },
     psn: (config, ctx) => {
+      if (!isValid(config)) return undefined;
       const left = ctx.input('left');
       const right = ctx.input('right');
       if (left === undefined) return undefined;

@@ -45,7 +45,6 @@ export const manifest: NodeManifest<UnionConfig> = {
     }));
   },
   defaultConfig: () => ({distinct: false, numInputs: 2}),
-  isValid: () => true,
   getOutputColumns(_config, ctx) {
     for (const port of ctx.inputPorts) {
       const cols = ctx.getInputColumns(port.name);

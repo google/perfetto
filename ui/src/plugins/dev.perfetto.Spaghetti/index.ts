@@ -16,12 +16,10 @@ import './styles.scss';
 import m from 'mithril';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
-import IntellettoPlugin from '../dev.perfetto.Intelletto';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {SpaghettiGraphState} from './graph_state';
-import {MaterializationService} from './materialization';
-import {registerSpaghettiTools} from './spaghetti_tools';
 import {SpaghettiPage} from './views/spaghetti_page';
+import {MaterializationService} from './materialization_service';
 
 /*
 Note: This is an experiment representing some ideas for how a query builder
@@ -60,23 +58,14 @@ could be architected and how it could look and feel.
 
 export default class SpaghettiPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Spaghetti';
-  static readonly dependencies = [SqlModulesPlugin, IntellettoPlugin];
+  static readonly dependencies = [SqlModulesPlugin];
   static readonly description = 'A visual query builder for SQL modules.';
 
   private readonly graphState = new SpaghettiGraphState();
 
   async onTraceLoad(trace: Trace): Promise<void> {
     const sqlModulesPlugin = trace.plugins.getPlugin(SqlModulesPlugin);
-    const intelletto = trace.plugins.getPlugin(IntellettoPlugin);
     const matService = new MaterializationService(trace.engine);
-
-    registerSpaghettiTools(
-      intelletto,
-      trace,
-      sqlModulesPlugin,
-      this.graphState,
-      matService,
-    );
 
     trace.pages.registerPage({
       route: '/spaghetti',

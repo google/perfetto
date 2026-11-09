@@ -349,6 +349,5 @@ export const manifest: NodeManifest<IntervalMergeConfig> = {
   render: (config, updateConfig, ctx) =>
     m(IntervalMergeContent, {config, updateConfig, ctx}),
   getOutputColumns,
-  isValid,
   generators,
 };

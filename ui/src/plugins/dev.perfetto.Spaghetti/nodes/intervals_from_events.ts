@@ -220,6 +220,5 @@ export const manifest: NodeManifest<IntervalsFromEventsConfig> = {
   render: (config, updateConfig, ctx) =>
     m(IntervalsFromEventsContent, {config, updateConfig, ctx}),
   getOutputColumns,
-  isValid,
   generators,
 };

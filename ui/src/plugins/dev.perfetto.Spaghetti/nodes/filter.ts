@@ -180,11 +180,13 @@ function whereExpr(config: FilterConfig): string {
 
 const generators: NodeGenerators<FilterConfig> = {
   sql: (config, ctx) => {
+    if (!isValid(config)) return undefined;
     if (ctx.input('input') === undefined) return undefined;
     const where = whereExpr(config);
     return where !== '' ? {where} : {};
   },
   psn: (config, ctx) => {
+    if (!isValid(config)) return undefined;
     if (ctx.input('input') === undefined) return undefined;
     const where = whereExpr(config);
     return {stages: where !== '' ? [`WHERE ${where}`] : []};
@@ -202,7 +204,6 @@ export const manifest: NodeManifest<FilterConfig> = {
     conjunction: 'AND',
   }),
   render: renderFilterNode,
-  isValid,
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
   generators,
 };

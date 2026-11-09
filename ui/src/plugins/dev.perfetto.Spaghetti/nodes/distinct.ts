@@ -30,7 +30,6 @@ export const manifest: NodeManifest<DistinctConfig> = {
   hue: 31,
   schema: DistinctConfigSchema,
   defaultConfig: () => ({}),
-  isValid: () => true,
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
   generators: {
     sql: (_config, ctx) => {

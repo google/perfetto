@@ -39,21 +39,25 @@ import {
   PopupMenu,
 } from '../../../widgets/menu';
 import {
+  NodeGraph,
   type Connection,
   type Node,
-  NodeGraph,
   type NodeGraphApi,
   type NodeGraphViewport,
 } from '../../../widgets/nodegraph';
 // Connection is only used as the widget's wire type (for visual rendering
 // and event callbacks). Connections are NOT stored in the graph model —
 // they are derived from node.inputs arrays on each render.
+import {assertExists, assertIsInstance} from '../../../base/assert';
+import {classNames} from '../../../base/classnames';
+import {findRef} from '../../../base/dom_utils';
 import {Popup} from '../../../widgets/popup';
 import {RadioGroup} from '../../../widgets/radio_group';
-import {Stack} from '../components/stack';
 import {SplitPanel} from '../../../widgets/split_panel';
 import {Tabs} from '../../../widgets/tabs';
+import {TextInput} from '../../../widgets/text_input';
 import type {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
+import {Stack} from '../components/stack';
 import type {
   NodeData,
   NodeQueryBuilderStore,
@@ -76,24 +80,22 @@ import {
   trimInputs,
   type GraphIndex,
 } from '../graph_utils';
-import {buildDisplayQuery} from '../compose';
-import {buildPlan} from '../plan';
-import {
-  MaterializationService,
-  planMaterialization,
-  type StepRunOutcome,
-} from '../materialization';
+import type {StepRunOutcome} from '../run_chunks';
+import type {MaterializationService} from '../materialization_service';
 import type {DetailsContext, RenderContext} from '../node_types';
+import {planChunks} from '../plan_chunks';
+import {serialize} from '../serialize';
+import {
+  isOutputMaterialized,
+  outputQuery,
+  serializeChunks,
+} from '../chunk_queries';
 import {CacheTab} from './cache_tab';
 import {ColumnsTab} from './columns_tab';
 import {GraphTab} from './graph_tab';
 import {MaterializationTab} from './materialization_tab';
-import {SqlTab} from './sql_tab';
-import {TextInput} from '../../../widgets/text_input';
-import {findRef} from '../../../base/dom_utils';
-import {assertExists, assertIsInstance} from '../../../base/assert';
-import {classNames} from '../../../base/classnames';
 import './spaghetti_page.scss';
+import {SqlTab} from './sql_tab';
 
 type LoadingStyle = 'beam' | 'shimmer' | 'pulse' | 'scanline' | 'none';
 
@@ -120,7 +122,7 @@ export interface SpaghettiPage {
   readonly trace: Trace;
   readonly sqlModules: SqlModules | undefined;
   readonly state?: SpaghettiGraphState;
-  readonly matService?: MaterializationService;
+  readonly matService: MaterializationService;
 }
 
 // The node's materialization glow: animated while its step builds, then a
@@ -140,7 +142,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
   let graphApi: NodeGraphApi | undefined;
   let fallbackState: SpaghettiGraphState | undefined;
   let activeState: SpaghettiGraphState | undefined;
-  let suppressHistoryOnMove = false;
 
   function getState(): SpaghettiGraphState {
     if (activeState) return activeState;
@@ -182,9 +183,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
     }
     return result;
   }
-
-  let fallbackMatService: MaterializationService | undefined;
-  let matService: MaterializationService | undefined;
 
   const VIEWPORT_STORAGE_KEY = 'perfettoSpaghettiViewport';
   const VIEWPORT_SAVE_DEBOUNCE_MS = 250;
@@ -244,34 +242,12 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
     nodeId: string,
     updates: Partial<Omit<RootNodeData, 'id'>>,
   ) => {
-    getState().updateNode(nodeId, updates, {
-      skipHistory: suppressHistoryOnMove,
-    });
+    getState().updateNode(nodeId, updates);
   };
 
   const removeNode = (nodeId: string) => {
     getState().removeNode(nodeId);
   };
-
-  function flushPendingLayout() {
-    if (!graphApi) return;
-    const pending = getState().consumePendingLayout();
-    if (!pending) return;
-    requestAnimationFrame(() => {
-      if (!graphApi) return;
-      if (pending.autoLayout) {
-        suppressHistoryOnMove = true;
-        try {
-          graphApi.autoLayout();
-        } finally {
-          suppressHistoryOnMove = false;
-        }
-      }
-      if (pending.recenter) {
-        graphApi.recenter();
-      }
-    });
-  }
 
   // --- Clipboard support ---
 
@@ -482,6 +458,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
   }
 
   function buildNodeModel(
+    matService: MaterializationService,
     nodeData: NodeData,
     tableNames: string[],
     trace: Trace,
@@ -506,7 +483,14 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       canDockBottom: true,
       canDockTop: getManifestInputs(manifest, nodeData).length > 0,
       next: nodeData.next
-        ? buildNodeModel(nodeData.next, tableNames, trace, sqlModules, false)
+        ? buildNodeModel(
+            matService,
+            nodeData.next,
+            tableNames,
+            trace,
+            sqlModules,
+            false,
+          )
         : undefined,
       titleBar: {
         title: manifest.title,
@@ -556,12 +540,20 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
   // Render a node and its docked chain
   function renderNodeChain(
+    matService: MaterializationService,
     nodeData: RootNodeData,
     tableNames: string[],
     trace: Trace,
     sqlModules: SqlModules | undefined,
   ): Node {
-    const model = buildNodeModel(nodeData, tableNames, trace, sqlModules, true);
+    const model = buildNodeModel(
+      matService,
+      nodeData,
+      tableNames,
+      trace,
+      sqlModules,
+      true,
+    );
     return {
       ...model,
       x: nodeData.x,
@@ -573,21 +565,14 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
     onremove(_: m.VnodeDOM<SpaghettiPage>) {
       graphApi = undefined;
       flushViewportSave();
-      matService = undefined;
-      fallbackMatService?.dispose();
-      fallbackMatService = undefined;
     },
     view({attrs}: m.Vnode<SpaghettiPage>) {
       const {trace, sqlModules} = attrs;
       activeState = attrs.state;
-      matService =
-        attrs.matService ??
-        (fallbackMatService ??= new MaterializationService(trace.engine));
+      const matService = attrs.matService;
       const state = getState();
       const {store, selectedNodeIds, pinnedNodeId} = state;
       const materializationDialect = state.dialect;
-
-      flushPendingLayout();
 
       // Get table names from SqlModules, falling back to a basic list
       const tableNames = sqlModules
@@ -599,7 +584,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       const activeConns = getActiveConnections();
 
       const renderedNodes: Node[] = store.nodes.map((n) =>
-        renderNodeChain(n, tableNames, trace, sqlModules),
+        renderNodeChain(matService, n, tableNames, trace, sqlModules),
       );
 
       const toolbarItems: m.Children[] = [];
@@ -760,7 +745,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         toolbarItems,
         onReady: (api: NodeGraphApi) => {
           graphApi = api;
-          flushPendingLayout();
         },
         onCopy: () => copySelectedNodes(),
         onPaste: () => pasteNodes(),
@@ -930,8 +914,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       // Use pinned node if set, otherwise fall back to selected node.
       const activeNodeId = state.getActiveNodeId();
 
-      matService.emulateSlowLoads = emulateSlowLoads;
-
       // Schedule materialization on every render — the AsyncLimiter
       // ensures only the latest invocation actually runs.
       matService.scheduleUpdate(
@@ -939,6 +921,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         activeNodeId,
         sqlModules,
         materializationDialect,
+        emulateSlowLoads,
       );
 
       const dataSource = matService.dataSource;
@@ -950,14 +933,34 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         ? getOutputColumnsForNode(flatNodes, activeNodeId, sqlModules)
         : undefined;
 
-      // Build plan + display query (pure functions of the graph).
-      const plan = activeNodeId
-        ? buildPlan(flatNodes, activeNodeId, sqlModules)
+      // The SQL tab shows the whole query in the configured dialect.
+      const serialized = activeNodeId
+        ? serialize(flatNodes, activeNodeId, materializationDialect, {
+            sqlModules,
+          })
         : undefined;
-      const matPlan = plan
-        ? planMaterialization(plan, materializationDialect)
+      const serializedSql =
+        serialized === undefined
+          ? undefined
+          : !serialized.ok
+            ? `-- ${serialized.error}`
+            : serialized.includes.length === 0
+              ? serialized.sql
+              : [
+                  serialized.includes
+                    .map((inc) => `INCLUDE PERFETTO MODULE ${inc};`)
+                    .join('\n'),
+                  serialized.sql,
+                ].join('\n\n');
+      const chunkPlan = activeNodeId
+        ? planChunks(flatNodes, activeNodeId)
         : undefined;
-      const displaySql = buildDisplayQuery(plan, materializationDialect);
+      const chunkQueries = chunkPlan
+        ? serializeChunks(flatNodes, chunkPlan, {
+            sqlModules,
+            dialect: materializationDialect,
+          })
+        : undefined;
 
       const liveJson = JSON.stringify(
         JSON.parse(serializeStore(store)),
@@ -973,7 +976,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               key: 'sql',
               title: 'SQL',
               content: m(SqlTab, {
-                displaySql,
+                displaySql: serializedSql,
                 activeNodeId,
                 language:
                   materializationDialect === 'pipe'
@@ -990,9 +993,26 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               key: 'materialization',
               title: 'Materialization',
               content: m(MaterializationTab, {
-                matPlan,
+                chunkPlan,
+                chunkQueries,
+                materializeOutput:
+                  chunkPlan !== undefined &&
+                  isOutputMaterialized(flatNodes, chunkPlan),
+                output:
+                  chunkPlan && chunkQueries?.ok
+                    ? outputQuery(
+                        flatNodes,
+                        chunkPlan,
+                        chunkQueries.chunks,
+                        materializationDialect,
+                        {sqlModules},
+                      )
+                    : undefined,
+                language:
+                  materializationDialect === 'pipe'
+                    ? 'PerfettoSQL Next'
+                    : 'SQL',
                 lastRunOutcomes: matService.lastRunOutcomes,
-                lastIncludesTimeMs: matService.lastIncludesTimeMs,
                 activeNodeId,
               }),
             },
@@ -1094,7 +1114,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
             'Click on a node to see its query results.',
           );
         }
-        if (!displaySql) {
+        if (serialized !== undefined && !serialized.ok) {
           return m(
             EmptyState,
             {
@@ -1102,7 +1122,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               fillHeight: true,
               title: 'Incomplete query',
             },
-            'Fill in all required fields to see results.',
+            serialized.error,
           );
         }
         if (matError) {
@@ -1138,7 +1158,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
       const resultsPanel = activeManifest?.renderDetails
         ? activeManifest.renderDetails(activeNode!.config, detailsCtx)
-        : activeNodeId && displaySql && dataSource
+        : activeNodeId && serialized?.ok && dataSource
           ? m(DataGrid, {
               key: matService.materializedTable ?? '',
               data: dataSource,

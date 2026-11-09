@@ -239,6 +239,5 @@ export const manifest: NodeManifest<GraphTreeConfig> = {
   render: (config, updateConfig, ctx) =>
     m(GraphTreeContent, {config, updateConfig, ctx}),
   getOutputColumns,
-  isValid,
   generators,
 };

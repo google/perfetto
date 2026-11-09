@@ -189,6 +189,7 @@ function projection(config: SelectConfig): {
 const generators: NodeGenerators<SelectConfig> = {
   // No picked columns means "keep everything and add the expressions".
   sql: (config, ctx) => {
+    if (!isValid(config)) return undefined;
     if (ctx.input('input') === undefined) return undefined;
     const {columns, exprs} = projection(config);
     if (columns.length === 0) {
@@ -197,6 +198,7 @@ const generators: NodeGenerators<SelectConfig> = {
     return {select: [...columns, ...exprs]};
   },
   psn: (config, ctx) => {
+    if (!isValid(config)) return undefined;
     if (ctx.input('input') === undefined) return undefined;
     const {columns, exprs} = projection(config);
     if (columns.length === 0) {
@@ -217,6 +219,5 @@ export const manifest: NodeManifest<SelectConfig> = {
     return m(SelectNodeContent, {config, updateConfig, ctx});
   },
   getOutputColumns,
-  isValid,
   generators,
 };

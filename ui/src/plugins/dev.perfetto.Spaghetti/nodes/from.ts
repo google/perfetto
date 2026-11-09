@@ -45,7 +45,6 @@ export const manifest: NodeManifest<FromConfig> = {
   hue: 204,
   schema: FromConfigSchema,
   defaultConfig: () => ({table: 'slice'}),
-  isValid: (config) => config.table !== '',
   generators: {
     // A bare-name `from` renders as a plain reference (no CTE / wrapper).
     sql: (config, ctx) => {

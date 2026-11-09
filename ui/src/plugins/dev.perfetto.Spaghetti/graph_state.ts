@@ -25,27 +25,13 @@ import type {SqlDialect} from './sql_types';
 const STORAGE_KEY = 'perfettoSpaghetti';
 const MAX_HISTORY = 50;
 
-export interface PendingGraphLayout {
-  readonly autoLayout: boolean;
-  readonly recenter: boolean;
-}
-
-export interface ReplaceStoreOptions {
-  readonly pushHistory?: boolean;
-  readonly selectedNodeId?: string;
-  readonly autoLayout?: boolean;
-  readonly recenter?: boolean;
-}
-
 export interface SpaghettiGraphStateOptions {
   readonly persist?: boolean;
 }
 
 /**
  * Trace-scoped state container for the Spaghetti query builder graph, undo/redo
- * history, and active node selection. Shared between SpaghettiPage and
- * Intelletto assistant tools so programmatic graph edits stay live-synced with
- * the canvas and support undo/redo.
+ * history, and active node selection.
  */
 export class SpaghettiGraphState {
   private _store: NodeQueryBuilderStore = {
@@ -54,7 +40,6 @@ export class SpaghettiGraphState {
   };
   private readonly history: NodeQueryBuilderStore[] = [this._store];
   private historyIndex = 0;
-  private pendingLayout: PendingGraphLayout | undefined;
   private readonly persist: boolean;
 
   readonly selectedNodeIds = new Set<string>();
@@ -82,12 +67,6 @@ export class SpaghettiGraphState {
     return undefined;
   }
 
-  consumePendingLayout(): PendingGraphLayout | undefined {
-    const pending = this.pendingLayout;
-    this.pendingLayout = undefined;
-    return pending;
-  }
-
   updateStore(
     updater: (draft: NodeQueryBuilderStore) => void,
     options?: {readonly skipHistory?: boolean},
@@ -105,35 +84,12 @@ export class SpaghettiGraphState {
     this.saveToStorage();
   }
 
-  replaceStore(
-    nextStore: NodeQueryBuilderStore,
-    options?: ReplaceStoreOptions,
-  ): void {
+  replaceStore(nextStore: NodeQueryBuilderStore): void {
     this._store = nextStore;
-    if (options?.pushHistory ?? false) {
-      this.pushHistoryEntry(nextStore);
-    } else {
-      this.history.splice(0, this.history.length, nextStore);
-      this.historyIndex = 0;
-    }
-
+    this.history.splice(0, this.history.length, nextStore);
+    this.historyIndex = 0;
     this.selectedNodeIds.clear();
     this.pinnedNodeId = undefined;
-
-    if (options?.selectedNodeId !== undefined) {
-      const index = flattenNodes(nextStore.nodes);
-      if (index.nodes[options.selectedNodeId] !== undefined) {
-        this.selectedNodeIds.add(options.selectedNodeId);
-      }
-    }
-
-    if (options?.autoLayout || options?.recenter) {
-      this.pendingLayout = {
-        autoLayout: options.autoLayout ?? false,
-        recenter: options.recenter ?? false,
-      };
-    }
-
     this.saveToStorage();
   }
 
@@ -143,7 +99,6 @@ export class SpaghettiGraphState {
     this.historyIndex = 0;
     this.selectedNodeIds.clear();
     this.pinnedNodeId = undefined;
-    this.pendingLayout = undefined;
     this.saveToStorage();
   }
 

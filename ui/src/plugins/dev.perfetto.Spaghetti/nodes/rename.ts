@@ -130,6 +130,7 @@ function renameMap(config: RenameConfig): Map<string, string> {
 const generators: NodeGenerators<RenameConfig> = {
   // Standard SQL needs the full column list to rename in place.
   sql: (config, ctx) => {
+    if (!isValid(config)) return undefined;
     if (ctx.input('input') === undefined) return undefined;
     const renames = renameMap(config);
     if (renames.size === 0) return {};
@@ -145,6 +146,7 @@ const generators: NodeGenerators<RenameConfig> = {
     };
   },
   psn: (config, ctx) => {
+    if (!isValid(config)) return undefined;
     if (ctx.input('input') === undefined) return undefined;
     const items = [...renameMap(config)].map(
       ([from, to]) => `${from} AS ${to}`,
@@ -162,6 +164,5 @@ export const manifest: NodeManifest<RenameConfig> = {
   defaultConfig: () => ({entries: []}),
   render,
   getOutputColumns,
-  isValid,
   generators,
 };

@@ -283,7 +283,6 @@ export const manifest: NodeManifest<ChartConfig> = {
     }));
   },
   defaultConfig: () => ({charts: [], numInputs: 1}),
-  isValid: () => true,
   getOutputColumns(_config, ctx) {
     for (const port of ctx.inputPorts) {
       const cols = ctx.getInputColumns(port.name);

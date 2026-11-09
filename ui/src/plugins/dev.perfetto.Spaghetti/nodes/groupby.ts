@@ -204,6 +204,7 @@ function aggParts(config: GroupByConfig): {keys: string[]; aggs: string[]} {
 
 const generators: NodeGenerators<GroupByConfig> = {
   sql: (config, ctx) => {
+    if (!isValid(config)) return undefined;
     if (ctx.input('input') === undefined) return undefined;
     const {keys, aggs} = aggParts(config);
     if (keys.length === 0 && aggs.length === 0) return {};
@@ -213,6 +214,7 @@ const generators: NodeGenerators<GroupByConfig> = {
     };
   },
   psn: (config, ctx) => {
+    if (!isValid(config)) return undefined;
     if (ctx.input('input') === undefined) return undefined;
     const {keys, aggs} = aggParts(config);
     if (aggs.length === 0) {
@@ -237,6 +239,5 @@ export const manifest: NodeManifest<GroupByConfig> = {
   defaultConfig: () => ({groupColumns: [], aggregations: []}),
   render,
   getOutputColumns,
-  isValid,
   generators,
 };

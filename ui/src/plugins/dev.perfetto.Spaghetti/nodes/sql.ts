@@ -123,7 +123,6 @@ export const manifest: NodeManifest<SqlConfig> = {
     columns: [],
     inputPorts: [],
   }),
-  isValid: (config) => config.sql.trim() !== '',
   generators: {
     // Bind each input to its alias with a WITH clause in front of the user's
     // query, and use the whole thing as a subquery source.

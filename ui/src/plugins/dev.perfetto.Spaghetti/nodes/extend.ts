@@ -115,10 +115,6 @@ function getOutputColumns(
   return columns;
 }
 
-function isValid(config: ExtendConfig): boolean {
-  return config.entries.every((e) => e.alias === '' || e.expression !== '');
-}
-
 function exprParts(config: ExtendConfig): string[] {
   return config.entries
     .filter((e) => e.expression !== '')
@@ -147,6 +143,5 @@ export const manifest: NodeManifest<ExtendConfig> = {
   defaultConfig: () => ({entries: []}),
   render,
   getOutputColumns,
-  isValid,
   generators,
 };

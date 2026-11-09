@@ -19,19 +19,30 @@ import {Callout} from '../../../widgets/callout';
 import {CopyToClipboardButton} from '../../../widgets/copy_to_clipboard_button';
 import {EmptyState} from '../../../widgets/empty_state';
 import {Card} from '../components/card';
-import {
-  formatOutput,
-  formatStep,
-  type MaterializationPlan,
-  type StepRunOutcome,
-} from '../materialization';
+import type {ChunkQueriesResult} from '../chunk_queries';
+import type {StepRunOutcome} from '../run_chunks';
+import type {ChunkPlan} from '../plan_chunks';
+import type {SerializeResult} from '../serialize_common';
 import './materialization_tab.scss';
 
 export interface MaterializationTabAttrs {
-  readonly matPlan: MaterializationPlan | undefined;
+  readonly chunkPlan: ChunkPlan | undefined;
+  readonly chunkQueries: ChunkQueriesResult | undefined;
+  /** Whether the output chunk is built into a table. */
+  readonly materializeOutput: boolean;
+  /** The query that reads the output, in the current dialect. */
+  readonly output: SerializeResult | undefined;
+  /** Label for the current dialect. */
+  readonly language: string;
   readonly lastRunOutcomes: ReadonlyMap<string, StepRunOutcome>;
-  readonly lastIncludesTimeMs: number | undefined;
   readonly activeNodeId: string | undefined;
+}
+
+// A query with its includes at the top.
+function withIncludes(includes: readonly string[], sql: string): string {
+  if (includes.length === 0) return sql;
+  const headers = includes.map((inc) => `INCLUDE PERFETTO MODULE ${inc};`);
+  return `${headers.join('\n')}\n\n${sql}`;
 }
 
 export class MaterializationTab implements m.ClassComponent<MaterializationTabAttrs> {
@@ -85,9 +96,17 @@ export class MaterializationTab implements m.ClassComponent<MaterializationTabAt
   }
 
   view({attrs}: m.Vnode<MaterializationTabAttrs>) {
-    const {matPlan, lastRunOutcomes, lastIncludesTimeMs, activeNodeId} = attrs;
+    const {
+      chunkPlan,
+      chunkQueries,
+      materializeOutput,
+      output,
+      language,
+      lastRunOutcomes,
+      activeNodeId,
+    } = attrs;
 
-    if (!matPlan) {
+    if (chunkPlan === undefined || chunkQueries === undefined) {
       if (activeNodeId) {
         return m(
           EmptyState,
@@ -109,9 +128,22 @@ export class MaterializationTab implements m.ClassComponent<MaterializationTabAt
       );
     }
 
+    if (!chunkQueries.ok) {
+      return m(
+        EmptyState,
+        {icon: 'warning', fillHeight: true, title: 'Incomplete query'},
+        chunkQueries.error,
+      );
+    }
+
+    const chunks = chunkQueries.chunks;
+    const outChunk = chunks[chunks.length - 1];
+    // The output chunk is a table only when it's materialized.
+    const tables = materializeOutput ? chunks : chunks.slice(0, -1);
+
     const cards: m.Children[] = [];
 
-    if (matPlan.steps.length > 0 || matPlan.includes.length > 0) {
+    if (tables.length > 0) {
       cards.push(
         m(
           Callout,
@@ -121,40 +153,14 @@ export class MaterializationTab implements m.ClassComponent<MaterializationTabAt
       );
     }
 
-    if (matPlan.includes.length > 0) {
-      const includeSql = matPlan.includes
-        .map((inc) => `INCLUDE PERFETTO MODULE ${inc};`)
-        .join('\n');
-      cards.push(
-        m(Card, {
-          icon: 'auto_stories',
-          hue: 272,
-          title: 'Includes',
-          meta: `${matPlan.includes.length} ${matPlan.includes.length === 1 ? 'module' : 'modules'}`,
-          content: includeSql,
-          badges: [
-            lastIncludesTimeMs !== undefined &&
-              m(Card.Time, {label: `${lastIncludesTimeMs.toFixed(1)}ms`}),
-            m(CopyToClipboardButton, {
-              textToCopy: includeSql,
-              variant: ButtonVariant.Minimal,
-              title: 'Copy SQL',
-            }),
-          ],
-        }),
-      );
-    }
-
-    for (const step of matPlan.steps) {
-      const res = formatStep(matPlan, step);
-      const bodySql = res.ok ? res.sql : `-- ${res.error}`;
-
+    for (const chunk of tables) {
+      const bodySql = withIncludes(chunk.includes, chunk.sql);
+      const nodeIds =
+        chunkPlan.chunks.find((c) => c.rootId === chunk.rootId)?.nodeIds ?? [];
       const meta =
-        step.nodeIds.length > 0
-          ? `nodes: ${step.nodeIds.join(', ')}`
-          : undefined;
+        nodeIds.length > 0 ? `nodes: ${nodeIds.join(', ')}` : undefined;
 
-      const outcome = lastRunOutcomes.get(step.hash);
+      const outcome = lastRunOutcomes.get(chunk.hash);
       const badges: m.Children[] = [];
       if (outcome?.kind === 'building') {
         badges.push(m(Card.Badge, {variant: 'miss', label: 'BUILDING'}));
@@ -175,35 +181,39 @@ export class MaterializationTab implements m.ClassComponent<MaterializationTabAt
 
       cards.push(
         m(Card, {
-          dataHash: step.hash,
+          dataHash: chunk.hash,
           icon: 'table_chart',
           hue: 204,
           className: classNames(
-            this.highlightedHash === step.hash && 'pf-spag-card--highlighted',
+            this.highlightedHash === chunk.hash && 'pf-spag-card--highlighted',
           ),
-          title: step.hash,
+          title: chunk.hash,
           meta,
-          subheader: this.renderDepsRow('depends on', step.deps),
+          subheader: this.renderDepsRow('depends on', chunk.inputs),
           content: bodySql,
           badges,
         }),
       );
     }
 
-    const finalDeps = matPlan.output.deps;
-
-    // The output query is always executed as Standard SQL (regardless of the
-    // selected dialect) because the DataGrid and details panels wrap it in a
-    // plain SQL subquery, which cannot contain a pipe query.
-    const finalRes = formatOutput(matPlan);
-    const finalSql = finalRes.ok ? finalRes.sql : `-- ${finalRes.error}`;
+    const finalSql =
+      output === undefined
+        ? ''
+        : output.ok
+          ? withIncludes(output.includes, output.sql)
+          : `-- ${output.error}`;
+    const finalDeps = materializeOutput
+      ? outChunk
+        ? [outChunk.hash]
+        : []
+      : (outChunk?.inputs ?? []);
 
     cards.push(
       m(Card, {
         icon: 'output',
         hue: 145,
         title: 'Output',
-        meta: 'Standard SQL',
+        meta: language,
         subheader: this.renderDepsRow('reads from', finalDeps),
         content: finalSql,
         badges: [
