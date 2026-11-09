@@ -33,12 +33,7 @@ import {
   perClause,
   subquery,
 } from '../generator_utils';
-import type {
-  ColumnContext,
-  NodeGenerators,
-  NodeManifest,
-  RenderContext,
-} from '../node_types';
+import type {NodeManifest, RenderContext} from '../node_types';
 import {ColumnPicker} from '../widgets/column_picker';
 
 export type FlattenAggregation = PipelineAggEntry;
@@ -136,26 +131,6 @@ function IntervalFlattenContent(): m.Component<{
   };
 }
 
-function getOutputColumns(
-  config: IntervalFlattenConfig,
-  ctx: ColumnContext,
-): ColumnDef[] | undefined {
-  const columns = ctx.getInputColumns('input');
-  if (columns === undefined) return undefined;
-  const partCols: ColumnDef[] = config.partitionColumns
-    .filter((c) => c !== '')
-    .map((c) => columns.find((col) => col.name === c) ?? {name: c});
-  const aggCols: ColumnDef[] = config.aggregations
-    .filter((a) => a.func === 'COUNT' || a.column !== '')
-    .map((a) => ({name: pipelineAggAlias(a), type: {kind: 'int' as const}}));
-  return [
-    {name: 'ts', type: {kind: 'timestamp' as const}},
-    {name: 'dur', type: {kind: 'duration' as const}},
-    ...partCols,
-    ...aggCols,
-  ];
-}
-
 function isValid(config: IntervalFlattenConfig): boolean {
   return config.aggregations.every(
     (a) => a.func === 'COUNT' || a.column !== '',
@@ -247,41 +222,13 @@ function flattenSql(
   ].join('\n');
 }
 
-const generators: NodeGenerators<IntervalFlattenConfig> = {
-  sql: (config, ctx) => {
-    if (!isValid(config)) return undefined;
-    const input = ctx.input('input');
-    if (input === undefined) return undefined;
-    const partition = config.partitionColumns.filter((c) => c !== '');
-    return {
-      from: subquery(flattenSql(input.ref, partition, flattenAggs(config))),
-    };
-  },
-  psn: (config, ctx) => {
-    if (!isValid(config)) return undefined;
-    if (ctx.input('input') === undefined) return undefined;
-    const per = perClause(config.partitionColumns.filter((c) => c !== ''));
-    const aggs = flattenAggs(config);
-    const negDur = config.filterNegativeDur ? ['WHERE dur >= 0'] : [];
-    // INTERVAL FLATTEN requires at least one aggregate.
-    const flatten =
-      aggs.length > 0
-        ? [`INTERVAL FLATTEN${per} AGGREGATE ${formatAggs(aggs)}`]
-        : [
-            `INTERVAL FLATTEN${per} AGGREGATE COUNT(*) AS _pf_cnt`,
-            'DROP _pf_cnt',
-          ];
-    return {stages: [...negDur, ...flatten]};
-  },
-};
-
 export const manifest: NodeManifest<IntervalFlattenConfig> = {
   title: 'Interval Flatten',
   icon: 'layers',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 321,
-  expensive: true,
   schema: IntervalFlattenConfigSchema,
+  expensive: true,
   defaultConfig: () => ({
     partitionColumns: [],
     aggregations: [{func: 'COUNT', column: '*', alias: 'count'}],
@@ -289,6 +236,47 @@ export const manifest: NodeManifest<IntervalFlattenConfig> = {
   }),
   render: (config, updateConfig, ctx) =>
     m(IntervalFlattenContent, {config, updateConfig, ctx}),
-  getOutputColumns,
-  generators,
+  getOutputColumns(config, ctx) {
+    const columns = ctx.getInputColumns('input');
+    if (columns === undefined) return undefined;
+    const partCols: ColumnDef[] = config.partitionColumns
+      .filter((c) => c !== '')
+      .map((c) => columns.find((col) => col.name === c) ?? {name: c});
+    const aggCols: ColumnDef[] = config.aggregations
+      .filter((a) => a.func === 'COUNT' || a.column !== '')
+      .map((a) => ({name: pipelineAggAlias(a), type: {kind: 'int' as const}}));
+    return [
+      {name: 'ts', type: {kind: 'timestamp' as const}},
+      {name: 'dur', type: {kind: 'duration' as const}},
+      ...partCols,
+      ...aggCols,
+    ];
+  },
+  generators: {
+    sql: (config, ctx) => {
+      if (!isValid(config)) return undefined;
+      const input = ctx.input('input');
+      if (input === undefined) return undefined;
+      const partition = config.partitionColumns.filter((c) => c !== '');
+      return {
+        from: subquery(flattenSql(input.ref, partition, flattenAggs(config))),
+      };
+    },
+    psn: (config, ctx) => {
+      if (!isValid(config)) return undefined;
+      if (ctx.input('input') === undefined) return undefined;
+      const per = perClause(config.partitionColumns.filter((c) => c !== ''));
+      const aggs = flattenAggs(config);
+      const negDur = config.filterNegativeDur ? ['WHERE dur >= 0'] : [];
+      // INTERVAL FLATTEN requires at least one aggregate.
+      const flatten =
+        aggs.length > 0
+          ? [`INTERVAL FLATTEN${per} AGGREGATE ${formatAggs(aggs)}`]
+          : [
+              `INTERVAL FLATTEN${per} AGGREGATE COUNT(*) AS _pf_cnt`,
+              'DROP _pf_cnt',
+            ];
+      return {stages: [...negDur, ...flatten]};
+    },
+  },
 };

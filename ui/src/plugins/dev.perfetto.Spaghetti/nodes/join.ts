@@ -147,14 +147,6 @@ function JoinNodeContent(): m.Component<{
   };
 }
 
-function render(
-  config: JoinConfig,
-  updateConfig: (updates: Partial<JoinConfig>) => void,
-  ctx: RenderContext,
-): m.Children {
-  return m(JoinNodeContent, {config, updateConfig, ctx});
-}
-
 function isValid(config: JoinConfig): boolean {
   return config.leftColumn !== '' && config.rightColumn !== '';
 }
@@ -176,15 +168,22 @@ function joinSelect(
 export const manifest: NodeManifest<JoinConfig> = {
   title: 'Join',
   icon: 'join_left',
-  resolveIcon: (config) =>
-    config.joinType === 'LEFT' ? 'join_left' : 'join_inner',
   getInputs: () => [
     {name: 'left', content: 'Left'},
     {name: 'right', content: 'Right'},
   ],
   hue: 282,
-  expensive: true,
   schema: JoinConfigSchema,
+  expensive: true,
+  defaultConfig: () => ({
+    joinType: 'LEFT',
+    leftColumn: '',
+    rightColumn: '',
+    columns: [],
+  }),
+  render(config, updateConfig, ctx) {
+    return m(JoinNodeContent, {config, updateConfig, ctx});
+  },
   getOutputColumns(config, ctx) {
     // Output columns are all left columns, plus select right columns.
     const leftCols = ctx.getInputColumns('left') ?? [];
@@ -206,13 +205,6 @@ export const manifest: NodeManifest<JoinConfig> = {
 
     return outputCols;
   },
-  defaultConfig: () => ({
-    joinType: 'LEFT',
-    leftColumn: '',
-    rightColumn: '',
-    columns: [],
-  }),
-  render,
   generators: {
     // No right input -> passthrough of the left input.
     sql: (config, ctx) => {
@@ -245,4 +237,6 @@ export const manifest: NodeManifest<JoinConfig> = {
       };
     },
   },
+  resolveIcon: (config) =>
+    config.joinType === 'LEFT' ? 'join_left' : 'join_inner',
 };

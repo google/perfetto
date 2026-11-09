@@ -35,12 +35,7 @@ import {
   perClause,
   subquery,
 } from '../generator_utils';
-import type {
-  ColumnContext,
-  NodeGenerators,
-  NodeManifest,
-  RenderContext,
-} from '../node_types';
+import type {NodeManifest, RenderContext} from '../node_types';
 import {ColumnPicker} from '../widgets/column_picker';
 
 export type MergeAggregation = PipelineAggEntry;
@@ -189,34 +184,6 @@ function IntervalMergeContent(): m.Component<{
   };
 }
 
-function getOutputColumns(
-  config: IntervalMergeConfig,
-  ctx: ColumnContext,
-): ColumnDef[] | undefined {
-  const columns = ctx.getInputColumns('input');
-  if (columns === undefined) return undefined;
-  const nonEmptyPer = config.partitionColumns.filter((c) => c !== '');
-  const partCols: ColumnDef[] = nonEmptyPer.map(
-    (c) => columns.find((col) => col.name === c) ?? {name: c},
-  );
-  const keyCols: ColumnDef[] =
-    config.mergeKind === 'CONSECUTIVE'
-      ? config.keyColumns
-          .filter((c) => c !== '' && !nonEmptyPer.includes(c))
-          .map((c) => columns.find((col) => col.name === c) ?? {name: c})
-      : [];
-  const aggCols: ColumnDef[] = config.aggregations
-    .filter((a) => a.func === 'COUNT' || a.column !== '')
-    .map((a) => ({name: pipelineAggAlias(a), type: {kind: 'int' as const}}));
-  return [
-    {name: 'ts', type: {kind: 'timestamp' as const}},
-    {name: 'dur', type: {kind: 'duration' as const}},
-    ...partCols,
-    ...keyCols,
-    ...aggCols,
-  ];
-}
-
 function isValid(config: IntervalMergeConfig): boolean {
   const aggsValid = config.aggregations.every(
     (a) => a.func === 'COUNT' || a.column !== '',
@@ -309,36 +276,13 @@ function mergeSql(ref: string, config: IntervalMergeConfig): string {
   ].join('\n');
 }
 
-const generators: NodeGenerators<IntervalMergeConfig> = {
-  sql: (config, ctx) => {
-    const input = ctx.input('input');
-    if (input === undefined || !isValid(config)) return undefined;
-    return {from: subquery(mergeSql(input.ref, config))};
-  },
-  psn: (config, ctx) => {
-    if (ctx.input('input') === undefined || !isValid(config)) return undefined;
-    const keys = mergeKeys(config);
-    const by = keys.length > 0 ? ` BY ${keys.join(', ')}` : '';
-    const per = perClause(config.partitionColumns.filter((c) => c !== ''));
-    const head = `INTERVAL MERGE ${config.mergeKind}${by}${per}`;
-    const aggs = mergeAggs(config);
-    const negDur = config.filterNegativeDur ? ['WHERE dur >= 0'] : [];
-    // INTERVAL MERGE requires at least one aggregate.
-    const merge =
-      aggs.length > 0
-        ? [`${head} AGGREGATE ${formatAggs(aggs)}`]
-        : [`${head} AGGREGATE COUNT(*) AS _pf_cnt`, 'DROP _pf_cnt'];
-    return {stages: [...negDur, ...merge]};
-  },
-};
-
 export const manifest: NodeManifest<IntervalMergeConfig> = {
   title: 'Interval Merge',
   icon: 'compress',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 330,
-  expensive: true,
   schema: IntervalMergeConfigSchema,
+  expensive: true,
   defaultConfig: () => ({
     mergeKind: 'OVERLAPPING',
     keyColumns: [],
@@ -348,6 +292,52 @@ export const manifest: NodeManifest<IntervalMergeConfig> = {
   }),
   render: (config, updateConfig, ctx) =>
     m(IntervalMergeContent, {config, updateConfig, ctx}),
-  getOutputColumns,
-  generators,
+  getOutputColumns(config, ctx) {
+    const columns = ctx.getInputColumns('input');
+    if (columns === undefined) return undefined;
+    const nonEmptyPer = config.partitionColumns.filter((c) => c !== '');
+    const partCols: ColumnDef[] = nonEmptyPer.map(
+      (c) => columns.find((col) => col.name === c) ?? {name: c},
+    );
+    const keyCols: ColumnDef[] =
+      config.mergeKind === 'CONSECUTIVE'
+        ? config.keyColumns
+            .filter((c) => c !== '' && !nonEmptyPer.includes(c))
+            .map((c) => columns.find((col) => col.name === c) ?? {name: c})
+        : [];
+    const aggCols: ColumnDef[] = config.aggregations
+      .filter((a) => a.func === 'COUNT' || a.column !== '')
+      .map((a) => ({name: pipelineAggAlias(a), type: {kind: 'int' as const}}));
+    return [
+      {name: 'ts', type: {kind: 'timestamp' as const}},
+      {name: 'dur', type: {kind: 'duration' as const}},
+      ...partCols,
+      ...keyCols,
+      ...aggCols,
+    ];
+  },
+  generators: {
+    sql: (config, ctx) => {
+      const input = ctx.input('input');
+      if (input === undefined || !isValid(config)) return undefined;
+      return {from: subquery(mergeSql(input.ref, config))};
+    },
+    psn: (config, ctx) => {
+      if (ctx.input('input') === undefined || !isValid(config)) {
+        return undefined;
+      }
+      const keys = mergeKeys(config);
+      const by = keys.length > 0 ? ` BY ${keys.join(', ')}` : '';
+      const per = perClause(config.partitionColumns.filter((c) => c !== ''));
+      const head = `INTERVAL MERGE ${config.mergeKind}${by}${per}`;
+      const aggs = mergeAggs(config);
+      const negDur = config.filterNegativeDur ? ['WHERE dur >= 0'] : [];
+      // INTERVAL MERGE requires at least one aggregate.
+      const merge =
+        aggs.length > 0
+          ? [`${head} AGGREGATE ${formatAggs(aggs)}`]
+          : [`${head} AGGREGATE COUNT(*) AS _pf_cnt`, 'DROP _pf_cnt'];
+      return {stages: [...negDur, ...merge]};
+    },
+  },
 };

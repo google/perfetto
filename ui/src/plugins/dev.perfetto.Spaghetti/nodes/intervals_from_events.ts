@@ -23,12 +23,7 @@ import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
 import type {EventsLastMode} from '../sql_types';
 import {partitionBy, perClause} from '../generator_utils';
-import type {
-  ColumnContext,
-  NodeGenerators,
-  NodeManifest,
-  RenderContext,
-} from '../node_types';
+import type {NodeManifest, RenderContext} from '../node_types';
 import {ColumnPicker} from '../widgets/column_picker';
 
 const IntervalsFromEventsConfigSchema = z
@@ -113,94 +108,9 @@ function IntervalsFromEventsContent(): m.Component<{
   };
 }
 
-function getOutputColumns(
-  _config: IntervalsFromEventsConfig,
-  ctx: ColumnContext,
-): ColumnDef[] | undefined {
-  const columns = ctx.getInputColumns('input');
-  if (columns === undefined) return undefined;
-  const hasDur = columns.some((c) => c.name === 'dur');
-  const out: ColumnDef[] = [];
-  let insertedDur = false;
-  for (const col of columns) {
-    if (col.name === 'ts') {
-      out.push({name: 'ts', type: {kind: 'timestamp' as const}});
-      if (!hasDur && !insertedDur) {
-        out.push({name: 'dur', type: {kind: 'duration' as const}});
-        insertedDur = true;
-      }
-    } else if (col.name === 'dur') {
-      out.push({name: 'dur', type: {kind: 'duration' as const}});
-      insertedDur = true;
-    } else {
-      out.push(col);
-    }
-  }
-  if (!insertedDur) {
-    out.push({name: 'dur', type: {kind: 'duration' as const}});
-  }
-  return out;
-}
-
 function isValid(config: IntervalsFromEventsConfig): boolean {
   return config.lastMode === 'KEEP_OPEN' || config.closeAtExpr.trim() !== '';
 }
-
-const generators: NodeGenerators<IntervalsFromEventsConfig> = {
-  // Each event lasts until the next one in its partition (LEAD over ts).
-  // Expressed as clauses so it folds onto an upstream filter block.
-  sql: (config, ctx) => {
-    if (ctx.input('input') === undefined || !isValid(config)) return undefined;
-    if (ctx.input('stop') !== undefined) {
-      return {
-        error:
-          'Intervals From Events with a Stop input is only supported in ' +
-          'PerfettoSQL Next mode.',
-      };
-    }
-    const partBy = partitionBy(config.partitionColumns.filter((c) => c !== ''));
-    const nextTs = `LEAD(ts) OVER (${partBy}ORDER BY ts)`;
-    const durExpr =
-      config.lastMode === 'KEEP_OPEN'
-        ? `COALESCE(${nextTs} - ts, -1) AS dur`
-        : `COALESCE(${nextTs}, (${config.closeAtExpr.trim()})) - ts AS dur`;
-
-    // Replace an existing `dur` in place (keeping column order), otherwise
-    // add it straight after `ts`.
-    const cols = ctx.getInputColumns('input')?.map((c) => c.name);
-    if (cols === undefined || cols.length === 0) {
-      return {where: 'ts IS NOT NULL', select: ['*', durExpr]};
-    }
-    const hasDur = cols.includes('dur');
-    const select: string[] = [];
-    let inserted = false;
-    for (const col of cols) {
-      if (col === 'dur') {
-        select.push(durExpr);
-        inserted = true;
-      } else {
-        select.push(col);
-        if (col === 'ts' && !hasDur && !inserted) {
-          select.push(durExpr);
-          inserted = true;
-        }
-      }
-    }
-    if (!inserted) select.push(durExpr);
-    return {where: 'ts IS NOT NULL', select};
-  },
-  psn: (config, ctx) => {
-    if (ctx.input('input') === undefined || !isValid(config)) return undefined;
-    const stop = ctx.input('stop');
-    const per = perClause(config.partitionColumns.filter((c) => c !== ''));
-    const stopClause = stop !== undefined ? ` STOP ${stop.source}` : '';
-    const last =
-      config.lastMode === 'KEEP_OPEN'
-        ? ' KEEPING LAST OPEN'
-        : ` CLOSING LAST AT (${config.closeAtExpr.trim()})`;
-    return {stages: [`INTERVALS FROM EVENTS${per}${stopClause}${last}`]};
-  },
-};
 
 export const manifest: NodeManifest<IntervalsFromEventsConfig> = {
   title: 'Intervals From Events',
@@ -210,8 +120,8 @@ export const manifest: NodeManifest<IntervalsFromEventsConfig> = {
     {name: 'stop', content: 'Stop', optional: true},
   ],
   hue: 348,
-  expensive: true,
   schema: IntervalsFromEventsConfigSchema,
+  expensive: true,
   defaultConfig: () => ({
     partitionColumns: [],
     lastMode: 'CLOSE_AT',
@@ -219,6 +129,90 @@ export const manifest: NodeManifest<IntervalsFromEventsConfig> = {
   }),
   render: (config, updateConfig, ctx) =>
     m(IntervalsFromEventsContent, {config, updateConfig, ctx}),
-  getOutputColumns,
-  generators,
+  getOutputColumns(_config, ctx) {
+    const columns = ctx.getInputColumns('input');
+    if (columns === undefined) return undefined;
+    const hasDur = columns.some((c) => c.name === 'dur');
+    const out: ColumnDef[] = [];
+    let insertedDur = false;
+    for (const col of columns) {
+      if (col.name === 'ts') {
+        out.push({name: 'ts', type: {kind: 'timestamp' as const}});
+        if (!hasDur && !insertedDur) {
+          out.push({name: 'dur', type: {kind: 'duration' as const}});
+          insertedDur = true;
+        }
+      } else if (col.name === 'dur') {
+        out.push({name: 'dur', type: {kind: 'duration' as const}});
+        insertedDur = true;
+      } else {
+        out.push(col);
+      }
+    }
+    if (!insertedDur) {
+      out.push({name: 'dur', type: {kind: 'duration' as const}});
+    }
+    return out;
+  },
+  generators: {
+    // Each event lasts until the next one in its partition (LEAD over ts).
+    // Expressed as clauses so it folds onto an upstream filter block.
+    sql: (config, ctx) => {
+      if (ctx.input('input') === undefined || !isValid(config)) {
+        return undefined;
+      }
+      if (ctx.input('stop') !== undefined) {
+        return {
+          error:
+            'Intervals From Events with a Stop input is only supported in ' +
+            'PerfettoSQL Next mode.',
+        };
+      }
+      const partBy = partitionBy(
+        config.partitionColumns.filter((c) => c !== ''),
+      );
+      const nextTs = `LEAD(ts) OVER (${partBy}ORDER BY ts)`;
+      const durExpr =
+        config.lastMode === 'KEEP_OPEN'
+          ? `COALESCE(${nextTs} - ts, -1) AS dur`
+          : `COALESCE(${nextTs}, (${config.closeAtExpr.trim()})) - ts AS dur`;
+
+      // Replace an existing `dur` in place (keeping column order), otherwise
+      // add it straight after `ts`.
+      const cols = ctx.getInputColumns('input')?.map((c) => c.name);
+      if (cols === undefined || cols.length === 0) {
+        return {where: 'ts IS NOT NULL', select: ['*', durExpr]};
+      }
+      const hasDur = cols.includes('dur');
+      const select: string[] = [];
+      let inserted = false;
+      for (const col of cols) {
+        if (col === 'dur') {
+          select.push(durExpr);
+          inserted = true;
+        } else {
+          select.push(col);
+          if (col === 'ts' && !hasDur && !inserted) {
+            select.push(durExpr);
+            inserted = true;
+          }
+        }
+      }
+      if (!inserted) select.push(durExpr);
+      return {where: 'ts IS NOT NULL', select};
+    },
+    psn: (config, ctx) => {
+      if (ctx.input('input') === undefined || !isValid(config)) {
+        return undefined;
+      }
+      const stop = ctx.input('stop');
+      const per = perClause(config.partitionColumns.filter((c) => c !== ''));
+      const stopClause = stop !== undefined ? ` STOP ${stop.source}` : '';
+      const last =
+        config.lastMode === 'KEEP_OPEN'
+          ? ' KEEPING LAST OPEN'
+          : ` CLOSING LAST AT (${config.closeAtExpr.trim()})`;
+      return {stages: [`INTERVALS FROM EVENTS${per}${stopClause}${last}`]};
+    },
+  },
 };

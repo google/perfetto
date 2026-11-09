@@ -108,9 +108,6 @@ function withBindings(sql: string, bindings: readonly InputBinding[]): string {
 export const manifest: NodeManifest<SqlConfig> = {
   title: 'SQL',
   icon: 'code',
-  hue: 250,
-  expensive: true,
-  schema: SqlConfigSchema,
   getInputs(config: SqlConfig): Port[] {
     const {inputPorts = []} = config;
     return inputPorts.map((name, i) => ({
@@ -118,39 +115,14 @@ export const manifest: NodeManifest<SqlConfig> = {
       content: name,
     }));
   },
+  hue: 250,
+  schema: SqlConfigSchema,
+  expensive: true,
   defaultConfig: () => ({
     sql: 'SELECT\n  *\nFROM slice\nLIMIT 100',
     columns: [],
     inputPorts: [],
   }),
-  generators: {
-    // Bind each input to its alias with a WITH clause in front of the user's
-    // query, and use the whole thing as a subquery source.
-    sql: (config, ctx) => {
-      if (config.sql.trim() === '') return undefined;
-      const bindings = inputBindings(config, ctx, (i) => i.ref);
-      return {from: subquery(withBindings(config.sql, bindings))};
-    },
-    // The user's SQL is plain SQL, so pipeline inputs can't be nested in it:
-    // inputs must already be tables (e.g. materialized expensive nodes).
-    psn: (config, ctx) => {
-      if (config.sql.trim() === '') return undefined;
-      const bindings = inputBindings(config, ctx, (i) => i.source);
-      if (bindings.some((b) => b.source.startsWith('('))) {
-        return {
-          error:
-            'SQL node inputs must be tables in PerfettoSQL Next mode (a ' +
-            'pipe query cannot be nested inside plain SQL).',
-        };
-      }
-      return {source: `FROM ${subquery(withBindings(config.sql, bindings))}`};
-    },
-  },
-  getOutputColumns(config) {
-    const {columns = []} = config;
-    if (columns.length === 0) return undefined;
-    return columns.map(toColumnDef);
-  },
   render(config, updateConfig, ctx: RenderContext) {
     const {columns = [], inputPorts = []} = config;
     const canRemove = inputPorts.length > 0;
@@ -270,5 +242,33 @@ export const manifest: NodeManifest<SqlConfig> = {
         },
       }),
     ]);
+  },
+  getOutputColumns(config) {
+    const {columns = []} = config;
+    if (columns.length === 0) return undefined;
+    return columns.map(toColumnDef);
+  },
+  generators: {
+    // Bind each input to its alias with a WITH clause in front of the user's
+    // query, and use the whole thing as a subquery source.
+    sql: (config, ctx) => {
+      if (config.sql.trim() === '') return undefined;
+      const bindings = inputBindings(config, ctx, (i) => i.ref);
+      return {from: subquery(withBindings(config.sql, bindings))};
+    },
+    // The user's SQL is plain SQL, so pipeline inputs can't be nested in it:
+    // inputs must already be tables (e.g. materialized expensive nodes).
+    psn: (config, ctx) => {
+      if (config.sql.trim() === '') return undefined;
+      const bindings = inputBindings(config, ctx, (i) => i.source);
+      if (bindings.some((b) => b.source.startsWith('('))) {
+        return {
+          error:
+            'SQL node inputs must be tables in PerfettoSQL Next mode (a ' +
+            'pipe query cannot be nested inside plain SQL).',
+        };
+      }
+      return {source: `FROM ${subquery(withBindings(config.sql, bindings))}`};
+    },
   },
 };

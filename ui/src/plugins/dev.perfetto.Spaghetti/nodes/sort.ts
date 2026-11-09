@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
-import type {NodeGenerators, NodeManifest, RenderContext} from '../node_types';
+import type {NodeManifest, RenderContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
@@ -125,42 +125,34 @@ function SortNodeContent(): m.Component<{
   };
 }
 
-function renderSortNode(
-  config: SortConfig,
-  updateConfig: (updates: Partial<SortConfig>) => void,
-  ctx: RenderContext,
-): m.Children {
-  return m(SortNodeContent, {config, updateConfig, ctx});
-}
-
 function sortTerms(config: SortConfig): string[] {
   return getSortConditions(config)
     .filter((c) => c.column !== '')
     .map((c) => `${c.column} ${c.order}`);
 }
 
-const generators: NodeGenerators<SortConfig> = {
-  sql: (config, ctx) => {
-    if (ctx.input('input') === undefined) return undefined;
-    const terms = sortTerms(config);
-    return terms.length > 0 ? {orderBy: terms} : {};
-  },
-  psn: (config, ctx) => {
-    if (ctx.input('input') === undefined) return undefined;
-    const terms = sortTerms(config);
-    return {stages: terms.length > 0 ? [`ORDER BY ${terms.join(', ')}`] : []};
-  },
-};
-
 export const manifest: NodeManifest<SortConfig> = {
   title: 'Sort',
   icon: 'sort',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 44,
-  expensive: true,
   schema: SortConfigSchema,
+  expensive: true,
   defaultConfig: () => ({sortColumn: '', sortOrder: 'ASC', conditions: []}),
-  render: renderSortNode,
+  render(config, updateConfig, ctx) {
+    return m(SortNodeContent, {config, updateConfig, ctx});
+  },
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
-  generators,
+  generators: {
+    sql: (config, ctx) => {
+      if (ctx.input('input') === undefined) return undefined;
+      const terms = sortTerms(config);
+      return terms.length > 0 ? {orderBy: terms} : {};
+    },
+    psn: (config, ctx) => {
+      if (ctx.input('input') === undefined) return undefined;
+      const terms = sortTerms(config);
+      return {stages: terms.length > 0 ? [`ORDER BY ${terms.join(', ')}`] : []};
+    },
+  },
 };

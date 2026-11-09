@@ -28,12 +28,7 @@ import {Row} from '../components/row';
 import {Stack} from '../components/stack';
 import type {ColumnDef} from '../graph_utils';
 import {type AggSpec, formatAggs, subquery} from '../generator_utils';
-import type {
-  ColumnContext,
-  NodeGenerators,
-  NodeManifest,
-  RenderContext,
-} from '../node_types';
+import type {NodeManifest, RenderContext} from '../node_types';
 import {ColumnPicker} from '../widgets/column_picker';
 
 export type TreeAggregation = PipelineAggEntry;
@@ -131,21 +126,6 @@ function TreeAccumulateContent(): m.Component<{
   };
 }
 
-function getOutputColumns(
-  config: TreeAccumulateConfig,
-  ctx: ColumnContext,
-): ColumnDef[] | undefined {
-  const columns = ctx.getInputColumns('input');
-  if (columns === undefined) return undefined;
-  const added: ColumnDef[] = config.aggregations
-    .filter((a) => a.func === 'COUNT' || a.column !== '')
-    .map((a) => ({
-      name: aggAlias(a, config.direction),
-      type: {kind: 'int' as const},
-    }));
-  return [...columns, ...added];
-}
-
 function isValid(config: TreeAccumulateConfig): boolean {
   return (
     config.idColumn !== '' &&
@@ -187,46 +167,13 @@ function treeAccumulateSql(
   ].join('\n');
 }
 
-const generators: NodeGenerators<TreeAccumulateConfig> = {
-  sql: (config, ctx) => {
-    const input = ctx.input('input');
-    if (input === undefined || !isValid(config)) return undefined;
-    const aggs = treeAggs(config);
-    if (aggs.length === 0) return {};
-    return {from: subquery(treeAccumulateSql(input.ref, config, aggs))};
-  },
-  // TREE ACCUMULATE expects `id` / `parent_id`: rename in and back out.
-  psn: (config, ctx) => {
-    if (ctx.input('input') === undefined || !isValid(config)) return undefined;
-    const aggs = treeAggs(config);
-    if (aggs.length === 0) return {};
-    const renamesIn: string[] = [];
-    const renamesOut: string[] = [];
-    if (config.idColumn !== 'id') {
-      renamesIn.push(`${config.idColumn} AS id`);
-      renamesOut.push(`id AS ${config.idColumn}`);
-    }
-    if (config.parentIdColumn !== 'parent_id') {
-      renamesIn.push(`${config.parentIdColumn} AS parent_id`);
-      renamesOut.push(`parent_id AS ${config.parentIdColumn}`);
-    }
-    return {
-      stages: [
-        ...(renamesIn.length > 0 ? [`RENAME ${renamesIn.join(', ')}`] : []),
-        `TREE ACCUMULATE ${config.direction} ${formatAggs(aggs)}`,
-        ...(renamesOut.length > 0 ? [`RENAME ${renamesOut.join(', ')}`] : []),
-      ],
-    };
-  },
-};
-
 export const manifest: NodeManifest<TreeAccumulateConfig> = {
   title: 'Tree Accumulate',
   icon: 'mediation',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 94,
-  expensive: true,
   schema: TreeAccumulateConfigSchema,
+  expensive: true,
   defaultConfig: () => ({
     direction: 'UP',
     idColumn: 'id',
@@ -235,6 +182,49 @@ export const manifest: NodeManifest<TreeAccumulateConfig> = {
   }),
   render: (config, updateConfig, ctx) =>
     m(TreeAccumulateContent, {config, updateConfig, ctx}),
-  getOutputColumns,
-  generators,
+  getOutputColumns(config, ctx) {
+    const columns = ctx.getInputColumns('input');
+    if (columns === undefined) return undefined;
+    const added: ColumnDef[] = config.aggregations
+      .filter((a) => a.func === 'COUNT' || a.column !== '')
+      .map((a) => ({
+        name: aggAlias(a, config.direction),
+        type: {kind: 'int' as const},
+      }));
+    return [...columns, ...added];
+  },
+  generators: {
+    sql: (config, ctx) => {
+      const input = ctx.input('input');
+      if (input === undefined || !isValid(config)) return undefined;
+      const aggs = treeAggs(config);
+      if (aggs.length === 0) return {};
+      return {from: subquery(treeAccumulateSql(input.ref, config, aggs))};
+    },
+    // TREE ACCUMULATE expects `id` / `parent_id`: rename in and back out.
+    psn: (config, ctx) => {
+      if (ctx.input('input') === undefined || !isValid(config)) {
+        return undefined;
+      }
+      const aggs = treeAggs(config);
+      if (aggs.length === 0) return {};
+      const renamesIn: string[] = [];
+      const renamesOut: string[] = [];
+      if (config.idColumn !== 'id') {
+        renamesIn.push(`${config.idColumn} AS id`);
+        renamesOut.push(`id AS ${config.idColumn}`);
+      }
+      if (config.parentIdColumn !== 'parent_id') {
+        renamesIn.push(`${config.parentIdColumn} AS parent_id`);
+        renamesOut.push(`parent_id AS ${config.parentIdColumn}`);
+      }
+      return {
+        stages: [
+          ...(renamesIn.length > 0 ? [`RENAME ${renamesIn.join(', ')}`] : []),
+          `TREE ACCUMULATE ${config.direction} ${formatAggs(aggs)}`,
+          ...(renamesOut.length > 0 ? [`RENAME ${renamesOut.join(', ')}`] : []),
+        ],
+      };
+    },
+  },
 };

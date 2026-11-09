@@ -18,14 +18,8 @@ import {moveItem} from '../../../base/array_utils';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
-import type {ColumnDef} from '../graph_utils';
 import {partitionBy, perClause, subquery} from '../generator_utils';
-import type {
-  ColumnContext,
-  NodeGenerators,
-  NodeManifest,
-  RenderContext,
-} from '../node_types';
+import type {NodeManifest, RenderContext} from '../node_types';
 import {ColumnPicker} from '../widgets/column_picker';
 
 const IntervalFillGapsConfigSchema = z
@@ -81,13 +75,6 @@ function IntervalFillGapsContent(): m.Component<{
       ]);
     },
   };
-}
-
-function getOutputColumns(
-  _config: IntervalFillGapsConfig,
-  ctx: ColumnContext,
-): ColumnDef[] | undefined {
-  return ctx.getInputColumns('input');
 }
 
 // Islands of foreground coverage per lane, the gaps between them, and the
@@ -177,54 +164,6 @@ function fillGapsSql(
   ].join('\n');
 }
 
-const generators: NodeGenerators<IntervalFillGapsConfig> = {
-  // No background input -> passthrough of the foreground.
-  sql: (config, ctx) => {
-    const input = ctx.input('input');
-    if (input === undefined) return undefined;
-    const background = ctx.input('background');
-    if (background === undefined) return {};
-    return {
-      from: subquery(
-        fillGapsSql(
-          input.ref,
-          background.ref,
-          config.partitionColumns.filter((c) => c !== ''),
-          ctx.getInputColumns('input')?.map((c) => c.name),
-          ctx.getInputColumns('background')?.map((c) => c.name),
-        ),
-      ),
-    };
-  },
-  psn: (config, ctx) => {
-    if (ctx.input('input') === undefined) return undefined;
-    const background = ctx.input('background');
-    if (background === undefined) return {};
-    const partition = config.partitionColumns.filter((c) => c !== '');
-    // Narrow the background to columns the foreground also has, so the
-    // filled rows line up with the input schema.
-    const inputCols = ctx.getInputColumns('input')?.map((c) => c.name);
-    const bgCols = ctx.getInputColumns('background')?.map((c) => c.name);
-    let bgSource = background.source;
-    if (inputCols !== undefined && bgCols !== undefined) {
-      const inputSet = new Set(inputCols);
-      const bgHasAllPer =
-        partition.length > 0 && partition.every((p) => bgCols.includes(p));
-      const kept = bgCols.filter(
-        (c) =>
-          inputSet.has(c) &&
-          (partition.length === 0 || bgHasAllPer || !partition.includes(c)),
-      );
-      if (kept.length > 0 && kept.length < bgCols.length) {
-        bgSource = background.withStages([`SELECT ${kept.join(', ')}`]);
-      }
-    }
-    return {
-      stages: [`INTERVAL FILL GAPS WITH ${bgSource}${perClause(partition)}`],
-    };
-  },
-};
-
 export const manifest: NodeManifest<IntervalFillGapsConfig> = {
   title: 'Fill Gaps',
   icon: 'space_bar',
@@ -233,11 +172,59 @@ export const manifest: NodeManifest<IntervalFillGapsConfig> = {
     {name: 'background', content: 'Background'},
   ],
   hue: 339,
-  expensive: true,
   schema: IntervalFillGapsConfigSchema,
+  expensive: true,
   defaultConfig: () => ({partitionColumns: []}),
-  getOutputColumns,
-  generators,
   render: (config, updateConfig, ctx) =>
     m(IntervalFillGapsContent, {config, updateConfig, ctx}),
+  getOutputColumns(_config, ctx) {
+    return ctx.getInputColumns('input');
+  },
+  generators: {
+    // No background input -> passthrough of the foreground.
+    sql: (config, ctx) => {
+      const input = ctx.input('input');
+      if (input === undefined) return undefined;
+      const background = ctx.input('background');
+      if (background === undefined) return {};
+      return {
+        from: subquery(
+          fillGapsSql(
+            input.ref,
+            background.ref,
+            config.partitionColumns.filter((c) => c !== ''),
+            ctx.getInputColumns('input')?.map((c) => c.name),
+            ctx.getInputColumns('background')?.map((c) => c.name),
+          ),
+        ),
+      };
+    },
+    psn: (config, ctx) => {
+      if (ctx.input('input') === undefined) return undefined;
+      const background = ctx.input('background');
+      if (background === undefined) return {};
+      const partition = config.partitionColumns.filter((c) => c !== '');
+      // Narrow the background to columns the foreground also has, so the
+      // filled rows line up with the input schema.
+      const inputCols = ctx.getInputColumns('input')?.map((c) => c.name);
+      const bgCols = ctx.getInputColumns('background')?.map((c) => c.name);
+      let bgSource = background.source;
+      if (inputCols !== undefined && bgCols !== undefined) {
+        const inputSet = new Set(inputCols);
+        const bgHasAllPer =
+          partition.length > 0 && partition.every((p) => bgCols.includes(p));
+        const kept = bgCols.filter(
+          (c) =>
+            inputSet.has(c) &&
+            (partition.length === 0 || bgHasAllPer || !partition.includes(c)),
+        );
+        if (kept.length > 0 && kept.length < bgCols.length) {
+          bgSource = background.withStages([`SELECT ${kept.join(', ')}`]);
+        }
+      }
+      return {
+        stages: [`INTERVAL FILL GAPS WITH ${bgSource}${perClause(partition)}`],
+      };
+    },
+  },
 };

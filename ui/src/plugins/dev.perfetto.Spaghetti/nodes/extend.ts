@@ -15,12 +15,7 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
-import type {
-  ColumnContext,
-  NodeGenerators,
-  NodeManifest,
-  RenderContext,
-} from '../node_types';
+import type {NodeManifest, RenderContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import type {ColumnDef} from '../graph_utils';
 import {DraggableStack} from '../components/draggable_stack';
@@ -93,46 +88,11 @@ function ExtendContent(): m.Component<{
   };
 }
 
-function render(
-  config: ExtendConfig,
-  updateConfig: (updates: Partial<ExtendConfig>) => void,
-  ctx: RenderContext,
-): m.Children {
-  return m(ExtendContent, {config, updateConfig, ctx});
-}
-
-function getOutputColumns(
-  config: ExtendConfig,
-  ctx: ColumnContext,
-): ColumnDef[] | undefined {
-  const columns = ctx.getInputColumns('input');
-  const added: ColumnDef[] = config.entries
-    .filter((e) => e.expression)
-    .map((e) => ({name: entryAlias(e)}));
-  if (added.length > 0) {
-    return [...(columns ?? []), ...added];
-  }
-  return columns;
-}
-
 function exprParts(config: ExtendConfig): string[] {
   return config.entries
     .filter((e) => e.expression !== '')
     .map((e) => `${e.expression} AS ${entryAlias(e)}`);
 }
-
-const generators: NodeGenerators<ExtendConfig> = {
-  sql: (config, ctx) => {
-    if (ctx.input('input') === undefined) return undefined;
-    const exprs = exprParts(config);
-    return exprs.length > 0 ? {select: ['*', ...exprs]} : {};
-  },
-  psn: (config, ctx) => {
-    if (ctx.input('input') === undefined) return undefined;
-    const exprs = exprParts(config);
-    return {stages: exprs.length > 0 ? [`EXTEND ${exprs.join(', ')}`] : []};
-  },
-};
 
 export const manifest: NodeManifest<ExtendConfig> = {
   title: 'Extend',
@@ -141,7 +101,29 @@ export const manifest: NodeManifest<ExtendConfig> = {
   hue: 124,
   schema: ExtendConfigSchema,
   defaultConfig: () => ({entries: []}),
-  render,
-  getOutputColumns,
-  generators,
+  render(config, updateConfig, ctx) {
+    return m(ExtendContent, {config, updateConfig, ctx});
+  },
+  getOutputColumns(config, ctx) {
+    const columns = ctx.getInputColumns('input');
+    const added: ColumnDef[] = config.entries
+      .filter((e) => e.expression)
+      .map((e) => ({name: entryAlias(e)}));
+    if (added.length > 0) {
+      return [...(columns ?? []), ...added];
+    }
+    return columns;
+  },
+  generators: {
+    sql: (config, ctx) => {
+      if (ctx.input('input') === undefined) return undefined;
+      const exprs = exprParts(config);
+      return exprs.length > 0 ? {select: ['*', ...exprs]} : {};
+    },
+    psn: (config, ctx) => {
+      if (ctx.input('input') === undefined) return undefined;
+      const exprs = exprParts(config);
+      return {stages: exprs.length > 0 ? [`EXTEND ${exprs.join(', ')}`] : []};
+    },
+  },
 };

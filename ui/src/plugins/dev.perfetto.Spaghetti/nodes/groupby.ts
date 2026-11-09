@@ -15,12 +15,7 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
-import type {
-  ColumnContext,
-  NodeGenerators,
-  NodeManifest,
-  RenderContext,
-} from '../node_types';
+import type {NodeManifest, RenderContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Select} from '../../../widgets/select';
 import {ColumnPickerWithAlias} from '../components/column_picker_with_alias';
@@ -158,36 +153,6 @@ function GroupByContent(): m.Component<{
   };
 }
 
-function render(
-  config: GroupByConfig,
-  updateConfig: (updates: Partial<GroupByConfig>) => void,
-  ctx: RenderContext,
-): m.Children {
-  return m(GroupByContent, {config, updateConfig, ctx});
-}
-
-function getOutputColumns(
-  config: GroupByConfig,
-  ctx: ColumnContext,
-): ColumnDef[] | undefined {
-  const columns = ctx.getInputColumns('input');
-  const groupCols: ColumnDef[] = config.groupColumns
-    .filter((c) => c)
-    .map((c) => columns?.find((col) => col.name === c) ?? {name: c});
-  const aggAliases: ColumnDef[] = config.aggregations
-    .filter((a) => a.column)
-    .map((a) => {
-      const name = aggAlias(a);
-      if (a.func === 'COUNT') {
-        return {name, type: {kind: 'int' as const}};
-      }
-      const orig = columns?.find((c) => c.name === a.column);
-      return {name, type: orig?.type};
-    });
-  const result = [...groupCols, ...aggAliases];
-  return result.length > 0 ? result : columns;
-}
-
 function isValid(config: GroupByConfig): boolean {
   const hasGroup = config.groupColumns.some((c) => c);
   return hasGroup;
@@ -202,42 +167,59 @@ function aggParts(config: GroupByConfig): {keys: string[]; aggs: string[]} {
   };
 }
 
-const generators: NodeGenerators<GroupByConfig> = {
-  sql: (config, ctx) => {
-    if (!isValid(config)) return undefined;
-    if (ctx.input('input') === undefined) return undefined;
-    const {keys, aggs} = aggParts(config);
-    if (keys.length === 0 && aggs.length === 0) return {};
-    return {
-      ...(keys.length > 0 ? {groupBy: keys} : {}),
-      select: [...keys, ...aggs],
-    };
-  },
-  psn: (config, ctx) => {
-    if (!isValid(config)) return undefined;
-    if (ctx.input('input') === undefined) return undefined;
-    const {keys, aggs} = aggParts(config);
-    if (aggs.length === 0) {
-      // Group by with no aggregates is just the distinct keys.
-      return {
-        stages:
-          keys.length > 0 ? [`SELECT ${keys.join(', ')}`, 'DISTINCT'] : [],
-      };
-    }
-    const groupSuffix = keys.length > 0 ? ` GROUP BY ${keys.join(', ')}` : '';
-    return {stages: [`AGGREGATE ${aggs.join(', ')}${groupSuffix}`]};
-  },
-};
-
 export const manifest: NodeManifest<GroupByConfig> = {
   title: 'Group By',
   icon: 'workspaces',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 266,
-  expensive: true,
   schema: GroupByConfigSchema,
+  expensive: true,
   defaultConfig: () => ({groupColumns: [], aggregations: []}),
-  render,
-  getOutputColumns,
-  generators,
+  render(config, updateConfig, ctx) {
+    return m(GroupByContent, {config, updateConfig, ctx});
+  },
+  getOutputColumns(config, ctx) {
+    const columns = ctx.getInputColumns('input');
+    const groupCols: ColumnDef[] = config.groupColumns
+      .filter((c) => c)
+      .map((c) => columns?.find((col) => col.name === c) ?? {name: c});
+    const aggAliases: ColumnDef[] = config.aggregations
+      .filter((a) => a.column)
+      .map((a) => {
+        const name = aggAlias(a);
+        if (a.func === 'COUNT') {
+          return {name, type: {kind: 'int' as const}};
+        }
+        const orig = columns?.find((c) => c.name === a.column);
+        return {name, type: orig?.type};
+      });
+    const result = [...groupCols, ...aggAliases];
+    return result.length > 0 ? result : columns;
+  },
+  generators: {
+    sql: (config, ctx) => {
+      if (!isValid(config)) return undefined;
+      if (ctx.input('input') === undefined) return undefined;
+      const {keys, aggs} = aggParts(config);
+      if (keys.length === 0 && aggs.length === 0) return {};
+      return {
+        ...(keys.length > 0 ? {groupBy: keys} : {}),
+        select: [...keys, ...aggs],
+      };
+    },
+    psn: (config, ctx) => {
+      if (!isValid(config)) return undefined;
+      if (ctx.input('input') === undefined) return undefined;
+      const {keys, aggs} = aggParts(config);
+      if (aggs.length === 0) {
+        // Group by with no aggregates is just the distinct keys.
+        return {
+          stages:
+            keys.length > 0 ? [`SELECT ${keys.join(', ')}`, 'DISTINCT'] : [],
+        };
+      }
+      const groupSuffix = keys.length > 0 ? ` GROUP BY ${keys.join(', ')}` : '';
+      return {stages: [`AGGREGATE ${aggs.join(', ')}${groupSuffix}`]};
+    },
+  },
 };

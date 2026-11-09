@@ -28,7 +28,7 @@ import {
   isUnaryFilterOp,
 } from '../sql_types';
 import {formatFilterConditions} from '../generator_utils';
-import type {NodeGenerators, NodeManifest, RenderContext} from '../node_types';
+import type {NodeManifest, RenderContext} from '../node_types';
 import './filter.scss';
 
 export const FILTER_OPS = [
@@ -154,14 +154,6 @@ function FilterNodeContent(): m.Component<{
   };
 }
 
-function renderFilterNode(
-  config: FilterConfig,
-  updateConfig: (updates: Partial<FilterConfig>) => void,
-  ctx: RenderContext,
-): m.Children {
-  return m(FilterNodeContent, {config, updateConfig, ctx});
-}
-
 function isValid(config: FilterConfig): boolean {
   if (config.conditions.length === 0) return true;
   return config.conditions.every((c) => {
@@ -178,21 +170,6 @@ function whereExpr(config: FilterConfig): string {
   );
 }
 
-const generators: NodeGenerators<FilterConfig> = {
-  sql: (config, ctx) => {
-    if (!isValid(config)) return undefined;
-    if (ctx.input('input') === undefined) return undefined;
-    const where = whereExpr(config);
-    return where !== '' ? {where} : {};
-  },
-  psn: (config, ctx) => {
-    if (!isValid(config)) return undefined;
-    if (ctx.input('input') === undefined) return undefined;
-    const where = whereExpr(config);
-    return {stages: where !== '' ? [`WHERE ${where}`] : []};
-  },
-};
-
 export const manifest: NodeManifest<FilterConfig> = {
   title: 'Filter',
   icon: 'filter_alt',
@@ -203,7 +180,22 @@ export const manifest: NodeManifest<FilterConfig> = {
     conditions: [],
     conjunction: 'AND',
   }),
-  render: renderFilterNode,
+  render(config, updateConfig, ctx) {
+    return m(FilterNodeContent, {config, updateConfig, ctx});
+  },
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
-  generators,
+  generators: {
+    sql: (config, ctx) => {
+      if (!isValid(config)) return undefined;
+      if (ctx.input('input') === undefined) return undefined;
+      const where = whereExpr(config);
+      return where !== '' ? {where} : {};
+    },
+    psn: (config, ctx) => {
+      if (!isValid(config)) return undefined;
+      if (ctx.input('input') === undefined) return undefined;
+      const where = whereExpr(config);
+      return {stages: where !== '' ? [`WHERE ${where}`] : []};
+    },
+  },
 };

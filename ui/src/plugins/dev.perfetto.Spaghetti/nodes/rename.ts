@@ -19,13 +19,7 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {ColumnPickerWithAlias} from '../components/column_picker_with_alias';
 import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
-import type {ColumnDef} from '../graph_utils';
-import type {
-  ColumnContext,
-  NodeGenerators,
-  NodeManifest,
-  RenderContext,
-} from '../node_types';
+import type {NodeManifest, RenderContext} from '../node_types';
 
 const RenameEntrySchema = z.object({
   column: z.string(),
@@ -89,32 +83,6 @@ function RenameContent(): m.Component<{
   };
 }
 
-function render(
-  config: RenameConfig,
-  updateConfig: (updates: Partial<RenameConfig>) => void,
-  ctx: RenderContext,
-): m.Children {
-  return m(RenameContent, {config, updateConfig, ctx});
-}
-
-function getOutputColumns(
-  config: RenameConfig,
-  ctx: ColumnContext,
-): ColumnDef[] | undefined {
-  const columns = ctx.getInputColumns('input');
-  if (columns === undefined) return undefined;
-  const renameMap = new Map(
-    config.entries
-      .filter((e) => e.column !== '' && e.alias !== '')
-      .map((e) => [e.column, e.alias]),
-  );
-  if (renameMap.size === 0) return columns;
-  return columns.map((c) => ({
-    ...c,
-    name: renameMap.get(c.name) ?? c.name,
-  }));
-}
-
 function isValid(config: RenameConfig): boolean {
   return config.entries.every((e) => e.alias === '' || e.column !== '');
 }
@@ -127,34 +95,6 @@ function renameMap(config: RenameConfig): Map<string, string> {
   );
 }
 
-const generators: NodeGenerators<RenameConfig> = {
-  // Standard SQL needs the full column list to rename in place.
-  sql: (config, ctx) => {
-    if (!isValid(config)) return undefined;
-    if (ctx.input('input') === undefined) return undefined;
-    const renames = renameMap(config);
-    if (renames.size === 0) return {};
-    const inputColumns = ctx.getInputColumns('input');
-    if (inputColumns === undefined) {
-      return {error: 'Rename needs known input columns in Standard SQL mode.'};
-    }
-    return {
-      select: inputColumns.map((c) => {
-        const to = renames.get(c.name);
-        return to !== undefined ? `${c.name} AS ${to}` : c.name;
-      }),
-    };
-  },
-  psn: (config, ctx) => {
-    if (!isValid(config)) return undefined;
-    if (ctx.input('input') === undefined) return undefined;
-    const items = [...renameMap(config)].map(
-      ([from, to]) => `${from} AS ${to}`,
-    );
-    return {stages: items.length > 0 ? [`RENAME ${items.join(', ')}`] : []};
-  },
-};
-
 export const manifest: NodeManifest<RenameConfig> = {
   title: 'Rename',
   icon: 'drive_file_rename_outline',
@@ -162,7 +102,50 @@ export const manifest: NodeManifest<RenameConfig> = {
   hue: 144,
   schema: RenameConfigSchema,
   defaultConfig: () => ({entries: []}),
-  render,
-  getOutputColumns,
-  generators,
+  render(config, updateConfig, ctx) {
+    return m(RenameContent, {config, updateConfig, ctx});
+  },
+  getOutputColumns(config, ctx) {
+    const columns = ctx.getInputColumns('input');
+    if (columns === undefined) return undefined;
+    const renameMap = new Map(
+      config.entries
+        .filter((e) => e.column !== '' && e.alias !== '')
+        .map((e) => [e.column, e.alias]),
+    );
+    if (renameMap.size === 0) return columns;
+    return columns.map((c) => ({
+      ...c,
+      name: renameMap.get(c.name) ?? c.name,
+    }));
+  },
+  generators: {
+    // Standard SQL needs the full column list to rename in place.
+    sql: (config, ctx) => {
+      if (!isValid(config)) return undefined;
+      if (ctx.input('input') === undefined) return undefined;
+      const renames = renameMap(config);
+      if (renames.size === 0) return {};
+      const inputColumns = ctx.getInputColumns('input');
+      if (inputColumns === undefined) {
+        return {
+          error: 'Rename needs known input columns in Standard SQL mode.',
+        };
+      }
+      return {
+        select: inputColumns.map((c) => {
+          const to = renames.get(c.name);
+          return to !== undefined ? `${c.name} AS ${to}` : c.name;
+        }),
+      };
+    },
+    psn: (config, ctx) => {
+      if (!isValid(config)) return undefined;
+      if (ctx.input('input') === undefined) return undefined;
+      const items = [...renameMap(config)].map(
+        ([from, to]) => `${from} AS ${to}`,
+      );
+      return {stages: items.length > 0 ? [`RENAME ${items.join(', ')}`] : []};
+    },
+  },
 };

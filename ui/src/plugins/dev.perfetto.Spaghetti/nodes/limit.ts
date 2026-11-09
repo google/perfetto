@@ -55,6 +55,20 @@ export const manifest: NodeManifest<LimitConfig> = {
   hue: 57,
   schema: LimitConfigSchema,
   defaultConfig: () => ({limitCount: '100', offset: ''}),
+  render(config, updateConfig) {
+    return m(Stack, [
+      m(TextInput, {
+        placeholder: 'Row count...',
+        value: config.limitCount,
+        onChange: (value: string) => updateConfig({limitCount: value}),
+      }),
+      m(TextInput, {
+        placeholder: 'Offset (optional)...',
+        value: config.offset ?? '',
+        onChange: (value: string) => updateConfig({offset: value}),
+      }),
+    ]);
+  },
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
   generators: {
     sql: (config, ctx) => {
@@ -73,19 +87,5 @@ export const manifest: NodeManifest<LimitConfig> = {
         ],
       };
     },
-  },
-  render(config, updateConfig) {
-    return m(Stack, [
-      m(TextInput, {
-        placeholder: 'Row count...',
-        value: config.limitCount,
-        onChange: (value: string) => updateConfig({limitCount: value}),
-      }),
-      m(TextInput, {
-        placeholder: 'Offset (optional)...',
-        value: config.offset ?? '',
-        onChange: (value: string) => updateConfig({offset: value}),
-      }),
-    ]);
   },
 };

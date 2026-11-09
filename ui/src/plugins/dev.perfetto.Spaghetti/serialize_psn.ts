@@ -53,8 +53,9 @@ export function serializePsn(
 
   function pipelineOf(nodeId: string): Pipeline {
     const table = tables.get(nodeId);
-    if (table !== undefined)
-      {return {source: `FROM ${table}`, stages: [], table};}
+    if (table !== undefined) {
+      return {source: `FROM ${table}`, stages: [], table};
+    }
     return ensureDefined(pipelines.get(nodeId));
   }
 
