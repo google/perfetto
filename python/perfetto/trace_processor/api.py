@@ -200,6 +200,7 @@ class TraceProcessor:
           "--allow-sql-file-access.")
 
     self.config = config
+    self._metadata: Dict[str, str] = {}
     self.platform_delegate = PLATFORM_DELEGATE()
     self.protos = ProtoFactory(self.platform_delegate)
     self.resolver_registry = config.resolver_registry or \
@@ -303,6 +304,9 @@ class TraceProcessor:
     Returns:
       The metrics data as a proto message
     """
+    # A bare string would otherwise be split into one metric per character.
+    if isinstance(metrics, str):
+      metrics = [metrics]
     response = self._backend.compute_metric(metrics)
     if response.error:
       raise TraceProcessorException(response.error)
@@ -329,6 +333,8 @@ class TraceProcessor:
       output_path: Path to write the export to.
       export_format: Either `arrow_tar`, `perfetto` or `sqlite`.
     """
+    if export_format not in ('arrow_tar', 'perfetto', 'sqlite'):
+      raise ValueError(f'Unknown export format: {export_format}')
     with open(output_path, 'wb') as f:
       self._backend.export(f, export_format)
 

@@ -131,7 +131,7 @@ INTERVAL INTERSECTION OF (
 |> SELECT ts, dur, cpu, f.freq, i.idle_id, h.offline;
 
 -- Start matching CPUs with 1D curves based on combination of freq and idle.
--- Carrying state_id through _w_cpu_slices eliminates 10 table joins.
+-- Carrying state_id through _w_cpu_slices_raw eliminates 10 table joins.
 CREATE PERFETTO VIEW _idle_freq_materialized AS
 SELECT
   ts,

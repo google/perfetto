@@ -270,14 +270,14 @@ function parseTraceSummary(data: Uint8Array): MetricBundle[] {
 
       // Add dimensions
       for (let i = 0; i < dimensionNames.length; i++) {
-        const dimName = dimensionNames[i];
+        const dimName = dimensionNames[i]!;
         const dimValue = row.dimension?.[i];
         rowData[dimName] = dimValue ? getDimensionValue(dimValue) : null;
       }
 
       // Add all values (templates can have multiple value columns)
       for (let i = 0; i < valueNames.length; i++) {
-        const valueName = valueNames[i];
+        const valueName = valueNames[i]!;
         const val = row.values?.[i];
         rowData[valueName] = val ? getMetricValue(val) : null;
       }

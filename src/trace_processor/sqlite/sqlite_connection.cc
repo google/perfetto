@@ -113,6 +113,15 @@ std::optional<uint32_t> GetErrorOffsetDb(sqlite3* db) {
 constexpr int kSqliteOpenFlags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE |
                                  SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_URI;
 
+void ApplyAttachCreateWriteConfig(sqlite3* db, bool enabled) {
+  int unused = 0;
+  int val = enabled ? 1 : 0;
+  PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_ENABLE_ATTACH_WRITE, val,
+                                   &unused) == SQLITE_OK);
+  PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_ENABLE_ATTACH_CREATE,
+                                   val, &unused) == SQLITE_OK);
+}
+
 }  // namespace
 
 std::unique_ptr<SqliteConnection>
@@ -135,6 +144,16 @@ SqliteConnection::SqliteConnection(std::shared_ptr<SqliteDatabase> database)
   // queries.
   PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_LOOKASIDE, nullptr,
                                    /*sz=*/1200, /*cnt=*/1000) == SQLITE_OK);
+  // Untrusted SQL (e.g. the RPC server) must never be able to ATTACH or
+  // VACUUM INTO OS files. SQLITE_DBCONFIG_ENABLE_ATTACH_{CREATE,WRITE}=0 alone
+  // is insufficient because:
+  // 1) Read-only ATTACH still reaches OS VFS open (allowing local SQLite DB
+  //    reads and Windows UNC path SMB/DNS requests).
+  // 2) VACUUM INTO temporarily re-enables SQLITE_AttachCreate and
+  //    SQLITE_AttachWrite on db->flags before preparing its internal ATTACH.
+  // An authorizer blocks ATTACH/DETACH unless explicitly enabled, and still
+  // blocks VACUUM INTO even when read-only ATTACH is enabled.
+  ApplyAttachCreateWriteConfig(db, /*enabled=*/false);
 #ifdef SQLITE_DBCONFIG_FP_DIGITS
   // SQLite 3.52 went from 15 to 17 significant digits when turning a double
   // into text. Keep the 15 older versions produce.
@@ -143,10 +162,57 @@ SqliteConnection::SqliteConnection(std::shared_ptr<SqliteDatabase> database)
 #endif
   InitializeSqlite(db);
   db_.reset(db);
+  PERFETTO_CHECK(sqlite3_set_authorizer(db_.get(),
+                                        &SqliteConnection::Authorizer,
+                                        this) == SQLITE_OK);
 }
 
 std::unique_ptr<SqliteConnection> SqliteConnection::Fork() {
-  return std::make_unique<SqliteConnection>(database_);
+  auto fork = std::make_unique<SqliteConnection>(database_);
+  fork->SetAttachReadEnabled(attach_read_enabled_);
+  return fork;
+}
+
+void SqliteConnection::SetAttachCreateWriteEnabled(bool enabled) {
+  attach_create_write_enabled_ = enabled;
+  ApplyAttachCreateWriteConfig(db_.get(), enabled);
+}
+
+int SqliteConnection::Authorizer(void* user_data,
+                                 int action,
+                                 const char*,
+                                 const char*,
+                                 const char*,
+                                 const char*) {
+  if (PERFETTO_LIKELY(action != SQLITE_ATTACH && action != SQLITE_DETACH)) {
+    return SQLITE_OK;
+  }
+  auto* self = static_cast<SqliteConnection*>(user_data);
+  if (self->attach_create_write_enabled_) {
+    return SQLITE_OK;
+  }
+  if (!self->attach_read_enabled_) {
+    return SQLITE_DENY;
+  }
+  if (action == SQLITE_ATTACH) {
+    // sqlite3RunVacuum temporarily forces SQLITE_AttachWrite and
+    // SQLITE_AttachCreate onto db->flags before preparing its internal
+    // "ATTACH %Q AS vacuum_db". Querying the DBCONFIG flags here detects
+    // VACUUM / VACUUM INTO and denies it while still allowing read-only
+    // ATTACH DATABASE statements.
+    int write_enabled = 0;
+    int create_enabled = 0;
+    PERFETTO_CHECK(sqlite3_db_config(self->db_.get(),
+                                     SQLITE_DBCONFIG_ENABLE_ATTACH_WRITE, -1,
+                                     &write_enabled) == SQLITE_OK);
+    PERFETTO_CHECK(sqlite3_db_config(self->db_.get(),
+                                     SQLITE_DBCONFIG_ENABLE_ATTACH_CREATE, -1,
+                                     &create_enabled) == SQLITE_OK);
+    if (write_enabled != 0 || create_enabled != 0) {
+      return SQLITE_DENY;
+    }
+  }
+  return SQLITE_OK;
 }
 
 SqliteConnection::~SqliteConnection() = default;

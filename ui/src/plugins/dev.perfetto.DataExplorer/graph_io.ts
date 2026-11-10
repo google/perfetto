@@ -105,7 +105,7 @@ export async function importGraph(
   input.onchange = async (event) => {
     const files = (event.target as HTMLInputElement).files;
     if (files && files.length > 0) {
-      const file = files[0];
+      const file = files[0]!;
       const reader = new FileReader();
       reader.onload = async (e) => {
         const text = e.target?.result as string;
@@ -299,7 +299,7 @@ export async function createDataExplorerGraph(
       ...currentState,
       rootNodes: allNodes,
       nodeLayouts: newNodeLayouts,
-      selectedNodes: new Set([allNodes[0].nodeId]),
+      selectedNodes: new Set([allNodes[0]!.nodeId]),
       labels,
       loadGeneration: (currentState.loadGeneration ?? 0) + 1,
     }));
@@ -391,7 +391,7 @@ export function importTab(
   input.onchange = (event) => {
     const files = (event.target as HTMLInputElement).files;
     if (files === null || files.length === 0) return;
-    const file = files[0];
+    const file = files[0]!;
     const reader = new FileReader();
     reader.onload = async (e) => {
       const text = e.target?.result;

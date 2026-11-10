@@ -55,6 +55,14 @@ base::StringView NormalizeTypeName(base::StringView type);
 std::string DenormalizeTypeName(NormalizedType normalized,
                                 base::StringView deobfuscated_type_name);
 
+// Extract the size from `nar_size`, which is the value of a
+// libcore.util.NativeAllocationRegistry.size field: it encodes the size, but
+// uses the least significant bit to represent the source of the allocation.
+inline int64_t GetSizeFromNativeAllocationRegistry(int64_t nar_size) {
+  constexpr uint64_t kIsMalloced = 1;
+  return static_cast<int64_t>(static_cast<uint64_t>(nar_size) & ~kIsMalloced);
+}
+
 class HeapGraphTracker : public Destructible {
  public:
   struct SourceObject {

@@ -69,8 +69,12 @@ export function sqlColumnId(column: SqlColumn): string {
     return column.id;
   }
   // Special case: If the join is performed on a single column `id`, we can use a simpler representation (i.e. `table[id].column`).
-  if (arrayEquals(Object.keys(column.source.joinOn), ['id'])) {
-    return `${column.source.table}[${sqlColumnId(Object.values(column.source.joinOn)[0])}].${column.column}`;
+  const idJoinColumn = column.source.joinOn['id'];
+  if (
+    idJoinColumn !== undefined &&
+    arrayEquals(Object.keys(column.source.joinOn), ['id'])
+  ) {
+    return `${column.source.table}[${sqlColumnId(idJoinColumn)}].${column.column}`;
   }
   // Otherwise, we need to list all the join constraints.
   const lookup = Object.entries(column.source.joinOn)

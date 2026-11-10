@@ -40,7 +40,8 @@ CREATE PERFETTO VIEW track(
   -- dimensions allow distinguishing between different tracks in that set.
   type STRING,
   -- The dimensions of the track which uniquely identify the track within a
-  -- given `type`.
+  -- given `type`. Producer-declared dimensions use keys prefixed with
+  -- `custom_dimension.` and include values inherited through `parent_uuid`.
   --
   -- Join with the `args` table or use the `EXTRACT_ARG` helper function to
   -- expand the args.
@@ -49,6 +50,8 @@ CREATE PERFETTO VIEW track(
   -- created using Perfetto's track_event API.
   parent_id JOINID(track.id),
   -- Generic key-value pairs containing extra information about the track.
+  -- Presentation-only custom dimension labels use keys prefixed with
+  -- `custom_dimension_display_name.`; they are not part of track identity.
   --
   -- Join with the `args` table or use the `EXTRACT_ARG` helper function to
   -- expand the args.
@@ -112,8 +115,7 @@ SELECT
   t.machine_id,
   a.int_value AS utid
 FROM __intrinsic_track AS t
-JOIN args AS a
-  ON t.dimension_arg_set_id = a.arg_set_id
+JOIN args AS a ON t.dimension_arg_set_id = a.arg_set_id
 WHERE
   t.event_type = 'slice'
   AND a.key = 'utid';
@@ -153,8 +155,7 @@ SELECT
   t.machine_id,
   a.int_value AS upid
 FROM __intrinsic_track AS t
-JOIN args AS a
-  ON t.dimension_arg_set_id = a.arg_set_id
+JOIN args AS a ON t.dimension_arg_set_id = a.arg_set_id
 WHERE
   t.event_type = 'slice'
   AND a.key = 'upid';
@@ -194,8 +195,7 @@ SELECT
   t.machine_id,
   a.int_value AS cpu
 FROM __intrinsic_track AS t
-JOIN args AS a
-  ON t.dimension_arg_set_id = a.arg_set_id
+JOIN args AS a ON t.dimension_arg_set_id = a.arg_set_id
 WHERE
   t.event_type = 'slice'
   AND a.key = 'cpu';

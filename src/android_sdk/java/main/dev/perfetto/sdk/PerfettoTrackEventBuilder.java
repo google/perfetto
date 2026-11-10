@@ -139,16 +139,26 @@ public final class PerfettoTrackEventBuilder {
   private static final PerfettoTrackEventBuilder NO_OP_BUILDER =
       new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ false, /* parent= */ null);
 
-  public static final ThreadLocal<PerfettoTrackEventBuilder> sThreadLocalBuilder =
-      ThreadLocal.withInitial(
-          () -> new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ true, /* parent= */ null));
+  private static final int MAX_POOLED_BUILDERS = 2;
+
+  private static final ThreadLocal<PerfettoTrackEventBuilder[]> sThreadLocalBuilder =
+      ThreadLocal.withInitial(() -> new PerfettoTrackEventBuilder[MAX_POOLED_BUILDERS]);
 
   public static PerfettoTrackEventBuilder newEvent(
       int traceType, Category category, boolean isDebug) {
-    if (category.isRegistered() && category.isEnabled()) {
-      return sThreadLocalBuilder.get().initNewEvent(traceType, category, isDebug);
+    if (!category.isEnabled()) {
+      return NO_OP_BUILDER;
     }
-    return NO_OP_BUILDER;
+    PerfettoTrackEventBuilder[] pool = sThreadLocalBuilder.get();
+    for (int i = MAX_POOLED_BUILDERS - 1; i >= 0; i--) {
+      PerfettoTrackEventBuilder builder = pool[i];
+      if (builder != null) {
+        pool[i] = null;
+        return builder.initNewEvent(traceType, category, isDebug);
+      }
+    }
+    return new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ true, /* parent= */ null)
+        .initNewEvent(traceType, category, isDebug);
   }
 
   private PerfettoTrackEventBuilder(boolean isCategoryEnabled, PerfettoTrackEventBuilder parent) {
@@ -184,10 +194,22 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
+    if (mIsBuilt) {
+      return;
+    }
 
     mIsBuilt = true;
     PerfettoTrackEventExtra.native_emit(
         mTraceType, mCategory.getPtr(), mEventName, mExtra.getPtr());
+    if (mParent == null) {
+      PerfettoTrackEventBuilder[] pool = sThreadLocalBuilder.get();
+      for (int i = 0; i < MAX_POOLED_BUILDERS; i++) {
+        if (pool[i] == null) {
+          pool[i] = this;
+          break;
+        }
+      }
+    }
   }
 
   /** Initialize the builder for a new trace event. */
@@ -418,10 +440,15 @@ public final class PerfettoTrackEventBuilder {
       checkNotBuildingProto();
     }
 
-    NamedTrack track = mObjectsCache.mNamedTrackCache.get(name.hashCode());
-    if (track == null || !track.getName().equals(name) || track.isNameStatic() != isNameStatic) {
+    int key = trackKey(id, name, parentUuid, isNameStatic);
+    NamedTrack track = mObjectsCache.mNamedTrackCache.get(key);
+    if (track == null
+        || track.getId() != id
+        || track.getParentUuid() != parentUuid
+        || track.isNameStatic() != isNameStatic
+        || !track.getName().equals(name)) {
       track = new NamedTrack(id, name, parentUuid, isNameStatic, mNativeMemoryCleaner);
-      mObjectsCache.mNamedTrackCache.put(name.hashCode(), track);
+      mObjectsCache.mNamedTrackCache.put(key, track);
     }
     addPerfettoPointerToExtra(track);
     return this;
@@ -499,10 +526,14 @@ public final class PerfettoTrackEventBuilder {
       checkNotBuildingProto();
     }
 
-    CounterTrack track = mObjectsCache.mCounterTrackCache.get(name.hashCode());
-    if (track == null || !track.getName().equals(name) || track.isNameStatic() != isNameStatic) {
+    int key = trackKey(0, name, parentUuid, isNameStatic);
+    CounterTrack track = mObjectsCache.mCounterTrackCache.get(key);
+    if (track == null
+        || track.getParentUuid() != parentUuid
+        || track.isNameStatic() != isNameStatic
+        || !track.getName().equals(name)) {
       track = new CounterTrack(name, parentUuid, isNameStatic, mNativeMemoryCleaner);
-      mObjectsCache.mCounterTrackCache.put(name.hashCode(), track);
+      mObjectsCache.mCounterTrackCache.put(key, track);
     }
     addPerfettoPointerToExtra(track);
     return this;
@@ -552,10 +583,14 @@ public final class PerfettoTrackEventBuilder {
       checkNotBuildingProto();
     }
 
-    StateTrack track = mObjectsCache.mStateTrackCache.get(name.hashCode());
-    if (track == null || !track.getName().equals(name) || track.isNameStatic() != isNameStatic) {
+    int key = trackKey(0, name, parentUuid, isNameStatic);
+    StateTrack track = mObjectsCache.mStateTrackCache.get(key);
+    if (track == null
+        || track.getParentUuid() != parentUuid
+        || track.isNameStatic() != isNameStatic
+        || !track.getName().equals(name)) {
       track = new StateTrack(name, parentUuid, isNameStatic, mNativeMemoryCleaner);
-      mObjectsCache.mStateTrackCache.put(name.hashCode(), track);
+      mObjectsCache.mStateTrackCache.put(key, track);
     }
     addPerfettoPointerToExtra(track);
     return this;
@@ -816,6 +851,14 @@ public final class PerfettoTrackEventBuilder {
   // Only used in tests.
   public static AllocationStats getNativeAllocationStats() {
     return sNativeAllocationStats;
+  }
+
+  // Hash collisions are possible, so cache hits must compare all track inputs.
+  private static int trackKey(long id, String name, long parentUuid, boolean isNameStatic) {
+    int key = name.hashCode();
+    key = 31 * key + Long.hashCode(id);
+    key = 31 * key + Long.hashCode(parentUuid);
+    return 31 * key + (isNameStatic ? 1 : 0);
   }
 
   /**

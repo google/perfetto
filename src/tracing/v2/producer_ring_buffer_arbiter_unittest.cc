@@ -16,6 +16,8 @@
 
 // Tests for ProducerRingBufferArbiter, the producer side of one tracing v2
 // ring buffer. They cover:
+// - Protocol selection: eligible data sources with the same probability
+//   agree within a process and tracing session.
 // - Creation: Create() picks the chunk size, ring buffer size and drain
 //   threshold from the config, and returns the error status of a failed
 //   allocation.
@@ -136,6 +138,45 @@ class ProducerRingBufferArbiterTest : public ProducerRingBufferTest {
     return arbiter_or.ok() ? (*arbiter_or)->ring_buffer()->chunk_size() : 0;
   }
 };
+
+// --- Protocol selection ---
+
+TEST_F(ProducerRingBufferArbiterTest,
+       TracingV2SelectionRespectsSupportAndProbability) {
+  DataSourceConfig config;
+  config.set_supports_tracing_v2(true);
+  EXPECT_FALSE(ProducerRingBufferArbiter::ShouldUseTracingV2(config));
+
+  config.mutable_experimental_tracing_v2()->set_use_v2_probability_percent(100);
+  EXPECT_TRUE(ProducerRingBufferArbiter::ShouldUseTracingV2(config));
+
+  config.set_supports_tracing_v2(false);
+  EXPECT_FALSE(ProducerRingBufferArbiter::ShouldUseTracingV2(config));
+}
+
+TEST_F(ProducerRingBufferArbiterTest, TracingV2SelectionIsStableWithinSession) {
+  DataSourceConfig config;
+  config.set_supports_tracing_v2(true);
+  config.set_tracing_session_id(42);
+  config.set_name("linux.ftrace");
+  config.set_target_buffer(1);
+
+  DataSourceConfig other_config = config;
+  other_config.set_name("linux.process_stats");
+  other_config.set_target_buffer(2);
+
+  for (uint32_t probability = 1; probability < 100; ++probability) {
+    SCOPED_TRACE(probability);
+    config.mutable_experimental_tracing_v2()->set_use_v2_probability_percent(
+        probability);
+    other_config.mutable_experimental_tracing_v2()
+        ->set_use_v2_probability_percent(probability);
+    const bool use_v2 = ProducerRingBufferArbiter::ShouldUseTracingV2(config);
+    EXPECT_EQ(ProducerRingBufferArbiter::ShouldUseTracingV2(other_config),
+              use_v2);
+    EXPECT_EQ(ProducerRingBufferArbiter::ShouldUseTracingV2(config), use_v2);
+  }
+}
 
 // --- The ring buffer and its attach reply ---
 

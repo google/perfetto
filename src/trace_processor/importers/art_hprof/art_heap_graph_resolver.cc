@@ -24,6 +24,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 
 namespace perfetto::trace_processor::art_hprof {
 
@@ -468,13 +469,14 @@ void HeapGraphResolver::CalculateNativeSizes() {
     }
 
     int64_t native_size = 0;
-    ForEachFieldValue(context_, layout->fields, registry.GetRawData(),
-                      registry.GetRawDataSize(), header_.GetIdSize(),
-                      [&](const Field& f) {
-                        if (f.GetName() == native_registry_size_field_id_) {
-                          native_size = f.GetNumericValue();
-                        }
-                      });
+    ForEachFieldValue(
+        context_, layout->fields, registry.GetRawData(),
+        registry.GetRawDataSize(), header_.GetIdSize(), [&](const Field& f) {
+          if (f.GetName() == native_registry_size_field_id_) {
+            native_size =
+                GetSizeFromNativeAllocationRegistry(f.GetNumericValue());
+          }
+        });
     if (native_size <= 0) {
       continue;
     }

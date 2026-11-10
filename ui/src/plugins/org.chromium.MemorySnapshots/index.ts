@@ -218,7 +218,7 @@ class MemorySnapshotsTab implements m.ClassComponent<{trace: Trace}> {
     }
     // Select first snapshot by default
     if (this.snapshots.length > 0) {
-      this.selectedSnapshotId = this.snapshots[0].id;
+      this.selectedSnapshotId = this.snapshots[0]!.id;
     }
   }
 

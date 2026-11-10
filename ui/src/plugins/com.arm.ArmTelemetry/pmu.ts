@@ -15,7 +15,7 @@
 import './styles.scss';
 import m from 'mithril';
 import {v4} from 'uuid';
-import {assertTrue} from '../../base/assert';
+import {assertTrue, ensureDefined} from '../../base/assert';
 import type {App} from '../../public/app';
 import {Button, type ButtonAttrs} from '../../widgets/button';
 import {Checkbox} from '../../widgets/checkbox';
@@ -529,7 +529,7 @@ class PerfCpuConfigurationController {
         .map((option) => option.id),
     );
     this.metricOptions.forEach((metric) => {
-      metric.checked = availableMetrics[metric.id].events.every((eventName) =>
+      metric.checked = availableMetrics[metric.id]!.events.every((eventName) =>
         completePmuList.has(eventName),
       );
     });
@@ -545,7 +545,7 @@ class PerfCpuConfigurationController {
     const pmus = new Set<string>();
     this.metricOptions.forEach((metric) => {
       if (metric.checked) {
-        this.cpuDesc?.metrics[metric.id].events.forEach((eventName) =>
+        this.cpuDesc?.metrics[metric.id]!.events.forEach((eventName) =>
           pmus.add(eventName),
         );
       }
@@ -571,8 +571,8 @@ class PerfCpuConfigurationController {
 
     this.metricOptions.forEach((metric) => {
       if (!metric.checked) {
-        metric.checked = availableMetrics[metric.id].events.every((eventName) =>
-          completePmuList.has(eventName),
+        metric.checked = availableMetrics[metric.id]!.events.every(
+          (eventName) => completePmuList.has(eventName),
         );
       }
     });
@@ -908,6 +908,7 @@ class PerfConfiguration implements m.ClassComponent<PerfConfigurationAttrs> {
           }
           if (!e.target.files) return;
           const file = e.target.files[0];
+          if (file === undefined) return;
           const reader = new FileReader();
           reader.onloadend = () => {
             if (reader.error) {
@@ -1092,7 +1093,9 @@ function tracedPerf(
           name: cpuState.cpuLeader,
           rawEvent: {
             type: cpuPerfType,
-            config: Number(cpuDesc.events[cpuState.cpuLeader].code),
+            config: Number(
+              ensureDefined(cpuDesc.events[cpuState.cpuLeader]).code,
+            ),
           },
         };
 
@@ -1103,7 +1106,7 @@ function tracedPerf(
               name: pmu,
               rawEvent: {
                 type: cpuPerfType,
-                config: Number(cpuDesc.events[pmu].code),
+                config: Number(ensureDefined(cpuDesc.events[pmu]).code),
               },
             };
           });
@@ -1156,8 +1159,8 @@ function parseTargetCpus(cpus: string | undefined): [number[], string?] {
         return [[], `Invalid CPU range: ${part}`];
       }
       const [startStrRaw, endStrRaw] = rangeParts;
-      const startStr = startStrRaw.trim();
-      const endStr = endStrRaw.trim();
+      const startStr = startStrRaw!.trim();
+      const endStr = endStrRaw!.trim();
       const start = parseCpuNumber(startStr);
       const end = parseCpuNumber(endStr);
 

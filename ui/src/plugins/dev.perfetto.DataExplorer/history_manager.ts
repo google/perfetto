@@ -16,6 +16,7 @@ import type {DataExplorerState} from './data_explorer';
 import {serializeState, deserializeState} from './json_handler';
 import type {Trace} from '../../public/trace';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
+import {ensureDefined} from '../../base/assert';
 
 const MAX_HISTORY_SIZE = 10;
 
@@ -86,7 +87,7 @@ export class HistoryManager {
     this.currentIndex--;
     this.isUndoRedoInProgress = true;
     const state = deserializeState(
-      this.history[this.currentIndex],
+      ensureDefined(this.history[this.currentIndex]),
       this.trace,
       this.sqlModules,
     );
@@ -103,7 +104,7 @@ export class HistoryManager {
     this.currentIndex++;
     this.isUndoRedoInProgress = true;
     const state = deserializeState(
-      this.history[this.currentIndex],
+      ensureDefined(this.history[this.currentIndex]),
       this.trace,
       this.sqlModules,
     );

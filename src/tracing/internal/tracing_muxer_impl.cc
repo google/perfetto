@@ -48,6 +48,7 @@
 #include "perfetto/tracing/tracing_backend.h"
 #include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/internal/tracing_muxer_fake.h"
+#include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
 #include "protos/perfetto/config/interceptor_config.gen.h"
 
@@ -1416,13 +1417,8 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
     // An intercepted instance takes its writer from the interceptor.
     internal_state->use_tracing_v2 =
         !startup_session_id && !internal_state->interceptor_id &&
-        rds.params.supports_tracing_v2 && cfg.supports_tracing_v2();
-    const uint32_t probability =
-        cfg.experimental_tracing_v2().use_v2_probability_percent();
-    if (internal_state->use_tracing_v2 && probability < 100) {
-      internal_state->use_tracing_v2 =
-          static_cast<uint64_t>(base::Uuidv4().lsb()) % 100 < probability;
-    }
+        rds.params.supports_tracing_v2 &&
+        tracing_v2::ProducerRingBufferArbiter::ShouldUseTracingV2(cfg);
     // Complete initialization before writer threads can observe this instance.
     if (internal_state->use_tracing_v2)
       backend.producer->service_->InitializeV2RingBuffer(cfg);

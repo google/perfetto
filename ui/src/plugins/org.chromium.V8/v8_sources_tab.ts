@@ -337,6 +337,8 @@ export class V8SourcesTab implements Tab {
           data: this.dataSource,
           schema: v8JsScriptUiSchema,
           fillHeight: true,
+          // The "Search scripts" box above already filters this grid.
+          enableQuickFilter: false,
           filters: this.filters,
           onFiltersChanged: (filters: readonly Filter[]) => {
             this.filters = filters;

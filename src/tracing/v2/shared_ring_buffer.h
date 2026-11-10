@@ -255,6 +255,31 @@ class SharedRingBuffer {
   // can lag the reader's local value. The lag only under-reports free capacity.
   void PublishReadPos(uint32_t read_pos);
 
+  // Ring buffer full stats.
+  //
+  // Writers count in the header what happens to them when the ring buffer
+  // is full.
+  // The service can't see this from the chunks, so it reads the counters and
+  // reports them in TraceStats.
+  // No writer or reader decision depends on their values.
+
+  struct RingBufferFullStats {
+    uint64_t dropped_packets = 0;
+    uint64_t stalls = 0;
+    uint64_t stall_time_ms = 0;
+  };
+
+  // Loads each counter separately, so the values can be from different times.
+  RingBufferFullStats LoadRingBufferFullStatsRelaxed() const;
+
+  // Adds |count| to |dropped_packets|.
+  // These are packets that a writer dropped because it got no chunk.
+  void AddDroppedPackets(uint64_t count);
+
+  // Increments |stalls| for a wait for space, and adds |time_ms| to
+  // |stall_time_ms|.
+  void AddStall(uint64_t time_ms);
+
  private:
   friend class test::SharedRingBufferInternalsForTest;
 

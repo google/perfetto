@@ -61,14 +61,13 @@ void PixelMmKswapdEventTracker::ParsePixelMmKswapdDone(
 
   context_->slice_tracker->End(
       timestamp, details_track, kNullStringId, kswapd_efficiency_name_,
-      [this, &decoder](ArgsTracker::BoundInserter* inserter) {
+      [this, &decoder](ArgsInserter& inserter) {
         if (decoder.has_delta_nr_scanned()) {
-          inserter->AddArg(
-              pages_scanned_name_,
-              Variadic::UnsignedInteger(decoder.delta_nr_scanned()));
+          inserter.AddArg(pages_scanned_name_, Variadic::UnsignedInteger(
+                                                   decoder.delta_nr_scanned()));
         }
         if (decoder.has_delta_nr_reclaimed()) {
-          inserter->AddArg(
+          inserter.AddArg(
               pages_reclaimed_name_,
               Variadic::UnsignedInteger(decoder.delta_nr_reclaimed()));
         }
@@ -79,13 +78,13 @@ void PixelMmKswapdEventTracker::ParsePixelMmKswapdDone(
               static_cast<double>(decoder.delta_nr_reclaimed()) * 100 /
               static_cast<double>(decoder.delta_nr_scanned());
 
-          inserter->AddArg(efficiency_pct_name_,
-                           Variadic::UnsignedInteger(
-                               static_cast<uint64_t>(std::round(efficiency))));
+          inserter.AddArg(efficiency_pct_name_,
+                          Variadic::UnsignedInteger(
+                              static_cast<uint64_t>(std::round(efficiency))));
         }
 
         if (decoder.has_delta_nr_allocated()) {
-          inserter->AddArg(
+          inserter.AddArg(
               pages_allocated_name_,
               Variadic::UnsignedInteger(decoder.delta_nr_allocated()));
         }

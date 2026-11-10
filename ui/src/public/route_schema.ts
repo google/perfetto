@@ -59,6 +59,9 @@ export const ROUTE_SCHEMA = z
     // Should we hide the sidebar?
     hideSidebar: z.boolean().optional().catch(undefined),
 
+    // Should we hide the status bar?
+    hideStatusbar: z.boolean().optional().catch(undefined),
+
     // A comma-separated list of plugins to enable for the current session.
     enablePlugins: z.string().optional().catch(undefined),
 

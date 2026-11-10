@@ -27,7 +27,6 @@
 
 using ::testing::_;
 using ::testing::Eq;
-using ::testing::InvokeWithoutArgs;
 using ::testing::Property;
 
 namespace perfetto {
@@ -192,8 +191,7 @@ void MockProducer::WaitForDataSourceStop(const std::string& name) {
   auto on_ds_stop = task_runner_->CreateCheckpoint(checkpoint_name);
   ASSERT_EQ(1u, data_source_instances_.count(name));
   DataSourceInstanceID ds_id = data_source_instances_[name].id;
-  EXPECT_CALL(*this, StopDataSource(ds_id))
-      .WillOnce(InvokeWithoutArgs(on_ds_stop));
+  EXPECT_CALL(*this, StopDataSource(ds_id)).WillOnce(on_ds_stop);
   task_runner_->RunUntilCheckpoint(checkpoint_name);
   data_source_instances_.erase(name);
 }

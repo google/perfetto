@@ -39,8 +39,8 @@ class BlockingCallMetricHandler implements MetricHandler {
       return undefined;
     }
     const metricData: NotificationsBlockingCallMetricData = {
-      notificationName: match.groups.blockingCallName,
-      aggregation: match.groups.aggregation,
+      notificationName: match.groups.blockingCallName!,
+      aggregation: match.groups.aggregation!,
     };
     return metricData;
   }

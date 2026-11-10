@@ -222,6 +222,22 @@ function exec(cmd, args, opts) {
   return res;
 }
 
+// Builds pfsql, the only part of the site which needs the C++ toolchain, and
+// returns its path. It is shared with the presubmit's out directory.
+function buildPfsql() {
+  const outDir = pjoin(ROOT_DIR, "out/presubmits");
+  if (!fs.existsSync(pjoin(outDir, "build.ninja"))) {
+    exec("python3", [
+      pjoin(ROOT_DIR, "tools/gn"),
+      "gen",
+      outDir,
+      "--args=is_debug=false",
+    ]);
+  }
+  exec("python3", [pjoin(ROOT_DIR, "tools/ninja"), "-C", outDir, "pfsql"]);
+  return pjoin(outDir, "pfsql");
+}
+
 // Blog posts live on the orphan `blog` branch and are read from a worktree at
 // //blog. Anything already there -- a worktree, or a symlink to one checked out
 // elsewhere -- is left alone, so a local setup is never clobbered.
@@ -412,7 +428,8 @@ function collectBlogPages(posts) {
       mdFile: post.mdPath,
       templatePath: tmplPost,
       sitePath: `blog/${post.slug}`,
-      searchUrl: `/blog/${post.slug}`,
+      // Hidden posts are reachable by URL only, so they stay out of search.
+      searchUrl: post.hidden ? undefined : `/blog/${post.slug}`,
       // parseSearchDoc() reads the title off the first <h1>. A post's title is
       // front matter and its body deliberately has none, so without this every
       // post looks like an empty redirect stub and is dropped from the index.
@@ -428,7 +445,7 @@ function collectBlogPages(posts) {
     sitePath: "blog/index.html",
     post: {
       isIndex: true,
-      posts,
+      posts: posts.filter((p) => !p.hidden),
       summary:
         "Release notes, performance investigations and deep dives from the " +
         "people who build Perfetto.",
@@ -569,12 +586,14 @@ async function addBlogThumbnails(posts, site) {
 }
 
 async function addBlogAssets(posts, site) {
+  // Hidden posts still need their covers and avatars, but not a feed entry.
+  const listed = posts.filter((p) => !p.hidden);
   site.set(
     "blog/atom.xml",
     await memo(
       "blog:feed",
-      [...posts.map((p) => JSON.stringify(p)), cfg.siteUrl],
-      () => blog.atomFeed(posts, cfg.siteUrl),
+      [...listed.map((p) => JSON.stringify(p)), cfg.siteUrl],
+      () => blog.atomFeed(listed, cfg.siteUrl),
     ),
   );
   for (const post of posts) {
@@ -773,14 +792,15 @@ async function buildGeneratedMarkdown(genDir) {
     searchUrl: "/docs/analysis/sql-tables",
   });
 
-  // -- PerfettoSQL standard library. gen_stdlib_docs_md.py parses the .sql
-  // files itself; the inputs listed here are only for memoization.
+  // -- PerfettoSQL standard library. gen_stdlib_docs_md.py reads the .sql files
+  // with pfsql; the inputs listed here are only for memoization.
   const stdlibDir = pjoin(ROOT_DIR, "src/trace_processor/perfetto_sql/stdlib");
   const sqlFiles = listFilesRecursive(stdlibDir, (f) => f.endsWith(".sql"));
   const sqlProcessingPys = listFilesRecursive(
     pjoin(ROOT_DIR, "python/generators/sql_processing"),
     (f) => f.endsWith(".py"),
   );
+  const pfsql = buildPfsql();
   const stdlibMd = pjoin(genDir, "stdlib_docs.md");
   const stdlibMdPy = pjoin(SRC_DIR, "gen_stdlib_docs_md.py");
   out.push({
@@ -790,11 +810,18 @@ async function buildGeneratedMarkdown(genDir) {
       [
         ...sqlFiles.map((f) => ({ file: f })),
         ...sqlProcessingPys.map((f) => ({ file: f })),
+        { file: pfsql },
         { file: pjoin(ROOT_DIR, "python/perfetto/trace_data_checks.py") },
         { file: stdlibMdPy },
       ],
       () => {
-        exec("python3", [stdlibMdPy, "--output", stdlibMd]);
+        exec("python3", [
+          stdlibMdPy,
+          "--output",
+          stdlibMd,
+          "--pfsql-binary",
+          pfsql,
+        ]);
         return fs.readFileSync(stdlibMd, "utf8");
       },
     ),

@@ -21,8 +21,47 @@
 #include <cstdio>
 #include <string>
 #include <utility>
+#include <vector>
+
+#include "perfetto/ext/base/no_destructor.h"
 
 namespace perfetto::base {
+
+struct Status::Rep {
+  struct Payload {
+    std::string type_url;
+    std::string payload;
+  };
+  std::string message;
+  std::vector<Payload> payloads;
+};
+
+Status::Status(std::string msg) {
+  PERFETTO_CHECK(!msg.empty());
+  rep_ = reinterpret_cast<uintptr_t>(new Rep{std::move(msg), {}});
+}
+
+void Status::Delete(uintptr_t rep) {
+  delete reinterpret_cast<Rep*>(rep);
+}
+
+uintptr_t Status::Clone(uintptr_t rep) {
+  return reinterpret_cast<uintptr_t>(new Rep(*reinterpret_cast<Rep*>(rep)));
+}
+
+// The status's Rep, or null if it has none.
+Status::Rep* Status::rep() const {
+  return rep_ > kMovedFrom ? reinterpret_cast<Rep*>(rep_) : nullptr;
+}
+
+const std::string& Status::message() const {
+  static NoDestructor<std::string> empty;
+  static NoDestructor<std::string> moved_from("Status accessed after move");
+  if (rep_ == kOk) {
+    return empty.ref();
+  }
+  return rep_ == kMovedFrom ? moved_from.ref() : rep()->message;
+}
 
 Status ErrStatus(const char* format, ...) {
   std::string buf;
@@ -67,10 +106,10 @@ Status ErrStatus(const char* format, ...) {
 
 std::optional<std::string_view> Status::GetPayload(
     std::string_view type_url) const {
-  if (ok()) {
+  if (!rep()) {
     return std::nullopt;
   }
-  for (const auto& kv : payloads_) {
+  for (const auto& kv : rep()->payloads) {
     if (kv.type_url == type_url) {
       return kv.payload;
     }
@@ -79,27 +118,29 @@ std::optional<std::string_view> Status::GetPayload(
 }
 
 void Status::SetPayload(std::string_view type_url, std::string value) {
-  if (ok()) {
+  if (!rep()) {
     return;
   }
-  for (auto& kv : payloads_) {
+  for (auto& kv : rep()->payloads) {
     if (kv.type_url == type_url) {
       kv.payload = value;
       return;
     }
   }
-  payloads_.push_back(Payload{std::string(type_url), std::move(value)});
+  rep()->payloads.push_back(
+      Rep::Payload{std::string(type_url), std::move(value)});
 }
 
 bool Status::ErasePayload(std::string_view type_url) {
-  if (ok()) {
+  if (!rep()) {
     return false;
   }
+  auto& payloads = rep()->payloads;
   auto it = std::remove_if(
-      payloads_.begin(), payloads_.end(),
-      [type_url](const Payload& p) { return p.type_url == type_url; });
-  bool erased = it != payloads_.end();
-  payloads_.erase(it, payloads_.end());
+      payloads.begin(), payloads.end(),
+      [type_url](const Rep::Payload& p) { return p.type_url == type_url; });
+  bool erased = it != payloads.end();
+  payloads.erase(it, payloads.end());
   return erased;
 }
 

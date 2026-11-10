@@ -183,7 +183,7 @@ type CreateTableArgs = {
 export function rowsToSelectStatement(
   rows: readonly Record<string, SqlValue>[],
 ) {
-  const firstRow = rows[0];
+  const firstRow = rows[0]!;
   const columnNames = Object.keys(firstRow);
   const queryRows: string[] = [];
   for (const row of rows) {

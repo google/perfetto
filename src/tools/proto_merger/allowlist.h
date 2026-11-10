@@ -48,7 +48,10 @@ struct Allowlist {
 };
 
 // Creates a Allowlist struct from a list of allowed fields rooted at the given
-// descriptor.
+// descriptor. Each entry is a dot-separated path of field names (e.g.
+// "foo.bar.baz"): the last field is allowed together with everything inside
+// it, while the fields before it (and their message types) are allowed on
+// their own, without the other fields of those messages.
 base::Status AllowlistFromFieldList(
     const google::protobuf::Descriptor&,
     const std::vector<std::string>& allowed_fields,

@@ -108,19 +108,19 @@ function percentile(sorted: number[], p: number): number {
     sorted.length - 1,
     Math.max(0, Math.floor((p / 100) * sorted.length)),
   );
-  return sorted[idx];
+  return sorted[idx]!;
 }
 
 function summarise(samples: Sample[]): Partial<Record<Phase, Stats>> {
   const out: Partial<Record<Phase, Stats>> = {};
   if (samples.length === 0) return out;
-  for (const k of Object.keys(samples[0]) as Phase[]) {
+  for (const k of Object.keys(samples[0]!) as Phase[]) {
     const vals = samples.map((s) => s[k]).sort((a, b) => a - b);
     out[k] = {
-      min: vals[0],
+      min: vals[0]!,
       p50: percentile(vals, 50),
       p95: percentile(vals, 95),
-      max: vals[vals.length - 1],
+      max: vals[vals.length - 1]!,
       mean: vals.reduce((a, b) => a + b, 0) / vals.length,
     };
   }

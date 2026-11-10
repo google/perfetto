@@ -29,6 +29,7 @@ import {Callout} from '../widgets/callout';
 import {CodeSnippet} from '../widgets/code_snippet';
 import {Icons} from '../base/semantic_icons';
 import {mapStackTraceWithMinifiedSourceMap} from '../base/source_map_utils';
+import {DISCORD_URL} from '../public/utils';
 
 const MODAL_KEY = 'crash_modal';
 
@@ -82,6 +83,11 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
 
   if (err.message.includes('(ERR:fmt)')) {
     showUnknownFileError();
+    return;
+  }
+
+  if (err.message.includes('(ERR:dup_machine_traces)')) {
+    showDuplicateMachineTracesError();
     return;
   }
 
@@ -297,7 +303,7 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
   }
 
   private fileBug(err: ErrorDetails) {
-    const errTitle = err.message.split('\n', 1)[0].substring(0, 80);
+    const errTitle = err.message.split('\n', 1)[0]!.substring(0, 80);
     let url = 'https://goto.google.com/perfetto-ui-bug';
     url += '?title=' + encodeURIComponent(`UI Error: ${errTitle}`);
     url += '&description=';
@@ -398,6 +404,28 @@ function showUnknownFileError() {
   });
 }
 
+function showDuplicateMachineTracesError() {
+  showModal({
+    title: 'Cannot merge traces captured on the same machine',
+    content: () =>
+      m(
+        '.pf-error-dialog',
+        m(
+          Callout,
+          {icon: Icons.Info},
+          'Merging traces from the same machine is not supported yet.',
+        ),
+        m(
+          'p.pf-error-dialog__note',
+          'If these traces are from different machines, assign each file to ' +
+            'a separate machine when opening them or in ',
+          m('code', 'perfetto_manifest.json'),
+          '.',
+        ),
+      ),
+  });
+}
+
 type TraceParseErrorVariant = 'corrupt' | 'parse';
 
 function showTraceParseError(variant: TraceParseErrorVariant, message: string) {
@@ -420,7 +448,7 @@ function extractTraceParseDetails(message: string): string {
   let inner = message.replace(/^Trace parse failure: /, '');
   const legacy = /^Trace parse failure \((.*)\) \(ERR:tp-parse\)/s.exec(inner);
   if (legacy) {
-    inner = legacy[1];
+    inner = legacy[1]!;
   }
   return inner.replace(/\s*\(ERR:tp-(?:corrupt|parse)\)/g, '').trim();
 }
@@ -440,6 +468,19 @@ function fileBugNote(attaching: string): m.Children {
       'file a bug',
     ),
     ` ${attaching}.`,
+  );
+}
+
+function askOnDiscordNote(): m.Children {
+  return m(
+    'p.pf-error-dialog__note',
+    'Not sure what went wrong? Ask in #help on ',
+    m(
+      Anchor,
+      {href: DISCORD_URL, target: '_blank', icon: Icons.ExternalLink},
+      'Discord',
+    ),
+    '.',
   );
 }
 
@@ -484,6 +525,7 @@ class TraceParseErrorComponent implements m.ClassComponent<TraceParseErrorAttrs>
       }),
       whatToDo !== undefined && m('p.pf-error-dialog__note', whatToDo),
       fileBugNote('attaching the trace'),
+      askOnDiscordNote(),
     );
   }
 }
@@ -514,6 +556,7 @@ function showTraceFetchError(message: string) {
             'try again.',
         ),
         fileBugNote('including the trace URL'),
+        askOnDiscordNote(),
       ),
   });
 }

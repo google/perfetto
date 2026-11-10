@@ -62,7 +62,7 @@ void GpuWorkPeriodTracker::ParseGpuWorkPeriodEvent(int64_t timestamp,
   if (duration < 0) {
     context_->import_logs_tracker->RecordParserLog(
         stats::gpu_work_period_negative_duration, timestamp,
-        [&](ArgsTracker::BoundInserter& inserter) {
+        [&](ArgsInserter& inserter) {
           inserter.AddArg(
               start_time_ns_key_id_,
               Variadic::Integer(static_cast<int64_t>(evt.start_time_ns())));

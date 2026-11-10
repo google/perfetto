@@ -37,6 +37,7 @@ const uint32_t kReservedFieldIds[] = {
     protos::pbzero::TracePacket::kTrustedPacketSequenceIdFieldNumber,
     protos::pbzero::TracePacket::kTraceConfigFieldNumber,
     protos::pbzero::TracePacket::kTraceStatsFieldNumber,
+    protos::pbzero::TracePacket::kExperimentalTracingV2ProducerStatsFieldNumber,
     protos::pbzero::TracePacket::kCompressedPacketsFieldNumber,
     protos::pbzero::TracePacket::kZstdCompressedPacketsFieldNumber,
     protos::pbzero::TracePacket::kSynchronizationMarkerFieldNumber,
@@ -45,6 +46,9 @@ const uint32_t kReservedFieldIds[] = {
     protos::pbzero::TracePacket::kServiceEventFieldNumber,
     protos::pbzero::TracePacket::kTraceProvenanceFieldNumber,
     protos::pbzero::TracePacket::kProtovmsFieldNumber,
+    protos::pbzero::TracePacket::kCloneSnapshotTriggerFieldNumber,
+    protos::pbzero::TracePacket::kAuthoritativeTriggerFieldNumber,
+    protos::pbzero::TracePacket::kTriggerFieldNumber,
 };
 
 // This translation unit is quite subtle and perf-sensitive. Remember to check

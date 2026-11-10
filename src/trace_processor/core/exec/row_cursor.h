@@ -23,7 +23,9 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
@@ -41,9 +43,11 @@ class RowCursor {
   RowCursor(Source&&) = delete;
   ~RowCursor();
 
-  // Rewinds and moves to the first row.
-  bool Open() {
-    source_.Rewind(*state_);
+  // Rewinds and moves to the first row, the run's filters comparing with
+  // `filter_values` (see Context::SetFilterValues).
+  bool Open(base::Span<const FilterValue> filter_values = {}) {
+    context_.SetFilterValues(filter_values);
+    Restart(source_, *state_);
     batch_ = nullptr;
     index_ = 0;
     size_ = 0;

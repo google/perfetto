@@ -18,7 +18,6 @@ import {classNames} from '../base/classnames';
 import {Gate, isEmptyVnodes} from '../base/mithril_utils';
 import {Button} from './button';
 import {Icons} from '../base/semantic_icons';
-import {maybeUndefined} from '../base/utils';
 import {TabStrip} from './tab_strip';
 
 export interface TabsTab {
@@ -176,7 +175,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       this.dropPosition === 'after' &&
       this.draggedKey !== tab.key;
     // Also show drop-after on the previous tab if we're dropping before
-    const prevTab = maybeUndefined(tabs[index - 1]);
+    const prevTab = tabs[index - 1];
     const showDropAfterFromNext =
       prevTab &&
       this.dropTargetKey === tabs[index]?.key &&

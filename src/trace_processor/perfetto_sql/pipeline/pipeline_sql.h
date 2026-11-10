@@ -23,6 +23,7 @@
 
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
 namespace perfetto::trace_processor::pipeline {
@@ -54,9 +55,11 @@ struct PlanWithDataframeArgs {
 PlanWithDataframeArgs MoveSqlSourcesToDataframeArgs(LogicalPlan plan);
 
 // SQL reading `plan`'s output under its own column names. The plan is
-// serialized into the SQL, and each relation it reads from SQL is built into a
-// dataframe where that SQL runs, so it sees whatever is in scope there.
-base::StatusOr<std::string> SelectPipelineSql(const LogicalPlan& plan);
+// serialized into the SQL, stamped with `key`, and each relation it reads from
+// SQL is built into a dataframe where that SQL runs, so it sees whatever is in
+// scope there.
+base::StatusOr<std::string> SelectPipelineSql(const LogicalPlan& plan,
+                                              const PlanKey& key);
 
 // -----------------------------------------------------------------------------
 // SQL quoting

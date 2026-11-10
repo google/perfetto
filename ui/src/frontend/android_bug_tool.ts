@@ -69,7 +69,7 @@ export function loadAndroidBugToolInfo(): Promise<TraceFromBuganizer> {
             deferred.resolve({
               issueId: response.issueId,
               issueTitle: response.issueTitle,
-              file: files[0],
+              file: files[0]!,
             });
           } else {
             throw new Error('ABT: Got no attachments from extension');

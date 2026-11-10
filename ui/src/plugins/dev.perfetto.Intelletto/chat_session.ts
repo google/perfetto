@@ -173,7 +173,7 @@ export class ChatSession {
             // Attach the result to the most recent matching tool-call line that
             // doesn't have one yet (tool calls within a round execute in order).
             for (let i = this.lines.length - 1; i >= 0; i--) {
-              const line = this.lines[i];
+              const line = this.lines[i]!;
               if (
                 line.role === 'toolcall' &&
                 line.text === evt.name &&

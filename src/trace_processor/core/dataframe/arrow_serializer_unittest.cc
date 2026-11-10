@@ -21,6 +21,7 @@
 #include <cstring>
 #include <optional>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -379,6 +380,31 @@ TEST(ArrowSerializerTest, ValidatesPrepareWriteLifecycle) {
   EXPECT_THAT(serializer.Write(other, pool, sink), IsError());
   EXPECT_THAT(serializer.Write(source, other_pool, sink), IsError());
   EXPECT_OK(serializer.Write(source, pool, sink));
+}
+
+TEST(ArrowSerializerTest, RejectsReplacementAfterPrepare) {
+  StringPool pool;
+  auto short_value = pool.InternString(base::StringView("a"));
+  auto long_value = pool.InternString(base::StringView("a longer value"));
+  auto source = MakeDataframe(kStringNonNull, &pool, short_value);
+  auto replacement = MakeDataframe(kStringNonNull, &pool, long_value);
+  source.Finalize();
+  replacement.Finalize();
+  ASSERT_EQ(source.mutations(), replacement.mutations());
+  uint64_t previous_mutations = source.mutations();
+  ArrowSerializer serializer;
+  ASSERT_OK(serializer.Prepare(source, pool));
+
+  source = std::move(replacement);
+  EXPECT_GT(source.mutations(), previous_mutations);
+  bool wrote = false;
+  EXPECT_THAT(serializer.Write(source, pool,
+                               [&](const uint8_t*, size_t) {
+                                 wrote = true;
+                                 return base::OkStatus();
+                               }),
+              IsError());
+  EXPECT_FALSE(wrote);
 }
 
 TEST(ArrowSerializerTest, CanBeReused) {

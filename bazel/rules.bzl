@@ -374,6 +374,7 @@ def perfetto_cpp_blob_header(name, script, deps, outs, args = [], **kwargs):
     perfetto_cc_library(
         name = name,
         hdrs = [":" + name + "_gen"],
+        deps = [perfetto_label(":src_base_base")],
         **kwargs
     )
 

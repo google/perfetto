@@ -23,11 +23,11 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/tree/tree.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::flamechart {
 namespace {
@@ -45,8 +45,8 @@ struct OpenSegment {
 }  // namespace
 
 base::StatusOr<dataframe::Dataframe> Build(const core::Tree& tree,
-                                           core::Span<const int64_t> ts,
-                                           core::Span<const int64_t> leaf_id,
+                                           base::Span<const int64_t> ts,
+                                           base::Span<const int64_t> leaf_id,
                                            StringPool* pool) {
   PERFETTO_CHECK(ts.size() == leaf_id.size());
 

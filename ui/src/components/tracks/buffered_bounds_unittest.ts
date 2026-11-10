@@ -60,16 +60,16 @@ describe('BufferedBounds', () => {
   it('recalculates bounds when visible window exceeds loaded start', () => {
     const bounds = new BufferedBounds();
 
-    // First update: visible 100-200 -> padded 0-300
-    bounds.update(mkSpan(100n, 200n), 1n);
+    // First update: visible 300-400 -> padded 200-500
+    bounds.update(mkSpan(300n, 400n), 1n);
 
     // Pan left beyond loaded bounds
-    const result = bounds.update(mkSpan(-50n, 50n), 1n);
+    const result = bounds.update(mkSpan(150n, 250n), 1n);
 
-    // Should recalculate: visible -50 to 50, duration=100
-    // Padded: -150 to 150
-    expect(result.start).toBe(t(-150n));
-    expect(result.end).toBe(t(150n));
+    // Should recalculate: visible 150 to 250, duration=100
+    // Padded: 50 to 350
+    expect(result.start).toBe(t(50n));
+    expect(result.end).toBe(t(350n));
   });
 
   it('recalculates bounds when visible window exceeds loaded end', () => {
@@ -155,9 +155,22 @@ describe('BufferedBounds', () => {
     const result = bounds.update(mkSpan(0n, 1000n), 10n);
 
     // Visible: 0-1000, duration=1000
-    // Padded: -1000 to 2000
-    // Quantized to 10: -1000 to 2000
-    expect(result.start).toBe(t(-1000n));
+    // Padded: -1000 to 2000 -> clamped to [Time.MIN (0), 2000]
+    // Quantized to 10: 0 to 2000
+    expect(result.start).toBe(t(0n));
     expect(result.end).toBe(t(2000n));
+  });
+
+  it('clamps bounds to [Time.MIN, Time.MAX]', () => {
+    const bounds = new BufferedBounds();
+
+    // Negative visible start (e.g. from display gutter) and large end near Time.MAX
+    const result = bounds.update(
+      mkSpan(-50n, 6949342971933024256n),
+      9007199254740992n, // 2^53
+    );
+
+    expect(result.start).toBe(Time.MIN);
+    expect(result.end).toBe(Time.MAX);
   });
 });

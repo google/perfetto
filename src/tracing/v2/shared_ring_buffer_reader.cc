@@ -217,7 +217,7 @@ SharedRingBufferReader::ConsumeNextPosition() {
       // kFlagDataLoss to the relocated fragment instead.
       if (status == CopiedChunkStatus::kNoFragments &&
           (copied_chunk_.payload_flags & kFlagDataLoss)) {
-        delegate_->OnDataLoss(copied_chunk_.writer_id);
+        return HandleCopiedChunk(CopiedChunkStatus::kDataLoss);
       }
       return HandleCopiedChunk(status);
     }
@@ -335,6 +335,7 @@ SharedRingBufferReader::ConsumeResult SharedRingBufferReader::HandleCopiedChunk(
   switch (status) {
     case CopiedChunkStatus::kReady:
       ++stats_.chunks_read;
+      stats_.bytes_read += copied_payload_.size();
       delegate_->OnChunkRead(copied_chunk_);
       return ConsumeResult::kChunkRead;
     case CopiedChunkStatus::kMalformed:
@@ -346,6 +347,7 @@ SharedRingBufferReader::ConsumeResult SharedRingBufferReader::HandleCopiedChunk(
       delegate_->OnDataLoss(copied_chunk_.writer_id);
       break;
     case CopiedChunkStatus::kDataLoss:
+      ++stats_.data_loss_chunks;
       delegate_->OnDataLoss(copied_chunk_.writer_id);
       break;
     case CopiedChunkStatus::kNoFragments:

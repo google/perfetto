@@ -122,7 +122,7 @@ export class ScrollJankCauseMap {
       const causeProcess = getScrollJankProcess(iter.causeProcess);
       const causeThread = getScrollJankThread(iter.causeThread);
 
-      this.causes[eventLatencyStage].jankCauses.push({
+      this.causes[eventLatencyStage]!.jankCauses.push({
         description: iter.causeDescription,
         process: causeProcess,
         thread: causeThread,

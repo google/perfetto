@@ -1368,7 +1368,7 @@ describe('Connection Management', () => {
         return {child, portIndex};
       });
 
-      expect(childConnections[0].portIndex).toBe(1); // B was at port 1
+      expect(childConnections[0]!.portIndex).toBe(1); // B was at port 1
 
       // Disconnect nodeB
       removeConnection(nodeA, nodeB);
@@ -2425,8 +2425,8 @@ describe('Connection Management', () => {
 
       // VERIFY: B was connected via secondary input, so it's NOT orphaned
       expect(childConnections.length).toBe(1);
-      expect(childConnections[0].child).toBe(nodeB);
-      expect(childConnections[0].portIndex).toBeDefined(); // Secondary input!
+      expect(childConnections[0]!.child).toBe(nodeB);
+      expect(childConnections[0]!.portIndex).toBeDefined(); // Secondary input!
 
       // VERIFY BUG: Buggy code incorrectly treats B as orphaned
       expect(buggyOrphanedChildren).toContain(nodeB); // BUG!
@@ -2596,7 +2596,7 @@ describe('Connection Management', () => {
 
       // Union allows unbounded inputs
       for (let i = 0; i < nodes.length; i++) {
-        addConnection(nodes[i], unionNode, i);
+        addConnection(nodes[i]!, unionNode, i);
       }
 
       // With 10 inputs, validation should pass (unbounded max)

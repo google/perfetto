@@ -20,7 +20,6 @@ import {Tabs, type TabsTab} from '../../widgets/tabs';
 import {QueryHistoryComponent} from '../query/query_history';
 import {QueryRunner} from '../query/query_runner';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
-import {showModal} from '../../widgets/modal';
 import {EditorTabView} from './editor_tab_view';
 import {QueryTabsState} from './query_tabs_state';
 import {handleSharedTraceListPostMessage} from './shared_trace_list';
@@ -100,36 +99,9 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         this.tabsState.markDirty();
       },
       onTabRename: (key, newTitle) => this.tabsState.renameTab(key, newTitle),
-      onTabClose: async (key) => {
-        // closeTab is a no-op with one tab left; bail before the confirm
-        // so middle-click doesn't dead-end.
+      onTabClose: (key) => {
         if (this.tabsState.tabs.length <= 1) return;
-        // Confirm only for ephemeral queries — closing loses the results.
-        // Persistent queries keep running and can be reopened from History.
-        const tab = this.tabsState.tabs.find((t) => t.id === key);
-        if (tab?.isLoading && !tab.materialize) {
-          let confirmed = false;
-          await showModal({
-            title: 'Close tab?',
-            content: m(
-              'div',
-              'A query is still running. Closing this tab will lose the results.',
-            ),
-            buttons: [
-              {text: 'Keep open'},
-              {
-                text: 'Close',
-                primary: true,
-                action: () => {
-                  confirmed = true;
-                },
-              },
-            ],
-          });
-          if (!confirmed) return;
-        }
         this.tabsState.closeTab(key);
-        m.redraw();
       },
       onTabReorder: (draggedKey, beforeKey) =>
         this.tabsState.reorderTab(draggedKey, beforeKey),
@@ -157,7 +129,6 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       openQuery: async (
         query: string,
         uuid: string,
-        materialize: boolean,
         forceNew?: boolean,
         limit?: number,
         startTime?: number,
@@ -167,7 +138,6 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           query,
           limit,
           uuid,
-          materialize,
           forceNew,
         );
         this.tabsState.activeTabId = tab.id;
@@ -179,21 +149,23 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       },
     });
 
-    if (!this.sidebarVisible) {
-      return m('.pf-bt-query-page', leftPanel);
-    }
-
+    // Always rendered: dropping it while History is hidden remounts the editor.
     return m(
       '.pf-bt-query-page',
       m(SplitPanel, {
+        className: this.sidebarVisible
+          ? undefined
+          : 'pf-bt-query-page__split--sidebar-hidden',
         direction: 'horizontal',
         initialSplit: {percent: 25},
+        split: this.sidebarVisible ? undefined : {percent: 0},
         controlledPanel: 'second',
         // Floor for the History meta-band layout; dismiss the sidebar
-        // entirely (Ctrl+Shift+B) on narrower screens.
-        minSize: 280,
+        // entirely (Ctrl+Shift+B) on narrower screens. 0 while hidden: the
+        // editor's max width is 100% minus this.
+        minSize: this.sidebarVisible ? 280 : 0,
         firstPanel: leftPanel,
-        secondPanel: sidebarPanel,
+        secondPanel: this.sidebarVisible ? sidebarPanel : undefined,
       }),
     );
   }

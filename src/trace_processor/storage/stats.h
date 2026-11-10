@@ -19,6 +19,8 @@
 
 #include <cstddef>
 
+#include "src/trace_processor/storage/stats_types.h"  // IWYU pragma: export
+
 namespace perfetto::trace_processor::stats {
 
 // Compile time list of parsing and processing stats.
@@ -33,6 +35,11 @@ namespace perfetto::trace_processor::stats {
   F(android_log_format_invalid,           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_skipped,              kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_total,                kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(android_system_server_restart,        kSingle,  kDataLoss, kAnalysis, Scope::kMachineAndTrace, \
+      "system_server restarted during the trace (e.g. it crashed): the "       \
+      "processes it started died with it without any death event, so "         \
+      "processes and their events around the restart may be misattributed. "   \
+      "See trace_import_logs for the restarts."),                              \
   F(android_video_size_cap_hit,           kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "android.display.video producer hit max_stream_size_bytes; stream torn " \
       "down. See trace_import_logs for the affected display."),                \
@@ -57,6 +64,19 @@ namespace perfetto::trace_processor::stats {
   F(android_video_parse_size_cap_hit,     kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "android.display.video stream exceeded the parse-time size cap; frames " \
       "dropped. See the trace_import_logs table for the affected display."),   \
+  F(android_video_vsync_composite_unmatched,                                   \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "android.surfaceflinger.virtualdisplay VirtualDisplayComposite packets " \
+      "whose present_time_us matched no android.display.video frame pts_us, "  \
+      "so their vsync id is not linked to a video frame. Expected for "        \
+      "virtual displays that are not being captured, and for frames the "      \
+      "encoder dropped or re-timed."),                                         \
+  F(android_video_vsync_present_time_ambiguous,                                \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "present_time_us values that VirtualDisplayComposite packets map to "    \
+      "different vsync ids, and that match an android.display.video frame "    \
+      "pts_us. Such frames get no frame_timeline_vsync_id, as the composite "  \
+      "that produced them is ambiguous."),                                     \
   F(deobfuscate_location_parse_error,     kSingle,  kError,    kAnalysis, Scope::kGlobal,          ""), \
   F(energy_breakdown_missing_values,      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(energy_descriptor_invalid,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
@@ -207,6 +227,13 @@ namespace perfetto::trace_processor::stats {
   F(rss_stat_unknown_keys,                kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(rss_stat_negative_size,               kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
   F(rss_stat_unknown_thread_for_mm_id,    kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(rss_stat_curr_ignored_mm_owned_by_other_process,                           \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+       "Number of rss_stat events with curr=true which were treated as "       \
+       "curr=false because the mm is still in use by a live thread of a "      \
+       "different process. "                                                   \
+       "This is caused by a race in the kernel hist trigger backing "          \
+       "rss_stat_throttled (b/576695708)."),                                   \
   F(filter_input_bytes,                   kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,         \
        "Number of bytes pre-TraceFilter. The trace file would have been this " \
        "many bytes big if the TraceConfig didn't specify any TraceFilter. "    \
@@ -228,6 +255,23 @@ namespace perfetto::trace_processor::stats {
   F(flow_end_without_start,               kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(flow_invalid_id,                      kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(flow_without_direction,               kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
+  F(stack_sample_error_unknown_kind,      kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "A stack sampler could not take a sample, but the kind of error is "     \
+      "unknown: the StackSample error has no kind, has a builtin kind "        \
+      "newer than this trace processor, or refers to an interned "             \
+      "descriptor that is missing."),                                          \
+  F(stack_sample_error_with_callstack,    kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+      "A StackSample had both an error and a callstack (or an unwind "         \
+      "error). An error means the sample could not be taken, so this is a "    \
+      "bug in the producer. The error was kept and the callstack ignored."),   \
+  F(stack_sample_failed,                  kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "A stack sampler could not take a sample at all (a StackSample with "    \
+      "the BUILTIN_SAMPLE_FAILED error). The import logs have the time of "    \
+      "each one."),                                                            \
+  F(stack_sample_unwind_failed,           kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "A stack sampler took a sample but could not unwind its stack (a "       \
+      "StackSample with the BUILTIN_UNWIND_FAILED error). The import logs "    \
+      "have the time of each one."),                                           \
   F(stackprofile_empty_callstack,         kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
       "Callstack had no frames. Ignored"),                                     \
   F(stackprofile_invalid_string_id,       kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
@@ -243,6 +287,11 @@ namespace perfetto::trace_processor::stats {
   F(task_state_invalid,                   kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(traced_buf_abi_violations,            kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_buffer_size,               kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(traced_buf_buffer_type,               kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "The buffer type the service used: 1 for V1, 2 for V2 and 3 for V3. 0 "  \
+      "means the service is too old to report it. A type other than the one "  \
+      "in the config means the service fell back, for example because it "     \
+      "doesn't support V3 or was built without zstd."),                        \
   F(traced_buf_bytes_overwritten,         kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_bytes_read,                kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_bytes_filtered_out,        kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
@@ -251,6 +300,38 @@ namespace perfetto::trace_processor::stats {
        "(filter_input_bytes - filter_output_bytes) because of the synthetic "  \
        "metadata and stats packets generated by the tracing service itself."), \
   F(traced_buf_bytes_written,             kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(traced_buf_bundles_overwritten,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "TraceBufferV3 only. Number of bundles that a RING_BUFFER overwrote "    \
+      "before they were read. This is how a full V3 ring buffer drops its "    \
+      "oldest data. Each affected sequence reports the loss on its next "      \
+      "packet, counted in traced_buf_data_loss_overwrite. When streaming to "  \
+      "a file, it means reads didn't keep up, so use a larger buffer or a "    \
+      "shorter file_write_period_ms."),                                        \
+  F(traced_buf_bundles_too_large,         kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "TraceBufferV3 only. Number of bundles dropped because they were "       \
+      "larger than the whole buffer after compression, or held 4 GiB or "      \
+      "more of packets before compression. This happens with either fill "     \
+      "policy, usually because of a large packet that doesn't compress "       \
+      "well. Use a larger buffer. Each affected sequence reports the loss "    \
+      "on its next packet."),                                                  \
+  F(traced_buf_bundles_written,           kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "TraceBufferV3 only. Number of compressed bundles the buffer stored. "   \
+      "A bundle holds the packets that a bundling pass moved out of "          \
+      "staging."),                                                             \
+  F(traced_buf_bundling_max_us,           kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "TraceBufferV3 only. Duration of the longest bundling pass, in "         \
+      "microseconds. A pass compresses packets, overwrites old bundles and "   \
+      "compacts staging on the service's main thread. While it runs, the "     \
+      "service doesn't copy chunks out of producers' shared memory."),         \
+  F(traced_buf_bundling_passes,           kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "TraceBufferV3 only. Number of bundling passes, started at the end of "  \
+      "a write batch once staging holds enough data, or when a write "         \
+      "doesn't fit in staging. Includes passes that found no readable "        \
+      "packets."),                                                             \
+  F(traced_buf_bundling_time_us,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "TraceBufferV3 only. Total duration of all bundling passes, in "         \
+      "microseconds. Divide it by traced_buf_bundling_passes for the "         \
+      "average pass."),                                                        \
   F(traced_buf_clone_done_timestamp_ns,   kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
     "The timestamp when the clone snapshot operation for this buffer "         \
     "finished"),                                                               \
@@ -267,12 +348,23 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_chunks_committed_out_of_order,                                  \
                                           kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_compactions,               kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-    "Number of completed TraceBufferV2 compactions, including those that "     \
-    "move no chunks and excluding calls that skip compaction, such as "        \
-    "calls on DISCARD or read-only buffers."),                                 \
+    "Number of compactions of a TraceBufferV2, or of TraceBufferV3's "         \
+    "staging buffer. A compaction moves unread chunks to the start of the "    \
+    "buffer, so the space freed by reads can take new writes. TraceBufferV2 "  \
+    "compacts only with experimental_trace_buffer_v2_compaction. Includes "    \
+    "compactions that moved no chunks, but not skipped ones or calls on "      \
+    "read-only buffers."),                                                     \
   F(traced_buf_compactions_skipped,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-    "Number of TraceBufferV2 compactions skipped because live chunks were "    \
-    "on both sides of the write cursor."),                                     \
+    "Number of compactions of a TraceBufferV2, or of TraceBufferV3's "         \
+    "staging buffer, skipped because unread chunks were on both sides of "     \
+    "the write cursor. Moving them would break their order, so they stay in "  \
+    "place. Many skips mean some chunks stay unread for long, for example "    \
+    "fragments that wait for the rest of their packet."),                      \
+  F(traced_buf_compressed_bytes_written,  kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "TraceBufferV3 only. Total size of the stored bundles after "            \
+      "compression, including their headers. Reads and overwrites don't "      \
+      "reduce it. A DISCARD buffer stops accepting writes once it reaches "    \
+      "the buffer size."),                                                     \
   F(traced_buf_oversized_packets_dropped, kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "TraceBufferV2 only. Num. proto-group packets dropped at read time "     \
       "because length-delimited protobuf cannot encode them: a nested "        \
@@ -285,8 +377,20 @@ namespace perfetto::trace_processor::stats {
       "if you're using DISCARD buffers and traced_buf_chunks_discarded is "    \
       "nonzero, meaning that the buffer was filled."),                         \
   F(traced_buf_patches_succeeded,         kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(traced_buf_protocol_v1_writers,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Number of writers that sent chunks to this buffer through the shared "  \
+      "memory buffer (protocol v1)."),                                         \
+  F(traced_buf_protocol_v2_writers,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Number of writers that sent chunks to this buffer through a tracing "   \
+      "v2 ring buffer (protocol v2)."),                                        \
   F(traced_buf_readaheads_failed,         kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_readaheads_succeeded,      kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(traced_buf_staging_space_passes,      kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "TraceBufferV3 only. Number of bundling passes started because a "       \
+      "write didn't fit in staging, out of traced_buf_bundling_passes. Such "  \
+      "a pass can reject chunks that a scrape copied out of order, counted "   \
+      "in traced_buf_chunks_discarded. A high count means write batches "      \
+      "often outgrow staging, so use a larger buffer."),                       \
   F(traced_buf_trace_writer_packet_loss,  kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "The tracing service observed packet loss for this buffer during this "  \
       "tracing session. This also counts packet loss that happened before "    \
@@ -294,7 +398,7 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_sequence_packet_loss,      kIndexed, kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
       "The number of groups of consecutive packets lost in each sequence for " \
       "this buffer"),                                                          \
-  F(traced_buf_incremental_sequences_dropped, kIndexed, kDataLoss, kAnalysis, Scope::kMachineAndTrace,  \
+  F(traced_buf_incremental_sequences_dropped, kIndexed, kInfo,     kAnalysis, Scope::kMachineAndTrace,  \
       "For a given buffer, indicates the number of sequences where all the "   \
       "packets on that sequence were dropped due to lack of a valid "          \
       "incremental state (i.e. interned data). This is usually a strong sign " \
@@ -329,6 +433,14 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_data_loss_smb_full,        kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "Sequence data losses the producer attributed to its shared memory "     \
       "buffer being full, per buffer."),                                       \
+  F(traced_buf_uncompressed_bytes_overwritten, kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    \
+      "TraceBufferV3 only. Total size before compression of the packets in "   \
+      "the bundles counted by traced_buf_bundles_overwritten."),               \
+  F(traced_buf_uncompressed_bytes_written, kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,        \
+      "TraceBufferV3 only. Total size of the packets in the stored bundles "   \
+      "before compression, with a small header per packet. Divide it by "      \
+      "traced_buf_compressed_bytes_written for the compression ratio, which "  \
+      "helps to size the buffer."),                                            \
   F(traced_buf_write_wrap_count,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_clone_started_timestamp_ns,    kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,         \
     "The timestamp when the clone snapshot operation for this trace started"), \
@@ -348,6 +460,83 @@ namespace perfetto::trace_processor::stats {
   F(traced_producers_seen,                kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_total_buffers,                 kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_tracing_sessions,              kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(tracing_v2_producer_bytes_read,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Total size in bytes of packet fragments copied from a producer's "      \
+      "tracing v2 ring buffer. Excludes chunk headers and the size varints."), \
+  F(tracing_v2_producer_chunk_size_bytes, kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Size in bytes of each chunk in a producer's tracing v2 ring buffer."),  \
+  F(tracing_v2_producer_chunks_read,      kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Number of chunks copied from a producer's tracing v2 ring buffer."),    \
+  F(tracing_v2_producer_data_loss_chunks, kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Number of ring buffer chunks discarded because their writer flagged "   \
+      "a data loss. A writer flags its next published chunk after dropping "   \
+      "data, e.g. when the ring buffer was full. The whole chunk is "          \
+      "discarded, including packets written before the drop."),                \
+  F(tracing_v2_producer_drain_max_time_ns,                                     \
+                                          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "CLOCK_MONOTONIC time spent in the longest pass reading a producer's "   \
+      "ring buffer in nanoseconds. The service has one main thread, so a "     \
+      "long pass delays other producers and requests."),                       \
+  F(tracing_v2_producer_drain_passes,     kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Number of times the service read a producer's ring buffer. Includes "   \
+      "producer requests, service reads (e.g. on a flush), and retries of "    \
+      "passes that stopped early."),                                           \
+  F(tracing_v2_producer_drain_time_ns,    kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Total CLOCK_MONOTONIC time of all tracing_v2_producer_drain_passes, "   \
+      "in nanoseconds."),                                                      \
+  F(tracing_v2_producer_invalid_destination_chunks,                            \
+                                          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Number of chunks read from the ring buffer but dropped because their "  \
+      "target buffer is not one the producer can write to, no longer exists "  \
+      "or does not accept tracing v2 chunks."),                                \
+  F(tracing_v2_producer_invalid_writer_chunks,                                 \
+                                          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Number of chunks read from the ring buffer but dropped because their "  \
+      "writer ID was zero or out of range."),                                  \
+  F(tracing_v2_producer_malformed_chunks, kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Number of ring buffer chunks discarded because their fragment sizes "   \
+      "were invalid. A size could not be decoded or the fragments did not "    \
+      "fit in the chunk. A nonzero value points to a writer bug or corrupt "   \
+      "memory."),                                                              \
+  F(tracing_v2_producer_num_chunks,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Number of chunks in a producer's tracing v2 ring buffer."),             \
+  F(tracing_v2_producer_pid,              kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "PID of the process that owns the tracing v2 ring buffer. The other "    \
+      "tracing_v2_producer_* stats are totals since the producer connected, "  \
+      "so they can include other tracing sessions."),                          \
+  F(tracing_v2_producer_positions_skipped,                                     \
+                                          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Number of ring buffer positions that yielded no chunk to the "          \
+      "service. Includes unclaimed positions, chunks with no published "       \
+      "fragments, and chunks discarded for data loss, malformed fragment "     \
+      "sizes or an unsupported format."),                                      \
+  F(tracing_v2_producer_rewrite_requests, kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Number of ring buffer chunks read while their writer was still "        \
+      "filling them. The writer then moves its open fragment to another "      \
+      "chunk."),                                                               \
+  F(tracing_v2_producer_trace_buffer_rejected_chunks,                          \
+                                          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Number of chunks read from the ring buffer but rejected by the trace "  \
+      "buffer. The buffer counts these in traced_buf_abi_violations or "       \
+      "traced_buf_chunks_discarded."),                                         \
+  F(tracing_v2_producer_unsupported_format_chunks,                             \
+                                          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Number of ring buffer chunks discarded because the service does not "   \
+      "know their format."),                                                   \
+  F(tracing_v2_producer_writer_dropped_packets,                                \
+                                          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Number of packets the producer reports its writers dropped before "     \
+      "they reached a chunk. Includes drops before the ring buffer was "       \
+      "attached. Writers update this count when they flush or stop "           \
+      "dropping, so it can lag."),                                             \
+  F(tracing_v2_producer_writer_stall_time_ms,                                  \
+                                          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Total time in milliseconds the producer reports its writers spent "     \
+      "waiting for free chunks. The writer threads were blocked during these " \
+      "waits."),                                                               \
+  F(tracing_v2_producer_writer_stalls,    kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+      "Number of waits for a free chunk reported by the producer. A writer "   \
+      "retries after about 100 ms, so a longer stall counts several times."),  \
   F(track_event_parser_errors,            kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
   F(track_event_dropped_packets_outside_of_range_of_interest,                  \
                                           kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
@@ -467,6 +656,8 @@ namespace perfetto::trace_processor::stats {
       "by adaptive sampling."),                                                \
   F(heapprofd_unwind_time_us,             kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
       "Time spent unwinding callstacks."),                                     \
+  F(heapprofd_unwind_time_us_histogram,   kIndexedHistogram, kInfo, kTrace, Scope::kMachineAndTrace,    \
+      "Histogram of callstack unwinding times (us), per pid."),                \
   F(heapprofd_unwind_samples,             kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
       "Number of samples unwound."),                                           \
   F(heapprofd_client_spinlock_blocked,    kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
@@ -921,6 +1112,29 @@ namespace perfetto::trace_processor::stats {
       "A TrackEventRangeOfInterest packet was received without the required "  \
       "start_us field. The packet is ignored. This is a bug in the trace "     \
       "producer."),                                                            \
+  F(track_descriptor_invalid_dimension,         kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackDescriptor declared a dimension without a name or without a "    \
+      "value, which is ignored, or with an iid which is not in the interned "  \
+      "data of the sequence. A descriptor with an unknown name or value iid "  \
+      "is ignored entirely, so that a later re-emission with the interned "    \
+      "data can still be reserved; an unknown display_name_iid only drops "    \
+      "the display name."),                                                    \
+  F(track_descriptor_reserved_dimension_name,   kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackDescriptor declared a custom dimension using a name reserved "   \
+      "for well known dimensions (machine, gpu, cpu, process, thread). These " \
+      "are synthesized by trace processor and cannot be redefined: the "       \
+      "dimension is ignored. This is a bug in the trace producer."),           \
+  F(track_descriptor_shared_thread_custom_dimensions, kSingle, kError, kAnalysis, Scope::kMachineAndTrace, \
+      "A TrackDescriptor with thread set declared custom dimensions without "  \
+      "disallow_merging_with_system_tracks=true. This flag is required for "   \
+      "custom declarations on any descriptor with thread set; the "            \
+      "declarations are ignored. Set disallow_merging_with_system_tracks "     \
+      "to true to use custom dimensions. This is a bug in the trace producer."), \
+  F(track_dimension_conflicting_value,          kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackDescriptor declared a dimension which it already inherits "      \
+      "from a parent_uuid ancestor, or declares twice, with a *different* "    \
+      "value. The inherited (or first declared) value is kept and the other "  \
+      "one is ignored. This is a bug in the trace producer."),                 \
   F(track_descriptor_invalid_child_ordering,    kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "A TrackDescriptor specified an invalid or unrecognized value for "      \
       "child_tracks_ordering. The descriptor is ignored. This is a bug in "    \
@@ -1034,58 +1248,6 @@ namespace perfetto::trace_processor::stats {
     "Failed to parse a FileDescriptorSet passed as TraceProcessor "            \
     "configuration parameter")
 // clang-format on
-
-enum Type {
-  kSingle,  // Single-value property, one value per key.
-  kIndexed  // Indexed property, multiple value per key (e.g. cpu_stats[1]).
-};
-
-enum Severity {
-  kInfo,      // Diagnostic counters
-  kNotice,    // Normal but noteworthy condition worth surfacing to the user,
-              // e.g. requested ftrace categories that failed to enable. Not a
-              // bug and not data loss.
-  kDataLoss,  // Correct operation that still resulted in data loss
-  kError,     // If any kError counter is > 0 trace_processor_shell will
-              // raise an error. This is also surfaced in the web UI.
-  kNumSeverities,
-};
-
-enum Source {
-  // The counter is collected when recording the trace on-device and is just
-  // being reflected in the stats table.
-  kTrace,
-
-  // The counter is generated when importing / processing the trace in the trace
-  // processor.
-  kAnalysis,
-
-  kNumSources,
-};
-
-// Scope of a stat defines its association within a potentially
-// multi-machine/multi-trace merged session.
-//
-// Classification Reasoning:
-// - kGlobal: Properties intrinsic to the TP process (e.g. parse timing).
-// - kTrace: Properties of a recording session or trace file, not tied to a
-//   specific machine (e.g. traced service stats, buffer stats).
-// - kMachine: Static properties of a device. Currently unused for stats.
-// - kMachineAndTrace: Per-machine execution data within a specific session
-//   (e.g. ftrace stats, parser errors, clock sync).
-#define PERFETTO_TP_STATS_SCOPES(F)                                 \
-  F(kGlobal, "global"), F(kTrace, "trace"), F(kMachine, "machine"), \
-      F(kMachineAndTrace, "machine_and_trace")
-
-#define PERFETTO_TP_STATS_SCOPE_ENUM(varname, name) varname
-enum class Scope : size_t {
-  PERFETTO_TP_STATS_SCOPES(PERFETTO_TP_STATS_SCOPE_ENUM),
-  kNumScopes,
-};
-
-#define PERFETTO_TP_STATS_SCOPE_NAME(varname, name) name
-constexpr char const* kScopeNames[] = {
-    PERFETTO_TP_STATS_SCOPES(PERFETTO_TP_STATS_SCOPE_NAME)};
 
 #if defined(__GNUC__) || defined(__clang__)
 #if defined(__clang__)

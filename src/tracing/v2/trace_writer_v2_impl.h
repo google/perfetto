@@ -206,10 +206,15 @@ class TraceWriterV2Impl : public TraceWriter,
 
   // Drops the rest of the open packet: its bytes go to GetDropBuffer() from now
   // on.
+  // - Counts the packet in |unreported_dropped_packets_|.
   // - If drop mode is not active yet, counts one drop and records the loss
   //   for the next publication.
   // - Drop mode lasts until a later packet gets a fragment in the ring buffer.
   void EnterDropMode();
+
+  // Adds |unreported_dropped_packets_| to the ring buffer header.
+  // Does nothing if there are none.
+  void ReportDroppedPackets();
 
   // Returns the process-wide drop buffer as a writable range. Only in drop
   // mode.
@@ -266,6 +271,12 @@ class TraceWriterV2Impl : public TraceWriter,
   // Number of times this writer entered drop mode. Consecutive dropped
   // packets count once, as in TraceWriterImpl.
   uint64_t drop_count_ = 0;
+
+  // Dropped packets that are not in the ring buffer header yet which the
+  // service reads for TraceStats.
+  // We add the count when the writer leaves drop mode and on Flush() as all
+  // writers share the header's cache line, so we don't add each drop.
+  uint32_t unreported_dropped_packets_ = 0;
 };
 
 }  // namespace perfetto::tracing_v2

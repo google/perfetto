@@ -55,7 +55,7 @@ function getReferrer(): string {
       return `https://${name}.example.com/converted_non_url_referrer`;
     }
   } else {
-    return document.referrer.split('?')[0];
+    return document.referrer.split('?')[0]!;
   }
 }
 

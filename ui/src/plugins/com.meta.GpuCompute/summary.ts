@@ -115,7 +115,7 @@ export async function fetchKernelSummaryRows(
       (n) =>
         `(SELECT cv.value FROM counter_vals cv WHERE cv.slice_id = cs.id AND cv.metric_name = '${n}' LIMIT 1)`,
     );
-    return names.length === 1 ? parts[0] : `COALESCE(${parts.join(', ')})`;
+    return names.length === 1 ? parts[0]! : `COALESCE(${parts.join(', ')})`;
   };
 
   const sql = `

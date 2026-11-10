@@ -221,8 +221,8 @@ export class SearchOverviewTrack implements AsyncDisposable {
     if (!this.searchSummary) return;
 
     for (let i = 0; i < this.searchSummary.tsStarts.length; i++) {
-      const tStart = Time.fromRaw(this.searchSummary.tsStarts[i]);
-      const tEnd = Time.fromRaw(this.searchSummary.tsEnds[i]);
+      const tStart = Time.fromRaw(this.searchSummary.tsStarts[i]!);
+      const tEnd = Time.fromRaw(this.searchSummary.tsEnds[i]!);
       if (!visibleWindow.overlaps(tStart, tEnd)) {
         continue;
       }
@@ -245,7 +245,7 @@ export class SearchOverviewTrack implements AsyncDisposable {
       const start = results.tses[index];
       if (start !== -1n) {
         const triangleStart = Math.max(
-          timescale.timeToPx(Time.fromRaw(start)),
+          timescale.timeToPx(Time.fromRaw(start)!),
           0,
         );
         ctx.fillStyle = '#000';

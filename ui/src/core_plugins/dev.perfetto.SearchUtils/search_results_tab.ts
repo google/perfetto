@@ -70,9 +70,9 @@ export class SearchResultsTab implements m.ClassComponent<TabAttrs> {
 
     if (searchResults) {
       for (let i = 0; i < searchResults.totalResults; i++) {
-        const eventId = searchResults.eventIds[i];
-        const ts = searchResults.tses[i];
-        const trackUri = searchResults.trackUris[i];
+        const eventId = searchResults.eventIds[i]!;
+        const ts = searchResults.tses[i]!;
+        const trackUri = searchResults.trackUris[i]!;
 
         rowData.push({
           id: eventId,

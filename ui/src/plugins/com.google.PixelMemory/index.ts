@@ -199,7 +199,7 @@ export default class implements PerfettoPlugin {
       return {findMaxSql, noteTarget};
     } else {
       // pidList.length === 1
-      const noteTarget = pidList[0];
+      const noteTarget = pidList[0]!;
       const findMaxSql = `
         SELECT
           ts,

@@ -189,7 +189,7 @@ function renderFilterChips(
 
 function formatSettingValue(values: ReadonlyArray<string>): string {
   if (values.length === 0) return '(empty)';
-  if (values.length === 1) return values[0] === '' ? '(empty)' : values[0];
+  if (values.length === 1) return values[0] === '' ? '(empty)' : values[0]!;
   if (values.length <= 3) return values.join(', ');
   return `${values.slice(0, 2).join(', ')}, +${values.length - 2} more`;
 }

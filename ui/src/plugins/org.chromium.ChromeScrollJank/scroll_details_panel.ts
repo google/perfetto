@@ -244,13 +244,13 @@ export class ScrollDetailsPanel implements TrackEventDetailsPanel {
       );
 
       if (presentedDeltas.length > 0) {
-        this.metrics.startOffset = presentedDeltas[0].scrollOffset;
+        this.metrics.startOffset = presentedDeltas[0]!.scrollOffset;
         this.metrics.endOffset =
-          presentedDeltas[presentedDeltas.length - 1].scrollOffset;
+          presentedDeltas[presentedDeltas.length - 1]!.scrollOffset;
 
         let pixelsScrolled = 0;
         for (let i = 0; i < presentedDeltas.length; i++) {
-          pixelsScrolled += Math.abs(presentedDeltas[i].scrollDelta);
+          pixelsScrolled += Math.abs(presentedDeltas[i]!.scrollDelta);
         }
 
         if (pixelsScrolled != 0) {

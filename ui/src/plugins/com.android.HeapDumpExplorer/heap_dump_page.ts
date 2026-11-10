@@ -64,7 +64,7 @@ function activeTabKey(session: HeapDumpExplorerSession): string {
             t.pathHashes === active.pathHashes &&
             t.isDominator === active.isDominator,
         )) ||
-      tabs[tabs.length - 1];
+      tabs[tabs.length - 1]!;
     return fgTabKey(tab.pathHashes, tab.isDominator);
   }
   const objId = session.activeInstanceObjId;

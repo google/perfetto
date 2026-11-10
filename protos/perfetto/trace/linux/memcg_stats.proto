@@ -1,0 +1,177 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// Values read from the files of the cgroup v2 memory controller (memcg), as
+// recorded by the "linux.cgroup" data source.
+//
+// The values are as reported by the kernel: sizes are in bytes, and limits set
+// to "max" are UINT64_MAX. See Documentation/admin-guide/cgroup-v2.rst in the
+// kernel for their meaning.
+message MemcgStats {
+  // The top-level groups of the hierarchy created by Android's
+  // libprocessgroup.
+  enum Group {
+    GROUP_UNSPECIFIED = 0;
+    // apps/
+    GROUP_APPS = 1;
+    // system/
+    GROUP_SYSTEM = 2;
+  }
+
+  // memory.events and memory.events.local
+  message Events {
+    optional uint64 low = 1;
+    optional uint64 high = 2;
+    optional uint64 max = 3;
+    optional uint64 oom = 4;
+    optional uint64 oom_kill = 5;
+    optional uint64 oom_group_kill = 6;
+    optional uint64 sock_throttled = 7;
+  }
+
+  // memory.swap.events
+  message SwapEvents {
+    optional uint64 high = 1;
+    optional uint64 max = 2;
+    optional uint64 fail = 3;
+  }
+
+  // memory.stat (as of linux v7.3)
+  message Stat {
+    optional uint64 anon = 1;
+    optional uint64 file = 2;
+    optional uint64 kernel = 3;
+    optional uint64 kernel_stack = 4;
+    optional uint64 pagetables = 5;
+    optional uint64 sec_pagetables = 6;
+    optional uint64 percpu = 7;
+    optional uint64 sock = 8;
+    optional uint64 vmalloc = 9;
+    optional uint64 shmem = 10;
+    optional uint64 zswap = 11;
+    optional uint64 zswapped = 12;
+    optional uint64 zswap_incomp = 13;
+    optional uint64 file_mapped = 14;
+    optional uint64 file_dirty = 15;
+    optional uint64 file_writeback = 16;
+    optional uint64 swapcached = 17;
+    optional uint64 anon_thp = 18;
+    optional uint64 file_thp = 19;
+    optional uint64 shmem_thp = 20;
+    optional uint64 inactive_anon = 21;
+    optional uint64 active_anon = 22;
+    optional uint64 inactive_file = 23;
+    optional uint64 active_file = 24;
+    optional uint64 unevictable = 25;
+    optional uint64 slab_reclaimable = 26;
+    optional uint64 slab_unreclaimable = 27;
+    optional uint64 slab = 28;
+    optional uint64 hugetlb = 29;
+    optional uint64 workingset_refault_anon = 30;
+    optional uint64 workingset_refault_file = 31;
+    optional uint64 workingset_activate_anon = 32;
+    optional uint64 workingset_activate_file = 33;
+    optional uint64 workingset_restore_anon = 34;
+    optional uint64 workingset_restore_file = 35;
+    optional uint64 workingset_nodereclaim = 36;
+    optional uint64 pgdemote_kswapd = 37;
+    optional uint64 pgdemote_direct = 38;
+    optional uint64 pgdemote_khugepaged = 39;
+    optional uint64 pgdemote_proactive = 40;
+    optional uint64 pgsteal_kswapd = 41;
+    optional uint64 pgsteal_direct = 42;
+    optional uint64 pgsteal_khugepaged = 43;
+    optional uint64 pgsteal_proactive = 44;
+    optional uint64 pgscan_kswapd = 45;
+    optional uint64 pgscan_direct = 46;
+    optional uint64 pgscan_khugepaged = 47;
+    optional uint64 pgscan_proactive = 48;
+    optional uint64 pgrefill = 49;
+    optional uint64 pgpromote_success = 50;
+    optional uint64 pgscan = 51;
+    optional uint64 pgsteal = 52;
+    optional uint64 pswpin = 53;
+    optional uint64 pswpout = 54;
+    optional uint64 pgfault = 55;
+    optional uint64 pgmajfault = 56;
+    optional uint64 pgactivate = 57;
+    optional uint64 pgdeactivate = 58;
+    optional uint64 pglazyfree = 59;
+    optional uint64 pglazyfreed = 60;
+    optional uint64 swpin_zero = 61;
+    optional uint64 swpout_zero = 62;
+    optional uint64 zswpin = 63;
+    optional uint64 zswpout = 64;
+    optional uint64 zswpwb = 65;
+    optional uint64 thp_fault_alloc = 66;
+    optional uint64 thp_collapse_alloc = 67;
+    optional uint64 thp_swpout = 68;
+    optional uint64 thp_swpout_fallback = 69;
+    optional uint64 numa_pages_migrated = 70;
+    optional uint64 numa_pte_updates = 71;
+    optional uint64 numa_hint_faults = 72;
+  }
+
+  // The values of one cgroup.
+  message Cgroup {
+    // Identifies the cgroup in the hierarchy created by Android's
+    // libprocessgroup: {apps,system}/uid_<uid>/pid_<pid>.
+    optional Group android_group = 1;
+    optional uint32 uid = 2;
+    optional uint32 pid = 3;
+
+    // Single-valued files.
+    // memory.current
+    optional uint64 current = 4;
+    // memory.peak
+    optional uint64 peak = 5;
+    // memory.min (UINT64_MAX if "max")
+    optional uint64 min = 6;
+    // memory.low (UINT64_MAX if "max")
+    optional uint64 low = 7;
+    // memory.high (UINT64_MAX if "max")
+    optional uint64 high = 8;
+    // memory.max (UINT64_MAX if "max")
+    optional uint64 max = 9;
+    // memory.swap.current
+    optional uint64 swap_current = 10;
+    // memory.swap.peak
+    optional uint64 swap_peak = 11;
+    // memory.swap.high (UINT64_MAX if "max")
+    optional uint64 swap_high = 12;
+    // memory.swap.max (UINT64_MAX if "max")
+    optional uint64 swap_max = 13;
+    // memory.zswap.current
+    optional uint64 zswap_current = 14;
+    // memory.zswap.max (UINT64_MAX if "max")
+    optional uint64 zswap_max = 15;
+
+    // memory.events (including descendant cgroups).
+    optional Events events = 16;
+    // memory.events.local (only this exact cgroup).
+    optional Events events_local = 17;
+    // memory.swap.events
+    optional SwapEvents swap_events = 18;
+    // memory.stat
+    optional Stat stat = 19;
+  }
+
+  repeated Cgroup cgroup = 1;
+}

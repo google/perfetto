@@ -259,7 +259,8 @@ class DescriptorPool {
     return descriptors_;
   }
 
-  // Opaque memo of a resolved descriptor, reused across FindEnumString calls.
+  // Opaque memo of a resolved descriptor, reused across FindEnumString and
+  // FlagSetToViews calls.
   class CachedDescriptor {
    public:
     CachedDescriptor() = default;
@@ -283,7 +284,16 @@ class DescriptorPool {
                          int64_t mask,
                          std::vector<std::string_view>* out) const;
 
+  // Same as above, resolving |enum_name| via |cache| so later calls skip the
+  // by-name lookup.
+  int64_t FlagSetToViews(CachedDescriptor& cache,
+                         std::string_view enum_name,
+                         int64_t mask,
+                         std::vector<std::string_view>* out) const;
+
  private:
+  std::optional<uint32_t> FindDescriptorIdx(CachedDescriptor& cache,
+                                            std::string_view full_name) const;
   base::Status AddNestedProtoDescriptors(
       const std::string& file_name,
       const std::string& package_name,

@@ -25,7 +25,6 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/string_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -1339,7 +1338,9 @@ std::unique_ptr<LinuxFileWatch> WatchUnixSocketCreation(
     TaskRunner* task_runner,
     const char* sock_name,
     std::function<void()> callback) {
-  if constexpr (!PERFETTO_FLAGS(USE_UNIX_SOCKET_INOTIFY))
+  // Disabled where inotify is unavailable or forbidden (e.g. chromium's
+  // sandbox, see gn/perfetto.gni).
+  if constexpr (!PERFETTO_BUILDFLAG(PERFETTO_ENABLE_SOCK_INOTIFY))
     return nullptr;
 
   if (!sock_name || base::GetSockFamily(sock_name) != base::SockFamily::kUnix ||

@@ -539,6 +539,38 @@ CREATE PERFETTO INDEX _frame_choreographer_lookup_idx ON _frame_choreographer_lo
   frame_id
 );
 
+CREATE PERFETTO TABLE _android_input_lifecycle AS
+SELECT
+  e.input_event_id AS input_id,
+  e.event_channel AS channel,
+  e.end_to_end_latency_dur AS total_latency,
+  e.read_time AS ts_reader,
+  e.dispatch_ts AS ts_dispatch,
+  e.receive_ts AS ts_receive,
+  s_cons.ts AS ts_consume,
+  s_read.id AS id_reader,
+  s_read.track_id AS track_reader,
+  s_read.dur AS dur_reader,
+  s_disp.id AS id_dispatch,
+  e.dispatch_track_id AS track_dispatch,
+  s_disp.dur AS dur_dispatch,
+  s_recv.id AS id_receive,
+  e.receive_track_id AS track_receive,
+  s_recv.dur AS dur_receive,
+  s_cons.id AS id_consume,
+  s_cons.track_id AS track_consume,
+  s_cons.dur AS dur_consume,
+  e.is_speculative_frame
+FROM android_input_events AS e
+LEFT JOIN slice AS s_read ON s_read.ts = e.read_time AND s_read.track_id != 0
+LEFT JOIN slice AS s_disp
+  ON s_disp.ts = e.dispatch_ts
+  AND s_disp.track_id = e.dispatch_track_id
+LEFT JOIN slice AS s_recv
+  ON s_recv.ts = e.receive_ts
+  AND s_recv.track_id = e.receive_track_id
+LEFT JOIN _input_consumers_lookup AS s_cons ON s_cons.cookie = e.event_seq;
+
 -- Retrieves the full lifecycle of an Android input event (Read -> Dispatch -> Receive -> Consume -> Frame)
 -- by matching a given slice ID from any stage of the pipeline.
 CREATE PERFETTO FUNCTION _android_input_lifecycle_by_slice_id(
@@ -576,41 +608,10 @@ RETURNS TABLE(
   is_speculative_frame BOOL
 )
 AS
-SELECT
-  e.input_event_id AS input_id,
-  e.event_channel AS channel,
-  e.end_to_end_latency_dur AS total_latency,
-  e.read_time AS ts_reader,
-  e.dispatch_ts AS ts_dispatch,
-  e.receive_ts AS ts_receive,
-  s_cons.ts AS ts_consume,
-  s_read.id AS id_reader,
-  s_read.track_id AS track_reader,
-  s_read.dur AS dur_reader,
-  s_disp.id AS id_dispatch,
-  e.dispatch_track_id AS track_dispatch,
-  s_disp.dur AS dur_dispatch,
-  s_recv.id AS id_receive,
-  e.receive_track_id AS track_receive,
-  s_recv.dur AS dur_receive,
-  s_cons.id AS id_consume,
-  s_cons.track_id AS track_consume,
-  s_cons.dur AS dur_consume,
-  e.is_speculative_frame
-FROM android_input_events AS e
-LEFT JOIN slice AS s_read
-  ON s_read.ts = e.read_time
-  AND s_read.track_id != 0
-LEFT JOIN slice AS s_disp
-  ON s_disp.ts = e.dispatch_ts
-  AND s_disp.track_id = e.dispatch_track_id
-LEFT JOIN slice AS s_recv
-  ON s_recv.ts = e.receive_ts
-  AND s_recv.track_id = e.receive_track_id
-LEFT JOIN _input_consumers_lookup AS s_cons
-  ON s_cons.cookie = e.event_seq
+SELECT *
+FROM _android_input_lifecycle
 WHERE
-  $slice_id IN (s_read.id, s_disp.id, s_recv.id, s_cons.id);
+  $slice_id IN (id_reader, id_dispatch, id_receive, id_consume);
 
 CREATE PERFETTO TABLE _input_sf_composite AS
 SELECT

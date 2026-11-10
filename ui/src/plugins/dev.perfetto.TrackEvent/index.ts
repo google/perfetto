@@ -224,13 +224,13 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           continue;
         }
         assertTrue(trackIds.length === 1);
-        const trackId = trackIds[0];
+        const trackId = trackIds[0]!;
         ctx.tracks.registerTrack({
           uri,
           description: description ?? undefined,
           tags: {
             kinds: [kind],
-            trackIds: [trackIds[0]],
+            trackIds: [trackIds[0]!],
             upid: upid ?? undefined,
             utid: utid ?? undefined,
             trackEvent: true,
@@ -264,7 +264,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           renderer: await createTraceProcessorStateTrack({
             trace: ctx,
             uri,
-            trackId: trackIds[0],
+            trackId: trackIds[0]!,
             trackName,
           }),
         });
@@ -336,7 +336,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         uri,
       });
       parent.addChildInOrder(node);
-      trackIdToTrackNode.set(trackIds[0], node);
+      trackIdToTrackNode.set(trackIds[0]!, node);
     }
 
     ctx.selection.registerAreaSelectionTab(

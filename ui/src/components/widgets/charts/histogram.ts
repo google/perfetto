@@ -234,7 +234,7 @@ function buildOption(
         }
 
         // Regular bucket
-        const bucket = data.buckets[idx];
+        const bucket = data.buckets[idx]!;
         const pct =
           totalWithNull > 0
             ? ((bucket.count / totalWithNull) * 100).toFixed(1)
@@ -316,8 +316,8 @@ function buildEventHandlers(
           const maxIdx = Math.min(buckets.length - 1, endIdx);
           if (minIdx <= maxIdx && minIdx < buckets.length) {
             onBrush({
-              start: buckets[minIdx].start,
-              end: buckets[maxIdx].end,
+              start: buckets[minIdx]!.start,
+              end: buckets[maxIdx]!.end,
             });
           }
         }

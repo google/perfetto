@@ -185,7 +185,7 @@ export function computeHistogram(
       bucketIndex = bucketCount - 1;
     }
 
-    const bucket = buckets[bucketIndex];
+    const bucket = buckets[bucketIndex]!;
     buckets[bucketIndex] = {...bucket, count: bucket.count + 1};
   }
 

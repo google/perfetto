@@ -21,9 +21,9 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::ops {
 
@@ -32,9 +32,9 @@ namespace perfetto::trace_processor::core::ops {
 // supported. Keep this pure-copy loop in the header: function and alias-check
 // overhead is measurable when Dataframe gathers small columns.
 template <typename T>
-void GatherRows(Span<const T> source,
-                Span<T> output,
-                Span<const uint32_t> source_rows) {
+void GatherRows(base::Span<const T> source,
+                base::Span<T> output,
+                base::Span<const uint32_t> source_rows) {
   PERFETTO_DCHECK(output.size() >= source_rows.size());
   const bool in_place = source.b == output.b;
   for (uint32_t row = 0; row < source_rows.size(); ++row) {
@@ -48,11 +48,11 @@ void GatherRows(Span<const T> source,
 // alias their corresponding input exactly when source_rows[i] >= i. Partial
 // overlap is not supported.
 template <typename T>
-void GatherNullableRows(Span<const T> source,
+void GatherNullableRows(base::Span<const T> source,
                         const BitVector& source_non_null,
-                        Span<T> output,
+                        base::Span<T> output,
                         BitVector* output_non_null,
-                        Span<const uint32_t> source_rows) {
+                        base::Span<const uint32_t> source_rows) {
   PERFETTO_DCHECK(output.size() >= source_rows.size());
   PERFETTO_DCHECK(output_non_null);
   PERFETTO_DCHECK(output_non_null->size() >= source_rows.size());
@@ -77,22 +77,22 @@ void GatherNullableRows(Span<const T> source,
 // Estimates the number of distinct values using a bounded strided sample.
 template <typename T>
 uint32_t EstimateDistinctCount(base::FlatHashMap<int64_t, uint32_t>* counts,
-                               Span<const T> values);
+                               base::Span<const T> values);
 
 // Removes duplicate fixed-width rows and compacts |indices| in place. Rows in
 // |row_layout| are parallel to indices rather than addressed by their values.
-void DistinctRows(Span<const uint8_t> row_layout,
+void DistinctRows(base::Span<const uint8_t> row_layout,
                   uint32_t row_stride,
-                  Span<uint32_t>* indices);
+                  base::Span<uint32_t>* indices);
 
 // Stably sorts indices by fixed-width rows in |row_layout|.
-void SortRowLayout(Span<const uint8_t> row_layout,
+void SortRowLayout(base::Span<const uint8_t> row_layout,
                    uint32_t row_stride,
-                   Span<uint32_t>* indices);
+                   base::Span<uint32_t>* indices);
 
 #define PERFETTO_DECLARE_DISTINCT(type)                 \
   extern template uint32_t EstimateDistinctCount<type>( \
-      base::FlatHashMap<int64_t, uint32_t>*, Span<const type>);
+      base::FlatHashMap<int64_t, uint32_t>*, base::Span<const type>);
 PERFETTO_DECLARE_DISTINCT(uint32_t)
 PERFETTO_DECLARE_DISTINCT(int32_t)
 PERFETTO_DECLARE_DISTINCT(int64_t)

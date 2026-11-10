@@ -16,11 +16,14 @@
 
 #include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
+#include <stdint.h>
+
 #include <algorithm>
 #include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
@@ -93,6 +96,27 @@ uint32_t ComputeDrainOccupancyThreshold(uint32_t num_chunks,
 }
 
 }  // namespace
+
+// static
+bool ProducerRingBufferArbiter::ShouldUseTracingV2(
+    const DataSourceConfig& config) {
+  if (!config.supports_tracing_v2())
+    return false;
+  const uint32_t probability =
+      config.experimental_tracing_v2().use_v2_probability_percent();
+  if (probability >= 100)
+    return true;
+
+  // To ensure data sources from the same producer and session enable or
+  // disable v2 together when their probabilities match, hash the session ID
+  // with this function's address. Code ASLR provides entropy across processes,
+  // while the address stays fixed within each process.
+  const uint64_t session_sample = base::MurmurHashCombine(
+      config.tracing_session_id(),
+      reinterpret_cast<uintptr_t>(
+          &ProducerRingBufferArbiter::ShouldUseTracingV2));
+  return session_sample % 100 < probability;
+}
 
 // static
 base::StatusOr<std::unique_ptr<ProducerRingBufferArbiter>>

@@ -18,133 +18,113 @@ INCLUDE PERFETTO MODULE slices.flat_slices;
 
 INCLUDE PERFETTO MODULE sched.thread_executing_span;
 
+-- Every critical-path frame: one per root, chain depth and on-CPU
+-- blocker. `key` orders frames by depth, then blocker id, so the max key
+-- among the frames covering an instant is the deepest blocker.
+CREATE PERFETTO TABLE _critical_path_frames AS
+SELECT root_id, ts, dur, (depth << 32) | id AS key
+FROM _critical_path_with_depth_by_roots!(
+  (SELECT id AS root_node_id FROM _wakeup_graph),
+  _wakeup_graph
+);
+
+-- The frames of each root flattened to the deepest blocker at every
+-- instant. Stretches of the root's extent which no frame covers are filled
+-- with a NULL `key`, i.e. the root itself.
+CREATE PERFETTO TABLE _critical_path_flat AS
+FROM (SELECT root_id, ts, dur, key FROM _critical_path_frames WHERE dur > 0)
+|> INTERVAL FLATTEN PER root_id AGGREGATE MAX(key) AS key
+|> INTERVAL FILL GAPS WITH (
+  SELECT root_id, min(ts) AS ts, max(ts + dur) - min(ts) AS dur
+  FROM _critical_path_frames
+  GROUP BY
+    root_id
+) AS root_extent PER root_id;
+
 -- Critical path rooted at every entry of `_wakeup_graph`, with the
 -- on-CPU blocker thread (`utid`) and the root's thread (`root_utid`)
--- joined in. Materialised so the slice-aware tables below can join in
--- id-space.
+-- joined in.
 CREATE PERFETTO TABLE _critical_path_all AS
-WITH
-  _per_root AS (
-    SELECT *
-    FROM _critical_path_by_roots!(
-      (SELECT id AS root_node_id FROM _wakeup_graph),
-      _wakeup_graph
-    )
-  )
-SELECT
-  row_number() OVER (ORDER BY cr.ts) AS id,
-  cr.ts,
-  cr.dur,
-  cr.ts + cr.dur AS ts_end,
-  id_graph.utid,
-  root_id_graph.utid AS root_utid
-FROM _per_root AS cr
+SELECT cr.ts, cr.dur, id_graph.utid, root_id_graph.utid AS root_utid
+FROM _critical_path_flat AS cr
 JOIN _wakeup_graph AS id_graph
-  ON cr.id = id_graph.id
+  ON coalesce(cr.key & 4294967295, cr.root_id) = id_graph.id
 JOIN _wakeup_graph AS root_id_graph
-  ON cr.root_id = root_id_graph.id
-ORDER BY
-  cr.ts;
+  ON cr.root_id = root_id_graph.id;
 
--- Limited thread_state view that will later be span joined with the |_thread_executing_span_graph|.
-CREATE PERFETTO VIEW _span_thread_state_view AS
-SELECT
-  id AS thread_state_id,
-  ts,
-  dur,
-  utid,
-  state,
-  blocked_function AS function,
-  io_wait,
-  cpu
-FROM thread_state;
+-- Flattened slices of every thread, with the stretches of the trace no
+-- slice covers filled with a NULL `slice_id`.
+CREATE PERFETTO TABLE _thread_flat_slice_filled AS
+FROM _slice_flattened
+|> INTERVAL FILL GAPS WITH (
+  SELECT utid, trace_start() AS ts, trace_dur() AS dur FROM thread
+) AS trace_extent PER utid
+|> SELECT slice_id, depth, ts, dur, utid;
 
--- Slice projection for SPAN_JOIN with thread_state. Carries `slice_id`
--- only; the slice's name is joined on demand at the leaves of
--- `_critical_path_stack` so the materialised cross-product below does
--- not duplicate every slice's name across every blocker region.
-CREATE PERFETTO VIEW _span_slice_view AS
-SELECT
-  slice_id,
-  depth AS slice_depth,
-  cast_int!(ts) AS ts,
-  cast_int!(dur) AS dur,
-  utid
-FROM _slice_flattened;
-
--- thread state span joined with slice.
-CREATE VIRTUAL TABLE _span_thread_state_slice_sp USING SPAN_LEFT_JOIN(
-    _span_thread_state_view PARTITIONED utid,
-    _span_slice_view PARTITIONED utid);
-
+-- Thread states split at the boundaries of their thread's flattened
+-- slices, in id-space. The slice's name is joined on demand at the leaves
+-- of `_critical_path_stack` so the materialised tables below do not
+-- duplicate every slice's name across every blocker region.
 CREATE PERFETTO TABLE _span_thread_state_slice AS
-SELECT
-  row_number() OVER (ORDER BY ts) AS id,
+INTERVAL INTERSECTION OF (
+  (
+    SELECT id, ts, dur, utid, state, blocked_function, io_wait, cpu
+    FROM thread_state
+    WHERE
+      dur > 0
+  ) AS th,
+  _thread_flat_slice_filled AS sl
+) PER utid
+|> SELECT
   ts,
   dur,
-  ts + dur AS ts_end,
   utid,
-  thread_state_id,
-  state,
-  function,
-  cpu,
-  io_wait,
-  slice_id,
-  slice_depth
-FROM _span_thread_state_slice_sp
-WHERE
-  dur > 0
-ORDER BY
-  ts;
-
-CREATE PERFETTO TABLE _critical_path_thread_state_slice_raw AS
-INTERVAL INTERSECTION OF (
-  _critical_path_all AS cr,
-  _span_thread_state_slice AS th
-) PER utid
-|> SELECT cr.id AS cr_id, th.id AS th_id, ts, dur;
+  th.id AS thread_state_id,
+  th.state,
+  th.blocked_function AS function,
+  th.cpu,
+  th.io_wait,
+  sl.slice_id,
+  sl.depth AS slice_depth;
 
 -- Critical-path × slice cross product, restricted to id-space columns.
 -- Slice names are not stored here; `_critical_path_stack` joins `slice`
 -- on `slice_id` for the rows it actually returns.
 CREATE PERFETTO TABLE _critical_path_thread_state_slice AS
-SELECT
-  raw.ts,
-  raw.dur,
-  cr.utid,
-  thread_state_id,
-  state,
-  function,
-  cpu,
-  io_wait,
-  slice_id,
-  slice_depth,
-  root_utid
-FROM _critical_path_thread_state_slice_raw AS raw
-JOIN _critical_path_all AS cr
-  ON cr.id = raw.cr_id
-JOIN _span_thread_state_slice AS th
-  ON th.id = raw.th_id;
+INTERVAL INTERSECTION OF (
+  _critical_path_all AS cr,
+  _span_thread_state_slice AS th
+) PER utid
+|> SELECT
+  ts,
+  dur,
+  utid,
+  th.thread_state_id,
+  th.state,
+  th.function,
+  th.cpu,
+  th.io_wait,
+  th.slice_id,
+  th.slice_depth,
+  cr.root_utid;
 
--- Flattened slices span joined with their thread_states. This contains the 'self' information
--- without 'critical_path' (blocking) information.
-CREATE VIRTUAL TABLE _self_sp USING SPAN_LEFT_JOIN(thread_state PARTITIONED utid, _slice_flattened PARTITIONED utid);
-
--- Projection of |_self_sp| in id-space. Slice names are joined on
--- `self_slice_id` at the leaves of `_critical_path_stack`.
+-- Flattened slices joined with their thread_states. This contains the
+-- 'self' information without 'critical_path' (blocking) information. Slice
+-- names are joined on `self_slice_id` at the leaves of
+-- `_critical_path_stack`.
 CREATE PERFETTO VIEW _self_view AS
 SELECT
-  id AS self_thread_state_id,
+  thread_state_id AS self_thread_state_id,
   slice_id AS self_slice_id,
   ts,
   dur,
   utid AS root_utid,
   state AS self_state,
-  blocked_function AS self_function,
+  function AS self_function,
   cpu AS self_cpu,
   io_wait AS self_io_wait,
-  depth AS self_slice_depth
-FROM _self_sp;
+  slice_depth AS self_slice_depth
+FROM _span_thread_state_slice;
 
 -- Self and critical path span join. This contains the union of the time intervals from the following:
 --  a. Self slice stack + thread_state.

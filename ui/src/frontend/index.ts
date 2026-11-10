@@ -155,13 +155,10 @@ function setupContentSecurityPolicy() {
     ],
     'script-src': [
       `'self'`,
-      // TODO(b/201596551): this is required for Wasm after crrev.com/c/3179051
-      // and should be replaced with 'wasm-unsafe-eval'.
-      `'unsafe-eval'`,
-      'https://*.google.com',
-      'https://*.googleusercontent.com',
+      // wasm-unsafe-eval: allows WebAssembly compilation (TraceProcessor engine
+      // and SQL formatter) without enabling JavaScript eval().
+      `'wasm-unsafe-eval'`,
       'https://www.googletagmanager.com',
-      'https://*.google-analytics.com',
     ],
     'object-src': [`'none'`],
     'connect-src': [

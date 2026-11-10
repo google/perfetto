@@ -355,3 +355,187 @@ class ParsingTracedStats(TestSuite):
         "traced_buf_compactions_skipped",0,1
         "traced_buf_compactions_skipped",1,0
         """))
+
+  # Check that each buffer counts its writers by the protocol that carried
+  # their chunks.
+  def test_buffer_protocol_writers(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+          trace_stats {
+            writer_stats { sequence_id: 2 buffer: 0 protocol_abi_versions: 1 }
+            writer_stats { sequence_id: 3 buffer: 0 protocol_abi_versions: 2 }
+            writer_stats { sequence_id: 4 buffer: 0 protocol_abi_versions: 2 }
+          }
+        }
+        """),
+        query="""
+          SELECT name, idx, severity, value
+          FROM stats
+          WHERE name GLOB 'traced_buf_protocol_*'
+          ORDER BY name, idx;
+        """,
+        out=Csv("""
+        "name","idx","severity","value"
+        "traced_buf_protocol_v1_writers",0,"info",1
+        "traced_buf_protocol_v2_writers",0,"info",2
+        """))
+
+  # Check that each ExperimentalTracingV2ProducerStats field maps to its
+  # stat, indexed by producer ID.
+  def test_tracing_v2_producer_stats(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+          experimental_tracing_v2_producer_stats {
+            producer_id: 2
+            pid: 200
+            producer_name: "producer_b"
+            chunk_size_bytes: 1024
+            num_chunks: 16
+            chunks_read: 7
+          }
+        }
+        packet {
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+          experimental_tracing_v2_producer_stats {
+            producer_id: 1
+            pid: 100
+            producer_name: "producer_a"
+            chunk_size_bytes: 4096
+            num_chunks: 64
+            chunks_read: 30
+            bytes_read: 60000
+            data_loss_chunks: 3
+            malformed_chunks: 4
+            unsupported_format_chunks: 5
+            invalid_writer_chunks: 6
+            invalid_destination_chunks: 7
+            trace_buffer_rejected_chunks: 8
+            rewrite_requests: 9
+            positions_skipped: 10
+            drain_passes: 11
+            drain_time_ns: 12000
+            drain_max_time_ns: 2000
+            writer_dropped_packets: 13
+            writer_stalls: 14
+            writer_stall_time_ms: 1500
+          }
+        }
+        """),
+        query="""
+          SELECT name, idx, value
+          FROM stats
+          WHERE name GLOB 'tracing_v2_producer_*'
+          ORDER BY idx, name;
+        """,
+        out=Csv("""
+        "name","idx","value"
+        "tracing_v2_producer_bytes_read",1,60000
+        "tracing_v2_producer_chunk_size_bytes",1,4096
+        "tracing_v2_producer_chunks_read",1,30
+        "tracing_v2_producer_data_loss_chunks",1,3
+        "tracing_v2_producer_drain_max_time_ns",1,2000
+        "tracing_v2_producer_drain_passes",1,11
+        "tracing_v2_producer_drain_time_ns",1,12000
+        "tracing_v2_producer_invalid_destination_chunks",1,7
+        "tracing_v2_producer_invalid_writer_chunks",1,6
+        "tracing_v2_producer_malformed_chunks",1,4
+        "tracing_v2_producer_num_chunks",1,64
+        "tracing_v2_producer_pid",1,100
+        "tracing_v2_producer_positions_skipped",1,10
+        "tracing_v2_producer_rewrite_requests",1,9
+        "tracing_v2_producer_trace_buffer_rejected_chunks",1,8
+        "tracing_v2_producer_unsupported_format_chunks",1,5
+        "tracing_v2_producer_writer_dropped_packets",1,13
+        "tracing_v2_producer_writer_stall_time_ms",1,1500
+        "tracing_v2_producer_writer_stalls",1,14
+        "tracing_v2_producer_bytes_read",2,0
+        "tracing_v2_producer_chunk_size_bytes",2,1024
+        "tracing_v2_producer_chunks_read",2,7
+        "tracing_v2_producer_data_loss_chunks",2,0
+        "tracing_v2_producer_drain_max_time_ns",2,0
+        "tracing_v2_producer_drain_passes",2,0
+        "tracing_v2_producer_drain_time_ns",2,0
+        "tracing_v2_producer_invalid_destination_chunks",2,0
+        "tracing_v2_producer_invalid_writer_chunks",2,0
+        "tracing_v2_producer_malformed_chunks",2,0
+        "tracing_v2_producer_num_chunks",2,16
+        "tracing_v2_producer_pid",2,200
+        "tracing_v2_producer_positions_skipped",2,0
+        "tracing_v2_producer_rewrite_requests",2,0
+        "tracing_v2_producer_trace_buffer_rejected_chunks",2,0
+        "tracing_v2_producer_unsupported_format_chunks",2,0
+        "tracing_v2_producer_writer_dropped_packets",2,0
+        "tracing_v2_producer_writer_stall_time_ms",2,0
+        "tracing_v2_producer_writer_stalls",2,0
+        """))
+
+  # Check the actual buffer type and V3 counters in the stats table.
+  # The second buffer omits these fields, so its stats should be zero.
+  def test_buffer_bundle_stats(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+          trace_stats {
+            buffer_stats {
+              buffer_type: BUFFER_TYPE_V3
+              experimental_v3_stats {
+                bundles_written: 12
+                uncompressed_bytes_written: 4000
+                compressed_bytes_written: 1000
+                bundles_overwritten: 3
+                uncompressed_bytes_overwritten: 500
+                bundles_too_large: 2
+                bundling_max_us: 250
+                bundling_time_us_histogram_def: [10, 100, 1000, 10000, 100000]
+                bundling_time_us_histogram_counts: [2, 1, 1, 0, 0, 0]
+                bundling_time_us_histogram_sum: [12, 45, 250, 0, 0, 0]
+                staging_space_passes: 2
+              }
+            }
+            buffer_stats { bytes_read: 10 }
+          }
+        }
+        """),
+        query="""
+          SELECT name, idx, severity, value
+          FROM stats
+          WHERE name GLOB 'traced_buf_bundl*'
+            OR name GLOB 'traced_buf_staging_*'
+            OR name GLOB 'traced_buf_*compressed_bytes_*'
+            OR name = 'traced_buf_buffer_type'
+          ORDER BY name, idx;
+        """,
+        out=Csv("""
+        "name","idx","severity","value"
+        "traced_buf_buffer_type",0,"info",3
+        "traced_buf_buffer_type",1,"info",0
+        "traced_buf_bundles_overwritten",0,"info",3
+        "traced_buf_bundles_overwritten",1,"info",0
+        "traced_buf_bundles_too_large",0,"data_loss",2
+        "traced_buf_bundles_too_large",1,"data_loss",0
+        "traced_buf_bundles_written",0,"info",12
+        "traced_buf_bundles_written",1,"info",0
+        "traced_buf_bundling_max_us",0,"info",250
+        "traced_buf_bundling_max_us",1,"info",0
+        "traced_buf_bundling_passes",0,"info",4
+        "traced_buf_bundling_passes",1,"info",0
+        "traced_buf_bundling_time_us",0,"info",307
+        "traced_buf_bundling_time_us",1,"info",0
+        "traced_buf_compressed_bytes_written",0,"info",1000
+        "traced_buf_compressed_bytes_written",1,"info",0
+        "traced_buf_staging_space_passes",0,"info",2
+        "traced_buf_staging_space_passes",1,"info",0
+        "traced_buf_uncompressed_bytes_overwritten",0,"info",500
+        "traced_buf_uncompressed_bytes_overwritten",1,"info",0
+        "traced_buf_uncompressed_bytes_written",0,"info",4000
+        "traced_buf_uncompressed_bytes_written",1,"info",0
+        """))

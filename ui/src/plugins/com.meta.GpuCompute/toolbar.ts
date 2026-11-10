@@ -149,7 +149,7 @@ export function renderToolbar(opts: {
     const i = opts.options.findIndex((o) => o.id === opts.baselineId);
     if (i < 0) return '—';
 
-    return `${i} - ${trunc(opts.options[i].label)}`;
+    return `${i} - ${trunc(opts.options[i]!.label)}`;
   })();
 
   // Available terminology providers for the View popup dropdown

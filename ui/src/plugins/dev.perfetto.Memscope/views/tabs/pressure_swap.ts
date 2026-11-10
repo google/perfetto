@@ -19,7 +19,13 @@ import {
   type LineChartSeries,
 } from '../../../../components/widgets/charts_svg/line_chart_svg';
 import type {LiveSession, SnapshotData} from '../../sessions/live_session';
-import {counterPoints, maxSeriesKb, niceKbInterval} from '../../utils';
+import {
+  chartXWindow,
+  counterPoints,
+  formatRelativeXValue,
+  maxSeriesKb,
+  niceKbInterval,
+} from '../../utils';
 import {formatBytesIec} from '../../../../base/bytes_format';
 import {Panel} from '../../components/panel';
 import {Grid, GridCell, GridHeaderCell} from '../../../../widgets/grid';
@@ -95,7 +101,7 @@ function buildSwapTimeSeries(
   }
   if (byTs.size < 2) return undefined;
   const timestamps = [...byTs.keys()].sort((a, b) => a - b);
-  if ((byTs.get(timestamps[0])?.get('SwapTotal') ?? 0) === 0) return undefined;
+  if ((byTs.get(timestamps[0]!)?.get('SwapTotal') ?? 0) === 0) return undefined;
   const dirtyPts: {x: number; y: number}[] = [];
   const cachedPts: {x: number; y: number}[] = [];
   const freePts: {x: number; y: number}[] = [];
@@ -160,9 +166,13 @@ function renderLmkPanel(
     Panel,
     m(Panel.Header, {
       title: `LMK Kills (${events.length})`,
-      subtitle:
-        'Low Memory Killer events recorded during this session. ' +
-        'Source: lmkd atrace / lowmemorykiller ftrace.',
+      help: m.fragment({}, [
+        m('div', 'Low Memory Killer events recorded during this session.'),
+        m('div', [
+          'Source: lowmemorykiller ftrace events + lmkd atrace, ' +
+            'captured by the linux.ftrace data source (traced_probes).',
+        ]),
+      ]),
     }),
     m(
       Panel.Body,
@@ -203,16 +213,27 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
   const pageFaultChartData = buildPageFaultTimeSeries(data, t0);
   const swapChartData = buildSwapTimeSeries(data, t0);
   const vmstatChartData = buildVmstatTimeSeries(data, t0);
+  // Fixed-width window ending at the latest sample; the chart clips points
+  // outside it and labels are relative to the latest sample (0s on the
+  // right, -60s on the left).
+  const xWindow = chartXWindow(data.xMax);
+  const formatX = formatRelativeXValue(data.xMax);
 
   return [
     m(
       Panel,
       m(Panel.Header, {
         title: 'Memory Pressure (PSI)',
-        subtitle:
-          'Source: /proc/pressure/memory (psi.mem.some, psi.mem.full). ' +
-          'Derived: cumulative \u00b5s converted to ms/s rate. ' +
-          '"some" = at least one task stalled, "full" = all tasks stalled.',
+        help: m.fragment({}, [
+          m('div', [
+            'Derived: cumulative \u00b5s converted to ms/s rate. ' +
+              '"some" = at least one task stalled, "full" = all tasks stalled.',
+          ]),
+          m('div', [
+            'Source: /proc/pressure/memory (psi.mem.some, psi.mem.full) via the ' +
+              'linux.sys_stats data source (traced_probes).',
+          ]),
+        ]),
       }),
       m(
         Panel.Body,
@@ -220,14 +241,12 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
           ? m(LineChartSvg, {
               data: psiChartData,
               height: 200,
-              xAxisLabel: 'Time (s)',
-              yAxisLabel: 'Stall (ms/s)',
               showLegend: true,
               showPoints: false,
               gridLines: 'both',
-              xAxisMin: data.xMin,
-              xAxisMax: data.xMax,
-              formatXValue: (v: number) => `${v.toFixed(0)}s`,
+              xAxisMin: xWindow.min,
+              xAxisMax: xWindow.max,
+              formatXValue: formatX,
               formatYValue: (v: number) => `${v.toFixed(1)} ms/s`,
               // TODO(stevegolton): Add markers back in when we support them in LineChartSvg.
               //   x: (ev.ts - t0) / 1e9,
@@ -241,10 +260,17 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
       Panel,
       m(Panel.Header, {
         title: 'Page Faults',
-        subtitle:
-          'Source: /proc/vmstat counters pgfault, pgmajfault. ' +
-          'Derived: cumulative counts converted to faults/s rate. ' +
-          'Minor (pgfault) = page in RAM but not in TLB. Major (pgmajfault) = page must be read from disk.',
+        help: m.fragment({}, [
+          m('div', [
+            'Derived: cumulative counts converted to faults/s rate. ' +
+              'Minor (pgfault) = page in RAM but not in TLB. ' +
+              'Major (pgmajfault) = page must be read from disk.',
+          ]),
+          m('div', [
+            'Source: /proc/vmstat counters pgfault, pgmajfault via the ' +
+              'linux.sys_stats data source (traced_probes).',
+          ]),
+        ]),
       }),
       m(
         Panel.Body,
@@ -252,14 +278,12 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
           ? m(LineChartSvg, {
               data: pageFaultChartData,
               height: 200,
-              xAxisLabel: 'Time (s)',
-              yAxisLabel: 'Faults/s',
               showLegend: true,
               showPoints: false,
               gridLines: 'both',
-              xAxisMin: data.xMin,
-              xAxisMax: data.xMax,
-              formatXValue: (v: number) => `${v.toFixed(0)}s`,
+              xAxisMin: xWindow.min,
+              xAxisMax: xWindow.max,
+              formatXValue: formatX,
               formatYValue: (v: number) => `${v.toFixed(0)} f/s`,
             })
           : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
@@ -271,24 +295,28 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
         Panel,
         m(Panel.Header, {
           title: 'Swap Usage',
-          subtitle:
-            'Source: /proc/meminfo counters SwapTotal, SwapFree, SwapCached. ' +
-            'Derived: Swap dirty = (SwapTotal \u2212 SwapFree) \u2212 SwapCached.',
+          help: m.fragment({}, [
+            m('div', [
+              'Derived: Swap dirty = (SwapTotal \u2212 SwapFree) \u2212 SwapCached.',
+            ]),
+            m('div', [
+              'Source: /proc/meminfo counters SwapTotal, SwapFree, SwapCached via the ' +
+                'linux.sys_stats data source (traced_probes).',
+            ]),
+          ]),
         }),
         m(
           Panel.Body,
           m(LineChartSvg, {
             data: swapChartData,
             height: 200,
-            xAxisMin: data.xMin,
-            xAxisMax: data.xMax,
-            xAxisLabel: 'Time (s)',
-            yAxisLabel: 'Swap',
+            xAxisMin: xWindow.min,
+            xAxisMax: xWindow.max,
             showLegend: true,
             showPoints: false,
             stacked: true,
             gridLines: 'both',
-            formatXValue: (v: number) => `${v.toFixed(0)}s`,
+            formatXValue: formatX,
             formatYValue: (v: number) => formatBytesIec(v * 1024),
             yAxisMinInterval: niceKbInterval(
               maxSeriesKb(swapChartData?.series ?? []),
@@ -302,23 +330,27 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
         Panel,
         m(Panel.Header, {
           title: 'Swap I/O (pswpin / pswpout)',
-          subtitle:
-            'Source: /proc/vmstat counters pswpin, pswpout. ' +
-            'Derived: cumulative page counts converted to pages/s rate.',
+          help: m.fragment({}, [
+            m('div', [
+              'Derived: cumulative page counts converted to pages/s rate.',
+            ]),
+            m('div', [
+              'Source: /proc/vmstat counters pswpin, pswpout via the ' +
+                'linux.sys_stats data source (traced_probes).',
+            ]),
+          ]),
         }),
         m(
           Panel.Body,
           m(LineChartSvg, {
             data: vmstatChartData,
-            xAxisMin: data.xMin,
-            xAxisMax: data.xMax,
+            xAxisMin: xWindow.min,
+            xAxisMax: xWindow.max,
             height: 200,
-            xAxisLabel: 'Time (s)',
-            yAxisLabel: 'Pages/s',
             showLegend: true,
             showPoints: false,
             gridLines: 'both',
-            formatXValue: (v: number) => `${v.toFixed(0)}s`,
+            formatXValue: formatX,
             formatYValue: (v: number) => `${v.toFixed(0)} pg/s`,
           }),
         ),

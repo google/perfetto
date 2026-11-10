@@ -19,7 +19,7 @@ This can be due to:
 - Perfetto SDK: users may [opt-out of multiple session support](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/include/perfetto/tracing/data_source.h;l=266;drc=f988c792c18f93841b14ffa71019fdedf7ab2f03)
 
 ### Known to work
-- `traced_probes` data sources ([linux.ftrace](/docs/reference/trace-config-proto.autogen#FtraceConfig), [linux.process_stats](/docs/reference/trace-config-proto.autogen#ProcessStatsConfig), [linux.sys_stats](/docs/reference/trace-config-proto.autogen#SysStatsConfig), [linux.system_info](https://perfetto.dev/docs/reference/trace-config-proto.autogen#SystemInfoConfig), etc)
+- `traced_probes` data sources ([linux.ftrace](/docs/reference/trace-config-proto.autogen#FtraceConfig), [linux.process_stats](/docs/reference/trace-config-proto.autogen#ProcessStatsConfig), [linux.sys_stats](/docs/reference/trace-config-proto.autogen#SysStatsConfig), [linux.system_info](/docs/reference/trace-config-proto.autogen#SystemInfoConfig), etc)
 
 ### Known to work with caveats
 - `heapprofd` supports multiple sessions but each process can only be in one session.

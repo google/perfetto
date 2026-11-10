@@ -36,8 +36,8 @@ class StraceImporter : public TraceImporter<StraceImporter> {
  public:
   StraceImporter() : TraceImporter(MakeDescriptor()) {}
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
-    return IsStraceFormatTrace(data, size);
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
+    return {IsStraceFormatTrace(data, size)};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

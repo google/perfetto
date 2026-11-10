@@ -67,12 +67,12 @@ describe('Calendar', () => {
       expect(b.type).toBe('button');
       expect(b.getAttribute('aria-label')).toMatch(/^October \d+, 2026$/);
     }
-    const picked = days[12];
+    const picked = days[12]!;
     expect(picked.getAttribute('aria-label')).toBe('October 13, 2026');
     expect(picked.getAttribute('aria-pressed')).toBe('true');
     expect(picked.disabled).toBe(false);
-    expect(days[0].getAttribute('aria-pressed')).toBe('false');
+    expect(days[0]!.getAttribute('aria-pressed')).toBe('false');
     // Days past `max` are shown but disabled.
-    expect(days[13].disabled).toBe(true);
+    expect(days[13]!.disabled).toBe(true);
   });
 });

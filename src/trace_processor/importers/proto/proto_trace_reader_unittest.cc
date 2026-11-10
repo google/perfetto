@@ -28,8 +28,8 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
@@ -67,8 +67,8 @@ class ProtoTraceReaderTest : public ::testing::Test {
         TraceProcessorContext::ForkedContextState>::MakeRoot();
     host_context_.machine_tracker =
         std::make_unique<MachineTracker>(&host_context_, kDefaultMachineId);
-    host_context_.global_args_tracker =
-        std::make_unique<GlobalArgsTracker>(host_context_.storage.get());
+    host_context_.args_tracker =
+        std::make_unique<ArgsTracker>(host_context_.storage.get());
     host_context_.global_stats_tracker =
         std::make_unique<GlobalStatsTracker>(host_context_.storage.get());
     host_context_.stats_tracker =

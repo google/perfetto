@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -46,6 +47,9 @@ class AssertType final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override {
+    out->reads = {column_};
+  }
 
   AssertType(uint32_t column, AssertTypeTarget type, std::string name);
   ~AssertType() override;
@@ -58,21 +62,18 @@ class AssertType final : public Transform {
   friend class PipelineFormatter;
 
   struct State : OperatorState {
-    explicit State(Context& c) : OperatorState(ResetEachRun{}), context(&c) {}
+    explicit State(Context& c) : context(&c) {}
     ~State() override;
-    void Reset() override;
     // What the converted column is written in.
     Context* context;
-    base::Status status = base::OkStatus();
+    Held<base::Status> status{this};
   };
 
-  // The buffer in `chunk` holding values of the target type.
-  const void* Data(const ColumnChunk& chunk) const;
   bool Widen(const ColumnView&, const Selection&, ColumnChunk&, State&) const;
 
   uint32_t column_;
-  AssertTypeTarget target_;
-  // `target_` as a StorageType, which is what a column carries.
+  // One of AssertTypeTarget's types, as a StorageType, which is what a column
+  // carries.
   StorageType type_;
   // Used in the error message when a row disagrees.
   std::string name_;
@@ -85,6 +86,9 @@ class NullColumn final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override {
+    out->reads = {column_};
+  }
 
   NullColumn(uint32_t column, StorageType type);
   ~NullColumn() override;

@@ -19,18 +19,15 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <memory>
 #include <string_view>
 #include <unordered_set>
 
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/core/util/sort.h"
 
 namespace perfetto::trace_processor::core::ops {
 namespace {
 
 constexpr uint32_t kDistinctSampleRows = 10000;
-constexpr uint32_t kStableSortCutoff = 4096;
 
 int64_t DistinctKey(uint32_t value) {
   return static_cast<int64_t>(value);
@@ -48,32 +45,11 @@ int64_t DistinctKey(StringPool::Id value) {
   return static_cast<int64_t>(value.raw_id());
 }
 
-struct SortToken {
-  uint32_t index;
-  uint32_t buffer_offset;
-};
-
-struct RowLayoutLess {
-  bool operator()(const SortToken& left, const SortToken& right) const {
-    return memcmp(buffer + left.buffer_offset, buffer + right.buffer_offset,
-                  stride) < 0;
-  }
-  const uint8_t* buffer;
-  uint32_t stride;
-};
-
-struct RowLayoutKey {
-  const uint8_t* operator()(const SortToken& token) const {
-    return buffer + token.buffer_offset;
-  }
-  const uint8_t* buffer;
-};
-
 }  // namespace
 
 template <typename T>
 uint32_t EstimateDistinctCount(base::FlatHashMap<int64_t, uint32_t>* counts,
-                               Span<const T> values) {
+                               base::Span<const T> values) {
   const uint64_t total = values.size();
   if (total == 0) {
     return 0;
@@ -112,9 +88,9 @@ uint32_t EstimateDistinctCount(base::FlatHashMap<int64_t, uint32_t>* counts,
   return static_cast<uint32_t>(result);
 }
 
-void DistinctRows(Span<const uint8_t> row_layout,
+void DistinctRows(base::Span<const uint8_t> row_layout,
                   uint32_t row_stride,
-                  Span<uint32_t>* indices) {
+                  base::Span<uint32_t>* indices) {
   PERFETTO_DCHECK(indices);
   if (indices->empty()) {
     return;
@@ -134,42 +110,9 @@ void DistinctRows(Span<const uint8_t> row_layout,
   indices->e = output;
 }
 
-void SortRowLayout(Span<const uint8_t> row_layout,
-                   uint32_t row_stride,
-                   Span<uint32_t>* indices) {
-  PERFETTO_DCHECK(indices);
-  const uint32_t rows = static_cast<uint32_t>(indices->size());
-  if (rows <= 1) {
-    return;
-  }
-  PERFETTO_DCHECK(row_layout.size() >= indices->size() * row_stride);
-
-  std::unique_ptr<SortToken[]> tokens(new SortToken[rows]);
-  std::unique_ptr<SortToken[]> scratch;
-  for (uint32_t row = 0; row < rows; ++row) {
-    tokens[row] = SortToken{indices->b[row], row * row_stride};
-  }
-
-  SortToken* sorted;
-  if (rows < kStableSortCutoff) {
-    std::stable_sort(tokens.get(), tokens.get() + rows,
-                     RowLayoutLess{row_layout.b, row_stride});
-    sorted = tokens.get();
-  } else {
-    scratch.reset(new SortToken[rows]);
-    std::unique_ptr<uint32_t[]> counts(new uint32_t[1 << 16]);
-    sorted = RadixSort(tokens.get(), tokens.get() + rows, scratch.get(),
-                       counts.get(), row_stride, RowLayoutKey{row_layout.b});
-  }
-
-  for (uint32_t row = 0; row < rows; ++row) {
-    indices->b[row] = sorted[row].index;
-  }
-}
-
 #define PERFETTO_INSTANTIATE_DISTINCT(type)      \
   template uint32_t EstimateDistinctCount<type>( \
-      base::FlatHashMap<int64_t, uint32_t>*, Span<const type>);
+      base::FlatHashMap<int64_t, uint32_t>*, base::Span<const type>);
 PERFETTO_INSTANTIATE_DISTINCT(uint32_t)
 PERFETTO_INSTANTIATE_DISTINCT(int32_t)
 PERFETTO_INSTANTIATE_DISTINCT(int64_t)

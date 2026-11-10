@@ -297,8 +297,6 @@ declare_args() {
   # This flag enables the use of inotify on AF_UNIX sockets to re-connect when
   # the server disconnects. Disabled in chromium as inotify is not allowed by
   # Chrome's seccomp sandbox (b/470556120).
-  # On Android platform (non-standalone) builds this flag is ignored. The flag
-  # "use_unix_socket_inotify" is used instead (see perfetto_flags.aconfig).
   enable_perfetto_sock_inotify =
       !is_wasm && (perfetto_build_standalone || is_perfetto_build_generator) &&
       !build_with_chromium

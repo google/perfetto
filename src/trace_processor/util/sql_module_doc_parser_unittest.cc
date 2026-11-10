@@ -54,6 +54,38 @@ CREATE PERFETTO TABLE my_table(
   EXPECT_EQ(tv.columns[1].description, "The name.");
 }
 
+TEST(SqlModuleDocParserTest, Includes) {
+  auto m = Parse(
+      "INCLUDE PERFETTO MODULE foo.bar;\n"
+      "CREATE PERFETTO TABLE t AS SELECT 1 AS id;\n"
+      "INCLUDE PERFETTO MODULE baz.*;\n");
+
+  EXPECT_THAT(m.includes, testing::ElementsAre("foo.bar", "baz.*"));
+}
+
+TEST(SqlModuleDocParserTest, RawDescriptionKeepsLineBreaks) {
+  auto m = Parse(
+      "-- First line.\n"
+      "--   Indented line.\n"
+      "CREATE OR REPLACE PERFETTO TABLE t AS SELECT 1 AS id;");
+
+  ASSERT_EQ(m.table_views.size(), 1u);
+  EXPECT_EQ(m.table_views[0].description, "First line. Indented line.");
+  EXPECT_EQ(m.table_views[0].raw_description, "First line.\n   Indented line.");
+  EXPECT_TRUE(m.table_views[0].or_replace);
+}
+
+TEST(SqlModuleDocParserTest, VariadicArg) {
+  auto m = Parse(
+      "CREATE PERFETTO FUNCTION f(a LONG, b LONG...) RETURNS LONG AS SELECT "
+      "1;");
+
+  ASSERT_EQ(m.functions.size(), 1u);
+  ASSERT_EQ(m.functions[0].args.size(), 2u);
+  EXPECT_FALSE(m.functions[0].args[0].is_variadic);
+  EXPECT_TRUE(m.functions[0].args[1].is_variadic);
+}
+
 TEST(SqlModuleDocParserTest, View) {
   auto m = Parse(R"(
 -- A sample view.
@@ -156,6 +188,30 @@ $x;
   EXPECT_EQ(macro.args[0].name, "x");
   EXPECT_EQ(macro.args[0].type, "Expr");
   EXPECT_EQ(macro.args[0].description, "The expression.");
+}
+
+TEST(SqlModuleDocParserTest, MacroArgumentDescriptions) {
+  auto m = Parse(R"(
+CREATE PERFETTO MACRO my_macro(
+  -- First expression
+  x Expr,
+  y Expr,
+  -- Last expression
+  -- spanning two lines
+  z Expr
+)
+RETURNS Expr AS $x;
+)");
+  ASSERT_TRUE(m.errors.empty());
+  ASSERT_EQ(m.macros.size(), 1u);
+  const auto& args = m.macros[0].args;
+  ASSERT_EQ(args.size(), 3u);
+  EXPECT_EQ(args[0].name, "x");
+  EXPECT_EQ(args[1].name, "y");
+  EXPECT_EQ(args[2].name, "z");
+  EXPECT_EQ(args[0].description, "First expression");
+  EXPECT_TRUE(args[1].description.empty());
+  EXPECT_EQ(args[2].description, "Last expression spanning two lines");
 }
 
 TEST(SqlModuleDocParserTest, InternalNamesNotExposed) {

@@ -25,6 +25,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
@@ -33,22 +34,22 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "protos/perfetto/trace/statsd/statsd_atom.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
-#include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/atoms.descriptor.h"
 #include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -66,32 +67,37 @@ constexpr const char* kAtomProtoName = ".android.os.statsd.Atom";
 // - We only show the length of strings, nested messages, packed ints
 //   and any other length delimited fields.
 base::Status ParseGenericEvent(const protozero::ConstBytes& cb,
-                               util::ProtoToArgsParser::Delegate& delegate) {
+                               StringPool* pool,
+                               ArgSink* sink) {
   protozero::ProtoDecoder decoder(cb);
   for (auto f = decoder.ReadField(); f.valid(); f = decoder.ReadField()) {
     switch (f.type()) {
       case protozero::proto_utils::ProtoWireType::kLengthDelimited: {
         base::StackString<64> name("field_%u", f.id());
-        auto key = delegate.InternString(name.string_view());
-        delegate.AddBytes(key, key, f.as_bytes());
+        auto key = pool->InternString(name.string_view());
+        std::string b64 =
+            base::Base64Encode(f.as_bytes().data, f.as_bytes().size);
+        sink->Add({key, key},
+                  Variadic::String(pool->InternString(base::StringView(b64))));
         break;
       }
       case protozero::proto_utils::ProtoWireType::kVarInt: {
         base::StackString<64> name("field_%u", f.id());
-        auto key = delegate.InternString(name.string_view());
-        delegate.AddInteger(key, key, f.as_int64());
+        auto key = pool->InternString(name.string_view());
+        sink->Add({key, key}, Variadic::Integer(f.as_int64()));
         break;
       }
       case protozero::proto_utils::ProtoWireType::kFixed32: {
         base::StackString<64> name("field_%u_assuming_float", f.id());
-        auto key = delegate.InternString(name.string_view());
-        delegate.AddDouble(key, key, static_cast<double>(f.as_float()));
+        auto key = pool->InternString(name.string_view());
+        sink->Add({key, key},
+                  Variadic::Real(static_cast<double>(f.as_float())));
         break;
       }
       case protozero::proto_utils::ProtoWireType::kFixed64: {
         base::StackString<64> name("field_%u_assuming_double", f.id());
-        auto key = delegate.InternString(name.string_view());
-        delegate.AddDouble(key, key, f.as_double());
+        auto key = pool->InternString(name.string_view());
+        sink->Add({key, key}, Variadic::Real(f.as_double()));
         break;
       }
     }
@@ -186,9 +192,9 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
   StringId atom_name = GetAtomName(nested_field_id);
   context_->slice_tracker->Scoped(
       ts, InternTrackId(), kNullStringId, atom_name, 0,
-      [&](ArgsTracker::BoundInserter* inserter) {
-        ArgsParser delegate(ts, *inserter, *context_->storage,
-                            *context_->process_tracker);
+      [&](ArgsInserter& inserter) {
+        util::ProtoArgsEnv env(ts, context_->process_tracker.get());
+        ArgsInserterSink sink(inserter);
 
         const auto& descriptor =
             context_->descriptor_pool_->descriptors()[descriptor_idx_];
@@ -203,11 +209,13 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
             context_->stats_tracker->IncrementStats(stats::atom_unknown);
           }
 
-          status = ParseGenericEvent(field.as_bytes(), delegate);
+          status = ParseGenericEvent(field.as_bytes(),
+                                     context_->storage->mutable_string_pool(),
+                                     &sink);
         } else {
           status = args_parser_.ParseMessage(nested_bytes, kAtomProtoName,
                                              nullptr /* parse all fields */,
-                                             delegate);
+                                             env, sink);
         }
 
         if (!status.ok()) {

@@ -44,10 +44,10 @@ class BlockingCallMetricHandler implements MetricHandler {
       return undefined;
     }
     const metricData: BlockingCallMetricData = {
-      process: expandProcessName(match.groups.process),
-      cujName: match.groups.cujName,
-      blockingCallName: match.groups.blockingCallName,
-      aggregation: match.groups.aggregation,
+      process: expandProcessName(match.groups.process!),
+      cujName: match.groups.cujName!,
+      blockingCallName: match.groups.blockingCallName!,
+      aggregation: match.groups.aggregation!,
     };
     return metricData;
   }
@@ -130,16 +130,18 @@ class BlockingCallMetricHandler implements MetricHandler {
     ctx: Trace,
     metricData: BlockingCallMetricData,
   ): Promise<QueryResult> {
-    // Fetch the frame_id of the frame with the max duration blocking call.
+    // Fetch the cuj_id and frame_id of the frame with the max duration blocking call.
     return ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
 
       SELECT
+        cuj_id,
         frame_id
-      FROM _blocking_calls_frame_cuj
+      FROM android_cuj_frame_blocking_calls
       WHERE ${this.blockingCallWhereClause(metricData)}
-      -- select frame_id for the metric with the maximum duration.
-      ORDER BY dur DESC
+      -- Select frame_id for the frame with the maximum total duration.
+      GROUP BY cuj_id, frame_id
+      ORDER BY SUM(dur) DESC
       LIMIT 1`);
   }
   private async frameWithMaxDurBlockingCallTrackConfig(
@@ -161,16 +163,16 @@ class BlockingCallMetricHandler implements MetricHandler {
       );
       return undefined;
     }
-    const row = result.firstRow({frame_id: LONG});
+    const row = result.firstRow({cuj_id: LONG, frame_id: LONG});
 
     // Fetch the ts and dur for the extended frame boundary corresponding to the above frame_id.
     const frameWithMaxDurBlockingCallQuery = `
       SELECT
         frame_id,
         ts,
-        (ts_end - ts) AS dur
-      FROM _extended_frame_boundary
-      WHERE frame_id = ${row.frame_id}
+        dur
+      FROM android_cuj_frame_boundaries
+      WHERE cuj_id = ${row.cuj_id} AND frame_id = ${row.frame_id}
       `;
 
     return {

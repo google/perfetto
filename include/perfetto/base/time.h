@@ -25,6 +25,7 @@
 #include <string>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
@@ -61,7 +62,8 @@ void InitializeTime();
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
-TimeNanos GetWallTimeNs();
+// Used by inline code in public headers, e.g. TrackEventInternal::GetTimeNs().
+PERFETTO_EXPORT_COMPONENT TimeNanos GetWallTimeNs();
 TimeNanos GetThreadCPUTimeNs();
 TimeNanos GetProcessCPUTimeNs();
 inline TimeNanos GetWallTimeRawNs() {
@@ -281,6 +283,12 @@ inline TimeNanos GetTimeInternalNs(clockid_t clk_id) {
 // Return ns from boot. Conversely to GetWallTimeNs, this clock counts also time
 // during suspend (when supported).
 inline TimeNanos GetBootTimeNs() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // Skip the probe below as Linux has CLOCK_BOOTTIME since 2.6.39.
+  // See https://github.com/torvalds/linux/commit/7fdd7f89006d.
+  return GetTimeInternalNs(CLOCK_BOOTTIME);
+#else
   // Determine if CLOCK_BOOTTIME is available on the first call.
   static const clockid_t kBootTimeClockSource = [] {
     struct timespec ts = {};
@@ -288,6 +296,7 @@ inline TimeNanos GetBootTimeNs() {
     return res == 0 ? CLOCK_BOOTTIME : kWallTimeClockSource;
   }();
   return GetTimeInternalNs(kBootTimeClockSource);
+#endif
 }
 
 inline TimeNanos GetWallTimeNs() {

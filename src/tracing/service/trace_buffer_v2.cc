@@ -26,6 +26,7 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/protozero/proto_utils.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -87,12 +88,6 @@ int ChunkIdCompare(ChunkID a, ChunkID b) {
   return (static_cast<int32_t>(a - b) < 0) ? -1 : 1;
 }
 
-// The number of the latest empty SequenceState(s) to keep around.
-constexpr size_t kKeepLastEmptySeq = 1024;
-
-// The threshold when we start scanning and deleting the oldest sequences.
-constexpr size_t kEmptySequencesGcTreshold = kKeepLastEmptySeq + 128;
-
 // Controls how much spare capacity compaction retains so later writes can
 // reuse pages and avoid page faults.
 constexpr size_t kSpareCapacityDivisor = 4;
@@ -100,24 +95,6 @@ constexpr size_t kSpareCapacityDivisor = 4;
 }  // namespace.
 
 namespace internal {
-
-namespace {
-void AddSeqDataLoss(SequenceState* seq, uint32_t reason) {
-  PERFETTO_DCHECK(reason != 0);
-  // DATA_LOSS_PRESENT is always set so any nonzero value reads as "dropped".
-  seq->data_loss_reasons |= DataLossReason::DATA_LOSS_PRESENT | reason;
-}
-}  // namespace
-
-SequenceState::SequenceState(ProducerID p, WriterID w, ClientIdentity c)
-    : producer_id(p),
-      writer_id(w),
-      client_identity(c),
-      chunks(/*initial_capacity=*/64) {}
-SequenceState::~SequenceState() = default;
-SequenceState::SequenceState(const SequenceState&) noexcept = default;
-SequenceState& SequenceState::operator=(const SequenceState&) noexcept =
-    default;
 
 // +---------------------------------------------------------------------------+
 // | FragIterator                                                              |
@@ -245,9 +222,11 @@ TBChunk* ChunkSeqIterator::NextChunkInSequence() {
   size_t next_chunk_off = chunk_list.at(next_list_idx);      // O(1)
   TBChunk* next_chunk = buf_->GetTBChunkAt(next_chunk_off);  // O(1)
 
-  if (!seq_->is_smb_v2 && last_chunk_id.has_value() &&
-      next_chunk->chunk_id != *last_chunk_id + 1)
-    sequence_gap_detected_ = true;
+  // ReassembleFragmentedPacket() uses this flag to detect missing fragments.
+  // Update it for each pair of chunks so an earlier gap doesn't affect the
+  // packet we are reading.
+  sequence_gap_detected_ = !seq_->is_smb_v2 && last_chunk_id.has_value() &&
+                           next_chunk->chunk_id != *last_chunk_id + 1;
 
   chunk_ = next_chunk;
   list_idx_ = next_list_idx;
@@ -270,10 +249,6 @@ void ChunkSeqIterator::EraseCurrentChunk() {
   // to keep in sync the SequenceState.chunks with our list_idx_.
   PERFETTO_CHECK(list_idx_ == 0 && *chunk_list.begin() == chunk_off);
   chunk_list.pop_front();
-  if (chunk_list.empty()) {
-    seq_->age_for_gc = ++buf_->seq_age_;
-    ++buf_->empty_sequences_;
-  }
 
   // list_idx_ points to the current index, but we just deleted it.
   // Point it to -1, so the next time that is incremented it goes back to the
@@ -311,21 +286,28 @@ ChunkSeqReader::ChunkSeqReader(TraceBufferV2* buf,
                            : 0,
                        iter_->chunk_id, end_->chunk_id);
 
-  if (seq_->is_smb_v2)
-    return;
+  ReportReadGapBeforeChunk();
+}
 
-  if (seq_->last_chunk_consumed.has_value()) {
-    const auto& last = *seq_->last_chunk_consumed;
-    // Re-admit: an incomplete chunk that was evicted has been re-committed
-    // with strictly more payload. The chunk_id is unchanged, so the +1
-    // successor check below would fire spuriously even though the re-admit
-    // recovered the deferred fragments without losing data. Keep this
-    // predicate in sync with the re-admit acceptance check in
-    // TraceBufferV2::CopyChunkUntrusted.
-    bool readmit = last.was_incomplete && iter_->chunk_id == last.chunk_id;
-    if (!readmit && iter_->chunk_id != last.chunk_id + 1) {
-      AddSeqDataLoss(seq_, DataLossReason::DATA_LOSS_READ_GAP);
-    }
+void ChunkSeqReader::ReportReadGapBeforeChunk() {
+  // Skip the gap check in these three cases.
+  // 1) SMB v2 chunks have no ChunkID and use kChunkLossBefore instead.
+  // 2) We already consumed payload from this chunk, so a new reader must not
+  //    report the same gap again.
+  // 3) There is no last_chunk_consumed, so we have no previous ChunkID to
+  //    compare with iter_->chunk_id.
+  if (seq_->is_smb_v2 || iter_->unread_payload_off() != 0 ||
+      !seq_->last_chunk_consumed.has_value()) {
+    return;
+  }
+
+  const auto& last = *seq_->last_chunk_consumed;
+  // If an incomplete chunk was evicted, CopyChunkUntrusted() accepts it again
+  // when it has more payload. It keeps the same chunk_id, so we must not
+  // report a gap here.
+  bool readmit = last.was_incomplete && iter_->chunk_id == last.chunk_id;
+  if (!readmit && iter_->chunk_id != last.chunk_id + 1) {
+    seq_->AddDataLoss(DataLossReason::DATA_LOSS_READ_GAP);
   }
 }
 
@@ -349,7 +331,7 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
     // Report an SMB v2 gap when we reach the chunk after it. Clear the
     // flag so later packets in this chunk do not report the same gap again.
     if (PERFETTO_UNLIKELY(iter_->flags & kChunkLossBefore)) {
-      AddSeqDataLoss(seq_, DataLossReason::DATA_LOSS_READ_GAP);
+      seq_->AddDataLoss(DataLossReason::DATA_LOSS_READ_GAP);
       iter_->flags &= static_cast<uint8_t>(~kChunkLossBefore);
     }
     std::optional<Frag> maybe_frag = frag_iter_.NextFragmentInChunk();
@@ -358,7 +340,7 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
       bool end_reached = iter_ == end_;
 
       if (frag_iter_.chunk_corrupted()) {
-        AddSeqDataLoss(seq_, DataLossReason::DATA_LOSS_CHUNK_CORRUPTED);
+        seq_->AddDataLoss(DataLossReason::DATA_LOSS_CHUNK_CORRUPTED);
       }
 
       // If a chunk is incomplete, this is the point where we stop processing
@@ -379,6 +361,7 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         return false;  // There are no more chunks in the sequence.
       iter_ = next_chunk;
       frag_iter_ = FragIterator(next_chunk);
+      ReportReadGapBeforeChunk();
       continue;
     }
 
@@ -408,7 +391,7 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         // producer emitted a chunk sequence like [kWholePacket],[kFragEnd]
         // or, more realistically, we had a data loss and missed the chunk with
         // the kFragBegin.
-        AddSeqDataLoss(seq_, DataLossReason::DATA_LOSS_ORPHAN_CONTINUATION);
+        seq_->AddDataLoss(DataLossReason::DATA_LOSS_ORPHAN_CONTINUATION);
         ConsumeFragment(iter_, &frag);
         break;  // Break the switch, continue the loop.
 
@@ -467,11 +450,11 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         // - Then we find that, in this sequence, there is a "broken" packet.
         // We should keep going on the same sequence and mark the data loss.
         if (reassembly.result == FragReassemblyResult::kDataLoss) {
-          AddSeqDataLoss(seq_, reassembly.reason);
+          seq_->AddDataLoss(reassembly.reason);
         } else {
           // kNotEnoughData + kEraseMode: begin fragment evicted by ring-buffer
           // wrap while its continuation chunks were missing or unpatched.
-          AddSeqDataLoss(seq_, DataLossReason::DATA_LOSS_OVERWRITE);
+          seq_->AddDataLoss(DataLossReason::DATA_LOSS_OVERWRITE);
         }
         break;  // case kFragBegin
     }  // switch(frag.type)
@@ -700,14 +683,12 @@ bool TraceBufferV2::ReadNextTracePacket(
 
           if (PERFETTO_UNLIKELY(!RewriteProtoGroupPacket(out_packet))) {
             out_packet->Clear();
-            internal::AddSeqDataLoss(&s,
-                                     DataLossReason::DATA_LOSS_CHUNK_CORRUPTED);
+            s.AddDataLoss(DataLossReason::DATA_LOSS_CHUNK_CORRUPTED);
             continue;
           }
         }
-        *sequence_properties = {s.producer_id, s.client_identity, s.writer_id};
-        *previous_packet_on_sequence_dropped = s.data_loss_reasons;
-        s.data_loss_reasons = 0;
+        *sequence_properties = s.properties;
+        *previous_packet_on_sequence_dropped = s.TakeDataLoss();
         return true;
       }
       // If ReadNextPacketInSeqOrder rans out of data, skip to the block below
@@ -732,13 +713,13 @@ bool TraceBufferV2::ReadNextTracePacket(
 void TraceBufferV2::MaybeCompact() {
   TRACE_BUFFER_V2_DLOG("MaybeCompact(), wr_=%zu", wr_);
   chunk_seq_reader_.reset();
-  if (overwrite_policy_ != kOverwrite || read_only_) {
+  if (read_only_) {
     return;
   }
 
   // The read cycle is complete, so usually only a few chunks remain.
   size_t num_chunks = 0;
-  for (const auto& seq_entry : sequences_)
+  for (const auto& seq_entry : sequence_states_)
     num_chunks += seq_entry.second.chunks.size();
 
   // Store pointers to the chunk offsets in each SequenceState::chunks queue
@@ -747,7 +728,7 @@ void TraceBufferV2::MaybeCompact() {
   // leaves removed padding unaccounted for in padding_bytes_cleared.
   std::vector<size_t*> chunk_offset_ptrs;
   chunk_offset_ptrs.reserve(num_chunks);
-  for (auto& seq_entry : sequences_) {
+  for (auto& seq_entry : sequence_states_) {
     for (size_t& chunk_offset : seq_entry.second.chunks)
       chunk_offset_ptrs.emplace_back(&chunk_offset);
   }
@@ -891,8 +872,10 @@ void TraceBufferV2::CopyChunkUntrusted(
 
   PERFETTO_CHECK(!read_only_);
 
-  if (PERFETTO_UNLIKELY(discard_writes_))
-    return DiscardWrite();
+  if (PERFETTO_UNLIKELY(discard_writes_)) {
+    stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
+    return;
+  }
 
   // Only ABI flags may come from the producer. In particular, loss markers
   // and the incomplete-chunk flag are set by the service.
@@ -959,26 +942,22 @@ void TraceBufferV2::CopyChunkUntrusted(
   }
 
   auto seq_key = MkProducerAndWriterID(producer_id_trusted, writer_id);
-  writer_stats_.Insert(seq_key, static_cast<HistValue>(all_frags_size));
+  writer_stats_.Insert(seq_key, static_cast<HistValue>(all_frags_size),
+                       kProtocolAbiV1);
 
-  auto [seq_it, seq_is_new] = sequences_.try_emplace(
-      seq_key,
-      SequenceState(producer_id_trusted, writer_id, client_identity_trusted));
-  if (seq_is_new) {
-    TRACE_BUFFER_V2_DLOG("  Added seq %x", seq_key);
-  }
-
-  SequenceState& seq = seq_it->second;
+  SequenceState* seq = sequence_states_.FindOrInsert(
+      seq_key, {producer_id_trusted, client_identity_trusted, writer_id},
+      kProtocolAbiV1);
   // A sequence uses one input format. SMB v1 and SMB v2 writers share one
   // WriterID space per producer, so an SMB v2 sequence with this key
   // belongs to another writer. Leave that writer's sequence unchanged.
-  if (seq.is_smb_v2) {
+  if (seq->is_smb_v2) {
     stats_.set_abi_violations(stats_.abi_violations() + 1);
     return;
   }
   if (trace_writer_data_drop) {
     stats_.set_trace_writer_packet_loss(stats_.trace_writer_packet_loss() + 1);
-    internal::AddSeqDataLoss(&seq, DataLossReason::DATA_LOSS_WRITER_ABORT);
+    seq->AddDataLoss(DataLossReason::DATA_LOSS_WRITER_ABORT);
   }
 
   // Don't allow re-commit of chunks that have been consumed already, unless
@@ -990,17 +969,18 @@ void TraceBufferV2::CopyChunkUntrusted(
   // When re-admitting, |previously_consumed_payload| records how many payload
   // bytes were already consumed before eviction, so we can skip them below.
   uint16_t previously_consumed_payload = 0;
-  if (seq.last_chunk_consumed.has_value()) {
-    int cmp = ChunkIdCompare(chunk_id, seq.last_chunk_consumed->chunk_id);
-    if (cmp == 0 && seq.last_chunk_consumed->was_incomplete &&
-        seq.last_chunk_consumed->payload_size < all_frags_size) {
-      previously_consumed_payload = seq.last_chunk_consumed->payload_size;
+  if (seq->last_chunk_consumed.has_value()) {
+    int cmp = ChunkIdCompare(chunk_id, seq->last_chunk_consumed->chunk_id);
+    if (cmp == 0 && seq->last_chunk_consumed->was_incomplete &&
+        seq->last_chunk_consumed->payload_size < all_frags_size) {
+      previously_consumed_payload = seq->last_chunk_consumed->payload_size;
       TRACE_BUFFER_V2_DLOG("  Re-admitting chunk %u (prev_payload=%u)",
                            chunk_id, previously_consumed_payload);
     } else if (cmp <= 0) {
       // Older or same chunk with no new data to recover.
+      // A scrape can copy a completed chunk before its commit arrives.
+      // TBv3 bundling or a standalone read can consume that copy first.
       stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
-      PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
       return;
     }
   }
@@ -1014,7 +994,7 @@ void TraceBufferV2::CopyChunkUntrusted(
   // re-commit must be handled in place, and the eviction below could
   // otherwise destroy the chunk we'd want to rewrite (silent duplication
   // when the consumer has already drained an incomplete copy).
-  auto& chunk_list = seq.chunks;
+  auto& chunk_list = seq->chunks;
   size_t chunk_list_size_before_remove = chunk_list.size();
 
   using InsIter = base::CircularQueue<size_t>::ReverseIterator;
@@ -1080,8 +1060,8 @@ void TraceBufferV2::CopyChunkUntrusted(
 
     // Only a ring buffer laps, so only there can the stale copy be overwritten.
     // On kDiscard, routing the commit through the write path below could also
-    // hit the end-of-buffer DiscardWrite(), dropping the very fragments we are
-    // recovering and sealing the buffer for good.
+    // hit the end of the buffer, dropping the very fragments we are recovering
+    // and sealing the buffer for good.
     const bool buffer_can_lap = overwrite_policy_ == kOverwrite;
 
     const bool should_relocate_chunk =
@@ -1114,11 +1094,11 @@ void TraceBufferV2::CopyChunkUntrusted(
     TRACE_BUFFER_V2_DLOG("  Relocating consumed scraped chunk %u", chunk_id);
     stats_.set_chunks_relocated(stats_.chunks_relocated() + 1);
     previously_consumed_payload = recommit_chunk->payload_size;
-    internal::ChunkSeqIterator(this, &seq).EraseCurrentChunk();
+    internal::ChunkSeqIterator(this, seq).EraseCurrentChunk();
   }  // if (recommit_chunk)
 
   if (!MakeSpaceToWrite(tbchunk_outer_size))
-    return DiscardWrite();
+    return;
 
   // |insert_pos| is invalid if any chunk was removed from this sequence since
   // it was computed: either by MakeSpaceToWrite() above, or by the
@@ -1153,10 +1133,6 @@ void TraceBufferV2::CopyChunkUntrusted(
   }
   chunk_list.InsertAfter(insert_pos, wr_);
   has_data_ = true;
-  if (chunk_list.size() == 1 && !seq_is_new) {
-    PERFETTO_DCHECK(empty_sequences_ > 0);
-    --empty_sequences_;
-  }
 
   TRACE_BUFFER_V2_DLOG(" END OF CopyChunkUntrusted(%zu) @ wr=%zu", src_size,
                        wr_);
@@ -1170,8 +1146,7 @@ void TraceBufferV2::CopyChunkUntrusted(
   // We purge SequenceStates(s) only here, because other parts of the readback
   // code (BeginRead()/ReadNextTracePacket()) need to cache SequenceState*
   // pointers via seq_iter_ acros invocations.
-  if (empty_sequences_ > kEmptySequencesGcTreshold)
-    DeleteStaleEmptySequences();
+  MaybePruneSequences();
 }
 
 bool TraceBufferV2::supports_tracing_v2() const {
@@ -1200,7 +1175,7 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
   };
 
   if (PERFETTO_UNLIKELY(discard_writes_)) {
-    DiscardWrite();
+    stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
     return reject();
   }
 
@@ -1246,26 +1221,19 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
 
   auto seq_key =
       MkProducerAndWriterID(sequence.producer_id_trusted, sequence.writer_id);
-  writer_stats_.Insert(seq_key, static_cast<HistValue>(total_payload));
+  writer_stats_.Insert(seq_key, static_cast<HistValue>(total_payload),
+                       kProtocolAbiV2);
 
-  auto [seq_it, seq_is_new] = sequences_.try_emplace(
-      seq_key, SequenceState(sequence.producer_id_trusted, sequence.writer_id,
-                             sequence.client_identity_trusted));
-  SequenceState& seq = seq_it->second;
-  if (seq_is_new) {
-    seq.is_smb_v2 = true;
-    seq.age_for_gc = ++seq_age_;
-    ++empty_sequences_;
-  } else if (!seq.is_smb_v2) {
+  SequenceState* seq =
+      sequence_states_.FindOrInsert(seq_key, sequence, kProtocolAbiV2);
+  if (!seq->is_smb_v2) {
     // As in CopyChunkUntrusted(), a sequence uses one input format. The SMB
     // sequence belongs to another writer, so no loss is recorded on it.
     return reject_abi_violation();
   }
 
-  if (!MakeSpaceToWrite(tbchunk_outer_size)) {
-    DiscardWrite();
+  if (!MakeSpaceToWrite(tbchunk_outer_size))
     return reject();
-  }
 
   TBChunk* chunk = CreateTBChunk(wr_, total_payload);
   chunk->pri_wri_id = seq_key;
@@ -1273,9 +1241,9 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
   chunk->payload_avail = static_cast<uint16_t>(total_payload);
 
   uint8_t flags = 0;
-  if (PERFETTO_UNLIKELY(seq.pending_chunk_v2_data_loss)) {
+  if (PERFETTO_UNLIKELY(seq->pending_chunk_v2_data_loss)) {
     flags |= kChunkLossBefore;
-    seq.pending_chunk_v2_data_loss = false;
+    seq->pending_chunk_v2_data_loss = false;
   }
   if (first_continues_from_prev)
     flags |= kFirstPacketContFromPrevChunk;
@@ -1297,14 +1265,8 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
                   total_payload);
 
   // Append after eviction, which can remove earlier chunks from this sequence.
-  auto& chunk_list = seq.chunks;
-  bool was_empty = chunk_list.empty();
-  chunk_list.emplace_back(wr_);
+  seq->chunks.emplace_back(wr_);
   has_data_ = true;
-  if (was_empty) {
-    PERFETTO_DCHECK(empty_sequences_ > 0);
-    --empty_sequences_;
-  }
 
   wr_ += tbchunk_outer_size;
   PERFETTO_DCHECK(wr_ <= size_ && wr_ <= used_size_);
@@ -1312,8 +1274,7 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
   stats_.set_chunks_written(stats_.chunks_written() + 1);
   stats_.set_bytes_written(stats_.bytes_written() + tbchunk_outer_size);
 
-  if (empty_sequences_ > kEmptySequencesGcTreshold)
-    DeleteStaleEmptySequences();
+  MaybePruneSequences();
 
   return true;
 }
@@ -1324,9 +1285,10 @@ void TraceBufferV2::RecordChunkV2DataLoss(ProducerID producer_id,
 
   // SMB v1 and SMB v2 writers share one WriterID space per producer. An SMB v1
   // sequence with this key therefore belongs to another writer.
-  auto seq_it = sequences_.find(MkProducerAndWriterID(producer_id, writer_id));
-  if (seq_it != sequences_.end() && seq_it->second.is_smb_v2)
-    seq_it->second.pending_chunk_v2_data_loss = true;
+  SequenceState* seq =
+      sequence_states_.Find(MkProducerAndWriterID(producer_id, writer_id));
+  if (seq && seq->is_smb_v2)
+    seq->pending_chunk_v2_data_loss = true;
 }
 
 void TraceBufferV2::RecordAbiViolation() {
@@ -1345,6 +1307,12 @@ TraceBufferV2::TBChunk* TraceBufferV2::CreateTBChunk(size_t off, size_t size) {
   return new (chunk) TBChunk(off, size);
 }
 
+bool TraceBufferV2::WriteWouldWrapOrOverwrite(size_t payload_size) const {
+  if (TBChunk::OuterSize(payload_size) > size_to_end())
+    return true;
+  return overwrite_policy_ == kOverwrite && wr_ < used_size_;
+}
+
 bool TraceBufferV2::MakeSpaceToWrite(size_t size) {
   PERFETTO_DCHECK(size <= size_);
 
@@ -1352,8 +1320,11 @@ bool TraceBufferV2::MakeSpaceToWrite(size_t size) {
   // In discard mode, reaching the end stops all further writes.
   const size_t tail_size = size_to_end();
   if (PERFETTO_UNLIKELY(size > tail_size)) {
-    if (overwrite_policy_ == kDiscard)
+    if (overwrite_policy_ == kDiscard) {
+      StopAcceptingWrites();
+      stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
       return false;
+    }
     // A previous write can land exactly at the end, leaving no tail to clear.
     if (tail_size > 0)
       DeleteNextChunksFor(tail_size);
@@ -1425,8 +1396,8 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
         break;
       }
       if (maybe_packet) {
-        protovms_.MaybeProcessOverwrittenPacket(*maybe_packet,
-                                                csr.seq()->producer_id);
+        protovms_.MaybeProcessOverwrittenPacket(
+            *maybe_packet, csr.seq()->properties.producer_id_trusted);
       }
       has_cleared_unconsumed_fragments = true;
     }
@@ -1434,7 +1405,7 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
     // In future this branch should become "&& !protovm_has_consumed_packet"
     // We shouldn't report a data loss if ProtoVM merged the outgoing packet.
     if (has_cleared_unconsumed_fragments) {
-      internal::AddSeqDataLoss(csr.seq(), DataLossReason::DATA_LOSS_OVERWRITE);
+      csr.seq()->AddDataLoss(DataLossReason::DATA_LOSS_OVERWRITE);
     }
 
     // ChunkSeqReader(kEraseMode) must delete the chunk once
@@ -1469,8 +1440,8 @@ bool TraceBufferV2::TryPatchChunkContents(ProducerID producer_id,
   PERFETTO_CHECK(!read_only_);
 
   ProducerAndWriterID seq_key = MkProducerAndWriterID(producer_id, writer_id);
-  auto seq_it = sequences_.find(seq_key);
-  if (seq_it == sequences_.end() || seq_it->second.is_smb_v2) {
+  SequenceState* seq = sequence_states_.Find(seq_key);
+  if (!seq || seq->is_smb_v2) {
     stats_.set_patches_failed(stats_.patches_failed() + 1);
     return false;
   }
@@ -1478,7 +1449,7 @@ bool TraceBufferV2::TryPatchChunkContents(ProducerID producer_id,
   // We have to do a linear search to find the chunk to patch. In the majority
   // of cases the chunk to patch is one of the last ones committed, so we walk
   // the list backwards.
-  auto& chunk_list = seq_it->second.chunks;
+  auto& chunk_list = seq->chunks;
   TBChunk* chunk = nullptr;
   for (auto it = chunk_list.rbegin(); it != chunk_list.rend(); ++it) {
     TBChunk* it_chunk = GetTBChunkAt(*it);
@@ -1527,55 +1498,21 @@ bool TraceBufferV2::TryPatchChunkContents(ProducerID producer_id,
   return true;
 }
 
-void TraceBufferV2::DiscardWrite() {
+void TraceBufferV2::StopAcceptingWrites() {
   PERFETTO_DCHECK(overwrite_policy_ == kDiscard);
   discard_writes_ = true;
-  stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
-  TRACE_BUFFER_V2_DLOG("  discarding write");
+  TRACE_BUFFER_V2_DLOG("  stopping writes");
 }
 
-// When a sequence has 0 chunks we could delete it straight away. However doing
-// do would remove also the last_chunk_consumed used to detect data losses.
-// Here we have to balance the tradeoff between:
-// - Bounding memory usage: if we have a lot of writer threads, we can't just
-//   keeping growing the SequenceStates without bounds.
-// - Retaining our ability to detect data losses for sporadic writers.
-// Here the decision is to keep the last 1024 (kKeepLastEmptySeq) empty
-// sequences and delete anything older. We have some hysteresis and start the GC
-// process only after hitting 1024+128 (kEmptySequencesGcTreshold) empty seqs.
-// This is to avoid thrashing with a sort every time one sequence becomes empty.
-// Also we have to defer the deletion of SequenceState outside of
+void TraceBufferV2::OnWriteCheckpoint() {}
+
+// We have to defer the deletion of SequenceState outside of
 // ReadNextTracePacket() calls, as that caches SequenceState* pointers in
 // chunk_seq_reader_. This is called only at the end of CopyChunkUntrusted()
 // and CopyChunkV2Untrusted().
-void TraceBufferV2::DeleteStaleEmptySequences() {
-  // Build a vector of iterators; sort it; delete the first size() - kThreshold.
-  using SeqIterator = decltype(sequences_)::iterator;
-  std::vector<SeqIterator> empty_seqs;
-  empty_seqs.reserve(sequences_.size());
-  for (auto it = sequences_.begin(); it != sequences_.end(); ++it) {
-    if (it->second.chunks.empty())
-      empty_seqs.emplace_back(it);
-  }
-  static_assert(kEmptySequencesGcTreshold >= kKeepLastEmptySeq);
-  if (empty_seqs.size() < kEmptySequencesGcTreshold)
+void TraceBufferV2::MaybePruneSequences() {
+  if (!sequence_states_.MaybePrune())
     return;
-
-  std::sort(empty_seqs.begin(), empty_seqs.end(),
-            [](const SeqIterator& a, const SeqIterator& b) {
-              return a->second.age_for_gc < b->second.age_for_gc;
-            });
-
-  // TODO(sashwinbalaji): Pruning an SMB v2 sequence discards its
-  // pending_chunk_v2_data_loss. If that writer appends again, the loss is not
-  // reported. SMB sequences have the same limit: pruning discards
-  // last_chunk_consumed. Revisit if field traces show missed loss for writers
-  // that write rarely while many others churn.
-  size_t n_oldest = empty_seqs.size() - kKeepLastEmptySeq;
-  for (size_t i = 0; i < n_oldest; ++i) {
-    sequences_.erase(empty_seqs[i]);
-  }
-  empty_sequences_ = kKeepLastEmptySeq;
 
   // This is not really required in the current implementation and is here just
   // to spot bugs while refactoring the code in future. This function is
@@ -1602,6 +1539,7 @@ size_t TraceBufferV2::GetMemoryUsageBytes() const {
 
 TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
     : overwrite_policy_(src.overwrite_policy_),
+      sequence_states_(src.sequence_states_),
       read_generation_(src.read_generation_),
       read_only_(true),
       discard_writes_(src.discard_writes_) {
@@ -1622,10 +1560,9 @@ TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
   stats_.set_readaheads_failed(0);
   stats_.set_readaheads_succeeded(0);
 
-  // Finally copy over the SequenceState map and WriterStats map. WriterStats
-  // must be copied because EmitTraceProvenance() derives the producer->sequence
-  // mapping from it, until b/568173038 is addressed.
-  sequences_ = src.sequences_;
+  // Finally copy over the WriterStats map.
+  // WriterStats must be copied because EmitTraceProvenance() derives the
+  // producer->sequence mapping from it, until b/568173038 is addressed.
   writer_stats_ = src.writer_stats_;
 
   protovms_.CloneReadOnlyFrom(src.protovms_);

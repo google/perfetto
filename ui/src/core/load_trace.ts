@@ -242,6 +242,13 @@ async function loadTraceIntoEngine(
   // rebuilds it, which resets the flag.
   await engine.query('PERFETTO PRAGMA pipelines = 1;');
 
+  if (await hasDuplicateTracks(engine)) {
+    engine[Symbol.dispose]();
+    throw new Error(
+      'Cannot merge traces captured on the same machine (ERR:dup_machine_traces)',
+    );
+  }
+
   for (const p of await app.sqlPackages()) {
     await engine.registerSqlPackages(p);
   }
@@ -523,7 +530,7 @@ async function computeVisibleTime(
 // component trace if that trace was previously opened individually.
 async function computeGlobalUuid(uuids: string[]): Promise<string> {
   if (uuids.length === 0) return '';
-  if (uuids.length === 1) return uuids[0];
+  if (uuids.length === 1) return uuids[0]!;
   const sortedUuids = [...uuids].sort();
   return await sha1(sortedUuids.join(';'));
 }
@@ -747,4 +754,19 @@ async function getTracingMetadataTimeBounds(engine: Engine): Promise<TimeSpan> {
     it.startBound === null ? Time.MIN : Time.fromRaw(it.startBound);
   const endBound = it.endBound === null ? Time.MAX : Time.fromRaw(it.endBound);
   return new TimeSpan(startBound, endBound);
+}
+
+// Every track within a single trace is uniquely identified by
+// (type, machine_id, dimension_arg_set_id). Duplicate entries only occur when
+// multiple traces are loaded onto the same machine, which breaks plugins that
+// assume track dimensions are unique per machine (e.g. CpuFreq, Gpu).
+async function hasDuplicateTracks(engine: Engine): Promise<boolean> {
+  const res = await engine.query(`
+    SELECT 1
+    FROM track
+    GROUP BY type, machine_id, dimension_arg_set_id
+    HAVING COUNT(*) > 1
+    LIMIT 1
+  `);
+  return res.numRows() > 0;
 }

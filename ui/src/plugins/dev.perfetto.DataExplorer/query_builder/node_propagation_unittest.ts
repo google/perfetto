@@ -51,7 +51,7 @@ describe('Node Propagation', () => {
       ]);
 
       // THE BUG: Rename 'name' to 'user_name' in ModifyColumnsNode
-      modifyNode.attrs.selectedColumns[1].alias = 'user_name';
+      modifyNode.attrs.selectedColumns[1]!.alias = 'user_name';
 
       // BEFORE FIX: AggregationNode would still show 'id', 'name', 'value'
       // AFTER FIX: We need to call onPrevNodesUpdated to propagate the change
@@ -79,37 +79,37 @@ describe('Node Propagation', () => {
 
       // Verify modify node has the original columns
       expect(modifyNode.attrs.selectedColumns).toHaveLength(3);
-      expect(modifyNode.attrs.selectedColumns[0].name).toBe('id');
-      expect(modifyNode.attrs.selectedColumns[1].name).toBe('name');
-      expect(modifyNode.attrs.selectedColumns[2].name).toBe('value');
+      expect(modifyNode.attrs.selectedColumns[0]!.name).toBe('id');
+      expect(modifyNode.attrs.selectedColumns[1]!.name).toBe('name');
+      expect(modifyNode.attrs.selectedColumns[2]!.name).toBe('value');
 
       // Initialize the aggregation node
       aggNode.onPrevNodesUpdated?.();
 
       // Verify aggregation node has the original columns
       expect(aggNode.attrs.groupByColumns).toHaveLength(3);
-      expect(aggNode.attrs.groupByColumns[0].name).toBe('id');
-      expect(aggNode.attrs.groupByColumns[1].name).toBe('name');
-      expect(aggNode.attrs.groupByColumns[2].name).toBe('value');
+      expect(aggNode.attrs.groupByColumns[0]!.name).toBe('id');
+      expect(aggNode.attrs.groupByColumns[1]!.name).toBe('name');
+      expect(aggNode.attrs.groupByColumns[2]!.name).toBe('value');
 
       // Now rename 'name' to 'user_name' in the modify node
-      modifyNode.attrs.selectedColumns[1].alias = 'user_name';
+      modifyNode.attrs.selectedColumns[1]!.alias = 'user_name';
 
       // Verify the finalCols of modify node uses the alias
       const modifyFinalCols = modifyNode.finalCols;
       expect(modifyFinalCols).toHaveLength(3);
-      expect(modifyFinalCols[0].name).toBe('id');
-      expect(modifyFinalCols[1].name).toBe('user_name'); // Should use alias
-      expect(modifyFinalCols[2].name).toBe('value');
+      expect(modifyFinalCols[0]!.name).toBe('id');
+      expect(modifyFinalCols[1]!.name).toBe('user_name'); // Should use alias
+      expect(modifyFinalCols[2]!.name).toBe('value');
 
       // Simulate the builder's onchange behavior: notify downstream nodes
       aggNode.onPrevNodesUpdated?.();
 
       // Verify aggregation node now sees the renamed column
       expect(aggNode.attrs.groupByColumns).toHaveLength(3);
-      expect(aggNode.attrs.groupByColumns[0].name).toBe('id');
-      expect(aggNode.attrs.groupByColumns[1].name).toBe('user_name'); // Should see the alias
-      expect(aggNode.attrs.groupByColumns[2].name).toBe('value');
+      expect(aggNode.attrs.groupByColumns[0]!.name).toBe('id');
+      expect(aggNode.attrs.groupByColumns[1]!.name).toBe('user_name'); // Should see the alias
+      expect(aggNode.attrs.groupByColumns[2]!.name).toBe('value');
     });
 
     it('should preserve checked status when columns are renamed', () => {
@@ -126,10 +126,10 @@ describe('Node Propagation', () => {
       initializeNodeChain([modifyNode, aggNode]);
 
       // Check a column in the aggregation node
-      aggNode.attrs.groupByColumns[1].checked = true; // Check 'name'
+      aggNode.attrs.groupByColumns[1]!.checked = true; // Check 'name'
 
       // Rename the checked column in modify node
-      modifyNode.attrs.selectedColumns[1].alias = 'user_name';
+      modifyNode.attrs.selectedColumns[1]!.alias = 'user_name';
 
       // Notify downstream
       aggNode.onPrevNodesUpdated?.();
@@ -161,20 +161,20 @@ describe('Node Propagation', () => {
       expect(aggNode.attrs.groupByColumns).toHaveLength(3);
 
       // Uncheck 'name' column in modify node (removes it from output)
-      modifyNode.attrs.selectedColumns[1].checked = false;
+      modifyNode.attrs.selectedColumns[1]!.checked = false;
 
       // Verify modify node's finalCols only has 2 columns now
       expect(modifyNode.finalCols).toHaveLength(2);
-      expect(modifyNode.finalCols[0].name).toBe('id');
-      expect(modifyNode.finalCols[1].name).toBe('value');
+      expect(modifyNode.finalCols[0]!.name).toBe('id');
+      expect(modifyNode.finalCols[1]!.name).toBe('value');
 
       // Notify downstream
       aggNode.onPrevNodesUpdated?.();
 
       // Aggregation node should now only have 2 columns
       expect(aggNode.attrs.groupByColumns).toHaveLength(2);
-      expect(aggNode.attrs.groupByColumns[0].name).toBe('id');
-      expect(aggNode.attrs.groupByColumns[1].name).toBe('value');
+      expect(aggNode.attrs.groupByColumns[0]!.name).toBe('id');
+      expect(aggNode.attrs.groupByColumns[1]!.name).toBe('value');
     });
 
     it('should handle column reordering in ModifyColumnsNode', () => {
@@ -195,7 +195,7 @@ describe('Node Propagation', () => {
 
       // Reorder: move 'value' to the front
       const cols = modifyNode.attrs.selectedColumns;
-      modifyNode.attrs.selectedColumns = [cols[2], cols[0], cols[1]];
+      modifyNode.attrs.selectedColumns = [cols[2]!, cols[0]!, cols[1]!];
 
       // Verify modify node's finalCols are reordered
       expectColumnNames(modifyNode, ['value', 'id', 'name']);
@@ -204,9 +204,9 @@ describe('Node Propagation', () => {
       aggNode.onPrevNodesUpdated?.();
 
       // Aggregation node should see the new order
-      expect(aggNode.attrs.groupByColumns[0].name).toBe('value');
-      expect(aggNode.attrs.groupByColumns[1].name).toBe('id');
-      expect(aggNode.attrs.groupByColumns[2].name).toBe('name');
+      expect(aggNode.attrs.groupByColumns[0]!.name).toBe('value');
+      expect(aggNode.attrs.groupByColumns[1]!.name).toBe('id');
+      expect(aggNode.attrs.groupByColumns[2]!.name).toBe('name');
     });
   });
 
@@ -232,7 +232,7 @@ describe('Node Propagation', () => {
       expectColumnNames(modify3, ['id', 'name', 'value']);
 
       // Rename 'name' to 'user_name' in modify1
-      modify1.attrs.selectedColumns[1].alias = 'user_name';
+      modify1.attrs.selectedColumns[1]!.alias = 'user_name';
 
       // Notify all downstream nodes (simulating builder's onchange)
       initializeNodeChain([modify2, modify3]);
@@ -263,7 +263,7 @@ describe('Node Propagation', () => {
       initializeNodeChain([modify1, modify2, modify3, modify4, modify5]);
 
       // Edit the MIDDLE node (modify3) - rename 'value' to 'amount'
-      modify3.attrs.selectedColumns[2].alias = 'amount';
+      modify3.attrs.selectedColumns[2]!.alias = 'amount';
 
       // Notify all downstream nodes (simulating builder's onchange)
       initializeNodeChain([modify4, modify5]);
@@ -294,8 +294,8 @@ describe('Node Propagation', () => {
       initializeNodeChain([modify1, aggNode]);
 
       // Check columns BEFORE renaming and BEFORE initializing modify2
-      aggNode.attrs.groupByColumns[0].checked = true; // Check 'id'
-      aggNode.attrs.groupByColumns[1].checked = true; // Check 'name'
+      aggNode.attrs.groupByColumns[0]!.checked = true; // Check 'id'
+      aggNode.attrs.groupByColumns[1]!.checked = true; // Check 'name'
 
       // Now initialize modify2 after aggNode has checked columns
       modify2.onPrevNodesUpdated?.();
@@ -305,7 +305,7 @@ describe('Node Propagation', () => {
       expect(modify2.finalCols.map((c) => c.name)).toContain('name');
 
       // Rename 'name' to 'user_name' in modify1
-      modify1.attrs.selectedColumns[1].alias = 'user_name';
+      modify1.attrs.selectedColumns[1]!.alias = 'user_name';
 
       // Notify all downstream nodes
       initializeNodeChain([aggNode, modify2]);
@@ -354,19 +354,19 @@ describe('Node Propagation', () => {
       initializeNodeChain([modify1, modify2, modify3]);
 
       // First edit: modify1 renames 'name' to 'user_name'
-      modify1.attrs.selectedColumns[1].alias = 'user_name';
+      modify1.attrs.selectedColumns[1]!.alias = 'user_name';
       initializeNodeChain([modify2, modify3]);
 
       expectColumnNames(modify3, ['id', 'user_name', 'value']);
 
       // Second edit: modify2 renames 'user_name' to 'username'
-      modify2.attrs.selectedColumns[1].alias = 'username';
+      modify2.attrs.selectedColumns[1]!.alias = 'username';
       modify3.onPrevNodesUpdated?.();
 
       expectColumnNames(modify3, ['id', 'username', 'value']);
 
       // Third edit: modify2 also renames 'id' to 'identifier'
-      modify2.attrs.selectedColumns[0].alias = 'identifier';
+      modify2.attrs.selectedColumns[0]!.alias = 'identifier';
       modify3.onPrevNodesUpdated?.();
 
       expectColumnNames(modify3, ['identifier', 'username', 'value']);
@@ -393,7 +393,7 @@ describe('Node Propagation', () => {
       expect(modify4.finalCols).toHaveLength(3);
 
       // Remove 'name' column in modify2 (middle of chain)
-      modify2.attrs.selectedColumns[1].checked = false;
+      modify2.attrs.selectedColumns[1]!.checked = false;
       initializeNodeChain([modify3, modify4]);
 
       // All downstream nodes should only have 2 columns now
@@ -424,7 +424,7 @@ describe('Node Propagation', () => {
       aggOnPrevNodesUpdatedSpy.mockClear();
 
       // Make a change in modify node and trigger propagation
-      modifyNode.attrs.selectedColumns[0].alias = 'identifier';
+      modifyNode.attrs.selectedColumns[0]!.alias = 'identifier';
       aggNode.onPrevNodesUpdated?.();
 
       // Verify it was called
@@ -459,7 +459,7 @@ describe('Node Propagation', () => {
       });
 
       // Check a column to include in output
-      aggNode.attrs.groupByColumns[0].checked = true; // Check 'id'
+      aggNode.attrs.groupByColumns[0]!.checked = true; // Check 'id'
 
       // User adds a modify columns node below
       // Initialize it - it should see 'id' and 'count' from aggregation
@@ -472,7 +472,7 @@ describe('Node Propagation', () => {
       ]);
 
       // User goes back to aggregation and renames "count" to "my_count"
-      aggNode.attrs.aggregations[0].newColumnName = 'my_count';
+      aggNode.attrs.aggregations[0]!.newColumnName = 'my_count';
 
       // Simulate the builder's onchange behavior: notify downstream nodes
       // This is what SHOULD happen automatically when user edits in UI
@@ -522,7 +522,7 @@ describe('Node Propagation', () => {
       });
 
       // Check a group by column
-      aggNode.attrs.groupByColumns[0].checked = true; // Check 'id'
+      aggNode.attrs.groupByColumns[0]!.checked = true; // Check 'id'
 
       // Initialize the modify node
       modifyNode.onPrevNodesUpdated?.();
@@ -535,8 +535,8 @@ describe('Node Propagation', () => {
       ]);
 
       // Rename both aggregation columns
-      aggNode.attrs.aggregations[0].newColumnName = 'num_rows';
-      aggNode.attrs.aggregations[1].newColumnName = 'sum_value';
+      aggNode.attrs.aggregations[0]!.newColumnName = 'num_rows';
+      aggNode.attrs.aggregations[1]!.newColumnName = 'sum_value';
 
       // Propagate changes
       modifyNode.onPrevNodesUpdated?.();
@@ -563,7 +563,7 @@ describe('Node Propagation', () => {
 
       // Initialize
       aggNode.onPrevNodesUpdated?.();
-      aggNode.attrs.groupByColumns[1].checked = true; // Check 'name'
+      aggNode.attrs.groupByColumns[1]!.checked = true; // Check 'name'
       aggNode.attrs.aggregations.push({
         aggregationOp: 'COUNT(*)',
         newColumnName: 'count',
@@ -576,7 +576,7 @@ describe('Node Propagation', () => {
       expectColumnNames(modify2, ['name', 'count']);
 
       // Rename aggregation column
-      aggNode.attrs.aggregations[0].newColumnName = 'total_count';
+      aggNode.attrs.aggregations[0]!.newColumnName = 'total_count';
 
       // Propagate to both downstream nodes
       initializeNodeChain([modify1, modify2]);
@@ -601,7 +601,7 @@ describe('Node Propagation', () => {
 
       // Initialize
       aggNode.onPrevNodesUpdated?.();
-      aggNode.attrs.groupByColumns[0].checked = true; // Check 'id'
+      aggNode.attrs.groupByColumns[0]!.checked = true; // Check 'id'
       aggNode.attrs.aggregations.push({
         aggregationOp: 'COUNT(*)',
         newColumnName: 'count',
@@ -613,7 +613,7 @@ describe('Node Propagation', () => {
       expectColumnNames(modifyNode, ['id', 'count']);
 
       // Rename aggregation column
-      aggNode.attrs.aggregations[0].newColumnName = 'row_count';
+      aggNode.attrs.aggregations[0]!.newColumnName = 'row_count';
 
       // Propagate through middle node to modify node
       initializeNodeChain([middleNode, modifyNode]);
@@ -635,7 +635,7 @@ describe('Node Propagation', () => {
 
       // Initialize agg1
       agg1.onPrevNodesUpdated?.();
-      agg1.attrs.groupByColumns[0].checked = true; // Group by 'id'
+      agg1.attrs.groupByColumns[0]!.checked = true; // Group by 'id'
       agg1.attrs.aggregations.push({
         aggregationOp: 'SUM',
         column: agg1.attrs.groupByColumns.find((c) => c.name === 'value'),
@@ -650,7 +650,7 @@ describe('Node Propagation', () => {
       ]);
 
       // In agg2, do another aggregation
-      agg2.attrs.groupByColumns[0].checked = true; // Group by 'id'
+      agg2.attrs.groupByColumns[0]!.checked = true; // Group by 'id'
       agg2.attrs.aggregations.push({
         aggregationOp: 'COUNT(*)',
         newColumnName: 'count',
@@ -661,7 +661,7 @@ describe('Node Propagation', () => {
       expectColumnNames(modifyNode, ['id', 'count']);
 
       // Now change column name in FIRST aggregation (agg1)
-      agg1.attrs.aggregations[0].newColumnName = 'sum_value';
+      agg1.attrs.aggregations[0]!.newColumnName = 'sum_value';
 
       // Propagate through the chain
       agg2.onPrevNodesUpdated?.();
@@ -674,7 +674,7 @@ describe('Node Propagation', () => {
       expectColumnNames(modifyNode, ['id', 'count']);
 
       // Now also change column name in SECOND aggregation (agg2)
-      agg2.attrs.aggregations[0].newColumnName = 'num_groups';
+      agg2.attrs.aggregations[0]!.newColumnName = 'num_groups';
 
       // Propagate to modify node
       modifyNode.onPrevNodesUpdated?.();
@@ -698,7 +698,7 @@ describe('Node Propagation', () => {
       aggNode.onPrevNodesUpdated?.();
 
       // Add a valid aggregation
-      aggNode.attrs.groupByColumns[0].checked = true; // Check 'id'
+      aggNode.attrs.groupByColumns[0]!.checked = true; // Check 'id'
       aggNode.attrs.aggregations.push({
         aggregationOp: 'COUNT(*)',
         newColumnName: 'count',
@@ -715,7 +715,7 @@ describe('Node Propagation', () => {
 
       // Now make the aggregation INVALID by removing the operation
       // (simulating user deleting the operation while editing)
-      aggNode.attrs.aggregations[0].aggregationOp = undefined;
+      aggNode.attrs.aggregations[0]!.aggregationOp = undefined;
 
       // Notify downstream
       modifyNode.onPrevNodesUpdated?.();
@@ -744,7 +744,7 @@ describe('Node Propagation', () => {
 
       // Initialize
       aggNode.onPrevNodesUpdated?.();
-      aggNode.attrs.groupByColumns[0].checked = true; // Check 'id'
+      aggNode.attrs.groupByColumns[0]!.checked = true; // Check 'id'
 
       // Start with an INVALID aggregation (no operation selected)
       aggNode.attrs.aggregations.push({
@@ -761,7 +761,7 @@ describe('Node Propagation', () => {
       ]);
 
       // Now make it valid by adding an operation
-      aggNode.attrs.aggregations[0].aggregationOp = 'COUNT(*)';
+      aggNode.attrs.aggregations[0]!.aggregationOp = 'COUNT(*)';
 
       // Notify downstream
       modifyNode.onPrevNodesUpdated?.();
@@ -786,7 +786,7 @@ describe('Node Propagation', () => {
 
       // Initialize
       aggNode.onPrevNodesUpdated?.();
-      aggNode.attrs.groupByColumns[0].checked = true; // Check 'id'
+      aggNode.attrs.groupByColumns[0]!.checked = true; // Check 'id'
 
       // Add multiple aggregations: some valid, some invalid
       aggNode.attrs.aggregations.push({
@@ -840,7 +840,7 @@ describe('Node Propagation', () => {
 
       // Initialize
       aggNode.onPrevNodesUpdated?.();
-      aggNode.attrs.groupByColumns[0].checked = true;
+      aggNode.attrs.groupByColumns[0]!.checked = true;
 
       // Scenario 1: User creates aggregation WITHOUT manual name (uses placeholder)
       aggNode.attrs.aggregations.push({
@@ -857,7 +857,7 @@ describe('Node Propagation', () => {
       );
 
       // Scenario 2: User manually enters their own name "my_custom_sum"
-      aggNode.attrs.aggregations[0].newColumnName = 'my_custom_sum';
+      aggNode.attrs.aggregations[0]!.newColumnName = 'my_custom_sum';
       modifyNode.onPrevNodesUpdated?.();
 
       // Should now see manual name, NOT placeholder
@@ -869,7 +869,7 @@ describe('Node Propagation', () => {
       );
 
       // Scenario 3: User changes manual name to something else
-      aggNode.attrs.aggregations[0].newColumnName = 'total_amount';
+      aggNode.attrs.aggregations[0]!.newColumnName = 'total_amount';
       modifyNode.onPrevNodesUpdated?.();
 
       // Should see the new manual name
@@ -884,7 +884,7 @@ describe('Node Propagation', () => {
       );
 
       // Scenario 4: User changes the operation (manual name still takes precedence)
-      aggNode.attrs.aggregations[0].aggregationOp = 'AVG';
+      aggNode.attrs.aggregations[0]!.aggregationOp = 'AVG';
       modifyNode.onPrevNodesUpdated?.();
 
       // Should STILL see "total_amount" (manual name), NOT "avg_value" (placeholder)

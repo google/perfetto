@@ -37,6 +37,7 @@
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/util/profiler_util.h"
 
@@ -145,14 +146,6 @@ std::map<ClassDescriptor, ClassDescriptor> BuildSuperclassMap(
         super_class_id, super_class_descriptor.location};
   }
   return superclass_map;
-}
-
-// Extract the size from `nar_size`, which is the value of a
-// libcore.util.NativeAllocationRegistry.size field: it encodes the size, but
-// uses the least significant bit to represent the source of the allocation.
-int64_t GetSizeFromNativeAllocationRegistry(int64_t nar_size) {
-  constexpr uint64_t kIsMalloced = 1;
-  return static_cast<int64_t>(static_cast<uint64_t>(nar_size) & ~kIsMalloced);
 }
 
 // A given object can be a heap root in different ways. Ensure analysis is

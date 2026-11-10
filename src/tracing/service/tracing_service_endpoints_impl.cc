@@ -41,10 +41,15 @@
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.gen.h"
 
 namespace perfetto::tracing_service {
 
 namespace {
+// We retry a drain pass that hit its limit after this delay, so writers that
+// keep winning chunk state transitions can't keep the service thread busy.
+constexpr uint32_t kV2DrainRetryDelayMs = 1;
+
 // Partially encodes a CommitDataRequest in an int32 for the purposes of
 // metatracing. Note that it encodes only the bottom 10 bits of the producer id
 // (which is technically 16 bits wide).
@@ -520,6 +525,21 @@ void ProducerEndpointImpl::CommitData(const CommitDataRequest& req_untrusted,
         PERFETTO_DFATAL("IPC data commit too large: %zu", data.size());
         continue;  // A malicious or buggy producer
       }
+      // TraceBufferV3 can't take chunks sent over IPC yet, see the TODO in
+      // TracingServiceImpl::SetupDataSource().
+      // Drop them only for a buffer this producer may write, so
+      // CopyProducerPageIntoLogBuffer() still reports a forbidden buffer.
+      const auto ipc_buffer_id = static_cast<BufferID>(entry.target_buffer());
+      TraceBuffer* ipc_buffer = service_->GetBufferByID(ipc_buffer_id);
+      if (ipc_buffer && ipc_buffer->buf_type() == TraceBuffer::kV3 &&
+          is_allowed_target_buffer(ipc_buffer_id)) {
+        PERFETTO_ELOG(
+            "TraceBufferV3 does not support shared memory emulation "
+            "(producer %" PRIu16 ", target buffer %u)",
+            id_, entry.target_buffer());
+        ++service_->chunks_discarded_;
+        continue;
+      }
       // |data| is not altered, but we need to const_cast becasue Chunk data
       // members are non-const.
       chunk = SharedMemoryABI::MakeChunkFromSerializedData(
@@ -567,6 +587,10 @@ void ProducerEndpointImpl::CommitData(const CommitDataRequest& req_untrusted,
   }  // for(chunks_to_move)
 
   service_->ApplyChunkPatches(id_, req_untrusted.chunks_to_patch());
+
+  // The request's chunks are copied and its patches applied, so this
+  // producer's write batch is complete.
+  NotifyWriteCheckpoint();
 
   if (req_untrusted.flush_request_id()) {
     service_->NotifyFlushDoneForProducer(id_, req_untrusted.flush_request_id());
@@ -842,8 +866,7 @@ void ProducerEndpointImpl::AttachV2RingBuffer(
 
   v2_ring_buffer_drainer_ =
       std::make_unique<tracing_v2::ServiceRingBufferDrainer>(
-          memory, chunk_size_bytes, id_, client_identity_, this,
-          weak_runner_.task_runner());
+          memory, chunk_size_bytes, id_, client_identity_, this);
   service_->UpdateMemoryGuardrail();
   DrainV2RingBuffer();
   callback(true);
@@ -851,8 +874,44 @@ void ProducerEndpointImpl::AttachV2RingBuffer(
 
 void ProducerEndpointImpl::DrainV2RingBuffer() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  if (v2_ring_buffer_drainer_)
-    v2_ring_buffer_drainer_->Drain();
+  if (!v2_ring_buffer_drainer_)
+    return;
+  const bool needs_another_drain = v2_ring_buffer_drainer_->Drain();
+  if (needs_another_drain && !v2_drain_retry_scheduled_) {
+    v2_drain_retry_scheduled_ = true;
+    weak_runner_.PostDelayedTask(
+        [this] {
+          // The next pass can request another retry if it also hits a limit.
+          v2_drain_retry_scheduled_ = false;
+          DrainV2RingBuffer();
+        },
+        kV2DrainRetryDelayMs);
+  }
+  // SMB v2 chunks arrive in write order, so this producer's write batch is
+  // complete after each pass, even if another pass follows.
+  NotifyWriteCheckpoint();
+}
+
+void ProducerEndpointImpl::NotifyWriteCheckpoint() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  for (BufferID buffer_id : allowed_target_buffers_) {
+    if (TraceBuffer* buffer = service_->GetBufferByID(buffer_id))
+      buffer->OnWriteCheckpoint();
+  }
+}
+
+std::optional<protos::gen::ExperimentalTracingV2ProducerStats>
+ProducerEndpointImpl::GetTracingV2Stats() const {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!v2_ring_buffer_drainer_)
+    return std::nullopt;
+
+  protos::gen::ExperimentalTracingV2ProducerStats stats;
+  stats.set_producer_id(id_);
+  stats.set_pid(static_cast<int32_t>(pid()));
+  stats.set_producer_name(name_);
+  v2_ring_buffer_drainer_->FillStats(&stats);
+  return stats;
 }
 
 TraceBuffer* ProducerEndpointImpl::GetV2RingBufferDestination(BufferID id) {

@@ -139,7 +139,7 @@ export default class ScreenshotDiffReporter implements Reporter {
       if (m === null || a.path === undefined || !fs.existsSync(a.path)) {
         continue;
       }
-      const screenshotName = m[1];
+      const screenshotName = m[1]!;
       const role = m[2] as Role;
       let failure = byName.get(screenshotName);
       if (failure === undefined) {
@@ -152,9 +152,9 @@ export default class ScreenshotDiffReporter implements Reporter {
         };
         byName.set(screenshotName, failure);
       }
-      const fileName = `${failure.id}-${role}.png`;
+      const fileName = `${failure!.id}-${role}.png`;
       fs.copyFileSync(a.path, path.join(this.outputFolder, fileName));
-      failure.images[role] = fileName;
+      failure!.images[role] = fileName;
     }
     // Only keep entries that have an actual image: that's what a failed
     // comparison (or a missing baseline) produces.

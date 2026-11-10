@@ -32,7 +32,6 @@ namespace {
 
 using ::testing::_;
 using ::testing::Eq;
-using ::testing::InvokeWithoutArgs;
 using ::testing::IsNull;
 using ::testing::Pointee;
 
@@ -106,7 +105,7 @@ TEST_F(InodeFileDataSourceTest, TestFileSystemScan) {
       protos::pbzero::InodeFileMap::Entry::Type::FILE,
       {base::GetTestDataPath("src/traced/probes/filesystem/testdata/file2")});
   EXPECT_CALL(*data_source, FillInodeEntry(_, buf.st_ino, Eq(value)))
-      .WillOnce(InvokeWithoutArgs(done));
+      .WillOnce(done);
 
   data_source->OnInodes({{buf.st_ino, buf.st_dev}});
   task_runner_.RunUntilCheckpoint("done");

@@ -52,7 +52,7 @@ void AddCopy(Context& context,
              const std::vector<T>& values,
              const BitVector* validity,
              RowBatch* out) {
-  ColumnBuffer buffer = context.TakeBuffer();
+  ColumnBuffer buffer = context.TakeBuffer(sizeof(T));
   ColumnView view = buffer.chunk().Fill(values.data(), validity,
                                         static_cast<uint32_t>(values.size()));
   out->AddColumn(view, std::move(buffer));

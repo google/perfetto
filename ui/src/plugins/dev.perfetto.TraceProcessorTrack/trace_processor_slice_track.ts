@@ -129,7 +129,7 @@ async function getDataset(
       src: 'slice',
       filter: {
         col: 'track_id',
-        eq: trackIds[0],
+        eq: trackIds[0]!,
       },
     });
   } else {

@@ -20,7 +20,7 @@
 #include <cstdint>
 #include <memory>
 
-#include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
@@ -51,8 +51,7 @@ struct Harness {
     context.storage.reset(new TraceStorage());
     context.global_stats_tracker =
         std::make_unique<GlobalStatsTracker>(context.storage.get());
-    context.global_args_tracker.reset(
-        new GlobalArgsTracker(context.storage.get()));
+    context.args_tracker.reset(new ArgsTracker(context.storage.get()));
     context.global_metadata_tracker.reset(
         new GlobalMetadataTracker(context.storage.get()));
     context.trace_state =

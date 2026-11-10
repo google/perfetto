@@ -16,13 +16,23 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 
+#include "perfetto/ext/base/status_macros.h"
+
+#include "perfetto/base/logging.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/compute.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/distinct.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/graph_tree.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/interval_fill_gaps.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/limit.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/projection.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 
 namespace perfetto::trace_processor::pipeline {
 
@@ -33,8 +43,14 @@ const OperationRegistration* const kOperations[] = {
     &TreeAccumulate::kRegistration,
     &IntervalIntersect::kRegistration,
     &IntervalFlatten::kRegistration,
+    &IntervalFillGaps::kRegistration,
     &OrderBy::kRegistration,
     &AggregateStage::kRegistration,
+    &Distinct::kRegistration,
+    &Compute::kRegistration,
+    &Where::kRegistration,
+    &GraphTree::kRegistration,
+    &Limit::kRegistration,
     &projection::kSelect,
     &projection::kExtend,
     &projection::kDrop,
@@ -45,13 +61,20 @@ const OperationRegistration* const kOperations[] = {
 
 }  // namespace
 
+std::unique_ptr<PlanOperation> OperationRegistration::Encoding::Make() const {
+  return make_();
+}
+
 const OperationRegistration* FindOperationByTag(uint8_t tag) {
+  const OperationRegistration* found = nullptr;
   for (const auto* registration : kOperations) {
     if (registration->encoding() && registration->encoding()->tag() == tag) {
-      return registration;
+      // Operations sharing a tag would read each other's payloads.
+      PERFETTO_CHECK(!found);
+      found = registration;
     }
   }
-  return nullptr;
+  return found;
 }
 
 const OperationRegistration* FindOperationBySyntax(uint32_t syntax) {
@@ -61,6 +84,18 @@ const OperationRegistration* FindOperationBySyntax(uint32_t syntax) {
     }
   }
   return nullptr;
+}
+
+base::Status RunBoundPasses(BoundPlan* bound, const LoweringContext& context) {
+  // A node's inputs come before it, so a rewrite at a node sees all that is
+  // below it as final, and nothing above it has been planned yet.
+  bound->planned.resize(bound->plan.nodes().size());
+  for (PlanNodeId id = 0; id < bound->planned.size(); ++id) {
+    bound->plan.nodes()[id].operation().Rewrite(bound, id, context);
+    PlanNodeInputs(bound, id, context);
+    RETURN_IF_ERROR(bound->status);
+  }
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor::pipeline

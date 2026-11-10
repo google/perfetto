@@ -78,10 +78,10 @@ export function compareUniversal(a: SortableValue, b: SortableValue): number {
   if (a instanceof Uint8Array && b instanceof Uint8Array) {
     // Do the lexicographical comparison
     for (let i = 0; i < a.length && i < b.length; i++) {
-      if (a[i] < b[i]) {
+      if (a[i]! < b[i]!) {
         return -1;
       }
-      if (a[i] > b[i]) {
+      if (a[i]! > b[i]!) {
         return 1;
       }
     }

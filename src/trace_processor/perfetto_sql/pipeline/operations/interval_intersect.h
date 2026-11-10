@@ -54,11 +54,13 @@ class IntervalIntersect : public PlanOperation {
   // PlanOperation implementation. Dispatch goes through the base interface.
   std::unique_ptr<PlanOperation> Clone() const override;
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
+  InputNeeds Needs(uint32_t input) const override;
+  std::vector<std::vector<InputColumn>> CommonTypes() const override;
+  OutputProperties Derive(DeriveContext&) const override;
   void Lower(Lowering*, const PlanNode&) const override;
-  void Write(PlanWriter*, const PlanNode&, Available*) const override;
+  void Serialize(PlanCodec&) override;
 
   static base::Status BuildPlan(Compiler*, uint32_t);
-  static void DecodePlan(PlanReader*, Available*);
 
   const OperationRegistration& registration() const override;
 
