@@ -123,23 +123,48 @@ std::optional<uint32_t> GraphTree::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
+InputNeeds GraphTree::Needs(uint32_t input) const {
+  // Ids are compared across the inputs as integers.
+  InputNeeds needs;
+  if (input == 0) {
+    needs.types_first.push_back({node_, core::Int64{}, false});
+  } else if (input == 1) {
+    needs.types_first.push_back({source_, core::Int64{}, false});
+    needs.types_first.push_back({target_, core::Int64{}, false});
+  } else {
+    needs.types_first.push_back({seed_, core::Int64{}, false});
+  }
+  return needs;
+}
+
+OutputProperties GraphTree::Derive(DeriveContext& c) const {
+  OutputProperties out;
+  for (ColumnId id : carried_) {
+    out.columns.push_back(c.ColumnOf(id));
+  }
+  out.columns.push_back(c.ColumnOf(parent_));
+  OutputProperties::Column node_number = c.NewColumn();
+  OutputProperties::Column parent_number = c.NewColumn();
+  out.columns.push_back(node_number);
+  out.columns.push_back(parent_number);
+  out.tree = OutputProperties::Tree{node_, parent_, TreeDirection::kDown,
+                                    node_number.id, parent_number.id};
+  return out;
+}
+
 void GraphTree::Lower(Lowering* c, const PlanNode& node) const {
   const auto& children = node.children();
   PERFETTO_DCHECK(!c->has_source());
   PERFETTO_DCHECK(children.size() == 3);
 
-  // Ids are compared across the inputs as integers. Nothing may reorder the
-  // seeds or edges: their order picks between equally good parents.
+  // Nothing may reorder the seeds or edges: their order picks between equally
+  // good parents.
   Lowering& nodes = c->AddSidePipeline();
-  nodes.LowerNode(children[0]);
-  nodes.RequireType(node_, core::Int64{});
+  nodes.LowerInput(node, 0);
   Lowering& edges = c->AddSidePipeline();
-  edges.LowerNode(children[1]);
-  edges.RequireType(source_, core::Int64{});
-  edges.RequireType(target_, core::Int64{});
+  edges.LowerInput(node, 1);
   Lowering& seeds = c->AddSidePipeline();
-  seeds.LowerNode(children[2]);
-  seeds.RequireType(seed_, core::Int64{});
+  seeds.LowerInput(node, 2);
 
   ex::GraphTreeSpec spec;
   spec.kind = kind_;
@@ -154,15 +179,7 @@ void GraphTree::Lower(Lowering* c, const PlanNode& node) const {
   spec.seed_column = seeds.QueryPosition(seed_);
   spec.seeds = seeds.FinishSide();
 
-  for (ColumnId id : carried_) {
-    c->DeclareColumn(id);
-  }
-  c->DeclareColumn(parent_);
-  Lowering::TreeColumns numbers;
-  numbers.node = c->DeclareTemporaryColumn();
-  numbers.parent = c->DeclareTemporaryColumn();
   c->SetSource(std::make_unique<ex::GraphTree>(std::move(spec)));
-  c->DeclareTreeWalk(node_, parent_, numbers, TreeDirection::kDown);
 }
 
 const OperationRegistration& GraphTree::registration() const {

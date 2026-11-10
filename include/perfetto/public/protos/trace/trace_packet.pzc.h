@@ -561,6 +561,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   113);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
+                  perfetto_protos_Trigger,
+                  authoritative_trigger,
+                  141);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
                   perfetto_protos_KernelWakelockData,
                   kernel_wakelock_data,
                   115);

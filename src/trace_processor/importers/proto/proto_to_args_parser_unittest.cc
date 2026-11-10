@@ -137,7 +137,8 @@ class ArgsRecorder : public ArgSink {
 
   std::vector<std::string> args_;
   std::map<StringPool::Id, size_t> array_indices_;
-  PacketSequenceStateBuilder state_builder_{&context_};
+  PacketSequenceStateBuilder state_builder_{&context_,
+                                            /*trusted_packet_sequence_id=*/1};
 };
 
 class ProtoToArgsParserTest : public ::testing::Test, public ArgsRecorder {

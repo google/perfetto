@@ -86,6 +86,11 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
     return;
   }
 
+  if (err.message.includes('(ERR:dup_machine_traces)')) {
+    showDuplicateMachineTracesError();
+    return;
+  }
+
   // A trace_processor parse failure. "(ERR:tp-corrupt)" means it determined the
   // trace is genuinely corrupt/truncated; a bare "(ERR:tp-parse)" is a generic
   // failure to parse. Check the more specific corrupt marker first.
@@ -394,6 +399,28 @@ function showUnknownFileError() {
             'the docs',
           ),
           ' for details on each format.',
+        ),
+      ),
+  });
+}
+
+function showDuplicateMachineTracesError() {
+  showModal({
+    title: 'Cannot merge traces captured on the same machine',
+    content: () =>
+      m(
+        '.pf-error-dialog',
+        m(
+          Callout,
+          {icon: Icons.Info},
+          'Merging traces from the same machine is not supported yet.',
+        ),
+        m(
+          'p.pf-error-dialog__note',
+          'If these traces are from different machines, assign each file to ' +
+            'a separate machine when opening them or in ',
+          m('code', 'perfetto_manifest.json'),
+          '.',
         ),
       ),
   });

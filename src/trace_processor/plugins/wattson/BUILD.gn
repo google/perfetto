@@ -14,8 +14,13 @@
 
 import("../../../../gn/perfetto.gni")
 import("../../../../gn/perfetto_cpp_blob_header.gni")
+import("../../../../gn/perfetto_tp_tables.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
+
+perfetto_tp_tables("tables") {
+  sources = [ "tables.py" ]
+}
 
 # Per (device, curve_type) CSVs. Each curve_type's compressed blob is the
 # union of the rows in every device folder for that curve type.
@@ -108,6 +113,8 @@ source_set("wattson") {
     "table_function.cc",
     "table_function.h",
     "wattson.h",
+    "wattson_soc_model_module.cc",
+    "wattson_soc_model_module.h",
   ]
   deps = [
     ":gen_cpu_1d_curves",
@@ -115,12 +122,19 @@ source_set("wattson") {
     ":gen_gpu_curves",
     ":gen_l3_curves",
     ":gen_tpu_curves",
+    ":tables",
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base",
+    "../../../../include/perfetto/protozero",
     "../../../../include/perfetto/trace_processor:basic_types",
+    "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
+    "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_wattson_soc_model_zero",
     "../../../base",
+    "../../../protozero",
     "../../containers",
     "../../core/dataframe",
     "../../core/plugin",
+    "../../importers/proto:proto_importer_module",
     "../../storage",
     "../../types",
     "../../util:decompressor",

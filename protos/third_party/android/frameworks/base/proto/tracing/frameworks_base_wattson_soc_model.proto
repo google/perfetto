@@ -1,0 +1,123 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Wattson SoC power model, carried in the trace as the
+// FrameworksBaseTracePacket.wattson_soc_model extension. Source of truth lives
+// at frameworks/base/proto/tracing/ in the Android tree.
+
+syntax = "proto2";
+
+package com.android.internal;
+
+// CPU cpufreq cluster definition and per-cluster configuration.
+message WattsonCpuCluster {
+  // Linux cpufreq policy ID for this CPU cluster (typically the lowest
+  // physical CPU core ID in the cluster, e.g. 0, 2, 6, matching the policy
+  // counter emitted in traces rather than a sequential 0, 1, 2 ordinal).
+  optional uint32 cluster = 1;
+  // Physical CPU core indices belonging to this cluster.
+  repeated uint32 cpus = 2 [packed = true];
+  // Deep idle time offset for this cluster (in nanoseconds).
+  optional int64 deep_idle_offset_ns = 3;
+  // Whether this cluster's 2D dependency votes by frequency.
+  optional bool vote_by_freq = 4;
+}
+
+// Single frequency/dependency power curve row within a subsystem.
+// Covers 1D per-cluster/domain curves (when dep_cluster and dep_freq are
+// unset), 2D inter-cluster dependency curves, shared interconnect power and
+// L3 cache hit/miss coefficients (on 1D or 2D curves), and request-scaled
+// accelerator curves.
+message WattsonCurve {
+  // Hardware cluster/domain ID within the subsystem. Required for "cpu", where
+  // it stores the Linux cpufreq policy ID (e.g. 0, 2, 6, or sentinel 255 for
+  // the DSU/SCU domain); optional for accelerators (e.g. TPU cluster ID;
+  // omitted for single-domain subsystems such as GPU).
+  optional uint32 cluster = 1;
+  // Frequency key for this curve row (uint64 to accommodate values expressed
+  // in Hz that exceed 2^31 - 1). Because the unit is subsystem- and
+  // device-dependent, `freq` must match the raw unit emitted by the
+  // corresponding trace frequency counter for that device and subsystem (e.g.
+  // kHz for CPU cpufreq policies, kHz or Hz for GPU and DSU with cluster = 255
+  // depending on the device's counter, and MHz for TPU).
+  optional uint64 freq = 2;
+  // Present only for 2D inter-cluster dependency curves (for "cpu", stores the
+  // dependent Linux cpufreq policy ID, or sentinel 255 for the DSU/SCU domain;
+  // `dep_freq` must match the raw unit emitted by the dependent domain's trace
+  // frequency counter, such as kHz or Hz for DSU depending on the device, or
+  // kHz for CPU cpufreq policies):
+  optional uint32 dep_cluster = 3;
+  optional uint64 dep_freq = 4;
+
+  // Active power in mW. Contains a single value for standard DVFS subsystems
+  // (e.g. CPU, GPU), or values ordered by concurrent request count (0, 1, ...)
+  // for request-scaled subsystems (e.g. TPU).
+  repeated float active_mw = 5 [packed = true];
+  // Idle power in mW ordered from shallowest to deepest idle level (e.g.
+  // [idle0, idle1] for CPU where -1 is active, or [idle1, idle2] for GPU where
+  // power state 2 is active, 1 is idle1, and 0 is idle2).
+  repeated float idle_mw = 6 [packed = true];
+  optional float static_mw = 7;
+
+  // Shared interconnect power (in mW) and L3 cache hit/miss energy
+  // coefficients (in nanojoules (nJ) per access, matching Perfetto's l3_hit
+  // and l3_miss columns; valid on both 1D and 2D curves):
+  optional float interconnect_mw = 8;
+  optional float l3_hit = 9;
+  optional float l3_miss = 10;
+}
+
+// Mapping from nominal kernel cpuidle states to override curve column indices.
+message WattsonIdleStateMap {
+  optional int64 nominal_idle = 1;
+  optional int64 override_idle = 2;
+}
+
+// Power curves for a single SoC subsystem (e.g. "cpu", "gpu", "tpu", and
+// future accelerators).
+message WattsonSubsystem {
+  // Subsystem identifier (e.g. "cpu", "gpu", "tpu").
+  optional string name = 1;
+  repeated WattsonCurve curves = 2;
+}
+
+// Wattson SoC power model definition containing device hardware topology
+// and empirical power curves.
+message WattsonSocModel {
+  // Partition from which wattson_power_model.xml was loaded.
+  enum ModelSource {
+    MODEL_SOURCE_UNSPECIFIED = 0;
+    MODEL_SOURCE_VENDOR = 1;
+    MODEL_SOURCE_ODM = 2;
+    MODEL_SOURCE_PRODUCT = 3;
+  }
+
+  // Canonical SoC model name (e.g. "Tensor G6").
+  optional string device_name = 1;
+  // GPU instance ID in trace.
+  optional int32 gpu_id = 2;
+  // Whether DSU frequency comes from linux_devfreq_dsu_counter.
+  optional bool use_devfreq = 3;
+
+  repeated WattsonCpuCluster cpu_clusters = 4;
+  repeated WattsonIdleStateMap idle_state_map = 5;
+  repeated WattsonSubsystem subsystems = 6;
+
+  // Monotonically increasing revision of the device's power model XML.
+  optional uint32 model_version = 7;
+  // Partition from which this power model was loaded.
+  optional ModelSource model_source = 8;
+}

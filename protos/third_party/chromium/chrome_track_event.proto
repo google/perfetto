@@ -1407,6 +1407,9 @@ message SequenceManagerTask {
 
     UI_MAIN_FRAME_NAVIGATION_NETWORK_RESPONSE_TQ = 68;
     IO_MAIN_FRAME_NAVIGATION_NETWORK_RESPONSE_TQ = 69;
+
+    UI_SUBRESOURCE_LOADER_PROXY_TQ = 70;
+    IO_SUBRESOURCE_LOADER_PROXY_TQ = 71;
   }
 
   optional Priority priority = 1;
@@ -2420,6 +2423,8 @@ message WebViewStartup {
     WEBVIEW_INSTANCE_ADD_JAVASCRIPT_ON_EVENT = 146;
     WEBVIEW_INSTANCE_GET_JAVASCRIPT_WORLD = 147;
     WEBVIEW_INSTANCE_GET_PROFILE = 148;
+    PROFILE_CONFIGURE_ISOLATED_SITES = 149;
+    PROFILE_CAN_CONFIGURE_ISOLATED_SITES = 150;
     // Remember to update WebViewStartupCallSite in enums.xml when adding new
     // values here.
   }

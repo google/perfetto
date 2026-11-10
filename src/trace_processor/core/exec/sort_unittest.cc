@@ -77,7 +77,7 @@ TEST(SortTest, RewindAfterInvalidKeysAndCompletedSort) {
   for (bool change_type : {false, true}) {
     // Recover from the rejected batch, then reuse a completed sort with a
     // different key width. Both runs must establish their own row layout.
-    state->Reset();
+    state->EndRun();
     ASSERT_TRUE(sort.status(*state).ok());
     if (change_type) {
       in.SetColumn(1,

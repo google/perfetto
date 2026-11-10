@@ -20,11 +20,11 @@
 #include <cstring>
 
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/core/util/span.h"
+#include "perfetto/ext/base/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-void Selection::Keep(Span<const uint32_t> positions) {
+void Selection::Keep(base::Span<const uint32_t> positions) {
   auto count = static_cast<uint32_t>(positions.size());
   PERFETTO_DCHECK(count <= size_);
   if (count == size_) {
@@ -54,7 +54,7 @@ void Selection::Keep(Span<const uint32_t> positions) {
   prefix_ = false;
 }
 
-void Selection::KeepRows(Span<const uint32_t> rows) {
+void Selection::KeepRows(base::Span<const uint32_t> rows) {
   auto count = static_cast<uint32_t>(rows.size());
   PERFETTO_DCHECK(count <= size_);
   if (count == size_) {

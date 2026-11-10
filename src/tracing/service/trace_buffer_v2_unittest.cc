@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <initializer_list>
+#include <iterator>
 #include <memory>
 #include <random>
 #include <sstream>
@@ -55,8 +56,33 @@ class TraceBufferV2Test : public testing::Test {
   static constexpr uint8_t kChunkNeedsPatching =
       SharedMemoryABI::ChunkHeader::kChunkNeedsPatching;
 
-  size_t sequence_count() { return trace_buffer()->sequences_.size(); }
-  size_t empty_sequence_count() { return trace_buffer()->empty_sequences_; }
+  size_t sequence_count() {
+    auto& states = trace_buffer()->sequence_states_;
+    return static_cast<size_t>(std::distance(states.begin(), states.end()));
+  }
+  size_t empty_sequence_count() {
+    size_t count = 0;
+    for (const auto& [_, seq] : trace_buffer()->sequence_states_) {
+      if (seq.chunks.empty())
+        count++;
+    }
+    return count;
+  }
+  // Doesn't use Find(), because a lookup would count as a use.
+  bool has_sequence(ProducerID p, WriterID w) {
+    const ProducerAndWriterID key = MkProducerAndWriterID(p, w);
+    for (const auto& [seq_key, _] : trace_buffer()->sequence_states_) {
+      if (seq_key == key)
+        return true;
+    }
+    return false;
+  }
+
+  // The TEST_F subclasses do not inherit friendship, so expose the private
+  // staging operation through this fixture.
+  bool WriteWouldWrapOrOverwrite(size_t payload_size) {
+    return trace_buffer()->WriteWouldWrapOrOverwrite(payload_size);
+  }
 
   void TearDown() override {
     // Test that the used_size() logic works and that all the data after that
@@ -1448,8 +1474,8 @@ TEST_F(TraceBufferV2Test, ScrapedChunkReScrape_EvictedBeforeNextRead) {
 
 // kDiscard counterpart of Override_ReCommitIncompleteOnFullBuffer. The write
 // cursor never wraps here, so the stale-offset race can't happen, and
-// relocating would hit the end-of-buffer DiscardWrite() and drop the
-// recovered 'b'/'c'. The |buffer_can_lap| guard keeps the in-place rewrite.
+// relocating would hit the end of the buffer and drop the recovered 'b'/'c'.
+// The |buffer_can_lap| guard keeps the in-place rewrite.
 TEST_F(TraceBufferV2Test, ScrapedChunkRecommit_InPlaceOnFullDiscardBuffer) {
   ResetBuffer(4096, TraceBuffer::kDiscard);
   const auto& stats = trace_buffer()->stats();
@@ -4519,8 +4545,9 @@ TEST_F(TraceBufferV2Test, V2Loss_EmptySmbV2StateIsBounded) {
     ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, writer),
                                                      &frag, 1, false, false));
   }
-  EXPECT_LE(empty_sequence_count(), 1152u);
+  EXPECT_LE(empty_sequence_count(), 1279u);
   EXPECT_LT(sequence_count(), 1999u);
+  EXPECT_FALSE(has_sequence(1, 1));
 
   ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, 1), &frag,
                                                    1, false, false));
@@ -4549,6 +4576,29 @@ TEST_F(TraceBufferV2Test, V2Loss_RejectedWritersCreateNoState) {
   // Only writer 1, which stored data, has sequence state.
   EXPECT_EQ(sequence_count(), 1u);
   EXPECT_EQ(empty_sequence_count(), 0u);
+}
+
+// An SMB write starts a prune.
+TEST_F(TraceBufferV2Test, EmptySequences_SmbWriteStartsPrune) {
+  // Big enough to keep every unread chunk of this test without an overwrite.
+  ResetBuffer(64 * 1024);
+  auto add_writer = [&](WriterID writer) {
+    CreateChunk(ProducerID(1), writer, ChunkID(0))
+        .AddPacket(32 - 16, 'a')
+        .CopyIntoTraceBuffer();
+  };
+
+  // The last prune ran at 1024 sequences, and 255 more don't start another.
+  for (WriterID writer = 1; writer <= 1279; ++writer)
+    add_writer(writer);
+  trace_buffer()->BeginRead();
+  while (!ReadPacket().empty()) {
+  }
+  ASSERT_EQ(empty_sequence_count(), 1279u);
+
+  // The 1280th sequence starts a prune, which keeps 1024 empty sequences.
+  add_writer(1280);
+  EXPECT_EQ(empty_sequence_count(), 1024u);
 }
 
 TEST_F(TraceBufferV2Test, V2Admission_SizeOverflowAndNullPayload) {
@@ -5220,6 +5270,63 @@ TEST_F(TraceBufferV2Test, Compaction_FullyDrainedBuffer) {
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(64 - 16, 'b')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// -----------------------------------
+// TraceBufferV3 staging support tests
+// -----------------------------------
+
+TEST_F(TraceBufferV2Test, Staging_WriteWouldWrapOrOverwrite) {
+  for (auto policy : {TraceBuffer::kOverwrite, TraceBuffer::kDiscard}) {
+    SCOPED_TRACE(policy);
+    ResetBuffer(4096, policy);
+    // Each chunk also needs 16 bytes for its header.
+    EXPECT_FALSE(WriteWouldWrapOrOverwrite(4096 - 16));
+    EXPECT_TRUE(WriteWouldWrapOrOverwrite(4096 - 15));
+
+    CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+        .AddPacket(2048 - 16, 'a')
+        .CopyIntoTraceBuffer();
+    EXPECT_FALSE(WriteWouldWrapOrOverwrite(2048 - 16));
+    EXPECT_TRUE(WriteWouldWrapOrOverwrite(2048 - 15));
+  }
+
+  // After wrapping, any kOverwrite write would replace an older chunk.
+  ResetBuffer(4096);
+  for (ChunkID id = 0; id < 3; ++id) {
+    CreateChunk(ProducerID(1), WriterID(1), id)
+        .AddPacket(2048 - 16, 'a')
+        .CopyIntoTraceBuffer();
+  }
+  EXPECT_TRUE(WriteWouldWrapOrOverwrite(0));
+}
+
+TEST_F(TraceBufferV2Test, Staging_CompactionKeepsWritesStopped) {
+  ResetBuffer(4096, TraceBuffer::kDiscard);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(4096 - 16, 'a')
+      .CopyIntoTraceBuffer();
+
+  // This write exceeds the tail, so kDiscard stops intake.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(16, 'b')
+      .CopyIntoTraceBuffer();
+  ASSERT_EQ(trace_buffer()->stats().chunks_discarded(), 1u);
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4096 - 16, 'a')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+  trace_buffer()->MaybeCompact();
+  ASSERT_EQ(trace_buffer()->used_size(), 0u);
+
+  // Compaction reclaimed all space, but intake must remain stopped.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(16, 'c')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(trace_buffer()->stats().chunks_discarded(), 2u);
+  EXPECT_EQ(trace_buffer()->stats().bytes_written(), 4096u);
+  trace_buffer()->BeginRead();
+  EXPECT_THAT(ReadPacket(), IsEmpty());
 }
 
 }  // namespace perfetto

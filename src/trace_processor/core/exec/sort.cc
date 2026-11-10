@@ -59,10 +59,4 @@ bool Sort::Serve(RowBatch& out, Breaker::State& state) const {
   return true;
 }
 
-void Sort::State::Reset() {
-  Breaker::State::Reset();
-  rows.Clear();
-  emitted = 0;
-}
-
 }  // namespace perfetto::trace_processor::core::exec

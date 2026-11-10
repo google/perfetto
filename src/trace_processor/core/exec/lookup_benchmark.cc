@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/op_types.h"
@@ -44,7 +45,6 @@
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/sorted_scan.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -208,8 +208,8 @@ class ExecLookup {
     for (uint32_t i = 0; i < casters_.size(); ++i) {
       casters_[i](fetcher_, i, *pool_, &cast_[i]);
     }
-    return cursor_.Open(
-        Span<const FilterValue>(cast_.data(), cast_.data() + cast_.size()));
+    return cursor_.Open(base::Span<const FilterValue>(
+        cast_.data(), cast_.data() + cast_.size()));
   }
   RowCursor& cursor() { return cursor_; }
 

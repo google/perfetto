@@ -5636,15 +5636,25 @@ message TraceConfig {
       message V1 {}
       message V2 {}
 
+      // Stages chunks in a TraceBufferV2, then moves complete packets into
+      // compressed bundles in a second buffer.
+      // Design: RFC 0050, https://github.com/google/perfetto/discussions/7838.
+      message V3 {}
+
       optional V1 v1 = 1;
       optional V2 v2 = 2;
+      optional V3 v3 = 3;
     }
     optional BufferTypeConfig buffer_type = 9;
   }
   repeated BufferConfig buffers = 1;
 
-  // Enables compaction after reads for this session's TraceBufferV2.
-  // Defaults to false and does not affect V1, DISCARD, or read-only buffers.
+  // Enables compaction after reads for this session's TraceBufferV2 and
+  // TraceBufferV3 buffers.
+  // Defaults to false and does not affect V1 or read-only V2 buffers.
+  // V3 also compacts staging after each bundling pass that reads all readable
+  // packets, even when this flag is false.
+  // A DISCARD buffer that stopped stays stopped.
   optional bool experimental_trace_buffer_v2_compaction = 50;
 
   message DataSource {
@@ -6653,7 +6663,7 @@ message SystemInfo {
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 26.
+  // Next id: 27.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -6664,6 +6674,7 @@ message TraceStats {
       BUFFER_TYPE_UNSPECIFIED = 0;
       BUFFER_TYPE_V1 = 1;
       BUFFER_TYPE_V2 = 2;
+      BUFFER_TYPE_V3 = 3;
     }
     // Reports the implementation actually used, which can differ from the
     // requested type because the service skips unsupported implementations.
@@ -6742,7 +6753,8 @@ message TraceStats {
 
     // Number of completed TraceBufferV2 compactions.
     // Includes compactions that move no chunks and excludes calls that skip
-    // compaction, such as calls on DISCARD or read-only buffers.
+    // compaction, such as calls on read-only buffers.
+    // For TraceBufferV3, this counts staging compactions.
     //
     // Compaction moves remaining chunks to the front and clears the unused
     // tail.
@@ -6805,6 +6817,56 @@ message TraceStats {
     // four-byte length field. The packet can be valid. Loss is reported on the
     // next packet of the same sequence.
     optional uint64 oversized_packets_dropped = 22;
+
+    // Experimental statistics for TraceBufferV3, subject to change.
+    //
+    // Introduced in: perfetto v60.
+    // Supported on: Android 27Q1+.
+    //
+    // Next id: 12.
+    message ExperimentalV3Stats {
+      // Bundles stored so far.
+      optional uint64 bundles_written = 1;
+
+      // Packet bytes in |bundles_written|, before compression.
+      // Includes each packet's header.
+      optional uint64 uncompressed_bytes_written = 2;
+
+      // Bytes |bundles_written| took in the buffer, after compression.
+      // Includes each bundle's header.
+      optional uint64 compressed_bytes_written = 3;
+
+      // Bundles overwritten in RING_BUFFER mode before they were read.
+      optional uint64 bundles_overwritten = 4;
+
+      // Packet bytes in |bundles_overwritten|, before compression.
+      optional uint64 uncompressed_bytes_overwritten = 11;
+
+      // Bundles dropped because their stored size exceeds
+      // |BufferStats.buffer_size| or their uncompressed size exceeds 32 bits.
+      optional uint64 bundles_too_large = 5;
+
+      // Longest bundling pass in microseconds, including compaction.
+      optional uint64 bundling_max_us = 6;
+
+      // Inclusive upper bound of each bucket of bundling pass durations, in
+      // microseconds.
+      repeated int64 bundling_time_us_histogram_def = 7 [packed = true];
+
+      // Number of bundling passes in each bucket.
+      // Has one more entry than |_def|, for passes above the last bound.
+      repeated uint64 bundling_time_us_histogram_counts = 8 [packed = true];
+
+      // Total duration of the bundling passes in each bucket, in microseconds.
+      // Has one more entry than |_def|, for passes above the last bound.
+      repeated int64 bundling_time_us_histogram_sum = 9 [packed = true];
+
+      // Bundling passes run before a write that might not fit in staging.
+      optional uint64 staging_space_passes = 10;
+    }
+
+    // Only set for TraceBufferV3.
+    optional ExperimentalV3Stats experimental_v3_stats = 26;
   }
 
   // Stats for the TraceBuffer(s) of the current trace session.
@@ -10615,6 +10677,19 @@ message DrmSchedJobUnschedulableFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/gpu_scheduler.proto
 
+// Begin of protos/perfetto/trace/ftrace/gti.proto
+
+message GtiFieldSliceFtraceEvent {
+  optional uint32 track_event_type = 1;
+  optional string slice_name = 2;
+}
+message GtiFieldCounterFtraceEvent {
+  optional string track_name = 1;
+  optional int32 counter_value = 2;
+}
+
+// End of protos/perfetto/trace/ftrace/gti.proto
+
 // Begin of protos/perfetto/trace/ftrace/hyp.proto
 
 message HypEnterFtraceEvent {}
@@ -13453,6 +13528,8 @@ message FtraceEvent {
     PsciDomainIdleEnterFtraceEvent psci_domain_idle_enter = 615;
     LongIrqFtraceEvent long_irq = 616;
     LongSoftirqFtraceEvent long_softirq = 617;
+    GtiFieldSliceFtraceEvent gti_field_slice = 618;
+    GtiFieldCounterFtraceEvent gti_field_counter = 619;
   }
 }
 
@@ -14673,6 +14750,66 @@ message StackSample {
     optional Scope scope = 7;
   }
 
+  // Describes a kind of error that stopped a sampler from taking a sample.
+  // Set `builtin` for the kinds trace processor knows about, or `name` to
+  // define your own.
+  message ErrorDescriptor {
+    // Error kinds known to trace processor. Append-only: never renumber or
+    // repurpose an existing value.
+    enum Builtin {
+      BUILTIN_UNSPECIFIED = 0;
+
+      // The sampler could not take the sample at all, e.g. it could not read
+      // the registers or the stack of the task.
+      BUILTIN_SAMPLE_FAILED = 1;
+
+      // The sample was taken but its stack could not be unwound, so there are
+      // no frames to report.
+      BUILTIN_UNWIND_FAILED = 2;
+    }
+
+    // How serious errors of a producer-defined kind are. Append-only: never
+    // renumber or repurpose an existing value.
+    enum Severity {
+      // Treated as SEVERITY_DATA_LOSS.
+      SEVERITY_UNSPECIFIED = 0;
+
+      // Worth knowing about, but no data is missing.
+      SEVERITY_INFO = 1;
+
+      // Data is missing from the trace, e.g. samples that were not taken.
+      SEVERITY_DATA_LOSS = 2;
+
+      // Something went wrong that makes the data unreliable.
+      SEVERITY_ERROR = 3;
+    }
+
+    // Interning key, used when this descriptor is emitted via
+    // InternedData.stack_sample_error_descriptors and referenced by
+    // StackSample.error_iid. Starts from 1; 0 is the same as "not set".
+    optional uint64 iid = 1;
+
+    // The kind of error: one known to trace processor, or one defined by the
+    // producer.
+    oneof kind {
+      // A kind known to trace processor.
+      Builtin builtin = 2;
+
+      // A producer-defined kind. Namespace it with a reverse-domain prefix,
+      // e.g. "com.example.profiler.mapping_not_found", so it does not collide
+      // with kinds defined by other producers.
+      string name = 3;
+    }
+
+    // How serious errors of a producer-defined kind are. Ignored for builtin
+    // kinds, which have a fixed severity. Absent means SEVERITY_DATA_LOSS.
+    optional Severity severity = 4;
+
+    // Free-form description of a producer-defined kind: what went wrong and
+    // what it means for the data. Ignored for builtin kinds.
+    optional string description = 5;
+  }
+
   // The task (thread / process / async context) this sample is attributed to.
   // Give it inline via `task_context` or reference an interned TaskContext via
   // `task_context_iid`.
@@ -14746,6 +14883,20 @@ message StackSample {
   repeated CounterDescriptor follower_descriptors = 12;
   repeated uint64 follower_descriptor_iids = 13 [packed = true];
   repeated uint64 follower_weights = 14 [packed = true];
+
+  // Set when the sampler could not take this sample: the error stands in for
+  // it. The timestamp and the task context still apply, but the sample must
+  // not have a callstack or an unwind error; trace processor ignores them, and
+  // every other field, when an error is set. Give it inline via `error` or
+  // reference an interned ErrorDescriptor via `error_iid`.
+  oneof error_field {
+    // Inline error descriptor.
+    ErrorDescriptor error = 15;
+
+    // Interned error descriptor, referencing
+    // InternedData.stack_sample_error_descriptors.
+    uint64 error_iid = 16;
+  }
 }
 
 // Per-sequence defaults for StackSample. Lets a producer declare the source and
@@ -16205,7 +16356,7 @@ message EventName {
 // Note: field IDs up to 15 should be used for frequent data only.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 53.
+// Next id: 54.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -16259,6 +16410,7 @@ message InternedData {
   repeated StackSample.CounterDescriptor stack_sample_counter_descriptors = 50;
   repeated StackSample.AsyncContextDescriptor
       stack_sample_async_context_descriptors = 51;
+  repeated StackSample.ErrorDescriptor stack_sample_error_descriptors = 53;
 
   //
   // == UNSTABLE / CONTEXT-SPECIFIC FIELDS ==
@@ -19124,6 +19276,12 @@ message Trigger {
   optional int32 trusted_producer_uid = 3;
   // The value of stop_delay_ms from the configuration.
   optional uint64 stop_delay_ms = 4;
+  // The effective trigger mode of the session that received the trigger.
+  // See TraceConfig.TriggerConfig.TriggerMode. This can differ from the
+  // TraceConfig: e.g. STOP_TRACING with use_clone_snapshot_if_available=true
+  // is reported as CLONE_SNAPSHOT.
+  // Introduced in v60.
+  optional int32 trigger_mode = 5;
 }
 
 // End of protos/perfetto/trace/trigger.proto
@@ -19189,7 +19347,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 141.
+// Next id: 142.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -19361,6 +19519,17 @@ message TracePacket {
     PixelModemTokenDatabase pixel_modem_token_database = 111;
 
     Trigger clone_snapshot_trigger = 113;
+
+    // Written by the tracing service at most once per trace, together with the
+    // other initial packets that are never compressed. It is the trigger that
+    // caused this trace to be finalized:
+    // - For START_TRACING: the trigger that started the session.
+    // - For STOP_TRACING: the trigger that stopped the session.
+    // - For CLONE_SNAPSHOT: the trigger that caused the clone, which matches
+    //   clone_snapshot_trigger for backward compat reasons.
+    // A clone not caused by a trigger (e.g. bugreport) inherits the one of the
+    // source session, if any. Absent if the trace was not caused by a trigger.
+    Trigger authoritative_trigger = 141;
 
     KernelWakelockData kernel_wakelock_data = 115;
 

@@ -65,9 +65,18 @@ std::optional<uint32_t> OrderBy::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
+InputNeeds OrderBy::Needs(uint32_t) const {
+  InputNeeds needs;
+  needs.arranged = OutputProperties::Arrangement{{}, keys_};
+  return needs;
+}
+
+OutputProperties OrderBy::Derive(DeriveContext& c) const {
+  return c.input(0);
+}
+
 void OrderBy::Lower(Lowering* c, const PlanNode& node) const {
-  c->LowerNode(node.children()[0]);
-  c->RequireSorted(keys_);
+  c->LowerInput(node, 0);
 }
 
 const OperationRegistration& OrderBy::registration() const {

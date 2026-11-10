@@ -259,7 +259,6 @@ void PrintPackedField(const FieldDescriptor& fd,
         StrAppend(out, " ");
       }
     }
-    std::string serialized_value;
     if (fd.type() == FieldDescriptorProto::TYPE_ENUM) {
       PrintEnumField(fd, pool, field.id(), static_cast<int32_t>(value), out);
     } else {

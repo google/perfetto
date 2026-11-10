@@ -24,6 +24,7 @@ import {
   VALUE_LIST_LIMIT,
   describeLoadError,
 } from '../query/column_values_loader';
+import {SEARCH_DEBOUNCE_MS} from '../query/fetch_scheduler';
 import {encodeFilters} from '../query/filter_encoding';
 
 // The label with the searched substring wrapped in <mark>.
@@ -53,9 +54,6 @@ export interface ValueListAttrs {
   // be unticked either way.
   readonly pinSelected?: boolean;
 }
-
-// Typing pauses this long before a search is sent.
-export const SEARCH_DEBOUNCE_MS = 250;
 
 function matchesSearch(value: string, search: string): boolean {
   return search === '' || value.toLowerCase().includes(search.toLowerCase());

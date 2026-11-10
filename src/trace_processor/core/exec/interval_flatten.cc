@@ -24,10 +24,10 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/bits.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/bits.h"
 #include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -110,7 +110,8 @@ std::unique_ptr<OperatorState> IntervalFlatten::MakeState(
   state->seen_bytes.resize(functions_.size());
   state->outputs.resize(functions_.size());
   state->stride = stride_;
-  state->Reset();
+  state->states.first = uint64_t{kFirstSlot} * stride_;
+  state->states.resize(state->states.first);
   return state;
 }
 
@@ -487,38 +488,6 @@ OpResult IntervalFlatten::Yield(RowBatch& out,
                 std::move(s.group_buffer));
   out.SetRowCount(count);
   return result;
-}
-
-void IntervalFlatten::State::Reset() {
-  State& s = *this;
-  s.status = base::OkStatus();
-  s.input_row = 0;
-  s.input_pending = false;
-  s.input_group = 0;
-  s.output_group = 0;
-  s.in_group = false;
-  s.cursor = 0;
-  s.input_ts = 0;
-  s.live = 0;
-  s.instants.clear();
-  s.ends.clear();
-  // The tree's nodes are zeroed as used.
-  s.states.clear();
-  s.states.resize(uint64_t{kFirstSlot} * s.stride);
-  s.slots = 0;
-  s.free_slots.clear();
-  s.ranges.clear();
-  s.rows.clear();
-  s.row_slots.clear();
-  for (SeenBytes& bytes : s.seen_bytes) {
-    bytes.Clear();
-  }
-  s.keys.Clear();
-  s.segments = 0;
-  s.key_row = 0;
-  s.served_keys.Reset();
-  s.bounds.Clear();
-  s.group_buffer = ColumnBuffer();
 }
 
 base::Status IntervalFlatten::status(const OperatorState& state) const {

@@ -19,9 +19,9 @@
 
 #include <cstdint>
 
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -54,16 +54,16 @@ class Context {
   // The values the next run's filters compare with, by parameter, already
   // cast (see FilterValue). Nothing is copied: the caller keeps them alive and
   // unchanged until the run ends.
-  void SetFilterValues(Span<const FilterValue> values) {
+  void SetFilterValues(base::Span<const FilterValue> values) {
     filter_values_ = values;
   }
-  Span<const FilterValue> filter_values() const { return filter_values_; }
+  base::Span<const FilterValue> filter_values() const { return filter_values_; }
 
  private:
   // Declared before `nulls_`, so it outlives it.
   BufferPool buffers_;
   ColumnBuffer nulls_;
-  Span<const FilterValue> filter_values_;
+  base::Span<const FilterValue> filter_values_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

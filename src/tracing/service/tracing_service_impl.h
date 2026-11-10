@@ -291,6 +291,8 @@ class TracingServiceImpl : public TracingService {
   void SetServiceTracePacketHeader(protos::pbzero::TracePacket*);
   void MaybeEmitRemoteSystemInfo(std::vector<TracePacket>*);
   void MaybeEmitCloneTrigger(TracingSession*, std::vector<TracePacket>*);
+  void MaybeEmitAuthoritativeTrigger(TracingSession*,
+                                     std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitRemoteClockSync(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitProtoVmInstances(TracingSession*, std::vector<TracePacket>*);
@@ -412,7 +414,7 @@ class TracingServiceImpl : public TracingService {
   // host/relay sessions, where service packets remain on the host machine.
   MachineID local_machine_id_ = kDefaultMachineID;
   std::map<TracingSessionID, TracingSession> tracing_sessions_;
-  // Creates all trace buffers and owns the state they share.
+  // Creates all trace buffers and tracks the state they share.
   TraceBufferFactory trace_buffer_factory_;
   std::map<BufferID, std::unique_ptr<TraceBuffer>> buffers_;
   std::map<std::string, int64_t> session_to_last_trace_s_;

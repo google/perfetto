@@ -25,6 +25,7 @@
 #include "src/trace_processor/core/exec/group_table.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -59,19 +60,18 @@ class Distinct final : public Transform {
   friend class PipelineFormatter;
 
   struct State : OperatorState {
-    State() : OperatorState(ResetEachRun{}) {}
+    State() = default;
     ~State() override;
-    void Reset() override;
+
+    Held<base::Status> status{this};
 
     // Every key seen so far, numbered in the order first seen.
-    GroupTable keys;
+    Held<GroupTable> keys{this};
 
-    // Scratch for the current batch: the key number of each row, and the
-    // positions of the rows kept.
-    FlexVector<uint32_t> row_keys;
-    FlexVector<uint32_t> kept;
-
-    base::Status status = base::OkStatus();
+    // Scratch for one call: the key number of each row, and the positions
+    // of the rows kept.
+    CallScratch<FlexVector<uint32_t>> row_keys;
+    CallScratch<FlexVector<uint32_t>> kept;
   };
 
   std::vector<uint32_t> columns_;

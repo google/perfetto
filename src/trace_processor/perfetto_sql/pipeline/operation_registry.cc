@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 
+#include "perfetto/ext/base/status_macros.h"
+
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h"
@@ -82,6 +84,18 @@ const OperationRegistration* FindOperationBySyntax(uint32_t syntax) {
     }
   }
   return nullptr;
+}
+
+base::Status RunBoundPasses(BoundPlan* bound, const LoweringContext& context) {
+  // A node's inputs come before it, so a rewrite at a node sees all that is
+  // below it as final, and nothing above it has been planned yet.
+  bound->planned.resize(bound->plan.nodes().size());
+  for (PlanNodeId id = 0; id < bound->planned.size(); ++id) {
+    bound->plan.nodes()[id].operation().Rewrite(bound, id, context);
+    PlanNodeInputs(bound, id, context);
+    RETURN_IF_ERROR(bound->status);
+  }
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor::pipeline

@@ -20,17 +20,18 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/protozero/field.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::pigweed {
 namespace {
 
-void AppendUint32(std::vector<uint8_t>* out, uint32_t value) {
-  out->push_back(static_cast<uint8_t>(value & 0xFF));
-  out->push_back(static_cast<uint8_t>((value >> 8) & 0xFF));
-  out->push_back(static_cast<uint8_t>((value >> 16) & 0xFF));
-  out->push_back(static_cast<uint8_t>((value >> 24) & 0xFF));
+template <typename T>
+void AppendLE(std::vector<uint8_t>* out, T value) {
+  size_t pos = out->size();
+  out->resize(pos + sizeof(T));
+  base::StoreLE(out->data() + pos, value);
 }
 
 // Encodes a signed integer the way Pigweed does: zigzag, then varint.
@@ -53,13 +54,13 @@ std::vector<uint8_t> BuildDatabase(uint32_t token, const std::string& format) {
   // Header.
   const char magic[] = {'T', 'O', 'K', 'E', 'N', 'S'};
   db.insert(db.end(), magic, magic + sizeof(magic));
-  db.push_back(0);       // version low
-  db.push_back(0);       // version high
-  AppendUint32(&db, 1);  // entry_count
-  AppendUint32(&db, 0);  // reserved
+  db.push_back(0);             // version low
+  db.push_back(0);             // version high
+  AppendLE<uint32_t>(&db, 1);  // entry_count
+  AppendLE<uint32_t>(&db, 0);  // reserved
   // Entry: {token, date_removed}. 0xFFFFFFFF means "live".
-  AppendUint32(&db, token);
-  AppendUint32(&db, 0xFFFFFFFF);
+  AppendLE<uint32_t>(&db, token);
+  AppendLE<uint32_t>(&db, 0xFFFFFFFF);
   // String table.
   db.insert(db.end(), format.begin(), format.end());
   db.push_back('\0');
@@ -78,7 +79,7 @@ TEST(PigweedDetokenizerTest, PlainSignedInt) {
   auto detok = MakeDetokenizer(db);
 
   std::vector<uint8_t> payload;
-  AppendUint32(&payload, 0x1234);
+  AppendLE<uint32_t>(&payload, 0x1234);
   AppendZigZagVarInt(&payload, 42);
 
   auto result = detok.Detokenize({payload.data(), payload.size()});
@@ -94,7 +95,7 @@ TEST(PigweedDetokenizerTest, StarWidth) {
   auto detok = MakeDetokenizer(db);
 
   std::vector<uint8_t> payload;
-  AppendUint32(&payload, 0x1234);
+  AppendLE<uint32_t>(&payload, 0x1234);
   AppendZigZagVarInt(&payload, 5);   // width
   AppendZigZagVarInt(&payload, 42);  // value
 
@@ -109,11 +110,9 @@ TEST(PigweedDetokenizerTest, StarPrecision) {
   auto detok = MakeDetokenizer(db);
 
   std::vector<uint8_t> payload;
-  AppendUint32(&payload, 0x1234);
+  AppendLE<uint32_t>(&payload, 0x1234);
   AppendZigZagVarInt(&payload, 2);  // precision
-  float value = 3.14159f;
-  const uint8_t* value_bytes = reinterpret_cast<const uint8_t*>(&value);
-  payload.insert(payload.end(), value_bytes, value_bytes + sizeof(value));
+  AppendLE(&payload, 3.14159f);
 
   auto result = detok.Detokenize({payload.data(), payload.size()});
   ASSERT_TRUE(result.ok()) << result.status().message();
@@ -126,12 +125,10 @@ TEST(PigweedDetokenizerTest, StarWidthAndPrecision) {
   auto detok = MakeDetokenizer(db);
 
   std::vector<uint8_t> payload;
-  AppendUint32(&payload, 0x1234);
+  AppendLE<uint32_t>(&payload, 0x1234);
   AppendZigZagVarInt(&payload, 8);  // width
   AppendZigZagVarInt(&payload, 2);  // precision
-  float value = 3.14159f;
-  const uint8_t* value_bytes = reinterpret_cast<const uint8_t*>(&value);
-  payload.insert(payload.end(), value_bytes, value_bytes + sizeof(value));
+  AppendLE(&payload, 3.14159f);
 
   auto result = detok.Detokenize({payload.data(), payload.size()});
   ASSERT_TRUE(result.ok()) << result.status().message();
@@ -145,7 +142,7 @@ TEST(PigweedDetokenizerTest, NegativeStarPrecision) {
   auto detok = MakeDetokenizer(db);
 
   std::vector<uint8_t> payload;
-  AppendUint32(&payload, 0x1234);
+  AppendLE<uint32_t>(&payload, 0x1234);
   AppendZigZagVarInt(&payload, -1);  // precision (negative => omitted)
   AppendZigZagVarInt(&payload, 42);  // value
 
@@ -159,7 +156,7 @@ TEST(PigweedDetokenizerTest, PlainUnsigned) {
   auto detok = MakeDetokenizer(db);
 
   std::vector<uint8_t> payload;
-  AppendUint32(&payload, 0x1234);
+  AppendLE<uint32_t>(&payload, 0x1234);
   AppendZigZagVarInt(&payload, 42);
 
   auto result = detok.Detokenize({payload.data(), payload.size()});
@@ -172,7 +169,7 @@ TEST(PigweedDetokenizerTest, Hex) {
   auto detok = MakeDetokenizer(db);
 
   std::vector<uint8_t> payload;
-  AppendUint32(&payload, 0x1234);
+  AppendLE<uint32_t>(&payload, 0x1234);
   AppendZigZagVarInt(&payload, 0xABCD);
 
   auto result = detok.Detokenize({payload.data(), payload.size()});
@@ -185,7 +182,7 @@ TEST(PigweedDetokenizerTest, LongLong) {
   auto detok = MakeDetokenizer(db);
 
   std::vector<uint8_t> payload;
-  AppendUint32(&payload, 0x1234);
+  AppendLE<uint32_t>(&payload, 0x1234);
   AppendZigZagVarInt(&payload, -5000000000);
 
   auto result = detok.Detokenize({payload.data(), payload.size()});
@@ -198,7 +195,7 @@ TEST(PigweedDetokenizerTest, Char) {
   auto detok = MakeDetokenizer(db);
 
   std::vector<uint8_t> payload;
-  AppendUint32(&payload, 0x1234);
+  AppendLE<uint32_t>(&payload, 0x1234);
   AppendZigZagVarInt(&payload, 'A');
 
   auto result = detok.Detokenize({payload.data(), payload.size()});

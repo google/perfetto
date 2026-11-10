@@ -15,22 +15,6 @@
 
 INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
 
--- The cumulative size, native size and object count of every object in the
--- heap graph: the totals over the object and everything below it in the min
--- depth tree. Objects which are not part of the tree only count themselves.
-CREATE PERFETTO TABLE _heap_graph_object_tree_aggregation AS
-FROM (
-  SELECT o.id, t.parent_id, o.self_size, o.native_size
-  FROM heap_graph_object AS o
-  LEFT JOIN _heap_graph_object_min_depth_tree AS t USING (id)
-)
-|> TREE ACCUMULATE UP
-  SUM(self_size) AS cumulative_size,
-  SUM(native_size) AS cumulative_native_size,
-  COUNT(*) AS cumulative_count
-|> SELECT id, cumulative_size, cumulative_native_size, cumulative_count
-|> ORDER BY id;
-
 -- Returns object references with cumulative size information.
 CREATE PERFETTO MACRO _heap_graph_object_references_agg(
   path_hashes TableOrSubquery,
@@ -58,7 +42,7 @@ AS (
   FROM _path_hashes AS h
   JOIN heap_graph_object AS o
     ON h.id = o.id
-  JOIN _heap_graph_object_tree_aggregation AS a
+  JOIN _heap_graph_object_min_depth_tree AS a
     ON h.id = a.id
   JOIN heap_graph_class AS c
     ON o.type_id = c.id
@@ -102,7 +86,7 @@ AS (
     ON r.owned_id = dst.id
   JOIN heap_graph_object AS src
     ON r.owner_id = src.id
-  JOIN _heap_graph_object_tree_aggregation AS a
+  JOIN _heap_graph_object_min_depth_tree AS a
     ON dst.id = a.id
   JOIN heap_graph_class AS c
     ON src.type_id = c.id
@@ -142,7 +126,7 @@ AS (
     ON r.owner_id = src.id
   JOIN heap_graph_object AS dst
     ON r.owned_id = dst.id
-  JOIN _heap_graph_object_tree_aggregation AS a
+  JOIN _heap_graph_object_min_depth_tree AS a
     ON dst.id = a.id
   JOIN heap_graph_class AS c
     ON dst.type_id = c.id

@@ -27,6 +27,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/containers/interval_tree.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -36,7 +37,6 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/selection.h"
-#include "src/trace_processor/core/util/span.h"
 
 // The input stage shared by the interval operators. Each reads one or more
 // interval inputs: rows with a ts and dur, grouped into lanes by PER columns
@@ -171,6 +171,8 @@ class LaneReader {
 
   // Forgets the last lane read, for a new run.
   void Reset() { last_group_ = kNoGroup; }
+  // Ends a run (see RunHeld).
+  void EndRun() { Reset(); }
 
  private:
   const IntervalLaneSpec* spec_;
@@ -198,7 +200,7 @@ class CollectedLanes {
  public:
   struct Lane {
     uint32_t number;
-    Span<const Interval> intervals;
+    base::Span<const Interval> intervals;
     // Whether no two intervals overlap. If so, they can be searched without
     // building a tree.
     bool nonoverlapping;
@@ -239,6 +241,8 @@ class CollectedLanes {
   const LaneReader& reader() const { return reader_; }
 
   void Clear();
+  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  void EndRun();
 
  private:
   struct Range {
@@ -288,9 +292,11 @@ class LaneKeys {
   void Carry(uint32_t handle);
 
   // Copies the keys of `handles`, in order, into `out`.
-  void Gather(RowBatch* out, Span<const uint32_t> handles, Context&);
+  void Gather(RowBatch* out, base::Span<const uint32_t> handles, Context&);
 
   void Clear();
+  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  void EndRun();
 
  private:
   const std::vector<uint32_t>* key_columns_;
@@ -312,6 +318,8 @@ class BoundsColumns {
   void AddTsTo(RowBatch* out) const;
   void AddDurTo(RowBatch* out) const;
   void Clear();
+  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  void EndRun();
 
   int64_t* ts = nullptr;
   int64_t* dur = nullptr;

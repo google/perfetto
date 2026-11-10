@@ -27,6 +27,9 @@
 namespace perfetto::trace_processor::core::exec {
 
 RowBatch& RowBatch::operator=(RowBatch&& other) noexcept {
+  if (this == &other) {
+    return *this;
+  }
   own_columns_ = std::move(other.own_columns_);
   own_buffers_ = std::move(other.own_buffers_);
   if (other.owned_) {

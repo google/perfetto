@@ -56,20 +56,28 @@ std::optional<uint32_t> Compute::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
-void Compute::Lower(Lowering* c, const PlanNode& node) const {
-  c->LowerNode(node.children()[0]);
+OutputProperties Compute::Derive(DeriveContext& c) const {
+  OutputProperties out = c.input(0);
   std::vector<ex::ExprProgram> programs;
-  std::vector<core::StorageType> types;
   for (const Item& item : items_) {
-    core::StorageType type = core::Int64{};
-    programs.push_back(LowerExpr(c, item.expr, &type));
-    types.push_back(type);
+    base::StatusOr<TypedExpr> typed =
+        TypeExpr(c.input(0), item.expr, c.context().pool);
+    if (!typed.ok()) {
+      c.Fail(typed.status());
+      return out;
+    }
+    programs.push_back(std::move(typed->program));
+    OutputProperties::Column column = c.ColumnOf(item.output);
+    column.type = typed->type;
+    out.columns.push_back(std::move(column));
   }
-  c->AddOrderIndependent(std::make_unique<ex::Compute>(std::move(programs)));
-  for (size_t i = 0; i < items_.size(); ++i) {
-    c->DeclareColumn(items_[i].output);
-    c->DeclareType(items_[i].output, types[i]);
-  }
+  c.SetPrograms(std::move(programs));
+  return out;
+}
+
+void Compute::Lower(Lowering* c, const PlanNode& node) const {
+  c->LowerInput(node, 0);
+  c->AddOperator(std::make_unique<ex::Compute>(c->QueryPrograms(node)));
 }
 
 const OperationRegistration& Compute::registration() const {

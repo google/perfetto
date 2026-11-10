@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -46,7 +47,6 @@
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sorted_scan.h"
-#include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -395,9 +395,14 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
             (*exec->casters[i])(fetcher, i, pool_, &cast[i]);
           }
         }
+        // Whoever casts values can move them afterwards, as lowering does.
+        std::vector<FilterValue> moved;
+        for (FilterValue& value : cast) {
+          moved.push_back(std::move(value));
+        }
         std::vector<uint32_t> actual;
-        for (bool ok = cursor.Open(Span<const FilterValue>(
-                 cast.data(), cast.data() + cast.size()));
+        for (bool ok = cursor.Open(base::Span<const FilterValue>(
+                 moved.data(), moved.data() + moved.size()));
              ok; ok = cursor.Next()) {
           uint32_t row = cursor.Value<uint32_t>(kId);
           actual.push_back(row);

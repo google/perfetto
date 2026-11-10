@@ -39,6 +39,7 @@
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
@@ -137,10 +138,14 @@ class PhysicalPlanTest : public ::testing::Test {
       LogicalPlan plan) {
     ASSIGN_OR_RETURN(auto dataframes, TestCatalog::BuildSqlSources(
                                           connection_.get(), &pool_, plan));
-    LogicalPlan moved = MoveSqlSourcesToDataframeArgs(std::move(plan)).plan;
+    ASSIGN_OR_RETURN(
+        BoundPlan bound,
+        ResolveCompiledPlan(MoveSqlSourcesToDataframeArgs(std::move(plan)).plan,
+                            catalog_));
     RETURN_IF_ERROR(
-        BindDataframeArgs(moved, DataframeArgs(dataframes), &pool_));
-    return Lower(moved, {&pool_});
+        BindDataframeArgs(&bound, DataframeArgs(dataframes), &pool_));
+    RETURN_IF_ERROR(RunBoundPasses(&bound, {&pool_}));
+    return Lower(&bound, {&pool_});
   }
 
   std::vector<std::string> Names(const PhysicalPlan& plan) {
@@ -197,9 +202,11 @@ TEST_F(PhysicalPlanTest, PruningACopyLeavesTheOriginalResultsIntact) {
   copy.output().resize(1);
   PruneColumns(copy);
 
-  auto physical = Lower(*original, {&pool_});
-  ASSERT_TRUE(physical.ok()) << physical.status().message();
-  auto rows = Run(**physical, "total");
+  auto bound = ResolveCompiledPlan(*original, catalog_);
+  ASSERT_TRUE(bound.ok()) << bound.status().message();
+  ASSERT_TRUE(RunBoundPasses(&*bound, {&pool_}).ok());
+  std::unique_ptr<PhysicalPlan> physical = Lower(&*bound, {&pool_});
+  auto rows = Run(*physical, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
@@ -377,9 +384,100 @@ TEST_F(PhysicalPlanTest, WhereComparesStringsListsAndNulls) {
   EXPECT_THAT(ids("name IS NULL"), ElementsAre(3));
   EXPECT_THAT(ids("v IS NOT NULL AND v NOTNULL"), ElementsAre(1, 3, 4, 5));
   EXPECT_THAT(ids("v BETWEEN 20 AND 45"), ElementsAre(3, 4));
-  // Numbers sort before strings, as in SQL.
-  EXPECT_THAT(ids("name > 5"), ElementsAre(1, 2, 4, 5));
-  EXPECT_THAT(ids("v = 'foo'"), ElementsAre());
+}
+
+// A string is never a number, so comparing the two is refused.
+TEST_F(PhysicalPlanTest, WhereRefusesStringsMeetingNumbers) {
+  Exec("CREATE TABLE t(id INTEGER, name TEXT, v INTEGER)");
+  Exec("INSERT INTO t VALUES (1, 'foo', 10)");
+  auto plan = Plan("FROM t |> WHERE name > 5");
+  ASSERT_FALSE(plan.ok());
+  EXPECT_THAT(plan.status().message(),
+              HasSubstr("a string to compare with a string column"));
+  plan = Plan("FROM t |> WHERE v = 'foo'");
+  ASSERT_FALSE(plan.ok());
+  EXPECT_THAT(plan.status().message(),
+              HasSubstr("a number to compare with a numeric column"));
+}
+
+// WHERE on a table's sorted columns searches them instead of testing each row;
+// whatever else it tests is left to a Filter.
+TEST_F(PhysicalPlanTest, WhereSearchesSortedColumns) {
+  catalog_.AddTable("ix", {"id", "k", "v"},
+                    {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  auto plan = Plan("FROM ix |> WHERE id >= 1 AND id < 4 AND v = 9");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan), "main: SortedScan | Filter(#2 = ?2)");
+  auto rows = Run(**plan, "v");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(1, 9), Pair(2, 9)));
+}
+
+// With no sorted column to search, an index finds equalities on its columns.
+TEST_F(PhysicalPlanTest, WhereLooksUpAnIndex) {
+  catalog_.AddTable("ix", {"id", "k", "v"},
+                    {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  catalog_.AddIndex("ix", {1});
+  auto plan = Plan("FROM ix |> WHERE k = 7 AND v > 1 |> SELECT id, v");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan), "main: IndexScan | Filter(#2 > ?1)");
+  auto rows = Run(**plan, "v");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(2, 9), Pair(4, 9)));
+}
+
+// An index can be searched on its leading columns alone, whether or not the
+// scan reads the others.
+TEST_F(PhysicalPlanTest, WhereLooksUpAnIndexWithUnreadColumns) {
+  catalog_.AddTable("ix", {"id", "k", "v"},
+                    {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  catalog_.AddIndex("ix", {1, 2});
+  auto plan = Plan("FROM ix |> WHERE k = 7 |> SELECT id, id AS w");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan), "main: IndexScan");
+  auto rows = Run(**plan, "w");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(0, 0), Pair(2, 2), Pair(4, 4)));
+}
+
+// A condition the scan cannot answer does not stop it answering the others.
+TEST_F(PhysicalPlanTest, WhereSearchesAroundAConditionItCannotAnswer) {
+  catalog_.AddTable("ix", {"id", "k", "v"},
+                    {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  catalog_.AddIndex("ix", {1});
+  auto plan = Plan("FROM ix |> WHERE v IS NOT NULL AND k = 7 |> SELECT id, v");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "main: IndexScan | Filter(#2 IS NOT NULL)");
+  auto rows = Run(**plan, "v");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(0, 1), Pair(2, 9), Pair(4, 9)));
+}
+
+// A column of only nulls needs no check, however many types it is made to hold.
+TEST_F(PhysicalPlanTest, AllNullColumnConvertedTwiceStaysNull) {
+  Exec("CREATE TABLE a(ts INTEGER, dur INTEGER, k)");
+  Exec("INSERT INTO a VALUES (0, 10, NULL)");
+  Exec("CREATE TABLE b(ts INTEGER, dur INTEGER, k REAL)");
+  Exec("INSERT INTO b VALUES (5, 10, 1.5)");
+  auto plan = Plan(
+      "INTERVAL INTERSECTION OF ((FROM a |> WHERE k = 1) AS p, b AS q) PER k "
+      "|> SELECT ts, dur");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_THAT(PhysicalPlanToString(**plan),
+              HasSubstr("NullColumn(#2 as Int64) | Filter(#2 = ?0) | "
+                        "NullColumn(#2 as Double)"));
+}
+
+// A condition no row can match leaves nothing to read.
+TEST_F(PhysicalPlanTest, WhereNoRowCanMatchReadsNothing) {
+  catalog_.AddTable("ix", {"id", "k", "v"}, {{0, 7, 1}, {1, 5, 9}});
+  auto plan = Plan("FROM ix |> WHERE v > 0 AND k = 2.5 |> SELECT id, v");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan), "main: EmptySource");
+  auto rows = Run(**plan, "v");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre());
 }
 
 // Each operand is grouped by its PER keys and sorted by ts within each group,
@@ -447,8 +545,8 @@ TEST_F(PhysicalPlanTest, ASubpipelineBackgroundIsASidePipeline) {
       "(FROM windows |> WHERE x = 0 |> SELECT ts, dur, cpu) PER cpu");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   EXPECT_EQ(PhysicalPlanToString(**plan),
-            "side: DataframeScan | Filter(#3 = ?0) | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | CombineBatches | GroupedSort(#2; #0)\n"
+            "side: SortedScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0)\n"
             "main: DataframeScan | AssertType(#0 to Int64) | "
             "AssertType(#1 to Int64) | GroupedSort(#2; #0) | "
             "IntervalFillGaps(#0, #1, keys: #2, groups: #3; "
@@ -580,11 +678,11 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
   PlanKey key(0, 0);
   auto read = DeserializePlan(SerializePlan(moved.plan, key), key, catalog_);
   ASSERT_TRUE(read.ok()) << read.status().message();
-  auto lowered = Lower(*read, {&pool_});
-  ASSERT_TRUE(lowered.ok()) << lowered.status().message();
-  EXPECT_THAT(Names(**lowered),
+  ASSERT_TRUE(RunBoundPasses(&*read, {&pool_}).ok());
+  std::unique_ptr<PhysicalPlan> lowered = Lower(&*read, {&pool_});
+  EXPECT_THAT(Names(*lowered),
               ElementsAre("id", "parent_id", "own", "copy", "total"));
-  auto rows = Run(**lowered, "copy");
+  auto rows = Run(*lowered, "copy");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 10), Pair(1, 20), Pair(2, 30), Pair(3, 40)));
@@ -623,6 +721,80 @@ TEST_F(PhysicalPlanTest, FoldsAfterAGraphTreeReuseItsNumbering) {
   ASSERT_TRUE(retained.ok()) << retained.status().message();
   EXPECT_THAT(*retained,
               ElementsAre(Pair(1, 100), Pair(2, 20), Pair(3, 30), Pair(4, 40)));
+}
+
+// The fold down is written second but reads nothing the fold up computes,
+// so it runs first, on the parent-first rows the GraphTree outputs.
+TEST_F(PhysicalPlanTest, IndependentFoldsRunDownFirst) {
+  Exec("CREATE TABLE objects(id INTEGER, parent_id INTEGER, self INTEGER)");
+  Exec(
+      "INSERT INTO objects VALUES (4, 99, 40), (2, 99, 20), (3, 99, 30), "
+      "(1, 99, 10)");
+  Exec("CREATE TABLE refs(src INTEGER, dst INTEGER)");
+  Exec("INSERT INTO refs VALUES (3, 4), (1, 3), (2, 4), (1, 2)");
+  auto plan = Plan(
+      "GRAPH DOMINATOR TREE NODES objects EDGES refs FROM (SELECT 1 AS id) "
+      "|> TREE ACCUMULATE UP SUM(self) AS retained "
+      "|> TREE ACCUMULATE DOWN COUNT(*) AS depth");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "side: DataframeScan | AssertType(#0 to Int64)\n"
+            "side: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64)\n"
+            "side: DataframeScan | AssertType(#0 to Int64)\n"
+            "main: GraphTree(DOMINATOR; nodes: #0 keeping #0, #1; "
+            "edges: #0 -> #1; seeds: #0) | TreeAccumulateDown(#3, #4; "
+            "COUNT(*)) | TreeChildFirst(#3, #4) | AssertType(#1 to Int64) | "
+            "TreeAccumulateUp(#3, #4; SUM(#1))");
+  auto depth = Run(**plan, "depth");
+  ASSERT_TRUE(depth.ok()) << depth.status().message();
+  EXPECT_THAT(*depth,
+              ElementsAre(Pair(1, 1), Pair(2, 2), Pair(3, 2), Pair(4, 2)));
+  auto retained = Run(**plan, "retained");
+  ASSERT_TRUE(retained.ok()) << retained.status().message();
+  EXPECT_THAT(*retained,
+              ElementsAre(Pair(1, 100), Pair(2, 20), Pair(3, 30), Pair(4, 40)));
+}
+
+// The fold down is pruned: it must not take the place of the fold up below it.
+TEST_F(PhysicalPlanTest, PrunedFoldLeavesTheFoldBelowIt) {
+  Exec("CREATE TABLE objects(id INTEGER, parent_id INTEGER, self INTEGER)");
+  Exec(
+      "INSERT INTO objects VALUES (4, 99, 40), (2, 99, 20), (3, 99, 30), "
+      "(1, 99, 10)");
+  Exec("CREATE TABLE refs(src INTEGER, dst INTEGER)");
+  Exec("INSERT INTO refs VALUES (3, 4), (1, 3), (2, 4), (1, 2)");
+  auto plan = Plan(
+      "GRAPH DOMINATOR TREE NODES objects EDGES refs FROM (SELECT 1 AS id) "
+      "|> TREE ACCUMULATE UP SUM(self) AS retained "
+      "|> TREE ACCUMULATE DOWN COUNT(*) AS depth "
+      "|> SELECT id, retained");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  auto retained = Run(**plan, "retained");
+  ASSERT_TRUE(retained.ok()) << retained.status().message();
+  EXPECT_THAT(*retained,
+              ElementsAre(Pair(1, 100), Pair(2, 20), Pair(3, 30), Pair(4, 40)));
+}
+
+// Rows already child-first stay so: the independent fold up moves below the
+// fold down and reuses the walk.
+TEST_F(PhysicalPlanTest, IndependentFoldsKeepAChildFirstWalk) {
+  CreateDataframeTree();
+  auto plan = Plan(
+      "FROM df |> TREE ACCUMULATE UP SUM(self) AS total "
+      "|> TREE ACCUMULATE DOWN SUM(total) AS path "
+      "|> TREE ACCUMULATE UP COUNT(*) AS size");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "main: DataframeScan | TreeNumberNodes(#0, #1) | "
+            "TreeChildFirst(#3, #4) | AssertType(#2 to Int64) | "
+            "TreeAccumulateUp(#3, #4; SUM(#2)) | "
+            "TreeAccumulateUp(#3, #4; COUNT(*)) | TreeParentFirst(#3, #4) | "
+            "TreeAccumulateDown(#3, #4; SUM(#5))");
+  auto size = Run(**plan, "size");
+  ASSERT_TRUE(size.ok()) << size.status().message();
+  EXPECT_THAT(*size,
+              ElementsAre(Pair(0, 4), Pair(1, 2), Pair(2, 1), Pair(3, 1)));
 }
 
 }  // namespace

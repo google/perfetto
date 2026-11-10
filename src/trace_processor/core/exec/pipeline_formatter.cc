@@ -180,6 +180,9 @@ std::string StepString(const ExprProgram& program, uint32_t i) {
     case ExprOp::kColumn:
       return "#" + std::to_string(step.a);
     case ExprOp::kConstant:
+      if (step.type == ExprType::kString) {
+        return "string(" + std::to_string(step.int_value) + ")";
+      }
       return step.type == ExprType::kDouble ? std::to_string(step.double_value)
                                             : std::to_string(step.int_value);
     case ExprOp::kNull:

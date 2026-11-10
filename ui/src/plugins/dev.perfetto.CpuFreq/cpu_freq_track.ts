@@ -535,8 +535,8 @@ export class CpuFreqTrack implements TrackRenderer {
     checkerboardExcept(
       ctx,
       this.getHeight(),
-      0,
-      size.width,
+      Math.max(0, timescale.timeToPx(Time.MIN)),
+      Math.min(size.width, timescale.timeToPx(Time.MAX)),
       timescale.timeToPx(data.start),
       timescale.timeToPx(data.end),
     );

@@ -1,11 +1,11 @@
 # pid 200 starts mid-trace, is frozen, unfrozen, frozen again and then killed
 # while frozen. pid 500 is frozen near the end and still alive. pids 300 and
 # 400 have no freezer events: the trace-stop snapshot says 300 (started
-# mid-trace) is frozen and 400 is not.
+# mid-trace) is frozen and 400 (started before the trace) is not.
 packet {
   timestamp: 500
   process_tree {
-    processes { pid: 400 ppid: 1 cmdline: "proc400" }
+    processes { pid: 400 ppid: 1 cmdline: "proc400" process_start_from_boot: 100 }
     processes { pid: 500 ppid: 1 cmdline: "proc500" }
   }
 }

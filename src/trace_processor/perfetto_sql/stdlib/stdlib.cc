@@ -22,7 +22,7 @@
 namespace perfetto::trace_processor::stdlib {
 
 SqlBundle GetStdlibBundle() {
-  return SqlBundle(kAmalgamatedStdlib);
+  return SqlBundle(kAmalgamatedStdlib.data(), kAmalgamatedStdlib.size());
 }
 
 }  // namespace perfetto::trace_processor::stdlib

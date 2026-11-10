@@ -31,7 +31,6 @@
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
