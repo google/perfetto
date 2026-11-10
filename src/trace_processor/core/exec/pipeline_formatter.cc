@@ -222,7 +222,10 @@ std::string PipelineFormatter::Format(const Pipeline& pipeline) {
 
 std::string PipelineFormatter::SourceString(const Source& source) {
   if (source.Is<DataframeScan>()) {
-    return "DataframeScan";
+    return static_cast<const DataframeScan&>(source).direction_ ==
+                   ReadDirection::kBackwards
+               ? "DataframeScan(backwards)"
+               : "DataframeScan";
   }
   if (source.Is<EmptySource>()) {
     return "EmptySource";
@@ -251,7 +254,10 @@ std::string PipelineFormatter::SourceString(const Source& source) {
     return "Pipeline";
   }
   if (source.Is<SortedScan>()) {
-    return "SortedScan";
+    return static_cast<const SortedScan&>(source).direction_ ==
+                   ReadDirection::kBackwards
+               ? "SortedScan(backwards)"
+               : "SortedScan";
   }
   if (source.Is<IndexScan>()) {
     return "IndexScan";

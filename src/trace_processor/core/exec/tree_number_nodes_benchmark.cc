@@ -71,8 +71,8 @@ void RunTreeNumberNodes(benchmark::State& state,
                         const dataframe::Dataframe& df) {
   // Before every batch and state, which hold its buffers.
   Context context;
-  DataframeScan scan({df.shared_column(0), df.shared_column(1)},
-                     df.row_count());
+  DataframeScan scan({df.shared_column(0), df.shared_column(1)}, df.row_count(),
+                     ReadDirection::kForwards);
   std::unique_ptr<OperatorState> scan_state = scan.MakeState(context);
   TreeNumberNodes op(0, 1);
   std::unique_ptr<OperatorState> op_state = op.MakeState(context);
@@ -111,8 +111,8 @@ void BM_TreeNumberNodesScanOnly(benchmark::State& state) {
   StringPool pool;
   dataframe::Dataframe df =
       BuildIdColumn(static_cast<uint32_t>(state.range(0)), &pool);
-  DataframeScan scan({df.shared_column(0), df.shared_column(1)},
-                     df.row_count());
+  DataframeScan scan({df.shared_column(0), df.shared_column(1)}, df.row_count(),
+                     ReadDirection::kForwards);
   std::unique_ptr<OperatorState> scan_state = scan.MakeState(context);
   RowBatch in;
   for (auto _ : state) {

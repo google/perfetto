@@ -417,8 +417,8 @@ void Scan::Lower(Lowering* c, const PlanNode& node) const {
     LowerSearch(c, node, data);
     return;
   }
-  c->SetSource(
-      std::make_unique<ex::DataframeScan>(data.columns, data.row_count));
+  c->SetSource(std::make_unique<ex::DataframeScan>(
+      data.columns, data.row_count, ex::ReadDirection::kForwards));
 }
 
 void Scan::LowerSearch(Lowering* c,
@@ -470,7 +470,8 @@ void Scan::LowerSearch(Lowering* c,
     searches.push_back(std::move(search));
   }
   c->SetSource(std::make_unique<ex::SortedScan>(data.columns, data.row_count,
-                                                std::move(searches), pool));
+                                                std::move(searches), pool,
+                                                ex::ReadDirection::kForwards));
 }
 
 uint32_t Scan::Position(ColumnId column) const {
