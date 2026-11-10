@@ -28,6 +28,8 @@
 #include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/filter_kernels.h"
+#include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/string_ranks.h"
@@ -50,14 +52,21 @@ void AppendStrings(const ColumnView& column,
                    FlexVector<StringPool::Id>* ids,
                    BitVector* present,
                    StringRanks* ranks) {
-  const auto* data = static_cast<const StringPool::Id*>(column.data());
+  bool sparse = column.kind() == ColumnView::Kind::kSparse;
+  const auto* data = static_cast<const StringPool::Id*>(
+      sparse ? column.sparse_data() : column.data());
   const BitVector* validity = column.validity();
+  const uint32_t* popcount = sparse ? column.popcount() : nullptr;
   uint32_t start = column.start();
   uint32_t count = selection.size();
   const uint16_t* indices = selection.prefix() ? nullptr : selection.indices();
   for (uint32_t row = 0; row < count; ++row) {
     uint32_t index = start + (indices ? indices[row] : row);
     bool valid = !validity || validity->is_set(index);
+    if (valid && sparse) {
+      index =
+          filter::IndexToStorageIndex<SparseNull>(index, validity, popcount);
+    }
     ids->push_back(valid ? data[index] : StringPool::Id::Null());
     present->push_back(valid);
     if (valid) {
@@ -75,7 +84,11 @@ std::optional<SortedRows::KeyType> SortedRows::GetKeyType(
     case ColumnView::Kind::kSequence:
       return KeyType{RowLayout::Type::kUint32, false};
     case ColumnView::Kind::kFlat:
+    case ColumnView::Kind::kSparse:
       switch (column.type().index()) {
+        case StorageType::GetTypeIndex<Id>():
+          // Only a sparse column stores ids: as their positions in storage.
+          return KeyType{RowLayout::Type::kUint32, false};
         case StorageType::GetTypeIndex<Uint32>():
           return KeyType{RowLayout::Type::kUint32, false};
         case StorageType::GetTypeIndex<Int32>():
@@ -94,8 +107,6 @@ std::optional<SortedRows::KeyType> SortedRows::GetKeyType(
       }
     case ColumnView::Kind::kVariant:
       return std::nullopt;
-    case ColumnView::Kind::kSparse:
-      PERFETTO_FATAL("A sparse column is expanded before it is sorted");
   }
   PERFETTO_FATAL("Unknown column kind");
 }
@@ -177,15 +188,20 @@ void SortedRows::LayOutKeys(const RowBatch& in,
   for (uint32_t k = 0; k < keys.size(); ++k) {
     const ColumnView& column = in.column(keys[k].column);
     const RowLayout::Slot& slot = layout_.slot(k);
-    if (column.kind() == ColumnView::Kind::kSequence) {
+    bool sparse = column.kind() == ColumnView::Kind::kSparse;
+    const void* data = sparse ? column.sparse_data() : nullptr;
+    if (column.kind() == ColumnView::Kind::kSequence ||
+        (sparse && column.type().Is<Id>())) {
       WriteLayoutColumn<uint32_t>(column, in.selection(), slot, rows,
                                   [](uint32_t index) { return index; });
       continue;
     }
+    if (!sparse) {
+      data = column.data();
+    }
     if (types_[k].string) {
       continue;
     }
-    const void* data = column.data();
     switch (types_[k].layout) {
       case RowLayout::Type::kUint32:
         WriteLayoutColumn<uint32_t>(
@@ -273,6 +289,11 @@ uint32_t SortedRows::GatherInPlace(RowBatch* out,
       out, base::Span<const uint32_t>(begin, begin + count), context);
 }
 
+void SortedRows::Place() {
+  base::Span<const uint32_t> order(order_.data(), order_.data() + size());
+  placed_ = rows_.Place(order, &in_place_);
+}
+
 void SortedRows::EndRun() {
   types_.clear();
   strings_.clear();
@@ -281,6 +302,10 @@ void SortedRows::EndRun() {
   EndRunOf(&keys_);
   rows_.EndRun();
   EndRunOf(&order_);
+  in_place_.batches.clear();
+  placed_ = false;
+  EndRunOf(&in_place_.batch);
+  EndRunOf(&in_place_.row);
 }
 
 void SortedRows::Clear() {
@@ -291,6 +316,10 @@ void SortedRows::Clear() {
   keys_.clear();
   rows_.Clear();
   order_.clear();
+  in_place_.batches.clear();
+  placed_ = false;
+  in_place_.batch.clear();
+  in_place_.row.clear();
 }
 
 }  // namespace perfetto::trace_processor::core::exec

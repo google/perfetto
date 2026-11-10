@@ -28,6 +28,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/row_store.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -51,6 +52,8 @@ class RowCursor {
     batch_ = nullptr;
     index_ = 0;
     size_ = 0;
+    placed_ = 0;
+    in_place_ = nullptr;
     return Pull();
   }
 
@@ -60,7 +63,11 @@ class RowCursor {
     if (index_ == size_) {
       return false;
     }
-    return ++index_ != size_ || Pull();
+    if (++index_ != size_) {
+      Locate();
+      return true;
+    }
+    return Pull();
   }
 
   bool eof() const { return index_ == size_; }
@@ -71,17 +78,38 @@ class RowCursor {
   template <typename T>
   PERFETTO_ALWAYS_INLINE T Value(uint32_t column) const {
     PERFETTO_DCHECK(index_ < size_);
-    return batch_->Value<T>(column, index_);
+    return batch().column(column).At<T>(batch_row());
   }
 
-  const RowBatch& batch() const { return batch_ ? *batch_ : scratch_; }
-  // Which of the rows batch() keeps the current row is.
-  uint32_t row() const { return index_; }
+  // The batch the current row is in.
+  const RowBatch& batch() const {
+    if (in_place_) {
+      return *current_;
+    }
+    return batch_ ? *batch_ : scratch_;
+  }
+  // Which of the rows batch() keeps the current row is. Not for rows read in
+  // place (see Source::InPlace).
+  uint32_t row() const {
+    PERFETTO_DCHECK(!in_place_);
+    return index_;
+  }
   // The batch row the current row is: where it is in each column.
-  uint32_t batch_row() const { return batch_->selection()[index_]; }
+  uint32_t batch_row() const {
+    return in_place_ ? current_row_ : batch_->selection()[index_];
+  }
 
  private:
   bool Pull();
+
+  // Finds where the current row is held, for rows read in place.
+  PERFETTO_ALWAYS_INLINE void Locate() {
+    if (in_place_) {
+      uint32_t at = placed_ + index_;
+      current_ = in_place_->batches[in_place_->batch[at]];
+      current_row_ = in_place_->row[at];
+    }
+  }
 
   const Source& source_;
   // Before the state and the batch, which hold its buffers.
@@ -92,6 +120,12 @@ class RowCursor {
   RowBatch* batch_ = nullptr;
   uint32_t index_ = 0;
   uint32_t size_ = 0;
+  // Set when the source serves rows in place: where they are, how many came
+  // before this batch, and where the current one is.
+  const RowsInPlace* in_place_ = nullptr;
+  uint32_t placed_ = 0;
+  const RowBatch* current_ = nullptr;
+  uint32_t current_row_ = 0;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

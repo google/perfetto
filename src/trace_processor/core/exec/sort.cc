@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/core/exec/sort.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <utility>
@@ -46,14 +47,28 @@ bool Sort::Consume(const RowBatch& in, Breaker::State& state) const {
 }
 
 bool Sort::Finalize(Breaker::State& state) const {
-  static_cast<State&>(state).rows.Sort();
+  auto& s = static_cast<State&>(state);
+  s.rows.Sort();
+  if (in_place_) {
+    s.rows.Place();
+  }
   return true;
+}
+
+const RowsInPlace* Sort::InPlace(const OperatorState& state) const {
+  return state.Cast<State>().rows.placed();
 }
 
 bool Sort::Serve(RowBatch& out, Breaker::State& state) const {
   auto& s = static_cast<State&>(state);
   if (s.emitted == s.rows.size()) {
     return false;
+  }
+  if (s.rows.placed()) {
+    uint32_t count = std::min(kMaxBatchRows, s.rows.size() - s.emitted);
+    out.SetRowCount(count);
+    s.emitted += count;
+    return true;
   }
   s.emitted += s.rows.GatherInPlace(&out, s.emitted, *s.context);
   return true;

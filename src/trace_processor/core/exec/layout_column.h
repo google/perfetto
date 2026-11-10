@@ -18,10 +18,13 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_LAYOUT_COLUMN_H_
 
 #include <cstdint>
+#include <limits>
 #include <optional>
 
 #include "perfetto/base/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/filter_kernels.h"
+#include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/selection.h"
@@ -31,7 +34,8 @@ namespace perfetto::trace_processor::core::exec {
 
 // Writes `column`'s value at each row `selection` keeps into `slot` of the
 // rows laid out at `rows`, one per row kept. `value(index)` converts the value
-// stored at `index` into a T.
+// stored at `index` into a T: for a sparse column, `index` is where in its
+// sparse storage the value is.
 template <typename T, typename Value>
 PERFETTO_ALWAYS_INLINE void WriteLayoutColumn(const ColumnView& column,
                                               const Selection& selection,
@@ -41,6 +45,22 @@ PERFETTO_ALWAYS_INLINE void WriteLayoutColumn(const ColumnView& column,
   uint32_t start = column.start();
   const BitVector* validity = column.validity();
   const uint16_t* indices = selection.prefix() ? nullptr : selection.indices();
+  if (column.kind() == ColumnView::Kind::kSparse) {
+    const uint32_t* popcount = column.popcount();
+    RowLayout::Write<T>(
+        slot, selection.size(),
+        [start, validity, popcount, indices, &value](uint32_t row, T* out) {
+          uint32_t at = filter::IndexToStorageIndex<SparseNull>(
+              start + (indices ? indices[row] : row), validity, popcount);
+          if (at == std::numeric_limits<uint32_t>::max()) {
+            return false;
+          }
+          *out = value(at);
+          return true;
+        },
+        rows);
+    return;
+  }
   RowLayout::Write<T>(
       slot, selection.size(),
       [start, validity, indices, &value](uint32_t row, T* out) {

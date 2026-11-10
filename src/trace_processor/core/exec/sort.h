@@ -47,7 +47,12 @@ class Sort : public Breaker {
   void DescribeColumns(StepColumns* out) const override {
     for (const SortKey& key : spec_.keys) {
       out->reads.push_back(key.column);
+      if (in_place_) {
+        out->reads_sparse.push_back(key.column);
+      }
     }
+    // Rows served in place are read where they are held, sparse or not.
+    out->keeps_sparse = in_place_;
   }
   void SetUnreadColumns(std::vector<bool> unread) override {
     unread_ = std::move(unread);
@@ -55,6 +60,12 @@ class Sort : public Breaker {
 
   explicit Sort(SortSpec);
   ~Sort() override;
+
+  // Serves the rows in place, rather than copied into batches, unless they
+  // were packed (see RowStore::Place). Only for a plan's last step, read by
+  // a reader which reads rows in place (see Source::InPlace).
+  void ServeInPlace() { in_place_ = true; }
+  const RowsInPlace* InPlace(const OperatorState& state) const override;
 
  private:
   friend class PipelineFormatter;
@@ -74,6 +85,7 @@ class Sort : public Breaker {
   SortSpec spec_;
   // Input columns no later step reads (see Operator::SetUnreadColumns).
   std::vector<bool> unread_;
+  bool in_place_ = false;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

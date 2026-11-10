@@ -43,6 +43,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
@@ -820,6 +821,33 @@ TEST_F(PhysicalPlanTest, SparseOutputsAreExpandedOnlyForACallerWhichNeedsIt) {
     EXPECT_EQ(PhysicalPlanToString(*physical),
               sparse == Sparse::kExpand ? "main: DataframeScan | Expand(#1)"
                                         : "main: DataframeScan");
+  }
+}
+
+// A final sort serving its rows in place holds sparse columns as they are
+// lent, sorting by one too; one copying its rows needs them expanded first.
+TEST_F(PhysicalPlanTest, SortServingInPlaceKeepsSparseColumns) {
+  catalog_.AddTable("t", {"id", "v"}, {{0, 1}, {1, std::nullopt}});
+  const dataframe::Dataframe& df = *catalog_.FindDataframe("t");
+  using Sorted = LoweringContext::SortedOutputs;
+  for (Sorted sorted : {Sorted::kCopied, Sorted::kInPlace}) {
+    LogicalPlan plan;
+    PlanNodeId scan = Scan::AddToPlan(&plan, df, "t", {0, 1});
+    std::vector<NamedColumn> columns =
+        plan.nodes()[scan].Cast<Scan>().columns();
+    OrderBy::AddToPlan(&plan, {{columns[1].id, false}});
+    plan.output() = columns;
+    BoundPlan bound(std::move(plan));
+    Scan::Bind(&bound, scan, df);
+    LoweringContext context{&pool_, LoweringContext::SparseOutputs::kLend,
+                            sorted};
+    ASSERT_TRUE(RunBoundPasses(&bound, context).ok());
+    std::unique_ptr<PhysicalPlan> physical = Lower(&bound, context);
+    ASSERT_TRUE(bound.status.ok()) << bound.status.message();
+    EXPECT_EQ(PhysicalPlanToString(*physical),
+              sorted == Sorted::kCopied
+                  ? "main: DataframeScan | Expand(#1) | Sort(#1)"
+                  : "main: DataframeScan | Sort(#1)");
   }
 }
 

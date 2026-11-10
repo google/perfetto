@@ -34,6 +34,16 @@
 
 namespace perfetto::trace_processor::core::exec {
 
+// Rows read where a RowStore holds them, in an order of its rows (see
+// RowStore::Place).
+struct RowsInPlace {
+  // Each batch held, with every column: those not held read as nulls.
+  std::vector<const RowBatch*> batches;
+  // By position, which of `batches` the row is in, and its batch row there.
+  FlexVector<uint32_t> batch;
+  FlexVector<uint32_t> row;
+};
+
 // The rows a run holds on to, to hand back later: in runs, as they were held,
 // or in any order, gathered. Rows are numbered from 0, in the order they were
 // appended.
@@ -77,6 +87,11 @@ class RowStore {
                          base::Span<const uint32_t> rows,
                          Context& context);
 
+  // Points `out` at `rows`, in that order, where they are held, so they are
+  // read without being copied. Fails if any rows were packed, as packed
+  // columns can differ in kind from those of the batches shared.
+  bool Place(base::Span<const uint32_t> rows, RowsInPlace* out);
+
   // Lets go of every row held.
   void Clear();
 
@@ -108,6 +123,9 @@ class RowStore {
 
   // Holds the rows packed so far as one batch.
   void Flush();
+
+  // Points `out` at `held`, with every column of the shape.
+  void ViewHeld(const RowBatch& held, RowBatch* out) const;
 
   // The batch held which row `row` is in.
   uint32_t Find(uint32_t row) const {
@@ -148,6 +166,12 @@ class RowStore {
   // The columns held, and by column, where it is among them or kNotHeld.
   std::vector<uint32_t> held_columns_;
   std::vector<uint32_t> stored_column_;
+  // Whether any rows were packed.
+  bool packed_ = false;
+  // Whether a column held is sparse, which only Place() can read.
+  bool holds_sparse_ = false;
+  // When columns are not held: each batch held, viewed with every column.
+  std::vector<std::unique_ptr<RowBatch>> views_;
   // Scratch: the columns held of a batch appended.
   RowBatch trimmed_;
   uint32_t size_ = 0;
