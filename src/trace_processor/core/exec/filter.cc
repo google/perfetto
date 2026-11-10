@@ -17,6 +17,7 @@
 #include "src/trace_processor/core/exec/filter.h"
 
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <numeric>
@@ -30,8 +31,10 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/filter_kernels.h"
 #include "src/trace_processor/core/common/filter_value_cast.h"
+#include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -237,14 +240,44 @@ bool KeepRowsWhichCanMatch(const ParamValue& cast,
   return cast.value.validity == CastFilterValueResult::kValid && r.count != 0;
 }
 
-// Applies a comparison or IN to the rows kept so far.
+// Copies the values of a sparse `column` at the rows kept, none of which is
+// null, into `values` at each row, and views them as a flat column.
+template <uint32_t kWidth>
+ColumnView GatherSparse(const ColumnView& column, Rows& r, uint8_t* values) {
+  Materialize(r);
+  const auto* packed = static_cast<const uint8_t*>(column.sparse_data());
+  for (uint32_t i = 0; i < r.count; ++i) {
+    uint32_t row = r.rows[i];
+    uint32_t slot = filter::IndexToStorageIndex<SparseNull>(
+        column.Index(row), column.validity(), column.popcount());
+    uint8_t* value = values + uint64_t{row} * kWidth;
+    if (packed) {
+      memcpy(value, packed + uint64_t{slot} * kWidth, kWidth);
+    } else {
+      // A sparse Id column stores no values: each is its slot.
+      memcpy(value, &slot, sizeof(slot));
+    }
+  }
+  return ColumnView::Reference(column.type(), values);
+}
+
+// Applies a comparison or IN to the rows kept so far. A sparse column's values
+// at those rows are gathered into `sparse_values` first.
 void ApplyCondition(const Op& op,
                     const ParamValue& cast,
-                    const ColumnView& column,
+                    const ColumnView& lent,
                     const StringPool& pool,
+                    uint64_t* sparse_values,
                     Rows& r) {
-  if (!KeepRowsWhichCanMatch(cast, column, r)) {
+  if (!KeepRowsWhichCanMatch(cast, lent, r)) {
     return;
+  }
+  ColumnView column = lent;
+  if (lent.kind() == ColumnView::Kind::kSparse) {
+    auto* values = reinterpret_cast<uint8_t*>(sparse_values);
+    column = ValueWidth(lent.type()) == sizeof(uint32_t)
+                 ? GatherSparse<sizeof(uint32_t)>(lent, r, values)
+                 : GatherSparse<sizeof(uint64_t)>(lent, r, values);
   }
   switch (column.type().index()) {
     case StorageType::GetTypeIndex<Id>():
@@ -301,7 +334,8 @@ bool Filter::Process(RowBatch& batch, OperatorState& state) const {
     }
     PERFETTO_DCHECK(column.kind() != ColumnView::Kind::kVariant);
     PERFETTO_DCHECK(c.param < s.context->params().size());
-    ApplyCondition(c.op, values[c.param], column, *pool_, r);
+    ApplyCondition(c.op, values[c.param], column, *pool_,
+                   s.sparse_values.data(), r);
   }
   if (r.contiguous && r.count == selection.size()) {
     return true;

@@ -49,6 +49,9 @@ struct StepColumns {
   std::vector<uint32_t> reads;
   // Columns it reads back from rows it holds, so must hold even if unread.
   std::vector<uint32_t> held_reads;
+  // The columns of `reads` the step reads as a scan lends them, sparse (see
+  // ColumnView::Kind::kSparse), so that they need no Expand before it.
+  std::vector<uint32_t> reads_sparse;
 };
 
 // The mutable state of one step (Source, Transform or Operator) for one run
