@@ -99,12 +99,14 @@ class TopK : public Breaker {
   // The rows of `in` which come before the cutoff, their keys laid out in
   // `s.keys`.
   const RowBatch& BeforeCutoff(const RowBatch& in, State& s) const;
-  // Compares the row `row` of `in`, its keys laid out at `keys`, to the
-  // cutoff.
-  int CompareToCutoff(const RowBatch& in,
-                      uint32_t row,
-                      const uint8_t* keys,
-                      const State& s) const;
+  // Compares the row `row`, its keys laid out at `keys` and its string keys
+  // read by `strings`, to the cutoff.
+  int CompareToCutoff(
+      const std::vector<std::optional<FlatColumnReader<StringPool::Id>>>&
+          strings,
+      uint32_t row,
+      const uint8_t* keys,
+      const State& s) const;
   base::Status Prune(State& s) const;
 
   TopKSpec spec_;
