@@ -139,10 +139,15 @@ bool Fill(const ColumnView& column,
           To* out,
           BitVector* out_validity) {
   out_validity->ClearAllBits();
+  // Locals: the values written could otherwise alias them.
+  const Variant* cells =
+      static_cast<const Variant*>(column.data()) + column.start();
+  const uint16_t* indices = selection.prefix() ? nullptr : selection.indices();
+  uint32_t n = selection.size();
   PERFETTO_NO_VECTORIZE_LOOP
-  for (uint32_t i = 0; i < selection.size(); ++i) {
-    uint32_t row = selection[i];
-    Variant cell = column.At<Variant>(row);
+  for (uint32_t i = 0; i < n; ++i) {
+    uint32_t row = indices ? indices[i] : i;
+    Variant cell = cells[row];
     if (cell.type == Variant::Type::kNull) {
       out[row] = To{};
       continue;

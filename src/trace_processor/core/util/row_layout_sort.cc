@@ -113,9 +113,12 @@ ExistingOrder FindExistingOrder(const Rows& rows) {
   bool few_runs = true;
   bool descending = true;
   const uint8_t* row = rows[0];
-  for (uint32_t r = 1; r < rows.count && (few_runs || descending); ++r) {
-    int cmp = CompareRows(row, row + rows.stride, rows.stride);
-    row += rows.stride;
+  // Locals: growing the runs could otherwise change them.
+  uint32_t count = rows.count;
+  uint32_t stride = rows.stride;
+  for (uint32_t r = 1; r < count && (few_runs || descending); ++r) {
+    int cmp = CompareRows(row, row + stride, stride);
+    row += stride;
     descending &= cmp > 0;
     if (cmp > 0 && few_runs) {
       few_runs = order.runs.size() < max_runs;
@@ -166,9 +169,15 @@ void FindVaryingBytes(const Rows& rows, Scratch& scratch) {
       }
     }
   } else {
-    for (uint32_t r = 0; r < rows.count; ++r) {
-      for (uint32_t b = 0; b < rows.stride; ++b) {
-        differs[b] |= rows[r][b] != rows[0][b];
+    // Locals: the bytes written could otherwise alias the rows' fields.
+    const uint8_t* first = rows[0];
+    const uint8_t* row = first;
+    uint32_t count = rows.count;
+    uint32_t stride = rows.stride;
+    uint8_t* out = differs.data();
+    for (uint32_t r = 0; r < count; ++r, row += stride) {
+      for (uint32_t b = 0; b < stride; ++b) {
+        out[b] |= row[b] != first[b];
       }
     }
   }

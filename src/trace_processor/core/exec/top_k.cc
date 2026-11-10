@@ -90,7 +90,7 @@ const RowBatch& TopK::BeforeCutoff(const RowBatch& in, State& s) const {
   uint8_t* keys = s.keys.data();
   s.rows->LayOutKeys(in, spec_.keys, keys);
   s.passing.clear();
-  for (uint32_t row = 0; row < in.size(); ++row) {
+  for (uint32_t row = 0, n = in.size(); row < n; ++row) {
     const uint8_t* row_keys = keys + uint64_t{row} * stride;
     // A row equal to the cutoff comes after it, having arrived later.
     if (CompareToCutoff(in, row, row_keys, s) >= 0) {

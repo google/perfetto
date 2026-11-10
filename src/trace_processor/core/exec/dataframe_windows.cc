@@ -87,8 +87,12 @@ const BitVector* GatherColumn(const ColumnView& view,
     chunk.SizeValidity();
     chunk.validity.ClearAllBits();
   }
-  for (uint32_t i = 0; i < rows.size(); ++i) {
-    uint32_t row = rows.b[i];
+  // Locals: the bytes written could otherwise alias them.
+  const uint32_t* popcount = view.popcount();
+  const uint32_t* begin = rows.b;
+  auto count = static_cast<uint32_t>(rows.size());
+  for (uint32_t i = 0; i < count; ++i) {
+    uint32_t row = begin[i];
     uint8_t* value = values + uint64_t{i} * kWidth;
     if (validity) {
       if (!validity->is_set(row)) {
@@ -98,7 +102,7 @@ const BitVector* GatherColumn(const ColumnView& view,
       chunk.validity.set(i);
     }
     uint32_t at = sparse ? filter::IndexToStorageIndex<SparseNull>(
-                               row, validity, view.popcount())
+                               row, validity, popcount)
                          : row;
     if (data) {
       memcpy(value, data + uint64_t{at} * kWidth, kWidth);

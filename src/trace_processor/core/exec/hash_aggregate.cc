@@ -38,8 +38,10 @@ void WriteValues(const GroupTable& groups,
                  uint32_t first,
                  uint32_t count,
                  T* out) {
+  const int64_t* key = groups.group_row(first) + 1 + k;
+  uint64_t stride = groups.row_stride();
   for (uint32_t i = 0; i < count; ++i) {
-    out[i] = static_cast<T>(groups.Key(first + i, k));
+    out[i] = static_cast<T>(key[i * stride]);
   }
 }
 

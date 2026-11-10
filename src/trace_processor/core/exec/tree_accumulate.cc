@@ -90,11 +90,14 @@ const uint32_t* Flatten(const ColumnView& column,
   if (selection.prefix()) {
     return data;
   }
-  scratch->resize(selection.size());
-  for (uint32_t row = 0; row < selection.size(); ++row) {
-    (*scratch)[row] = data[selection[row]];
+  uint32_t count = selection.size();
+  scratch->resize(count);
+  uint32_t* out = scratch->data();
+  const uint16_t* indices = selection.indices();
+  for (uint32_t row = 0; row < count; ++row) {
+    out[row] = data[indices[row]];
   }
-  return scratch->data();
+  return out;
 }
 
 std::vector<std::unique_ptr<AggregateFunction>> MakeFunctions(
@@ -173,9 +176,11 @@ bool Accumulate(
       s.values.resize(count);
       s.valid.resize(count);
       function.Finalize(states, nodes, count, s.values.data(), &s.valid);
+      const uint16_t* indices = selection.indices();
+      const int64_t* kept_values = s.values.data();
       for (uint32_t row = 0; row < count; ++row) {
-        values[selection[row]] = s.values[row];
-        chunk.validity.change(selection[row], s.valid.is_set(row));
+        values[indices[row]] = kept_values[row];
+        chunk.validity.change(indices[row], s.valid.is_set(row));
       }
     }
     batch.AddColumn(
