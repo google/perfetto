@@ -80,8 +80,6 @@ class DataframeWindows {
   Context* context_ = nullptr;
 };
 
-// Reads a range of a dataframe's rows a batch at a time, for the sources
-// which find the rows they read as a range.
 // Which way a range of a dataframe's rows is read.
 enum class ReadDirection : uint8_t {
   kForwards,
@@ -89,6 +87,8 @@ enum class ReadDirection : uint8_t {
   kBackwards,
 };
 
+// Reads a range of a dataframe's rows a batch at a time, for the sources
+// which find the rows they read as a range.
 class RangeReader {
  public:
   void Init(
