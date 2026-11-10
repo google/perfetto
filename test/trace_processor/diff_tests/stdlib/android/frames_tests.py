@@ -292,3 +292,39 @@ class Frames(TestSuite):
         "J<FIRST_CUJ>","com.android.systemui","completed",6,5,1,"TX - NotificationShade#0",0,115000000
         "J<SHADE_ROW_EXPAND>","com.android.systemui","completed",13,7,2,"TX - NotificationShade#0",0,802000000
         """))
+
+  # FT#beginVsync is stale (the CUJ thread was idle before the CUJ started):
+  # frames that finished before the CUJ slice started must not be attributed to
+  # the CUJ, even though their vsync is within [FT#beginVsync, FT#endVsync].
+  # Same for a frame within that vsync range that started after the CUJ ended.
+  def test_android_jank_cuj_frame_timeline_stale_begin_vsync(self):
+    return DiffTestBlueprint(
+        trace=Path('jank_cuj_stale_begin_vsync.py'),
+        query="""
+        INCLUDE PERFETTO MODULE android.cujs.frames;
+
+        SELECT cuj_id, vsync, app_missed, sf_missed
+        FROM _android_jank_cuj_frame_timeline
+        ORDER BY cuj_id, vsync;
+        """,
+        out=Csv("""
+        "cuj_id","vsync","app_missed","sf_missed"
+        1,100,0,0
+        1,110,0,0
+        """))
+
+  def test_android_jank_cuj_slice_summary_stale_begin_vsync(self):
+    return DiffTestBlueprint(
+        trace=Path('jank_cuj_stale_begin_vsync.py'),
+        query="""
+        INCLUDE PERFETTO MODULE android.cujs.frames;
+
+        SELECT
+          name, state, total_frames, missed_app_frames, missed_sf_frames
+        FROM android_jank_cuj_slice_summary
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","state","total_frames","missed_app_frames","missed_sf_frames"
+        "J<STALE_BEGIN_VSYNC>","completed",2,0,0
+        """))
