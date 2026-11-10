@@ -344,6 +344,12 @@ TEST(ProtoFileSerializerTest, TypeTransitionBytesMessageNotAllowlistedKept) {
   EXPECT_EQ(MergeContainerFieldType("Payload", "bytes", Allowlist{}),
             "Payload");
   EXPECT_EQ(MergeContainerFieldType("bytes", "Payload", Allowlist{}), "bytes");
+
+  Allowlist passthrough;
+  passthrough.messages["Container"].fields.insert(1);
+  passthrough.messages["Container"].passthrough_fields.insert(1);
+  EXPECT_EQ(MergeContainerFieldType("Payload", "bytes", passthrough),
+            "Payload");
 }
 
 TEST(ProtoFileSerializerTest, TypeTransitionBytesMessageAllowlistedTaken) {
@@ -656,6 +662,8 @@ TEST(ProtoFileSerializerTest, PassthroughInNestedDefinition) {
   Allowlist allowed;
   ASSERT_TRUE(
       AllowlistFromPassthrough(*input_desc, *upstream_desc, allowed).ok());
+  EXPECT_EQ(allowed.messages["SubMessage"].passthrough_fields,
+            std::set<int>({1, 2}));
 
   ProtoFile input_file = ProtoFileFromDescriptor("", *input_desc);
   ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
