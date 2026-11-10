@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -91,15 +90,15 @@ class PhysicalPlan {
 // What lowering needs from whoever runs the plan. Everything here must outlive
 // every run of the plan.
 struct LoweringContext {
-  // Holds the strings of the columns a Filter reads.
-  const StringPool* pool = nullptr;
+  // Holds the strings of the columns read, and takes the strings of literals
+  // which expressions output.
+  StringPool* pool = nullptr;
 };
 
 // Builds executor nodes from a bound plan. Establishes tree numbering, row
 // ordering, and column types as needed, reusing them across consecutive folds.
 // Every dataframe the plan reads must be bound.
-base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const BoundPlan&,
-                                                    const LoweringContext&);
+std::unique_ptr<PhysicalPlan> Lower(BoundPlan*, const LoweringContext&);
 
 // -----------------------------------------------------------------------------
 // Lowering
@@ -121,30 +120,13 @@ class PlanLowering;
 // Each operation lowers its children first. Its main input goes into this
 // pipeline, and any other inputs go into side pipelines.
 //
-// Operations use three kinds of method:
-//  - Require...: makes the rows or columns meet a condition. Adds operators
-//    only if needed.
-//  - Declare...: records what an added operator produces. Adds no operators.
-//    Column layout and row order are not declared: once a node is lowered, the
-//    pipeline is as PlanOperation::Derive says.
-//  - Query...: returns what is currently known. Changes nothing.
+// Operations only add their own operators: what the rows need is planned before
+// lowering (see PlanOperation::Needs), and lowering an input runs it.
 //
 // A ColumnId identifies a logical column. QueryPosition returns its position
 // in the current batch.
 class Lowering {
  public:
-  // Numbered tree columns are physical temporaries, with no logical IDs.
-  struct TreeColumns {
-    uint32_t node;
-    uint32_t parent;
-  };
-
-  // A column and the pipeline it is in.
-  struct Side {
-    Lowering* pipeline;
-    ColumnId column;
-  };
-
   explicit Lowering(PlanLowering* plan);
   Lowering(const Lowering&) = delete;
   Lowering& operator=(const Lowering&) = delete;
@@ -154,11 +136,12 @@ class Lowering {
   // Construction
   // ---------------------------------------------------------------------------
 
+  // Lowers input `input` of `node` into this pipeline, leaving its rows as the
+  // node needs them.
+  void LowerInput(const PlanNode& node, uint32_t input);
+
   // Lowers a plan node. The node's operation lowers its own inputs.
   void LowerNode(PlanNodeId);
-
-  // Records an error that stops lowering. Only the first error is kept.
-  void Fail(base::Status);
 
   // ---------------------------------------------------------------------------
   // Execution graph
@@ -167,13 +150,8 @@ class Lowering {
   // Sets the pipeline's input. It must not already be set.
   void SetSource(std::unique_ptr<core::exec::Source> source);
 
-  // Adds an operator that may depend on the order of the rows. Its output
-  // must be declared with the Declare methods.
+  // Adds an operator.
   void AddOperator(core::exec::Pipeline::Step);
-
-  // Adds `step`, which does not depend on or change the order of rows or the
-  // size of batches.
-  void AddOrderIndependent(core::exec::Pipeline::Step step);
 
   // Creates a new side pipeline.
   Lowering& AddSidePipeline();
@@ -182,80 +160,34 @@ class Lowering {
   // from. Nothing can be added to the pipeline afterwards.
   const core::exec::Source* FinishSide();
 
-  // Adds a filter value known when the plan was built, e.g. a WHERE literal,
-  // and returns its index into the run's filter values (see
+  // Moves the value condition `condition` of `node` tests with into the plan,
+  // if it has one, and returns its index into the run's filter values (see
   // PhysicalPlan::filter_values).
-  uint32_t AddFilterValue(core::exec::FilterValue value);
+  std::optional<uint32_t> TakeFilterValue(const PlanNode& node,
+                                          uint32_t condition);
 
   const LoweringContext& context() const;
-
-  // ---------------------------------------------------------------------------
-  // Requirements: add operators only if needed
-  // ---------------------------------------------------------------------------
-
-  // Converts `column` to `type`. Fails lowering if the conversion would lose
-  // information.
-  void RequireType(ColumnId column, core::StorageType type);
-
-  // Converts every side to the type they all convert to without loss, and
-  // returns it. Fails if some sides are strings and others numbers.
-  PlanType RequireCommonType(const std::vector<Side>&);
-
-  // Sorts rows by `keys`. A key of unknown type must hold integers.
-  void RequireSorted(const std::vector<SortKey>& keys);
-
-  // Groups rows by `keys`, so rows with equal keys are next to each other.
-  // Groups, and rows within a group, can be in any order. Without keys, all
-  // rows are one group.
-  void RequireGrouped(const std::vector<ColumnId>& keys);
-
-  // Groups rows by `keys` and sorts each group by `sorted_by`. Without keys,
-  // this sorts all rows.
-  void RequireSortedWithinGroups(const std::vector<ColumnId>& keys,
-                                 const std::vector<SortKey>& sorted_by);
-
-  // Groups rows by `keys` and returns the position of a column holding each
-  // row's group number.
-  uint32_t RequireGroupNumbers(const std::vector<ColumnId>& keys);
-
-  // Prepares the rows as an interval input: Int64 `ts` and `dur`, grouped by
-  // `keys` with group numbers, and sorted by `ts` within each group. Returns
-  // where the operator finds them.
-  core::exec::IntervalLaneSpec RequireIntervalLanes(
-      ColumnId ts,
-      ColumnId dur,
-      const std::vector<ColumnId>& keys);
-
-  // Use before an operator that works best on full batches. Adds a
-  // CombineBatches only if an earlier step may have made small batches.
-  void RequireFullBatches();
-
-  // Orders rows as a tree walk in `direction`, and returns the positions of
-  // the node number columns. The numbering is reused while `node` and
-  // `parent` are the columns it was made from, until the rows change.
-  TreeColumns RequireTreeWalk(ColumnId node, ColumnId parent, TreeDirection);
-
-  // ---------------------------------------------------------------------------
-  // Declarations: record what an added operator produces
-  // ---------------------------------------------------------------------------
-
-  // Records that an added operator gave `id` values of `type`, for a column
-  // whose type was not known when the plan was built.
-  void DeclareType(ColumnId id, core::StorageType type);
 
   // ---------------------------------------------------------------------------
   // Queries: return what is known, change nothing
   // ---------------------------------------------------------------------------
 
-  // The positions of the node number columns of the tree the rows are numbered
-  // as.
-  TreeColumns QueryTreeColumns() const;
+  // The programs of the expressions `node` computes.
+  const std::vector<core::exec::ExprProgram>& QueryPrograms(
+      const PlanNode& node) const;
+
+  // What is known of the rows of the input just lowered.
+  const OutputProperties& QueryRows() const { return *rows_; }
+
+  // Where an interval operator finds the input just lowered (see
+  // IntervalLaneNeeds).
+  core::exec::IntervalLaneSpec QueryIntervalLanes(
+      ColumnId ts,
+      ColumnId dur,
+      const std::vector<ColumnId>& keys) const;
 
   // The batch position of a column.
   uint32_t QueryPosition(ColumnId id) const;
-
-  // The type of a column, after any conversion added so far.
-  PlanType QueryType(ColumnId id) const;
 
   // ---------------------------------------------------------------------------
   // Accessors
@@ -270,31 +202,13 @@ class Lowering {
  private:
   friend class PlanLowering;
 
-  // Adds `step`, which depends on the order of rows but does not change the
-  // size of batches.
-  void AddOrderDependent(core::exec::Pipeline::Step step);
-
-  // Adds a breaker. Breakers work best on full batches and output full
-  // batches.
-  void AddBreaker(core::exec::Pipeline::Step breaker);
-
-  // Removes the open Sort, if there is one. Returns whether a Sort was
-  // removed.
-  bool DropOpenSort();
-
-  // Removes the open Sort from `operators_`, once `output_` has undone it.
-  void EraseOpenSort();
-
-  // Keeps the open Sort, if there is one, as a later step now reads its order.
-  void CloseOpenSort();
-
-  // Adds a GroupedSort that groups by `keys` and sorts each group by
-  // `sorted_by`. The GroupedSort also adds a group number column.
-  void GroupRows(const std::vector<ColumnId>& keys,
-                 const std::vector<SortKey>& sorted_by);
-
-  // Converts `side` to `type`. The conversion must be lossless.
-  static void Convert(const Side& side, const PlanType& type);
+  // Adds the operators of a step.
+  void Apply(const input_step::Sort&);
+  void Apply(const input_step::Group&);
+  void Apply(const input_step::NumberTree&);
+  void Apply(const input_step::WalkTree&);
+  void Apply(const input_step::CombineBatches&);
+  void Apply(const input_step::Convert&);
 
   // Builds the pipeline from the input and operators added so far. `outputs`
   // are the columns read after the pipeline, or null if any may be.
@@ -308,11 +222,8 @@ class Lowering {
   // Layout and order of this pipeline
   // ---------------------------------------------------------------------------
 
-  // What is known about the current batches.
-  OutputProperties output_;
-
-  // Where the most recent Sort is in `operators_`, if it can still be removed.
-  std::optional<size_t> open_sort_;
+  // What is known of the rows at this point in lowering.
+  const OutputProperties* rows_ = nullptr;
 
   // ---------------------------------------------------------------------------
   // Execution graph of this pipeline
@@ -329,7 +240,7 @@ class Lowering {
 // State shared by all pipelines while lowering a plan.
 class PlanLowering {
  public:
-  PlanLowering(const BoundPlan& bound, const LoweringContext& context);
+  PlanLowering(BoundPlan* bound, const LoweringContext& context);
   PlanLowering(const PlanLowering&) = delete;
   PlanLowering& operator=(const PlanLowering&) = delete;
   ~PlanLowering();
@@ -337,31 +248,18 @@ class PlanLowering {
   // The pipeline whose output is the plan's output.
   Lowering& main() { return *pipelines_.front(); }
 
-  // Records an error that stops lowering. Only the first error is kept.
-  void Fail(base::Status);
-
   // Returns the finished plan, or the error that stopped lowering. Call once,
   // after lowering the root into main().
-  base::StatusOr<std::unique_ptr<PhysicalPlan>> Finish();
+  std::unique_ptr<PhysicalPlan> Finish();
 
   const LogicalPlan& plan() const { return bound_.plan; }
 
  private:
   friend class Lowering;
 
-  // The type of `column`, after any conversion.
-  PlanType TypeOf(ColumnId column) const;
-
   // Borrowed for the duration of lowering.
-  const BoundPlan& bound_;
+  BoundPlan& bound_;
   LoweringContext context_;
-
-  // For each logical column, the type it was converted to, if any. Kept here
-  // because column ids are unique across pipelines.
-  std::vector<std::optional<core::StorageType>> converted_;
-
-  // The first error recorded by Fail.
-  base::Status status_;
 
   // The plan being built. Its sources must outlive the operators that read
   // them.

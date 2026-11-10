@@ -65,15 +65,14 @@ std::optional<uint32_t> Distinct::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
-OutputProperties Distinct::Derive(const BoundPlan& bound,
-                                  PlanNodeId self) const {
-  OutputProperties out = bound.outputs[bound.plan.nodes()[self].children()[0]];
+OutputProperties Distinct::Derive(DeriveContext& c) const {
+  OutputProperties out = c.input(0);
   out.DropRows();
   return out;
 }
 
 void Distinct::Lower(Lowering* c, const PlanNode& node) const {
-  c->LowerNode(node.children()[0]);
+  c->LowerInput(node, 0);
   std::vector<uint32_t> positions;
   positions.reserve(columns_.size());
   for (ColumnId column : columns_) {

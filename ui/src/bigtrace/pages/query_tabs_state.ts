@@ -35,14 +35,8 @@ import {
 const QUERY_TABS_STORAGE_KEY = 'bigtraceQueryTabs';
 const DEFAULT_SQL = '';
 
-// Row cap on the query and cap on how many traces it fans out to, defaulted per
-// execution mode: an ephemeral run is a quick look, a persistent one is a full
-// sweep whose results are saved.
-export const MODE_DEFAULTS = {
-  ephemeral: {rowLimit: 1_000, traceLimit: 10_000},
-  persistent: {rowLimit: 10_000, traceLimit: 100_000},
-} as const;
-
+export const DEFAULT_ROW_LIMIT = 10_000;
+export const DEFAULT_TRACE_LIMIT = 100_000;
 export const DEFAULT_TABLE_TTL_DAYS = 30;
 
 // The backend setting carrying an explicit list of trace UUIDs — the second
@@ -148,27 +142,6 @@ export function isTraceSelectionSetting(setting: {
     setting.category === 'TRACE_ADDRESS' ||
     setting.category === 'TRACE_METADATA'
   );
-}
-
-function modeDefaults(materialize: boolean): {
-  readonly rowLimit: number;
-  readonly traceLimit: number;
-} {
-  return materialize ? MODE_DEFAULTS.persistent : MODE_DEFAULTS.ephemeral;
-}
-
-// Switch a tab's execution mode, moving both limits to the new mode's defaults
-// — but only where they still hold the old mode's default, so a value the user
-// typed (or a preset set) survives the flip.
-export function applyModeDefaults(
-  tab: BigTraceEditorTab,
-  materialize: boolean,
-): void {
-  const from = modeDefaults(tab.materialize);
-  const to = modeDefaults(materialize);
-  if (tab.limit === from.rowLimit) tab.limit = to.rowLimit;
-  if (tab.traceLimit === from.traceLimit) tab.traceLimit = to.traceLimit;
-  tab.materialize = materialize;
 }
 
 // Whether there is anything to run: a line that isn't blank or a `--`
@@ -327,7 +300,6 @@ export interface TabConfigSnapshot {
   readonly limit: number;
   readonly traceLimit: number;
   readonly tableTtlDays: number;
-  readonly materialize: boolean;
 }
 
 // Flat primitives throughout, so a spread detaches it fully.
@@ -394,7 +366,6 @@ export function snapshotTabConfig(tab: BigTraceEditorTab): TabConfigSnapshot {
     limit: tab.limit,
     traceLimit: tab.traceLimit,
     tableTtlDays: tab.tableTtlDays,
-    materialize: tab.materialize,
   };
 }
 
@@ -413,7 +384,6 @@ export function restoreTabConfig(
   tab.limit = snap.limit;
   tab.traceLimit = snap.traceLimit;
   tab.tableTtlDays = snap.tableTtlDays;
-  tab.materialize = snap.materialize;
 }
 
 // Open Settings on a tab that already has a configuration: the launcher takes
@@ -482,10 +452,8 @@ export interface BigTraceEditorTab {
   // Per-execute request: Cancel aborts this without tearing down the tab.
   activeRequest?: AbortController;
   queryClient?: BigtraceQueryClient;
-  materialize: boolean;
   queryUuid?: string;
   pollInterval?: number;
-  lastProcessedRows: number;
   clientStartTime?: number;
   execution?: QueryExecution;
   // Stale-poll guard: bumped on each startPolling() call.
@@ -512,7 +480,6 @@ interface StoredTab {
   readonly limit: number;
   readonly traceLimit?: number;
   readonly tableTtlDays?: number;
-  readonly materialize: boolean;
   readonly queryUuid?: string;
   readonly error?: string;
   // Per-tab trace-selection snapshot, persisted so edits to the tab's
@@ -564,7 +531,6 @@ export class QueryTabsState {
     initialQuery?: string,
     limit?: number,
     queryUuid?: string,
-    materialize?: boolean,
     forceNew?: boolean,
     stored?: Partial<StoredTab>,
     traceLimit?: number,
@@ -593,8 +559,6 @@ export class QueryTabsState {
     // /query_executions/{uuid}); fresh tabs start from the backend defaults.
     const isFromStorage = stored !== undefined;
     const isFromHistory = queryUuid !== undefined && !isFromStorage;
-    // Default to persistent; ?? (not ||) keeps an explicit/restored ephemeral.
-    const isPersistent = materialize ?? true;
     const querySettings: SettingFilter[] = isFromStorage
       ? [...(stored?.querySettings ?? [])]
       : isFromHistory
@@ -644,15 +608,14 @@ export class QueryTabsState {
       id: shortUuid(),
       title: derivedTitle || this.nextTabName(),
       editorText: initialQuery ?? '',
-      // No caller-supplied caps: take the ones that fit the execution mode.
-      limit: limit ?? modeDefaults(isPersistent).rowLimit,
+      limit: limit ?? DEFAULT_ROW_LIMIT,
       traceLimit:
         traceLimit ??
         (isFromStorage &&
         typeof stored?.traceLimit === 'number' &&
         stored.traceLimit >= 0
           ? stored.traceLimit
-          : modeDefaults(isPersistent).traceLimit),
+          : DEFAULT_TRACE_LIMIT),
       tableTtlDays:
         isFromStorage &&
         typeof stored?.tableTtlDays === 'number' &&
@@ -672,8 +635,6 @@ export class QueryTabsState {
       disabledSettings,
       lifecycle: new AbortController(),
       activeRequest: undefined,
-      materialize: isPersistent,
-      lastProcessedRows: 0,
       queryUuid,
       pollGeneration: 0,
       // Tabs predating the launcher have no flag; treat them as configured so
@@ -685,9 +646,7 @@ export class QueryTabsState {
           : false,
       lastPresetId: isFromStorage ? stored?.lastPresetId : undefined,
     };
-    tab.execution = queryStore.getOrCreate(queryUuid || tab.id, {
-      materialized: tab.materialize,
-    });
+    tab.execution = queryStore.getOrCreate(queryUuid || tab.id);
     this.tabs.push(tab);
     this.activeTabId = tab.id;
     this.markDirty();
@@ -705,7 +664,6 @@ export class QueryTabsState {
       src.editorText,
       src.limit,
       undefined,
-      src.materialize,
       true, // forceNew
       {
         querySettings: src.querySettings,
@@ -736,7 +694,6 @@ export class QueryTabsState {
     const tab = this.addNewTab(
       shared.title || undefined,
       formatSharedTraceListSql(shared),
-      undefined,
       undefined,
       undefined,
       true,
@@ -807,7 +764,6 @@ export class QueryTabsState {
         limit: t.limit,
         traceLimit: t.traceLimit,
         tableTtlDays: t.tableTtlDays,
-        materialize: t.materialize,
         queryUuid: t.queryUuid,
         error: t.queryResult?.error,
         // Persist the per-tab snapshot so Settings-sub-tab edits survive
@@ -851,7 +807,6 @@ export class QueryTabsState {
         t.editorText,
         typeof t.limit === 'number' && t.limit >= 0 ? t.limit : undefined,
         t.queryUuid,
-        t.materialize,
         true,
         t,
       );

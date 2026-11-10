@@ -472,4 +472,64 @@ describe('BigtraceTraceListDataSource', () => {
     await flush();
     expect(calls).toHaveLength(1);
   });
+
+  test('the Equals picker lists values among the traces the grid shows', async () => {
+    const listTraceMetadataColumnValues = vi
+      .fn()
+      .mockResolvedValue(['Model A', 'Model B']);
+    const client = {
+      ...fakeClient().client,
+      listTraceMetadataColumnValues,
+    } as unknown as BigtraceQueryClient;
+    const experiment = {experimentId: 1, controlId: 2, isTreatment: true};
+    const ds = new BigtraceTraceListDataSource(
+      client,
+      () => SETTINGS,
+      undefined,
+      undefined,
+      () => experiment,
+    );
+    const filters: Filter[] = [
+      {field: 'upload_date', op: '>=', value: '2026-01-01'},
+      {field: 'upload_date', op: '<=', value: '2026-01-07'},
+      {field: 'trace_population', op: 'in', value: ['BETA']},
+    ];
+    ds.useRows(flatModel({limit: 100, filters}));
+
+    expect(ds.useDistinctValues('device_name').isPending).toBe(true);
+    await flush();
+    expect(ds.useDistinctValues('device_name')).toEqual({
+      data: ['Model A', 'Model B'],
+      isPending: false,
+    });
+    expect(listTraceMetadataColumnValues).toHaveBeenCalledWith(
+      SETTINGS,
+      'device_name',
+      {search: '', traceFilters: filters, experimentFilter: experiment},
+      expect.any(AbortSignal),
+    );
+
+    // Other grid filters mean other values: asked again, nothing kept.
+    const narrower: Filter[] = [
+      ...filters,
+      {field: 'device_manufacturer', op: 'in', value: ['Acme']},
+    ];
+    ds.useRows(flatModel({limit: 100, filters: narrower}));
+    expect(ds.useDistinctValues('device_name')).toEqual({
+      data: undefined,
+      isPending: true,
+    });
+    await flush();
+    expect(listTraceMetadataColumnValues).toHaveBeenLastCalledWith(
+      SETTINGS,
+      'device_name',
+      {search: '', traceFilters: narrower, experimentFilter: experiment},
+      expect.any(AbortSignal),
+    );
+
+    await ds.refresh();
+    ds.useDistinctValues('device_name');
+    await flush();
+    expect(listTraceMetadataColumnValues).toHaveBeenCalledTimes(3);
+  });
 });

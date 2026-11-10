@@ -22,11 +22,9 @@
 
 #include <limits>
 #include <optional>
-#include <unordered_map>
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/small_vector.h"
@@ -40,6 +38,7 @@
 #include "perfetto/protozero/field.h"
 #include "src/tracing/service/histogram.h"
 #include "src/tracing/service/proto_group_rewriter.h"
+#include "src/tracing/service/sequence_state_map.h"
 #include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/service/trace_buffer_protovms.h"
 
@@ -89,7 +88,7 @@ struct TBChunk {
   ChunkID chunk_id = 0;
 
   // A combination of producer and writer ID. This forms the primary key to
-  // look up the corresponding SequenceState from TraceBuffer.sequences_.
+  // look up the corresponding SequenceState from the SequenceStateMap.
   ProducerAndWriterID pri_wri_id = 0;
 
   // Size of the chunk, excluding the TBCHunk header itself, and without
@@ -151,85 +150,6 @@ struct TBChunk {
   uint8_t* fragments_end() { return fragments_begin() + payload_size; }
 
   bool IsChecksumValid(size_t off) { return Checksum(off, size) == checksum; }
-};
-
-// +---------------------------------------------------------------------------+
-// | SequenceState                                                             |
-// +---------------------------------------------------------------------------+
-// Holds the state for each sequence that has TBCHunk(s) in the buffer.
-// Remember that this struct must be copyable for CloneReadOnly(). Don't hold
-// onto any pointers in here.
-// SequenceState(s) are not deleted aggressively to preserve the
-// last_chunk_consumed and detect data losses in long tracing mode. We allow
-// the last kKeepLastEmptySeq to stay alive to balance data loss detection with
-// memory bloats.
-struct SequenceState {
-  SequenceState(ProducerID, WriterID, ClientIdentity);
-  ~SequenceState();
-  SequenceState(const SequenceState&) noexcept;
-  SequenceState& operator=(const SequenceState&) noexcept;
-
-  ProducerID producer_id = 0;
-  WriterID writer_id = 0;
-  ClientIdentity client_identity{};
-
-  // This is semantically a boolean that resets every time BeginRead()
-  // increments the generation counter. The semantic is:
-  // skip := skip_in_generation == TraceBuffer.read_generation_.
-  uint64_t skip_in_generation = 0;
-
-  // Used by DeleteStaleEmptySequences() to keep the latest kKeepLastEmptySeq
-  // objects around.
-  uint64_t age_for_gc = 0;
-
-  // Snapshot of the last chunk that was erased (consumed or evicted) in this
-  // sequence. Used to detect gaps between consecutive chunks and to decide
-  // whether a re-committed chunk should be accepted or discarded.
-  // |payload_size| and |was_incomplete| capture the chunk's state at the time
-  // of consumption; see CopyChunkUntrusted() for how they are used.
-  struct ConsumedChunkInfo {
-    ChunkID chunk_id = 0;
-    uint16_t payload_size = 0;
-    bool was_incomplete = false;
-  };
-  std::optional<ConsumedChunkInfo> last_chunk_consumed;
-
-  // Pending DataLossReason bitmask for this sequence, OR-ed until the next read
-  // copies it into previous_packet_dropped and resets it. Zero means no loss.
-  uint32_t data_loss_reasons = 0;
-
-  // An ordered list of chunk offsets, sorted by ChunkID for SMB sequences or
-  // by append order for SMB v2 sequences.
-  // We store buffer offsets rather than pointers to make buffer cloning easier.
-  // This is effectively a deque of TBChunk* (% a call to GetTBChunkAt(off)).
-  base::CircularQueue<size_t> chunks;
-
-  // All chunks of a sequence use the same format: either the legacy SMB v1 or
-  // the newer proto-group based SMB v2. SMB v2 chunks are immutable, arrive in
-  // order and need rewriting at readback.
-  bool is_smb_v2 = false;
-
-  // A gap after the last appended SMB v2 chunk, not yet stamped on a
-  // chunk.
-  // - SMB sequences need no such state. A gap shows up as a non-successor
-  //   ChunkID, so the reader finds it at the right position by itself.
-  // - SMB v2 chunks have no ChunkID. The gap must be recorded when it
-  //   happens, at the position between two chunks.
-  // - data_loss_reasons cannot hold it. The reader reports that on the next
-  //   packet it reads, which can be an older packet buffered before the gap.
-  // The next append moves this flag to kChunkLossBefore on its chunk. The
-  // reader then reports the loss on the first packet after the gap.
-  //
-  // Example for one writer:
-  //
-  //   Step                      Buffer        pending_chunk_v2_data_loss
-  //   Append(A)                 [A]           false
-  //   RecordChunkV2DataLoss()   [A]           true
-  //   Append(C)                 [A] [C*]      false, moved to C as *
-  //
-  //   * = kChunkLossBefore. A read returns A with no loss, then C with
-  //   DATA_LOSS_READ_GAP.
-  bool pending_chunk_v2_data_loss = false;
 };
 
 // +---------------------------------------------------------------------------+
@@ -507,11 +427,14 @@ class TraceBufferV2 : public TraceBuffer {
                             bool last_continues_on_next) override;
 
   // Keeps the gap in the writer's SequenceState until the next stored batch
-  // carries it as kChunkLossBefore. If DeleteStaleEmptySequences() prunes the
-  // state before another batch arrives, the pending gap is forgotten.
+  // carries it as kChunkLossBefore. If MaybePruneSequences() prunes the state
+  // before another batch arrives, the pending gap is forgotten.
   void RecordChunkV2DataLoss(ProducerID, WriterID) override;
 
   void RecordAbiViolation() override;
+
+  // No-op because TraceBufferV2 does no work at the end of a write cycle.
+  void OnWriteCheckpoint() override;
 
   // To read the contents of the buffer the caller needs to:
   //   BeginRead()
@@ -567,7 +490,7 @@ class TraceBufferV2 : public TraceBuffer {
   // Compaction can invalidate packet slices from earlier reads, so the caller
   // must not use those packets after MaybeCompact().
   //
-  // This is a no-op if the buffer is read-only or if it is a kDiscard buffer.
+  // This is a no-op if the buffer is read-only.
   void MaybeCompact() override;
 
   // Creates a read-only clone of the trace buffer. The read iterators of the
@@ -597,9 +520,12 @@ class TraceBufferV2 : public TraceBuffer {
  private:
   using Frag = internal::Frag;
   using SequenceState = internal::SequenceState;
+  using SequenceStateMap = internal::SequenceStateMap;
   using ChunkSeqReader = internal::ChunkSeqReader;
 
   friend class TraceBufferV2Test;
+  friend class TraceBufferV3;
+  friend class TraceBufferV3Test;
   friend class internal::ChunkSeqReader;
   friend class internal::ChunkSeqIterator;
 
@@ -615,10 +541,14 @@ class TraceBufferV2 : public TraceBuffer {
   bool Initialize(size_t size);
   TBChunk* CreateTBChunk(size_t off, size_t payload_size);
 
+  // True if a chunk with |payload_size| bytes would run past the end, or if
+  // kOverwrite would replace chunks or padding at |wr_|.
+  bool WriteWouldWrapOrOverwrite(size_t payload_size) const;
+
   // Prepares contiguous storage at wr_. The caller checks that size <= size_.
-  // May evict chunks and wrap. Does not prune sequences or change stats for
-  // rejected writes. Returns false if the write reaches the end of a kDiscard
-  // buffer. The caller then seals the buffer with DiscardWrite().
+  // May evict chunks and wrap. Does not prune sequences. If the write reaches
+  // the end of a kDiscard buffer, stops accepting writes, counts a discarded
+  // chunk and returns false.
   bool MakeSpaceToWrite(size_t size);
   void DeleteNextChunksFor(size_t bytes_to_clear);
 
@@ -654,8 +584,7 @@ class TraceBufferV2 : public TraceBuffer {
 
   // Can return nullptr for padding chunks (or in case of programming errors).
   SequenceState* GetSeqForChunk(const TBChunk* chunk) {
-    auto it = sequences_.find(chunk->pri_wri_id);
-    return it == sequences_.end() ? nullptr : &it->second;
+    return sequence_states_.Find(chunk->pri_wri_id);
   }
 
   size_t OffsetOf(const TBChunk* chunk) {
@@ -665,8 +594,11 @@ class TraceBufferV2 : public TraceBuffer {
     return static_cast<size_t>(addr - buf_start);
   }
 
-  void DiscardWrite();
-  void DeleteStaleEmptySequences();
+  // Enters discard mode, so all later writes are rejected and counted.
+  // Retained chunks remain readable and can still receive patches.
+  void StopAcceptingWrites();
+
+  void MaybePruneSequences();
 
   uint8_t* begin() const { return reinterpret_cast<uint8_t*>(data_.Get()); }
   uint8_t* end() const { return begin() + size_; }
@@ -706,26 +638,19 @@ class TraceBufferV2 : public TraceBuffer {
   OverwritePolicy overwrite_policy_ = kOverwrite;
 
   // Note: we need stable pointers for SequenceState, as they get cached in
-  // BufIterator.
-  std::unordered_map<ProducerAndWriterID, SequenceState> sequences_;
-
-  // COUNT(sequences_) WHERE sequence.chunks.empty().
-  // This is maintained best effort and needs revalidation against sequences_.
-  size_t empty_sequences_ = 0;
+  // ChunkSeqReader.
+  SequenceStateMap sequence_states_;
 
   // A generation counter incremented every time BeginRead() is called.
   uint64_t read_generation_ = 0;
-
-  // A monotonic counter incremented every time a SequenceState becomes empty.
-  // This is used to sort SequenceState by least-recently cleared.
-  uint64_t seq_age_ = 0;
 
   // This buffer is a read-only snapshot obtained via Clone(). If this is true,
   // appending chunks, patching or recording loss will CHECK().
   bool read_only_ = false;
 
   // Only used when |overwrite_policy_ == kDiscard|. This is set the first time
-  // a write fails because it would overwrite unread chunks.
+  // a write fails because it would overwrite unread chunks, or by
+  // StopAcceptingWrites().
   bool discard_writes_ = false;
 
   // When true disable some DCHECKs that have been put in place to detect

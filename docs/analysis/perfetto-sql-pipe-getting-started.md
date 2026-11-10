@@ -300,8 +300,9 @@ These stages change the columns without wrapping the query in another
   |> DROP total
   ```
 
-`SELECT`, `EXTEND` and `SET` only take columns today: `a + 1` is not supported
-yet.
+`SELECT`, `EXTEND` and `SET` also take
+[expressions](/docs/analysis/perfetto-sql-pipe-syntax.md#expressions), such as
+`a + 1` or `'label'`.
 
 ---
 

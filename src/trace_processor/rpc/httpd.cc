@@ -285,8 +285,6 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   // |batch_split_threshold_| in query_result_serializer.h.
   // This is temporary, it will be switched to WebSockets soon.
   if (req.uri == "/query") {
-    std::vector<uint8_t> response;
-
     // Start the chunked reply.
     conn.SendResponseHeaders("200 OK", chunked_headers,
                              base::HttpServerConnection::kOmitContentLength);

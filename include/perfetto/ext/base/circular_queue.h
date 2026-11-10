@@ -199,8 +199,10 @@ class CircularQueue {
   }
 
   CircularQueue& operator=(CircularQueue&& other) noexcept {
-    this->~CircularQueue();                      // Destroy the current state.
-    new (this) CircularQueue(std::move(other));  // Use the move ctor above.
+    if (this != &other) {
+      this->~CircularQueue();                      // Destroy the current state.
+      new (this) CircularQueue(std::move(other));  // Use the move ctor above.
+    }
     return *this;
   }
 
@@ -212,8 +214,10 @@ class CircularQueue {
   }
 
   CircularQueue& operator=(const CircularQueue& other) noexcept {
-    this->~CircularQueue();           // Destroy the current state.
-    new (this) CircularQueue(other);  // Use the copy ctor above.
+    if (this != &other) {
+      this->~CircularQueue();           // Destroy the current state.
+      new (this) CircularQueue(other);  // Use the copy ctor above.
+    }
     return *this;
   }
 

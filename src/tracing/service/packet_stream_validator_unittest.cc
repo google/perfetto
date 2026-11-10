@@ -32,7 +32,6 @@ namespace perfetto {
 namespace {
 
 TEST(PacketStreamValidatorTest, NullPacket) {
-  std::string ser_buf;
   Slices seq;
   EXPECT_TRUE(PacketStreamValidator::Validate(seq));
 }

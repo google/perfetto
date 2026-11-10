@@ -55,6 +55,9 @@ public final class PerfettoTrace {
   /** For fetching the next flow event id in a process. */
   private static final AtomicInteger sFlowEventId = new AtomicInteger();
 
+  // Cache the process track UUID after native initialization to avoid repeated JNI calls.
+  private static volatile long sProcessTrackUuid = 0;
+
   /**
    * Perfetto category a trace event belongs to. Registering a category is not sufficient to capture
    * events within the category, it must also be enabled in the trace config.
@@ -176,22 +179,30 @@ public final class PerfettoTrace {
   public static final class Session {
     private final long mPtr;
 
+    // Ravenwood uses mPtr == 0 for open sessions, so track closure separately.
+    private boolean mIsClosed;
+
     /** Session ctor. */
     public Session(boolean isBackendInProcess, byte[] config) {
       mPtr = native_start_session(isBackendInProcess, config);
     }
 
-    /** Closes the session and returns the trace. */
-    public byte[] close() {
+    /**
+     * Closes the session and returns the trace.
+     *
+     * @throws IllegalStateException if the session is already closed.
+     */
+    public synchronized byte[] close() {
+      if (mIsClosed) {
+        throw new IllegalStateException("The session is already closed.");
+      }
+      mIsClosed = true;
       return native_stop_session(mPtr);
     }
   }
 
   @CriticalNative
   private static native long native_get_process_track_uuid();
-
-  @CriticalNative
-  private static native long native_get_thread_track_uuid(long tid);
 
   @FastNative
   private static native void native_activate_trigger(String name, int ttlMs);
@@ -328,20 +339,22 @@ public final class PerfettoTrace {
 
   /** Returns the process track uuid that can be used as a parent track uuid. */
   public static long getProcessTrackUuid() {
+    long uuid = sProcessTrackUuid;
+    if (uuid != 0) {
+      return uuid;
+    }
     try {
       return native_get_process_track_uuid();
     } catch (UnsatisfiedLinkError e) {
+      // JNI registration failed (see JNI_OnLoad); tracing is disabled.
       return 0;
     }
   }
 
   /** Given a thread tid, returns the thread track uuid that can be used as a parent track uuid. */
   public static long getThreadTrackUuid(long tid) {
-    try {
-      return native_get_thread_track_uuid(tid);
-    } catch (UnsatisfiedLinkError e) {
-      return 0;
-    }
+    // Match the C SDK's UUID formula and the signed 32-bit pid_t conversion.
+    return getProcessTrackUuid() ^ (int) tid;
   }
 
   /** Activates a trigger by name {@code triggerName} with expiry in {@code ttlMs}. */
@@ -371,10 +384,12 @@ public final class PerfettoTrace {
     }
     try {
       native_register(isBackendInProcess);
-      return true;
+      sProcessTrackUuid = native_get_process_track_uuid();
     } catch (UnsatisfiedLinkError e) {
+      // JNI registration failed (see JNI_OnLoad); tracing is disabled.
       return false;
     }
+    return true;
   }
 
   /** Registers the process with Perfetto and enables additional debug checks on the Java side. */

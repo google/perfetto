@@ -25,8 +25,9 @@ interface QueryResponsePayload {
   queryUuid?: string;
   schema?: BigtraceColumnSchema[];
   rows?: Array<{values: Array<string | null>}>;
-  // Filtered count for scrollbar sizing.
-  totalFilteredRows?: number;
+  // Filtered counts from `:fetch_results` (int64 arrives as string in proto3 JSON).
+  totalFilteredRows?: number | string;
+  totalFilteredTraces?: number | string;
   // Every column the client could project (result + metadata columns), so the
   // picker can offer ones the current projection omits. `:fetch_results`-only.
   availableColumnNames?: string[];
@@ -37,7 +38,7 @@ interface QueryResponsePayload {
 interface TraceMetadataResponsePayload {
   columnNames?: Array<string | null>;
   rows?: Array<{values: Array<string | null>}>;
-  totalFilteredRows?: number;
+  totalFilteredRows?: number | string;
 }
 
 export interface QueryResultPage {
@@ -45,8 +46,9 @@ export interface QueryResultPage {
   readonly columns: ReadonlyArray<string>;
   readonly schema: ReadonlyArray<BigtraceColumnSchema>;
   readonly queryUuid?: string;
-  // Post-filter count from `:fetch_results`; undefined elsewhere.
+  // Post-filter counts from `:fetch_results`; undefined elsewhere.
   readonly totalFilteredRows?: number;
+  readonly totalFilteredTraces?: number;
   // Every projectable column (result + metadata columns); `:fetch_results`-only.
   readonly availableColumnNames?: ReadonlyArray<string>;
 }
@@ -175,8 +177,8 @@ export class QueryCancelledError extends Error {
   }
 }
 
-// Backend returned 404 for a UUID; distinct from generic HTTP errors so
-// callers can drop the dead reference instead of polling forever.
+// Backend returned 404 on GET /query_executions/{uuid}[:status]; distinct
+// from generic HTTP errors so callers drop dead UUIDs instead of polling.
 export class QueryNotFoundError extends Error {
   constructor(uuid: string) {
     super(`Query ${uuid} not found on the backend.`);
@@ -184,10 +186,10 @@ export class QueryNotFoundError extends Error {
   }
 }
 
-// Backend returned a non-OK HTTP status (other than 404, which maps to
-// QueryNotFoundError). `detail` is the human-readable `detail` from the error
-// body (or the raw body when it isn't JSON); `status` is the HTTP status, so
-// callers can render the detail and branch on the status instead of scraping
+// Backend returned a non-OK HTTP status (other than a missing-UUID 404, which
+// maps to QueryNotFoundError). `detail` is the human-readable `detail` from the
+// error body (or the raw body when it isn't JSON); `status` is the HTTP status,
+// so callers can render the detail and branch on the status instead of scraping
 // the message string.
 export class BigtraceHttpError extends Error {
   constructor(
@@ -205,23 +207,6 @@ export class BigtraceQueryClient {
 
   // ----- Query execution -----
 
-  async executeSync(
-    query: string,
-    limit: number,
-    settings: ReadonlyArray<SettingFilter>,
-    signal?: AbortSignal,
-    options?: ExecuteOptions,
-  ): Promise<QueryResultPage> {
-    return this.executeAt(
-      '/execute_bigtrace_query',
-      query,
-      limit,
-      settings,
-      signal,
-      options,
-    );
-  }
-
   async executeAsync(
     query: string,
     limit: number,
@@ -229,14 +214,48 @@ export class BigtraceQueryClient {
     signal?: AbortSignal,
     options?: ExecuteOptions,
   ): Promise<QueryResultPage> {
-    return this.executeAt(
-      '/execute_bigtrace_query_async',
-      query,
+    const body: Record<string, unknown> = {
       limit,
-      settings,
-      signal,
-      options,
+      perfetto_sql: query,
+      settings: this.settingsToWire(settings),
+    };
+    // Each trace-selection field rides only when non-default.
+    if (options?.traceFilters && options.traceFilters.length > 0) {
+      body.trace_filters = coerceFiltersForWire(options.traceFilters);
+    }
+    if (
+      options?.traceMetadataColumns &&
+      options.traceMetadataColumns.length > 0
+    ) {
+      body.trace_metadata_columns = [...options.traceMetadataColumns];
+    }
+    if (options?.traceOrderBy && options.traceOrderBy.length > 0) {
+      body.trace_order_by = options.traceOrderBy;
+    }
+    if (options?.traceLimit !== undefined && options.traceLimit > 0) {
+      body.trace_limit = options.traceLimit;
+    }
+    if (options?.experimentFilter !== undefined) {
+      body.experiment_filter = experimentFilterToWire(options.experimentFilter);
+    }
+    // An empty name is the user asking the backend to choose one, which is
+    // what omitting the field means.
+    if (options?.tableName !== undefined && options.tableName !== '') {
+      body.table_name = options.tableName;
+    }
+    if (options?.tableTtlDays !== undefined && options.tableTtlDays > 0) {
+      body.table_ttl_days = options.tableTtlDays;
+    }
+    const result = await this.requestJson<QueryResponsePayload>(
+      '/execute_bigtrace_query_async',
+      {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+        signal,
+      },
     );
+    return parseQueryResponse(result);
   }
 
   async getStatus(
@@ -302,13 +321,23 @@ export class BigtraceQueryClient {
     uuid: string,
     column: string,
     search?: string,
+    filters?: ReadonlyArray<Filter>,
+    signal?: AbortSignal,
   ): Promise<ReadonlyArray<string>> {
+    const body: Record<string, unknown> = {
+      column_name: column,
+      search_pattern: search,
+    };
+    if (filters && filters.length > 0) {
+      body.filters = coerceFiltersForWire(filters);
+    }
     const result = await this.requestJson<{values?: string[]}>(
       `/query_executions/${uuid}:column_values`,
       {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({column_name: column, search_pattern: search}),
+        body: JSON.stringify(body),
+        signal,
       },
     );
     return result.values ?? [];
@@ -539,58 +568,9 @@ export class BigtraceQueryClient {
 
   // ----- Internals -----
 
-  private async executeAt(
-    path: string,
-    query: string,
-    limit: number,
-    settings: ReadonlyArray<SettingFilter>,
-    signal: AbortSignal | undefined,
-    options?: ExecuteOptions,
-  ): Promise<QueryResultPage> {
-    const body: Record<string, unknown> = {
-      limit,
-      perfetto_sql: query,
-      settings: this.settingsToWire(settings),
-    };
-    // Each trace-selection field rides only when non-default.
-    if (options?.traceFilters && options.traceFilters.length > 0) {
-      body.trace_filters = coerceFiltersForWire(options.traceFilters);
-    }
-    if (
-      options?.traceMetadataColumns &&
-      options.traceMetadataColumns.length > 0
-    ) {
-      body.trace_metadata_columns = [...options.traceMetadataColumns];
-    }
-    if (options?.traceOrderBy && options.traceOrderBy.length > 0) {
-      body.trace_order_by = options.traceOrderBy;
-    }
-    if (options?.traceLimit !== undefined && options.traceLimit > 0) {
-      body.trace_limit = options.traceLimit;
-    }
-    if (options?.experimentFilter !== undefined) {
-      body.experiment_filter = experimentFilterToWire(options.experimentFilter);
-    }
-    // An empty name is the user asking the backend to choose one, which is
-    // what omitting the field means.
-    if (options?.tableName !== undefined && options.tableName !== '') {
-      body.table_name = options.tableName;
-    }
-    if (options?.tableTtlDays !== undefined && options.tableTtlDays > 0) {
-      body.table_ttl_days = options.tableTtlDays;
-    }
-    const result = await this.requestJson<QueryResponsePayload>(path, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(body),
-      signal,
-    });
-    return parseQueryResponse(result);
-  }
-
   // camelCase SettingFilter[] -> the snake_case {setting_id, values, category}
   // shape every POST body that ships settings uses (/trace_metadata,
-  // /trace_metadata_schema, /execute_*).
+  // /trace_metadata_schema, /execute_bigtrace_query_async).
   private settingsToWire(settings: ReadonlyArray<SettingFilter>) {
     return settings.map((s) => ({
       setting_id: s.settingId,
@@ -609,7 +589,10 @@ export class BigtraceQueryClient {
       });
     } catch (e) {
       // AbortSignal → DOMException, surface as our typed error.
-      if (e instanceof DOMException && e.name === 'AbortError') {
+      if (
+        init?.signal?.aborted ||
+        (e instanceof DOMException && e.name === 'AbortError')
+      ) {
         throw new QueryCancelledError();
       }
       throw e;
@@ -629,9 +612,14 @@ export class BigtraceQueryClient {
         // Not JSON — use the body as-is.
       }
       if (response.status === 404) {
-        // Extract UUID from /query_executions/{uuid}[:action]; else use path.
-        const m = path.match(/\/query_executions\/([^/:?#]+)/);
-        throw new QueryNotFoundError(m?.[1] ?? path);
+        const method = (init?.method ?? 'GET').toUpperCase();
+        const m =
+          method === 'GET'
+            ? path.match(/^\/query_executions\/([^/:?#]+)(?::status)?$/)
+            : null;
+        if (m) {
+          throw new QueryNotFoundError(m[1]!);
+        }
       }
       if (response.status === 403) {
         // Most 403s here are an unauthenticated session; fold the hint into
@@ -649,7 +637,17 @@ export class BigtraceQueryClient {
 
   private async requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await this.request(path, init);
-    return (await response.json()) as T;
+    try {
+      return (await response.json()) as T;
+    } catch (e) {
+      if (
+        init?.signal?.aborted ||
+        (e instanceof DOMException && e.name === 'AbortError')
+      ) {
+        throw new QueryCancelledError();
+      }
+      throw e;
+    }
   }
 }
 
@@ -666,18 +664,29 @@ function experimentFilterToWire(filter: ExperimentFilterSpec) {
   };
 }
 
+function toOptionalCount(
+  value: number | string | undefined,
+): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 export function parseQueryResponse(
   result: QueryResponsePayload,
 ): QueryResultPage {
   const schema = result.schema ?? [];
   const columns = schema.map((s) => s.name);
+  const totalFilteredRows = toOptionalCount(result.totalFilteredRows);
+  const totalFilteredTraces = toOptionalCount(result.totalFilteredTraces);
 
   if (columns.length === 0) {
     return {
       rows: [],
       columns: [],
       queryUuid: result.queryUuid,
-      totalFilteredRows: result.totalFilteredRows,
+      totalFilteredRows,
+      totalFilteredTraces,
       schema: [],
     };
   }
@@ -693,7 +702,8 @@ export function parseQueryResponse(
     rows,
     columns,
     queryUuid: result.queryUuid,
-    totalFilteredRows: result.totalFilteredRows,
+    totalFilteredRows,
+    totalFilteredTraces,
     schema,
   };
 }

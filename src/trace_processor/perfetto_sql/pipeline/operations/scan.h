@@ -85,7 +85,7 @@ struct ScanDataframeArg {
 };
 
 // The conditions of a WHERE directly on a scan which the scan answers by
-// searching its dataframe instead of testing every row. Made by SearchScans
+// searching its dataframe instead of testing every row. Made by Where::Rewrite
 // on a bound plan, so never serialized.
 struct ScanSearch {
   enum class Kind : uint8_t {
@@ -102,8 +102,6 @@ struct ScanSearch {
   uint32_t index = 0;
   // The conditions searched, in the order they are searched.
   std::vector<WherePredicate> predicates;
-  std::vector<WhereLiteral> literals;
-  std::vector<std::string> strings;
 };
 
 // Reads all rows of a source. Always the first operation.
@@ -169,7 +167,7 @@ class Scan : public PlanOperation {
   // PlanOperation implementation. Dispatch goes through the base interface.
   std::unique_ptr<PlanOperation> Clone() const override;
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
-  OutputProperties Derive(const BoundPlan&, PlanNodeId self) const override;
+  OutputProperties Derive(DeriveContext&) const override;
   void Lower(Lowering*, const PlanNode&) const override;
   void MoveSqlSourcesToDataframeArgs(const NameTable&,
                                      std::vector<std::string>*) override;
@@ -220,7 +218,9 @@ class Scan : public PlanOperation {
   static void AddScanColumn(Compiler*, Scan* scan, NameId name, PlanType type);
 
   // Sets a source answering `search_`.
-  void LowerSearch(Lowering*, const Bindings::Dataframe&) const;
+  void LowerSearch(Lowering*,
+                   const PlanNode&,
+                   const Bindings::Dataframe&) const;
   // The position among the scan's columns of `column`.
   uint32_t Position(ColumnId column) const;
 

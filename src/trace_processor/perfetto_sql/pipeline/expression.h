@@ -24,21 +24,26 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/expression.h"
+#include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
+
+namespace perfetto::trace_processor {
+class StringPool;
+}  // namespace perfetto::trace_processor
 
 namespace perfetto::trace_processor::pipeline {
 
 class Compiler;
-class Lowering;
+struct OutputProperties;
 class PlanCodec;
 
 // A scalar expression over the columns of a row, as a stage computes it:
-// column references, number literals, NULL and arithmetic.
+// column references, literals, NULL and arithmetic.
 //
 // It has the shape of the executor's program: nodes in post-order, each
 // reading only nodes before it, the last being the result. A kColumn node's
-// `a` is a ColumnId rather than a batch position, and only a kConstant node's
-// `type` means anything: the rest are typed when the plan is lowered.
+// `a` is a ColumnId rather than a batch position, and a kConstant node's `a` is
+// its index in `literals`. Nodes are typed when the plan is lowered.
 //
 // Only expressions whose meaning is the same as SQLite's are accepted.
 // Anything else is refused when the plan is built, not answered
@@ -46,6 +51,7 @@ class PlanCodec;
 // fails the query where SQLite would answer with a double.
 struct Expr {
   std::vector<core::exec::ExprStep> nodes;
+  std::vector<Literal> literals;
 };
 
 // Compiles the expression at AST node `expr` against the row in scope.
@@ -59,12 +65,18 @@ base::StatusOr<PlanType> CheckExprType(const Compiler&, const Expr&);
 // Marks the columns `expr` reads.
 void MarkExprColumns(const Expr&, std::vector<bool>* needed);
 
-// Builds the executor's program for `expr`, with columns at their lowered
-// positions, and sets `type` to the type it computes. Fails lowering if
-// `expr` cannot be typed.
-core::exec::ExprProgram LowerExpr(Lowering*,
-                                  const Expr&,
-                                  core::StorageType* type);
+// An expression typed for the rows it reads.
+struct TypedExpr {
+  core::exec::ExprProgram program;
+  core::StorageType type = core::Int64{};
+};
+
+// Builds the executor's program for `expr`, with columns at their positions in
+// `rows`, and the type it computes. `pool` takes the strings of the
+// expression's literals, which the program refers to by id.
+base::StatusOr<TypedExpr> TypeExpr(const OutputProperties& rows,
+                                   const Expr&,
+                                   StringPool* pool);
 
 // Writes or reads `expr`.
 void SerializeExpr(PlanCodec&, Expr* expr);

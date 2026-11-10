@@ -44,6 +44,7 @@ struct Bindings;
 class Catalog;
 class Lowering;
 struct BoundPlan;
+struct LoweringContext;
 class PlanCodec;
 class PlanKey;
 class LogicalPlan;
@@ -97,13 +98,24 @@ class PlanOperation {
       StringPool*,
       Bindings* bindings) const;
 
-  // What is known about this node's output, from what is known about its
-  // inputs in `bound.outputs`. Lower leaves its pipeline in this state.
-  virtual OutputProperties Derive(const BoundPlan& bound,
-                                  PlanNodeId self) const = 0;
+  // Rewrites the plan at node `self`. May change it and what is below it, which
+  // it must plan again.
+  virtual void Rewrite(BoundPlan*,
+                       PlanNodeId self,
+                       const LoweringContext&) const;
 
-  // Builds execution steps, including child traversal. Intersection attaches
-  // independent operand pipelines; other stages lower their single input.
+  // What this operation needs of the rows of input `input`.
+  virtual InputNeeds Needs(uint32_t input) const;
+
+  // Columns of its inputs which must end up with one type.
+  virtual std::vector<std::vector<InputColumn>> CommonTypes() const;
+
+  // What is known about this node's output, given its inputs' needs are met.
+  virtual OutputProperties Derive(DeriveContext&) const = 0;
+
+  // Adds the operator which produces what Derive said, from its inputs, which
+  // it lowers with Lowering::LowerInput. An operation lowering an input in a
+  // side pipeline does so itself. It decides nothing about row order or types.
   virtual void Lower(Lowering*, const PlanNode&) const = 0;
 
   // Writes or reads this payload, as the codec does.
@@ -271,8 +283,11 @@ struct BoundPlan {
 
   LogicalPlan plan;
   Bindings bindings;
-  // What is known about each node's output, by node (see RunBoundPasses).
-  std::vector<OutputProperties> outputs;
+  // By node, what is decided about it before it is lowered (see
+  // RunBoundPasses).
+  std::vector<PlannedNode> planned;
+  // Why the plan cannot run, if so.
+  base::Status status;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

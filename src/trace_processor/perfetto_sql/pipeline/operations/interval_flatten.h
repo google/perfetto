@@ -44,7 +44,8 @@ class IntervalFlatten : public PlanOperation {
   // PlanOperation implementation. Dispatch goes through the base interface.
   std::unique_ptr<PlanOperation> Clone() const override;
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
-  OutputProperties Derive(const BoundPlan&, PlanNodeId self) const override;
+  InputNeeds Needs(uint32_t input) const override;
+  OutputProperties Derive(DeriveContext&) const override;
   void Lower(Lowering*, const PlanNode&) const override;
   void Serialize(PlanCodec&) override;
 

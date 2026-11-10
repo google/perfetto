@@ -27,7 +27,7 @@
 #include <type_traits>
 #include <vector>
 
-#include "perfetto/ext/base/bits.h"
+#include "perfetto/base/bits.h"
 #include "src/trace_processor/util/cold_sort.h"
 
 namespace perfetto::trace_processor::core {

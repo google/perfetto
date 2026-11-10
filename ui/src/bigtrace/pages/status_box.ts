@@ -18,10 +18,8 @@ import {Button} from '../../widgets/button';
 import {PopupPosition} from '../../widgets/popup';
 import {Tooltip} from '../../widgets/tooltip';
 import {Duration} from '../../base/time';
-import {BigtraceAsyncDataSource} from '../query/bigtrace_async_data_source';
 import {
   formatCompact,
-  queryStore,
   statusDisplayLabel,
   TERMINAL_STATUSES,
 } from '../query/query_store';
@@ -33,14 +31,39 @@ export function formatDurationS(ms: number): string {
   return Duration.format(Duration.fromMillis(Math.round(ms / 1000) * 1000));
 }
 
-export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
-  if (!tab.materialize || !tab.queryUuid) return false;
+interface RunningDurationAttrs {
+  readonly duration: string;
+}
+
+// Redraws every second so the running time ticks.
+class RunningDuration implements m.ClassComponent<RunningDurationAttrs> {
+  private readonly timer = window.setInterval(() => m.redraw(), 1000);
+
+  onremove(): void {
+    window.clearInterval(this.timer);
+  }
+
+  view({attrs}: m.CVnode<RunningDurationAttrs>): m.Children {
+    return m('span.pf-bt-status-bar-duration-value', attrs.duration);
+  }
+}
+
+export function renderStatusBox(
+  tab: BigTraceEditorTab,
+  onRefresh?: () => void,
+): m.Children {
+  if (!tab.queryUuid) return false;
+  if (
+    !tab.isLoading &&
+    (tab.execution === undefined || tab.execution.status === 'UNKNOWN')
+  ) {
+    return false;
+  }
 
   const isTerminal =
     tab.execution?.status !== undefined &&
     TERMINAL_STATUSES.has(tab.execution.status);
   const processedRows = tab.execution?.processedRows ?? 0;
-  const hasNewData = !isTerminal && processedRows > tab.lastProcessedRows;
 
   let durationMs = 0;
   if (
@@ -62,6 +85,7 @@ export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
   const status = tab.execution?.status ?? 'UNKNOWN';
   const processedTraces = tab.execution?.processedTraces ?? 0;
   const totalTraces = tab.execution?.totalTraces ?? 0;
+  const buildingFullTable = tab.execution?.phase === 'FULL_TABLE';
   const durationStr = formatDurationS(durationMs);
 
   const leftGroup = m(
@@ -70,15 +94,9 @@ export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
       'div.pf-bt-status-bar-refresh',
       m(Button, {
         icon: 'refresh',
-        title: hasNewData
-          ? 'New data available. Click to refresh.'
-          : 'Refresh data',
-        onclick: () => refreshAsyncStatus(tab),
+        title: 'Refresh data',
+        onclick: () => onRefresh?.(),
       }),
-      hasNewData &&
-        m('span.pf-bt-status-bar-notif', {
-          'aria-label': 'New data available',
-        }),
     ),
     m(
       'span.pf-bt-status-bar-pill',
@@ -87,7 +105,9 @@ export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
     ),
     m(
       'span.pf-bt-status-bar-duration',
-      m('span.pf-bt-status-bar-duration-value', durationStr),
+      isTerminal
+        ? m('span.pf-bt-status-bar-duration-value', durationStr)
+        : m(RunningDuration, {duration: durationStr}),
     ),
   );
 
@@ -98,104 +118,99 @@ export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
   ]
     .filter(Boolean)
     .join(' ');
-  const rightGroupContent = m(
-    '.pf-bt-status-bar-group',
-    m(
-      'span.pf-bt-status-bar-stat.pf-bt-status-bar-stat--traces',
-      m('span.pf-bt-status-bar-stat-label', 'Traces:'),
-      m(
-        'span.pf-bt-status-bar-stat-value',
-        {
-          title:
-            `${processedTraces.toLocaleString()} of ` +
-            `${totalTraces.toLocaleString()}` +
-            (!isTerminal
-              ? ' — numerator lags the poll (≤3s); denominator is exact.'
-              : ''),
-        },
-        formatCompact(processedTraces),
-      ),
-      renderInlineProgressBar(processedTraces, totalTraces, !isTerminal),
-    ),
-    m(
-      'span',
-      {className: rowsStatClasses},
-      m('span.pf-bt-status-bar-stat-label', 'Rows:'),
-      m(
-        'span.pf-bt-status-bar-stat-value',
-        {
-          title: `${processedRows.toLocaleString()} of result limit ${tab.limit.toLocaleString()}`,
-        },
-        formatCompact(processedRows),
-      ),
-      renderInlineProgressBar(processedRows, tab.limit, !isTerminal),
-    ),
-  );
-
-  const rightGroup = !isTerminal
+  const rightGroup = isTerminal
     ? m(
-        Tooltip,
-        {
-          trigger: rightGroupContent,
-          position: PopupPosition.Top,
-        },
+        '.pf-bt-status-bar-group',
         m(
-          '.pf-bt-status-bar-progress-tooltip',
-          m('div', `Traces: ${formatCompact(processedTraces)}`),
-          m('div', `Rows: ${formatCompact(processedRows)}`),
+          'span.pf-bt-status-bar-stat.pf-bt-status-bar-stat--traces',
+          m('span.pf-bt-status-bar-stat-label', 'Seen traces:'),
+          m(
+            'span.pf-bt-status-bar-stat-value',
+            {
+              title:
+                totalTraces > 0
+                  ? `${processedTraces.toLocaleString()} of ${totalTraces.toLocaleString()}`
+                  : processedTraces.toLocaleString(),
+            },
+            formatCompact(processedTraces),
+          ),
+        ),
+        m(
+          'span',
+          {className: rowsStatClasses},
+          m('span.pf-bt-status-bar-stat-label', 'Rows:'),
+          m(
+            'span.pf-bt-status-bar-stat-value',
+            {
+              title: `${processedRows.toLocaleString()} of result limit ${tab.limit.toLocaleString()}`,
+            },
+            formatCompact(processedRows),
+          ),
         ),
       )
-    : rightGroupContent;
+    : renderRunningProgress(processedTraces, totalTraces, buildingFullTable);
 
+  return m(Box, {className: 'pf-bt-status-bar'}, leftGroup, rightGroup);
+}
+
+function renderRunningProgress(
+  processedTraces: number,
+  totalTraces: number,
+  buildingFullTable: boolean,
+): m.Children {
+  const stageLabel = buildingFullTable
+    ? 'Building full table…'
+    : 'Preparing preview…';
+  const tooltipText =
+    totalTraces > 0
+      ? `Seen traces: ${formatCompact(processedTraces)} / ${formatCompact(totalTraces)}`
+      : processedTraces > 0
+        ? `Seen traces: ${formatCompact(processedTraces)}`
+        : stageLabel.replace(/…$/, '');
   return m(
-    Box,
+    Tooltip,
     {
-      className: isTerminal
-        ? 'pf-bt-status-bar'
-        : 'pf-bt-status-bar pf-bt-status-bar--running',
+      trigger: m(
+        '.pf-bt-status-bar-group',
+        m(
+          'span.pf-bt-status-bar-progress',
+          m('span.pf-bt-status-bar-stage', stageLabel),
+          renderInlineProgressBar(processedTraces, totalTraces, stageLabel),
+        ),
+      ),
+      position: PopupPosition.Top,
     },
-    leftGroup,
-    rightGroup,
+    m('.pf-bt-status-bar-progress-tooltip', m('div', tooltipText)),
   );
 }
 
 function renderInlineProgressBar(
   done: number,
   total: number,
-  live: boolean,
+  label: string,
 ): m.Children {
-  if (!live) return null;
-  if (total <= 0) return null;
+  if (total <= 0) {
+    return m(
+      'span.pf-bt-inline-progress.pf-bt-inline-progress--indeterminate',
+      {
+        'role': 'progressbar',
+        'aria-label': label,
+      },
+      m('span.pf-bt-inline-progress-fill'),
+    );
+  }
   const pct = Math.max(0, Math.min(100, (done / total) * 100));
   return m(
     'span.pf-bt-inline-progress',
+    {
+      'role': 'progressbar',
+      'aria-label': label,
+      'aria-valuemin': 0,
+      'aria-valuemax': total,
+      'aria-valuenow': Math.max(0, Math.min(done, total)),
+    },
     m('span.pf-bt-inline-progress-fill', {
       style: {width: `${pct}%`},
     }),
   );
-}
-
-async function refreshAsyncStatus(tab: BigTraceEditorTab): Promise<void> {
-  if (!tab.queryUuid) return;
-  try {
-    const status = await tab.queryClient?.getStatus(
-      tab.queryUuid,
-      tab.lifecycle.signal,
-    );
-    if (status) {
-      queryStore.update(tab.queryUuid, {
-        processedRows: status.processedRows ?? 0,
-        processedTraces: status.processedTraces ?? 0,
-        totalTraces: status.totalTraces ?? 0,
-        status: status.status ?? 'N/A',
-      });
-    }
-  } catch (e) {
-    console.error('Failed to fetch query status on refresh:', e);
-  }
-  if (tab.dataSource instanceof BigtraceAsyncDataSource) {
-    tab.dataSource.refresh();
-    tab.lastProcessedRows = tab.execution?.processedRows ?? 0;
-  }
-  m.redraw();
 }
