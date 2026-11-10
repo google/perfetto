@@ -93,6 +93,8 @@ class TrackEventTokenizer {
                                         TraceBlobView* packet);
 
   TraceProcessorContext* const context_;
+  // Whether TrackEventData keeps the whole packet; see TrackEventData::packet.
+  const bool keep_track_event_packets_;
   TrackEventTracker* const track_event_tracker_;
   ProtoImporterModuleContext* const module_context_;
 

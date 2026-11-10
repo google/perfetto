@@ -192,32 +192,49 @@ std::optional<uint32_t> IntervalFillGaps::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
-void IntervalFillGaps::Lower(Lowering* c, const PlanNode& node) const {
-  const auto& fill = *this;
-  c->LowerNode(node.children()[0]);
-  // The background is read from its own side pipeline.
-  Lowering& background = c->AddSidePipeline();
-  background.LowerNode(node.children()[1]);
+InputNeeds IntervalFillGaps::Needs(uint32_t input) const {
+  return input == 0 ? IntervalLaneNeeds(ts_, dur_, keys_)
+                    : IntervalLaneNeeds(background_ts_, background_dur_,
+                                        background_keys_);
+}
 
+std::vector<std::vector<InputColumn>> IntervalFillGaps::CommonTypes() const {
+  std::vector<std::vector<InputColumn>> common;
   // Columns present on both sides are converted to a common type.
-  for (const Output& output : fill.outputs_) {
+  for (const Output& output : outputs_) {
     if (output.background) {
-      c->RequireCommonType(
-          {{c, output.input}, {&background, *output.background}});
+      common.push_back({{0, output.input}, {1, *output.background}});
     }
   }
-
   // PER columns are numbered in one table, so both sides need one type even
   // if they are not output.
-  for (size_t k = 0; k < fill.background_keys_.size(); ++k) {
-    c->RequireCommonType(
-        {{c, fill.keys_[k]}, {&background, fill.background_keys_[k]}});
+  for (size_t k = 0; k < background_keys_.size(); ++k) {
+    common.push_back({{0, keys_[k]}, {1, background_keys_[k]}});
   }
+  return common;
+}
+
+OutputProperties IntervalFillGaps::Derive(DeriveContext& c) const {
+  // The output has no known order. Filler batches can be small.
+  OutputProperties out;
+  for (const Output& output : outputs_) {
+    out.columns.push_back(c.ColumnOf(output.column));
+  }
+  out.full_batches = false;
+  return out;
+}
+
+void IntervalFillGaps::Lower(Lowering* c, const PlanNode& node) const {
+  const auto& fill = *this;
+  c->LowerInput(node, 0);
+  // The background is read from its own side pipeline.
+  Lowering& background = c->AddSidePipeline();
+  background.LowerInput(node, 1);
 
   ex::IntervalFillGapsSpec spec;
-  spec.input = c->RequireIntervalLanes(fill.ts_, fill.dur_, fill.keys_);
+  spec.input = c->QueryIntervalLanes(fill.ts_, fill.dur_, fill.keys_);
   spec.input.forever = true;
-  spec.background.lanes = background.RequireIntervalLanes(
+  spec.background.lanes = background.QueryIntervalLanes(
       fill.background_ts_, fill.background_dur_, fill.background_keys_);
   for (const Output& output : fill.outputs_) {
     ex::IntervalFillGapsSpec::Output lowered;
@@ -237,14 +254,6 @@ void IntervalFillGaps::Lower(Lowering* c, const PlanNode& node) const {
   }
   spec.background.source = background.FinishSide();
   c->AddOperator(std::make_unique<ex::IntervalFillGaps>(std::move(spec)));
-
-  // The output has a new layout and no known order. Filler batches can be
-  // small.
-  c->ResetLayout();
-  for (const Output& output : fill.outputs_) {
-    c->DeclareColumn(output.column);
-  }
-  c->DeclareSmallBatches();
 }
 
 const OperationRegistration& IntervalFillGaps::registration() const {

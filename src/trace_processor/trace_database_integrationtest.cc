@@ -384,6 +384,35 @@ TEST(TraceProcessorCustomConfigTest,
   EXPECT_EQ(contents, std::string("\0\1\2\xff", 4));
 }
 
+TEST(TraceProcessorCustomConfigTest, AttachRequiresSqlFileAccess) {
+  auto processor = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("ATTACH DATABASE ':memory:' AS aux");
+  EXPECT_FALSE(it.Next());
+  EXPECT_THAT(it.Status(), IsError());
+  EXPECT_THAT(it.Status().message(), HasSubstr("not authorized"));
+}
+
+TEST(TraceProcessorCustomConfigTest, VacuumIntoAlwaysDenied) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  std::string target = temp_dir.path() + "/vacuum_target.db";
+  std::replace(target.begin(), target.end(), '\\', '/');
+  ASSERT_EQ(target.find('\''), std::string::npos);
+
+  for (bool allow_file_access : {false, true}) {
+    Config config;
+    config.enable_sql_file_access = allow_file_access;
+    auto processor = TraceProcessor::CreateInstance(config);
+    ASSERT_OK(processor->NotifyEndOfFile());
+
+    auto it = processor->ExecuteQuery("VACUUM INTO 'file:" + target + "'");
+    EXPECT_FALSE(it.Next());
+    EXPECT_THAT(it.Status(), IsError());
+    EXPECT_THAT(it.Status().message(), HasSubstr("authorization denied"));
+    EXPECT_FALSE(base::FileExists(target));
+  }
+}
+
 namespace {
 base::Status ParseTraceString(TraceProcessor* processor, const std::string& s) {
   std::unique_ptr<uint8_t[]> buf(new uint8_t[s.size()]);
@@ -1267,6 +1296,71 @@ TEST_F(TraceProcessorIntegrationTest, StdlibDocsObjectsDottedPackage) {
       "AND object_type = 'MODULE'");
   ASSERT_TRUE(result.Next());
   ASSERT_EQ(result.Get(0).AsLong(), 1);
+  ASSERT_OK(result.Status());
+}
+
+TEST_F(TraceProcessorIntegrationTest, StdlibModuleIncludes) {
+  ASSERT_OK(NotifyEndOfFile());
+
+  SqlPackage dep;
+  dep.name = "dev.dep";
+  dep.modules.push_back({"dev.dep.a.one", "SELECT 1"});
+  dep.modules.push_back({"dev.dep.a.two", "SELECT 1"});
+  dep.modules.push_back({"dev.dep.b", "SELECT 1"});
+  ASSERT_OK(Processor()->RegisterSqlPackage(dep));
+
+  SqlPackage pkg;
+  pkg.name = "dev.uut";
+  pkg.modules.push_back({"dev.uut.none", "SELECT 1"});
+  pkg.modules.push_back({"dev.uut.direct",
+                         "INCLUDE PERFETTO MODULE dev.dep.b;\n"
+                         "INCLUDE PERFETTO MODULE dev.dep.b;\n"
+                         "INCLUDE PERFETTO MODULE dev.uut.missing;\n"});
+  pkg.modules.push_back({"dev.uut.wildcard",
+                         "INCLUDE PERFETTO MODULE dev.dep.a.*;\n"
+                         "INCLUDE PERFETTO MODULE dev.dep.a.one;\n"
+                         "INCLUDE PERFETTO MODULE dev.uut.w*;\n"
+                         "INCLUDE PERFETTO MODULE dev.nothing.*;\n"});
+  ASSERT_OK(Processor()->RegisterSqlPackage(pkg));
+
+  auto result = Query(
+      "SELECT package, module, included_module "
+      "FROM __intrinsic_stdlib_module_includes "
+      "WHERE package = 'dev.uut' "
+      "ORDER BY module, included_module");
+  std::vector<std::string> rows;
+  while (result.Next()) {
+    rows.push_back(result.Get(1).AsString() + std::string(" -> ") +
+                   result.Get(2).AsString());
+    ASSERT_STREQ(result.Get(0).AsString(), "dev.uut");
+  }
+  ASSERT_OK(result.Status());
+  ASSERT_THAT(rows, testing::ElementsAre("dev.uut.direct -> dev.dep.b",
+                                         "dev.uut.direct -> dev.uut.missing",
+                                         "dev.uut.wildcard -> dev.dep.a.one",
+                                         "dev.uut.wildcard -> dev.dep.a.two"));
+}
+
+TEST_F(TraceProcessorIntegrationTest, StdlibModuleIncludesGlobalWildcard) {
+  ASSERT_OK(NotifyEndOfFile());
+
+  SqlPackage pkg;
+  pkg.name = "dev.uut";
+  pkg.modules.push_back({"dev.uut.other", "SELECT 1"});
+  pkg.modules.push_back({"dev.uut.star", "INCLUDE PERFETTO MODULE *;"});
+  ASSERT_OK(Processor()->RegisterSqlPackage(pkg));
+
+  auto result = Query(
+      "SELECT "
+      "  SUM(included_module = 'dev.uut.other'), "
+      "  SUM(included_module = 'dev.uut.star'), "
+      "  SUM(included_module = 'slices.flow') "
+      "FROM __intrinsic_stdlib_module_includes "
+      "WHERE module = 'dev.uut.star'");
+  ASSERT_TRUE(result.Next());
+  ASSERT_EQ(result.Get(0).AsLong(), 1);
+  ASSERT_EQ(result.Get(1).AsLong(), 0);
+  ASSERT_EQ(result.Get(2).AsLong(), 1);
   ASSERT_OK(result.Status());
 }
 

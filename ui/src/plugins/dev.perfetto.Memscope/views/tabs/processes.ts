@@ -43,8 +43,15 @@ import {
   type CategoryId,
 } from '../../process_categories';
 import {Billboard, BillboardStrip} from '../../components/billboard';
+import {HelpTooltip} from '../../components/help_tooltip';
 import {ColorChip, chipColor} from '../../components/color_chip';
-import {billboardBytes, maxSeriesKb, niceKbInterval} from '../../utils';
+import {
+  billboardBytes,
+  chartXWindow,
+  formatRelativeXValue,
+  maxSeriesKb,
+  niceKbInterval,
+} from '../../utils';
 import {formatBytesIec} from '../../../../base/bytes_format';
 import {
   type ProcessGrouping,
@@ -443,7 +450,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
         ? OOM_SCORE_BUCKETS[this.selectedOomBucket]
         : undefined;
 
-    const chartData = isDrilledDown
+    const chartData: LineChartData | undefined = isDrilledDown
       ? this.selectedCategory !== undefined
         ? buildCategoryDrilldown(data, this.selectedCategory, t0, counters)
         : this.selectedOomBucket !== undefined
@@ -453,18 +460,11 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
         ? buildCategoryTimeSeries(data, t0, counters)
         : buildOomScoreTimeSeries(data, t0, counters);
 
-    // Pin x-axis to the exact data range so the plot edges line up with the
-    // first and last sample.
-    let chartXMin: number | undefined;
-    let chartXMax: number | undefined;
-    if (chartData !== undefined) {
-      for (const s of chartData.series) {
-        for (const p of s.points) {
-          if (chartXMin === undefined || p.x < chartXMin) chartXMin = p.x;
-          if (chartXMax === undefined || p.x > chartXMax) chartXMax = p.x;
-        }
-      }
-    }
+    // Pin the x-axis to a fixed-width window ending at the latest sample.
+    // All samples are passed to the chart; the x-axis is manually limited to
+    // the window and the chart clips anything outside the plot area.
+    const xWindow = chartXWindow(data.xMax);
+    const formatX = formatRelativeXValue(data.xMax);
 
     const latestProcesses = buildLatestProcessMemory(data);
 
@@ -491,17 +491,8 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
               .includes(this.processSearch.toLowerCase()),
           );
 
-    const metricInfo = PROCESS_METRIC_OPTIONS.find(
-      (o) => o.key === this.metric,
-    )!;
     const drillName = cat?.name ?? oomBucket?.name;
-    const groupLabel = this.grouping === 'category' ? 'Category' : 'OOM Score';
-    const title = drillName
-      ? `Process Memory: ${drillName}`
-      : `Process Memory by ${groupLabel}`;
-    const subtitle = drillName
-      ? `Stacked ${metricInfo.label} per process. Totals may exceed actual memory usage because RSS counts shared pages (COW, mmap) in every process that maps them.`
-      : `Stacked ${metricInfo.label} per ${groupLabel.toLowerCase()}. Click a ${groupLabel.toLowerCase()} to drill into individual processes.`;
+    const title = drillName ? `Process Memory: ${drillName}` : 'Process Memory';
 
     // Compute billboard totals from all processes.
     const totalAnonSwapKb = latestProcesses.reduce(
@@ -552,6 +543,20 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
                 },
               }),
             m('h2', title),
+            m(HelpTooltip, {
+              content: m.fragment({}, [
+                m('div', [
+                  'Stacked memory per process (or per category / OOM bucket). ' +
+                    'Totals may exceed actual usage because RSS counts shared ' +
+                    'pages (COW, mmap) in every process that maps them.',
+                ]),
+                m('div', [
+                  'Source: linux.process_stats data source (traced_probes) polling ' +
+                    '/proc/<pid>/status, /proc/<pid>/dmabuf_rss, /proc/<pid>/oom_score_adj ' +
+                    'and /proc/<pid>/stat.',
+                ]),
+              ]),
+            }),
             m(
               '.pf-memscope-panel__controls',
               m(
@@ -589,7 +594,6 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
               ),
             ),
           ),
-          m('p', subtitle),
         ),
         m(
           '.pf-memscope-panel__body',
@@ -597,15 +601,15 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
             ? m(LineChartSvg, {
                 data: chartData,
                 height: 350,
-                xAxisLabel: 'Time (s)',
-                yAxisLabel: 'RSS',
                 showLegend: true,
                 showPoints: false,
                 stacked: true,
                 gridLines: 'both',
-                xAxisMin: chartXMin,
-                xAxisMax: chartXMax,
-                formatXValue: (v: number) => `${v.toFixed(0)}s`,
+                xAxisMin: xWindow.min,
+                xAxisMax: xWindow.max,
+                // Show time relative to the latest sample: 0s on the right,
+                // -60s on the left.
+                formatXValue: formatX,
                 formatYValue: (v: number) => formatBytesIec(v * 1024),
                 yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
                 onSeriesClick: isDrilledDown

@@ -22,6 +22,7 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/batch_buffer.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -110,10 +111,10 @@ class Pipeline final : public Source {
     // Why the run failed, while kFailed is set.
     base::Status status = base::OkStatus();
 
-    // The steps' states, by step, and those Rewind() resets.
+    // The source's state and the steps' states, by step: made once, with
+    // each run ended as soon as its stream ends.
     std::unique_ptr<OperatorState> owned_source_state;
     std::vector<std::unique_ptr<OperatorState>> operators;
-    std::vector<OperatorState*> reset_each_run;
 
     // The segments starting with an operator, by segment.
     struct Start {
@@ -130,10 +131,20 @@ class Pipeline final : public Source {
     };
     std::vector<Start> starts;
     uint64_t run = 0;
+    // Everything the source and the steps hold for a run, merged by segment:
+    // all ending a segment's run touches.
+    std::vector<OperatorState::Registry> held;
+    bool holds_any = false;
+    bool source_holds = false;
+    // How many segments, from the first, have had their runs ended.
+    uint32_t ended_segments = 0;
 
     // The batch returned to the caller.
     RowBatch output;
   };
+
+  // Makes every step's state, and points the links at them.
+  void MakeStepStates(State&) const;
 
   // Pulling batches.
   RowBatch* NextSlow(State&) const;
@@ -146,7 +157,22 @@ class Pipeline final : public Source {
   // Stopping and failing.
   bool CanContinue(State&) const;
   void Stop(State&) const;
-  void SourceStatus(State&) const;
+  // The source has no batches left: records why, and ends its run and those
+  // of the first segment's transforms.
+  void SourceDone(State&) const;
+  // Nothing more comes out of `segment`, nor of any segment before it: ends
+  // the run of the source and of every step up to its end, once a run.
+  PERFETTO_ALWAYS_INLINE void EndUpTo(uint32_t segment, State& s) const {
+    if (s.ended_segments > segment) {
+      return;
+    }
+    if (!s.holds_any) {
+      s.ended_segments = segment + 1;
+      return;
+    }
+    EndRunsUpTo(segment, s);
+  }
+  void EndRunsUpTo(uint32_t segment, State&) const;
   // Records a failure; an ok status records nothing.
   static void Fail(State&, base::Status status);
   static void StepFailed(base::Status status, State&);

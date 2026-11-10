@@ -26,22 +26,32 @@ import type {TrackMouseEvent} from '../../public/track';
 import {LONG, NUM, type Row} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import {DetailsShell} from '../../widgets/details_shell';
-import {durationCellRenderer, processTrackUri} from './aggregators';
+import {durationCellRenderer} from './aggregators';
+
+/** What a count track counts. */
+export interface CountSource {
+  readonly state: string;
+  // Completes "N processes ...", e.g. 'in TOP', 'frozen'.
+  readonly label: string;
+  readonly concurrencyTable: string;
+  readonly intervalsTable: string;
+  readonly trackUri: (upid: number) => string;
+}
 
 /** Concurrency counter for one state; clicking it lists the processes in it. */
 export class ProcessStateCountTrack extends CounterTrack {
   constructor(
     trace: Trace,
     uri: string,
-    private readonly state: string,
+    private readonly source: CountSource,
   ) {
     super({
       trace,
       uri,
       sqlSource: `
         SELECT ts, concurrency AS value
-        FROM _android_process_state_concurrency
-        WHERE state = ${sqliteString(state)}
+        FROM ${source.concurrencyTable}
+        WHERE state = ${sqliteString(source.state)}
       `,
     });
   }
@@ -51,8 +61,8 @@ export class ProcessStateCountTrack extends CounterTrack {
     this.engine
       .query(
         `
-        SELECT id FROM _android_process_state_concurrency
-        WHERE state = ${sqliteString(this.state)} AND ts <= ${ts}
+        SELECT id FROM ${this.source.concurrencyTable}
+        WHERE state = ${sqliteString(this.source.state)} AND ts <= ${ts}
         ORDER BY ts DESC LIMIT 1
       `,
       )
@@ -66,14 +76,14 @@ export class ProcessStateCountTrack extends CounterTrack {
   async getSelectionDetails(id: number) {
     const row = (
       await this.engine.query(`
-        SELECT ts, dur FROM _android_process_state_concurrency WHERE id = ${id}
+        SELECT ts, dur FROM ${this.source.concurrencyTable} WHERE id = ${id}
       `)
     ).firstRow({ts: LONG, dur: LONG});
     return {ts: Time.fromRaw(row.ts), dur: Duration.fromRaw(row.dur)};
   }
 
   detailsPanel(): TrackEventDetailsPanel {
-    return new ProcessesInStatePanel(this.trace, this.state);
+    return new ProcessesInStatePanel(this.trace, this.source);
   }
 }
 
@@ -82,14 +92,14 @@ class ProcessesInStatePanel implements TrackEventDetailsPanel {
 
   constructor(
     private readonly trace: Trace,
-    private readonly state: string,
+    private readonly source: CountSource,
   ) {}
 
   async load(sel: TrackEventSelection) {
     const result = await this.trace.engine.query(`
       SELECT id, upid, process_name, pid, ts, iif(dur < 0, trace_end() - ts, dur) AS dur
-      FROM _android_process_state_intervals
-      WHERE state = ${sqliteString(this.state)}
+      FROM ${this.source.intervalsTable}
+      WHERE state = ${sqliteString(this.source.state)}
         AND ts <= ${sel.ts}
         AND (dur < 0 OR ts + dur > ${sel.ts})
     `);
@@ -106,7 +116,7 @@ class ProcessesInStatePanel implements TrackEventDetailsPanel {
     return m(
       DetailsShell,
       {
-        title: `${this.rows.length} processes in ${this.state}`,
+        title: `${this.rows.length} processes ${this.source.label}`,
         fillHeight: true,
       },
       m(DataGrid, {
@@ -132,11 +142,11 @@ class ProcessesInStatePanel implements TrackEventDetailsPanel {
               return m(
                 Anchor,
                 {
-                  title: 'Go to process state slice',
+                  title: 'Go to slice',
                   icon: Icons.UpdateSelection,
                   onclick: () =>
                     trace.selection.selectTrackEvent(
-                      processTrackUri(Number(upid)),
+                      this.source.trackUri(Number(upid)),
                       Number(id),
                       {scrollToSelection: true},
                     ),

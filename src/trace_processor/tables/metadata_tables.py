@@ -855,10 +855,13 @@ STATS_TABLE = Table(
             'key': ('Numeric stat key: the stats::KeyIDs enum value, or, for '
                     'a dynamic stat whose name is only known at runtime, a '
                     'value from stats::kNumKeys up.'),
-            'idx': 'Per-stat index for kIndexed stats; NULL for kSingle.',
+            'idx': ('Per-stat index for kIndexed and kIndexedHistogram stats;'
+                    ' NULL for kSingle.'),
             'severity': '"info" | "data_loss" | "error".',
             'source': '"trace" (recorded on-device) or "analysis" (TP).',
-            'value': 'Stat value.',
+            'value': ('Stat value. For kIndexedHistogram stats this is the '
+                      'total sample count across all buckets; per-bucket '
+                      'counts are in stats_histogram_bucket.'),
             'description': 'Human-readable description.',
             'machine_id': 'Machine that produced this stat (NULL for kGlobal).',
             'trace_id': 'Trace that produced this stat (NULL for kGlobal).',
@@ -1139,6 +1142,48 @@ TRACE_IMPORT_LOGS_TABLE = Table(
     ],
 )
 
+HISTOGRAM_BUCKET_TABLE = Table(
+    python_module=__file__,
+    class_name='HistogramBucketTable',
+    sql_name='__intrinsic_histogram_bucket',
+    columns=[
+        C(
+            'stat_id',
+            CppTableId(STATS_TABLE),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            'count',
+            CppInt64(),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'lower_bound',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            'upper_bound',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+            Buckets for kIndexedHistogram stats in __intrinsic_stats, one row
+            per (stat_id, lower_bound, upper_bound).
+        ''',
+        group='Misc',
+        columns={
+            'stat_id': ('Parent kIndexedHistogram stat row in '
+                        '__intrinsic_stats.'),
+            'count': 'Number of samples in [lower_bound, upper_bound).',
+            'lower_bound': 'Inclusive lower bound.',
+            'upper_bound': 'Exclusive upper bound.',
+        }))
+
 # Keep this list sorted.
 ALL_TABLES = [
     ARG_TABLE,
@@ -1151,14 +1196,15 @@ ALL_TABLES = [
     FILEDESCRIPTOR_TABLE,
     FTRACE_EVENT_TABLE,
     GPU_TABLE,
+    HISTOGRAM_BUCKET_TABLE,
     INTERRUPT_MAPPING_TABLE,
-    TRACE_IMPORT_LOGS_TABLE,
     MACHINE_TABLE,
     METADATA_TABLE,
-    STATS_TABLE,
     MODULES_TABLE,
     PROCESS_TABLE,
+    STATS_TABLE,
     THREAD_TABLE,
     TRACE_DIAGNOSTICS_TABLE,
     TRACE_FILE_TABLE,
+    TRACE_IMPORT_LOGS_TABLE,
 ]

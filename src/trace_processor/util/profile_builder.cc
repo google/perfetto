@@ -652,9 +652,6 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForSymbolSetId(
     return {};
   }
 
-  using RowRef =
-      perfetto::trace_processor::tables::SymbolTable::ConstRowReference;
-  std::vector<RowRef> symbol_set;
   symbol_cursor_.SetFilterValueUnchecked(0, *symbol_set_id);
   symbol_cursor_.Execute();
 

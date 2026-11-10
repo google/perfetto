@@ -401,7 +401,9 @@ TEST(CircularQueueTest, ObjectLifetime) {
     }
 
     Checker& operator=(Checker&& other) {
-      new (this) Checker(std::move(other));
+      if (this != &other) {
+        new (this) Checker(std::move(other));
+      }
       return *this;
     }
 

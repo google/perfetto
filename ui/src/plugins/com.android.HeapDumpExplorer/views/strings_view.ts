@@ -65,7 +65,7 @@ function buildQuery(activeDump: HeapDump): string {
         AND (c.name = 'java.lang.String'
           OR c.deobfuscated_name = 'java.lang.String')
     ) base
-    LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = base.id
+    LEFT JOIN _heap_graph_object_min_depth_tree a ON a.id = base.id
   `;
 }
 

@@ -66,3 +66,28 @@ class TraceProcessorBackend(abc.ABC):
   @abc.abstractmethod
   def close(self):
     ...
+
+  def _fill_trace_summary_args(self,
+                               out_args,
+                               specs: List[Union[str, bytes]],
+                               metric_ids: Optional[List[str]] = None,
+                               metadata_query_id: Optional[str] = None):
+    """Fills `out_args`, a TraceSummaryArgs, from trace_summary() arguments."""
+    if (metric_ids is None):
+      out_args.computation_spec.run_all_metrics = True
+    elif (len(metric_ids) > 0):
+      out_args.computation_spec.metric_ids.extend(metric_ids)
+
+    if (specs is not None and len(specs) > 0):
+      for spec in specs:
+        if isinstance(spec, str):
+          out_args.textproto_specs.append(spec)
+        elif isinstance(spec, bytes):
+          proto_spec = self.protos.TraceSummarySpec()
+          proto_spec.ParseFromString(spec)
+          out_args.proto_specs.append(proto_spec)
+
+    if (metadata_query_id is not None):
+      out_args.computation_spec.metadata_query_id = metadata_query_id
+
+    out_args.output_format = self.protos.TraceSummaryArgs.Format.BINARY_PROTOBUF

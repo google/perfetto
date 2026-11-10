@@ -46,6 +46,8 @@ source_set("service") {
     "../core",
   ]
   sources = [
+    "block_allocator.cc",
+    "block_allocator.h",
     "clock.cc",
     "clock.h",
     "dependencies.h",
@@ -56,6 +58,8 @@ source_set("service") {
     "packet_stream_validator.h",
     "random.cc",
     "random.h",
+    "sequence_state_map.cc",
+    "sequence_state_map.h",
     "service_ring_buffer_drainer.cc",
     "service_ring_buffer_drainer.h",
     "trace_buffer.h",
@@ -93,7 +97,12 @@ source_set("service") {
       ":zstd_compressor",
       "../../../gn:zstd",
     ]
+
+    # TraceBufferV3 needs zstd to store packets, so include it only with zstd.
+    # TraceBufferFactory skips it in other builds.
     sources += [
+      "trace_buffer_v3.cc",
+      "trace_buffer_v3.h",
       "zstd_frame_codec.cc",
       "zstd_frame_codec.h",
     ]
@@ -211,14 +220,17 @@ perfetto_unittest_source_set("unittests") {
     deps += [
       ":zstd_compressor",
       "../../../gn:zstd",
+      "../../protovm",
     ]
   }
 
   sources = [
+    "block_allocator_unittest.cc",
     "histogram_unittest.cc",
     "packet_stream_validator_unittest.cc",
     "proto_group_rewriter_reference_for_testing.h",
     "proto_group_rewriter_unittest.cc",
+    "sequence_state_map_unittest.cc",
     "service_ring_buffer_drainer_unittest.cc",
     "trace_buffer_factory_unittest.cc",
     "trace_buffer_v1_unittest.cc",
@@ -231,7 +243,10 @@ perfetto_unittest_source_set("unittests") {
   }
 
   if (enable_perfetto_zstd) {
-    sources += [ "zstd_frame_codec_unittest.cc" ]
+    sources += [
+      "trace_buffer_v3_unittest.cc",
+      "zstd_frame_codec_unittest.cc",
+    ]
   }
 
   # These tests rely on test_task_runner.h which

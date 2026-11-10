@@ -21,7 +21,9 @@ import {
 import type {LiveSession, SnapshotData} from '../../sessions/live_session';
 import {
   billboardBytes,
+  chartXWindow,
   counterPoints,
+  formatRelativeXValue,
   maxSeriesKb,
   niceKbInterval,
 } from '../../utils';
@@ -220,6 +222,11 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
   const fileCacheBreakdownData = buildFileCacheBreakdownTimeSeries(data, t0);
   const fileCacheActivityData = buildFileCacheActivityTimeSeries(data, t0);
   const bb = getPageCacheBillboards(fileCacheBreakdownData);
+  // Fixed-width window ending at the latest sample; the chart clips points
+  // outside it and labels are relative to the latest sample (0s on the
+  // right, -60s on the left).
+  const xWindow = chartXWindow(data.xMax);
+  const formatX = formatRelativeXValue(data.xMax);
 
   return m.fragment({}, [
     bb !== undefined &&
@@ -246,9 +253,15 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
       Panel,
       m(Panel.Header, {
         title: 'Page Cache',
-        subtitle:
-          'Source: /proc/meminfo counters Active(file), Inactive(file), Shmem. ' +
-          'Stacked: Active(file) + Inactive(file) + Shmem \u2248 Cached.',
+        help: m.fragment({}, [
+          m('div', [
+            'Stacked: Active(file) + Inactive(file) + Shmem \u2248 Cached.',
+          ]),
+          m('div', [
+            'Source: /proc/meminfo counters Active(file), Inactive(file), Shmem ' +
+              'via the linux.sys_stats data source (traced_probes).',
+          ]),
+        ]),
       }),
       m(
         Panel.Body,
@@ -256,15 +269,13 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
           ? m(LineChartSvg, {
               data: pageCacheChartData,
               height: 250,
-              xAxisLabel: 'Time (s)',
-              yAxisLabel: 'Cache',
               showLegend: true,
               showPoints: false,
               stacked: true,
               gridLines: 'both',
-              xAxisMin: data.xMin,
-              xAxisMax: data.xMax,
-              formatXValue: (v: number) => `${v.toFixed(0)}s`,
+              xAxisMin: xWindow.min,
+              xAxisMax: xWindow.max,
+              formatXValue: formatX,
               formatYValue: (v: number) => formatBytesIec(v * 1024),
               yAxisMinInterval: niceKbInterval(
                 maxSeriesKb(pageCacheChartData.series),
@@ -278,11 +289,17 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
       Panel,
       m(Panel.Header, {
         title: 'Page Cache Activity',
-        subtitle:
-          'Source: /proc/vmstat counters, shown as rates (delta/s). ' +
-          'Refaults = workingset_refault_file (evicted pages needed again). ' +
-          'Stolen = pgsteal_file (pages reclaimed). ' +
-          'Scanned = pgscan_file (pages considered for reclaim).',
+        help: m.fragment({}, [
+          m('div', [
+            'Shown as rates (delta/s). Refaults = workingset_refault_file ' +
+              '(evicted pages needed again). Stolen = pgsteal_file (pages reclaimed). ' +
+              'Scanned = pgscan_file (pages considered for reclaim).',
+          ]),
+          m('div', [
+            'Source: /proc/vmstat counters via the linux.sys_stats data source ' +
+              '(traced_probes).',
+          ]),
+        ]),
       }),
       m(
         Panel.Body,
@@ -290,14 +307,12 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
           ? m(LineChartSvg, {
               data: fileCacheActivityData,
               height: 200,
-              xAxisLabel: 'Time (s)',
-              yAxisLabel: 'Pages/s',
               showLegend: true,
               showPoints: false,
               gridLines: 'both',
-              xAxisMin: data.xMin,
-              xAxisMax: data.xMax,
-              formatXValue: (v: number) => `${v.toFixed(0)}s`,
+              xAxisMin: xWindow.min,
+              xAxisMax: xWindow.max,
+              formatXValue: formatX,
               formatYValue: (v: number) => v.toLocaleString(),
             })
           : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),

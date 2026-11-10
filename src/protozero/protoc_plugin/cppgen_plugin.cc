@@ -600,7 +600,6 @@ void CppObjGenerator::GenClassDecl(const Descriptor* msg, Printer* p) const {
       "n", full_name);
   p->Print("\n");
 
-  std::string proto_type = GetFullName(msg, true);
   p->Print("bool ParseFromArray(const void*, size_t) override;\n");
   p->Print("std::string SerializeAsString() const override;\n");
   p->Print("std::vector<uint8_t> SerializeAsArray() const override;\n");
@@ -752,8 +751,6 @@ void CppObjGenerator::GenClassDef(const Descriptor* msg, Printer* p) const {
         "$t$* $c$::add_$n$() { $n$_.emplace_back(); return &$n$_.back(); }\n",
         "c", full_name, "t", GetCppType(field, false), "n", lowercase_name);
   }
-
-  std::string proto_type = GetFullName(msg, true);
 
   // Generate the ParseFromArray() method definition.
   p->Print("bool $f$::ParseFromArray(const void* raw, size_t size) {\n", "f",

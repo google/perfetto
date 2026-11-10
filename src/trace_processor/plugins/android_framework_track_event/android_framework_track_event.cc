@@ -31,13 +31,17 @@
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
 #include "src/trace_processor/importers/android/unknown_process_logger.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event_extension_parser.h"
 #include "src/trace_processor/plugins/android_framework_track_event/tables_py.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto::trace_processor::android_framework_track_event {
@@ -137,6 +141,7 @@ class Parser : public TrackEventExtensionParser {
       return Result::kIgnored;
     }
     int64_t ts = event.ts;
+    MaybeReportSystemServerRestart(event);
     switch (field.id()) {
       case FBTE::kProcessStartEventFieldNumber:
         HandleProcessStart(field.Cast<FBTE::kProcessStartEvent>(), ts);
@@ -154,6 +159,28 @@ class Parser : public TrackEventExtensionParser {
   }
 
  private:
+  // These events are only emitted by system_server, on its process track, so
+  // a change of the emitting process means that system_server restarted (e.g.
+  // it crashed). The processes it started died with it without any death
+  // event, so the trace is not reliable around the restart: report it.
+  void MaybeReportSystemServerRestart(const TrackEventFieldContext& event) {
+    if (!event.has_upid()) {
+      return;
+    }
+    if (system_server_upid_ && *system_server_upid_ != event.upid) {
+      const auto& processes = trace_context_->storage->process_table();
+      int64_t old_pid = processes[*system_server_upid_].pid();
+      int64_t new_pid = processes[event.upid].pid();
+      trace_context_->import_logs_tracker->RecordParserLog(
+          stats::android_system_server_restart, event.ts,
+          [&](ArgsInserter& inserter) {
+            inserter.AddArg(old_pid_key_, Variadic::Integer(old_pid));
+            inserter.AddArg(new_pid_key_, Variadic::Integer(new_pid));
+          });
+    }
+    system_server_upid_ = event.upid;
+  }
+
   void SetProcessMetadata(UniquePid upid, protozero::ConstBytes process_start) {
     AndroidProcessStartEvent::Decoder evt(process_start);
     if (evt.has_uid()) {
@@ -335,6 +362,12 @@ class Parser : public TrackEventExtensionParser {
   DescriptorPool::CachedDescriptor exit_reason_cache_;
   DescriptorPool::CachedDescriptor exit_sub_reason_cache_;
   AndroidTrackEventProcessTableHolder* table_;
+  const StringId old_pid_key_ =
+      trace_context_->storage->InternString("old_system_server_pid");
+  const StringId new_pid_key_ =
+      trace_context_->storage->InternString("new_system_server_pid");
+  // The process emitting these events, i.e. the current system_server.
+  std::optional<UniquePid> system_server_upid_;
 };
 
 // Handles the AndroidProcessStateSnapshot emitted at trace start

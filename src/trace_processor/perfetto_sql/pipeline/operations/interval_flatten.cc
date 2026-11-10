@@ -112,36 +112,43 @@ std::optional<uint32_t> IntervalFlatten::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
-void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
-  const auto& flatten = *this;
-  c->LowerNode(node.children()[0]);
+InputNeeds IntervalFlatten::Needs(uint32_t) const {
+  InputNeeds needs = IntervalLaneNeeds(ts_, dur_, keys_);
+  AddAggregateNeeds(aggregates_, &needs);
+  needs.full_batches = true;
+  return needs;
+}
 
+OutputProperties IntervalFlatten::Derive(DeriveContext& c) const {
+  // Its rows are the segments. Segments are output as each one ends, so batches
+  // can be small. The operator always outputs group numbers.
+  OutputProperties out;
+  out.columns.push_back(c.ColumnOf(out_ts_));
+  out.columns.push_back(c.ColumnOf(out_dur_));
+  for (ColumnId key : keys_) {
+    out.columns.push_back(c.ColumnOf(key));
+  }
+  for (const Aggregate& agg : aggregates_) {
+    out.columns.push_back(c.ColumnOf(agg.output));
+  }
+  OutputProperties::Column groups = c.NewColumn();
+  out.columns.push_back(groups);
+  out.arrangements.push_back({keys_, {{out_ts_, false}}});
+  if (!keys_.empty()) {
+    out.group_numbers.push_back({keys_, groups.id});
+  }
+  out.full_batches = false;
+  return out;
+}
+
+void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
+  c->LowerInput(node, 0);
   ex::IntervalFlattenSpec spec;
-  spec.lanes =
-      c->RequireIntervalLanes(flatten.ts_, flatten.dur_, flatten.keys_);
-  for (const Aggregate& agg : flatten.aggregates_) {
+  spec.lanes = c->QueryIntervalLanes(ts_, dur_, keys_);
+  for (const Aggregate& agg : aggregates_) {
     spec.aggregates.push_back(LowerAggregate(c, agg));
   }
-  c->RequireFullBatches();
   c->AddOperator(std::make_unique<ex::IntervalFlatten>(std::move(spec)));
-
-  // Its rows are the segments, laid out afresh.
-  c->ResetLayout();
-  c->DeclareColumn(flatten.out_ts_);
-  c->DeclareColumn(flatten.out_dur_);
-  for (ColumnId key : flatten.keys_) {
-    c->DeclareColumn(key);
-  }
-  for (const Aggregate& agg : flatten.aggregates_) {
-    c->DeclareColumn(agg.output);
-  }
-  uint32_t groups = c->DeclareTemporaryColumn();
-  c->DeclareSortedWithinGroups(flatten.keys_, {{flatten.out_ts_, false}});
-  if (!flatten.keys_.empty()) {
-    c->DeclareGroupNumbers(flatten.keys_, groups);
-  }
-  // Segments are output as each one ends, so batches can be small.
-  c->DeclareSmallBatches();
 }
 
 const OperationRegistration& IntervalFlatten::registration() const {

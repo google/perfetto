@@ -344,6 +344,71 @@ class AndroidParser(TestSuite):
           1100,11,3000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
         """))
 
+  def test_android_framework_track_event_system_server_restart(self):
+    # Framework process events from a new process: system_server restarted.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 0
+          trusted_packet_sequence_id: 1
+          incremental_state_cleared: true
+          track_descriptor { uuid: 1 process { pid: 1000 } }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 2000
+            }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 2000
+            }
+          }
+        }
+        packet {
+          timestamp: 5000
+          trusted_packet_sequence_id: 2
+          incremental_state_cleared: true
+          track_descriptor { uuid: 2 process { pid: 3000 } }
+        }
+        packet {
+          timestamp: 6000
+          trusted_packet_sequence_id: 2
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 4000
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          ts,
+          severity,
+          name,
+          extract_arg(arg_set_id, 'old_system_server_pid') AS old_pid,
+          extract_arg(arg_set_id, 'new_system_server_pid') AS new_pid
+        FROM _trace_import_logs
+        WHERE name = 'android_system_server_restart';
+        """,
+        out=Csv("""
+          "ts","severity","name","old_pid","new_pid"
+          6000,"data_loss","android_system_server_restart",1000,3000
+        """))
+
   def test_android_framework_track_event_enum(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""

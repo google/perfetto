@@ -192,7 +192,6 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
 #include "src/trace_processor/plugins/winscope_importer/winscope_importer.h"
 #include "src/trace_processor/plugins/winscope_proto_to_args_with_defaults/winscope_proto_to_args_with_defaults.h"
-#include "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/winscope_surfaceflinger_hierarchy_paths.h"
 #include "src/trace_processor/plugins/zstd_functions/zstd_functions.h"
 #endif
 
@@ -406,7 +405,6 @@ TraceProcessorImpl::TraceProcessorImpl(
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
   winscope_importer::RegisterPlugin();
   winscope_proto_to_args_with_defaults::RegisterPlugin();
-  winscope_surfaceflinger_hierarchy_paths::RegisterPlugin();
   zstd_functions::RegisterPlugin();
 #endif
 
@@ -551,7 +549,8 @@ TraceProcessorImpl::TraceProcessorImpl(
     // implicitly commits after each statement.
     PerfettoSqlConnection::Transaction txn(engine_.get());
     for (const auto& file_to_sql :
-         SqlBundle(sql_metrics::kAmalgamatedSqlMetrics)) {
+         SqlBundle(sql_metrics::kAmalgamatedSqlMetrics.data(),
+                   sql_metrics::kAmalgamatedSqlMetrics.size())) {
       if (base::StartsWithAny(file_to_sql.path, sanitized_extension_paths))
         continue;
       RegisterMetricImpl(file_to_sql.path, std::string(file_to_sql.sql_view()));
@@ -1065,6 +1064,8 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
 
   auto connection = PerfettoSqlConnection::CreateConnectionToNewDatabase(
       storage->mutable_string_pool(), config.enable_extra_checks);
+  connection->sqlite_connection()->SetAttachReadEnabled(
+      config.enable_sql_file_access);
 
   PerfettoSqlConnection::Initializer init;
   init.static_tables.reserve(plugin_dataframes.size());

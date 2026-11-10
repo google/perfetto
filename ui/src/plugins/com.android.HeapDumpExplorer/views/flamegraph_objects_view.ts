@@ -78,7 +78,7 @@ export function flamegraphQuery(
     JOIN heap_graph_class c ON o.type_id = c.id
     LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
-    LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = o.id
+    LEFT JOIN _heap_graph_object_min_depth_tree a ON a.id = o.id
   `;
 }
 

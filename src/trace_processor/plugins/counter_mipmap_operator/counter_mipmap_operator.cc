@@ -185,16 +185,20 @@ int CounterMipmapOperator::Filter(sqlite3_vtab_cursor* cursor,
   int64_t start_ts = sqlite3_value_int64(argv[0]);
   int64_t end_ts = sqlite3_value_int64(argv[1]);
   int64_t step_ts = sqlite3_value_int64(argv[2]);
+  PERFETTO_CHECK(start_ts >= 0 && end_ts >= start_ts && step_ts > 0);
 
   c->index = 0;
   c->counters.clear();
 
   // Build the array of query timestamps (window boundaries).
+  const auto steps = static_cast<size_t>((end_ts - start_ts) / step_ts);
   c->queries.clear();
-  c->queries.reserve(static_cast<size_t>((end_ts - start_ts) / step_ts) + 2);
-  c->queries.push_back(start_ts);
-  for (int64_t s = start_ts; s < end_ts; s += step_ts) {
-    c->queries.push_back(s + step_ts);
+  c->queries.reserve(steps + 2);
+  for (size_t i = 0; i <= steps; ++i) {
+    c->queries.push_back(start_ts + static_cast<int64_t>(i) * step_ts);
+  }
+  if (c->queries.back() < end_ts) {
+    c->queries.push_back(end_ts);
   }
 
   // Use galloping search for batched lower_bound queries.

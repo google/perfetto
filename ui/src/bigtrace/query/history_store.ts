@@ -84,30 +84,11 @@ export function groupHistoryByDay(
   return groups;
 }
 
-// Which kinds of run the history list shows. Independent, so both on shows
-// everything and both off shows nothing (the list says so).
-export interface HistoryFilter {
-  readonly ephemeral: boolean;
-  readonly persistent: boolean;
-}
-
-export const ALL_KINDS: HistoryFilter = {ephemeral: true, persistent: true};
-
-export function filterHistory(
-  entries: ReadonlyArray<QueryExecution>,
-  filter: HistoryFilter,
-): QueryExecution[] {
-  return entries.filter((e) =>
-    e.materialized === true ? filter.persistent : filter.ephemeral,
-  );
-}
-
 // Module-level: survives sidebar toggles so we don't re-fetch on every show.
 export class HistoryStore {
   history: QueryExecution[] = [];
   isLoading = true;
   error: string | null = null;
-  filter: HistoryFilter = ALL_KINDS;
   private lastRefreshSignal = -1;
   private debounceTimer?: number;
   private hasEverLoaded = false;

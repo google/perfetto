@@ -25,6 +25,7 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/plugins/wattson/cpu_1d_curves.h"
 #include "src/trace_processor/plugins/wattson/cpu_2d_curves.h"
 #include "src/trace_processor/plugins/wattson/gpu_curves.h"
@@ -32,6 +33,7 @@
 #include "src/trace_processor/plugins/wattson/table_function.h"
 #include "src/trace_processor/plugins/wattson/tpu_curves.h"
 #include "src/trace_processor/plugins/wattson/wattson.h"
+#include "src/trace_processor/plugins/wattson/wattson_soc_model_module.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -67,6 +69,20 @@ DataframeSpec MakeSpec(
 class WattsonPlugin : public Plugin<WattsonPlugin> {
  public:
   ~WattsonPlugin() override;
+
+  void RegisterDataframes(std::vector<PluginDataframe>& out) override {
+    EnsureTables();
+    RegisterWattsonExternalDataframes(tables_.get(), out);
+  }
+
+  void RegisterProtoImporterModules(
+      ProtoImporterModuleContext* module_context,
+      TraceProcessorContext* trace_context) override {
+    EnsureTables();
+    module_context->modules.emplace_back(
+        std::make_unique<WattsonSocModelModule>(module_context, trace_context,
+                                                tables_.get()));
+  }
 
   void RegisterStaticTableFunctions(
       PerfettoSqlConnection*,
@@ -121,6 +137,16 @@ class WattsonPlugin : public Plugin<WattsonPlugin> {
                   {"active", kDouble}}),
         kTpuCurvesData.data(), kTpuCurvesData.size()));
   }
+
+ private:
+  void EnsureTables() {
+    if (!tables_) {
+      tables_ = CreateWattsonExternalTables(
+          trace_context_->storage->mutable_string_pool());
+    }
+  }
+
+  WattsonExternalTablesPtr tables_;
 };
 
 WattsonPlugin::~WattsonPlugin() = default;

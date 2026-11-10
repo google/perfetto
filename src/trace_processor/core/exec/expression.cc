@@ -26,11 +26,13 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/utils.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
@@ -248,8 +250,10 @@ class Evaluator {
       Register& out = constants_[i];
       if (step.type == ExprType::kDouble) {
         Fill(Alloc<double>(out), step.double_value);
+      } else if (step.type == ExprType::kString) {
+        Fill(Alloc<StringPool::Id>(out),
+             StringPool::Id::Raw(static_cast<uint32_t>(step.int_value)));
       } else {
-        PERFETTO_DCHECK(step.type == ExprType::kInt64);
         Fill(Alloc<int64_t>(out), step.int_value);
       }
       if (step.op == Op::kNull) {
@@ -273,6 +277,13 @@ class Evaluator {
   }
 
   const Register& result() const { return regs_.back(); }
+
+  // Ends a run (see RunHeld): the registers let go of their buffers.
+  void EndRun() {
+    for (Register& reg : regs_) {
+      reg = Register();
+    }
+  }
   ExprType result_type() const { return program_->steps.back().type; }
 
  private:
@@ -430,8 +441,8 @@ class Evaluator {
 
 struct ComputeState : OperatorState {
   ~ComputeState() override;
-  std::vector<Evaluator> evaluators;
-  base::Status status = base::OkStatus();
+  Held<RunEach<Evaluator>> evaluators{this};
+  Held<base::Status> status{this};
 };
 ComputeState::~ComputeState() = default;
 

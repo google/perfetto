@@ -23,8 +23,8 @@ import {
   type ColumnValuesLoader,
   VALUE_LIST_LIMIT,
 } from '../query/column_values_loader';
+import {SEARCH_DEBOUNCE_MS} from '../query/fetch_scheduler';
 import {
-  SEARCH_DEBOUNCE_MS,
   ValueList,
   type ValueListAttrs,
   highlight,

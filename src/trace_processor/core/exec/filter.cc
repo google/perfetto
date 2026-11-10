@@ -46,8 +46,8 @@ namespace {
 using filter::CastFilterValueListResult;
 using filter::CastFilterValueResult;
 
-// The batch rows kept so far: `count` of them from `rows`, increasing. Each
-// condition narrows them in place.
+// The batch rows kept so far: `count` of them from `rows`, in the order they
+// are kept. Each condition narrows them in place.
 struct Rows {
   uint32_t* rows;
   uint32_t count;

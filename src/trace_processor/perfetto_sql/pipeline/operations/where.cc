@@ -35,6 +35,9 @@
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/literal.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -42,47 +45,30 @@ namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 namespace {
 
-// Hands a WHERE predicate's literals to the shared filter value casts, so they
-// mean for each column type what any other filter value means. A scalar is the
-// first literal; IN iterates them all.
-struct LiteralFetcher : core::ValueFetcher {
-  static constexpr Type kInt64 = 0;
-  static constexpr Type kDouble = 1;
-  static constexpr Type kString = 2;
-  static constexpr Type kNull = 3;
+static constexpr char kOperators[] =
+    "an operator other than =, !=, <, <=, >, >=, GLOB, IN, BETWEEN and "
+    "IS [NOT] NULL";
 
-  LiteralFetcher(const WhereLiteral* l,
-                 uint32_t n,
-                 const std::vector<std::string>& s)
-      : literals(l), count(n), strings(s) {}
-
-  Type GetValueType(uint32_t) const {
-    switch (literals[at].type) {
-      case WhereLiteral::Type::kInt64:
-        return kInt64;
-      case WhereLiteral::Type::kDouble:
-        return kDouble;
-      case WhereLiteral::Type::kString:
-        return kString;
+// What `p` should compare with to suit a column of storage `type`, if a literal
+// of it is a string where the column holds numbers, or the other way around.
+// GLOB and IS [NOT] NULL do not compare values.
+std::optional<std::string> LiteralMismatch(const WherePredicate& p,
+                                           const std::vector<Literal>& literals,
+                                           core::StorageType type) {
+  if (p.op.IsAnyOf<core::NullOp>() || p.op.Is<core::Glob>()) {
+    return std::nullopt;
+  }
+  bool string_column = type.Is<core::String>();
+  for (uint32_t i = 0; i < p.literal_count; ++i) {
+    if (string_column != literals[p.first_literal + i].is_string()) {
+      return std::string(string_column ? "a string to compare with a string "
+                                         "column, but got a number"
+                                       : "a number to compare with a numeric "
+                                         "column, but got a string");
     }
-    PERFETTO_FATAL("Unknown literal type");
   }
-  int64_t GetInt64Value(uint32_t) const { return literals[at].int_value; }
-  double GetDoubleValue(uint32_t) const { return literals[at].double_value; }
-  const char* GetStringValue(uint32_t) const {
-    return strings[static_cast<size_t>(literals[at].int_value)].c_str();
-  }
-  bool IteratorInit(uint32_t) {
-    at = 0;
-    return count != 0;
-  }
-  bool IteratorNext(uint32_t) { return ++at < count; }
-
-  const WhereLiteral* literals;
-  uint32_t count;
-  const std::vector<std::string>& strings;
-  uint32_t at = 0;
-};
+  return std::nullopt;
+}
 
 // Parses a WHERE condition into the predicates, literals and strings of a
 // Where.
@@ -90,12 +76,8 @@ class Parser {
  public:
   Parser(Compiler* c,
          std::vector<WherePredicate>* predicates,
-         std::vector<WhereLiteral>* literals,
-         std::vector<std::string>* strings)
-      : c_(c),
-        predicates_(predicates),
-        literals_(literals),
-        strings_(strings) {}
+         std::vector<Literal>* literals)
+      : c_(c), predicates_(predicates), literals_(literals) {}
 
   base::Status Condition(uint32_t expr) {
     const auto* node = Node<SyntaqliteNode>(c_->parser(), expr);
@@ -127,7 +109,7 @@ class Parser {
       return c_->Unsupported(expr, kOperators);
     }
     ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.left));
-    return Add(column, *op, {node.right});
+    return Add(expr, column, *op, {node.right});
   }
 
   base::Status Like(uint32_t expr, const SyntaqliteLikeExpr& node) {
@@ -138,7 +120,7 @@ class Parser {
       return c_->Unsupported(expr, "NOT GLOB");
     }
     ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.operand));
-    return Add(column, core::Glob{}, {node.pattern});
+    return Add(expr, column, core::Glob{}, {node.pattern});
   }
 
   base::Status In(uint32_t expr, const SyntaqliteInExpr& node) {
@@ -152,7 +134,7 @@ class Parser {
     ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.operand));
     const SyntaqliteExprList& list = source->expr_list;
     return Add(
-        column, core::In{},
+        expr, column, core::In{},
         std::vector<uint32_t>(list.children, list.children + list.count));
   }
 
@@ -181,7 +163,7 @@ class Parser {
     }
     ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.left));
     core::Op op = null ? core::Op(core::IsNull{}) : core::Op(core::IsNotNull{});
-    return Add(column, op, {});
+    return Add(expr, column, op, {});
   }
 
   base::Status Between(uint32_t expr, const SyntaqliteBetweenExpr& node) {
@@ -189,11 +171,12 @@ class Parser {
       return c_->Unsupported(expr, "NOT BETWEEN");
     }
     ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.operand));
-    RETURN_IF_ERROR(Add(column, core::Ge{}, {node.low}));
-    return Add(column, core::Le{}, {node.high});
+    RETURN_IF_ERROR(Add(expr, column, core::Ge{}, {node.low}));
+    return Add(expr, column, core::Le{}, {node.high});
   }
 
-  base::Status Add(ColumnId column,
+  base::Status Add(uint32_t at,
+                   ColumnId column,
                    core::Op op,
                    const std::vector<uint32_t>& exprs) {
     WherePredicate predicate;
@@ -202,60 +185,18 @@ class Parser {
     predicate.first_literal = static_cast<uint32_t>(literals_->size());
     predicate.literal_count = static_cast<uint32_t>(exprs.size());
     for (uint32_t expr : exprs) {
-      RETURN_IF_ERROR(Literal(expr));
+      ASSIGN_OR_RETURN(Literal literal, CompileLiteral(c_, expr));
+      literals_->push_back(std::move(literal));
+    }
+    if (std::optional<core::StorageType> type =
+            c_->plan().columns()[column].type.storage()) {
+      std::optional<std::string> mismatch =
+          LiteralMismatch(predicate, *literals_, *type);
+      if (mismatch) {
+        return c_->Expected(at, *mismatch);
+      }
     }
     predicates_->push_back(predicate);
-    return base::OkStatus();
-  }
-
-  // Reads a number literal, optionally negated, or a string literal.
-  base::Status Literal(uint32_t expr) {
-    SyntaqliteParser* p = c_->parser();
-    const auto* node = Node<SyntaqliteNode>(p, expr);
-    bool negate = false;
-    if (node->tag == SYNTAQLITE_NODE_UNARY_EXPR &&
-        node->unary_expr.op == SYNTAQLITE_UNARY_OP_MINUS) {
-      negate = true;
-      node = Node<SyntaqliteNode>(p, node->unary_expr.operand);
-    }
-    if (node->tag != SYNTAQLITE_NODE_LITERAL) {
-      return c_->Unsupported(expr, "a value other than a literal");
-    }
-    const SyntaqliteLiteral& literal = node->literal;
-    std::string text = SpanText(p, literal.source);
-    WhereLiteral out;
-    switch (static_cast<int>(literal.literal_type)) {
-      case SYNTAQLITE_LITERAL_TYPE_INTEGER: {
-        std::optional<int64_t> value = base::StringToInt64(text);
-        if (!value) {
-          return c_->Unsupported(expr,
-                                 "a number which does not fit an integer");
-        }
-        out.type = WhereLiteral::Type::kInt64;
-        out.int_value = negate ? -*value : *value;
-        break;
-      }
-      case SYNTAQLITE_LITERAL_TYPE_FLOAT: {
-        std::optional<double> value = base::StringToDouble(text);
-        if (!value) {
-          return c_->Unsupported(expr, "a malformed number");
-        }
-        out.type = WhereLiteral::Type::kDouble;
-        out.double_value = negate ? -*value : *value;
-        break;
-      }
-      case SYNTAQLITE_LITERAL_TYPE_STRING:
-        if (negate) {
-          return c_->Unsupported(expr, "a negated string");
-        }
-        out.type = WhereLiteral::Type::kString;
-        out.int_value = static_cast<int64_t>(strings_->size());
-        strings_->push_back(StringLiteralText(text));
-        break;
-      default:
-        return c_->Unsupported(expr, "a literal other than a number or string");
-    }
-    literals_->push_back(out);
     return base::OkStatus();
   }
 
@@ -280,21 +221,9 @@ class Parser {
     }
   }
 
-  // The text of 'it''s' is it's: the span keeps the quotes and doubles them.
-  static std::string StringLiteralText(const std::string& source) {
-    PERFETTO_CHECK(source.size() >= 2 && source.front() == '\'' &&
-                   source.back() == '\'');
-    return base::ReplaceAll(source.substr(1, source.size() - 2), "''", "'");
-  }
-
-  static constexpr char kOperators[] =
-      "an operator other than =, !=, <, <=, >, >=, GLOB, IN, BETWEEN and "
-      "IS [NOT] NULL";
-
   Compiler* c_;
   std::vector<WherePredicate>* predicates_;
-  std::vector<WhereLiteral>* literals_;
-  std::vector<std::string>* strings_;
+  std::vector<Literal>* literals_;
 };
 
 // The type a column of no known type is converted to, for Filter to read it:
@@ -302,7 +231,7 @@ class Parser {
 // string by type. None for IS [NOT] NULL, which reads any column.
 std::optional<core::StorageType> TypeForLiterals(
     const WherePredicate& p,
-    const std::vector<WhereLiteral>& literals) {
+    const std::vector<Literal>& literals) {
   if (p.op.IsAnyOf<core::NullOp>()) {
     return std::nullopt;
   }
@@ -311,14 +240,12 @@ std::optional<core::StorageType> TypeForLiterals(
   }
   core::StorageType type = core::Int64{};
   for (uint32_t i = 0; i < p.literal_count; ++i) {
-    switch (literals[p.first_literal + i].type) {
-      case WhereLiteral::Type::kString:
-        return core::String{};
-      case WhereLiteral::Type::kDouble:
-        type = core::Double{};
-        break;
-      case WhereLiteral::Type::kInt64:
-        break;
+    const Literal& literal = literals[p.first_literal + i];
+    if (literal.is_string()) {
+      return core::String{};
+    }
+    if (literal.is_double()) {
+      type = core::Double{};
     }
   }
   return type;
@@ -334,7 +261,7 @@ base::Status Where::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("WHERE");
   const auto* n = Node<SyntaqlitePerfettoPipeWhere>(c->parser(), stage);
   Where where;
-  Parser parser(c, &where.predicates_, &where.literals_, &where.strings_);
+  Parser parser(c, &where.predicates_, &where.literals_);
   RETURN_IF_ERROR(parser.Condition(n->condition));
   c->AddNode(std::move(where), {c->plan().root()});
   return base::OkStatus();
@@ -347,44 +274,131 @@ std::optional<uint32_t> Where::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
+InputNeeds Where::Needs(uint32_t) const {
+  // Filter reads only columns of one type, but for IS [NOT] NULL. A column of
+  // no known type carries a type per row, so it is converted to the literals'
+  // type. GLOB matches only strings.
+  InputNeeds needs;
+  for (const WherePredicate& p : predicates_) {
+    if (std::optional<core::StorageType> wanted =
+            TypeForLiterals(p, literals_)) {
+      needs.types_first.push_back({p.column, *wanted, !p.op.Is<core::Glob>()});
+    }
+  }
+  return needs;
+}
+
+OutputProperties Where::Derive(DeriveContext& c) const {
+  OutputProperties out = c.input(0);
+  out.DropRows();
+  // A rewrite may have cast some already.
+  std::vector<std::optional<ex::FilterValue>>& values = c.filter_values();
+  values.resize(predicates_.size());
+  for (uint32_t i = 0; i < predicates_.size(); ++i) {
+    const WherePredicate& p = predicates_[i];
+    std::optional<core::StorageType> type = out.TypeOf(p.column).storage();
+    if (!type) {
+      continue;
+    }
+    if (std::optional<std::string> mismatch =
+            LiteralMismatch(p, literals_, *type)) {
+      c.Fail(base::ErrStatus("WHERE: expected %s", mismatch->c_str()));
+      return out;
+    }
+    if (values[i] || p.op.IsAnyOf<core::NullOp>()) {
+      continue;
+    }
+    values[i] = CastLiterals(p.op, literals_.data() + p.first_literal,
+                             p.literal_count, *type, *c.context().pool);
+  }
+  return out;
+}
+
+void Where::Rewrite(BoundPlan* bound,
+                    PlanNodeId self,
+                    const LoweringContext& context) const {
+  LogicalPlan& plan = bound->plan;
+  PlanNode& node = plan.nodes()[self];
+  PlanNodeId scan_id = node.children()[0];
+  PlanNode& below = plan.nodes()[scan_id];
+  if (!below.Is<Scan>() || below.Cast<Scan>().has_search()) {
+    return;
+  }
+  auto& where = node.Cast<Where>();
+  auto& scan = below.Cast<Scan>();
+
+  // A scan converts no column, so only conditions on columns of a known type,
+  // read as the table stores them, have values to search with. They are what
+  // these conditions test whether or not the scan answers them.
+  std::vector<std::optional<ex::FilterValue>> values(where.predicates_.size());
+  std::vector<uint32_t> predicate_indices;
+  std::vector<Scan::Condition> conditions;
+  for (uint32_t i = 0; i < where.predicates_.size(); ++i) {
+    const WherePredicate& p = where.predicates_[i];
+    std::optional<core::StorageType> type =
+        bound->planned[scan_id].output.TypeOf(p.column).storage();
+    if (!type || p.op.IsAnyOf<core::NullOp>() ||
+        (p.op.Is<core::Glob>() && !type->Is<core::String>()) ||
+        LiteralMismatch(p, where.literals_, *type)) {
+      continue;
+    }
+    values[i] = CastLiterals(p.op, where.literals_.data() + p.first_literal,
+                             p.literal_count, *type, *context.pool);
+    predicate_indices.push_back(i);
+    conditions.push_back({p.column, p.op, &*values[i]});
+  }
+  std::optional<Scan::SearchPlan> searched =
+      scan.PlanSearch(conditions, *bound->bindings.dataframes[scan_id]);
+  if (!searched) {
+    bound->planned[self].filter_values = std::move(values);
+    return;
+  }
+
+  // The answered conditions move into the scan with their values.
+  ScanSearch search;
+  search.kind = searched->kind;
+  search.index = searched->index;
+  std::vector<std::optional<ex::FilterValue>>& scan_values =
+      bound->planned[scan_id].filter_values;
+  std::vector<bool> moved(where.predicates_.size(), false);
+  for (uint32_t j : searched->answered) {
+    uint32_t i = predicate_indices[j];
+    moved[i] = true;
+    search.predicates.push_back(where.predicates_[i]);
+    scan_values.push_back(std::move(values[i]));
+  }
+  scan.SetSearch(std::move(search));
+  PlanNodeInputs(bound, scan_id, context);
+  std::vector<WherePredicate> kept;
+  std::vector<std::optional<ex::FilterValue>> kept_values;
+  for (uint32_t i = 0; i < where.predicates_.size(); ++i) {
+    if (!moved[i]) {
+      kept.push_back(where.predicates_[i]);
+      kept_values.push_back(std::move(values[i]));
+    }
+  }
+  where.predicates_ = std::move(kept);
+  bound->planned[self].filter_values = std::move(kept_values);
+  if (where.predicates_.empty()) {
+    plan.Bypass(self);
+  }
+}
+
 void Where::Lower(Lowering* c, const PlanNode& node) const {
-  c->LowerNode(node.children()[0]);
+  c->LowerInput(node, 0);
   std::vector<ex::Filter::Condition> conditions;
   conditions.reserve(predicates_.size());
-  for (const WherePredicate& p : predicates_) {
+  for (uint32_t i = 0; i < predicates_.size(); ++i) {
     ex::Filter::Condition condition;
-    condition.column = c->QueryPosition(p.column);
-    condition.op = p.op;
-    // Filter reads only columns of one type, but for IS [NOT] NULL. A column
-    // of no known type carries a type per row, so it is converted to the
-    // literals' type. GLOB matches only strings.
-    std::optional<core::StorageType> type = c->QueryType(p.column).storage();
-    if (!type || p.op.Is<core::Glob>()) {
-      std::optional<core::StorageType> wanted = TypeForLiterals(p, literals_);
-      if (wanted) {
-        type = wanted;
-        c->RequireType(p.column, *type);
-      }
-    }
-    if (type && !p.op.IsAnyOf<core::NullOp>()) {
-      LiteralFetcher fetcher(literals_.data() + p.first_literal,
-                             p.literal_count, strings_);
-      ex::FilterValue value;
-      if (p.op.Is<core::In>()) {
-        ex::GetFilterValueListCaster<LiteralFetcher> (*type)(
-            fetcher, 0, *c->context().pool, &value);
-      } else {
-        ex::GetFilterValueCaster<LiteralFetcher>(*type, p.op)(
-            fetcher, 0, *c->context().pool, &value);
-      }
-      condition.value = c->AddFilterValue(std::move(value));
+    condition.column = c->QueryPosition(predicates_[i].column);
+    condition.op = predicates_[i].op;
+    if (std::optional<uint32_t> value = c->TakeFilterValue(node, i)) {
+      condition.value = *value;
     }
     conditions.push_back(condition);
   }
   c->AddOperator(
       std::make_unique<ex::Filter>(std::move(conditions), c->context().pool));
-  c->DeclareSmallBatches();
-  c->DeclareRowsDropped();
 }
 
 const OperationRegistration& Where::registration() const {
@@ -397,10 +411,9 @@ std::unique_ptr<PlanOperation> Where::Clone() const {
 
 void Where::Serialize(PlanCodec& c) {
   c.Vec(&predicates_);
-  c.Vec(&literals_);
-  strings_.resize(c.Count(strings_.size()));
-  for (std::string& text : strings_) {
-    c.Str(&text);
+  literals_.resize(c.Count(literals_.size()));
+  for (Literal& literal : literals_) {
+    SerializeLiteral(c, &literal);
   }
 }
 

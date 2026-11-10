@@ -31,18 +31,28 @@ Code: `/src/trace_processor/perfetto_sql/pipeline/`
    [`FROM`](#from)).
 4. **Lower.** When SQLite runs that statement, the plan is read back
    (`DeserializePlan`), the SQL sources are bound as dataframes
-   (`BindDataframeArgs`), and `Lower` turns it into a `PhysicalPlan` of
-   executor operators. A table read directly is checked to be the one the plan
+   (`BindDataframeArgs`), the bound passes rewrite it (see
+   [Bound passes](#bound-passes)), and `Lower` turns it into a
+   `PhysicalPlan` of executor operators. A table read directly is checked to be the one the plan
    was compiled against.
 5. **Run.** A `RowCursor` pulls batches through the operators and SQLite reads
    them row by row.
 
-Each `PlanOperation` lowers itself through `Lowering`. Operators state what
-they need, such as a column of a given type (`RequireType`), rows grouped by
-some keys and sorted by `ts` (`RequireIntervalLanes`), or a tree order
-(`RequireTreeWalk`). `Lowering` adds a conversion, sort or grouping only when
-the rows are not already that way. Operators also declare what they produce,
-such as sorted columns, so later stages can skip work.
+Each `PlanOperation` says three things. `Needs` is what it needs of the rows of
+each input, such as a column of a given type, rows grouped by some keys and
+sorted by `ts`, or a tree order. `Derive` is what it then outputs: its columns,
+their types and how the rows are arranged (`OutputProperties`). `Lower` adds its
+own operator.
+
+Everything which decides is in one sweep over the plan (`RunBoundPasses`), from
+the inputs up. At each node it first lets the operation rewrite the plan
+(`Rewrite`). It then compares what each input offers with what the node needs,
+and works out the steps it takes: a conversion, sort, grouping or tree order,
+each only when the rows are not already that way. It derives the node's output
+last, which also types its expressions. Anything wrong with the plan is found
+here. Lowering an input runs its steps, so lowering makes no decisions and
+cannot fail. A sort nothing read is removed from the plan when a later one
+replaces it.
 
 An operator with more than one input, such as `INTERVAL INTERSECTION OF`, reads
 each extra input through a side pipeline (`AddSidePipeline`) lowered the same
@@ -70,6 +80,20 @@ sources and marks the columns that are read:
 - `INTERVAL FILL GAPS` drops outputs nobody reads.
 - `WHERE`, `ORDER BY` and `DISTINCT` keep the columns they compare, and
   `AGGREGATE` keeps its keys.
+
+### Bound passes
+
+Some choices need what binding finds: how a table is sorted or indexed, or
+the order an input's rows will arrive in. Compiling cannot make them, as it
+only sees names and shapes, and lowering cannot either, as it adds steps one
+operation at a time and never moves operations.
+
+Binding records what it finds in `Bindings`, beside the plan, and leaves the
+plan as it was written. `RunBoundPasses` then runs passes which may reorder,
+merge or drop nodes, using those facts. Each pass is defined beside the
+operation it rewrites. One sweep from the inputs up runs the rewrites and
+derives what each node outputs, so a rewrite at a node sees everything below it
+as final, and nothing above it has been derived yet.
 
 ---
 
@@ -166,8 +190,8 @@ operands after the first. Everything else is found by its bare name too.
 
 Code: `/src/trace_processor/core/exec/interval_flatten.cc`
 
-Input is grouped by the `PER` keys and sorted by `ts` within each group,
-through `RequireIntervalLanes`, which adds a sort only if needed.
+Input is grouped by the `PER` keys and sorted by `ts` within each group, with a
+sort added only if needed.
 `IntervalFlatten` then streams through the sorted rows.
 
 A min-heap tracks when active intervals end. Each interval keeps its row's
@@ -196,7 +220,7 @@ still decides the rows.
 Code: `/src/trace_processor/core/exec/interval_fill_gaps.cc`
 
 The background is a side pipeline, read whole before the input. Both are
-grouped by the `PER` keys and sorted by `ts` through `RequireIntervalLanes`,
+grouped by the `PER` keys and sorted by `ts`,
 and columns shared by the two are converted to one type.
 
 `IntervalFillGaps` streams through the input, outputs every row unchanged, and
@@ -300,6 +324,10 @@ and `AGGREGATE` do:
 - Two `UP` stages in a row, or two `DOWN` stages, reuse the first stage's row
   order.
 - Switching between `UP` and `DOWN` keeps the numbers and reorders the rows.
+- Two stages in opposite directions, where the later reads nothing the earlier
+  computes, run in whichever order the rows already walk the tree, so only one
+  of them reorders the rows (`ReorderTreeFold`). A `GRAPH ... TREE` outputs
+  its rows parent-first, so on it a `DOWN` written after an `UP` runs first.
 
 ---
 
@@ -369,6 +397,24 @@ if any literal is one. `IS [NOT] NULL` reads any column, including one carrying
 a type per row. `BETWEEN` is two comparisons. `Filter` compares with the same
 kernels as the dataframe's own filters and narrows each batch's selection, so
 nothing is copied.
+
+A bound pass (`SearchScans`) moves into each scan a `WHERE` reads directly the
+conditions the scan can answer by searching, choosing as the dataframe's own
+planner does (`SortedFilterStrategy`, `GetBestIndexForFilterSpecs`):
+
+- If a condition can match no row, such as a string the pool does not hold,
+  the scan becomes an `EmptySource`.
+- Otherwise conditions on sorted columns without nulls become a `SortedScan`:
+  binary searches, or the SetId and small-value lookups, which narrow the rows
+  to a range kept in table order.
+- Otherwise equalities on an index's leading columns become an `IndexScan`,
+  which reads rows in index order, so no table order is assumed after it. The
+  table's indexes are found when the plan is loaded, as its columns are, so an
+  index made after a pipeline was written is still used.
+
+A `Filter` after the scan tests the rest, and a `WHERE` left with nothing to
+test is dropped. Only conditions on columns read as the table stores them are
+searched; one converted first is left to the `Filter`.
 
 ---
 

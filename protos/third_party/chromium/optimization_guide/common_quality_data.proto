@@ -622,7 +622,7 @@ message TextStyle {
 }
 
 // Information about the image. In the future, this may include a pixmap.
-// Next ID: 6
+// Next ID: 7
 message ImageInfo {
   string image_caption = 2 [features = { field_presence: EXPLICIT }];
 
@@ -632,6 +632,11 @@ message ImageInfo {
   // The image's source (`src`) URL. If redirected, this remains the original
   // URL, not the final resolved destination.
   string url = 5 [features = { field_presence: EXPLICIT }];
+
+  // Whether the image has a C2PA manifest. If unset, it is unknown whether the
+  // image has a C2PA manifest (for example, if C2PA manifest detection is not
+  // supported for the image format).
+  bool has_c2pa_manifest = 6 [features = { field_presence: EXPLICIT }];
 
   reserved 1, 3;
 }
@@ -956,6 +961,9 @@ message ScriptTool {
   // A JSON schema string describing the input expected by the tool.
   string input_schema = 4 [features = { field_presence: EXPLICIT }];
 
+  // A JSON schema string describing the output returned by the tool.
+  string output_schema = 6 [features = { field_presence: EXPLICIT }];
+
   // Annotations for the tool.
   ScriptToolAnnotations annotations = 5 [features = { field_presence: EXPLICIT }];
 }
@@ -995,7 +1003,7 @@ message MathData {
   // MathML tags become <mrow>; non-MathML tags are unwrapped) and the alttext,
   // mathvariant, rowspan and columnspan attributes, minus annotations. `&`,
   // `<`, `>` and `$` are XML-escaped. Unset if the markup would exceed 65536
-  // bytes or 128 levels of nesting.
+  // bytes or 64 levels of nesting.
   //
   // For backward compatibility, the node's descendants also carry the formula
   // as rendered text.
@@ -1504,11 +1512,17 @@ message Site {
 message AnySite {
 }
 
-// Next ID: 3
+// Next ID: 4
 message RuleMetadata {
   // The set of resources that the agent may access when visiting/actuating
   // according to this rule. May be empty if no resources are accessible.
+  // NOTE: This field will be deprecated in favor of `accessible_resource` once
+  // Chrome fully supports the new field.
   repeated AgentResource accessible_resources = 1;
+
+  // The resource that the agent may access when visiting/actuating according to
+  // this rule. May be unset if no resource is accessible.
+  AgentResource accessible_resource = 3 [features = { field_presence: EXPLICIT }];
 
 
   // How the agent may interact with the page.
@@ -1518,19 +1532,22 @@ message RuleMetadata {
   repeated ActuationCapability capabilities = 2;
 
   // Resources that may be accessible to the agent.
-  // RESOURCE_UNKNOWN is ignored, RESOURCE_SESSION is the only meaningful value
-  // right now.
-  // Next ID: 2
+  // RESOURCE_UNKNOWN is ignored.
+  // Next ID: 3
   enum AgentResource {
     RESOURCE_UNKNOWN = 0;
 
     // The agent may use the user's existing session.
     RESOURCE_SESSION = 1;
+
+    // The agent will be placed in an isolated session for the associated
+    // location.
+    RESOURCE_ISOLATED = 2;
   }
 
   // What capabilities the agent has permission for when visiting/actuating on
   // a location.
-  // Next ID: 29
+  // Next ID: 30
 
   enum ActuationCapability {
     CAPABILITY_UNKNOWN = 0;
@@ -1606,6 +1623,8 @@ message RuleMetadata {
     // the purpose-made change password flow. It will not work as expected and
     // could potentially result in password loss.
     CAPABILITY_CHANGE_PASSWORD = 28;
+
+    CAPABILITY_SEARCH_IN_PAGE = 29;
   }
 }
 
@@ -2565,7 +2584,7 @@ enum CssPosition {
 }
 
 // The reason why a node is clickable.
-// Next ID: 17
+// Next ID: 19
 enum ClickabilityReason {
   // The node is a native form control.
   CLICKABILITY_REASON_CLICKABLE_CONTROL = 0;
@@ -2615,8 +2634,11 @@ enum ClickabilityReason {
   // The node has mouse event handlers like mouseup and mousedown.
   CLICKABILITY_REASON_MOUSE_CLICK = 12;
 
-  // The node has mouse event handlers like mouseover and mouseenter.
-  CLICKABILITY_REASON_MOUSE_HOVER = 13;
+  // DEPRECATED: Replaced by CLICKABILITY_REASON_MOUSE_ENTER and
+  // CLICKABILITY_REASON_MOUSE_OVER. Maintained to interpret legacy snapshots
+  // extracted by older Chrome versions (Chrome <= 157).
+  // TODO(crbug.com/576774954): Remove once legacy snapshots are no longer evaluated.
+  CLICKABILITY_REASON_MOUSE_HOVER = 13 [deprecated = true];
 
   // The node has a CSS :hover pseudo-class, which indicates that it changes
   // state when a mouse hovers over it. This should be relatively low-priority
@@ -2632,10 +2654,20 @@ enum ClickabilityReason {
   // The node has the aria-selected attribute indicating it can be selected or
   // unselected.
   CLICKABILITY_REASON_ARIA_SELECTABLE = 16;
+
+  // The node has an explicit mouseenter event listener. Unlike mouseover,
+  // mouseenter does not bubble, indicating a targeted component hover contract.
+  CLICKABILITY_REASON_MOUSE_ENTER = 17;
+
+  // The node has an explicit mouseover event listener. Because mouseover
+  // bubbles to document/root containers, this may be attached to high-level
+  // framework containers (e.g. #root, #app, or document wrappers) for delegated
+  // event dispatch.
+  CLICKABILITY_REASON_MOUSE_OVER = 18;
 }
 
 // Provides hints that indicate that interaction with this node is disabled.
-// Next ID: 6
+// Next ID: 8
 enum InteractionDisabledReason {
   INTERACTION_DISABLED_REASON_UNSPECIFIED = 0;
 
@@ -2654,6 +2686,15 @@ enum InteractionDisabledReason {
 
   // The node has an ARIA Role of `presentation` or `none`.
   INTERACTION_DISABLED_REASON_ARIA_ROLE_PRESENTATIONAL = 5;
+
+  // The node or an ancestor has `pointer-events: none` or is marked inert.
+  INTERACTION_DISABLED_REASON_POINTER_EVENTS_NONE = 6;
+
+  // The node has no visible pixels and cannot be scrolled into view, either
+  // because an `overflow: hidden` ancestor clips it out (e.g.
+  // `max-height: 0; overflow: hidden`) or because it is anchored outside the
+  // scrollable bounds (e.g. `left: -9999px` or off-viewport `position: fixed`).
+  INTERACTION_DISABLED_REASON_VISUALLY_UNREACHABLE = 7;
 }
 
 // Next ID: 5

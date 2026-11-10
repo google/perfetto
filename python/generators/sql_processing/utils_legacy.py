@@ -1,0 +1,322 @@
+# Copyright (C) 2022 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Regex based parsing. Delete this once Chromium and google3 use pfsql.
+
+from enum import Enum
+import re
+from typing import Dict, List
+
+
+def is_internal(name: str) -> bool:
+  """Check if a name represents an internal artifact (starts with _)."""
+  return re.match(r'^_.*', name, re.IGNORECASE) is not None
+
+
+PKG_COMMON = "common"
+PKG_VIZ = "viz"
+PKG_CHROME = "chrome"
+PKG_ANDROID = "android"
+
+ALLOWED_PREFIXES = {
+    'android': ['heap_graph', 'memory'],
+    'counters': ['counter'],
+    'chrome/util': ['cr'],
+    'intervals': ['interval'],
+    'graphs': ['graph'],
+    'slices': [
+        'slice', 'thread_slice', 'process_slice', 'thread_or_process_slice'
+    ],
+    'linux': ['cpu', 'memory'],
+    'stacks': ['cpu_profiling'],
+    'std/gpu': ['gpu'],
+    'std/metasql': ['metasql'],
+}
+
+# Allows for nonstandard object names.
+OBJECT_NAME_ALLOWLIST = {
+    'graphs/partition.sql': ['tree_structural_partition_by_group'],
+    'slices/stack.sql': [
+        'ancestor_slice_by_stack', 'descendant_slice_by_stack'
+    ],
+}
+
+# Tables that are allowed to use CREATE TABLE instead of CREATE PERFETTO TABLE
+CREATE_TABLE_ALLOWLIST = {'_trace_bounds', '_trace_metrics'}
+
+COLUMN_TYPES = [
+    # Standard types
+    'LONG',
+    'DOUBLE',
+    'STRING',
+    'BOOL',
+    'BYTES',
+    'ANY',
+
+    # Special types
+    'TIMESTAMP',
+    'DURATION',
+    'ID',
+    'JOINID',
+    'ARGSETID'
+]
+
+MACRO_ARG_TYPES = [
+    'TABLEORSUBQUERY',
+    'EXPR',
+    'EXPRLIST',
+    'UNPARENEXPRLIST',
+    'COLUMNNAME',
+    'COLUMNNAMELIST',
+    # Internal macro arg types for advanced use cases
+    '_PROJECTIONFRAGMENT',  # Fragment of a SELECT projection list
+    '_TABLENAMELIST'  # List of table names
+]
+
+NAME = r'[a-zA-Z_\d\{\}]+'
+ANY_WORDS = r'[^\s].*'
+TYPE = r'[_a-zA-Z\(\)\.]+(?:\.\.\.)?'
+SQL = r'[\s\S]*?'
+WS = r'\s*'
+
+COMMENT = r' --[^\n]*\n'
+COMMENTS = rf'(?:{COMMENT})*'
+ARG = rf'{COMMENTS} {NAME} {TYPE}'
+ARG_PATTERN = rf'({COMMENTS}) ({NAME}) ({TYPE})'
+ARGS = rf'(?:{ARG})?(?: ,{ARG})*'
+
+
+# Make the pattern more readable by allowing the use of spaces
+# and replace then with a wildcard in a separate step.
+# NOTE: two whitespaces next to each other are really bad for performance.
+# Take special care to avoid them.
+def update_pattern(pattern):
+  return pattern.replace(' ', WS)
+
+
+CREATE_TABLE_VIEW_PATTERN = update_pattern(
+    # Match create table/view and catch type
+    fr'^CREATE (OR REPLACE)? (VIRTUAL|PERFETTO)?'
+    fr' (TABLE|VIEW) (?:IF NOT EXISTS)?'
+    # Catch the name and optional schema.
+    fr' ({NAME}) (?: \( ({ARGS}) \) )? (?:AS|USING)? .*')
+
+CREATE_TABLE_AS_PATTERN = update_pattern(fr'^CREATE TABLE ({NAME}) AS')
+
+CREATE_VIEW_AS_PATTERN = update_pattern(fr'^CREATE VIEW ({NAME}) AS')
+
+DROP_TABLE_VIEW_PATTERN = update_pattern(
+    fr'^DROP (VIEW|TABLE|INDEX) (?:IF EXISTS)? ({NAME});$')
+
+INCLUDE_ALL_PATTERN = update_pattern(
+    fr'^INCLUDE PERFETTO MODULE [a-zA-Z0-9_\.]*\*;')
+
+CREATE_FUNCTION_PATTERN = update_pattern(
+    # Function name.
+    fr"CREATE (OR REPLACE)? PERFETTO FUNCTION ({NAME}) "
+    # Args: anything in the brackets.
+    fr" \( ({ARGS}) \)"
+    # Type: word after RETURNS.
+    fr"({COMMENTS})"
+    fr" RETURNS ({TYPE}) (?:AS|DELEGATES TO) ")
+
+CREATE_TABLE_FUNCTION_PATTERN = update_pattern(
+    fr"CREATE (OR REPLACE)? PERFETTO FUNCTION ({NAME}) "
+    # Args: anything in the brackets.
+    fr" \( ({ARGS}) \) "
+    # Type: table definition after RETURNS.
+    fr"({COMMENTS})"
+    fr" RETURNS TABLE \( ({ARGS}) \) AS ")
+
+CREATE_MACRO_PATTERN = update_pattern(
+    fr"CREATE (OR REPLACE)? PERFETTO MACRO ({NAME}) "
+    # Args: anything in the brackets.
+    fr" \( ({ARGS}) \) "
+    # Type: word after RETURNS.
+    fr"({COMMENTS})"
+    fr" RETURNS ({TYPE})")
+
+INCLUDE_PATTERN = update_pattern(
+    fr'^INCLUDE PERFETTO MODULE ([A-Za-z0-9_.*]*);$')
+
+ARG_DEFINITION_PATTERN = update_pattern(ARG_PATTERN)
+
+ANY_PATTERN = r'(?:\s|.)*'
+
+
+class ObjKind(str, Enum):
+  table_view = 'table_view'
+  function = 'function'
+  table_function = 'table_function'
+  macro = 'macro'
+  include = 'include'
+
+
+PATTERN_BY_KIND = {
+    ObjKind.table_view: CREATE_TABLE_VIEW_PATTERN,
+    ObjKind.function: CREATE_FUNCTION_PATTERN,
+    ObjKind.table_function: CREATE_TABLE_FUNCTION_PATTERN,
+    ObjKind.macro: CREATE_MACRO_PATTERN,
+    ObjKind.include: INCLUDE_PATTERN
+}
+
+
+# Given a regex pattern and a string to match against, returns all the
+# matching positions. Specifically, it returns a dictionary from the line
+# number of the match to the regex match object.
+# Note: this resuts a dict[int, re.Match], but re.Match exists only in later
+# versions of python3, prior to that it was _sre.SRE_Match.
+def match_pattern(pattern: str, file_str: str) -> Dict[int, object]:
+  line_number_to_matches = {}
+  for match in re.finditer(pattern, file_str, re.MULTILINE | re.IGNORECASE):
+    line_id = file_str[:match.start()].count('\n')
+    line_number_to_matches[line_id] = match.groups()
+  return line_number_to_matches
+
+
+# Given a list of lines in a text and the line number, scans backwards to find
+# all the comments.
+def extract_comment(lines: List[str], line_number: int) -> List[str]:
+  comments = []
+  for line in lines[line_number - 1::-1]:
+    # Break on empty line, as that suggests it is no longer a part of
+    # this comment.
+    if not line or not line.startswith('--'):
+      break
+    comments.append(line)
+
+  # Reverse as the above was reversed
+  comments.reverse()
+  return comments
+
+
+# Given SQL string check whether any of the words is used, and create error
+# string if needed.
+def check_banned_words(sql: str) -> List[str]:
+  lines = [l.strip() for l in sql.split('\n')]
+  errors = []
+
+  # Ban the use of LIKE in non-comment lines.
+  for line in lines:
+    if line.startswith('--'):
+      continue
+
+    if 'like' in line.casefold():
+      errors.append('LIKE is banned in trace processor metrics and stdlib. '
+                    'Prefer GLOB instead.\n')
+      continue
+
+    if 'create_function' in line.casefold():
+      errors.append('CREATE_FUNCTION is deprecated in trace processor. '
+                    'Use CREATE PERFETTO FUNCTION instead.')
+
+    if 'create_view_function' in line.casefold():
+      errors.append('CREATE_VIEW_FUNCTION is deprecated in trace processor. '
+                    'Use CREATE PERFETTO FUNCTION $name RETURNS TABLE instead.')
+
+    if 'import(' in line.casefold():
+      errors.append('SELECT IMPORT is deprecated in trace processor. '
+                    'Use INCLUDE PERFETTO MODULE instead.')
+
+  return errors
+
+
+# Given SQL string check whether there is (not allowlisted) usage of
+# CREATE TABLE {name} AS.
+def check_banned_create_table_as(sql: str) -> List[str]:
+  errors = []
+  for _, matches in match_pattern(CREATE_TABLE_AS_PATTERN, sql).items():
+    name = matches[0]
+    if name not in CREATE_TABLE_ALLOWLIST:
+      errors.append(
+          f"Table '{name}' uses CREATE TABLE which is deprecated "
+          "and this table is not allowlisted. Use CREATE PERFETTO TABLE.")
+  return errors
+
+
+# Given SQL string check whether there is usage of CREATE VIEW {name} AS.
+def check_banned_create_view_as(sql: str) -> List[str]:
+  errors = []
+  for _, matches in match_pattern(CREATE_VIEW_AS_PATTERN, sql).items():
+    name = matches[0]
+    errors.append(f"CREATE VIEW '{name}' is deprecated. "
+                  "Use CREATE PERFETTO VIEW instead.")
+  return errors
+
+
+# Given SQL string check whether there is usage of DROP TABLE/VIEW/MACRO/INDEX.
+def check_banned_drop(sql: str) -> List[str]:
+  errors = []
+  for _, matches in match_pattern(DROP_TABLE_VIEW_PATTERN, sql).items():
+    sql_type = matches[0]
+    name = matches[1]
+    errors.append(f"Dropping object {sql_type} '{name}' is banned.")
+  return errors
+
+
+# Given SQL string check whether there is usage of CREATE VIEW {name} AS.
+def check_banned_include_all(sql: str) -> List[str]:
+  errors = []
+  for _ in match_pattern(INCLUDE_ALL_PATTERN, sql).items():
+    errors.append(
+        "INCLUDE PERFETTO MODULE with wildcards is not allowed in stdlib. "
+        "Import specific modules instead.")
+  return errors
+
+
+# Validates a parsed SQL module for banned words, valid includes and deprecated patterns.
+def check_banned_patterns(parsed, sql: str) -> List[str]:
+  errors = []
+  # Check for banned statements
+  lines = [l.strip() for l in sql.split('\n')]
+  for line in lines:
+    if line.startswith('--'):
+      continue
+    if 'run_metric' in line.casefold():
+      errors.append("RUN_METRIC is banned in standard library.")
+    if 'insert into' in line.casefold():
+      errors.append("INSERT INTO table is not allowed in standard library.")
+
+  # Validate includes
+  package = parsed.package_name.lower() if parsed.package_name else ''
+  for include in parsed.includes:
+    include_package = include.package.lower() if include.package else ''
+
+    if include_package == PKG_COMMON:
+      errors.append(
+          "Common module has been deprecated in the standard library. "
+          "Please check `slices.with_context` for a replacement for "
+          "`common.slices` and `time.conversion` for replacement for "
+          "`common.timestamps`")
+
+    if package != PKG_VIZ and include_package == PKG_VIZ:
+      errors.append(
+          f"No modules can depend on '{PKG_VIZ}' outside '{PKG_VIZ}' package.")
+
+    if package == PKG_CHROME and include_package == PKG_ANDROID:
+      errors.append(
+          f"Modules from package '{PKG_CHROME}' can't include '{include.module}' "
+          f"from package '{PKG_ANDROID}'")
+
+    if package == PKG_ANDROID and include_package == PKG_CHROME:
+      errors.append(
+          f"Modules from package '{PKG_ANDROID}' can't include '{include.module}' "
+          f"from package '{PKG_CHROME}'")
+  # Add parsing errors and validation errors
+  errors += [
+      *parsed.errors, *check_banned_words(sql),
+      *check_banned_create_table_as(sql), *check_banned_create_view_as(sql),
+      *check_banned_include_all(sql), *check_banned_drop(sql)
+  ]
+  return errors

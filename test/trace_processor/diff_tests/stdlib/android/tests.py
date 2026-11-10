@@ -3412,6 +3412,200 @@ class AndroidStdlib(TestSuite):
         5000,-1,200,"EXITED","RECEIVER",2000,21,"[NULL]"
         """))
 
+  def test_android_process_capability_intervals(self):
+    # pid 200: LOCATION|CAMERA (3) from its start, drops CAMERA (1), repeats
+    # the same mask, regains CAMERA (3), dies. pid 300: gains MICROPHONE (4)
+    # and stays alive.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 500
+          process_tree {
+            processes { pid: 200 ppid: 1 cmdline: "app" }
+            processes { pid: 300 ppid: 1 cmdline: "live" }
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 200
+            }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 200 prev_capability_flags: 3 cur_capability_flags: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 2500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 200 prev_capability_flags: 1 cur_capability_flags: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 3000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 200 prev_capability_flags: 1 cur_capability_flags: 3
+            }
+          }
+        }
+        packet {
+          timestamp: 4000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 300 prev_capability_flags: 0 cur_capability_flags: 4
+            }
+          }
+        }
+        packet {
+          timestamp: 5000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 200
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_state;
+        SELECT
+          'interval' AS kind,
+          ts,
+          dur,
+          pid,
+          capability AS label,
+          0 AS count
+        FROM _android_process_capability_intervals
+        UNION ALL
+        SELECT
+          'count' AS kind,
+          c.ts,
+          0 AS dur,
+          p.pid,
+          '' AS label,
+          c.count
+        FROM _android_process_capability_count AS c
+        JOIN process AS p USING (upid)
+        ORDER BY kind DESC, pid, ts, label;
+        """,
+        out=Csv("""
+        "kind","ts","dur","pid","label","count"
+        "interval",1000,1000,200,"FOREGROUND_CAMERA",0
+        "interval",1000,4000,200,"FOREGROUND_LOCATION",0
+        "interval",3000,2000,200,"FOREGROUND_CAMERA",0
+        "interval",4000,-1,300,"FOREGROUND_MICROPHONE",0
+        "count",1000,0,200,"",2
+        "count",2000,0,200,"",1
+        "count",3000,0,200,"",2
+        "count",4000,0,300,"",1
+        """))
+
+  def test_android_process_oom_scores(self):
+    # pid 100: started before the trace (clamped to 1000), 0 -> 200 -> 900.
+    # pid 200: starts at 1000 with INVALID_ADJ (-10000, dropped), 0 at 2500.
+    # pid 300: starts at 1500, snapshot-only (-900) anchored at fw_start_ts.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 500
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "app" process_start_from_boot: 100 }
+            processes { pid: 200 ppid: 1 cmdline: "spawned" }
+            processes { pid: 300 ppid: 1 cmdline: "sys" }
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 200
+            }
+          }
+        }
+        packet {
+          timestamp: 1500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 300
+            }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 100 prev_oom_score: 0 cur_oom_score: 200
+            }
+          }
+        }
+        packet {
+          timestamp: 2500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 200 prev_oom_score: -10000 cur_oom_score: 0
+            }
+          }
+        }
+        packet {
+          timestamp: 3000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 100 prev_oom_score: 200 cur_oom_score: 900
+            }
+          }
+        }
+        packet {
+          timestamp: 4000
+          [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+            record { pid: 300 oom_score: -900 }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_state;
+        SELECT o.ts, p.pid, o.oom_score
+        FROM _android_process_oom_scores AS o
+        JOIN process AS p USING (upid);
+        """,
+        out=Csv("""
+        "ts","pid","oom_score"
+        1000,100,0
+        1500,300,-900
+        2000,100,200
+        2500,200,0
+        3000,100,900
+        """))
+
   def test_is_relevant_notifications_blocking_call(self):
     # Must keep the same slices as android_sysui_notifications_blocking_calls
     # (see test_android_sysui_notifications_blocking_calls).

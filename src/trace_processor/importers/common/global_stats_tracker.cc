@@ -252,4 +252,38 @@ void GlobalStatsTracker::ZeroSingleStatsForContext(
   }
 }
 
+void GlobalStatsTracker::SetIndexedHistogramBucket(
+    std::optional<MachineId> machine_id,
+    std::optional<TraceId> trace_id,
+    size_t key,
+    int index,
+    int64_t lower_bound,
+    int64_t upper_bound,
+    int64_t count) {
+  PERFETTO_CHECK(GetDescriptor(key).type == stats::kIndexedHistogram);
+  auto ctx = GetContextIds(key, machine_id, trace_id);
+  tables::StatsTable_Id stat_id = FindOrInsertRow(key, index, ctx);
+  auto stat_row = (*storage_->mutable_stats_table())[stat_id];
+
+  auto& bucket_table = *storage_->mutable_histogram_bucket_table();
+  HistogramBucketEntry bucket_entry{stat_id, lower_bound, upper_bound};
+  if (auto* bucket_id_ptr = bucket_id_by_entry_.Find(bucket_entry)) {
+    // Replace the bucket count and keep the stat's total in sync by applying
+    // only the delta from the previous count.
+    auto row_ref = bucket_table[*bucket_id_ptr];
+    stat_row.set_value(stat_row.value() - row_ref.count() + count);
+    row_ref.set_count(count);
+    return;
+  }
+  stat_row.set_value(stat_row.value() + count);
+
+  tables::HistogramBucketTable::Row bucket_row;
+  bucket_row.stat_id = stat_id;
+  bucket_row.count = count;
+  bucket_row.lower_bound = lower_bound;
+  bucket_row.upper_bound = upper_bound;
+  auto bucket_id = bucket_table.Insert(bucket_row).id;
+  bucket_id_by_entry_.Insert(bucket_entry, bucket_id);
+}
+
 }  // namespace perfetto::trace_processor

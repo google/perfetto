@@ -1925,10 +1925,10 @@ function primFieldValue(it: {
 }
 
 //
-// The _heap_graph_object_tree_aggregation table computes cumulative reachable
+// The _heap_graph_object_min_depth_tree table computes cumulative reachable
 // sizes via a BFS tree.  The table materialisation is expensive on first access,
 // so we load it asynchronously and fill in reachable columns after the initial
-// render.
+// render. Objects outside the tree, which are unreachable, only count themselves.
 
 /** Fetch reachable (cumulative) sizes for a set of object IDs. */
 async function getReachableSizes(
@@ -1940,12 +1940,13 @@ async function getReachableSizes(
   );
   if (ids.length === 0) return new Map();
   const res = await engine.query(`
-    SELECT id,
-      cumulative_size AS size,
-      cumulative_native_size AS native_size,
-      cumulative_count AS count
-    FROM _heap_graph_object_tree_aggregation
-    WHERE id IN (${ids.join(',')})
+    SELECT o.id,
+      coalesce(t.cumulative_size, o.self_size) AS size,
+      coalesce(t.cumulative_native_size, o.native_size) AS native_size,
+      coalesce(t.cumulative_count, 1) AS count
+    FROM heap_graph_object o
+    LEFT JOIN _heap_graph_object_min_depth_tree t USING (id)
+    WHERE o.id IN (${ids.join(',')})
   `);
   const map = new Map<number, {size: number; native: number; count: number}>();
   for (

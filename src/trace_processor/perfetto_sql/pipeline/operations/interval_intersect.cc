@@ -157,62 +157,43 @@ std::optional<uint32_t> IntervalIntersect::Prune(std::vector<bool>* needed) {
   return std::nullopt;
 }
 
-void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
-  // Each operand runs as its own pipeline, so the intersection lowers
-  // its children itself.
-  const auto& isect = *this;
-  const auto& children = node.children();
+InputNeeds IntervalIntersect::Needs(uint32_t input) const {
+  const Operand& operand = operands_[input];
+  return IntervalLaneNeeds(operand.ts, operand.dur, operand.keys);
+}
 
-  PERFETTO_DCHECK(!c->has_source());
-  PERFETTO_DCHECK(isect.operands_.size() == children.size());
+std::vector<std::vector<InputColumn>> IntervalIntersect::CommonTypes() const {
+  // Keys are compared across operands, so each key must have the same type in
+  // all of them.
+  std::vector<std::vector<InputColumn>> common;
+  size_t key_count = operands_.empty() ? 0 : operands_[0].keys.size();
+  for (size_t k = 0; k < key_count; ++k) {
+    std::vector<InputColumn> same;
+    for (uint32_t i = 0; i < operands_.size(); ++i) {
+      same.push_back({i, operands_[i].keys[k]});
+    }
+    common.push_back(std::move(same));
+  }
+  return common;
+}
+
+OutputProperties IntervalIntersect::Derive(DeriveContext& c) const {
   // The region's bounds come first, then each operand's carried columns in
   // turn.
-  c->DeclareColumn(isect.ts_);
-  c->DeclareColumn(isect.dur_);
-
-  // Each operand is read from its own side pipeline.
-  std::vector<Lowering*> sides;
-  for (uint32_t i = 0; i < isect.operands_.size(); i++) {
-    Lowering& side = c->AddSidePipeline();
-    side.LowerNode(children[i]);
-    sides.push_back(&side);
-  }
-
-  // Keys are compared across operands, so each key must have the same type
-  // in all of them.
-  size_t key_count =
-      isect.operands_.empty() ? 0 : isect.operands_[0].keys.size();
-  for (size_t k = 0; k < key_count; ++k) {
-    std::vector<Lowering::Side> same;
-    for (uint32_t i = 0; i < isect.operands_.size(); i++) {
-      same.push_back({sides[i], isect.operands_[i].keys[k]});
-    }
-    c->RequireCommonType(same);
-  }
-
-  std::vector<ex::CollectedInputSpec> inputs;
-  for (uint32_t i = 0; i < isect.operands_.size(); i++) {
-    const IntervalIntersect::Operand& operand = isect.operands_[i];
-    Lowering& side = *sides[i];
-    ex::CollectedInputSpec lowered;
-    lowered.lanes =
-        side.RequireIntervalLanes(operand.ts, operand.dur, operand.keys);
+  OutputProperties out;
+  out.columns.push_back(c.ColumnOf(ts_));
+  out.columns.push_back(c.ColumnOf(dur_));
+  for (const Operand& operand : operands_) {
     for (ColumnId id : operand.carried) {
-      lowered.retained_columns.push_back(side.QueryPosition(id));
-    }
-    lowered.source = side.FinishSide();
-    inputs.push_back(std::move(lowered));
-
-    for (ColumnId id : operand.carried) {
-      c->DeclareColumn(id);
+      out.columns.push_back(c.ColumnOf(id));
     }
   }
-
-  // The output is grouped by the keys. This can only be declared if every
-  // key is carried to the output by some operand.
+  // The output is grouped by the keys, if every key is carried to the output by
+  // some operand.
+  size_t key_count = operands_.empty() ? 0 : operands_[0].keys.size();
   std::vector<ColumnId> carried_keys;
   for (size_t k = 0; k < key_count; ++k) {
-    for (const IntervalIntersect::Operand& operand : isect.operands_) {
+    for (const Operand& operand : operands_) {
       const auto& carried = operand.carried;
       if (std::find(carried.begin(), carried.end(), operand.keys[k]) !=
           carried.end()) {
@@ -222,7 +203,28 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
     }
   }
   if (key_count > 0 && carried_keys.size() == key_count) {
-    c->DeclareGrouped(carried_keys);
+    out.arrangements.push_back({carried_keys, {}});
+  }
+  return out;
+}
+
+void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
+  PERFETTO_DCHECK(!c->has_source());
+  PERFETTO_DCHECK(operands_.size() == node.children().size());
+  // Each operand is read from its own side pipeline.
+  std::vector<ex::CollectedInputSpec> inputs;
+  for (uint32_t i = 0; i < operands_.size(); i++) {
+    const Operand& operand = operands_[i];
+    Lowering& side = c->AddSidePipeline();
+    side.LowerInput(node, i);
+    ex::CollectedInputSpec lowered;
+    lowered.lanes =
+        side.QueryIntervalLanes(operand.ts, operand.dur, operand.keys);
+    for (ColumnId id : operand.carried) {
+      lowered.retained_columns.push_back(side.QueryPosition(id));
+    }
+    lowered.source = side.FinishSide();
+    inputs.push_back(std::move(lowered));
   }
   c->SetSource(std::make_unique<ex::IntervalIntersect>(std::move(inputs)));
 }

@@ -25,6 +25,7 @@
 namespace perfetto::trace_processor::pipeline {
 
 class Lowering;
+struct InputNeeds;
 class PlanCodec;
 
 // One aggregate a stage computes, e.g. `SUM(dur) AS total`: one of the
@@ -49,6 +50,10 @@ void PruneAggregates(std::vector<Aggregate>* aggregates,
                      std::vector<bool>* needed);
 
 // The executor's call for `aggregate`, its column at its lowered position.
+// What `aggregates` need of the rows they read.
+void AddAggregateNeeds(const std::vector<Aggregate>& aggregates,
+                       InputNeeds* needs);
+
 core::exec::AggregateCall LowerAggregate(Lowering* c, const Aggregate&);
 
 // Writes or reads the aggregates.
