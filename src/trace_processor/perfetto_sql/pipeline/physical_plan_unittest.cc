@@ -445,8 +445,8 @@ TEST_F(PhysicalPlanTest, WhereKeepsRowsMatchingEveryComparison) {
   EXPECT_THAT(values, ElementsAre(5, 7));
 }
 
-// WHERE also compares strings, matches GLOB patterns, keeps the rows whose
-// value an IN list holds and tests for nulls.
+// WHERE also compares strings, matches GLOB and REGEXP patterns, keeps the
+// rows whose value an IN list holds and tests for nulls.
 TEST_F(PhysicalPlanTest, WhereComparesStringsListsAndNulls) {
   Exec("CREATE TABLE t(id INTEGER, name TEXT, v INTEGER)");
   Exec(
@@ -472,11 +472,23 @@ TEST_F(PhysicalPlanTest, WhereComparesStringsListsAndNulls) {
   EXPECT_THAT(ids("name != 'absent'"), ElementsAre(1, 2, 4, 5));
   EXPECT_THAT(ids("name < 'foo'"), ElementsAre(2));
   EXPECT_THAT(ids("name GLOB 'fo*'"), ElementsAre(1, 5));
+  EXPECT_THAT(ids("name REGEXP 'o+d$'"), ElementsAre(5));
+  EXPECT_THAT(ids("name REGEXP 'ba|it'"), ElementsAre(2, 4));
   EXPECT_THAT(ids("name IN ('bar', 'food', 'absent')"), ElementsAre(2, 5));
   EXPECT_THAT(ids("v IN (10, 40.0, 99)"), ElementsAre(1, 4));
   EXPECT_THAT(ids("name IS NULL"), ElementsAre(3));
   EXPECT_THAT(ids("v IS NOT NULL AND v NOTNULL"), ElementsAre(1, 3, 4, 5));
   EXPECT_THAT(ids("v BETWEEN 20 AND 45"), ElementsAre(3, 4));
+}
+
+// A REGEXP pattern which does not compile is an error, as it is in SQL.
+TEST_F(PhysicalPlanTest, WhereRefusesARegexpWhichDoesNotCompile) {
+  Exec("CREATE TABLE t(id INTEGER, name TEXT)");
+  Exec("INSERT INTO t VALUES (1, 'foo')");
+  auto plan = Plan("FROM t |> WHERE name REGEXP '('");
+  ASSERT_FALSE(plan.ok());
+  EXPECT_THAT(plan.status().message(),
+              HasSubstr("a regular expression which compiles"));
 }
 
 // A string is never a number, so comparing the two is refused.
