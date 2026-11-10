@@ -31,6 +31,7 @@ import {Card} from '../../../widgets/card';
 import {Section} from '../../../widgets/section';
 import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
 import {Icon} from '../../../widgets/icon';
+import {Stack} from '../../../widgets/stack';
 import {Tooltip} from '../../../widgets/tooltip';
 import {statsSpec} from '../utils';
 
@@ -233,8 +234,6 @@ export class StatsTab implements m.ClassComponent<StatsTabAttrs> {
           m(StatsHistogramsSection, {
             rows: histogramRows,
             histograms: attrs.data.histograms,
-            isMultiTrace: attrs.data.isMultiTrace,
-            isMultiMachine: attrs.data.isMultiMachine,
           }),
         ),
     );
@@ -293,14 +292,11 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
         ? m(
             Tooltip,
             {
-              trigger: m(
-                Anchor,
-                {
-                  className: 'pf-trace-info-page__histogram-jump-link',
-                  onclick: () => scrollToStatHistogram(row.id),
-                },
-                m(Icon, {icon: 'bar_chart'}),
-              ),
+              trigger: m(Anchor, {
+                icon: 'bar_chart',
+                className: 'pf-trace-info-page__histogram-jump-link',
+                onclick: () => scrollToStatHistogram(row.id),
+              }),
             },
             'Jump to histogram',
           )
@@ -347,8 +343,6 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
 interface StatsHistogramsSectionAttrs {
   rows: StatsRow[];
   histograms: Map<number, HistogramData>;
-  isMultiTrace: boolean;
-  isMultiMachine: boolean;
 }
 
 function histogramXAxisLabel(name: string): string {
@@ -363,18 +357,12 @@ function histogramXAxisLabel(name: string): string {
 class StatsHistogramsSection implements m.ClassComponent<StatsHistogramsSectionAttrs> {
   view({attrs}: m.CVnode<StatsHistogramsSectionAttrs>) {
     return m(
-      '.pf-trace-info-page__histogram-list',
+      Stack,
+      {spacing: 'large'},
       attrs.rows.map((row) => {
         const histogram = attrs.histograms.get(row.id);
         if (histogram === undefined) return undefined;
         const idx = row.idx !== '' ? `[${row.idx}]` : '';
-        const contextParts: string[] = [];
-        if (attrs.isMultiTrace && row.traceId !== null) {
-          contextParts.push(`Trace ${row.traceId}`);
-        }
-        if (attrs.isMultiMachine && row.machineId !== null) {
-          contextParts.push(`Machine ${row.machineId}`);
-        }
         const total = row.value ?? histogram.totalCount;
         const help = Boolean(row.description)
           ? m(
@@ -393,46 +381,19 @@ class StatsHistogramsSection implements m.ClassComponent<StatsHistogramsSectionA
           Card,
           {
             id: statHistogramElementId(row.id),
-            className: 'pf-trace-info-page__histogram-card',
           },
           m(
             '.pf-trace-info-page__histogram-header',
-            m(
-              '.pf-trace-info-page__histogram-title-group',
-              m(
-                'span.pf-trace-info-page__histogram-title',
-                `${row.name}${idx}`,
-                help,
-              ),
-              contextParts.length > 0 &&
-                m(
-                  'span.pf-trace-info-page__histogram-context',
-                  `(${contextParts.join(', ')})`,
-                ),
-            ),
-            m(
-              'span.pf-trace-info-page__histogram-meta',
-              `Total: ${total.toLocaleString()}`,
-            ),
+            m('strong', `${row.name}${idx}`, help),
+            m('span', `Total: ${total.toLocaleString()}`),
           ),
-          m(
-            '.pf-trace-info-page__histogram-body',
-            m('.pf-trace-info-page__histogram-y-label', 'Count'),
-            m(
-              '.pf-trace-info-page__histogram-chart-col',
-              m(HistogramSvg, {
-                data: histogram,
-                height: 200,
-                yAxisLabel: '',
-                formatXValue: (v: number) =>
-                  Number.isFinite(v) ? formatNumber(v) : '∞',
-              }),
-              m(
-                '.pf-trace-info-page__histogram-x-label',
-                histogramXAxisLabel(row.name),
-              ),
-            ),
-          ),
+          m(HistogramSvg, {
+            data: histogram,
+            height: 200,
+            xAxisLabel: histogramXAxisLabel(row.name),
+            formatXValue: (v: number) =>
+              Number.isFinite(v) ? formatNumber(v) : '∞',
+          }),
         );
       }),
     );
