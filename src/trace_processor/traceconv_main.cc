@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_TRACECONV_TRACECONV_H_
-#define INCLUDE_PERFETTO_EXT_TRACECONV_TRACECONV_H_
+#include "perfetto/ext/trace_processor/trace_processor_shell.h"
 
-#include "perfetto/base/export.h"
-
-namespace perfetto::traceconv {
-
-int PERFETTO_EXPORT_COMPONENT TraceconvMain(int argc, char** argv);
-
-}  // namespace perfetto::traceconv
-
-#endif  // INCLUDE_PERFETTO_EXT_TRACECONV_TRACECONV_H_
+int main(int argc, char** argv) {
+  // The shell serves its traceconv-compatible CLI when argv[0] is traceconv.
+  char name[] = "traceconv";
+  if (argc > 0)
+    argv[0] = name;
+  return perfetto::trace_processor::TraceProcessorShellMain(argc, argv);
+}
