@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/exec/distinct.h"
@@ -35,6 +36,13 @@ namespace ex = core::exec;
 const OperationRegistration Distinct::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_DISTINCT, &BuildPlan,
     OperationRegistration::Encoding{7, &MakeOperation<Distinct>}};
+
+void Distinct::AddToPlan(LogicalPlan* plan, std::vector<ColumnId> columns) {
+  PERFETTO_CHECK(columns.size() <= ex::Distinct::kMaxColumns);
+  Distinct distinct;
+  distinct.columns_ = std::move(columns);
+  plan->AddNode(std::move(distinct), {plan->root()});
+}
 
 base::Status Distinct::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("DISTINCT");
