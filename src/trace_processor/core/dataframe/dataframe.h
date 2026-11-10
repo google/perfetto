@@ -288,6 +288,9 @@ class Dataframe {
   // Returns whether the dataframe has been finalized.
   bool finalized() const { return finalized_; }
 
+  // Holds the strings of the dataframe's string columns.
+  StringPool* string_pool() const { return string_pool_; }
+
   // Returns the column names of the dataframe.
   const std::vector<std::string>& column_names() const { return column_names_; }
 
