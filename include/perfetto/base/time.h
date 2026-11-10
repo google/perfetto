@@ -84,7 +84,7 @@ inline TimeNanos GetWallTimeNs() {
     return timebase_info;
   };
 
-  static mach_timebase_info_data_t timebase_info = init_timebase_info();
+  static const mach_timebase_info_data_t timebase_info = init_timebase_info();
   uint64_t mach_time = mach_absolute_time();
 
   // Take the fast path when the conversion is 1:1. The result will for sure fit
