@@ -105,7 +105,8 @@ class PhysicalPlan {
   const StringPool* pool_ = nullptr;
 };
 
-// A cursor's params for its runs of a plan. Constant params are cast once, and
+// A cursor's params for its runs of a plan. Constant params are cast once,
+// external literal `i` on SetLiterals() from value `i` of its `fetcher`, and
 // bound param `i` on each Bind() from value `i` of `fetcher`.
 template <typename Fetcher>
 class RunParams {
@@ -114,17 +115,27 @@ class RunParams {
       : pool_(plan.pool_), params_(plan.param_sources_.size()) {
     for (uint32_t i = 0; i < params_.size(); ++i) {
       const PhysicalPlan::ParamSource& s = plan.param_sources_[i];
-      if (s.state == PlannedParam::State::kBound) {
-        bindings_.push_back(
-            {s.op.Is<core::In>()
-                 ? core::exec::GetParamListCaster<Fetcher>(s.type)
-                 : core::exec::GetParamCaster<Fetcher>(s.type, s.op),
-             s.literals[0].bound, i});
+      if (s.state == PlannedParam::State::kBound ||
+          s.state == PlannedParam::State::kExternal) {
+        Binding binding{s.op.Is<core::In>()
+                            ? core::exec::GetParamListCaster<Fetcher>(s.type)
+                            : core::exec::GetParamCaster<Fetcher>(s.type, s.op),
+                        s.literals[0].bound, i};
+        (s.state == PlannedParam::State::kBound ? bindings_ : literals_)
+            .push_back(binding);
       } else if (!s.literals.empty()) {
         params_[i] = CastLiterals(s.op, s.literals.data(),
                                   static_cast<uint32_t>(s.literals.size()),
                                   s.type, *pool_);
       }
+    }
+  }
+
+  // Casts the external literals from `fetcher`. Called once per execution of
+  // the plan, before its first run.
+  void SetLiterals(Fetcher& fetcher) {
+    for (const Binding& b : literals_) {
+      b.cast(fetcher, b.value, *pool_, &params_[b.param]);
     }
   }
 
@@ -145,6 +156,7 @@ class RunParams {
   const StringPool* pool_;
   std::vector<core::exec::ParamValue> params_;
   std::vector<Binding> bindings_;
+  std::vector<Binding> literals_;
 };
 
 // What lowering needs from whoever runs the plan. Everything here must outlive

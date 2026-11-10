@@ -49,9 +49,11 @@ static constexpr char kOperators[] =
     "an operator other than =, !=, <, <=, >, >=, GLOB, IN, BETWEEN and "
     "IS [NOT] NULL";
 
-const Literal* BoundOf(const WherePredicate& p,
+// The value `p` compares with, if whoever runs the plan gives it: an external
+// literal or a bound param.
+const Literal* GivenOf(const WherePredicate& p,
                        const std::vector<Literal>& literals) {
-  if (p.literal_count != 1 || !literals[p.first_literal].is_bound()) {
+  if (p.literal_count != 1 || !literals[p.first_literal].is_given()) {
     return nullptr;
   }
   return &literals[p.first_literal];
@@ -59,12 +61,12 @@ const Literal* BoundOf(const WherePredicate& p,
 
 // What `p` should compare with to suit a column of storage `type`, if a literal
 // of it is a string where the column holds numbers, or the other way around.
-// GLOB and IS [NOT] NULL do not compare values, and a bound param has none
+// GLOB and IS [NOT] NULL do not compare values, and a given value has none
 // yet.
 std::optional<std::string> LiteralMismatch(const WherePredicate& p,
                                            const std::vector<Literal>& literals,
                                            core::StorageType type) {
-  if (BoundOf(p, literals)) {
+  if (GivenOf(p, literals)) {
     return std::nullopt;
   }
   if (p.op.IsAnyOf<core::NullOp>() || p.op.Is<core::Glob>()) {
@@ -244,7 +246,7 @@ class Parser {
 std::optional<core::StorageType> TypeForLiterals(
     const WherePredicate& p,
     const std::vector<Literal>& literals) {
-  if (p.op.IsAnyOf<core::NullOp>() || BoundOf(p, literals)) {
+  if (p.op.IsAnyOf<core::NullOp>() || GivenOf(p, literals)) {
     return std::nullopt;
   }
   if (p.op.Is<core::Glob>()) {
@@ -274,8 +276,9 @@ PlannedParam PlanValue(const WherePredicate& p,
                         literals.begin() + p.first_literal + p.literal_count);
   value.type = type;
   value.op = p.op;
-  if (BoundOf(p, literals)) {
-    value.state = PlannedParam::State::kBound;
+  if (const Literal* given = GivenOf(p, literals)) {
+    value.state = given->is_bound() ? PlannedParam::State::kBound
+                                    : PlannedParam::State::kExternal;
   } else {
     value.state = PlannedParam::State::kConstant;
     value.value =
@@ -347,13 +350,13 @@ OutputProperties Where::Derive(DeriveContext& c) const {
     }
     std::optional<core::StorageType> type = out.TypeOf(p.column).storage();
     if (!type) {
-      if (!BoundOf(p, literals_)) {
+      if (!GivenOf(p, literals_)) {
         continue;
       }
-      // A column holding no values matches no comparison, whatever is bound.
+      // A column holding no values matches no comparison, whatever is given.
       if (!out.TypeOf(p.column).is_null()) {
         c.Fail(
-            base::ErrStatus("WHERE: a bound param needs a column of a known "
+            base::ErrStatus("WHERE: a given value needs a column of a known "
                             "type"));
         return out;
       }
@@ -401,9 +404,9 @@ void Where::Rewrite(BoundPlan* bound,
     values[i] = PlanValue(p, where.literals_, *type, *context.pool);
     predicate_indices.push_back(i);
     conditions.push_back({p.column, p.op,
-                          values[i].state == PlannedParam::State::kBound
-                              ? nullptr
-                              : &values[i].value});
+                          values[i].state == PlannedParam::State::kConstant
+                              ? &values[i].value
+                              : nullptr});
   }
   std::optional<Scan::SearchPlan> searched =
       scan.PlanSearch(conditions, *bound->bindings.dataframes[scan_id]);
