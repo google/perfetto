@@ -168,6 +168,8 @@ namespace input_step {
 struct Sort {
   std::vector<SortKey> keys;
   bool combine_first = false;
+  // Only the first rows in order are read.
+  std::optional<uint32_t> keep = std::nullopt;
 };
 struct Group {
   std::vector<ColumnId> keys;
@@ -249,6 +251,10 @@ class DeriveContext {
 
   // The values of the conditions this node tests.
   std::vector<std::optional<core::exec::FilterValue>>& filter_values();
+
+  // Makes the open sort `sort` output only its first `rows` rows, so it is
+  // lowered as a TopK.
+  void LimitSort(const OutputProperties::OpenSort& sort, uint32_t rows);
 
   // Records why the plan cannot run.
   void Fail(base::Status status);

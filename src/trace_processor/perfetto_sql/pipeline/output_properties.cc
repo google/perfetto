@@ -407,6 +407,13 @@ DeriveContext::filter_values() {
   return bound_->planned[self_].filter_values;
 }
 
+void DeriveContext::LimitSort(const OutputProperties::OpenSort& sort,
+                              uint32_t rows) {
+  std::get<input_step::Sort>(
+      bound_->planned[sort.node].inputs[sort.input].steps[sort.step])
+      .keep = rows;
+}
+
 void DeriveContext::Fail(base::Status status) {
   pipeline::Fail(bound_, std::move(status));
 }
