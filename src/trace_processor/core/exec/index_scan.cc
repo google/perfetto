@@ -77,7 +77,7 @@ IndexScan::State::~State() = default;
 
 std::unique_ptr<OperatorState> IndexScan::MakeState(Context& context) const {
   auto state = std::make_unique<State>();
-  state->reader.Init(columns_, context);
+  state->reader.Init(columns_);
   state->context = &context;
   state->popcounts.resize(equalities_.size());
   for (uint32_t i = 0; i < equalities_.size(); ++i) {

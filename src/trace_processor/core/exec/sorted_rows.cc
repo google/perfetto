@@ -88,6 +88,8 @@ std::optional<SortedRows::KeyType> SortedRows::GetKeyType(
       }
     case ColumnView::Kind::kVariant:
       return std::nullopt;
+    case ColumnView::Kind::kSparse:
+      PERFETTO_FATAL("A sparse column is expanded before it is sorted");
   }
   PERFETTO_FATAL("Unknown column kind");
 }
