@@ -845,6 +845,10 @@ message TraceConfig {
     // pass to a non-priv app (note that the framework will still check
     // manifest permissions even though SELinux permissions are worked around).
     optional bool use_pipe_in_framework_for_testing = 4;
+
+    // Reserved for Google-internal extensions.
+    // 1000: TracePriority trace_priority
+    extensions 1000 to 1099;
   }
   optional AndroidReportConfig android_report_config = 34;
 
