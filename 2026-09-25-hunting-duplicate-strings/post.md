@@ -1,4 +1,5 @@
 ---
+hidden: true
 title: Hunting Duplicate Strings in Android Heap Dumps
 author: @goldenluk
 summary: A heap dump with 61,752 strings turned out to hold about 48,000 copies of just four values. Here's how to find that kind of duplication with PerfettoSQL and Heapdump Explorer, and how to fix it at the parser.
