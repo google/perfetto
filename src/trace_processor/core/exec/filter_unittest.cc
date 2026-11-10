@@ -264,8 +264,8 @@ TEST_F(FilterTest, RunsAgainWithNewValues) {
   EXPECT_THAT(run("d", "b"), ElementsAre(20, 0, 40));
 }
 
-// An Id column holds the row each value is stored at, from where the window
-// starts.
+// A sequence holds the row each value is stored at, from where the window
+// starts, and is compared as any Uint32 column is.
 TEST(FilterIdTest, ComparesIdsByWhereTheyAre) {
   StringPool pool;
   Filter filter({{0, Ge{}, 0}}, &pool);
@@ -274,18 +274,18 @@ TEST(FilterIdTest, ComparesIdsByWhereTheyAre) {
   Values fetcher;
   fetcher.v = {int64_t{12}};
   ParamValue cast[1];
-  GetParamCaster<Values>(StorageType{Id{}}, Ge{})(fetcher, 0, pool, &cast[0]);
+  GetParamCaster<Values>(StorageType{Uint32{}}, Ge{})(fetcher, 0, pool,
+                                                      &cast[0]);
   context.SetParams(base::Span<const ParamValue>(cast));
   RowBatch batch;
-  batch.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, 10));
+  batch.AddBorrowedColumn(ColumnView::Sequence(nullptr, 10));
   batch.SetRowCount(4);
   ASSERT_TRUE(filter.Process(batch, *state));
   EXPECT_THAT(test::ReadColumn<uint32_t>(batch, 0), ElementsAre(12u, 13u));
 }
 
-// IN keeps the rows whose value is listed, and never a null. Ids are read from
-// where the window starts, whether the list is dense or not.
+// IN keeps the rows whose value is listed, and never a null. Sequences are
+// read from where the window starts, whether the list is dense or not.
 TEST(FilterInTest, KeepsTheRowsWhoseValueIsListed) {
   StringPool pool;
   int64_t numbers[] = {10, 20, 0, 40, 50};
@@ -319,13 +319,12 @@ TEST(FilterInTest, KeepsTheRowsWhoseValueIsListed) {
   EXPECT_THAT(KeptIn(by_string, StorageType{String{}}, {"a", "zz"}, pool),
               ElementsAre(20, 40));
 
-  RowBatch dense =
-      batch(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, 2));
-  EXPECT_THAT(KeptIn(dense, StorageType{Id{}}, {int64_t{3}, int64_t{5}}, pool),
-              ElementsAre(20, 40));
-  RowBatch sparse =
-      batch(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, 1000));
-  EXPECT_THAT(KeptIn(sparse, StorageType{Id{}},
+  RowBatch dense = batch(ColumnView::Sequence(nullptr, 2));
+  EXPECT_THAT(
+      KeptIn(dense, StorageType{Uint32{}}, {int64_t{3}, int64_t{5}}, pool),
+      ElementsAre(20, 40));
+  RowBatch sparse = batch(ColumnView::Sequence(nullptr, 1000));
+  EXPECT_THAT(KeptIn(sparse, StorageType{Uint32{}},
                      {int64_t{1001}, int64_t{1003}, int64_t{7}}, pool),
               ElementsAre(20, 40));
 }

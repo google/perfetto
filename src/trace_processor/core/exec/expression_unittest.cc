@@ -110,7 +110,7 @@ class ExpressionTest : public ::testing::Test {
         validity_.set(i);
       }
     }
-    batch_.AddBorrowedColumn(ColumnView::Reference(StorageType{Id{}}, nullptr));
+    batch_.AddBorrowedColumn(ColumnView::Sequence(nullptr, 0));
     batch_.AddBorrowedColumn(
         ColumnView::Reference(StorageType{Int64{}}, numbers_, &validity_));
     batch_.AddBorrowedColumn(

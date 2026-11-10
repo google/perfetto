@@ -21,6 +21,7 @@
 #include <functional>
 #include <optional>
 #include <type_traits>
+#include <variant>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -216,8 +217,12 @@ Range SearchSorted(const SortedColumn& column,
                    Range range) {
   switch (column.type.index()) {
     case StorageType::GetTypeIndex<Id>():
+      // The executor casts values for an id column as for a Uint32.
       return SearchId(
-          op, base::unchecked_get<CastFilterValueResult::Id>(value).value,
+          op,
+          std::holds_alternative<uint32_t>(value)
+              ? base::unchecked_get<uint32_t>(value)
+              : base::unchecked_get<CastFilterValueResult::Id>(value).value,
           range);
     case StorageType::GetTypeIndex<Uint32>():
       return SearchSortedOf<Uint32>(column, op, value, range);

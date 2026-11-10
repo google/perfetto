@@ -374,7 +374,7 @@ void BM_IdEq_SortedScan(benchmark::State& state) {
                             {w.df->shared_column(kWideCols),
                              SortedScan::Search::Kind::kBinarySearch, Eq{}, 0}},
                         &w.pool, ReadDirection::kForwards),
-                    {}, {{Id{}, Eq{}}}, &w.pool);
+                    {}, {{Uint32{}, Eq{}}}, &w.pool);
   uint32_t i = 0;
   int64_t sum = 0;
   for (auto _ : state) {

@@ -77,7 +77,7 @@ std::optional<int64_t> IntAt(const RowCursor& cursor, uint32_t column) {
     return std::nullopt;
   }
   core::StorageType type = view.type();
-  if (type.Is<core::Id>() || type.Is<core::Uint32>()) {
+  if (type.Is<core::Uint32>()) {
     return cursor.Value<uint32_t>(column);
   }
   if (type.Is<core::Int32>()) {
@@ -713,15 +713,13 @@ TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {
       "INTERVAL INTERSECTION OF (a AS p, b AS q) PER cpu "
       "|> SELECT ts, dur, p.cpu");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
-  // ts and dur are converted to Int64. So is cpu, because it has a different
-  // integer type in each dataframe.
+  // ts and dur are converted to Int64. cpu is not: b stores it as an id, but
+  // both are read as Uint32.
   EXPECT_EQ(PhysicalPlanToString(**plan),
-            "side: DataframeScan | AssertType(#2 to Int64) | "
-            "AssertType(#0 to Int64) | AssertType(#1 to Int64) | "
-            "GroupedSort(#2; #0)\n"
-            "side: DataframeScan | AssertType(#2 to Int64) | "
-            "AssertType(#0 to Int64) | AssertType(#1 to Int64) | "
-            "GroupedSort(#2; #0)\n"
+            "side: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0)\n"
+            "side: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0)\n"
             "main: IntervalIntersect(#0, #1, keys: #2, groups: #3; #0, #1, "
             "keys: #2, groups: #3)");
 }

@@ -57,12 +57,7 @@ std::optional<PlanType> OutputType(const PlanType& input,
   if (bounds) {
     return PlanType(core::Int64{});
   }
-  std::optional<PlanType> type =
-      background ? CommonType(input, *background) : input;
-  if (type && type->Is<core::Id>()) {
-    return PlanType(core::Uint32{});
-  }
-  return type;
+  return background ? CommonType(input, *background) : input;
 }
 
 }  // namespace

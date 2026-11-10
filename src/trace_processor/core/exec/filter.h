@@ -81,7 +81,8 @@ class Filter final : public Transform {
     const Context* context;
     // The batch rows still kept, increasing.
     CallScratch<std::array<uint32_t, kMaxBatchRows>> rows;
-    // By batch row, the values of a sparse column at the rows kept.
+    // By batch row, the values of a sparse column or a sequence at the rows
+    // kept.
     CallScratch<std::array<uint64_t, kMaxBatchRows>> sparse_values;
   };
 

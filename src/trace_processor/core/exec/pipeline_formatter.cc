@@ -152,9 +152,6 @@ std::string Aggregates(const std::vector<AggregateCall>& calls) {
 }
 
 std::string TypeName(const StorageType& type) {
-  if (type.Is<Id>()) {
-    return "Id";
-  }
   if (type.Is<Uint32>()) {
     return "Uint32";
   }
