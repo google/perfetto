@@ -30,7 +30,7 @@ import uuid
 
 from perfetto.prebuilts.manifests.heapprofd_glibc_preload import *
 from perfetto.prebuilts.manifests.tracebox import *
-from perfetto.prebuilts.manifests.traceconv import *
+from perfetto.prebuilts.manifests.trace_processor_shell import *
 from perfetto.prebuilts.perfetto_prebuilts import *
 
 NULL = open(os.devnull)
@@ -147,10 +147,10 @@ def arg_order(action):
   return result, action.option_strings[0].strip('-')
 
 
-def process_trace(trace_file, profile_target, traceconv_binary, args,
+def process_trace(trace_file, profile_target, trace_processor_binary, args,
                   android_mode):
-  """Convert a raw trace to pprof via traceconv. Returns an exit code."""
-  if traceconv_binary is None:
+  """Convert a raw trace to pprof via trace_processor. Returns an exit code."""
+  if trace_processor_binary is None:
     print('Wrote profile to {}'.format(trace_file))
     print(
         'This file can be opened using the Perfetto UI, https://ui.perfetto.dev'
@@ -171,10 +171,10 @@ def process_trace(trace_file, profile_target, traceconv_binary, args,
   if binary_path is not None:
     symbols_path = os.path.join(profile_target, 'symbols')
     with open(symbols_path, 'w') as fd:
-      ret = subprocess.call([traceconv_binary, 'symbolize', trace_file],
-                            env=dict(
-                                os.environ, PERFETTO_BINARY_PATH=binary_path),
-                            stdout=fd)
+      ret = subprocess.call(
+          [trace_processor_binary, 'util', 'symbolize', trace_file],
+          env=dict(os.environ, PERFETTO_BINARY_PATH=binary_path),
+          stdout=fd)
     if ret == 0:
       concat_files.append(symbols_path)
     else:
@@ -185,11 +185,10 @@ def process_trace(trace_file, profile_target, traceconv_binary, args,
     if proguard_map is not None:
       deobf_path = os.path.join(profile_target, 'deobfuscation-packets')
       with open(deobf_path, 'w') as fd:
-        ret = subprocess.call([traceconv_binary, 'deobfuscate', trace_file],
-                              env=dict(
-                                  os.environ,
-                                  PERFETTO_PROGUARD_MAP=proguard_map),
-                              stdout=fd)
+        ret = subprocess.call(
+            [trace_processor_binary, 'util', 'deobfuscate', trace_file],
+            env=dict(os.environ, PERFETTO_PROGUARD_MAP=proguard_map),
+            stdout=fd)
       if ret == 0:
         concat_files.append(deobf_path)
       else:
@@ -209,12 +208,12 @@ def process_trace(trace_file, profile_target, traceconv_binary, args,
             out.write(buf)
     trace_file = symbolized_path
 
-  conversion_args = [traceconv_binary, 'profile'] + (
+  conversion_args = [trace_processor_binary, 'convert', 'profile'] + (
       ['--no-annotations'] if args.no_annotations else []) + [trace_file]
-  traceconv_output = subprocess.check_output(
+  trace_processor_output = subprocess.check_output(
       conversion_args, stderr=subprocess.STDOUT)
   profile_path = None
-  for word in traceconv_output.decode('utf-8').split():
+  for word in trace_processor_output.decode('utf-8').split():
     if 'heap_profile-' in word:
       profile_path = word
   if profile_path is None:
@@ -251,7 +250,7 @@ def process_trace(trace_file, profile_target, traceconv_binary, args,
   return 0
 
 
-def linux_main(args, cfg, cmd, traceconv_binary):
+def linux_main(args, cfg, cmd, trace_processor_binary):
   """Run a local heap profile session on Linux using LD_PRELOAD."""
   tracebox_binary = args.tracebox_binary
   if tracebox_binary is None:
@@ -330,7 +329,11 @@ def linux_main(args, cfg, cmd, traceconv_binary):
   perfetto_proc.wait()
 
   return process_trace(
-      trace_output, profile_target, traceconv_binary, args, android_mode=False)
+      trace_output,
+      profile_target,
+      trace_processor_binary,
+      args,
+      android_mode=False)
 
 
 def print_options(parser):
@@ -461,7 +464,8 @@ def main(argv):
       help="Get simpleperf profile of heapprofd. This is "
       "only for heapprofd development.")
   common.add_argument(
-      "--traceconv-binary", help="Path to local trace to text. For debugging.")
+      "--trace-processor-binary",
+      help="Path to local trace_processor. For debugging.")
   common.add_argument(
       "--no-annotations",
       help="Do not suffix the pprof function names with Android ART mode "
@@ -603,7 +607,7 @@ def main(argv):
     parser.print_help()
     return 1
 
-  traceconv_binary = args.traceconv_binary
+  trace_processor_binary = args.trace_processor_binary
 
   if args.continuous_dump:
     target_cfg += CONTINUOUS_DUMP.format(dump_interval=args.continuous_dump)
@@ -620,13 +624,14 @@ def main(argv):
     print(cfg)
     return 0
 
-  # Do this AFTER print_config so we do not download traceconv only to
+  # Do this AFTER print_config so we do not download trace_processor only to
   # print out the config.
-  if traceconv_binary is None:
-    traceconv_binary = get_perfetto_prebuilt(TRACECONV_MANIFEST, soft_fail=True)
+  if trace_processor_binary is None:
+    trace_processor_binary = get_perfetto_prebuilt(
+        TRACE_PROCESSOR_SHELL_MANIFEST, soft_fail=True)
 
   if args.subcommand == 'host':
-    return linux_main(args, cfg, cmd, traceconv_binary)
+    return linux_main(args, cfg, cmd, trace_processor_binary)
 
   # --- Android path ---
 
@@ -731,7 +736,7 @@ def main(argv):
   return process_trace(
       profile_host_path,
       profile_target,
-      traceconv_binary,
+      trace_processor_binary,
       args,
       android_mode=True)
 
