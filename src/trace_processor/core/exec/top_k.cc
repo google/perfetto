@@ -90,18 +90,17 @@ const RowBatch& TopK::BeforeCutoff(const RowBatch& in, State& s) const {
   s.keys.resize(uint64_t{in.size()} * stride);
   uint8_t* keys = s.keys.data();
   s.rows->LayOutKeys(in, spec_.keys, keys);
-  std::vector<std::optional<FlatColumnReader<StringPool::Id>>> strings(
-      spec_.keys.size());
+  s.strings.clear();
   for (uint32_t k = 0; k < spec_.keys.size(); ++k) {
     if (s.rows->is_string(k)) {
-      strings[k].emplace(in, spec_.keys[k].column);
+      s.strings.emplace_back(in, spec_.keys[k].column);
     }
   }
   s.passing.clear();
   for (uint32_t row = 0; row < in.size(); ++row) {
     const uint8_t* row_keys = keys + uint64_t{row} * stride;
     // A row equal to the cutoff comes after it, having arrived later.
-    if (CompareToCutoff(strings, row, row_keys, s) >= 0) {
+    if (CompareToCutoff(row, row_keys, s) >= 0) {
       continue;
     }
     uint8_t* to = keys + uint64_t{s.passing.size()} * stride;
@@ -116,21 +115,20 @@ const RowBatch& TopK::BeforeCutoff(const RowBatch& in, State& s) const {
   return s.passed;
 }
 
-int TopK::CompareToCutoff(
-    const std::vector<std::optional<FlatColumnReader<StringPool::Id>>>& strings,
-    uint32_t row,
-    const uint8_t* keys,
-    const State& s) const {
+int TopK::CompareToCutoff(uint32_t row,
+                          const uint8_t* keys,
+                          const State& s) const {
   const RowLayout& layout = s.rows->layout();
   if (s.cutoff_strings.empty()) {
     return memcmp(keys, s.cutoff.data(), layout.stride());
   }
+  const FlatColumnReader<StringPool::Id>* string = s.strings.data();
   for (uint32_t k = 0; k < spec_.keys.size(); ++k) {
     const RowLayout::Slot& slot = layout.slot(k);
     int c;
-    if (strings[k]) {
+    if (s.rows->is_string(k)) {
       StringPool::Id id;
-      bool present = strings[k]->Read(row, &id);
+      bool present = (string++)->Read(row, &id);
       const std::optional<StringPool::Id>& cutoff = s.cutoff_strings[k];
       if (!present || !cutoff) {
         // Nulls come first, as in Sort.
