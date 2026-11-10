@@ -18,7 +18,7 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_DATAFRAME_WINDOWS_H_
 
 #include <algorithm>
-#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -57,10 +57,10 @@ class DataframeWindows {
   // Points `out` at rows [from, from + count), all kept.
   void Fill(uint32_t from, uint32_t count, RowBatch& out);
 
-  // Points `out` at the rows `offsets` from `from`, which increase from 0.
-  void FillKept(uint32_t from,
-                base::Span<const uint32_t> offsets,
-                RowBatch& out);
+  // Fills `out` with copies of the values at `rows`, in buffers taken from
+  // `context`. A column with no storage of its own becomes stored Uint32s,
+  // and a sparse one a flat one.
+  void Gather(base::Span<const uint32_t> rows, Context& context, RowBatch& out);
 
  private:
   // The prefix popcount of a sparse `column`'s null bits: its own if it keeps
@@ -71,6 +71,9 @@ class DataframeWindows {
   // as every view is onto the dataframe's storage.
   std::vector<ColumnView> lent_;
   std::vector<ColumnBuffer> buffers_;
+  // By column, the view and buffer of the values last gathered.
+  std::vector<ColumnView> gathered_;
+  std::vector<ColumnBuffer> gathered_buffers_;
   std::vector<Slab<uint32_t>> popcounts_;
 };
 
@@ -126,9 +129,12 @@ class RangeReader {
 // selection keeping them, so nothing is copied.
 class RowListReader {
  public:
+  // `context` provides the buffers the rows are copied into.
   void Init(
-      const std::vector<std::shared_ptr<const dataframe::Column>>& columns) {
+      const std::vector<std::shared_ptr<const dataframe::Column>>& columns,
+      Context* context) {
     windows_.Init(columns);
+    context_ = context;
   }
 
   // `rows` must outlive the read.
@@ -137,35 +143,24 @@ class RowListReader {
     end_ = rows.e;
   }
 
-  // False once all rows are read.
+  // Copies the next batch of rows into `out`. False once all rows are read.
   bool Read(RowBatch& out) {
     if (next_ == end_) {
       return false;
     }
-    uint32_t first = *next_++;
-    offsets_[0] = 0;
-    uint32_t count = 1;
-    for (; next_ != end_; ++next_) {
-      uint32_t offset = *next_ - first;
-      if (*next_ < first || offset >= kMaxBatchRows ||
-          offset <= offsets_[count - 1]) {
-        break;
-      }
-      offsets_[count++] = offset;
-    }
-    windows_.FillKept(
-        first,
-        base::Span<const uint32_t>(offsets_.data(), offsets_.data() + count),
-        out);
+    auto count =
+        static_cast<uint32_t>(std::min<ptrdiff_t>(kMaxBatchRows, end_ - next_));
+    windows_.Gather(base::Span<const uint32_t>(next_, next_ + count), *context_,
+                    out);
+    next_ += count;
     return true;
   }
 
  private:
   DataframeWindows windows_;
+  Context* context_ = nullptr;
   const uint32_t* next_ = nullptr;
   const uint32_t* end_ = nullptr;
-  // The current batch's rows, as offsets from its first.
-  std::array<uint32_t, kMaxBatchRows> offsets_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

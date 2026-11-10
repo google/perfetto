@@ -39,6 +39,9 @@ namespace perfetto::trace_processor::core::exec {
 // and searches of sorted columns then cut them to the range of rows those keep.
 // Any other condition is left to a Filter after the scan. The searches run once
 // per run, on the first GetData(). The columns must be finalized.
+//
+// The rows an index finds are rarely near one another, so their values are
+// copied into each batch rather than lent: every column is flat.
 class IndexScan final : public Source {
  public:
   static constexpr char kType = 0;

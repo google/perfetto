@@ -533,7 +533,7 @@ void Scan::LowerSearch(Lowering* c,
     c->SetSource(std::make_unique<ex::IndexScan>(
         data.columns, data.indexes[search_->index], std::move(equalities),
         std::move(searches), pool));
-    c->SetSparseColumns(SparseColumns(data));
+    // It copies the rows it reads, so lends no sparse column.
     return;
   }
   c->SetSource(std::make_unique<ex::SortedScan>(data.columns, data.row_count,
