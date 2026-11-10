@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -156,6 +157,10 @@ class FilterTest : public ::testing::Test {
           c.column == 0 ? StorageType{Int64{}} : StorageType{String{}};
       GetParamCaster<Values>(type, c.op)(fetcher, c.index, pool_,
                                          &(*cast)[c.index]);
+      // As a plan's literal would be.
+      if (c.op.Is<Glob>()) {
+        AttachGlob(&(*cast)[c.index]);
+      }
     }
   }
 
@@ -210,6 +215,58 @@ TEST_F(FilterTest, KeepsTheRowsEveryConditionHoldsFor) {
   // Every condition must hold, each with its own value.
   EXPECT_THAT(Kept({{1, Eq{}, 0}, {0, Gt{}, 1}}, {"a", int64_t{20}}),
               ElementsAre(40));
+}
+
+// Once enough rows have been matched with a pattern, every string in the pool
+// is matched at once; a string interned after that is still matched.
+TEST_F(FilterTest, GlobMatchesThePoolOnceForAPattern) {
+  std::vector<On> on = {{1, Glob{}}};
+  Filter filter(Conditions(on), &pool_);
+  Context context;
+  std::unique_ptr<OperatorState> state = filter.MakeState(context);
+  std::vector<ParamValue> cast;
+  CastAll(on, {"[ab]*"}, &cast);
+  context.SetParams(base::Span<const ParamValue>(cast));
+  for (uint32_t i = 0; i < 3; ++i) {
+    state->EndRun();
+    RowBatch batch;
+    batch.CopyFrom(batch_);
+    ASSERT_TRUE(filter.Process(batch, *state));
+    EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(10, 20, 40));
+  }
+  std::vector<StringPool::Id> late;
+  for (const char* s : {"bz", "c", "d", "bz", "a"}) {
+    late.push_back(pool_.InternString(s));
+  }
+  RowBatch batch;
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, numbers_, &validity_));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{String{}}, late.data(), nullptr));
+  batch.SetRowCount(5);
+  ASSERT_TRUE(filter.Process(batch, *state));
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(10, 40, 50));
+}
+
+// Over a large pool, rows are matched one at a time until enough have been
+// to pay for matching every string in it.
+TEST_F(FilterTest, GlobMatchesRowsOneAtATimeOverALargePool) {
+  for (uint32_t i = 0; i < 1000; ++i) {
+    pool_.InternString(base::StringView(std::to_string(i)));
+  }
+  std::vector<On> on = {{1, Glob{}}};
+  Filter filter(Conditions(on), &pool_);
+  Context context;
+  std::unique_ptr<OperatorState> state = filter.MakeState(context);
+  std::vector<ParamValue> cast;
+  CastAll(on, {"[ab]*"}, &cast);
+  context.SetParams(base::Span<const ParamValue>(cast));
+  for (uint32_t i = 0; i < 4; ++i) {
+    RowBatch batch;
+    batch.CopyFrom(batch_);
+    ASSERT_TRUE(filter.Process(batch, *state));
+    EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(10, 20, 40));
+  }
 }
 
 // A batch whose rows are already narrowed keeps only rows among them, and
